@@ -19,8 +19,21 @@ masthead and back row, and the Wall post itself is untouched. A **Today · as sh
 the board so the shipped page sits beside the options. **Not built** — the go-ahead to build is the
 owner's next call; §3 carries the build order for C.
 
+⚠ **BUILT AND SHIPPED 2026-09-11 — the two paragraphs above were true when this document was
+written and are not the current state.** Steps 1, 3 and 4 of §3's build order are in the app (step 2,
+the RPE fix, shipped an hour earlier); the changelog entry *“The Instrument Board: Session details
+opens as a panel, and the numbers land in tables”* is the record. The wearable heart-rate paths
+(§4a), the in-app strap and the morning tiles — steps 5–7 — are **still not built**, and every tile
+is gated on its value existing precisely so they can land later without a rewrite. Marked here rather
+than rewritten, because a review says what was read on the day it was read; but a status line left
+uncorrected is what the next reader acts on, and *“Not built”* over shipped code is an instruction to
+build it twice.
+
 **Records only.** No code changed, no migration, no PR. Two defects found while reading the data path
 are registered below and as separate task suggestions; neither is fixed here.
+⚠ **ALSO SUPERSEDED** — both registered defects are now fixed: the live-set RPE (§4, defect 2) in its
+own change, and the in-app session's missing heart-rate trace remains open. The build carried its own
+code, i18n and tests; there is still no migration and no route.
 
 ## 1. What the page is today (read from the code)
 

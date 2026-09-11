@@ -54,7 +54,10 @@ test('the ranking is the ledger’s, so one session cannot have two ideas about 
   // pace / time / HR lead on a run, whatever order the provider listed them in.
   const shuffled = [['Calories', '420'], ['Avg HR', '161 bpm'], ['Avg pace', '7:58 /mi'], ['Duration', '25:31']];
   const { tiles } = bsIbTiles(shuffled, 3);
-  assert.deepEqual(tiles.map((x) => x[0]).sort(), ['Avg HR', 'Avg pace', 'Duration']);
+  // ⚠ NO `.sort()` HERE. Sorting the result before comparing permits ANY order,
+  // so the assertion could not fail on the one thing it names — the ranking. The
+  // order below is `bsSdRankStats`' own, derived by running it rather than assumed.
+  assert.deepEqual(tiles.map((x) => x[0]), ['Avg HR', 'Avg pace', 'Duration']);
 });
 
 test('the needle outranks the ghost on a pace tile, and a plain stat stays plain', () => {
@@ -69,10 +72,14 @@ test('the needle outranks the ghost on a pace tile, and a plain stat stays plain
 // ── the set-by-set table ────────────────────────────────────────────────────
 
 test('a live row reads its columns off the row; a demo row is parsed from its note', () => {
-  const live = bsIbSetRow(['Set 1', '225 lb × 3', 'RPE 7 · 42s · rest 2:30', { rpe: 7, plan: '225 × 3', rest: '2:30', dur: '42s' }]);
+  // ⚠ THE NOTE DELIBERATELY DISAGREES WITH THE METADATA. With both carrying
+  // RPE 7 and rest 2:30, an implementation that parsed the note FIRST passed this
+  // test unchanged — the fixture could not tell the two readers apart. The
+  // structured row is the authority, so the note here says something else.
+  const live = bsIbSetRow(['Set 1', '225 lb × 3', 'RPE 4 · 20s · rest 0:30', { rpe: 7, plan: '225 × 3', rest: '2:30', dur: '42s' }]);
   assert.equal(live.plan, '225 × 3');
-  assert.equal(live.rpe, 7);
-  assert.equal(live.rest, '2:30');
+  assert.equal(live.rpe, 7, 'the note\u2019s RPE beat the row\u2019s own');
+  assert.equal(live.rest, '2:30', 'the note\u2019s rest beat the row\u2019s own');
   const demo = bsIbSetRow(['Set 3', '245 lb × 3', 'RPE 9 · PR']);
   assert.equal(demo.rpe, 9);
   assert.equal(demo.note, 'PR');
@@ -178,7 +185,7 @@ test('the unit converter carries the structured columns through, and converts th
 
 // ── the components, mounted ─────────────────────────────────────────────────
 
-const mod = await loadBroadsheet(['BSActivityDetail', 'BSIbTile', 'BSIbTiles', 'BSIbTable', 'BSIbZoneBar']);
+const mod = await loadBroadsheet(['BSActivityDetail', 'BSIbTile', 'BSIbTiles', 'BSIbTable', 'BSIbZoneBar', 'bsBuildZones']);
 const svgsOf = (api, tag) => api.nodes().filter((n) => n.type === tag);
 
 test('a tile draws its ghost, its needle, or neither — never both', () => {
@@ -223,10 +230,24 @@ test('the table draws one heading per column, one bar per row, and marks one bes
     { cells: [{ text: 'Set 1' }, { text: '225 lb × 3' }], width: 90, best: false },
     { cells: [{ text: 'Set 2' }, { text: '245 lb × 3' }], width: 100, best: true },
   ];
-  const api = drive(mod.BSIbTable, { head, rows, heat: '#34d6c5', t: THEME, muted: '#777' });
+  const api = drive(mod.BSIbTable, { head, rows, heat: '#34d6c5', t: THEME });
   for (const s of ['Set', 'Lifted', 'Set 1', '225 lb × 3', 'Set 2', '245 lb × 3']) assert.ok(api.text.includes(s), s);
   const bars = api.nodes().filter((n) => n.props.style && n.props.style.gridColumn === '1 / -1');
   assert.equal(bars.length, rows.length, 'one bar per row');
+
+  // ⚠ A GRID OF `div`s IS NOT A TABLE UNTIL IT SAYS SO. Without these roles a
+  // screen reader meets a flat run of numbers with no column association, and both
+  // tables are columns of bare figures whose meaning IS their heading. The row
+  // wrappers carry `display: contents` so the ONE grid the full-width bar needs is
+  // untouched — the semantics are free, which is why there was no excuse.
+  const role = (r) => api.nodes().filter((n) => n.props && n.props.role === r);
+  assert.equal(role('table').length, 1, 'the table does not announce itself as one');
+  assert.equal(role('row').length, rows.length + 1, 'a heading row and one row per set');
+  assert.equal(role('columnheader').length, head.length, 'one column heading per column');
+  assert.equal(role('cell').length, rows.length * head.length, 'every data cell is a cell');
+  for (const w of role('row')) assert.equal(w.props.style.display, 'contents', 'a row wrapper broke the grid');
+  // The bar restates its row's number, so it stays out of the row and hidden.
+  for (const b of bars) assert.ok(b.props['aria-hidden'], 'the decorative bar is announced');
   const heated = api.nodes().filter((n) => n.props.style && n.props.style.background === '#34d6c5');
   assert.equal(heated.length, 1, 'the heat marks exactly one row');
 });
@@ -331,10 +352,75 @@ test('back undoes the last step, which is not always close', () => {
   assert.equal(closed, 1, 'back on the page it opened on did not close it');
 });
 
+test('a page OPENED on the comments closes on back, rather than stepping to a board nobody asked for', () => {
+  // ⚠ THE OTHER HALF OF THE SAME RULE. The test above walks stats → comments →
+  // stats → close, which never exercises a page whose opening face IS the comments
+  // — and "back undoes the last step" is only true if there was a step. Opened here,
+  // there is none, so back is a close.
+  let closed = 0;
+  const api = drive(mod.BSActivityDetail, {
+    d: { ...DETAIL, focus: 'comments' }, liked: false, count: 12, myExpr: null,
+    comments: [{ who: 'A', text: 'nice' }], feedAvatars: {},
+    onClose() { closed += 1; }, onReact() {}, onProfile() {}, onOpenLikers() {},
+    draft: '', setDraft() {}, onSend() {},
+  });
+  assert.ok(api.nodes().some((n) => n.type === 'input'), 'the page did not open on the comments');
+  api.click('←');
+  assert.equal(closed, 1, 'back on a page opened at the comments did not close it');
+});
+
 test('a session with no zones gets no zone bar, and one with no sets gets no table', () => {
   const noZones = page({ d: { zones: [] } });
   assert.ok(!has(noZones, mod.BSIbZoneBar), 'a zone bar was drawn for a session with no zones');
   assert.ok(has(noZones, mod.BSIbTiles), 'the tiles went with the zones');
   const noSets = page({ d: { breakdown: null } });
   assert.ok(!has(noSets, mod.BSIbTable), 'a table was drawn for a session with no sets');
+});
+
+// ── a zone nobody measured ─────────────────────────────────────────
+
+const ZK = ['zone_one_milli', 'zone_two_milli', 'zone_three_milli', 'zone_four_milli', 'zone_five_milli'];
+const zones = (o) => mod.bsBuildZones({ rawMetrics: { zoneDurations: o } });
+const full = (...v) => Object.fromEntries(ZK.map((k, i) => [k, v[i]]));
+
+test('a MEASURED zero keeps its zone; an UNMEASURED one costs the whole bar', () => {
+  // A real 0 is a reading: the member never entered Z5, and the segment stays so
+  // that five zones in one order remain comparable between two sessions.
+  const measured = zones(full(60000, 60000, 60000, 60000, 0));
+  assert.deepEqual(measured, [['Z1', 25], ['Z2', 25], ['Z3', 25], ['Z4', 25], ['Z5', 0]]);
+
+  // ⚠ An ABSENT key is not a zero. `Number(undefined) || 0` used to make these
+  // two indistinguishable, so a zone the provider never sent was published as a
+  // measured 0% — with the board's bar giving it a visible sliver.
+  const absent = full(60000, 60000, 60000, 60000, 0);
+  delete absent.zone_three_milli;
+  assert.equal(zones(absent), null, 'a zone that was never measured was reported as 0%');
+  assert.equal(zones(full(60000, 60000, null, 60000, 0)), null, 'a null zone was read as a measurement');
+  assert.equal(zones(full(60000, 60000, '', 60000, 0)), null, 'a blank zone was read as a measurement');
+  assert.equal(zones(full(60000, 60000, 'n/a', 60000, 0)), null, 'an unparseable zone was read as a measurement');
+});
+
+test('the WHOLE bar goes, because a short denominator inflates every other zone', () => {
+  // ⚠ THIS IS WHY THE MISSING ZONE IS NOT SIMPLY DROPPED. These are percentages
+  // of a sum, so omitting one zone shortens the denominator and every REMAINING
+  // segment is then reported larger than it was. The arithmetic below is the whole
+  // argument: with Z3's real 50,000 ms present, Z1 is 20%; drop Z3 and the same
+  // session reads 25%. Hiding one fabrication would have inflated the other four.
+  const truth = zones(full(50000, 50000, 50000, 50000, 50000));
+  assert.deepEqual(truth.map((z) => z[1]), [20, 20, 20, 20, 20]);
+
+  const short = { ...full(50000, 50000, 50000, 50000, 50000) };
+  delete short.zone_three_milli;
+  const dropped = ZK.filter((k) => short[k] != null).map((k) => short[k]);
+  const total = dropped.reduce((a, b) => a + b, 0);
+  assert.deepEqual(dropped.map((v) => Math.round((v / total) * 100)), [25, 25, 25, 25],
+    'the omit-the-zone fix would have left every surviving zone overstated');
+  assert.equal(zones(short), null, 'an incomplete distribution was published anyway');
+});
+
+test('an empty or unreadable zone document is still simply absent', () => {
+  assert.equal(zones(full(0, 0, 0, 0, 0)), null, 'a session with no time anywhere drew a bar');
+  assert.equal(mod.bsBuildZones({ rawMetrics: {} }), null);
+  assert.equal(mod.bsBuildZones({}), null);
+  assert.equal(mod.bsBuildZones(null), null);
 });

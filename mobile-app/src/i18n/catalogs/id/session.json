@@ -292,5 +292,5 @@
   "board.setBySet": "Set demi set",
   "board.splitBySplit": "Split demi split",
   "board.allSplits": "Semua {n} split ›",
-  "board.needleBand": "Rentang {label} · {lo} terlambat → {hi} tercepat"
+  "board.needleBand": "Rentang {label} · {lo} paling lambat → {hi} tercepat"
 }

@@ -788,6 +788,66 @@ Append new entries at the top, under this note.
   converter and the shipped parser in the suite. **An on-account pass with a real logged session is
   owed**, and it is the same one this log has been owing since the units wave.
 
+- **THE CODERABBIT ROUND ON THE MERGED HEAD: EIGHT FINDINGS, SEVEN REAL — and the one it got wrong is
+  the one it was most confident about.** Codex refused this head (*"You have reached your Codex usage
+  limits for code reviews"*) and the owner called the fallback, so this is the house's conditional
+  ruling being exercised. **It billed $4.75** — 19 files at $0.25 beyond the included allowance, which
+  is the receipt this file already warns scales with FILE COUNT, not with diff size.
+- ⚠ **THE MAJOR ONE IS A ZONE NOBODY MEASURED, PUBLISHED AS 0%.** `bsBuildZones` reads
+  `Number(zd[k]) || 0`, and `Number(undefined)` is NaN while `NaN || 0` is **0** — so a zone the
+  provider never sent was indistinguishable from a zone the member genuinely never entered. The
+  Instrument Board's new bar then gave it a visible **0.5 sliver**. ⚠ **The collapse PREDATES this PR**
+  (`bsBuildZones` is byte-identical on `main`) and is fixed here anyway, because this PR is what draws
+  it: *a change that makes a claim explicit owns it*, the rule the R15 "ALL claiming to be ALL" round
+  already paid for.
+- ⚠ **AND THE REMEDY IT PROPOSED WOULD HAVE HIDDEN ONE FABRICATION BEHIND FOUR MORE.** CodeRabbit
+  asked for the missing zone to be **dropped** and the bar kept. These are percentages of a sum, so
+  omitting a zone shortens the denominator and every REMAINING segment is then reported larger than it
+  was — driven rather than argued: five equal zones read 20% each, and dropping one makes the same
+  session read **25%** four times. The whole bar is refused instead, which is a state the function and
+  both its consumers already render. **Its own fix is replayed as a mutation and killed**, so the
+  suite is proven to reject the version that was suggested rather than merely to pass on mine.
+- ⚠ **AND ITS COMMITTABLE SUGGESTION FOR THE ORDERING TEST NAMED THE WRONG ORDER.** It proposed
+  `['Avg pace', 'Duration', 'Avg HR']`; `bsSdRankStats` returns **`['Avg HR', 'Avg pace', 'Duration']`**,
+  derived by running it. Applying the one-click suggestion would have turned CI red on a correct
+  ranking. *A suggestion is a claim, and the only honest form of it is the one you just ran.*
+- ⚠ **THE TABLE HAD NO TABLE SEMANTICS, AND MY OWN COMMENT CLAIMED IT DID.** `BSIbTable` is a CSS grid
+  of `div`s — the comment promised the header cells were *"a row of headings a screen reader meets
+  before the data"*, which is exactly what a grid of divs does **not** provide: every cell reads as a
+  flat run of text with no column association, and both tables are columns of bare numbers whose
+  meaning IS their heading. `role="table" / row / columnheader / cell` now, with `display: contents` on
+  the row wrappers so the ONE grid the full-width bar needs is untouched — *the semantics cost the
+  layout nothing, which is why there was no excuse.* The bar stays outside the row and `aria-hidden`.
+- **The rest, each real and each fixed:** a `(reduced ? needle.frac : needle.frac)` ternary whose two
+  branches are identical (and `reduced` was then dead in `BSIbTile`, so it went too); a `muted` prop
+  accepted by `BSIbTable` and never read, passed by both call sites — ⚠ *deleted from those two only*,
+  since eight other components on that page read it legitimately, which my own first sweep assertion
+  got wrong; and the Indonesian `board.needleBand`, where **terlambat** means *late* rather than
+  *slowest* (`paling lambat`) — the kind of finding a reviewer earns its place on.
+- ⚠ **TWO OF ITS THREE TEST FINDINGS WERE MY OWN FIXTURES PROVING NOTHING.** The ranking assertion
+  called `.sort()` on the result, which permits ANY order and so could not fail on the one thing it
+  names. And the set-row test gave the note and the structured metadata **identical** RPE and rest, so
+  an implementation that parsed the note first passed it unchanged — the note now disagrees, and a
+  mutation blanking `meta` is killed. *A fixture that cannot fail the wrong implementation is not
+  testing the right one*, twice in one file.
+- ⚠ **ITS THIRD TEST FINDING IS A COVERAGE GAP RATHER THAN A DEFECT, AND THE MUTATION SAYS SO.** Back
+  already closes a page opened at the comments; the case simply had no test, and it has one now. But
+  the mutation reducing `focusTab && focusTab !== d.focus` to `focusTab` **survives**, and that is
+  correct: the sticky bar is the only setter of `focusTab` and renders behind `!isComments`, so a page
+  opened at the comments can never set it and the two expressions cannot differ today. **Recorded at
+  the site as a proven no-op rather than tested around** — it is kept because it states the actual rule
+  (back undoes a STEP, and only if one was taken) and stays right the day the bar renders on either
+  face.
+- ⚠ **AND THE REVIEW DOC STILL READ "NOT BUILT" OVER SHIPPED CODE.** `REVIEW-2026-09-11-session-details.md`
+  carried *"**Not built** — the go-ahead to build is the owner's next call"* and *"Records only. No code
+  changed, no migration, no PR"* — both true the hour they were written, both false once this landed.
+  Marked rather than rewritten, because a review says what was read on the day it was read; but a
+  status line left uncorrected is what the next reader acts on, and *"Not built"* over shipped code is
+  an instruction to build it twice. Steps 5–7 are still genuinely not built and say so.
+- **Verified on the fixed head:** `npm test` **3462/3462** · `tsc --noEmit` 0 · JSX parse · the mobile
+  build · **7/8 mutations killed**, each proven to land, sanity green at both ends, the tree restored
+  in a `finally`, with the one survivor proven above to be unreachable rather than uncovered.
+
 ### 2026-09-11 — The RPE a member taps in the live logger finally reaches their own set rows
 
 - **The second of the two defects the session-details review found (§4, defect 2), fixed.** Owner

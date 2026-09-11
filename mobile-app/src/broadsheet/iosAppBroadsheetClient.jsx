@@ -13539,7 +13539,29 @@ function bsBuildZones(p) {
   const zd = m.zoneDurations || m.zone_durations;
   if (zd && typeof zd === 'object') {
     const keys = ['zone_one_milli', 'zone_two_milli', 'zone_three_milli', 'zone_four_milli', 'zone_five_milli'];
-    const vals = keys.map((k) => Number(zd[k]) || 0);
+    // ⚠ A MISSING ZONE IS NOT A ZERO, AND `Number(x) || 0` CANNOT TELL THEM APART.
+    // `Number(undefined)` is NaN and `NaN || 0` is 0, so a zone the provider never
+    // sent rendered as a measured **0%** — with the Instrument Board's bar giving it
+    // a visible 0.5 sliver. A member who never entered Z5 and a session we cannot
+    // read Z5 for are different claims, and only the first is ours to make.
+    //
+    // ⚠ AND THE WHOLE BAR IS REFUSED RATHER THAN THE ONE ZONE DROPPED, because
+    // these are PERCENTAGES OF A SUM: leaving a zone out shortens the denominator,
+    // so every OTHER segment is then reported larger than it was. Dropping the
+    // missing zone hides one fabrication and silently inflates the remaining four.
+    // An incomplete distribution is not a smaller distribution — it is one we
+    // cannot compute, and `null` is a state this function and its callers already
+    // render (the bar and the labelled cells both simply do not appear).
+    //
+    // A numeric 0 IS kept: that is a real reading, and it keeps its own sliver so
+    // five segments in one order stay comparable between two sessions.
+    const vals = keys.map((k) => {
+      const raw = zd[k];
+      if (raw == null || raw === '') return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    });
+    if (vals.some((v) => v === null)) return null;
     const total = vals.reduce((s, v) => s + v, 0);
     if (total > 0) return vals.map((v, i) => [`Z${i + 1}`, Math.round((v / total) * 100)]);
   }
@@ -17718,7 +17740,6 @@ function BSSdRoute({ route, heat, t }) {
 // job it can do at that size: say what shape the number came out of.
 function BSIbTile({ label, value, kind, ghostPath, needle, heat, t }) {
   const u = bsSdSplitUnit(value);
-  const reduced = bsSdReduced();
   const ink = (a) => bsTHexA(t.INK, a);
   return (
     <div style={{ position: 'relative', minHeight: 66 }}>
@@ -17742,7 +17763,7 @@ function BSIbTile({ label, value, kind, ghostPath, needle, heat, t }) {
         {kind === 'needle' && needle && (
           <svg aria-hidden viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: 'absolute', right: 5, bottom: 5, width: 40, height: 18, opacity: 0.45 }}>
             <line x1="0" y1="50" x2="100" y2="50" stroke={ink(0.5)} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-            <line x1={(reduced ? needle.frac : needle.frac) * 100} y1="16" x2={(reduced ? needle.frac : needle.frac) * 100} y2="84" stroke={heat} strokeWidth="3" vectorEffect="non-scaling-stroke" />
+            <line x1={needle.frac * 100} y1="16" x2={needle.frac * 100} y2="84" stroke={heat} strokeWidth="3" vectorEffect="non-scaling-stroke" />
           </svg>
         )}
       </div>
@@ -17848,24 +17869,36 @@ function BSIbZoneBar({ zones, heat, t }) {
 //
 // ⚠ THE TABLE IS A GRID, NOT A `<table>`, FOR ONE REASON: the bar spans every
 // column (`gridColumn: '1 / -1'`), which in a table means a colspan cell in an
-// extra row per set and a second set of borders to suppress. The header cells
-// are still a row of headings a screen reader meets before the data.
-function BSIbTable({ head, rows, heat, t, muted }) {
+// extra row per set and a second set of borders to suppress.
+//
+// ⚠ BUT A GRID OF `div`s CARRIES NO TABLE SEMANTICS, AND THIS COMMENT USED TO
+// CLAIM OTHERWISE — that the header cells were "a row of headings a screen reader
+// meets before the data". They were not: with no roles, assistive technology reads
+// every cell as a flat run of text with no column association, and both tables are
+// columns of bare numbers whose meaning IS their heading. The roles are carried
+// explicitly now; `display: contents` on each row keeps the ONE grid the
+// full-width bar needs, so the semantics cost the layout nothing. The bar stays
+// OUTSIDE the row and `aria-hidden`, because it only restates its row's number.
+function BSIbTable({ head, rows, heat, t }) {
   const [ref, seen] = useBSSdInView();
   const reduced = bsSdReduced();
   const ink = (a) => bsTHexA(t.INK, a);
   const h = { fontFamily: t.MONO, fontSize: 6.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.42), paddingBottom: 6, borderBottom: `1px solid ${ink(0.1)}`, whiteSpace: 'nowrap' };
   const c = { fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK, padding: '8px 0 3px', whiteSpace: 'nowrap' };
   return (
-    <div ref={ref} style={{ display: 'grid', gridTemplateColumns: head.map((x) => x.w || 'auto').join(' '), columnGap: 8, alignItems: 'center', fontVariantNumeric: 'tabular-nums' }}>
-      {head.map((x, i) => <div key={`h${i}`} style={{ ...h, textAlign: x.right ? 'right' : 'left' }}>{x.label}</div>)}
+    <div ref={ref} role="table" style={{ display: 'grid', gridTemplateColumns: head.map((x) => x.w || 'auto').join(' '), columnGap: 8, alignItems: 'center', fontVariantNumeric: 'tabular-nums' }}>
+      <div role="row" style={{ display: 'contents' }}>
+        {head.map((x, i) => <div key={`h${i}`} role="columnheader" style={{ ...h, textAlign: x.right ? 'right' : 'left' }}>{x.label}</div>)}
+      </div>
       {rows.map((r, i) => (
         <React.Fragment key={i}>
-          {r.cells.map((cell, j) => (
-            <div key={j} style={{ ...c, textAlign: head[j] && head[j].right ? 'right' : 'left', ...(cell && cell.dim ? { color: ink(0.5), fontWeight: 500 } : null), ...(r.best && j === 0 ? { color: heat } : null) }}>
-              {cell && cell.node ? cell.node : (cell && cell.text != null ? cell.text : '')}
-            </div>
-          ))}
+          <div role="row" style={{ display: 'contents' }}>
+            {r.cells.map((cell, j) => (
+              <div key={j} role="cell" style={{ ...c, textAlign: head[j] && head[j].right ? 'right' : 'left', ...(cell && cell.dim ? { color: ink(0.5), fontWeight: 500 } : null), ...(r.best && j === 0 ? { color: heat } : null) }}>
+                {cell && cell.node ? cell.node : (cell && cell.text != null ? cell.text : '')}
+              </div>
+            ))}
+          </div>
           <div aria-hidden style={{ gridColumn: '1 / -1', height: 3, borderRadius: 2, background: ink(0.08), position: 'relative', marginBottom: 4 }}>
             <span style={{
               position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2,
@@ -18080,6 +18113,15 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
               closed would throw away the board a member had scrolled through to
               get there, with no way back but reopening the post. It closes only
               when the page is still showing the face it was OPENED on. */}
+          {/* ⚠ `focusTab !== d.focus` IS A PROVEN NO-OP TODAY, KEPT RATHER THAN TRIMMED.
+              It only changes the answer when the page is showing the face it was
+              OPENED on with `focusTab` set — and the only setter is the sticky bar,
+              which renders behind `!isComments`. So a page opened at the comments
+              can never set `focusTab`, and the clause is today equivalent to
+              `focusTab` alone; a mutation reducing it to that survives the suite,
+              which is recorded rather than tested around. It stays because it states
+              the actual rule (back undoes a STEP, and only if one was taken), so it
+              is still right on the day the bar learns to render on either face. */}
           <button onClick={() => { if (focusTab && focusTab !== d.focus) setFocusTab(null); else onClose(); }} aria-label={tr('session:action.back', { defaultValue: 'Back' })} style={{ flexShrink: 0, background: 'transparent', border: 0, padding: '8px 2px', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>← {tr('session:action.back', { defaultValue: 'Back' })}</button>
           <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{isComments ? tr('session:detail.comments', { defaultValue: 'Comments' }) : tr('session:detail.tabDetails', { defaultValue: 'Session details' })}</div>
           {!isComments && canShareCard && (
@@ -18201,7 +18243,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           return (
             <>
               {secHead(tr('session:board.splitBySplit', { defaultValue: 'Split by split' }))}
-              <BSIbTable head={head} rows={rows} heat={heat} t={t} muted={muted} />
+              <BSIbTable head={head} rows={rows} heat={heat} t={t} />
               {hasSplitsPage && (
                 <button onClick={() => setSplitsOpen(true)} style={{ marginTop: 4, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 0, padding: '11px 0', cursor: 'pointer', textAlign: 'left' }}>
                   <span aria-hidden style={{ width: 6, height: 1.5, background: heat, flexShrink: 0 }} />
@@ -18267,7 +18309,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
           return (
             <>
               {secHead(d.breakdown.label || tr('session:board.setBySet', { defaultValue: 'Set by set' }))}
-              <BSIbTable head={head} rows={tblRows} heat={heat} t={t} muted={muted} />
+              <BSIbTable head={head} rows={tblRows} heat={heat} t={t} />
             </>
           );
         })()}
