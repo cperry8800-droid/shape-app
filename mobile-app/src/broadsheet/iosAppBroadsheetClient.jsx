@@ -2115,9 +2115,23 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
             </label>
             <label style={{ display: 'block', marginTop: 16 }}>
               <span style={lbl}>{tr('nutrition:myRecipe.paste', { defaultValue: 'Paste the recipe' })}</span>
-              <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={9}
+              {/* ⚠ SEALED WHILE A READ IS RUNNING, AND THAT IS WHAT MAKES THE
+                  HANDLER'S CAPTURED `paste` HONEST. The completion closure holds the
+                  text from the render that STARTED the request, so a member editing
+                  the box during "Reading…" got a draft built from the text they had
+                  just replaced, installed over their newer version and carried to
+                  the review screen with nothing saying so — they could keep a recipe
+                  that silently omits the edit they were making.
+                  Sealing the box makes that race impossible rather than handling it:
+                  the alternative is to compare against the live value and discard
+                  the result, which spends a provider call to produce nothing and
+                  loops for as long as they keep typing. "Read this text" is not an
+                  operation whose input can change halfway through. The NAME field
+                  stays live — it is not what is being read, and its own handler was
+                  made safe separately. */}
+              <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={9} disabled={busy}
                 placeholder={tr('nutrition:myRecipe.pastePlaceholder', { defaultValue: 'Ingredients and method — paste it however it comes.' })}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, outline: 'none', resize: 'vertical' }} />
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, outline: 'none', resize: 'vertical', opacity: busy ? 0.5 : 1 }} />
             </label>
             <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
               <div style={lbl}>{tr('nutrition:myRecipe.orPhoto', { defaultValue: 'Or photograph it' })}</div>

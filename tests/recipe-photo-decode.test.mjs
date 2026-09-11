@@ -79,9 +79,10 @@ const jpeg = (w, h, segments = [], sof = 0xc0) => {
   parts.push(f, Buffer.alloc(64));
   return Buffer.concat(parts);
 };
-const webpVP8 = (w, h) => {
+const webpVP8 = (w, h, sync = true) => {
   const b = Buffer.alloc(40);
   b.write('RIFF', 0, 'latin1'); b.write('WEBP', 8, 'latin1'); b.write('VP8 ', 12, 'latin1');
+  if (sync) { b[23] = 0x9d; b[24] = 0x01; b[25] = 0x2a; }   // the VP8 sync code
   b.writeUInt16LE(w & 0x3fff, 26); b.writeUInt16LE(h & 0x3fff, 28);
   return b;
 };
@@ -391,4 +392,34 @@ test('⚠ THE UPSCALE CLAMP IS UNREACHABLE, AND THAT IS DERIVED RATHER THAN ASSU
 
   // And the clamp is still there, so the invariant does not rest on the comment.
   assert.match(SRC, /Math\.min\(1, BS_RECIPE_PHOTO_EDGES\[0\] \/ Math\.max\(measured\.w, measured\.h\)\)/);
+});
+
+test('⚠ A FILE THAT ONLY LOOKS LIKE AN IMAGE CANNOT FABRICATE A SMALL SIZE', () => {
+  // This function now decides whether an image is decoded AT ALL, so a wrong
+  // answer is no longer a missed optimisation: a fabricated small size sends an
+  // arbitrarily large image to the full decode, which is the failure the whole
+  // guard exists to prevent. Structure is verified before offsets are trusted.
+  const fakePng = Buffer.alloc(40);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(fakePng, 0);
+  fakePng.write('tEXt', 12, 'latin1');                 // not IHDR
+  fakePng.writeUInt32BE(8, 16); fakePng.writeUInt32BE(8, 20);
+  assert.equal(bsImageHeaderDims(fakePng), null, 'the chunk type must be checked, not assumed');
+
+  assert.equal(bsImageHeaderDims(webpVP8(64, 64, false)), null, 'a VP8 body with no sync code is not measured');
+  assert.deepEqual(bsImageHeaderDims(webpVP8(64, 64)), { w: 64, h: 64 }, 'and a real one still is');
+});
+
+test('a hostile JPEG chain cannot spin or read off the end', () => {
+  // Every branch of the walk must advance `i`, and every read must sit inside the
+  // buffer — a length field of 0 or 1 is the classic way to make a parser loop.
+  for (const len of [0, 1, 2, 3, 0xffff]) {
+    const b = Buffer.alloc(64);
+    b[0] = 0xff; b[1] = 0xd8; b[2] = 0xff; b[3] = 0xe1;
+    b.writeUInt16BE(len, 4);
+    assert.doesNotThrow(() => bsImageHeaderDims(b), `length ${len} must not throw`);
+  }
+  // Truncated right where the size would be read.
+  for (let n = 0; n < 24; n += 1) {
+    assert.doesNotThrow(() => bsImageHeaderDims(jpeg(100, 100).subarray(0, n)), `truncated at ${n}`);
+  }
 });

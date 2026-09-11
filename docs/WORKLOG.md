@@ -829,6 +829,25 @@ Append new entries at the top, under this note.
   would have been turned away, so it is **2 MiB** — past anything a camera emits, and trivial
   beside the 640 KB the same function is about to put on the wire. *A refusal is only
   acceptable when almost nothing real lands on it.*
+- ⚠ **AND THE PASTE BOX WAS EDITABLE WHILE IT WAS BEING READ.** The completion closure holds
+  the text from the render that **started** the request, so a member editing the box during
+  *"Reading…"* got a draft built from the text they had just replaced — installed over their
+  newer version and carried to the review screen with nothing saying so, where they could
+  keep a recipe that **silently omits the edit they were making**. It is sealed while a read
+  runs, which makes the race impossible rather than handling it: comparing against the live
+  value and discarding the result spends a provider call to produce nothing and loops for as
+  long as they keep typing. *"Read this text" is not an operation whose input can change
+  halfway through.* The **Name** field stays live — it is not what is being read, and its own
+  closure was made safe separately.
+- ⚠ **AND MY OWN PASS ON THAT HEAD HARDENED THE HEADER READER, BECAUSE ITS JOB HAD
+  CHANGED.** Once an unmeasurable image became a **refusal**, a wrong answer stopped being a
+  missed optimisation and became the failure itself: a fabricated small size sends an
+  arbitrarily large image to the full decode. So structure is verified before offsets are
+  trusted — PNG's **IHDR chunk type** (the spec requires it first; a hostile file is not the
+  spec) and VP8's **three-byte sync code**. And the walk is driven against lengths of 0, 1
+  and 65535 and against every truncation from 0 to 24 bytes, because a length field of 0 is
+  the classic way to make a marker walker spin. *A parser whose answer used to be advisory
+  needs re-reading the day it starts deciding.*
 - ⚠ **AND THAT ROUND'S SURVIVOR IS A NO-OP, WHICH IS PROVEN RATHER THAN ASSERTED.** Dropping
   the `Math.min(1, …)` upscale clamp survives, because the branch is only reached past the
   pixel budget and an image over 25 MP cannot have a long edge under 1600 — its short edge

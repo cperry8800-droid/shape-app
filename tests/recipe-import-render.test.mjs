@@ -1182,3 +1182,47 @@ test('but the reader still names a recipe the member left unnamed — on BOTH pa
     w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
   }
 });
+
+test('⚠ THE PASTE BOX IS SEALED WHILE IT IS BEING READ', async () => {
+  // Codex, P2. The completion closure holds the text from the render that
+  // STARTED the request, so a member editing the box during "Reading…" got a
+  // draft built from the text they had just replaced — installed over their
+  // newer version and carried to the review screen with nothing saying so, where
+  // they could keep a recipe that silently omits the edit they were making.
+  //
+  // Sealing the box makes the race impossible rather than handling it. Comparing
+  // against the live value and discarding the result spends a provider call to
+  // produce nothing, and loops for as long as they keep typing.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  let release;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    const pending = new Promise((r) => { release = r; });
+    w.ShapeRecipeImport = { photo: null, parse: () => pending };
+
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const boxes = () => ed.nodes().filter((n) => n.type === 'textarea' && /paste it however/i.test(String(n.props.placeholder || '')));
+    assert.equal(boxes()[0].props.disabled, false, 'it is live before a read starts');
+    boxes()[0].props.onChange({ target: { value: 'Ingredients\n1 cup flour\nMethod\nMix.' } });
+    ed.render();
+    ed.click('Next');
+    ed.render();
+
+    assert.match(ed.text, /Reading/, 'the read is in flight');
+    assert.equal(boxes()[0].props.disabled, true, 'and the box is sealed while it runs');
+
+    release({ ok: true, draft: { title: 'T', servings: null, ingredients: [{ n: '1', m: 'flour' }], steps: ['Mix.'] } });
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    ed.click('Back');
+    ed.render();
+    assert.equal(boxes()[0].props.disabled, false, 'and live again once it is done');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});

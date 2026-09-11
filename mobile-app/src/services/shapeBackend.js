@@ -4750,7 +4750,13 @@ function bsImageHeaderDims(buf) {
   const be32 = (i) => (((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0);
   const le32 = (i) => ((b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0);
   // PNG — 8-byte signature, then IHDR's width/height at 16/20.
-  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+  // ⚠ THE CHUNK TYPE IS CHECKED, NOT ASSUMED. The spec requires IHDR first, but
+  // this function now decides whether an image is decoded at all, so a file that
+  // merely starts with the PNG signature must not be able to hand back whatever
+  // happens to sit at those offsets — a fabricated small size is a full decode of
+  // something arbitrarily large.
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47
+      && b[12] === 0x49 && b[13] === 0x48 && b[14] === 0x44 && b[15] === 0x52) {
     return { w: be32(16), h: be32(20) };
   }
   // GIF — little-endian logical screen size at 6/8.
@@ -4783,7 +4789,12 @@ function bsImageHeaderDims(buf) {
   if (b.length > 30 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
       && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
     const fmt = String.fromCharCode(b[12], b[13], b[14], b[15]);
-    if (fmt === 'VP8 ') return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+    // ⚠ The lossy branch checks VP8's 3-byte sync code (9d 01 2a) before reading
+    // the size after it — same reason as PNG's IHDR: without it a truncated or
+    // hostile RIFF hands back two arbitrary bytes as a dimension.
+    if (fmt === 'VP8 ' && b[23] === 0x9d && b[24] === 0x01 && b[25] === 0x2a) {
+      return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+    }
     if (fmt === 'VP8L') { const n = le32(21); return { w: (n & 0x3fff) + 1, h: ((n >> 14) & 0x3fff) + 1 }; }
     if (fmt === 'VP8X') {
       return { w: (b[24] | (b[25] << 8) | (b[26] << 16)) + 1, h: (b[27] | (b[28] << 8) | (b[29] << 16)) + 1 };
