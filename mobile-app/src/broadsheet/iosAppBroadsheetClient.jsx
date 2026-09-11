@@ -19755,7 +19755,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Display labels: per request the Community and Shape chips are swapped in chat
   // (the activity feed reads "Shape", the members feed reads "Community").
   const chipLabel = (k) => (
-    k === 'COMMUNITY' ? tr('feed:chip.shape', { defaultValue: 'Shape' })
+    // ⚠ THE ACTIVITY TAB IS THE WALL. It was labelled "Shape"; the Wall is a
+    // REDESIGN of this feed, not a surface beside it, so the label moved here and
+    // the separate Wall pill was removed. The KEY stays `COMMUNITY` — renaming it
+    // would touch every filter comparison in this component for no gain.
+    k === 'COMMUNITY' ? tr('feed:tab.wall', { defaultValue: 'Wall' })
     : k === 'SHAPE' ? tr('feed:chip.community', { defaultValue: 'Community' })
     : k === 'TRAINER' ? tr('feed:chip.trainer', { defaultValue: 'Trainer' })
     : k === 'NUTRI' ? tr('feed:chip.nutritionist', { defaultValue: 'Nutritionist' })
@@ -20379,8 +20383,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['wall', tr('feed:tab.wall', { defaultValue: 'Wall' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
+          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -20775,7 +20779,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} /></React.Fragment>);
+                // ⚠ `variant="wall"` IS THE WALL DESIGN — the hero figure in the
+                // dot-matrix face, the wall facts beside it, the stat grid, HR zones
+                // and the trace. This tab IS the Wall now, so it renders it here
+                // rather than in a parallel component.
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="wall" /></React.Fragment>);
               })()}
             </div>
           ) : (
