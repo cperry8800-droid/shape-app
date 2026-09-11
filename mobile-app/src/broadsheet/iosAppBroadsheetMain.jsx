@@ -2171,6 +2171,11 @@ class BSErrorBoundary extends React.Component {
       info && info.componentStack ? '\nComponent stack:' + String(info.componentStack).split('\n').slice(0, 6).join('\n') : '',
     ].join('');
     return (
+      // DELIBERATELY full-bleed. This is the one screen that is explicitly NOT
+      // the app, and it must render even when the surface node is gone — so it
+      // can never depend on #bs-phone-surface existing, and it covers the paper
+      // field along with the column. Its own content is already centred and
+      // width-capped, so it stays legible at any size.
       <div style={{ position: 'fixed', inset: 0, background: '#0b0c0c', color: '#f4efe6', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center', fontFamily: "'Saira', 'Helvetica Neue', sans-serif" }}>
         <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>{bsBoundaryT('common:error.title', 'Something went wrong')}</div>
         <div style={{ fontSize: 13, opacity: 0.7, maxWidth: 320, lineHeight: 1.5 }}>{bsBoundaryT('common:error.body', 'The app hit an error and recovered. Details below — tap Copy and send them over.')}</div>

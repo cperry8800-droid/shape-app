@@ -410,6 +410,20 @@ const BSContext = createContextBS(null);
 // box keeps its 100%×100% fill — so the UI reflows bigger/smaller while still
 // fitting the frame exactly. The same idea as iOS Display Zoom.
 const BS_TEXT_SCALES = { small: 0.9, medium: 1, large: 1.12 };
+// The app column's maximum width on a large screen (iPad, and iPhone in
+// landscape). Below this the cap is INERT — `maxWidth` does nothing when the
+// viewport is narrower — so one native branch covers every device with no media
+// query, no platform sniff and no resize listener, and the iPhone render is
+// byte-identical to what it was before this existed.
+//
+// 430 is not a taste call. Twelve of the thirteen `maxWidth: 430` overlays in
+// this app are bottom sheets (they carry borderTopLeftRadius), i.e. they are
+// meant to sit flush to the column's edges. At any cap above 430 every one of
+// them renders with a gutter down each side that appears nowhere else in the
+// app. 430 is also exactly iPhone 16 Pro Max, so the largest phone stays a
+// provable no-op. Raising it means re-capping those twelve sheets in the same
+// change.
+const BS_PHONE_COLUMN_MAX = 430;
 function bsTextScale(key) { return BS_TEXT_SCALES[key] || 1; }
 
 function BSProvider({ children, paperMode, accentKey, densityKey, borderKey, weightKey, textScaleKey, textureKey, textureColor, inkOverride }) {
@@ -1597,46 +1611,102 @@ function BSPhone({ children }) {
       event.preventDefault();
     };
 
-    document.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
-    document.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
-    document.addEventListener('touchend', resetGesture, { capture: true, passive: true });
-    document.addEventListener('touchcancel', resetGesture, { capture: true, passive: true });
+    // Bound to the SURFACE, not to `document`. getTargetScroller() falls back
+    // to `document.querySelector('.bs-scroll')` for a target that is not inside
+    // a scroller — which is correct for in-app chrome (a drag on the masthead
+    // should scroll the page under it) and wrong for the paper field beside the
+    // column, which is a large region outside every scroller. On `document` a
+    // drag out there would resolve that fallback and scroll the app. On a phone
+    // the column fills the viewport, so every touch is inside the surface and
+    // the coverage is identical to what it was.
+    const surface = document.getElementById('bs-phone-surface');
+    if (!surface) return undefined;
+
+    surface.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+    surface.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
+    surface.addEventListener('touchend', resetGesture, { capture: true, passive: true });
+    surface.addEventListener('touchcancel', resetGesture, { capture: true, passive: true });
 
     return () => {
-      document.removeEventListener('touchstart', onTouchStart, true);
-      document.removeEventListener('touchmove', onTouchMove, true);
-      document.removeEventListener('touchend', resetGesture, true);
-      document.removeEventListener('touchcancel', resetGesture, true);
+      surface.removeEventListener('touchstart', onTouchStart, true);
+      surface.removeEventListener('touchmove', onTouchMove, true);
+      surface.removeEventListener('touchend', resetGesture, true);
+      surface.removeEventListener('touchcancel', resetGesture, true);
     };
   }, [isNativeApp]);
 
   if (isNativeApp) {
     return (
+      // THE FIELD — full-bleed, and it must STAY full-bleed. Capping this
+      // element instead of the column would uncover the screen behind it, and
+      // what paints there is index.html's `html.is-native-app body`, a
+      // hardcoded near-black: a black frame around a cream column on all eight
+      // light papers.
+      //
+      // Centring is FLEX, never `transform` (nor filter/backdrop-filter/
+      // perspective/will-change/contain). Any of those makes this element the
+      // containing block for `position: fixed` DESCENDANTS, which silently
+      // re-roots every fixed element in the app — the Settings dropdown lands
+      // hundreds of px off its trigger, and the video call stops filling the
+      // display. Flex centring creates no containing block.
       <div data-bs-weight={t.weightKey || 'bold'} style={{
         position: 'fixed',
         inset: 0,
         width: '100vw',
         height: '100dvh',
         minHeight: '100vh',
-        background: t.PAPER_BG,
+        display: 'flex',
+        justifyContent: 'center',
+        // A colour is legal only in the FINAL layer of the `background`
+        // shorthand, so the ink wash is wrapped as a gradient. A bare rgba()
+        // here voids the ENTIRE declaration and the field computes transparent
+        // — the exact defect two page textures shipped with on 2026-09-01.
+        // PAPER_BG supplies the final colour on every paper (metallic Steel's
+        // gradient stack still ends in one).
+        background: `linear-gradient(rgba(${t.inkRGB},0.10), rgba(${t.inkRGB},0.10)), ${t.PAPER_BG}`,
         overflow: 'hidden',
         touchAction: 'auto',
         fontFamily: t.BODY,
       }}>
-        <div id="bs-phone-surface" className="bs-paper-grain" style={{
-          // Text-size scale: `zoom` scales the CONTENT only (not the box), so
-          // the surface keeps filling the frame exactly while the UI reflows
-          // bigger/smaller. zoom:1 (medium) is a no-op.
+        {/* THE COLUMN — carries the cap, and is deliberately OUTSIDE the zoom
+            below. `zoom` multiplies every fixed length on the element it sits
+            on, so a px cap placed on the surface would track the member's
+            text-size preference: a 430 cap renders 387/430/482 across
+            small/medium/large. Here the px is honest.
+
+            WIDTH ONLY. Never cap the height: env(safe-area-inset-*) always
+            resolves against the VIEWPORT, and 76 call sites across the app use
+            it to clear the status bar and home indicator. Letterbox the column
+            vertically and every one of them reserves room for hardware that is
+            no longer adjacent — phantom padding on both edges. Eight sheet
+            height caps are `vh`-based for the same reason.
+
+            No borderRadius: a px radius inside the zoom would breathe with text
+            size, and a rounded corner against a real status bar reads as a
+            rendering fault rather than a design. The seam is a shadow, which is
+            painted outside the layout box and so cannot push the column
+            off-centre. */}
+        <div style={{
           width: '100%',
+          maxWidth: BS_PHONE_COLUMN_MAX,
           height: '100%',
-          zoom: t.TEXT_SCALE || 1,
-          overflow: 'hidden',
-          position: 'relative',
-          background: t.PAPER_BG,
+          boxShadow: `0 0 0 1px rgba(${t.inkRGB},0.08), 0 0 60px rgba(0,0,0,0.18)`,
         }}>
-          {children}
-          <BSToastHost />
-          <BSConfirmHost />
+          <div id="bs-phone-surface" className="bs-paper-grain" style={{
+            // Text-size scale: `zoom` scales the CONTENT only (not the box), so
+            // the surface keeps filling the column exactly while the UI reflows
+            // bigger/smaller. zoom:1 (medium) is a no-op.
+            width: '100%',
+            height: '100%',
+            zoom: t.TEXT_SCALE || 1,
+            overflow: 'hidden',
+            position: 'relative',
+            background: t.PAPER_BG,
+          }}>
+            {children}
+            <BSToastHost />
+            <BSConfirmHost />
+          </div>
         </div>
       </div>
     );

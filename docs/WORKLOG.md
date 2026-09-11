@@ -656,6 +656,86 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — iPad: the app becomes a centred column, and the phone render is proven untouched
+
+- **Option A off [`SCOPE-2026-09-11-ipad-option-a.md`](SCOPE-2026-09-11-ipad-option-a.md).** iPad
+  was never switched off — `TARGETED_DEVICE_FAMILY = "1,2"`, iPad orientations declared, no
+  `UIRequiresFullScreen`, and codemagic ships to TestFlight on every merge — so an iPad user has
+  been installing the phone layout stretched across up to 1366pt. Measured before: one line of body
+  copy running **1326px**, and five tab cells at **257px** each. `BSPhone`'s native branch is a
+  FIELD → COLUMN → SURFACE sandwich now; the column caps at 430 and centres. **No migration.**
+- ⚠ **THE CAP SITS OUTSIDE THE ZOOM, AND THAT IS THE WHOLE REASON THERE ARE THREE BOXES.**
+  `#bs-phone-surface` carries `zoom: t.TEXT_SCALE`, and `zoom` multiplies every **fixed** length on
+  the element it sits on — so a px cap placed there tracks the member's text-size preference,
+  rendering **387 / 430 / 482** across small/medium/large. The existing comment ("zoom scales the
+  CONTENT only, not the box") is true only for percentage sizes, and this change introduces that
+  element's first fixed-length size.
+- ⚠ **AND IT MUST NOT GO ON THE WRAPPER EITHER, WHICH IS THE OBVIOUS TWO-ELEMENT SHORTCUT.**
+  Capping the fixed wrapper uncovers the screen behind it, and what paints there is
+  `index.html`'s `html.is-native-app body` — a hardcoded `#050504`. On the **eight** light papers
+  that is a black frame around a cream column. The wrapper stays full-bleed and *becomes* the field.
+- ⚠ **CENTRING IS FLEX, NEVER `transform`.** A transform (or filter/backdrop-filter/perspective/
+  will-change/contain) on an ancestor makes it the containing block for `position: fixed`
+  **descendants**, silently re-rooting all six fixed elements in the app. Flex centring creates no
+  containing block — verified in the render: `transform: none` on the field at every width.
+- ⚠ **WIDTH ONLY.** `env(safe-area-inset-*)` resolves against the VIEWPORT and **76** call sites use
+  it to clear real hardware; letterbox the column vertically and every one reserves room for a
+  status bar and home indicator that are no longer adjacent. Eight sheet height caps are `vh`-based
+  for the same reason. The column keeps `height: 100%` inside a `100dvh` wrapper.
+- ⚠ **THE FIELD'S WASH IS `linear-gradient(C, C)`, WHICH IS THE 2026-09-01 DEFECT AVOIDED BY
+  CONSTRUCTION.** A colour is legal only in the FINAL layer of the `background` shorthand; a bare
+  `rgba()` in a non-final layer voids the **entire** declaration and the surface computes
+  transparent. This change creates a brand-new multi-layer themed surface, which is exactly the
+  shape that broke two page textures.
+- **430 IS MEASURED, NOT CHOSEN.** Twelve of the thirteen `maxWidth: 430` overlays are bottom sheets
+  (they carry `borderTopLeftRadius`), i.e. meant to sit flush to the column's edges. At any larger
+  cap every one renders with a gutter that appears nowhere else in the app. 430 is also exactly
+  iPhone 16 Pro Max.
+- **NO BREAKPOINT, NO DETECTION, NO RESIZE LISTENER — and that is a result, not an omission.**
+  `maxWidth` is inert below its own value, so one native branch covers phone, iPad and Split View.
+  Measured: column `x=0 w=393` at 393pt, `x=0 w=375` in a 375pt Split View, `x=195 w=430` at 820,
+  `x=468 w=430` at 1366.
+- ⚠ **THE GLOBAL TOUCH-SCROLL HANDLER WAS BOUND TO `document`, WHICH THE FIELD MAKES WRONG.**
+  `getTargetScroller` falls back to `document.querySelector('.bs-scroll')` for a target outside
+  every scroller — correct for in-app chrome, and wrong for the large new paper region beside the
+  column, where a drag would have scrolled the app. Bound to the surface; on a phone the column
+  fills the viewport so the coverage is unchanged.
+- ⚠ **AND THE SETTINGS DROPDOWN WAS THE ONE OVERLAY MEASURED AGAINST THE WINDOW.** It read
+  `window.innerWidth - r.right` and rendered `position: fixed` — internally consistent, so it still
+  landed on its trigger, but the offset is now a distance across the field AND is re-interpreted as
+  a zoomed length inside the surface. It measures against the surface rect divided by the text
+  scale and portals in as `absolute`, which is the idiom `openCardsMenu` has used all along.
+- **`.bs-pinned-composer` deleted — it was dead CSS** (zero consumers in `src/`, only `index.html`
+  itself) and the only `translateX(-50%)` centring precedent in the app, i.e. the exact pattern the
+  field must not use. The two deliberate escapes (`BSVideoCall`, the crash screen) now **say** they
+  escape on purpose, so a later sweep does not "fix" them.
+- ⚠ **THE PHONE NO-OP IS PROVEN WITH A CONTROL, NOT ASSERTED.** Both sides were built and captured:
+  before-vs-after differs in 98 px at 393pt and 1082 px at 430pt — and capturing the **same** build
+  twice differs in **94 and 1078 px, in byte-identical bounding boxes** (the dateline's live clock
+  and the calorie ticker). The treatment is the instrument. Separately, the top 600 CSS px of the
+  iPad column are **pixel-identical** (mean |diff| 0.000) to an iPhone 16 Pro Max render; divergence
+  begins only where bottom-anchored chrome sits, because the iPad viewport is 92px taller.
+- ⚠ **AND ONE OF MY OWN MUTATIONS WAS THE THING THAT SURVIVED.** "Delete the column" added `id` to a
+  **style object**, which never becomes a DOM id — so it changed nothing the guard reads and
+  "survived" while testing nothing. Replaced with the real regression (cap the field, drop the
+  column) and killed. *A mutation must be proven to land, and a mutation aimed at the wrong object
+  is a no-op dressed as a test.*
+- **`tests/ipad-centered-canvas.test.mjs` CALLS `BSPhone`** — the module is browser JSX and cannot be
+  imported, so it is compiled in memory and the component is invoked, with the assertions reading
+  the element tree it actually returns. A spelling pin would survive every equivalent rewrite and
+  fail every correct one. The layer-legality guard is driven against a flat paper **and** against
+  Steel's gradient stack, the one paper whose `PAPER_BG` is multi-layer.
+- **Verified:** `npm test` **3364/3364** · `tsc --noEmit` 0 · JSX parse on all three changed modules ·
+  **7/7 mutations killed, each proven to land, sanity green at both ends, tree restored in a
+  `finally`** · and renders at **393 · 430 · 820 · 1366 · 375 (Split View)** with zero page errors,
+  zero horizontal overflow, `document.body` holding only `#root` at every width (no portal escapes),
+  and the tab cells back to **70px** from 257.
+- ⚠ **NOT SHIPPED, AND NAMED SO NOBODY READS THIS AS "iPad IS DONE":** there is still no real iPad
+  layout — no sidebar nav, no two-pane master/detail, no multi-column content, no breakpoint system
+  and no resize handling beyond the self-disabling cap. The ~3,291 fixed-px font sizes are untouched.
+  That is Option B, and §8 of the scope is the list.
+
+
 ### 2026-09-11 — R15's last piece: the stat strips become the four figures this coach reads
 
 - **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,

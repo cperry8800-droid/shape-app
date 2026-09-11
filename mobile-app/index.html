@@ -12,18 +12,6 @@
      visible height as the browser chrome shows/hides. Falls back to vh on
      older engines; the native-app override below uses 100% (webview = screen). */
   html, body, #root { margin: 0; padding: 0; height: 100vh; height: 100dvh; width: 100%; overflow: hidden; }
-  /* Pinned message composer. position:fixed; we center it horizontally and
-     cap its width so it never spans the entire viewport edge-to-edge. The
-     16px-per-side inset gives it visual breathing room that matches the
-     rest of the page content. Capped at 430px so it doesn't get absurd on
-     wide browser previews. */
-  .bs-pinned-composer {
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%);
-    width: min(calc(100vw - 32px), 430px);
-    box-sizing: border-box;
-  }
   html.is-native-app, html.is-native-app body, html.is-native-app #root { height: 100%; min-height: 100%; }
   body { font-family: 'Newsreader', Georgia, serif; -webkit-font-smoothing: antialiased; background: #f3eee4; }
   html.is-native-app body { background: #050504; overscroll-behavior: none; }

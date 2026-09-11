@@ -22425,6 +22425,12 @@ function _bsFormatSessionWhen(iso) {
 function BSVideoCall({ url, onClose, title = 'Live call' }) {
   const t = useBS();
   return (
+    // DELIBERATELY full-bleed, and it escapes the app column on purpose. On a
+    // large screen the app is a centred column with a paper field beside it —
+    // but a video call wants the whole display, and Jitsi's own layout is
+    // already responsive. Flex centring (rather than a transform) is what keeps
+    // this `inset: 0` resolving against the viewport; do not "fix" it by
+    // portaling this into #bs-phone-surface.
     <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 14px 10px', background: '#000', borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
         <span style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#fff', fontWeight: 700 }}>Shape · {title}</span>
@@ -31835,7 +31841,25 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [dropdown, setDropdown] = useStateBSC(null); // { key, label, options, top, right }
   const openDropdown = (e, s) => {
     const r = e.currentTarget.getBoundingClientRect();
-    setDropdown({ key: s.key, label: s.l, options: s.dropdown, top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    // Measured against the SURFACE, not the window — the same idiom as
+    // openCardsMenu above. On a large screen the app is a centred column with a
+    // paper field beside it, so a window-relative offset is the distance across
+    // that field; and because the panel is a descendant of the zoomed surface,
+    // a px offset there is re-interpreted as a zoomed length. Dividing by the
+    // text scale converts the measured visual distance into the surface's own
+    // coordinate space, so the panel lands on its trigger at every text size.
+    // Falls back to the window when the surface cannot be read, which is the
+    // pre-existing behaviour.
+    const surf = typeof document !== 'undefined' ? document.getElementById('bs-phone-surface') : null;
+    const sr = surf && surf.getBoundingClientRect ? surf.getBoundingClientRect() : null;
+    const z = t.TEXT_SCALE || 1;
+    setDropdown({
+      key: s.key,
+      label: s.l,
+      options: s.dropdown,
+      top: sr ? (r.bottom - sr.top) / z + 6 : r.bottom + 6,
+      right: sr ? Math.max(8, (sr.right - r.right) / z) : Math.max(8, window.innerWidth - r.right),
+    });
   };
   React.useEffect(() => {
     if (!dropdown) return undefined;
@@ -33111,9 +33135,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       )}
 
       {/* Shape-styled dropdown menu (replaces the native select picker) */}
-      {dropdown && (
-        <div onClick={() => setDropdown(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000 }}>
-          <div onClick={(e) => e.stopPropagation()} className="bs-hide-scroll" style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,0.3)' }}>
+      {dropdown && createPortal((
+        <div onClick={() => setDropdown(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000 }}>
+          <div onClick={(e) => e.stopPropagation()} className="bs-hide-scroll" style={{ position: 'absolute', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,0.3)' }}>
             <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{dropdown.label}</div>
             {dropdown.options.map((opt) => {
               const on = prefs[dropdown.key] === opt;
@@ -33129,7 +33153,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             })}
           </div>
         </div>
-      )}
+      ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body)}
 
       {/* Account field editor — in-app sheet */}
       {editField && createPortal((
