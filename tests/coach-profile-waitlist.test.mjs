@@ -160,9 +160,59 @@ test('a position we do not have is never rendered as a rank', () => {
 test('a signed-out visitor is offered sign-in, never a Join button that 401s', () => {
   // The waitlist routes answer 401 to an anonymous caller, so a live Join button
   // there is the dead control one layer down. The hydrate also must not run.
-  assert.match(RAW_WEB, /signedIn === false \? \(/, 'the signed-out branch moved');
+  assert.match(RAW_WEB, /acct === null \? \(/, 'the signed-out branch moved');
   assert.match(RAW_WEB, /Sign in to join the list/, 'the sign-in line is gone');
-  assert.match(WEB, /signedIn !== true\) return undefined;/, 'the /mine hydrate no longer requires a session');
+  assert.match(WEB, /\|\| !acct\) return undefined;/, 'the /mine hydrate no longer requires a resolved account');
+});
+
+test('an unresolved account renders NEITHER control', () => {
+  // ⚠ Falling either way is wrong for one of the two audiences: a premature Join
+  // button 401s for a visitor, and a premature sign-in link tells a member to do
+  // what they have already done — the #2005 defect. Three states, not two.
+  assert.match(WEB, /acct === undefined \? \(\s*null\s*\) : acct === null \? \(/,
+    'the unresolved state no longer withholds both controls');
+});
+
+test('THE WAITLIST HYDRATE IS KEYED ON THE ACCOUNT, so an A→B switch discards A\'s answer', () => {
+  // ⚠ CodeRabbit's one blocking finding on this PR, and the class this repo has now
+  // paid for five times. The identity used to be a BOOLEAN: an A→B switch leaves it
+  // `true`, so the effect never re-runs, its cleanup never fires, and A's in-flight
+  // /mine response calls setWl on B's screen — B is shown A's queue position or A's
+  // invite. The invariant is not a spelling: WHATEVER IDENTITY GATES THE FETCH MUST
+  // ALSO BE A DEPENDENCY, because that is precisely what makes the switch re-run the
+  // effect and the cleanup drop the stale answer.
+  const at = WEB.indexOf('fetch("/api/waitlist/mine"');
+  assert.ok(at > 0, 'the /mine hydrate moved');
+  const head = WEB.lastIndexOf('React.useEffect(', at);
+  const deps = /\}, \[([^\]]*)\]\);/.exec(WEB.slice(at));
+  assert.ok(head > 0 && deps, 'could not read the hydrate effect and its deps');
+  const gate = /\|\| !([A-Za-z_$][\w$]*)\) return undefined;/.exec(WEB.slice(head, at));
+  assert.ok(gate, 'the hydrate no longer gates on an identity at all');
+  assert.ok(deps[1].split(',').map((x) => x.trim()).includes(gate[1]),
+    'the identity gating the /mine fetch (' + gate[1] + ') is NOT in the effect deps — an account switch cannot discard the stale response');
+});
+
+test('the account is subscribed, and an auth event outranks a read already in flight', () => {
+  // Resolving once is the other half of the same defect: a sign-in AFTER first paint
+  // never reaches the page. And the generation must bump BEFORE the state is set, or
+  // the sequence "read observes A · B signs in · read resolves" puts A back.
+  assert.match(WEB, /onAuthStateChange\(/, 'the account is resolved once and never subscribed');
+  const cb = WEB.slice(WEB.indexOf('onAuthStateChange('));
+  const bump = cb.indexOf('authGenRef.current += 1');
+  const set = cb.indexOf('setAcct(');
+  assert.ok(bump > 0 && set > 0 && bump < set, 'the generation must bump BEFORE setAcct');
+  // And the read itself must honour it, or the bump guards nothing.
+  // ⚠ EVERY ARM, NOT ANY ARM. The initial read sets the account from TWO places — the
+  // resolve arm and the catch arm — and a first version of this asserted the pattern
+  // merely EXISTS, so a mutation stripping the check from the resolve arm survived on
+  // the strength of the catch arm still carrying it. A guard on one of two call sites
+  // is a guard on half the rule.
+  const readBlk = WEB.slice(WEB.indexOf('db.getUser()'), WEB.indexOf('let sub = null'));
+  const sets = readBlk.split('setAcct(').length - 1;
+  assert.ok(sets >= 2, 'the initial read no longer sets the account from both arms');
+  assert.equal(
+    readBlk.split('gen === authGenRef.current').length - 1, sets,
+    'an arm of the initial read sets the account WITHOUT checking the generation — a read that resolves after an auth event would put the old account back');
 });
 
 test('the waiting list replaces the coupon rather than sitting beside it', () => {

@@ -683,7 +683,14 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const [wl, setWl] = React.useState(null);       // { status, position, entryId } | null
   const [wlErr, setWlErr] = React.useState("");
   const [buyErr, setBuyErr] = React.useState("");
-  const [signedIn, setSignedIn] = React.useState(null);   // null until resolved
+  // ⚠ THE ACCOUNT, NOT A BOOLEAN — and that is the whole of CodeRabbit's finding on
+  // this PR. A boolean cannot tell A from B, so an A→B switch does not change it, the
+  // hydrate below does not re-run, and A's in-flight /mine response lands on B's
+  // screen: B is shown A's queue position, or A's invite. Holding the account id makes
+  // the switch a DEPENDENCY change, so the effect re-runs and its cleanup discards the
+  // stale answer — the leak becomes unrepresentable rather than guarded against.
+  // `undefined` = not resolved yet · `null` = confirmed signed out · string = the uid.
+  const [acct, setAcct] = React.useState(undefined);
   const busy = React.useRef(false);
   // ⚠ THE SERVER'S 409 IS THE AUTHORITY; THE COLUMN READ IS A COURTESY. A row we could
   // not read is not a coach with room — but it is not a coach at capacity either, so
@@ -693,19 +700,44 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const [capSrv, setCapSrv] = React.useState(false);
   const atCapacity = !!((prow && prow.atCapacity) || capSrv);
   const provId = (prow && prow.id) || null;
+  // ⚠ AND IT SUBSCRIBES, because resolving once is the other half of the same defect:
+  // a member who signs in AFTER this paints keeps being told to sign in, which is the
+  // #2005 defect — a coach already signed in, invited to sign in. On a cookie-only load
+  // supabase emits INITIAL_SESSION with a NULL session and bridges it afterwards, so
+  // the one-shot read is not merely incomplete, it is wrong on an ordinary path.
+  const authGenRef = React.useRef(0);
   React.useEffect(() => {
     let on = true;
     const db = window.shapeDb;
-    if (!db || !db.getSession) { setSignedIn(false); return undefined; }
-    db.getSession().then((s) => { if (on) setSignedIn(!!(s && s.access_token)); }).catch(() => { if (on) setSignedIn(false); });
-    return () => { on = false; };
+    if (!db || !db.getUser) { setAcct(null); return undefined; }
+    const gen = authGenRef.current;
+    // ⚠ AN AUTH EVENT IS ALWAYS NEWER THAN A READ ALREADY IN FLIGHT. Without the
+    // generation the sequence "read observes A · B signs in · read resolves" puts A
+    // back, and the effect below then hydrates B's screen under A's id.
+    db.getUser()
+      .then((u) => { if (on && gen === authGenRef.current) setAcct(u && u.id ? u.id : null); })
+      .catch(() => { if (on && gen === authGenRef.current) setAcct(null); });
+    let sub = null;
+    try {
+      if (db.client && db.client.auth && db.client.auth.onAuthStateChange) {
+        sub = db.client.auth.onAuthStateChange((_e, session) => {
+          if (!on) return;
+          authGenRef.current += 1;   // bump FIRST, so an in-flight read cannot win
+          setAcct(session && session.user && session.user.id ? session.user.id : null);
+        });
+      }
+    } catch (e) { /* no subscription is a stale tab, not a broken page */ }
+    return () => {
+      on = false;
+      try { if (sub && sub.data && sub.data.subscription) sub.data.subscription.unsubscribe(); } catch (e) {}
+    };
   }, []);
   React.useEffect(() => {
     setWl(null); setWlErr("");
     // A signed-out visitor is never asked to join — /api/waitlist/* answers 401, and a
     // Join button that 401s is the dead control one layer down. They get the sign-in
     // line instead, the legacy page's own behaviour.
-    if (!atCapacity || !provId || signedIn !== true) return undefined;
+    if (!atCapacity || !provId || !acct) return undefined;
     let on = true;
     fetch("/api/waitlist/mine", { credentials: "same-origin" })
       .then((r) => (r.ok ? r.json() : null))
@@ -723,7 +755,7 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
       })
       .catch(() => {});
     return () => { on = false; };
-  }, [atCapacity, provId, listingRole, signedIn]);
+  }, [atCapacity, provId, listingRole, acct]);
   const wlJoin = async () => {
     if (busy.current) return;                       // in-flight lock: a double-tap can't join twice
     // ⚠ NOT FOLDED INTO THE LOCK ABOVE. `atCapacity` can be true with NO provider id
@@ -887,7 +919,14 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
                     thing the coupon's Subscribe was doing. Say so instead. */}
                 {!provId ? (
                   <div style={{ marginTop: 16, fontFamily: lvMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: hexA(ink, 0.55) }}>We couldn&rsquo;t load the waiting list just now &mdash; reload to try again.</div>
-                ) : signedIn === false ? (
+                ) : acct === undefined ? (
+                  // ⚠ NOT RESOLVED IS NOT SIGNED OUT, AND IT IS NOT SIGNED IN EITHER.
+                  // Falling either way here is wrong for one of the two: a premature
+                  // Join button 401s for a visitor, and a premature sign-in link tells
+                  // a member to do what they have already done. Neither control renders
+                  // until the account is known; the line above is true in every state.
+                  null
+                ) : acct === null ? (
                   <a href="/newdesign/Login.html" style={{ display: "inline-block", marginTop: 16, padding: "13px 20px", borderRadius: 8, background: c, color: "#0c0a08", textDecoration: "none", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Sign in to join the list &rarr;</a>
                 ) : (
                   <button onClick={wlJoin} style={{ marginTop: 16, padding: "13px 20px", borderRadius: 8, border: 0, background: c, color: "#0c0a08", cursor: "pointer", fontFamily: lvMono, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>Join the waiting list</button>
