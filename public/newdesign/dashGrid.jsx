@@ -156,12 +156,75 @@ function dgPatchGridStack() {
 // note at the render below.
 const DG_SELECT_AT = 6;
 
+// The gutter the panel never crosses, its natural width, and how little room below the
+// gear counts as "not enough" before it opens upward instead.
+const DG_GUT = 12;
+const DG_PANEL_W = 240;
+const DG_PANEL_MIN_H = 160;
+
+// Where the panel goes, from the gear's own viewport rect. A pure function so the
+// clamping is DRIVEN in a test rather than eyeballed in one browser at one width.
+//
+// ⚠ AN INTERVAL, NOT TWO INDEPENDENT CLAMPS. The width is capped at both gutters
+// first; the left edge then has to satisfy both edges at once, and that interval is
+// non-empty exactly when the cap holds. A one-sided `Math.min` reads as "never move it
+// right of where it is" and spills past the other gutter on a narrow screen — the
+// notification panel shipped that sentence as a because-clause and its own guard
+// refuted it the same hour.
+function dgPanelBox(gear, vw, vh) {
+  const w = Math.min(DG_PANEL_W, Math.max(120, vw - DG_GUT * 2));
+  const left = Math.max(DG_GUT, Math.min(gear.right - w, vw - DG_GUT - w));
+  const below = vh - gear.bottom - 6 - DG_GUT;
+  const above = gear.top - 6 - DG_GUT;
+  // Flip up only when there is genuinely MORE room up there: a panel that flips with
+  // 150px below and 140px above is just as short and now upside down.
+  const up = below < DG_PANEL_MIN_H && above > below;
+  const room = Math.max(80, up ? above : below);
+  return up
+    ? { left: left, width: w, up: true, offset: Math.max(DG_GUT, vh - gear.top + 6), maxHeight: room }
+    : { left: left, width: w, up: false, offset: Math.max(DG_GUT, gear.bottom + 6), maxHeight: room };
+}
+
 function DgCardSettings({ groups }) {
   const [open, setOpen] = React.useState(false);
   const boxRef = React.useRef(null);
+  // ⚠ THE PANEL IS PORTALED OUT OF THE CARD, AND THAT IS NOT A STYLE CALL — MEASURED.
+  // `.dash-gridstack .grid-stack-item-content` is `overflow:hidden!important` (it has to
+  // be: the card's own height measurement below only reports the true content height
+  // because of it), and an absolutely-positioned child does not grow the box it hangs
+  // in. On the KPI strip — a 110px card carrying a four-group panel — the slot pickers
+  // measured at y 59–86 / 112–139 / 165–192 / 218–245, so THREE OF FOUR fell outside the
+  // clip box: a coach could change the first slot and nothing else. The elements were
+  // all in the DOM the whole time, which is exactly why counting them passed and only
+  // reading their geometry against the card failed. (Codex, #2046.)
+  const panelRef = React.useRef(null);
+  const [box, setBox] = React.useState(null);
+  const place = React.useCallback(() => {
+    const el = boxRef.current;
+    if (!el || !el.getBoundingClientRect) return;
+    const d = document.documentElement;
+    setBox(dgPanelBox(el.getBoundingClientRect(), d.clientWidth, d.clientHeight));
+  }, []);
+  React.useLayoutEffect(() => { if (open) place(); }, [open, place]);
   React.useEffect(() => {
     if (!open) return undefined;
-    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    // `capture` because the dashboard scrolls in its own containers as well as the
+    // window, and a fixed panel that does not follow its gear points at nothing.
+    const on = () => place();
+    window.addEventListener("scroll", on, true);
+    window.addEventListener("resize", on);
+    return () => { window.removeEventListener("scroll", on, true); window.removeEventListener("resize", on); };
+  }, [open, place]);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    // ⚠ THE PORTAL BREAKS `contains`, so the away test asks BOTH nodes. With only the
+    // gear's wrapper tested, the first click inside the panel reads as a click outside
+    // it and closes the thing you are using.
+    const away = (e) => {
+      const inGear = boxRef.current && boxRef.current.contains(e.target);
+      const inPanel = panelRef.current && panelRef.current.contains(e.target);
+      if (!inGear && !inPanel) setOpen(false);
+    };
     const esc = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
@@ -191,13 +254,17 @@ function DgCardSettings({ groups }) {
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         style={{ ...btn, color: open ? "#2ee0c4" : DG_MUTE }}>⚙</button>
-      {open && (
-        // ⚠ RIGHT-ALIGNED AND CLAMPED TO THE VIEWPORT. The gear sits at the card's top
-        // right, so a left-anchored panel would hang off the page on the rightmost
-        // column of a two-up grid.
-        <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, zIndex: 20,
-                     minWidth: 176, maxWidth: "min(240px, calc(100vw - 24px))", background: "rgba(26,22,18,0.98)",
-                     border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" }}>
+      {open && box && ReactDOM.createPortal(
+        // ⚠ FIXED AND RIGHT-ALIGNED ON THE GEAR, clamped into both gutters by
+        // `dgPanelBox`. The gear sits at the card's top right, so a left-anchored panel
+        // would hang off the page on the rightmost column of a two-up grid; and the
+        // panel is taller than most cards, so it scrolls rather than running off the
+        // bottom of the screen.
+        <div ref={panelRef} onMouseDown={(e) => e.stopPropagation()}
+             style={Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
+                     maxHeight: box.maxHeight, overflowY: "auto", background: "rgba(26,22,18,0.98)",
+                     border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" },
+                     box.up ? { bottom: box.offset } : { top: box.offset })}>
           {groups.map((g) => (
             <div key={g.key} style={{ padding: "2px 6px 6px" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
@@ -258,7 +325,8 @@ function DgCardSettings({ groups }) {
               )}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );

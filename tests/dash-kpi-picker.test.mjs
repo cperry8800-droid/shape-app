@@ -21,6 +21,7 @@ const require = createRequire(import.meta.url);
 const S = require('../public/newdesign/dashSignals.js');
 const TODAY = stripComments(readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8'));
 const GRID = stripComments(readFileSync(new URL('../public/newdesign/dashGrid.jsx', import.meta.url), 'utf8'));
+const DATA = stripComments(readFileSync(new URL('../public/newdesign/dashData.jsx', import.meta.url), 'utf8'));
 
 const KEYS = { week: 'sessionsThisWeek', upcoming: 'upcomingSessions', total: 'totalSessions' };
 const ctx = (over) => Object.assign(
@@ -170,17 +171,37 @@ test('the strip formats from the RAW value — the pure module never formats mon
   assert.match(TODAY, /out\.capped \? String\(n\) \+ "\+"/);
 });
 
-test('the four slots are four hooks, above any early return, one key per slot per role', () => {
+test('the strip is ONE hook over four per-role keys — a swap cannot half-persist', () => {
+  // ⚠ RE-ANCHORED ON THE INVARIANT. This asserted four written-out
+  // `useRememberedChoice` calls, which is the shape Codex found unsafe on #2046: a swap
+  // moves two slots, and two hooks take that to the document as two whole-document
+  // writes, so a first that lands beside a second that fails leaves the same metric in
+  // both slots. Pinning the old spelling would have FAILED the fix. What this suite
+  // actually cares about is one write for one arrangement, and one key per slot per role.
   const at = TODAY.indexOf('function useDashKpiStrip(');
   assert.ok(at > 0, 'useDashKpiStrip moved');
   const body = TODAY.slice(at, TODAY.indexOf('\n}\n', at));
-  const calls = body.match(/useRememberedChoice\(prefs, base \+ "\d"/g) || [];
-  assert.equal(calls.length, 4, 'the slot hooks are no longer four written-out calls');
-  assert.doesNotMatch(body, /for \([^)]*\)\s*\{[^}]*useRememberedChoice/, 'the hooks went into a loop');
+  const slotHooks = body.match(/useRememberedChoice\(/g) || [];
+  assert.equal(slotHooks.length, 0, 'a per-slot hook is back: a swap can half-persist again');
+  assert.equal((body.match(/useRememberedSlots\(/g) || []).length, 1, 'the strip must go through exactly one hook');
   // per role, so a dual-role coach keeps two arrangements
-  assert.match(body, /const base = "kpi:" \+ role \+ ":" \+ strip \+ ":";/);
-  // only the slots that moved are written
-  assert.match(body, /if \(next\[i\] !== chosen\[i\]\) slots\[i\]\[1\]\(next\[i\]\)/);
+  assert.match(body, /"kpi:" \+ role \+ ":" \+ strip \+ ":"/);
+  // four slots, spelled out — a loop would make the hook count depend on data
+  assert.match(body, /base \+ "0", base \+ "1", base \+ "2", base \+ "3"/);
+  assert.doesNotMatch(body, /for \([^)]*\)\s*\{[^}]*useRemembered/, 'the keys went into a loop');
+});
+
+test('the slot hook writes every changed key in ONE apply', () => {
+  // The atomicity lives in `dashData.jsx`, so it is asserted where it lives rather than
+  // inferred from the caller. (Driven end to end in dashboard-remembered-choices.test.mjs.)
+  const at = DATA.indexOf('function useRememberedSlots(');
+  assert.ok(at > 0, 'useRememberedSlots moved');
+  const body = DATA.slice(at, DATA.indexOf('\n}\n', at));
+  assert.equal((body.match(/apply\(/g) || []).length, 1, 'more than one apply: the arrangement can half-land');
+  assert.match(body, /for \(let i = 0; i < keys\.length; i\+\+\) \{\s*if \(want\[i\] === undefined\) delete out\[keys\[i\]\]; else out\[keys\[i\]\] = want\[i\];/,
+    'the single apply no longer writes every key');
+  // a value we would refuse to read back stops the WHOLE write, not just its own slot
+  assert.match(body, /for \(let i = 0; i < chosen\.length; i\+\+\) if \(allowed\.indexOf\(chosen\[i\]\) < 0\) return;/);
 });
 
 test('a long settings group renders as a select, and hands back the option value', () => {
@@ -237,4 +258,102 @@ test('the strips still say the words they said before the picker', () => {
   // and the dead config really is gone, or the next reader will edit the wrong copy
   assert.doesNotMatch(TODAY, /weekLabel:/);
   assert.doesNotMatch(TODAY, /upcomingLabel:/);
+});
+
+// ── The settings panel escapes the card's clip box (Codex P1, #2046) ──────────
+//
+// ⚠ THE DEFECT WAS MEASURED, NOT REASONED ABOUT. `.dash-gridstack
+// .grid-stack-item-content` is `overflow:hidden!important` and an absolutely-positioned
+// child does not grow the box it hangs in, so on the KPI strip — a 110px card carrying a
+// four-group panel — the slot pickers sat at y 59–86 / 112–139 / 165–192 / 218–245 and
+// THREE OF FOUR fell outside the clip box. A coach could change the first slot and
+// nothing else. Every element was in the DOM the whole time, which is exactly why
+// counting them passed: only their geometry against the card said anything.
+const dgPanelBox = (() => {
+  const at = GRID.indexOf('function dgPanelBox(');
+  assert.ok(at > 0, 'dgPanelBox moved');
+  const body = GRID.slice(at, GRID.indexOf('\n}\n', at) + 3);
+  const head = GRID.slice(GRID.indexOf('const DG_GUT'), GRID.indexOf('function dgPanelBox('));
+  assert.match(head, /DG_PANEL_W/, 'the panel constants moved');
+  return new Function(head + body + '\nreturn dgPanelBox;')();
+})();
+const gearAt = (right, top, h = 18) => ({ right, left: right - 18, top, bottom: top + h });
+
+test('the panel is portaled out of the card, not positioned inside it', () => {
+  assert.match(GRID, /ReactDOM\.createPortal\(/, 'the panel is back inside the clipped card');
+  const at = GRID.indexOf('function DgCardSettings(');
+  const body = GRID.slice(at, GRID.indexOf('\nfunction DashGrid(', at));
+  assert.match(body, /ReactDOM\.createPortal\(/);
+  assert.match(body, /document\.body\s*\n?\s*\)\}/, 'the portal target is no longer document.body');
+  assert.match(body, /position: "fixed"/, 'a portaled panel positioned `absolute` lands relative to <body>, not the gear');
+  assert.doesNotMatch(body, /position: "absolute", top: "100%"/, 'the old in-card placement is back');
+});
+
+test('the away test asks the PANEL as well as the gear — a portal breaks `contains`', () => {
+  // With only the gear's wrapper tested, the first click inside the portaled panel reads
+  // as a click outside it and closes the thing you are using.
+  const at = GRID.indexOf('function DgCardSettings(');
+  const body = GRID.slice(at, GRID.indexOf('\nfunction DashGrid(', at));
+  assert.match(body, /panelRef\.current && panelRef\.current\.contains\(e\.target\)/);
+  assert.match(body, /if \(!inGear && !inPanel\) setOpen\(false\);/);
+});
+
+test('the panel is inside both gutters at every width, including narrower than itself', () => {
+  // ⚠ THE SWEEP HAS TO REACH BELOW THE CAP'S BITE POINT, or it is not testing the cap.
+  // At 240px wide the panel plus two 12px gutters is exactly 264, so every width at or
+  // above that fits an uncapped panel and a mutation removing the cap SURVIVES — which
+  // is what it did on the first round, with 320 as the narrowest case. 240 and 264 are
+  // the widths where the clamp is the only thing holding.
+  for (const vw of [240, 264, 320, 360, 390, 430, 700, 900, 1024, 1200, 1440]) {
+    for (const right of [24, 60, vw / 2, vw - 40, vw - 8, vw]) {
+      const b = dgPanelBox(gearAt(right, 120), vw, 900);
+      assert.ok(b.left >= 12 - 0.001, `left gutter crossed at vw=${vw} right=${right}: ${b.left}`);
+      assert.ok(b.left + b.width <= vw - 12 + 0.001, `right gutter crossed at vw=${vw} right=${right}: ${b.left + b.width}`);
+      assert.ok(b.width > 0);
+    }
+  }
+});
+
+test('the panel right-aligns on the gear wherever there is room for it', () => {
+  const b = dgPanelBox(gearAt(1357, 220), 1440, 1400);
+  assert.equal(b.left + b.width, 1357, 'the panel no longer hangs from the gear');
+  assert.equal(b.up, false);
+  assert.equal(b.offset, 220 + 18 + 6, 'the panel does not sit under the gear');
+});
+
+test('a gear with no room below opens UPWARD, and only when there is more room there', () => {
+  // 80px of screen under the gear, 600 above it.
+  const up = dgPanelBox(gearAt(900, 700), 1200, 800);
+  assert.equal(up.up, true);
+  assert.equal(up.offset, 800 - 700 + 6, 'the upward panel is pinned to the gear, not to the viewport');
+  assert.ok(up.maxHeight > 400);
+  // Cramped BOTH ways — flipping would only turn a short panel upside down.
+  const tight = dgPanelBox(gearAt(900, 150), 1200, 340);
+  assert.equal(tight.up, false, 'flipped into less room than it came from');
+});
+
+test('the panel is capped to the room it has, so it scrolls rather than running off screen', () => {
+  // ⚠ THE INVARIANT IS ORIENTATION-AGNOSTIC, and my first version of this test was not:
+  // it restated the DOWNWARD arithmetic and then fed it a gear that legitimately flips up.
+  // What the panel actually promises is that its own box stays inside both vertical
+  // gutters, whichever way it hangs — so that is what is swept.
+  const GUT = 12, FLOOR = 80;
+  for (const vh of [340, 420, 600, 760, 900, 1400]) {
+    for (const top of [0, 20, 120, Math.round(vh / 2), vh - 120, vh - 30]) {
+      const g = gearAt(900, top);
+      const b = dgPanelBox(g, 1200, vh);
+      const boxTop = b.up ? vh - b.offset - b.maxHeight : b.offset;
+      const boxBottom = b.up ? vh - b.offset : b.offset + b.maxHeight;
+      assert.ok(b.maxHeight >= FLOOR, `no room left to scroll at vh=${vh} top=${top}`);
+      // The floor wins on a viewport too small for anything: 80px of scrollable panel
+      // beats a 30px sliver, and it is the only case allowed to cross a gutter.
+      if (b.maxHeight > FLOOR) {
+        assert.ok(boxTop >= GUT - 0.001, `top gutter crossed at vh=${vh} top=${top}: ${boxTop}`);
+        assert.ok(boxBottom <= vh - GUT + 0.001, `bottom gutter crossed at vh=${vh} top=${top}: ${boxBottom}`);
+        // and it never covers the control that opened it
+        if (b.up) assert.ok(boxBottom <= g.top + 0.001, `the upward panel covers its own gear at vh=${vh} top=${top}`);
+        else assert.ok(boxTop >= g.bottom - 0.001, `the panel covers its own gear at vh=${vh} top=${top}`);
+      }
+    }
+  }
 });

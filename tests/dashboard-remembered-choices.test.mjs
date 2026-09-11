@@ -587,3 +587,128 @@ test("A's mid-read set choice is discarded on a switch, not folded into B's docu
   const forB = state.written.filter((w) => w.uid === 'coach-b');
   assert.equal(forB.length, 0, "A's session choice was written into B's row");
 });
+
+// ── useRememberedSlots — a strip of choices, written in ONE operation ─────────
+//
+// ⚠ THE DEFECT THIS PINS IS A DUPLICATE THE SWAP EXISTS TO PREVENT (Codex, #2046).
+// The KPI picker swaps when a coach chooses a metric already in another slot, which
+// changes TWO entries; four independent `useRememberedChoice`s take that to the
+// document as two separate whole-document writes, and a first that lands beside a
+// second that fails leaves the same metric in both slots on the next reload.
+function driveSlots(dbState, opts) {
+  const o = opts || {};
+  const ctl = { live: o.live !== false };
+  const hooks = new Function('React', 'window', AUTH + '\n' + HELPERS + '\n' + STORE + '\n' + CHOICE +
+    '\nreturn { useRememberedChoices, useRememberedSlots };');
+  const keys = o.keys || ['s:0', 's:1', 's:2', 's:3'];
+  const allowed = o.allowed || ['a', 'b', 'c', 'd', 'e'];
+  const defaults = o.defaults || ['a', 'b', 'c', 'd'];
+  const host = makeHost((React) => {
+    const api = hooks(React, { shapeDb: dbState.db });
+    const prefs = api.useRememberedChoices(ctl.live);
+    const [values, choose] = api.useRememberedSlots(prefs, keys, allowed, defaults);
+    return { kind: prefs.kind, doc: prefs.doc, accountId: prefs.accountId, values, choose };
+  });
+  return { host, ctl, keys, defaults };
+}
+
+test('a swap moves two slots in ONE document write', async () => {
+  const { db, state } = makeDb({});
+  const { host } = driveSlots({ db, state });
+  await host.flush();
+  assert.deepEqual(host.out.values, ['a', 'b', 'c', 'd']);
+  state.saves = 0;
+  // Put 'c' (slot 2) into slot 0 — a swap: slot 0 becomes 'c', slot 2 becomes 'a'.
+  host.out.choose(['c', 'b', 'a', 'd']);
+  await host.flush();
+  assert.equal(state.saves, 1, 'a swap must not take two writes');
+  assert.deepEqual(state.written[0].val, { 's:0': 'c', 's:2': 'a' });
+  assert.deepEqual(host.out.values, ['c', 'b', 'a', 'd']);
+});
+
+test('a slot equal to its default is stored as an ABSENT key, not as a value', async () => {
+  const { db, state } = makeDb({ 's:1': 'e' });
+  const { host } = driveSlots({ db, state });
+  await host.flush();
+  assert.deepEqual(host.out.values, ['a', 'e', 'c', 'd']);
+  host.out.choose(['a', 'b', 'c', 'd']);   // slot 1 back to its default
+  await host.flush();
+  assert.deepEqual(state.doc, {}, 'the default must delete the key, not pin today\'s default into the member\'s data');
+});
+
+test('a stored slot value this build does not recognise costs THAT slot only', async () => {
+  const { db, state } = makeDb({ 's:0': 'retired', 's:2': 'e' });
+  const { host } = driveSlots({ db, state });
+  await host.flush();
+  // slot 0 falls back to its own default; slot 2's stored value still stands.
+  assert.deepEqual(host.out.values, ['a', 'b', 'e', 'd']);
+  assert.equal(state.saves, 0, 'reading an unknown value must not write');
+  assert.deepEqual(state.doc, { 's:0': 'retired', 's:2': 'e' }, 'an unknown key is left for the build that knows it');
+});
+
+test('an arrangement carrying a value we would refuse to read back writes NOTHING', async () => {
+  // ⚠ NOT "writes the other three". A strip is ONE arrangement, and a partial write is
+  // exactly how a swap leaves a duplicate behind.
+  const { db, state } = makeDb({});
+  const { host } = driveSlots({ db, state });
+  await host.flush();
+  host.out.choose(['e', 'b', 'nonsense', 'd']);
+  await host.flush();
+  assert.equal(state.saves, 0);
+  assert.deepEqual(state.doc, {});
+});
+
+test('choosing what the document already says writes nothing', async () => {
+  const { db, state } = makeDb({ 's:0': 'e' });
+  const { host } = driveSlots({ db, state });
+  await host.flush();
+  state.saves = 0;
+  host.out.choose(['e', 'b', 'c', 'd']);
+  await host.flush();
+  assert.equal(state.saves, 0);
+});
+
+test('a failed strip write is attempted once, never retried in a loop', async () => {
+  const { db, state } = makeDb({}, { saveFails: true });
+  const { host } = driveSlots({ db, state });
+  await host.flush();
+  host.out.choose(['e', 'b', 'c', 'd']);
+  await host.flush();
+  await host.flush();
+  assert.equal(state.saves, 1);
+  assert.deepEqual(host.out.values, ['e', 'b', 'c', 'd'], 'the choice still governs the session');
+});
+
+test('a strip chosen before the store is writable is saved once it becomes writable', async () => {
+  const { db, state } = makeDb({});
+  const d = driveSlots({ db, state }, { live: false });
+  await d.host.flush();
+  d.host.out.choose(['e', 'b', 'c', 'd']);
+  await d.host.flush();
+  assert.equal(state.saves, 0, 'nothing to write to yet');
+  d.ctl.live = true;
+  await d.host.flush();
+  assert.equal(state.saves, 1);
+  assert.deepEqual(state.written[0].val, { 's:0': 'e' });
+});
+
+test("A's strip does not follow them to B", async () => {
+  // ⚠ A's CHOICE HAS TO BE MADE, or this test cannot see the clean slate at all. With
+  // `chosen` still null the values come from the document either way, so re-hydrating
+  // B's row produces the defaults on its own and a mutation deleting the reset SURVIVES
+  // — which is what it did on the first round. `chosen` outranks the document, and that
+  // is the whole thing being reset.
+  const { db, state } = makeDb({});
+  state.docB = {};
+  const { host } = driveSlots({ db, state });
+  await host.flush();
+  host.out.choose(['e', 'b', 'c', 'd']);
+  await host.flush();
+  assert.deepEqual(host.out.values, ['e', 'b', 'c', 'd']);
+  assert.deepEqual(state.doc, { 's:0': 'e' });
+  state.uid = 'coach-b';
+  state.auth && state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.deepEqual(host.out.values, ['a', 'b', 'c', 'd'], "B must not inherit A's arrangement");
+  assert.deepEqual(state.docB, {}, "A's arrangement was written into B's row");
+});

@@ -660,9 +660,64 @@ Append new entries at the top, under this note.
   sessions today"*, so the run clicked a gear that card does not have and timed out. It
   identifies each strip by its four mono eyebrows now. *A case-insensitive match on a common
   phrase matches whatever else contains it.*
-- **Verified:** `npm test` **3339/3339** on the head merged with `main` · `tsc --noEmit` 0 ·
-  JSX parse on both changed modules · `dashSignals.js` `require()`s clean · the newdesign
-  precompile check · **21/21 mutations killed**, each proven to land, sanity green at both
+- ⚠ **AND CODEX FOUND THAT THREE OF THE FOUR SLOT PICKERS WERE NOT ON SCREEN AT ALL.**
+  `.dash-gridstack .grid-stack-item-content` is `overflow:hidden!important` — it has to be,
+  because the card's own height measurement only reports the true content height because of
+  it — and an absolutely-positioned child does not grow the box it hangs in. **Measured
+  rather than reasoned about:** a **110px** KPI card carrying a four-group panel put its
+  selects at y **59–86 · 112–139 · 165–192 · 218–245**, so a coach could change the FIRST
+  slot and nothing else. The feature was two thirds dead on the one surface it exists for.
+- ⚠ **AND MY OWN DRIVE REPORTED "four `<select>` groups of eleven" WHILE THAT WAS TRUE.**
+  All four were in the DOM, queryable, and Playwright picked from them happily — counting
+  elements cannot see a clip box. It took reading each select's geometry **against the
+  card** to say anything at all. *The same class as the border that was never going to
+  paint: an absent thing still renders, still passes, and still looks approximately right.*
+- **The panel is portaled to `document.body` and positioned `fixed` from the gear's own
+  rect**, so it escapes every clip boundary rather than negotiating with one. Sizing the
+  card to contain it was the alternative and is worse: the grid would reflow every time a
+  gear opened. `dgPanelBox` is **pure**, so the clamping is driven over synthetic rects
+  instead of eyeballed at one width in one browser.
+- ⚠ **THE CLAMP IS AN INTERVAL, NOT TWO ONE-SIDED `Math.min`s** — cap the width at both
+  gutters first, and the left edge then has to satisfy both edges at once. The notification
+  panel shipped the one-sided version as a because-clause and its own guard refuted it the
+  same hour; this one is swept at **eleven widths from 240 to 1440**, and the sweep had to
+  reach **below 264** or the cap is never the thing holding and a mutation removing it
+  survives — which is exactly what it did on the first round, with 320 as the narrowest case.
+- ⚠ **AND A PORTAL BREAKS `contains`, WHICH IS WHAT THE OUTSIDE-CLICK TEST IS BUILT ON.**
+  With only the gear's wrapper tested, the first click **inside** the panel reads as a click
+  outside it and closes the thing you are using. It asks both nodes now.
+- ⚠ **CODEX'S SECOND FINDING WAS THE SWAP HALF-PERSISTING, AND IT IS THE GUARANTEE THE
+  SWAP EXISTS FOR.** Four `useRememberedChoice`s took a two-slot swap to the document as
+  **two** whole-document writes; a first that lands beside a second that fails leaves the
+  same metric in **both** slots on the next reload. `useRememberedSlots` writes the whole
+  arrangement in **one** `apply` — measured, not argued: a plain pick and a swap both report
+  **exactly one** `saveUserGoals`, the swap's carrying both keys.
+- ⚠ **THE KEYS ON DISK ARE STILL ONE PER SLOT, so validation stays per slot** — a metric
+  retired since it was chosen costs THAT slot its default and leaves the other three alone.
+  What changed is the number of writes, not the stored shape. And **a value we would refuse
+  to read back stops the WHOLE write**, not just its own slot: a strip is one arrangement,
+  and writing three of its four keys is precisely the partial write this is about.
+- ⚠ **AND A GUARD I WROTE YESTERDAY FAILED THE CORRECT FIX.** *"the four slots are four
+  hooks"* pinned the exact `useRememberedChoice(prefs, base + "N"` spelling — the shape
+  Codex found unsafe — so the fix broke a test about hook order. Re-anchored on what the
+  suite actually cares about: **one hook, one write, one key per slot per role.** *A guard
+  that pins a spelling pins whatever that spelling is wrong about* — and this time the
+  spelling was wrong the day after it was written.
+- ⚠ **AND MY MUTATION HARNESS REPORTED 0/16 KILLED, WHICH WAS THE HARNESS.** It ran
+  `node --test … | tail -30` through `execSync`, and **a pipeline's exit status is the last
+  command's** — `tail` always succeeds, so every mutation "survived". It parses the
+  `# fail` / `# pass` counts now, and a run that produces no counts at all is a failure
+  rather than a pass. *A check that cannot fail is worse than no check* — this file's own
+  sentence, about `psql … | tail -4 && echo "APPLIED"`, paid for again.
+- ⚠ **AND BOTH REMAINING SURVIVORS WERE REAL GAPS IN MY GUARDS, NOT NO-OPS.** The
+  width-cap one is above; the other was the account clean slate, which my A→B test could
+  not see because **A never chose anything** — with `chosen` still null the values come from
+  the document either way, so re-hydrating B's row produces the defaults on its own. The
+  reset is about a choice outranking the document, so the test now makes one.
+- **Verified:** `npm test` **3354/3354** on the head merged with `main` · `tsc --noEmit` 0 ·
+  JSX parse on all three changed modules · `dashSignals.js` `require()`s clean · the
+  newdesign precompile check · **21/21 + 16/16 mutations killed** across two rounds, each
+  proven to land, sanity green at both
   ends · and the whole cycle driven in Chromium against a simulated live coach: **two
   strips, two gears, four `<select>` groups of eleven** each carrying a painted chevron
   (`appearance: none` takes the native one with it), picking *Needs eyes* into the second
@@ -671,6 +726,12 @@ Append new entries at the top, under this note.
   moved** — then the swap exchanges two slots, and a **reload brings the arrangement back**.
   The signed-out preview keeps the payout four with **zero gears on Overview**. Zero page
   errors throughout.
+- **And the fixed panel re-driven** in Chromium at **nine viewport sizes from 320×380 to
+  1440×1400**: portaled on every one, every slot inside both gutters, the panel capped and
+  **scrolling** where the screen is too short for it, a pick from the fourth slot still
+  landing, the swap reporting **one** write carrying both keys, and the Progress page's
+  chips gear still stepping ALL → 90D → 30D → 7D → ALL at **43 → 21 → 9 → 4** segments with
+  the choice surviving a reload. Zero page errors.
 - ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; the on-account
   pass is owed, and it is now the only thing left on the review's P1/P2 roadmap besides the
   booking-timezone ruling.

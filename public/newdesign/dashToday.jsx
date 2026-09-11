@@ -1085,21 +1085,15 @@ function DashNutriAggPanel({ clients, live }) {
 // then costs that ONE slot its default, where a stored array would have to be validated
 // element by element or discarded whole.
 function useDashKpiStrip(prefs, strip, role, defaults) {
-  const allowed = DashSignals.DASH_KPI_KEYS;
   const base = "kpi:" + role + ":" + strip + ":";
-  const s0 = useRememberedChoice(prefs, base + "0", allowed, defaults[0]);
-  const s1 = useRememberedChoice(prefs, base + "1", allowed, defaults[1]);
-  const s2 = useRememberedChoice(prefs, base + "2", allowed, defaults[2]);
-  const s3 = useRememberedChoice(prefs, base + "3", allowed, defaults[3]);
-  const slots = [s0, s1, s2, s3];
-  const chosen = slots.map((x) => x[0]);
-  // A swap moves TWO slots, so the setter takes the whole arrangement and writes only the
-  // ones that actually changed — writing all four would store three values equal to their
-  // defaults, which `useRememberedChoice` exists to keep out of the document.
-  const set = (next) => {
-    for (let i = 0; i < slots.length; i++) if (next[i] !== chosen[i]) slots[i][1](next[i]);
-  };
-  return [chosen, set];
+  // ⚠ ONE HOOK OVER FOUR KEYS, NOT FOUR HOOKS — because a swap changes TWO slots and
+  // four independent hooks would take that to the document as two separate
+  // whole-document writes. A first that lands beside a second that fails leaves the
+  // same metric in both slots on the next reload, which is the one thing the swap
+  // exists to prevent. `useRememberedSlots` writes the whole arrangement in one
+  // operation and still validates each slot on its own key, so a retired metric costs
+  // only its own slot. (Codex, #2046.)
+  return useRememberedSlots(prefs, [base + "0", base + "1", base + "2", base + "3"], DashSignals.DASH_KPI_KEYS, defaults);
 }
 
 // ── The shared page ─────────────────────────────────────────────────────────
