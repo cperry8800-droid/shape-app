@@ -273,3 +273,33 @@ test("Anybody's weight range covers the weights the page sets on it", () => {
 // cascade. Its weights are covered only by the union sweep above. Registered
 // rather than faked — a check that guessed which rules were Schibsted's would be
 // a claim this file cannot support.
+
+test('the display width axis is set in one place and the reveal reads it back', () => {
+  // ⚠ THIS NUMBER USED TO LIVE IN FOUR PLACES: `--w` at :root, the `.hero h1 .w`
+  // fallback, the reduced-motion branch of reveal(), and the `62+56` arithmetic
+  // that animated toward it. Narrowing the headline meant landing all four, and
+  // missing one leaves the words animating past the width every other heading
+  // uses — a disagreement nothing would report, because both values are legal.
+  const root = [...SRC.matchAll(/--w\s*:\s*(\d+(?:\.\d+)?)\s*;/g)].map((m) => Number(m[1]));
+  assert.equal(root.length, 1, `--w must be declared exactly once, found ${root.length}`);
+  const target = root[0];
+
+  // The hero's own rule may not restate it: it must defer to --w.
+  const hero = /\.hero h1 \.w\{[^}]*\}/.exec(SRC);
+  assert.ok(hero, 'no .hero h1 .w rule found \u2014 the scan is broken, not the page');
+  assert.match(hero[0], /var\(--hw,\s*var\(--w\)\)/, 'the hero headline must fall back to --w, not a literal');
+
+  // Nor may the reveal: it reads the computed value.
+  assert.match(SRC, /function headWidth\(\)/, 'reveal() must read the target rather than restate it');
+  assert.match(SRC, /getPropertyValue\('--w'\)/, 'headWidth() must read --w from the computed style');
+
+  // And both ends of the animation must be axis values the font was asked for,
+  // or the words animate through a width Google Fonts never delivered.
+  const byFamily = requestedAxes(SRC);
+  const [lo, hi] = byFamily.get('Anybody').get('wdth');
+  const from = Number(/var to=headWidth\(\), from=(\d+)/.exec(SRC)?.[1]);
+  assert.ok(Number.isFinite(from), 'could not read the reveal start width');
+  for (const [label, v] of [['start', from], ['target', target]]) {
+    assert.ok(v >= lo && v <= hi, `the reveal ${label} width ${v} is outside Anybody's requested ${lo}..${hi}`);
+  }
+});
