@@ -1937,17 +1937,33 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const [wl, setWl] = useStateBSM2(null);
   const wlBusy = React.useRef(false);
   React.useEffect(() => {
-    if (!atCapacity || !capProviderId || !window.ShapeWaitlist?.mine) { setWl(null); return undefined; }
+    // ⚠ CLEARED ON EVERY RUN, NOT ONLY ON THE BAIL — and keyed on the ACCOUNT below.
+    // The old deps held no identity, so an A→B switch did not re-run this effect at
+    // all: A's in-flight `mine()` resolved into B's mounted listing and showed B A's
+    // queue position and entry id. Keying on `bsmAuthUid` makes the switch a
+    // dependency change, so the cleanup discards A's answer; clearing here rather
+    // than only in the bail branch stops B seeing A's row in the window before the
+    // replacement lands. Same class, and the same fix, as the web profile in this PR.
+    setWl(null);
+    if (!atCapacity || !capProviderId || !bsmAuthUid || !window.ShapeWaitlist?.mine) return undefined;
     let on = true;
     (async () => {
       try {
         const r = await window.ShapeWaitlist.mine();
         const mine = ((r && r.entries) || []).find((e) => String(e.providerId) === String(capProviderId) && e.providerRole === saleProviderRole);
-        if (on) setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.entryId || null } : null);
+        // ⚠ `/api/waitlist/mine` RETURNS THE ROW AS `id`; ONLY `/join` CALLS IT
+        // `entryId`. Reading `mine.entryId` here yielded undefined on every hydrate, so
+        // `wl.entryId` was null and `wlWithdraw` bailed at its own `if (!wl?.entryId)`
+        // guard — "Refreshing your spot" forever. Joining still worked (the /join
+        // response DOES carry entryId), so the list could be joined in-session and
+        // never left again from the next reload onward. BSSignalCoachProfile reads
+        // `mineEntry.id` and was always right, which is how one member could leave the
+        // list from the profile and not from the listing.
+        if (on) setWl(mine ? { status: mine.status, position: mine.position, entryId: mine.id || null } : null);
       } catch (e) {}
     })();
     return () => { on = false; };
-  }, [atCapacity, capProviderId, saleProviderRole]);
+  }, [atCapacity, capProviderId, saleProviderRole, bsmAuthUid]);
   const wlJoin = async () => {
     if (wlBusy.current) return;
     if (window.bsRequireAccount && !window.bsRequireAccount('join the waiting list')) return;
