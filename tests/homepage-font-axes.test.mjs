@@ -113,6 +113,23 @@ function usedAxes(html) {
   return out;
 }
 
+/** The `font-weight` values set on DOTO rules, derived from the page.
+ *
+ *  ⚠ A RULE THAT SETS `ROND` IS A DOTO RULE BY CONSTRUCTION, which is what makes
+ *  this honest without resolving the cascade: `ROND` is Doto's axis and no other
+ *  family on this page has one, so a rule setting it either targets Doto or is
+ *  inert — and inert is precisely what the sibling test forbids. That inference
+ *  is stated rather than assumed, because it is the only reason a per-family
+ *  weight check is possible here at all. */
+function dotoWeights(html) {
+  const out = new Set();
+  for (const block of html.split('}')) {
+    if (!/font-variation-settings\s*:\s*['"]ROND['"]/.test(block)) continue;
+    for (const m of block.matchAll(/font-weight\s*:\s*(\d{2,3})\b/g)) out.add(Number(m[1]));
+  }
+  return out;
+}
+
 test('the homepage requests every variable-font axis it sets', () => {
   const byFamily = requestedAxes(SRC);
   const used = usedAxes(SRC);
@@ -178,4 +195,22 @@ test('Doto ships its roundness axis, not just its weight', () => {
   assert.ok(doto.has('ROND'), "Doto must be requested with its ROND axis, not wght alone");
   assert.deepEqual(doto.get('ROND'), [0, 100], 'ROND must be requested across its full 0..100 range');
   assert.ok(doto.has('wght'), 'and Doto still needs its weight axis');
+
+  // ⚠ AND ITS WEIGHT RANGE, NOT JUST THE AXIS — CodeRabbit, #2045, the same blind
+  // spot one level down. `doto.has('wght')` passes on `Doto:ROND,wght@100..400`
+  // while the derived sweep above is satisfied by ANYBODY's 100..900 through the
+  // union, so every Doto figure would clamp to 400 with the suite green. The
+  // weights are read off the page rather than named here, so restyling a figure
+  // is covered with nobody remembering this test exists.
+  const weights = dotoWeights(SRC);
+  assert.ok(weights.size > 0, 'derived zero Doto weights \u2014 the block scan stopped matching');
+  const [wlo, whi] = doto.get('wght');
+  for (const w of weights) {
+    assert.ok(
+      w >= wlo && w <= whi,
+      `a Doto rule sets font-weight ${w}, but Doto is requested at wght ${wlo}..${whi} \u2014 the ` +
+        `weight is clamped, so the figure is not the one the rule asks for. ` +
+        `Doto weights on the page: ${[...weights].sort((a, b) => a - b).join(', ')}`,
+    );
+  }
 });

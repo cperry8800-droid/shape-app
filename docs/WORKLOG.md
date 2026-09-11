@@ -690,6 +690,18 @@ Append new entries at the top, under this note.
   rule applies to means resolving the cascade through `var(--num)`, which a source scan
   cannot do honestly; the limitation is stated at the site rather than discovered later.
   **9 mutations, 8 killed and the ninth proven a no-op on correct input.**
+  ⚠ **AND THE NEXT ROUND FOUND THE SAME BLIND SPOT ONE LEVEL DOWN — CodeRabbit again, on
+  `128168a`.** Keying by family fixed `ROND`'s *presence* and left its *range* unchecked for
+  `wght`: `doto.has('wght')` passes on `Doto:ROND,wght@100..400` while the derived sweep is
+  satisfied by **Anybody's** `100..900` through the union — so every Doto figure would clamp
+  to 400 with the suite green. The weights are derived from the page now (measured: **700 in
+  12 rules, 900 in 4**) and checked against Doto's own requested range. ⚠ The derivation is
+  only honest because **a rule that sets `ROND` is a Doto rule by construction** — `ROND` is
+  Doto's axis and no other family here has one, so such a rule either targets Doto or is
+  inert, and inert is what the sibling test forbids. That inference is stated at the site,
+  because it is the only reason a per-family weight check is possible without resolving the
+  cascade. **11 mutations, 10 killed**; the eleventh weakens a comparison that every correct
+  input satisfies, and the narrowed-range mutation is its proof.
   ⚠ And its first version was a broken instrument in the way this file keeps
   recording: `[\d.]+` is greedy over dots, so `50..150` matched **whole**, parsed as `NaN`,
   and every ranged axis was dropped — the guard failed on a page that was by then correct.
