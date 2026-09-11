@@ -18067,7 +18067,14 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       // own hero below it — which is the one thing the approved board does not
       // do. The gain is the part of that header worth keeping, so it joins the
       // pill and the duplicate header is gone.
-      const tail = recordNote ? ` · ${recordNote}` : '';
+      // ⚠ AND IT FALLS BACK TO THE POST'S OWN DELTA, or the wall variant LOSES
+      // the improvement outright: the `↑ PR {prDelta}` line is suppressed on the
+      // wall (it would say the record twice), and `recordNote` is a PROP only the
+      // ledger-backed caller supplies. The feed renders these same cards with no
+      // recordNote, so without this a member's "New PR" stopped saying by how
+      // much. The ledger's gain still wins where it is supplied — it is the
+      // authoritative number, measured against their stored best.
+      const tail = recordNote ? ` · ${recordNote}` : (prDelta ? ` · ${prDelta}` : '');
       if (isPR) {
         return `${tr('feed:card.newPR', { defaultValue: 'New PR' })}${lift ? ` · ${lift}` : (measure ? ` · ${measure}` : '')}${tail}`;
       }
@@ -18212,12 +18219,21 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
                 <div>
                   <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
                   <div style={{ display: 'flex', alignItems: isWall ? 'flex-end' : 'baseline', gap: isWall ? 10 : 6, marginTop: 2, flexWrap: 'wrap' }}>
-                    {/* ⚠ THE WALL'S FIGURE IS DRAWN, THE FEED'S IS TYPESET, and
-                        the drawn one does NOT count up: BSSdCountUp animates a
-                        string through a font, which a dot matrix cannot do
-                        without redrawing 245 glyph grids a second for a number
-                        that is already the loudest thing on the plate. */}
-                    {isWall ? (
+                    {/* ⚠ THE WALL'S FIGURE IS DRAWN WHERE THE MATRIX CAN SPELL
+                        IT, AND TYPESET WHERE IT CANNOT — the fallback is not a
+                        nicety: `bsDotChars` DROPS an unknown character, so a
+                        compound value renders as a different, plausible-looking
+                        number (`8h 10m` → “8 10”) with nothing on screen
+                        saying so. The feed is always typeset.
+                        The DRAWN figure does not count up — BSSdCountUp animates
+                        a string through a font, which a dot matrix cannot do
+                        without redrawing 245 glyph grids a second. The typeset
+                        fallback behaves exactly like the feed's hero, count-up
+                        included: suppressing it on the wall was an invariant no
+                        test here can observe (`railSeen` is false in a shallow
+                        render), and an unguardable claim is worse than the
+                        inconsistency it was hiding. */}
+                    {isWall && bsDotRenderable(u.num) ? (
                       <BSDotNumber text={u.num} size={38} color={t.INK} title={`${u.num}${u.unit ? ' ' + u.unit : ''}`} />
                     ) : (
                       <span style={{ fontFamily: t.DISPLAY, fontSize: 'min(34px, 9vw)', fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
@@ -18644,6 +18660,19 @@ const BS_DOT_ROWS = 7;
 // cell: a silent gap in a number reads as a different number.
 function bsDotChars(text) {
   return String(text == null ? '' : text).split('').filter((ch) => ch === ' ' || BS_DOT_GLYPHS[ch]);
+}
+
+// ⚠ CAN THE MATRIX SAY THIS VALUE AT ALL? Dropping is the right behaviour
+// for a stray character inside a figure the matrix mostly knows; it is the
+// WRONG behaviour for a value built out of letters, because the drop is
+// silent and the result still looks like a reading. `bsSdSplitUnit` only
+// lifts a trailing unit off a pure number (`245 lb`), so a compound value
+// keeps its letters in `num` — `8h 10m` would draw as “8 10” and
+// `2.4 · MO` as “2.4  0”. A caller asks first and typesets what the
+// matrix cannot spell. Empty is NOT renderable: an empty grid says nothing.
+function bsDotRenderable(text) {
+  const s = String(text == null ? '' : text);
+  return s.trim().length > 0 && s.split('').every((ch) => ch === ' ' || BS_DOT_GLYPHS[ch]);
 }
 
 // The heart-rate trace as a plain polyline. Scaled to its OWN min/max, because
@@ -19552,8 +19581,24 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       return;
     }
     // Deep-link to the Wall (Home's "On the wall" card).
+    // ⚠ THE WALL IS THE ACTIVITY SUB-TAB, NOT A SEGMENT. This set `tab: 'wall'`
+    // while that segment existed; leaving it would have kept a SECOND Wall alive
+    // with no pill — reachable only from Home, carrying its own lift dropdown and
+    // scope chips. Owner: "don't need 2 wall tabs". It lands on the Feed segment
+    // with the activity filter selected, which IS the Wall.
     if (openRequest.wall) {
-      setTab('wall');
+      setTab('feed');
+      setFilter('COMMUNITY');
+      // ⚠ AND THE LENS, OR THE BULLETIN SENDS THEM WHERE ITS RECORD IS NOT.
+      // `BSHomeWallBulletin` picks from `ShapePRWall.list()`, which is the
+      // everyone scope — but `feedMode` is persisted per device, so a member
+      // who last chose FOLLOWING lands on a feed that cannot hold the record
+      // Home just named unless they happen to follow its author.
+      // setFeedMode, NOT switchFeedMode: this is a navigation, not the member
+      // choosing a lens, and a tap on a Home card must not silently overwrite
+      // a standing preference. The control sits lit beside the title, so the
+      // change is visible and one tap undoes it.
+      setFeedMode('universal');
       setOpenChat(null);
       return;
     }
@@ -19755,7 +19800,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Display labels: per request the Community and Shape chips are swapped in chat
   // (the activity feed reads "Shape", the members feed reads "Community").
   const chipLabel = (k) => (
-    k === 'COMMUNITY' ? tr('feed:chip.shape', { defaultValue: 'Shape' })
+    // ⚠ THE ACTIVITY TAB IS THE WALL. It was labelled "Shape"; the Wall is a
+    // REDESIGN of this feed, not a surface beside it, so the label moved here and
+    // the separate Wall pill was removed. The KEY stays `COMMUNITY` — renaming it
+    // would touch every filter comparison in this component for no gain.
+    k === 'COMMUNITY' ? tr('feed:tab.wall', { defaultValue: 'Wall' })
     : k === 'SHAPE' ? tr('feed:chip.community', { defaultValue: 'Community' })
     : k === 'TRAINER' ? tr('feed:chip.trainer', { defaultValue: 'Trainer' })
     : k === 'NUTRI' ? tr('feed:chip.nutritionist', { defaultValue: 'Nutritionist' })
@@ -20145,12 +20194,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
-  // What the Wall segment needs beyond the card's own ctx. It renders inside
-  // this page, so the masthead and the online rail (with its Hide × / Show)
-  // are already above it — the Wall inherits that control rather than owning
-  // a second copy of it.
-  const wallCtx = { feedCtx, loggedIn, myRole, bsSubTab, hair, muted, cardInk };
-
   const Pill = ({ on, onClick, children, badge = 0 }) => (
     <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 4px', minHeight: 26, borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
@@ -20282,7 +20325,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>{tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}</div>
             <h1 style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>
-              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'wall' ? tr('feed:masthead.titleWall', { defaultValue: 'The Wall' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
+              {tab === 'feed' ? tr('feed:masthead.titleFeed', { defaultValue: 'Community' }) : tab === 'channels' ? tr('feed:masthead.titleChannels', { defaultValue: 'Channels' }) : tab === 'support' ? tr('feed:masthead.titleSupport', { defaultValue: 'Support' }) : tr('feed:masthead.titleTeam', { defaultValue: 'Your team' })}
             </h1>
           </div>
           {/* The feed's viewing lens rides the title row, right-aligned (owner
@@ -20379,8 +20422,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['wall', tr('feed:tab.wall', { defaultValue: 'Wall' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
+          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -20530,7 +20573,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // The Wall — a record board, not a conversation. It sits ahead of the
           // Channels branch so the shared chrome above (masthead, online rail,
           // pills) is the only thing between it and the page.
-          if (tab === 'wall') return <BSWall ctx={wallCtx} />;
           if (tab === 'channels') {
             const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
@@ -20775,7 +20817,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                     </div>
                   );
                 }
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} /></React.Fragment>);
+                // ⚠ `variant="wall"` IS THE WALL DESIGN — the hero figure in the
+                // dot-matrix face, the wall facts beside it, the stat grid, HR zones
+                // and the trace. This tab IS the Wall now, so it renders it here
+                // rather than in a parallel component.
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="wall" /></React.Fragment>);
               })()}
             </div>
           ) : (

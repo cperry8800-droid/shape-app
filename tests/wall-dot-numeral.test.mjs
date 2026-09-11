@@ -2,7 +2,7 @@
 // out of the rendered dots rather than trusting a string prop.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadBroadsheet, drive, SHIM, flatten } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, drive, SHIM, flatten, THEME } from './helpers/broadsheet-mount.mjs';
 
 globalThis.BSPlate = ({ children }) => SHIM.createElement('div', null, children);
 globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
@@ -94,4 +94,124 @@ test('the size IS the cap height, so figures line up with type set beside them',
   assert.equal(r.svgHeight, 35);
   // three glyphs at 5 columns + 1 column of tracking, less the trailing gap
   assert.equal(Math.round(r.svgWidth), Math.round(3 * 6 * 5 - 5));
+});
+
+// ── The renderability gate ────────────────────────────────────────────────
+// Codex, #2036: applying `variant="wall"` to EVERY activity card sent every
+// hero value through the matrix, and the matrix drops what it cannot spell —
+// silently, and the leftovers still look like a reading.
+
+const { bsDotRenderable } = await loadBroadsheet(['bsDotRenderable']);
+
+test('the matrix is asked whether it can spell a value, not handed one blind', () => {
+  // What it CAN say: the shapes a split figure actually takes.
+  for (const ok of ['245', '18.2', '1,240', '8:42', '2:38:14', '91', '-3', '1/2', '8 10']) {
+    assert.ok(bsDotRenderable(ok), `${ok} is fully representable`);
+  }
+  // What it CANNOT, and would otherwise draw as a different number.
+  for (const bad of ['8h 10m', '2.4 · MO', '4.2 · HI', '178 spm', 'lb', '38 SWOLF']) {
+    assert.ok(!bsDotRenderable(bad), `${bad} must fall back to type`);
+  }
+});
+
+test('an empty value is not renderable — an empty grid says nothing', () => {
+  // Distinct from "every character is representable", which is vacuously
+  // true of '' and would mount a zero-width svg where a figure belongs.
+  for (const empty of ['', '   ', null, undefined]) {
+    assert.ok(!bsDotRenderable(empty), `${JSON.stringify(empty)} is not a figure`);
+  }
+});
+
+test('a compound wall hero is typeset in full, never truncated to its digits', async () => {
+  // The regression itself, driven through the shipped card. ⚠ ASSERTED ON THE
+  // ELEMENT, NOT ON `.text`: BSDotNumber is handed `title="8h 10m"` either way,
+  // so a text match is satisfied by the tooltip while the figure on screen
+  // still draws "8 10" in rects. The question is which component renders the
+  // hero, and only the node answers it.
+  // ⚠ ONE loadBroadsheet CALL FOR ALL THREE. Each call re-evaluates the
+  // module, so a component pulled from a second call is a different function
+  // identity than the one the card actually rendered — `n.type === X` then
+  // matches nothing and the assertion reads as “the feature is absent”.
+  const { BSActivityCard: Card, BSDotNumber: Dot } =
+    await loadBroadsheet(['BSActivityCard', 'BSDotNumber']);
+  // The card's own ctx shape, copied from tests/pr-wall-surface.test.mjs so a
+  // missing key reads as a harness gap rather than as a render failure.
+  const ctx = {
+    t: THEME, cardInk: '#111', muted: '#777', hair: '#ddd', card: {},
+    actLikes: {}, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr: {},
+    exprOpenKey: null, setExprOpenKey() {}, lpTimerRef: { current: null }, lpFiredRef: { current: false },
+    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: 'client', coachClientIds: null,
+    myFollowingSet: new Map(),
+    setOpenProfile() {}, setActivityDetail() {}, setLikerSheetFor() {}, setSendPostFor() {},
+    feedApplyReaction() {},
+  };
+  const post = (stats) => ({
+    kind: 'workout', who: 'Theo Nakamura', role: 'Client', tier: 'TEMPO', ago: '1h',
+    title: 'Rest & recover', body: 'Full rest.', stats,
+  });
+  // ⚠ `d.nodes()` is ALREADY flattened, so re-walking each node counts the
+  // same element once per ancestor — the control read 7 for one figure.
+  const dots = (a) => drive(Card, { a, ctx, isLast: true, pagePad: 0, variant: 'wall' })
+    .nodes().filter((n) => n.type === Dot);
+
+  // '8h 10m' is the demo recovery post's real hero and the matrix cannot spell
+  // it — it must not reach the matrix at all.
+  assert.equal(dots(post([['Sleep', '8h 10m'], ['HRV', '74 ms']])).length, 0,
+    'an unspellable hero must not be drawn as dots');
+
+  // THE CONTROL. Without it the gate could pass by typesetting everything,
+  // quietly retiring the dot-matrix hero the whole design rests on.
+  assert.equal(dots(post([['Top set', '245 lb'], ['Reps', '3']])).length, 1,
+    'a spellable hero is still drawn as dots');
+
+});
+
+test('a figure the matrix CAN spell is still drawn on the wall', () => {
+  // The control: without it the gate could pass by typesetting everything,
+  // which would quietly retire the dot-matrix hero the design is built on.
+  assert.ok(bsDotRenderable('245'));
+  assert.equal(readBack('245').text, '245');
+});
+
+// ── The PR delta on a merged-feed card ───────────────────────────────────
+// Codex, #2036: `variant="wall"` suppresses the `↑ PR {delta}` line (the
+// wall would otherwise state the record twice), and the gain reaches the
+// pill only through `recordNote` — a prop the ledger-backed caller passes
+// and the feed does not. So a real PR card said "New PR · Deadlift" and
+// dropped the amount the member had improved by.
+
+test('a wall PR card keeps the amount the member improved by', async () => {
+  const { BSActivityCard: Card } = await loadBroadsheet(['BSActivityCard']);
+  const ctx = {
+    t: THEME, cardInk: '#111', muted: '#777', hair: '#ddd', card: {},
+    actLikes: {}, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr: {},
+    exprOpenKey: null, setExprOpenKey() {}, lpTimerRef: { current: null }, lpFiredRef: { current: false },
+    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: 'client', coachClientIds: null,
+    myFollowingSet: new Map(),
+    setOpenProfile() {}, setActivityDetail() {}, setLikerSheetFor() {}, setSendPostFor() {},
+    feedApplyReaction() {},
+  };
+  // `real` is what makes `prDelta` live — a published post carrying the gain
+  // it was stamped with. The feed passes no recordNote.
+  // ⚠ A REAL ACTIVITY READS `statsRow`, NOT `stats` — `stats` is the demo
+  // shape, and a fixture carrying it hands the real path an undefined and
+  // then reports on the crash rather than on the pill.
+  const a = {
+    real: true, kind: 'pr', who: 'Quinn Harper', role: 'Client', tier: 'TEMPO', ago: '2d',
+    typeLabel: 'Strength', title: 'Back Squat — new PR', body: 'Bar speed stayed crisp.',
+    delta: '+10 lb', statsRow: [['Top set', '247 lb'], ['Reps', '3']],
+  };
+  const wall = drive(Card, { a, ctx, isLast: true, pagePad: 0, variant: 'wall' }).text;
+  assert.ok(wall.includes('+10 lb'), `the wall pill must carry the gain, got: ${wall.slice(0, 300)}`);
+
+  // The ledger's own gain still wins where a caller supplies it — it is
+  // measured against the stored best, not stamped at publish.
+  const withNote = drive(Card, { a, ctx, isLast: true, pagePad: 0, variant: 'wall', recordNote: '+25 lb' }).text;
+  assert.ok(withNote.includes('+25 lb'), 'an explicit recordNote outranks the post delta');
+  assert.ok(!withNote.includes('+10 lb'), 'and the two are not both printed');
+
+  // THE CONTROL: the feed is unchanged — it still states the delta on its own
+  // line, so this fix did not quietly move the feed's furniture too.
+  const feed = drive(Card, { a, ctx, isLast: true, pagePad: 0 }).text;
+  assert.ok(feed.includes('+10 lb'), 'the feed keeps its own PR line');
 });

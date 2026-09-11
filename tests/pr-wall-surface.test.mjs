@@ -429,22 +429,61 @@ test('the unit choice carries no translatable copy', () => {
 
 // ── the segment's place in the page ─────────────────────────────────────────
 
-test('the Wall is the second segment, between Feed and Team', () => {
-  // Order is the invariant (the owner asked for a fourth segment BESIDE Feed),
-  // so the keys are read out of the shipped pill row rather than its wording.
+test('the Wall is NOT a segment — it is the activity sub-tab', () => {
+  // ⚠ THIS TEST ASSERTED THE OPPOSITE YESTERDAY, AND THE ASSERTION WAS THE
+  // DEFECT. A fifth segment beside the Feed rendered the same BSActivityCard
+  // with a variant flag, so the two read as one thing wearing two hats — with
+  // four rows of scope controls between them and "Following" duplicated
+  // verbatim. Owner: "the wall and feed are the same thing" / "the wall is
+  // supposed to be a redesign of the shape feed". The Wall IS the activity
+  // feed, and the segment row is back to what it was before.
   const line = bare.split('\n').find((l) => l.includes('.map(([k, l, b])'));
   assert.ok(line, 'the pill row was not found — has it been restructured?');
   const keys = [...line.matchAll(/\['([a-z]+)', tr\('feed:tab\./g)].map((m) => m[1]);
-  assert.deepEqual(keys, ['feed', 'wall', 'teams', 'channels', 'support']);
-  // The grid must gain a column with the segment, or five pills share four
-  // slots and the last one is clipped off a 375px phone.
-  const grid = bare.split('\n').find((l) => l.includes('gridTemplateColumns') && l.includes(`1px solid ${'$'}{hair}`) && l.includes('borderRadius: 12'));
+  assert.deepEqual(keys, ['feed', 'teams', 'channels', 'support'],
+    'the Wall must not be a segment of its own — it IS the activity feed');
+  // The grid's column count tracks the pill count, or the last pill is clipped
+  // off a 375px phone.
+  const grid = bare.split('\n').find((l) => l.includes('gridTemplateColumns') && l.includes('1px solid ' + String.fromCharCode(36) + '{hair}') && l.includes('borderRadius: 12'));
   assert.ok(grid, 'the pill row container was not found');
-  assert.match(grid, new RegExp(`repeat\\(${keys.length}, 1fr\\)`));
+  assert.match(grid, new RegExp('repeat\\(' + keys.length + ', 1fr\\)'));
 });
 
-test('the masthead title follows the Wall like every other segment', () => {
-  assert.ok(/tab === 'wall' \? tr\('feed:masthead\.titleWall'/.test(bare));
+test('the activity sub-tab is labelled Wall and renders the wall design', () => {
+  // The label moved off "Shape" onto the Wall; the KEY stays COMMUNITY, because
+  // renaming it would touch every filter comparison in the component.
+  assert.match(bare, /k === 'COMMUNITY' \? tr\('feed:tab\.wall'/,
+    'the activity sub-tab must be labelled Wall');
+  // ⚠ THE DESIGN IS THE VARIANT, NOT A SECOND COMPONENT. variant="wall" draws
+  // the dot-matrix hero figure, the wall facts, the stat grid, the HR zones and
+  // the trace — so the feed's own cards must ask for it.
+  const card = bare.split('\n').find((l) => l.includes('cards.map((a, i)') && l.includes('BSActivityCard'));
+  assert.ok(card, 'the activity card render was not found');
+  assert.match(card, /variant="wall"/, 'the activity feed must render the wall design');
+});
+
+test('there is no second Wall — the retired segment is gone from every path', () => {
+  // ⚠ REMOVING THE PILL WAS NOT ENOUGH. Home's "On the wall" card fires
+  // shape:goWall, which set tab='wall' — so a SECOND Wall stayed alive with no
+  // pill, reachable only from Home, carrying its own lift dropdown and scope
+  // chips. Owner: "don't need 2 wall tabs". The deep link lands on the activity
+  // sub-tab, which IS the Wall.
+  assert.ok(!/setTab\('wall'\)/.test(bare), 'nothing may route to a wall segment');
+  assert.ok(!/tab === 'wall'/.test(bare), 'no branch may render a wall segment');
+  // And the deep link still arrives somewhere real, rather than being dropped.
+  const idx = bare.indexOf('openRequest.wall');
+  assert.ok(idx > 0, "the Home deep-link branch was removed — it should RETARGET, not vanish");
+  const branch = bare.slice(idx, idx + 900);
+  assert.match(branch, /setTab\('feed'\)/, 'the wall deep link must land on the feed segment');
+  assert.match(branch, /setFilter\('COMMUNITY'\)/, 'and select the activity sub-tab, which is the Wall');
+  // ⚠ AND THE LENS. Codex on #2036: `feedMode` is persisted per device while
+  // BSHomeWallBulletin picks its record from the everyone-scoped
+  // ShapePRWall.list(), so a member who last chose FOLLOWING would land on a
+  // feed that cannot hold the record Home just advertised.
+  assert.match(branch, /setFeedMode\('universal'\)/, 'and reset the lens to the scope the bulletin read from');
+  // setFeedMode, never switchFeedMode: a navigation must not overwrite the
+  // member's own standing choice of lens.
+  assert.ok(!/switchFeedMode/.test(branch), 'the deep link must not persist the lens over the member\'s choice');
 });
 
 // ── the data layer ──────────────────────────────────────────────────────────
