@@ -630,6 +630,91 @@ Append new entries at the top, under this note.
   · and the five panel states plus the two new ones driven end to end, zero page errors
   throughout. No migration.
 
+### 2026-09-10 — R15's roster sort: nine columns become an ordering, and an unknown never sorts as a small number
+
+- **The first slice of R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,
+  and the control R16's memory was waiting on.** The roster had a filter and a search and
+  **no ordering control of any kind**, so a coach could not ask *who pays me most*, *who
+  has been here longest* or *who have I not spoken to*. Every column with a value behind
+  it is a sort button now — CLIENT · SCORE · ADHERENCE · COMPLIANCE · LAST FOOD LOG · LAST
+  CONSULT · STREAK · LAST CONTACT · REVENUE · TENURE — remembered per account beside the
+  filter and the tab. No migration.
+- ⚠ **AN UNKNOWN SORTS LAST IN BOTH DIRECTIONS, AND THAT IS THE RULE THE WHOLE THING
+  EXISTS FOR.** `null` means *"we could not read it"* — the roster renders it as **Not
+  shared** — and sorting revenue **ascending** must not present a client whose
+  subscriptions read failed as the one who pays the least. It is the honest-data doctrine
+  applied to ordering, and it is why these are comparators rather than a `.sort()` over
+  the labels. A **measured zero** is a value and sorts as one: first ascending, last of
+  the knowns descending, always ahead of every unknown.
+- ⚠ **EVERY COMPARATOR READS THE VALUE, NEVER THE RENDERED LABEL.** The cells say
+  `$1.2k/mo`, `9mo`, `5d ago` — a text sort puts **$999 above $1.2k**, **9mo above 2y**
+  and **9d ago above 30d ago**. All three are pinned against the exact cell text the
+  roster draws for that row.
+- ⚠ **"NEVER CONTACTED" IS THE STALEST, NOT AN UNKNOWN.** The contact cell already draws
+  three states — no leg at all is *"we can't see your thread"*, a leg with a null
+  timestamp is *"your thread exists and you have never used it"* — and the ordering
+  carries the same distinction: the second is a **known** fact about the coach's own
+  inbox and is exactly the client the sort is meant to surface. Filing them with the
+  unreadable rows would bury them.
+- **The sort is STABLE, so ties keep the engine's severity order** — the one signal the
+  roster leads with. An unstable sort would reshuffle a block of equal-revenue clients on
+  every render.
+- **The default is `triage`**, the order the roster has always shown, so a coach who never
+  touches a header sees no change at all. A **retired** key passes the rows through
+  untouched rather than emptying or scrambling the roster — the remembered value is
+  validated at the hook too, but a table handed a stale key directly has to survive it.
+- ⚠ **TWO COLUMNS DELIBERATELY DO NOT SORT.** PROGRAM and GOAL PHASE are free text a coach
+  types, so alphabetical order over them answers no question a coach has — they render as
+  **plain text, not as buttons that lead nowhere**. And a new column starts in **its own**
+  natural direction (revenue and tenure highest-first, score and adherence lowest-first,
+  last contact stalest-first): a single default would open half of them on the end nobody
+  wants. The arrow marks the **active** column only — a row of arrows reads as decoration
+  and stops saying which one is in force.
+- ⚠ **AND A SIBLING GUARD BROKE ON THE CORRECT CHANGE, AGAIN.** `dash-roster-columns`
+  counted the column heads with `/heads: \[([^\]]+)\]/` and a comma split — and `heads`
+  became a list of **`[label, sortKey]` pairs**, so both the capture and the split counted
+  the pairs' own brackets and commas and a correct change **failed a test about grid
+  tracks**. The array is parsed now. Its invariant — tracks === heads + 1 — was right all
+  along; how the heads are spelled was never the invariant. *A guard that pins a spelling
+  pins whatever that spelling is wrong about* — the sixth time in this wave.
+- ⚠ **AND THE REVIEW ROUND FOUND A TWO-MONTH-OLD "NaNd ago" ON THE ROSTER, WITH THE
+  EXPLANATION ALREADY WRITTEN ONE CELL OVER.** `dashDaysSince` returned `null` for a
+  falsy input and **NaN** for an unparseable one — `Math.max(0, Math.floor(NaN))` is NaN —
+  so each caller had to remember the second case, and **three of the four did not**:
+  `dashLastLogLabel`, `dashContactLabel` and `dashConsultLabel` interpolated it and a
+  malformed date rendered as **"NaNd ago"**. `dashTenureLabel` had the guard **and a
+  comment explaining exactly this defect**, which is the tell: *a lesson written at one
+  call site is not a fix for the other three.* The source has one shape for "no answer"
+  now, so `d == null` is the whole of it, and the four comparators dropped their own
+  `Number.isFinite` because the value can no longer be NaN.
+- ⚠ **AND "No consults yet" / "Never" ARE THE WRONG EMPTIES FOR AN UNREADABLE STAMP.** A
+  date we cannot parse means the thing **did** happen and we cannot say when; saying it
+  never happened is a different claim. Both cells keep their honest empty for the case
+  they are actually about and fall to *Not shared* for this one.
+- ⚠ **AND MY OWN TEST WAS RUNNING A RESTATEMENT OF THE FUNCTION UNDER TEST.** It injected
+  a one-line local `dashDaysSince` into the lifted comparators, so after the shipped one
+  was fixed the suite went on asserting against a version nobody ships — it failed on the
+  *correct* code. The real function is extracted and injected now, and the fixtures moved
+  from a frozen date to relative ones. *A guard that runs its own version of the code is
+  measuring nothing* — recorded on 2026-09-09 against `useSignedIn`, paid for again here.
+- **Verified:** `npm test` **2903/2903** · `tsc --noEmit` 0 · JSX parse on all three changed
+  modules · the newdesign precompile check · **24/24 mutations killed, sanity green at
+  both ends**, plus the re-anchored column guard re-proven against a dropped grid track ·
+  and driven in Chromium against a simulated account with three kinds of row (real money,
+  a measured zero, an unreadable one): **PROGRAM renders as a `SPAN` and every other head
+  as a `BUTTON`**, descending gives `120000 · 78000 · 9900 · 4500 · 0 · unknown`, ascending
+  gives `0 · 4500 · 9900 · 78000 · 120000 · **unknown still last**`, and the choice survives
+  a reload as `{"rosterSort":"revenue","rosterSortDir":"asc"}`. Zero page errors.
+- ⚠ **AND THE FIRST RUN OF THAT RENDER PROVED NOTHING, WHICH IS WORTH MORE THAN THE RUN
+  ITSELF.** The fixture nested `mrrCents` under `payments` while the roster route puts it
+  **top level**, so every row was genuinely *"Not shared"*, every comparator correctly
+  returned null, and the order did not move on any click — a passing-looking render of a
+  sort doing nothing. *A fixture that does not match the route's shape hands the code an
+  empty column and then reports on the emptiness.*
+- **Still open in R15:** the ⚙ itself, the KPI picker for the stat strips, the per-chart
+  time window (7d · 30d · 90d), pinning clients to Today's pulse, and the drawer's sections
+  per lens.
+
 ### 2026-09-10 — R12: the roster and the revenue leave as a spreadsheet, and a column called net stops being partly gross
 
 - **R12 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9.**
