@@ -431,8 +431,15 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   live since the 2026-05-30 migration and only the mobile app read it — a member could be
   told on their phone that their coach had replied and see nothing on the web. There is a
   bell in the shared header now (signed-in only), with mark-one and mark-all, on every
-  newdesign page. **Booking is still open**: `/api/availability` and `/api/sessions` both
-  exist, and the client Team page's "Book session" is still one of R18's dead controls.
+  newdesign page. ⚠ **BOOKING SHIPPED 2026-09-11 — R20 IS COMPLETE.** The Team page's
+  "Book session" turned out to be **mislabelled rather than dead**: it called `ctOpenChat`,
+  the Message button's own handler, so a member tapped a button naming an outcome and got a
+  different one. It opens a slot sheet now — open times projected from the coach's weekly
+  pattern, labelled in the **viewer's own zone**, written as `requested`. ⚠ Building it
+  found the booking chain is **an hour-per-zone wrong, live**: `provider_availability` has
+  no timezone column, so a coach who opens 9am has clients booking 5:00 AM in New York.
+  **Registered, not fixed** — it needs a column plus a backfill, i.e. a migration and the
+  owner's call.
 
 ---
 
@@ -489,7 +496,7 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
 | R12 | CSV export + monthly statement | P2 | M | CSVs SHIPPED 2026-09-10 · statement still gated on payouts |
 | R15/R16 | Widget settings; remembered filters | P2 | M | **BOTH SHIPPED.** R16 2026-09-10 · R15 across 2026-09-10/11: roster SORT, the ⚙ + per-chart time window, pinning to the pulse, the drawer's sections per lens, and the KPI picker |
-| R20 | Client booking + notifications inbox on the web | P2 | M | INBOX SHIPPED 2026-09-10 · booking still open |
+| R20 | Client booking + notifications inbox on the web | P2 | M | **BOTH SHIPPED.** Inbox 2026-09-10 · booking 2026-09-11 — with the provider-timezone defect registered for an owner ruling |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
 | V4/V5 | Check the GridStack gaps on a real screen; make the demo dataset agree with itself (one money figure, one client count) | P2 | S | V4 CHECKED 2026-09-10 — does not reproduce |

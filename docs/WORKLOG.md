@@ -660,13 +660,14 @@ Append new entries at the top, under this note.
   sessions today"*, so the run clicked a gear that card does not have and timed out. It
   identifies each strip by its four mono eyebrows now. *A case-insensitive match on a common
   phrase matches whatever else contains it.*
-- **Verified:** `npm test` **3277/3277** · `tsc --noEmit` 0 · JSX parse on both changed
-  modules · `dashSignals.js` `require()`s clean · the newdesign precompile check · **21/21
-  mutations killed**, each proven to land, sanity green at both ends · and the whole cycle
-  driven in Chromium against a simulated live coach: **two strips, two gears, four `<select>`
-  groups of eleven** each carrying a painted chevron (`appearance: none` takes the native
-  one with it), picking *Needs eyes* into the second slot → the strip follows and the
-  document holds `{"kpi:trainer:practice:1":"needsEyes"}` — **one key, only the slot that
+- **Verified:** `npm test` **3339/3339** on the head merged with `main` · `tsc --noEmit` 0 ·
+  JSX parse on both changed modules · `dashSignals.js` `require()`s clean · the newdesign
+  precompile check · **21/21 mutations killed**, each proven to land, sanity green at both
+  ends · and the whole cycle driven in Chromium against a simulated live coach: **two
+  strips, two gears, four `<select>` groups of eleven** each carrying a painted chevron
+  (`appearance: none` takes the native one with it), picking *Needs eyes* into the second
+  slot → the strip follows and the document holds
+  `{"kpi:trainer:practice:1":"needsEyes"}` — **one key, only the slot that
   moved** — then the swap exchanges two slots, and a **reload brings the arrangement back**.
   The signed-out preview keeps the payout four with **zero gears on Overview**. Zero page
   errors throughout.
