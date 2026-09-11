@@ -735,11 +735,11 @@ Append new entries at the top, under this note.
   error: the error line renders on **both** stages, so a member refused for want of a name,
   stepping Back and coming forward again, carried *"Give it a name first"* over a draft it
   was no longer about. Both fixed, and the second is now pinned by three more mutations.
-- **Verified:** `npm test` **3285/3285** after three Codex rounds · `tsc --noEmit` 0 · JSX parse on the client module ·
+- **Verified:** `npm test` **3300/3300** after four Codex rounds · `tsc --noEmit` 0 · JSX parse on the client module ·
   the newdesign precompile check · the i18n ratchet **9/9 with every column unchanged** and
-  catalog parity **13/13 at 337 keys** · **40/40 mutations killed across five rounds, each
-  proven to land** (one proven a genuine no-op, with the arithmetic behind that driven
-  against the shipped constants rather than argued), sanity green at both ends and the tree restored in a `finally` (the
+  catalog parity **13/13 at 337 keys** · **56 mutations across eight rounds, each proven to
+  land — 55 killed and one proven a genuine no-op**, with the arithmetic behind that no-op
+  driven against the shipped constants rather than argued, sanity green at both ends and the tree restored in a `finally` (the
   one-way door replayed from both of its doors, the Name field removed from the review
   screen, the forward gate reverted to every earlier form, the provenance tag folded back,
   `too_large` re-collapsed into `bad_image`, the return path stripped of its return, its
@@ -839,6 +839,57 @@ Append new entries at the top, under this note.
   long as they keep typing. *"Read this text" is not an operation whose input can change
   halfway through.* The **Name** field stays live — it is not what is being read, and its own
   closure was made safe separately.
+- ⚠ **AND A FOURTH CODEX ROUND FOUND THE HARDENING HALF-DONE, PLUS A TRAP WITH THE WORST
+  MEMBER OUTCOME OF THE WHOLE PR.** The P1: a **SOF declaring a two-byte segment** could plant
+  small values at the offsets the reader uses — dimensions that are not inside the segment at
+  all. They pass the pixel budget, the file goes to the full decode, and a permissive decoder
+  skips the bogus frame, finds the real one, and recreates exactly the unbounded decode the
+  guard exists to stop. A frame header is **eight bytes minimum** and its declared segment must
+  fit in the buffer; both are checked now. *Verifying that a marker is a frame is not the same
+  as verifying it is long enough to be one.*
+- ⚠ **AND A STALLED REQUEST TRAPPED THE MEMBER WITH NO CONTROL THAT DID ANYTHING.** Neither
+  reader had a deadline, and the sheet disables **its own Cancel AND its backdrop dismissal**
+  while a read runs — so a mobile handoff, where the connection opens and then goes silent and
+  never rejects, left `busy` true forever. **The only way out was to quit the app, destroying
+  everything they had typed.** Both readers share one bounded round trip now.
+  ⚠ **The timer is released after the BODY, not the headers** — `fetch` resolves on headers, so
+  racing it alone bounds the connection and leaves a 200-with-a-stalled-body unwatched, a
+  lesson this same module had already paid for on the AI draft path. And the deadline is
+  **deliberately longer than the server's own ceiling** (75s against the route's 60), because a
+  shorter one aborts a request that was about to come back with a **named** reason and replaces
+  it with a generic failure: *this deadline is for a dead network, not a slow server.* The
+  better answer — a live Cancel during a read — is **registered, not built**: it needs the sheet
+  to tell a read from a save, and closing mid-save is a different and worse bug.
+- ⚠ **AND A TIMED-OUT IMPORT WAS ONLY STOPPING ITS REPORT, NOT ITS WORK.** `finish` is a no-op
+  once the deadline resolves — but the expensive part is the decode and the canvas ladder that
+  run **before** it, so a timed-out import went on materialising a bitmap and encoding it
+  several times for an answer nobody could receive. Three guards, one per window the deadline
+  can land in.
+- ⚠ **AND THE MUTATION ROUND SHOWED THOSE THREE GUARDS ARE A CHAIN THAT MASKS ITSELF.** My
+  first test counted `drawImage` alone, so removing the header-await guard was caught by the
+  FileReader guard, removing the FileReader guard was caught by the image guard, and **two
+  mutations survived a green suite**. Each guard closes a window the next cannot see, so each
+  test now asserts the stage **immediately after its stall** never started. *A chain of guards
+  tested only at its end is one guard with three copies of its own alibi.*
+- ⚠ **AND BOTH SIGNAL TESTS WERE BROKEN INSTRUMENTS, ONE OF THEM BY THIS FILE'S OWN NAMED
+  LESSON.** The first ran with a 5s internal deadline, so dropping the caller's signal entirely
+  still ended the request — five seconds later, by the wrong mechanism, with the assertion none
+  the wiser; the deadline is out of reach now and the result is raced against a short clock. The
+  second asserted **inside the fetch stub**, and `bsRecipePost` wraps the whole round trip in a
+  catch that turns any throw into `unavailable` — so the assertion's failure was **swallowed by
+  the code under test** and the outer expectation passed. *A swallowing catch hides which of the
+  two you are looking at*, recorded on 2026-09-10 and paid for again here.
+- ⚠ **AND A SIBLING GUARD BROKE ON THE CORRECT FIX — the tenth time in this file's records.**
+  The parse client's *"absolute URL AND a Bearer session"* test lifts the function out of the
+  source and drives it, and the round trip moved into the shared helper, so the lifted body's
+  only statement called something that was not there. The **invariant is untouched**; what
+  moved is where it lives, so the fix is to lift both rather than to weaken what is asserted.
+  *A guard that pins a layout pins whatever that layout is wrong about.*
+- ⚠ **AND MY TEST HELPER SILENTLY DROPPED THE `async` KEYWORD.** Lifting a function by anchoring
+  on `function NAME(` cuts `async` off the front, and the result is a non-async function whose
+  `await`s are a **SyntaxError** — which reads as *"the code is broken"* rather than *"the
+  instrument truncated it"*. The sibling suite got away with it only because nothing it lifts is
+  async. *A lift helper that mangles what it lifts fails as a claim about the source.*
 - ⚠ **AND MY OWN PASS ON THAT HEAD HARDENED THE HEADER READER, BECAUSE ITS JOB HAD
   CHANGED.** Once an unmeasurable image became a **refusal**, a wrong answer stopped being a
   missed optimisation and became the failure itself: a fabricated small size sends an

@@ -27,8 +27,14 @@ const SRC = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 
 // in #2032 and again one PR later. These parameters are plain, so the naive form
 // would work; the assertion is what keeps that true.
 function lift(name) {
-  const at = SRC.indexOf(`function ${name}(`);
+  // ⚠ THE `async` KEYWORD IS PART OF THE FUNCTION. Anchoring on `function NAME(`
+  // lifts the body without it, and the result is a non-async function whose
+  // `await`s are a SyntaxError — which reads as "the code is broken" rather than
+  // "the instrument truncated it". The sibling suite got away with this only
+  // because nothing it lifts is async.
+  let at = SRC.indexOf(`function ${name}(`);
   assert.notEqual(at, -1, `no function ${name} in shapeBackend.js`);
+  if (SRC.slice(Math.max(0, at - 6), at) === 'async ') at -= 6;
   const open = SRC.indexOf('{', SRC.indexOf(')', at));
   let depth = 0;
   for (let i = open; i < SRC.length; i += 1) {
@@ -422,4 +428,121 @@ test('a hostile JPEG chain cannot spin or read off the end', () => {
   for (let n = 0; n < 24; n += 1) {
     assert.doesNotThrow(() => bsImageHeaderDims(jpeg(100, 100).subarray(0, n)), `truncated at ${n}`);
   }
+});
+
+test('⚠ A HOSTILE SOF CANNOT PLANT DIMENSIONS OUTSIDE ITS OWN SEGMENT', () => {
+  // Codex, P1. A frame header is length(2) + precision(1) + height(2) + width(2)
+  // + components(1) = 8 bytes minimum. Without that check a file can declare a
+  // TWO-byte SOF while planting small values at the offsets the reader uses —
+  // dimensions that are not inside the segment at all. They pass the pixel budget
+  // and send the file to the full decode, where a permissive decoder skips the
+  // bogus frame, finds the real one, and recreates exactly the unbounded decode
+  // this guard exists to stop.
+  const b = Buffer.alloc(64);
+  b[0] = 0xff; b[1] = 0xd8;
+  b[2] = 0xff; b[3] = 0xc0;
+  b.writeUInt16BE(2, 4);                 // a segment declaring no payload at all
+  b[6] = 8;
+  b.writeUInt16BE(120, 7); b.writeUInt16BE(160, 9);   // ...with a small size planted after it
+  assert.equal(bsImageHeaderDims(b), null, 'a segment too short to hold a size must not yield one');
+
+  // ⚠ AND A SOF WHOSE DECLARED SEGMENT RUNS PAST THE BUFFER IS REFUSED TOO — a
+  // separate check, and the first fixture for it proved nothing: an 8-byte slice
+  // fails the loop's own bounds test, so it returned null for an unrelated
+  // reason and a mutation dropping the buffer check SURVIVED. This one declares a
+  // legal 17-byte frame and then stops short of it, with enough bytes after the
+  // marker for the loop to reach the read.
+  // The window is narrow and both ends matter: the marker sits at i=2, so the
+  // loop needs more than 11 bytes to reach the read at all, while the declared
+  // segment ends at 4 + 17 = 21. Sixteen sits inside both.
+  const trunc = Buffer.alloc(16);
+  trunc[0] = 0xff; trunc[1] = 0xd8;
+  trunc[2] = 0xff; trunc[3] = 0xc0;
+  trunc.writeUInt16BE(17, 4);                          // a full three-component frame...
+  trunc[6] = 8;
+  trunc.writeUInt16BE(120, 7); trunc.writeUInt16BE(160, 9);
+  assert.ok(trunc.length > 2 + 9, 'the loop must be able to reach the read');
+  assert.ok(trunc.length < 4 + 17, 'and the fixture must stop short of its own declared segment');
+  assert.equal(bsImageHeaderDims(trunc), null, 'a segment that runs past the buffer must not be read');
+
+  // And a well-formed one still reads, so the bound is not just refusing everything.
+  assert.deepEqual(bsImageHeaderDims(jpeg(4000, 3000)), { w: 4000, h: 3000 });
+});
+
+// Drives the real bsRecipePhotoDataUrl with the deadline landing in a chosen
+// stage, counting the work each guard is supposed to prevent.
+//
+// ⚠ THE THREE GUARDS ARE A CHAIN, AND MEASURING ONLY THE LAST STAGE PROVES
+// NOTHING ABOUT THE FIRST TWO. The first version of this counted `drawImage`
+// alone — so removing the header-await guard was caught by the FileReader guard,
+// removing the FileReader guard was caught by the image guard, and two mutations
+// survived a green suite. Each guard closes a window the next one cannot see, so
+// each test asserts that the stage IMMEDIATELY AFTER its stall never started.
+function driveLateStage(stall) {
+  const ran = { reader: 0, image: 0, drew: 0 };
+  const gate = {};
+  const later = (k) => new Promise((r) => { gate[k] = r; });
+  const fn = new Function(
+    'BS_RECIPE_PHOTO_EDGES', 'BS_RECIPE_PHOTO_QUALITIES', 'BS_RECIPE_PHOTO_BUDGET',
+    'BS_RECIPE_PHOTO_MAX_FILE', 'BS_RECIPE_PHOTO_MAX_PIXELS', 'BS_RECIPE_PHOTO_HEADER_BYTES',
+    'BS_RECIPE_PHOTO_DECODE_MS', 'bsImageHeaderDims', 'setTimeout', 'clearTimeout',
+    'document', 'FileReader', 'Image', 'createImageBitmap',
+    `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`,
+  )(
+    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, HEADER_BYTES,
+    5,                                          // a deadline every stall will miss
+    bsImageHeaderDims, setTimeout, clearTimeout,
+    { createElement: () => ({ getContext: () => ({ drawImage() { ran.drew += 1; } }), toDataURL: () => 'data:image/jpeg;base64,AAAA' }) },
+    class {
+      readAsDataURL() {
+        ran.reader += 1;                        // the read was STARTED — what the header guard prevents
+        const fire = () => { this.result = 'data:image/jpeg;base64,AAAA'; this.onload && this.onload(); };
+        if (stall === 'reader') later('reader').then(fire); else setTimeout(fire, 0);
+      }
+    },
+    class {
+      set src(_v) {
+        ran.image += 1;                         // the decode was STARTED — what the reader guard prevents
+        const fire = () => { this.width = 100; this.height = 100; this.onload && this.onload(); };
+        if (stall === 'image') later('image').then(fire); else setTimeout(fire, 0);
+      }
+    },
+    undefined,
+  );
+  const headerBuf = new Uint8Array(jpeg(1000, 1000)).buffer;
+  const url = fn({
+    size: 1_000_000, type: 'image/jpeg',
+    slice: () => ({ arrayBuffer: () => (stall === 'header' ? later('header').then(() => headerBuf) : Promise.resolve(headerBuf)) }),
+  });
+  return { url, ran, release: () => { Object.values(gate).forEach((r) => r && r()); } };
+}
+
+// stall -> [the stage that must never start, its counter]
+const NEXT_STAGE = {
+  header: ['the file read', 'reader'],
+  reader: ['the decode', 'image'],
+  image: ['the canvas ladder', 'drew'],
+};
+
+for (const [stall, [label, counter]] of Object.entries(NEXT_STAGE)) {
+  test(`⚠ A TIMED-OUT IMPORT STOPS WORKING — deadline during the ${stall} stage`, async () => {
+    // `finish` is already a no-op once the deadline has resolved, but the
+    // expensive part is the work that runs BEFORE it. A timed-out import went on
+    // materialising a bitmap and encoding it several times for an answer nobody
+    // could receive.
+    const h = driveLateStage(stall);
+    assert.equal(await h.url, null, 'the deadline resolves it as unreadable');
+    h.release();
+    for (let i = 0; i < 12; i += 1) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(h.ran[counter], 0, `${label} must not start after the deadline (stalled at ${stall})`);
+  });
+}
+
+test('the control: an import that BEATS the deadline still does its work', () => {
+  // Without this, every assertion above passes on a function that never draws
+  // anything at all.
+  return drivePhoto({ bytes: jpeg(1000, 1000) }).then(({ url, calls }) => {
+    assert.ok(String(url).startsWith('data:image/jpeg;base64,'));
+    assert.equal(calls.img, 1, 'the ordinary path really does run the decode');
+  });
 });

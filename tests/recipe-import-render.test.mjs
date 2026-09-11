@@ -296,8 +296,19 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   // The shipped function, brace-matched out of shapeBackend.js and DRIVEN — a
   // source scan cannot tell an absolute URL from a relative one at call time.
   const backend = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
-  const at = backend.indexOf('async function parseRecipeText');
-  assert.ok(at > 0, 'parseRecipeText is not in shapeBackend.js');
+  // ⚠ THE ROUND TRIP MOVED INTO A SHARED HELPER AND THIS GUARD HAD TO FOLLOW IT.
+  // Both readers were each carrying their own unbounded `fetch`; they share one
+  // bounded `bsRecipePost` now, so lifting `parseRecipeText` alone yields a body
+  // whose only statement calls a function that is not there. The INVARIANT is
+  // untouched — an absolute URL and a Bearer header, driven rather than scanned —
+  // so the fix is to lift both, not to weaken what is asserted.
+  const liftFn = (name) => {
+    let a = backend.indexOf(`function ${name}(`);
+    assert.ok(a > 0, `${name} is not in shapeBackend.js`);
+    if (backend.slice(Math.max(0, a - 6), a) === 'async ') a -= 6;
+    return a;
+  };
+  const at = liftFn('parseRecipeText');
   // ⚠ SKIP THE PARAMETER LIST FIRST. This function's parameters are DESTRUCTURED
   // (`{ signal } = {}`), so a matcher that starts counting at the first `{` after
   // the name opens and closes on the parameters and hands back a 47-character
@@ -318,8 +329,25 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
     else if (backend[j] === '}') { depth -= 1; if (depth === 0) { end = j + 1; break; } }
   }
   assert.ok(end > i, 'could not brace-match the function body');
-  const body = backend.slice(at, end);
-  assert.ok(body.length > 400, `lifted ${body.length} chars — that is a signature, not a body`);
+  const textBody = backend.slice(at, end);
+  assert.ok(textBody.length > 200, `lifted ${textBody.length} chars — that is a signature, not a body`);
+
+  // The shared round trip, lifted the same way and prepended.
+  const pAt = liftFn('bsRecipePost');
+  let pDepth = 0, pEnd = -1;
+  for (let j = backend.indexOf('{', backend.indexOf(')', pAt)); j < backend.length; j += 1) {
+    if (backend[j] === '{') pDepth += 1;
+    else if (backend[j] === '}') { pDepth -= 1; if (pDepth === 0) { pEnd = j + 1; break; } }
+  }
+  assert.ok(pEnd > pAt, 'could not brace-match bsRecipePost');
+  const postBody = backend.slice(pAt, pEnd);
+  assert.ok(postBody.length > 400, `lifted ${postBody.length} chars of bsRecipePost — a signature, not a body`);
+  const body = `${postBody}\n${textBody}`;
+  // The deadline is read from the source for the same reason the paste bound is:
+  // a retyped copy keeps passing after the real one moves.
+  const msM = backend.match(/const BS_RECIPE_REQUEST_MS = ([\d_]+);/);
+  assert.ok(msM, 'BS_RECIPE_REQUEST_MS is not declared in shapeBackend.js');
+  const REQ_MS = Number(msM[1].replace(/_/g, ''));
 
   const calls = [];
   // ⚠ The lifted function closes over BS_RECIPE_PASTE_MAX, so it has to be
@@ -327,11 +355,15 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   // test would keep passing after the real bound moved.
   const boundM = backend.match(/const BS_RECIPE_PASTE_MAX = (\d+)/);
   assert.ok(boundM, 'BS_RECIPE_PASTE_MAX is not declared in shapeBackend.js');
-  const make = (res) => new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX', `${body}; return parseRecipeText;`)(
+  const make = (res) => new Function(
+    'apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX',
+    'BS_RECIPE_REQUEST_MS', 'AbortController', 'setTimeout', 'clearTimeout',
+    `${body}; return parseRecipeText;`,
+  )(
     'https://api.example.test',
     (extra = {}) => ({ ...extra, Authorization: 'Bearer tok-123' }),
     async (url, opts) => { calls.push({ url, opts }); return res; },
-    Number(boundM[1]),
+    Number(boundM[1]), REQ_MS, AbortController, setTimeout, clearTimeout,
   );
 
   const ok = await make({ ok: true, json: async () => ({ draft: { title: 'T', ingredients: [{ n: '1', m: 'egg' }], steps: ['One.'] } }) })('x'.repeat(40));
@@ -353,8 +385,13 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   // real answer rather than an error state.
   assert.equal((await make({ ok: false, json: async () => ({}) })('x'.repeat(40))).ok, false);
   assert.equal((await make({ ok: true, json: async () => ({ draft: null, reason: 'no_key' }) })('x'.repeat(40))).reason, 'no_key');
-  const thrower = new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX', `${body}; return parseRecipeText;`)(
+  const thrower = new Function(
+    'apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX',
+    'BS_RECIPE_REQUEST_MS', 'AbortController', 'setTimeout', 'clearTimeout',
+    `${body}; return parseRecipeText;`,
+  )(
     '', () => ({}), async () => { throw new Error('offline'); }, Number(boundM[1]),
+    REQ_MS, AbortController, setTimeout, clearTimeout,
   );
   const off = await thrower('x'.repeat(40));
   assert.equal(off.ok, false);

@@ -4658,6 +4658,57 @@ window.ShapeFoodSearch = { search: searchFoods, barcode: lookupFoodBarcode };
 // Resolves { ok, draft, reason } — it never throws, because the caller's
 // fallback is a real answer rather than an error state.
 const BS_RECIPE_PASTE_MAX = 12000;   // must match MAX_TEXT in the route
+// ⚠ A REQUEST WITH NO DEADLINE TRAPS THE MEMBER, and the sheet is why. It
+// disables its own Cancel AND its backdrop dismissal while a read runs, so a
+// stalled upload — a mobile handoff where the connection opens and then goes
+// silent, which never rejects on its own — leaves `busy` true forever with no
+// control on screen that does anything. The only way out is to quit the app,
+// which destroys everything they had typed. Both readers go through here.
+//
+// ⚠ AND THE TIMER IS CLEARED AFTER THE BODY IS READ, NOT AFTER THE HEADERS.
+// `fetch` resolves on headers, so racing it alone bounds the connection and
+// nothing else — a 200 followed by a stalled body is unwatched. That lesson is
+// already written into this file for the AI draft path; it applies identically
+// here, so the deadline is released in a `finally` past the JSON parse.
+//
+// ⚠ 75s IS DELIBERATELY LONGER THAN THE SERVER'S OWN CEILING. The photo route
+// declares maxDuration 60 and gives the provider 55, so a shorter client deadline
+// would abort a request that was about to come back with a NAMED reason
+// ("we couldn't read that photo", "no recipe in it") and replace it with a
+// generic failure. This deadline is for a dead network, not a slow server.
+// REGISTERED, NOT BUILT: the better answer is a live Cancel during a read, which
+// needs the sheet to tell a read apart from a save — `busy` covers both today,
+// and closing mid-save is a different and worse bug.
+const BS_RECIPE_REQUEST_MS = 75_000;
+
+async function bsRecipePost(path, body, signal) {
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(() => { try { if (ctrl) ctrl.abort(); } catch (e) {} }, BS_RECIPE_REQUEST_MS);
+  // A caller-supplied signal still works: it is forwarded into the same
+  // controller so either source can end the request.
+  if (signal && ctrl) {
+    if (signal.aborted) { try { ctrl.abort(); } catch (e) {} }
+    else { try { signal.addEventListener('abort', () => { try { ctrl.abort(); } catch (e) {} }, { once: true }); } catch (e) {} }
+  }
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}${path}`, {
+      method: 'POST',
+      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+      signal: ctrl ? ctrl.signal : signal,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
+    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
+    return { ok: true, draft: payload.draft, reason: null };
+  } catch (e) {
+    return { ok: false, draft: null, reason: 'unavailable' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function parseRecipeText(text, { signal } = {}) {
   const body = String(text || '');
   if (body.trim().length < 20) return { ok: false, draft: null, reason: 'too_short' };
@@ -4666,21 +4717,7 @@ async function parseRecipeText(text, { signal } = {}) {
   // saves sending a paste that can only be refused; the route still enforces it,
   // because a client-side bound is a convenience, never the rule.
   if (body.length > BS_RECIPE_PASTE_MAX) return { ok: false, draft: null, reason: 'too_long' };
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/recipe-parse`, {
-      method: 'POST',
-      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-      credentials: 'same-origin',
-      body: JSON.stringify({ text: body }),
-      signal,
-    });
-    const payload = await res.json().catch(() => null);
-    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
-    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
-    return { ok: true, draft: payload.draft, reason: null };
-  } catch (e) {
-    return { ok: false, draft: null, reason: 'unavailable' };
-  }
+  return bsRecipePost('/api/nutrition/recipe-parse', { text: body }, signal);
 }
 // The PHOTO half (/api/nutrition/recipe-photo). Same contract, same never-throws
 // rule, same reasons — the caller treats both identically once it has an answer.
@@ -4779,6 +4816,17 @@ function bsImageHeaderDims(buf) {
       if (len < 2) return null;
       // SOF0-SOF15, excluding DHT (c4), DAC (c8) and DNL (cc), which share the range.
       if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        // ⚠ THE SEGMENT MUST BE BIG ENOUGH TO CONTAIN WHAT WE ARE ABOUT TO READ.
+        // A frame header is length(2) + precision(1) + height(2) + width(2) +
+        // components(1) = 8 bytes minimum, and without that check a hostile file
+        // can declare a two-byte SOF while planting small values at the offsets
+        // below — dimensions that are not inside the segment at all. They would
+        // pass the pixel budget and send the file to the full decode, where a
+        // permissive decoder skips the bogus frame, finds the real one, and
+        // recreates exactly the unbounded decode this whole guard exists to stop.
+        // The declared segment must also fit in the buffer, so a truncated file
+        // cannot have its tail read as a dimension.
+        if (len < 8 || i + 2 + len > b.length) return null;
         return { h: be16(i + 5), w: be16(i + 7) };
       }
       i += 2 + len;
@@ -4868,9 +4916,17 @@ function bsRecipePhotoDataUrl(file) {
       const reader = new FileReader();
       reader.onerror = () => finish(null);
       reader.onload = () => {
+        // ⚠ EVERY LATE CALLBACK CHECKS `settled` BEFORE IT DOES WORK, not just
+        // before it reports. `finish` is already a no-op once the deadline has
+        // resolved — but the expensive part is the decode and the canvas ladder
+        // that run BEFORE it, so a timed-out import went on materialising a 25 MP
+        // bitmap and encoding it several times for an answer nobody could
+        // receive. Cheap to check, and it is the difference between a timeout
+        // that stops and one that only stops reporting.
+        if (settled) return;
         const img = new Image();
         img.onerror = () => finish(null);
-        img.onload = () => ladder(img);
+        img.onload = () => { if (settled) return; ladder(img); };
         img.src = String(reader.result || '');
       };
       reader.readAsDataURL(file);
@@ -4889,6 +4945,8 @@ function bsRecipePhotoDataUrl(file) {
           const head = await file.slice(0, BS_RECIPE_PHOTO_HEADER_BYTES).arrayBuffer();
           dims = bsImageHeaderDims(head);
         } catch (e) { dims = null; }
+        // The header read is itself awaited, so the deadline can land during it.
+        if (settled) return;
 
         const measured = dims && dims.w > 0 && dims.h > 0 ? dims : null;
 
@@ -4953,21 +5011,7 @@ async function parseRecipePhoto(file, { signal } = {}) {
   // bigger and the next attempt fail identically.
   if (dataUrl === 'too-big') return { ok: false, draft: null, reason: 'too_large' };
   if (!dataUrl) return { ok: false, draft: null, reason: 'bad_image' };
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/recipe-photo`, {
-      method: 'POST',
-      headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-      credentials: 'same-origin',
-      body: JSON.stringify({ image: dataUrl }),
-      signal,
-    });
-    const payload = await res.json().catch(() => null);
-    if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
-    if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
-    return { ok: true, draft: payload.draft, reason: null };
-  } catch (e) {
-    return { ok: false, draft: null, reason: 'unavailable' };
-  }
+  return bsRecipePost('/api/nutrition/recipe-photo', { image: dataUrl }, signal);
 }
 window.ShapeRecipeImport = { parse: parseRecipeText, photo: parseRecipePhoto };
 async function getSessions() {
