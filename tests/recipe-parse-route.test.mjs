@@ -43,6 +43,13 @@ const requestUtils = await loadRealModule(join(ROOT, 'src/lib/request-utils.ts')
   typescript: true, registry: new Map([['next/server', nextServer]]),
 });
 
+// ⚠ THE REAL @/lib/recipe-draft, NOT A STUB. The prompt rules and the validator
+// moved there when the photo route began sharing them, and they are precisely
+// what several tests below assert on — that step metadata is dropped, that the
+// unit is required in `n`. A stub would make those tests vacuous, which is the
+// same "fixture that invents a contract" defect this file's own header records.
+const recipeDraft = await loadRealModule(join(ROOT, 'src/lib/recipe-draft.ts'), { typescript: true });
+
 const ROUTE = 'src/app/api/nutrition/recipe-parse/route.ts';
 
 function loadRoute({ user = { id: 'u1' }, denied = null, hasKey = true, aiResult, onCall } = {}) {
@@ -51,6 +58,7 @@ function loadRoute({ user = { id: 'u1' }, denied = null, hasKey = true, aiResult
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
+      ['@/lib/recipe-draft', recipeDraft],
       ['@/lib/request-auth', { currentUser: async () => user }],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/require-membership', { requireMembership: async () => denied }],

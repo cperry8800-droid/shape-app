@@ -306,6 +306,7 @@
   "myRecipe.save": "Ajiye →",
   "myRecipe.yours": "Girkinka na kanka. Naka kaɗai — kociyoyinka ba sa ganinsa.",
   "myRecipe.draftedTag": "Shape ya karanta daga rubutunka, kai ka duba",
+  "myRecipe.draftedTagPhoto": "Shape ya karanta daga hoton ka, kai ka duba",
   "myRecipe.delete": "Share wannan girkin",
   "myRecipe.add": "＋ Ƙara girkinka",
   "myRecipe.qty": "Yawa",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Girkinka ne — ba abin da zai iya dawo da shi.",
   "myRecipe.errAccount": "Asusun da aka shiga ya canza. Sake buɗe wannan girkin.",
   "myRecipe.errAccountSave": "Asusun da aka shiga ya canza, don haka ba a ajiye wannan ba. Sake shiga ka ajiye shi.",
-  "myRecipe.errUnreadable": "Ba a iya karanta girkinka yanzu ba. Sake gwadawa."
+  "myRecipe.errUnreadable": "Ba a iya karanta girkinka yanzu ba. Sake gwadawa.",
+  "myRecipe.orPhoto": "Ko ka ɗauki hoto",
+  "myRecipe.photoCta": "＋ Hoton girki",
+  "myRecipe.photoNote": "Ana aika hoton don a karanta shi, sannan a goge shi — Shape ba ya ajiye shi.",
+  "myRecipe.byPhoto": "Shape ya karanta hoton ka — kwatanta da shafin, gyara, sannan ka ajiye.",
+  "myRecipe.errPhotoTooBig": "Hoton ya yi girma da ba a iya karantawa. Yanke shi zuwa girkin da ke cikin hotunanka sannan ka sake gwadawa.",
+  "myRecipe.errPhotoUnclear": "Ba a iya amfani da hoton ba. Gwada hoto mai haske da ya cika firam.",
+  "myRecipe.errPhotoType": "Ba a goyan bayan irin wannan fayil ɗin. Hoto daga kyamara ko hotunanka zai yi aiki.",
+  "myRecipe.errPhotoNoRecipe": "Ba mu sami girki a hoton ba. Gwada shafin da ke da sinadarai da hanyar girkin.",
+  "myRecipe.errPhotoOff": "Karanta hoto ba ya samuwa a wannan sigar. Manna ko rubuta girkin maimakon haka.",
+  "myRecipe.errPhotoRead": "Ba mu iya karanta hoton ba. Manna ko rubuta girkin — wannan koyaushe yana aiki."
 }
