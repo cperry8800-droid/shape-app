@@ -20155,12 +20155,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setOpenProfile, setActivityDetail, setLikerSheetFor, setSendPostFor, feedApplyReaction,
   };
 
-  // What the Wall segment needs beyond the card's own ctx. It renders inside
-  // this page, so the masthead and the online rail (with its Hide × / Show)
-  // are already above it — the Wall inherits that control rather than owning
-  // a second copy of it.
-  const wallCtx = { feedCtx, loggedIn, myRole, bsSubTab, hair, muted, cardInk };
-
   const Pill = ({ on, onClick, children, badge = 0 }) => (
     <button onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '6px 4px', minHeight: 26, borderRadius: 5, border: 0, background: on ? TEAL : 'transparent', color: on ? '#031f1c' : cardInk, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>
       {children}
