@@ -575,8 +575,21 @@ Append new entries at the top, under this note.
   there a `null` genuinely matches: the id reader returns `null` for a row with no profile
   id. *The same shape is not the same guard* — so one was deleted with the reasoning at the
   site and the other kept with a pointer to why.
-- **Verified:** `npm test` **3247/3247** · `tsc --noEmit` 0 · JSX parse · the newdesign
-  precompile check · **13/13 mutations killed**, each proven to land, sanity green at both
+- ⚠ **AND MY OWN DIFF READ — THE ONLY REVIEW LAYER LEFT — CAUGHT A BORDER THAT WAS NEVER
+  GOING TO PAINT.** The sections panel shipped `1px solid ${DASH_ROSTER_INK50}33`, and that
+  token is an **rgba() string**: the value was `rgba(242,237,228,0.55)33`, which is not a
+  colour, so CSS error-handling drops the **whole declaration** and the border simply does
+  not exist. **Neither the mutation round nor the browser drive could see it** — an absent
+  border still renders, still passes, still looks approximately right. The same class this
+  log post-mortems on the page textures, where two of them voided every page background,
+  and `dashToday.jsx` carries the identical warning above its own hex muted ink. A separate
+  `DASH_ROSTER_HAIR` rgba now, and a **derived sweep** over every `.js`/`.jsx` in
+  `public/newdesign` — each file's own rgba constants, found by reading its declarations
+  rather than by naming tokens — asserts none of them is ever given a hex alpha suffix.
+  Measured across the whole surface: **zero offenders**, and both spellings of the
+  reintroduction (template and concatenation) are proven to fail it.
+- **Verified:** `npm test` **3248/3248** · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **15/15 mutations killed**, each proven to land, sanity green at both
   ends · and driven in Chromium against a simulated live coach: six section heads and one
   ⚙, the panel offering **all six** as pressed-state chips, hiding *Milestones* and *Coach
   notes* → **four heads left in their original order**, the gear lit teal, stored as

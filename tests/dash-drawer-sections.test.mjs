@@ -7,7 +7,7 @@
 // preference about the drawer itself.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
 const ROSTER = readFileSync(new URL('../public/newdesign/dashRoster.jsx', import.meta.url), 'utf8');
@@ -115,4 +115,34 @@ test('the gear is a real toggle and says when something is hidden', () => {
   assert.match(SRC, /\{secs\.all\.map\(\(\[key, title\]\) => \{/);
   assert.match(SRC, /aria-pressed=\{on\}/);
   assert.match(SRC, /onClick=\{\(\) => toggleSection\(key\)\}/);
+});
+
+test('no rgba() colour token anywhere in newdesign takes a hex alpha suffix', () => {
+  // ⚠ EARNED HERE: the first cut of the sections panel wrote
+  // `1px solid ${DASH_ROSTER_INK50}33`, and that token is an rgba() string — so the value
+  // was `rgba(242,237,228,0.55)33`, which is not a colour. CSS error-handling drops the
+  // WHOLE declaration, so the border simply did not paint. Neither the mutation round nor
+  // the browser drive could see it: an absent border still renders, still passes, still
+  // looks approximately right. The same class this repo post-mortems on the page textures,
+  // where two of them voided every page background.
+  //
+  // ⚠ THE CORPUS IS DERIVED FROM EACH FILE'S OWN CONSTANTS, not a list of token names, so
+  // a new rgba constant is covered the day it is declared — and the sweep asserts it
+  // scanned something, because a sweep that scans nothing passes.
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => /\.jsx?$/.test(f));
+  assert.ok(files.length >= 40, 'the newdesign corpus vanished: ' + files.length);
+  let scanned = 0;
+  const bad = [];
+  for (const f of files) {
+    const src = stripComments(readFileSync(new URL(f, dir), 'utf8'));
+    const rgba = [...src.matchAll(/const\s+([A-Za-z_$][\w$]*)\s*=\s*"(rgba\([^"]*\))"/g)].map((m) => m[1]);
+    for (const name of rgba) {
+      scanned += 1;
+      const re = new RegExp('(?:\\$\\{' + name + '\\}|' + name + '\\s*\\+\\s*")([0-9a-fA-F]{2})(?![0-9a-fA-F])', 'g');
+      for (const m of src.matchAll(re)) bad.push(f + ': ' + m[0]);
+    }
+  }
+  assert.ok(scanned >= 5, 'no rgba constants found — the derivation broke: ' + scanned);
+  assert.deepEqual(bad, [], 'an rgba token is given a hex alpha suffix, which voids the whole declaration');
 });

@@ -12,6 +12,14 @@
 // dashSignals.js → dashData.jsx → dashToday.jsx (DashPill/helpers) → this.
 
 const DASH_ROSTER_INK50 = "rgba(242,237,228,0.55)";
+// ⚠ A SEPARATE, WEAKER INK, BECAUSE AN rgba() STRING CANNOT TAKE A HEX ALPHA SUFFIX.
+// Appending two hex digits to this token yields a value that is not a colour, and CSS
+// error-handling then drops the WHOLE declaration — so the border simply does not paint
+// and nothing reports it. I shipped exactly that on the sections panel in the first cut of
+// this change; neither the mutation round nor the browser drive could see an absent
+// border. The same class this log post-mortems on the page textures, and `dashToday.jsx`
+// carries the same warning above its own hex muted ink.
+const DASH_ROSTER_HAIR = "rgba(242,237,228,0.18)";
 
 // ⚠ ONE SHAPE FOR "NO ANSWER", AND IT USED TO HAVE TWO (CodeRabbit, #2031). This
 // returned `null` for a falsy input and `NaN` for an UNPARSEABLE one —
@@ -607,7 +615,7 @@ function DashClientDrawer({ row, role, onClose }) {
           {programLine && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{programLine}</span>}
         </div>
         {showSettings && (
-          <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_INK50}33`, borderRadius: 6, background: "rgba(242,237,228,0.03)" }}>
+          <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(242,237,228,0.03)" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginBottom: 9 }}>
               Sections · {view.eyebrow}
             </div>
@@ -621,7 +629,7 @@ function DashClientDrawer({ row, role, onClose }) {
                     aria-pressed={on}
                     onClick={() => toggleSection(key)}
                     style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", padding: "7px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
-                      border: "1px solid " + (on ? "#2ee0c4" : DASH_ROSTER_INK50 + "33"),
+                      border: "1px solid " + (on ? "#2ee0c4" : DASH_ROSTER_HAIR),
                       background: on ? "rgba(46,224,196,0.12)" : "transparent",
                       color: on ? "#f2ede4" : DASH_ROSTER_INK50 }}
                   >{on ? "\u2713 " : ""}{title}</button>
