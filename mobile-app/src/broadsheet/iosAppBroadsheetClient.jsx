@@ -19422,12 +19422,28 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // (bsSubAnchorRef) — drives a shared `subHidden` flag; each sub-tab row
   // collapses via bsSubStyle().
   const [subHidden, setSubHidden] = useStateBSC(false);
-  React.useEffect(() => { setSubHidden(false); }, [tab]);
+  React.useEffect(() => { const st = bsScroll.current; st.hidden = false; st.lockUntil = 0; setSubHidden(false); }, [tab]);
   // Attach the scroll-direction listener via a CALLBACK ref on the (always-
   // rendered) main tab row, so it re-attaches whenever the feed remounts — e.g.
   // after opening a DM/profile (which early-returns + unmounts the BSPage
   // scroller) and backing out. Walks up to the scroller; the ref fn is stable.
-  const bsScroll = React.useRef({ sc: null, fn: null, last: 0, ticking: false });
+  const bsScroll = React.useRef({ sc: null, fn: null, last: 0, ticking: false, hidden: false, lockUntil: 0 });
+  // ⚠ COLLAPSING THE ROW MOVES THE SCROLLER, AND THAT MOVE IS NOT THE USER.
+  // The row sits ABOVE the viewport once you have scrolled, so hiding it shortens
+  // the content above and the browser compensates by moving scrollTop — which
+  // arrives here as a scroll event whose dy has the OPPOSITE sign and flips the
+  // row straight back, which moves scrollTop again. Measured before this guard:
+  // a programmatic jump into the feed left scrollHeight oscillating over a 36px
+  // range indefinitely, which reads on screen as the feed vibrating. So every
+  // toggle goes through here, and scrolls arriving while our own 240ms collapse
+  // is still settling only RE-BASELINE the reference point — they never decide.
+  const bsSetSub = React.useCallback((next) => {
+    const st = bsScroll.current;
+    if (st.hidden === next) return;
+    st.hidden = next;
+    st.lockUntil = Date.now() + 420;
+    setSubHidden(next);
+  }, []);
   const bsSubAnchorRef = React.useCallback((node) => {
     const st = bsScroll.current;
     if (st.sc && st.fn) { st.sc.removeEventListener('scroll', st.fn); st.sc = null; st.fn = null; }
@@ -19444,10 +19460,15 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       if (st.ticking) return;
       st.ticking = true;
       requestAnimationFrame(() => {
-        const y = st.sc.scrollTop, dy = y - st.last;
-        if (y < 28) setSubHidden(false);
-        else if (dy > 6) setSubHidden(true);
-        else if (dy < -6) setSubHidden(false);
+        const y = st.sc.scrollTop;
+        // Our own collapse is still settling: keep the reference current so the
+        // first real scroll after it is measured from where the user actually
+        // is, but take no decision from a delta we caused ourselves.
+        if (Date.now() < st.lockUntil) { st.last = y; st.ticking = false; return; }
+        const dy = y - st.last;
+        if (y < 28) bsSetSub(false);
+        else if (dy > 6) bsSetSub(true);
+        else if (dy < -6) bsSetSub(false);
         st.last = y; st.ticking = false;
       });
     };
