@@ -141,39 +141,53 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (SECOND RULING OF THE DAY). CODEX IS
-  THE REVIEWER; CODERABBIT IS ITS FALLBACK.** Owner, 2026-09-11, after the ruling below:
-  ***"if codex is timed out then use coderabbit"***. So the order is fixed and conditional:
-  **trigger `@codex review` on every PR; if it answers with its usage-limit refusal (or does
-  not answer at all), trigger `@coderabbitai full review` on the same head.** CodeRabbit is
-  no longer forbidden — it is what runs when the first layer is unavailable, which is the
-  gap the earlier ruling left open and a whole wave of PRs fell into.
-  ⚠ **"TIMED OUT" IS A MEASUREMENT, NOT AN ASSUMPTION.** Codex answers a refusal within
-  SECONDS (*"You have reached your Codex usage limits for code reviews."*), and it posts a
-  **Codex Review Summary** comment that names the head and its status — `Running`, or a
-  findings round, or a refusal. **Read that comment before reaching for the fallback**: on
-  #2040 the same trigger that was refused twice on #2033 came back **Running** on the first
-  try, so the limit lifts and a session that assumes yesterday's refusal skips the better
-  reviewer. *A funding state is a claim with a shelf life, and the only honest form of it is
-  the one you just measured* — this file's own sentence, now with an operational consequence.
-  ⚠ **AND THE MERGE GATE IS STILL CI GREEN ON THE FINAL HEAD AND NOT A DRAFT.** Neither
-  reviewer closes it. The 2026-08-26 post-mortem below is why, and two rulings in one day
-  moving reviewers in and out is exactly the churn that post-mortem predicts — it cost
-  `/console` nothing this time, because the gate names only CI.
-  ⚠ **THE RULING IT NARROWS, kept because its reasoning is still the reasoning.** Owner,
-  2026-09-11: ***"dont run coderabbit moving forward"***.
-  So **CodeRabbit is not to be triggered on any PR** — not as a gate, not as a sweep, not
-  once. And measured the same day on #2033 and #2037, Codex answers an explicit trigger
-  within seconds with *"You have reached your Codex usage limits for code reviews."*
-  **Both external reviewers are therefore out of the loop: one by ruling, one by
-  measurement**, and the owner has separately ruled the `/code-review` skill out too
-  (*"that doesnt work and takes too long"*, with the same verdict on the Workflow tool).
-  ⚠ **THAT PARAGRAPH LEFT EXACTLY ONE LAYER, AND THE SECOND RULING ABOVE IS THE ANSWER TO
-  IT — read them together or you will under-review.** What survives unchanged is that the
-  layer below is mine and runs first: **an adversarial read of my own diff
-  before pushing** — hand-run, not a skill invocation — hunting the regressions the
-  diff-review bullet below enumerates, plus a mutation round proving each new guard can
-  actually fail. It is not a formality standing in for a reviewer; it is the whole review.
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (THIRD AND FINAL RULING OF THE DAY).
+  CODEX IS THE ONLY EXTERNAL REVIEWER. CODERABBIT IS OUT.** Owner, 2026-09-11, after the
+  fallback had been exercised exactly once: ***"no more coderabbit"***. So: **trigger
+  `@codex review` on every PR; when Codex is unavailable there is NO second reviewer** — the
+  round is my own adversarial read of the diff plus a mutation round, and the PR says so
+  rather than pretending a layer ran.
+  ⚠ **THREE RULINGS IN ONE DAY, AND THE MIDDLE ONE IS DEAD.** *"if codex is timed out then
+  use coderabbit"* (the second) was live for about an hour, was used once on #2040, and is
+  **superseded**. Its measurement is worth keeping — the fallback found two real things,
+  including an ambiguity in these very conventions — but **do not trigger CodeRabbit on that
+  basis.** ⚠ And note what the churn cost: a reader landing between the second and third
+  rulings would have found a prohibition and its own replacement three lines apart. That is
+  the defect CodeRabbit flagged, on the one PR it was brought back for, about this file.
+  ⚠ **"TIMED OUT" IS A MEASUREMENT, NOT AN ASSUMPTION — AND IT HAS TWO FACES.** Codex posts a
+  **Codex Review Summary** comment naming the head and its status (`Running`, a findings round,
+  or a refusal within SECONDS: *"You have reached your Codex usage limits for code reviews."*).
+  **Read that comment before concluding it is unavailable**: on #2040 the same trigger that
+  was refused twice on #2033 came back **Running** on the first try, so the limit lifts, and a
+  session that assumes yesterday's refusal skips the only external reviewer it has.
+  ⚠ **THE SECOND FACE IS SILENCE, AND IT WAS MEASURED ON #2040 TOO.** After five reviewed
+  heads the sixth trigger produced **no review, no `Running`, and no refusal** — fifteen
+  minutes of nothing, which is not the shape the spoken limit takes. **Under the final ruling
+  there is nothing to fall back TO**, so what this buys is honesty rather than a second
+  reviewer: when the summary has not moved to your head, say so in the PR and merge on CI
+  green with your own round as the only review, instead of reporting a layer that never ran.
+  *A funding state is a claim with a shelf life, and the only honest form of it is the one you
+  just measured* — this file's own sentence, now with an operational consequence.
+  ⚠ **AND THE MERGE GATE IS STILL CI GREEN ON THE FINAL HEAD AND NOT A DRAFT.** No reviewer
+  closes it. The 2026-08-26 post-mortem below is why, and **three rulings in one day** moving
+  reviewers in and out is exactly the churn that post-mortem predicts — it cost `/console`
+  nothing, because the gate names only CI.
+  ⚠ **THE FIRST RULING OF THE DAY, WHOSE CODERABBIT HALF THE THIRD ONE RESTORES.** Owner,
+  2026-09-11, earlier: ***"dont run coderabbit moving forward"***, read at the time as *"not
+  as a gate, not as a sweep, not once."* **On CodeRabbit that is the standing position again**
+  — the conditional ruling that briefly displaced it is itself superseded. ⚠ **What is dead
+  is the OTHER half: its conclusion that *both* external reviewers are out.** That rested on a
+  measurement — Codex answering an explicit trigger on #2033 and #2037 within seconds with
+  *"You have reached your Codex usage limits for code reviews."* — and #2040 refuted it on the
+  first try. **Codex is IN and is triggered on every PR.** A session that reads this paragraph
+  alone will skip the one external reviewer it has. (The owner has separately ruled the
+  `/code-review` skill out: *"that doesnt work and takes too long"*, with the same verdict on
+  the Workflow tool.)
+  ⚠ **SO THE LAYER BELOW IS MINE, AND UNDER THE FINAL RULING IT IS THE ONLY ONE THAT RUNS
+  UNCONDITIONALLY:** **an adversarial read of my own diff before pushing** — hand-run, not a
+  skill invocation — hunting the regressions the diff-review bullet below enumerates, plus a
+  mutation round proving each new guard can actually fail. Codex runs beside it when it is
+  answering; when it is not, this is the whole review, and the PR says so.
   ⚠ **THE MERGE GATE IS UNCHANGED, AND THAT IS THE POINT: CI green on the final head AND
   not a draft.** Because no reviewer is named IN the gate, three reviewers leaving in
   three weeks cost `/console` nothing this time — which is the 2026-08-26 post-mortem
@@ -181,10 +195,11 @@ changelog whenever something ships.
   expiry date nobody wrote down; a gate that names only CI does not.*
   ⚠ **AND THIS IS THE THIRD HANDOVER OF THE SAME SENTENCE.** When Codex went out on
   2026-08-21 this file wrote *"losing Codex loses a real layer, and self-review is what has
-  to cover it"*; CodeRabbit then covered it; now neither does. **The measured yields below
-  are what self-review now has to absorb alone** — Codex found the defects that make a
-  feature *fake*, CodeRabbit found more and wider at a higher false rate. Read those
-  paragraphs as a checklist for my own pass, not as history about tools.
+  to cover it"*; CodeRabbit then covered it; **CodeRabbit is now out for good, so on any head
+  Codex does not answer, self-review covers both.** **The measured yields below are what it
+  has to absorb** — Codex found the defects that make a feature *fake*, CodeRabbit found more
+  and wider at a higher false rate. Read those paragraphs as a checklist for my own pass, not
+  as history about tools.
   ⚠ **THE REVIEWER SYSTEM AS OF 2026-09-10 — NARROWED BY THE 09-11 RULING ABOVE, kept
   because its merge-gate and one-round-per-PR rulings still bind.**
   Owner, 2026-09-10: *"i just want the tasks completed as we said we were with proper
@@ -203,23 +218,31 @@ changelog whenever something ships.
   Codex advises; it does not close the gate — the 2026-08-26 post-mortem below explains
   why naming a reviewer IN the gate has now broken `/console` twice, and that lesson is
   not reopened by this ruling.
-  ⚠ **AND CODERABBIT IS OUT — owner, 2026-09-11: *"dont run coderabbit moving forward"*.**
-  Never trigger it: no `@coderabbitai full review`, no waiting on it, no reading its absence as
-  anything. **This retires the 2026-08-19 authorisation** recorded further down, and everything
-  under it describing how to trigger, re-trigger, pay for or read a CodeRabbit verdict is now
-  HISTORY — kept only for the two rules that were never about CodeRabbit (*a verdict is only
-  about the head it names*, *the absence of a record is never a pass*). The review layers are
-  `/code-review` and the Codex trigger; the merge gate is unchanged.
+  ⚠ **AND CODERABBIT IS OUT — STILL TRUE, but the operative words are now *"no more
+  coderabbit"* (the third ruling at the head of this block), not the *"dont run coderabbit
+  moving forward"* quoted here.** Between the two the owner allowed it as a fallback for an
+  hour; that window is closed. Never trigger it: no `@coderabbitai full review`, no waiting on
+  it, no reading its absence as anything. **This retires the 2026-08-19 authorisation**
+  recorded further down, and everything under it describing how to trigger, re-trigger, pay
+  for or read a CodeRabbit verdict is HISTORY — kept only for the two rules that were never
+  about CodeRabbit (*a verdict is only about the head it names*, *the absence of a record is
+  never a pass*). ⚠ The layer list in this paragraph's last sentence read *"`/code-review` and
+  the Codex trigger"*; **`/code-review` is out too** (owner: *"that doesnt work and takes too
+  long"*), so the layers are **my own adversarial pass and the Codex trigger**. The merge gate
+  is unchanged.
   ⚠ **AND AS OF 2026-09-11 CODEX IS REFUSING: *"You have reached your Codex usage limits for
   code reviews."*** Measured on #2033, twice — the bot answers that within seconds of an
   `@codex review` comment, on two different heads. **This does not reverse the owner's
   ruling and does not change the gate.** Trigger it as the ruling says; a refusal is the
   layer being unavailable, not skipped, and it is **noted in the PR rather than waited
-  on**. ⚠ Read this against the 2026-08-29 correction further down, which refuted *"the
-  account has no credits"* with three measured auto-reviews — **that was true then and is
-  not true today**, so a session that reads only the correction will sit waiting for a
-  reviewer that has already declined. *A funding state is a claim with a shelf life, and
-  the only honest form of it is the one you just measured.*
+  on**. ⚠ **CORRECTED LATER THE SAME DAY — the refusal did NOT hold.** On #2040 the same
+  trigger came back `Running` on the first try and Codex reviewed five consecutive heads.
+  **So do not read this paragraph as a standing state**; it is one measurement, and the
+  head of this block carries the current one. ⚠ Read it against the 2026-08-29 correction
+  further down, which refuted *"the account has no credits"* with three measured
+  auto-reviews — **each of these was true on its own date**, which is the whole lesson: *a
+  funding state is a claim with a shelf life, and the only honest form of it is the one you
+  just measured.*
   ⚠ **EVERYTHING BELOW THIS LINE THAT NAMES A GATING REVIEWER IS HISTORY, KEPT ON
   PURPOSE.** It is not deleted, because two of its rules turned out to be about reviewers
   in general rather than about CodeRabbit: **a verdict is only about the head it names**,
@@ -839,6 +862,14 @@ Append new entries at the top, under this note.
   long as they keep typing. *"Read this text" is not an operation whose input can change
   halfway through.* The **Name** field stays live — it is not what is being read, and its own
   closure was made safe separately.
+- ⚠ **AND THE FALLBACK RULING WAS EXERCISED, WHICH IS THE FIRST MEASUREMENT OF IT.** Codex
+  reviewed **five** heads on this PR and then stopped answering: the sixth trigger produced no
+  review, no **Running** status and **no refusal message** — fifteen minutes of nothing. That
+  is not the shape the earlier limit took (which answered within seconds, in as many words), so
+  *"timed out"* has at least two faces and only one of them says so. Read against the owner's
+  ruling — ***"if codex is timed out then use coderabbit"*** — silence is the condition, and
+  CodeRabbit was triggered on that head. **The gate did not move**: CI green on the final head,
+  and not a draft.
 - ⚠ **AND A FOURTH CODEX ROUND FOUND THE HARDENING HALF-DONE, PLUS A TRAP WITH THE WORST
   MEMBER OUTCOME OF THE WHOLE PR.** The P1: a **SOF declaring a two-byte segment** could plant
   small values at the offsets the reader uses — dimensions that are not inside the segment at

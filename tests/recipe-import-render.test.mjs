@@ -823,7 +823,7 @@ test('⚠ AND SO DOES THE DETAIL SCREEN — the same wiring, the same gap', asyn
 // screen, the save. `title` is deliberately EMPTY — a page whose recipe name is
 // in a typeface or a margin the reader could not lift is the ordinary case, and
 // it is the one that used to be unrecoverable.
-async function drivePhotoSheet(SHEET, { draft, onSaved = () => {}, db } = {}) {
+async function drivePhotoSheet(SHEET, { draft, onSaved = () => {}, db, parse = null } = {}) {
   const w = globalThis.window;
   const map = new Map();
   const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
@@ -834,7 +834,12 @@ async function drivePhotoSheet(SHEET, { draft, onSaved = () => {}, db } = {}) {
     getUserGoals: async () => ({}),
     saveUserGoalsIfRev: async () => ({ ok: true }),
   };
-  w.ShapeRecipeImport = { parse: null, photo: async () => ({ ok: true, draft }) };
+  // ⚠ `parse` IS INJECTABLE, AND THE DEFAULT NULL IS NOT NEUTRAL. With no parser
+  // the sheet falls back to its structural split, so a test asserting "the typed
+  // recipe was read" passes on a draft the READER never saw — the right outcome
+  // reached through the wrong path, which proves nothing about the reader being
+  // handed the new text. A test that cares about that supplies a stub.
+  w.ShapeRecipeImport = { parse, photo: async () => ({ ok: true, draft }) };
   const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved });
   const drain = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); ed.render(); };
   const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
@@ -1034,9 +1039,21 @@ test('⚠ BUT EDITING THE PASTE MEANS READ THE PASTE — the draft does not outr
   // a member who photographed, stepped Back and then typed a real recipe with no
   // way to get it read at all.
   const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
-  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT });
+  // ⚠ A REAL PARSER STUB, NOT THE DEFAULT NULL. Without one the sheet falls back
+  // to its structural split, which also produces a draft containing "oats" — so
+  // the assertion passed without the reader ever being handed the new text, and
+  // "the typed recipe is read" was a claim about a path the test never exercised.
+  const seen = [];
+  const h = await drivePhotoSheet(SHEET, {
+    draft: PHOTO_DRAFT,
+    parse: async (text) => {
+      seen.push(text);
+      return { ok: true, draft: { title: '', servings: null, ingredients: [{ n: '2 cups', m: 'oats' }], steps: ['Soak them overnight.'] } };
+    },
+  });
   try {
     await h.pick();
+    assert.deepEqual(seen, [], 'a photo import must not touch the paste reader');
     h.ed.click('Back');
     h.ed.render();
     const paste = h.inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')));
@@ -1044,6 +1061,8 @@ test('⚠ BUT EDITING THE PASTE MEANS READ THE PASTE — the draft does not outr
     h.ed.render();
     h.ed.click('Next');
     await h.drain();
+    assert.equal(seen.length, 1, 'the reader must actually be asked');
+    assert.match(seen[0], /2 cups oats/, 'and handed the text they just typed, not the text the draft came from');
     assert.ok(h.values().some((v) => v.includes('oats')), 'the typed recipe is read');
     assert.ok(!h.values().some((v) => v.includes('Mix it well')), 'and it replaces the photo draft, as asked');
   } finally { h.restore(); }
