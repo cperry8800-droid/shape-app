@@ -26,6 +26,16 @@ function dgWidgetW(size) { return size === "full" ? 12 : 6; }
 // now has no item at all rather than an empty one.
 function dgVisibleWidgets(widgets) { return (widgets || []).filter((w) => w && !w.empty); }
 
+// The setting groups a widget actually offers. Named once — the gear's visibility and
+// the panel's contents read the SAME list, so a card can never show a ⚙ that opens
+// nothing. A group with fewer than two options is dropped: a picker with one choice is
+// a label wearing a control.
+function dgSettingGroups(w) {
+  const gs = (w && w.settings) || [];
+  if (!Array.isArray(gs)) return [];
+  return gs.filter((g) => g && g.key && Array.isArray(g.options) && g.options.length > 1 && typeof g.onPick === "function");
+}
+
 // ⚠ THE TWO FILTERS BELOW ARE DELIBERATELY DIFFERENT SETS. `hidden` is a member
 // preference about a widget in this tab's catalogue, so it is filtered against every
 // DECLARED key — an empty spell must not silently forget that they hid the card.
@@ -129,6 +139,83 @@ function dgPatchGridStack() {
     return orig.apply(this, arguments);
   };
   GS._dashResizeGuard = true;
+}
+
+// ── PER-CARD SETTINGS (review 2026-09-09, R15) ─────────────────────────────
+// A widget declares what it can be configured with; DashGrid renders the ⚙ and the
+// popover. The widget keeps the state — it already has R16's per-account store, so a
+// choice made here is remembered between devices with no second mechanism.
+//
+//   settings: [{ key, label, options: [{ v, label }], value, onPick }]
+//
+// ⚠ A CARD WITH NO SETTINGS GETS NO ⚙, and that is R18's rule again: a control that
+// opens an empty panel costs more trust than an absent one. The chrome checks the array
+// is non-empty, not merely present, so a widget whose options are computed away at
+// runtime loses the gear rather than offering nothing.
+function DgCardSettings({ groups }) {
+  const [open, setOpen] = React.useState(false);
+  const boxRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  // ⚠ AN OPEN PANEL MUST NOT FADE OUT FROM UNDER THE POINTER. The whole chrome is
+  // `.dash-wchrome { opacity: 0 }` until the grid item is `:hover` or `:focus-within`,
+  // and this popover lives INSIDE it — so a member who opens the gear and then moves
+  // toward the panel (which hangs below the gear, often past the item's own box) leaves
+  // the hover area, and the panel they are reaching for disappears. `:focus-within`
+  // happens to cover it in Chrome and Firefox, where clicking a <button> focuses it;
+  // Safari does not focus a button on click, so relying on that is relying on a browser
+  // quirk to keep a control on screen. While the panel is open, the chrome is pinned.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const el = boxRef.current && boxRef.current.closest ? boxRef.current.closest(".dash-wchrome") : null;
+    if (!el) return undefined;
+    const prev = el.style.opacity;
+    el.style.opacity = "1";
+    return () => { el.style.opacity = prev; };
+  }, [open]);
+
+  const btn = { width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 11, cursor: "pointer", lineHeight: 1, padding: 0 };
+  return (
+    <span ref={boxRef} style={{ position: "relative", display: "inline-flex" }}>
+      <button type="button" title="Card settings" aria-label="Card settings" aria-expanded={open}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        style={{ ...btn, color: open ? "#2ee0c4" : DG_MUTE }}>⚙</button>
+      {open && (
+        // ⚠ RIGHT-ALIGNED AND CLAMPED TO THE VIEWPORT. The gear sits at the card's top
+        // right, so a left-anchored panel would hang off the page on the rightmost
+        // column of a two-up grid.
+        <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, zIndex: 20,
+                     minWidth: 176, maxWidth: "min(240px, calc(100vw - 24px))", background: "rgba(26,22,18,0.98)",
+                     border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" }}>
+          {groups.map((g) => (
+            <div key={g.key} style={{ padding: "2px 6px 6px" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {g.options.map((o) => {
+                  const on = o.v === g.value;
+                  return (
+                    <button type="button" key={String(o.v)} onClick={(e) => { e.stopPropagation(); g.onPick(o.v); }}
+                      style={{ padding: "5px 10px", borderRadius: 999, cursor: "pointer",
+                               border: "1px solid " + (on ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.14)"),
+                               background: on ? "rgba(46,224,196,0.14)" : "transparent",
+                               color: on ? "#2ee0c4" : "rgba(242,237,228,0.7)",
+                               fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em" }}>{o.label}</button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
+  );
 }
 
 function DashGrid({ role, tab = "today", widgets }) {
@@ -460,6 +547,7 @@ function DashGrid({ role, tab = "today", widgets }) {
       <div style={{ position: "relative" }}>
         <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", background: "rgba(11,14,12,0.72)", borderRadius: 7, padding: "1px 2px" }}>
           <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, padding: "0 2px", lineHeight: 1 }}>⠿</span>
+          {dgSettingGroups(w).length > 0 && <DgCardSettings groups={dgSettingGroups(w)} />}
           <button type="button" title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
         </div>
         {content}
