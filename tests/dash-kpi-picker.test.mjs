@@ -191,6 +191,40 @@ test('the strip is ONE hook over four per-role keys — a swap cannot half-persi
   assert.doesNotMatch(body, /for \([^)]*\)\s*\{[^}]*useRemembered/, 'the keys went into a loop');
 });
 
+test('nothing around the strip still calls it four hooks', () => {
+  // ⚠ THE CODE GUARD ABOVE CANNOT SEE A STALE COMMENT, AND A COMMENT IS WHAT SHIPS THE
+  // REGRESSION. CodeRabbit's fourth finding on #2046 was exactly this: guidance saying
+  // FOUR HOOKS PER STRIP survived the fix that removed them, so a reader following it
+  // would have restored the partial-swap write believing they were following convention.
+  // I then fixed one of the two blocks and left the other FOUR LINES ABOVE it, so the
+  // file carried both claims at once — which is worse than either alone.
+  //
+  // ⚠ AND IT READS THE RAW SOURCE, NOT `TODAY`. Every other guard in this file works on a
+  // comment-STRIPPED copy — so the first version of this test asked a stripped string
+  // whether it contained a comment, which is a question it can never answer yes to. It
+  // would have passed on the contradictory file it was written to catch. Only the
+  // positive control below failed, which is the whole reason to carry one.
+  const raw = readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8');
+  const at = raw.indexOf('function useDashKpiStrip(');
+  assert.ok(at > 0, 'useDashKpiStrip moved');
+  // The window is the comment block above the hook plus its body: a claim about this
+  // hook's shape lives in one of those two places or it is not about this hook.
+  const head = raw.lastIndexOf('\n\n', at);
+  const region = raw.slice(head, raw.indexOf('\n}\n', at));
+  // ⚠ A MENTION IS NOT A CLAIM: the correct guidance says "NOT four hooks" twice, so a
+  // flat ban on the phrase would fail the very wording it is meant to protect — and the
+  // temptation then is to pin the stale SPELLING instead, which pins whatever that
+  // spelling is wrong about. The invariant is that every mention is NEGATED.
+  for (const m of region.matchAll(/(.{0,30})(four hooks|4 hooks)/gi)) {
+    assert.match(
+      m[1], /\b(not|never|rather than|instead of)\b/i,
+      'guidance beside the strip asserts four hooks ("' + m[0].trim() + '") — that is how the partial-swap write comes back');
+  }
+  // The positive control — without it this passes on a region that says nothing at all,
+  // which is the other way to lose the explanation, and on a stripped source.
+  assert.match(region, /\bone hooks?\b/i, 'the one-hook reason is gone from where a reader would look');
+});
+
 test('the slot hook writes every changed key in ONE apply', () => {
   // The atomicity lives in `dashData.jsx`, so it is asserted where it lives rather than
   // inferred from the caller. (Driven end to end in dashboard-remembered-choices.test.mjs.)

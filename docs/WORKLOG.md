@@ -733,6 +733,29 @@ Append new entries at the top, under this note.
   which the ⚙ and the strip disagree about what one figure is called. The continuity is
   pinned instead: a guard asserts the catalog still says *Sessions this week* / *Consults
   this week* and the six other headings the strips have always carried.
+- ⚠ **AND ITS FOURTH FINDING WAS ONLY HALF FIXED, WHICH LEFT THE FILE WORSE THAN BEFORE.**
+  CodeRabbit asked for **both** comments updated; I corrected the one inside `useDashKpiStrip`
+  and the auto-loaded WORKLOG bullet, and left the block **four lines above the function**
+  still reading *FOUR HOOKS, WRITTEN OUT, NOT A LOOP*. So the module carried both claims at
+  once, adjacent — and a reader who stops at the header (the likelier of the two) gets the
+  retired one. *Half a records fix is not half as good; it is a file that contradicts itself.*
+- ⚠ **AND THE GUARD WRITTEN TO CLOSE THAT CLASS WAS BLIND BY CONSTRUCTION ON ITS FIRST RUN.**
+  Every other guard in `dash-kpi-picker` reads a comment-**STRIPPED** copy of the source, so my
+  first version asked a stripped string whether it contained a comment — a question it can
+  never answer yes to. It would have passed on the contradictory file it was written to catch.
+  **Only the positive control failed**, which is the whole reason to carry one. It reads the raw
+  source now.
+- ⚠ **AND A FLAT BAN ON THE PHRASE WOULD HAVE FAILED THE CORRECT WORDING.** Both fixed blocks
+  legitimately say *"NOT four hooks"*, so the second version failed the very text it protects —
+  and the tempting repair is to pin the stale SPELLING, which is the class this file
+  post-mortems ten times over. **A mention is not a claim:** every occurrence must be NEGATED,
+  which is the invariant rather than a spelling. Three mutations, each proven to land — the
+  shipped contradictory header, a positive claim in a different spelling, and the reason
+  deleted outright — all killed. ⚠ Two earlier attempts at that third one **survived and were
+  the MUTATION rather than a gap**: each left a working statement of the reason standing, and
+  one of them exposed a loose control (`/one hook/i` matches *"one hookish"*), now
+  word-bounded. *A mutation that does not achieve what its name claims reports on nothing.*
+
 - ⚠ **AND MY OWN HARNESS PICKED THE WRONG CARD — the shared-verb class, twice in one day.**
   `/SESSIONS TODAY/i` over a card's `innerText` also matches the SCHEDULE card's *"No
   sessions today"*, so the run clicked a gear that card does not have and timed out. It

@@ -1076,14 +1076,17 @@ function DashNutriAggPanel({ clients, live }) {
 
 // One strip's four remembered slots.
 //
-// ⚠ FOUR HOOKS, WRITTEN OUT, NOT A LOOP. The count is fixed by construction rather than
-// by a constant somebody could later derive from data — the rules-of-hooks class this
-// repo post-mortems, which neither the build nor `tsc` nor the suite catches.
+// ⚠ ONE HOOK, A FIXED FOUR KEYS — not four hooks and not a loop over a count. The hook
+// count is fixed by construction rather than by a constant somebody could later derive
+// from data (the rules-of-hooks class this repo post-mortems, which neither the build nor
+// `tsc` nor the suite catches), and the ONE hook is what makes a swap atomic. The reason
+// is written out at the call site below; this header exists so a reader who never opens
+// the function does not "restore" the four.
 //
-// ⚠ AND ONE KEY PER SLOT RATHER THAN ONE ARRAY, because `useRememberedChoice` validates a
-// stored value against the pool and ignores what it does not recognise: a retired metric
-// then costs that ONE slot its default, where a stored array would have to be validated
-// element by element or discarded whole.
+// ⚠ AND ONE KEY PER SLOT RATHER THAN ONE ARRAY, because the hook validates each stored
+// value against the pool on its own key and ignores what it does not recognise: a retired
+// metric then costs that ONE slot its default, where a stored array would have to be
+// validated element by element or discarded whole.
 function useDashKpiStrip(prefs, strip, role, defaults) {
   const base = "kpi:" + role + ":" + strip + ":";
   // ⚠ ONE HOOK OVER FOUR KEYS, NOT FOUR HOOKS — because a swap changes TWO slots and
