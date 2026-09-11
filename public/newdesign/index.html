@@ -14,7 +14,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- The Shape type system (docs/REVIEW-2026-09-10-index-page.md §5a):
      Anybody   — display. One family with a width axis, so the headline widens
-                 from 62 to 118 as the route starts: the page finds its shape.
+                 from 62 to the page's display width (`--w`) as the route starts:
+                 the page finds its shape. ⚠ That target is set ONCE, at `--w`, and
+                 read back by the reveal — do not restate it here or in the script.
      Doto      — every measured figure. A dot-matrix scoreboard face, so a
                  reading looks like a reading. ⚠ NEVER put a blurred text-shadow
                  or drop-shadow on it: the blur stacks on every dot and the glyph
@@ -71,7 +73,12 @@
     --disp:'Anybody','Anybody Fallback',system-ui,sans-serif;
     --num:'Doto','Doto Fallback',ui-monospace,monospace;
     --sans:'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif;
-    --w:118;            /* the display width axis for E */
+    --w:105;            /* the display width axis. ⚠ THE ONE PLACE IT IS SET — the hero
+                           headline's reveal reads it back rather than restating it, because
+                           this number used to live in four places (here, the .w default, the
+                           animation's start, and its 62+56 arithmetic) and a change had to
+                           land in all four to be a change. Anybody's natural width is 100;
+                           above ~110 the glyphs read as stretched rather than wide. */
     --maxw:1440px;
   }
 
@@ -144,7 +151,7 @@
       linear-gradient(to bottom, var(--ink) 0%, var(--ink-2) 100%)}
   .hero .hcopy{position:relative;z-index:3;max-width:var(--maxw);margin:0 auto;padding:0 32px;width:100%}
   .hero h1{font-size:clamp(42px,7.2vw,104px);max-width:15ch}
-  .hero h1 .w{display:inline-block;font-variation-settings:'wdth' var(--hw,118);will-change:font-variation-settings}
+  .hero h1 .w{display:inline-block;font-variation-settings:'wdth' var(--hw,var(--w));will-change:font-variation-settings}
   .hero .sub{margin-top:22px;max-width:52ch;font-size:17px;color:var(--fg-2)}
   .hero .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
   .hero .eyb{margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -842,14 +849,24 @@
       prog=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2; if(k<1) tw=requestAnimationFrame(f); else tw=null; }
     prog=0; tw=requestAnimationFrame(f); }
 
-  /* the headline finds its shape: the words widen from 62 to 118 as the route starts */
+  /* the headline finds its shape: the words widen from 62 to the page's own display
+     width as the route starts. ⚠ THE TARGET IS READ FROM `--w`, NOT RESTATED. It was
+     written here three times (the reduced-motion branch, the start, and the 62+56
+     arithmetic) beside a fourth copy in the CSS, so narrowing the headline meant
+     finding all four — and missing one leaves the words animating past the width
+     every other heading uses. A bad or absent value falls back to 105. */
+  function headWidth(){
+    var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--w'));
+    return (isFinite(v) && v > 0) ? v : 105;
+  }
   function reveal(){
     var ws=[].slice.call(document.querySelectorAll('.hero h1 .w')); if(!ws.length) return;
-    if(still){ ws.forEach(function(w){ w.style.setProperty('--hw',118); }); return; }
-    ws.forEach(function(w,i){ w.style.setProperty('--hw',62);
+    var to=headWidth(), from=62, span=to-from;
+    if(still){ ws.forEach(function(w){ w.style.setProperty('--hw',to); }); return; }
+    ws.forEach(function(w,i){ w.style.setProperty('--hw',from);
       setTimeout(function(){ var t0=null;
         function f(now){ if(t0===null) t0=now; var k=Math.min(1,(now-t0)/900), e=1-Math.pow(1-k,3);
-          w.style.setProperty('--hw',(62+56*e).toFixed(1)); if(k<1) requestAnimationFrame(f); }
+          w.style.setProperty('--hw',(from+span*e).toFixed(1)); if(k<1) requestAnimationFrame(f); }
         requestAnimationFrame(f); }, 90+i*110); });
   }
 
