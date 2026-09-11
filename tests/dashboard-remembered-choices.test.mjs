@@ -10,7 +10,7 @@
 // member ends up with. Run: node --test
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
 const DATA = readFileSync(new URL('../public/newdesign/dashData.jsx', import.meta.url), 'utf8');
@@ -412,28 +412,50 @@ test('the four controls are wired, and the search box deliberately is not', () =
   assert.ok(!/React\.useState\("month"\)/.test(sched), 'the schedule view went back to plain state');
 });
 
-test('every host page loads dashData.jsx before the module that now needs it', () => {
+test('every host page loads dashData.jsx before any module that reads it', () => {
   // ⚠ CLASSIC SCRIPTS, SO THIS IS A REAL FAILURE MODE. `dashProgress.jsx` referenced
-  // nothing from `dashData.jsx` before this change, and `ClientProgress.html` did not
-  // load it — the reference would have been a ReferenceError on any page that rendered.
-  const html = (f) => readFileSync(new URL('../public/newdesign/' + f, import.meta.url), 'utf8');
-  const pages = {
-    'ClientApp.html': 'dashProgress.jsx', 'ClientProgress.html': 'dashProgress.jsx',
-    'TrainerApp.html': 'dashSchedule.jsx', 'NutritionistApp.html': 'dashSchedule.jsx',
-    'TrainerSchedule.html': 'dashSchedule.jsx', 'NutritionistSchedule.html': 'dashSchedule.jsx',
-    'TrainerClients.html': 'trainerClientsPage.jsx', 'NutritionistClients.html': 'nutritionistClientsPage.jsx',
-  };
+  // nothing from `dashData.jsx` before R16, and `ClientProgress.html` did not load it —
+  // the reference would have been a ReferenceError on any page that rendered.
+  //
+  // ⚠ AND THE FIRST VERSION OF THIS GUARD WAS A HAND-LISTED MAP OF EIGHT PAGES, which is
+  // the enumeration-is-not-a-proof pattern this repo keeps paying for: adding a
+  // `useRememberedSet` call to `dashToday.jsx` made THREE pages wrong (ClientGoal,
+  // ClientNutri, ClientTrain all load dashToday.jsx and none loaded dashData.jsx) and the
+  // map said nothing, because none of the three was in it. It DERIVES both halves now —
+  // which modules read dashData, and which pages load them — so a new page or a new
+  // cross-module reference is covered with nobody remembering this test exists.
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const read = (f) => readFileSync(new URL(f, dir), 'utf8');
+  const files = readdirSync(dir);
+
+  // The names dashData.jsx publishes as bare globals — derived from its own export line,
+  // never listed here, so a new export is covered the day it is added.
+  const exportLine = /Object\.assign\(window, \{([^}]*)\}\);/.exec(DATA);
+  assert.ok(exportLine, 'dashData.jsx stopped exposing its globals in one Object.assign');
+  const exported = exportLine[1].split(',').map((p) => p.split(':')[0].trim()).filter(Boolean);
+  assert.ok(exported.length >= 10, 'the dashData export list looks truncated: ' + exported.length);
+
+  // Which sibling modules actually reference one of those names.
+  const readers = files.filter((f) => /\.jsx$/.test(f) && f !== 'dashData.jsx')
+    .filter((f) => {
+      const src = stripComments(read(f));
+      return exported.some((n) => new RegExp('(^|[^\\w.$])' + n + '\\s*\\(').test(src));
+    });
+  assert.ok(readers.length >= 3, 'no module reads dashData — the derivation broke: ' + readers.length);
+
   let checked = 0;
-  for (const [f, mod] of Object.entries(pages)) {
-    const s = html(f);
-    const need = s.indexOf(mod);
-    const have = s.indexOf('dashData.jsx');
-    assert.ok(need >= 0, f + ' no longer loads ' + mod + ' — update this map');
-    assert.ok(have >= 0, f + ' loads ' + mod + ' but not dashData.jsx');
-    assert.ok(have < need, f + ' loads dashData.jsx after ' + mod);
-    checked += 1;
+  for (const f of files.filter((x) => /\.html$/.test(x))) {
+    const html = read(f);
+    for (const mod of readers) {
+      const need = html.indexOf('src="' + mod);
+      if (need < 0) continue;
+      const have = html.indexOf('src="dashData.jsx');
+      assert.ok(have >= 0, f + ' loads ' + mod + ', which reads dashData.jsx, but never loads it');
+      assert.ok(have < need, f + ' loads dashData.jsx after ' + mod);
+      checked += 1;
+    }
   }
-  assert.equal(checked, 8, 'the sweep scanned nothing');
+  assert.ok(checked >= 8, 'the sweep scanned almost nothing: ' + checked);
 });
 
 test('the preference document is one named kind, not a new store per control', () => {

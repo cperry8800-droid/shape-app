@@ -715,13 +715,19 @@ function DashWinsPanel({ clients, role }) {
   );
 }
 
-function TriagePulsePanel({ feed, role, joint = [] }) {
+function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin }) {
   // Urgency order: at-risk (red, then amber — the feed is already sorted),
-  // then brand-new clients, then on-track.
-  const atRisk = feed.filter((r) => r.severity !== "green");
-  const fresh = feed.filter((r) => r.severity === "green" && r.client.profile.isNew);
-  const ok = feed.filter((r) => r.severity === "green" && !r.client.profile.isNew);
-  const rows = [...atRisk, ...fresh, ...ok];
+  // then brand-new clients, then on-track — with the coach's own pins lifted above it.
+  //
+  // ⚠ THE ORDER IS A PURE FUNCTION IN `dashSignals.js`, NOT THREE FILTERS HERE, because
+  // the rule a pin has to obey ("a row appears exactly once, and a pin never removes a
+  // flag from the list") is the kind of thing a filter chain gets wrong silently. It is
+  // driven in tests/dash-pulse-pins.test.mjs rather than eyeballed on a card.
+  const order = DashSignals.pulseOrder(feed, pinned);
+  const pinnedRows = order.pinned;
+  const rows = order.rest;
+  const canPin = typeof onTogglePin === "function";
+  const pinSet = new Set(Array.isArray(pinned) ? pinned : []);
   const ink50 = "rgba(242,237,228,0.55)";
   // A HEX muted ink for DashPill: the pill composes its bg/border by appending hex
   // suffixes (c + "1c" / "55"), so an rgba() value would produce invalid CSS.
@@ -732,23 +738,7 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
   const drawerReady = typeof window !== "undefined" && typeof window.DashClientDrawer === "function";
   const openDrawer = (r) => { if (drawerReady) setOpenRow(r); };
 
-  return (
-    <div>
-      <style>{"@keyframes dashTick{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}"}</style>
-      {/* Joint attention (step 9.2): the same client is slipping on BOTH the
-          training and nutrition side — one coordinated message, not two nudges. */}
-      {joint.slice(0, 2).map((j, i) => (
-        <div key={"joint-" + i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10, padding: "10px 13px", background: "rgba(224,100,75,0.07)", border: "1px solid rgba(224,100,75,0.3)", borderLeft: "3px solid #e0644b", borderRadius: 4 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#e0644b" }}>Joint attention · with their {role === "nutritionist" ? "trainer" : "nutritionist"}</div>
-            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.85)", marginTop: 4, lineHeight: 1.45 }}>
-              <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
-            </div>
-          </div>
-          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "#e0644b", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
-        </div>
-      ))}
-      {rows.map((r, i) => {
+  const renderRow = (r, i) => {
         const c = r.client;
         const isNew = r.severity === "green" && c.profile.isNew;
         const sevColor = isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS[r.severity];
@@ -798,12 +788,62 @@ function TriagePulsePanel({ feed, role, joint = [] }) {
                 {streak == null && wkPts == null && contact == null && "—"}
               </div>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
-              Message
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {/* ⚠ THE PIN IS ON THE ROW, NOT IN THE CARD'S ⚙, and that is a reading of
+                  what the control IS rather than a shortcut. The gear holds settings that
+                  belong to the card; pinning is an act about ONE client, and routing it
+                  through a popover listing the whole roster would be a worse control for
+                  the same preference. It is also why the pulse gets no gear at all: a
+                  card with nothing card-level to configure gets none (R18's rule). */}
+              {canPin && (
+                <button
+                  type="button"
+                  aria-pressed={pinSet.has(c.profile.id)}
+                  title={pinSet.has(c.profile.id) ? "Unpin " + c.profile.name : "Pin " + c.profile.name + " to the top"}
+                  onClick={(e) => { e.stopPropagation(); onTogglePin(c.profile.id); }}
+                  style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "#2ee0c4" : "rgba(242,237,228,0.3)" }}
+                >{pinSet.has(c.profile.id) ? "\u2691" : "\u2690"}</button>
+              )}
+              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+                Message
+              </button>
+            </div>
           </div>
         );
-      })}
+  };
+
+
+  return (
+    <div>
+      <style>{"@keyframes dashTick{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}"}</style>
+      {/* Joint attention (step 9.2): the same client is slipping on BOTH the
+          training and nutrition side — one coordinated message, not two nudges. */}
+      {joint.slice(0, 2).map((j, i) => (
+        <div key={"joint-" + i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10, padding: "10px 13px", background: "rgba(224,100,75,0.07)", border: "1px solid rgba(224,100,75,0.3)", borderLeft: "3px solid #e0644b", borderRadius: 4 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#e0644b" }}>Joint attention · with their {role === "nutritionist" ? "trainer" : "nutritionist"}</div>
+            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.85)", marginTop: 4, lineHeight: 1.45 }}>
+              <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
+            </div>
+          </div>
+          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "#e0644b", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
+        </div>
+      ))}
+      {pinnedRows.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          {/* ⚠ LABELLED AS THE COACH'S OWN PICKS, not as a verdict. Without the heading a
+              green pinned row sitting above a red one reads as the engine getting triage
+              wrong; with it, it reads as the coach saying "keep these in front of me",
+              which is what it is — and every unpinned at-risk row is still directly
+              below, so nothing is hidden. */}
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: ink50, padding: "2px 4px 6px" }}>
+            Pinned · {pinnedRows.length}
+          </div>
+          {pinnedRows.map((r, i) => renderRow(r, i))}
+          <div aria-hidden style={{ height: 1, background: "rgba(242,237,228,0.1)", margin: "10px 4px 2px" }} />
+        </div>
+      )}
+      {rows.map((r, i) => renderRow(r, i))}
       {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setOpenRow(null)} />}
     </div>
   );
@@ -1002,6 +1042,15 @@ function DashNutriAggPanel({ clients, live }) {
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
   const { today: live, triage, clients, queue, joint, source } = useDashboard(role);
+  // The coach's pinned clients, per ACCOUNT (review 2026-09-09, R15) — the same
+  // `dashboard_prefs` document the roster filter and the Schedule view already use, so a
+  // pin follows them between devices and costs no second mechanism.
+  //
+  // ⚠ THE KEY IS PER ROLE. One auth user can own both a trainer and a nutritionist row,
+  // and the two Todays show different rosters; a shared key would put a nutrition client
+  // at the top of the training pulse. The same split `coach_week_publishes` needed.
+  const prefs = useRememberedChoices(source === "live");
+  const [pinned, togglePin] = useRememberedSet(prefs, "pulsePinned:" + role, 12);
 
   const firstName = live ? live.user.firstName : cfg.mockName;
   const kpis = live ? [
@@ -1079,7 +1128,7 @@ function CoachDashboardPage({ role }) {
     { key: "kpis", title: "Overview", size: "full", render: () => renderKpiStrip(kpis) },
     { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis) },
     { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
-    { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} />) },
+    { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} />) },
     ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "wins", title: "Client wins", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
     ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
@@ -1109,7 +1158,7 @@ function CoachDashboardPage({ role }) {
       schedule={schedule}
       pulseTitle="Client pulse"
       pulse={pulse}
-      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} joint={joint} /> : undefined}
+      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} /> : undefined}
       scheduleRender={cfg.expandSchedule ? () => <ExpandableSchedule schedule={schedule} clients={clients} role={role} /> : undefined}
       extraSections={[
         ...(cfg.programmingQueue ? [{

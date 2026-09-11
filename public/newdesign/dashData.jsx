@@ -960,9 +960,103 @@ function useRememberedChoice(store, key, allowed, fallback) {
   return [value, choose];
 }
 
+// A SET-shaped memory, for a control that remembers WHICH THINGS rather than WHICH ONE
+// (review 2026-09-09, R15 — pinned clients, the drawer's sections).
+//
+// ⚠ IT IS NOT `useRememberedChoice` WITH AN ARRAY IN IT, and the difference that
+// forces a second hook is the VALIDATION. That hook checks a stored value against a
+// fixed `allowed` list and ignores anything else — right for a filter key, and wrong
+// here: the members are client ids, and a coach's roster is filtered, searched and
+// read one page at a time, so "not on the screen in front of me" is not evidence that
+// a pin is stale. Dropping it would silently unpin someone every time the coach
+// filtered. So the SHAPE is validated and membership never is.
+//
+// Everything else is deliberately the same mechanism: the session's choice outranks
+// the document, a different account gets a clean slate, and the write is a
+// reconciliation effect rather than a click handler so a choice made before the store
+// is writable is retried instead of dropped.
+function useRememberedSet(store, key, max) {
+  const cap = Math.max(1, Math.min(200, Number(max) || 24));
+  const [chosen, setChosen] = React.useState(null);   // null = nobody has touched it here
+  const askedRef = React.useRef(null);
+
+  // Same clean-slate rule as useRememberedChoice, and for the same reason: `chosen`
+  // outranks the document, so A's session picks would otherwise govern B's screen.
+  const acct = store && store.accountId != null ? store.accountId : null;
+  const knownRef = React.useRef(null);
+  if (acct != null && knownRef.current != null && acct !== knownRef.current) {
+    setChosen(null);
+    askedRef.current = null;
+  }
+  if (acct != null) knownRef.current = acct;
+
+  const doc = (store && store.doc) || {};
+  const kind = (store && store.kind) || "loading";
+  const apply = store && store.apply;
+
+  // The SHAPE is what is checked: a list of non-empty strings, deduped, capped. A
+  // document written by another build, or corrupted, degrades to "nothing pinned"
+  // rather than throwing — and is left in place rather than deleted, because a key
+  // this build cannot read may belong to one that can.
+  const raw = Object.prototype.hasOwnProperty.call(doc, key) ? doc[key] : undefined;
+  const stored = React.useMemo(() => {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    for (const v of raw) {
+      if (typeof v !== "string" || !v) continue;
+      if (out.indexOf(v) >= 0) continue;
+      out.push(v);
+      if (out.length >= cap) break;
+    }
+    return out;
+  }, [JSON.stringify(raw), cap]);
+
+  const value = chosen != null ? chosen : stored;
+
+  const storedRef = React.useRef(stored);
+  storedRef.current = stored;
+  // ⚠ THE UPDATER DERIVES FROM `prev`, NOT FROM A CAPTURED VALUE. Two toggles in one
+  // tick both read the same captured array and the second would silently discard the
+  // first; composing off `prev` is the only form that survives batching.
+  const toggle = React.useCallback((id) => {
+    if (typeof id !== "string" || !id) return;
+    setChosen((prev) => {
+      const cur = prev != null ? prev : storedRef.current;
+      if (cur.indexOf(id) >= 0) return cur.filter((x) => x !== id);
+      // The newest pin wins the last slot rather than being refused: a cap the coach
+      // cannot see must not silently reject the thing they just asked for.
+      return cur.concat([id]).slice(-cap);
+    });
+  }, [cap]);
+
+  const clear = React.useCallback(() => { setChosen([]); }, []);
+
+  const chosenKey = chosen == null ? null : chosen.join("\u0000");
+  const storedKey = stored.join("\u0000");
+  React.useEffect(() => {
+    if (chosen == null) return;
+    if (kind !== "ready" && kind !== "error") return;
+    if (typeof apply !== "function") return;
+    // An EMPTY set is "no preference", which is what an absent key says — the same
+    // rule as choosing a default back in useRememberedChoice.
+    const want = chosen.length ? chosen : undefined;
+    if (chosenKey === storedKey) return;             // the document already says it
+    if (askedRef.current === chosenKey) return;      // one attempt per chosen set
+    askedRef.current = chosenKey;
+    apply((d) => {
+      const out = { ...d };
+      if (want === undefined) delete out[key]; else out[key] = want;
+      return out;
+    });
+    // eslint-disable-next-line
+  }, [chosenKey, storedKey, kind, key]);
+
+  return [value, toggle, clear];
+}
+
 // ⚠ `dashDemoPayouts` MOVED TO `dashSignals.js` on 2026-09-10 as `DashSignals.demoPayouts`.
 // It derives from `buildMockClients`, which lives there, and the sidebar's payout card is
 // rendered on pages that load NEITHER this file nor `dashToday.jsx` — so keeping the
 // derivation here made the card's own getters throw on ten of them and report the failure
 // as an em-dash. A pure derivation belongs with the data it derives from.
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });

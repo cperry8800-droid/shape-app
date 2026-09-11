@@ -529,6 +529,105 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — R15's pin: the pulse keeps the two people you are actually working with in front of you
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
+  *pin clients to Today's pulse*. The pulse is triage-ordered (at-risk → new → on track), so
+  the two clients a coach is working with **this week** sort to the bottom the moment they
+  are fine. Every column with a value behind it could already be sorted on the roster; the
+  pulse had no way to say *"keep these in front of me"*. Remembered per account and **per
+  role**. No migration, no new route. **The KPI picker and the drawer's sections per lens
+  are still open.**
+- ⚠ **A PIN NEVER HIDES A FLAG, AND THAT IS THE ONLY REASON IT MAY SIT ABOVE ONE.** A
+  pinned client who is fine appearing above a client who is not looks like the engine being
+  overruled — so it is not: the pinned row keeps its **own severity dot and its own flags**,
+  every unpinned at-risk row is still directly underneath, and the band is **labelled**
+  *Pinned · N* rather than presented as a verdict. What the pin buys is VISIBILITY on a long
+  roster, which is the thing a coach actually loses.
+- ⚠ **AND A ROW APPEARS EXACTLY ONCE.** Leaving a pinned at-risk client in both bands would
+  double-count the roster on the one card that exists to say how many need attention — so
+  the count is the invariant the guard asserts, not the order.
+- ⚠ **A PIN FOR SOMEBODY NOT ON SCREEN YIELDS NOTHING, AND IS NEVER READ AS STALE.** The
+  feed is filtered and searched, so absence is not evidence — which is why the ordering
+  function returns an **order** and has no way to edit the pinned set.
+- **The order is a pure function in `dashSignals.js`, not three filters in the component**,
+  because *"a row appears once and a pin never removes a flag from the list"* is exactly the
+  kind of rule a filter chain gets wrong silently. Both bands render through **one**
+  `renderRow`, so a pinned row cannot drift from an unpinned one.
+- ⚠ **THE CONTROL IS ON THE ROW, NOT IN THE CARD'S ⚙, and that is a reading of what it IS.**
+  The gear holds settings that belong to the card; pinning is an act about ONE client, and
+  routing it through a popover listing the whole roster would be a worse control for the
+  same preference. It is also why the pulse gets **no gear at all** — R18's rule: a card with
+  nothing card-level to configure gets none.
+- **`useRememberedSet` is a second hook beside `useRememberedChoice`, and the VALIDATION is
+  what forces it.** That hook checks a stored value against a fixed `allowed` list and
+  ignores anything else — right for a filter key, and **wrong here**: the members are client
+  ids, and a roster is filtered, searched and paged, so *"not on the screen in front of me"*
+  is not evidence a pin is stale. Dropping it would silently unpin someone every time the
+  coach filtered. The **shape** is validated (non-empty strings, deduped, capped at 12) and
+  membership never is. Everything else is deliberately the same mechanism: the session's
+  choice outranks the document, a different account gets a clean slate, an empty set deletes
+  the key rather than storing `[]`, and the write is a reconciliation effect so a choice made
+  before the store is writable is retried instead of dropped.
+- ⚠ **THE KEY IS PER ROLE.** One auth user can own both a trainer and a nutritionist row and
+  the two Todays show different rosters — a shared key would put a nutrition client at the top
+  of the training pulse. The same split `coach_week_publishes` needed.
+- ⚠ **AND THE TOGGLE COMPOSES OFF `prev`, NOT OFF A CAPTURED ARRAY.** Two pins in one tick
+  would both read the same captured value and the second would silently discard the first.
+- ⚠ **THE LOAD-ORDER GUARD WAS A HAND-LISTED MAP OF EIGHT PAGES, AND IT SAID NOTHING WHEN
+  THIS CHANGE MADE FIVE PAGES WRONG.** `dashToday.jsx` referenced nothing from `dashData.jsx`
+  before this; adding the store made it a consumer, and **three** client pages load the former
+  without the latter (`ClientGoal` · `ClientNutri` · `ClientTrain`). None was in the map, so
+  the map stayed green. It **derives both halves** now — which names `dashData.jsx` publishes
+  (read out of its own `Object.assign` line), which sibling modules call one of them, and
+  which pages load those modules — so a new page or a new cross-module reference is covered
+  with nobody remembering the test exists. *An enumeration is not a proof that the
+  enumeration is complete*, which this file has now recorded for CSS, a logic token, a stored
+  record and a script tag.
+- ⚠ **AND THE DERIVED VERSION IMMEDIATELY FOUND TWO PRE-EXISTING HOLES THE MAP COULD NOT
+  SEE.** `TrainerGoal.html` and `NutritionistGoal.html` load their Goal page module — which
+  calls `goalMetricsFor`, `useCoachLiveFigures`, `goalLiveValue` and `coachLiveMomentum`, all
+  four of them `dashData.jsx` globals — and **neither loaded `dashData.jsx`**. They shipped
+  that way with P1-C's live-bound goals: the shells got the dependency, the stubs did not.
+  Both are redirect stubs, so the hazard is latent rather than live — but a stub's tags still
+  execute until navigation commits, which is the same reason `ClientTeam.html` carries
+  `bookingSlots.js`. Fixed on all five pages.
+- ⚠ **REGISTERED, NOT SWEPT: the same class one module over is 24 pages wide and is
+  HANDLED.** A sweep for `DashSignals` consumers loaded before `dashSignals.js` finds 26
+  page/module pairs, and 24 of them are `coachNav.jsx` — whose reads sit inside **guarded
+  getters** that degrade to an em-dash, the shape the 2026-09-10 payout-card entry describes.
+  So generalising the guard to that module would **fail correct code**, which is why it is
+  scoped to `dashData.jsx`, whose reads are bare calls. *A guard that is right about one
+  module is not automatically right about the next one.*
+- ⚠ **ONE MUTATION SURVIVED AND THE CODE WAS THE DEAD PART — the second time this wave.**
+  An `id != null` check sat beside `ids.has(id)` reading like the guard against an anonymous
+  row, and it can never change the answer: `ids` is built by filtering to non-empty strings,
+  so it cannot hold the `null` that the id reader returns, and `Set.has(null)` is already
+  false. Deleted, with the reasoning at the site, and the mutation re-pointed at **the filter
+  that does the work** — which then survived too, because the fixture pinned `'ghost'` rather
+  than `null`. It takes `[null]` against a row with no id now. *Dead code that reads as a
+  guard is worse than no guard, and a fixture that cannot reach the guard proves nothing.*
+- ⚠ **AND THE ORDERING FUNCTION MAY NOT THROW ON A MALFORMED FEED.** There is **no error
+  boundary anywhere in `public/newdesign`**, so an ordering function that throws does not lose
+  a row — it takes the whole page to blank. Pinned by a fixture of nulls and empty objects.
+- **Verified:** `npm test` **3238/3238** · `tsc --noEmit` 0 · JSX parse on both changed modules
+  · `dashSignals.js` `require()`s clean · the newdesign precompile check · **18/18 mutations
+  killed**, each proven to land, sanity green at both ends · and the whole cycle driven in
+  Chromium against a simulated live coach: six pin buttons and no band, pin the **last** row
+  → **PINNED · 1** with that client at the top, **the other five in their exact triage order**
+  and the same total count, `aria-pressed` true on exactly one, the drilldown **not** opened,
+  stored as `{"pulsePinned:trainer":["c5"]}` — then **a reload brings the band and the order
+  back**, and unpinning restores the original order and leaves the document at **`{}`**, the
+  key deleted rather than stored empty. Zero page errors.
+- ⚠ **AND THE FIRST TWO RUNS OF THAT HARNESS MEASURED THEMSELVES.** It 401'd every API
+  call, so the page was in **demo** mode and `useRememberedChoices` correctly refused to open
+  a per-account document — nothing persisted, and the run reported the feature broken. Then
+  the "reload" check opened a **second browser context**, which has its own localStorage, so
+  the pin read as lost. Both are the instrument, not the code: *a harness that fakes half a
+  contract measures the half it faked.*
+- ⚠ **STILL A SIMULATED LIVE STATE.** The account is a stubbed `shapeDb` over localStorage;
+  an on-account pass is owed.
+
 ### 2026-09-11 — R20's other half: "Book session" stops opening the chat, and the booking chain turns out to be an hour wrong per timezone
 
 - **R20 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,

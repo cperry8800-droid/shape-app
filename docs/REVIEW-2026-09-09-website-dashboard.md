@@ -348,9 +348,11 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   ⚠ **THE ROSTER SORT SHIPPED 2026-09-10, AND IT IS THE ONLY PART OF R15 THAT HAS.** It
   is here rather than under R16 because R16 asked to *remember* a sort that did not
   exist — every roster column with a value behind it is now a sort button, remembered per
-  account alongside the filter and the tab. **The other four are still open**: the ⚙
-  itself, the KPI picker, the per-chart time window, pinning clients to Today's pulse, and
-  the drawer's sections per lens.
+  account alongside the filter and the tab. ⚠ **THE ⚙ AND THE PER-CHART TIME WINDOW
+  SHIPPED 2026-09-11**, and **PINNING SHIPPED 2026-09-11** — a per-row control rather than
+  a gear entry, because the gear holds settings that belong to the CARD and a pin is an
+  act about one client. **Two remain: the KPI picker for the stat strips, and the drawer's
+  sections per lens.**
   ⚠ **AND TWO COLUMNS DELIBERATELY DO NOT SORT:** PROGRAM and GOAL PHASE are free text a
   coach types, so alphabetical order over them answers no question. They render as plain
   text rather than as buttons that lead nowhere.
@@ -480,7 +482,7 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R17/R18 | Client: score record, leaderboard, check-in history, readout; fix dead controls | P1 | S–M | routes exist |
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
 | R12 | CSV export + monthly statement | P2 | M | CSVs SHIPPED 2026-09-10 · statement still gated on payouts |
-| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 · R15's roster SORT shipped 2026-09-10; the ⚙, KPI picker, time window, pinning and drawer sections remain |
+| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 · R15's roster SORT 2026-09-10, the ⚙ + time window 2026-09-11, PINNING 2026-09-11; the KPI picker and drawer sections remain |
 | R20 | Client booking + notifications inbox on the web | P2 | M | INBOX SHIPPED 2026-09-10 · booking still open |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
