@@ -1572,6 +1572,45 @@
     };
   }
 
+  // The pulse's reading order once a coach has pinned somebody (review 2026-09-09, R15).
+  //
+  // ⚠ A PIN NEVER HIDES A FLAG, AND THAT IS THE ONLY REASON IT MAY SIT ABOVE ONE. The
+  // pulse is a triage feed — its job is to surface who needs attention — so a pinned
+  // client who is fine appearing above a client who is not looks like the engine being
+  // overruled. It is not: the pinned row keeps its own severity dot and its own flags,
+  // every unpinned at-risk row is still in the list directly underneath, and the band is
+  // labelled as the coach's own picks rather than as a verdict. What the pin buys is
+  // VISIBILITY on a long roster, which is the thing a coach actually loses when the two
+  // people they are working with this week sort to the bottom as "on track".
+  //
+  // ⚠ A ROW APPEARS EXACTLY ONCE. Leaving a pinned at-risk client in both bands would
+  // double-count the roster on the one card that exists to say how many need attention.
+  //
+  // ⚠ AND A PIN FOR SOMEBODY NOT IN `rows` YIELDS NOTHING RATHER THAN AN EMPTY ROW.
+  // The feed is filtered and searched, so absence here is not evidence the pin is stale
+  // — which is why this returns an order and never edits the pinned set.
+  function pulseOrder(rows, pinned) {
+    const list = Array.isArray(rows) ? rows : [];
+    const ids = new Set((Array.isArray(pinned) ? pinned : []).filter((x) => typeof x === "string" && x));
+    const idOf = (r) => (r && r.client && r.client.profile && r.client.profile.id) || null;
+    // Within each band the triage order is preserved: the feed arrives sorted by
+    // severity, so a red pin still sits above a green one.
+    const atRisk = [], fresh = [], ok = [], pins = [];
+    for (const r of list) {
+      // ⚠ NO `id != null` CHECK, AND ITS ABSENCE IS THE GUARD. A mutation removing one
+      // survived, which is the tell that it was dead: `ids` is built by filtering to
+      // non-empty strings, so it can never hold the `null` that `idOf` returns for a row
+      // with no readable id, and `Set.has(null)` is already false. The real protection is
+      // that filter — without it a pinned list carrying a null would pin every anonymous
+      // row. Dead code that reads as a guard is worse than none: the next reader trusts it.
+      if (ids.has(idOf(r))) { pins.push(r); continue; }
+      if (!r || r.severity !== "green") atRisk.push(r);
+      else if (r.client && r.client.profile && r.client.profile.isNew) fresh.push(r);
+      else ok.push(r);
+    }
+    return { pinned: pins, rest: atRisk.concat(fresh, ok) };
+  }
+
   // The demo payout HISTORY (review 2026-09-09, V5 tail).
   //
   // ⚠ IT IS DERIVED FROM WHO HAD JOINED BY EACH MONTH, which is the only reason a series
@@ -1667,6 +1706,7 @@
     crossoverRead: crossoverRead,
     crossoverCopy: crossoverCopy,
     PREVIEW_NET_RATE: PREVIEW_NET_RATE,
+    pulseOrder: pulseOrder,
     demoPayouts: demoPayouts,
     demoPayoutHistory: demoPayoutHistory,
     demoPayoutCard: demoPayoutCard,
