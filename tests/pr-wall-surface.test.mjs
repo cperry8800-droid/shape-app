@@ -19,21 +19,32 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, SHIM, THEME, SRC, textOf } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
+// The app's ONE share rule, imported rather than restated: a local copy would
+// make these tests agree with themselves instead of with what ships.
+import { bsWorkoutSharePrivacy as WORKOUT_SHARE_RULE } from '../mobile-app/src/services/workoutShare.mjs';
 
 // BSPlate is destructured off `window` when the module evaluates, so the stub
 // has to stand before the load. It is a frame, and this suite is about what the
 // frame CONTAINS.
 globalThis.BSPlate = ({ children }) => SHIM.createElement('div', null, children);
 globalThis.window.ShapeAuth = { getCachedState: () => ({ user: null }) };
+// The sheets portal into the phone surface. `createPortal` is the identity in
+// this harness, so the target is never used — but the expression that PICKS it
+// still runs, and it ends in `|| document.body`.
+if (typeof globalThis.document === 'undefined') globalThis.document = { getElementById: () => null, body: {} };
 
 const {
   BSWallYourBest, BSActivityCard, bsActivityKey, bsWallGain, bsWallNum,
   bsWallBulletinPick, BS_WALL_UNITS, bsWallTrace, COMMUNITY_ACTIVITIES, bsWallYourBest,
+  bsWallDisplayRows, BSWallPostSheet,
 } = await loadBroadsheet([
   'BSWallYourBest', 'BSActivityCard', 'bsActivityKey', 'bsWallGain', 'bsWallNum',
   'bsWallBulletinPick', 'BS_WALL_UNITS', 'bsWallTrace', 'COMMUNITY_ACTIVITIES',
-  'bsWallYourBest',
+  'bsWallYourBest', 'bsWallDisplayRows', 'BSWallPostSheet',
 ]);
+
+const IMPERIAL = { weight: 'lb', distance: 'mi' };
+const METRIC = { weight: 'kg', distance: 'km' };
 
 const src = readFileSync(SRC, 'utf8');
 const bare = stripComments(src);
@@ -824,4 +835,285 @@ test('an activity with no distance is not a distance record', () => {
     { activity_type: 'run', distance_km: 0, started_at: 'b' },
   ] });
   return run().then((res) => assert.deepEqual(res.data, []));
+});
+
+// ── the row the strip draws, and what it is allowed to offer ────────────────
+
+test('a distance record is shown as a record and is never offered the lift sheet', () => {
+  // ⚠ THE REGRESSION THIS EXISTS FOR: `myBestLifts` returns the longest of each
+  // activity type in KILOMETRES, `bsWallYourBest` marks a never-posted one
+  // `unposted`, and the row drew a Post a PR button whose sheet falls back to
+  // 'lb' for any unit it does not know — so an 18.2 km run was one tap from
+  // being published as an 18.2 LB personal record.
+  const [run] = bsWallDisplayRows(
+    bsWallYourBest([{ liftKey: 'distance:run', liftLabel: 'Longest run', best: 18.2, unit: 'km' }], []),
+    IMPERIAL,
+  );
+  assert.equal(run.unposted, true, 'it is genuinely not on the wall — that fact is unchanged');
+  assert.equal(run.postable, false, 'but this sheet cannot express it, so nothing offers to try');
+  assert.equal(run.unit, 'mi', 'and it is still converted into the reader’s own unit');
+});
+
+test('a lift is postable in either unit system, because the sheet can say both', () => {
+  const lift = [{ liftKey: 'bench', liftLabel: 'Bench', best: 185, unit: 'lb' }];
+  const imperial = bsWallDisplayRows(bsWallYourBest(lift, []), IMPERIAL)[0];
+  const metric = bsWallDisplayRows(bsWallYourBest(lift, []), METRIC)[0];
+  assert.equal(imperial.unit, 'lb');
+  assert.equal(metric.unit, 'kg');
+  // ⚠ THE METRIC HALF IS THE ONE THAT MATTERS. The gate reads the DISPLAY unit,
+  // so a guard written against the stored unit alone would withhold the button
+  // from every metric member's lifts — a fix that breaks the case it protects.
+  assert.ok(imperial.postable && metric.postable, 'both are weights this sheet can write');
+});
+
+test('a record already on the wall is postable by nobody, whatever its unit', () => {
+  const rows = bsWallDisplayRows(bsWallYourBest(
+    [{ liftKey: 'squat', liftLabel: 'Squat', best: 315, unit: 'lb' }],
+    [{ liftKey: 'squat', liftLabel: 'Squat', best: 315, unit: 'lb', postedAt: 'x' }],
+  ), IMPERIAL);
+  assert.equal(rows[0].unposted, false);
+  assert.equal(rows[0].postable, false, 'postable never outruns unposted');
+});
+
+test('the row draws on `postable`, never on `unposted` directly', () => {
+  // ⚠ THE PURE FUNCTION BEING RIGHT SAYS NOTHING ABOUT THE JSX. `unposted` is
+  // the DATA fact and `postable` is what may be drawn; a row that reads the
+  // first paints a teal call-to-action and a button over a record the sheet
+  // cannot write. Anchored on the row's own block so this is about that row and
+  // not about the whole file.
+  const i = bare.indexOf('.map((m) => (');
+  assert.ok(i > 0, 'the strip still maps its display rows');
+  const block = bare.slice(i, bare.indexOf('{sheet && <BSWallPostSheet', i));
+  assert.ok(block.length > 500, 'and the block found is the row, not a fragment');
+  assert.equal((block.match(/m\.unposted/g) || []).length, 0, 'the row presentation reads postable only');
+  assert.ok((block.match(/m\.postable/g) || []).length >= 5, 'frame, label, pill and button all turn on it');
+});
+
+test('every unit the sheet offers is a unit a row can be postable in', () => {
+  // Derived, so adding a unit to the select without teaching the row about it
+  // fails here rather than shipping a button that writes the wrong number.
+  for (const u of BS_WALL_UNITS) {
+    const [row] = bsWallDisplayRows([{ liftKey: 'x', liftLabel: 'X', best: 100, unit: u, gap: null, unposted: true }], u === 'kg' ? METRIC : IMPERIAL);
+    assert.equal(row.postable, true, `${u} is offered by the sheet, so a ${u} record must be postable`);
+  }
+  assert.ok(BS_WALL_UNITS.length > 0, 'and the list is not empty, so this cannot pass vacuously');
+});
+
+test('the announce this sheet delegates is the one the post would have made', () => {
+  // ⚠ THE SHEET ANNOUNCES THE RECORD ITSELF BECAUSE IT NEEDS THE VERDICT, so
+  // `createCommunityPost` must be able to stand down — and that stand-down has
+  // to be an opt-IN, or every ordinary workout post silently stops reaching the
+  // wall. Read out of the shipped backend, which is a classic browser script
+  // this suite cannot import.
+  const backend = stripComments(readFileSync(BACKEND, 'utf8'));
+  assert.match(backend, /skipPRAnnounce = false,/, 'default false: nothing stops announcing by accident');
+  assert.match(backend, /if \(!skipPRAnnounce && state\.user\?\.id && _lift/, 'and the announce is what it gates');
+});
+
+// ── posting a record by hand ────────────────────────────────────────────────
+
+// The sheet's four collaborators, each recording what it was handed. Defaults
+// are the healthy path: a public, sharing member with no prior record.
+function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { data: { id: 'post-1' } }, verdict = { ok: true }, createThrows = false } = {}) {
+  const calls = { created: [], announced: [], toasts: [], posted: 0, closed: 0 };
+  const prev = {
+    shapeDb: globalThis.window.shapeDb, ws: globalThis.window.ShapeWorkoutShare,
+    pr: globalThis.window.ShapePRWall, com: globalThis.window.ShapeCommunity, toast: globalThis.window.__bsToast,
+  };
+  globalThis.window.shapeDb = { getUserGoals: async () => settings };
+  // The REAL rule, lifted from the module that ships it — a restatement here
+  // would be a test of the restatement.
+  globalThis.window.ShapeWorkoutShare = { rule: WORKOUT_SHARE_RULE };
+  globalThis.window.ShapePRWall = {
+    mine: async () => ({ stored: ledgerStored, data: ledger }),
+    post: async (a) => { calls.announced.push(a); return verdict; },
+  };
+  globalThis.window.ShapeCommunity = {
+    createPost: async (a) => { calls.created.push(a); if (createThrows) throw new Error('boom'); return created; },
+  };
+  globalThis.window.__bsToast = (msg) => calls.toasts.push(String(msg));
+  const restore = () => {
+    globalThis.window.shapeDb = prev.shapeDb; globalThis.window.ShapeWorkoutShare = prev.ws;
+    globalThis.window.ShapePRWall = prev.pr; globalThis.window.ShapeCommunity = prev.com;
+    globalThis.window.__bsToast = prev.toast;
+  };
+  return { calls, restore };
+}
+
+// Click the sheet's submit and let every awaited stub settle.
+async function submitSheet(seed, env) {
+  const d = drive(BSWallPostSheet, {
+    seed, onClose: () => { env.calls.closed += 1; }, onPosted: () => { env.calls.posted += 1; },
+  });
+  d.click('Post a PR');
+  for (let i = 0; i < 24; i += 1) await Promise.resolve();
+  return d;
+}
+
+const SEED = { lift: 'Back squat', value: '245', unit: 'lb', reps: '3' };
+
+test('a hand-posted record becomes the post the Wall renders, then the ledger row', async () => {
+  // ⚠ THE ORDER IS THE FIX. Since #2036 the Wall IS the activity feed's WALL
+  // sub-tab, which reads community_posts — so the ledger row this sheet used to
+  // write on its own rendered NOTHING, and a record posted by hand appeared
+  // nowhere at all. The post has to come first because its id is what links the
+  // ledger row to the record's evidence, and because the "+X over last best"
+  // delta is diffed against the ledger before it advances.
+  const env = postSheet();
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 1, 'one feed post');
+    const made = env.calls.created[0];
+    assert.equal(made.metrics.kind, 'workout');
+    assert.equal(made.metrics.lift, 'Back squat', 'keys the prior-best lookup');
+    assert.equal(made.metrics.load, '245 lb', 'carries the number AND its unit — the delta is parsed out of this');
+    assert.equal(made.skipPRAnnounce, true, 'this sheet announces it itself, because it needs the verdict');
+
+    assert.equal(env.calls.announced.length, 1, 'and exactly one announce, not two');
+    assert.equal(env.calls.announced[0].postId, 'post-1', 'carrying the post that IS the record');
+    assert.deepEqual(
+      [env.calls.announced[0].lift, env.calls.announced[0].value, env.calls.announced[0].unit, env.calls.announced[0].reps],
+      ['Back squat', 245, 'lb', 3],
+    );
+    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)));
+    assert.equal(env.calls.posted, 1);
+  } finally { env.restore(); }
+});
+
+test('a record that beats nothing is refused before anything is written', async () => {
+  // ⚠ THE PRE-CHECK EXISTS BECAUSE THE POST IS WRITTEN FIRST. Without it,
+  // pressing "Post a PR" with a number that beats nothing would publish an
+  // ordinary workout post the member never asked for and then quietly fail.
+  const env = postSheet({ ledger: [{ liftKey: 'back squat', best: 250, unit: 'lb' }] });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0, 'no post');
+    assert.equal(env.calls.announced.length, 0, 'no ledger write');
+    assert.ok(env.calls.toasts.some((m) => /does not beat your best/i.test(m)));
+    assert.equal(env.calls.closed, 0, 'the sheet stays open on their own numbers');
+  } finally { env.restore(); }
+});
+
+test('the pre-check compares in pounds, so a kg record is not refused by its digits', async () => {
+  // 100 kg is 220.5 lb and genuinely beats a 200 lb record. Comparing the raw
+  // numbers tells a member their real PR is not one.
+  const env = postSheet({ ledger: [{ liftKey: 'back squat', best: 200, unit: 'lb' }] });
+  try {
+    await submitSheet({ ...SEED, value: '100', unit: 'kg' }, env);
+    assert.equal(env.calls.created.length, 1, 'a 100 kg pull beats a 200 lb record');
+    assert.equal(env.calls.created[0].metrics.load, '100 kg');
+  } finally { env.restore(); }
+  // and the same digits against a record it really does not beat
+  const env2 = postSheet({ ledger: [{ liftKey: 'back squat', best: 250, unit: 'kg' }] });
+  try {
+    await submitSheet({ ...SEED, value: '100', unit: 'kg' }, env2);
+    assert.equal(env2.calls.created.length, 0, 'so the guard is not simply passing everything');
+  } finally { env2.restore(); }
+
+  // ⚠ AND THE LEDGER'S OWN UNIT HAS TO BE THE ONE THAT MOVES, or this proves
+  // nothing. Both cases above hold the ledger row in a unit where the
+  // conversion is a no-op or where the raw comparison happens to agree, so a
+  // mutation that reads `Number(row.best)` raw SURVIVED them both — measured,
+  // not assumed. 210 lb against a 100 kg record is the case the migration's own
+  // comment names: raw it is accepted as a best it does not beat (210 > 100),
+  // converted it is refused (210 <= 220.5).
+  const env3 = postSheet({ ledger: [{ liftKey: 'back squat', best: 100, unit: 'kg' }] });
+  try {
+    await submitSheet({ ...SEED, value: '210', unit: 'lb' }, env3);
+    assert.equal(env3.calls.created.length, 0, '210 lb does not beat 100 kg');
+  } finally { env3.restore(); }
+  const env4 = postSheet({ ledger: [{ liftKey: 'back squat', best: 100, unit: 'kg' }] });
+  try {
+    await submitSheet({ ...SEED, value: '230', unit: 'lb' }, env4);
+    assert.equal(env4.calls.created.length, 1, 'and 230 lb does, so the guard is not refusing everything');
+  } finally { env4.restore(); }
+});
+
+test('an unreadable ledger leaves the verdict to the server rather than accusing', async () => {
+  const env = postSheet({ ledgerStored: 'local', ledger: [] });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 1, 'a read we could not make is not evidence against them');
+    assert.equal(env.calls.announced.length, 1, 'and the server still decides');
+  } finally { env.restore(); }
+});
+
+test('a private profile is refused, and nothing at all is written', async () => {
+  // The exact gate `post_my_pr_to_wall` applies, checked here so the refusal and
+  // the server's agree — and so the "your profile is private" line is never
+  // shown to somebody it is not about.
+  const env = postSheet({ settings: { profileVisibility: 'Private' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0, 'no post — it would be a claim on a wall they are not on');
+    assert.equal(env.calls.announced.length, 0);
+    assert.ok(env.calls.toasts.some((m) => /profile is private/i.test(m)));
+  } finally { env.restore(); }
+});
+
+test('Just friends is refused too, because the wall takes public profiles only', async () => {
+  const env = postSheet({ settings: { profileVisibility: 'Just friends' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 0);
+    assert.equal(env.calls.announced.length, 0);
+  } finally { env.restore(); }
+});
+
+test('Share workout data off keeps the POST private and still puts the record up', async () => {
+  // ⚠ TWO SETTINGS, TWO QUESTIONS, AND EACH IS ANSWERED BY THE RULE THAT OWNS
+  // IT. Their profile is public, so the wall accepts the record — they pressed a
+  // button whose entire subject is the wall. Their share setting says do not
+  // publish their workout data, so the POST is theirs alone. Resolving both from
+  // one rule would either publish against their setting or refuse them the wall
+  // under a message about a profile that is not private.
+  const env = postSheet({ settings: { profileVisibility: 'Public', shareWorkoutData: 'Off' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 1);
+    assert.equal(env.calls.created[0].privacy, 'private', 'the post is not published');
+    assert.equal(env.calls.announced.length, 1, 'the record still reaches the wall');
+  } finally { env.restore(); }
+});
+
+test('a settings read we cannot trust never publishes, and never accuses', async () => {
+  // null is getUserGoals' can't-know answer. Fail CLOSED on the audience — a
+  // failed read must not publish. Fail OPEN on the wall gate — it must not
+  // accuse either, and the server re-checks visibility on its own authority.
+  const env = postSheet({ settings: null });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 1, 'the server is left to decide');
+    assert.equal(env.calls.created[0].privacy, 'private', 'but nothing is published on a read we could not make');
+  } finally { env.restore(); }
+});
+
+test('a healthy public member publishes to the feed', async () => {
+  const env = postSheet({ settings: {} });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created[0].privacy, 'public', 'no settings row yet means the On · Public defaults apply');
+  } finally { env.restore(); }
+});
+
+test('a failed post still writes the record, and the toast still tells the truth', async () => {
+  // The record IS the member's; a feed insert that fell over must not cost them
+  // the ledger row. It lands without its evidence link, which is what a bare
+  // record is anyway.
+  const env = postSheet({ createThrows: true });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.announced.length, 1);
+    assert.equal(env.calls.announced[0].postId, null, 'no post to point at');
+    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)));
+  } finally { env.restore(); }
+});
+
+test("the server's refusal is reported, not overwritten by the post having succeeded", async () => {
+  const env = postSheet({ verdict: { ok: false, reason: 'not_a_pr' } });
+  try {
+    await submitSheet(SEED, env);
+    assert.ok(env.calls.toasts.some((m) => /does not beat your best/i.test(m)));
+    assert.equal(env.calls.posted, 0, 'and the strip is not told a record landed');
+  } finally { env.restore(); }
 });

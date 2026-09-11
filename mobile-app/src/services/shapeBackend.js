@@ -3648,6 +3648,8 @@ async function createCommunityPost({
   skipAward = false,   // deliberate share that still must not earn (meal
                        // shares, spec 2026-07-12) — NOT autoShare: auto-post
                        // semantics (dedup windows, tightening) never apply
+  skipPRAnnounce = false, // the CALLER announces the PR itself, because it
+                       // needs the verdict. See the announce block below.
 } = {}) {
   if (!state.user?.id) throw new Error('Sign in before posting to the community feed.');
   const cleanPhoto = String(photoUrl || '').trim();
@@ -3748,7 +3750,16 @@ async function createCommunityPost({
   // failed insert would have advanced the ledger for a record that was never
   // posted. The RPC re-gates on public + genuine-best, so it stays safe to
   // over-call. Best-effort: never blocks or fails the post.
-  if (state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
+  //
+  // ⚠ `skipPRAnnounce` IS FOR A CALLER THAT NEEDS THE VERDICT, NOT A WAY TO
+  // OPT OUT OF THE WALL. The RPC answers `not_public` / `not_a_pr`, and this
+  // call throws that answer away — which is right for an ordinary workout post
+  // (nobody asked about a record) and wrong for the Post-a-PR sheet, whose
+  // whole subject is whether the record landed. That caller announces the same
+  // record itself, with the same post id, and reports back what it is told.
+  // Announcing twice would be harmless but would spend a second round trip and
+  // post a second #PR Wall channel message on the winning call.
+  if (!skipPRAnnounce && state.user?.id && _lift && Number.isFinite(_loadNum) && _loadNum > 0) {
     try {
       if (window.ShapePRWall && window.ShapePRWall.post) {
         window.ShapePRWall.post({ lift: _lift, value: _loadNum, unit: _unit, postId: data?.id || null });

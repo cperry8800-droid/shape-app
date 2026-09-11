@@ -656,6 +656,118 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — Codex on the restored strip: a record that reached no wall, a run filed in pounds, and a composer that ignored the member's own privacy
+
+- **Two P1s on #2042, both real, plus the privacy question the owner asked while they were open.**
+  Owner: *"we are all set regarding when someones profile is set to private, public, and friends
+  only correct?"* → *"just want to make sure that is all wired correctly"* → *"yes fix that default
+  too"*. No migration, no route.
+- ⚠ **P1 — A HAND-POSTED RECORD REACHED NO WALL AT ALL, AND THE TOAST SAID IT HAD.** #2036 made
+  the Wall the activity feed's WALL sub-tab, which reads `community_posts`; `BSWallPostSheet` wrote
+  a `pr_wall_posts` row and nothing else. So the ledger advanced, the #PR Wall channel message went
+  out, *Your best* stopped showing a gap — and **the plate the member had just been promised
+  rendered nowhere, for them or for anyone**, under **"On the wall."** The whole restored control
+  was writing to a surface that had stopped being the surface.
+- ⚠ **THE FIX IS AN ORDER, AND THE ORDER IS FORCED.** The post goes first and the ledger second,
+  because `createCommunityPost` stamps *"+X over last best"* by **diffing the load against the
+  ledger** — announcing first advances the ledger past this very number and every hand-posted
+  record lands with no gain — and because the **post id**, which is what lets the plate carry the
+  record's evidence, exists only after the insert. That function already does both halves in that
+  order for every other workout post; the sheet hands it the composer's own Strength payload
+  (`lift` keys the prior-best lookup, `load` carries the number **and** its unit) rather than a
+  second spelling of one payload.
+- ⚠ **WHICH MOVES BOTH REFUSALS IN FRONT OF THE POST, or "Post a PR" with a number that beats
+  nothing publishes an ordinary workout post nobody asked for.** They are pre-checked against the
+  same facts the server uses, and **the server is still the authority**: a race it refuses leaves
+  the post standing with no record claim on it, which is an honest thing for it to be.
+  `createCommunityPost` gains **`skipPRAnnounce`**, default **false** — so nothing stops announcing
+  by accident — because this is the one caller that needs the verdict rather than fire-and-forget.
+- ⚠ **AND THE PRE-CHECK COMPARES IN POUNDS, NOT DIGITS.** The ledger keeps a unit **per row**, so a
+  raw `value <= row.best` puts a 100 kg pull behind a 200 lb record and tells a member their real PR
+  is not one — the exact defect `2026-09-10-pr-wall-units.sql` was written for, re-introduced one
+  layer up. Driven over four vectors.
+- ⚠ **P1 — AND A LONGEST RUN WAS ONE TAP FROM BEING PUBLISHED AS POUNDS.** `myBestLifts` returns the
+  longest of each activity type in **kilometres**, `bsWallYourBest` marks a never-posted one
+  `unposted`, and the row drew a **Post a PR** button whose sheet falls back to `'lb'` for any unit
+  it does not know: an 18.2 km run, filed as **18.2 LB** on the member's own public record.
+  **"Unposted" is a fact about the RECORD; "postable" is a fact about the SHEET, and only the second
+  may draw a button.** Derived from the **unit** rather than a record kind, so a unit added to
+  `BS_WALL_UNITS` becomes postable with nobody remembering the line exists — and read off the
+  **display** unit, because a guard written against the stored one would withhold the button from
+  every metric member's lifts, breaking the case it protects. **REGISTERED, NOT CLOSED:** an
+  endurance record still has no route onto the wall by hand.
+- ⚠ **THE DECISION IS A PURE FUNCTION BECAUSE THE MOUNT HARNESS CANNOT RUN AN EFFECT.** The strip's
+  rows arrive through `useEffect`, which the harness stubs to a no-op, so a render assertion about
+  them measures an empty list. `bsWallDisplayRows` is drivable; a separate guard then asserts the
+  **row's JSX reads `postable` and never `unposted`** — the pure function being right says nothing
+  about the markup, which is where the teal call-to-action and the button actually live.
+- ⚠ **THE PRIVACY AUDIT FOUND ONE GAP I WAS ABOUT TO SHIP AND ONE THAT WAS ALREADY THERE.** Routing
+  the sheet through the feed would have published a **community-visible post for a member whose
+  profile is Private** — caught by the owner's question before it shipped, not by the reviewer. And
+  `BSLogActivitySheet` seeded a hard **`'public'`** for every new post, so a Private member — or one
+  who had turned **Share workout data** off — opened the composer with PUBLIC already lit, and a
+  post made without reading the control went to the community feed **against the setting they had
+  chosen precisely to stop that**.
+- ⚠ **TWO QUESTIONS, TWO RULES, AND COLLAPSING THEM IS WHAT MAKES EITHER ANSWER WRONG.** *Can this
+  record go on the wall?* is `profileVisibility === 'Public'` — the **exact** gate
+  `post_my_pr_to_wall` applies, so the sheet's refusal and the server's agree and the *"your profile
+  is private"* line is never shown to somebody it is not about. *Who can see the post?* is
+  `bsWorkoutSharePrivacy`, the app's **one** share rule. A public-profile member with Share off
+  therefore puts the **record** on the wall — they pressed a button whose entire subject is the wall
+  — and keeps the **post** to themselves. Answering both from one rule either publishes against
+  their setting or refuses them the wall under a message about a profile that is not private.
+- ⚠ **FAIL CLOSED ON THE AUDIENCE, OPEN ON THE GATE.** `getUserGoals` resolves **null** for every
+  can't-know case and **`{}`** for a row that genuinely is not there yet; only the second means *the
+  On · Public defaults apply*. A read we cannot trust must not publish, so the audience falls to
+  private — but it must not **accuse** either, so the wall gate stays open and the server decides on
+  its own authority.
+- ⚠ **AND THE COMPOSER'S IS A DEFAULT, NOT A CLAMP.** Pressing PUBLIC still posts publicly: this
+  sheet **has** an audience control, and one that silently does something else is worse than one
+  that starts in the wrong place — the per-post override is the same shape as the session player's
+  share toggle. It is **seeded optimistic and tightened on read**, so a sharing member (the
+  defaults, and most members) sees no movement at all; a choice already made outranks a settings
+  read that lands after it, in **both** arms, or a rejection quietly overrules a deliberate PUBLIC.
+  **An edit is left alone** — a post's stored privacy is a decision already made, and re-privatising
+  it because its author has since gone quiet is a change to their history, which
+  `bsMaybeRetightenAutoPosts` deliberately reserves for AUTO posts.
+- ⚠ **'followers' HAS NO RUNG ON THE THREE-WAY CONTROL, AND 'profile' IS THE HONEST ONE TO LAND ON —
+  NOT 'public'.** The feed reads `public`/`community` (plus `followers` on FOLLOWING) and **never**
+  `profile`, so a Just-friends member's post stays off the open feed while their profile is already
+  gated to the people that setting names. A guard derives the rungs from the control itself and the
+  audiences from the shipped rule, so neither side can move without the other.
+- ⚠ **TWO MUTATIONS SURVIVED THE FIRST ROUND. ONE WAS A REAL GAP IN MY FIXTURE.** Replacing the
+  ledger's unit conversion with a raw read survived, because **both** of my kg cases held the ledger
+  row in a unit where the conversion is a no-op or where the raw comparison happened to agree. The
+  case that separates them is **210 lb against a 100 kg record** — raw it is accepted as a best it
+  does not beat, converted it is refused — which is the migration's own worked example, and it is a
+  fixture now. *A guard aimed at the right invariant with the wrong fixture is still measuring
+  nothing.*
+- ⚠ **THE OTHER SURVIVOR IS A PROVEN NO-OP AND IS RECORDED AS ONE RATHER THAN COVERED.** The
+  pre-check's `stored === 'supabase'` check cannot change the answer today, because `myPRLedger`
+  returns `data: []` for **every** non-supabase path — which this suite already pins one test over.
+  It is kept because it is what would stop the pre-check comparing a real lift against a stale local
+  cache if that function ever grew one, and a stale best refuses a genuine PR. Covering it would
+  mean a fixture inventing a shape production cannot produce, which is the trap this file
+  post-mortems by name.
+- **Verified on the rebased head:** `npm test` **3334/3334** (22 new here; 3249 before rebasing onto
+  `d4b6afd`, which brought three merged PRs' suites with it) · `tsc --noEmit` 0 · JSX + JS parse on both
+  changed modules · the newdesign precompile check (74 pages) · **21/22 mutations killed**, each
+  proven to land, sanity green at both ends, tree restored in a `finally`, with the one survivor
+  proven above to be a no-op · and the whole change confirmed in the emitted mobile bundle behind a
+  negative control: `skipPRAnnounce` ×2, `postable` ×9, `canWall` ×5, and the composer's mapping
+  **in the minifier's backtick form** — `` `followers`?`profile`:`public` `` — with both effect arms
+  guarded on the touched ref. ⚠ A double-quote grep reads **0** on all of them and looks like a
+  miss; this file records that trap and it cost a minute again.
+- ⚠ **`getapp-wall-v1.png` IS DELIBERATELY NOT RE-SHOT.** The site's capture is the **signed-out
+  preview**, where `previewing` is true and the strip renders neither the post controls nor a single
+  record row — every change here lives on the member's side of that branch. Re-shooting would
+  produce a byte-identical file and a needless `?v` bump.
+- ⚠ **REGISTERED, NOT FIXED:** an endurance record still cannot reach the wall by hand (it needs the
+  sheet, the RPC's comparison and the ledger to agree about distance); the composer's own log
+  affordance still carries a hardcoded English `aria-label="Log activity"`; and **no on-account
+  pass** — production still holds 0 `pr_wall_posts`, so not one of these paths has run against real
+  RLS.
+
 ### 2026-09-11 — Post a PR comes back, the Wall gains a manual activity, and the profile reads as the Wall
 
 - **Three owner asks off the dead-code find in the entry below.** #2036 merged the Wall into
