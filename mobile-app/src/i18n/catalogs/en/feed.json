@@ -216,6 +216,7 @@
   "wall.postPR": "Post a PR",
   "wall.postPRTitle": "Post a record",
   "wall.posted": "On the wall.",
+  "wall.postedNoFeed": "Record saved. We couldn’t add it to the feed just now.",
   "wall.posting": "Posting…",
   "wall.reps": "Reps",
   "wall.retry": "Try again →",

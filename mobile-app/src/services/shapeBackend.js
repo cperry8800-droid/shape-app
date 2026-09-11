@@ -2477,6 +2477,12 @@ function communityPostFromRow(row) {
     coach: typeof metrics.coach === 'string' ? metrics.coach : '',
     program: typeof metrics.program === 'string' ? metrics.program : '',
     delta: typeof metrics.delta === 'string' ? metrics.delta : '',
+    // ⚠ THE EXPLICIT PR MARKER. `delta` only exists against a PRIOR best, so a
+    // member's FIRST accepted record for a lift carries none — and every PR
+    // consumer on the card read `delta` alone, so that post dropped out of the
+    // PR tab and drew as an ordinary load. Stamped by the Post-a-PR sheet after
+    // the server accepts, so it reports a verdict rather than an intention.
+    pr: metrics.pr === true,
     // Coach co-sign: stamped by post_coach_cosign when one of the author's own
     // coaches reacts ({name, role}); null until that happens. Drives the card badge.
     cosign: (metrics.cosign && typeof metrics.cosign === 'object' && metrics.cosign.name)

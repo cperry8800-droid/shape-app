@@ -36,11 +36,12 @@ if (typeof globalThis.document === 'undefined') globalThis.document = { getEleme
 const {
   BSWallYourBest, BSActivityCard, bsActivityKey, bsWallGain, bsWallNum,
   bsWallBulletinPick, BS_WALL_UNITS, bsWallTrace, COMMUNITY_ACTIVITIES, bsWallYourBest,
-  bsWallDisplayRows, BSWallPostSheet,
+  bsWallDisplayRows, BSWallPostSheet, bsActivityFromPost, bsFeedTypeMatch,
 } = await loadBroadsheet([
   'BSWallYourBest', 'BSActivityCard', 'bsActivityKey', 'bsWallGain', 'bsWallNum',
   'bsWallBulletinPick', 'BS_WALL_UNITS', 'bsWallTrace', 'COMMUNITY_ACTIVITIES',
   'bsWallYourBest', 'bsWallDisplayRows', 'BSWallPostSheet',
+  'bsActivityFromPost', 'bsFeedTypeMatch',
 ]);
 
 const IMPERIAL = { weight: 'lb', distance: 'mi' };
@@ -607,23 +608,40 @@ test('a lift posted but never logged in-app still shows, and asks for nothing', 
   assert.equal(rows[0].gap, null);
 });
 
-test('a gap is never computed across units', () => {
-  // ⚠ THE NUMBERS HAVE TO BE THE WRONG WAY ROUND FOR THIS TO TEST ANYTHING.
-  // A first version used 100 kg against 225 lb, where the naive subtraction is
-  // negative and yields null anyway — so it passed with the unit check removed.
-  // 250 kg against 225 lb is the case that matters: unguarded it would announce
-  // a confident "25 lb to the wall" out of a conversion that never happened.
+test('a best is compared across units, not refused for having one', () => {
+  // ⚠ THIS REVERSES THE RULE THIS SUITE USED TO ASSERT, and the reversal is the
+  // finding. The old rule said a gap must never be computed across units,
+  // because "subtracting them would invent a gap out of the conversion" — which
+  // conflated INVENTING with CONVERTING. A conversion inside one family is
+  // exact, and refusing it had a cost the rule never named: a logged 100 kg
+  // over a posted 200 lb is the higher, UNPOSTED best, and the row drew it as a
+  // settled fact carrying the old post's date with no way to put it up.
   const rows = bsWallYourBest(
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 250, unit: 'kg' }],
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 225, unit: 'lb', postedAt: 'x' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 100, unit: 'kg' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 200, unit: 'lb', postedAt: 'x' }],
   );
-  assert.equal(rows[0].gap, null, 'no cross-unit arithmetic');
+  assert.equal(rows[0].unposted, true, '100 kg is 220.5 lb — it beats the wall');
+  assert.ok(rows[0].gap > 9 && rows[0].gap < 10, 'and the gap is real, quoted in the logged unit');
+
+  // A lift that genuinely does NOT beat the wall once converted stays a fact.
+  const held = bsWallYourBest(
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 90, unit: 'kg' }],
+    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 200, unit: 'lb', postedAt: 'x' }],
+  );
+  assert.equal(held[0].unposted, false, '90 kg is 198.4 lb — under the record');
+  assert.equal(held[0].gap, null);
+});
+
+test('what the old rule was right about is the FAMILY', () => {
+  // A weight and a distance are genuinely not comparable, so a row whose two
+  // sides disagree about that keeps the conservative answer rather than
+  // crossing them — which is the half of the old rule that survives.
+  const rows = bsWallYourBest(
+    [{ liftKey: 'row', liftLabel: 'Row', best: 250, unit: 'kg' }],
+    [{ liftKey: 'row', liftLabel: 'Row', best: 5, unit: 'km', postedAt: 'x' }],
+  );
+  assert.equal(rows[0].gap, null, 'no cross-family arithmetic');
   assert.equal(rows[0].unposted, false, 'and no claim that it beats the wall');
-  // the same pair in ONE unit is a real gap, so the guard is not just refusing
-  assert.equal(bsWallYourBest(
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 250, unit: 'lb' }],
-    [{ liftKey: 'deadlift', liftLabel: 'Deadlift', best: 225, unit: 'lb', postedAt: 'x' }],
-  )[0].gap, 25);
 });
 
 // ── the member's own logged best, out of their set logs ─────────────────────
@@ -914,7 +932,7 @@ test('the announce this sheet delegates is the one the post would have made', ()
 
 // The sheet's four collaborators, each recording what it was handed. Defaults
 // are the healthy path: a public, sharing member with no prior record.
-function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { stored: 'supabase', data: { id: 'post-1' } }, verdict = { ok: true }, createThrows = false, noStore = false } = {}) {
+function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { stored: 'supabase', data: { id: 'post-1' } }, verdict = { ok: true, prev: null }, createThrows = false, noStore = false } = {}) {
   const calls = { created: [], announced: [], toasts: [], posted: 0, closed: 0 };
   const prev = {
     shapeDb: globalThis.window.shapeDb, ws: globalThis.window.ShapeWorkoutShare,
@@ -942,9 +960,11 @@ function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', crea
 }
 
 // Click the sheet's submit and let every awaited stub settle.
-async function submitSheet(seed, env) {
+async function submitSheet(seed, env, { postedThrows = false } = {}) {
   const d = drive(BSWallPostSheet, {
-    seed, onClose: () => { env.calls.closed += 1; }, onPosted: () => { env.calls.posted += 1; },
+    seed,
+    onClose: () => { env.calls.closed += 1; },
+    onPosted: () => { env.calls.posted += 1; if (postedThrows) throw new Error('boom'); },
   });
   d.click('Post a PR');
   for (let i = 0; i < 24; i += 1) await Promise.resolve();
@@ -953,90 +973,202 @@ async function submitSheet(seed, env) {
 
 const SEED = { lift: 'Back squat', value: '245', unit: 'lb', reps: '3' };
 
-test('a hand-posted record becomes the post the Wall renders, then the ledger row', async () => {
-  // ⚠ THE ORDER IS THE FIX. Since #2036 the Wall IS the activity feed's WALL
-  // sub-tab, which reads community_posts — so the ledger row this sheet used to
-  // write on its own rendered NOTHING, and a record posted by hand appeared
-  // nowhere at all. The post has to come first because its id is what links the
-  // ledger row to the record's evidence, and because the "+X over last best"
-  // delta is diffed against the ledger before it advances.
-  const env = postSheet();
+test('the ledger decides first, and the plate is published only if it accepts', async () => {
+  // ⚠ THE THIRD ORDERING THIS SHEET HAS HAD, and each was fixed for a real
+  // defect. Ledger-only rendered nothing (the Wall IS the feed). Post-first
+  // fixed the plate and left an orphan post, its own +5 award and a delta
+  // claiming a PR the server had just refused, every time the verdict went the
+  // other way. Announce-first is possible because the RPC returns the `prev` it
+  // wrote, which is what the delta needs — and is race-safe in a way a re-read
+  // never was.
+  const env = postSheet({ verdict: { ok: true, prev: 225 } });
   try {
     await submitSheet(SEED, env);
-    assert.equal(env.calls.created.length, 1, 'one feed post');
-    const made = env.calls.created[0];
-    assert.equal(made.metrics.kind, 'workout');
-    assert.equal(made.metrics.lift, 'Back squat', 'keys the prior-best lookup');
-    assert.equal(made.metrics.load, '245 lb', 'carries the number AND its unit — the delta is parsed out of this');
-    assert.equal(made.skipPRAnnounce, true, 'this sheet announces it itself, because it needs the verdict');
-
-    assert.equal(env.calls.announced.length, 1, 'and exactly one announce, not two');
-    assert.equal(env.calls.announced[0].postId, 'post-1', 'carrying the post that IS the record');
+    assert.equal(env.calls.announced.length, 1, 'the ledger is asked first');
+    assert.equal(env.calls.announced[0].postId, undefined, 'and there is no post to link yet');
     assert.deepEqual(
       [env.calls.announced[0].lift, env.calls.announced[0].value, env.calls.announced[0].unit, env.calls.announced[0].reps],
       ['Back squat', 245, 'lb', 3],
     );
+
+    assert.equal(env.calls.created.length, 1, 'then the plate');
+    const made = env.calls.created[0];
+    assert.equal(made.metrics.kind, 'workout');
+    assert.equal(made.metrics.lift, 'Back squat');
+    assert.equal(made.metrics.load, '245 lb', 'the number AND its unit');
+    assert.equal(made.metrics.pr, true, 'stamped a PR by the server’s verdict, not by intent');
+    assert.equal(made.metrics.delta, '+20 lb', 'computed from the prev the RPC wrote');
+    assert.equal(made.skipPRAnnounce, true, 'the announce already happened');
     assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)));
     assert.equal(env.calls.posted, 1);
   } finally { env.restore(); }
 });
 
-test('a record that beats nothing is refused before anything is written', async () => {
-  // ⚠ THE PRE-CHECK EXISTS BECAUSE THE POST IS WRITTEN FIRST. Without it,
-  // pressing "Post a PR" with a number that beats nothing would publish an
-  // ordinary workout post the member never asked for and then quietly fail.
-  const env = postSheet({ ledger: [{ liftKey: 'back squat', best: 250, unit: 'lb' }] });
+test('a first record is marked a PR even though it has no delta', async () => {
+  // ⚠ `delta` EXISTS ONLY AGAINST A PRIOR BEST. Both PR consumers on a real
+  // post read it (`kind: 'pr'` is a demo-card concept), so a member's first
+  // accepted record for a lift — genuinely a PR, accepted by the server —
+  // dropped out of the PR tab and drew as an ordinary load.
+  const env = postSheet({ verdict: { ok: true, prev: null } });
   try {
     await submitSheet(SEED, env);
-    assert.equal(env.calls.created.length, 0, 'no post');
-    assert.equal(env.calls.announced.length, 0, 'no ledger write');
-    assert.ok(env.calls.toasts.some((m) => /does not beat your best/i.test(m)));
-    assert.equal(env.calls.closed, 0, 'the sheet stays open on their own numbers');
+    const made = env.calls.created[0];
+    assert.equal(made.metrics.pr, true, 'the marker carries it');
+    assert.equal('delta' in made.metrics, false, 'and no gain is invented against a best that never existed');
   } finally { env.restore(); }
 });
 
-test('the pre-check compares in pounds, so a kg record is not refused by its digits', async () => {
-  // 100 kg is 220.5 lb and genuinely beats a 200 lb record. Comparing the raw
-  // numbers tells a member their real PR is not one.
-  const env = postSheet({ ledger: [{ liftKey: 'back squat', best: 200, unit: 'lb' }] });
-  try {
-    await submitSheet({ ...SEED, value: '100', unit: 'kg' }, env);
-    assert.equal(env.calls.created.length, 1, 'a 100 kg pull beats a 200 lb record');
-    assert.equal(env.calls.created[0].metrics.load, '100 kg');
-  } finally { env.restore(); }
-  // and the same digits against a record it really does not beat
-  const env2 = postSheet({ ledger: [{ liftKey: 'back squat', best: 250, unit: 'kg' }] });
-  try {
-    await submitSheet({ ...SEED, value: '100', unit: 'kg' }, env2);
-    assert.equal(env2.calls.created.length, 0, 'so the guard is not simply passing everything');
-  } finally { env2.restore(); }
+// ── the marker's READ path ──────────────────────────────────────────────────
+//
+// ⚠ THE TWO TESTS ABOVE PROVE THE MARKER IS WRITTEN AND SAY NOTHING ABOUT IT
+// BEING READ. It crosses three files on the way back — `metrics.pr` is
+// surfaced by shapeBackend's row mapper, carried by the client's own mapper,
+// and finally asked for by the PR filter and the plate's pill — and a
+// mutation dropping it at ANY of those three left the whole suite green while
+// a first record went back to falling out of the PR tab. That is the exact
+// defect the marker exists to close, so the chain is driven end to end rather
+// than asserted at its first link.
 
-  // ⚠ AND THE LEDGER'S OWN UNIT HAS TO BE THE ONE THAT MOVES, or this proves
-  // nothing. Both cases above hold the ledger row in a unit where the
-  // conversion is a no-op or where the raw comparison happens to agree, so a
-  // mutation that reads `Number(row.best)` raw SURVIVED them both — measured,
-  // not assumed. 210 lb against a 100 kg record is the case the migration's own
-  // comment names: raw it is accepted as a best it does not beat (210 > 100),
-  // converted it is refused (210 <= 220.5).
-  const env3 = postSheet({ ledger: [{ liftKey: 'back squat', best: 100, unit: 'kg' }] });
-  try {
-    await submitSheet({ ...SEED, value: '210', unit: 'lb' }, env3);
-    assert.equal(env3.calls.created.length, 0, '210 lb does not beat 100 kg');
-  } finally { env3.restore(); }
-  const env4 = postSheet({ ledger: [{ liftKey: 'back squat', best: 100, unit: 'kg' }] });
-  try {
-    await submitSheet({ ...SEED, value: '230', unit: 'lb' }, env4);
-    assert.equal(env4.calls.created.length, 1, 'and 230 lb does, so the guard is not refusing everything');
-  } finally { env4.restore(); }
+// The real row→post mapper, lifted with its own dependency chain rather than
+// stubbed: a stub of `communityPostFromRow` is a second opinion about what
+// ships, and this test is about the field surviving the one that does.
+const backendMapper = (() => {
+  const body = [
+    extractFn('function titleCase(value)'),
+    extractFn('function providerLabel(provider)'),
+    extractFn('function decodePolyline('),
+    extractFn('function normalizedGeoPoint('),
+    extractFn('function projectGeoPoints('),
+    extractFn('function routePolylineFrom('),
+    extractFn('function routePointCandidates('),
+    extractFn('function normalizeDisplayRoute('),
+    extractFn('function numericMetric('),
+    extractFn('function formatMetersToMiles('),
+    extractFn('function formatSeconds('),
+    extractFn('function formatPace('),
+    extractFn('function normalizeCommunityStats('),
+    extractFn('function communityPostFromRow(row)'),
+    'return communityPostFromRow;',
+  ].join('\n');
+  // eslint-disable-next-line no-new-func
+  return new Function(body)();
+})();
+
+// One stored row → the activity the feed actually renders.
+const readBack = (metrics) => bsActivityFromPost(backendMapper({
+  id: 'p1', author_id: 'me', author_name: 'Ada', author_role: 'client', privacy: 'public',
+  created_at: '2026-09-11T10:00:00Z', activity_type: 'strength', title: 'Back squat',
+  metrics,
+}));
+
+const LIFT_METRICS = {
+  kind: 'workout', lift: 'Back squat', load: '245 lb',
+  workoutStats: [{ l: 'Load', v: '245 lb' }],
+};
+
+test('a stamped first record is READ as a PR all the way to the feed and the plate', () => {
+  const marked = readBack({ ...LIFT_METRICS, pr: true });
+  // ⚠ `delta` MUST BE EMPTY HERE OR THE TEST PROVES NOTHING. A first record has
+  // no prior best, so `delta` is the one signal that cannot be carrying this —
+  // if it were set, every assertion below would pass with the marker deleted.
+  assert.ok(!marked.delta, 'a first record carries no gain');
+  assert.notEqual(marked.kind, 'pr', "and `kind: 'pr'` is a demo-card concept, never stamped on a real post");
+  assert.equal(marked.pr, true, 'the marker survives both mappers');
+  assert.equal(bsFeedTypeMatch(marked, 'prs'), true, 'so the PR chip finds it');
+  assert.match(cardText(marked, 'wall'), /New PR/i, 'and the plate stamps it a record');
+
+  // The control: the same lift with no marker is an ordinary load. Without it
+  // every assertion above passes on a filter that answers true for everything.
+  const plain = readBack(LIFT_METRICS);
+  assert.equal(plain.pr, false);
+  assert.equal(bsFeedTypeMatch(plain, 'prs'), false, 'an ordinary load is not a PR');
+  assert.doesNotMatch(cardText(plain, 'wall'), /New PR/i);
+
+  // And a post published before the marker existed still reads as a PR off its
+  // own delta — the marker adds a signal, it does not replace one.
+  const legacy = readBack({ ...LIFT_METRICS, delta: '+20 lb' });
+  assert.equal(legacy.pr, false, 'no marker on it');
+  assert.equal(bsFeedTypeMatch(legacy, 'prs'), true, 'and it is still a PR');
 });
 
-test('an unreadable ledger leaves the verdict to the server rather than accusing', async () => {
-  const env = postSheet({ ledgerStored: 'local', ledger: [] });
+test('nothing past the server\u2019s acceptance can report the record as failed', async () => {
+  // ⚠ THE ACCEPTED REGION IS OUTSIDE THE `try`, AND THIS IS WHAT THAT BUYS.
+  // Once the RPC has written the ledger the record IS on the wall, so a throw
+  // anywhere after it must not produce *"Could not post that record"* — that
+  // sentence sends the member to retry something the server will now refuse as
+  // not-a-PR, correctly, because it is their best. Driven by making a callback
+  // throw, which is the only thing in that region that can: the alternative is
+  // an argument about which expressions are safe, and a scope needs no such
+  // argument.
+  const env = postSheet({ verdict: { ok: true, prev: 225 } });
+  try {
+    await submitSheet(SEED, env, { postedThrows: true });
+    // The honest half still happened, in order, before the throw.
+    assert.equal(env.calls.announced.length, 1, 'the record was written');
+    assert.equal(env.calls.created.length, 1, 'and the plate was published');
+    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and the member was told so');
+    assert.equal(env.calls.closed, 1, 'and the sheet still closes behind the throwing callback');
+    // ⚠ THE CONTROL: `postError` is the string a REACHABLE failure still uses,
+    // so its absence here is about this path and not about the app having
+    // stopped saying it. A refused verdict in the same harness does say it.
+    assert.ok(
+      !env.calls.toasts.some((m) => /could not post that record/i.test(m)),
+      'and never told the record failed',
+    );
+  } finally { env.restore(); }
+  const refused = postSheet({ verdict: { ok: false, reason: 'auth' } });
+  try {
+    await submitSheet(SEED, refused);
+    assert.ok(refused.calls.toasts.some((m) => /could not post that record/i.test(m)),
+      'the control: a genuine failure still says it');
+  } finally { refused.restore(); }
+});
+
+test('a refused record publishes nothing at all', async () => {
+  // The whole point of asking the ledger first: no orphan post, no +5 award for
+  // a post that should not exist, and a retry cannot make a second one.
+  for (const reason of ['not_a_pr', 'not_public', 'auth']) {
+    const env = postSheet({ verdict: { ok: false, reason } });
+    try {
+      await submitSheet(SEED, env);
+      assert.equal(env.calls.announced.length, 1, `${reason}: the ledger was asked`);
+      assert.equal(env.calls.created.length, 0, `${reason}: and nothing was published`);
+      assert.equal(env.calls.posted, 0);
+      assert.equal(env.calls.closed, 0, 'the sheet stays open on their own numbers');
+    } finally { env.restore(); }
+  }
+});
+
+test('a retry after a refusal still publishes nothing', async () => {
+  // The defect this ordering removes: under post-first, every retry inserted
+  // another visible post and attempted another +5.
+  const env = postSheet({ verdict: { ok: false, reason: 'not_a_pr' } });
   try {
     await submitSheet(SEED, env);
-    assert.equal(env.calls.created.length, 1, 'a read we could not make is not evidence against them');
-    assert.equal(env.calls.announced.length, 1, 'and the server still decides');
+    await submitSheet(SEED, env);
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.announced.length, 3, 'three attempts');
+    assert.equal(env.calls.created.length, 0, 'and zero posts');
   } finally { env.restore(); }
+});
+
+test('a record that lands but cannot be published says so, and does not say "could not post"', async () => {
+  // ⚠ THE RECORD IS ALREADY ON THE WALL BY THEN. Telling them the post failed
+  // would send them to retry something the server will now refuse as not-a-PR,
+  // correctly, because it IS their best.
+  // ⚠ EACH ENV IS BUILT INSIDE THE LOOP. Constructing both up front installs
+  // the second's stubs over the first's, and the first's restore then puts back
+  // globals that were never its own — measured: the first case read zero calls.
+  for (const make of [() => postSheet({ createThrows: true }), () => postSheet({ created: { stored: 'local', data: { id: 'local-1' } } })]) {
+    const env = make();
+    try {
+      await submitSheet(SEED, env);
+      assert.equal(env.calls.announced.length, 1, 'the record still landed');
+      assert.ok(env.calls.toasts.some((m) => /record saved/i.test(m)));
+      assert.ok(!env.calls.toasts.some((m) => /could not post that record/i.test(m)));
+      assert.ok(!env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and it does not claim a plate');
+    } finally { env.restore(); }
+  }
 });
 
 test('a private profile is refused, and nothing at all is written', async () => {
@@ -1120,35 +1252,6 @@ test('a healthy public member publishes to the feed', async () => {
     await submitSheet(SEED, env);
     assert.equal(env.calls.created[0].privacy, 'public', 'no settings row yet means the On · Public defaults apply');
   } finally { env.restore(); }
-});
-
-test('a post that did not persist never advances the ledger', async () => {
-  // ⚠ ALSO A REVERSAL, AND THE REASON IS THE RETRY. This suite used to assert
-  // that a failed feed insert must not cost the member their ledger row. That
-  // is backwards: `post_my_pr_to_wall` refuses any value that does not beat the
-  // stored best, so advancing the ledger for a post that never landed makes
-  // that record PERMANENTLY unpostable — the member taps again and is told it
-  // does not beat their best, by a row written for a plate nobody can see.
-  // Losing the row costs one retry; advancing it costs the record.
-  const thrown = postSheet({ createThrows: true });
-  try {
-    await submitSheet(SEED, thrown);
-    assert.equal(thrown.calls.announced.length, 0, 'no ledger write behind a post that threw');
-    assert.ok(thrown.calls.toasts.some((m) => /could not post/i.test(m)));
-    assert.ok(!thrown.calls.toasts.some((m) => /on the wall/i.test(m)));
-  } finally { thrown.restore(); }
-
-  // ⚠ AND THE SILENT ARM IS THE ONE THAT MATTERS: `createCommunityPost` does
-  // NOT throw on an insert error, it returns a LOCAL record whose id is
-  // `local-<ts>` — not a uuid, so the announce would drop the link — under a
-  // toast promising a plate. Only a supabase-stored row is evidence.
-  const local = postSheet({ created: { stored: 'local', data: { id: 'local-123' }, error: { message: 'boom' } } });
-  try {
-    await submitSheet(SEED, local);
-    assert.equal(local.calls.created.length, 1, 'it was attempted');
-    assert.equal(local.calls.announced.length, 0, 'and not treated as a post');
-    assert.ok(!local.calls.toasts.some((m) => /on the wall/i.test(m)));
-  } finally { local.restore(); }
 });
 
 test('a record that lands refreshes the board, not just the strip', async () => {

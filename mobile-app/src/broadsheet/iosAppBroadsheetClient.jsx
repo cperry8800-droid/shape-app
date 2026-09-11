@@ -13567,6 +13567,14 @@ function bsActivityFromPost(p) {
     // PR delta stamped at publish (vs the author's prior best); empty until a
     // genuine new best exists — the card shows the number with no delta otherwise.
     delta: (typeof p.delta === 'string' && p.delta.trim()) ? p.delta.trim() : null,
+    // ⚠ AN EXPLICIT PR MARKER, BECAUSE A FIRST RECORD HAS NO DELTA TO INFER ONE
+    // FROM. `delta` exists only against a PRIOR best, so a member's first
+    // accepted record for a lift carried no PR signal at all on a real post
+    // (`kind: 'pr'` is a DEMO-card concept and never set here) — it dropped out
+    // of the PR tab and drew as an ordinary load. Stamped by the Post-a-PR
+    // sheet once the server has accepted the record, so it is the server's
+    // verdict rather than the composer's opinion.
+    pr: p.pr === true,
     // Raw activity type (the composer's woType / activity_type column / sensor
     // workout name) — normalized to a reaction verb at render. Honest: empty
     // strings fall back to the "Props" verb, never a strength-only word.
@@ -13645,7 +13653,9 @@ function bsFeedTypeMatch(a, t) {
   // workouts/PRs (a career "milestone" is not a training new-best).
   const isMilestone = a.kind === 'milestone' || a.typeLabel === 'Milestone';
   if (t === 'milestones') return isMilestone;
-  if (t === 'prs') return (a.kind === 'pr' || !!a.delta) && !isMilestone;
+  // `a.pr` is the stamped marker (a first record has no delta); `a.kind` is the
+  // demo cards' own; `a.delta` covers every post published before the marker.
+  if (t === 'prs') return (a.kind === 'pr' || a.pr === true || !!a.delta) && !isMilestone;
   const isRun = a.kind === 'run' || a.typeLabel === 'Run';
   if (t === 'runs') return isRun;
   return !isRun && !isMeal && !isMilestone; // 'workouts' = every non-endurance, non-meal, non-milestone activity
@@ -18331,7 +18341,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // tally stays one unified count. PR/milestone (a new-best delta, or the demo
     // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
     const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
-    const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
+    const actType = bsReactionType(_rawType, { isPR: a.real ? (!!a.delta || a.pr === true) : a.kind === 'pr' });
     const cheer = bsReactionVerb(actType);
     // ⚠ EVERY MEASUREMENT ON THIS CARD IS TEXT BY THE TIME IT ARRIVES, so the
     // reader's unit preference is applied to the STRING. `t.uText` rewrites only
@@ -18379,7 +18389,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       const measure = String(heroStat[0] || '').trim();
       const lift = (a.real ? '' : String(a.lift || '')).trim();
       // A stamped PR (real posts carry `delta`; demo PRs carry kind 'pr').
-      const isPR = !!prDelta || (!a.real && a.kind === 'pr');
+      const isPR = !!prDelta || a.pr === true || (!a.real && a.kind === 'pr');
       // ⚠ THE DELTA RIDES IN THE PILL RATHER THAN ON ITS OWN LINE. The plate
       // used to state the record twice — a header above the card and the card's
       // own hero below it — which is the one thing the approved board does not
@@ -19234,12 +19244,23 @@ function bsWallYourBest(logged, posted) {
     rows.set(l.liftKey, row);
   }
   for (const row of rows.values()) {
-    // ⚠ THE GAP IS ONLY COMPARABLE IN ONE UNIT. A lift logged in kg against a
-    // ledger row in lb is two different numbers, and subtracting them would
-    // invent a gap out of the conversion. Left null; the row still shows both.
-    const comparable = row.posted != null && row.logged != null
-      && (!row.postedUnit || row.postedUnit === row.unit);
-    row.gap = comparable ? bsWallGain(row.logged, row.posted) : null;
+    // ⚠ THE TWO SIDES ARE NORMALISED BEFORE THEY ARE COMPARED, AND THIS
+    // CORRECTS THE RULE THAT USED TO SIT HERE. It read "a lift logged in kg
+    // against a ledger row in lb is two different numbers, and subtracting them
+    // would invent a gap" — which conflated INVENTING with CONVERTING. A
+    // conversion inside one family is exact, and refusing it had a cost the
+    // rule did not name: a logged 100 kg over a posted 200 lb is the higher,
+    // UNPOSTED best, and the row drew it as a settled fact with the old post's
+    // date and no way to put it up.
+    //
+    // What the old rule was right about is the FAMILY: a weight and a distance
+    // are genuinely not comparable, so a row whose two sides disagree about
+    // that keeps the conservative answer rather than crossing them.
+    const pUnit = row.postedUnit || row.unit;
+    const sameFamily = bsWallUnitFamily(pUnit).family === bsWallUnitFamily(row.unit).family;
+    const postedHere = (row.posted != null && sameFamily) ? bsWallToUnit(row.posted, pUnit, row.unit) : null;
+    const comparable = postedHere != null && row.logged != null;
+    row.gap = comparable ? bsWallGain(row.logged, postedHere) : null;
     row.unposted = row.logged != null && (row.posted == null || (comparable && row.gap != null));
     row.best = row.logged != null ? row.logged : row.posted;
   }
@@ -19341,24 +19362,45 @@ async function bsWallShareState() {
   } catch (e) { return { canWall: true, privacy: null }; }
 }
 
+// Every refusal this sheet can hit has a reason the member can act on, so none
+// of them is reported as a generic failure. One ladder, because the submit has
+// two exits into it and a second copy is how the two come to disagree.
+function bsWallSay(tr, reason) {
+  if (reason === 'not_public') window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info');
+  else if (reason === 'not_a_pr') window.__bsToast?.(tr('feed:wall.notAPR', { defaultValue: 'That does not beat your best for this lift yet.' }), 'info');
+  else window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error');
+}
+
 // Post a PR — for a lift set somewhere the app was not watching.
 //
-// ⚠ IT WRITES THE FEED POST FIRST AND THE LEDGER SECOND, AND THAT ORDER IS THE
-// WHOLE REASON THIS IS NOT A ONE-LINE RPC CALL. Since #2036 the Wall IS the
-// activity feed's WALL sub-tab, which reads `community_posts` — so a ledger row
-// on its own renders NOTHING, and a record posted by hand simply never appeared
-// anywhere. `createCommunityPost` already knows how to do both halves in the
-// right order: it stamps "+X over last best" by diffing the load against the
-// ledger (so announcing first would advance the ledger past this very number
-// and every hand-posted record would land with no gain), and the post id — what
-// makes the plate carry the record's evidence — exists only after the insert.
+// ⚠ THE LEDGER DECIDES FIRST AND THE POST IS PUBLISHED ONLY IF IT ACCEPTS, AND
+// THIS IS THE THIRD ORDERING THIS SHEET HAS HAD. Each of the first two was
+// fixed for a real defect and produced the next one, so the reasoning is worth
+// keeping rather than just the result.
 //
-// ⚠ SO THE TWO REFUSALS HAVE TO BE ANSWERED BEFORE THE POST, not after it.
-// Pressing "Post a PR" with a number that beats nothing would otherwise publish
-// an ordinary workout post the member never asked for. Both are pre-checked
-// here against the same facts the server will use. The SERVER IS STILL THE
-// AUTHORITY: a race it refuses leaves the post standing with no record claim on
-// it, which is an honest thing for it to be.
+//   1. Ledger only (the restored sheet). Since #2036 the Wall IS the activity
+//      feed, which reads `community_posts` — so a ledger row on its own
+//      rendered NOTHING and a hand-posted record appeared nowhere.
+//   2. Post first, then announce. That fixed the plate, and opened three more:
+//      a refused announce left an orphan post standing (with its own +5 award
+//      and a delta claiming a PR the server had just rejected), a retry made a
+//      SECOND one, and the whole thing needed a client-side pre-check of a
+//      verdict the server was about to give anyway.
+//   3. Announce first, publish on acceptance — this one.
+//
+// ⚠ WHAT MAKES (3) POSSIBLE IS THAT THE RPC RETURNS THE `prev` IT WROTE. That
+// is why (2) existed at all: `createCommunityPost` derives "+X over last best"
+// by reading the ledger, so announcing first advanced it past this very number
+// and the gain vanished. With `res.prev` in hand the delta is computed HERE,
+// from the row the server actually wrote — which is also race-safe in a way the
+// re-read never was, and needs no pre-check at all.
+//
+// ⚠ AND THE COST IS ONE THING NOTHING READS: `pr_wall_posts.post_id` stays
+// null, because the post does not exist when the RPC runs. Checked rather than
+// assumed — no caller of `ShapePRWall.mine()` touches `postId`, and the board
+// read that took it (`shape_pr_wall`) has had no mount since #2036 folded the
+// Wall into the feed. A link nobody follows is a poor reason to keep a design
+// that publishes before it knows.
 function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -19374,6 +19416,9 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
     setBusy(true);
     const name = lift.trim(), num = Number(value), repNum = reps ? Number(reps) : null;
     let res = null;
+    // The audience the post will be written with, resolved inside the try and
+    // read outside it. See the scope note below the RPC call.
+    let priv = null;
     try {
       const share = await bsWallShareState();
       if (!share.canWall) { setBusy(false); window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
@@ -19393,81 +19438,73 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
       if (share.privacy == null) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
       if (share.privacy !== 'public') { setBusy(false); window.__bsToast?.(tr('feed:wall.notShared', { defaultValue: 'Sharing workout data is off, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
 
-      // Does this beat what the wall already carries? Compared in POUNDS, the
-      // ledger's canonical unit — the row keeps the unit it was set in, so a
-      // raw `num <= row.best` puts a 100 kg pull behind a 200 lb one and tells
-      // a member their real PR is not one. An unreadable ledger leaves this
-      // null and the server decides, which is the same answer it gave before.
-      let priorLb = null;
-      try {
-        const led = window.ShapePRWall && window.ShapePRWall.mine ? await window.ShapePRWall.mine() : null;
-        // ⚠ `stored === 'supabase'` IS THE READ WE ACTUALLY MADE, and today it
-        // cannot change the answer: `myPRLedger` returns `data: []` for every
-        // non-supabase path, which the suite pins one test over. It is kept
-        // because it is what would stop this comparing a member's real lift
-        // against a stale LOCAL cache if that function ever grew one — and a
-        // stale best refuses a genuine PR, which is the failure this whole
-        // pre-check exists to avoid. Recorded as a proven no-op rather than
-        // covered by a fixture inventing a shape production cannot produce.
-        if (led && led.stored === 'supabase') {
-          const row = (led.data || []).find((r) => String(r.liftKey || '').toLowerCase() === name.toLowerCase());
-          if (row && Number.isFinite(Number(row.best))) priorLb = bsWallToUnit(Number(row.best), row.unit || 'lb', 'lb');
-        }
-      } catch (e) { priorLb = null; }
-      const mineLb = bsWallToUnit(num, unit, 'lb');
-      if (priorLb != null && Number.isFinite(mineLb) && mineLb <= priorLb) { setBusy(false); window.__bsToast?.(tr('feed:wall.notAPR', { defaultValue: 'That does not beat your best for this lift yet.' }), 'info'); return; }
-
-      // The post the record IS. Shaped exactly like the composer's own Strength
-      // payload — `lift` keys the prior-best lookup and `load` carries the
-      // number AND its unit, which is what `createCommunityPost` parses the
-      // delta out of. Two spellings of one payload is how the same record ends
-      // up reading differently depending on which sheet made it.
-      const loadStr = `${num} ${unit}`;
-      const stats = [{ l: 'Load', v: loadStr }];
-      if (repNum != null && Number.isFinite(repNum) && repNum > 0) stats.push({ l: 'Reps', v: String(repNum) });
-      // ⚠ THE LEDGER ONLY ADVANCES BEHIND A POST THAT ACTUALLY PERSISTED, AND
-      // THIS REVERSES WHAT I ARGUED ONE ROUND AGO. The earlier reasoning was
-      // that the record is the member's and a failed feed insert must not cost
-      // them the ledger row. That is wrong, and the reason is the RETRY:
-      // `post_my_pr_to_wall` refuses any value that does not beat the stored
-      // best, so advancing the ledger for a post that never landed makes that
-      // record permanently unpostable — the member taps again and is told it
-      // does not beat their best, by a row written for a plate nobody can see.
-      // Losing the ledger row costs one retry; advancing it costs the record.
-      //
-      // `createCommunityPost` does NOT throw on an insert error: it returns
-      // `{ stored: 'local', data: { id: 'local-…' } }`, whose id is not a uuid,
-      // so the announce would drop the link and the wall would carry a bare
-      // record under a toast promising a plate. Only a supabase-stored row with
-      // an id is evidence a post exists.
-      let postId = null;
-      try {
-        const made = await window.ShapeCommunity?.createPost?.({
-          channel: 'COMMUNITY', privacy: share.privacy, title: name, activityType: 'strength',
-          metrics: { kind: 'workout', workoutStats: stats, lift: name, load: loadStr },
-          skipPRAnnounce: true,
-        });
-        if (made && made.stored === 'supabase' && made.data && made.data.id) postId = made.data.id;
-      } catch (e) { postId = null; }
-      if (!postId) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
-
+      // The server is the authority and it answers before anything is
+      // published, so there is no pre-check to keep in step with it.
+      priv = share.privacy;
       res = await (window.ShapePRWall && window.ShapePRWall.post
-        ? window.ShapePRWall.post({ lift: name, value: num, unit, reps: repNum, postId })
+        ? window.ShapePRWall.post({ lift: name, value: num, unit, reps: repNum })
         : null);
     } catch (e) { res = null; }
+    if (!res || !res.ok) { setBusy(false); bsWallSay(tr, (res && res.reason) || 'error'); return; }
+
+    // ── PAST HERE THE RECORD IS ON THE WALL ─────────────────────────────────
+    // ⚠ AND THAT IS WHY THE `try` ENDS ABOVE RATHER THAN AROUND ALL OF THIS.
+    // The catch reports a generic *"could not post that record"*, which stops
+    // being true the moment the RPC accepts — and telling a member to retry
+    // sends them at a server that will now refuse them, correctly, because the
+    // record is theirs. Scoping the catch to the two things that can actually
+    // reject (the settings read and the RPC call) makes that sentence
+    // unreachable from here, which is stronger than a flag guarding against it:
+    // a flag has to be right about every throw, and a scope does not.
+
+    // Accepted — so this is a record, and now it gets its plate. Shaped
+    // exactly like the composer's own Strength payload, or the same record
+    // reads differently depending on which sheet made it.
+    //
+    // ⚠ THE DELTA IS COMPUTED FROM THE `prev` THE SERVER WROTE, not re-read
+    // from the ledger — which by now holds this very number, so a re-read
+    // would find no gain at all. `prev_value` is stored in the unit the row
+    // now carries (the units migration of 2026-09-10), which is this post's
+    // unit, so no conversion is needed or possible here.
+    //
+    // ⚠ AND `pr: true` IS THE MARKER, BECAUSE A FIRST RECORD HAS NO DELTA.
+    // `bsFeedTypeMatch(…, 'prs')` and the card's PR pill read `a.delta` for a
+    // real post (`kind: 'pr'` is demo-only), so a member's FIRST best for a
+    // lift — accepted by the server, genuinely a PR — was filtered out of the
+    // PR tab and drawn as an ordinary load.
+    const loadStr = `${num} ${unit}`;
+    const stats = [{ l: 'Load', v: loadStr }];
+    if (repNum != null && Number.isFinite(repNum) && repNum > 0) stats.push({ l: 'Reps', v: String(repNum) });
+    const gain = bsWallGain(num, res.prev);
+    let made = null;
+    try {
+      made = await window.ShapeCommunity?.createPost?.({
+        channel: 'COMMUNITY', privacy: priv, title: name, activityType: 'strength',
+        metrics: {
+          kind: 'workout', workoutStats: stats, lift: name, load: loadStr, pr: true,
+          ...(gain != null ? { delta: `+${bsWallNum(gain)} ${unit}` } : {}),
+        },
+        skipPRAnnounce: true,
+      });
+    } catch (e) { made = null; }
+    // ⚠ THE RECORD IS ALREADY ON THE WALL AT THIS POINT, so a failed insert
+    // is not a failed post-a-PR — and saying "Could not post that record"
+    // would send the member to retry something the server will now refuse as
+    // not-a-PR, correctly, because it IS their best. It gets its own sentence.
+    const published = !!(made && made.stored === 'supabase' && made.data && made.data.id);
     setBusy(false);
-    const reason = (res && res.reason) || (res && res.ok ? 'ok' : 'error');
-    if (res && res.ok) {
-      window.__bsToast?.(tr('feed:wall.posted', { defaultValue: 'On the wall.' }), 'ok');
-      onPosted && onPosted();
-      onClose && onClose();
-      return;
-    }
-    // Every refusal has a reason the member can act on, so none of them are
-    // reported as a generic failure.
-    if (reason === 'not_public') window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info');
-    else if (reason === 'not_a_pr') window.__bsToast?.(tr('feed:wall.notAPR', { defaultValue: 'That does not beat your best for this lift yet.' }), 'info');
-    else window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error');
+    window.__bsToast?.(published
+      ? tr('feed:wall.posted', { defaultValue: 'On the wall.' })
+      : tr('feed:wall.postedNoFeed', { defaultValue: 'Record saved. We couldn’t add it to the feed just now.' }),
+      published ? 'ok' : 'info');
+    // ⚠ AND A CONSUMER THAT THROWS TAKES NOTHING WITH IT. The record is written,
+    // the plate is published and the member has already been told so truthfully
+    // — so the only two outcomes a throwing callback could add are both bad: a
+    // generic *"could not post"* over a record that landed (which the scope
+    // above already makes unreachable) or an unhandled rejection out of a click
+    // handler. There is nothing left to report, so there is nothing to say.
+    try { onPosted && onPosted(); } catch (e) { /* the record stands */ }
+    try { onClose && onClose(); } catch (e) { /* so does the toast */ }
   };
   const field = { height: 40, width: '100%', boxSizing: 'border-box', background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 8, padding: '0 12px', fontFamily: t.BODY, fontSize: 15, color: t.INK, outline: 'none' };
   const lab = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 };
