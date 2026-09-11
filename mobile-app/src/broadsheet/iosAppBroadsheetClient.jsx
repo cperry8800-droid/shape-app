@@ -19641,12 +19641,58 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // (bsSubAnchorRef) — drives a shared `subHidden` flag; each sub-tab row
   // collapses via bsSubStyle().
   const [subHidden, setSubHidden] = useStateBSC(false);
-  React.useEffect(() => { setSubHidden(false); }, [tab]);
   // Attach the scroll-direction listener via a CALLBACK ref on the (always-
   // rendered) main tab row, so it re-attaches whenever the feed remounts — e.g.
   // after opening a DM/profile (which early-returns + unmounts the BSPage
   // scroller) and backing out. Walks up to the scroller; the ref fn is stable.
-  const bsScroll = React.useRef({ sc: null, fn: null, last: 0, ticking: false });
+  const bsScroll = React.useRef({ sc: null, fn: null, last: 0, ticking: false, hidden: false, lockUntil: 0 });
+  // ⚠ COLLAPSING THE ROW MOVES THE SCROLLER, AND THAT MOVE IS NOT THE USER.
+  // The row sits ABOVE the viewport once you have scrolled, so hiding it shortens
+  // the content above and the browser compensates by moving scrollTop — which
+  // arrives here as a scroll event whose dy has the OPPOSITE sign and flips the
+  // row straight back, which moves scrollTop again. Measured before this guard:
+  // a programmatic jump into the feed left scrollHeight oscillating over a 36px
+  // range indefinitely, which reads on screen as the feed vibrating. So every
+  // toggle goes through here, and scrolls arriving while our own 240ms collapse
+  // is still settling only RE-BASELINE the reference point — they never decide.
+  // ⚠ `arm` EXISTS BECAUSE A LAYOUT MOVE IS NOT ALWAYS A STATE CHANGE. The
+  // early return below is right for the scroll handler — nothing moved, so
+  // nothing needs settling — and wrong for a caller that knows the DOM changed
+  // anyway. Switching from a tab with NO sub-row (Channels, Support) to one that
+  // has it inserts the row above the viewport while `st.hidden` is already
+  // false: the setter no-ops, no deadline is armed, and the anchoring scroll
+  // that follows reads as `dy > 6` and hides the row before it is seen. That is
+  // this PR's own defect through the one path its first fix did not cover.
+  // (Codex, #2043.)
+  // ⚠ AND IT IS A FLAG RATHER THAN ARMING ON EVERY CALL. The handler calls
+  // bsSetSub(false) on every scroll near the top; arming there would suppress
+  // decisions for 420ms at a stretch and delay the next legitimate hide.
+  const bsSetSub = React.useCallback((next, arm) => {
+    const st = bsScroll.current;
+    if (arm) st.lockUntil = Date.now() + 420;
+    if (st.hidden === next) return;
+    st.hidden = next;
+    st.lockUntil = Date.now() + 420;
+    setSubHidden(next);
+  }, []);
+  // ⚠ A TAB CHANGE THAT REVEALS THE ROW IS ALSO A LAYOUT MOVE WE CAUSED, AND
+  // THE FIRST VERSION OF THIS CLEARED THE ONE THING STANDING IN ITS WAY.
+  // Switching to another sub-row-bearing tab while the row is hidden EXPANDS it;
+  // with the row above the viewport the browser RAISES scrollTop to compensate,
+  // the handler reads that as `dy > 6`, and the new tab's row is hidden again
+  // before it has been seen — the same self-generated toggle the guard above
+  // exists to suppress, re-created by an effect that set `lockUntil = 0`.
+  // Routing the reveal through bsSetSub arms the window instead; the reference
+  // is re-baselined first because the new tab may start at a different offset,
+  // and a stale `last` makes the first real scroll after the switch measure
+  // from wherever the previous tab happened to be.
+  React.useEffect(() => {
+    const st = bsScroll.current;
+    if (st.sc) st.last = st.sc.scrollTop;
+    // arm unconditionally: the destination may INSERT a row the previous tab
+    // did not have, which moves layout even when the mirror is already false.
+    bsSetSub(false, true);
+  }, [tab, bsSetSub]);
   const bsSubAnchorRef = React.useCallback((node) => {
     const st = bsScroll.current;
     if (st.sc && st.fn) { st.sc.removeEventListener('scroll', st.fn); st.sc = null; st.fn = null; }
@@ -19663,10 +19709,23 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       if (st.ticking) return;
       st.ticking = true;
       requestAnimationFrame(() => {
-        const y = st.sc.scrollTop, dy = y - st.last;
-        if (y < 28) setSubHidden(false);
-        else if (dy > 6) setSubHidden(true);
-        else if (dy < -6) setSubHidden(false);
+        // ⚠ THE SCROLLER CAN BE GONE BY THE TIME THIS FRAME RUNS. The ref
+        // callback nulls `st.sc` on detach (a tab without a sub-row, or leaving
+        // Chat) and cannot cancel a frame already scheduled — so a scroll in
+        // the same frame as the unmount reached `null.scrollTop` and threw. It
+        // throws OUT of a rAF, where no React error boundary can catch it.
+        // Re-attaching resets `ticking`, so the handler was never left wedged;
+        // the bug was the uncaught error alone. (CodeRabbit, #2043.)
+        if (!st.sc) { st.ticking = false; return; }
+        const y = st.sc.scrollTop;
+        // Our own collapse is still settling: keep the reference current so the
+        // first real scroll after it is measured from where the user actually
+        // is, but take no decision from a delta we caused ourselves.
+        if (Date.now() < st.lockUntil) { st.last = y; st.ticking = false; return; }
+        const dy = y - st.last;
+        if (y < 28) bsSetSub(false);
+        else if (dy > 6) bsSetSub(true);
+        else if (dy < -6) bsSetSub(false);
         st.last = y; st.ticking = false;
       });
     };
