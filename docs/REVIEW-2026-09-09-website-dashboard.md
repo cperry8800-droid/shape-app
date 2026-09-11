@@ -352,8 +352,13 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   SHIPPED 2026-09-11**, and **PINNING SHIPPED 2026-09-11** — a per-row control rather than
   a gear entry, because the gear holds settings that belong to the CARD and a pin is an
   act about one client. ⚠ **AND THE DRAWER'S SECTIONS SHIPPED 2026-09-11** — the control is
-  in the drawer rather than on a card, because the drawer opens from four places. **One
-  remains: the KPI picker for the stat strips.**
+  in the drawer rather than on a card, because the drawer opens from four places.
+  ⚠ **AND THE KPI PICKER SHIPPED 2026-09-11, WHICH COMPLETES R15.** Each of the two coach
+  Today strips picks its four figures from a pool of eleven, per account and per role; the
+  ⚙ renders a long group as a `<select>` rather than as chips, and choosing a metric that
+  is already on the strip **swaps** the two rather than duplicating it. The Overview strip
+  carries no ⚙ in the signed-out preview — there it is the payout card's own preview, so a
+  picker would let a visitor rearrange figures that describe nobody.
   ⚠ **AND TWO COLUMNS DELIBERATELY DO NOT SORT:** PROGRAM and GOAL PHASE are free text a
   coach types, so alphabetical order over them answers no question. They render as plain
   text rather than as buttons that lead nowhere.
@@ -426,8 +431,15 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   live since the 2026-05-30 migration and only the mobile app read it — a member could be
   told on their phone that their coach had replied and see nothing on the web. There is a
   bell in the shared header now (signed-in only), with mark-one and mark-all, on every
-  newdesign page. **Booking is still open**: `/api/availability` and `/api/sessions` both
-  exist, and the client Team page's "Book session" is still one of R18's dead controls.
+  newdesign page. ⚠ **BOOKING SHIPPED 2026-09-11 — R20 IS COMPLETE.** The Team page's
+  "Book session" turned out to be **mislabelled rather than dead**: it called `ctOpenChat`,
+  the Message button's own handler, so a member tapped a button naming an outcome and got a
+  different one. It opens a slot sheet now — open times projected from the coach's weekly
+  pattern, labelled in the **viewer's own zone**, written as `requested`. ⚠ Building it
+  found the booking chain is **an hour-per-zone wrong, live**: `provider_availability` has
+  no timezone column, so a coach who opens 9am has clients booking 5:00 AM in New York.
+  **Registered, not fixed** — it needs a column plus a backfill, i.e. a migration and the
+  owner's call.
 
 ---
 
@@ -483,8 +495,8 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R17/R18 | Client: score record, leaderboard, check-in history, readout; fix dead controls | P1 | S–M | routes exist |
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
 | R12 | CSV export + monthly statement | P2 | M | CSVs SHIPPED 2026-09-10 · statement still gated on payouts |
-| R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 · R15's roster SORT 2026-09-10, the ⚙ + time window 2026-09-11, PINNING + DRAWER SECTIONS 2026-09-11; the KPI picker remains |
-| R20 | Client booking + notifications inbox on the web | P2 | M | INBOX SHIPPED 2026-09-10 · booking still open |
+| R15/R16 | Widget settings; remembered filters | P2 | M | **BOTH SHIPPED.** R16 2026-09-10 · R15 across 2026-09-10/11: roster SORT, the ⚙ + per-chart time window, pinning to the pulse, the drawer's sections per lens, and the KPI picker |
+| R20 | Client booking + notifications inbox on the web | P2 | M | **BOTH SHIPPED.** Inbox 2026-09-10 · booking 2026-09-11 — with the provider-timezone defect registered for an owner ruling |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
 | V4/V5 | Check the GridStack gaps on a real screen; make the demo dataset agree with itself (one money figure, one client count) | P2 | S | V4 CHECKED 2026-09-10 — does not reproduce |

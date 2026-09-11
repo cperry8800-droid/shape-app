@@ -119,6 +119,12 @@ function dgInjectStyle() {
 .dash-gridstack .grid-stack-item:hover .dash-wchrome,.dash-gridstack .grid-stack-item:focus-within .dash-wchrome{opacity:1}
 @media (hover:none){.dash-wchrome{opacity:1}}
 .dash-drag-handle{cursor:move}
+/* ⚠ iOS SAFARI ZOOMS THE VIEWPORT ON FOCUS when a form control computes under 16px, and
+   that is worse here than the usual nuisance: this panel is position:fixed and portaled to
+   <body>, positioned from the gear's measured rect, so a zoom moves the viewport out from
+   under a panel that has already been placed. The desktop keeps its 11px; the override is
+   scoped to coarse pointers so it costs the mouse nothing. (CodeRabbit, #2046.) */
+@media (pointer:coarse){.dash-setpick-sel{font-size:16px!important}}
 `;
   document.head.appendChild(s);
 }
@@ -152,12 +158,106 @@ function dgPatchGridStack() {
 // opens an empty panel costs more trust than an absent one. The chrome checks the array
 // is non-empty, not merely present, so a widget whose options are computed away at
 // runtime loses the gear rather than offering nothing.
+// Above this many options a group renders as a <select> rather than as chips — see the
+// note at the render below.
+const DG_SELECT_AT = 6;
+
+// The gutter the panel never crosses, its natural width, and how little room below the
+// gear counts as "not enough" before it opens upward instead.
+const DG_GUT = 12;
+const DG_PANEL_W = 240;
+const DG_PANEL_MIN_H = 160;
+
+// Where the panel goes, from the gear's own viewport rect. A pure function so the
+// clamping is DRIVEN in a test rather than eyeballed in one browser at one width.
+//
+// ⚠ AN INTERVAL, NOT TWO INDEPENDENT CLAMPS. The width is capped at both gutters
+// first; the left edge then has to satisfy both edges at once, and that interval is
+// non-empty exactly when the cap holds. A one-sided `Math.min` reads as "never move it
+// right of where it is" and spills past the other gutter on a narrow screen — the
+// notification panel shipped that sentence as a because-clause and its own guard
+// refuted it the same hour.
+function dgPanelBox(gear, vw, vh) {
+  // ⚠ THE GUTTER CAP WINS OVER ANY PREFERRED MINIMUM WIDTH, and the first cut had that
+  // backwards: `Math.max(120, …)` held a 120px floor, which makes the interval below
+  // EMPTY — at vw 128 (a 640px phone at 500% zoom, i.e. an accessibility path rather
+  // than a hypothetical) the panel's right edge landed 16px past the gutter and grew from
+  // there. It is capped at both gutters unconditionally now.
+  //
+  // ⚠ AND THE HEIGHT BELOW IS CAPPED THE SAME WAY, after a because-clause of mine was
+  // refuted here. It read: "the panel scrolls VERTICALLY, so 80px of it crossing the bottom
+  // gutter still reaches every control." That holds only while the scroll BOX is inside the
+  // viewport. Once the floor pushes the box past the bottom, max scroll aligns the content's
+  // end with the box's own bottom edge — which is off screen — so the last controls can
+  // never enter the viewport at all. Measured at vh 100: the box runs 64..144, only 36px of
+  // it is visible, and the fourth selector is unreachable. A floor that outruns the viewport
+  // recreates exactly the unreachability it was excused for. (Codex, #2046.)
+  const w = Math.max(1, Math.min(DG_PANEL_W, vw - DG_GUT * 2));
+  const left = Math.max(DG_GUT, Math.min(gear.right - w, vw - DG_GUT - w));
+  const below = vh - gear.bottom - 6 - DG_GUT;
+  const above = gear.top - 6 - DG_GUT;
+  // Flip up only when there is genuinely MORE room up there: a panel that flips with
+  // 150px below and 140px above is just as short and now upside down.
+  const up = below < DG_PANEL_MIN_H && above > below;
+  // The room is what there is. A cramped scroll box that can reach every control beats a
+  // taller one whose bottom is off screen — see the note above. The 1 is degeneracy only:
+  // a gear below the viewport would otherwise yield a negative height.
+  const offset = up ? Math.max(DG_GUT, vh - gear.top + 6) : Math.max(DG_GUT, gear.bottom + 6);
+  // ⚠ THE HEIGHT IS DERIVED FROM THE OFFSET THAT WAS ACTUALLY USED, and that is ONE
+  // expression rather than a cap plus a floor. The box hangs `offset` from one edge, so
+  // `offset + height` has to clear the other gutter — which is the same arithmetic in both
+  // orientations, and is exactly `above`/`below` whenever the gear is on screen.
+  //
+  // A separate `room = max(1, up ? above : below)` term used to sit in front of this and is
+  // deleted rather than kept: it is redundant everywhere the gear is visible, and WRONG
+  // where it is not. With the gear scrolled past the viewport (or on the frame before a
+  // scroll reposition lands) `above`/`below` measure a span that is partly off screen while
+  // the offset has already been floored at the gutter, so the box started above the
+  // viewport top — measured at vh 100 with the gear at 120: box top −14. Deriving the
+  // height from the offset makes that unrepresentable instead of guarded against.
+  return { left: left, width: w, up: up, offset: offset, maxHeight: Math.max(1, vh - offset - DG_GUT) };
+}
+
 function DgCardSettings({ groups }) {
   const [open, setOpen] = React.useState(false);
   const boxRef = React.useRef(null);
+  // ⚠ THE PANEL IS PORTALED OUT OF THE CARD, AND THAT IS NOT A STYLE CALL — MEASURED.
+  // `.dash-gridstack .grid-stack-item-content` is `overflow:hidden!important` (it has to
+  // be: the card's own height measurement below only reports the true content height
+  // because of it), and an absolutely-positioned child does not grow the box it hangs
+  // in. On the KPI strip — a 110px card carrying a four-group panel — the slot pickers
+  // measured at y 59–86 / 112–139 / 165–192 / 218–245, so THREE OF FOUR fell outside the
+  // clip box: a coach could change the first slot and nothing else. The elements were
+  // all in the DOM the whole time, which is exactly why counting them passed and only
+  // reading their geometry against the card failed. (Codex, #2046.)
+  const panelRef = React.useRef(null);
+  const [box, setBox] = React.useState(null);
+  const place = React.useCallback(() => {
+    const el = boxRef.current;
+    if (!el || !el.getBoundingClientRect) return;
+    const d = document.documentElement;
+    setBox(dgPanelBox(el.getBoundingClientRect(), d.clientWidth, d.clientHeight));
+  }, []);
+  React.useLayoutEffect(() => { if (open) place(); }, [open, place]);
   React.useEffect(() => {
     if (!open) return undefined;
-    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    // `capture` because the dashboard scrolls in its own containers as well as the
+    // window, and a fixed panel that does not follow its gear points at nothing.
+    const on = () => place();
+    window.addEventListener("scroll", on, true);
+    window.addEventListener("resize", on);
+    return () => { window.removeEventListener("scroll", on, true); window.removeEventListener("resize", on); };
+  }, [open, place]);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    // ⚠ THE PORTAL BREAKS `contains`, so the away test asks BOTH nodes. With only the
+    // gear's wrapper tested, the first click inside the panel reads as a click outside
+    // it and closes the thing you are using.
+    const away = (e) => {
+      const inGear = boxRef.current && boxRef.current.contains(e.target);
+      const inPanel = panelRef.current && panelRef.current.contains(e.target);
+      if (!inGear && !inPanel) setOpen(false);
+    };
     const esc = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
@@ -187,16 +287,62 @@ function DgCardSettings({ groups }) {
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         style={{ ...btn, color: open ? "#2ee0c4" : DG_MUTE }}>⚙</button>
-      {open && (
-        // ⚠ RIGHT-ALIGNED AND CLAMPED TO THE VIEWPORT. The gear sits at the card's top
-        // right, so a left-anchored panel would hang off the page on the rightmost
-        // column of a two-up grid.
-        <div onMouseDown={(e) => e.stopPropagation()} style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, zIndex: 20,
-                     minWidth: 176, maxWidth: "min(240px, calc(100vw - 24px))", background: "rgba(26,22,18,0.98)",
-                     border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" }}>
+      {open && box && ReactDOM.createPortal(
+        // ⚠ FIXED AND RIGHT-ALIGNED ON THE GEAR, clamped into both gutters by
+        // `dgPanelBox`. The gear sits at the card's top right, so a left-anchored panel
+        // would hang off the page on the rightmost column of a two-up grid; and the
+        // panel is taller than most cards, so it scrolls rather than running off the
+        // bottom of the screen.
+        <div ref={panelRef} onMouseDown={(e) => e.stopPropagation()}
+             style={Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
+                     maxHeight: box.maxHeight, overflowY: "auto", background: "rgba(26,22,18,0.98)",
+                     border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" },
+                     box.up ? { bottom: box.offset } : { top: box.offset })}>
           {groups.map((g) => (
             <div key={g.key} style={{ padding: "2px 6px 6px" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
+              {/* ⚠ CHIPS UNTIL THE LIST IS LONG, THEN A SELECT — and the threshold is the
+                  panel, not a preference. This popover is 176–240px wide, so a group of
+                  eleven options wraps to five rows of chips and four such groups fill the
+                  screen; a native select holds any length in one line, is keyboard- and
+                  screen-reader-native, and on a phone opens the platform picker. Short
+                  groups keep the chips, which read the current value at a glance. */}
+              {g.options.length > DG_SELECT_AT ? (
+                <select
+                  className="dash-setpick-sel"
+                  value={String(g.value)}
+                  aria-label={g.label}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  // ⚠ THE ORIGINAL VALUE IS HANDED BACK, NOT THE DOM STRING. A select's
+                  // value is always a string, so passing it through would silently change
+                  // a numeric or boolean option's type on its way to the widget — the
+                  // chips above hand back `o.v` untouched and this has to match them.
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const picked = g.options.filter((o) => String(o.v) === e.target.value)[0];
+                    if (picked) g.onPick(picked.v);
+                  }}
+                  style={{ width: "100%", padding: "6px 22px 6px 8px", borderRadius: 6, cursor: "pointer",
+                           border: "1px solid rgba(242,237,228,0.16)",
+                           // ⚠ `appearance: none` TAKES THE NATIVE ARROW WITH IT, so the chevron
+                           // is drawn back — otherwise the control reads as a plain box and
+                           // nothing on it says it opens. The colour is a background LAYER, so
+                           // it must be the FINAL one: a colour in any earlier layer voids the
+                           // whole declaration, which is how two page textures once made every
+                           // background transparent.
+                           backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'><path d='M1 1l3.5 3.5L8 1' fill='none' stroke='%23f2ede4' stroke-opacity='.55' stroke-width='1.4'/></svg>\")",
+                           backgroundRepeat: "no-repeat",
+                           backgroundPosition: "right 8px center",
+                           backgroundColor: "rgba(242,237,228,0.06)",
+                           color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                           letterSpacing: "0.04em", appearance: "none" }}>
+                  {g.options.map((o) => (
+                    // The option list is painted by the OS, which does not inherit the panel's
+                    // ink — an explicit dark color keeps it readable on a light platform menu.
+                    <option key={String(o.v)} value={String(o.v)} style={{ color: "#000" }}>{o.label}</option>
+                  ))}
+                </select>
+              ) : (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {g.options.map((o) => {
                   const on = o.v === g.value;
@@ -210,9 +356,11 @@ function DgCardSettings({ groups }) {
                   );
                 })}
               </div>
+              )}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );

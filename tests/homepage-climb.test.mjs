@@ -31,6 +31,30 @@ function radioSection(html) {
   return m ? m[0] : '';
 }
 
+/** The `.air` card itself, matched by walking div depth from its opening tag.
+ *
+ *  ⚠ THE SECTION IS TOO WIDE A SCOPE FOR THIS — CodeRabbit, #2045. The section
+ *  holds a text column as well as the card, so asserting "somewhere in #radio
+ *  there is an exlabel" is satisfied by a label sitting beside the headline
+ *  while `.air` carries an unlabelled ON AIR chip. The label has to be bound to
+ *  the thing it labels, which means matching the card, which means counting
+ *  nested divs rather than reaching for a lazy `[\s\S]*?</div>`. */
+function airCard(html) {
+  const open = /<div[^>]*class="[^"]*\bair\b[^"]*"[^>]*>/.exec(html);
+  if (!open) return '';
+  const start = open.index;
+  let i = start + open[0].length;
+  let depth = 1;
+  const tag = /<(\/?)div\b[^>]*>/g;
+  tag.lastIndex = i;
+  let m;
+  while ((m = tag.exec(html))) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return html.slice(start, m.index + m[0].length);
+  }
+  return '';
+}
+
 test('an ON AIR chip on the homepage is labelled as an example', () => {
   // ⚠ THE RULE IS NOT "NEVER SAY ON AIR" — IT IS "NEVER CLAIM IT UNLABELLED".
   // /api/radio/now-playing falls through to the mock provider (public.radio_station
@@ -40,20 +64,29 @@ test('an ON AIR chip on the homepage is labelled as an example', () => {
   // The card may still SHOW the chip, because this page's own convention is to
   // label illustrative content — the same `.exlabel` the marketplace cards and the
   // phone captures carry. What is forbidden is the chip without the label.
-  const card = radioSection(SRC);
-  assert.ok(card, 'no #radio section found — the scan is broken, not the page');
+  const section = radioSection(SRC);
+  assert.ok(section, 'no #radio section found — the scan is broken, not the page');
+  const card = airCard(section);
+  assert.ok(card, 'no .air card found inside #radio — the scan is broken, not the page');
+  assert.ok(
+    card.length < section.length,
+    'the .air matcher swallowed the whole section — the div walk is broken, so a label ' +
+      'anywhere in #radio would satisfy a card-level assertion',
+  );
 
+  // The chip and its label must live in the SAME card, or the label is not
+  // labelling the claim.
   if (/\bON\s*AIR\b/i.test(card)) {
     assert.match(
       card,
       /class="exlabel"/,
-      'the Radio card shows ON AIR with no example label — that is an unlabelled ' +
-        'liveness claim, and the station is not broadcasting',
+      'the Radio card shows ON AIR with no example label of its own — that is an ' +
+        'unlabelled liveness claim, and the station is not broadcasting',
     );
     assert.match(
       visibleText(card),
       /\bExample\b/i,
-      'the Radio card carries an exlabel element whose text does not say Example',
+      "the card's exlabel does not say Example",
     );
   }
 

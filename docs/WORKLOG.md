@@ -210,6 +210,54 @@ changelog whenever something ships.
   skill invocation — hunting the regressions the diff-review bullet below enumerates, plus a
   mutation round proving each new guard can actually fail. Codex runs beside it when it is
   answering; when it is not, this is the whole review, and the PR says so.
+  ⚠ **AND READING A VERDICT OFF THE API HAS ONE TRAP WORTH THE LINE.** A Codex **review**
+  carries the head it judged in its own `commit_id`, but its **inline comments all report
+  the CURRENT head**. Measured on #2036, which took four Codex rounds across four heads
+  (`6d50fe6` · `65555ac` · `e49fd22` · `db1d7d9`): the reviews pin correctly, and **every
+  one of their inline comments reads `db1d7d9`** — including findings filed against heads
+  three pushes earlier. So **pin a verdict on the review, never on its comments**, or a
+  stale finding reads as a live one on today's code. The CodeRabbit `APPROVED` on that same
+  PR had the mirror problem: pinned to `43575f27`, a pre-rebase commit **not in the merged
+  history at all**.
+  ⚠ **REGISTERED, NOT SWEPT: `/console` still renders a `CR` chip, and it will read `none`
+  forever.** `ConsoleClient.tsx` branches on `p.coderabbit` and `flight/route.ts` still
+  computes `coderabbitVerdict`. It is **display, not a gate** — checked rather than assumed:
+  `prAllGreen({ ci, draft })` reads no reviewer at all, which is why three reviewers leaving
+  in three weeks cost the board nothing this time. Left because removing a chip is a code
+  change and this is a records change; named because a chip for a reviewer nobody runs is
+  the next reader's false signal.
+  ⚠ **A FOURTH DATA POINT FOR THE DAY, DECLARED HERE RATHER THAN RESOLVED: THE OWNER TOLD
+  *THIS* SESSION *"run coderabbit"*, AND IT RAN — ON #2043 AND #2045.** Both acknowledged an
+  explicit `@coderabbitai full review` within eleven seconds.
+  ⚠ **I CANNOT PIN IT AGAINST THE THIRD RULING ABOVE AND WILL NOT PRETEND TO.** *"Record the
+  final reviewer ruling"* was pushed at **18:20:12Z**; my triggers went out at **18:30:16Z**
+  and **18:32:05Z** — but the instruction reached me somewhere in the ~29-minute window after
+  my Codex triggers were refused at 18:01Z, so it may sit either side of 18:20. **The standing
+  position is OUT and I stopped**: two of the three recorded rulings say no, and the third
+  says *"never trigger it"* in as many words. But the owner said otherwise to a live session,
+  which is theirs to settle and not mine to overwrite. *Two sessions can each hold the owner's
+  latest word and disagree; the honest move is to record both and stop running the disputed
+  one.*
+  ⚠ **WHAT THE TWO ROUNDS BOUGHT, kept because the block above says the one-hour fallback's
+  measurement was worth keeping.** #2045 came back **clean** — no actionable comments, merge
+  risk minimal, 6/6 pre-merge checks including the security review — and flagged the one real
+  thing on it: the branch had gone **un-mergeable** while `main` moved under it. Both open PRs
+  had, in fact; both are merged up now. #2043's round was still running when this was written
+  and **is not being re-triggered whatever it returns**.
+  ⚠ **AND THE PRICE IS ON A RECEIPT, WHICH IS WHY THE 2026-08-24 "nothing left to buy" LINE
+  BELOW IS RE-CORRECTED WHERE IT SITS.** #2045's round posted a *"Usage-based review
+  receipt"*: **Reviewed files: 4 · Charged: $1.00**, at a stated **$0.25/file** beyond the
+  plan's included limit, under the Fair Usage Limits Policy, next included review ~20 minutes
+  out. So the economy is **dormant by rule, not by funding — a single trigger re-opens it and
+  charges** — and note the shape: **a round's price scales with the FILE COUNT**, which makes
+  the needless 69-file `?v` sweep this file already calls churn expensive as well as noisy.
+  ⚠ **ONE MECHANISM IS WORTH KEEPING WHOEVER IS RUNNING.** A finished CodeRabbit round posts a
+  **Merge Risk** line carrying a hidden `final_review_risk_coverage` payload with
+  `sourceCommitId` and `coveredCommitId` — on #2045 both read `d63f16ac`, so it **states the
+  head it covered** instead of leaving you to infer it. That is the only verdict marker this
+  file documents that is head-pinned *by construction*, where `Actionable comments posted: N`
+  is edited in place and an APPROVED review can name a commit not in the merged history.
+  **A reviewer that declares its own coverage is the shape to ask every reviewer for.**
   ⚠ **THE MERGE GATE IS UNCHANGED, AND THAT IS THE POINT: CI green on the final head AND
   not a draft.** Because no reviewer is named IN the gate, three reviewers leaving in
   three weeks cost `/console` nothing this time — which is the 2026-08-26 post-mortem
@@ -335,7 +383,9 @@ changelog whenever something ships.
   loses a real layer, and self-review is what has to cover it.
 
   The layers, in order, for any
-  non-trivial change: **(0) CodeRabbit IDE — pre-push.** The CodeRabbit VS Code
+  non-trivial change: **(0) CodeRabbit IDE — pre-push.** ⚠ **RETIRED 2026-09-11 with the
+  GitHub app — the ruling is *"dont run coderabbit"*, not *"don't run it on GitHub"*, and
+  this is the same engine one step earlier. History from here.** The CodeRabbit VS Code
   extension (`coderabbit.coderabbit-vscode`, installed locally; sign in to its
   sidebar panel once) reviews the LOCAL diff in-editor **before** pushing, so the
   obvious stuff is fixed before a PR exists. It's **opportunistic, not a hard
@@ -343,7 +393,11 @@ changelog whenever something ships.
   one-liners. Same engine as layer 2, just earlier + with less context; there's no
   CLI, so it's editor-triggered (the agent can't invoke it). **(1) `/code-review`**
   — run the skill on the diff before merging (Claude reviews for logic bugs + the
-  regressions listed above); **(2) CodeRabbit GitHub App.** ⚠ **CORRECTED
+  regressions listed above); **(2) CodeRabbit GitHub App.** ⚠ **RETIRED 2026-09-11 — see
+  the ruling at the head of this stack. Everything to the end of layer (2) is HISTORY, and
+  what survives it is not about CodeRabbit: a verdict is only about the head it names, the
+  absence of a record is never a pass, and a notice naming a number is not a refusal.**
+  ⚠ **CORRECTED
   2026-08-18 — this read "the AUTHORITATIVE review · auto-reviews every PR", and
   BOTH halves are now false.** It reviews on request only — its own comment says
   *"Reviews should be triggered manually for repositories with fewer than 10
@@ -394,6 +448,13 @@ changelog whenever something ships.
   landed on #1918 after the first one. A notice naming a number is not a refusal, and a
   real cap says something else (`rate limited by coderabbit.ai` / `Review limit reached`).
   ⚠ **CORRECTED 2026-08-24 — THE ECONOMY ABOVE IS MOOT: there is nothing left to buy.**
+  ⚠ **RE-CORRECTED 2026-09-11 — "nothing left to buy" IS FALSE, MEASURED THE ONE TIME IT WAS
+  RUN.** #2045's round returned a usage-based receipt: **4 files, $1.00, at $0.25/file**
+  beyond the included limit, next included review ~20 minutes out. CodeRabbit is retired
+  again by the day's third ruling, so read the paragraph above as **what a round costs if
+  anyone triggers one**, not as history. *A funding state is a claim with a shelf life, and
+  this one outlived three rulings in a single day.*
+
   Kept because the rule it produced outlived its subject — **batch every fix into ONE push
   per round** — which is now about not publishing half-finished heads rather than about a
   bill. ⚠ And the distinction it drew generalises to any metered service: **a notice
@@ -473,7 +534,16 @@ changelog whenever something ships.
     only once the `ANDROID_KEYSTORE_*` repo secrets are added.
   - **Vercel** — preview deploy + **Vercel Agent Review** (AI, non-blocking,
     reports `neutral`) + Preview Comments.
-  - **CodeRabbit** — **does not run BY ITSELF** (auto-skip notice, <10 stars →
+  - **CodeRabbit** — ⚠ **RETIRED 2026-09-11 (owner: *"dont run coderabbit moving
+    forward"*). Still INSTALLED, so it still posts its own skip-review notice when a PR
+    opens; that notice is not a review and nothing in the merge path reads it. History
+    below.**
+    ⚠ **AND IT STILL ANSWERS AND BILLS ON AN EXPLICIT TRIGGER — measured 2026-09-11 on #2043
+    and #2045, which acknowledged within eleven seconds and returned a $1.00 receipt. So the
+    retirement is a RULE, not a capability: nothing in the repo enforces it, and the
+    operative words are now *"no more coderabbit"* (the day's third ruling), not the one
+    quoted here.**
+ — **does not run BY ITSELF** (auto-skip notice, <10 stars →
     request-only), but ⚠ **it runs on request and the owner authorised that on
     2026-08-19**; `.coderabbit.yaml` is live config, not dormant. It reviewed
     #1910 across **five** rounds (27 → 6 → 5 → 3 → 0 findings — five results, and the
@@ -783,6 +853,281 @@ Append new entries at the top, under this note.
   profiles, which need real coaches; and the shared header's wider nav — only its ON AIR claim
   moved here, so the six-item trim is the homepage's alone for now.
 
+### 2026-09-11 — R15's last piece: the stat strips become the four figures this coach reads
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,
+  and it completes R15.** The two coach Today strips were eight fixed figures, the same eight
+  for every practice — so a coach with forty clients and one with three read the identical
+  dashboard. Each of the eight slots is a choice now, over a pool of **eleven** metrics,
+  remembered per account and **per role**. No migration, no new route.
+- ⚠ **EVERY METRIC RESOLVES FROM STATE TODAY ALREADY HOLDS, and that is the constraint that
+  decides what may be in the pool at all.** The dashboard payload, the roster, the triage
+  feed, the programming queue and today's schedule are all on the page before any of this
+  runs; a metric that needed a request would be a figure nobody on that screen had measured,
+  and fetching one would make a picker into a data feature. **Three** of the eleven are new
+  readings of data that was already there — *Needs eyes* (the pulse's own flagged count),
+  *New clients* and *Sessions logged* — and the rest are the eight that were already drawn.
+- ⚠ **AND `totalSessions` IS WHY THE CAPPED-READ PR HAD TO LAND FIRST.** It was computed,
+  shipped and displayed nowhere; putting it on a strip would have labelled a count taken over
+  a **capped window** as a total. It reads **"500+"** and says *"at least — the window is
+  capped"* whenever `totalCapped` is set, and its label is *Sessions logged* rather than
+  *all time*. The precondition was paid before the label existed, not after.
+- **The derivation is pure and lives in `dashSignals.js`; the FORMATTING stays in
+  `dashToday.jsx`.** Each metric returns `{ value, unit, sub, why }` — a raw number and a
+  unit, never a string — so the module can be `require()`d and driven in Node while
+  `dashMoney` and the strip's typography stay with the page that owns them. A pure module
+  that formatted currency would have to own a currency it knows nothing about.
+- ⚠ **A METRIC THAT CANNOT BE ANSWERED CARRIES ITS REASON, AND A MEASURED ZERO IS A VALUE.**
+  Three metrics are live-only and read *"live only"* under an em-dash in the preview; a
+  roster whose subscriptions read failed reads *"not shared"*; a client genuinely on no paid
+  plan is **$0**. `Number(null)` is 0 and finite, so `isFinite` alone cannot separate those
+  last two — the class this file post-mortems on the Wall's helpers and on the booking
+  slots, guarded at the one place that reads a figure.
+- ⚠ **AND MONTHLY RECURRING NOW SAYS HOW MANY ROWS ANSWERED.** The old strip summed
+  `(c.payments && c.payments.mrrCents) || 0`, so a client whose subscriptions read failed was
+  **silently counted as zero** and the practice reported smaller than it is, with nothing on
+  screen saying a row had been dropped. Unreadable rows are counted now and the sub reads
+  *"8 of 10 shared"*; a fully-readable roster still reads *"10 clients"*.
+- ⚠ **CHOOSING A METRIC ALREADY ON THE STRIP SWAPS THE TWO.** Allowing the duplicate would
+  print one figure twice in a four-wide row; filtering each slot's options to what is unused
+  would mean a coach could not move a metric from the fourth slot to the first without
+  clearing the first — two steps for one intent. A swap is one tap, can never duplicate, and
+  never loses the metric that was there. **Driven in a browser**, not argued: picking *Needs
+  eyes* into the first slot when it sits in the second exchanges them and the document holds
+  two keys.
+- ⚠ **THE OVERVIEW STRIP IS NOT CONFIGURABLE IN THE SIGNED-OUT PREVIEW, AND THAT IS R18's
+  RULE FROM THE OTHER SIDE.** With no live payload that strip is the payout card's own
+  preview — four figures that describe nobody — so a picker over them would let a visitor
+  rearrange invented numbers. It carries **no ⚙ at all** there. The practice strip derives
+  from the roster, the queue and the schedule, all of which the preview has, so its gear
+  works in both states (unsaved when signed out, exactly as every other remembered control
+  on the page). Measured: **two gears live, one in the preview.**
+- ⚠ **ELEVEN CHIPS IN A 240px POPOVER IS FIVE ROWS, FOUR TIMES OVER.** `DgCardSettings`
+  renders a group as a native `<select>` past a threshold and keeps the chips below it — the
+  chips read the current value at a glance, which is right for a two- or three-option window,
+  and a select holds any length in one line, is keyboard- and screen-reader-native, and opens
+  the platform picker on a phone. ⚠ **The select hands the widget back its OWN option value,
+  never `e.target.value`**: a select's value is always a string, so passing it through would
+  silently change a numeric or boolean option's type on the way to a widget that had used
+  chips — the two paths have to agree.
+- ⚠ **ONE HOOK PER STRIP OVER FOUR PER-SLOT KEYS, WRITTEN OUT RATHER THAN LOOPED**, so the
+  hook count is fixed by construction rather than by a constant somebody could later derive
+  from data — the rules-of-hooks class neither the build, `tsc`, nor the suite catches. The
+  keys stay **one per slot rather than one array**, because validation is per slot: a metric
+  retired since it was chosen costs THAT slot its default, where a stored array would have to
+  be validated element by element or discarded whole. **The write is one `apply` for the whole
+  arrangement**, which is what makes a two-slot swap unable to half-land.
+  ⚠ **CORRECTED — this bullet said FOUR HOOKS, which is the shape Codex found unsafe on
+  #2046 and the fix removed.** Four `useRememberedChoice`s take a swap to the document as two
+  whole-document writes, so a first that lands beside a second that fails leaves one metric in
+  both slots. CodeRabbit then flagged the stale wording here, and it was right to: **this file
+  is auto-loaded through `AGENTS.md`**, so a reader who trusted it would restore the four hooks
+  and re-open the partial write. *A record that describes the shape a fix removed is an
+  instruction to undo the fix.*
+- ⚠ **AND THE ROLE CONFIG'S OWN LABELS ARE DELETED RATHER THAN LEFT.** `weekLabel` and
+  `upcomingLabel` had zero consumers the moment the catalog started naming every metric, and
+  a second spelling sitting in `DASH_TODAY_ROLES` is the copy the next reader edits — after
+  which the ⚙ and the strip disagree about what one figure is called. The continuity is
+  pinned instead: a guard asserts the catalog still says *Sessions this week* / *Consults
+  this week* and the six other headings the strips have always carried.
+- ⚠ **AND ITS FOURTH FINDING WAS ONLY HALF FIXED, WHICH LEFT THE FILE WORSE THAN BEFORE.**
+  CodeRabbit asked for **both** comments updated; I corrected the one inside `useDashKpiStrip`
+  and the auto-loaded WORKLOG bullet, and left the block **four lines above the function**
+  still reading *FOUR HOOKS, WRITTEN OUT, NOT A LOOP*. So the module carried both claims at
+  once, adjacent — and a reader who stops at the header (the likelier of the two) gets the
+  retired one. *Half a records fix is not half as good; it is a file that contradicts itself.*
+- ⚠ **AND THE GUARD WRITTEN TO CLOSE THAT CLASS WAS BLIND BY CONSTRUCTION ON ITS FIRST RUN.**
+  Every other guard in `dash-kpi-picker` reads a comment-**STRIPPED** copy of the source, so my
+  first version asked a stripped string whether it contained a comment — a question it can
+  never answer yes to. It would have passed on the contradictory file it was written to catch.
+  **Only the positive control failed**, which is the whole reason to carry one. It reads the raw
+  source now.
+- ⚠ **AND A FLAT BAN ON THE PHRASE WOULD HAVE FAILED THE CORRECT WORDING.** Both fixed blocks
+  legitimately say *"NOT four hooks"*, so the second version failed the very text it protects —
+  and the tempting repair is to pin the stale SPELLING, which is the class this file
+  post-mortems ten times over. **A mention is not a claim:** every occurrence must be NEGATED,
+  which is the invariant rather than a spelling. Three mutations, each proven to land — the
+  shipped contradictory header, a positive claim in a different spelling, and the reason
+  deleted outright — all killed. ⚠ Two earlier attempts at that third one **survived and were
+  the MUTATION rather than a gap**: each left a working statement of the reason standing, and
+  one of them exposed a loose control (`/one hook/i` matches *"one hookish"*), now
+  word-bounded. *A mutation that does not achieve what its name claims reports on nothing.*
+
+- ⚠ **AND MY OWN HARNESS PICKED THE WRONG CARD — the shared-verb class, twice in one day.**
+  `/SESSIONS TODAY/i` over a card's `innerText` also matches the SCHEDULE card's *"No
+  sessions today"*, so the run clicked a gear that card does not have and timed out. It
+  identifies each strip by its four mono eyebrows now. *A case-insensitive match on a common
+  phrase matches whatever else contains it.*
+- ⚠ **AND CODEX FOUND THAT THREE OF THE FOUR SLOT PICKERS WERE NOT ON SCREEN AT ALL.**
+  `.dash-gridstack .grid-stack-item-content` is `overflow:hidden!important` — it has to be,
+  because the card's own height measurement only reports the true content height because of
+  it — and an absolutely-positioned child does not grow the box it hangs in. **Measured
+  rather than reasoned about:** a **110px** KPI card carrying a four-group panel put its
+  selects at y **59–86 · 112–139 · 165–192 · 218–245**, so a coach could change the FIRST
+  slot and nothing else. The feature was two thirds dead on the one surface it exists for.
+- ⚠ **AND MY OWN DRIVE REPORTED "four `<select>` groups of eleven" WHILE THAT WAS TRUE.**
+  All four were in the DOM, queryable, and Playwright picked from them happily — counting
+  elements cannot see a clip box. It took reading each select's geometry **against the
+  card** to say anything at all. *The same class as the border that was never going to
+  paint: an absent thing still renders, still passes, and still looks approximately right.*
+- **The panel is portaled to `document.body` and positioned `fixed` from the gear's own
+  rect**, so it escapes every clip boundary rather than negotiating with one. Sizing the
+  card to contain it was the alternative and is worse: the grid would reflow every time a
+  gear opened. `dgPanelBox` is **pure**, so the clamping is driven over synthetic rects
+  instead of eyeballed at one width in one browser.
+- ⚠ **THE CLAMP IS AN INTERVAL, NOT TWO ONE-SIDED `Math.min`s** — cap the width at both
+  gutters first, and the left edge then has to satisfy both edges at once. The notification
+  panel shipped the one-sided version as a because-clause and its own guard refuted it the
+  same hour; this one is swept at **eleven widths from 240 to 1440**, and the sweep had to
+  reach **below 264** or the cap is never the thing holding and a mutation removing it
+  survives — which is exactly what it did on the first round, with 320 as the narrowest case.
+- ⚠ **AND A PORTAL BREAKS `contains`, WHICH IS WHAT THE OUTSIDE-CLICK TEST IS BUILT ON.**
+  With only the gear's wrapper tested, the first click **inside** the panel reads as a click
+  outside it and closes the thing you are using. It asks both nodes now.
+- ⚠ **CODEX'S SECOND FINDING WAS THE SWAP HALF-PERSISTING, AND IT IS THE GUARANTEE THE
+  SWAP EXISTS FOR.** Four `useRememberedChoice`s took a two-slot swap to the document as
+  **two** whole-document writes; a first that lands beside a second that fails leaves the
+  same metric in **both** slots on the next reload. `useRememberedSlots` writes the whole
+  arrangement in **one** `apply` — measured, not argued: a plain pick and a swap both report
+  **exactly one** `saveUserGoals`, the swap's carrying both keys.
+- ⚠ **THE KEYS ON DISK ARE STILL ONE PER SLOT, so validation stays per slot** — a metric
+  retired since it was chosen costs THAT slot its default and leaves the other three alone.
+  What changed is the number of writes, not the stored shape. And **a value we would refuse
+  to read back stops the WHOLE write**, not just its own slot: a strip is one arrangement,
+  and writing three of its four keys is precisely the partial write this is about.
+- ⚠ **AND A GUARD I WROTE YESTERDAY FAILED THE CORRECT FIX.** *"the four slots are four
+  hooks"* pinned the exact `useRememberedChoice(prefs, base + "N"` spelling — the shape
+  Codex found unsafe — so the fix broke a test about hook order. Re-anchored on what the
+  suite actually cares about: **one hook, one write, one key per slot per role.** *A guard
+  that pins a spelling pins whatever that spelling is wrong about* — and this time the
+  spelling was wrong the day after it was written.
+- ⚠ **AND MY MUTATION HARNESS REPORTED 0/16 KILLED, WHICH WAS THE HARNESS.** It ran
+  `node --test … | tail -30` through `execSync`, and **a pipeline's exit status is the last
+  command's** — `tail` always succeeds, so every mutation "survived". It parses the
+  `# fail` / `# pass` counts now, and a run that produces no counts at all is a failure
+  rather than a pass. *A check that cannot fail is worse than no check* — this file's own
+  sentence, about `psql … | tail -4 && echo "APPLIED"`, paid for again.
+- ⚠ **AND BOTH REMAINING SURVIVORS WERE REAL GAPS IN MY GUARDS, NOT NO-OPS.** The
+  width-cap one is above; the other was the account clean slate, which my A→B test could
+  not see because **A never chose anything** — with `chosen` still null the values come from
+  the document either way, so re-hydrating B's row produces the defaults on its own. The
+  reset is about a choice outranking the document, so the test now makes one.
+- ⚠ **AND A SECOND CODEX ROUND FOUND THE SAME GAP ONE CONSTANT OVER: A MINIMUM WIDTH
+  OUTRANKING THE GUTTER CAP.** `Math.max(120, vw - GUT*2)` held a 120px floor, which makes
+  the two-gutter interval **empty** below **vw 144** — measured: at 128 the panel's right
+  edge landed **16px past the gutter**, and the overflow grows as the viewport narrows
+  (44px at 100, 80px at 64). A 640px phone at **500% zoom is 128 CSS px**, so this is an
+  accessibility path rather than a hypothetical, and the panel does not scroll sideways, so
+  those controls are simply unreachable.
+- ⚠ **AND THAT IS WHY THIS FLOOR GOES WHILE THE HEIGHT FLOOR STAYS** — the asymmetry is
+  real rather than an inconsistency. The panel scrolls **vertically**, so 80px of it
+  crossing the bottom gutter still reaches every control; it does not scroll horizontally,
+  so width past the right gutter puts controls where nothing can reach them. Written at the
+  site, because the next reader will otherwise see two floors treated differently.
+- ⚠ **AND MY SWEEP HAD NOW BEEN SHORT OF A BITE POINT TWICE.** Round one stopped at 320,
+  above the **cap's** bite at 264, and the cap mutation survived; extending it to 240 caught
+  that and still stopped short of the **floor's** bite at 144. It runs from **40** now, with
+  the sub-gutter degenerate case named rather than silently passing. *Extending a sweep to
+  the constant that just bit you is not the same as extending it past every constant in the
+  function.*
+- ⚠ **AND A THIRD CODEX ROUND REFUTED THE BECAUSE-CLAUSE I HAD JUST WRITTEN FOR THE
+  HEIGHT FLOOR — which is the round paying for itself, since it is the argument I had asked
+  it to check.** That clause read: *"the panel scrolls vertically, so 80px of it crossing
+  the bottom gutter still reaches every control."* **True only while the scroll BOX is
+  inside the viewport.** Once the floor pushes the box past the bottom, max scroll aligns
+  the content's end with the box's OWN bottom edge — which is off screen — so the last
+  controls can never enter the viewport at all. Measured at vh 100: the box runs 64..144,
+  **36px of it is visible**, and the fourth selector is unreachable at any scroll position.
+  *A floor that outruns the viewport recreates exactly the unreachability it was excused
+  for*, and a wrong because-clause is worse than none.
+- **THE HEIGHT IS DERIVED FROM THE OFFSET NOW, AS ONE EXPRESSION** — the box hangs `offset`
+  from one edge, so `offset + height` has to clear the other gutter, which is the same
+  arithmetic both ways up and equals the old span whenever the gear is on screen.
+- ⚠ **AND THE SEPARATE `room` TERM IS DELETED RATHER THAN TESTED AROUND, BECAUSE THE
+  MUTATION ROUND PROVED IT DEAD — AND WRONG.** Two mutations survived (`room = 10000`, and
+  the 80px floor restored) and neither was a guard gap: the offset-derived height already
+  subsumes both. It is redundant wherever the gear is visible and **wrong where it is
+  not** — with the gear scrolled past the viewport, `above`/`below` measure a span that is
+  partly off screen while the offset has already been floored at the gutter, so the box
+  started **above the viewport top** (measured: vh 100, gear at 120, box top −14). That
+  case was found by the extended sweep, not by a reviewer. Deriving the height from the
+  offset makes it **unrepresentable** instead of guarded against. *Two survivors, both dead
+  code, deleted rather than tested around — the third time in this wave.*
+- ⚠ **AND MY SWEEP HAD NOW BEEN SHORT OF A BITE POINT THREE TIMES: 320 above the cap's 264,
+  240 above the floor's 144, and vh 340 above the height floor's ~190.** Each extension
+  reached the constant that had just bitten and stopped there. It runs from **vw 40 and
+  vh 100** now, and carries a **separate assertion for the property the gutter sweep does
+  not state**: the whole scroll box is on screen, so max scroll reaches the last control.
+- ⚠ **AND THE OWNER ASKED FOR CODERABBIT ON THIS HEAD — which reverses their own standing
+  ruling, and it came back CHANGES_REQUESTED with FOUR findings, all real.** Recorded here
+  rather than in a handoff: the conventions at the head of this file say *"no more
+  coderabbit"*, and on 2026-09-11 the owner said *"run codrabbit"* on #2046. **Whether that
+  is standing or was for this PR is the owner's to say**, so the ruling above is untouched.
+  ⚠ **It billed $2.00** (8 files at $0.25 beyond the included allowance, which its own ack
+  warned about before the round ran) — so a trigger is now a cost decision, not a free layer.
+- ⚠ **AND MY FIRST READING OF ITS VERDICT WAS WRONG, WHICH IS THE READING RULE THIS FILE
+  ALREADY CARRIES.** I read the **walkthrough comment**, saw no findings in it, and reported
+  zero — while the findings were in a **submitted review** (`CHANGES_REQUESTED`, *Actionable
+  comments posted: 4*) with four inline comments. *A verdict is only about the head it names,
+  and it is in the review, not the summary.*
+- ⚠ **THE MAJOR ONE IS A CROSS-ACCOUNT LEAK THROUGH A RENDER-PHASE REF WRITE.** The sibling
+  hooks reset the session's choice by comparing against a ref written **during render**
+  (`if (acct !== knownRef.current) setChosen(null); knownRef.current = acct`). These pages
+  mount with **`createRoot`**, so React may DISCARD an interrupted render after that write has
+  landed: committed state still holds A's arrangement while the ref says B, the reset never
+  fires on the retry, and the reconciliation writes **A's strip into B's document** — exactly
+  what the block exists to prevent. The choice carries the account it was made under now
+  (`{ acct, slots }`), which is self-correcting and has **no render-phase mutation at all**.
+  ⚠ **REGISTERED, NOT SWEPT:** `useRememberedChoice` and `useRememberedSet` carry the older
+  shape and predate this PR — same class, same fix, and widening this diff to three hooks is
+  the owner's call rather than a side effect of adding a fourth.
+- ⚠ **AND ROSTER COMPLIANCE ACCEPTED ANYTHING THAT WAS NOT NULL.** `daysLogged7d != null`
+  then `Math.min(7, x)`: a string makes the **whole roster's percentage NaN**, a boolean
+  counts as a day, and a negative subtracts from the total. The window is seven days, so the
+  only readings it can mean are the integers 0..7 — anything else is a row we could not read,
+  which is what `why` is for.
+- ⚠ **AND WRITING THE VECTOR LIST FOR THAT FOUND ONE CODERABBIT HAD NOT ASKED ABOUT:
+  `Number([])` IS 0 AND FINITE.** So an array reached **every** metric through the shared
+  `kpiNum` as a confident zero (and `Number([5])` as a 5). The same trap as `Number(null)`,
+  one type over, in the helper written to close it. Rejected at `kpiNum`, so it is fixed for
+  all eleven metrics rather than for compliance alone. *The guard found it, not the review.*
+- **The `<select>` clears iOS Safari's 16px focus-zoom floor on a coarse pointer**, which is
+  worse here than the usual nuisance: the panel is `position: fixed` and placed from the
+  gear's measured rect, so a zoom moves the viewport out from under a panel already
+  positioned. The desktop keeps its 11px — the override is scoped, not a global bump.
+- ⚠ **AND ITS FOURTH FINDING WAS THE STALE BULLET IN THIS FILE, WHICH IS THE ONE TO TAKE
+  MOST SERIOUSLY.** The *"FOUR HOOKS PER STRIP"* bullet described the shape **Codex's fix had
+  removed** — and `AGENTS.md` `@`-imports this file, so a reader who trusted it would restore
+  the four hooks and re-open the partial-swap write. Corrected at the source. *A record that
+  describes the shape a fix removed is an instruction to undo the fix.*
+- ⚠ **AND A GUARD OF MINE PINNED A SPELLING AGAIN** — the atomic-write test matched
+  `chosen[i]`, so account-scoping the choice (renaming it to `mine`) failed a test about
+  partial writes. Re-anchored on the invariant, plus two assertions that the choice carries
+  its account and that the render-phase ref has not come back.
+- **Verified:** `npm test` **3355/3355** on the head merged with `main` · `tsc --noEmit` 0 ·
+  JSX parse on all three changed modules · `dashSignals.js` `require()`s clean · the
+  newdesign precompile check · **21/21 + 19/19 mutations killed** across two rounds — the
+  second including **all three Codex defects replayed as their own mutations**, so the suite
+  is proven to catch them rather than merely to be green after the fix — each proven to
+  land, sanity green at both ends · and the whole cycle driven in Chromium against a simulated live coach: **two
+  strips, two gears, four `<select>` groups of eleven** each carrying a painted chevron
+  (`appearance: none` takes the native one with it), picking *Needs eyes* into the second
+  slot → the strip follows and the document holds
+  `{"kpi:trainer:practice:1":"needsEyes"}` — **one key, only the slot that
+  moved** — then the swap exchanges two slots, and a **reload brings the arrangement back**.
+  The signed-out preview keeps the payout four with **zero gears on Overview**. Zero page
+  errors throughout.
+- **And the fixed panel re-driven** in Chromium from **360×200 and 128×420 up to
+  1440×1400** — the box **fully on screen and scrolling at every one** (228px of content in
+  a 71px box at vh 200, so max scroll reaches the last control), and at vw 128 sitting at
+  **12..116**, both gutters exactly, where before the fix it ran to 132: portaled on every one, every slot inside both gutters, the panel capped and
+  **scrolling** where the screen is too short for it, a pick from the fourth slot still
+  landing, the swap reporting **one** write carrying both keys, and the Progress page's
+  chips gear still stepping ALL → 90D → 30D → 7D → ALL at **43 → 21 → 9 → 4** segments with
+  the choice surviving a reload. Zero page errors.
+- ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; the on-account
+  pass is owed, and it is now the only thing left on the review's P1/P2 roadmap besides the
+  booking-timezone ruling.
 ### 2026-09-11 — Photo import goes live: vision stops riding the text model's pin, and a security finding that does not survive the repo
 
 - **Owner: *"yes i want the photo import live"*.** The feature merged in #2040; what stood
@@ -857,6 +1202,7 @@ Append new entries at the top, under this note.
   restatement, so they assert on the resolver that ships. The default case pins that an unset
   variable resolves to `OPENAI_MODEL` **exactly**, because a "fix" that changed the model for
   builds already working would be the regression.
+
 
 ### 2026-09-11 — The two registered follow-ups: a GDPR key that named two of its twenty-six kinds, and a recipe you can photograph
 
@@ -1262,6 +1608,7 @@ Append new entries at the top, under this note.
   gated on *reading the Codex summary comment* rather than on remembering that it failed
   last time. **The merge gate is untouched by both rulings**: CI green on the final head,
   and not a draft.
+
 ### 2026-09-11 — Thirteen capped reads were ordered ascending, and nine of them kept the OLDEST rows
 
 - **Found while sizing R15's last piece, not by a report — and it is live today.** Derived
@@ -1656,6 +2003,79 @@ Append new entries at the top, under this note.
   (disabled · *live only* · **0 inserts**). Zero page errors throughout.
 - ⚠ **STILL NO ON-ACCOUNT PASS.** Every live path here is a stubbed `shapeDb` over an
   in-page object; the insert has never run against real RLS.
+
+### 2026-09-11 — The Wall stops being a second tab and becomes the feed, and four Codex rounds find four regressions
+
+- **Owner: *"Just replace the feed then shape sub section with the wall design / And call it
+  the wall / Not shape"* + *"So leave the feed tab / Shape becomes wall"* + *"Yes don't need 2
+  wall tabs"*.** Chat's five segments become four: the **SHAPE** sub-tab is now **WALL** and
+  renders the activity feed through `BSActivityCard`'s `variant="wall"`; the separate Wall
+  segment built on 2026-09-10 is retired. **Feed, Team and Channels are untouched** — the
+  trainer, nutritionist and community threads all survive, which was the explicit constraint.
+  #2036 -> `34dcb20`. No migration, no route.
+- ⚠ **THE ASK WAS A RENAME AND THE DIFF WAS A MERGE, WHICH IS WHY EVERY DEFECT BELOW IS OF
+  ONE SHAPE.** `variant` is the only thing separating the two renderings, so flipping the
+  sub-tab to `"wall"` sent **every** activity down a path built for **ledger-backed record
+  posts** — a corpus of one kind of card suddenly carrying every kind. Nothing was rewritten
+  and four things quietly stopped being true.
+- ⚠ **A HERO THE DOT MATRIX CANNOT SPELL WAS DRAWN AS ITS DIGITS, SILENTLY.** `bsDotChars`
+  drops any character with no glyph — correct for a stray mark inside a figure the matrix
+  mostly knows, **wrong for a value built out of letters**, because the drop leaves something
+  that still looks like a reading. The demo recovery post's real hero, **`8h 10m`, drew as
+  `8 10`**; `2.4 · MO`, `178 spm` and `38 SWOLF` are the same class. `bsDotRenderable` now
+  asks the matrix whether it can say the value **at all** and anything else is typeset. ⚠
+  **Empty is NOT renderable** — distinct from *"every character is representable"*, which is
+  vacuously true of `''` and would mount a zero-width svg where a figure belongs.
+- ⚠ **THE HOME BULLETIN SENT MEMBERS TO A LENS ITS OWN RECORD NEED NOT BE IN.** The deep link
+  set the tab and the filter and left `feedMode` where it found it, so a member reading under
+  **following** was routed to a scope that may not contain the record just advertised. It
+  resets to `universal` with **`setFeedMode`, never `switchFeedMode`**: this is a navigation,
+  and a tap on a Home card must not silently overwrite a standing preference.
+- ⚠ **AND A REAL PR CARD LOST THE AMOUNT THE MEMBER HAD IMPROVED BY.** The wall variant
+  suppresses the standalone `↑ PR {delta}` line — the ledger-backed board would otherwise
+  state the record twice — and the gain reached the pill only through **`recordNote`, a prop
+  the ledger caller passes and the feed does not**. So the merged feed read *"New PR ·
+  Deadlift"* with no figure. `wallPill` falls back to the post's own `prDelta`; an explicit
+  `recordNote` still outranks it, because the ledger's gain is measured against the stored
+  best rather than stamped at publish. The feed is pinned as the control so the fix cannot
+  quietly move its furniture too.
+- ⚠ **STILL OPEN AND THE OWNER'S CALL, NOT A CODE FIX — Codex's P1.** `BSHomeWallBulletin`
+  advertises a **ledger** record and routes into the **feed**, which cannot contain it: a
+  session PR lands as a bare `pr_wall_posts` row with **no `post_id`**. Closing it means
+  merging the ledger rows plus *Your best* / *Post a PR* into the sub-tab — a feature merge
+  past the rename that was asked for, so it is registered rather than smuggled in.
+  **Unreachable today**: production holds **0** `pr_wall_posts`.
+- ⚠ **FOUR ROUNDS, FOUR FINDINGS, ALL REAL — AND MY OWN PRE-PUSH PASS HAD ALREADY CLEARED
+  THE TREE.** `6d50fe6` (P1 + P2) · `65555ac` (P2) · `e49fd22` (P2) · `db1d7d9` **clean**.
+  Recorded because the reviewer block above had just been written to say self-review is the
+  whole stack: on this PR it was the layer that **missed** four regressions, not the one that
+  caught them. *A review round produces a new diff, and that diff has not been reviewed* —
+  paid for three times here, since each of the three fixes needed its own round.
+- ⚠ **AND THREE OF MY OWN GUARDS WERE BROKEN INSTRUMENTS BEFORE THEY WERE GUARDS.** The
+  render test asserted `.text` contained `8h 10m` — but `BSDotNumber` is handed
+  `title="8h 10m"` either way, so **the tooltip satisfied an assertion about the figure** and
+  the mutation reverting the gate **survived**; it asserts on the element type now. A second
+  double-flattened `d.nodes()` (already flat) and counted one element **seven** times. A
+  third pulled `BSSdCountUp` from a **second `loadBroadsheet` call** — each call re-evaluates
+  the module, so `n.type === X` compared two different function identities, matched nothing,
+  and read as *"the feature is absent"*. And a fixture used `stats` where a **real** activity
+  reads `statsRow`, handing the live path an undefined and then reporting on the crash.
+- ⚠ **ONE CLAIM WAS WITHDRAWN RATHER THAN SHIPPED.** Suppressing the count-up on the wall
+  fallback left two mutations alive because `railSeen` is false in a shallow render — the
+  invariant was **unobservable**, so the change was reverted rather than shipped behind a
+  guard that cannot fail. *An assertion nothing can falsify is decoration.*
+- **Verified:** `npm test` **3213/3213** · JSX parse · three mutation rounds (**5/5 · 3/3 ·
+  3/3**), each proven to land with sanity green at both ends · CI green on `db1d7d9` (Web ·
+  Mobile · Tests · gitleaks · debug APK) · Codex **clean on `db1d7d9`**, head-pinned.
+- ⚠ **NO ON-ACCOUNT PASS — AND RE-MEASURING IT SPLIT THE CLAIM IN TWO.** Production holds
+  **0** `pr_wall_posts`, **0** `workout_set_logs` and **0** `client_weigh_ins`, so the
+  **ledger half** of this surface has never rendered a real record and the P1 above has
+  never been hit. But `community_posts` holds **7**, which the previous entries' blanket
+  *"nothing has ever run against real data"* would have hidden: the sub-tab renders
+  `community_posts`, so a signed-in member **does** see real cards there today, each of them
+  now going through the wall variant for the first time — which is exactly the corpus the
+  three fixes above are about. *A count of zero on one table is not a count of zero on the
+  surface.*
 
 ### 2026-09-11 — V5's tail: the Business payouts block was twelve times the practice on its own page
 
