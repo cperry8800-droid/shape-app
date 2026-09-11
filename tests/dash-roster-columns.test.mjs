@@ -216,13 +216,23 @@ test('revenue: null (the read failed) is "Not shared", never $0', () => {
   );
 });
 
-test('the live record preserves a null mrrCents instead of coercing it to 0', () => {
+test('the live record preserves a null on every money leg instead of coercing it to 0', () => {
   // ⚠ Pins the OPERATOR, because `|| 0` and `?? null` are indistinguishable on
   // every input except the one that matters.
-  const line = DATA.split('\n').find((l) => l.includes('payments: { mrrCents:'));
-  assert.ok(line, 'the payments leg moved');
-  assert.match(line, /mrrCents:\s*row\.mrrCents\s*\?\?\s*null/);
-  assert.ok(!/mrrCents:\s*row\.mrrCents\s*\|\|\s*0/.test(line), '`|| 0` relabels an unreadable leg as a measured zero');
+  //
+  // ⚠ AND IT READS THE BLOCK, NOT A LINE. This guard used to find the single line
+  // containing `payments: { mrrCents:` — so adding a field and wrapping the object
+  // over four lines FAILED A TEST ABOUT SOMETHING ELSE. The invariant is the operator
+  // on each leg; the layout is not the invariant.
+  const at = DATA.indexOf('payments: {');
+  assert.ok(at > 0, 'the payments leg moved');
+  const block = DATA.slice(at, DATA.indexOf('}', DATA.indexOf('origin:', at)) + 1);
+  for (const leg of ['mrrCents', 'feeCents']) {
+    assert.match(block, new RegExp(leg + ':\\s*row\\.' + leg + '\\s*\\?\\?\\s*null'), leg + ' lost its ?? null');
+    assert.ok(!new RegExp(leg + ':\\s*row\\.' + leg + '\\s*\\|\\|').test(block),
+      '`|| 0` on ' + leg + ' relabels an unreadable leg as a measured zero');
+  }
+  assert.match(block, /origin:\s*row\.origin\s*\?\?\s*null/);
 });
 
 test('a bound metric carries its own unit, so the card cannot format it wrongly', () => {
