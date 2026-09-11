@@ -1050,3 +1050,135 @@ test('and a re-entry with an untouched box does not re-run the reader over the m
     w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
   }
 });
+
+test('⚠ A NAME TYPED WHILE THE READER IS RUNNING OUTRANKS THE ONE THE READER FINDS', async () => {
+  // Codex, P2 on the fix round. The Name field stays editable while "Reading…"
+  // shows — only the buttons are disabled — and the completion handler read
+  // `title` from the render that STARTED the request. So a member who typed a
+  // name during the round trip had it silently replaced by the model's: the
+  // closure still saw the empty string it was created with, and the guard that
+  // exists to protect their input waved the overwrite through.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  let release;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    // The reader hangs until the test releases it, so the typing genuinely
+    // happens mid-flight rather than before or after.
+    const pending = new Promise((r) => { release = r; });
+    w.ShapeRecipeImport = { photo: null, parse: () => pending };
+
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+    const nameField = () => inputs().find((n) => /lemon chicken/.test(String(n.props.placeholder || '')));
+
+    inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')))
+      .props.onChange({ target: { value: 'Ingredients\n1 cup flour\nMethod\nMix.' } });
+    ed.render();
+    ed.click('Next');
+    ed.render();
+    assert.match(ed.text, /Reading/, 'the read is in flight');
+
+    // They type a name while it reads.
+    nameField().props.onChange({ target: { value: 'Grandma Rose' } });
+    ed.render();
+
+    release({ ok: true, draft: { title: 'Untitled Recipe 4', servings: null, ingredients: [{ n: '1', m: 'flour' }], steps: ['Mix.'] } });
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+
+    assert.ok(inputs().some((n) => String(n.props.value || '') === 'Grandma Rose'),
+      "the member's own name must survive the read landing");
+    assert.ok(!inputs().some((n) => String(n.props.value || '') === 'Untitled Recipe 4'),
+      "the reader's title must not overwrite one they typed mid-flight");
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('⚠ AND THE PHOTO READER HAS THE SAME CLOSURE — both call sites, or only one is fixed', async () => {
+  // ⚠ MUTATION-FOUND GAP, the second in this round. The test above drives the
+  // PASTE reader, so reverting the PHOTO path to the stale-closure form survived
+  // it — two call sites share one rule, and a guard on one of them is a guard on
+  // half the rule. The photo path is if anything the likelier of the two: the
+  // member has just handed over a page whose title they can read, so typing the
+  // name while it processes is the natural thing to do.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  let release;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    const pending = new Promise((r) => { release = r; });
+    w.ShapeRecipeImport = { parse: null, photo: () => pending };
+
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+    const file = ed.nodes().find((n) => n.type === 'input' && n.props.type === 'file');
+    file.props.onChange({ target: { files: [{ name: 'page.jpg', type: 'image/jpeg', size: 120_000 }], value: '' } });
+    ed.render();
+
+    // They type a name off the page while the reader works.
+    inputs().find((n) => /lemon chicken/.test(String(n.props.placeholder || '')))
+      .props.onChange({ target: { value: 'Aunt Ivy’s soda bread' } });
+    ed.render();
+
+    release({ ok: true, draft: { title: 'Chapter 4', servings: null, ingredients: [{ n: '1 cup', m: 'flour' }], steps: ['Mix it well.'] } });
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+
+    assert.ok(inputs().some((n) => String(n.props.value || '') === 'Aunt Ivy’s soda bread'),
+      "the member's own name must survive the transcription landing");
+    assert.ok(!inputs().some((n) => String(n.props.value || '') === 'Chapter 4'),
+      'a heading the reader lifted must not overwrite the name they typed');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('but the reader still names a recipe the member left unnamed — on BOTH paths', async () => {
+  // The control: without it, the test above passes on a handler that never sets
+  // a title at all, which would silently retire the whole feature.
+  //
+  // ⚠ MUTATION-FOUND GAP. The first version of this control drove the PHOTO path
+  // only, so deleting the PASTE path's title-set survived the round — a control
+  // that covers one of the two call sites is not a control for the shared rule.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const h = await drivePhotoSheet(SHEET, {
+    draft: { ...PHOTO_DRAFT, title: 'Flatbread from the blue book' },
+  });
+  try {
+    await h.pick();
+    assert.ok(h.values().some((v) => v === 'Flatbread from the blue book'),
+      'a title read off the photo reaches the Name field');
+  } finally { h.restore(); }
+
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    w.ShapeRecipeImport = { photo: null, parse: async () => ({ ok: true, draft: { title: 'Nana’s lemon chicken', servings: null, ingredients: [{ n: '1', m: 'flour' }], steps: ['Mix.'] } }) };
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+    inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')))
+      .props.onChange({ target: { value: 'Ingredients\n1 cup flour\nMethod\nMix.' } });
+    ed.render();
+    ed.click('Next');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.ok(inputs().some((n) => String(n.props.value || '') === 'Nana’s lemon chicken'),
+      'a title read out of the paste reaches the Name field too');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});

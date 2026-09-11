@@ -4800,13 +4800,20 @@ function bsRecipePhotoDataUrl(file) {
   return new Promise((resolve) => {
     let settled = false;
     let bitmap = null;
+    // An ImageBitmap holds its pixels OUTSIDE the JS heap until it is closed, so
+    // any path that walks away from one leaks the very memory this function
+    // exists to bound — and it is not one path but two. `done` covers the
+    // ordinary one; the other is a decode that lands AFTER the timeout has
+    // already resolved, where `bitmap` is assigned to a promise nobody is
+    // waiting for and `done` is never reached at all.
+    const closeBitmap = () => {
+      if (bitmap && typeof bitmap.close === 'function') { try { bitmap.close(); } catch (e) {} }
+      bitmap = null;
+    };
     const done = (v) => {
       if (settled) return;
       settled = true;
-      // An ImageBitmap holds its pixels outside the JS heap until it is closed,
-      // so a path that resolves without closing one leaks the very memory this
-      // function exists to bound.
-      if (bitmap && typeof bitmap.close === 'function') { try { bitmap.close(); } catch (e) {} }
+      closeBitmap();
       resolve(v);
     };
     const timer = setTimeout(() => done(null), BS_RECIPE_PHOTO_DECODE_MS);
@@ -4866,28 +4873,44 @@ function bsRecipePhotoDataUrl(file) {
           dims = bsImageHeaderDims(head);
         } catch (e) { dims = null; }
 
-        // Unknown size — an exotic or truncated header. The old behaviour is the
-        // honest one here: the file-size ceiling still applies, and refusing
-        // every image we cannot measure would refuse formats that decode fine.
-        if (!dims || !(dims.w > 0) || !(dims.h > 0) || dims.w * dims.h <= BS_RECIPE_PHOTO_MAX_PIXELS) {
-          viaImage();
-          return;
-        }
+        const measured = dims && dims.w > 0 && dims.h > 0 ? dims : null;
 
-        // Past the budget, so the full bitmap must never exist. createImageBitmap's
-        // resize options downsample DURING decode; without them there is no way to
-        // get these pixels safely, and refusing with advice the member can act on
-        // beats an out-of-memory kill that takes their half-typed sheet with it.
+        // Measured, and comfortably inside the budget: decode it the ordinary way.
+        if (measured && measured.w * measured.h <= BS_RECIPE_PHOTO_MAX_PIXELS) { viaImage(); return; }
+
+        // ⚠ EVERYTHING ELSE GOES THROUGH THE RESIZING DECODER, INCLUDING WHAT WE
+        // COULD NOT MEASURE — and the first cut of this branch got that wrong.
+        // It sent an unmeasurable header to the full decode on the reasoning that
+        // refusing what we cannot measure would refuse formats that decode fine.
+        // But "unknown" is not "small": a perfectly valid JPEG whose start-of-frame
+        // sits past 256 KiB of ICC profile and thumbnails reads as unmeasurable
+        // here, and it is exactly as capable of being 48 MP as one we did measure.
+        // A guard that fails OPEN on its own uncertainty is the same guard the
+        // byte ceiling was — a bound on something other than the hazard.
         if (typeof createImageBitmap !== 'function') { finish('too-big'); return; }
-        const scale = Math.min(1, BS_RECIPE_PHOTO_EDGES[0] / Math.max(dims.w, dims.h));
+        const opts = { resizeQuality: 'high' };
+        if (measured) {
+          const scale = Math.min(1, BS_RECIPE_PHOTO_EDGES[0] / Math.max(measured.w, measured.h));
+          opts.resizeWidth = Math.max(1, Math.round(measured.w * scale));
+          opts.resizeHeight = Math.max(1, Math.round(measured.h * scale));
+        } else {
+          // Without dimensions there is no way to know WHICH edge is the long one,
+          // so the width is capped and the height follows it — the spec scales the
+          // omitted dimension proportionally. ⚠ The cost is stated rather than
+          // discovered: a small unmeasurable image is UPSCALED to 1600 wide and
+          // then walked back down by the ladder, which costs sharpness on a file
+          // whose header we could not read. A soft transcription of an outlier
+          // beats an out-of-memory kill that takes the member's whole sheet.
+          opts.resizeWidth = BS_RECIPE_PHOTO_EDGES[0];
+        }
         try {
-          bitmap = await createImageBitmap(file, {
-            resizeWidth: Math.max(1, Math.round(dims.w * scale)),
-            resizeHeight: Math.max(1, Math.round(dims.h * scale)),
-            resizeQuality: 'high',
-          });
+          bitmap = await createImageBitmap(file, opts);
         } catch (e) { finish('too-big'); return; }
-        if (settled) return;                      // the timeout won the race
+        // ⚠ THE TIMEOUT WON THE RACE, AND THE PIXELS STILL ARRIVED. `done` has
+        // already resolved and will not run again, so this is the only place
+        // that can release them; returning without it is a native-memory leak
+        // that compounds with every slow decode.
+        if (settled) { closeBitmap(); return; }
         ladder(bitmap);
       } catch (e) { finish(null); }
     })();

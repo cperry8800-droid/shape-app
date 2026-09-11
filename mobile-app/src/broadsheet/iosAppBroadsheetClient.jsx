@@ -1934,7 +1934,16 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
         next = { ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true };
         // The model may read a title out of the paste; never overwrite one the
         // member typed themselves.
-        if (!title.trim() && d.title) setTitle(d.title);
+        //
+        // ⚠ FUNCTIONALLY, BECAUSE `title` HERE IS THE VALUE FROM THE RENDER THAT
+        // STARTED THE READ. The Name field stays editable while "Reading…" shows
+        // — only the buttons are disabled — so a member who types a name during
+        // the round trip had it silently replaced by the model's: the closure
+        // still saw the empty string it was created with, so the guard that
+        // exists to protect their input waved the overwrite through. The check
+        // and the write have to read the same instant, which only the updater
+        // form guarantees.
+        if (d.title) setTitle((cur) => (cur.trim() ? cur : d.title));
       }
     } catch (e) { /* falls through to the structural split */ }
     setDraft(next || splitLocally());
@@ -1978,7 +1987,9 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
       // camera. Stamping it here is what lets Next tell "back to my photo" from
       // "now read what I typed" — see draftPasteRef.
       draftPasteRef.current = paste;
-      if (!title.trim() && d.title) setTitle(d.title);
+      // Functional for the same reason as the paste path: a name typed while the
+      // photo was being read must outrank the one the reader found.
+      if (d.title) setTitle((cur) => (cur.trim() ? cur : d.title));
       setStage('review');
     } else {
       setErr(bsRecipePhotoErr(tr, r && r.reason));

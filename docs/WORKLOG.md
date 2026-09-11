@@ -735,9 +735,9 @@ Append new entries at the top, under this note.
   error: the error line renders on **both** stages, so a member refused for want of a name,
   stepping Back and coming forward again, carried *"Give it a name first"* over a draft it
   was no longer about. Both fixed, and the second is now pinned by three more mutations.
-- **Verified:** `npm test` **3277/3277** after the Codex round · `tsc --noEmit` 0 · JSX parse on the client module ·
+- **Verified:** `npm test` **3283/3283** after both Codex rounds · `tsc --noEmit` 0 · JSX parse on the client module ·
   the newdesign precompile check · the i18n ratchet **9/9 with every column unchanged** and
-  catalog parity **13/13 at 337 keys** · **25/25 mutations killed across three rounds, each
+  catalog parity **13/13 at 337 keys** · **35/35 mutations killed across four rounds, each
   proven to land**, sanity green at both ends and the tree restored in a `finally` (the
   one-way door replayed from both of its doors, the Name field removed from the review
   screen, the forward gate reverted to every earlier form, the provenance tag folded back,
@@ -784,6 +784,52 @@ Append new entries at the top, under this note.
   split of the abandoned text — silently, with **no Keep control on that stage** to rescue
   it. This is the one-way door from earlier in the same PR, reached through the door the fix
   for it opened.
+- ⚠ **AND THE SECOND CODEX ROUND FOUND THREE MORE, THE FIRST OF WHICH WAS A RESIDUAL I HAD
+  TRIED TO REGISTER RATHER THAN OWN.** My fix sent an **unmeasurable** header to the full
+  decode, on the reasoning that refusing what we cannot measure would refuse formats that
+  decode fine — and I wrote that down as a pre-existing limitation. It is not: the `!dims`
+  branch is **code this PR introduced**, and *"unknown"* is not *"small"*. A perfectly valid
+  JPEG whose start-of-frame sits past 256 KiB of ICC profile reads as unmeasurable here and
+  is exactly as capable of being 48 MP as one we did measure. **A guard that fails OPEN on
+  its own uncertainty bounds something other than the hazard — which is the same defect the
+  byte ceiling had, reintroduced in its fix.** Unknown dimensions take the resizing decoder
+  now (width capped, height left for the decoder to scale), or are refused.
+  ⚠ **The cost is stated at the site rather than discovered later**: a *small* unmeasurable
+  image is upscaled to 1600 wide and walked back down, which costs sharpness on a file whose
+  header we could not read. A soft transcription of an outlier beats an OOM kill.
+- ⚠ **AND BUILDING THE FIXTURE FOR THAT FOUND A CONSTRAINT OF THE FORMAT ITSELF.** The first
+  version asked for one 300 KiB APP2 segment and `Buffer` refused to write the length: a JPEG
+  segment carries a **16-bit** length, so no single marker can exceed 65,535 bytes. Real
+  encoders chunk a large ICC profile across consecutive APP2 markers for exactly that reason
+  — which is also **how** a start-of-frame comes to sit a third of a megabyte into an
+  ordinary photo. The fixture is six segments now and asserts it really outruns the window.
+- **The two P2s, both real.** A decode that lands **after** the 20 s deadline resolved on a
+  promise nobody was waiting for: `done` had already run and would not run again, so the
+  early return was the only place those pixels could be released and it released none — an
+  ImageBitmap's pixels live outside the JS heap, so every slow decode retained a full frame
+  until GC noticed. And the Name field **stays editable while "Reading…" shows** (only the
+  buttons are disabled), while the completion handler read `title` from the render that
+  STARTED the request — so a member who typed a name during the round trip had it silently
+  replaced by the model's, because the closure still saw the empty string it was created
+  with. **The guard written to protect their input was the thing that waved the overwrite
+  through.** Both reader paths take the updater form now, so the check and the write read the
+  same instant. ⚠ Pinned with a **control** that the reader still names an unnamed recipe —
+  without it the test passes on a handler that sets no title at all, which would retire the
+  feature silently.
+- ⚠ **AND ITS MUTATION ROUND CAUGHT TWO GAPS IN MY OWN GUARDS, BOTH THE SAME SHAPE: A RULE
+  WITH TWO CALL SITES AND A TEST ON ONE OF THEM.** The stale-closure fix landed on the paste
+  reader **and** the photo reader; my mid-flight test drove only the paste one, so reverting
+  the photo path survived — and the photo path is if anything the likelier of the two, since
+  the member has just handed over a page whose title they can read. The control had the same
+  hole in the other direction: it proved a title reaches the Name field on the **photo** path
+  only, so deleting the **paste** path's title-set entirely survived, which would have retired
+  half the feature in silence. *A guard on one of two call sites is a guard on half the rule.*
+- ⚠ **AND ONE MUTATION NEVER RAN, WHICH THE RUNNER REPORTED RATHER THAN HID.** Its anchor
+  was the six-space photo-path line — a **substring** of the eight-space paste-path line — so
+  the occurrence count read 2 and the round skipped it. That is the right failure: a runner
+  that silently replaced the first match would have reported a kill for a mutation applied to
+  the wrong site. The anchor carries its preceding lines now. *An instrument that cannot find
+  its target must say so, not pick a nearby one.*
 - ⚠ **AND ONE MUTATION SURVIVED THE ROUND, WHICH IS THE ROUND PAYING FOR ITSELF.** Turning
   the header walk's out-of-sync bail into a **resync-and-keep-scanning** passed every
   assertion in the new file. Both fixtures that should have caught it were blind to it for

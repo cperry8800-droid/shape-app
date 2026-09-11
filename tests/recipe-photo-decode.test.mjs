@@ -234,11 +234,48 @@ test('an ordinary photo still takes the plain path', async () => {
   assert.equal(calls.img, 1);
 });
 
-test('an unmeasurable header falls back rather than refusing', async () => {
-  // Refusing everything we cannot measure would refuse formats that decode fine.
+test('⚠ AN UNMEASURABLE HEADER IS NOT A SMALL ONE — it takes the resizing decoder too', async () => {
+  // Codex, P1 on the fix round. The first cut sent an unmeasurable header to the
+  // full decode, reasoning that refusing what we cannot measure would refuse
+  // images that decode fine. But "unknown" is not "small": a valid JPEG whose
+  // start-of-frame sits past 256 KiB of ICC profile and thumbnails reads as
+  // unmeasurable here and is exactly as capable of being 48 MP. A guard that
+  // fails OPEN on its own uncertainty bounds something other than the hazard —
+  // which is the same defect the byte ceiling had.
   const { url, calls } = await drivePhoto({ bytes: Buffer.from('mystery', 'latin1') });
+  assert.ok(String(url).startsWith('data:image/jpeg;base64,'), 'it still produces an image');
+  assert.equal(calls.img, 0, 'an unmeasurable header must never reach the full decode');
+  assert.equal(calls.bitmap, 1);
+  // Without dimensions the long edge is unknown, so the WIDTH is capped and the
+  // height is left for the decoder to scale proportionally.
+  assert.equal(calls.resize.resizeWidth, 1600);
+  assert.equal(calls.resize.resizeHeight, undefined, 'naming a height here would distort the image');
+});
+
+test('a REAL JPEG whose frame header sits past the read window is still bounded', async () => {
+  // Codex's own example, built rather than argued: ~384 KiB of ICC profile ahead
+  // of the SOF, which is past the header window, so the walk runs out of buffer
+  // and reports unknown. The image behind it is 48 MP.
+  //
+  // ⚠ IT TAKES SIX SEGMENTS, NOT ONE, AND THE FORMAT IS WHY. A JPEG segment
+  // carries a 16-bit length, so no single marker can exceed 65,535 bytes — my
+  // first fixture asked for one 300 KiB APP2 and Buffer refused to write the
+  // length. Real encoders chunk a large ICC profile across consecutive APP2
+  // markers for exactly that reason, which is also how a start-of-frame comes to
+  // sit a third of a megabyte into a perfectly ordinary photo.
+  const icc = Array.from({ length: 6 }, () => [0xe2, Buffer.alloc(65_000)]);
+  const big = jpeg(8000, 6000, icc);
+  assert.ok(big.length > 256 * 1024, 'the metadata must actually outrun the header window');
+  assert.equal(bsImageHeaderDims(big.subarray(0, 256 * 1024)), null, 'the fixture must read as unmeasurable');
+  const { url, calls } = await drivePhoto({ bytes: big.subarray(0, 256 * 1024), size: 7_000_000 });
   assert.ok(String(url).startsWith('data:image/jpeg;base64,'));
-  assert.equal(calls.img, 1);
+  assert.equal(calls.img, 0, 'the 48 MP bitmap must never be materialised');
+});
+
+test('and with no resizing decoder an unmeasurable image is refused, not attempted', async () => {
+  const { url, calls } = await drivePhoto({ bytes: Buffer.from('mystery', 'latin1'), bitmap: false });
+  assert.equal(url, 'too-big');
+  assert.equal(calls.img, 0);
 });
 
 test('⚠ WITHOUT A RESIZING DECODER A HUGE PHOTO IS REFUSED, NOT ATTEMPTED', async () => {
@@ -285,4 +322,41 @@ test('the pixel budget is a real bound, not a rounding of the byte one', () => {
   // defect. 25 MP ≈ 100 MB decoded; the byte ceiling cannot express that.
   assert.ok(MAX_PIXELS >= 12_000_000, 'an ordinary 12 MP phone photo must not be refused');
   assert.ok(MAX_PIXELS <= 40_000_000, 'and a 48 MP one must not sail through');
+});
+
+test('⚠ A DECODE THAT LANDS AFTER THE TIMEOUT STILL RELEASES ITS PIXELS', async () => {
+  // Codex, P2 on the fix round. When the decode outruns the deadline the timer
+  // has already resolved, so `done` will not run again — which made the early
+  // return the ONLY place those pixels could be released, and it released
+  // nothing. An ImageBitmap's pixels live outside the JS heap, so every slow
+  // decode retained a full frame until GC happened to notice.
+  let closed = 0;
+  let resolveBitmap;
+  const pending = new Promise((r) => { resolveBitmap = r; });
+  const fn = new Function(
+    'BS_RECIPE_PHOTO_EDGES', 'BS_RECIPE_PHOTO_QUALITIES', 'BS_RECIPE_PHOTO_BUDGET',
+    'BS_RECIPE_PHOTO_MAX_FILE', 'BS_RECIPE_PHOTO_MAX_PIXELS', 'BS_RECIPE_PHOTO_HEADER_BYTES',
+    'BS_RECIPE_PHOTO_DECODE_MS', 'bsImageHeaderDims', 'setTimeout', 'clearTimeout',
+    'document', 'FileReader', 'Image', 'createImageBitmap',
+    `${lift('bsRecipePhotoDataUrl')}; return bsRecipePhotoDataUrl;`,
+  )(
+    [1600], [0.8], 640000, MAX_FILE, MAX_PIXELS, 262144,
+    5,                                              // a 5 ms deadline the decode will miss
+    bsImageHeaderDims, setTimeout, clearTimeout,
+    { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,AAAA' }) },
+    class { readAsDataURL() {} },
+    class { set src(_v) {} },
+    () => pending,
+  );
+  const url = await fn({
+    size: 6_000_000, type: 'image/jpeg',
+    slice: () => ({ arrayBuffer: async () => new Uint8Array(jpeg(8000, 6000)).buffer }),
+  });
+  assert.equal(url, null, 'the deadline resolves it as unreadable');
+  assert.equal(closed, 0, 'nothing to close yet — the decode has not landed');
+
+  // Now the decode lands, on a promise nobody is waiting for.
+  resolveBitmap({ width: 1600, height: 1200, close() { closed += 1; } });
+  for (let i = 0; i < 6; i += 1) await new Promise((r) => setTimeout(r, 0));
+  assert.equal(closed, 1, 'a late bitmap must still be closed');
 });
