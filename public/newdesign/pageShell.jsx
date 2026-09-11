@@ -41,8 +41,19 @@ function Logo({ variant = "black", size = 28 }) {
 // (near-invisible over the dark mast). The real SHAPE two-triangle mark
 // (logo-triangles-only.svg geometry, inline so there's no image request) sits
 // between SHAPE and RADIO in the brand's own two-tone — bottom-left triangle
-// teal, top-right white, per that asset's own annotation. The ON AIR tag
-// states the live signal the old pulsing dot only implied.
+// teal, top-right white, per that asset's own annotation.
+//
+// ⚠ THE "ON AIR" TAG IS GONE, AND IT WAS A CLAIM NOTHING COULD CHECK. It was
+// permanent — rendered on every page carrying this header — while the station
+// has never broadcast: measured 2026-09-11, public.radio_station does not exist
+// in production, so /api/radio/now-playing falls through to the mock provider
+// and returns a fixed placeholder track. A signed-out page cannot even ask:
+// /api/radio/station is deliberately 401 for anonymous callers and hides
+// `configured` on purpose, so there is no honest way to light this from here.
+// The wordmark still links to Radio; it just no longer says something is
+// playing. When the station is real, lighting this needs a public liveness
+// signal that does not undo that route's anonymous opacity — a decision, not a
+// one-line change. (The homepage was fixed the same way in the Climb rebuild.)
 function RadioWordmark() {
   const cream = "rgba(245,239,225,0.92)";
   return (
@@ -55,10 +66,6 @@ function RadioWordmark() {
           <polygon points="81,14 81,65 44,39" fill={cream} />
         </svg>
         <span style={{ color: TEAL_BRIGHT }}>Radio</span>
-      </span>
-      <span aria-hidden style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: mono, fontSize: 8.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, border: `1px solid ${TEAL_BRIGHT}59`, borderRadius: 3, padding: "3px 5px", lineHeight: 1, boxShadow: `0 0 10px ${TEAL_BRIGHT}26` }}>
-        <span style={{ width: 5, height: 5, borderRadius: "50%", background: RUST, boxShadow: `0 0 6px ${RUST}`, flex: "0 0 auto" }} />
-        ON AIR
       </span>
     </a>
   );
@@ -2168,10 +2175,24 @@ window.shapeClearLocalUserContent = function (opts) {
       }
       var bar = document.createElement("div");
       bar.setAttribute("role", "dialog"); bar.setAttribute("aria-label", "Cookie consent");
-      // Use the design-system theme tokens (with the canonical palette as fallback,
-      // since this banner is injected outside any page stylesheet and must stay
-      // legible everywhere).
-      bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:var(--paper,#1a1612);color:var(--ink,#f2ede4);border-top:1px solid rgba(242,237,228,0.15);padding:15px 20px;font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;box-shadow:0 -10px 40px rgba(0,0,0,0.5)";
+      // ⚠ THE BANNER'S COLOURS ARE NAMESPACED, AND THE COMMENT THIS REPLACES IS
+      // WHY. It said to use the design-system tokens "since this banner is
+      // injected outside any page stylesheet and must stay legible everywhere"
+      // — and borrowing generic names is exactly what made it illegible. The
+      // Climb homepage is the FIRST page in this directory to define `--ink`,
+      // and it defines it as its BACKGROUND (#06090f); the banner then drew
+      // #06090f text on its own #1a1612 fallback at **1.11:1**, against the
+      // 4.5:1 floor. Worse than uniformly broken: the Accept button takes its
+      // colour from `--paper`, which no page defines, so it stayed at 8.19:1 —
+      // a first-time EEA/UK visitor saw a consent choice in which only ACCEPT
+      // was legible. That is a dark pattern arrived at by accident, on the one
+      // dialog where it matters most.
+      // A generic token name is a shared namespace with every page's private
+      // palette; `--consent-*` is not. Nothing defines these today, so every
+      // page renders the literal fallbacks — byte-identical to what it rendered
+      // before this change — while a page that wants to theme the banner still
+      // can, deliberately. (Codex, #2045.)
+      bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:99999;background:var(--consent-bg,#1a1612);color:var(--consent-fg,#f2ede4);border-top:1px solid rgba(242,237,228,0.15);padding:15px 20px;font-family:'Space Grotesk',sans-serif;font-size:13.5px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;box-shadow:0 -10px 40px rgba(0,0,0,0.5)";
       var txt = document.createElement("span");
       txt.style.cssText = "flex:1;min-width:240px;line-height:1.5";
       // Copy must describe what we actually do: this website runs NO
@@ -2181,13 +2202,13 @@ window.shapeClearLocalUserContent = function (opts) {
       // shape.consent.v1). Never promise analytics this surface doesn't run.
       // KEEP IN SYNC with BANNER_COPY above (rendered text == recorded text).
       txt.appendChild(document.createTextNode("We use essential cookies and on-device storage to run Shape — no ad tracking, nothing cross-site. Your choice here also controls the Shape app's first-party usage stats. See our "));
-      var pl = document.createElement("a"); pl.href = "/privacy.html"; pl.textContent = "Privacy Policy"; pl.style.color = "var(--teal-bright,#2ee0c4)";
+      var pl = document.createElement("a"); pl.href = "/privacy.html"; pl.textContent = "Privacy Policy"; pl.style.color = "var(--consent-link,#2ee0c4)";
       txt.appendChild(pl); txt.appendChild(document.createTextNode("."));
       bar.appendChild(txt);
       function btn(label, choice, primary) {
         var b = document.createElement("button");
         b.textContent = label;
-        b.style.cssText = "border:1px solid " + (primary ? "var(--teal,#0ac5a8)" : "rgba(242,237,228,0.25)") + ";background:" + (primary ? "var(--teal,#0ac5a8)" : "transparent") + ";color:" + (primary ? "var(--paper,#1a1612)" : "var(--ink,#f2ede4)") + ";padding:9px 16px;border-radius:7px;font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap";
+        b.style.cssText = "border:1px solid " + (primary ? "var(--consent-accent,#0ac5a8)" : "rgba(242,237,228,0.25)") + ";background:" + (primary ? "var(--consent-accent,#0ac5a8)" : "transparent") + ";color:" + (primary ? "var(--consent-bg,#1a1612)" : "var(--consent-fg,#f2ede4)") + ";padding:9px 16px;border-radius:7px;font-family:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap";
         b.onclick = function () { record(choice); if (bar.parentNode) bar.parentNode.removeChild(bar); };
         return b;
       }
