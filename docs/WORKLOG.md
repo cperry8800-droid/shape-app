@@ -586,6 +586,81 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — Photo import goes live: vision stops riding the text model's pin, and a security finding that does not survive the repo
+
+- **Owner: *"yes i want the photo import live"*.** The feature merged in #2040; what stood
+  between it and *working* was a question nobody could answer from the build container —
+  whether production's pinned model accepts image input. This removes the dependency on
+  the answer rather than handing it back as homework. **No migration.**
+- ⚠ **THE PHOTO ROUTE WAS INHERITING A MODEL PINNED FOR SOMETHING ELSE.** `callAI` defaults
+  to `OPENAI_MODEL`, which is chosen for chat, plan drafting and the support assistant —
+  and **vision is a separate capability from text**. A model picked for those need not
+  accept an `input_image` part at all, and when it does not the provider answers 4xx, which
+  this route can only report to the member as *"we couldn't read your photo."* The feature
+  would be **deployed, reachable and dead on every single import**, with nothing on screen
+  able to say why.
+- **So the photo request carries `aiVisionModel()`, and the precedent is this file's own.**
+  `ai.ts` already keeps `DEFAULT_TRANSCRIBE_MODEL` (`whisper-1`) and `DEFAULT_TTS_MODEL`
+  (`gpt-4o-mini-tts`) as separate pins with their own env vars, for exactly this reason —
+  a modality that needs a different model gets a different variable. Vision is the third.
+- ⚠ **IT DEFAULTS TO `aiModel()`, SO IT IS A NO-OP UNTIL SET, AND THAT IS THE DESIGN.** No
+  guessed model name and no *"downgrade to satisfy a stale model list"* — the trap `ai.ts`'s
+  own header warns against, and one I could not have avoided by reasoning, since the pinned
+  model post-dates anything I can check. If the pinned model reads images it goes on reading
+  them, byte for byte. What the indirection buys is that a build whose model **cannot** becomes
+  a **configuration** fix rather than a code change and a review round.
+- ⚠ **IT IS NOT A ZERO-DEPLOY FIX, AND MY FIRST DRAFT SAID IT WAS — Codex's one finding, and it
+  was right.** Vercel snapshots env vars into a deployment at **build** time, so setting
+  `OPENAI_VISION_MODEL` in the dashboard does **not** reach the build already serving traffic; it
+  applies to the next one. The operator sets the variable **and redeploys** (redeploying the
+  existing build is enough — no new commit). The wrong version would have had whoever followed it
+  set the variable, retry, watch it fail identically, and conclude the fix did not work. Corrected
+  in `ai.ts`, the board and here, because it was written in all three.
+- ⚠ **AND THE REFUSAL LOG NAMES THE MODEL, BECAUSE THAT ONE LINE IS THE WHOLE DIAGNOSIS.**
+  A capability miss and a photo the provider dislikes reach the member as the *same
+  sentence* — deliberately, since guessing between them in member-facing copy would be a
+  fabrication. Which model answered is the only thing that separates them, so the log
+  carries it, plus the variable that fixes it.
+- ⚠ **MEASURED, NOT ASSUMED, ON WHY THIS COULD NOT SIMPLY BE CHECKED:** no `OPENAI_API_KEY`
+  in this container, no `.env`, the route is auth-gated behind `currentUser` +
+  `requireMembership` so an anonymous probe answers 401 rather than a capability, the Vercel
+  project API does not expose env values, and `.env.example` carries `OPENAI_MODEL` **commented
+  out** — so production is either unset (the `gpt-5.4-mini` default) or a value only Vercel
+  holds. *A capability you cannot measure is not one to design around; it is one to stop
+  depending on.*
+- ⚠ **AND CODERABBIT'S PRE-MERGE SECURITY REVIEW FAILED ON #2040 AND I MERGED WITHOUT
+  READING IT.** I read its two inline threads and `mergeable_state: clean` and took that for
+  the whole of its output; the failing check sat in the walkthrough comment, unopened. **The
+  finding turning out refutable is luck, not diligence** — the identical process would have
+  merged a real one. The house merge gate (CI green, not a draft) was not violated and
+  CodeRabbit is out by ruling, but my own merge comment reported its findings as *"both
+  fixed, replied to and resolved"* while I had read part of what it said. *A report on a
+  reviewer you only partly read is an overclaim in the record.*
+- ⚠ **THE FINDING ITSELF DOES NOT SURVIVE THE REPO, AND IT IS WRITTEN DOWN SO NOBODY
+  RE-OPENS IT.** It claimed the photo path *"bypasses the required `ai_audit_log` write
+  scaffold"* and asked for preview/confirm with single-use actor-bound tokens. The scaffold
+  is real (`src/lib/ai/proposals.mjs`, 51 references) — the premise is not invented — but
+  **the repo does not apply it to this shape**, measured across every AI route:
+  `ai/draft-program`, `ai/generate-plan`, `ai/weekly-readout` and `ai/transcribe` all
+  generate content a human then saves and **none audits**; `ai/draft-message`,
+  `ai/directive/override` and `ai/proposals/confirm` all **cross an account boundary or land
+  on a coach-facing record** and all do. `draft-program` settles it — its own header reads
+  *"It writes NOTHING — the draft lands in the builder's week-by-week review and only
+  persists when the member saves. Human-in-the-loop, like Nora's proposals"* — which is the
+  recipe import's contract word for word, over a member's **entire training program**.
+- **The property that predicts auditing is crossing an account boundary, not "a model
+  produced the text."** A member saving their own reviewed recipe into their own `user_goals`
+  row under their own RLS session crosses nothing. ⚠ **REGISTERED AS AN OWNER RULING, NOT
+  ACTED ON:** whether `draftedByAI` member content should audit at all is a real question —
+  but it is **one convention across five routes**, not a patch to the newest one.
+- **Verified:** `npm test` **3326/3326** (3323 + 3) · `tsc --noEmit` 0 · **5/5 mutations
+  killed, sanity green at both ends** (the pin dropped from the route · the override ignored ·
+  the fallback replaced by a hardcoded name · the log stripped of the model · the log stripped
+  of the remedy) · and the tests **inject the real `aiVisionModel`** rather than a local
+  restatement, so they assert on the resolver that ships. The default case pins that an unset
+  variable resolves to `OPENAI_MODEL` **exactly**, because a "fix" that changed the model for
+  builds already working would be the regression.
+
 ### 2026-09-11 — The two registered follow-ups: a GDPR key that named two of its twenty-six kinds, and a recipe you can photograph
 
 - **Owner: *"now do the GDPR export label rename, photo import"*** — the two items the
