@@ -26,9 +26,20 @@
                  wght 500 / ROND 60 the same "$5" is barely legible at 76px and
                  still loose at 60. Every display figure here is 900 / ROND 100;
                  small labels stay 700 / ROND 30, where the grid is the point.
+                 ⚠ SO THE FONT URL MUST REQUEST **ROND** AS WELL AS wght, AND
+                 SHIPPED WITHOUT IT. Google Fonts serves only the axes you ask
+                 for and PINS the rest at their default — so `Doto:wght@100..900`
+                 delivered a font with no ROND axis at all, every ROND
+                 declaration below was inert, and each figure rendered at Doto's
+                 default **ROND 0**: the square-dot form this note says cannot be
+                 read. Nothing showed it, because an ignored
+                 font-variation-settings is not an error anywhere — it renders,
+                 it just renders the wrong glyph. Guarded by
+                 tests/homepage-font-axes.test.mjs, which derives the axes used
+                 from this file and requires each to be requested.
      Schibsted Grotesk — body and UI. Born inside a newspaper group, so the
                  broadsheet stays in the DNA without the magazine serif. -->
-<link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wdth,wght@0,50..150,100..900;1,50..150,100..900&family=Doto:wght@100..900&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wdth,wght@0,50..150,100..900;1,50..150,100..900&family=Doto:ROND,wght@0..100,100..900&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet" />
 <!-- React + Babel so the global chat bubble mounts the full rich ChatWidget
      (same as every other newdesign page) instead of the fallback panel. -->
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>

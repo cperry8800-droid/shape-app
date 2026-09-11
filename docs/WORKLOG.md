@@ -147,6 +147,22 @@ changelog whenever something ships.
   `@codex review` on every PR; when Codex is unavailable there is NO second reviewer** — the
   round is my own adversarial read of the diff plus a mutation round, and the PR says so
   rather than pretending a layer ran.
+  ⚠ **RE-CONFIRMED THE SAME EVENING, AFTER I BROKE IT.** On #2045 the owner said *"ok run
+  coderabbit"*, believing Codex had not run — they had been reading the summary row pinned to
+  the PREVIOUS head, which is the head-pinning trap two paragraphs down. I triggered
+  CodeRabbit without first checking that belief against the live row. Seeing both running,
+  the owner ruled: ***"i dont want codex and coderabbit both running"*** → **Codex only.** So
+  the block above stands, and the lesson is mine: *when an instruction rests on a premise you
+  can measure in one call, measure it before you act on it* — the trigger cost a round that
+  bought nothing.
+  ⚠ **AND THE MEASURED YIELD ON THAT PR IS WHY THE RULING IS EASY.** Across five heads Codex
+  returned **9 findings, every one real and every one fixed** — including a defect no other
+  layer could have caught, a `font-variation-settings` axis the page set sixteen times and
+  never requested, which is invisible to every browser, linter and build because an ignored
+  axis is not an error. CodeRabbit's completed round on the same PR returned *"no actionable
+  comments"*; its one useful contribution was a merge-conflict notice, which had gone stale by
+  the time it was read. **And it bills $0.25/file** — ~$3.50 across this PR — where Codex is
+  free. *A second reviewer earns its place on findings, not on breadth.*
   ⚠ **THREE RULINGS IN ONE DAY, AND THE MIDDLE ONE IS DEAD.** *"if codex is timed out then
   use coderabbit"* (the second) was live for about an hour, was used once on #2040, and is
   **superseded**. Its measurement is worth keeping — the fallback found two real things,
@@ -628,9 +644,15 @@ Append new entries at the top, under this note.
 - ⚠ **A MARKETPLACE OF TWO PEOPLE IS NOT A MARKETPLACE.** Production holds **1 trainer and 1
   nutritionist with an `owner_id`** (21 and 22 rows exist; one each is claimed), so H12's
   "render real profiles" option would render two people. The cards are labelled examples and
-  the count is shown only when the route answers with one — ⚠ `marketplace-stats` reports
-  `count ?? 0` for a **FAILED** read, so a zero is treated as *could not read*, never as
-  *there are none*.
+  the count is shown only when the route answers with one. ⚠ **CORRECTED SAME DAY — this
+  read *"`marketplace-stats` reports `count ?? 0` for a FAILED read, so a zero is treated as
+  could not read"*, and that was only ever true when BOTH queries failed.** The two reads
+  fail independently, so one failure beside one success published **"0 trainers · 1
+  nutritionist"** — a read that never happened, printed as a count, on the page whose whole
+  framing is that every figure is measured or labelled. The route emits **`null` per query**
+  now and the page stays silent unless both came back as numbers; `total` is `null` unless
+  both halves are known, because a partial sum is a smaller claim wearing the same name. A
+  measured `0 trainers · 3 nutritionists` still prints, because it is true.
 - ⚠ **DOTO NEEDS WEIGHT, NOT RESTRAINT — AND THAT CORRECTS THE REVIEW'S OWN PRESCRIPTION.**
   §5a says *"500 for the large figures, ROND 60 on hero figures"*. Measured on a specimen at
   48 / 60 / 76 px, that is the setting that **cannot be read**: the dots stay thin and far
@@ -638,6 +660,28 @@ Append new entries at the top, under this note.
   76 px. Every display figure on the page is 900 / ROND 100 now; small labels stay 700 / 30,
   where the grid is the point. ⚠ `ctx.font` has **no** `font-variation-settings`, so a canvas
   figure has only the weight lever — which is the one that decides legibility anyway.
+- ⚠ **CORRECTED SAME DAY — THE SENTENCE ABOVE WAS FALSE ON THE SHIPPED PAGE, AND A CODEX
+  ROUND CAUGHT IT.** The specimen was measured against locally-served font files, so the
+  *choice* is right; what the page then did was ask Google Fonts for **`Doto:wght@100..900`**.
+  That service delivers the axes you name and **pins every other one at its default**, so the
+  font arrived with **no `ROND` axis at all** — all sixteen `font-variation-settings:'ROND' N`
+  rules were inert and every figure rendered at Doto's default **ROND 0**, the square-dot form
+  this very bullet says cannot be read. Measured rather than argued: the two URLs serve
+  different files, and dumping each font's `fvar` table gives `wght` alone against
+  `ROND 0..100` + `wght`; instancing the glyphs at each end confirms the axis really moves
+  them (`'5'` first contour `(5,695)`, a square corner, against `(49,695)…(5,669)`, a rounded
+  one). Fixed by requesting `Doto:ROND,wght@0..100,100..900`.
+  ⚠ **NOTHING COULD HAVE REPORTED THIS, WHICH IS THE PART WORTH KEEPING.** An ignored
+  `font-variation-settings` is not an error in any browser, linter or build — the page
+  renders, it just renders the wrong glyph — and the container's Chromium cannot reach
+  `fonts.gstatic.com`, so the render pass that *did* run had already fallen back. Only
+  comparing the axes USED against the axes REQUESTED finds it, which is now
+  `tests/homepage-font-axes.test.mjs`, derived from the file so a new axis is covered with
+  nobody remembering it exists. **6/6 mutations killed**, each proven to land, sanity green at
+  both ends. ⚠ And its first version was a broken instrument in the way this file keeps
+  recording: `[\d.]+` is greedy over dots, so `50..150` matched **whole**, parsed as `NaN`,
+  and every ranged axis was dropped — the guard failed on a page that was by then correct.
+  *A parser that reports a failure is as broken as one that reports a pass.*
 - **Structure: 24.4 screens become 7.8 at 1440 px.** The 525vh pinned loop is an auto-playing
   four-card strip of real app captures (**395 KB of JPEG replacing a 1.7 MB JPEG-named-PNG**);
   the journey keeps this page's own five-form point cloud — sphere, two rings, the ECG, the
