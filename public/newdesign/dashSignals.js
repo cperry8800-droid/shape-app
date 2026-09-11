@@ -1592,7 +1592,11 @@
     // ⚠ `Number(null)` IS 0 AND FINITE, so `isFinite` alone cannot tell an absent figure
     // from a measured zero — the class this file post-mortems on the Wall's helpers and
     // on the booking slots. A measured 0 is a value; null, "" and a boolean are not.
-    if (v == null || v === "" || typeof v === "boolean") return null;
+    // ⚠ AND AN OBJECT IS NOT A FIGURE, which `isFinite` cannot see either: `Number([])`
+    // is **0 and finite** and `Number([5])` is 5, so an array reaches every metric below as
+    // a confident reading. Found by the vector list in the compliance guard rather than by
+    // reading — the same trap as `Number(null)`, one type over. (CodeRabbit, #2046.)
+    if (v == null || v === "" || typeof v === "boolean" || typeof v === "object") return null;
     var n = Number(v);
     return isFinite(n) ? n : null;
   }
@@ -1681,9 +1685,19 @@
     compliance: {
       trainer: "Roster compliance", nutritionist: "Roster compliance",
       resolve: function (ctx) {
-        var withLogs = kpiRows(ctx).filter(function (c) { return c && c.foodLogs && c.foodLogs.daysLogged7d != null; });
+        // ⚠ A NON-NULL VALUE IS NOT A COUNT OF DAYS. `!= null` admits a string, a boolean
+        // and a negative, and `Math.min` passes each straight through: "abc" makes the whole
+        // percentage NaN, true counts as one day, and -3 subtracts from the roster's total.
+        // The window is seven days, so the only readings this can mean are the integers 0..7
+        // — anything else is a row we could not read, which is what `why` is for.
+        // (CodeRabbit, #2046; the same class as `Number(null)` being 0 and finite.)
+        var withLogs = kpiRows(ctx).filter(function (c) {
+          if (!c || !c.foodLogs) return false;
+          var d = kpiNum(c.foodLogs.daysLogged7d);
+          return d != null && d >= 0 && d <= 7 && Math.floor(d) === d;
+        });
         if (!withLogs.length) return { value: null, unit: "pct", why: "no shared logs yet" };
-        var days = withLogs.reduce(function (s, c) { return s + Math.min(7, c.foodLogs.daysLogged7d); }, 0);
+        var days = withLogs.reduce(function (s, c) { return s + kpiNum(c.foodLogs.daysLogged7d); }, 0);
         // The nutritionist's copy names WHAT was logged, which is the wording that strip
         // has always carried on that role.
         var what = (ctx && ctx.role) === "nutritionist" ? "food logs" : "logged";

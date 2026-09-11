@@ -200,8 +200,14 @@ test('the slot hook writes every changed key in ONE apply', () => {
   assert.equal((body.match(/apply\(/g) || []).length, 1, 'more than one apply: the arrangement can half-land');
   assert.match(body, /for \(let i = 0; i < keys\.length; i\+\+\) \{\s*if \(want\[i\] === undefined\) delete out\[keys\[i\]\]; else out\[keys\[i\]\] = want\[i\];/,
     'the single apply no longer writes every key');
-  // a value we would refuse to read back stops the WHOLE write, not just its own slot
-  assert.match(body, /for \(let i = 0; i < chosen\.length; i\+\+\) if \(allowed\.indexOf\(chosen\[i\]\) < 0\) return;/);
+  // ⚠ RE-ANCHORED ON THE INVARIANT: this pinned `chosen[i]`, and account-scoping the
+  // choice renamed it to `mine`. A value we would refuse to read back must stop the WHOLE
+  // write, not just its own slot — which is what the loop says, whatever it is called.
+  assert.match(body, /for \(let i = 0; i < \w+\.length; i\+\+\) if \(allowed\.indexOf\(\w+\[i\]\) < 0\) return;/);
+  // and the session's choice carries the account it was made under, so a discarded render
+  // cannot leave one account's arrangement governing another's document
+  assert.match(body, /chosen\.acct === acct/);
+  assert.doesNotMatch(body, /knownRef/, 'the render-phase account ref is back');
 });
 
 test('a long settings group renders as a select, and hands back the option value', () => {
@@ -387,4 +393,43 @@ test('the whole scroll box is on screen, so max scroll reaches the last control'
       assert.ok(boxBottom <= vh, `box ends ${boxBottom - vh}px below the viewport at vh=${vh} top=${top}`);
     }
   }
+});
+
+// ── Roster compliance normalizes its input (CodeRabbit, #2046) ────────────────
+//
+// ⚠ A NON-NULL VALUE IS NOT A COUNT OF DAYS. The filter was `daysLogged7d != null`, and
+// `Math.min(7, x)` passes a string, a boolean and a negative straight through — so one
+// unreadable row could render the whole roster's compliance as NaN, or drag it below zero.
+test('a roster row whose log count is not a real day count is not counted', () => {
+  const rows = (vals) => vals.map((v, i) => ({ profile: { id: 'c' + i, name: 'C', isNew: false }, foodLogs: { daysLogged7d: v } }));
+  const pct = (vals) => S.dashKpiValue('compliance', ctx({ live: {}, clients: rows(vals) }));
+
+  // four clean rows: 7+7+0+0 of 28 = 50%
+  assert.equal(pct([7, 7, 0, 0]).value, 50);
+
+  // each of these is dropped, not coerced — the two clean rows still read 100%
+  for (const junk of ['abc', '', true, false, -3, 3.5, 9, NaN, {}, []]) {
+    const r = pct([7, 7, junk]);
+    assert.equal(r.value, 100, `\`${String(junk)}\` reached the average`);
+    assert.ok(Number.isFinite(r.value), `\`${String(junk)}\` made the percentage NaN`);
+  }
+
+  // a measured 0 IS a reading and still counts
+  assert.equal(pct([0, 0]).value, 0);
+  // and a roster with nothing readable says so rather than reporting a number
+  const none = pct(['abc', -1]);
+  assert.equal(none.value, null);
+  assert.match(none.why, /no shared logs/);
+});
+
+test('the settings select clears the 16px focus-zoom floor on a touch pointer', () => {
+  // ⚠ iOS Safari zooms the VIEWPORT when a focused control computes under 16px, and this
+  // panel is position:fixed and placed from the gear's measured rect — so a zoom moves the
+  // viewport out from under a panel that has already been positioned.
+  assert.match(GRID, /@media \(pointer:coarse\)\{\.dash-setpick-sel\{font-size:16px!important\}\}/);
+  const at = GRID.indexOf('function DgCardSettings(');
+  const body = GRID.slice(at, GRID.indexOf('\nfunction DashGrid(', at));
+  assert.match(body, /className="dash-setpick-sel"/, 'the rule cannot reach the select');
+  // the desktop size is unchanged — the override is scoped, not a global bump
+  assert.match(body, /fontSize: 11,/);
 });

@@ -119,6 +119,12 @@ function dgInjectStyle() {
 .dash-gridstack .grid-stack-item:hover .dash-wchrome,.dash-gridstack .grid-stack-item:focus-within .dash-wchrome{opacity:1}
 @media (hover:none){.dash-wchrome{opacity:1}}
 .dash-drag-handle{cursor:move}
+/* ⚠ iOS SAFARI ZOOMS THE VIEWPORT ON FOCUS when a form control computes under 16px, and
+   that is worse here than the usual nuisance: this panel is position:fixed and portaled to
+   <body>, positioned from the gear's measured rect, so a zoom moves the viewport out from
+   under a panel that has already been placed. The desktop keeps its 11px; the override is
+   scoped to coarse pointers so it costs the mouse nothing. (CodeRabbit, #2046.) */
+@media (pointer:coarse){.dash-setpick-sel{font-size:16px!important}}
 `;
   document.head.appendChild(s);
 }
@@ -303,6 +309,7 @@ function DgCardSettings({ groups }) {
                   groups keep the chips, which read the current value at a glance. */}
               {g.options.length > DG_SELECT_AT ? (
                 <select
+                  className="dash-setpick-sel"
                   value={String(g.value)}
                   aria-label={g.label}
                   onMouseDown={(e) => e.stopPropagation()}

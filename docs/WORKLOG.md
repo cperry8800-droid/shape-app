@@ -713,12 +713,20 @@ Append new entries at the top, under this note.
   never `e.target.value`**: a select's value is always a string, so passing it through would
   silently change a numeric or boolean option's type on the way to a widget that had used
   chips — the two paths have to agree.
-- ⚠ **FOUR HOOKS PER STRIP, WRITTEN OUT RATHER THAN LOOPED**, so the count is fixed by
-  construction rather than by a constant somebody could later derive from data — the
-  rules-of-hooks class neither the build, `tsc`, nor the suite catches. And **one key per
-  slot rather than one array**, because `useRememberedChoice` validates a stored value
-  against the pool: a retired metric then costs that ONE slot its default, where a stored
-  array would have to be validated element by element or discarded whole.
+- ⚠ **ONE HOOK PER STRIP OVER FOUR PER-SLOT KEYS, WRITTEN OUT RATHER THAN LOOPED**, so the
+  hook count is fixed by construction rather than by a constant somebody could later derive
+  from data — the rules-of-hooks class neither the build, `tsc`, nor the suite catches. The
+  keys stay **one per slot rather than one array**, because validation is per slot: a metric
+  retired since it was chosen costs THAT slot its default, where a stored array would have to
+  be validated element by element or discarded whole. **The write is one `apply` for the whole
+  arrangement**, which is what makes a two-slot swap unable to half-land.
+  ⚠ **CORRECTED — this bullet said FOUR HOOKS, which is the shape Codex found unsafe on
+  #2046 and the fix removed.** Four `useRememberedChoice`s take a swap to the document as two
+  whole-document writes, so a first that lands beside a second that fails leaves one metric in
+  both slots. CodeRabbit then flagged the stale wording here, and it was right to: **this file
+  is auto-loaded through `AGENTS.md`**, so a reader who trusted it would restore the four hooks
+  and re-open the partial write. *A record that describes the shape a fix removed is an
+  instruction to undo the fix.*
 - ⚠ **AND THE ROLE CONFIG'S OWN LABELS ARE DELETED RATHER THAN LEFT.** `weekLabel` and
   `upcomingLabel` had zero consumers the moment the catalog started naming every metric, and
   a second spelling sitting in `DASH_TODAY_ROLES` is the copy the next reader edits — after
@@ -830,6 +838,52 @@ Append new entries at the top, under this note.
   reached the constant that had just bitten and stopped there. It runs from **vw 40 and
   vh 100** now, and carries a **separate assertion for the property the gutter sweep does
   not state**: the whole scroll box is on screen, so max scroll reaches the last control.
+- ⚠ **AND THE OWNER ASKED FOR CODERABBIT ON THIS HEAD — which reverses their own standing
+  ruling, and it came back CHANGES_REQUESTED with FOUR findings, all real.** Recorded here
+  rather than in a handoff: the conventions at the head of this file say *"no more
+  coderabbit"*, and on 2026-09-11 the owner said *"run codrabbit"* on #2046. **Whether that
+  is standing or was for this PR is the owner's to say**, so the ruling above is untouched.
+  ⚠ **It billed $2.00** (8 files at $0.25 beyond the included allowance, which its own ack
+  warned about before the round ran) — so a trigger is now a cost decision, not a free layer.
+- ⚠ **AND MY FIRST READING OF ITS VERDICT WAS WRONG, WHICH IS THE READING RULE THIS FILE
+  ALREADY CARRIES.** I read the **walkthrough comment**, saw no findings in it, and reported
+  zero — while the findings were in a **submitted review** (`CHANGES_REQUESTED`, *Actionable
+  comments posted: 4*) with four inline comments. *A verdict is only about the head it names,
+  and it is in the review, not the summary.*
+- ⚠ **THE MAJOR ONE IS A CROSS-ACCOUNT LEAK THROUGH A RENDER-PHASE REF WRITE.** The sibling
+  hooks reset the session's choice by comparing against a ref written **during render**
+  (`if (acct !== knownRef.current) setChosen(null); knownRef.current = acct`). These pages
+  mount with **`createRoot`**, so React may DISCARD an interrupted render after that write has
+  landed: committed state still holds A's arrangement while the ref says B, the reset never
+  fires on the retry, and the reconciliation writes **A's strip into B's document** — exactly
+  what the block exists to prevent. The choice carries the account it was made under now
+  (`{ acct, slots }`), which is self-correcting and has **no render-phase mutation at all**.
+  ⚠ **REGISTERED, NOT SWEPT:** `useRememberedChoice` and `useRememberedSet` carry the older
+  shape and predate this PR — same class, same fix, and widening this diff to three hooks is
+  the owner's call rather than a side effect of adding a fourth.
+- ⚠ **AND ROSTER COMPLIANCE ACCEPTED ANYTHING THAT WAS NOT NULL.** `daysLogged7d != null`
+  then `Math.min(7, x)`: a string makes the **whole roster's percentage NaN**, a boolean
+  counts as a day, and a negative subtracts from the total. The window is seven days, so the
+  only readings it can mean are the integers 0..7 — anything else is a row we could not read,
+  which is what `why` is for.
+- ⚠ **AND WRITING THE VECTOR LIST FOR THAT FOUND ONE CODERABBIT HAD NOT ASKED ABOUT:
+  `Number([])` IS 0 AND FINITE.** So an array reached **every** metric through the shared
+  `kpiNum` as a confident zero (and `Number([5])` as a 5). The same trap as `Number(null)`,
+  one type over, in the helper written to close it. Rejected at `kpiNum`, so it is fixed for
+  all eleven metrics rather than for compliance alone. *The guard found it, not the review.*
+- **The `<select>` clears iOS Safari's 16px focus-zoom floor on a coarse pointer**, which is
+  worse here than the usual nuisance: the panel is `position: fixed` and placed from the
+  gear's measured rect, so a zoom moves the viewport out from under a panel already
+  positioned. The desktop keeps its 11px — the override is scoped, not a global bump.
+- ⚠ **AND ITS FOURTH FINDING WAS THE STALE BULLET IN THIS FILE, WHICH IS THE ONE TO TAKE
+  MOST SERIOUSLY.** The *"FOUR HOOKS PER STRIP"* bullet described the shape **Codex's fix had
+  removed** — and `AGENTS.md` `@`-imports this file, so a reader who trusted it would restore
+  the four hooks and re-open the partial-swap write. Corrected at the source. *A record that
+  describes the shape a fix removed is an instruction to undo the fix.*
+- ⚠ **AND A GUARD OF MINE PINNED A SPELLING AGAIN** — the atomic-write test matched
+  `chosen[i]`, so account-scoping the choice (renaming it to `mine`) failed a test about
+  partial writes. Re-anchored on the invariant, plus two assertions that the choice carries
+  its account and that the render-phase ref has not come back.
 - **Verified:** `npm test` **3355/3355** on the head merged with `main` · `tsc --noEmit` 0 ·
   JSX parse on all three changed modules · `dashSignals.js` `require()`s clean · the
   newdesign precompile check · **21/21 + 19/19 mutations killed** across two rounds — the

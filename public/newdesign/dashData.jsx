@@ -980,29 +980,35 @@ function useRememberedChoice(store, key, allowed, fallback) {
 // reconciliation effect so a choice made before the store is writable is retried rather
 // than dropped.
 function useRememberedSlots(store, keys, allowed, defaults) {
-  const [chosen, setChosen] = React.useState(null);   // null = nobody has chosen here
+  // ⚠ THE CHOICE CARRIES THE ACCOUNT IT WAS MADE UNDER, rather than being reset by a ref
+  // written during render. The sibling hooks do the latter — `if (acct !== knownRef.current)
+  // { setChosen(null) } ; knownRef.current = acct` — and on a concurrent root (these pages
+  // mount with `createRoot`) React may DISCARD an interrupted render after that ref write
+  // has already landed. The committed state then still holds A's arrangement while
+  // `knownRef` says B, so the reset never fires on the retry and the reconciliation below
+  // writes A's arrangement into B's document: the exact cross-account leak the block exists
+  // to prevent. Pairing the choice with its account is self-correcting instead — a choice
+  // made under A simply stops matching when the account is B, with nothing to leak from a
+  // render that never committed, and no render-phase mutation at all. (CodeRabbit, #2046.)
+  //
+  // ⚠ REGISTERED, NOT SWEPT: `useRememberedChoice` and `useRememberedSet` carry the older
+  // shape and predate this PR. Same class, same fix; widening this diff to three hooks is
+  // the author's call, not a side effect of adding a fourth.
+  const [chosen, setChosen] = React.useState(null);   // { acct, slots } | null
   const askedRef = React.useRef(null);
-
-  // Same clean slate as `useRememberedChoice`, and for the same reason: `chosen`
-  // outranks the document, so A's arrangement would go on governing B's screen.
   const acct = store && store.accountId != null ? store.accountId : null;
-  const knownRef = React.useRef(null);
-  if (acct != null && knownRef.current != null && acct !== knownRef.current) {
-    setChosen(null);
-    askedRef.current = null;
-  }
-  if (acct != null) knownRef.current = acct;
+  const mine = chosen && chosen.acct === acct && Array.isArray(chosen.slots) ? chosen.slots : null;
 
   const doc = (store && store.doc) || {};
   const kind = (store && store.kind) || "loading";
   const apply = store && store.apply;
   const readSlot = (k) => (Object.prototype.hasOwnProperty.call(doc, k) ? doc[k] : undefined);
   const values = keys.map((k, i) => {
-    if (chosen != null && chosen.length === keys.length) return chosen[i];
+    if (mine != null && mine.length === keys.length) return mine[i];
     const stored = readSlot(k);
     return allowed.indexOf(stored) >= 0 ? stored : defaults[i];
   });
-  const choose = React.useCallback((next) => { setChosen(next); }, []);
+  const choose = React.useCallback((next) => { setChosen({ acct: acct, slots: next }); }, [acct]);
 
   // The present/absent marker is prefixed so a stored value can never be mistaken for
   // "this key is absent" — the two have to be distinguishable for the no-op check below.
@@ -1011,15 +1017,15 @@ function useRememberedSlots(store, keys, allowed, defaults) {
   const defaultsKey = defaults.join("\u0000");
   const allowedKey = allowed.join("\u0000");
   React.useEffect(() => {
-    if (chosen == null) return;
+    if (mine == null) return;
     if (kind !== "ready" && kind !== "error") return;
     if (typeof apply !== "function") return;
     // ⚠ A VALUE WE WOULD REFUSE TO READ BACK STOPS THE WHOLE WRITE, not just its own
     // slot. A strip is ONE arrangement, and writing three of its four keys is precisely
     // the partial write this hook exists to prevent.
-    if (chosen.length !== keys.length) return;
-    for (let i = 0; i < chosen.length; i++) if (allowed.indexOf(chosen[i]) < 0) return;
-    const want = chosen.map((v, i) => (v === defaults[i] ? undefined : v));
+    if (mine.length !== keys.length) return;
+    for (let i = 0; i < mine.length; i++) if (allowed.indexOf(mine[i]) < 0) return;
+    const want = mine.map((v, i) => (v === defaults[i] ? undefined : v));
     let differs = false;
     for (let i = 0; i < keys.length; i++) {
       const had = Object.prototype.hasOwnProperty.call(doc, keys[i]) ? doc[keys[i]] : undefined;
@@ -1028,7 +1034,9 @@ function useRememberedSlots(store, keys, allowed, defaults) {
     if (!differs) return;                            // the document already says it
     // One attempt per arrangement — the optimistic paint and its rollback are a
     // dependency change, so keying on the document instead would write forever.
-    const asked = chosen.join("\u0000");
+    // Keyed on the ACCOUNT as well as the arrangement, so the same four metrics chosen
+    // under a second account are a different attempt rather than a suppressed repeat.
+    const asked = String(acct) + "\u0001" + mine.join("\u0000");
     if (askedRef.current === asked) return;
     askedRef.current = asked;
     apply((d) => {
@@ -1039,7 +1047,7 @@ function useRememberedSlots(store, keys, allowed, defaults) {
       return out;
     });
     // eslint-disable-next-line
-  }, [chosen, kind, storedKey, keysKey, defaultsKey, allowedKey]);
+  }, [mine, acct, kind, storedKey, keysKey, defaultsKey, allowedKey]);
 
   return [values, choose];
 }
