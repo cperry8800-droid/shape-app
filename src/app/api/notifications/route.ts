@@ -25,7 +25,16 @@ export async function GET(request: Request) {
     .select('id, type, title, body, route, data, read_at, created_at')
     .order('created_at', { ascending: false })
     .limit(200);
-  if (error) return NextResponse.json({ notifications: [], unread: 0 });
+  // ⚠ A FAILED READ IS NOT AN EMPTY INBOX. This returned HTTP 200 with
+  // `{ notifications: [], unread: 0 }`, which is the positive claim "nothing new" made
+  // out of a query that never answered — and it made the web bell's "couldn't read your
+  // notifications" state UNREACHABLE for the most likely failure there is, while the
+  // panel and the records both claimed to handle it.
+  //
+  // The mobile client is unaffected: `getJsonOrDefault` already returns its own
+  // `{ notifications: [], unread: 0 }` fallback on any non-OK response, so a 502 lands
+  // exactly where a 200-with-nothing landed before.
+  if (error) return NextResponse.json({ error: 'Could not read notifications.' }, { status: 502 });
 
   const rows = (data ?? []) as Row[];
   // Honor the preference center's in-app channel: a row written for push/email
