@@ -206,6 +206,326 @@ function dashShellHref(href) {
   return slug ? "#" + slug : href;
 }
 
+// ── THE NOTIFICATIONS INBOX (review 2026-09-09, R20) ───────────────────────
+// `/api/notifications` has shipped since the 2026-05-30 migration and the mobile app
+// reads it; **no website surface did**. A member could be told on their phone that their
+// coach had replied and see nothing on the web.
+//
+// ⚠ IT LIVES IN THIS FILE RATHER THAN IN ITS OWN. `pageShell.jsx` is the shared chrome
+// every newdesign page already loads — a new module would mean a script tag in 69 files,
+// which is the churn this repo post-mortems, and a load-order question on each of them.
+//
+// ⚠ AND IT IS THE HEADER, NOT A DASHBOARD CARD, because a notification is not about the
+// page you happen to be on.
+const DASH_INBOX_TEAL = "#2ee0c4";
+const DASH_INBOX_W = 340;
+const DASH_INBOX_GUTTER = 12;
+
+// Where the panel goes, given the bell's box and the viewport width. Pure, so it can be
+// driven rather than read: the invariant it owes is that the resulting box is fully on
+// screen at EVERY width, which is a claim about arithmetic and not about a stylesheet.
+//
+// `right` is measured from the bell's right edge (the panel is absolutely positioned
+// inside the bell's wrapper), so a NEGATIVE value pushes the panel further right and a
+// positive one pulls it left. Both directions are needed and the first cut only had one:
+// a `Math.min(0, …)` clamp read as "never move it right of where it already was", which
+// is correct for a bell set in from the edge and WRONG for one hard against it — the
+// guard below caught the panel spilling 12px past the right gutter at 320px, in the same
+// function whose comment claimed it could not overflow "by construction".
+//
+// The honest construction is an interval. Cap the width at the two gutters first, then
+// `right` must satisfy both edges at once:
+//     viewRight = bellRight − right   ≤ innerWidth − gut   →   right ≥ bellRight − innerWidth + gut
+//     left      = viewRight − w       ≥ gut                →   right ≤ bellRight − w − gut
+// The interval is non-empty exactly when `w ≤ innerWidth − 2·gut`, which the width cap
+// guarantees — so a value always exists. 0 (the plain right-aligned panel a desktop has
+// always had) is preferred and only clamped when it falls outside.
+function dashInboxPanelBox(bellRight, innerWidth) {
+  const gut = DASH_INBOX_GUTTER;
+  const w = Math.min(DASH_INBOX_W, Math.max(120, innerWidth - gut * 2));
+  const lo = Math.round(bellRight - innerWidth + gut);
+  const hi = Math.round(bellRight - w - gut);
+  const right = Math.max(lo, Math.min(hi, 0));
+  return { w: w, right: right, left: Math.round(bellRight - right - w), viewRight: Math.round(bellRight - right) };
+}
+
+// The API's routes are the MOBILE app's slugs. Only the ones with a real website
+// destination are turned into links.
+//
+// ⚠ A ROW WITH NO MAPPING IS NOT CLICKABLE, and that is R18's own rule turned on this
+// feature: a button that does nothing costs more trust than an absent one. `chat` is the
+// clearest case — the client shell has no `messages` route at all (the chat is a widget),
+// so a "your coach replied" notification opens nothing rather than opening the wrong page.
+//
+// ⚠ THE TARGETS ARE THE LEGACY STUB FILENAMES, NOT `ClientApp.html#slug`, and that is
+// the whole point of `dashShellHref`: it keys on those names (`DASH_SHELL_STUBS`), so
+// in-shell they become an instant `#slug` switch and from a marketing page they are a
+// real link that the stub then forwards. Writing `ClientApp.html#score` directly bypasses
+// the map — measured in a browser, the link rendered as a full page load from inside the
+// shell it was already in, which is the exact cost R19 removed.
+const DASH_INBOX_ROUTES = {
+  home: "ClientDashboard.html",
+  checkin: "ClientDashboard.html",     // the check-in form lives on Today
+  goal: "ClientGoal.html",
+  score: "ClientScore.html",
+  feed: "ClientCommunity.html",
+  habits: "ClientHabits.html",
+};
+function dashInboxHref(n, role) {
+  if (!n || typeof n.route !== "string") return null;
+  // A coach's client_red / client_amber / checkin_submitted carries the client it is
+  // about; without an id there is no page to open, so it stays plain text.
+  if (n.route === "client") {
+    const id = n.data && (n.data.clientId || n.data.client_id);
+    if (!id || (role !== "trainer" && role !== "nutritionist")) return null;
+    const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
+    return (typeof window !== "undefined" && window.__shapeCoachShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
+  }
+  if (!Object.prototype.hasOwnProperty.call(DASH_INBOX_ROUTES, n.route)) return null;
+  const target = DASH_INBOX_ROUTES[n.route];
+  // In-shell this is a hash switch; from a marketing page it is a real navigation.
+  return typeof dashShellHref === "function" ? dashShellHref(target) : target;
+}
+
+// ⚠ A SHAPE CHECK, NOT A TRUST FALL. `getJsonOrDefault` on mobile swallows a failure
+// into `{ notifications: [], unread: 0 }` — which on a bell is the positive claim
+// "nothing new". Here an unreadable response is `null` and the panel says so.
+function dashInboxShape(json) {
+  if (!json || typeof json !== "object" || !Array.isArray(json.notifications)) return null;
+  const rows = json.notifications
+    .filter((n) => n && typeof n.id === "string" && typeof n.title === "string")
+    .map((n) => ({
+      id: n.id, type: String(n.type || ""), title: n.title, body: typeof n.body === "string" ? n.body : "",
+      route: typeof n.route === "string" ? n.route : null, data: n.data && typeof n.data === "object" ? n.data : {},
+      read: !!n.read, createdAt: typeof n.createdAt === "string" ? n.createdAt : null,
+    }));
+  // The server's `unread` counts the same rows; recomputing keeps the badge and the
+  // list from ever disagreeing after an optimistic mark.
+  return { rows: rows, unread: rows.filter((r) => !r.read).length };
+}
+
+// Relative age. Deliberately coarse — an inbox wants "3h", not "3h 12m".
+function dashInboxWhen(iso, now) {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return "";
+  const at = (now instanceof Date ? now : new Date()).getTime();
+  const s = Math.round((at - t) / 1000);
+  // ⚠ `s < 60` OWNS THE CLOCK-SKEW CASE, and it is written this way on purpose. A
+  // timestamp a few seconds in the future (a device clock, a server clock) makes `s`
+  // negative, and this branch already catches every negative — a `Math.max(0, …)` above
+  // it looked like a guard and was unreachable, which a mutation round proved by
+  // deleting it and changing nothing. Dead code that reads as a guard is worse than no
+  // guard: the next reader trusts it.
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  if (s < 7 * 86400) return Math.floor(s / 86400) + "d";
+  try { return new Date(t).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return ""; }
+}
+
+// ⚠ THE FEED IS LIFTED OUT OF THE BELL, AND THAT IS BECAUSE THE BELL HAS TO RENDER
+// TWICE. `.shape-nav-auth` — the cluster the bell lived in — is `display: none` at
+// 1200px and below, so the first cut of this feature was measured in a browser as a
+// 33×30 box at 1440px and a ZERO-SIZED one at 1024 and 390: present in the DOM,
+// painting nothing, unreachable on every phone and tablet and on any laptop narrower
+// than 1200. R20 is about a member seeing on the web what their phone already told
+// them, so a bell a phone cannot reach is the feature not shipping.
+//
+// Two render sites, ONE fetch and ONE source of truth: a second `DashInbox` with its
+// own state would spend a second request per page and could disagree with the first
+// after a mark. Only one of the two is ever visible (the CSS is exclusive), so their
+// open/closed states cannot conflict.
+function useDashInboxFeed(signedIn) {
+  // undefined = not read yet · null = the read FAILED · an object = read
+  const [feed, setFeed] = React.useState(undefined);
+  const [busy, setBusy] = React.useState(false);
+  // ⚠ A GENERATION, NOT A PER-CALL FLAG, because the mount read and an on-open refresh
+  // can be in flight together and only the newest of them may write.
+  const genRef = React.useRef(0);
+
+  const load = React.useCallback((keepOnFail) => {
+    const gen = ++genRef.current;
+    return fetch("/api/notifications", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((j) => {
+        if (gen !== genRef.current) return;
+        const next = dashInboxShape(j);
+        // ⚠ A FAILED *REFRESH* KEEPS THE READING WE ALREADY HAVE; a failed FIRST read is
+        // null. "This list may be a minute old" and "we have nothing at all" are
+        // different claims, and discarding a panel the member is looking at because a
+        // refresh timed out is the worse of the two. A first read has nothing to keep.
+        if (next === null && keepOnFail) return;
+        setFeed(next);
+      });
+  }, []);
+
+  React.useEffect(() => {
+    // The generation bump is what makes signing out cancel a read still in flight —
+    // otherwise the previous account's notifications land in the panel after the reset.
+    if (!signedIn) { genRef.current++; setFeed(undefined); return undefined; }
+    load(false);
+  }, [signedIn, load]);
+
+  // ⚠ OPTIMISTIC, WITH A ROLLBACK, and the rollback is the part that matters: a bell
+  // that clears itself on a write that failed tells a member they have seen something
+  // they have not, and the row is gone from the list to prove it.
+  const mark = (body, applyLocal, keepalive) => {
+    if (!feed || busy) return;
+    const before = feed;
+    setFeed(applyLocal(feed));
+    setBusy(true);
+    fetch("/api/notifications", {
+      method: "POST", credentials: "same-origin", keepalive: !!keepalive,
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    })
+      .then((r) => { if (!r.ok) setFeed(before); })
+      .catch(() => setFeed(before))
+      .then(() => setBusy(false));
+  };
+  return {
+    feed: feed, busy: busy,
+    // ⚠ REFRESHED WHEN THE PANEL OPENS. The read ran once per header mount, so a
+    // notification arriving while a member stayed on one dashboard tab never reached the
+    // badge until they reloaded — and a dashboard is a page people leave open all day.
+    // Opening the panel is the moment they ask the question, so that is when it is asked
+    // again. Not while a mark is in flight: the reload would land on top of the
+    // optimistic paint and undo it.
+    reload: () => { if (!busy) load(true); },
+    markAll: () => mark({ all: true }, (f) => ({ rows: f.rows.map((r) => ({ ...r, read: true })), unread: 0 })),
+    // ⚠ `keepalive` FOR A MARK THAT RIDES A NAVIGATION. Outside a shell these links are a
+    // real document navigation, and a POST started in the same tick is cancelled on
+    // unload — so the row the member had just opened stayed unread and the badge went on
+    // claiming it. `keepalive` decouples the request from the document's lifetime.
+    markOne: (id, keepalive) => mark({ id: id }, (f) => {
+      const next = f.rows.map((r) => (r.id === id ? { ...r, read: true } : r));
+      return { rows: next, unread: next.filter((r) => !r.read).length };
+    }, keepalive),
+  };
+}
+
+function DashInbox({ signedIn, role, inbox }) {
+  const [open, setOpen] = React.useState(false);
+  const boxRef = React.useRef(null);
+  const [shift, setShift] = React.useState(null);
+
+  // ⚠ THE PANEL IS ANCHORED TO THE BELL, AND ON A PHONE THE BELL IS NOT AT THE EDGE.
+  // Right-anchored to a bell whose right edge sits ~83px in from the viewport, a 340px
+  // panel starts at −33px on a 390px screen and −51px on a 360px one — both measured in
+  // a browser — and LEFT overflow creates no scrollbar, so the first 33–51px of every
+  // row is silently clipped. `maxWidth: calc(100vw - 32px)` cannot fix it: that caps the
+  // WIDTH while the RIGHT edge stays pinned to the bell.
+  //
+  // So the offset is computed from the bell's own box rather than tuned — see
+  // `dashInboxPanelBox`, which owns the arithmetic and the invariant.
+  React.useLayoutEffect(() => {
+    if (!open) { setShift(null); return undefined; }
+    const place = () => {
+      const el = boxRef.current;
+      if (!el || typeof window === "undefined") return;
+      setShift(dashInboxPanelBox(el.getBoundingClientRect().right, window.innerWidth));
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
+
+  // Click-away and Escape, because a panel pinned to a fixed header cannot be
+  // dismissed by scrolling past it.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+
+  if (!signedIn || !inbox) return null;
+  const feed = inbox.feed;
+  const busy = inbox.busy;
+  const markAll = inbox.markAll;
+  const markOne = inbox.markOne;
+  const reload = inbox.reload;
+  const rows = feed && feed.rows ? feed.rows : [];
+  const unread = feed ? feed.unread : 0;
+
+  const badge = unread > 9 ? "9+" : String(unread);
+  return (
+    <div ref={boxRef} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <button
+        onClick={() => setOpen((v) => { if (!v && typeof reload === "function") reload(); return !v; })}
+        aria-label={unread ? unread + " unread notifications" : "Notifications"}
+        aria-expanded={open}
+        style={{ position: "relative", background: "transparent", border: 0, padding: "6px 8px", cursor: "pointer",
+                 color: open ? DASH_INBOX_TEAL : "rgba(245,239,225,0.78)", lineHeight: 0, minHeight: 30, minWidth: 30 }}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
+        </svg>
+        {unread > 0 && (
+          <span style={{ position: "absolute", top: 1, right: 1, minWidth: 15, height: 15, padding: "0 4px", borderRadius: 999,
+                         background: DASH_INBOX_TEAL, color: "#0b0e0c", fontFamily: "'JetBrains Mono', monospace",
+                         fontSize: 9, fontWeight: 700, lineHeight: "15px", textAlign: "center" }}>{badge}</span>
+        )}
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "100%", right: shift ? shift.right : 0, marginTop: 8,
+                      width: shift ? shift.w : DASH_INBOX_W, maxWidth: "calc(100vw - " + (DASH_INBOX_GUTTER * 2) + "px)", zIndex: 70 }}>
+          <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)",
+                        borderRadius: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Notifications</span>
+              {unread > 0 && (
+                <button onClick={markAll} disabled={busy} style={{ background: "transparent", border: 0, padding: 0, cursor: busy ? "default" : "pointer",
+                          fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(242,237,228,0.3)" : DASH_INBOX_TEAL }}>Mark all read</button>
+              )}
+            </div>
+            <div style={{ maxHeight: 380, overflowY: "auto" }}>
+              {/* ⚠ FOUR STATES, AND THE THIRD IS THE ONE THAT MATTERS. An unreadable feed
+                  must not render as "you're all caught up" — that is a claim about the
+                  member's inbox made from a failure to read it. */}
+              {feed === undefined ? (
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Reading your notifications…</div>
+              ) : feed === null ? (
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Couldn't read your notifications just now. Reload to try again.</div>
+              ) : rows.length === 0 ? (
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Nothing new.</div>
+              ) : rows.map((n) => {
+                const href = dashInboxHref(n, role);
+                const inner = (
+                  <>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      {!n.read && <span aria-hidden="true" style={{ flex: "none", width: 6, height: 6, borderRadius: 999, background: DASH_INBOX_TEAL, transform: "translateY(-1px)" }} />}
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: n.read ? "rgba(242,237,228,0.7)" : "#f2ede4", fontWeight: n.read ? 400 : 500 }}>{n.title}</span>
+                      <span style={{ flex: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(242,237,228,0.35)" }}>{dashInboxWhen(n.createdAt)}</span>
+                    </div>
+                    {n.body && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 3, marginLeft: n.read ? 0 : 14, lineHeight: 1.45 }}>{n.body}</div>}
+                  </>
+                );
+                const pad = { display: "block", width: "100%", textAlign: "left", background: "transparent", border: 0,
+                              borderBottom: "1px solid rgba(242,237,228,0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
+                return href ? (
+                  <a key={n.id} href={href} onClick={() => { if (!n.read) markOne(n.id, true); }} style={{ ...pad, cursor: "pointer" }}>{inner}</a>
+                ) : (
+                  <div key={n.id} style={pad}>
+                    {inner}
+                    {!n.read && (
+                      <button onClick={() => markOne(n.id)} disabled={busy} style={{ background: "transparent", border: 0, padding: "6px 0 0", marginLeft: 14, cursor: busy ? "default" : "pointer",
+                                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(242,237,228,0.3)" : "rgba(242,237,228,0.45)" }}>Mark read</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The nav groups to show: role-scoped portal nav when signed in, else marketing.
 // ⚠ Hrefs are rewritten HERE rather than at each render site — the desktop nav,
 // the mobile drawer and the dropdowns all read this one function, and the
@@ -492,6 +812,8 @@ function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [authUser, setAuthUser] = React.useState(null);
   const [roleMenuOpen, setRoleMenuOpen] = React.useState(false);
+  // One read of the inbox for the whole header, shared by the two bell render sites.
+  const inbox = useDashInboxFeed(!!authUser);
   React.useEffect(() => {
     let cancelled = false;
     fetch('/api/me', { credentials: 'same-origin' })
@@ -574,8 +896,17 @@ function Header({ active }) {
             : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
           )}
         </nav>
+        {/* ⚠ ONE ALWAYS-VISIBLE THIRD COLUMN, so the bell has somewhere to be on a
+            phone. `.shape-nav-auth` collapses at 1200px and everything inside it goes
+            with it — which is why the bell measured 0×0 there. Wrapping it with the
+            burger keeps the header at exactly THREE grid children at every width, so
+            the desktop cluster still right-aligns where it always did; what moves is
+            the burger, from the middle 1fr column (measured x=182 at 1024px) to the
+            right edge, where a burger belongs. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 13, justifyContent: "flex-end", flexShrink: 0, minWidth: 0 }}>
         <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 13, flexShrink: 0 }}>
           <SiteSearch signedIn={!!authUser} />
+          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
           {authUser ? (
             <>
               <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
@@ -614,10 +945,16 @@ function Header({ active }) {
             </>
           )}
         </div>
+        {/* The mobile render site. Exclusive with the one above — exactly one of the
+            two is displayed at any width — so the shared feed can never be shown twice. */}
+        <div className="shape-nav-bell" style={{ display: "none", alignItems: "center" }}>
+          <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
+        </div>
         <button className="shape-nav-burger" aria-label="Open menu" onClick={() => setDrawerOpen(true)}
           style={{ display: "none", background: "transparent", border: 0, color: INK, width: 40, height: 40, padding: 0, cursor: "pointer", alignItems: "center", justifyContent: "center" }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
         </button>
+        </div>
       </div>
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
@@ -702,6 +1039,7 @@ function ShapeMobileStyles() {
         .shape-header-inner { padding: 12px 28px !important; gap: 14px !important; }
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
+        .shape-nav-bell { display: inline-flex !important; }
         .shape-nav-burger { display: inline-flex !important; }
       }
       @media (max-width: 900px) {
@@ -713,6 +1051,7 @@ function ShapeMobileStyles() {
 
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
+        .shape-nav-bell { display: inline-flex !important; }
         .shape-nav-burger { display: inline-flex !important; }
 
         /* Dashboard layout (240px sidebar + main): collapse to one column and

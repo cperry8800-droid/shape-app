@@ -419,6 +419,12 @@ enrichment through a 4-wide pool). Engine: `dashSignals.js` (twelve rules, thres
   Nutrition "Log meal" should log in place like Today does.
 - **R20 (P2, medium) — Booking + inbox on the web:** session booking against
   `provider_availability`/`sessions`, and a notifications inbox (the app has both).
+  ⚠ **THE INBOX SHIPPED 2026-09-10. BOOKING HAS NOT.** `/api/notifications` had been
+  live since the 2026-05-30 migration and only the mobile app read it — a member could be
+  told on their phone that their coach had replied and see nothing on the web. There is a
+  bell in the shared header now (signed-in only), with mark-one and mark-all, on every
+  newdesign page. **Booking is still open**: `/api/availability` and `/api/sessions` both
+  exist, and the client Team page's "Book session" is still one of R18's dead controls.
 
 ---
 
@@ -475,7 +481,7 @@ dead buttons (`trainerDashboard.jsx:368-450`); client Score ledger/leaderboard
 | R13 | Coach Score page honesty + history | P2 | S | `score_ledger` |
 | R12 | CSV export + monthly statement | P2 | M | CSVs SHIPPED 2026-09-10 · statement still gated on payouts |
 | R15/R16 | Widget settings; remembered filters | P2 | M | R16 SHIPPED 2026-09-10 · R15's roster SORT shipped 2026-09-10; the ⚙, KPI picker, time window, pinning and drawer sections remain |
-| R20 | Client booking + notifications inbox on the web | P2 | M | tables exist |
+| R20 | Client booking + notifications inbox on the web | P2 | M | INBOX SHIPPED 2026-09-10 · booking still open |
 | V1–V3 | Roster PROGRAM column clips/ellipsises; availability rail shows all 15 hours (wrap or widen); Goal titles unstuck | P1 | S | — |
 | V7 | Viewport meta on the three shells + a sidebar that collapses below 760px on every route | P1 | S | — |
 | V4/V5 | Check the GridStack gaps on a real screen; make the demo dataset agree with itself (one money figure, one client count) | P2 | S | V4 CHECKED 2026-09-10 — does not reproduce |
