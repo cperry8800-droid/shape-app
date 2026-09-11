@@ -695,6 +695,138 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The website coach profile learns capacity, and a Subscribe button that opened a chat
+
+- **Task #21 off the review's queue — carry the app's profile updates to the website profiles.** A
+  coach who is not taking new clients had a live **Subscribe** button on the site, and pressing it
+  opened a chat: no subscription, and nothing on screen saying so. The waiting list it should have
+  offered has existed since **#1498** — in the app, and on the two **LEGACY** pages
+  (`trainer-profile.html`, `nutritionist-profile.html`). The canonical newdesign profile that
+  `TrainerProfile.html` and `NutritionistProfile.html` actually ship never got it. #2050 →
+  `67420a880`. **No migration, no new route.**
+- ⚠ **THE ROUTES WERE ALREADY LIVE AND ALREADY ACCEPTED A WEBSITE SESSION.**
+  `/api/waitlist/{mine,join,withdraw}` have been up since the 2026-07-01 migration, and
+  `resolveRequestClient` handles **both** legs — its own comment reads *"Mirrors the checkout-session
+  auth so mobile (Bearer) + web (cookie) both work."* Nobody had called them from the page that
+  ships. *A feature already built and paid for is not shipped while the surface people reach cannot
+  reach it.*
+- ⚠ **`subscribe()` SWALLOWED EVERY FAILURE INTO A CHAT WINDOW.** A null `provider`, a `fetch`
+  throw, an unparseable body, and **every** non-OK status — 401, 404, the 503 waitlist-lookup
+  retry, *"Provider has not completed Stripe onboarding"* and the **409 at-capacity refusal** — all
+  fell through to `openChat()`. R18's rule from the other side: a control leading nowhere costs
+  trust; one leading somewhere *else* spends it.
+- ⚠ **AND THE 409 IS READ OFF A FLAG, NOT A REGEX OVER ITS PROSE.** That route returns **two**
+  different 409s — at-capacity and Stripe-onboarding — and only the sentence separated them.
+  Matching on prose makes the route's wording part of the client's contract and breaks on any copy
+  edit or localisation, which is the `/account/i` defect this file already post-mortems.
+  `reason: 'at_capacity'` is additive, so every existing consumer is untouched.
+- ⚠ **THE PROVIDER IT BILLED WAS RESOLVED BY GUESSING A ROLE.** `provider` came from
+  `get_coach_sale_plans_by_user` → `rows[0]`, and that RPC derives the role from `cp.kind` ordered
+  `created_at desc` — i.e. **the coach's most recently published plan**. For a dual-role coach the
+  trainer listing could check out against the **nutritionist** row while `offer` and `studio` on the
+  same page correctly read the trainer row (they select by `providerTable`, which honours the URL
+  `&role=`). And a coach with **no published plans** — every new coach — yields no rows at all, so
+  `provider` stayed null and Subscribe went straight to the chat. It reads the role-correct row now,
+  which is also where capacity comes from: **one row, one truth, and one fewer round trip.**
+- ⚠ **THE SERVER IS THE AUTHORITY; THE COLUMN READ IS A COURTESY.** The page's own `at_capacity`
+  read can go stale between load and click, or simply fail — so the checkout's **409 is what
+  decides**, flipping the profile into the waiting list. A stale or failed client read then degrades
+  into the right screen instead of a wrong one, and the refusal that used to be invisible is the
+  thing that drives the UI.
+- ⚠ **AND `isEffectivelyAtCapacity` IS MIRRORED, NOT RE-INVENTED** — a passed `capacity_resume_at`
+  reads as **open** while the flag is still true, exactly as `src/lib/capacity.ts` and both mobile
+  surfaces spell it. Driven as its own scenario, because a client that disagreed with the server
+  here would offer a waiting list for a coach the server will happily sell.
+- ⚠ **AND THE APP HAD TWO LIVE DEFECTS IN THE SAME FEATURE, BOTH FOUND BY READING THE ROUTE AGAINST
+  THE RPC RATHER THAN BY A REPORT.** `/api/waitlist/mine` returns the entry id as **`id`**; only
+  `/join` calls it `entryId`. `iosAppBroadsheetMarketplace.jsx` read `mine.entryId` on the hydrate
+  path, so `wl.entryId` was null and **"Leave the list" hit its own `if (!wl?.entryId)` guard
+  forever** — a member could join from the marketplace listing and never leave it after a reload.
+  `BSSignalCoachProfile` reads `mineEntry.id` and was always right, which is how one member could
+  leave from one surface and not the other.
+- ⚠ **AND ITS HYDRATE RACED THE ACCOUNT.** The deps held no identity, so an A→B switch never re-ran
+  the effect and A's in-flight `mine()` resolved into B's mounted listing — B shown A's queue
+  position and entry id. It keys on `bsmAuthUid` now, the identity that file already uses on a
+  sibling effect, and clears **unconditionally**: clearing only in the bail branch leaves A's row on
+  screen through an account change that still has capacity.
+- ⚠ **THE WEB PROFILE HAD THE SAME RACE, AND THAT WAS THE REVIEW'S ONE BLOCKING FINDING.** The
+  identity was a **boolean**, which an A→B switch cannot move — so the effect never re-ran, its
+  cleanup never fired, and A's `/mine` response called `setWl` on B's screen. Holding the **account
+  id** makes the switch a *dependency* change, so the cleanup discards the stale answer: the leak
+  becomes **unrepresentable** rather than guarded against, which is the same move `useRememberedSlots`
+  made on #2046. The cross-account class, now paid for **five** times.
+- ⚠ **AND RESOLVING ONCE WAS THE OTHER HALF OF IT.** A member signing in *after* the first paint was
+  never seen, so the page went on offering *"Sign in to join the list"* to someone already signed in
+  — the #2005 defect. It subscribes to `onAuthStateChange` now with the house generation guard from
+  `useSignedIn`: the generation bumps **before** the state is set, or *read observes A · B signs in ·
+  read resolves* puts A back.
+- ⚠ **AND THE RENDER OWED A THIRD STATE THE FINDING DID NOT NAME.** `undefined` is neither signed in
+  nor signed out, and my code fell to the **Join button** while unresolved — so a visitor could press
+  a control that 401s before the account had resolved. Falling the other way is equally wrong.
+  Neither control renders until the account is known; the line above it is true in every state.
+- ⚠ **AND THE PER-COACH RESET RAN AFTER THE READINESS GUARD.** `if (!d.uid || !cl || !cl.from)
+  return;` sat above it, so a same-mount swap to a coach with no uid returned early and kept the
+  **previous** coach's `prow` and `capSrv` — the next coach rendered as paused on a row belonging to
+  someone else and their storefront never appeared. The reset exists to prevent exactly that, and did
+  not cover its own early exit. *Clearing first makes the stale state unreachable on every exit rather
+  than on the happy one.*
+- ⚠ **AND ITS GUARD PINNED THE STATEMENT LIST WITHOUT PINNING THE POSITION, WHICH IS WHY A TEST
+  WRITTEN FOR THAT DEFECT PASSED WHILE THE DEFECT WAS LIVE.** A complete reset in the wrong place
+  clears nothing on the path that matters.
+- ⚠ **TWO OF MY OWN GUARDS WERE ANSWERED BY THE WRONG CALL SITE, AND THAT IS THE LESSON WORTH MORE
+  THAN EITHER FIX.** The first asserted the generation check merely *exists* — and the initial read
+  sets the account from **two** arms, so stripping it from the resolve arm survived on the strength
+  of the catch arm still carrying it. The second asked whether the clear precedes the `return` — and
+  `setWl(null); return undefined;` **inside the bail branch** satisfies that too, so the guard was
+  answered by the very site the mutation created. Both were caught only by mutation, never by
+  reading. *A positional assertion is satisfied by any site that happens to sit in the right order;
+  the invariant has to name which site.*
+- ⚠ **ONE FINDING REFUTED RATHER THAN COMPLIED WITH, WITH THE CITATION.** The round asked for
+  `livingShared.jsx?v=17` to be bumped across every consumer. **That convention is OBSOLETE** —
+  `scripts/build-newdesign.mjs` rewrites every newdesign script tag to `nd/<name>?v=<content-hash>`
+  at deploy, so editing a `.jsx` busts its own cache, and the hand-written `?v` only affects the
+  raw-babel dev path. A sweep is the needless churn this file already names (`pageShell.jsx` has 69).
+  *A refuted finding left in the record is worth as much as a fixed one; without it the next reader
+  re-opens it.*
+- ⚠ **AND THE FINAL REVIEW ROUND FAILED MID-RUN**, returning *"I couldn't produce a complete response
+  to this request"* after running its analysis scripts. So the PR merged with its Security Review
+  check **still red and still pinned to `d36b79813`, the pre-fix head** — a stale marker, not a live
+  finding. **The gate was unmoved**: CI green on the final head and not a draft, which is the whole
+  reason the 2026-08-26 post-mortem took reviewers out of it. *The absence of a record is never a
+  pass — and it is never a failure either.*
+- **Verified:** `npm test` **3430/3430** on the head merged with `main` · `tsc --noEmit` 0 · JSX
+  parse on both changed modules · the newdesign precompile check · the pre-commit gate reporting
+  `verify: all checks passed` · **15 guards** in `tests/coach-profile-waitlist.test.mjs` ·
+  **32 mutations killed across four rounds**, each proven to land, sanity green at both ends —
+  including **both live app defects and both halves of the account race replayed as their own
+  mutations**, so the suite is proven to catch the real bugs rather than merely to be green after the
+  fix · and **seven states driven end to end in Chromium with zero page errors**: the open storefront
+  · *"isn't taking new clients"* + Join · *"You're #3 in line"* + Leave · a **null position** reading
+  *"You're on the list."* with **no rank invented** · the invite with Subscribe + Decline · signed out
+  showing the sign-in line, no Join, and **zero `/mine` calls** · and a **passed resume date reading
+  as open**, agreeing with the server. Plus **join → leave** (`{providerId:77, providerRole:"trainer"}`
+  → **#4 in line** → withdraw posting the entry id → back to at capacity) and **the 409** (Subscribe
+  on an open-looking coach → refusal → the waiting list appears with a live Join button, **and no
+  chat**).
+- ⚠ **AND THE HARNESS WAS WRONG THREE TIMES BEFORE ANY OF THAT WAS WORTH READING.** **unpkg is denied
+  by the web container's egress proxy** and these pages load React, ReactDOM and Babel from it, so the
+  first run measured the proxy and reported every state absent; the pinned versions are vendored from
+  the npm tarballs and **their SRI hashes checked against the ones the page declares — all three
+  byte-identical**, so the drive runs the real libraries. Then `public/supabase.js` **assigns**
+  `window.shapeDb` at load and silently replaced the stub (the property is defined with a swallowing
+  setter now). Then the storefront turned out to be the profile's **COACHING tab**, not the *"View
+  coaching"* button — which sets `window.location.href`, after which `document.body` is null and the
+  run reports a crash rather than a state. ⚠ And when the page moved from `getSession` to `getUser`,
+  the stub had to move with it: left stale it reports **every state as signed out**, which reads as
+  the feature collapsing. *A harness that fakes half a contract measures the half it faked* — four
+  times in one task.
+- ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` and stubbed routes; **no waiting list has
+  ever been joined against real RLS**. The on-account pass is owed and is now the only thing left on
+  the review's roadmap besides the booking-timezone ruling.
+- **Registered, not swept:** the two legacy profile pages keep their own copy of this UI. They are
+  still linked from `subscribe/actions.ts` and `purchase/actions.ts`, so they are live destinations
+  rather than dead files, and retiring them is its own change.
+
 ### 2026-09-11 — The homepage becomes the climb, and three surfaces stop claiming things nobody measured
 
 - **Owner: *"lets go with the climb"*.** Concept E off
