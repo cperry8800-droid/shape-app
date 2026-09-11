@@ -90,6 +90,43 @@ function dashMoney(cents) {
   try { return "$" + Math.round((cents || 0) / 100).toLocaleString(); }
   catch (e) { return "$0"; }
 }
+
+// ── The KPI picker (review 2026-09-09, R15) ─────────────────────────────────
+// Which four figures each Today stat strip shows, chosen per account and per role.
+// The pool and every derivation live in dashSignals.js; this file owns the FORMATTING,
+// because `dashMoney` and the strip's typography are its own.
+const DASH_OVERVIEW_DEFAULT = ["activeClients", "monthlyNet", "weekSessions", "upcoming"];
+const DASH_PRACTICE_DEFAULT = ["todaySessions", "due", "compliance", "mrr"];
+
+function dashKpiCell(key, role, ctx) {
+  const label = DashSignals.dashKpiLabel(key, role);
+  const out = DashSignals.dashKpiValue(key, ctx);
+  // ⚠ A KEY THIS BUILD DOES NOT RECOGNISE RENDERS AS A REDACTION, NEVER AS A GAP. The
+  // stored choice is validated at the hook, but a strip handed a retired key directly
+  // still has to draw something honest rather than an empty column.
+  if (!label || !out) return { k: "\u2014", l: "Not available", sub: "this metric was retired" };
+  if (out.value == null) return { k: "\u2014", l: label, sub: out.why || null };
+  const n = out.value;
+  const k = out.unit === "money" ? dashMoney(n)
+    : out.unit === "pct" ? n + "%"
+    // ⚠ "500+" RATHER THAN "500". The count is taken over a capped window, so past the
+    // cap it is a floor — printing the bare number would state a total nobody measured.
+    : out.capped ? String(n) + "+"
+    : String(n);
+  return { k, l: label, sub: out.sub || null };
+}
+
+// The picker's groups for one strip, in the shape DashGrid's ⚙ already renders.
+function dashKpiSettings(chosen, role, onPick) {
+  const options = DashSignals.DASH_KPI_KEYS.map((key) => ({ v: key, label: DashSignals.dashKpiLabel(key, role) }));
+  return chosen.map((key, i) => ({
+    key: "kpi" + i,
+    label: ["First", "Second", "Third", "Fourth"][i] || "Slot " + (i + 1),
+    options,
+    value: key,
+    onPick: (v) => onPick(DashSignals.dashKpiPick(chosen, i, v)),
+  }));
+}
 // The coach Today masthead eyebrow — the real current date (replaces the old
 // hardcoded "WEDNESDAY APR 18" placeholder). Local browser day = the coach's day.
 function dashTodayDate(d) {
@@ -117,9 +154,10 @@ const DASH_TODAY_ROLES = {
     navItems: () => trainerNavItems("today"),
     payoutCard: () => trainerPayoutCard,
     scheduleTitle: "Today's schedule",
-    weekLabel: "Sessions this week",
-    upcomingLabel: "Upcoming sessions",
-    kpiKeys: { week: "sessionsThisWeek", upcoming: "upcomingSessions" },
+    // Which payload field answers each strip metric. The LABELS are no longer here: they
+    // live once in `DashSignals.DASH_KPI_METRICS`, beside the derivation, because the ⚙
+    // lists every metric by name and two spellings of one label would disagree in it.
+    kpiKeys: { week: "sessionsThisWeek", upcoming: "upcomingSessions", total: "totalSessions" },
     unit: "session",
     emptySchedule: { time: "—", who: "No sessions today", sub: "Your schedule is clear" },
     emptyPulse: { who: "No clients yet", sub: "Sessions will appear here", trend: DASH_FLAT_TREND },
@@ -182,9 +220,7 @@ const DASH_TODAY_ROLES = {
     navItems: () => nutriNavItems("today"),
     payoutCard: () => nutriPayoutCard,
     scheduleTitle: "Today's consults",
-    weekLabel: "Consults this week",
-    upcomingLabel: "Upcoming consults",
-    kpiKeys: { week: "consultsThisWeek", upcoming: "upcomingConsults" },
+    kpiKeys: { week: "consultsThisWeek", upcoming: "upcomingConsults", total: "totalConsults" },
     unit: "consult",
     emptySchedule: { time: "—", who: "No consults today", sub: "Your schedule is clear" },
     emptyPulse: { who: "No clients yet", sub: "Consults will appear here", trend: DASH_FLAT_TREND },
@@ -1038,6 +1074,31 @@ function DashNutriAggPanel({ clients, live }) {
   );
 }
 
+// One strip's four remembered slots.
+//
+// ⚠ ONE HOOK, A FIXED FOUR KEYS — not four hooks and not a loop over a count. The hook
+// count is fixed by construction rather than by a constant somebody could later derive
+// from data (the rules-of-hooks class this repo post-mortems, which neither the build nor
+// `tsc` nor the suite catches), and the ONE hook is what makes a swap atomic. The reason
+// is written out at the call site below; this header exists so a reader who never opens
+// the function does not "restore" the four.
+//
+// ⚠ AND ONE KEY PER SLOT RATHER THAN ONE ARRAY, because the hook validates each stored
+// value against the pool on its own key and ignores what it does not recognise: a retired
+// metric then costs that ONE slot its default, where a stored array would have to be
+// validated element by element or discarded whole.
+function useDashKpiStrip(prefs, strip, role, defaults) {
+  const base = "kpi:" + role + ":" + strip + ":";
+  // ⚠ ONE HOOK OVER FOUR KEYS, NOT FOUR HOOKS — because a swap changes TWO slots and
+  // four independent hooks would take that to the document as two separate
+  // whole-document writes. A first that lands beside a second that fails leaves the
+  // same metric in both slots on the next reload, which is the one thing the swap
+  // exists to prevent. `useRememberedSlots` writes the whole arrangement in one
+  // operation and still validates each slot on its own key, so a retired metric costs
+  // only its own slot. (Codex, #2046.)
+  return useRememberedSlots(prefs, [base + "0", base + "1", base + "2", base + "3"], DashSignals.DASH_KPI_KEYS, defaults);
+}
+
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
@@ -1052,13 +1113,14 @@ function CoachDashboardPage({ role }) {
   const prefs = useRememberedChoices(source === "live");
   const [pinned, togglePin] = useRememberedSet(prefs, "pulsePinned:" + role, 12);
 
+  // Which four figures each strip shows (review 2026-09-09, R15) — per account AND per
+  // role, because one auth user can own a trainer row and a nutritionist row and the two
+  // Todays measure different practices. `useRememberedChoice` deletes a key whose value
+  // equals the default, so a coach who never opens the ⚙ stores nothing at all.
+  const [overviewKpis, setOverviewKpis] = useDashKpiStrip(prefs, "overview", role, DASH_OVERVIEW_DEFAULT);
+  const [practiceChosen, setPracticeKpis] = useDashKpiStrip(prefs, "practice", role, DASH_PRACTICE_DEFAULT);
+
   const firstName = live ? live.user.firstName : cfg.mockName;
-  const kpis = live ? [
-    { k: String(live.kpis.activeClients), l: "Active clients" },
-    { k: dashMoney(live.kpis.monthlyNetCents), l: "Monthly (net)", sub: "after 15% fee" },
-    { k: String(live.kpis[cfg.kpiKeys.week]), l: cfg.weekLabel },
-    { k: String(live.kpis[cfg.kpiKeys.upcoming]), l: cfg.upcomingLabel },
-  ] : cfg.mockKpis();
 
   const todayRows = live && Array.isArray(live.today) ? live.today : null;
   const schedule = !todayRows
@@ -1072,26 +1134,21 @@ function CoachDashboardPage({ role }) {
         }))
       : [cfg.emptySchedule];
 
-  // Practice stat strip — derived from the data layer (identical math for demo
-  // and live, never fabricated). Shown as a SECOND row under the financial
-  // summary strip on BOTH coach Today pages, with role-aware labels.
-  const practiceKpis = (() => {
-    const isNutri = role === "nutritionist";
-    const consultRows = schedule.filter((s) => s.time !== "—");
-    const next = consultRows.find((s) => s.status === "NEXT" || s.status === "PENDING");
-    const ready = queue.filter((r) => r.state === "ready").length;
-    const withLogs = clients.filter((c) => c.foodLogs && c.foodLogs.daysLogged7d != null);
-    const compliance = withLogs.length
-      ? Math.round((withLogs.reduce((s, c) => s + Math.min(7, c.foodLogs.daysLogged7d), 0) / (withLogs.length * 7)) * 100)
-      : null;
-    const mrr = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
-    return [
-      { k: String(consultRows.length), l: isNutri ? "Consults today" : "Sessions today", sub: next ? "next " + next.time : "all done" },
-      { k: String(queue.length), l: isNutri ? "Plans due" : "Programs due", sub: ready + " ready" },
-      { k: compliance != null ? compliance + "%" : "—", l: "Roster compliance", sub: isNutri ? "food logs · 7d" : "logged · 7d" },
-      { k: mrr ? dashMoney(mrr) : "—", l: "Monthly recurring", sub: clients.length + " client" + (clients.length === 1 ? "" : "s") },
-    ];
-  })();
+  // Everything the KPI pool derives from, gathered once. Nothing here is fetched for the
+  // strips — it is the state Today already holds — which is the constraint that decides
+  // what may be in the pool at all.
+  const kpiCtx = { live, clients, triage, queue, schedule, role, kpiKeys: cfg.kpiKeys };
+
+  // ⚠ THE OVERVIEW STRIP IS THE PAYOUT PREVIEW WHEN THERE IS NO LIVE PAYLOAD, AND IT IS
+  // NOT CONFIGURABLE THERE. Those four demo figures are a preview of the money card, not
+  // a reading of this account, so offering a picker over them would let a visitor
+  // rearrange numbers that describe nobody. R18's rule from the other side: the ⚙ is
+  // withheld where there is nothing card-level to configure.
+  const kpis = live ? overviewKpis.map((k) => dashKpiCell(k, role, kpiCtx)) : cfg.mockKpis();
+  // The practice strip derives from the roster, the queue and today's schedule, all of
+  // which the preview has — so its picker works in both states (unsaved when signed out,
+  // exactly as every other remembered control on this page behaves).
+  const practiceKpis = practiceChosen.map((k) => dashKpiCell(k, role, kpiCtx));
 
   const calendarEvents = live && Array.isArray(live.calendar)
     ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
@@ -1125,8 +1182,10 @@ function CoachDashboardPage({ role }) {
     </div>
   );
   const gridWidgets = [
-    { key: "kpis", title: "Overview", size: "full", render: () => renderKpiStrip(kpis) },
-    { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis) },
+    { key: "kpis", title: "Overview", size: "full", render: () => renderKpiStrip(kpis),
+      settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
+    { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis),
+      settings: dashKpiSettings(practiceChosen, role, setPracticeKpis) },
     { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
     { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
     ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),

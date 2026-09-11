@@ -656,6 +656,281 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — R15's last piece: the stat strips become the four figures this coach reads
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9,
+  and it completes R15.** The two coach Today strips were eight fixed figures, the same eight
+  for every practice — so a coach with forty clients and one with three read the identical
+  dashboard. Each of the eight slots is a choice now, over a pool of **eleven** metrics,
+  remembered per account and **per role**. No migration, no new route.
+- ⚠ **EVERY METRIC RESOLVES FROM STATE TODAY ALREADY HOLDS, and that is the constraint that
+  decides what may be in the pool at all.** The dashboard payload, the roster, the triage
+  feed, the programming queue and today's schedule are all on the page before any of this
+  runs; a metric that needed a request would be a figure nobody on that screen had measured,
+  and fetching one would make a picker into a data feature. **Three** of the eleven are new
+  readings of data that was already there — *Needs eyes* (the pulse's own flagged count),
+  *New clients* and *Sessions logged* — and the rest are the eight that were already drawn.
+- ⚠ **AND `totalSessions` IS WHY THE CAPPED-READ PR HAD TO LAND FIRST.** It was computed,
+  shipped and displayed nowhere; putting it on a strip would have labelled a count taken over
+  a **capped window** as a total. It reads **"500+"** and says *"at least — the window is
+  capped"* whenever `totalCapped` is set, and its label is *Sessions logged* rather than
+  *all time*. The precondition was paid before the label existed, not after.
+- **The derivation is pure and lives in `dashSignals.js`; the FORMATTING stays in
+  `dashToday.jsx`.** Each metric returns `{ value, unit, sub, why }` — a raw number and a
+  unit, never a string — so the module can be `require()`d and driven in Node while
+  `dashMoney` and the strip's typography stay with the page that owns them. A pure module
+  that formatted currency would have to own a currency it knows nothing about.
+- ⚠ **A METRIC THAT CANNOT BE ANSWERED CARRIES ITS REASON, AND A MEASURED ZERO IS A VALUE.**
+  Three metrics are live-only and read *"live only"* under an em-dash in the preview; a
+  roster whose subscriptions read failed reads *"not shared"*; a client genuinely on no paid
+  plan is **$0**. `Number(null)` is 0 and finite, so `isFinite` alone cannot separate those
+  last two — the class this file post-mortems on the Wall's helpers and on the booking
+  slots, guarded at the one place that reads a figure.
+- ⚠ **AND MONTHLY RECURRING NOW SAYS HOW MANY ROWS ANSWERED.** The old strip summed
+  `(c.payments && c.payments.mrrCents) || 0`, so a client whose subscriptions read failed was
+  **silently counted as zero** and the practice reported smaller than it is, with nothing on
+  screen saying a row had been dropped. Unreadable rows are counted now and the sub reads
+  *"8 of 10 shared"*; a fully-readable roster still reads *"10 clients"*.
+- ⚠ **CHOOSING A METRIC ALREADY ON THE STRIP SWAPS THE TWO.** Allowing the duplicate would
+  print one figure twice in a four-wide row; filtering each slot's options to what is unused
+  would mean a coach could not move a metric from the fourth slot to the first without
+  clearing the first — two steps for one intent. A swap is one tap, can never duplicate, and
+  never loses the metric that was there. **Driven in a browser**, not argued: picking *Needs
+  eyes* into the first slot when it sits in the second exchanges them and the document holds
+  two keys.
+- ⚠ **THE OVERVIEW STRIP IS NOT CONFIGURABLE IN THE SIGNED-OUT PREVIEW, AND THAT IS R18's
+  RULE FROM THE OTHER SIDE.** With no live payload that strip is the payout card's own
+  preview — four figures that describe nobody — so a picker over them would let a visitor
+  rearrange invented numbers. It carries **no ⚙ at all** there. The practice strip derives
+  from the roster, the queue and the schedule, all of which the preview has, so its gear
+  works in both states (unsaved when signed out, exactly as every other remembered control
+  on the page). Measured: **two gears live, one in the preview.**
+- ⚠ **ELEVEN CHIPS IN A 240px POPOVER IS FIVE ROWS, FOUR TIMES OVER.** `DgCardSettings`
+  renders a group as a native `<select>` past a threshold and keeps the chips below it — the
+  chips read the current value at a glance, which is right for a two- or three-option window,
+  and a select holds any length in one line, is keyboard- and screen-reader-native, and opens
+  the platform picker on a phone. ⚠ **The select hands the widget back its OWN option value,
+  never `e.target.value`**: a select's value is always a string, so passing it through would
+  silently change a numeric or boolean option's type on the way to a widget that had used
+  chips — the two paths have to agree.
+- ⚠ **ONE HOOK PER STRIP OVER FOUR PER-SLOT KEYS, WRITTEN OUT RATHER THAN LOOPED**, so the
+  hook count is fixed by construction rather than by a constant somebody could later derive
+  from data — the rules-of-hooks class neither the build, `tsc`, nor the suite catches. The
+  keys stay **one per slot rather than one array**, because validation is per slot: a metric
+  retired since it was chosen costs THAT slot its default, where a stored array would have to
+  be validated element by element or discarded whole. **The write is one `apply` for the whole
+  arrangement**, which is what makes a two-slot swap unable to half-land.
+  ⚠ **CORRECTED — this bullet said FOUR HOOKS, which is the shape Codex found unsafe on
+  #2046 and the fix removed.** Four `useRememberedChoice`s take a swap to the document as two
+  whole-document writes, so a first that lands beside a second that fails leaves one metric in
+  both slots. CodeRabbit then flagged the stale wording here, and it was right to: **this file
+  is auto-loaded through `AGENTS.md`**, so a reader who trusted it would restore the four hooks
+  and re-open the partial write. *A record that describes the shape a fix removed is an
+  instruction to undo the fix.*
+- ⚠ **AND THE ROLE CONFIG'S OWN LABELS ARE DELETED RATHER THAN LEFT.** `weekLabel` and
+  `upcomingLabel` had zero consumers the moment the catalog started naming every metric, and
+  a second spelling sitting in `DASH_TODAY_ROLES` is the copy the next reader edits — after
+  which the ⚙ and the strip disagree about what one figure is called. The continuity is
+  pinned instead: a guard asserts the catalog still says *Sessions this week* / *Consults
+  this week* and the six other headings the strips have always carried.
+- ⚠ **AND ITS FOURTH FINDING WAS ONLY HALF FIXED, WHICH LEFT THE FILE WORSE THAN BEFORE.**
+  CodeRabbit asked for **both** comments updated; I corrected the one inside `useDashKpiStrip`
+  and the auto-loaded WORKLOG bullet, and left the block **four lines above the function**
+  still reading *FOUR HOOKS, WRITTEN OUT, NOT A LOOP*. So the module carried both claims at
+  once, adjacent — and a reader who stops at the header (the likelier of the two) gets the
+  retired one. *Half a records fix is not half as good; it is a file that contradicts itself.*
+- ⚠ **AND THE GUARD WRITTEN TO CLOSE THAT CLASS WAS BLIND BY CONSTRUCTION ON ITS FIRST RUN.**
+  Every other guard in `dash-kpi-picker` reads a comment-**STRIPPED** copy of the source, so my
+  first version asked a stripped string whether it contained a comment — a question it can
+  never answer yes to. It would have passed on the contradictory file it was written to catch.
+  **Only the positive control failed**, which is the whole reason to carry one. It reads the raw
+  source now.
+- ⚠ **AND A FLAT BAN ON THE PHRASE WOULD HAVE FAILED THE CORRECT WORDING.** Both fixed blocks
+  legitimately say *"NOT four hooks"*, so the second version failed the very text it protects —
+  and the tempting repair is to pin the stale SPELLING, which is the class this file
+  post-mortems ten times over. **A mention is not a claim:** every occurrence must be NEGATED,
+  which is the invariant rather than a spelling. Three mutations, each proven to land — the
+  shipped contradictory header, a positive claim in a different spelling, and the reason
+  deleted outright — all killed. ⚠ Two earlier attempts at that third one **survived and were
+  the MUTATION rather than a gap**: each left a working statement of the reason standing, and
+  one of them exposed a loose control (`/one hook/i` matches *"one hookish"*), now
+  word-bounded. *A mutation that does not achieve what its name claims reports on nothing.*
+
+- ⚠ **AND MY OWN HARNESS PICKED THE WRONG CARD — the shared-verb class, twice in one day.**
+  `/SESSIONS TODAY/i` over a card's `innerText` also matches the SCHEDULE card's *"No
+  sessions today"*, so the run clicked a gear that card does not have and timed out. It
+  identifies each strip by its four mono eyebrows now. *A case-insensitive match on a common
+  phrase matches whatever else contains it.*
+- ⚠ **AND CODEX FOUND THAT THREE OF THE FOUR SLOT PICKERS WERE NOT ON SCREEN AT ALL.**
+  `.dash-gridstack .grid-stack-item-content` is `overflow:hidden!important` — it has to be,
+  because the card's own height measurement only reports the true content height because of
+  it — and an absolutely-positioned child does not grow the box it hangs in. **Measured
+  rather than reasoned about:** a **110px** KPI card carrying a four-group panel put its
+  selects at y **59–86 · 112–139 · 165–192 · 218–245**, so a coach could change the FIRST
+  slot and nothing else. The feature was two thirds dead on the one surface it exists for.
+- ⚠ **AND MY OWN DRIVE REPORTED "four `<select>` groups of eleven" WHILE THAT WAS TRUE.**
+  All four were in the DOM, queryable, and Playwright picked from them happily — counting
+  elements cannot see a clip box. It took reading each select's geometry **against the
+  card** to say anything at all. *The same class as the border that was never going to
+  paint: an absent thing still renders, still passes, and still looks approximately right.*
+- **The panel is portaled to `document.body` and positioned `fixed` from the gear's own
+  rect**, so it escapes every clip boundary rather than negotiating with one. Sizing the
+  card to contain it was the alternative and is worse: the grid would reflow every time a
+  gear opened. `dgPanelBox` is **pure**, so the clamping is driven over synthetic rects
+  instead of eyeballed at one width in one browser.
+- ⚠ **THE CLAMP IS AN INTERVAL, NOT TWO ONE-SIDED `Math.min`s** — cap the width at both
+  gutters first, and the left edge then has to satisfy both edges at once. The notification
+  panel shipped the one-sided version as a because-clause and its own guard refuted it the
+  same hour; this one is swept at **eleven widths from 240 to 1440**, and the sweep had to
+  reach **below 264** or the cap is never the thing holding and a mutation removing it
+  survives — which is exactly what it did on the first round, with 320 as the narrowest case.
+- ⚠ **AND A PORTAL BREAKS `contains`, WHICH IS WHAT THE OUTSIDE-CLICK TEST IS BUILT ON.**
+  With only the gear's wrapper tested, the first click **inside** the panel reads as a click
+  outside it and closes the thing you are using. It asks both nodes now.
+- ⚠ **CODEX'S SECOND FINDING WAS THE SWAP HALF-PERSISTING, AND IT IS THE GUARANTEE THE
+  SWAP EXISTS FOR.** Four `useRememberedChoice`s took a two-slot swap to the document as
+  **two** whole-document writes; a first that lands beside a second that fails leaves the
+  same metric in **both** slots on the next reload. `useRememberedSlots` writes the whole
+  arrangement in **one** `apply` — measured, not argued: a plain pick and a swap both report
+  **exactly one** `saveUserGoals`, the swap's carrying both keys.
+- ⚠ **THE KEYS ON DISK ARE STILL ONE PER SLOT, so validation stays per slot** — a metric
+  retired since it was chosen costs THAT slot its default and leaves the other three alone.
+  What changed is the number of writes, not the stored shape. And **a value we would refuse
+  to read back stops the WHOLE write**, not just its own slot: a strip is one arrangement,
+  and writing three of its four keys is precisely the partial write this is about.
+- ⚠ **AND A GUARD I WROTE YESTERDAY FAILED THE CORRECT FIX.** *"the four slots are four
+  hooks"* pinned the exact `useRememberedChoice(prefs, base + "N"` spelling — the shape
+  Codex found unsafe — so the fix broke a test about hook order. Re-anchored on what the
+  suite actually cares about: **one hook, one write, one key per slot per role.** *A guard
+  that pins a spelling pins whatever that spelling is wrong about* — and this time the
+  spelling was wrong the day after it was written.
+- ⚠ **AND MY MUTATION HARNESS REPORTED 0/16 KILLED, WHICH WAS THE HARNESS.** It ran
+  `node --test … | tail -30` through `execSync`, and **a pipeline's exit status is the last
+  command's** — `tail` always succeeds, so every mutation "survived". It parses the
+  `# fail` / `# pass` counts now, and a run that produces no counts at all is a failure
+  rather than a pass. *A check that cannot fail is worse than no check* — this file's own
+  sentence, about `psql … | tail -4 && echo "APPLIED"`, paid for again.
+- ⚠ **AND BOTH REMAINING SURVIVORS WERE REAL GAPS IN MY GUARDS, NOT NO-OPS.** The
+  width-cap one is above; the other was the account clean slate, which my A→B test could
+  not see because **A never chose anything** — with `chosen` still null the values come from
+  the document either way, so re-hydrating B's row produces the defaults on its own. The
+  reset is about a choice outranking the document, so the test now makes one.
+- ⚠ **AND A SECOND CODEX ROUND FOUND THE SAME GAP ONE CONSTANT OVER: A MINIMUM WIDTH
+  OUTRANKING THE GUTTER CAP.** `Math.max(120, vw - GUT*2)` held a 120px floor, which makes
+  the two-gutter interval **empty** below **vw 144** — measured: at 128 the panel's right
+  edge landed **16px past the gutter**, and the overflow grows as the viewport narrows
+  (44px at 100, 80px at 64). A 640px phone at **500% zoom is 128 CSS px**, so this is an
+  accessibility path rather than a hypothetical, and the panel does not scroll sideways, so
+  those controls are simply unreachable.
+- ⚠ **AND THAT IS WHY THIS FLOOR GOES WHILE THE HEIGHT FLOOR STAYS** — the asymmetry is
+  real rather than an inconsistency. The panel scrolls **vertically**, so 80px of it
+  crossing the bottom gutter still reaches every control; it does not scroll horizontally,
+  so width past the right gutter puts controls where nothing can reach them. Written at the
+  site, because the next reader will otherwise see two floors treated differently.
+- ⚠ **AND MY SWEEP HAD NOW BEEN SHORT OF A BITE POINT TWICE.** Round one stopped at 320,
+  above the **cap's** bite at 264, and the cap mutation survived; extending it to 240 caught
+  that and still stopped short of the **floor's** bite at 144. It runs from **40** now, with
+  the sub-gutter degenerate case named rather than silently passing. *Extending a sweep to
+  the constant that just bit you is not the same as extending it past every constant in the
+  function.*
+- ⚠ **AND A THIRD CODEX ROUND REFUTED THE BECAUSE-CLAUSE I HAD JUST WRITTEN FOR THE
+  HEIGHT FLOOR — which is the round paying for itself, since it is the argument I had asked
+  it to check.** That clause read: *"the panel scrolls vertically, so 80px of it crossing
+  the bottom gutter still reaches every control."* **True only while the scroll BOX is
+  inside the viewport.** Once the floor pushes the box past the bottom, max scroll aligns
+  the content's end with the box's OWN bottom edge — which is off screen — so the last
+  controls can never enter the viewport at all. Measured at vh 100: the box runs 64..144,
+  **36px of it is visible**, and the fourth selector is unreachable at any scroll position.
+  *A floor that outruns the viewport recreates exactly the unreachability it was excused
+  for*, and a wrong because-clause is worse than none.
+- **THE HEIGHT IS DERIVED FROM THE OFFSET NOW, AS ONE EXPRESSION** — the box hangs `offset`
+  from one edge, so `offset + height` has to clear the other gutter, which is the same
+  arithmetic both ways up and equals the old span whenever the gear is on screen.
+- ⚠ **AND THE SEPARATE `room` TERM IS DELETED RATHER THAN TESTED AROUND, BECAUSE THE
+  MUTATION ROUND PROVED IT DEAD — AND WRONG.** Two mutations survived (`room = 10000`, and
+  the 80px floor restored) and neither was a guard gap: the offset-derived height already
+  subsumes both. It is redundant wherever the gear is visible and **wrong where it is
+  not** — with the gear scrolled past the viewport, `above`/`below` measure a span that is
+  partly off screen while the offset has already been floored at the gutter, so the box
+  started **above the viewport top** (measured: vh 100, gear at 120, box top −14). That
+  case was found by the extended sweep, not by a reviewer. Deriving the height from the
+  offset makes it **unrepresentable** instead of guarded against. *Two survivors, both dead
+  code, deleted rather than tested around — the third time in this wave.*
+- ⚠ **AND MY SWEEP HAD NOW BEEN SHORT OF A BITE POINT THREE TIMES: 320 above the cap's 264,
+  240 above the floor's 144, and vh 340 above the height floor's ~190.** Each extension
+  reached the constant that had just bitten and stopped there. It runs from **vw 40 and
+  vh 100** now, and carries a **separate assertion for the property the gutter sweep does
+  not state**: the whole scroll box is on screen, so max scroll reaches the last control.
+- ⚠ **AND THE OWNER ASKED FOR CODERABBIT ON THIS HEAD — which reverses their own standing
+  ruling, and it came back CHANGES_REQUESTED with FOUR findings, all real.** Recorded here
+  rather than in a handoff: the conventions at the head of this file say *"no more
+  coderabbit"*, and on 2026-09-11 the owner said *"run codrabbit"* on #2046. **Whether that
+  is standing or was for this PR is the owner's to say**, so the ruling above is untouched.
+  ⚠ **It billed $2.00** (8 files at $0.25 beyond the included allowance, which its own ack
+  warned about before the round ran) — so a trigger is now a cost decision, not a free layer.
+- ⚠ **AND MY FIRST READING OF ITS VERDICT WAS WRONG, WHICH IS THE READING RULE THIS FILE
+  ALREADY CARRIES.** I read the **walkthrough comment**, saw no findings in it, and reported
+  zero — while the findings were in a **submitted review** (`CHANGES_REQUESTED`, *Actionable
+  comments posted: 4*) with four inline comments. *A verdict is only about the head it names,
+  and it is in the review, not the summary.*
+- ⚠ **THE MAJOR ONE IS A CROSS-ACCOUNT LEAK THROUGH A RENDER-PHASE REF WRITE.** The sibling
+  hooks reset the session's choice by comparing against a ref written **during render**
+  (`if (acct !== knownRef.current) setChosen(null); knownRef.current = acct`). These pages
+  mount with **`createRoot`**, so React may DISCARD an interrupted render after that write has
+  landed: committed state still holds A's arrangement while the ref says B, the reset never
+  fires on the retry, and the reconciliation writes **A's strip into B's document** — exactly
+  what the block exists to prevent. The choice carries the account it was made under now
+  (`{ acct, slots }`), which is self-correcting and has **no render-phase mutation at all**.
+  ⚠ **REGISTERED, NOT SWEPT:** `useRememberedChoice` and `useRememberedSet` carry the older
+  shape and predate this PR — same class, same fix, and widening this diff to three hooks is
+  the owner's call rather than a side effect of adding a fourth.
+- ⚠ **AND ROSTER COMPLIANCE ACCEPTED ANYTHING THAT WAS NOT NULL.** `daysLogged7d != null`
+  then `Math.min(7, x)`: a string makes the **whole roster's percentage NaN**, a boolean
+  counts as a day, and a negative subtracts from the total. The window is seven days, so the
+  only readings it can mean are the integers 0..7 — anything else is a row we could not read,
+  which is what `why` is for.
+- ⚠ **AND WRITING THE VECTOR LIST FOR THAT FOUND ONE CODERABBIT HAD NOT ASKED ABOUT:
+  `Number([])` IS 0 AND FINITE.** So an array reached **every** metric through the shared
+  `kpiNum` as a confident zero (and `Number([5])` as a 5). The same trap as `Number(null)`,
+  one type over, in the helper written to close it. Rejected at `kpiNum`, so it is fixed for
+  all eleven metrics rather than for compliance alone. *The guard found it, not the review.*
+- **The `<select>` clears iOS Safari's 16px focus-zoom floor on a coarse pointer**, which is
+  worse here than the usual nuisance: the panel is `position: fixed` and placed from the
+  gear's measured rect, so a zoom moves the viewport out from under a panel already
+  positioned. The desktop keeps its 11px — the override is scoped, not a global bump.
+- ⚠ **AND ITS FOURTH FINDING WAS THE STALE BULLET IN THIS FILE, WHICH IS THE ONE TO TAKE
+  MOST SERIOUSLY.** The *"FOUR HOOKS PER STRIP"* bullet described the shape **Codex's fix had
+  removed** — and `AGENTS.md` `@`-imports this file, so a reader who trusted it would restore
+  the four hooks and re-open the partial-swap write. Corrected at the source. *A record that
+  describes the shape a fix removed is an instruction to undo the fix.*
+- ⚠ **AND A GUARD OF MINE PINNED A SPELLING AGAIN** — the atomic-write test matched
+  `chosen[i]`, so account-scoping the choice (renaming it to `mine`) failed a test about
+  partial writes. Re-anchored on the invariant, plus two assertions that the choice carries
+  its account and that the render-phase ref has not come back.
+- **Verified:** `npm test` **3355/3355** on the head merged with `main` · `tsc --noEmit` 0 ·
+  JSX parse on all three changed modules · `dashSignals.js` `require()`s clean · the
+  newdesign precompile check · **21/21 + 19/19 mutations killed** across two rounds — the
+  second including **all three Codex defects replayed as their own mutations**, so the suite
+  is proven to catch them rather than merely to be green after the fix — each proven to
+  land, sanity green at both ends · and the whole cycle driven in Chromium against a simulated live coach: **two
+  strips, two gears, four `<select>` groups of eleven** each carrying a painted chevron
+  (`appearance: none` takes the native one with it), picking *Needs eyes* into the second
+  slot → the strip follows and the document holds
+  `{"kpi:trainer:practice:1":"needsEyes"}` — **one key, only the slot that
+  moved** — then the swap exchanges two slots, and a **reload brings the arrangement back**.
+  The signed-out preview keeps the payout four with **zero gears on Overview**. Zero page
+  errors throughout.
+- **And the fixed panel re-driven** in Chromium from **360×200 and 128×420 up to
+  1440×1400** — the box **fully on screen and scrolling at every one** (228px of content in
+  a 71px box at vh 200, so max scroll reaches the last control), and at vw 128 sitting at
+  **12..116**, both gutters exactly, where before the fix it ran to 132: portaled on every one, every slot inside both gutters, the panel capped and
+  **scrolling** where the screen is too short for it, a pick from the fourth slot still
+  landing, the swap reporting **one** write carrying both keys, and the Progress page's
+  chips gear still stepping ALL → 90D → 30D → 7D → ALL at **43 → 21 → 9 → 4** segments with
+  the choice surviving a reload. Zero page errors.
+- ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; the on-account
+  pass is owed, and it is now the only thing left on the review's P1/P2 roadmap besides the
+  booking-timezone ruling.
 ### 2026-09-11 — Photo import goes live: vision stops riding the text model's pin, and a security finding that does not survive the repo
 
 - **Owner: *"yes i want the photo import live"*.** The feature merged in #2040; what stood
@@ -730,6 +1005,7 @@ Append new entries at the top, under this note.
   restatement, so they assert on the resolver that ships. The default case pins that an unset
   variable resolves to `OPENAI_MODEL` **exactly**, because a "fix" that changed the model for
   builds already working would be the regression.
+
 
 ### 2026-09-11 — The two registered follow-ups: a GDPR key that named two of its twenty-six kinds, and a recipe you can photograph
 
@@ -1135,6 +1411,7 @@ Append new entries at the top, under this note.
   gated on *reading the Codex summary comment* rather than on remembering that it failed
   last time. **The merge gate is untouched by both rulings**: CI green on the final head,
   and not a draft.
+
 ### 2026-09-11 — Thirteen capped reads were ordered ascending, and nine of them kept the OLDEST rows
 
 - **Found while sizing R15's last piece, not by a report — and it is live today.** Derived

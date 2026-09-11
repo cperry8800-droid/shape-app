@@ -1572,6 +1572,231 @@
     };
   }
 
+  // ── The KPI pool the two Today stat strips choose from (review 2026-09-09, R15) ──
+  //
+  // ⚠ EVERY METRIC RESOLVES FROM DATA THE PAGE ALREADY HAS. The strips are fed by the
+  // dashboard payload, the roster, the triage feed, the programming queue and today's
+  // schedule — all of which Today holds before any of this runs. A metric that needed a
+  // new request would be a figure nobody on that screen had measured, and asking the
+  // server for it would make the picker a data-fetch feature rather than a choice.
+  //
+  // ⚠ AND A METRIC THAT CANNOT BE ANSWERED SAYS SO RATHER THAN RESOLVING TO ZERO. Each
+  // entry returns `{ value, unit, sub, why }`; a null `value` carries a `why` and the
+  // strip renders an em-dash under it. That is the honest-data rule the strips already
+  // follow for `renewals` and `avgCompliance`, applied to a list a coach can extend.
+  //
+  // The RAW value is returned, never a formatted string: `dashMoney` and the strip's own
+  // typography live in dashToday.jsx, and a pure module that formatted money would have
+  // to own a currency it knows nothing about.
+  function kpiNum(v) {
+    // ⚠ `Number(null)` IS 0 AND FINITE, so `isFinite` alone cannot tell an absent figure
+    // from a measured zero — the class this file post-mortems on the Wall's helpers and
+    // on the booking slots. A measured 0 is a value; null, "" and a boolean are not.
+    // ⚠ AND AN OBJECT IS NOT A FIGURE, which `isFinite` cannot see either: `Number([])`
+    // is **0 and finite** and `Number([5])` is 5, so an array reaches every metric below as
+    // a confident reading. Found by the vector list in the compliance guard rather than by
+    // reading — the same trap as `Number(null)`, one type over. (CodeRabbit, #2046.)
+    if (v == null || v === "" || typeof v === "boolean" || typeof v === "object") return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  function kpiLive(ctx) { return (ctx && ctx.live) || null; }
+  function kpiRows(ctx) { return (ctx && Array.isArray(ctx.clients)) ? ctx.clients : []; }
+
+  // The payload's own key differs by role (sessions vs consults), so the CALLER hands the
+  // resolution the names — Today already holds them on its role config.
+  function kpiPayload(ctx, which) {
+    var live = kpiLive(ctx);
+    if (!live || !live.kpis) return null;
+    var keys = (ctx && ctx.kpiKeys) || {};
+    var k = keys[which];
+    return k ? kpiNum(live.kpis[k]) : null;
+  }
+
+  var LIVE_ONLY = "live only";
+
+  var DASH_KPI_METRICS = {
+    activeClients: {
+      trainer: "Active clients", nutritionist: "Active clients",
+      resolve: function (ctx) {
+        var live = kpiLive(ctx);
+        if (live && live.kpis) return { value: kpiNum(live.kpis.activeClients), unit: "count" };
+        // The preview's roster IS its active list — buildMockClients emits only current
+        // clients — so the demo answer is a fact about what is on the screen.
+        return { value: kpiRows(ctx).length, unit: "count" };
+      },
+    },
+    monthlyNet: {
+      trainer: "Monthly (net)", nutritionist: "Monthly (net)",
+      resolve: function (ctx) {
+        var live = kpiLive(ctx);
+        if (live && live.kpis) return { value: kpiNum(live.kpis.monthlyNetCents), unit: "money", sub: "after the platform fee" };
+        var gross = kpiMrr(ctx);
+        if (gross.value == null) return { value: null, unit: "money", why: gross.why };
+        return { value: Math.round(gross.value * PREVIEW_NET_RATE), unit: "money", sub: "after the platform fee" };
+      },
+    },
+    weekSessions: {
+      trainer: "Sessions this week", nutritionist: "Consults this week",
+      resolve: function (ctx) {
+        var v = kpiPayload(ctx, "week");
+        return v == null ? { value: null, unit: "count", why: LIVE_ONLY } : { value: v, unit: "count" };
+      },
+    },
+    upcoming: {
+      trainer: "Upcoming sessions", nutritionist: "Upcoming consults",
+      resolve: function (ctx) {
+        var v = kpiPayload(ctx, "upcoming");
+        return v == null ? { value: null, unit: "count", why: LIVE_ONLY } : { value: v, unit: "count" };
+      },
+    },
+    totalSessions: {
+      trainer: "Sessions logged", nutritionist: "Consults logged",
+      resolve: function (ctx) {
+        var v = kpiPayload(ctx, "total");
+        if (v == null) return { value: null, unit: "count", why: LIVE_ONLY };
+        // ⚠ NOT LABELLED "ALL TIME". The route reads a capped window and reports whether
+        // it bit (`totalCapped`), so past the cap this count is a FLOOR — which is why
+        // the capped-read fix had to land before this metric could exist at all.
+        var live = kpiLive(ctx);
+        var capped = !!(live && live.kpis && live.kpis.totalCapped);
+        return { value: v, unit: "count", capped: capped, sub: capped ? "at least — the window is capped" : null };
+      },
+    },
+    todaySessions: {
+      trainer: "Sessions today", nutritionist: "Consults today",
+      resolve: function (ctx) {
+        var rows = (ctx && Array.isArray(ctx.schedule)) ? ctx.schedule : [];
+        // The empty-schedule row carries "—" as its time; it is a placeholder, not a session.
+        var real = rows.filter(function (s) { return s && s.time && s.time !== "—"; });
+        var next = real.filter(function (s) { return s.status === "NEXT" || s.status === "PENDING"; })[0];
+        return { value: real.length, unit: "count", sub: next ? "next " + next.time : "all done" };
+      },
+    },
+    due: {
+      trainer: "Programs due", nutritionist: "Plans due",
+      resolve: function (ctx) {
+        var q = (ctx && Array.isArray(ctx.queue)) ? ctx.queue : [];
+        var ready = q.filter(function (r) { return r && r.state === "ready"; }).length;
+        return { value: q.length, unit: "count", sub: ready + " ready" };
+      },
+    },
+    compliance: {
+      trainer: "Roster compliance", nutritionist: "Roster compliance",
+      resolve: function (ctx) {
+        // ⚠ A NON-NULL VALUE IS NOT A COUNT OF DAYS. `!= null` admits a string, a boolean
+        // and a negative, and `Math.min` passes each straight through: "abc" makes the whole
+        // percentage NaN, true counts as one day, and -3 subtracts from the roster's total.
+        // The window is seven days, so the only readings this can mean are the integers 0..7
+        // — anything else is a row we could not read, which is what `why` is for.
+        // (CodeRabbit, #2046; the same class as `Number(null)` being 0 and finite.)
+        var withLogs = kpiRows(ctx).filter(function (c) {
+          if (!c || !c.foodLogs) return false;
+          var d = kpiNum(c.foodLogs.daysLogged7d);
+          return d != null && d >= 0 && d <= 7 && Math.floor(d) === d;
+        });
+        if (!withLogs.length) return { value: null, unit: "pct", why: "no shared logs yet" };
+        var days = withLogs.reduce(function (s, c) { return s + kpiNum(c.foodLogs.daysLogged7d); }, 0);
+        // The nutritionist's copy names WHAT was logged, which is the wording that strip
+        // has always carried on that role.
+        var what = (ctx && ctx.role) === "nutritionist" ? "food logs" : "logged";
+        return { value: Math.round((days / (withLogs.length * 7)) * 100), unit: "pct", sub: what + " · 7d" };
+      },
+    },
+    mrr: {
+      trainer: "Monthly recurring", nutritionist: "Monthly recurring",
+      resolve: function (ctx) { return kpiMrr(ctx); },
+    },
+    needsEyes: {
+      trainer: "Needs eyes", nutritionist: "Needs eyes",
+      resolve: function (ctx) {
+        var feed = (ctx && Array.isArray(ctx.triage)) ? ctx.triage : null;
+        if (!feed) return { value: null, unit: "count", why: "the pulse could not be read" };
+        var flagged = feed.filter(function (r) { return r && r.severity !== "green"; }).length;
+        return { value: flagged, unit: "count", sub: "of " + feed.length + " on the pulse" };
+      },
+    },
+    newClients: {
+      trainer: "New clients", nutritionist: "New clients",
+      resolve: function (ctx) {
+        var rows = kpiRows(ctx);
+        var fresh = rows.filter(function (c) { return c && c.profile && c.profile.isNew; }).length;
+        // ⚠ 14 DAYS, BECAUSE THAT IS WHAT `isNew` MEANS. coach-roster.ts sets it from the
+        // earliest subscription against a 14-day window, so any other span in this label
+        // would describe a measurement nobody took.
+        return { value: fresh, unit: "count", sub: "joined in the last 14d" };
+      },
+    },
+  };
+
+  // ⚠ MRR IS SHARED BY TWO METRICS, so it is one function: `monthlyNet` is this figure
+  // after the fee, and two spellings of one sum is the disagreement the payouts round
+  // was about.
+  //
+  // ⚠ AND AN UNREADABLE ROW IS COUNTED RATHER THAN COERCED. `mrrCents` is null when the
+  // subscriptions read failed for that client, and `|| 0` would quietly under-report the
+  // practice with nothing on screen saying so — so the sub names how many rows answered.
+  function kpiMrr(ctx) {
+    var rows = kpiRows(ctx);
+    if (!rows.length) return { value: null, unit: "money", why: "no clients yet" };
+    var known = 0, cents = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var c = rows[i];
+      var v = c && c.payments ? kpiNum(c.payments.mrrCents) : null;
+      if (v == null) continue;
+      known += 1; cents += v;
+    }
+    if (!known) return { value: null, unit: "money", why: "not shared" };
+    var all = known === rows.length;
+    return {
+      value: cents,
+      unit: "money",
+      sub: all
+        ? rows.length + " client" + (rows.length === 1 ? "" : "s")
+        : known + " of " + rows.length + " shared",
+    };
+  }
+
+  // The metric keys, in the order the picker lists them.
+  var DASH_KPI_KEYS = Object.keys(DASH_KPI_METRICS);
+
+  function dashKpiLabel(key, role) {
+    var m = DASH_KPI_METRICS[key];
+    if (!m) return null;
+    return m[role] || m.trainer;
+  }
+
+  // Resolve one metric. A key this build does not recognise yields null rather than
+  // throwing — there is no error boundary anywhere in public/newdesign, so a strip that
+  // throws on a stale stored key takes the whole page to blank.
+  function dashKpiValue(key, ctx) {
+    var m = DASH_KPI_METRICS[key];
+    if (!m) return null;
+    try {
+      var out = m.resolve(ctx || {});
+      return out && typeof out === "object" ? out : null;
+    } catch (e) {
+      return { value: null, unit: "count", why: "could not be read" };
+    }
+  }
+
+  // ⚠ CHOOSING A METRIC THAT IS ALREADY IN ANOTHER SLOT SWAPS THE TWO, rather than
+  // duplicating it or refusing. Filtering each slot's options to what is unused would
+  // mean a coach could not move a metric from slot 4 to slot 1 without first clearing
+  // slot 1 — two steps for one intent — and allowing the duplicate would print the same
+  // figure twice in a four-wide row. A swap is one tap, never duplicates, and never
+  // loses the metric that was there.
+  function dashKpiPick(current, slot, key) {
+    var next = (Array.isArray(current) ? current : []).slice();
+    if (!(slot >= 0 && slot < next.length)) return next;
+    if (next[slot] === key) return next;
+    var at = next.indexOf(key);
+    if (at >= 0) next[at] = next[slot];
+    next[slot] = key;
+    return next;
+  }
+
   // The pulse's reading order once a coach has pinned somebody (review 2026-09-09, R15).
   //
   // ⚠ A PIN NEVER HIDES A FLAG, AND THAT IS THE ONLY REASON IT MAY SIT ABOVE ONE. The
@@ -1707,6 +1932,11 @@
     crossoverCopy: crossoverCopy,
     PREVIEW_NET_RATE: PREVIEW_NET_RATE,
     pulseOrder: pulseOrder,
+    DASH_KPI_METRICS: DASH_KPI_METRICS,
+    DASH_KPI_KEYS: DASH_KPI_KEYS,
+    dashKpiLabel: dashKpiLabel,
+    dashKpiValue: dashKpiValue,
+    dashKpiPick: dashKpiPick,
     demoPayouts: demoPayouts,
     demoPayoutHistory: demoPayoutHistory,
     demoPayoutCard: demoPayoutCard,
