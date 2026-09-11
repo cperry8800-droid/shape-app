@@ -529,6 +529,119 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — The homepage becomes the climb, and three surfaces stop claiming things nobody measured
+
+- **Owner: *"lets go with the climb"*.** Concept E off
+  [`REVIEW-2026-09-10-index-page.md`](REVIEW-2026-09-10-index-page.md) §5b, built as
+  `public/newdesign/index.html`: four contour-lined ridges that breathe and parallax to the
+  pointer, a route that draws from the base camp to a summit in 3.6 s, and a Shape Score that
+  counts with it. **The terrain is the drawing every member profile already makes**, which is
+  the only reason this direction is Shape's and not anyone's. No migration, no route change,
+  no i18n key change.
+- ⚠ **A SUMMIT IS DESIGNED, NOT HOPED FOR.** Three octaves of value noise sum to about 0.5 and
+  rarely leave `[0.35,0.65]`, so the first cut varied each ridge by **~37 px of an 834 px
+  fold** and read as ripples — and raising `amp` alone just moves a flat line up and down. The
+  output is spread about its midpoint, and a broad envelope centred near `u=0.70` gives the
+  FRONT ridge a real peak where the climb ends. The fills were also within a few points of the
+  page's own ink, so only the contour lines read; each band is lighter than the one behind it
+  now, and the far one lighter than the sky.
+- ⚠ **PHONES NEVER SAW THIS PAGE, AND THE FIRST STACKED FOLD WAS BROKEN.** `index.html:6`
+  redirected every viewport under 760 px to the cream `GetApp.html` walkthrough. Removing it
+  is half the fix: `.hero` is a **flex row**, so setting the camps and the wire to
+  `position:static` turned them into **COLUMNS beside the headline** — measured at 390 px,
+  three camps stacked in a ~60 px gutter and the wire went with them. Explicit grid rows are
+  what actually stacks them; the canvas and its painted fallback share one cell so they still
+  overlay. *A property that only reads as a stacking rule inside a block container is not a
+  stacking rule.*
+- ⚠ **THE STATION IS NOT BROADCASTING, AND NOW NOTHING SAYS IT IS — ON ANY PAGE.** Measured
+  against production rather than inferred: **`public.radio_station` does not exist**, so
+  `/api/radio/now-playing` falls through to the mock provider. The nav's permanent **ON AIR**
+  chip, the **LIVE** badge and the `@keyframes eq` equaliser are gone and the card states that
+  Radio opens with the app. ⚠ **The same claim was ALSO in `pageShell.jsx`'s `RadioWordmark`,
+  which ~70 other pages render** — its own comment called it *"the live signal the old pulsing
+  dot only implied"*. Fixing the homepage alone would have left the site contradicting its own
+  front page.
+- ⚠ **AND THERE IS NO HONEST WAY TO LIGHT IT FROM A SIGNED-OUT PAGE TODAY, WHICH IS WHY IT IS
+  REGISTERED RATHER THAN WIRED.** `/api/radio/station` already carries `configured`, and it is
+  **401 for anonymous callers by design** — *"no hint about whether a station is configured; an
+  anonymous caller learns nothing about the stream"*. Adding a `live` flag to the public
+  now-playing route would undo that deliberate opacity, and sniffing the mock's literal track
+  title is worse (a real station may legitimately play a track of that name). **Going live
+  needs a decision about that route, not a one-line change.**
+- ⚠ **A MARKETPLACE OF TWO PEOPLE IS NOT A MARKETPLACE.** Production holds **1 trainer and 1
+  nutritionist with an `owner_id`** (21 and 22 rows exist; one each is claimed), so H12's
+  "render real profiles" option would render two people. The cards are labelled examples and
+  the count is shown only when the route answers with one — ⚠ `marketplace-stats` reports
+  `count ?? 0` for a **FAILED** read, so a zero is treated as *could not read*, never as
+  *there are none*.
+- ⚠ **DOTO NEEDS WEIGHT, NOT RESTRAINT — AND THAT CORRECTS THE REVIEW'S OWN PRESCRIPTION.**
+  §5a says *"500 for the large figures, ROND 60 on hero figures"*. Measured on a specimen at
+  48 / 60 / 76 px, that is the setting that **cannot be read**: the dots stay thin and far
+  apart and the glyph reads as a grid. At **wght 900 / ROND 100** the same `$5` reads at
+  76 px. Every display figure on the page is 900 / ROND 100 now; small labels stay 700 / 30,
+  where the grid is the point. ⚠ `ctx.font` has **no** `font-variation-settings`, so a canvas
+  figure has only the weight lever — which is the one that decides legibility anyway.
+- **Structure: 24.4 screens become 7.8 at 1440 px.** The 525vh pinned loop is an auto-playing
+  four-card strip of real app captures (**395 KB of JPEG replacing a 1.7 MB JPEG-named-PNG**);
+  the journey keeps this page's own five-form point cloud — sphere, two rings, the ECG, the
+  score dial, the mark — on **320vh instead of 1500**, with the chips and the duplicate stage
+  counter dropped; the 2.9 s splash lock is gone (the headline's words widen from `wdth 62` to
+  `118` on load); the nav goes from 17 targets to six with a drawer below 860 px; and the
+  footer's About stops pointing at this page, Payouts stops pointing at a gated dashboard, and
+  the one relative link among absolutes is absolute.
+- ⚠ **THE FIRST RENDER PASS MEASURED THE WRONG TYPEFACE, AND `document.fonts.check()` SAID IT
+  WAS FINE.** Chromium does **not** inherit `HTTPS_PROXY`, so the Google Fonts stylesheet was
+  reset and the page rendered in the metrics fallbacks — and `check()` returns **true when
+  nothing matches and the fallback is used**, so all three families reported loaded. The
+  discriminating test is the **width axis**: the same string at `wdth 50` and `wdth 150`
+  measured **240 px and 240 px** (dead) before the real files were served locally, and
+  **108 px and 482 px** after. *A render is evidence only of what actually rendered* — the
+  same lesson the concept board paid for, re-earned because the instrument lied in a new way.
+- ⚠ **AND MY OWN METRICS-FALLBACK FACES REPORT `status: "error"` IN THIS CONTAINER**, because
+  they are `src: local('Arial')` / `local('Courier New')` and neither font is installed here.
+  That is the same pattern the page has shipped for fourteen months and is not a regression —
+  recorded because it means the CLS claim those faces make is **unverified on Linux**, not
+  merely untested.
+- **Both degradations are DRIVEN, not argued.** Reduced motion: the terrain draws once, all
+  four moments light, every journey stage opens, the wire is still. No JavaScript: the painted
+  ridge carries the fold and the summit renders **nothing** — ⚠ it used to paint a literal
+  **`0`** under *"Shape Score · example"*, a figure nobody measured, on the one page whose
+  entire framing is that every number is measured or labelled. The wire's five statements live
+  in the **markup**, so a scriptless visitor gets the real ticker rather than an empty bar.
+- **Contrast computed, not eyeballed.** Every token passes AA on the page background
+  (`--fg-3` is **5.71:1**, closing H18's 3.46:1) — but the camps sit **ON the terrain**, where
+  `.55` alpha over the front ridge's lightest band computes to **3.92:1**, under AA for 12 px.
+  They moved to `--fg-2` (5.53:1). The wire's own scrim keeps its items at 5.12:1, so those
+  stayed.
+- ⚠ **AN EXISTING GUARD USED THIS PAGE AS ITS FIXTURE, AND SAID SO ITSELF.**
+  `newdesign-viewport` asserted that `index.html` **does** redirect — it was the only page in
+  `newdesign/` with a *conditional* head redirect on a full body, i.e. the one case that must
+  fail both arms of the stub classifier — and its own failure message read *"index.html no
+  longer redirects — this guard is moot"*. Re-anchored to **derive** that shape rather than
+  name the page, so a new one is covered with nobody remembering the test exists.
+- ⚠ **ONE MUTATION SURVIVED ITS FIRST ROUND AND THE MUTATION WAS THE BUG.** `String.replace`
+  hits the FIRST occurrence, and *About* appears in the nav and the drawer before the footer —
+  so the "footer About self-links" mutation edited the **nav**, and the footer guard correctly
+  ignored it. *Proving a mutation changed the file is not proving it changed the thing under
+  test.*
+- ⚠ **AND A SOURCE SCAN FOR AN ABSENT STRING PASSES ON A COMPONENT THAT WAS DELETED, BROKEN,
+  OR NEVER MOUNTED.** The first shared-header check was exactly that, and a browser render
+  could not settle it: React's UMD builds come from **unpkg, which this container blocks**, and
+  the script tags carry **SRI**, so a substitute is rejected — the header genuinely did not
+  mount and `onAir:false` was a **vacuous pass**. `RadioWordmark` is compiled out of the
+  shipped `.jsx` and rendered with `react-dom/server` instead, asserting it renders 743 chars,
+  links to Radio, keeps both triangles and says exactly *"Shape Radio"*. ⚠ The `return` is
+  appended **after** transpiling — a bare top-level return is a parse error in module scope and
+  would fail before any JSX is compiled, reading as *"the component is broken"*.
+- **Verified:** `npm test` **3247/3247** · `tsc --noEmit` 0 · JSX parse · the newdesign
+  precompile check · **18/18 mutations killed across three rounds**, each proven to land on
+  disk and restored in a `finally`, sanity green at both ends · the page driven in Chromium at
+  **320 · 360 · 390 · 860 · 1024 · 1440** with zero page errors, zero unexpected 4xx and zero
+  horizontal overflow at rest and mid-journey · and both degradations driven end to end.
+- ⚠ **NOT SHIPPED, REGISTERED:** the Radio liveness signal (above); **real** marketplace
+  profiles, which need real coaches; and the shared header's wider nav — only its ON AIR claim
+  moved here, so the six-item trim is the homepage's alone for now.
+
 ### 2026-09-11 — R15's pin: the pulse keeps the two people you are actually working with in front of you
 
 - **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
