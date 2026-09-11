@@ -158,6 +158,16 @@ changelog whenever something ships.
   Codex advises; it does not close the gate — the 2026-08-26 post-mortem below explains
   why naming a reviewer IN the gate has now broken `/console` twice, and that lesson is
   not reopened by this ruling.
+  ⚠ **AND AS OF 2026-09-11 CODEX IS REFUSING: *"You have reached your Codex usage limits for
+  code reviews."*** Measured on #2033, twice — the bot answers that within seconds of an
+  `@codex review` comment, on two different heads. **This does not reverse the owner's
+  ruling and does not change the gate.** Trigger it as the ruling says; a refusal is the
+  layer being unavailable, not skipped, and it is **noted in the PR rather than waited
+  on**. ⚠ Read this against the 2026-08-29 correction further down, which refuted *"the
+  account has no credits"* with three measured auto-reviews — **that was true then and is
+  not true today**, so a session that reads only the correction will sit waiting for a
+  reviewer that has already declined. *A funding state is a claim with a shelf life, and
+  the only honest form of it is the one you just measured.*
   ⚠ **EVERYTHING BELOW THIS LINE THAT NAMES A GATING REVIEWER IS HISTORY, KEPT ON
   PURPOSE.** It is not deleted, because two of its rules turned out to be about reviewers
   in general rather than about CodeRabbit: **a verdict is only about the head it names**,
@@ -1152,6 +1162,13 @@ Append new entries at the top, under this note.
   rather than in two near-identical nested ternaries — which is how `unreadable` came to be unnamed
   on **both**, under a comment promising that *"we could not read your recipes"* was a separate
   sentence from *"sign in"*.
+- ⚠ **AND THE SECOND REVIEW LAYER WAS UNAVAILABLE FOR THE LAST TWO ROUNDS.** `@codex review`
+  was posted on both heads as the owner's ruling requires, and both times the bot answered
+  within seconds: *"You have reached your Codex usage limits for code reviews."* So rounds 6
+  and 7 were `/code-review` alone. **Recorded at the head of this file** beside the ruling,
+  because the 2026-08-29 correction sitting under it says Codex is funded and auto-reviewing
+  — true when it was measured, false today, and a session that reads only that correction
+  will wait for a reviewer that has already declined.
 - ⚠ **NOT SHIPPED, REGISTERED:** the **photo** path (needs a `recipe-imports` bucket — deliberately
   not `meal-notes`, which hands out year-long signed URLs — and is gated on confirming the pinned
   model accepts image input at all; `grep -rn "input_image\|image_url" src/` returns **nothing**, so
