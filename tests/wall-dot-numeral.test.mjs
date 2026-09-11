@@ -172,3 +172,46 @@ test('a figure the matrix CAN spell is still drawn on the wall', () => {
   assert.ok(bsDotRenderable('245'));
   assert.equal(readBack('245').text, '245');
 });
+
+// ── The PR delta on a merged-feed card ───────────────────────────────────
+// Codex, #2036: `variant="wall"` suppresses the `↑ PR {delta}` line (the
+// wall would otherwise state the record twice), and the gain reaches the
+// pill only through `recordNote` — a prop the ledger-backed caller passes
+// and the feed does not. So a real PR card said "New PR · Deadlift" and
+// dropped the amount the member had improved by.
+
+test('a wall PR card keeps the amount the member improved by', async () => {
+  const { BSActivityCard: Card } = await loadBroadsheet(['BSActivityCard']);
+  const ctx = {
+    t: THEME, cardInk: '#111', muted: '#777', hair: '#ddd', card: {},
+    actLikes: {}, actComments: {}, actCmtOpen: null, actDetailsOpen: {}, actCoSign: {}, actExpr: {},
+    exprOpenKey: null, setExprOpenKey() {}, lpTimerRef: { current: null }, lpFiredRef: { current: false },
+    tierByUser: {}, avatarByUser: {}, feedAvatars: {}, myRole: 'client', coachClientIds: null,
+    myFollowingSet: new Map(),
+    setOpenProfile() {}, setActivityDetail() {}, setLikerSheetFor() {}, setSendPostFor() {},
+    feedApplyReaction() {},
+  };
+  // `real` is what makes `prDelta` live — a published post carrying the gain
+  // it was stamped with. The feed passes no recordNote.
+  // ⚠ A REAL ACTIVITY READS `statsRow`, NOT `stats` — `stats` is the demo
+  // shape, and a fixture carrying it hands the real path an undefined and
+  // then reports on the crash rather than on the pill.
+  const a = {
+    real: true, kind: 'pr', who: 'Quinn Harper', role: 'Client', tier: 'TEMPO', ago: '2d',
+    typeLabel: 'Strength', title: 'Back Squat — new PR', body: 'Bar speed stayed crisp.',
+    delta: '+10 lb', statsRow: [['Top set', '247 lb'], ['Reps', '3']],
+  };
+  const wall = drive(Card, { a, ctx, isLast: true, pagePad: 0, variant: 'wall' }).text;
+  assert.ok(wall.includes('+10 lb'), `the wall pill must carry the gain, got: ${wall.slice(0, 300)}`);
+
+  // The ledger's own gain still wins where a caller supplies it — it is
+  // measured against the stored best, not stamped at publish.
+  const withNote = drive(Card, { a, ctx, isLast: true, pagePad: 0, variant: 'wall', recordNote: '+25 lb' }).text;
+  assert.ok(withNote.includes('+25 lb'), 'an explicit recordNote outranks the post delta');
+  assert.ok(!withNote.includes('+10 lb'), 'and the two are not both printed');
+
+  // THE CONTROL: the feed is unchanged — it still states the delta on its own
+  // line, so this fix did not quietly move the feed's furniture too.
+  const feed = drive(Card, { a, ctx, isLast: true, pagePad: 0 }).text;
+  assert.ok(feed.includes('+10 lb'), 'the feed keeps its own PR line');
+});

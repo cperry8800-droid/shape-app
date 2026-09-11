@@ -18067,7 +18067,14 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       // own hero below it — which is the one thing the approved board does not
       // do. The gain is the part of that header worth keeping, so it joins the
       // pill and the duplicate header is gone.
-      const tail = recordNote ? ` · ${recordNote}` : '';
+      // ⚠ AND IT FALLS BACK TO THE POST'S OWN DELTA, or the wall variant LOSES
+      // the improvement outright: the `↑ PR {prDelta}` line is suppressed on the
+      // wall (it would say the record twice), and `recordNote` is a PROP only the
+      // ledger-backed caller supplies. The feed renders these same cards with no
+      // recordNote, so without this a member's "New PR" stopped saying by how
+      // much. The ledger's gain still wins where it is supplied — it is the
+      // authoritative number, measured against their stored best.
+      const tail = recordNote ? ` · ${recordNote}` : (prDelta ? ` · ${prDelta}` : '');
       if (isPR) {
         return `${tr('feed:card.newPR', { defaultValue: 'New PR' })}${lift ? ` · ${lift}` : (measure ? ` · ${measure}` : '')}${tail}`;
       }
