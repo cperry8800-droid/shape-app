@@ -770,9 +770,32 @@
     tgt=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)); });
   hero.addEventListener('pointerleave',function(){ tgt=.5; });
 
+  /* ⚠ THE DRAW LOOP STOPS WHEN THE HERO LEAVES THE VIEWPORT. rAF keeps firing
+     at full rate for a section scrolled several screens away — the browser only
+     throttles it for a HIDDEN TAB, not for off-screen content — and draw()
+     rebuilds and strokes four ridge bands plus their gradients every frame, so
+     this page was burning CPU and battery all the way down a very long scroll.
+     The moments strip and the journey already gate on an observer; the terrain
+     did not. (Codex, #2045.)
+     ⚠ ONLY THE DRAW LOOP IS SUSPENDED, NOT THE CLIMB TWEEN. climb() advances a
+     single scalar and costs nothing; cancelling it too would freeze `prog`
+     mid-route and force a choice on resume between a visible jump back to 0 and
+     up to 14s of a half-drawn line. Leaving it alone means the route is simply
+     correct whenever the canvas is next painted. */
+  function suspend(){ if(raf){ cancelAnimationFrame(raf); raf=null; } }
+  function resume(){ if(!raf && !still) raf=requestAnimationFrame(loop); }
+  function watchHero(){
+    if(still || typeof IntersectionObserver!=='function'){ resume(); return; }
+    try{
+      new IntersectionObserver(function(es){
+        es.forEach(function(e){ if(e.isIntersecting) resume(); else suspend(); });
+      },{rootMargin:'120px'}).observe(hero);
+    }catch(e){ resume(); }   /* never trade the animation for the optimisation */
+  }
+
   function boot(){ size(); buildProfile(); reveal();
     if(still){ prog=1; draw(); return; }
-    climb(); iv=setInterval(climb,14000); raf=requestAnimationFrame(loop); }
+    climb(); iv=setInterval(climb,14000); watchHero(); }
 
   var rt=null;
   window.addEventListener('resize',function(){ clearTimeout(rt); rt=setTimeout(function(){ size(); buildProfile(); draw(); },140); });
