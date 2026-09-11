@@ -80,6 +80,10 @@ export async function GET(request: Request) {
     .select('*')
     .in('status', ['scheduled', 'live'])
     .gte('scheduled_at', minDate)
+    // capped-read-ok: ascending is CORRECT here. The window is already bounded to the
+    // future by the `gte` above, so the cap keeps the NEXT 24 rooms — which is what
+    // "what's on" means. Ordering it descending would keep the 24 furthest-away rooms and
+    // hide tonight's.
     .order('scheduled_at', { ascending: true })
     .limit(24);
 

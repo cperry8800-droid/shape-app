@@ -160,6 +160,12 @@ changelog whenever something ships.
   **Read that comment before concluding it is unavailable**: on #2040 the same trigger that
   was refused twice on #2033 came back **Running** on the first try, so the limit lifts, and a
   session that assumes yesterday's refusal skips the only external reviewer it has.
+  ⚠ **AND A SECOND SESSION MEASURED THE SAME LIFT INDEPENDENTLY, ON A DIFFERENT PR.** Owner:
+  *"run codex if you can"*. On #2041 it **auto-fired on PR open** and returned a P2 that was
+  right (a per-mount preference store clobbering the coach's own document), and a later manual
+  `@codex review` on that PR was accepted rather than refused. **Two PRs, two sessions, one
+  answer: the refusal was hours old and had lifted.** Trigger it; if it declines, note the
+  decline in the PR and move on.
   ⚠ **THE SECOND FACE IS SILENCE, AND IT WAS MEASURED ON #2040 TOO.** After five reviewed
   heads the sixth trigger produced **no review, no `Running`, and no refusal** — fifteen
   minutes of nothing, which is not the shape the spoken limit takes. **Under the final ruling
@@ -984,6 +990,204 @@ Append new entries at the top, under this note.
   gated on *reading the Codex summary comment* rather than on remembering that it failed
   last time. **The merge gate is untouched by both rulings**: CI green on the final head,
   and not a draft.
+### 2026-09-11 — Thirteen capped reads were ordered ascending, and nine of them kept the OLDEST rows
+
+- **Found while sizing R15's last piece, not by a report — and it is live today.** Derived
+  from the source rather than eyeballed: of **55** capped reads under `src/app/api/`,
+  **thirteen** order `ascending`, and **nine** of those are defects — the cap then keeps the
+  **oldest** N rows. Every one is invisible until a real account outgrows the cap, and then
+  it does not degrade, it **inverts**: the surface goes on working and shows the wrong end of
+  the member's history forever.
+- ⚠ **THE COACH DASHBOARD'S HEADLINE KPIs READ ZERO FOREVER PAST 500 SESSIONS.**
+  `sessionsThisWeek`, `upcomingSessions`, `today`, `calendar` and the client `pulse` are ALL
+  derived from one `sessions` read capped at 500 and ordered ascending — so a trainer past
+  that (about two years at five a week, under one for a full-time coach) is served their
+  **first** 500 sessions: *"Sessions this week"* and *"Upcoming sessions"* both read **0**,
+  the calendar shows rows from years ago, and the pulse lists clients who left. Same read,
+  same cap, same defect in the nutritionist route, and again in each route's shared-coach
+  leg — which also decides `myClientIds`, so the counterpart query goes looking at the wrong
+  clients.
+- ⚠ **AND A MEMBER'S "UPCOMING" CAME BACK EMPTY.** `/api/client/dashboard` caps bookings at
+  100 ascending and then filters to the future — past 100 bookings that filter has nothing
+  to find, however many sessions they have. Their **weigh-ins** are capped at 104 ascending,
+  which a daily logger passes in about **three months**, after which their goal trend never
+  shows this year at all. That is the same defect `/api/client/progress` was fixed for on
+  2026-09-11, two routes over, and its own comment records the lesson.
+- ⚠ **THE MANAGE SCREEN COULD NOT REACH A SESSION THAT NEEDED ACTION.** `/api/sessions/manage`
+  is where a session is confirmed, rescheduled or cancelled — always an upcoming one — and it
+  read the oldest 200.
+- ⚠ **AND A LONG COACH THREAD OPENED ON MESSAGES FROM A YEAR AGO.** `conversations/[id]/messages`
+  capped at 500 ascending, so past that the tail of the conversation was unreachable. **The
+  incremental poll keeps ascending and that is not an oversight:** the caller already holds
+  everything up to `since`, so the rows that close the gap are the **oldest** ones after it —
+  taking the newest 500 instead would leave a hole in the middle of the thread that no later
+  poll ever fills. Either way the response is ascending, which is the contract every client
+  reads.
+- ⚠ **AND THE CALENDAR RE-INTRODUCED A DEFECT ITS OWN COMMENT SAYS WAS FIXED.** Its plan read
+  has **no date filter**, caps at 200 ascending, and passes `nullsFirst: false` — so on a long
+  plan it kept the oldest dated rows and dropped **every undated workout**, which is precisely
+  the *"Home shows my plan but the calendar is empty"* case the note above that query
+  describes. The cap is what brought it back. Undated rows are never trimmed now
+  (`nullsFirst: true` on a descending read).
+- ⚠ **ASCENDING IS NOT ALWAYS WRONG, AND A BLANKET SWEEP WOULD HAVE BROKEN FIVE CORRECT
+  READS.** `radio/rooms` and `trainer/adjust` are already **bounded to the future** by their
+  own filters, so ascending keeps the NEXT N — flipping them would hide tonight's rooms and
+  the nearest sessions. `lead-boosts` and `stripe/connect-account` order by `id` ascending
+  with `limit(1)` to pick an account's **primary** provider row deterministically; flipping
+  either would silently attach a boost, or a Stripe account, to a different row. Each says so
+  at the site with a `capped-read-ok:` marker.
+- **`tests/capped-reads.test.mjs` DERIVES its corpus from the route files** — 55 capped reads
+  across every `.ts` under `src/app/api/` — so a query added later is covered with nobody
+  remembering the test exists. It asserts it **found** a corpus and that it can see **both**
+  spellings of a cap (a literal and a named constant), because a sweep that quietly stops
+  matching passes vacuously: that is the exact way the `/api/client/progress` guard lost two
+  thirds of its corpus the moment its cap was named.
+- ⚠ **AND THE EXEMPTION IS A MARKER, NOT AN ALLOWLIST THE GUARD ENFORCES.** A file-name
+  allowlist goes stale silently; requiring a `capped-read-ok:` note **at the query** puts the
+  reason where the next reader is. A separate assertion pins which five carry one today, so a
+  sixth is a decision somebody has to come here and make — and a mutation that sprinkles the
+  marker on an unchecked read is proven to fail it.
+- ⚠ **A CAPPED COUNT IS REPORTED AS CAPPED.** `totalSessions` / `totalConsults` are counts
+  taken over the capped window, i.e. a **floor**, so `totalCapped` rides beside them. R15's
+  KPI picker wanted to display one as *"all time"*, and a payload that does not say it is
+  capped cannot be checked by the consumer that labels it. Nothing displays them yet — this is
+  the precondition being paid before the label exists, not after.
+- ⚠ **AND ONE TWO-LINE COMMENT CAME OUT AS A 296-LINE DIFF.** `lead-boosts/route.ts` is the
+  one file in this set stored with **CRLF** line endings, and writing it back through a
+  text-mode rewrite silently normalised the whole file to LF — so a marker nobody needed to
+  review arrived as 147 deletions and 149 insertions, with the two real lines buried in it.
+  Re-applied **in binary**, against the file's own bytes: 2 insertions, 0 deletions.
+  *Rewriting a whole file is not a safe way to insert a line, and the diff is the only thing
+  that says so.*
+- **Verified:** `npm test` **3261/3261** · `tsc --noEmit` 0 · **17/17 mutations killed**, each
+  proven to land, sanity green at both ends — including two aimed at the **guard itself**
+  (a pattern that stops matching, and one that stops accepting a named cap, both caught by its
+  own vacuity checks) and three at the lifted comparators, which are **executed** over
+  vectors rather than pinned by spelling.
+- ⚠ **NO ON-ACCOUNT PASS, AND THIS ONE CANNOT HAVE A SIMULATED ONE.** Every defect here needs
+  an account that has outgrown a cap; the repo has none, so the fixes are argued from the
+  queries and proven at the comparators. The honest check is a coach past 500 sessions.
+
+### 2026-09-11 — R15's drawer: six sections become the ones this coach reads, keyed so a reworded heading cannot unhide one
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
+  *choose the drawer's sections per lens*. The client drilldown is a **440px modal with six
+  sections**, and a coach who never reads Milestones scrolls past it on every client, every
+  day. Each section is a toggle now, remembered per account and per role. No migration, no
+  new route. **The KPI picker for the stat strips is the last piece of R15.**
+- ⚠ **THE CONTROL LIVES IN THE DRAWER, NOT ON A CARD'S ⚙, and that is forced by where the
+  drawer opens from: FOUR places** — the roster table, the pulse, the schedule and the
+  roster page. Any one card's gear would be the wrong home for a preference about the
+  drawer itself, and three of the four would not carry it. Written once in the shared
+  component, it works from all four.
+- ⚠ **EVERY SECTION CARRIES A STABLE KEY, AND THE TITLE IS NOT IT.** The hidden list is
+  stored against those keys, and a title is user-facing copy: keying on it would mean
+  **rewording a heading silently un-hides that section** for everyone who had hidden it, and
+  renaming it back re-hides it. `["notes", "Coach notes", DashSecNotes]` — the key never
+  changes, the title is free to. The two lenses deliberately **share `goals`**: one concept,
+  one key, so a coach who hides it hides it in both.
+- ⚠ **THE SET STORES WHAT IS HIDDEN, NOT WHAT IS SHOWN, AND THE POLARITY IS THE DESIGN.**
+  Storing the shown list pins today's drawer into the coach's own data: a section added next
+  month would be **missing for every coach who had ever touched the control**, with no way
+  to know it existed. Hiding is the exception, so the exception is what is written — the
+  same reasoning as `useRememberedChoice` refusing to store a value equal to the default.
+- ⚠ **HIDING EVERYTHING IS ALLOWED, AND THE DRAWER SAYS SO.** A coach who hides all six
+  gets what they asked for — but a name and two buttons reads as broken, so the empty state
+  names the way back (*"Every section is hidden. Open ⚙ above to bring one back."*). A
+  control whose effect cannot be reversed from where you see it is the dead-control class
+  from the other direction. And the **gear itself lights teal** whenever anything is hidden,
+  so the drawer never quietly omits a section.
+- ⚠ **A KEY THIS BUILD DOES NOT RECOGNISE IS IGNORED, NOT DROPPED** from the document, and
+  it does **not** count toward the hidden tally — a section retired here may belong to a
+  build that still has it, and counting it would light the gear over a drawer that is whole.
+- ⚠ **THE HOOKS RUN ABOVE THE EARLY RETURN**, or a drawer that closes renders fewer hooks
+  than the one that opened — the rules-of-hooks class this file post-mortems, which neither
+  the build nor `tsc` nor the suite catches. Pinned by a guard that compares the **positions**
+  of the three hooks against the bail, and by a mutation that moves the bail above them.
+  ⚠ **My first attempt at that mutation moved nothing** (`0 || useRememberedChoices(true)`)
+  and "survived" — a no-op dressed as a test of ordering.
+- ⚠ **AND THE OTHER SURVIVOR WAS DEAD CODE, WHICH MAKES TWO IN TWO PRs — BUT THE CONTRAST
+  IS THE USEFUL PART.** A `.filter((x) => typeof x === "string" && x)` on the hidden list
+  survived removal, because every section key is a slug from the table above and nothing a
+  corrupted document can carry (`null`, `""`, a number) can ever equal one. **The
+  identically-shaped filter in `pulseOrder` is load-bearing** and its mutation fails, because
+  there a `null` genuinely matches: the id reader returns `null` for a row with no profile
+  id. *The same shape is not the same guard* — so one was deleted with the reasoning at the
+  site and the other kept with a pointer to why.
+- ⚠ **AND MY OWN DIFF READ — THE ONLY REVIEW LAYER LEFT — CAUGHT A BORDER THAT WAS NEVER
+  GOING TO PAINT.** The sections panel shipped `1px solid ${DASH_ROSTER_INK50}33`, and that
+  token is an **rgba() string**: the value was `rgba(242,237,228,0.55)33`, which is not a
+  colour, so CSS error-handling drops the **whole declaration** and the border simply does
+  not exist. **Neither the mutation round nor the browser drive could see it** — an absent
+  border still renders, still passes, still looks approximately right. The same class this
+  log post-mortems on the page textures, where two of them voided every page background,
+  and `dashToday.jsx` carries the identical warning above its own hex muted ink. A separate
+  `DASH_ROSTER_HAIR` rgba now, and a **derived sweep** over every `.js`/`.jsx` in
+  `public/newdesign` — each file's own rgba constants, found by reading its declarations
+  rather than by naming tokens — asserts none of them is ever given a hex alpha suffix.
+  Measured across the whole surface: **zero offenders**, and both spellings of the
+  reintroduction (template and concatenation) are proven to fail it.
+- ⚠ **AND CODEX — WHICH THE HEAD OF THIS FILE HAD RECORDED AS REFUSING THAT MORNING —
+  ANSWERED, AND ITS ONE FINDING WAS REAL: THE DRAWER OPENED A PREFERENCE STORE OF ITS
+  OWN.** `DashClientDrawer` is mounted **only while it is open**, so a store of its own
+  started a fresh `dashboard_prefs` read on **every open**: six sections painted and two
+  dropped ~300 ms later, every time — and a coach who reached the ⚙ inside that window
+  derived their list from an **empty** document, after which the reconciliation effect
+  wrote that one-item list **over the sections they had hidden last week**. Silent data
+  loss, in the feature whose whole point is remembering what they hid.
+- **The store is the PAGE's now, passed in from all three hosts** (the roster table via
+  both Clients pages, the schedule, the pulse) — hydrated long before any row is clicked.
+  Measured rather than argued: **40 samples at 40 ms from the click, four heads on every
+  one**, where the flash would have been unmissable. A host that passes none degrades to
+  session-only, and a **derived sweep** over every `.jsx` in `public/newdesign` — the
+  mounts found by parsing each opening tag, not by naming files — asserts every mount site
+  supplies one, so that path is a safety net rather than a plan.
+- ⚠ **AND THE HOOK NEEDED THE FIX AS WELL AS THE THREADING, BECAUSE THE RACE IS NOT THE
+  DRAWER'S: `useRememberedSet` IS ALSO THE PULSE PINS.** `chosen` outranks the document by
+  design — a late read must never move a control out from under a hand already on it — and
+  for a **set** that rule loses data. A choice made before the store settles is **folded
+  into** the document when it arrives instead of replacing it.
+- ⚠ **THE FOLD CAN ONLY EVER ADD, AND SAYING SO IS WHAT KEPT IT HONEST.** My first cut
+  carried a removal arm too, and a mutation deleting it **survived** — because until the
+  store settles its doc is `{}`, so the control shows nothing to un-toggle. It is deleted,
+  with the reasoning at the site: *a removal arm there is a guard that cannot fire, and the
+  next reader would trust it.* Two survivors in two PRs, both dead code, both deleted
+  rather than tested around.
+- ⚠ **AND THE ACCOUNT CLEAN-SLATE HAD TO SIT THE FOLD OUT — reachable in exactly ONE
+  render, which is why the first test for it was vacuous.** React can batch the auth event
+  and the document's arrival together, and on that single frame the fold would run *after*
+  the block that is busy discarding A's ids, so it wins and B inherits them. My first
+  version released the read and flushed — but `flush` renders on entry, so the auth event
+  got its own frame and the mutation **survived**. Draining the microtasks *before* the
+  render is what makes the two land together, and the mutation then dies.
+- ⚠ **AND MY OWN REACT HOST CANCELLED THE EFFECT IT WAS MEANT TO RUN.** Making the body
+  re-run before effects commit (which is what React does, and what a hook that sets state
+  during render needs) meant every pass after the first saw unchanged deps and cleared the
+  `pending` the first pass had scheduled — so a **re-hydrate silently never ran**, and the
+  A→B test reported the code broken. A pending effect is carried forward now. *An
+  instrument that reports a failure is as broken as one that reports a pass, until the
+  failure is proven to be the code's.*
+- ⚠ **AND A SIBLING GUARD BROKE ON THE CORRECT FIX, AGAIN — the eighth time in this wave.**
+  `roster-sort` pinned the **exact** `DashRosterTable` signature, so threading one more prop
+  failed a test about **dead buttons**. It asserts the invariant now — the table takes the
+  sort as props — which is what it was ever about.
+- **Verified:** `npm test` **3253/3253** · `tsc --noEmit` 0 · JSX parse on all six changed
+  modules · the newdesign precompile check · **30/30 mutations killed across three rounds**
+  (15 on the sections, 12 on the fold and the threading, 3 re-proving the re-anchored
+  signature guard), each proven to land, sanity green at both ends · the drawer's first
+  paint sampled **40 times at 40 ms from the click, four heads on every one** · and driven
+  in Chromium against a simulated live coach: six section heads and one
+  ⚙, the panel offering **all six** as pressed-state chips, hiding *Milestones* and *Coach
+  notes* → **four heads left in their original order**, the gear lit teal, stored as
+  `{"drawerHidden:trainer":["milestones","notes"]}` — the **keys**, not the titles — then a
+  **reload brings the same four back**, and hiding all six renders *"Every section is
+  hidden. Open ⚙ above to bring one back."* with zero heads. Zero page errors.
+- ⚠ **AND THE HARNESS CLICKED THE NAV BURGER FIRST.** `[aria-label^="Open "]` matches
+  `aria-label="Open menu"`, which is hidden at that width, so the run timed out on an
+  element that was never the target. The drilldown rows end in *"drilldown"*; the selector
+  says so now. *A prefix selector over a shared verb matches whatever else starts that way.*
+- ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; an on-account
+  pass is owed.
 
 ### 2026-09-11 — R15's pin: the pulse keeps the two people you are actually working with in front of you
 

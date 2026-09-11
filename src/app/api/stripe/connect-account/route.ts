@@ -61,6 +61,9 @@ export async function POST(request: Request) {
 
   let query = admin.from(table).select('id, name, owner_id, stripe_account_id').eq('owner_id', user.id);
   if (providerId) query = query.eq('id', providerId);
+  // capped-read-ok: ascending by id picks the account's PRIMARY (earliest) provider row,
+  // deterministically — this decides which row a Stripe account attaches to, so the choice
+  // has to be stable across every call, not merely bounded.
   const { data: provider, error } = await query.order('id', { ascending: true }).limit(1).maybeSingle();
 
   if (error) return dbError(error, 'stripe connect account read', 500);
