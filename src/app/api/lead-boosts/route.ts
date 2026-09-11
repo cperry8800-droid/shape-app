@@ -79,6 +79,8 @@ export async function POST(request: Request) {
   const table = role === 'trainer' ? 'trainers' : 'nutritionists';
   const providerIdRaw = Number(body.providerId ?? 0);
 
+  // capped-read-ok: ascending by id picks the account's PRIMARY (earliest) provider row,
+  // deterministically. Flipping it would silently attach a boost to a different row.
   let providerQuery = client.from(table).select('id').eq('owner_id', user.id).order('id', { ascending: true }).limit(1);
   if (providerIdRaw > 0) providerQuery = providerQuery.eq('id', providerIdRaw);
   const { data: providers, error: providerError } = await providerQuery;

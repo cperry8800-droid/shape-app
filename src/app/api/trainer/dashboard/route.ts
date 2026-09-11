@@ -11,6 +11,10 @@ import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 
 export const dynamic = 'force-dynamic';
 
+// How many session rows this route reads. Named so the cap can be REPORTED rather than
+// implied: a count taken over a capped window is a floor, not a total.
+const SESSION_CAP = 500;
+
 type SessionRow = {
   scheduled_at: string;
   duration_min: number;
@@ -55,6 +59,11 @@ export async function GET() {
   let sessionsThisWeek = 0;
   let upcomingSessions = 0;
   let totalSessions = 0;
+  // ⚠ A CAPPED COUNT IS NOT A TOTAL. The count above is taken over a capped window, so
+  // it is a FLOOR — a consumer that labels it "all time" has to know that, and a payload
+  // that does not say so cannot be checked. One key name across both roles, because the
+  // consumer reading it is one strip that serves both.
+  let totalCapped = false;
   let today: Array<Record<string, unknown>> = [];
   let calendar: Array<Record<string, unknown>> = [];
   let pulse: Array<Record<string, unknown>> = [];
@@ -83,11 +92,21 @@ export async function GET() {
       .select('scheduled_at, duration_min, type, status, topic, client_name, client_id')
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
-      .order('scheduled_at', { ascending: true })
-      .limit(500);
+      .order('scheduled_at', { ascending: false })
+      .limit(SESSION_CAP);
 
-    const rows = (sessions ?? []) as SessionRow[];
+    // ⚠ NEWEST FIRST, RE-SORTED ASCENDING ONCE BELOW. This read is capped, and ordering it
+    // ascending made the cap keep a coach's OLDEST sessions — so past SESSION_CAP "this
+    // week" and "upcoming" both read 0 forever, the calendar showed rows from years ago,
+    // and the client pulse listed people who had long since left. Every consumer wants the
+    // window nearest now; only the ORDER they read it in is ascending, so the re-sort is
+    // here rather than in each of them (and `calendar` is returned unsorted unless the
+    // shared-coach branch runs, so leaving it reversed would have shown it backwards).
+    const rows = ((sessions ?? []) as SessionRow[])
+      .slice()
+      .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
     totalSessions = rows.length;
+    totalCapped = rows.length >= SESSION_CAP;
 
     const now = Date.now();
     const weekStart = startOfWeek(new Date());
@@ -135,8 +154,11 @@ export async function GET() {
         .eq('provider_role', 'nutritionist')
         .in('status', ['confirmed', 'requested', 'completed'])
         .in('client_id', myClientIds)
-        .order('scheduled_at', { ascending: true })
-        .limit(500);
+        // Newest first for the same reason as the read above: the counterpart sessions a
+        // coach needs to see are this week's, not the first 500 their clients ever booked.
+        // `calendar` is sorted below, so this one needs no re-sort of its own.
+        .order('scheduled_at', { ascending: false })
+        .limit(SESSION_CAP);
       const otherRows = (otherSessions ?? []) as Array<SessionRow & { provider_id: number; provider_role: string }>;
       if (otherRows.length > 0) {
         const otherProviderIds = [...new Set(otherRows.map((r) => r.provider_id))];
@@ -203,7 +225,7 @@ export async function GET() {
   return NextResponse.json({
     user: { firstName, fullName },
     isTrainer: providerId != null,
-    kpis: { activeClients, monthlyNetCents, sessionsThisWeek, upcomingSessions, totalSessions },
+    kpis: { activeClients, monthlyNetCents, sessionsThisWeek, upcomingSessions, totalSessions, totalCapped },
     today,
     calendar,
     pulse,

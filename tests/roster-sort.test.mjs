@@ -233,8 +233,14 @@ test('every column head names a comparator that exists, and the free-text ones n
 test('a column with no comparator renders as text, never as a dead button', () => {
   const head = clean.slice(clean.indexOf('const headCell ='), clean.indexOf('return (', clean.indexOf('const headCell =')) + 400);
   assert.match(head, /if \(!k \|\| !onSort\) return <span key=\{label\}>\{label\}<\/span>;/);
-  // and a caller that offers no sorting gets the table it always had
-  assert.match(clean, /function DashRosterTable\(\{ triage, role, filter, query, sort, sortDir, onSort \}\)/);
+  // and a caller that offers no sorting gets the table it always had.
+  // ⚠ THE INVARIANT IS THAT THE TABLE TAKES THE SORT AS PROPS, not the exact list of them:
+  // pinning the whole signature failed this test — which is about DEAD BUTTONS — when the
+  // drawer's preference store was threaded through as one more prop.
+  const sig = clean.slice(clean.indexOf('function DashRosterTable({'), clean.indexOf(')', clean.indexOf('function DashRosterTable({')) + 1);
+  for (const prop of ['triage', 'role', 'filter', 'query', 'sort', 'sortDir', 'onSort']) {
+    assert.match(sig, new RegExp('[{,]\\s*' + prop + '\\s*[,}]'), 'DashRosterTable no longer takes ' + prop + ': ' + sig);
+  }
   assert.match(clean, /const rows = dashRosterSorted\(filtered, sort, sortDir, role\);/);
   // the arrow marks only the active column
   assert.match(clean, /opacity: on \? 1 : 0/);

@@ -49,6 +49,9 @@ async function ownedProviderIds(supabase: SupabaseClient, userId: string) {
   };
 }
 
+// How many session rows the manage screen reads, newest first.
+const MANAGE_CAP = 200;
+
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -58,11 +61,18 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from('sessions')
     .select('id, client_id, client_name, provider_id, provider_role, type, scheduled_at, duration_min, status, meeting_url, topic')
-    .order('scheduled_at', { ascending: true })
-    .limit(200);
+    // ⚠ NEWEST FIRST, RE-SORTED ASCENDING ONCE BELOW. This is the screen where a session
+    // is confirmed, rescheduled or cancelled — always an upcoming one — and ordering the
+    // read ascending made the cap keep the OLDEST 200, so a coach or a member past that
+    // saw only sessions from years ago and could not reach anything they still had to act
+    // on. The response contract is unchanged: callers still receive them ascending.
+    .order('scheduled_at', { ascending: false })
+    .limit(MANAGE_CAP);
   if (error) return NextResponse.json({ sessions: [] });
 
-  const rows = (data ?? []) as SessionRow[];
+  const rows = ((data ?? []) as SessionRow[])
+    .slice()
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
   const owned = await ownedProviderIds(supabase, user.id);
 
   const trainerIds = [...new Set(rows.filter(r => r.provider_role === 'trainer').map(r => r.provider_id))];
