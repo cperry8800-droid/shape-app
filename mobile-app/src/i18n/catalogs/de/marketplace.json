@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} sieht deine Notiz in den Shape-Nachrichten. Der Chat ist mit deiner Chat-Seite unter Team synchronisiert.",
   "listing.messageTitle": "Nachricht an {name}",
   "listing.noOpenTimes": "Diese Woche keine freien Zeiten — schreib {name}, um eine zu finden.",
+  "listing.noTimezone": "Offene Zeiten sind gesetzt, aber die Zeitzone fehlt — schreib {name}, um eine zu finden.",
   "listing.onWaitlist": "Auf der Warteliste",
   "listing.openCheckout": "Sichere Bezahlung öffnen",
   "listing.openSubscription": "Sicheres Abo öffnen",

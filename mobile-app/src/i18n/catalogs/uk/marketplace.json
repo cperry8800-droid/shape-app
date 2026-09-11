@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} побачить вашу нотатку в повідомленнях Shape. Чат синхронізовано з вашою сторінкою Chat у розділі Team.",
   "listing.messageTitle": "Написати {name}",
   "listing.noOpenTimes": "Цього тижня немає вільних годин — напишіть {name}, щоб знайти час.",
+  "listing.noTimezone": "Вільні години є, але часовий пояс невідомий — напишіть {name}, щоб знайти час.",
   "listing.onWaitlist": "У списку очікування",
   "listing.openCheckout": "Відкрити безпечну оплату",
   "listing.openSubscription": "Відкрити безпечну підписку",

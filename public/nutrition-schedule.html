@@ -1510,6 +1510,9 @@
           setStatus('Could not load availability.');
         }
       }
+      function browserZone() {
+        try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+      }
 
       async function save() {
         mergeOverlapping();
@@ -1520,7 +1523,12 @@
           var res = await fetch('/api/my-availability', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role: ROLE, slots: slots })
+            // ⚠ THE ZONE IS REQUIRED. A stored start_minute is a bare wall-clock minute
+            // in the coach's own day, so without a zone nothing can place it on a clock —
+            // the route refuses such a save rather than writing hours no member can book.
+            // (2026-09-11: the website used to read these as UTC and the app as the
+            // member's local time, so one row showed two different times.)
+            body: JSON.stringify({ role: ROLE, slots: slots, timezone: browserZone() })
           });
           var data = await res.json().catch(function () { return {}; });
           if (!res.ok) { setStatus('Save failed: ' + (data.error || res.status)); return; }

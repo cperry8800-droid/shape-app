@@ -271,6 +271,11 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- ⚠ THE BOOKING MATH IS SHARED, NOT RESTATED. This page used to carry its own copy of
+       `isoForSlot`, which read a coach's stored wall-clock minute as UTC; the app read the same
+       row as the member's local time. One implementation, proven against the server's by
+       tests/booking-timezone-parity.test.mjs, is what stops a third reading appearing here. -->
+  <script src="bookingSlots.js"></script>
   <script>
     // Self-contained toast (no app.js dependency).
     let _toastT = null;
@@ -289,11 +294,26 @@
     const ACCENT = proType === 'nutritionist' ? '#d8b25a' : '#c0533b';
     document.documentElement.style.setProperty('--accent', ACCENT);
 
-    let selectedDate = null;
-    let selectedTime = null;
-    let weeklySlots = {};
-    let bookedSet = new Set();
+    let selectedDate = null;   // the member's own YYYY-MM-DD
+    // ⚠ THE SELECTION IS AN ISO INSTANT, NOT A LABEL. It used to be the displayed string
+    // ("9:00 AM"), which the server then re-read as a UTC wall clock — so the one value
+    // crossing the wire was the one thing that carried no zone. The instant is resolved
+    // once, here, in the coach's zone, and travels as itself.
+    let selectedIso = null;
+    let slotsByDate = new Map();   // member-local date -> [{ iso, ms, … }]
+    let coachZone = null;          // the coach's IANA zone; null = their hours cannot be placed
     let availabilityLoaded = false;
+    let availUnreadable = false;
+
+    // The member's own calendar day for an instant — the key the picker and the slot list
+    // must agree on. (The picker previously derived its keys with toISOString() from LOCAL
+    // dates, which is a day out either side of midnight for most of the world.)
+    function localDateKey(iso) {
+      const d = new Date(iso);
+      if (!isFinite(d.getTime())) return null;
+      const p = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
 
     // Cloudflare Turnstile (captcha) — renders only when a site key is set in
     // supabase.js (window.SHAPE_TURNSTILE_SITEKEY); otherwise a no-op.
@@ -332,7 +352,9 @@
         const d = new Date(start); d.setDate(start.getDate() + i);
         const isPast = d < today;
         const isToday = d.getTime() === today.getTime();
-        const dateStr = d.toISOString().split('T')[0];
+        // Same derivation as localDateKey — a UTC key from a local date is a day out
+        // either side of midnight, which silently emptied the slot list for half the world.
+        const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
         const isSelected = selectedDate === dateStr;
         html += '<div class="dc ' + (isPast ? 'disabled' : '') + ' ' + (isToday ? 'today' : '') + ' ' + (isSelected ? 'selected' : '') + '"'
           + (isPast ? '' : ' onclick="selectDate(\'' + dateStr + '\')"') + '>' + d.getDate() + '</div>';
@@ -342,32 +364,36 @@
 
     function selectDate(dateStr) { selectedDate = dateStr; renderDates(); renderTimeSlots(); updateConfirmation(); }
 
-    function minutesToLabel(min) {
-      const h24 = Math.floor(min / 60); const m = min % 60;
-      const mer = h24 >= 12 ? 'PM' : 'AM'; let h = h24 % 12; if (h === 0) h = 12;
-      return h + ':' + (m < 10 ? '0' + m : m) + ' ' + mer;
-    }
-    function isoForSlot(dateStr, startMinute) {
-      const [y, mo, d] = dateStr.split('-').map((n) => parseInt(n, 10));
-      const h = Math.floor(startMinute / 60); const mi = startMinute % 60;
-      return new Date(Date.UTC(y, mo - 1, d, h, mi, 0)).toISOString();
-    }
-
+    // ⚠ THE TIMES ARE THE MEMBER'S OWN CLOCK, BUILT FROM THE COACH'S. `minutesToLabel` is
+    // gone from this path: it printed the coach's stored wall clock as if it were the
+    // member's, so "9:00 AM" was nobody's actual time. BookingSlots resolves the instant in
+    // the coach's zone and `slotLabel` renders it in the viewer's.
+    //
+    // ⚠ AND A BLOCK IS EXPANDED. The editor collapses 6a·7a·8a·9a into one row
+    // {start_minute 360, duration_min 240}; this page offered only `start_minute`, so three
+    // quarters of a coach's declared hours were unbookable from here. buildSlots offers
+    // every whole hour that fits.
     function renderTimeSlots() {
       const slots = document.getElementById('timeSlots');
       if (!availabilityLoaded) { slots.innerHTML = '<div class="empty">Loading times…</div>'; return; }
+      if (availUnreadable) { slots.innerHTML = '<div class="empty">We couldn\u2019t read this coach\u2019s open times just now. Please try again in a moment.</div>'; return; }
+      // ⚠ A CLAIM ABOUT OUR DATA, NOT ABOUT THE COACH. Their hours exist; we cannot place
+      // them on a clock, so nothing here may be offered — and saying "no availability"
+      // would blame them for it.
+      // ⚠ GATED ON `proId`, BECAUSE WITH NO COACH ID THERE IS NO COACH TO MAKE A CLAIM
+      // ABOUT. A link arriving without an id never fetched availability at all, so saying
+      // "this coach's hours aren't on a clock" would invent a coach and a reason; it falls
+      // through to the ordinary pick-a-date / no-availability flow instead.
+      if (proId && !coachZone) { slots.innerHTML = '<div class="empty">This coach\u2019s open hours aren\u2019t on a clock yet. Please check back shortly.</div>'; return; }
       if (!selectedDate) { slots.innerHTML = '<div class="empty">Pick a date to see open times.</div>'; return; }
-      const d = new Date(selectedDate + 'T00:00:00');
-      const weekday = d.getDay();
-      const dayStarts = (weeklySlots[weekday] || []).slice().sort((a, b) => a - b);
-      if (dayStarts.length === 0) { slots.innerHTML = '<div class="empty">No availability on this day. Try another date.</div>'; return; }
-      slots.innerHTML = dayStarts.map((mm) => {
-        const label = minutesToLabel(mm);
-        const iso = isoForSlot(selectedDate, mm);
-        const unavail = bookedSet.has(iso) || new Date(iso).getTime() < Date.now();
-        const isSelected = selectedTime === label;
-        return '<button class="ts ' + (unavail ? 'unavailable' : '') + ' ' + (isSelected ? 'selected' : '') + '"'
-          + (unavail ? '' : ' onclick="selectTime(\'' + label + '\')"') + (unavail ? ' disabled' : '') + '>' + label + '</button>';
+      const list = slotsByDate.get(selectedDate) || [];
+      if (list.length === 0) { slots.innerHTML = '<div class="empty">No availability on this day. Try another date.</div>'; return; }
+      slots.innerHTML = list.map((sl) => {
+        const label = window.BookingSlots.slotLabel(sl.iso);
+        // buildSlots has already dropped booked and past instants, so anything here is open.
+        const isSelected = selectedIso === sl.iso;
+        return '<button class="ts ' + (isSelected ? 'selected' : '') + '"'
+          + ' onclick="selectTime(\'' + sl.iso + '\')">' + label + '</button>';
       }).join('');
     }
 
@@ -375,23 +401,40 @@
       if (!proId) { availabilityLoaded = true; renderTimeSlots(); return; }
       try {
         const res = await fetch('/api/availability?role=' + encodeURIComponent(proType) + '&id=' + proId);
+        if (!res.ok) throw new Error('availability ' + res.status);
         const data = await res.json();
-        weeklySlots = {};
-        (data.slots || []).forEach((s) => { (weeklySlots[s.weekday] = weeklySlots[s.weekday] || []).push(s.start_minute); });
-        bookedSet = new Set(data.booked || []);
-      } catch (_) { weeklySlots = {}; bookedSet = new Set(); }
+        coachZone = window.BookingSlots.isZone(data.timezone) ? data.timezone : null;
+        // 28 days, matching the date picker's own window. The consult is 15 minutes, which
+        // is the `sessions` default and what this page's own copy promises.
+        const built = coachZone ? window.BookingSlots.buildSlots({
+          slots: data.slots || [], booked: data.booked || [], zone: coachZone,
+          now: new Date(), days: 28, sessionMin: 15,
+        }) : [];
+        slotsByDate = new Map();
+        for (const sl of built) {
+          const key = localDateKey(sl.iso);
+          if (!key) continue;
+          if (!slotsByDate.has(key)) slotsByDate.set(key, []);
+          slotsByDate.get(key).push(sl);
+        }
+      } catch (_) {
+        // ⚠ AN UNREADABLE PATTERN IS NOT AN EMPTY ONE — a failed read is a claim about us.
+        availUnreadable = true; slotsByDate = new Map(); coachZone = null;
+      }
       availabilityLoaded = true; renderTimeSlots();
     }
 
-    function selectTime(time) { selectedTime = time; renderTimeSlots(); updateConfirmation(); }
+    function selectTime(iso) { selectedIso = iso; renderTimeSlots(); updateConfirmation(); }
 
     function updateConfirmation() {
       const confirm = document.getElementById('consultConfirm');
       const detail = document.getElementById('confirmDetail');
-      if (selectedDate && selectedTime) {
-        const d = new Date(selectedDate + 'T00:00:00');
-        const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-        detail.innerHTML = '<span><b>' + proName.replace(/</g, '&lt;') + '</b></span><span>' + dateStr + '</span><span>' + selectedTime + '</span><span>15 min · video</span>';
+      if (selectedDate && selectedIso) {
+        // Both read off the chosen INSTANT, in the member's own zone, so the summary can
+        // never disagree with the button they pressed.
+        const dateStr = new Date(selectedIso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        const timeStr = window.BookingSlots.slotLabel(selectedIso);
+        detail.innerHTML = '<span><b>' + proName.replace(/</g, '&lt;') + '</b></span><span>' + dateStr + '</span><span>' + timeStr + '</span><span>15 min · video</span>';
         confirm.classList.add('active');
       } else { confirm.classList.remove('active'); }
     }
@@ -423,7 +466,7 @@
       const email = document.getElementById('consultEmail').value.trim();
       const topic = document.getElementById('consultTopic').value.trim();
 
-      if (!selectedDate || !selectedTime) { showToast('Please select a date and time.'); return; }
+      if (!selectedDate || !selectedIso) { showToast('Please select a date and time.'); return; }
 
       // Checked here as well as on load, because a session can expire while the page sits open.
       // The server is still the authority — this only saves a pointless round trip.
@@ -432,8 +475,8 @@
       if (!name || !email) { showToast('Please enter your name and email.'); return; }
       if (window.SHAPE_TURNSTILE_SITEKEY && !captchaToken) { showToast('Please complete the captcha to continue.'); return; }
 
-      const d = new Date(selectedDate + 'T00:00:00');
-      const dateStr = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const dateStr = new Date(selectedIso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+      const timeStr = window.BookingSlots.slotLabel(selectedIso);
       const originalLabel = btn.textContent;
       btn.disabled = true; btn.textContent = 'Booking…';
 
@@ -441,7 +484,14 @@
         const res = await fetch('/api/consultation', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            providerId: proId, professionalType: proType, date: selectedDate, time: selectedTime,
+            // ⚠ `scheduledAt` IS THE BOOKING. `date`+`time` are kept for the mail copy and
+            // for an older server, but a wall-clock label is exactly the value that carries
+            // no zone — the route used to re-read it as UTC, which is how a New York coach's
+            // 9am became a 5am appointment. The instant is resolved once, client-side, in
+            // the coach's zone.
+            providerId: proId, professionalType: proType,
+            scheduledAt: selectedIso, timezone: coachZone,
+            date: selectedDate, time: timeStr,
             clientName: name, clientEmail: email, topic: topic, captchaToken: captchaToken
           })
         });
@@ -458,14 +508,14 @@
       // Local copy for the visitor's own records.
       try {
         const bookings = JSON.parse(localStorage.getItem('shapeConsultations') || '[]');
-        bookings.push({ professional: proName, type: proType, date: selectedDate, time: selectedTime, clientName: name, clientEmail: email, topic: topic, bookedAt: new Date().toISOString() });
+        bookings.push({ professional: proName, type: proType, date: selectedDate, time: timeStr, scheduledAt: selectedIso, clientName: name, clientEmail: email, topic: topic, bookedAt: new Date().toISOString() });
         localStorage.setItem('shapeConsultations', JSON.stringify(bookings));
       } catch (_) {}
 
       // Inline success state (newdesign — no bounce to a legacy page).
       document.getElementById('bookingCard').style.display = 'none';
       document.getElementById('successDetail').innerHTML =
-        'Your 15-minute call with <b style="color:var(--ink)">' + proName.replace(/</g, '&lt;') + '</b> is set for <b style="color:var(--ink)">' + dateStr + ' at ' + selectedTime + '</b>. We’ve emailed you both the details and a calendar invite.';
+        'Your 15-minute call with <b style="color:var(--ink)">' + proName.replace(/</g, '&lt;') + '</b> is set for <b style="color:var(--ink)">' + dateStr + ' at ' + timeStr + '</b>. We’ve emailed you both the details and a calendar invite.';
       document.getElementById('successPanel').classList.add('active');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }

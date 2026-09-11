@@ -6,19 +6,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { readJson } from '@/lib/request-utils';
+import { normalizeZone } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
 type Role = 'trainer' | 'nutritionist';
 
+// ⚠ `select('*')` IS MIGRATION-SAFE AND THAT IS WHY IT IS NOT `select('id, timezone')`.
+// Naming a column PostgREST does not know errors the WHOLE query on a pre-migration
+// database, so a deploy that lands before 2026-09-11-provider-timezone.sql is applied
+// would stop a coach editing their hours at all rather than merely not knowing their
+// zone. The house pattern (trainer/dashboard, trainer/analytics) for the same reason.
 async function resolveOwnedProvider(
   supabase: Awaited<ReturnType<typeof createClient>>,
   role: Role
-): Promise<{ id: number } | null> {
+): Promise<{ id: number; timezone: string | null } | null> {
   const table = role === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data } = await supabase.from(table).select('id').maybeSingle();
+  const { data } = await supabase.from(table).select('*').maybeSingle();
   if (!data) return null;
-  return { id: (data as { id: number }).id };
+  const row = data as { id: number; timezone?: unknown };
+  return { id: row.id, timezone: normalizeZone(row.timezone) };
 }
 
 export async function GET(req: NextRequest) {
@@ -43,11 +50,11 @@ export async function GET(req: NextRequest) {
     .order('weekday', { ascending: true })
     .order('start_minute', { ascending: true });
 
-  return NextResponse.json({ slots: slots ?? [], providerId: owned.id });
+  return NextResponse.json({ slots: slots ?? [], providerId: owned.id, timezone: owned.timezone });
 }
 
 export async function POST(req: NextRequest) {
-  const bodyResult = await readJson<{ role?: string; slots?: Array<{ weekday: number; start_minute: number; duration_min?: number }> }>(req, { allowEmpty: true });
+  const bodyResult = await readJson<{ role?: string; timezone?: unknown; slots?: Array<{ weekday: number; start_minute: number; duration_min?: number }> }>(req, { allowEmpty: true });
   if (!bodyResult.ok) return bodyResult.response;
   const body = bodyResult.data;
   const role = (body.role ?? '').toLowerCase() as Role;
@@ -76,6 +83,43 @@ export async function POST(req: NextRequest) {
   const owned = await resolveOwnedProvider(supabase, role);
   if (!owned) return NextResponse.json({ error: 'no provider row' }, { status: 404 });
 
+  // ── The zone these hours are expressed in ──────────────────────────────────
+  //
+  // ⚠ A SAVE THAT CANNOT RESOLVE A ZONE IS REFUSED, NOT ACCEPTED. start_minute is a
+  // bare wall-clock minute, so without a zone it is an hour nothing can place: the
+  // readers are now honest about that and offer the coach NO bookable slots. Writing
+  // the hours anyway would tell a coach their availability is live ("Saved · live on
+  // your profile") while every member sees none, with nothing on either screen saying
+  // why. Refusing is recoverable in one reload; the silent version is not.
+  //
+  // The editor sends its own resolved Intl zone. A client too old to send one is only
+  // refused if the coach has no stored zone either — so a coach who has saved once is
+  // never locked out by a stale page.
+  const sentZone = normalizeZone(body.timezone);
+  const zone = sentZone ?? owned.timezone;
+  if (!zone) {
+    return NextResponse.json(
+      { error: 'timezone_required', detail: 'Availability hours are stored in your local time, so we need your timezone before saving them. Reload the page and try again.' },
+      { status: 400 }
+    );
+  }
+  // Stamp only on a real change: the coach moved, or this is the first save. An
+  // unconditional write would touch the row on every toggle for no reason.
+  if (sentZone && sentZone !== owned.timezone) {
+    const table = role === 'trainer' ? 'trainers' : 'nutritionists';
+    const { error: tzError } = await supabase
+      .from(table)
+      .update({ timezone: sentZone })
+      .eq('id', owned.id);
+    // ⚠ FAIL THE SAVE, do not press on. If the stamp did not land, the hours about to
+    // be written are unreadable for exactly the reason above — and pre-migration this
+    // is the branch that reports the column is missing instead of writing orphan hours.
+    if (tzError) {
+      console.error('[shape-app] stamp availability timezone failed', tzError);
+      return NextResponse.json({ error: 'save_failed' }, { status: 500 });
+    }
+  }
+
   // Simple strategy: delete all existing slots and re-insert. Small row
   // count per provider so this is fine.
   const { error: delError } = await supabase
@@ -89,7 +133,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (clean.length === 0) {
-    return NextResponse.json({ ok: true, count: 0 });
+    return NextResponse.json({ ok: true, count: 0, timezone: zone });
   }
 
   const rows = clean.map((s) => {
@@ -115,5 +159,5 @@ export async function POST(req: NextRequest) {
     console.error('[shape-app] insert availability failed', insError);
     return NextResponse.json({ error: 'save_failed' }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, count: rows.length });
+  return NextResponse.json({ ok: true, count: rows.length, timezone: zone });
 }

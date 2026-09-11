@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} go see your note for dia Shape messages. Di chat don sync with your Chat page under Team.",
   "listing.messageTitle": "Message {name}",
   "listing.noOpenTimes": "No free time dis week — message {name} to find one.",
+  "listing.noTimezone": "Free time dey set, but we no sabi di time zone yet — message {name} to find one.",
   "listing.onWaitlist": "For di waiting list",
   "listing.openCheckout": "Open secure checkout",
   "listing.openSubscription": "Open secure subscription",

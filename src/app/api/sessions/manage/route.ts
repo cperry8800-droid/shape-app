@@ -21,6 +21,7 @@ import { createNotification } from '@/lib/notify';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 
+import { normalizeZone } from '@/lib/time';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -188,8 +189,32 @@ export async function POST(request: Request) {
     try {
       // For a reschedule, the meaningful time is the NEW slot, not the old.
       const whenSource = action === 'reschedule' && newScheduledAt ? newScheduledAt : session.scheduled_at;
+      // ⚠ THIS NOTICE GOES TO THE MEMBER, SO IT HAS TO BE THE MEMBER'S CLOCK — and it used
+      // to be an UNLABELLED UTC time, so a member in New York was told 1:00 PM for a 9:00 AM
+      // session with nothing on screen saying which zone that was. Same defect class as the
+      // booking chain this shipped with (2026-09-11): a wall clock with no zone attached.
+      //
+      // Their captured zone is preferred; with none on file the zone is NAMED rather than
+      // guessed, because a labelled time a member has to convert is honest and a bare wrong
+      // number is not. (client_profiles.timezone is captured opportunistically on app open,
+      // so an account that has only ever used the website may not have one yet.)
+      let memberZone: string | null = null;
+      try {
+        const { data: prof } = await createAdminClient()
+          .from('client_profiles')
+          .select('timezone')
+          .eq('user_id', session.client_id)
+          .maybeSingle();
+        memberZone = normalizeZone((prof as { timezone?: unknown } | null)?.timezone);
+      } catch {
+        memberZone = null; // a failed read must not stop the notification
+      }
       const when = new Date(whenSource).toLocaleString('en-US', {
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+        timeZone: memberZone || 'UTC',
+        // Named whichever zone it lands in: the member's own needs no explanation, and a
+        // fallback that does not say "UTC" is exactly the unlabelled claim being removed.
+        ...(memberZone ? {} : { timeZoneName: 'short' as const }),
       });
       const copy = {
         confirm: { type: 'session_confirmed', title: 'Session confirmed', body: `Your coach confirmed your session on ${when}.` },

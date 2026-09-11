@@ -15,7 +15,7 @@ const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BS
 // to the same geometry instead of silently reverting to a notch-blind flat 44.
 const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
 
-import { bsProjectAvailability, bsSlotsByDay } from '../services/coachAvailability.mjs';
+import { bsProjectAvailability, bsSlotsByDay, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 
@@ -1866,6 +1866,8 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // the labeled preview pattern renders instead; [] = a live coach with no
   // open slots, which reads honestly as none).
   const [realAvail, setRealAvail] = useStateBSM2(null);
+  // Declared hours we cannot place on a clock — the coach has no stored zone.
+  const [noZone, setNoZone] = useStateBSM2(false);
 
   // The coach's real published plans for sale (coach_plans). Bought through the
   // same Stripe Connect checkout; the plan_id rides along so the buyer owns it.
@@ -1913,7 +1915,16 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     if (!saleProviderId || !window.ShapeCoachAvailability?.get) { setRealAvail(null); return undefined; }
     let on = true;
     window.ShapeCoachAvailability.get(saleProviderRole, saleProviderId)
-      .then((d) => { if (on && d && Array.isArray(d.slots)) setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6 })); })
+      .then((d) => {
+        if (!on || !d || !Array.isArray(d.slots)) return;
+        // ⚠ THE COACH'S ZONE IS WHAT MAKES start_minute A TIME. Without it the projection
+        // fails closed (see coachAvailability.mjs), so the two empty cases have to be told
+        // apart: a coach with NO pattern genuinely has no open times, while a coach whose
+        // hours we cannot place has some — and saying "no open times" there is a false
+        // claim about them rather than about our data.
+        setNoZone(d.slots.length > 0 && !bsIsZone(d.timezone));
+        setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone }));
+      })
       .catch(() => {});
     return () => { on = false; };
   }, [saleProviderId, saleProviderRole]);
@@ -2308,7 +2319,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       <Station>{tr('marketplace:listing.openThisWeek', { defaultValue: 'Open this week · intro is free' })}</Station>
       <div style={{ padding: `2px ${t.padX}px 0` }}>
         {openSlots.length === 0 ? (
-          <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('marketplace:listing.noOpenTimes', { defaultValue: 'No open times this week — message {name} to find one.', name: firstName })}</div>
+          <div style={{ padding: '10px 0', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{noZone
+            ? tr('marketplace:listing.noTimezone', { defaultValue: "Open hours are set, but their timezone isn't — message {name} to find one.", name: firstName })
+            : tr('marketplace:listing.noOpenTimes', { defaultValue: 'No open times this week — message {name} to find one.', name: firstName })}</div>
         ) : openSlots.map((s, i) => (
           <button key={`${s.iso}-${s.time}`} onClick={() => selectSlot(s.day, s.date, s.time, s.iso, s.month)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <span style={{ flexShrink: 0, width: 42, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{s.day}</span>

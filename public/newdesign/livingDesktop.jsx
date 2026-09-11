@@ -1471,6 +1471,13 @@ function LvCoachAvailability({ d }) {
   const [state, setState] = React.useState(uid ? "loading" : "demo");
   const [slots, setSlots] = React.useState(null);
   const [pid, setPid] = React.useState(null);
+  // ⚠ THE HOURS BELOW ARE THE COACH'S OWN CLOCK, AND WITHOUT NAMING IT "6a–10a" IS NOT A
+  // TIME. A stored start_minute is a bare wall-clock minute in the coach's day, so a
+  // visitor reading these as their own hours can be a whole working day out — which is
+  // the same unqualified-wall-clock defect the booking chain was fixed for on 2026-09-11.
+  // Only the label is added here: these ranges are a weekly pattern, not instants, so
+  // converting them to the viewer's zone would split a block across two days.
+  const [zone, setZone] = React.useState(null);
 
   React.useEffect(() => {
     if (!uid) { setState("demo"); return; }
@@ -1487,6 +1494,7 @@ function LvCoachAvailability({ d }) {
         const j = res.ok ? await res.json() : null;
         if (!on) return;
         setSlots(Array.isArray(j && j.slots) ? j.slots : []);
+        setZone(j && typeof j.timezone === "string" ? j.timezone : null);
         setState("live");
       } catch (e) { if (on) setState("none"); }
     })();
@@ -1522,7 +1530,7 @@ function LvCoachAvailability({ d }) {
     <section style={{ maxWidth: 1240, margin: "0 auto", padding: "10px 40px 0" }}>
       <div style={dCard({ padding: "16px 22px 18px" })}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
-          <DKick c={LV_TEAL} style={{ fontSize: 10.5 }}>◷ Availability{state === "demo" ? " · example" : ""}</DKick>
+          <DKick c={LV_TEAL} style={{ fontSize: 10.5 }}>◷ Availability{state === "demo" ? " · example" : zone ? " · " + zone : ""}</DKick>
           <span style={{ fontFamily: dMono, fontSize: 10.5, color: dHexA(LV_INK, 0.45) }}>
             {openDays ? "Open " + openDays + (openDays === 1 ? " day" : " days") + " a week" : "No open hours set"}
           </span>

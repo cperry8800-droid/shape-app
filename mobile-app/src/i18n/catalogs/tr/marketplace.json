@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name}, notunu Shape mesajlarında görecek. Konuşma, Team altındaki Chat sayfanla eşitlendi.",
   "listing.messageTitle": "{name} kişisine mesaj",
   "listing.noOpenTimes": "Bu hafta boş saat yok — bir saat bulmak için {name} kişisine yaz.",
+  "listing.noTimezone": "Boş saatler var ama saat dilimi belli değil — bir saat bulmak için {name} kişisine yaz.",
   "listing.onWaitlist": "Bekleme listesinde",
   "listing.openCheckout": "Güvenli ödemeyi aç",
   "listing.openSubscription": "Güvenli aboneliği aç",

@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} akan melihat catatanmu di pesan Shape. Obrolan tersinkron dengan halaman Chat-mu di Team.",
   "listing.messageTitle": "Pesan ke {name}",
   "listing.noOpenTimes": "Tidak ada jam kosong minggu ini — kirim pesan ke {name} untuk mencari waktu.",
+  "listing.noTimezone": "Ada jam kosong, tapi zona waktunya belum diketahui — kirim pesan ke {name} untuk mencari waktu.",
   "listing.onWaitlist": "Dalam daftar tunggu",
   "listing.openCheckout": "Buka pembayaran aman",
   "listing.openSubscription": "Buka langganan aman",

@@ -695,6 +695,98 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-11 — One column, three readings: the booking chain learns what a coach's "9am" means
+
+- **The registered booking-timezone item, built — and the OWNER RULING it was waiting on dissolved rather
+  than being made.** ⚠ **OWNER RUNS
+  [`supabase-migrations/2026-09-11-provider-timezone.sql`](../supabase-migrations/2026-09-11-provider-timezone.sql).**
+  The ruling existed because existing rows were ambiguous: they MEAN the coach's wall clock and were READ as
+  UTC, so calling them either one is a claim about bookings that already exist. **Measured on production
+  rather than assumed — as `postgres`, so RLS is bypassed and the zeros are real: `provider_availability`
+  holds ZERO rows and `sessions` holds ZERO rows.** There are no existing bookings and no existing hours, so
+  there was nothing to reinterpret, no backfill to decide, and the migration only ADDS a nullable column.
+  *A ruling whose premise you can settle in one query is worth measuring before it is escalated.*
+- ⚠ **AND THERE WERE THREE READINGS OF ONE COLUMN, NOT TWO — which is why nobody noticed.**
+  `provider_availability.start_minute` is documented by **its own migration** as *"minutes since midnight in
+  the coach's local day"*, and both editors write exactly that (toggle the cell marked **9a**, `540` is
+  stored). Nothing recorded WHICH local day, so every reader invented one: `consultation.html` and
+  `bookingSlots.js` read 540 as **09:00 UTC**, while the app's `coachAvailability.mjs` read it as **09:00 in
+  the MEMBER's zone**. So one coach row rendered **different times in the app and on the website and neither
+  was the coach's** — a New York coach who opened 9am had members booking **5:00 AM** on the site and
+  **9:00 AM** in the app. The board had recorded this as *"read as UTC"*, which was two thirds of it.
+- **The zone lives on the COACH, not on the slot** (`trainers.timezone` / `nutritionists.timezone`);
+  `client_profiles.timezone` is the precedent, nobody keeps Monday in New York and Tuesday in Tokyo, and an
+  availability row cannot answer the question for a coach who has set no hours. ⚠ **No CHECK constraint** — a
+  CHECK cannot join `pg_timezone_names`, so validation sits where the house already puts it: at the write
+  (`Intl` refusing the name) and at the read (fail closed).
+- ⚠ **A SAVE THAT CANNOT PLACE ITS HOURS IS REFUSED, NOT ACCEPTED.** Writing them anyway reports
+  *"Saved · live on your profile"* over availability that renders nowhere for every member, with nothing on
+  either screen saying why; refusing costs one reload. All three live editors send the zone — and the two
+  **legacy** dashboards are live, not dead: coaches are redirected there after claiming
+  (`stripe-onboarding/success`, `dashboard/claim`). `/api/my-availability` POST is the single write
+  chokepoint, so there is no fourth path.
+- ⚠ **ONE ALGORITHM, THREE FORCED COPIES, PROVEN NOT TO DRIFT.** `bookingSlots.js` is a plain browser
+  `<script>` with no bundler, the mobile bundle is a separate Vite build that cannot reach the website's
+  public dir, and the routes run in Node — so none of the three can import the others.
+  `tests/booking-timezone-parity.test.mjs` drives **all three** over **14 zones × 10 dates × 14 minutes**
+  and requires identical answers. ⚠ And it was cross-checked against an **independent** implementation:
+  Postgres and the app both place 9am New York on 2026-09-17 at exactly **13:00:00Z**.
+- ⚠ **THE PARITY GUARD FOUND TWO REAL DEFECTS IN THE FIX ITSELF, WITHIN MINUTES OF EXISTING.**
+  `Intl.DateTimeFormat({ timeZone: undefined })` **does not throw** — it means *"use the system zone"* — so
+  an absent zone silently fell back to **UTC on the server** and to the **member's clock in the app**: the
+  original defect, reintroduced through a default, with no error anywhere to notice it. Guarded at the
+  **formatter** in all three copies rather than at each caller, so every path is safe instead of only the
+  paths that remembered to ask.
+- ⚠ **A WALL TIME THE COACH'S ZONE SKIPS OVER IS REFUSED, NOT SHIFTED AN HOUR.** 02:30 never happens in New
+  York on the March transition, and the two-pass arithmetic alone silently returns **03:30** — an hour the
+  coach never declared. Each implementation formats its answer back and requires the wall clock it asked
+  for, which makes DST correctness a **checked property rather than a hoped-for one**. The fall-back overlap
+  needs no such care: 01:30 happening twice is two real instants with the right wall clock.
+- ⚠ **"NO OPEN HOURS" AND "HOURS WE CANNOT PLACE" ARE DIFFERENT CLAIMS, AND BOTH SURFACES NOW MAKE THE RIGHT
+  ONE.** An empty pattern is a fact about the **coach**; declared hours with no zone is a fact about **our
+  data**. Saying *"no open times"* for the second blames the coach for a missing column of ours. The zone is
+  checked **after** the empty pattern, or a coach who simply has no hours is told a story about timezones.
+- **Three more surfaces in the same chain were showing a member a time that was not theirs.**
+  `/api/consultation` built the appointment by reading the picker's **label** as UTC — and said so in its own
+  comment: *"close enough for a v1. We'll upgrade to per-coach timezones later."* It takes the resolved
+  instant now, and an older client's `date`+`time` is resolved in the **coach's** zone rather than UTC; its
+  confirmation mail names the coach's zone; and `/api/sessions/manage` told the **member** their session time
+  in **unlabelled UTC** (1:00 PM for a 9:00 AM session), which now uses their captured zone and **names** the
+  zone when falling back. ⚠ `consultation.html` also lost two further live bugs: `booked` compared as a
+  **string** (Postgres returns `+00:00` where it built `.000Z`, so a taken slot was offered again) and a
+  picker keyed on a **UTC date derived from a LOCAL one**, a day out either side of midnight.
+- ⚠ **MY OWN FIXTURES WERE ALL MIDDAY UTC, WHERE EVERY ZONE SHARES THE UTC DATE — so the mutation "walk UTC
+  dates instead of the coach's" SURVIVED THE ENTIRE SUITE.** The same trap this file already post-mortems on
+  its DST guard, walked into again. Closed with a **22:00Z** fixture (Sydney already tomorrow, Los Angeles
+  still today), which is the only shape that separates the two anchors. ⚠ And the same round exposed
+  **seven existing assertions that had gone vacuous**: they passed no zone, so `buildSlots` returned `[]` for
+  the ZONE's sake and none of them ever reached the reason they claimed to test.
+- ⚠ **AND MY OWN DIFF READ CAUGHT A FABRICATION I HAD JUST INTRODUCED.** A consultation link arriving with no
+  coach id never fetches availability at all, so my new *"this coach's open hours aren't on a clock yet"*
+  line **invented a coach and a reason** for it. Gated on `proId`, so it falls through to the ordinary
+  pick-a-date flow.
+- **i18n:** one new `marketplace:listing.noTimezone` × 13, each composed from **that catalog's own**
+  *"message {name}…"* clause verbatim so the two refusals read as siblings. A pure append in sorted position:
+  **1 insertion / 0 deletions per file**, identical key sets across all 13 at 186 keys.
+- **Verified:** `npm test` **3449/3449** · `tsc --noEmit` 0 · JSX parse on all four changed modules · plain-JS
+  parse on both pure modules · the newdesign precompile check (74 pages) · the migration **applied twice on a
+  real Postgres 16** with the columns nullable and every existing row left NULL · **19/23 mutations killed**,
+  each proven to land and restored in a `finally`, sanity green at both ends, with the **4 survivors proven
+  mutually-redundant** (each alone is a no-op because the other layer catches it; a combined mutation
+  removing both KILLS) and labelled belt-and-braces at each site · mobile build clean with the zone
+  confirmed in the emitted bundle as `booked:t.booked||[],weeks:6,zone:t.timezone` and all 13 translations
+  present, behind a **negative control** (the retired `setHours` projection reads **0**). ⚠ The minified
+  guard reads `!=\`string\`` — a double-quote grep returns 0 and looks like a miss, the trap this file
+  records.
+- ⚠ **NO ON-ACCOUNT PASS, AND IT CANNOT BE FAKED HERE.** Production holds 0 availability rows and 0 sessions,
+  so not one of these paths has run against real RLS with real data. The honest check is a coach publishing
+  hours and a member booking one.
+- ⚠ **REGISTERED, NOT FIXED** (all pre-existing): `/api/consultation` still does not validate the requested
+  instant against the coach's published availability; `sessions_no_conflict_idx` compares **instants only**,
+  so a 60-minute session at 09:00 and a 15-minute consult at 09:30 overlap without conflicting; the app's
+  projection still does not expand a collapsed block into hourly starts the way the website does; and
+  `shapeBackend.saveProviderAvailability` / `listProviderAvailability` are **dead exports** that would write
+  zone-less hours if a caller ever appeared.
 ### 2026-09-11 — The Instrument Board: Session details opens as a panel, and the numbers land in tables
 
 - **The owner's pick, built** ([`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md)

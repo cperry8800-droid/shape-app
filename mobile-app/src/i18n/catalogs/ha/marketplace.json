@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} zai ga bayaninka a saƙonnin Shape. An daidaita tattaunawar da shafin Chat ɗinka a ƙarƙashin Team.",
   "listing.messageTitle": "Saƙo zuwa {name}",
   "listing.noOpenTimes": "Babu lokutan buɗe wannan mako — aika saƙo zuwa {name} don nemo ɗaya.",
+  "listing.noTimezone": "An saita lokutan buɗe, amma ba a san yankin lokaci ba — aika saƙo zuwa {name} don nemo ɗaya.",
   "listing.onWaitlist": "A jerin jira",
   "listing.openCheckout": "Buɗe biya mai tsaro",
   "listing.openSubscription": "Buɗe biyan kuɗi mai tsaro",
