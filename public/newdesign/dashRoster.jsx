@@ -13,11 +13,21 @@
 
 const DASH_ROSTER_INK50 = "rgba(242,237,228,0.55)";
 
+// ⚠ ONE SHAPE FOR "NO ANSWER", AND IT USED TO HAVE TWO (CodeRabbit, #2031). This
+// returned `null` for a falsy input and `NaN` for an UNPARSEABLE one —
+// `Math.max(0, Math.floor(NaN))` is NaN — so every caller had to remember the second
+// case separately, and three of the four did not: `dashLastLogLabel`,
+// `dashContactLabel` and `dashConsultLabel` interpolated it and a malformed date
+// rendered as **"NaNd ago"** on the roster. `dashTenureLabel` had the guard and its
+// comment explains exactly this, which is the tell: a lesson written at one call site
+// is not a fix for the other three. It is null for both now, so `d == null` is the
+// whole of "we could not read this date".
 function dashDaysSince(isoStr) {
   if (!isoStr) return null;
   try {
     const d = new Date(String(isoStr).length === 10 ? isoStr + "T00:00:00" : isoStr);
-    return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+    return Number.isFinite(days) ? days : null;
   } catch (e) { return null; }
 }
 function dashRelShort(isoStr) {
@@ -36,7 +46,9 @@ function dashLastLogLabel(rec) {
   if (!f) return { text: "Not shared", dim: true };
   if (f.lastLoggedOn) {
     const d = dashDaysSince(f.lastLoggedOn);
-    return { text: d === 0 ? "Today" : d === 1 ? "Yesterday" : d + "d ago", warn: d >= 3 };
+    // A date we cannot read is not a date: it falls through to the honest empty below
+    // rather than rendering the arithmetic that failed on it.
+    if (d != null) return { text: d === 0 ? "Today" : d === 1 ? "Yesterday" : d + "d ago", warn: d >= 3 };
   }
   if (f.daysLogged7d != null) return { text: f.daysLogged7d + "/7 this wk", warn: f.daysLogged7d === 0 };
   return { text: "Not shared", dim: true };
@@ -54,6 +66,10 @@ function dashConsultLabel(rec) {
   const at = rec.payments && rec.payments.lastSessionAt;
   if (!at) return { text: "No consults yet", dim: true };
   const d = dashDaysSince(at);
+  // ⚠ "No consults yet" IS THE WRONG EMPTY HERE. A stamp we cannot parse means a
+  // consult DID happen and we cannot say when — saying there has never been one is a
+  // different claim, and the wrong one.
+  if (d == null) return { text: "Not shared", dim: true };
   return { text: d === 0 ? "Today" : d + "d", warn: d >= 14 };
 }
 function dashAdherenceLabel(rec) {
@@ -86,6 +102,8 @@ function dashContactLabel(rec, role) {
   const ts = role === "nutritionist" ? lc.nutritionist : lc.trainer;
   if (!ts) return { text: "Never", warn: true };
   const d = dashDaysSince(ts);
+  // Same distinction as the consult cell: an unreadable stamp is not "Never".
+  if (d == null) return { text: "Not shared", dim: true };
   return { text: d === 0 ? "Today" : d + "d ago", warn: d >= 5 };
 }
 function dashRevenueLabel(rec) {
@@ -107,10 +125,11 @@ function dashTenureLabel(rec) {
   const at = rec.payments && rec.payments.joinedAt;
   if (!at) return { text: "Not shared", dim: true };
   const d = dashDaysSince(at);
-  // ⚠ Number.isFinite, not `== null`: dashDaysSince runs an unparseable date
-  // through Math.max(0, NaN) and returns NaN, which passes a null check and
-  // then renders "NaNd".
-  if (!Number.isFinite(d)) return { text: "Not shared", dim: true };
+  // ⚠ THIS COMMENT USED TO EXPLAIN A NaN THAT `dashDaysSince` NO LONGER RETURNS. It
+  // was right, and being right in ONE place is what let three sibling cells render
+  // "NaNd ago" for two months — so the fix moved to the source and this is now the
+  // ordinary null check every one of them makes.
+  if (d == null) return { text: "Not shared", dim: true };
   if (d < 31) return { text: d + "d" };
   const months = Math.floor(d / 30.44);
   return months < 12 ? { text: months + "mo" } : { text: (d / 365.25).toFixed(1) + "y" };
@@ -129,12 +148,104 @@ function dashScoreCell(rec) {
   );
 }
 
+// ── SORTING (review 2026-09-09, R15 · the control R16's memory was waiting on) ───
+// The roster had a filter and a search and no ordering control of any kind, so a coach
+// could not ask "who pays me most", "who has been here longest" or "who have I not
+// spoken to". R16 shipped a memory for a sort that did not exist; this is the sort.
+//
+// ⚠ EVERY COMPARATOR READS THE VALUE, NEVER THE RENDERED LABEL. The cells say
+// "$1.2k/mo", "2mo", "5d ago" — sorting those as text puts $999 above $1.2k, 9mo above
+// 2y and 9d ago above 30d ago. Each key below returns the underlying number.
+//
+// ⚠ AND AN UNKNOWN IS NOT A SMALL VALUE. `null` means "we could not read it" — the
+// roster renders it as "Not shared" — and it sorts LAST in BOTH directions, never
+// interleaved. Sorting revenue ascending must not present a client whose subscriptions
+// read failed as the one who pays the least: that is the honest-data doctrine applied
+// to ordering, and it is the whole reason these are comparators rather than `.sort()`
+// over the labels.
+const DASH_ROSTER_SORTS = {
+  // The engine's own order — severity first — which is what the roster has always
+  // shown and stays the default. It is a re-ordering of nothing: the rows arrive in it.
+  triage: null,
+  name: { label: "CLIENT", dir: "asc", of: (r) => (r.client.profile.name || "").toLowerCase() },
+  score: { label: "SCORE · WK", dir: "asc", of: (r) => {
+    const w = DashSignals.scoreWeekReading(r.client.shapeScoreHistory);
+    return w && w.points != null ? w.points : null;
+  } },
+  adherence: { label: "ADHERENCE", dir: "asc", of: (r) => {
+    const a = r.client.trainingAdherence;
+    return a && a.pct != null ? a.pct : null;
+  } },
+  compliance: { label: "COMPLIANCE · 7D", dir: "asc", of: (r) => {
+    const f = r.client.foodLogs;
+    return f && f.daysLogged7d != null ? Math.min(7, f.daysLogged7d) : null;
+  } },
+  // ⚠ DAYS SINCE, so "most stale first" is descending on a number rather than a
+  // reversed date. A client with a leg but no timestamp has NEVER been contacted, which
+  // is a known fact and the most stale there is — not an unknown.
+  lastLog: { label: "LAST FOOD LOG", dir: "desc", of: (r) => {
+    const f = r.client.foodLogs;
+    if (!f) return null;
+    if (!f.lastLoggedOn) return f.daysLogged7d != null ? Infinity : null;
+    return dashDaysSince(f.lastLoggedOn);
+  } },
+  contact: { label: "LAST CONTACT", dir: "desc", of: (r, role) => {
+    const lc = r.client.lastContact;
+    if (!lc) return null;
+    const ts = role === "nutritionist" ? lc.nutritionist : lc.trainer;
+    if (!ts) return Infinity;                       // "Never" — known, and the stalest
+    return dashDaysSince(ts);
+  } },
+  consult: { label: "LAST CONSULT", dir: "desc", of: (r) => {
+    return dashDaysSince(r.client.payments && r.client.payments.lastSessionAt);
+  } },
+  streak: { label: "STREAK", dir: "asc", of: (r) => {
+    const st = r.client.streaks;
+    return st && st.current != null ? st.current : null;
+  } },
+  revenue: { label: "REVENUE", dir: "desc", of: (r) => {
+    const p = r.client.payments;
+    return p && p.mrrCents != null ? p.mrrCents : null;
+  } },
+  tenure: { label: "TENURE", dir: "desc", of: (r) => {
+    return dashDaysSince(r.client.payments && r.client.payments.joinedAt);
+  } },
+};
+const DASH_ROSTER_SORT_KEYS = Object.keys(DASH_ROSTER_SORTS);
+
+// A stable, unknown-last comparator. Exported so it can be driven directly — an
+// ordering rule that is only ever exercised through a rendered table is a rule nobody
+// can point a test at.
+function dashRosterSorted(rows, key, dir, role) {
+  const spec = DASH_ROSTER_SORTS[key];
+  if (!spec) return rows;                            // "triage", or a key this build retired
+  const desc = dir === "desc";
+  // decorate-sort-undecorate: `of` can be several property reads deep and Array.sort
+  // calls the comparator O(n log n) times.
+  const decorated = rows.map((r, i) => ({ r, i, v: spec.of(r, role) }));
+  decorated.sort((a, b) => {
+    const an = a.v == null, bn = b.v == null;
+    // ⚠ UNKNOWN LAST IN BOTH DIRECTIONS — not "smallest", not "largest". A client whose
+    // revenue could not be read is not the cheapest client.
+    if (an || bn) return an && bn ? a.i - b.i : an ? 1 : -1;
+    let c;
+    if (typeof a.v === "string" || typeof b.v === "string") c = String(a.v).localeCompare(String(b.v));
+    else c = a.v < b.v ? -1 : a.v > b.v ? 1 : 0;
+    if (c === 0) return a.i - b.i;                   // stable: ties keep triage order
+    return desc ? -c : c;
+  });
+  return decorated.map((d) => d.r);
+}
+
 // ── Role-configured columns ──────────────────────────────────────────────────
 const DASH_ROSTER_VIEWS = {
   nutritionist: {
     cols: "2fr 110px 110px 110px 120px 92px 74px",
     minWidth: 806,
-    heads: ["LAST FOOD LOG", "COMPLIANCE · 7D", "GOAL PHASE", "LAST CONSULT", "REVENUE", "TENURE"],
+    // ⚠ EACH HEAD NAMES ITS COMPARATOR, and GOAL PHASE names none — it is a free-text
+    // label the coach types, so alphabetical order over it means nothing. A column with
+    // no sort key renders as plain text rather than as a button that does nothing.
+    heads: [["LAST FOOD LOG", "lastLog"], ["COMPLIANCE · 7D", "compliance"], ["GOAL PHASE", null], ["LAST CONSULT", "consult"], ["REVENUE", "revenue"], ["TENURE", "tenure"]],
     cells: (rec, role) => [
       dashCellText(dashLastLogLabel(rec)),
       dashCellText(dashComplianceLabel(rec)),
@@ -150,7 +261,9 @@ const DASH_ROSTER_VIEWS = {
     // also ellipsises now, with the full text on hover.
     cols: "1.6fr 104px 92px minmax(180px, 1fr) 64px 100px 92px 74px",
     minWidth: 926,
-    heads: ["SCORE · WK", "ADHERENCE", "PROGRAM", "STREAK", "LAST CONTACT", "REVENUE", "TENURE"],
+    // PROGRAM names no comparator: it is a block name plus a week, and ordering blocks
+    // alphabetically answers no question a coach has.
+    heads: [["SCORE · WK", "score"], ["ADHERENCE", "adherence"], ["PROGRAM", null], ["STREAK", "streak"], ["LAST CONTACT", "contact"], ["REVENUE", "revenue"], ["TENURE", "tenure"]],
     cells: (rec, role) => [
       dashScoreCell(rec),
       dashCellText(dashAdherenceLabel(rec)),
@@ -454,7 +567,10 @@ function DashClientDrawer({ row, role, onClose }) {
 const DashConsultDrawer = DashClientDrawer;
 
 // ── Roster table — triage-ordered rows + role-configured columns ─────────────
-function DashRosterTable({ triage, role, filter, query }) {
+// `sort`/`sortDir`/`onSort` are optional and default to the triage order, so a caller
+// that does not offer sorting gets exactly the table it had — and the headers render as
+// plain text rather than as buttons that lead nowhere.
+function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort }) {
   const [open, setOpen] = React.useState(null);
   const ink50 = DASH_ROSTER_INK50;
 
@@ -504,13 +620,40 @@ function DashRosterTable({ triage, role, filter, query }) {
     return true;
   };
   const q = (query || "").trim().toLowerCase();
-  const rows = triage.filter(matchesFilter).filter((r) => !q || r.client.profile.name.toLowerCase().includes(q));
+  const filtered = triage.filter(matchesFilter).filter((r) => !q || r.client.profile.name.toLowerCase().includes(q));
+  // Sorting is applied AFTER the filter and the search, so the three compose the way a
+  // coach expects: narrow to who matters, then order what is left.
+  const rows = dashRosterSorted(filtered, sort, sortDir, role);
+  const activeSort = DASH_ROSTER_SORTS[sort] ? sort : "triage";
+  // Clicking the column you are already on flips the direction; a new column starts in
+  // ITS OWN natural direction — revenue and tenure open highest-first, score and
+  // adherence lowest-first, "last contact" stalest-first. A single default would make
+  // half of them open on the end nobody wants.
+  const clickSort = (k) => {
+    if (!k || !onSort) return;
+    if (k === activeSort) return onSort(k, sortDir === "desc" ? "asc" : "desc");
+    onSort(k, DASH_ROSTER_SORTS[k].dir);
+  };
+  const headCell = (label, k) => {
+    if (!k || !onSort) return <span key={label}>{label}</span>;
+    const on = k === activeSort;
+    return (
+      <button key={label} onClick={() => clickSort(k)} title={"Sort by " + label.toLowerCase()}
+        style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, minWidth: 0,
+                 color: on ? "#2ee0c4" : "inherit", font: "inherit", letterSpacing: "inherit", minHeight: 24 }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        {/* The arrow marks the ACTIVE column only. A row of arrows on every header
+            reads as decoration and stops saying which one is in force. */}
+        <span aria-hidden="true" style={{ flex: "none", opacity: on ? 1 : 0 }}>{sortDir === "desc" ? "\u25be" : "\u25b4"}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="dash-roster-scroll">
     <div style={{ minWidth: view.minWidth }}>
       <div style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-        <span>CLIENT</span>{view.heads.map((h) => <span key={h}>{h}</span>)}
+        {headCell("CLIENT", "name")}{view.heads.map(([h, k]) => headCell(h, k))}
       </div>
       {rows.length === 0 && (
         <div style={{ padding: "34px 4px", textAlign: "center", color: ink50, fontSize: 13.5 }}>
@@ -551,4 +694,4 @@ function DashRosterTable({ triage, role, filter, query }) {
   );
 }
 
-Object.assign(window, { DashRosterTable, DashClientDrawer, DashConsultDrawer, DASH_ROSTER_VIEWS });
+Object.assign(window, { DashRosterTable, DashClientDrawer, DashConsultDrawer, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });

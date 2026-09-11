@@ -91,7 +91,22 @@ test('both roster views carry the two columns, and their track counts line up', 
   for (const role of ['nutritionist', 'trainer']) {
     const seg = block.slice(block.indexOf(role + ': {'));
     const cols = /cols: "([^"]+)"/.exec(seg)[1];
-    const heads = /heads: \[([^\]]+)\]/.exec(seg)[1].split(',').length;
+    // ⚠ THE ARRAY IS PARSED, NOT SPLIT ON COMMAS. `heads` became a list of
+    // [label, sortKey] PAIRS when the roster learned to sort, and both the
+    // `[^\]]+` capture and the comma split then counted the pairs' own brackets
+    // and commas — so a correct change failed a test about grid tracks. The
+    // invariant here is tracks === heads + 1; how the heads are spelled is not
+    // the invariant.
+    const hAt = seg.indexOf('heads: [');
+    let depth = 0, end = hAt + 'heads: '.length;
+    for (; end < seg.length; end += 1) {
+      const c = seg[end];
+      if (c === '[') depth += 1;
+      else if (c === ']') { depth -= 1; if (!depth) { end += 1; break; } }
+    }
+    const headList = new Function('return ' + seg.slice(hAt + 'heads: '.length, end))();
+    const heads = headList.length;
+    assert.ok(heads >= 6, role + ': parsed only ' + heads + ' heads');
     const tracks = cols.replace(/minmax\([^)]*\)/g, 'X').trim().split(/\s+/).length;
     assert.equal(tracks, heads + 1, role + ': ' + tracks + ' grid tracks for ' + heads + ' heads + the name column');
     assert.match(seg, /REVENUE/, role + ' needs a REVENUE column');
