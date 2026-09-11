@@ -134,7 +134,16 @@ test('switching main tabs reveals the row through the guarded setter', () => {
   assert.ok(m[0].length < 4000,
     `the matched effect is ${m[0].length} chars — the paren matcher ran past its own closing paren`);
   assert.match(m[0], /\}, \[tab[^\]]*\]\)$/, 'the scroll-guard effect is no longer keyed on the tab');
-  assert.match(m[0], /bsSetSub\(false\)/, 'the reveal must go through the guarded setter');
+  // ⚠ THIS PINNED `bsSetSub(false)` EXACTLY, AND THE CORRECT FIX FOR THE
+  // no-row → row CASE ADDS A SECOND ARGUMENT — so it would have failed a correct
+  // change, which is the THIRD guard in this one file to do that. Pin what the
+  // effect must DO: route through the setter, and demand the settle window even
+  // when the mirror says the visibility state did not change.
+  assert.match(m[0], /bsSetSub\(\s*false\s*,/,
+    'the tab effect must ask the setter to arm the window — a no-row to row switch moves layout while st.hidden is already false');
+  const setterBody = body(SRC, 'const bsSetSub = React.useCallback(');
+  assert.match(setterBody, /if\s*\(\s*arm\s*\)[^\n]*lockUntil/,
+    'bsSetSub ignores its arm flag, so the tab effect asking for a settle window gets nothing');
   assert.equal(/lockUntil\s*=\s*0/.test(m[0]), false,
     'the tab effect clears the settle deadline — the reveal can be undone by its own layout move');
   assert.match(m[0], /st\.last\s*=\s*st\.sc\.scrollTop/,

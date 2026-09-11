@@ -19655,8 +19655,21 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // range indefinitely, which reads on screen as the feed vibrating. So every
   // toggle goes through here, and scrolls arriving while our own 240ms collapse
   // is still settling only RE-BASELINE the reference point — they never decide.
-  const bsSetSub = React.useCallback((next) => {
+  // ⚠ `arm` EXISTS BECAUSE A LAYOUT MOVE IS NOT ALWAYS A STATE CHANGE. The
+  // early return below is right for the scroll handler — nothing moved, so
+  // nothing needs settling — and wrong for a caller that knows the DOM changed
+  // anyway. Switching from a tab with NO sub-row (Channels, Support) to one that
+  // has it inserts the row above the viewport while `st.hidden` is already
+  // false: the setter no-ops, no deadline is armed, and the anchoring scroll
+  // that follows reads as `dy > 6` and hides the row before it is seen. That is
+  // this PR's own defect through the one path its first fix did not cover.
+  // (Codex, #2043.)
+  // ⚠ AND IT IS A FLAG RATHER THAN ARMING ON EVERY CALL. The handler calls
+  // bsSetSub(false) on every scroll near the top; arming there would suppress
+  // decisions for 420ms at a stretch and delay the next legitimate hide.
+  const bsSetSub = React.useCallback((next, arm) => {
     const st = bsScroll.current;
+    if (arm) st.lockUntil = Date.now() + 420;
     if (st.hidden === next) return;
     st.hidden = next;
     st.lockUntil = Date.now() + 420;
@@ -19676,7 +19689,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   React.useEffect(() => {
     const st = bsScroll.current;
     if (st.sc) st.last = st.sc.scrollTop;
-    bsSetSub(false);
+    // arm unconditionally: the destination may INSERT a row the previous tab
+    // did not have, which moves layout even when the mirror is already false.
+    bsSetSub(false, true);
   }, [tab, bsSetSub]);
   const bsSubAnchorRef = React.useCallback((node) => {
     const st = bsScroll.current;
