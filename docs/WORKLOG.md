@@ -141,15 +141,36 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11. READ THIS BEFORE THE 09-10 BLOCK
-  BELOW, WHICH IT NARROWS.** Owner, 2026-09-11: ***"dont run coderabbit moving forward"***.
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (SECOND RULING OF THE DAY). CODEX IS
+  THE REVIEWER; CODERABBIT IS ITS FALLBACK.** Owner, 2026-09-11, after the ruling below:
+  ***"if codex is timed out then use coderabbit"***. So the order is fixed and conditional:
+  **trigger `@codex review` on every PR; if it answers with its usage-limit refusal (or does
+  not answer at all), trigger `@coderabbitai full review` on the same head.** CodeRabbit is
+  no longer forbidden — it is what runs when the first layer is unavailable, which is the
+  gap the earlier ruling left open and a whole wave of PRs fell into.
+  ⚠ **"TIMED OUT" IS A MEASUREMENT, NOT AN ASSUMPTION.** Codex answers a refusal within
+  SECONDS (*"You have reached your Codex usage limits for code reviews."*), and it posts a
+  **Codex Review Summary** comment that names the head and its status — `Running`, or a
+  findings round, or a refusal. **Read that comment before reaching for the fallback**: on
+  #2040 the same trigger that was refused twice on #2033 came back **Running** on the first
+  try, so the limit lifts and a session that assumes yesterday's refusal skips the better
+  reviewer. *A funding state is a claim with a shelf life, and the only honest form of it is
+  the one you just measured* — this file's own sentence, now with an operational consequence.
+  ⚠ **AND THE MERGE GATE IS STILL CI GREEN ON THE FINAL HEAD AND NOT A DRAFT.** Neither
+  reviewer closes it. The 2026-08-26 post-mortem below is why, and two rulings in one day
+  moving reviewers in and out is exactly the churn that post-mortem predicts — it cost
+  `/console` nothing this time, because the gate names only CI.
+  ⚠ **THE RULING IT NARROWS, kept because its reasoning is still the reasoning.** Owner,
+  2026-09-11: ***"dont run coderabbit moving forward"***.
   So **CodeRabbit is not to be triggered on any PR** — not as a gate, not as a sweep, not
   once. And measured the same day on #2033 and #2037, Codex answers an explicit trigger
   within seconds with *"You have reached your Codex usage limits for code reviews."*
   **Both external reviewers are therefore out of the loop: one by ruling, one by
   measurement**, and the owner has separately ruled the `/code-review` skill out too
   (*"that doesnt work and takes too long"*, with the same verdict on the Workflow tool).
-  ⚠ **WHICH LEAVES EXACTLY ONE LAYER, AND IT IS MINE: an adversarial read of my own diff
+  ⚠ **THAT PARAGRAPH LEFT EXACTLY ONE LAYER, AND THE SECOND RULING ABOVE IS THE ANSWER TO
+  IT — read them together or you will under-review.** What survives unchanged is that the
+  layer below is mine and runs first: **an adversarial read of my own diff
   before pushing** — hand-run, not a skill invocation — hunting the regressions the
   diff-review bullet below enumerates, plus a mutation round proving each new guard can
   actually fail. It is not a formality standing in for a reviewer; it is the whole review.
@@ -714,24 +735,88 @@ Append new entries at the top, under this note.
   error: the error line renders on **both** stages, so a member refused for want of a name,
   stepping Back and coming forward again, carried *"Give it a name first"* over a draft it
   was no longer about. Both fixed, and the second is now pinned by three more mutations.
-- **Verified:** `npm test` **3262/3262** on the rebased head · `tsc --noEmit` 0 · JSX parse on the client module ·
+- **Verified:** `npm test` **3277/3277** after the Codex round · `tsc --noEmit` 0 · JSX parse on the client module ·
   the newdesign precompile check · the i18n ratchet **9/9 with every column unchanged** and
-  catalog parity **13/13 at 337 keys** · **13/13 mutations killed across two rounds, each
+  catalog parity **13/13 at 337 keys** · **25/25 mutations killed across three rounds, each
   proven to land**, sanity green at both ends and the tree restored in a `finally` (the
   one-way door replayed from both of its doors, the Name field removed from the review
   screen, the forward gate reverted to every earlier form, the provenance tag folded back,
-  `too_large` re-collapsed into `bad_image`, and the return path stripped of its return, its
-  error-clear and itself) · and the mobile build clean with **all 39 translated values** (13 locales
+  `too_large` re-collapsed into `bad_image`, the return path stripped of its return, its
+  error-clear and itself, and — for the Codex round — the paste gate reduced to each of the
+  two wrong questions in turn, both draft stamps dropped, the pixel budget bypassed, both
+  refusal arms turned back into full decodes, the resize stripped of its aspect ratio, the
+  bitmap left unclosed, and the header walk turned into a byte scan) · and the mobile build
+  clean with **all 39 translated values** (13 locales
   × 3 keys) **confirmed in the emitted bundle behind a positive control AND a negative one**,
   the negative being the retired *"read once and never stored"* line, which reads **0**.
   **No migration.**
-- ⚠ **AND THE REVIEWER RULING MOVED AGAIN, AT THE SOURCE.** Owner, 2026-09-11: *"dont run
-  coderabbit moving forward"* — which retires the 2026-08-19 authorisation that was still
-  sitting in the auto-loaded conventions telling the next session it was allowed. Recorded
-  there rather than in a handoff. Codex also spent the session **refusing**
-  (*"You have reached your Codex usage limits for code reviews"*), which is the layer being
-  unavailable rather than skipped; it is triggered as the ruling requires and noted rather
-  than waited on.
+- ⚠ **AND THE CODEX ROUND RETURNED TWO P1s, BOTH REAL, AND THE SECOND REFUTED A COMMENT I
+  HAD JUST WRITTEN.** The raw-file ceiling is **25 MB on the COMPRESSED file**, sitting
+  directly under my own comment explaining that a 48 MP shot decodes to **~190 MB of RGBA**
+  and OOM-kills the WebView. Those two facts never meet: an ordinary 48 MP phone JPEG is
+  **6–12 MB on disk**, so it clears the ceiling comfortably and then does exactly the thing
+  the ceiling was written to prevent. **The guard waved through precisely the file it was
+  for**, and the comment is what proves it — it describes the hazard in decoded bytes and
+  then bounds compressed ones. *A comment that states the hazard in different units from the
+  constant beneath it is not documentation, it is a missed conversion.*
+- **Pixels are bounded now, and they are read from the HEADER without decoding anything.**
+  `bsImageHeaderDims` walks a JPEG's marker chain (and reads PNG's IHDR, GIF's screen
+  descriptor and all three WebP body formats); past **25 MP** the image is decoded through
+  `createImageBitmap`'s resize options, which **downsample DURING decode** so the full bitmap
+  is never materialised, and where that decoder is missing or throws the import is **refused
+  with `too-big`** rather than attempted. ⚠ **The refusal is the feature, not a shortfall**:
+  it reaches the member as *"crop it to the recipe and try again"*, which is something they
+  can do — an out-of-memory kill takes the sheet and everything they had typed, with no
+  message at all.
+- ⚠ **AND THE CHAIN IS WALKED, NOT SCANNED, WHICH IS THE ONLY PART A SOURCE REVIEW COULD NOT
+  HAVE CHECKED.** The bytes `FF C0` occur constantly inside EXIF and embedded thumbnails, so
+  a scan for the start-of-frame marker lands in a thumbnail and reports **160×120 as the
+  photo's size** — which passes the pixel budget, so the decode that kills the WebView
+  proceeds with the guard reporting green. The test fixture carries a stray `FF C0` inside an
+  EXIF segment **and asserts the trap is really in the bytes**, because a fixture that does
+  not contain the hazard tests nothing. `DHT`, `DAC` and `DNL` share SOF's marker range and
+  are skipped rather than read.
+- ⚠ **THE OTHER P1: A PHOTO TRANSCRIPTION WAS DESTROYED BY TEXT THE MEMBER HAD ALREADY
+  ABANDONED.** The photo button sits directly under the paste box, so *"type a bit, think
+  better of it, photograph the page instead"* leaves a transcription in hand **and** stale
+  text in the box. My forward gate asked only whether the box was **empty**, so Next went to
+  the paste parser and `setDraft(next || splitLocally())` replaced the transcription with a
+  split of the abandoned text — silently, with **no Keep control on that stage** to rescue
+  it. This is the one-way door from earlier in the same PR, reached through the door the fix
+  for it opened.
+- ⚠ **AND ONE MUTATION SURVIVED THE ROUND, WHICH IS THE ROUND PAYING FOR ITSELF.** Turning
+  the header walk's out-of-sync bail into a **resync-and-keep-scanning** passed every
+  assertion in the new file. Both fixtures that should have caught it were blind to it for
+  different reasons: a well-formed chain never reaches that branch at all, and the
+  *"out of sync"* fixture was **zero-filled**, so a scanner finds no `0xFF` to land on and
+  returns null for the same uninteresting reason the walk does. The hazard only shows when
+  the garbage **contains something shaped like a frame header** — which is what a corrupt
+  file carries. The new fixture plants a thumbnail-sized SOF after a lost chain **and asserts
+  a byte scan really would be fooled by it**, because a fixture that cannot fool the wrong
+  implementation is not testing the right one. *Two fixtures aimed at a branch can both miss
+  it, and a passing suite cannot tell you that* — only the mutation can.
+- ⚠ **AND ALWAYS PREFERRING THE DRAFT IS THE SAME TRAP POINTED THE OTHER WAY** — a member
+  who photographs, steps Back and then types a real recipe could never have it read. Neither
+  "is the box empty" nor "is there a draft" separates the two intents. **Whether the text has
+  CHANGED since the draft was made** does, so that is what is asked
+  (`draftPasteRef`), and both directions are driven. ⚠ **It closes a third loss for free:**
+  Back-then-Next on the paste path used to re-run the model over the same text and **overwrite
+  every ingredient and step the member had just corrected** — a wasted provider call that
+  silently discarded the review they had come to that screen to do. Pinned by a **count**: the
+  reader runs once, and the correction survives the round trip.
+- ⚠ **AND THE REVIEWER RULING MOVED TWICE IN ONE DAY, BOTH TIMES AT THE SOURCE.** First:
+  *"dont run coderabbit moving forward"*, which retired the 2026-08-19 authorisation still
+  sitting in the auto-loaded conventions telling the next session it was allowed. Then,
+  after Codex had spent the previous PR **refusing** (*"You have reached your Codex usage
+  limits for code reviews"*): ***"if codex is timed out then use coderabbit"***. So the
+  order is now conditional rather than exclusive — **Codex on every PR, CodeRabbit when
+  Codex is unavailable** — which closes the gap the first ruling left: with one reviewer
+  forbidden and the other refusing, a whole wave of PRs shipped on self-review alone.
+  ⚠ **AND THE REFUSAL DID NOT REPRODUCE ON THIS PR** — the same trigger that was refused
+  twice yesterday came back **Running** on the first try here, which is why the fallback is
+  gated on *reading the Codex summary comment* rather than on remembering that it failed
+  last time. **The merge gate is untouched by both rulings**: CI green on the final head,
+  and not a draft.
 
 ### 2026-09-11 — R15's pin: the pulse keeps the two people you are actually working with in front of you
 

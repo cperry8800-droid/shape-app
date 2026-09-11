@@ -4718,6 +4718,73 @@ const BS_RECIPE_PHOTO_BUDGET = 640_000;   // encoded bytes, under the route's 70
 // The repo's own precedent never does this: the meal logger hands the raw File
 // straight to a multipart upload and never base64s it.
 const BS_RECIPE_PHOTO_MAX_FILE = 25_000_000;
+// ⚠ AND THE BYTE CEILING ABOVE DOES NOT BOUND THE DECODE, WHICH IS WHAT THE
+// COMMENT BESIDE IT CLAIMS TO PREVENT. Compressed size and decoded size are only
+// loosely related: an ordinary 48 MP phone JPEG is ~6–12 MB on disk — comfortably
+// under 25 MB — and expands to **~190 MB of RGBA** the instant it is assigned to
+// `img.src`, before a single line of the scaling code below runs. So the guard
+// waved through precisely the file it was written for. Pixels are what has to be
+// bounded, and they are readable from the HEADER without decoding anything.
+// 25 MP is ~100 MB decoded, which a mid-range WebView survives; past it the image
+// is decoded through `createImageBitmap`'s resize options, which downsample
+// DURING decode so the full bitmap is never materialised.
+const BS_RECIPE_PHOTO_MAX_PIXELS = 25_000_000;
+// Enough of the front of the file to reach a JPEG's SOF marker past its EXIF and
+// thumbnail segments; PNG/GIF/WebP all carry their size in the first 32 bytes.
+const BS_RECIPE_PHOTO_HEADER_BYTES = 256 * 1024;
+
+// Width and height out of an image's HEADER — no decode, no bitmap, no canvas.
+// Returns null when the format is not one of the four the route accepts or the
+// header is truncated; the caller treats null as "unknown" rather than as a
+// refusal, because a format we cannot measure is not the same as one we know is
+// too large.
+function bsImageHeaderDims(buf) {
+  const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const be16 = (i) => (b[i] << 8) | b[i + 1];
+  const be32 = (i) => (((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0);
+  const le32 = (i) => ((b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)) >>> 0);
+  // PNG — 8-byte signature, then IHDR's width/height at 16/20.
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+    return { w: be32(16), h: be32(20) };
+  }
+  // GIF — little-endian logical screen size at 6/8.
+  if (b.length > 10 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) {
+    return { w: b[6] | (b[7] << 8), h: b[8] | (b[9] << 8) };
+  }
+  // JPEG — walk the marker chain to a start-of-frame. ⚠ The chain must be
+  // walked rather than scanned for 0xFFC0: those two bytes occur constantly
+  // inside EXIF and thumbnail payloads, and a scan lands on one of them and
+  // reports a thumbnail's size as the photo's.
+  if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xff) return null;            // out of sync: refuse to guess
+      const m = b[i + 1];
+      if (m === 0xff) { i += 1; continue; }      // fill byte
+      if (m === 0x01 || (m >= 0xd0 && m <= 0xd9)) { i += 2; continue; }  // standalone
+      if (m === 0xda) return null;               // scan data: no SOF before it
+      const len = be16(i + 2);
+      if (len < 2) return null;
+      // SOF0-SOF15, excluding DHT (c4), DAC (c8) and DNL (cc), which share the range.
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        return { h: be16(i + 5), w: be16(i + 7) };
+      }
+      i += 2 + len;
+    }
+    return null;
+  }
+  // WebP — RIFF container, three body formats, each with its own size encoding.
+  if (b.length > 30 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
+      && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) {
+    const fmt = String.fromCharCode(b[12], b[13], b[14], b[15]);
+    if (fmt === 'VP8 ') return { w: (b[26] | (b[27] << 8)) & 0x3fff, h: (b[28] | (b[29] << 8)) & 0x3fff };
+    if (fmt === 'VP8L') { const n = le32(21); return { w: (n & 0x3fff) + 1, h: ((n >> 14) & 0x3fff) + 1 }; }
+    if (fmt === 'VP8X') {
+      return { w: (b[24] | (b[25] << 8) | (b[26] << 16)) + 1, h: (b[27] | (b[28] << 8) | (b[29] << 16)) + 1 };
+    }
+  }
+  return null;
+}
 // ⚠ AND A DECODE THAT NEVER SETTLES MUST NOT LOCK THE SHEET. The sheet disables
 // its backdrop and its Cancel while a read is in flight, so a promise that never
 // resolves leaves the member force-quitting the app. An <img> handed a HEIC or a
@@ -4732,44 +4799,98 @@ const BS_RECIPE_PHOTO_DECODE_MS = 20_000;
 function bsRecipePhotoDataUrl(file) {
   return new Promise((resolve) => {
     let settled = false;
-    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+    let bitmap = null;
+    const done = (v) => {
+      if (settled) return;
+      settled = true;
+      // An ImageBitmap holds its pixels outside the JS heap until it is closed,
+      // so a path that resolves without closing one leaks the very memory this
+      // function exists to bound.
+      if (bitmap && typeof bitmap.close === 'function') { try { bitmap.close(); } catch (e) {} }
+      resolve(v);
+    };
     const timer = setTimeout(() => done(null), BS_RECIPE_PHOTO_DECODE_MS);
     const finish = (v) => { clearTimeout(timer); done(v); };
-    try {
-      if (!file || !/^image\//.test(file.type || '')) { finish(null); return; }
-      if (typeof file.size === 'number' && file.size > BS_RECIPE_PHOTO_MAX_FILE) { finish('too-big'); return; }
+
+    // The byte ladder, run against anything drawable — an <img> or an
+    // ImageBitmap, both of which drawImage accepts and both of which carry
+    // .width/.height.
+    const ladder = (src) => {
+      try {
+        for (const edge of BS_RECIPE_PHOTO_EDGES) {
+          const scale = Math.min(1, edge / Math.max(src.width, src.height));
+          const w = Math.max(1, Math.round(src.width * scale));
+          const h = Math.max(1, Math.round(src.height * scale));
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          const ctx = cv.getContext('2d');
+          if (!ctx) { finish(null); return; }
+          ctx.drawImage(src, 0, 0, w, h);
+          // The quality floor is deliberate: below ~0.4 the artefacts are
+          // heavy enough that the text stops being reliable, and an
+          // unreadable photo should fail as one rather than be sent anyway.
+          for (const q of BS_RECIPE_PHOTO_QUALITIES) {
+            const url = cv.toDataURL('image/jpeg', q);
+            const b64 = url.slice(url.indexOf(',') + 1);
+            if (Math.floor((b64.length * 3) / 4) <= BS_RECIPE_PHOTO_BUDGET) { finish(url); return; }
+          }
+        }
+        finish('too-big');
+      } catch (e) { finish(null); }
+    };
+
+    // The ordinary path: let the browser decode the whole thing, then scale.
+    const viaImage = () => {
       const reader = new FileReader();
       reader.onerror = () => finish(null);
       reader.onload = () => {
         const img = new Image();
         img.onerror = () => finish(null);
-        img.onload = () => {
-          try {
-            for (const edge of BS_RECIPE_PHOTO_EDGES) {
-              const scale = Math.min(1, edge / Math.max(img.width, img.height));
-              const w = Math.max(1, Math.round(img.width * scale));
-              const h = Math.max(1, Math.round(img.height * scale));
-              const cv = document.createElement('canvas');
-              cv.width = w; cv.height = h;
-              const ctx = cv.getContext('2d');
-              if (!ctx) { finish(null); return; }
-              ctx.drawImage(img, 0, 0, w, h);
-              // The quality floor is deliberate: below ~0.4 the artefacts are
-              // heavy enough that the text stops being reliable, and an
-              // unreadable photo should fail as one rather than be sent anyway.
-              for (const q of BS_RECIPE_PHOTO_QUALITIES) {
-                const url = cv.toDataURL('image/jpeg', q);
-                const b64 = url.slice(url.indexOf(',') + 1);
-                if (Math.floor((b64.length * 3) / 4) <= BS_RECIPE_PHOTO_BUDGET) { finish(url); return; }
-              }
-            }
-            finish('too-big');
-          } catch (e) { finish(null); }
-        };
+        img.onload = () => ladder(img);
         img.src = String(reader.result || '');
       };
       reader.readAsDataURL(file);
-    } catch (e) { finish(null); }
+    };
+
+    (async () => {
+      try {
+        if (!file || !/^image\//.test(file.type || '')) { finish(null); return; }
+        if (typeof file.size === 'number' && file.size > BS_RECIPE_PHOTO_MAX_FILE) { finish('too-big'); return; }
+
+        // ⚠ MEASURE THE PIXELS BEFORE DECODING THEM. This is the whole point of
+        // the header read: the compressed ceiling above says nothing about the
+        // decode, and the decode is what kills the WebView.
+        let dims = null;
+        try {
+          const head = await file.slice(0, BS_RECIPE_PHOTO_HEADER_BYTES).arrayBuffer();
+          dims = bsImageHeaderDims(head);
+        } catch (e) { dims = null; }
+
+        // Unknown size — an exotic or truncated header. The old behaviour is the
+        // honest one here: the file-size ceiling still applies, and refusing
+        // every image we cannot measure would refuse formats that decode fine.
+        if (!dims || !(dims.w > 0) || !(dims.h > 0) || dims.w * dims.h <= BS_RECIPE_PHOTO_MAX_PIXELS) {
+          viaImage();
+          return;
+        }
+
+        // Past the budget, so the full bitmap must never exist. createImageBitmap's
+        // resize options downsample DURING decode; without them there is no way to
+        // get these pixels safely, and refusing with advice the member can act on
+        // beats an out-of-memory kill that takes their half-typed sheet with it.
+        if (typeof createImageBitmap !== 'function') { finish('too-big'); return; }
+        const scale = Math.min(1, BS_RECIPE_PHOTO_EDGES[0] / Math.max(dims.w, dims.h));
+        try {
+          bitmap = await createImageBitmap(file, {
+            resizeWidth: Math.max(1, Math.round(dims.w * scale)),
+            resizeHeight: Math.max(1, Math.round(dims.h * scale)),
+            resizeQuality: 'high',
+          });
+        } catch (e) { finish('too-big'); return; }
+        if (settled) return;                      // the timeout won the race
+        ladder(bitmap);
+      } catch (e) { finish(null); }
+    })();
   });
 }
 

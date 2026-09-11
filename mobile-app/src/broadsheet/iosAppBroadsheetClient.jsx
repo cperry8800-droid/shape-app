@@ -1882,19 +1882,41 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
   // draft itself is what the forward button is for.
   const hasDraft = !!(draft && ((draft.ingredients && draft.ingredients.length) || (draft.steps && draft.steps.length)));
 
+  // What the paste box said when the draft in hand was made.
+  //
+  // ⚠ THIS IS THE DISCRIMINATOR BETWEEN "GO BACK TO MY DRAFT" AND "READ MY
+  // PASTE", AND WITHOUT IT ONE OF THE TWO IS ALWAYS DESTROYED. A member can type
+  // something, decide against it and photograph the page instead — the photo
+  // button sits directly under the box — which leaves a transcription in hand
+  // AND stale text in the box. Asking only whether the box is empty then sends
+  // Next to the paste parser, and `setDraft(next || splitLocally())` replaces the
+  // transcription with a split of the text they had already abandoned, silently,
+  // with no Keep control on that stage to rescue it. Always preferring the draft
+  // is the same trap pointed the other way: a member who photographs, steps Back
+  // and then types a real recipe could never get it read.
+  // Whether the text has CHANGED since the draft was made is the thing that
+  // actually separates the two intents, so that is what is asked.
+  const draftPasteRef = React.useRef('');
+
   // Ask the parse route first — a model reads a messy paste far better than a
   // line classifier can. ⚠ Its draft is a DRAFT: the member sees and edits it
   // here before anything is stored, and a route that cannot answer degrades to
   // the structural split rather than to an empty screen.
   const toReview = async () => {
     if (busy) return;
-    // Nothing pasted but a draft already in hand — return to it rather than
-    // reading an empty box over the top of it, which would replace a photo
-    // transcription with an empty split. The error clears here as it does on
-    // every other path through this button: a failed photo read renders on BOTH
+    // A draft in hand and a box they have not touched since: they are coming
+    // BACK to it, so return it untouched. The error clears here as it does on
+    // every other path through this button — a failed photo read renders on BOTH
     // stages, so carrying it forward would sit a dead sentence over the draft it
     // is no longer about.
-    if (!paste.trim()) { if (hasDraft) { setErr(null); setStage('review'); } return; }
+    //
+    // ⚠ AND THIS ALSO STOPS A RE-READ THROWING AWAY THE MEMBER'S OWN EDITS. Back
+    // then Next on the paste path used to re-run the model over the same text and
+    // overwrite every ingredient and step they had just corrected — a second
+    // silent loss, and a wasted provider call for a draft already in hand.
+    if (hasDraft && (!paste.trim() || paste === draftPasteRef.current)) { setErr(null); setStage('review'); return; }
+    // Nothing in the box and nothing in hand: there is nothing to move forward to.
+    if (!paste.trim()) return;
     setBusy(true); setErr(null);
     let next = null;
     try {
@@ -1916,6 +1938,7 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
       }
     } catch (e) { /* falls through to the structural split */ }
     setDraft(next || splitLocally());
+    draftPasteRef.current = paste;
     setStage('review');
     setBusy(false);
   };
@@ -1951,6 +1974,10 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
     const d = r && r.ok ? r.draft : null;
     if (d && ((d.ingredients && d.ingredients.length) || (d.steps && d.steps.length))) {
       setDraft({ ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true, fromPhoto: true });
+      // The box may hold text they typed and then abandoned in favour of the
+      // camera. Stamping it here is what lets Next tell "back to my photo" from
+      // "now read what I typed" — see draftPasteRef.
+      draftPasteRef.current = paste;
       if (!title.trim() && d.title) setTitle(d.title);
       setStage('review');
     } else {
