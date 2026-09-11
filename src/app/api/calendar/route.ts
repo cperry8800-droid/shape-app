@@ -30,6 +30,10 @@ import { requireMembership } from '@/lib/require-membership';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// How many published plan rows the calendar reads, newest first with the undated ones
+// kept — see the note on that query.
+const PLAN_CAP = 200;
+
 function clean(v: unknown, max: number): string {
   return String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
@@ -169,8 +173,14 @@ export async function GET(request: Request) {
     .select('id, title, description, payload, scheduled_date')
     .eq('client_id', targetUserId)
     .eq('status', 'published')
-    .order('scheduled_date', { ascending: true, nullsFirst: false })
-    .limit(200);
+    // ⚠ NEWEST FIRST WITH THE UNDATED ROWS KEPT, RE-SORTED BELOW. This read has no date
+    // filter, so ordering it ascending made the cap keep a member's OLDEST 200 published
+    // workouts — the calendar then showed nothing current — and `nullsFirst: false` put
+    // the UNDATED ones last, so on a long plan they fell off the end entirely: exactly the
+    // "Home shows my plan but the calendar is empty" defect the note above says was fixed,
+    // arriving again through the cap. Undated rows are never trimmed now.
+    .order('scheduled_date', { ascending: false, nullsFirst: true })
+    .limit(PLAN_CAP);
 
   const mkWorkout = (w: CwRow, dateStr: string) => {
     const payload = (w.payload && typeof w.payload === 'object') ? w.payload : null;
@@ -202,7 +212,15 @@ export async function GET(request: Request) {
   const planWorkouts: Array<Record<string, unknown>> = [];
   const weekTaken = new Set<string>();
   const undatedW: CwRow[] = [];
-  for (const w of ((cwRows ?? []) as CwRow[])) {
+  // Back to the order the slotting below was written for: dated ascending, undated last
+  // in read order (the sort is stable, so equal keys keep it).
+  const planRows = ((cwRows ?? []) as CwRow[]).slice().sort((a, b) => {
+    if (!a.scheduled_date && !b.scheduled_date) return 0;
+    if (!a.scheduled_date) return 1;
+    if (!b.scheduled_date) return -1;
+    return a.scheduled_date < b.scheduled_date ? -1 : a.scheduled_date > b.scheduled_date ? 1 : 0;
+  });
+  for (const w of planRows) {
     if (w.scheduled_date) {
       if (inWin(w.scheduled_date)) planWorkouts.push(mkWorkout(w, w.scheduled_date));
       if (weekISO.includes(w.scheduled_date)) weekTaken.add(w.scheduled_date);

@@ -306,6 +306,7 @@
   "myRecipe.save": "Keep it →",
   "myRecipe.yours": "Your own recipe. Private to you — your coaches do not see it.",
   "myRecipe.draftedTag": "Read by Shape from your paste, checked by you",
+  "myRecipe.draftedTagPhoto": "Read by Shape from your photo, checked by you",
   "myRecipe.delete": "Delete this recipe",
   "myRecipe.add": "＋ Add your own recipe",
   "myRecipe.qty": "Amount",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "This is your own recipe — nothing can bring it back.",
   "myRecipe.errAccount": "The signed-in account changed. Reopen this recipe.",
   "myRecipe.errAccountSave": "The signed-in account changed, so this wasn't saved. Sign back in and keep it.",
-  "myRecipe.errUnreadable": "Couldn't read your recipes just now. Try again."
+  "myRecipe.errUnreadable": "Couldn't read your recipes just now. Try again.",
+  "myRecipe.orPhoto": "Or photograph it",
+  "myRecipe.photoCta": "＋ Photo of a recipe",
+  "myRecipe.photoNote": "The photo is sent to be read, then discarded — Shape never stores it.",
+  "myRecipe.byPhoto": "Read by Shape from your photo — check it against the page, fix anything wrong, then keep it.",
+  "myRecipe.errPhotoTooBig": "That photo is too large to read. Crop it to the recipe in your photos and try again.",
+  "myRecipe.errPhotoUnclear": "Couldn't use that image. Try a clearer photo of the page, filling the frame.",
+  "myRecipe.errPhotoType": "That file type is not supported. A photo from your camera or library will work.",
+  "myRecipe.errPhotoNoRecipe": "We couldn't find a recipe in that photo. Try the page with the ingredients and method on it.",
+  "myRecipe.errPhotoOff": "Reading photos is unavailable on this build. Paste or type the recipe instead.",
+  "myRecipe.errPhotoRead": "We couldn't read that photo. Paste or type the recipe instead — that always works."
 }

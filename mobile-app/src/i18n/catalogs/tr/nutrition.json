@@ -306,6 +306,7 @@
   "myRecipe.save": "Sakla →",
   "myRecipe.yours": "Kendi tarifin. Sadece sana özel — koçların görmez.",
   "myRecipe.draftedTag": "Shape metninden okudu, sen kontrol ettin",
+  "myRecipe.draftedTagPhoto": "Shape fotoğrafından okudu, sen kontrol ettin",
   "myRecipe.delete": "Bu tarifi sil",
   "myRecipe.add": "＋ Kendi tarifini ekle",
   "myRecipe.qty": "Miktar",
@@ -324,5 +325,15 @@
   "myRecipe.deleteMessage": "Bu senin kendi tarifin — geri getirilemez.",
   "myRecipe.errAccount": "Giriş yapılan hesap değişti. Bu tarifi yeniden aç.",
   "myRecipe.errAccountSave": "Giriş yapılan hesap değişti, bu yüzden kaydedilmedi. Yeniden giriş yap ve sakla.",
-  "myRecipe.errUnreadable": "Tariflerin şu an okunamadı. Tekrar dene."
+  "myRecipe.errUnreadable": "Tariflerin şu an okunamadı. Tekrar dene.",
+  "myRecipe.orPhoto": "Ya da fotoğrafını çek",
+  "myRecipe.photoCta": "＋ Tarif fotoğrafı",
+  "myRecipe.photoNote": "Fotoğraf okunmak için gönderilir, sonra silinir — Shape onu hiçbir zaman saklamaz.",
+  "myRecipe.byPhoto": "Shape fotoğrafını okudu — sayfayla karşılaştır, yanlışları düzelt, sonra sakla.",
+  "myRecipe.errPhotoTooBig": "Bu fotoğraf okunamayacak kadar büyük. Fotoğraflarında tarife göre kırp ve yeniden dene.",
+  "myRecipe.errPhotoUnclear": "Bu görsel kullanılamadı. Kareyi dolduran daha net bir fotoğraf dene.",
+  "myRecipe.errPhotoType": "Bu dosya türü desteklenmiyor. Kameradan ya da galeriden bir fotoğraf işe yarar.",
+  "myRecipe.errPhotoNoRecipe": "Bu fotoğrafta tarif bulamadık. Malzemelerin ve yapılışın olduğu sayfayı dene.",
+  "myRecipe.errPhotoOff": "Bu sürümde fotoğraf okuma yok. Tarifi yapıştır ya da yaz.",
+  "myRecipe.errPhotoRead": "Bu fotoğrafı okuyamadık. Tarifi yapıştır ya da yaz — o hep çalışır."
 }

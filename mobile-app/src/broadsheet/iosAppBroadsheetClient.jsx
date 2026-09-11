@@ -1795,6 +1795,44 @@ function bsMyRecipeErrText(tr, reason, accountText, fallbackText, fallbackKey) {
   return tr(fallbackKey, { defaultValue: fallbackText });
 }
 
+// What the member is told when a photograph does not become a recipe.
+//
+// ⚠ EACH REASON GETS THE SENTENCE THAT NAMES WHAT THEY CAN DO ABOUT IT. A single
+// "couldn't read that" would be true of all of them and useful for none: a photo
+// that is too large wants a retake, a photo of a menu wants a different photo,
+// and a build with no key configured wants nothing from the member at all.
+//
+// ⚠ AND `photo_unreadable` DOES NOT CLAIM TO KNOW WHY. The provider refused the
+// image; whether that is this build's model having no vision capability, or the
+// image itself, is not something the route can honestly distinguish — so the
+// copy says what IS true in both cases, which is that typing it in will work.
+function bsRecipePhotoErr(tr, reason) {
+  // ⚠ TOO-LARGE AND WILL-NOT-DECODE ARE DIFFERENT SENTENCES, and collapsing
+  // them here undid the split shapeBackend had just gone to the trouble of
+  // making: its own comment says a merely-large photo must not be sent back for
+  // a CLEARER one "filling the frame", because a sharper busier image encodes
+  // BIGGER and the next attempt fails harder. Cropping is the one recovery a
+  // member can actually perform — it cuts the pixels and the content at once,
+  // and it is the right advice whether the raw file was enormous or the shrink
+  // ladder bottomed out on a dense page.
+  if (reason === 'too_large') {
+    return tr('nutrition:myRecipe.errPhotoTooBig', { defaultValue: 'That photo is too large to read. Crop it to the recipe in your photos and try again.' });
+  }
+  if (reason === 'bad_image') {
+    return tr('nutrition:myRecipe.errPhotoUnclear', { defaultValue: "Couldn't use that image. Try a clearer photo of the page, filling the frame." });
+  }
+  if (reason === 'unsupported_type') {
+    return tr('nutrition:myRecipe.errPhotoType', { defaultValue: 'That file type is not supported. A photo from your camera or library will work.' });
+  }
+  if (reason === 'no_draft') {
+    return tr('nutrition:myRecipe.errPhotoNoRecipe', { defaultValue: "We couldn't find a recipe in that photo. Try the page with the ingredients and method on it." });
+  }
+  if (reason === 'no_key') {
+    return tr('nutrition:myRecipe.errPhotoOff', { defaultValue: 'Reading photos is unavailable on this build. Paste or type the recipe instead.' });
+  }
+  return tr('nutrition:myRecipe.errPhotoRead', { defaultValue: "We couldn't read that photo. Paste or type the recipe instead — that always works." });
+}
+
 // Paste a recipe in, check what we made of it, keep it.
 //
 // TWO READERS, one screen. /api/nutrition/recipe-parse reads the paste with a
@@ -1835,12 +1873,50 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
     return { ingredients: split.ingredients, steps: split.steps, servings: null, byAI: false };
   };
 
+  // Does the sheet already hold something worth keeping?
+  //
+  // ⚠ THIS IS WHAT STOPS THE WRITE STAGE BEING A DEAD END FOR A PHOTO DRAFT.
+  // A photograph never passes through the paste box, so a forward gate that
+  // requires a paste strands a member who steps Back from a transcription: Next
+  // is disabled, Cancel destroys the draft, and there is no third control. The
+  // draft itself is what the forward button is for.
+  const hasDraft = !!(draft && ((draft.ingredients && draft.ingredients.length) || (draft.steps && draft.steps.length)));
+
+  // What the paste box said when the draft in hand was made.
+  //
+  // ⚠ THIS IS THE DISCRIMINATOR BETWEEN "GO BACK TO MY DRAFT" AND "READ MY
+  // PASTE", AND WITHOUT IT ONE OF THE TWO IS ALWAYS DESTROYED. A member can type
+  // something, decide against it and photograph the page instead — the photo
+  // button sits directly under the box — which leaves a transcription in hand
+  // AND stale text in the box. Asking only whether the box is empty then sends
+  // Next to the paste parser, and `setDraft(next || splitLocally())` replaces the
+  // transcription with a split of the text they had already abandoned, silently,
+  // with no Keep control on that stage to rescue it. Always preferring the draft
+  // is the same trap pointed the other way: a member who photographs, steps Back
+  // and then types a real recipe could never get it read.
+  // Whether the text has CHANGED since the draft was made is the thing that
+  // actually separates the two intents, so that is what is asked.
+  const draftPasteRef = React.useRef('');
+
   // Ask the parse route first — a model reads a messy paste far better than a
   // line classifier can. ⚠ Its draft is a DRAFT: the member sees and edits it
   // here before anything is stored, and a route that cannot answer degrades to
   // the structural split rather than to an empty screen.
   const toReview = async () => {
     if (busy) return;
+    // A draft in hand and a box they have not touched since: they are coming
+    // BACK to it, so return it untouched. The error clears here as it does on
+    // every other path through this button — a failed photo read renders on BOTH
+    // stages, so carrying it forward would sit a dead sentence over the draft it
+    // is no longer about.
+    //
+    // ⚠ AND THIS ALSO STOPS A RE-READ THROWING AWAY THE MEMBER'S OWN EDITS. Back
+    // then Next on the paste path used to re-run the model over the same text and
+    // overwrite every ingredient and step they had just corrected — a second
+    // silent loss, and a wasted provider call for a draft already in hand.
+    if (hasDraft && (!paste.trim() || paste === draftPasteRef.current)) { setErr(null); setStage('review'); return; }
+    // Nothing in the box and nothing in hand: there is nothing to move forward to.
+    if (!paste.trim()) return;
     setBusy(true); setErr(null);
     let next = null;
     try {
@@ -1858,11 +1934,66 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
         next = { ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true };
         // The model may read a title out of the paste; never overwrite one the
         // member typed themselves.
-        if (!title.trim() && d.title) setTitle(d.title);
+        //
+        // ⚠ FUNCTIONALLY, BECAUSE `title` HERE IS THE VALUE FROM THE RENDER THAT
+        // STARTED THE READ. The Name field stays editable while "Reading…" shows
+        // — only the buttons are disabled — so a member who types a name during
+        // the round trip had it silently replaced by the model's: the closure
+        // still saw the empty string it was created with, so the guard that
+        // exists to protect their input waved the overwrite through. The check
+        // and the write have to read the same instant, which only the updater
+        // form guarantees.
+        if (d.title) setTitle((cur) => (cur.trim() ? cur : d.title));
       }
     } catch (e) { /* falls through to the structural split */ }
     setDraft(next || splitLocally());
+    draftPasteRef.current = paste;
     setStage('review');
+    setBusy(false);
+  };
+
+  // The PHOTO path lands on the same review screen — but it does NOT share
+  // toReview's safety net, and that difference is the whole design of this
+  // handler.
+  //
+  // ⚠ A PASTE HAS A STRUCTURAL FALLBACK; A PHOTOGRAPH HAS NONE. When the model
+  // cannot read a paste, splitLocally() still produces a real draft from the
+  // member's own text. There is no offline way to get words out of an image, so
+  // a failed photo has nothing to fall back TO — which means the ONE thing this
+  // must never do is fail quietly and look like a button that does nothing. It
+  // stays on the write stage, keeps whatever the member has typed, and says what
+  // happened in terms they can act on.
+  const photoRef = React.useRef(null);
+  // The review screen's Name input, so a save refused for want of a name can
+  // put the member on the field that refused it rather than on an error line
+  // at the bottom of a long sheet.
+  const nameRef = React.useRef(null);
+  const fromPhoto = async (e) => {
+    const file = e && e.target && e.target.files && e.target.files[0];
+    // Clear the input straight away, or picking the SAME file twice after a
+    // failure fires no change event and the retry silently does nothing.
+    if (e && e.target) e.target.value = '';
+    if (!file || busy) return;
+    setBusy(true); setErr(null);
+    let r = null;
+    try {
+      const api = window.ShapeRecipeImport && window.ShapeRecipeImport.photo;
+      r = api ? await api(file) : { ok: false, reason: 'unavailable' };
+    } catch (e2) { r = { ok: false, reason: 'unavailable' }; }
+    const d = r && r.ok ? r.draft : null;
+    if (d && ((d.ingredients && d.ingredients.length) || (d.steps && d.steps.length))) {
+      setDraft({ ingredients: d.ingredients || [], steps: d.steps || [], servings: d.servings ?? null, byAI: true, fromPhoto: true });
+      // The box may hold text they typed and then abandoned in favour of the
+      // camera. Stamping it here is what lets Next tell "back to my photo" from
+      // "now read what I typed" — see draftPasteRef.
+      draftPasteRef.current = paste;
+      // Functional for the same reason as the paste path: a name typed while the
+      // photo was being read must outrank the one the reader found.
+      if (d.title) setTitle((cur) => (cur.trim() ? cur : d.title));
+      setStage('review');
+    } else {
+      setErr(bsRecipePhotoErr(tr, r && r.reason));
+    }
     setBusy(false);
   };
 
@@ -1877,11 +2008,18 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
     if (busy) return;
     // ⚠ A TITLE-LESS ITEM DOES NOT NORMALIZE, so bsRecipesPut would return the
     // document unchanged and the store would still report ok — a silent loss
-    // dressed as a save. Refuse it here instead. (Unreachable through the write
-    // stage's own gate today; the guard is against that gate moving.)
+    // dressed as a save. Refuse it here instead. Reachable, and by the path that
+    // matters most: the write stage no longer demands a name (the model often
+    // reads one off the page), and a photo import reaches this screen without
+    // passing through that stage at all.
     if (!title.trim()) {
       setErr(tr('nutrition:myRecipe.errNoName', { defaultValue: 'Give it a name first.' }));
-      setStage('write');
+      // ⚠ IT STAYS ON THIS SCREEN, AND THE NAME FIELD IS ON IT. Bouncing to the
+      // write stage was UNRECOVERABLE for a photo draft: that stage's forward
+      // gate wanted a paste, a photograph never produces one, so Next was
+      // permanently disabled and the only live control was Cancel — a
+      // transcription with no readable title could be destroyed and not kept.
+      if (nameRef.current) { try { nameRef.current.focus(); } catch (e2) {} }
       return;
     }
     setBusy(true); setErr(null);
@@ -1901,7 +2039,11 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
       // pinned at 1 and a member recipe can never be cooked for a different
       // number of people.
       servings: (draft && draft.servings) ?? null,
-      sourceKind: 'paste',
+      // Provenance, and the store's normalizer already accepts both values.
+      // Never inferred from draftedByAI: a paste can be model-read too, and
+      // "where did this come from" and "did a model draft it" are different
+      // questions the record answers separately.
+      sourceKind: draft && draft.fromPhoto ? 'photo' : 'paste',
       // Provenance, never cleared — a member editing every field does not change
       // where the draft came from (spec §5.4).
       ...(draft && draft.byAI ? { draftedByAI: true } : {}),
@@ -1935,7 +2077,13 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
     onClose();
   };
 
-  const canNext = title.trim().length > 0 && paste.trim().length > 0;
+  // ⚠ THE NAME IS NOT REQUIRED HERE, AND THAT IS THE FIX RATHER THAN A
+  // RELAXATION. It is asked for on the review screen, where the member can see
+  // what the reader made of the page beside it — and demanding one first made
+  // them invent a name the page already carries, which the model then could
+  // not overwrite. `hasDraft` is the photo path's way forward; `paste` is the
+  // paste path's. Keep it → enforces the name, on the screen that holds it.
+  const canNext = paste.trim().length > 0 || hasDraft;
   const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
 
   // ⚠ PORTALED INTO #bs-phone-surface, not rendered in place. BSPage's scroller
@@ -1967,21 +2115,84 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
             </label>
             <label style={{ display: 'block', marginTop: 16 }}>
               <span style={lbl}>{tr('nutrition:myRecipe.paste', { defaultValue: 'Paste the recipe' })}</span>
-              <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={9}
+              {/* ⚠ SEALED WHILE A READ IS RUNNING, AND THAT IS WHAT MAKES THE
+                  HANDLER'S CAPTURED `paste` HONEST. The completion closure holds the
+                  text from the render that STARTED the request, so a member editing
+                  the box during "Reading…" got a draft built from the text they had
+                  just replaced, installed over their newer version and carried to
+                  the review screen with nothing saying so — they could keep a recipe
+                  that silently omits the edit they were making.
+                  Sealing the box makes that race impossible rather than handling it:
+                  the alternative is to compare against the live value and discard
+                  the result, which spends a provider call to produce nothing and
+                  loops for as long as they keep typing. "Read this text" is not an
+                  operation whose input can change halfway through. The NAME field
+                  stays live — it is not what is being read, and its own handler was
+                  made safe separately. */}
+              <textarea value={paste} onChange={(e) => setPaste(e.target.value)} rows={9} disabled={busy}
                 placeholder={tr('nutrition:myRecipe.pastePlaceholder', { defaultValue: 'Ingredients and method — paste it however it comes.' })}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, outline: 'none', resize: 'vertical' }} />
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px', border: `1px solid ${t.RULE}`, borderRadius: 5, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.5, outline: 'none', resize: 'vertical', opacity: busy ? 0.5 : 1 }} />
             </label>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.5 }}>
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
+              <div style={lbl}>{tr('nutrition:myRecipe.orPhoto', { defaultValue: 'Or photograph it' })}</div>
+              {/* ⚠ NO `capture`, DELIBERATELY. A bare accept="image/*" offers a
+                  phone BOTH the camera and the photo library; adding capture
+                  forces the camera and takes the library away — which would
+                  refuse the likeliest member of all, the one who already
+                  photographed the page. (The meal logger renders two inputs, one
+                  of each, behind two buttons; that pair is worth copying the day
+                  this control earns a second button, and the attribute alone is
+                  not it.) */}
+              <input ref={photoRef} type="file" accept="image/*" onChange={fromPhoto} style={{ display: 'none' }} />
+              <button type="button" disabled={busy} onClick={() => photoRef.current && photoRef.current.click()}
+                style={{ marginTop: 6, width: '100%', minHeight: 40, background: 'transparent', border: `1px dashed ${bsTHexA(t.INK, 0.3)}`, borderRadius: 5, color: t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>
+                {busy
+                  ? tr('nutrition:myRecipe.reading', { defaultValue: 'Reading…' })
+                  : tr('nutrition:myRecipe.photoCta', { defaultValue: '＋ Photo of a recipe' })}
+              </button>
+              {/* ⚠ "SENT" IS THE WORD THIS LINE WAS MISSING. "Read once and never
+                  stored" is true of Shape and reads as a claim about the world —
+                  a member could take it to mean the image never leaves their
+                  phone, which is the opposite of what happens: it goes to an
+                  outside reader, and only then is it discarded. The storage
+                  promise is real and is kept; it is just not the whole of what a
+                  member is agreeing to, and the half that was missing is the half
+                  they would want. */}
+              <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.5 }}>
+                {tr('nutrition:myRecipe.photoNote', { defaultValue: 'The photo is sent to be read, then discarded — Shape never stores it.' })}
+              </div>
+            </div>
+            <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.5 }}>
               {tr('nutrition:myRecipe.privacy', { defaultValue: 'Private to you. Your coaches do not see it.' })}
             </div>
           </>
         ) : (
           <>
             <div style={{ marginBottom: 14, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50, lineHeight: 1.5 }}>
-              {draft && draft.byAI
-                ? tr('nutrition:myRecipe.byAI', { defaultValue: 'Read by Shape from your paste — check it, fix anything wrong, then keep it.' })
-                : tr('nutrition:myRecipe.bySplit', { defaultValue: 'Split from your paste — check it, fix anything wrong, then keep it.' })}
+              {/* ⚠ A PHOTO DRAFT SAYS SO. The paste line promises the member they
+                  can check it against something they still have; a transcription
+                  has to be checked against the PAGE, and the review screen is the
+                  only place that can say which. */}
+              {draft && draft.fromPhoto
+                ? tr('nutrition:myRecipe.byPhoto', { defaultValue: 'Read by Shape from your photo — check it against the page, fix anything wrong, then keep it.' })
+                : draft && draft.byAI
+                  ? tr('nutrition:myRecipe.byAI', { defaultValue: 'Read by Shape from your paste — check it, fix anything wrong, then keep it.' })
+                  : tr('nutrition:myRecipe.bySplit', { defaultValue: 'Split from your paste — check it, fix anything wrong, then keep it.' })}
             </div>
+            <label style={{ display: 'block', marginBottom: 18 }}>
+              {/* ⚠ THE NAME IS PART OF WHAT THEY REVIEW, NOT A GATE THEY PASSED
+                  EARLIER. Both readers may lift a title off the source — and until
+                  this field existed the member never SAW the one that was taken:
+                  it was written into a field on the previous screen and carried
+                  silently into the record. The same rule the serving count is
+                  already held to, a value the member cannot see is not one they
+                  reviewed. It binds to the same state as the write stage's field,
+                  so the two can never disagree. */}
+              <span style={lbl}>{tr('nutrition:myRecipe.name', { defaultValue: 'Name' })}</span>
+              <input ref={nameRef} className="bs-uline" value={title} onChange={(e) => setTitle(e.target.value)}
+                placeholder={tr('nutrition:myRecipe.namePlaceholder', { defaultValue: "Nana's lemon chicken" })}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+            </label>
             <div style={lbl}>{tr('nutrition:myRecipe.ingredients', { defaultValue: 'Ingredients' })}</div>
             {(draft && draft.ingredients.length) ? draft.ingredients.map((g, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
@@ -2187,7 +2398,15 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
         </div>
         {isMine && mine && mine.draftedByAI ? (
           <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>
-            {tr('nutrition:myRecipe.draftedTag', { defaultValue: 'Read by Shape from your paste, checked by you' })}
+            {/* ⚠ THE RECORD KNOWS WHICH IT WAS, SO THE TAG MAY NOT GUESS. This
+                said "from your paste" for every AI-drafted recipe, including the
+                ones read off a photograph — and this tag is the ONLY provenance a
+                member sees months later, on the screen where they decide whether
+                to trust a line. `sourceKind` is stamped at save for exactly this;
+                reading it is not a nicety. */}
+            {mine.sourceKind === 'photo'
+              ? tr('nutrition:myRecipe.draftedTagPhoto', { defaultValue: 'Read by Shape from your photo, checked by you' })
+              : tr('nutrition:myRecipe.draftedTag', { defaultValue: 'Read by Shape from your paste, checked by you' })}
           </div>
         ) : null}
         {item.savedAt ? <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>Saved {new Date(item.savedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div> : null}

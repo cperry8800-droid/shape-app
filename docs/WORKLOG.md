@@ -141,18 +141,59 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11. READ THIS BEFORE THE 09-10 BLOCK
-  BELOW, WHICH IT NARROWS.** Owner, 2026-09-11: ***"dont run coderabbit moving forward"***.
-  So **CodeRabbit is not to be triggered on any PR** — not as a gate, not as a sweep, not
-  once. And measured the same day on #2033 and #2037, Codex answers an explicit trigger
-  within seconds with *"You have reached your Codex usage limits for code reviews."*
-  **Both external reviewers are therefore out of the loop: one by ruling, one by
-  measurement**, and the owner has separately ruled the `/code-review` skill out too
-  (*"that doesnt work and takes too long"*, with the same verdict on the Workflow tool).
-  ⚠ **WHICH LEAVES EXACTLY ONE LAYER, AND IT IS MINE: an adversarial read of my own diff
-  before pushing** — hand-run, not a skill invocation — hunting the regressions the
-  diff-review bullet below enumerates, plus a mutation round proving each new guard can
-  actually fail. It is not a formality standing in for a reviewer; it is the whole review.
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (THIRD AND FINAL RULING OF THE DAY).
+  CODEX IS THE ONLY EXTERNAL REVIEWER. CODERABBIT IS OUT.** Owner, 2026-09-11, after the
+  fallback had been exercised exactly once: ***"no more coderabbit"***. So: **trigger
+  `@codex review` on every PR; when Codex is unavailable there is NO second reviewer** — the
+  round is my own adversarial read of the diff plus a mutation round, and the PR says so
+  rather than pretending a layer ran.
+  ⚠ **THREE RULINGS IN ONE DAY, AND THE MIDDLE ONE IS DEAD.** *"if codex is timed out then
+  use coderabbit"* (the second) was live for about an hour, was used once on #2040, and is
+  **superseded**. Its measurement is worth keeping — the fallback found two real things,
+  including an ambiguity in these very conventions — but **do not trigger CodeRabbit on that
+  basis.** ⚠ And note what the churn cost: a reader landing between the second and third
+  rulings would have found a prohibition and its own replacement three lines apart. That is
+  the defect CodeRabbit flagged, on the one PR it was brought back for, about this file.
+  ⚠ **"TIMED OUT" IS A MEASUREMENT, NOT AN ASSUMPTION — AND IT HAS TWO FACES.** Codex posts a
+  **Codex Review Summary** comment naming the head and its status (`Running`, a findings round,
+  or a refusal within SECONDS: *"You have reached your Codex usage limits for code reviews."*).
+  **Read that comment before concluding it is unavailable**: on #2040 the same trigger that
+  was refused twice on #2033 came back **Running** on the first try, so the limit lifts, and a
+  session that assumes yesterday's refusal skips the only external reviewer it has.
+  ⚠ **AND A SECOND SESSION MEASURED THE SAME LIFT INDEPENDENTLY, ON A DIFFERENT PR.** Owner:
+  *"run codex if you can"*. On #2041 it **auto-fired on PR open** and returned a P2 that was
+  right (a per-mount preference store clobbering the coach's own document), and a later manual
+  `@codex review` on that PR was accepted rather than refused. **Two PRs, two sessions, one
+  answer: the refusal was hours old and had lifted.** Trigger it; if it declines, note the
+  decline in the PR and move on.
+  ⚠ **THE SECOND FACE IS SILENCE, AND IT WAS MEASURED ON #2040 TOO.** After five reviewed
+  heads the sixth trigger produced **no review, no `Running`, and no refusal** — fifteen
+  minutes of nothing, which is not the shape the spoken limit takes. **Under the final ruling
+  there is nothing to fall back TO**, so what this buys is honesty rather than a second
+  reviewer: when the summary has not moved to your head, say so in the PR and merge on CI
+  green with your own round as the only review, instead of reporting a layer that never ran.
+  *A funding state is a claim with a shelf life, and the only honest form of it is the one you
+  just measured* — this file's own sentence, now with an operational consequence.
+  ⚠ **AND THE MERGE GATE IS STILL CI GREEN ON THE FINAL HEAD AND NOT A DRAFT.** No reviewer
+  closes it. The 2026-08-26 post-mortem below is why, and **three rulings in one day** moving
+  reviewers in and out is exactly the churn that post-mortem predicts — it cost `/console`
+  nothing, because the gate names only CI.
+  ⚠ **THE FIRST RULING OF THE DAY, WHOSE CODERABBIT HALF THE THIRD ONE RESTORES.** Owner,
+  2026-09-11, earlier: ***"dont run coderabbit moving forward"***, read at the time as *"not
+  as a gate, not as a sweep, not once."* **On CodeRabbit that is the standing position again**
+  — the conditional ruling that briefly displaced it is itself superseded. ⚠ **What is dead
+  is the OTHER half: its conclusion that *both* external reviewers are out.** That rested on a
+  measurement — Codex answering an explicit trigger on #2033 and #2037 within seconds with
+  *"You have reached your Codex usage limits for code reviews."* — and #2040 refuted it on the
+  first try. **Codex is IN and is triggered on every PR.** A session that reads this paragraph
+  alone will skip the one external reviewer it has. (The owner has separately ruled the
+  `/code-review` skill out: *"that doesnt work and takes too long"*, with the same verdict on
+  the Workflow tool.)
+  ⚠ **SO THE LAYER BELOW IS MINE, AND UNDER THE FINAL RULING IT IS THE ONLY ONE THAT RUNS
+  UNCONDITIONALLY:** **an adversarial read of my own diff before pushing** — hand-run, not a
+  skill invocation — hunting the regressions the diff-review bullet below enumerates, plus a
+  mutation round proving each new guard can actually fail. Codex runs beside it when it is
+  answering; when it is not, this is the whole review, and the PR says so.
   ⚠ **THE MERGE GATE IS UNCHANGED, AND THAT IS THE POINT: CI green on the final head AND
   not a draft.** Because no reviewer is named IN the gate, three reviewers leaving in
   three weeks cost `/console` nothing this time — which is the 2026-08-26 post-mortem
@@ -160,10 +201,11 @@ changelog whenever something ships.
   expiry date nobody wrote down; a gate that names only CI does not.*
   ⚠ **AND THIS IS THE THIRD HANDOVER OF THE SAME SENTENCE.** When Codex went out on
   2026-08-21 this file wrote *"losing Codex loses a real layer, and self-review is what has
-  to cover it"*; CodeRabbit then covered it; now neither does. **The measured yields below
-  are what self-review now has to absorb alone** — Codex found the defects that make a
-  feature *fake*, CodeRabbit found more and wider at a higher false rate. Read those
-  paragraphs as a checklist for my own pass, not as history about tools.
+  to cover it"*; CodeRabbit then covered it; **CodeRabbit is now out for good, so on any head
+  Codex does not answer, self-review covers both.** **The measured yields below are what it
+  has to absorb** — Codex found the defects that make a feature *fake*, CodeRabbit found more
+  and wider at a higher false rate. Read those paragraphs as a checklist for my own pass, not
+  as history about tools.
   ⚠ **THE REVIEWER SYSTEM AS OF 2026-09-10 — NARROWED BY THE 09-11 RULING ABOVE, kept
   because its merge-gate and one-round-per-PR rulings still bind.**
   Owner, 2026-09-10: *"i just want the tasks completed as we said we were with proper
@@ -182,16 +224,31 @@ changelog whenever something ships.
   Codex advises; it does not close the gate — the 2026-08-26 post-mortem below explains
   why naming a reviewer IN the gate has now broken `/console` twice, and that lesson is
   not reopened by this ruling.
+  ⚠ **AND CODERABBIT IS OUT — STILL TRUE, but the operative words are now *"no more
+  coderabbit"* (the third ruling at the head of this block), not the *"dont run coderabbit
+  moving forward"* quoted here.** Between the two the owner allowed it as a fallback for an
+  hour; that window is closed. Never trigger it: no `@coderabbitai full review`, no waiting on
+  it, no reading its absence as anything. **This retires the 2026-08-19 authorisation**
+  recorded further down, and everything under it describing how to trigger, re-trigger, pay
+  for or read a CodeRabbit verdict is HISTORY — kept only for the two rules that were never
+  about CodeRabbit (*a verdict is only about the head it names*, *the absence of a record is
+  never a pass*). ⚠ The layer list in this paragraph's last sentence read *"`/code-review` and
+  the Codex trigger"*; **`/code-review` is out too** (owner: *"that doesnt work and takes too
+  long"*), so the layers are **my own adversarial pass and the Codex trigger**. The merge gate
+  is unchanged.
   ⚠ **AND AS OF 2026-09-11 CODEX IS REFUSING: *"You have reached your Codex usage limits for
   code reviews."*** Measured on #2033, twice — the bot answers that within seconds of an
   `@codex review` comment, on two different heads. **This does not reverse the owner's
   ruling and does not change the gate.** Trigger it as the ruling says; a refusal is the
   layer being unavailable, not skipped, and it is **noted in the PR rather than waited
-  on**. ⚠ Read this against the 2026-08-29 correction further down, which refuted *"the
-  account has no credits"* with three measured auto-reviews — **that was true then and is
-  not true today**, so a session that reads only the correction will sit waiting for a
-  reviewer that has already declined. *A funding state is a claim with a shelf life, and
-  the only honest form of it is the one you just measured.*
+  on**. ⚠ **CORRECTED LATER THE SAME DAY — the refusal did NOT hold.** On #2040 the same
+  trigger came back `Running` on the first try and Codex reviewed five consecutive heads.
+  **So do not read this paragraph as a standing state**; it is one measurement, and the
+  head of this block carries the current one. ⚠ Read it against the 2026-08-29 correction
+  further down, which refuted *"the account has no credits"* with three measured
+  auto-reviews — **each of these was true on its own date**, which is the whole lesson: *a
+  funding state is a claim with a shelf life, and the only honest form of it is the one you
+  just measured.*
   ⚠ **EVERYTHING BELOW THIS LINE THAT NAMES A GATING REVIEWER IS HISTORY, KEPT ON
   PURPOSE.** It is not deleted, because two of its rules turned out to be about reviewers
   in general rather than about CodeRabbit: **a verdict is only about the head it names**,
@@ -641,6 +698,609 @@ Append new entries at the top, under this note.
 - ⚠ **NOT SHIPPED, REGISTERED:** the Radio liveness signal (above); **real** marketplace
   profiles, which need real coaches; and the shared header's wider nav — only its ON AIR claim
   moved here, so the six-item trim is the homepage's alone for now.
+
+### 2026-09-11 — The two registered follow-ups: a GDPR key that named two of its twenty-six kinds, and a recipe you can photograph
+
+- **Owner: *"now do the GDPR export label rename, photo import"*** — the two items the
+  recipe-import PR (#2033) had explicitly registered as deferred, shipped as two commits
+  on one branch. **No migration on either**, and the photo half is the reason the second
+  clause is interesting: the spec said it needed a storage bucket, and it does not.
+- ⚠ **THE EXPORT KEY DESCRIBED TWO OF THE TWENTY-SIX THINGS IT HANDED BACK.**
+  `/api/account/export` returns a member's entire `user_goals` table under ONE key, and
+  that key was `health_screening_and_goals`. Measured against the shipped callers, **26
+  distinct kinds** can be written to that table and exactly **two** — `health_profile`
+  and `client_goals` — are health screening or goals; production holds **9 kinds across
+  14 rows** (measured, not carried from the spec's "~22"). So a member's typed-in recipe,
+  their grocery list, their dashboard layout and a **coach's private notes on a client**
+  were all delivered under a health-screening label. **Portability and deletion were
+  always correct; only the label lied** — which is why this was a rename and not a
+  migration. It is `goals_health_and_app_data`, and the export note points the reader at
+  each row's own **`kind`** field, because a single category key cannot do that job and
+  the rows have always carried the answer.
+- ⚠ **AND THE GDPR ARTIFACT HAD NO TESTS AT ALL.** It is the Art. 15/20 deliverable and
+  nothing drove it. Five now do, against a PostgREST double that records which tables were
+  asked for: every owned table reaches the file (**a silently dropped table is an
+  incomplete access request that errors nowhere**), the bucket key is not the name of any
+  single kind it holds, tokens are scrubbed at depth because jsonb nests, and an
+  unauthenticated request reads **no** table. The scrub test carries a **positive
+  control**, so it cannot pass on a route that exports nothing.
+- **The photo path: an image in, the same draft out, onto the same review screen.**
+  `POST /api/nutrition/recipe-photo`. The member photographs a page, Shape transcribes it,
+  and they check and edit every line before a byte is stored — the paste path's contract,
+  unchanged, which is why the cooking walkthrough needed no changes for this either.
+- ⚠ **THE PHOTO IS NEVER STORED, AND THAT DECISION DELETED A MIGRATION.** The spec reached
+  for a `recipe-imports` bucket because it assumed the saved document would keep a
+  `photoPath`. It does not need to: the member photographs a page, reviews the draft, and
+  what they keep is **the recipe**. Holding the image afterwards would mean a migration the
+  owner has to run, a second signed-URL surface, a new row in the export above, a deletion
+  obligation, and indefinite retention of what is very often **someone else's copyrighted
+  cookbook page**. The bytes live for one request. *The cheapest version of a feature is
+  sometimes the one that stops holding something.*
+- ⚠ **THE DOWNSCALE IS LOAD-BEARING, NOT AN OPTIMISATION.** `readJson` caps a body at
+  **1 MB** and base64 inflates by **4/3**, so a straight-from-camera photo is refused
+  before the route ever sees it — as a generic 413 the member cannot act on. The client
+  re-encodes to a 1600px long edge and steps quality down until it fits a **640 KB**
+  budget, under the route's own 700 KB bound. ⚠ **AND THE LADDER STEPS RESOLUTION AS WELL
+  AS QUALITY**, which is a fix for a dead end rather than a refinement: on a dense
+  high-noise page, stepping quality alone can still miss the budget at the floor — after
+  which the member was told to take a **clearer** photo *filling the frame*, which produces
+  a sharper, busier image that encodes **bigger**. The advice made the next attempt fail
+  harder. Dropping the long edge is the recovery they cannot perform themselves.
+- ⚠ **AND A PHOTO HAS NO STRUCTURAL FALLBACK THE WAY A PASTE DOES.** When the model cannot
+  read a paste, `splitLocally()` still produces a real draft from the member's own text.
+  There is no offline way to get words out of an image, so a failed photo has nothing to
+  fall back TO — which makes the one thing it must never do **fail quietly and look like a
+  button that does nothing**. It stays on the write stage, keeps everything they have
+  typed, and names what happened in terms they can act on.
+- ⚠ **`/code-review` RETURNED FOURTEEN FINDINGS AND THE FIRST ONE WAS A ONE-WAY DOOR.** A
+  successful transcription whose **title** came back empty — a recipe name set in a
+  typeface or a margin the reader could not lift, which is the ordinary case — was
+  **unrecoverable**. *Keep it* refused it for want of a name and bounced to the write
+  stage; that stage's *Next* wanted a paste; a photograph produces none; so *Next* was
+  permanently disabled and the only live control was **Cancel**. The sheet holds the only
+  copy of a transcription, so the member's page could be destroyed and could not be kept.
+- **The fix moves the Name onto the review screen, where it should always have been.** It
+  is part of what the member reviews — and until this, **the title the reader lifted off
+  the page was never shown to them at all**: it was written into a field on the previous
+  screen and carried silently into the record. That is the same rule the **serving count**
+  is already held to in this feature, *a value the member cannot see is not one they
+  reviewed*, arrived at from the other direction. Both fields bind to one piece of state,
+  so they cannot disagree; the write stage stops demanding a name (the reader usually finds
+  one, and demanding it first made members invent a name the page already carried, which
+  the model then could not overwrite); and the forward gate is **`paste || hasDraft`**, so
+  stepping *Back* from a transcription is no longer a trapdoor either.
+- ⚠ **AND THE LIBRARY TAG CALLED EVERY AI DRAFT A PASTE.** *"Read by Shape from your
+  paste, checked by you"* is the **only provenance a member sees months later**, on the
+  screen where they decide whether to trust a line — and it was shown for photo
+  transcriptions too. `sourceKind` is stamped at save for exactly this; reading it is not
+  a nicety.
+- ⚠ **AND "READ ONCE AND NEVER STORED" WAS A CLAIM ABOUT SHAPE THAT READ AS A CLAIM ABOUT
+  THE WORLD.** A member could fairly take it to mean the image never leaves their phone,
+  which is the opposite of what happens: it goes to an outside reader, and only then is it
+  discarded. The storage promise is real and is kept — it is just not the whole of what
+  someone is agreeing to, and **the half that was missing is the half they would want.**
+  The line says *sent* now.
+- ⚠ **AND `detail` IS SENT EXPLICITLY, BECAUSE ITS ABSENCE WOULD HAVE BEEN INVISIBLE.**
+  The Responses API's `input_image` part carries it and a schema rejection is a **400** —
+  which this route maps to `photo_unreadable`. So an omitted field would have presented as
+  *"we couldn't read your photo"* on **every import, forever**, while the server log blamed
+  the model's vision capability. *A failure mapped to a plausible cause is a failure nobody
+  will look for.* ⚠ And it is the **Responses** content-block shape, not Chat Completions' —
+  `ai.ts`'s own header warns against inferring one from the other, and the wrong one is a
+  400 through the same door.
+- ⚠ **HEIC CAME OFF THE ALLOW-LIST, WHICH IS THE OPPOSITE OF THE OBVIOUS MOVE.** iPhones
+  produce it and the provider refuses it — so admitting it **guaranteed** a 400 the route
+  could only report as *"we couldn't read your photo"* while its log blamed the model. **An
+  allow-list that admits what the next hop refuses is worse than one that refuses it here,
+  because only one of the two can say why.** The app re-encodes every pick to JPEG through
+  a canvas, so nothing a member does is blocked by this.
+- ⚠ **AND ONE FINDING WAS A BUILD ERROR WAITING TO HAPPEN.** `parseImageDataUrl` was
+  exported from the route file purely so a test could reach it — and an App Router route
+  exporting anything outside the handler set fails the webpack typegen path
+  (`checkFields<Diff<…>>`). It was **the only route in the repo doing it**. It lives beside
+  the validator now, where it is reachable without standing up the route and its five stubs.
+- **The rest of the round, each fixed:** a raw-file ceiling before anything is read
+  (`readAsDataURL` on a 48MP library shot materialises a ~60 MB string and then decodes
+  ~190 MB of RGBA **before any scale is computed** — on a mid-range Android WebView that is
+  an **out-of-memory kill of the whole app**, not a handled failure, and the member loses
+  the sheet and everything they typed); a decode timeout, because an `<img>` handed a HEIC
+  or a truncated file on some Android WebViews fires **neither** load nor error and the
+  sheet disables its own Cancel while a read is in flight; a `'too-big'` sentinel distinct
+  from `null`, since those two want different advice; the platform `maxDuration` declared,
+  because a platform kill runs **none** of the named failure handling and writes none of
+  the one diagnostic this feature ships; the file input cleared on pick, or picking the
+  **same** file twice after a failure fires no change event and the retry silently does
+  nothing; and a throwaway `Buffer.from` that decoded up to 700 KB purely to measure a
+  length the regex had already constrained.
+- ⚠ **AND A COMMENT DESCRIBED AN INPUT THIS IS NOT.** It claimed `accept + capture` were
+  *"the pair the meal logger already uses"*. The meal logger's pair is **two inputs behind
+  two buttons**, one of them carrying `capture`; this control has one input and no
+  `capture` — deliberately, because `capture` **forces the camera and takes the library
+  away**, which would refuse the likeliest member of all, the one who already photographed
+  the page. The attribute was never the pair.
+- ⚠ **AND THE ERROR MAP FOLDED BACK A SPLIT THE LAYER BELOW HAD JUST MADE.**
+  `shapeBackend` returns `too_large` distinct from `bad_image`, with a comment saying why;
+  `bsRecipePhotoErr` handed both the same sentence — the *"clearer photo, filling the
+  frame"* one, which is precisely the advice that makes a too-large file bigger. **Cropping
+  is the one recovery a member can actually perform**, and it is right whether the raw file
+  was enormous or the shrink ladder bottomed out. *A distinction is only made where it is
+  read, not where it is returned.*
+- ⚠ **A MEASUREMENT IN MY OWN PROMPT DID NOT REPRODUCE.** The unit rule cited *"277 of
+  334"* catalog amounts carrying their unit inside `n`. Re-derived from
+  `SHAPE_KITCHEN_RECIPES` rather than carried: it is **767 of 903** (108 of 120 distinct).
+  The rule it supports is unchanged and still right; the number was wrong in the prompt, in
+  the changelog and in the PR body, and is corrected in all three. *A measurement nobody
+  re-derives is a claim.*
+- ⚠ **AND TWO OF MY OWN NEW TESTS FAILED FOR REASONS THAT WERE THE TESTS.** An 800,000-byte
+  fixture meant to exercise the route's size guard **never reached it** — `readJson` refuses
+  at 1 MB and base64 had already inflated it past that, so the assertion was about a bound
+  the route does not own; it sits at 720,000 now, inside the band the route judges. And a
+  source scan for the word *"storage"* matched **the comment explaining its absence**, which
+  the shared `stripComments` helper exists for. ⚠ The extraction into `recipe-draft.ts` also
+  broke the paste route's 21 tests with `Cannot find module` — a harness gap, closed by
+  registering the **real** module, because a stub would have made two of those tests
+  vacuous.
+- ⚠ **AND TWO MUTATION SURVIVORS WERE REDUNDANT GUARDS RATHER THAN GAPS.** A pre- and a
+  post-decode size check did the same work; deleting the duplicate exposed that the
+  survivor's **stated justification was false** — it claimed to avoid a multi-MB decode,
+  which is impossible on the route path because `readJson` caps at 1 MB. It survives for a
+  different and true reason (the function is exported and reachable by other callers), and
+  the comment says that now. *A guard that cannot fire the way its comment says is
+  decoration until the reason is corrected.*
+- ⚠ **WHETHER THIS WORKS IN PRODUCTION DEPENDS ON A CAPABILITY THAT COULD NOT BE CONFIRMED
+  FROM THIS CONTAINER, AND THAT IS DESIGNED FOR RATHER THAN GUESSED AT.** There is no
+  `OPENAI_API_KEY` here and the pinned `OPENAI_MODEL` is set in Vercel, so nothing here can
+  ask whether it accepts image input — and `grep -rn "input_image\|image_url" src/` returned
+  **nothing** before this PR, so no vision call has ever existed in this repo. So the route
+  is written not to need the answer in advance: a provider 4xx on an image request comes
+  back as `photo_unreadable`, the sheet tells the member to type it in instead (**true
+  either way**, which is the only honest thing to say when the route cannot distinguish a
+  capability from a bad image), and the server log **names the model as a likely cause** so
+  it is one log line to settle. Registered on the board as an **OWNER CHECK NEEDED**, not as
+  a claim that it works.
+- ⚠ **AND THE REVIEW ROUND'S OWN FIXES THEN FAILED THREE OF MY TESTS, WHICH IS THE ROUND
+  WORKING.** Two had gone stale against the fixes themselves — one asserted `image/gif` was
+  refused, which stopped being true when the allow-list was corrected to what the provider
+  actually takes, and one asserted `parseImageDataUrl` was **exported from the route**, which
+  is the build error the same round removed. Both were re-pointed rather than relaxed, and
+  the allow-list test gained the **positive control** it had been missing: without one,
+  every *"this type is refused"* assertion passes on a route that refuses **everything**.
+  The third failed on `4002 !== 4000` and was the CODE: the byte estimate ignored base64
+  padding and overstated the size by up to two bytes. It changes no decision at a 700 KB
+  bound — but the field is returned under the name `bytes`, so it is exact now. *A field
+  that says bytes should be the number of bytes.*
+- ⚠ **AND MY OWN LAST READ OF THE DIFF FOUND TWO MORE, WHICH IS WHY IT IS READ.** The
+  `hasDraft` declaration had been wedged **between `toReview`'s comment and `toReview`**, so
+  a four-line explanation of the parse route sat above a boolean — the comment-drifted-onto
+  -the-wrong-function defect this file post-mortems on the grid-merge rationale, reproduced
+  the same way, by inserting rather than placing. And the new return path did not clear the
+  error: the error line renders on **both** stages, so a member refused for want of a name,
+  stepping Back and coming forward again, carried *"Give it a name first"* over a draft it
+  was no longer about. Both fixed, and the second is now pinned by three more mutations.
+- **Verified:** `npm test` **3300/3300** after four Codex rounds · `tsc --noEmit` 0 · JSX parse on the client module ·
+  the newdesign precompile check · the i18n ratchet **9/9 with every column unchanged** and
+  catalog parity **13/13 at 337 keys** · **56 mutations across eight rounds, each proven to
+  land — 55 killed and one proven a genuine no-op**, with the arithmetic behind that no-op
+  driven against the shipped constants rather than argued, sanity green at both ends and the tree restored in a `finally` (the
+  one-way door replayed from both of its doors, the Name field removed from the review
+  screen, the forward gate reverted to every earlier form, the provenance tag folded back,
+  `too_large` re-collapsed into `bad_image`, the return path stripped of its return, its
+  error-clear and itself, and — for the Codex round — the paste gate reduced to each of the
+  two wrong questions in turn, both draft stamps dropped, the pixel budget bypassed, both
+  refusal arms turned back into full decodes, the resize stripped of its aspect ratio, the
+  bitmap left unclosed, and the header walk turned into a byte scan) · and the mobile build
+  clean with **all 39 translated values** (13 locales
+  × 3 keys) **confirmed in the emitted bundle behind a positive control AND a negative one**,
+  the negative being the retired *"read once and never stored"* line, which reads **0**.
+  **No migration.**
+- ⚠ **AND THE CODEX ROUND RETURNED TWO P1s, BOTH REAL, AND THE SECOND REFUTED A COMMENT I
+  HAD JUST WRITTEN.** The raw-file ceiling is **25 MB on the COMPRESSED file**, sitting
+  directly under my own comment explaining that a 48 MP shot decodes to **~190 MB of RGBA**
+  and OOM-kills the WebView. Those two facts never meet: an ordinary 48 MP phone JPEG is
+  **6–12 MB on disk**, so it clears the ceiling comfortably and then does exactly the thing
+  the ceiling was written to prevent. **The guard waved through precisely the file it was
+  for**, and the comment is what proves it — it describes the hazard in decoded bytes and
+  then bounds compressed ones. *A comment that states the hazard in different units from the
+  constant beneath it is not documentation, it is a missed conversion.*
+- **Pixels are bounded now, and they are read from the HEADER without decoding anything.**
+  `bsImageHeaderDims` walks a JPEG's marker chain (and reads PNG's IHDR, GIF's screen
+  descriptor and all three WebP body formats); past **25 MP** the image is decoded through
+  `createImageBitmap`'s resize options, which **downsample DURING decode** so the full bitmap
+  is never materialised, and where that decoder is missing or throws the import is **refused
+  with `too-big`** rather than attempted. ⚠ **The refusal is the feature, not a shortfall**:
+  it reaches the member as *"crop it to the recipe and try again"*, which is something they
+  can do — an out-of-memory kill takes the sheet and everything they had typed, with no
+  message at all.
+- ⚠ **AND THE CHAIN IS WALKED, NOT SCANNED, WHICH IS THE ONLY PART A SOURCE REVIEW COULD NOT
+  HAVE CHECKED.** The bytes `FF C0` occur constantly inside EXIF and embedded thumbnails, so
+  a scan for the start-of-frame marker lands in a thumbnail and reports **160×120 as the
+  photo's size** — which passes the pixel budget, so the decode that kills the WebView
+  proceeds with the guard reporting green. The test fixture carries a stray `FF C0` inside an
+  EXIF segment **and asserts the trap is really in the bytes**, because a fixture that does
+  not contain the hazard tests nothing. `DHT`, `DAC` and `DNL` share SOF's marker range and
+  are skipped rather than read.
+- ⚠ **THE OTHER P1: A PHOTO TRANSCRIPTION WAS DESTROYED BY TEXT THE MEMBER HAD ALREADY
+  ABANDONED.** The photo button sits directly under the paste box, so *"type a bit, think
+  better of it, photograph the page instead"* leaves a transcription in hand **and** stale
+  text in the box. My forward gate asked only whether the box was **empty**, so Next went to
+  the paste parser and `setDraft(next || splitLocally())` replaced the transcription with a
+  split of the abandoned text — silently, with **no Keep control on that stage** to rescue
+  it. This is the one-way door from earlier in the same PR, reached through the door the fix
+  for it opened.
+- ⚠ **AND THE SECOND CODEX ROUND FOUND THREE MORE, THE FIRST OF WHICH WAS A RESIDUAL I HAD
+  TRIED TO REGISTER RATHER THAN OWN.** My fix sent an **unmeasurable** header to the full
+  decode, on the reasoning that refusing what we cannot measure would refuse formats that
+  decode fine — and I wrote that down as a pre-existing limitation. It is not: the `!dims`
+  branch is **code this PR introduced**, and *"unknown"* is not *"small"*. A perfectly valid
+  JPEG whose start-of-frame sits past 256 KiB of ICC profile reads as unmeasurable here and
+  is exactly as capable of being 48 MP as one we did measure. **A guard that fails OPEN on
+  its own uncertainty bounds something other than the hazard — which is the same defect the
+  byte ceiling had, reintroduced in its fix.** Unknown dimensions take the resizing decoder
+  now (width capped, height left for the decoder to scale), or are refused.
+  ⚠ **The cost is stated at the site rather than discovered later**: a *small* unmeasurable
+  image is upscaled to 1600 wide and walked back down, which costs sharpness on a file whose
+  header we could not read. A soft transcription of an outlier beats an OOM kill.
+- ⚠ **AND BUILDING THE FIXTURE FOR THAT FOUND A CONSTRAINT OF THE FORMAT ITSELF.** The first
+  version asked for one 300 KiB APP2 segment and `Buffer` refused to write the length: a JPEG
+  segment carries a **16-bit** length, so no single marker can exceed 65,535 bytes. Real
+  encoders chunk a large ICC profile across consecutive APP2 markers for exactly that reason
+  — which is also **how** a start-of-frame comes to sit a third of a megabyte into an
+  ordinary photo. The fixture is six segments now and asserts it really outruns the window.
+- **The two P2s, both real.** A decode that lands **after** the 20 s deadline resolved on a
+  promise nobody was waiting for: `done` had already run and would not run again, so the
+  early return was the only place those pixels could be released and it released none — an
+  ImageBitmap's pixels live outside the JS heap, so every slow decode retained a full frame
+  until GC noticed. And the Name field **stays editable while "Reading…" shows** (only the
+  buttons are disabled), while the completion handler read `title` from the render that
+  STARTED the request — so a member who typed a name during the round trip had it silently
+  replaced by the model's, because the closure still saw the empty string it was created
+  with. **The guard written to protect their input was the thing that waved the overwrite
+  through.** Both reader paths take the updater form now, so the check and the write read the
+  same instant. ⚠ Pinned with a **control** that the reader still names an unnamed recipe —
+  without it the test passes on a handler that sets no title at all, which would retire the
+  feature silently.
+- ⚠ **AND A THIRD CODEX ROUND CAUGHT THE FIX TO THE FIX MAKING THINGS WORSE.** Capping only
+  the WIDTH of an unmeasurable image sounds bounded and is not: with the height left to scale
+  proportionally, a **1200×20000** scan comes back as **1600×26667 — 42 MP, ~171 MB** — so the
+  guard made a tall image consume **more** memory than leaving it alone. I had flagged that
+  branch as the thing worth a second read in my own trigger comment and still shipped it.
+  Naming both axes bounds it and **distorts the page**, which is the one thing a
+  transcription cannot survive, and the API has no fit-inside-a-box mode — so an image whose
+  size cannot be read is now **declined**. ⚠ **Which meant the header window had to grow**:
+  at 256 KiB an ordinary photo carrying a large chunked ICC profile falls off the end and
+  would have been turned away, so it is **2 MiB** — past anything a camera emits, and trivial
+  beside the 640 KB the same function is about to put on the wire. *A refusal is only
+  acceptable when almost nothing real lands on it.*
+- ⚠ **AND THE PASTE BOX WAS EDITABLE WHILE IT WAS BEING READ.** The completion closure holds
+  the text from the render that **started** the request, so a member editing the box during
+  *"Reading…"* got a draft built from the text they had just replaced — installed over their
+  newer version and carried to the review screen with nothing saying so, where they could
+  keep a recipe that **silently omits the edit they were making**. It is sealed while a read
+  runs, which makes the race impossible rather than handling it: comparing against the live
+  value and discarding the result spends a provider call to produce nothing and loops for as
+  long as they keep typing. *"Read this text" is not an operation whose input can change
+  halfway through.* The **Name** field stays live — it is not what is being read, and its own
+  closure was made safe separately.
+- ⚠ **AND THE FALLBACK RULING WAS EXERCISED, WHICH IS THE FIRST MEASUREMENT OF IT.** Codex
+  reviewed **five** heads on this PR and then stopped answering: the sixth trigger produced no
+  review, no **Running** status and **no refusal message** — fifteen minutes of nothing. That
+  is not the shape the earlier limit took (which answered within seconds, in as many words), so
+  *"timed out"* has at least two faces and only one of them says so. Read against the owner's
+  ruling — ***"if codex is timed out then use coderabbit"*** — silence is the condition, and
+  CodeRabbit was triggered on that head. **The gate did not move**: CI green on the final head,
+  and not a draft.
+- ⚠ **AND A FOURTH CODEX ROUND FOUND THE HARDENING HALF-DONE, PLUS A TRAP WITH THE WORST
+  MEMBER OUTCOME OF THE WHOLE PR.** The P1: a **SOF declaring a two-byte segment** could plant
+  small values at the offsets the reader uses — dimensions that are not inside the segment at
+  all. They pass the pixel budget, the file goes to the full decode, and a permissive decoder
+  skips the bogus frame, finds the real one, and recreates exactly the unbounded decode the
+  guard exists to stop. A frame header is **eight bytes minimum** and its declared segment must
+  fit in the buffer; both are checked now. *Verifying that a marker is a frame is not the same
+  as verifying it is long enough to be one.*
+- ⚠ **AND A STALLED REQUEST TRAPPED THE MEMBER WITH NO CONTROL THAT DID ANYTHING.** Neither
+  reader had a deadline, and the sheet disables **its own Cancel AND its backdrop dismissal**
+  while a read runs — so a mobile handoff, where the connection opens and then goes silent and
+  never rejects, left `busy` true forever. **The only way out was to quit the app, destroying
+  everything they had typed.** Both readers share one bounded round trip now.
+  ⚠ **The timer is released after the BODY, not the headers** — `fetch` resolves on headers, so
+  racing it alone bounds the connection and leaves a 200-with-a-stalled-body unwatched, a
+  lesson this same module had already paid for on the AI draft path. And the deadline is
+  **deliberately longer than the server's own ceiling** (75s against the route's 60), because a
+  shorter one aborts a request that was about to come back with a **named** reason and replaces
+  it with a generic failure: *this deadline is for a dead network, not a slow server.* The
+  better answer — a live Cancel during a read — is **registered, not built**: it needs the sheet
+  to tell a read from a save, and closing mid-save is a different and worse bug.
+- ⚠ **AND A TIMED-OUT IMPORT WAS ONLY STOPPING ITS REPORT, NOT ITS WORK.** `finish` is a no-op
+  once the deadline resolves — but the expensive part is the decode and the canvas ladder that
+  run **before** it, so a timed-out import went on materialising a bitmap and encoding it
+  several times for an answer nobody could receive. Three guards, one per window the deadline
+  can land in.
+- ⚠ **AND THE MUTATION ROUND SHOWED THOSE THREE GUARDS ARE A CHAIN THAT MASKS ITSELF.** My
+  first test counted `drawImage` alone, so removing the header-await guard was caught by the
+  FileReader guard, removing the FileReader guard was caught by the image guard, and **two
+  mutations survived a green suite**. Each guard closes a window the next cannot see, so each
+  test now asserts the stage **immediately after its stall** never started. *A chain of guards
+  tested only at its end is one guard with three copies of its own alibi.*
+- ⚠ **AND BOTH SIGNAL TESTS WERE BROKEN INSTRUMENTS, ONE OF THEM BY THIS FILE'S OWN NAMED
+  LESSON.** The first ran with a 5s internal deadline, so dropping the caller's signal entirely
+  still ended the request — five seconds later, by the wrong mechanism, with the assertion none
+  the wiser; the deadline is out of reach now and the result is raced against a short clock. The
+  second asserted **inside the fetch stub**, and `bsRecipePost` wraps the whole round trip in a
+  catch that turns any throw into `unavailable` — so the assertion's failure was **swallowed by
+  the code under test** and the outer expectation passed. *A swallowing catch hides which of the
+  two you are looking at*, recorded on 2026-09-10 and paid for again here.
+- ⚠ **AND A SIBLING GUARD BROKE ON THE CORRECT FIX — the tenth time in this file's records.**
+  The parse client's *"absolute URL AND a Bearer session"* test lifts the function out of the
+  source and drives it, and the round trip moved into the shared helper, so the lifted body's
+  only statement called something that was not there. The **invariant is untouched**; what
+  moved is where it lives, so the fix is to lift both rather than to weaken what is asserted.
+  *A guard that pins a layout pins whatever that layout is wrong about.*
+- ⚠ **AND MY TEST HELPER SILENTLY DROPPED THE `async` KEYWORD.** Lifting a function by anchoring
+  on `function NAME(` cuts `async` off the front, and the result is a non-async function whose
+  `await`s are a **SyntaxError** — which reads as *"the code is broken"* rather than *"the
+  instrument truncated it"*. The sibling suite got away with it only because nothing it lifts is
+  async. *A lift helper that mangles what it lifts fails as a claim about the source.*
+- ⚠ **AND MY OWN PASS ON THAT HEAD HARDENED THE HEADER READER, BECAUSE ITS JOB HAD
+  CHANGED.** Once an unmeasurable image became a **refusal**, a wrong answer stopped being a
+  missed optimisation and became the failure itself: a fabricated small size sends an
+  arbitrarily large image to the full decode. So structure is verified before offsets are
+  trusted — PNG's **IHDR chunk type** (the spec requires it first; a hostile file is not the
+  spec) and VP8's **three-byte sync code**. And the walk is driven against lengths of 0, 1
+  and 65535 and against every truncation from 0 to 24 bytes, because a length field of 0 is
+  the classic way to make a marker walker spin. *A parser whose answer used to be advisory
+  needs re-reading the day it starts deciding.*
+- ⚠ **AND THAT ROUND'S SURVIVOR IS A NO-OP, WHICH IS PROVEN RATHER THAN ASSERTED.** Dropping
+  the `Math.min(1, …)` upscale clamp survives, because the branch is only reached past the
+  pixel budget and an image over 25 MP cannot have a long edge under 1600 — its short edge
+  would have to exceed 15,625. Left at that it is a claim in a comment, so the arithmetic is
+  **driven against the shipped constants**: lower the budget below the resize target squared
+  and an upscale becomes reachable and the guard fails, which is exactly when someone needs
+  to know. The clamp stays, labelled belt-and-braces rather than left to read as live.
+- ⚠ **AND ITS MUTATION ROUND CAUGHT TWO GAPS IN MY OWN GUARDS, BOTH THE SAME SHAPE: A RULE
+  WITH TWO CALL SITES AND A TEST ON ONE OF THEM.** The stale-closure fix landed on the paste
+  reader **and** the photo reader; my mid-flight test drove only the paste one, so reverting
+  the photo path survived — and the photo path is if anything the likelier of the two, since
+  the member has just handed over a page whose title they can read. The control had the same
+  hole in the other direction: it proved a title reaches the Name field on the **photo** path
+  only, so deleting the **paste** path's title-set entirely survived, which would have retired
+  half the feature in silence. *A guard on one of two call sites is a guard on half the rule.*
+- ⚠ **AND ONE MUTATION NEVER RAN, WHICH THE RUNNER REPORTED RATHER THAN HID.** Its anchor
+  was the six-space photo-path line — a **substring** of the eight-space paste-path line — so
+  the occurrence count read 2 and the round skipped it. That is the right failure: a runner
+  that silently replaced the first match would have reported a kill for a mutation applied to
+  the wrong site. The anchor carries its preceding lines now. *An instrument that cannot find
+  its target must say so, not pick a nearby one.*
+- ⚠ **AND ONE MUTATION SURVIVED THE ROUND, WHICH IS THE ROUND PAYING FOR ITSELF.** Turning
+  the header walk's out-of-sync bail into a **resync-and-keep-scanning** passed every
+  assertion in the new file. Both fixtures that should have caught it were blind to it for
+  different reasons: a well-formed chain never reaches that branch at all, and the
+  *"out of sync"* fixture was **zero-filled**, so a scanner finds no `0xFF` to land on and
+  returns null for the same uninteresting reason the walk does. The hazard only shows when
+  the garbage **contains something shaped like a frame header** — which is what a corrupt
+  file carries. The new fixture plants a thumbnail-sized SOF after a lost chain **and asserts
+  a byte scan really would be fooled by it**, because a fixture that cannot fool the wrong
+  implementation is not testing the right one. *Two fixtures aimed at a branch can both miss
+  it, and a passing suite cannot tell you that* — only the mutation can.
+- ⚠ **AND ALWAYS PREFERRING THE DRAFT IS THE SAME TRAP POINTED THE OTHER WAY** — a member
+  who photographs, steps Back and then types a real recipe could never have it read. Neither
+  "is the box empty" nor "is there a draft" separates the two intents. **Whether the text has
+  CHANGED since the draft was made** does, so that is what is asked
+  (`draftPasteRef`), and both directions are driven. ⚠ **It closes a third loss for free:**
+  Back-then-Next on the paste path used to re-run the model over the same text and **overwrite
+  every ingredient and step the member had just corrected** — a wasted provider call that
+  silently discarded the review they had come to that screen to do. Pinned by a **count**: the
+  reader runs once, and the correction survives the round trip.
+- ⚠ **AND THE REVIEWER RULING MOVED TWICE IN ONE DAY, BOTH TIMES AT THE SOURCE.** First:
+  *"dont run coderabbit moving forward"*, which retired the 2026-08-19 authorisation still
+  sitting in the auto-loaded conventions telling the next session it was allowed. Then,
+  after Codex had spent the previous PR **refusing** (*"You have reached your Codex usage
+  limits for code reviews"*): ***"if codex is timed out then use coderabbit"***. So the
+  order is now conditional rather than exclusive — **Codex on every PR, CodeRabbit when
+  Codex is unavailable** — which closes the gap the first ruling left: with one reviewer
+  forbidden and the other refusing, a whole wave of PRs shipped on self-review alone.
+  ⚠ **AND THE REFUSAL DID NOT REPRODUCE ON THIS PR** — the same trigger that was refused
+  twice yesterday came back **Running** on the first try here, which is why the fallback is
+  gated on *reading the Codex summary comment* rather than on remembering that it failed
+  last time. **The merge gate is untouched by both rulings**: CI green on the final head,
+  and not a draft.
+### 2026-09-11 — Thirteen capped reads were ordered ascending, and nine of them kept the OLDEST rows
+
+- **Found while sizing R15's last piece, not by a report — and it is live today.** Derived
+  from the source rather than eyeballed: of **55** capped reads under `src/app/api/`,
+  **thirteen** order `ascending`, and **nine** of those are defects — the cap then keeps the
+  **oldest** N rows. Every one is invisible until a real account outgrows the cap, and then
+  it does not degrade, it **inverts**: the surface goes on working and shows the wrong end of
+  the member's history forever.
+- ⚠ **THE COACH DASHBOARD'S HEADLINE KPIs READ ZERO FOREVER PAST 500 SESSIONS.**
+  `sessionsThisWeek`, `upcomingSessions`, `today`, `calendar` and the client `pulse` are ALL
+  derived from one `sessions` read capped at 500 and ordered ascending — so a trainer past
+  that (about two years at five a week, under one for a full-time coach) is served their
+  **first** 500 sessions: *"Sessions this week"* and *"Upcoming sessions"* both read **0**,
+  the calendar shows rows from years ago, and the pulse lists clients who left. Same read,
+  same cap, same defect in the nutritionist route, and again in each route's shared-coach
+  leg — which also decides `myClientIds`, so the counterpart query goes looking at the wrong
+  clients.
+- ⚠ **AND A MEMBER'S "UPCOMING" CAME BACK EMPTY.** `/api/client/dashboard` caps bookings at
+  100 ascending and then filters to the future — past 100 bookings that filter has nothing
+  to find, however many sessions they have. Their **weigh-ins** are capped at 104 ascending,
+  which a daily logger passes in about **three months**, after which their goal trend never
+  shows this year at all. That is the same defect `/api/client/progress` was fixed for on
+  2026-09-11, two routes over, and its own comment records the lesson.
+- ⚠ **THE MANAGE SCREEN COULD NOT REACH A SESSION THAT NEEDED ACTION.** `/api/sessions/manage`
+  is where a session is confirmed, rescheduled or cancelled — always an upcoming one — and it
+  read the oldest 200.
+- ⚠ **AND A LONG COACH THREAD OPENED ON MESSAGES FROM A YEAR AGO.** `conversations/[id]/messages`
+  capped at 500 ascending, so past that the tail of the conversation was unreachable. **The
+  incremental poll keeps ascending and that is not an oversight:** the caller already holds
+  everything up to `since`, so the rows that close the gap are the **oldest** ones after it —
+  taking the newest 500 instead would leave a hole in the middle of the thread that no later
+  poll ever fills. Either way the response is ascending, which is the contract every client
+  reads.
+- ⚠ **AND THE CALENDAR RE-INTRODUCED A DEFECT ITS OWN COMMENT SAYS WAS FIXED.** Its plan read
+  has **no date filter**, caps at 200 ascending, and passes `nullsFirst: false` — so on a long
+  plan it kept the oldest dated rows and dropped **every undated workout**, which is precisely
+  the *"Home shows my plan but the calendar is empty"* case the note above that query
+  describes. The cap is what brought it back. Undated rows are never trimmed now
+  (`nullsFirst: true` on a descending read).
+- ⚠ **ASCENDING IS NOT ALWAYS WRONG, AND A BLANKET SWEEP WOULD HAVE BROKEN FIVE CORRECT
+  READS.** `radio/rooms` and `trainer/adjust` are already **bounded to the future** by their
+  own filters, so ascending keeps the NEXT N — flipping them would hide tonight's rooms and
+  the nearest sessions. `lead-boosts` and `stripe/connect-account` order by `id` ascending
+  with `limit(1)` to pick an account's **primary** provider row deterministically; flipping
+  either would silently attach a boost, or a Stripe account, to a different row. Each says so
+  at the site with a `capped-read-ok:` marker.
+- **`tests/capped-reads.test.mjs` DERIVES its corpus from the route files** — 55 capped reads
+  across every `.ts` under `src/app/api/` — so a query added later is covered with nobody
+  remembering the test exists. It asserts it **found** a corpus and that it can see **both**
+  spellings of a cap (a literal and a named constant), because a sweep that quietly stops
+  matching passes vacuously: that is the exact way the `/api/client/progress` guard lost two
+  thirds of its corpus the moment its cap was named.
+- ⚠ **AND THE EXEMPTION IS A MARKER, NOT AN ALLOWLIST THE GUARD ENFORCES.** A file-name
+  allowlist goes stale silently; requiring a `capped-read-ok:` note **at the query** puts the
+  reason where the next reader is. A separate assertion pins which five carry one today, so a
+  sixth is a decision somebody has to come here and make — and a mutation that sprinkles the
+  marker on an unchecked read is proven to fail it.
+- ⚠ **A CAPPED COUNT IS REPORTED AS CAPPED.** `totalSessions` / `totalConsults` are counts
+  taken over the capped window, i.e. a **floor**, so `totalCapped` rides beside them. R15's
+  KPI picker wanted to display one as *"all time"*, and a payload that does not say it is
+  capped cannot be checked by the consumer that labels it. Nothing displays them yet — this is
+  the precondition being paid before the label exists, not after.
+- ⚠ **AND ONE TWO-LINE COMMENT CAME OUT AS A 296-LINE DIFF.** `lead-boosts/route.ts` is the
+  one file in this set stored with **CRLF** line endings, and writing it back through a
+  text-mode rewrite silently normalised the whole file to LF — so a marker nobody needed to
+  review arrived as 147 deletions and 149 insertions, with the two real lines buried in it.
+  Re-applied **in binary**, against the file's own bytes: 2 insertions, 0 deletions.
+  *Rewriting a whole file is not a safe way to insert a line, and the diff is the only thing
+  that says so.*
+- **Verified:** `npm test` **3261/3261** · `tsc --noEmit` 0 · **17/17 mutations killed**, each
+  proven to land, sanity green at both ends — including two aimed at the **guard itself**
+  (a pattern that stops matching, and one that stops accepting a named cap, both caught by its
+  own vacuity checks) and three at the lifted comparators, which are **executed** over
+  vectors rather than pinned by spelling.
+- ⚠ **NO ON-ACCOUNT PASS, AND THIS ONE CANNOT HAVE A SIMULATED ONE.** Every defect here needs
+  an account that has outgrown a cap; the repo has none, so the fixes are argued from the
+  queries and proven at the comparators. The honest check is a coach past 500 sessions.
+
+### 2026-09-11 — R15's drawer: six sections become the ones this coach reads, keyed so a reworded heading cannot unhide one
+
+- **R15 off [`REVIEW-2026-09-09-website-dashboard.md`](REVIEW-2026-09-09-website-dashboard.md) §9** —
+  *choose the drawer's sections per lens*. The client drilldown is a **440px modal with six
+  sections**, and a coach who never reads Milestones scrolls past it on every client, every
+  day. Each section is a toggle now, remembered per account and per role. No migration, no
+  new route. **The KPI picker for the stat strips is the last piece of R15.**
+- ⚠ **THE CONTROL LIVES IN THE DRAWER, NOT ON A CARD'S ⚙, and that is forced by where the
+  drawer opens from: FOUR places** — the roster table, the pulse, the schedule and the
+  roster page. Any one card's gear would be the wrong home for a preference about the
+  drawer itself, and three of the four would not carry it. Written once in the shared
+  component, it works from all four.
+- ⚠ **EVERY SECTION CARRIES A STABLE KEY, AND THE TITLE IS NOT IT.** The hidden list is
+  stored against those keys, and a title is user-facing copy: keying on it would mean
+  **rewording a heading silently un-hides that section** for everyone who had hidden it, and
+  renaming it back re-hides it. `["notes", "Coach notes", DashSecNotes]` — the key never
+  changes, the title is free to. The two lenses deliberately **share `goals`**: one concept,
+  one key, so a coach who hides it hides it in both.
+- ⚠ **THE SET STORES WHAT IS HIDDEN, NOT WHAT IS SHOWN, AND THE POLARITY IS THE DESIGN.**
+  Storing the shown list pins today's drawer into the coach's own data: a section added next
+  month would be **missing for every coach who had ever touched the control**, with no way
+  to know it existed. Hiding is the exception, so the exception is what is written — the
+  same reasoning as `useRememberedChoice` refusing to store a value equal to the default.
+- ⚠ **HIDING EVERYTHING IS ALLOWED, AND THE DRAWER SAYS SO.** A coach who hides all six
+  gets what they asked for — but a name and two buttons reads as broken, so the empty state
+  names the way back (*"Every section is hidden. Open ⚙ above to bring one back."*). A
+  control whose effect cannot be reversed from where you see it is the dead-control class
+  from the other direction. And the **gear itself lights teal** whenever anything is hidden,
+  so the drawer never quietly omits a section.
+- ⚠ **A KEY THIS BUILD DOES NOT RECOGNISE IS IGNORED, NOT DROPPED** from the document, and
+  it does **not** count toward the hidden tally — a section retired here may belong to a
+  build that still has it, and counting it would light the gear over a drawer that is whole.
+- ⚠ **THE HOOKS RUN ABOVE THE EARLY RETURN**, or a drawer that closes renders fewer hooks
+  than the one that opened — the rules-of-hooks class this file post-mortems, which neither
+  the build nor `tsc` nor the suite catches. Pinned by a guard that compares the **positions**
+  of the three hooks against the bail, and by a mutation that moves the bail above them.
+  ⚠ **My first attempt at that mutation moved nothing** (`0 || useRememberedChoices(true)`)
+  and "survived" — a no-op dressed as a test of ordering.
+- ⚠ **AND THE OTHER SURVIVOR WAS DEAD CODE, WHICH MAKES TWO IN TWO PRs — BUT THE CONTRAST
+  IS THE USEFUL PART.** A `.filter((x) => typeof x === "string" && x)` on the hidden list
+  survived removal, because every section key is a slug from the table above and nothing a
+  corrupted document can carry (`null`, `""`, a number) can ever equal one. **The
+  identically-shaped filter in `pulseOrder` is load-bearing** and its mutation fails, because
+  there a `null` genuinely matches: the id reader returns `null` for a row with no profile
+  id. *The same shape is not the same guard* — so one was deleted with the reasoning at the
+  site and the other kept with a pointer to why.
+- ⚠ **AND MY OWN DIFF READ — THE ONLY REVIEW LAYER LEFT — CAUGHT A BORDER THAT WAS NEVER
+  GOING TO PAINT.** The sections panel shipped `1px solid ${DASH_ROSTER_INK50}33`, and that
+  token is an **rgba() string**: the value was `rgba(242,237,228,0.55)33`, which is not a
+  colour, so CSS error-handling drops the **whole declaration** and the border simply does
+  not exist. **Neither the mutation round nor the browser drive could see it** — an absent
+  border still renders, still passes, still looks approximately right. The same class this
+  log post-mortems on the page textures, where two of them voided every page background,
+  and `dashToday.jsx` carries the identical warning above its own hex muted ink. A separate
+  `DASH_ROSTER_HAIR` rgba now, and a **derived sweep** over every `.js`/`.jsx` in
+  `public/newdesign` — each file's own rgba constants, found by reading its declarations
+  rather than by naming tokens — asserts none of them is ever given a hex alpha suffix.
+  Measured across the whole surface: **zero offenders**, and both spellings of the
+  reintroduction (template and concatenation) are proven to fail it.
+- ⚠ **AND CODEX — WHICH THE HEAD OF THIS FILE HAD RECORDED AS REFUSING THAT MORNING —
+  ANSWERED, AND ITS ONE FINDING WAS REAL: THE DRAWER OPENED A PREFERENCE STORE OF ITS
+  OWN.** `DashClientDrawer` is mounted **only while it is open**, so a store of its own
+  started a fresh `dashboard_prefs` read on **every open**: six sections painted and two
+  dropped ~300 ms later, every time — and a coach who reached the ⚙ inside that window
+  derived their list from an **empty** document, after which the reconciliation effect
+  wrote that one-item list **over the sections they had hidden last week**. Silent data
+  loss, in the feature whose whole point is remembering what they hid.
+- **The store is the PAGE's now, passed in from all three hosts** (the roster table via
+  both Clients pages, the schedule, the pulse) — hydrated long before any row is clicked.
+  Measured rather than argued: **40 samples at 40 ms from the click, four heads on every
+  one**, where the flash would have been unmissable. A host that passes none degrades to
+  session-only, and a **derived sweep** over every `.jsx` in `public/newdesign` — the
+  mounts found by parsing each opening tag, not by naming files — asserts every mount site
+  supplies one, so that path is a safety net rather than a plan.
+- ⚠ **AND THE HOOK NEEDED THE FIX AS WELL AS THE THREADING, BECAUSE THE RACE IS NOT THE
+  DRAWER'S: `useRememberedSet` IS ALSO THE PULSE PINS.** `chosen` outranks the document by
+  design — a late read must never move a control out from under a hand already on it — and
+  for a **set** that rule loses data. A choice made before the store settles is **folded
+  into** the document when it arrives instead of replacing it.
+- ⚠ **THE FOLD CAN ONLY EVER ADD, AND SAYING SO IS WHAT KEPT IT HONEST.** My first cut
+  carried a removal arm too, and a mutation deleting it **survived** — because until the
+  store settles its doc is `{}`, so the control shows nothing to un-toggle. It is deleted,
+  with the reasoning at the site: *a removal arm there is a guard that cannot fire, and the
+  next reader would trust it.* Two survivors in two PRs, both dead code, both deleted
+  rather than tested around.
+- ⚠ **AND THE ACCOUNT CLEAN-SLATE HAD TO SIT THE FOLD OUT — reachable in exactly ONE
+  render, which is why the first test for it was vacuous.** React can batch the auth event
+  and the document's arrival together, and on that single frame the fold would run *after*
+  the block that is busy discarding A's ids, so it wins and B inherits them. My first
+  version released the read and flushed — but `flush` renders on entry, so the auth event
+  got its own frame and the mutation **survived**. Draining the microtasks *before* the
+  render is what makes the two land together, and the mutation then dies.
+- ⚠ **AND MY OWN REACT HOST CANCELLED THE EFFECT IT WAS MEANT TO RUN.** Making the body
+  re-run before effects commit (which is what React does, and what a hook that sets state
+  during render needs) meant every pass after the first saw unchanged deps and cleared the
+  `pending` the first pass had scheduled — so a **re-hydrate silently never ran**, and the
+  A→B test reported the code broken. A pending effect is carried forward now. *An
+  instrument that reports a failure is as broken as one that reports a pass, until the
+  failure is proven to be the code's.*
+- ⚠ **AND A SIBLING GUARD BROKE ON THE CORRECT FIX, AGAIN — the eighth time in this wave.**
+  `roster-sort` pinned the **exact** `DashRosterTable` signature, so threading one more prop
+  failed a test about **dead buttons**. It asserts the invariant now — the table takes the
+  sort as props — which is what it was ever about.
+- **Verified:** `npm test` **3253/3253** · `tsc --noEmit` 0 · JSX parse on all six changed
+  modules · the newdesign precompile check · **30/30 mutations killed across three rounds**
+  (15 on the sections, 12 on the fold and the threading, 3 re-proving the re-anchored
+  signature guard), each proven to land, sanity green at both ends · the drawer's first
+  paint sampled **40 times at 40 ms from the click, four heads on every one** · and driven
+  in Chromium against a simulated live coach: six section heads and one
+  ⚙, the panel offering **all six** as pressed-state chips, hiding *Milestones* and *Coach
+  notes* → **four heads left in their original order**, the gear lit teal, stored as
+  `{"drawerHidden:trainer":["milestones","notes"]}` — the **keys**, not the titles — then a
+  **reload brings the same four back**, and hiding all six renders *"Every section is
+  hidden. Open ⚙ above to bring one back."* with zero heads. Zero page errors.
+- ⚠ **AND THE HARNESS CLICKED THE NAV BURGER FIRST.** `[aria-label^="Open "]` matches
+  `aria-label="Open menu"`, which is hidden at that width, so the run timed out on an
+  element that was never the target. The drilldown rows end in *"drilldown"*; the selector
+  says so now. *A prefix selector over a shared verb matches whatever else starts that way.*
+- ⚠ **STILL A SIMULATED LIVE STATE.** A stubbed `shapeDb` over localStorage; an on-account
+  pass is owed.
 
 ### 2026-09-11 — R15's pin: the pulse keeps the two people you are actually working with in front of you
 

@@ -715,7 +715,7 @@ function DashWinsPanel({ clients, role }) {
   );
 }
 
-function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin }) {
+function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }) {
   // Urgency order: at-risk (red, then amber — the feed is already sorted),
   // then brand-new clients, then on-track — with the coach's own pins lifted above it.
   //
@@ -844,7 +844,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin }) {
         </div>
       )}
       {rows.map((r, i) => renderRow(r, i))}
-      {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setOpenRow(null)} />}
+      {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setOpenRow(null)} prefs={prefs} />}
     </div>
   );
 }
@@ -1128,7 +1128,7 @@ function CoachDashboardPage({ role }) {
     { key: "kpis", title: "Overview", size: "full", render: () => renderKpiStrip(kpis) },
     { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis) },
     { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
-    { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} />) },
+    { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
     ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "wins", title: "Client wins", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
     ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
@@ -1158,7 +1158,7 @@ function CoachDashboardPage({ role }) {
       schedule={schedule}
       pulseTitle="Client pulse"
       pulse={pulse}
-      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} /> : undefined}
+      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} /> : undefined}
       scheduleRender={cfg.expandSchedule ? () => <ExpandableSchedule schedule={schedule} clients={clients} role={role} /> : undefined}
       extraSections={[
         ...(cfg.programmingQueue ? [{

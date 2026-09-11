@@ -296,8 +296,19 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   // The shipped function, brace-matched out of shapeBackend.js and DRIVEN — a
   // source scan cannot tell an absolute URL from a relative one at call time.
   const backend = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
-  const at = backend.indexOf('async function parseRecipeText');
-  assert.ok(at > 0, 'parseRecipeText is not in shapeBackend.js');
+  // ⚠ THE ROUND TRIP MOVED INTO A SHARED HELPER AND THIS GUARD HAD TO FOLLOW IT.
+  // Both readers were each carrying their own unbounded `fetch`; they share one
+  // bounded `bsRecipePost` now, so lifting `parseRecipeText` alone yields a body
+  // whose only statement calls a function that is not there. The INVARIANT is
+  // untouched — an absolute URL and a Bearer header, driven rather than scanned —
+  // so the fix is to lift both, not to weaken what is asserted.
+  const liftFn = (name) => {
+    let a = backend.indexOf(`function ${name}(`);
+    assert.ok(a > 0, `${name} is not in shapeBackend.js`);
+    if (backend.slice(Math.max(0, a - 6), a) === 'async ') a -= 6;
+    return a;
+  };
+  const at = liftFn('parseRecipeText');
   // ⚠ SKIP THE PARAMETER LIST FIRST. This function's parameters are DESTRUCTURED
   // (`{ signal } = {}`), so a matcher that starts counting at the first `{` after
   // the name opens and closes on the parameters and hands back a 47-character
@@ -318,8 +329,25 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
     else if (backend[j] === '}') { depth -= 1; if (depth === 0) { end = j + 1; break; } }
   }
   assert.ok(end > i, 'could not brace-match the function body');
-  const body = backend.slice(at, end);
-  assert.ok(body.length > 400, `lifted ${body.length} chars — that is a signature, not a body`);
+  const textBody = backend.slice(at, end);
+  assert.ok(textBody.length > 200, `lifted ${textBody.length} chars — that is a signature, not a body`);
+
+  // The shared round trip, lifted the same way and prepended.
+  const pAt = liftFn('bsRecipePost');
+  let pDepth = 0, pEnd = -1;
+  for (let j = backend.indexOf('{', backend.indexOf(')', pAt)); j < backend.length; j += 1) {
+    if (backend[j] === '{') pDepth += 1;
+    else if (backend[j] === '}') { pDepth -= 1; if (pDepth === 0) { pEnd = j + 1; break; } }
+  }
+  assert.ok(pEnd > pAt, 'could not brace-match bsRecipePost');
+  const postBody = backend.slice(pAt, pEnd);
+  assert.ok(postBody.length > 400, `lifted ${postBody.length} chars of bsRecipePost — a signature, not a body`);
+  const body = `${postBody}\n${textBody}`;
+  // The deadline is read from the source for the same reason the paste bound is:
+  // a retyped copy keeps passing after the real one moves.
+  const msM = backend.match(/const BS_RECIPE_REQUEST_MS = ([\d_]+);/);
+  assert.ok(msM, 'BS_RECIPE_REQUEST_MS is not declared in shapeBackend.js');
+  const REQ_MS = Number(msM[1].replace(/_/g, ''));
 
   const calls = [];
   // ⚠ The lifted function closes over BS_RECIPE_PASTE_MAX, so it has to be
@@ -327,11 +355,15 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   // test would keep passing after the real bound moved.
   const boundM = backend.match(/const BS_RECIPE_PASTE_MAX = (\d+)/);
   assert.ok(boundM, 'BS_RECIPE_PASTE_MAX is not declared in shapeBackend.js');
-  const make = (res) => new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX', `${body}; return parseRecipeText;`)(
+  const make = (res) => new Function(
+    'apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX',
+    'BS_RECIPE_REQUEST_MS', 'AbortController', 'setTimeout', 'clearTimeout',
+    `${body}; return parseRecipeText;`,
+  )(
     'https://api.example.test',
     (extra = {}) => ({ ...extra, Authorization: 'Bearer tok-123' }),
     async (url, opts) => { calls.push({ url, opts }); return res; },
-    Number(boundM[1]),
+    Number(boundM[1]), REQ_MS, AbortController, setTimeout, clearTimeout,
   );
 
   const ok = await make({ ok: true, json: async () => ({ draft: { title: 'T', ingredients: [{ n: '1', m: 'egg' }], steps: ['One.'] } }) })('x'.repeat(40));
@@ -353,8 +385,13 @@ test('the backend parse client sends apiBaseUrl AND the Bearer session', async (
   // real answer rather than an error state.
   assert.equal((await make({ ok: false, json: async () => ({}) })('x'.repeat(40))).ok, false);
   assert.equal((await make({ ok: true, json: async () => ({ draft: null, reason: 'no_key' }) })('x'.repeat(40))).reason, 'no_key');
-  const thrower = new Function('apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX', `${body}; return parseRecipeText;`)(
+  const thrower = new Function(
+    'apiBaseUrl', 'sessionsAuthHeaders', 'fetch', 'BS_RECIPE_PASTE_MAX',
+    'BS_RECIPE_REQUEST_MS', 'AbortController', 'setTimeout', 'clearTimeout',
+    `${body}; return parseRecipeText;`,
+  )(
     '', () => ({}), async () => { throw new Error('offline'); }, Number(boundM[1]),
+    REQ_MS, AbortController, setTimeout, clearTimeout,
   );
   const off = await thrower('x'.repeat(40));
   assert.equal(off.ok, false);
@@ -772,5 +809,476 @@ test('⚠ AND SO DOES THE DETAIL SCREEN — the same wiring, the same gap', asyn
     assert.match(ed.text, /account changed/i);
   } finally {
     w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.bsAskConfirm = prev.confirm;
+  }
+});
+
+// ── the photo draft's way out ───────────────────────────────────────────────
+//
+// ⚠ THESE ARE ABOUT A ONE-WAY DOOR, NOT ABOUT COPY. A photograph never passes
+// through the paste box, so every gate that asked for a paste was a gate a photo
+// import could not satisfy — and the sheet holds the ONLY copy of a
+// transcription, so a stage it cannot leave is a stage that destroys work.
+
+// The photo path, driven end to end: a fake pick, a stubbed reader, the review
+// screen, the save. `title` is deliberately EMPTY — a page whose recipe name is
+// in a typeface or a margin the reader could not lift is the ordinary case, and
+// it is the one that used to be unrecoverable.
+async function drivePhotoSheet(SHEET, { draft, onSaved = () => {}, db, parse = null } = {}) {
+  const w = globalThis.window;
+  const map = new Map();
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+  w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+  w.shapeDb = db || {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({}),
+    saveUserGoalsIfRev: async () => ({ ok: true }),
+  };
+  // ⚠ `parse` IS INJECTABLE, AND THE DEFAULT NULL IS NOT NEUTRAL. With no parser
+  // the sheet falls back to its structural split, so a test asserting "the typed
+  // recipe was read" passes on a draft the READER never saw — the right outcome
+  // reached through the wrong path, which proves nothing about the reader being
+  // handed the new text. A test that cares about that supplies a stub.
+  w.ShapeRecipeImport = { parse, photo: async () => ({ ok: true, draft }) };
+  const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved });
+  const drain = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); ed.render(); };
+  const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+  const values = () => inputs().map((n) => String(n.props.value || ''));
+  const nameField = () => inputs().find((n) => /lemon chicken/.test(String(n.props.placeholder || '')));
+  const pick = async () => {
+    const file = ed.nodes().find((n) => n.type === 'input' && n.props.type === 'file');
+    assert.ok(file, 'the photo control must render a file input');
+    file.props.onChange({ target: { files: [{ name: 'page.jpg', type: 'image/jpeg', size: 120_000 }], value: 'C:\\page.jpg' } });
+    await drain();
+  };
+  return { ed, drain, inputs, values, nameField, pick, restore() { w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp; } };
+}
+
+const PHOTO_DRAFT = { title: '', servings: null, ingredients: [{ n: '1 cup', m: 'flour' }], steps: ['Mix it well.'] };
+
+test('⚠ A PHOTO DRAFT WITH NO TITLE CAN STILL BE KEPT — the write stage was a one-way door', async () => {
+  // The trap, exactly: Keep it refused for want of a name and bounced to the
+  // write stage; that stage's Next wanted a paste; a photograph produces none;
+  // so Next was permanently disabled and the only live control was Cancel. The
+  // member's transcription could be destroyed and could not be kept.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const saved = [];
+  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT, onSaved: (it) => saved.push(it) });
+  try {
+    await h.pick();
+    assert.match(h.ed.text, /check it against the page/i, 'a read photo lands on the review screen');
+    assert.ok(h.values().some((v) => v.includes('flour')), 'with the transcription in hand');
+
+    h.ed.click('Keep it');
+    await h.drain();
+    assert.match(h.ed.text, /Give it a name first/i, 'an unnamed recipe is still refused');
+    assert.deepEqual(saved, [], 'and nothing is written');
+
+    // ⚠ AND THE REFUSAL LEAVES THEM ON THE SCREEN THAT HOLDS THE DRAFT. Both
+    // halves are asserted: the ingredient is still editable (so this is the
+    // review stage), and the paste box is nowhere (so it did not bounce).
+    assert.ok(h.values().some((v) => v.includes('flour')), 'the transcription is still on screen');
+    assert.doesNotMatch(h.ed.text, /Paste the recipe/, 'a refused save must not bounce to the write stage');
+
+    // The name is asked for HERE, and answering it keeps the recipe.
+    const name = h.nameField();
+    assert.ok(name, 'the Name field must be on the review screen');
+    name.props.onChange({ target: { value: 'Flatbread from the blue book' } });
+    h.ed.render();
+    h.ed.click('Keep it');
+    await h.drain();
+    assert.equal(saved.length, 1, 'naming it on this screen keeps it');
+    assert.equal(saved[0].title, 'Flatbread from the blue book');
+    assert.equal(saved[0].sourceKind, 'photo', 'and it is filed as a photo import');
+    assert.deepEqual(saved[0].ingredients, PHOTO_DRAFT.ingredients, 'with the transcription intact');
+  } finally { h.restore(); }
+});
+
+test('⚠ AND BACK IS NOT A TRAPDOOR EITHER — Next returns to a draft the paste box never held', async () => {
+  // The same dead end reached by the other door. Stepping Back from a photo
+  // review lands on the write stage with an empty paste box; if Next reads only
+  // the paste, the draft is on screen nowhere and reachable by nothing.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT });
+  try {
+    await h.pick();
+    h.ed.click('Back');
+    h.ed.render();
+    assert.match(h.ed.text, /Paste the recipe/, 'Back reaches the write stage');
+
+    const next = h.ed.buttons().find((b) => b.label.startsWith('Next'));
+    assert.ok(next, 'the forward control exists');
+    assert.equal(next.disabled, false, 'a draft in hand is a way forward, with or without a paste');
+
+    h.ed.click('Next');
+    h.ed.render();
+    // ⚠ AND IT RETURNS THE TRANSCRIPTION RATHER THAN RE-READING AN EMPTY BOX.
+    // Running the structural split over '' would replace a read page with an
+    // empty draft — the same loss, arrived at by looking like it worked.
+    assert.ok(h.values().some((v) => v.includes('flour')), 'the transcription comes back');
+    assert.ok(h.values().some((v) => v.includes('Mix it well')), 'method and all');
+
+    // ⚠ AND THE RETURN CLEARS THE LAST FAILURE, as every other path through this
+    // button does. The error line renders on BOTH stages, so a refusal carried
+    // forward sits a dead sentence over the draft it is no longer about.
+    h.ed.click('Keep it');
+    await h.drain();
+    assert.match(h.ed.text, /Give it a name first/i, 'unnamed is still refused');
+    h.ed.click('Back');
+    h.ed.render();
+    h.ed.click('Next');
+    h.ed.render();
+    assert.doesNotMatch(h.ed.text, /Give it a name first/i, 'a new pass at the draft starts clean');
+    assert.ok(h.values().some((v) => v.includes('flour')), 'and the draft is still the one on screen');
+  } finally { h.restore(); }
+});
+
+test('an EMPTY sheet still cannot go forward — the gate was narrowed, not removed', async () => {
+  // The guard against the fix above going too far: with no paste and no draft
+  // there is nothing to review, and Next must stay shut.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT });
+  try {
+    const next = h.ed.buttons().find((b) => b.label.startsWith('Next'));
+    assert.equal(next.disabled, true, 'an empty sheet has nothing to move forward to');
+  } finally { h.restore(); }
+});
+
+test('⚠ THE LIBRARY TAG SAYS WHICH READER IT WAS — a transcription is not a paste', async () => {
+  // This tag is the ONLY provenance a member sees months later, on the screen
+  // where they decide whether to trust a line — and "from your paste" was shown
+  // for every AI-drafted recipe including the ones read off a photograph.
+  // `sourceKind` is stamped at save for exactly this.
+  const DETAIL = await loadBroadsheet(['BSLibraryDetail']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb };
+  const seen = (rec) => {
+    const map = new Map([['shape.library', JSON.stringify([{ ...bsRecipePointer(rec), savedAt: 2 }])]]);
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({ v: 1, rev: 1, items: { [rec.id]: rec } }) };
+    const item = { ...bsRecipePointer(rec), savedAt: 2 };
+    return drive(DETAIL.BSLibraryDetail, { item, onBack() {}, myDoc: { v: 1, rev: 1, items: { [rec.id]: rec } } }).text;
+  };
+  try {
+    const fromPhoto = seen({ ...MINE, draftedByAI: true, sourceKind: 'photo' });
+    assert.match(fromPhoto, /from your photo/i, 'a transcription says so');
+    assert.doesNotMatch(fromPhoto, /from your paste/i, 'and does not claim to be a paste');
+
+    const fromPaste = seen({ ...MINE, draftedByAI: true, sourceKind: 'paste' });
+    assert.match(fromPaste, /from your paste/i, 'and the paste form survives');
+    assert.doesNotMatch(fromPaste, /from your photo/i);
+
+    // A typed-in recipe carries no AI provenance at all — the tag is about the
+    // reader, so a recipe with no reader has none.
+    const typed = seen({ ...MINE, sourceKind: 'paste' });
+    assert.doesNotMatch(typed, /Read by Shape/i);
+  } finally { w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; }
+});
+
+test('⚠ TOO-LARGE AND WILL-NOT-DECODE ARE DIFFERENT SENTENCES — the client split them and this map had folded them back', async () => {
+  // shapeBackend goes to the trouble of returning a `too_large` distinct from
+  // `bad_image`, with a comment saying why: a merely-large photo must not be
+  // sent back for a CLEARER one "filling the frame", because a sharper busier
+  // image encodes BIGGER and the next attempt fails harder. This mapper was
+  // handing both reasons that same sentence, undoing the split one layer up.
+  const MAP = await loadBroadsheet(['bsRecipePhotoErr']);
+  const tr = (k, o) => (o && o.defaultValue) || k;
+  const say = (reason) => MAP.bsRecipePhotoErr(tr, reason);
+  const reasons = ['too_large', 'bad_image', 'unsupported_type', 'no_draft', 'no_key', 'unavailable'];
+  const said = reasons.map(say);
+
+  assert.notEqual(say('too_large'), say('bad_image'),
+    'a photo that is too big and one that will not decode want different advice');
+  assert.doesNotMatch(say('too_large'), /clearer|filling the frame/i,
+    'telling them to fill the frame makes the file bigger');
+  assert.match(say('too_large'), /crop/i, 'cropping is the one recovery a member can perform');
+
+  // Every reason still gets a sentence of its own, and the fallback still
+  // answers a reason nobody enumerated.
+  assert.equal(new Set(said.slice(0, 5)).size, 5, `each named reason needs its own sentence (${JSON.stringify(said)})`);
+  assert.equal(say(undefined), say('unavailable'), 'an unknown reason falls to the generic line');
+  for (const s of said) assert.ok(s.length > 12 && !s.includes(':'), `a reason must resolve to a sentence, got ${JSON.stringify(s)}`);
+});
+
+test('⚠ A PHOTO DRAFT SURVIVES STALE TEXT LEFT IN THE PASTE BOX', async () => {
+  // Codex, P1 on this PR. The photo button sits directly under the paste box, so
+  // "type a bit, think better of it, photograph the page instead" leaves a
+  // transcription in hand AND abandoned text in the box. Asking only whether the
+  // box is EMPTY sent Next to the paste parser, and setDraft(next || splitLocally())
+  // replaced the transcription with a split of the text they had already given up
+  // on — silently, with no Keep control on that stage to rescue it.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const h = await drivePhotoSheet(SHEET, { draft: PHOTO_DRAFT });
+  try {
+    // Type something first, then photograph instead.
+    const paste = h.inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')));
+    assert.ok(paste, 'the write stage has a paste box');
+    paste.props.onChange({ target: { value: 'half a recipe I gave up on' } });
+    h.ed.render();
+    await h.pick();
+    assert.ok(h.values().some((v) => v.includes('flour')), 'the transcription is in hand');
+
+    h.ed.click('Back');
+    h.ed.render();
+    h.ed.click('Next');
+    h.ed.render();
+    // ⚠ THE TRANSCRIPTION COMES BACK, and the abandoned text did not become the
+    // draft. Both halves are asserted: a split of "half a recipe I gave up on"
+    // would leave that string in an editable row.
+    assert.ok(h.values().some((v) => v.includes('flour')), 'the photo draft must survive');
+    assert.ok(h.values().some((v) => v.includes('Mix it well')), 'method and all');
+    const rows = h.values().filter((v) => v.includes('gave up on'));
+    assert.deepEqual(rows.filter((v) => v !== 'half a recipe I gave up on'), [],
+      'the abandoned text must not have been split into the draft');
+  } finally { h.restore(); }
+});
+
+test('⚠ BUT EDITING THE PASTE MEANS READ THE PASTE — the draft does not outrank a changed box', async () => {
+  // The same trap pointed the other way: always preferring the draft would leave
+  // a member who photographed, stepped Back and then typed a real recipe with no
+  // way to get it read at all.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  // ⚠ A REAL PARSER STUB, NOT THE DEFAULT NULL. Without one the sheet falls back
+  // to its structural split, which also produces a draft containing "oats" — so
+  // the assertion passed without the reader ever being handed the new text, and
+  // "the typed recipe is read" was a claim about a path the test never exercised.
+  const seen = [];
+  const h = await drivePhotoSheet(SHEET, {
+    draft: PHOTO_DRAFT,
+    parse: async (text) => {
+      seen.push(text);
+      return { ok: true, draft: { title: '', servings: null, ingredients: [{ n: '2 cups', m: 'oats' }], steps: ['Soak them overnight.'] } };
+    },
+  });
+  try {
+    await h.pick();
+    assert.deepEqual(seen, [], 'a photo import must not touch the paste reader');
+    h.ed.click('Back');
+    h.ed.render();
+    const paste = h.inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')));
+    paste.props.onChange({ target: { value: 'Ingredients\n2 cups oats\nMethod\nSoak them overnight.' } });
+    h.ed.render();
+    h.ed.click('Next');
+    await h.drain();
+    assert.equal(seen.length, 1, 'the reader must actually be asked');
+    assert.match(seen[0], /2 cups oats/, 'and handed the text they just typed, not the text the draft came from');
+    assert.ok(h.values().some((v) => v.includes('oats')), 'the typed recipe is read');
+    assert.ok(!h.values().some((v) => v.includes('Mix it well')), 'and it replaces the photo draft, as asked');
+  } finally { h.restore(); }
+});
+
+test('and a re-entry with an untouched box does not re-run the reader over the members edits', async () => {
+  // The same discriminator buys this for free: Back then Next on the PASTE path
+  // used to re-parse the same text and overwrite every row the member had just
+  // corrected — a second silent loss, and a wasted provider call for a draft
+  // already in hand.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  let reads = 0;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    w.ShapeRecipeImport = { photo: null, parse: async () => { reads += 1; return { ok: true, draft: { title: 'T', servings: null, ingredients: [{ n: '1', m: 'flour' }], steps: ['Mix.'] } }; } };
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const drain = async () => { for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0)); ed.render(); };
+    const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+    inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')))
+      .props.onChange({ target: { value: 'Ingredients\n1 cup flour\nMethod\nMix.' } });
+    ed.render();
+    ed.click('Next');
+    await drain();
+    assert.equal(reads, 1, 'the reader ran once');
+
+    // Correct a row, step back, come forward again.
+    const ing = inputs().find((n) => String(n.props.value || '').includes('flour'));
+    ing.props.onChange({ target: { value: 'strong white flour' } });
+    ed.render();
+    ed.click('Back'); ed.render();
+    ed.click('Next'); ed.render();
+    assert.equal(reads, 1, 'and it must not run again over a box nobody touched');
+    assert.ok(inputs().some((n) => String(n.props.value || '') === 'strong white flour'),
+      "the member's own correction must survive the round trip");
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('⚠ A NAME TYPED WHILE THE READER IS RUNNING OUTRANKS THE ONE THE READER FINDS', async () => {
+  // Codex, P2 on the fix round. The Name field stays editable while "Reading…"
+  // shows — only the buttons are disabled — and the completion handler read
+  // `title` from the render that STARTED the request. So a member who typed a
+  // name during the round trip had it silently replaced by the model's: the
+  // closure still saw the empty string it was created with, and the guard that
+  // exists to protect their input waved the overwrite through.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  let release;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    // The reader hangs until the test releases it, so the typing genuinely
+    // happens mid-flight rather than before or after.
+    const pending = new Promise((r) => { release = r; });
+    w.ShapeRecipeImport = { photo: null, parse: () => pending };
+
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+    const nameField = () => inputs().find((n) => /lemon chicken/.test(String(n.props.placeholder || '')));
+
+    inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')))
+      .props.onChange({ target: { value: 'Ingredients\n1 cup flour\nMethod\nMix.' } });
+    ed.render();
+    ed.click('Next');
+    ed.render();
+    assert.match(ed.text, /Reading/, 'the read is in flight');
+
+    // They type a name while it reads.
+    nameField().props.onChange({ target: { value: 'Grandma Rose' } });
+    ed.render();
+
+    release({ ok: true, draft: { title: 'Untitled Recipe 4', servings: null, ingredients: [{ n: '1', m: 'flour' }], steps: ['Mix.'] } });
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+
+    assert.ok(inputs().some((n) => String(n.props.value || '') === 'Grandma Rose'),
+      "the member's own name must survive the read landing");
+    assert.ok(!inputs().some((n) => String(n.props.value || '') === 'Untitled Recipe 4'),
+      "the reader's title must not overwrite one they typed mid-flight");
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('⚠ AND THE PHOTO READER HAS THE SAME CLOSURE — both call sites, or only one is fixed', async () => {
+  // ⚠ MUTATION-FOUND GAP, the second in this round. The test above drives the
+  // PASTE reader, so reverting the PHOTO path to the stale-closure form survived
+  // it — two call sites share one rule, and a guard on one of them is a guard on
+  // half the rule. The photo path is if anything the likelier of the two: the
+  // member has just handed over a page whose title they can read, so typing the
+  // name while it processes is the natural thing to do.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  let release;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    const pending = new Promise((r) => { release = r; });
+    w.ShapeRecipeImport = { parse: null, photo: () => pending };
+
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+    const file = ed.nodes().find((n) => n.type === 'input' && n.props.type === 'file');
+    file.props.onChange({ target: { files: [{ name: 'page.jpg', type: 'image/jpeg', size: 120_000 }], value: '' } });
+    ed.render();
+
+    // They type a name off the page while the reader works.
+    inputs().find((n) => /lemon chicken/.test(String(n.props.placeholder || '')))
+      .props.onChange({ target: { value: 'Aunt Ivy’s soda bread' } });
+    ed.render();
+
+    release({ ok: true, draft: { title: 'Chapter 4', servings: null, ingredients: [{ n: '1 cup', m: 'flour' }], steps: ['Mix it well.'] } });
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+
+    assert.ok(inputs().some((n) => String(n.props.value || '') === 'Aunt Ivy’s soda bread'),
+      "the member's own name must survive the transcription landing");
+    assert.ok(!inputs().some((n) => String(n.props.value || '') === 'Chapter 4'),
+      'a heading the reader lifted must not overwrite the name they typed');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('but the reader still names a recipe the member left unnamed — on BOTH paths', async () => {
+  // The control: without it, the test above passes on a handler that never sets
+  // a title at all, which would silently retire the whole feature.
+  //
+  // ⚠ MUTATION-FOUND GAP. The first version of this control drove the PHOTO path
+  // only, so deleting the PASTE path's title-set survived the round — a control
+  // that covers one of the two call sites is not a control for the shared rule.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const h = await drivePhotoSheet(SHEET, {
+    draft: { ...PHOTO_DRAFT, title: 'Flatbread from the blue book' },
+  });
+  try {
+    await h.pick();
+    assert.ok(h.values().some((v) => v === 'Flatbread from the blue book'),
+      'a title read off the photo reaches the Name field');
+  } finally { h.restore(); }
+
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    w.ShapeRecipeImport = { photo: null, parse: async () => ({ ok: true, draft: { title: 'Nana’s lemon chicken', servings: null, ingredients: [{ n: '1', m: 'flour' }], steps: ['Mix.'] } }) };
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const inputs = () => ed.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea') && n.props.onChange);
+    inputs().find((n) => /paste it however/i.test(String(n.props.placeholder || '')))
+      .props.onChange({ target: { value: 'Ingredients\n1 cup flour\nMethod\nMix.' } });
+    ed.render();
+    ed.click('Next');
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    assert.ok(inputs().some((n) => String(n.props.value || '') === 'Nana’s lemon chicken'),
+      'a title read out of the paste reaches the Name field too');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
+  }
+});
+
+test('⚠ THE PASTE BOX IS SEALED WHILE IT IS BEING READ', async () => {
+  // Codex, P2. The completion closure holds the text from the render that
+  // STARTED the request, so a member editing the box during "Reading…" got a
+  // draft built from the text they had just replaced — installed over their
+  // newer version and carried to the review screen with nothing saying so, where
+  // they could keep a recipe that silently omits the edit they were making.
+  //
+  // Sealing the box makes the race impossible rather than handling it. Comparing
+  // against the live value and discarding the result spends a provider call to
+  // produce nothing, and loops for as long as they keep typing.
+  const SHEET = await loadBroadsheet(['BSMyRecipeSheet']);
+  const w = globalThis.window;
+  const prev = { ls: w.localStorage, auth: w.ShapeAuth, db: w.shapeDb, imp: w.ShapeRecipeImport };
+  const map = new Map();
+  let release;
+  try {
+    w.localStorage = { getItem: (k) => (map.has(k) ? map.get(k) : null), setItem: (k, v) => map.set(k, String(v)), removeItem: (k) => map.delete(k) };
+    w.ShapeAuth = { getCachedState: () => ({ user: { id: 'u1' } }) };
+    w.shapeDb = { getUser: async () => ({ id: 'u1' }), getUserGoals: async () => ({}), saveUserGoalsIfRev: async () => ({ ok: true }) };
+    const pending = new Promise((r) => { release = r; });
+    w.ShapeRecipeImport = { photo: null, parse: () => pending };
+
+    const ed = drive(SHEET.BSMyRecipeSheet, { onClose() {}, onSaved() {} });
+    const boxes = () => ed.nodes().filter((n) => n.type === 'textarea' && /paste it however/i.test(String(n.props.placeholder || '')));
+    assert.equal(boxes()[0].props.disabled, false, 'it is live before a read starts');
+    boxes()[0].props.onChange({ target: { value: 'Ingredients\n1 cup flour\nMethod\nMix.' } });
+    ed.render();
+    ed.click('Next');
+    ed.render();
+
+    assert.match(ed.text, /Reading/, 'the read is in flight');
+    assert.equal(boxes()[0].props.disabled, true, 'and the box is sealed while it runs');
+
+    release({ ok: true, draft: { title: 'T', servings: null, ingredients: [{ n: '1', m: 'flour' }], steps: ['Mix.'] } });
+    for (let i = 0; i < 8; i += 1) await new Promise((r) => setTimeout(r, 0));
+    ed.render();
+    ed.click('Back');
+    ed.render();
+    assert.equal(boxes()[0].props.disabled, false, 'and live again once it is done');
+  } finally {
+    w.localStorage = prev.ls; w.ShapeAuth = prev.auth; w.shapeDb = prev.db; w.ShapeRecipeImport = prev.imp;
   }
 });
