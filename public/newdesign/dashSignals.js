@@ -1523,11 +1523,21 @@
   //   thisMonth   net accrued month-to-date
   //   balance     the settled part: accrued up to the 7-day holding period
   //   lifetime    net × the months since the LONGEST-TENURED client joined
+  // ⚠ THE PREVIEW'S PLATFORM FEE HAS ONE DEFINITION, AND IT HAD TO, because this file
+  // now applies it in TWO places — the current month (`demoPayouts`) and every past
+  // month (`demoPayoutHistory`). Two copies of a rate is the disagreement this whole
+  // block was written to remove, one layer down: change one and the history stops
+  // reconciling with the month beside it, silently, on a page whose entire point is
+  // that its figures agree. `dashToday.jsx` and `dashBusiness.jsx` still spell it
+  // themselves — pre-existing, registered rather than swept, and pinned by a guard in
+  // tests/demo-coherence.test.mjs that fails the day any of the four diverges.
+  var PREVIEW_NET_RATE = 0.85;   // after the 15% platform fee
+
   function demoPayouts(clients, now) {
     const at = now instanceof Date ? now : new Date();
     const rows = Array.isArray(clients) ? clients : [];
     const monthlyCents = rows.reduce((sum, c) => sum + ((c && c.payments && c.payments.mrrCents) || 0), 0);
-    const netCents = Math.round(monthlyCents * 0.85);
+    const netCents = Math.round(monthlyCents * PREVIEW_NET_RATE);
 
     const daysInMonth = new Date(at.getFullYear(), at.getMonth() + 1, 0).getDate();
     const dayOfMonth = at.getDate();
@@ -1598,7 +1608,7 @@
       if (monthlyCents <= 0) continue;          // nobody had joined yet — no payout ran
       out.push({
         id: "demo-po-" + i,
-        amountCents: Math.round(monthlyCents * 0.85),   // the same 15% the rest of the preview applies
+        amountCents: Math.round(monthlyCents * PREVIEW_NET_RATE),
         status: "paid",
         arrivalDate: endMs,
         created: endMs - 2 * 86400000,
@@ -1656,6 +1666,7 @@
     scoreWeekReading: scoreWeekReading,
     crossoverRead: crossoverRead,
     crossoverCopy: crossoverCopy,
+    PREVIEW_NET_RATE: PREVIEW_NET_RATE,
     demoPayouts: demoPayouts,
     demoPayoutHistory: demoPayoutHistory,
     demoPayoutCard: demoPayoutCard,

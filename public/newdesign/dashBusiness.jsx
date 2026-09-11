@@ -448,6 +448,25 @@ const DBZ_T_INK = "#f2ede4";
 // count is rescaled so the last one equals the roster the rest of the preview shows.
 // Rescaling rather than re-walking is deliberate — the curve is the story, and a
 // re-walk to a smaller target would flatten it.
+// ⚠ THE DEMO TRAJECTORY NETTED MRR AT 0.88 — A 12% FEE THE PRODUCT DOES NOT CHARGE.
+// Found by the guard written for the payouts block below, which is the same finding one
+// plate over: this page showed net MRR cut at 12% beside a payout balance cut at 15%,
+// from the same roster. 15% is the rate the pricing page publishes, the rate
+// `coach.jsx` names, and the rate `coach-trajectory.mjs` falls back to when a
+// subscription row carries no stored `fee_bps` — so 0.88 was not a deliberate variation,
+// it was an outlier no comment ever claimed. Live money is untouched either way: the
+// real trajectory cuts every row by its OWN stored fee and never by a constant.
+//
+// The rate has one definition (`DashSignals.PREVIEW_NET_RATE`) and is read through the
+// guarded pattern `dbzDemoRosterSize` establishes, because this module can render before
+// dashSignals is up. The fallback is pinned to the constant by a guard in
+// tests/demo-coherence.test.mjs, so the two cannot drift apart unnoticed.
+function dbzNetRate() {
+  try {
+    const r = DashSignals.PREVIEW_NET_RATE;
+    return typeof r === "number" && r > 0 && r <= 1 ? r : 0.85;
+  } catch (e) { return 0.85; }   // dashSignals not up yet — the rate it would have returned
+}
 function dbzDemoRosterSize() {
   try {
     const n = DashSignals.buildMockClients(new Date()).length;
@@ -477,11 +496,11 @@ function dbzDemoTrajectory() {
     weeks.push({
       weekOf: new Date(monday.getTime() - i * 7 * 86400000).toISOString().slice(0, 10),
       active, added, ended,
-      mrrGrossCents: gross, mrrNetCents: Math.round(gross * 0.88),
+      mrrGrossCents: gross, mrrNetCents: Math.round(gross * dbzNetRate()),
       oneTimeCents: rnd() < 0.3 ? 9000 * (1 + Math.floor(rnd() * 2)) : 0, oneTimeNetCents: 0,
     });
   }
-  weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * 0.85); });
+  weeks.forEach((w) => { w.oneTimeNetCents = Math.round(w.oneTimeCents * dbzNetRate()); });
   // Land the curve on the roster the rest of the preview shows, keeping its shape.
   const target = dbzDemoRosterSize();
   const peak = weeks[weeks.length - 1].active;
@@ -496,7 +515,7 @@ function dbzDemoTrajectory() {
       prev = w.active;
       const gross = w.active * 18500 + (w.active % 3) * 1500;
       w.mrrGrossCents = gross;
-      w.mrrNetCents = Math.round(gross * 0.88);
+      w.mrrNetCents = Math.round(gross * dbzNetRate());
     });
   }
   const last = weeks[weeks.length - 1];

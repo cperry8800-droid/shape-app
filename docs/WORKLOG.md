@@ -566,9 +566,31 @@ Append new entries at the top, under this note.
   the outcomes plate reads it at **render** — two read times for one number is the
   disagreement the whole change is about. An unreadable engine says **nothing** rather than
   falling back to a figure.
-- **Verified:** `npm test` **3095/3095** · `tsc --noEmit` 0 · JSX parse · `dashSignals.js`
-  `require()`s clean · the newdesign precompile check · **12/12 mutations killed**, each
-  proven to land, sanity green at both ends · and the panel driven in Chromium on the
+- ⚠ **AND THE GUARD WRITTEN TO CLOSE THAT CLASS FOUND A BIGGER ONE: THE SAME PAGE WAS
+  NETTING MRR AT A 12% FEE.** Adding the payout history put a **second** `* 0.85` in
+  `dashSignals.js` — the two-definitions-of-one-number problem this entry is about, in the
+  fix for it — so the rate was named once (`PREVIEW_NET_RATE`). Sweeping for the other
+  spellings then turned up `dbzDemoTrajectory` cutting demo MRR by **0.88**, beside a
+  payout balance cut by 0.85, from the same roster, **on the same page**. Not a deliberate
+  variation: **15% is what the pricing page publishes, what `coach.jsx` names, and what
+  `coach-trajectory.mjs` falls back to** for a subscription row carrying no stored
+  `fee_bps` — the 0.88 had no comment and no source. **Live money never touched it**, since
+  the real trajectory cuts every row by its OWN stored fee and never by a constant.
+- ⚠ **THE GUARD DERIVES ITS CORPUS AND ASSERTS IT SCANNED ONE**, so a fifth spelling added
+  later is covered with nobody remembering the test exists, and a sweep that finds nothing
+  cannot pass vacuously. Proven by mutation across **three files**: moving the named rate
+  alone fails, because `dashToday.jsx` still spells its own and must dissent.
+- ⚠ **AND THE FALLBACK IS DRIVEN, NOT MATCHED — after the first version of that check read
+  nothing.** `dashBusiness.jsx` renders before `dashSignals` is up, so `dbzNetRate` carries
+  its own literal; my regex looked for `return 0.85;` at end of line and the fallback sits
+  inside a one-line `catch`, so it matched **zero** sites and reported the fallback
+  *"moved"*. It **executes** the function now, against a present rate, an absent module and
+  seven unusable values. *A guard that pins a spelling pins whatever that spelling is wrong
+  about* — and this one was wrong about where the spelling was.
+- **Verified:** `npm test` **3212/3212** · `tsc --noEmit` 0 · JSX parse · `dashSignals.js`
+  `require()`s clean · the newdesign precompile check · **22/22 mutations killed across two
+  rounds** (12 on the payouts block, 10 on the fee rate), each proven to land, sanity green
+  at both ends · and the panel driven in Chromium on the
   signed-out preview: **$206 available · $206 next · $4,726 paid over the last 4**, *"Paid
   out monthly · 7-day rolling delay"*, and Aug 31 $1,411 / Jul 31 $1,258 / Jun 30 $1,105 /
   May 31 $952. Zero page errors.

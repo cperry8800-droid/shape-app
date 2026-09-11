@@ -347,3 +347,70 @@ test('the Business payouts block is lazy and day-keyed, like its neighbours', ()
   assert.match(biz, /balanceCents: null, schedule: null, payouts: \[\]/);
   assert.match(biz, /const data = live \? stripe : dbzDemoPayouts\(\);/);
 });
+
+// ── One platform-fee rate for the whole preview ────────────────────────────
+// ⚠ THE SWEEP THAT CLOSES THIS CLASS FOUND A BIGGER DEFECT THAN THE ONE IT WAS WRITTEN
+// FOR. Adding the payout history put a SECOND `* 0.85` in dashSignals.js, which is the
+// two-definitions-of-one-number problem this whole block exists to remove — so the rate
+// was named once. Sweeping for the other spellings then turned up `dashBusiness.jsx`
+// netting demo MRR at **0.88**: a 12% fee, on the same page as a payout balance cut at
+// 15%, from the same roster. 15% is what the pricing page publishes, what `coach.jsx`
+// names, and what `coach-trajectory.mjs` falls back to for a row with no stored
+// `fee_bps`. Live money never touched it — the real trajectory cuts each row by its own
+// stored fee — but the preview disagreed with itself, which is the review's V5 finding
+// one plate over from where it was reported.
+//
+// ⚠ THE GUARD DERIVES ITS CORPUS RATHER THAN NAMING THE SITES, so a fifth spelling added
+// later is covered with nobody remembering this test exists — and it ASSERTS IT SCANNED
+// SOMETHING, because a sweep that finds nothing passes vacuously.
+test('the preview applies ONE platform-fee rate, everywhere it applies one', () => {
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const files = readdirSync(dir).filter((f) => /^dash.*\.(js|jsx)$/.test(f)).sort();
+  assert.ok(files.length >= 8, 'the dashboard module corpus vanished: ' + files.length);
+
+  const rate = DS.PREVIEW_NET_RATE;
+  assert.equal(typeof rate, 'number');
+  assert.ok(rate > 0 && rate < 1, 'the named rate is not a fraction: ' + rate);
+
+  const found = [];
+  for (const f of files) {
+    const lines = stripComments(readFileSync(new URL(f, dir), 'utf8')).split('\n');
+    lines.forEach((ln, i) => {
+      // a money line that multiplies by a bare fraction is applying a rate
+      if (!/Cents/.test(ln)) return;
+      const m = ln.match(/\*\s*(0\.\d+)/);
+      if (m) found.push({ f, line: i + 1, rate: Number(m[1]), src: ln.trim() });
+    });
+  }
+  // Every literal fee rate left in the dashboard must BE the named one. A site that
+  // reads DashSignals.PREVIEW_NET_RATE contributes no literal and needs no exemption.
+  for (const h of found) {
+    assert.equal(h.rate, rate,
+      h.f + ':' + h.line + ' applies ' + h.rate + ' where the preview rate is ' + rate +
+      ' — two fee rates on one preview. ' + h.src);
+  }
+
+  // ⚠ AND dashSignals ITSELF MAY NOT RESPELL IT: it applies the rate twice (the current
+  // month and every past month), which is where the duplicate came from in the first
+  // place. Both must go through the constant.
+  const sig = stripComments(readFileSync(new URL('dashSignals.js', dir), 'utf8'));
+  assert.doesNotMatch(sig, /Cents\s*\*\s*0\.\d+/, 'dashSignals respells the fee rate');
+  assert.ok((sig.match(/PREVIEW_NET_RATE/g) || []).length >= 4,
+    'dashSignals stopped routing both fee applications through the named rate');
+
+  // ⚠ THE FALLBACK IS DRIVEN, NOT MATCHED. dashBusiness can render before dashSignals is
+  // up, so `dbzNetRate` carries its own literal — and a page that renders early must not
+  // quietly net at a different rate than one that does not. A regex over the source pins
+  // a spelling; executing the function pins the behaviour, which is the thing that has to
+  // hold. (The first version of this check matched `return 0.85;` at end of line and found
+  // NOTHING, because the fallback sits inside a `catch {…}` on one line — a guard reporting
+  // on source it cannot see.)
+  assert.equal(fn(BIZ, 'dbzNetRate', { DashSignals: DS })(), rate, 'dbzNetRate ignores the named rate');
+  assert.equal(fn(BIZ, 'dbzNetRate', { DashSignals: undefined })(), rate,
+    'the dbzNetRate fallback disagrees with the named rate');
+  // a rate that is present but not a usable fraction is refused rather than applied
+  for (const bad of [undefined, null, 0, -1, 2, '0.85', NaN]) {
+    assert.equal(fn(BIZ, 'dbzNetRate', { DashSignals: { PREVIEW_NET_RATE: bad } })(), rate,
+      'dbzNetRate accepted ' + String(bad) + ' as a fee rate');
+  }
+});
