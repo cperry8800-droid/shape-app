@@ -76,15 +76,30 @@ the smallest build and the only option that adds navigation to a page that is no
 page). **C** if the coach's ten-second review outranks the member's own reading; its table and sticky
 bar can be borrowed by B later.
 
-**Build order for C:** 1 · carry the strap samples onto the post as `hrTrace` and derive zones (§4,
-defect 1), so the heart-rate section renders for in-app sessions; 2 · keep the per-set RPE in the
-breakdown and carry plan and rest on the set rows (§4, defect 2); 3 · the page's front — the record
-header (`bsWallHeader` already exists), six instrument tiles with the ghost trace and the pace needle,
-the remaining scalars as dot-leader rows, the single zone bar the Wall card already draws; 4 · the
-set-by-set and split-by-split tables with the bar and PR burst under each row, the Splits page link
-kept; 5 · the sticky action bar (reactions, comment count, share) opening the existing comments focus
-and share chooser; 6 · the morning tiles and the run lines (moving vs elapsed, negative split, HR
-drift), each gated on the data existing. New labels are i18n keys in all 13 locales. No migration.
+**Build order for C** (re-ordered 2026-09-11 on the owner's heart-rate ruling — see §4a; the
+wearable paths come first, the in-app strap rides along):
+
+1. **The page's front** — the record header (`bsWallHeader` already exists), six instrument tiles with
+   the ghost trace and the pace needle, the remaining scalars as dot-leader rows, the single zone bar
+   the Wall card already draws. Every tile is gated on its value existing, so it ships against today's
+   data and gets richer as the paths below land.
+2. **Keep the per-set RPE in the breakdown** and carry plan and rest on the set rows (§4, defect 2) —
+   one mapper, no route or provider work, and it is the coach's first question.
+3. **The set-by-set and split-by-split tables** with the bar and PR burst under each row, the Splits
+   page link kept.
+4. **The sticky action bar** (reactions, comment count, share) opening the existing comments focus and
+   share chooser.
+5. **The wearable heart-rate paths, in yield order** (§4a): Apple Watch via HealthKit (samples are
+   already fetched and only bucketed by day) → Garmin activity details (the webhook stores two scalars
+   and nothing else) → WHOOP stays zones-only (its API exposes no trace). Each one lights the same
+   Heart rate section for a different provider.
+6. **The in-app strap** — carry `workout_sensor_samples` onto the post as `hrTrace` and derive zones
+   (§4, defect 1). Unchanged in substance, moved down: it covers only sessions logged live in Shape
+   with a strap paired to the phone.
+7. **The morning tiles and the run lines** (moving vs elapsed, negative split, HR drift), each gated on
+   the data existing.
+
+New labels are i18n keys in all 13 locales. No migration.
 
 ## 4. Metrics: what the page could show and does not
 
@@ -125,6 +140,42 @@ on the detail page (the stats page is numbers-only by design — owner call).
 
 **The rule every addition obeys:** a number is drawn from a stored value or it is not drawn. No strap →
 no heart-rate section; no wearable → no morning strip; no splits → no split line.
+
+## 4a. Where heart rate actually comes from (owner's ruling, 2026-09-11)
+
+Owner: *"the heart rate strap only record if someone is wearing it, if our engine is able to register
+great. isually the heard rate strap will be synced wither either garmin, whoop, etc then log that onto
+shape. smart watches need to log the info we see also."* So the in-app Bluetooth strap is the bonus
+path and the wearables are the main one. Read against each integration's write path, the wearables
+deliver **less** than the page draws today, not more:
+
+| Provider | What reaches a post today | What the page can draw from it | What it would take |
+| --- | --- | --- | --- |
+| **Strava** | `hrTrace`, `cadenceTrace`, `elevTrace`, `paceTrace`, `powerTrace` + per-mile splits (`strava/sync/route.ts:340`, `:387`) | Everything: trace, splits, cadence, elevation | Nothing. It is the reference shape. `weighted_average_watts` is typed at `:40` and never stored — one field for normalized power |
+| **WHOOP** | avg/max HR, strain, kilojoules, distance, altitude gain, **`zoneDurations`** (`whoop/sync/route.ts:114`, `:119`) | Zone cells and the two scalars — **no trace** | Nothing available: the WHOOP API exposes zone totals, not samples. Zones-only is the honest ceiling |
+| **Garmin** | avg HR + max HR only (`garmin/webhook/route.ts:172`, `:187`, `:231`) | Two numbers | A second call for activity **details** (HR / cadence / altitude / speed samples + laps), mapped to the Strava trace shape. The webhook payload the push carries has no samples |
+| **Apple Watch** (Apple Health) | **nothing** — `WorkoutInput` is `externalId · activity · startedAt · endedAt · durationMin · calories · distanceM` (`apple-health/sync/route.ts:24`); the row is written `avg_hr: null`, `metrics: {}` (`:107`) | Nothing at all | The **samples are already fetched**: `collectHealthKitSnapshots` queries heart-rate samples over the whole window and buckets them **by day** (`healthkit.js:75`, `:94`). Slicing them into each workout's own window is the whole change |
+| **Oura** | `intensity` only (`oura/sync/route.ts:86`) | Nothing HR-shaped | Out of scope; Oura is a recovery source, not a session source |
+| **In-app strap** | avg/max HR on the post; **every sample already in `workout_sensor_samples`** (`shapeBackend.js:2791`, `:3179`) | Two numbers | Carry the samples onto the post (§4, defect 1) |
+
+Two readings follow, and they change the build order in §3:
+
+- **The Apple Watch is the highest-yield path and the smallest one.** The samples are collected today
+  and thrown at the day bucket; nothing new is captured, nothing new is authorised, no migration. It is
+  also the provider with the widest install base among members who own a watch at all.
+- **Garmin is a real ingest, not a mapping.** The webhook stores what the push carries, and the push
+  carries summaries. Samples need the activity-details call, so it is the one wearable path with new
+  network work behind it.
+
+⚠ **The app reads only one trace shape and one zone shape**, so every provider path must emit
+`rawMetrics.hrTrace` and `zoneDurations` as Strava and WHOOP already do
+(`iosAppBroadsheetClient.jsx:13267`, `:13391`) — a second shape would mean a second renderer and the
+two would drift.
+
+⚠ **Zones are never derived from a trace without a reference.** `bsBuildZones` draws provider zones
+only; a trace-derived split needs a max-HR or LTHR setting the app does not have, and would have to be
+labelled estimated. That is listed under *needs capture* in §4 above and is deliberately not in the
+build order.
 
 ## 5. Method, limits
 

@@ -678,6 +678,29 @@ Append new entries at the top, under this note.
   masthead and back row, and the Wall post is untouched. A **Today · as shipped** tab joined the board
   so the shipped page sits beside the options. The recommendation was B; the pick is C, and the
   review's §3 now carries the build order for C. **Not built — the go-ahead is the owner's next call.**
+- ⚠ **OWNER'S HEART-RATE RULING, SAME DAY, AND IT RE-ORDERS THE BUILD.** *"the heart rate strap only
+  record if someone is wearing it … isually the heard rate strap will be synced wither either garmin,
+  whoop, etc then log that onto shape. smart watches need to log the info we see also."* So the wearable
+  is the main path and the in-app Bluetooth strap is the bonus. **Read against each integration's write
+  path, the wearables deliver LESS than the page already draws, not more.** Only **Strava** sends a
+  trace and splits. **WHOOP** sends zone totals and two scalars and **can never send a trace** — its API
+  exposes no samples, so zones-only is the honest ceiling. **Garmin** stores **avg and max HR and
+  nothing else** (`garmin/webhook/route.ts:187`, `:231`): the push payload carries summaries, so a trace
+  needs the activity-details call — the one wearable path with real ingest work behind it. And an
+  **Apple Watch workout arrives with no heart rate at all** — `WorkoutInput` is six fields, the row is
+  written `avg_hr: null, metrics: {}` (`apple-health/sync/route.ts:24`, `:107`).
+- ⚠ **THE APPLE WATCH IS THE HIGHEST-YIELD PATH AND THE SMALLEST ONE, WHICH IS WHY IT GOES FIRST.**
+  `collectHealthKitSnapshots` **already queries every heart-rate sample** over the whole lookback window
+  and throws them at a **day** bucket (`healthkit.js:75`, `:94`); slicing them into each workout's own
+  `startedAt..endedAt` is the entire change. Nothing new is captured, nothing new is authorised, no
+  migration — and it is the provider with the widest install base among members who own a watch at all.
+  ⚠ **Every provider path must emit the app's ONE trace shape and ONE zone shape**
+  (`rawMetrics.hrTrace`, `zoneDurations` — `iosAppBroadsheetClient.jsx:13267`, `:13391`), or a second
+  renderer appears and the two drift. ⚠ **And zones are never derived from a trace without a
+  reference**: `bsBuildZones` draws provider zones only, and a trace-derived split needs a max-HR or
+  LTHR setting the app does not have. That stays under *needs capture*, deliberately out of the build
+  order. **§4a of the review is the provider table; §3's build order now runs front → RPE → tables →
+  action bar → wearable paths → in-app strap → morning tiles.**
 - ⚠ **AN IN-APP SESSION NEVER GETS A HEART-RATE CHART, AND THE SAMPLES ARE ALREADY STORED.** The live
   session writes every strap sample to `workout_sensor_samples` (`shapeBackend.js:2791`), then
   publishes a post carrying only `averageHeartRate` / `maxHeartRate` — no `hrTrace`, no zones — so the
