@@ -216,7 +216,7 @@
   "wall.postPR": "Publicar PR",
   "wall.postPRTitle": "Publicar um recorde",
   "wall.posted": "No mural.",
-  "wall.postedNoFeed": "Recorde salvo. Não conseguimos adicioná-lo ao mural agora.",
+  "wall.postedNoRecord": "Publicado, mas não foi possível marcar como recorde — tente de novo.",
   "wall.posting": "Publicando…",
   "wall.reps": "Repetições",
   "wall.retry": "Tentar de novo →",

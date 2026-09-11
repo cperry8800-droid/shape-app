@@ -216,7 +216,7 @@
   "wall.postPR": "Pubblica un PR",
   "wall.postPRTitle": "Pubblica un record",
   "wall.posted": "In bacheca.",
-  "wall.postedNoFeed": "Record salvato. Non siamo riusciti ad aggiungerlo alla bacheca per ora.",
+  "wall.postedNoRecord": "Pubblicato, ma impossibile segnarlo come record — riprova.",
   "wall.posting": "Pubblicazione…",
   "wall.reps": "Ripetizioni",
   "wall.retry": "Riprova →",

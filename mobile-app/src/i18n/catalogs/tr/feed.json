@@ -216,7 +216,7 @@
   "wall.postPR": "PR paylaş",
   "wall.postPRTitle": "Rekor paylaş",
   "wall.posted": "Duvarda.",
-  "wall.postedNoFeed": "Rekor kaydedildi. Şu anda akışa ekleyemedik.",
+  "wall.postedNoRecord": "Paylaşıldı ama rekor olarak işaretlenemedi — tekrar dene.",
   "wall.posting": "Paylaşılıyor…",
   "wall.reps": "Tekrar",
   "wall.retry": "Tekrar dene →",

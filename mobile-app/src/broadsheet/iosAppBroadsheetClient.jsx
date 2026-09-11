@@ -19362,6 +19362,47 @@ async function bsWallShareState() {
   } catch (e) { return { canWall: true, privacy: null }; }
 }
 
+// The member's own prior best for one lift, in POUNDS, read from the ledger.
+//
+// ⚠ THIS IS THE CLIENT PRE-CHECK, RESTORED, AND THE PREVIOUS ROUND DELETED IT
+// FOR A REASON THAT NO LONGER HOLDS. That round announced first, so the RPC's
+// own `prev` was in hand before the post was built and nothing had to be read
+// here. Publishing first puts the post before the verdict again, so the delta
+// needs a prior best from somewhere — and refusing before the insert is what
+// stops "Post a PR" with a number that beats nothing publishing an ordinary
+// workout post nobody asked for.
+//
+// ⚠ THE ONLY ANSWER IS A NUMBER OR null, AND `null` COVERS BOTH WAYS OF NOT
+// HAVING ONE. "No record yet" and "could not read" look different and want the
+// SAME treatment at both call sites: neither may refuse the member (a first
+// record is a PR, and an unreadable ledger is not evidence against one), and
+// neither may stamp a gain (there is nothing to subtract, or nothing we trust).
+// An earlier cut carried a `known` flag to tell them apart; it was implied by
+// `lb != null` at every return, so it could not change either answer, and a
+// mutation removing it from both guards survived. Deleted rather than tested
+// around — the verdict's own `prev` repairs the delta afterwards either way.
+async function bsWallPriorBest(lift) {
+  try {
+    const led = window.ShapePRWall && window.ShapePRWall.mine ? await window.ShapePRWall.mine() : null;
+    // ⚠ `stored === 'supabase'` IS A PROVEN NO-OP TODAY, AND IS KEPT ANYWAY.
+    // Every non-supabase path in `myPRLedger` answers `data: []` (checked: the
+    // no-client bail and the query-error bail both do), so the lookup below
+    // already yields nothing and this line cannot change the answer — a mutation
+    // removing it survives, and that is recorded rather than covered, because
+    // the only fixture that could kill it would invent a shape production cannot
+    // produce. It stays because it is what would stop this comparing a member's
+    // real lift against a STALE LOCAL CACHE if that function ever grew one, and
+    // a stale best refuses a genuine PR — the one failure this pre-check exists
+    // to avoid.
+    if (!led || led.stored !== 'supabase') return { lb: null };
+    const row = (led.data || []).find((r) => String(r.liftKey || '').toLowerCase() === String(lift || '').toLowerCase());
+    if (!row) return { lb: null };
+    const n = Number(row.best);
+    if (!Number.isFinite(n)) return { lb: null };
+    return { lb: bsWallToUnit(n, row.unit || 'lb', 'lb') };
+  } catch (e) { return { lb: null }; }
+}
+
 // Every refusal this sheet can hit has a reason the member can act on, so none
 // of them is reported as a generic failure. One ladder, because the submit has
 // two exits into it and a second copy is how the two come to disagree.
@@ -19373,34 +19414,36 @@ function bsWallSay(tr, reason) {
 
 // Post a PR — for a lift set somewhere the app was not watching.
 //
-// ⚠ THE LEDGER DECIDES FIRST AND THE POST IS PUBLISHED ONLY IF IT ACCEPTS, AND
-// THIS IS THE THIRD ORDERING THIS SHEET HAS HAD. Each of the first two was
-// fixed for a real defect and produced the next one, so the reasoning is worth
-// keeping rather than just the result.
+// ⚠ THE POST IS PUBLISHED FIRST AND THE LEDGER ADVANCES ONLY BEHIND A DURABLE
+// ONE. THIS IS THE FOURTH ORDERING THIS SHEET HAS HAD, and each of the first
+// three was fixed for a real defect and produced the next, so the reasoning is
+// worth more than the result:
 //
-//   1. Ledger only (the restored sheet). Since #2036 the Wall IS the activity
-//      feed, which reads `community_posts` — so a ledger row on its own
-//      rendered NOTHING and a hand-posted record appeared nowhere.
-//   2. Post first, then announce. That fixed the plate, and opened three more:
-//      a refused announce left an orphan post standing (with its own +5 award
-//      and a delta claiming a PR the server had just rejected), a retry made a
-//      SECOND one, and the whole thing needed a client-side pre-check of a
-//      verdict the server was about to give anyway.
-//   3. Announce first, publish on acceptance — this one.
+//   1. Ledger only. Since #2036 the Wall IS the activity feed, so a ledger row
+//      on its own rendered NOTHING and a hand-posted record appeared nowhere.
+//   2. Post, then announce. Fixed the plate; a refused announce then left an
+//      orphan post with its own +5 award, and a retry made a second one.
+//   3. Announce, then post. Fixed the orphan post — and created a far worse
+//      one, because `post_my_pr_to_wall` refuses any value that does not BEAT
+//      the stored best: once the ledger had advanced, a failed insert left a
+//      record that could never be published, by a retry the server itself
+//      refuses as not-a-PR. Invisible, unrecoverable, and *Your best* showed it
+//      as posted.
+//   4. Post, announce, then REPAIR THE POST FROM THE VERDICT — this one.
 //
-// ⚠ WHAT MAKES (3) POSSIBLE IS THAT THE RPC RETURNS THE `prev` IT WROTE. That
-// is why (2) existed at all: `createCommunityPost` derives "+X over last best"
-// by reading the ledger, so announcing first advanced it past this very number
-// and the gain vanished. With `res.prev` in hand the delta is computed HERE,
-// from the row the server actually wrote — which is also race-safe in a way the
-// re-read never was, and needs no pre-check at all.
+// ⚠ WHAT MAKES (4) DIFFERENT FROM (2) IS THAT THE POST IS MUTABLE.
+// `updateCommunityPost` merges into `metrics` (it never clobbers, and '' or
+// null removes a key), so the two things (2) could not do are now possible:
+// a retry UPDATES the post it already made instead of inserting a second one
+// with a second award, and a refused announce REPAIRS that post into the
+// ordinary workout post it honestly is, instead of leaving it claiming a record
+// the server just rejected.
 //
-// ⚠ AND THE COST IS ONE THING NOTHING READS: `pr_wall_posts.post_id` stays
-// null, because the post does not exist when the RPC runs. Checked rather than
-// assumed — no caller of `ShapePRWall.mine()` touches `postId`, and the board
-// read that took it (`shape_pr_wall`) has had no mount since #2036 folded the
-// Wall into the feed. A link nobody follows is a poor reason to keep a design
-// that publishes before it knows.
+// ⚠ AND THE DIRECTION OF THE REMAINING FAILURE IS THE WHOLE POINT. Nothing here
+// can advance the ledger for a plate that does not exist, so every failure is
+// retryable forever. What a failure CAN leave is a community post — visible,
+// ordinary, and the member's own to delete. An orphan post costs a tap; an
+// orphan ledger row cost the record.
 function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -19410,99 +19453,128 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   const [unit, setUnit] = useStateBSC(seed && seed.unit === 'kg' ? 'kg' : 'lb');
   const [reps, setReps] = useStateBSC(seed ? seed.reps || '' : '');
   const [busy, setBusy] = useStateBSC(false);
+  // ⚠ THE POST THIS SHEET HAS ALREADY MADE, HELD ACROSS RETRIES. Without it a
+  // second attempt inserts a second visible post and attempts a second +5 award
+  // for one record. It is deliberately NOT cleared on a refusal: a member who
+  // corrects the number upward should end up with ONE post, updated, not two.
+  const postIdRef = React.useRef(null);
   const ready = !!lift.trim() && Number(value) > 0 && !busy;
   const submit = async () => {
     if (!ready) return;
     setBusy(true);
     const name = lift.trim(), num = Number(value), repNum = reps ? Number(reps) : null;
-    let res = null;
-    // The audience the post will be written with, resolved inside the try and
-    // read outside it. See the scope note below the RPC call.
+    const loadStr = `${num} ${unit}`;
+    const stats = [{ l: 'Load', v: loadStr }];
+    if (repNum != null && Number.isFinite(repNum) && repNum > 0) stats.push({ l: 'Reps', v: String(repNum) });
+
+    // ── the two gates, and the prior best ────────────────────────────────────
     let priv = null;
+    let prior = null;
     try {
       const share = await bsWallShareState();
       if (!share.canWall) { setBusy(false); window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
       // ⚠ AN AUDIENCE THE WALL CANNOT READ IS A REFUSAL, NOT A QUIET SUCCESS.
       // The Wall is the activity feed's sub-tab and that read filters to
-      // feed-visible privacy values, so a post written as 'private' — which is
-      // what the share rule returns for a PUBLIC profile with Share workout
-      // data OFF — renders nowhere, while the RPC (which gates on profile
-      // visibility alone) would happily accept the record and let this toast
-      // say "On the wall." Their two settings genuinely disagree; the honest
-      // answer is to say which one is keeping the record off, not to publish
-      // against one of them and not to claim a plate that cannot exist.
-      // A read we could not make is not a setting we can name. It is refused
-      // like any other failure — true, retryable, and making no claim about
-      // their privacy — while a read that DID resolve gets the sentence that
-      // says which setting kept the record off.
+      // feed-visible privacy values, so a post written as 'private' — what the
+      // share rule returns for a PUBLIC profile with Share workout data OFF —
+      // renders nowhere, while the RPC (which gates on profile visibility
+      // alone) would accept the record and let the toast say "On the wall."
+      // A read we could not make is not a setting we can name: it is refused
+      // like any other failure, while a read that DID resolve gets the sentence
+      // naming the setting that kept the record off.
       if (share.privacy == null) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
       if (share.privacy !== 'public') { setBusy(false); window.__bsToast?.(tr('feed:wall.notShared', { defaultValue: 'Sharing workout data is off, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
-
-      // The server is the authority and it answers before anything is
-      // published, so there is no pre-check to keep in step with it.
       priv = share.privacy;
+      prior = await bsWallPriorBest(name);
+    } catch (e) { setBusy(false); bsWallSay(tr, 'error'); return; }
+
+    // ⚠ REFUSED BEFORE ANYTHING IS PUBLISHED, or pressing "Post a PR" with a
+    // number that beats nothing leaves an ordinary workout post behind. Compared
+    // in POUNDS: the ledger keeps a unit per row, so a raw comparison puts a
+    // 100 kg pull behind a 200 lb record and tells a member their real PR is not
+    // one. An unreadable ledger does not refuse — the server decides.
+    if (prior && prior.lb != null) {
+      const mineLb = bsWallToUnit(num, unit, 'lb');
+      if (Number.isFinite(mineLb) && mineLb <= prior.lb) { setBusy(false); bsWallSay(tr, 'not_a_pr'); return; }
+    }
+
+    // ── the plate ────────────────────────────────────────────────────────────
+    // Shaped exactly like the composer's own Strength payload, or the same
+    // record reads differently depending on which sheet made it. `pr: true` is
+    // the marker a first record needs: `delta` exists only against a PRIOR best,
+    // and both PR consumers on a real post read it (`kind: 'pr'` is demo-only),
+    // so a genuine first best was filtered out of the PR tab and drawn as an
+    // ordinary load.
+    const gain = prior && prior.lb != null
+      ? bsWallGain(num, bsWallToUnit(prior.lb, 'lb', unit))
+      : null;
+    const prMetrics = {
+      kind: 'workout', workoutStats: stats, lift: name, load: loadStr, pr: true,
+      ...(gain != null ? { delta: `+${bsWallNum(gain)} ${unit}` } : {}),
+    };
+    let postId = postIdRef.current;
+    try {
+      if (postId) {
+        // A retry. Update the post already made rather than inserting another.
+        await window.ShapeCommunity?.update?.({ postId, title: name, metrics: prMetrics });
+      } else {
+        const made = await window.ShapeCommunity?.createPost?.({
+          channel: 'COMMUNITY', privacy: priv, title: name, activityType: 'strength',
+          metrics: prMetrics, skipPRAnnounce: true,
+        });
+        // ⚠ `createCommunityPost` DOES NOT THROW ON AN INSERT ERROR: it answers
+        // `{ stored: 'local', data: { id: 'local-…' } }`, whose id is not a uuid.
+        // Only a supabase row with an id is evidence a post exists.
+        if (made && made.stored === 'supabase' && made.data && made.data.id) postId = made.data.id;
+      }
+    } catch (e) { /* fall through to the not-published branch */ }
+    // Nothing was written anywhere, so the message is true and the retry is clean.
+    if (!postId) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
+    postIdRef.current = postId;
+
+    // ── the record ───────────────────────────────────────────────────────────
+    let res = null;
+    try {
       res = await (window.ShapePRWall && window.ShapePRWall.post
-        ? window.ShapePRWall.post({ lift: name, value: num, unit, reps: repNum })
+        ? window.ShapePRWall.post({ lift: name, value: num, unit, reps: repNum, postId })
         : null);
     } catch (e) { res = null; }
-    if (!res || !res.ok) { setBusy(false); bsWallSay(tr, (res && res.reason) || 'error'); return; }
 
-    // ── PAST HERE THE RECORD IS ON THE WALL ─────────────────────────────────
-    // ⚠ AND THAT IS WHY THE `try` ENDS ABOVE RATHER THAN AROUND ALL OF THIS.
-    // The catch reports a generic *"could not post that record"*, which stops
-    // being true the moment the RPC accepts — and telling a member to retry
-    // sends them at a server that will now refuse them, correctly, because the
-    // record is theirs. Scoping the catch to the two things that can actually
-    // reject (the settings read and the RPC call) makes that sentence
-    // unreachable from here, which is stronger than a flag guarding against it:
-    // a flag has to be right about every throw, and a scope does not.
+    // ⚠ A FAILED ANNOUNCE IS NOT A REFUSED ONE, AND THE POST IS LEFT ALONE.
+    // We do not know whether the ledger moved, so repairing the plate could
+    // un-mark a record that was accepted. The post id is retained and the sheet
+    // stays open: the same button re-announces the same post.
+    if (!res) { setBusy(false); window.__bsToast?.(tr('feed:wall.postedNoRecord', { defaultValue: 'Posted, but we couldn’t mark it a record — try again.' }), 'info'); return; }
 
-    // Accepted — so this is a record, and now it gets its plate. Shaped
-    // exactly like the composer's own Strength payload, or the same record
-    // reads differently depending on which sheet made it.
-    //
-    // ⚠ THE DELTA IS COMPUTED FROM THE `prev` THE SERVER WROTE, not re-read
-    // from the ledger — which by now holds this very number, so a re-read
-    // would find no gain at all. `prev_value` is stored in the unit the row
-    // now carries (the units migration of 2026-09-10), which is this post's
-    // unit, so no conversion is needed or possible here.
-    //
-    // ⚠ AND `pr: true` IS THE MARKER, BECAUSE A FIRST RECORD HAS NO DELTA.
-    // `bsFeedTypeMatch(…, 'prs')` and the card's PR pill read `a.delta` for a
-    // real post (`kind: 'pr'` is demo-only), so a member's FIRST best for a
-    // lift — accepted by the server, genuinely a PR — was filtered out of the
-    // PR tab and drawn as an ordinary load.
-    const loadStr = `${num} ${unit}`;
-    const stats = [{ l: 'Load', v: loadStr }];
-    if (repNum != null && Number.isFinite(repNum) && repNum > 0) stats.push({ l: 'Reps', v: String(repNum) });
-    const gain = bsWallGain(num, res.prev);
-    let made = null;
-    try {
-      made = await window.ShapeCommunity?.createPost?.({
-        channel: 'COMMUNITY', privacy: priv, title: name, activityType: 'strength',
-        metrics: {
-          kind: 'workout', workoutStats: stats, lift: name, load: loadStr, pr: true,
-          ...(gain != null ? { delta: `+${bsWallNum(gain)} ${unit}` } : {}),
-        },
-        skipPRAnnounce: true,
-      });
-    } catch (e) { made = null; }
-    // ⚠ THE RECORD IS ALREADY ON THE WALL AT THIS POINT, so a failed insert
-    // is not a failed post-a-PR — and saying "Could not post that record"
-    // would send the member to retry something the server will now refuse as
-    // not-a-PR, correctly, because it IS their best. It gets its own sentence.
-    const published = !!(made && made.stored === 'supabase' && made.data && made.data.id);
+    if (!res.ok) {
+      // ⚠ REFUSED, SO THE PLATE MUST STOP CLAIMING A RECORD. It is a real
+      // workout the member did — it just is not a new best — so it is repaired
+      // into the ordinary post it honestly is rather than deleted. '' and null
+      // are `mergePostPatch`'s removal channel, so the two claims come off.
+      try { await window.ShapeCommunity?.update?.({ postId, metrics: { pr: null, delta: '' } }); } catch (e) { /* best-effort */ }
+      setBusy(false);
+      bsWallSay(tr, res.reason || 'error');
+      return;
+    }
+
+    // ⚠ ACCEPTED — AND THE SERVER'S `prev` IS THE AUTHORITY ON THE GAIN. The
+    // pre-check's read can be stale (or absent), so the stamped delta is
+    // corrected here from the row the RPC actually wrote. `prev_value` is stored
+    // in the unit the row now carries, which is this post's unit, so no
+    // conversion is needed or possible.
+    const trueGain = bsWallGain(num, res.prev);
+    const trueDelta = trueGain != null ? `+${bsWallNum(trueGain)} ${unit}` : '';
+    if (trueDelta !== (gain != null ? `+${bsWallNum(gain)} ${unit}` : '')) {
+      try { await window.ShapeCommunity?.update?.({ postId, metrics: { delta: trueDelta } }); } catch (e) { /* the record stands either way */ }
+    }
+
     setBusy(false);
-    window.__bsToast?.(published
-      ? tr('feed:wall.posted', { defaultValue: 'On the wall.' })
-      : tr('feed:wall.postedNoFeed', { defaultValue: 'Record saved. We couldn’t add it to the feed just now.' }),
-      published ? 'ok' : 'info');
-    // ⚠ AND A CONSUMER THAT THROWS TAKES NOTHING WITH IT. The record is written,
-    // the plate is published and the member has already been told so truthfully
-    // — so the only two outcomes a throwing callback could add are both bad: a
-    // generic *"could not post"* over a record that landed (which the scope
-    // above already makes unreachable) or an unhandled rejection out of a click
-    // handler. There is nothing left to report, so there is nothing to say.
+    window.__bsToast?.(tr('feed:wall.posted', { defaultValue: 'On the wall.' }), 'ok');
+    // ⚠ AND A CONSUMER THAT THROWS TAKES NOTHING WITH IT. The post is published,
+    // the record is written and the member has been told so truthfully — so the
+    // only things a throwing callback could add are a false failure message or
+    // an unhandled rejection out of a click handler. There is nothing left to
+    // report, so there is nothing to say.
     try { onPosted && onPosted(); } catch (e) { /* the record stands */ }
     try { onClose && onClose(); } catch (e) { /* so does the toast */ }
   };

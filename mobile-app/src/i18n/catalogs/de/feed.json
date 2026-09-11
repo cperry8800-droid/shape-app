@@ -216,7 +216,7 @@
   "wall.postPR": "PR posten",
   "wall.postPRTitle": "Rekord posten",
   "wall.posted": "An der Wand.",
-  "wall.postedNoFeed": "Rekord gespeichert. Wir konnten ihn gerade nicht in den Feed stellen.",
+  "wall.postedNoRecord": "Gepostet, aber nicht als Rekord vermerkt – versuch es erneut.",
   "wall.posting": "Wird gepostet…",
   "wall.reps": "Wdh.",
   "wall.retry": "Erneut versuchen →",

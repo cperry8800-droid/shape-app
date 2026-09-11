@@ -22,6 +22,9 @@ import { stripComments } from './helpers/strip-comments.mjs';
 // The app's ONE share rule, imported rather than restated: a local copy would
 // make these tests agree with themselves instead of with what ships.
 import { bsWorkoutSharePrivacy as WORKOUT_SHARE_RULE } from '../mobile-app/src/services/workoutShare.mjs';
+// The real merge the repair patch goes through — restating it here would make
+// the repair test agree with itself rather than with what ships.
+import { mergePostPatch } from '../mobile-app/src/services/communityPostPatch.mjs';
 
 // BSPlate is destructured off `window` when the module evaluates, so the stub
 // has to stand before the load. It is a frame, and this suite is about what the
@@ -932,8 +935,8 @@ test('the announce this sheet delegates is the one the post would have made', ()
 
 // The sheet's four collaborators, each recording what it was handed. Defaults
 // are the healthy path: a public, sharing member with no prior record.
-function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { stored: 'supabase', data: { id: 'post-1' } }, verdict = { ok: true, prev: null }, createThrows = false, noStore = false } = {}) {
-  const calls = { created: [], announced: [], toasts: [], posted: 0, closed: 0 };
+function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', created = { stored: 'supabase', data: { id: 'post-1' } }, verdict = { ok: true, prev: null }, createThrows = false, updateThrows = false, noStore = false } = {}) {
+  const calls = { created: [], announced: [], updated: [], toasts: [], posted: 0, closed: 0 };
   const prev = {
     shapeDb: globalThis.window.shapeDb, ws: globalThis.window.ShapeWorkoutShare,
     pr: globalThis.window.ShapePRWall, com: globalThis.window.ShapeCommunity, toast: globalThis.window.__bsToast,
@@ -949,6 +952,10 @@ function postSheet({ settings = {}, ledger = [], ledgerStored = 'supabase', crea
   };
   globalThis.window.ShapeCommunity = {
     createPost: async (a) => { calls.created.push(a); if (createThrows) throw new Error('boom'); return created; },
+    // The repair channel. Ordering 4 leans on it twice — to reuse a post on a
+    // retry, and to strip the PR claim off one the server refused — so a stub
+    // that swallowed it would make both invisible.
+    update: async (a) => { calls.updated.push(a); if (updateThrows) throw new Error('boom'); return { stored: 'supabase', data: { id: a.postId } }; },
   };
   globalThis.window.__bsToast = (msg) => calls.toasts.push(String(msg));
   const restore = () => {
@@ -971,63 +978,194 @@ async function submitSheet(seed, env, { postedThrows = false } = {}) {
   return d;
 }
 
+// ⚠ A RETRY IS THE SAME MOUNTED SHEET, NOT A SECOND ONE. `submitSheet` mounts
+// afresh, which is a different member sitting down again — and the post id this
+// sheet retains across retries lives in a ref, so driving three mounts measures
+// three first attempts and says nothing about the thing under test.
+async function submitAgain(d) {
+  // ⚠ RE-RENDER FIRST. `click` renders synchronously after the handler, but
+  // `submit` is async — so the tree still carries `busy` and the only button in
+  // it reads "Posting…". Without this the retry cannot find its own control.
+  d.render();
+  d.click('Post a PR');
+  for (let i = 0; i < 24; i += 1) await Promise.resolve();
+  return d;
+}
+
 const SEED = { lift: 'Back squat', value: '245', unit: 'lb', reps: '3' };
 
-test('the ledger decides first, and the plate is published only if it accepts', async () => {
-  // ⚠ THE THIRD ORDERING THIS SHEET HAS HAD, and each was fixed for a real
-  // defect. Ledger-only rendered nothing (the Wall IS the feed). Post-first
-  // fixed the plate and left an orphan post, its own +5 award and a delta
-  // claiming a PR the server had just refused, every time the verdict went the
-  // other way. Announce-first is possible because the RPC returns the `prev` it
-  // wrote, which is what the delta needs — and is race-safe in a way a re-read
-  // never was.
-  const env = postSheet({ verdict: { ok: true, prev: 225 } });
+test('the post is published first and the ledger advances only behind a durable one', async () => {
+  // ⚠ THE FOURTH ORDERING, AND THE ONE BEFORE IT IS WHY. Announcing first meant
+  // a failed insert left a record the server would never accept again — the
+  // ledger had already moved, and `post_my_pr_to_wall` refuses anything that
+  // does not BEAT the stored best. Nothing here can advance the ledger for a
+  // plate that does not exist, so every failure stays retryable.
+  const env = postSheet({ ledger: [{ liftKey: 'back squat', best: 225, unit: 'lb' }], verdict: { ok: true, prev: 225 } });
   try {
     await submitSheet(SEED, env);
-    assert.equal(env.calls.announced.length, 1, 'the ledger is asked first');
-    assert.equal(env.calls.announced[0].postId, undefined, 'and there is no post to link yet');
-    assert.deepEqual(
-      [env.calls.announced[0].lift, env.calls.announced[0].value, env.calls.announced[0].unit, env.calls.announced[0].reps],
-      ['Back squat', 245, 'lb', 3],
-    );
-
-    assert.equal(env.calls.created.length, 1, 'then the plate');
+    assert.equal(env.calls.created.length, 1, 'the plate is made first');
     const made = env.calls.created[0];
     assert.equal(made.metrics.kind, 'workout');
     assert.equal(made.metrics.lift, 'Back squat');
     assert.equal(made.metrics.load, '245 lb', 'the number AND its unit');
-    assert.equal(made.metrics.pr, true, 'stamped a PR by the server’s verdict, not by intent');
-    assert.equal(made.metrics.delta, '+20 lb', 'computed from the prev the RPC wrote');
-    assert.equal(made.skipPRAnnounce, true, 'the announce already happened');
+    assert.equal(made.metrics.pr, true, 'stamped a PR');
+    assert.equal(made.metrics.delta, '+20 lb', 'computed from the prior best this sheet read');
+    assert.equal(made.skipPRAnnounce, true, 'the sheet announces, not the publisher');
+
+    assert.equal(env.calls.announced.length, 1, 'then the ledger');
+    assert.equal(env.calls.announced[0].postId, 'post-1', 'carrying the post it just made');
+    assert.deepEqual(
+      [env.calls.announced[0].lift, env.calls.announced[0].value, env.calls.announced[0].unit, env.calls.announced[0].reps],
+      ['Back squat', 245, 'lb', 3],
+    );
+    assert.equal(env.calls.updated.length, 0, 'and the stamped gain was already right, so nothing is repaired');
     assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)));
     assert.equal(env.calls.posted, 1);
   } finally { env.restore(); }
 });
 
 test('a first record is marked a PR even though it has no delta', async () => {
-  // ⚠ `delta` EXISTS ONLY AGAINST A PRIOR BEST. Both PR consumers on a real
-  // post read it (`kind: 'pr'` is a demo-card concept), so a member's first
-  // accepted record for a lift — genuinely a PR, accepted by the server —
-  // dropped out of the PR tab and drew as an ordinary load.
-  const env = postSheet({ verdict: { ok: true, prev: null } });
+  // ⚠ `delta` EXISTS ONLY AGAINST A PRIOR BEST, so a member's first accepted
+  // record for a lift carried no PR signal at all and dropped out of the PR tab.
+  const env = postSheet({ ledger: [], verdict: { ok: true, prev: null } });
   try {
     await submitSheet(SEED, env);
     const made = env.calls.created[0];
     assert.equal(made.metrics.pr, true, 'the marker carries it');
     assert.equal('delta' in made.metrics, false, 'and no gain is invented against a best that never existed');
+    assert.equal(env.calls.updated.length, 0, 'nothing to repair');
   } finally { env.restore(); }
+});
+
+test('a publish that never lands writes nothing at all, and the retry is clean', async () => {
+  // ⚠ THIS IS THE ONE THE PREVIOUS ORDERING GOT WRONG, AND THE TEST THAT USED TO
+  // SIT HERE CODIFIED IT: the record landed, the plate did not, and the retry was
+  // refused as not-a-PR by a row written for a plate nobody could see. Now the
+  // ledger is never asked, so the same numbers work on the next attempt.
+  // ⚠ BOTH SHAPES OF FAILURE: a throw, and the silent `stored: 'local'` that
+  // `createCommunityPost` returns on an insert error without throwing.
+  for (const make of [() => postSheet({ createThrows: true }),
+                      () => postSheet({ created: { stored: 'local', data: { id: 'local-1' } } })]) {
+    const env = make();
+    try {
+      await submitSheet(SEED, env);
+      assert.equal(env.calls.announced.length, 0, 'the ledger was never touched');
+      assert.ok(env.calls.toasts.some((m) => /could not post that record/i.test(m)),
+        'and the message is true, because nothing was written');
+      assert.ok(!env.calls.toasts.some((m) => /on the wall/i.test(m)));
+      assert.equal(env.calls.closed, 0, 'the sheet stays open on their own numbers');
+    } finally { env.restore(); }
+  }
+});
+
+test('a refused record leaves an honest workout post, not one claiming a PR', async () => {
+  // The server is the authority and can refuse a race the pre-check passed. The
+  // post is a real workout the member did — it just is not a new best — so the
+  // record claims come OFF it rather than the post being left to lie or deleted.
+  for (const reason of ['not_a_pr', 'not_public', 'auth']) {
+    const env = postSheet({ verdict: { ok: false, reason } });
+    try {
+      await submitSheet(SEED, env);
+      assert.equal(env.calls.created.length, 1, `${reason}: the post was made`);
+      assert.equal(env.calls.announced.length, 1, `${reason}: the ledger was asked`);
+      assert.equal(env.calls.updated.length, 1, `${reason}: and the plate was repaired`);
+      const fix = env.calls.updated[0];
+      assert.equal(fix.postId, 'post-1');
+      // '' and null are mergePostPatch's removal channel, so both claims come off.
+      assert.equal(fix.metrics.pr, null, `${reason}: the PR marker is removed`);
+      assert.equal(fix.metrics.delta, '', `${reason}: and so is the gain`);
+      assert.equal(env.calls.closed, 0, 'the sheet stays open');
+    } finally { env.restore(); }
+  }
+});
+
+test('a retry re-uses the post it already made — one post, one award', async () => {
+  // ⚠ THE DEFECT ORDERING 2 HAD. Without the retained id a second attempt
+  // inserts a second visible post and attempts a second +5 award for one record.
+  const env = postSheet({ verdict: { ok: false, reason: 'not_a_pr' } });
+  try {
+    const d = await submitSheet(SEED, env);
+    await submitAgain(d);
+    await submitAgain(d);
+    assert.equal(env.calls.created.length, 1, 'exactly one post across three attempts');
+    assert.equal(env.calls.announced.length, 3, 'each attempt still asks the server');
+    assert.ok(env.calls.updated.every((u) => u.postId === 'post-1'), 'every repair targets that one post');
+  } finally { env.restore(); }
+});
+
+test('an announce that fails is not an announce that was refused', async () => {
+  // ⚠ WE DO NOT KNOW WHETHER THE LEDGER MOVED, so repairing the plate could
+  // un-mark a record that WAS accepted. The post is left exactly as it is and
+  // the sheet stays open; the same button re-announces the same post.
+  const env = postSheet({ verdict: null });
+  try {
+    await submitSheet(SEED, env);
+    assert.equal(env.calls.created.length, 1);
+    assert.equal(env.calls.updated.length, 0, 'the plate is left alone');
+    assert.ok(env.calls.toasts.some((m) => /mark it a record/i.test(m)));
+    assert.ok(!env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and it does not claim the record');
+    assert.equal(env.calls.closed, 0);
+  } finally { env.restore(); }
+});
+
+test('the stamped gain is corrected from the verdict when the read was stale or absent', async () => {
+  // ⚠ THE PRE-CHECK'S READ CAN BE STALE, AND THE SERVER'S `prev` IS THE TRUTH.
+  // A concurrent winner moves the best between the read and the announce, so the
+  // delta the plate already carries is wrong until it is repaired.
+  const stale = postSheet({ ledger: [{ liftKey: 'back squat', best: 200, unit: 'lb' }], verdict: { ok: true, prev: 240 } });
+  try {
+    await submitSheet(SEED, stale);
+    assert.equal(stale.calls.created[0].metrics.delta, '+45 lb', 'stamped from the stale read');
+    assert.equal(stale.calls.updated.length, 1, 'and corrected');
+    assert.equal(stale.calls.updated[0].metrics.delta, '+5 lb', 'to the gain the server actually wrote');
+  } finally { stale.restore(); }
+
+  // An unreadable ledger stamps NO gain rather than a guessed one — and the
+  // verdict then supplies the real one.
+  const blind = postSheet({ ledgerStored: 'local', verdict: { ok: true, prev: 225 } });
+  try {
+    await submitSheet(SEED, blind);
+    assert.equal('delta' in blind.calls.created[0].metrics, false, 'no gain is invented from a read we could not make');
+    assert.equal(blind.calls.announced.length, 1, 'and it is not refused either — the server decides');
+    assert.equal(blind.calls.updated[0].metrics.delta, '+20 lb', 'the verdict fills it in');
+  } finally { blind.restore(); }
+});
+
+test('a number that beats nothing is refused before anything is published', async () => {
+  // Compared in POUNDS: the ledger keeps a unit per row, so a raw comparison
+  // puts a 100 kg pull behind a 200 lb record and refuses a genuine PR.
+  const under = postSheet({ ledger: [{ liftKey: 'back squat', best: 245, unit: 'lb' }] });
+  try {
+    await submitSheet(SEED, under);
+    assert.equal(under.calls.created.length, 0, 'no post');
+    assert.equal(under.calls.announced.length, 0, 'and the server is not troubled');
+    assert.ok(under.calls.toasts.some((m) => /does not beat your best/i.test(m)));
+  } finally { under.restore(); }
+
+  // 100 kg IS a PR over a 200 lb record (220.5 lb) and must not be refused here.
+  const kg = postSheet({ ledger: [{ liftKey: 'back squat', best: 200, unit: 'lb' }], verdict: { ok: true, prev: 90.7 } });
+  try {
+    await submitSheet({ lift: 'Back squat', value: '100', unit: 'kg', reps: '1' }, kg);
+    assert.equal(kg.calls.created.length, 1, 'a cross-unit PR is published');
+    assert.equal(kg.calls.announced.length, 1);
+  } finally { kg.restore(); }
 });
 
 // ── the marker's READ path ──────────────────────────────────────────────────
 //
-// ⚠ THE TWO TESTS ABOVE PROVE THE MARKER IS WRITTEN AND SAY NOTHING ABOUT IT
-// BEING READ. It crosses three files on the way back — `metrics.pr` is
-// surfaced by shapeBackend's row mapper, carried by the client's own mapper,
-// and finally asked for by the PR filter and the plate's pill — and a
-// mutation dropping it at ANY of those three left the whole suite green while
-// a first record went back to falling out of the PR tab. That is the exact
-// defect the marker exists to close, so the chain is driven end to end rather
-// than asserted at its first link.
+// ⚠ THE TESTS ABOVE PROVE THE MARKER IS WRITTEN AND SAY NOTHING ABOUT IT BEING
+// READ. It crosses three files on the way back — `metrics.pr` is surfaced by
+// shapeBackend's row mapper, carried by the client's own mapper, and finally
+// asked for by the PR filter and the plate's pill — and a mutation dropping it
+// at ANY of those three left the whole suite green while a first record went
+// back to falling out of the PR tab. That is the defect the marker exists to
+// close, so the chain is driven end to end rather than asserted at its first
+// link.
+//
+// ⚠ AND THIS SECTION WAS ONCE DELETED BY A REWRITE OF THE SHEET'S OWN TESTS,
+// which is why it sits BELOW them rather than among them: four mutations that
+// had been killed came back alive in one edit, and only the mutation round said
+// so. A guard is as easy to lose to a careless span as to a careless rule.
 
 // The real row→post mapper, lifted with its own dependency chain rather than
 // stubbed: a stub of `communityPostFromRow` is a second opinion about what
@@ -1091,84 +1229,16 @@ test('a stamped first record is READ as a PR all the way to the feed and the pla
   assert.equal(bsFeedTypeMatch(legacy, 'prs'), true, 'and it is still a PR');
 });
 
-test('nothing past the server\u2019s acceptance can report the record as failed', async () => {
-  // ⚠ THE ACCEPTED REGION IS OUTSIDE THE `try`, AND THIS IS WHAT THAT BUYS.
-  // Once the RPC has written the ledger the record IS on the wall, so a throw
-  // anywhere after it must not produce *"Could not post that record"* — that
-  // sentence sends the member to retry something the server will now refuse as
-  // not-a-PR, correctly, because it is their best. Driven by making a callback
-  // throw, which is the only thing in that region that can: the alternative is
-  // an argument about which expressions are safe, and a scope needs no such
-  // argument.
-  const env = postSheet({ verdict: { ok: true, prev: 225 } });
-  try {
-    await submitSheet(SEED, env, { postedThrows: true });
-    // The honest half still happened, in order, before the throw.
-    assert.equal(env.calls.announced.length, 1, 'the record was written');
-    assert.equal(env.calls.created.length, 1, 'and the plate was published');
-    assert.ok(env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and the member was told so');
-    assert.equal(env.calls.closed, 1, 'and the sheet still closes behind the throwing callback');
-    // ⚠ THE CONTROL: `postError` is the string a REACHABLE failure still uses,
-    // so its absence here is about this path and not about the app having
-    // stopped saying it. A refused verdict in the same harness does say it.
-    assert.ok(
-      !env.calls.toasts.some((m) => /could not post that record/i.test(m)),
-      'and never told the record failed',
-    );
-  } finally { env.restore(); }
-  const refused = postSheet({ verdict: { ok: false, reason: 'auth' } });
-  try {
-    await submitSheet(SEED, refused);
-    assert.ok(refused.calls.toasts.some((m) => /could not post that record/i.test(m)),
-      'the control: a genuine failure still says it');
-  } finally { refused.restore(); }
-});
-
-test('a refused record publishes nothing at all', async () => {
-  // The whole point of asking the ledger first: no orphan post, no +5 award for
-  // a post that should not exist, and a retry cannot make a second one.
-  for (const reason of ['not_a_pr', 'not_public', 'auth']) {
-    const env = postSheet({ verdict: { ok: false, reason } });
-    try {
-      await submitSheet(SEED, env);
-      assert.equal(env.calls.announced.length, 1, `${reason}: the ledger was asked`);
-      assert.equal(env.calls.created.length, 0, `${reason}: and nothing was published`);
-      assert.equal(env.calls.posted, 0);
-      assert.equal(env.calls.closed, 0, 'the sheet stays open on their own numbers');
-    } finally { env.restore(); }
-  }
-});
-
-test('a retry after a refusal still publishes nothing', async () => {
-  // The defect this ordering removes: under post-first, every retry inserted
-  // another visible post and attempted another +5.
-  const env = postSheet({ verdict: { ok: false, reason: 'not_a_pr' } });
-  try {
-    await submitSheet(SEED, env);
-    await submitSheet(SEED, env);
-    await submitSheet(SEED, env);
-    assert.equal(env.calls.announced.length, 3, 'three attempts');
-    assert.equal(env.calls.created.length, 0, 'and zero posts');
-  } finally { env.restore(); }
-});
-
-test('a record that lands but cannot be published says so, and does not say "could not post"', async () => {
-  // ⚠ THE RECORD IS ALREADY ON THE WALL BY THEN. Telling them the post failed
-  // would send them to retry something the server will now refuse as not-a-PR,
-  // correctly, because it IS their best.
-  // ⚠ EACH ENV IS BUILT INSIDE THE LOOP. Constructing both up front installs
-  // the second's stubs over the first's, and the first's restore then puts back
-  // globals that were never its own — measured: the first case read zero calls.
-  for (const make of [() => postSheet({ createThrows: true }), () => postSheet({ created: { stored: 'local', data: { id: 'local-1' } } })]) {
-    const env = make();
-    try {
-      await submitSheet(SEED, env);
-      assert.equal(env.calls.announced.length, 1, 'the record still landed');
-      assert.ok(env.calls.toasts.some((m) => /record saved/i.test(m)));
-      assert.ok(!env.calls.toasts.some((m) => /could not post that record/i.test(m)));
-      assert.ok(!env.calls.toasts.some((m) => /on the wall/i.test(m)), 'and it does not claim a plate');
-    } finally { env.restore(); }
-  }
+// ⚠ AND THE REPAIR MUST ACTUALLY UNDO THE CLAIM, which is a fact about
+// `mergePostPatch` rather than about the sheet: '' and null are its REMOVAL
+// channel, so the patch the refusal sends has to land as an absent key and not
+// as a stored `null` the readers might still count.
+test("a repaired post reads as an ordinary load, not as a PR", () => {
+  const repaired = readBack({ ...LIFT_METRICS, ...mergePostPatch({ pr: true, delta: '+20 lb' }, { pr: null, delta: '' }) });
+  assert.equal(repaired.pr, false, 'the marker is gone');
+  assert.ok(!repaired.delta, 'and so is the gain');
+  assert.equal(bsFeedTypeMatch(repaired, 'prs'), false, 'so the PR chip does not find it');
+  assert.doesNotMatch(cardText(repaired, 'wall'), /New PR/i, 'and the plate stops stamping it');
 });
 
 test('a private profile is refused, and nothing at all is written', async () => {

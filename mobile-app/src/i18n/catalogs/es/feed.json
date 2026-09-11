@@ -216,7 +216,7 @@
   "wall.postPR": "Publicar un PR",
   "wall.postPRTitle": "Publicar una marca",
   "wall.posted": "En el muro.",
-  "wall.postedNoFeed": "Marca guardada. No pudimos añadirla al muro ahora mismo.",
+  "wall.postedNoRecord": "Publicado, pero no se pudo marcar como marca: inténtalo de nuevo.",
   "wall.posting": "Publicando…",
   "wall.reps": "Reps",
   "wall.retry": "Inténtalo de nuevo →",

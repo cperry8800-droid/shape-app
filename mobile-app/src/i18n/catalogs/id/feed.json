@@ -216,7 +216,7 @@
   "wall.postPR": "Posting PR",
   "wall.postPRTitle": "Posting rekor",
   "wall.posted": "Sudah di dinding.",
-  "wall.postedNoFeed": "Rekor tersimpan. Kami belum bisa menambahkannya ke feed sekarang.",
+  "wall.postedNoRecord": "Sudah diposting, tapi gagal ditandai sebagai rekor — coba lagi.",
   "wall.posting": "Mengirim…",
   "wall.reps": "Rep",
   "wall.retry": "Coba lagi →",

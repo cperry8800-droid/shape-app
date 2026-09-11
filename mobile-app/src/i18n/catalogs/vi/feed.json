@@ -216,7 +216,7 @@
   "wall.postPR": "Đăng PR",
   "wall.postPRTitle": "Đăng một kỷ lục",
   "wall.posted": "Đã lên bảng vàng.",
-  "wall.postedNoFeed": "Đã lưu kỷ lục. Hiện chưa thể thêm vào bảng tin.",
+  "wall.postedNoRecord": "Đã đăng, nhưng chưa thể ghi nhận là kỷ lục — thử lại.",
   "wall.posting": "Đang đăng…",
   "wall.reps": "Số lần",
   "wall.retry": "Thử lại →",

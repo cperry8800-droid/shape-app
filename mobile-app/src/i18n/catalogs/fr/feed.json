@@ -216,7 +216,7 @@
   "wall.postPR": "Publier un PR",
   "wall.postPRTitle": "Publier un record",
   "wall.posted": "Sur le mur.",
-  "wall.postedNoFeed": "Record enregistré. Nous n’avons pas pu l’ajouter au fil pour le moment.",
+  "wall.postedNoRecord": "Publié, mais impossible de l’enregistrer comme record — réessaie.",
   "wall.posting": "Publication…",
   "wall.reps": "Reps",
   "wall.retry": "Réessaie →",
