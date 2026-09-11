@@ -11,6 +11,14 @@ Stack**, **B · The Record Sheet**, **C · The Instrument Board** (each with the
 run rendered phone-sized from the app's own demo records), **Metrics** (the gap table), **Carry-over**
 (every existing element and where it lives in each option) and **Pick**.
 
+**Owner's pick, same day: C · The Instrument Board** — *"i like the instrument board"*, after two
+clarifications: *"im talking about the sperate page the pops up once you click the sessions details
+link from the each post on the wall"* and *"it should be its own page"*. That page is
+`BSActivityDetail`, the full-screen page every option redraws; it stays its own page with its own
+masthead and back row, and the Wall post itself is untouched. A **Today · as shipped** tab was added to
+the board so the shipped page sits beside the options. **Not built** — the go-ahead to build is the
+owner's next call; §3 carries the build order for C.
+
 **Records only.** No code changed, no migration, no PR. Two defects found while reading the data path
 are registered below and as separate task suggestions; neither is fixed here.
 
@@ -58,17 +66,25 @@ the 3px spine is the frame's left edge.
 
 ## 3. The pick
 
-**B, The Record Sheet.** It applies the Wall's grammar where the Wall applies it — one frame around
+**The owner picked C, The Instrument Board** (2026-09-11). The recommendation below was written before
+the pick and is kept for the record; the build order at the end of this section is for C.
+
+**Recommended before the pick: B, The Record Sheet.** It applies the Wall's grammar where the Wall applies it — one frame around
 one record, the header on top, the stamp as the signature — and leaves the living ledger intact. It is
 the smallest build and the only option that adds navigation to a page that is now four screens tall.
 **A** if the owner wants every section to read as a Wall plate (the most literal match, the busiest
 page). **C** if the coach's ten-second review outranks the member's own reading; its table and sticky
 bar can be borrowed by B later.
 
-**Build order if B is picked:** 1 · carry the strap samples onto the post as `hrTrace` and derive
-zones (§4, defect 1); 2 · keep the per-set RPE in the breakdown and add PLAN and REST sub-labels from
-the set rows (§4, defect 2); 3 · the frame, the Wall header, the stamp line, the FILED dateline; 4 ·
-the jump index; 5 · the morning strip and the run lines, each gated on the data existing. No migration.
+**Build order for C:** 1 · carry the strap samples onto the post as `hrTrace` and derive zones (§4,
+defect 1), so the heart-rate section renders for in-app sessions; 2 · keep the per-set RPE in the
+breakdown and carry plan and rest on the set rows (§4, defect 2); 3 · the page's front — the record
+header (`bsWallHeader` already exists), six instrument tiles with the ghost trace and the pace needle,
+the remaining scalars as dot-leader rows, the single zone bar the Wall card already draws; 4 · the
+set-by-set and split-by-split tables with the bar and PR burst under each row, the Splits page link
+kept; 5 · the sticky action bar (reactions, comment count, share) opening the existing comments focus
+and share chooser; 6 · the morning tiles and the run lines (moving vs elapsed, negative split, HR
+drift), each gated on the data existing. New labels are i18n keys in all 13 locales. No migration.
 
 ## 4. Metrics: what the page could show and does not
 

@@ -671,6 +671,13 @@ Append new entries at the top, under this note.
   checklist proving every existing section and control has a place in all three. **Recommended: B**,
   the smallest build and the only one that adds navigation to a four-screen page. **No code changed,
   no migration, no PR.**
+- ⚠ **OWNER'S PICK, SAME DAY: C · THE INSTRUMENT BOARD** (*"i like the instrument board"*), after two
+  clarifications — *"im talking about the sperate page the pops up once you click the sessions
+  details link from the each post on the wall"* and *"it should be its own page"*. That page is
+  `BSActivityDetail`, the full-screen page every option redraws; it stays its own page with its own
+  masthead and back row, and the Wall post is untouched. A **Today · as shipped** tab joined the board
+  so the shipped page sits beside the options. The recommendation was B; the pick is C, and the
+  review's §3 now carries the build order for C. **Not built — the go-ahead is the owner's next call.**
 - ⚠ **AN IN-APP SESSION NEVER GETS A HEART-RATE CHART, AND THE SAMPLES ARE ALREADY STORED.** The live
   session writes every strap sample to `workout_sensor_samples` (`shapeBackend.js:2791`), then
   publishes a post carrying only `averageHeartRate` / `maxHeartRate` — no `hrTrace`, no zones — so the
