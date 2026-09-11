@@ -1968,6 +1968,22 @@ function BSMyRecipeSheet({ onClose, onSaved }) {
               {tr('nutrition:myRecipe.addIngredient', { defaultValue: '＋ Add an ingredient' })}
             </button>
 
+            <label style={{ display: 'block', marginTop: 18 }}>
+              {/* ⚠ THE MODEL'S SERVING COUNT IS SHOWN, OR IT IS NOT KEPT. Prep
+                  uses it as the DENOMINATOR when scaling every ingredient, so a
+                  misread yield silently rescales the whole mise — and a value
+                  the member cannot see is not one they reviewed. */}
+              <span style={lbl}>{tr('nutrition:myRecipe.servings', { defaultValue: 'Serves' })}</span>
+              <input className="bs-uline" inputMode="numeric" value={draft && draft.servings != null ? String(draft.servings) : ''}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
+                  const n = raw ? Number(raw) : null;
+                  setDraft((d) => ({ ...d, servings: n != null && n > 0 ? n : null }));
+                }}
+                placeholder={tr('nutrition:myRecipe.servingsPlaceholder', { defaultValue: 'how many it feeds' })}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
+            </label>
+
             <div style={{ ...lbl, marginTop: 18 }}>{tr('nutrition:myRecipe.method', { defaultValue: 'Method' })}</div>
             {(draft && draft.steps.length) ? draft.steps.map((st, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, padding: '4px 0', borderBottom: `1px solid ${bsTHexA(t.INK, 0.08)}` }}>
@@ -8418,33 +8434,32 @@ function BSPrepSession({ program, onClose }) {
     const seen = new Set(out.map((x) => String(x.cookable.title || '').trim().toLowerCase()));
     try {
       const libGroup = tr('cook:prep.libGroup', { defaultValue: 'Your library' });
-      const seenMine = new Set();
+      // ⚠ MEMBER RECIPES COME FROM THE DOCUMENT, NOT FROM THE POINTER ARRAY.
+      // `bsLibRead()` is the DEVICE-LOCAL `shape.library` mirror, whose cloud
+      // copy is fetched when BSClientLibrary mounts — so on a fresh install or a
+      // second device, opening Prep before ever visiting the Library showed NO
+      // member recipes at all, while `myDoc` had already hydrated them. The
+      // bodies are the record; the pointers are a convenience for the Library's
+      // own list. (Codex, this PR.)
+      //
+      // They are also resolved BEFORE the title dedupe, which has no authority
+      // over a dish identified by a uuid: running it first dropped the member's
+      // recipe whenever their arbitrary title matched a program meal or a saved
+      // catalog dish — the collision case this branch exists for, lost from the
+      // other direction. Two dishes that merely share a title are two dishes.
+      bsRecipesList(myDoc).forEach((doc) => {
+        const mc = bsCookableFromMemberRecipe(doc);
+        if (!mc || !mc.steps.length) return;
+        out.push({ key: 'lib-my-' + doc.id, cookable: mc, group: libGroup, mealId: mc.mealId, mealTitle: null, mine: true });
+      });
+      // A CATALOG pointer still resolves by exact title, and still dedupes on
+      // it — two library rows naming the same catalog dish are one dish.
+      // ⚠ A `myrecipe:` pointer is SKIPPED here rather than falling through:
+      // this lookup would hand someone who typed "One-pan chicken and rice" the
+      // catalog's method, macros and a named nutritionist's byline under their
+      // own title. An exact-title match is a claim about identity.
       (bsLibRead() || []).filter((it) => it.kind === 'recipe').forEach((it) => {
-        // ⚠ A `myrecipe:` POINTER IS RESOLVED BEFORE THE TITLE DEDUPE, NOT AFTER.
-        // A member recipe is identified by its uuid and by nothing else, so the
-        // title dedupe has no authority over it: running it first DROPPED the
-        // member's dish whenever their arbitrary title happened to match a
-        // program meal or a catalog recipe already saved to their library —
-        // which is the collision case this whole branch exists for, losing it
-        // silently from the other direction. Member recipes dedupe on their own
-        // ids; two dishes that merely share a title are two dishes.
-        const myId = bsMyRecipeIdFrom(it.id);
-        if (myId != null) {
-          if (seenMine.has(myId)) return;
-          const doc = myDoc && myDoc.items ? myDoc.items[myId] : null;
-          const mc = doc ? bsCookableFromMemberRecipe(doc) : null;
-          if (!mc || !mc.steps.length) return;
-          seenMine.add(myId);
-          out.push({ key: 'lib-my-' + myId, cookable: mc, group: libGroup, mealId: mc.mealId, mealTitle: null, mine: true });
-          return;
-        }
-        // A CATALOG pointer still resolves by exact title, and still dedupes on
-        // it — two library rows naming the same catalog dish are one dish.
-        // ⚠ It must never fall through to this lookup for a member pointer: that
-        // would hand someone who typed "One-pan chicken and rice" the catalog's
-        // method, macros and a named nutritionist's byline under their own
-        // title. An exact-title match is a claim about identity, and a member
-        // can type any title.
+        if (bsIsMyRecipeId(it && it.id)) return;
         const title = String(it.title || '').trim();
         if (!title || seen.has(title.toLowerCase())) return;
         const r = SHAPE_KITCHEN_RECIPES.find((x) => String(x.title || '').trim().toLowerCase() === title.toLowerCase());

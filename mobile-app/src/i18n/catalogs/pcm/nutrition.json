@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Give am name first.",
   "myRecipe.errDelete": "E no fit delete am now. Try again.",
   "myRecipe.deleting": "Dey delete am…",
-  "myRecipe.errRead": "We no fit read your own recipes now — dem still dey saved."
+  "myRecipe.errRead": "We no fit read your own recipes now — dem still dey saved.",
+  "myRecipe.servings": "How many people",
+  "myRecipe.servingsPlaceholder": "how many people e go feed"
 }

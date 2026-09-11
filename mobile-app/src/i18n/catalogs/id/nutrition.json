@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Beri nama dulu.",
   "myRecipe.errDelete": "Belum bisa dihapus. Coba lagi.",
   "myRecipe.deleting": "Menghapus…",
-  "myRecipe.errRead": "Resepmu belum bisa dibaca — semuanya masih tersimpan."
+  "myRecipe.errRead": "Resepmu belum bisa dibaca — semuanya masih tersimpan.",
+  "myRecipe.servings": "Porsi",
+  "myRecipe.servingsPlaceholder": "untuk berapa orang"
 }

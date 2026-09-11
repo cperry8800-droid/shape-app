@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Give it a name first.",
   "myRecipe.errDelete": "Couldn't delete just now. Try again.",
   "myRecipe.deleting": "Deleting…",
-  "myRecipe.errRead": "Couldn't read your own recipes just now — they're still saved."
+  "myRecipe.errRead": "Couldn't read your own recipes just now — they're still saved.",
+  "myRecipe.servings": "Serves",
+  "myRecipe.servingsPlaceholder": "how many it feeds"
 }

@@ -24,6 +24,9 @@ import {
   bsRecipesDrop,
   bsRecipePointer,
   bsRecipesUidSync,
+  bsRecipesRev,
+  bsRecipesRevToken,
+  BS_RECIPES_CAS_TRIES,
   bsRecipesStore,
   bsSplitPaste,
   bsNewRecipeId,
@@ -114,8 +117,33 @@ test('the document rejects prototype keys and drops rows that will not normalize
   assert.deepEqual(Object.keys(proto.items), []);
   // Nothing shaped like a document at all is an empty document, never a throw.
   for (const junk of [null, undefined, 7, 'x', [], { items: 'no' }]) {
-    assert.deepEqual(bsRecipesDoc(junk), { v: BS_RECIPES_V, items: {} });
+    assert.deepEqual(bsRecipesDoc(junk), { v: BS_RECIPES_V, rev: 0, items: {} });
   }
+});
+
+test('the revision is part of the document, and the CAS token is the RAW value', () => {
+  // ⚠ TWO DIFFERENT READS ON PURPOSE. `bsRecipesRev` is the counter the next
+  // write bumps, so anything unusable reads as 0 and it still moves forward.
+  // `bsRecipesRevToken` is what Postgres compares `data->>'rev'` against, so it
+  // must reproduce the RAW stored value — junk included, or a document written
+  // by some other build could never be written again.
+  assert.equal(bsRecipesDoc({ rev: 4, items: {} }).rev, 4);
+  assert.equal(bsRecipesDoc({ items: {} }).rev, 0);
+  assert.equal(bsRecipesRev({ rev: '7' }), 0);
+  assert.equal(bsRecipesRev({ rev: -3 }), 0);
+  assert.equal(bsRecipesRev({ rev: 2.9 }), 2);
+  assert.equal(bsRecipesRev(null), 0);
+
+  assert.equal(bsRecipesRevToken({ rev: 4 }), '4');
+  assert.equal(bsRecipesRevToken({ rev: 'abc' }), 'abc');
+  assert.equal(bsRecipesRevToken({ rev: 0 }), '0');      // ⚠ not null — 0 is a revision
+  assert.equal(bsRecipesRevToken({}), null);
+  assert.equal(bsRecipesRevToken({ rev: null }), null);
+  assert.equal(bsRecipesRevToken(null), null);
+
+  // put/drop carry the revision through; only the writer bumps it.
+  assert.equal(bsRecipesPut({ rev: 5, items: {} }, { id: 'a', title: 'A' }).rev, 5);
+  assert.equal(bsRecipesDrop({ rev: 5, items: { a: { id: 'a', title: 'A' } } }, 'a').rev, 5);
 });
 
 test('an id that would not behave as a key is refused', () => {
@@ -563,4 +591,144 @@ test('the split feeds the wrapper, and the wrapper still refuses a window', () =
   assert.equal(c.ingredients.length, 2);
   assert.equal(c.steps.length, 3);
   assert.equal(c.stepMeta.some((m) => m.passive === true), false);
+});
+
+// ── the cross-device race ──────────────────────────────────────────────────
+
+test('⚠ ANOTHER DEVICE WRITING MID-FLIGHT DOES NOT LOSE EITHER RECIPE', async () => {
+  // The defect this closes: each device reads the same document, adds its own
+  // recipe, and writes the WHOLE thing back — leaving only the later write, with
+  // the earlier device's recipe gone and nothing reporting it.
+  //
+  // ⚠ THE OTHER DEVICE IS SIMULATED IN THE BACKEND, NOT BY A SECOND STORE. The
+  // serial lane is a MODULE singleton, so two store instances in one runtime
+  // share it and their writes serialise — they can never contend, and a race
+  // "test" built that way passes without the CAS. (Measured: the first version
+  // of this test did exactly that and the conflict counter stayed at 0.) So the
+  // interleaving is injected where it really happens: the cloud row moves
+  // between our read and our write.
+  const cloud = { row: null, writes: 0, conflicts: 0 };
+  let interfered = false;
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => (cloud.row === null ? {} : JSON.parse(JSON.stringify(cloud.row))),
+    saveUserGoalsIfRev: async (_kind, data, expectedRev) => {
+      if (!interfered) {
+        // The other device commits here — after our read, before our write.
+        interfered = true;
+        cloud.row = { v: 1, rev: 1, items: { b: { id: 'b', title: "B's dinner" } } };
+      }
+      const stored = cloud.row && cloud.row.rev != null ? String(cloud.row.rev) : null;
+      if (stored !== (expectedRev == null ? null : String(expectedRev))) { cloud.conflicts += 1; return { conflict: true }; }
+      cloud.row = JSON.parse(JSON.stringify(data));
+      cloud.writes += 1;
+      return { ok: true };
+    },
+  };
+  const res = await bsRecipesStore({ db, storage: memStorage() }).save({ id: 'a', title: "A's dinner" });
+  assert.equal(res.ok, true);
+  // BOTH survive: ours was re-applied onto the document the other device left.
+  assert.deepEqual(Object.keys(cloud.row.items).sort(), ['a', 'b']);
+  // ⚠ And the conflict really happened, or this passes for the wrong reason and
+  // would go on passing with the CAS removed.
+  assert.equal(cloud.conflicts, 1);
+  assert.equal(cloud.writes, 1);
+  assert.equal(cloud.row.rev, 2);
+});
+
+test('a delete re-applies against the newer document rather than resurrecting it', async () => {
+  // The retry re-runs the MUTATION, not a finished document — which is the whole
+  // reason commit takes a function. A delete racing another device's add must
+  // remove its own key from the newer document and keep their addition.
+  const cloud = { row: { v: 1, rev: 1, items: { old: { id: 'old', title: 'Old' } } }, conflicts: 0 };
+  let interfered = false;
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => JSON.parse(JSON.stringify(cloud.row)),
+    saveUserGoalsIfRev: async (_kind, data, expectedRev) => {
+      if (!interfered) {
+        interfered = true;
+        cloud.row = { v: 1, rev: 2, items: { old: { id: 'old', title: 'Old' }, new: { id: 'new', title: 'New' } } };
+      }
+      const stored = String(cloud.row.rev);
+      if (stored !== String(expectedRev)) { cloud.conflicts += 1; return { conflict: true }; }
+      cloud.row = JSON.parse(JSON.stringify(data));
+      return { ok: true };
+    },
+  };
+  const res = await bsRecipesStore({ db, storage: memStorage() }).remove('old');
+  assert.equal(res.ok, true);
+  assert.equal(cloud.conflicts, 1);
+  // ⚠ `old` is gone (the mutation was re-applied) and `new` survived (it was not
+  // overwritten by our stale snapshot).
+  assert.deepEqual(Object.keys(cloud.row.items), ['new']);
+});
+
+test('a document with no rev yet is written with the null token, then carries one', async () => {
+  const cloud = { row: null };
+  const seen = [];
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => (cloud.row === null ? {} : JSON.parse(JSON.stringify(cloud.row))),
+    saveUserGoalsIfRev: async (_k, data, expectedRev) => {
+      seen.push(expectedRev);
+      cloud.row = JSON.parse(JSON.stringify(data));
+      return { ok: true };
+    },
+  };
+  const store = bsRecipesStore({ db, storage: memStorage() });
+  assert.equal((await store.save({ id: 'a', title: 'A' })).ok, true);
+  assert.equal(cloud.row.rev, 1);
+  assert.equal((await store.save({ id: 'b', title: 'B' })).ok, true);
+  assert.equal(cloud.row.rev, 2);
+  // ⚠ The FIRST write sends null (the key is absent), the second sends '1'.
+  // Sending '0' for an absent key would never match, and the row could not be
+  // created at all.
+  assert.deepEqual(seen, [null, '1']);
+  assert.deepEqual(Object.keys(cloud.row.items).sort(), ['a', 'b']);
+});
+
+test('a permanently contended write gives up honestly and loses nothing', async () => {
+  // A backend that always reports a conflict: the loop is bounded, the member's
+  // own copy is untouched, and the mirror is NOT advanced over a write that
+  // never landed.
+  const storage = memStorage();
+  let attempts = 0;
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({ v: 1, rev: 9, items: { keep: { id: 'keep', title: 'Keep' } } }),
+    saveUserGoalsIfRev: async () => { attempts += 1; return { conflict: true }; },
+  };
+  const res = await bsRecipesStore({ db, storage }).save({ id: 'a', title: 'A' });
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, 'contended');
+  assert.equal(attempts, BS_RECIPES_CAS_TRIES);
+  assert.equal(storage.getItem(bsRecipesMirrorKey('u1')), null);
+  assert.deepEqual(Object.keys(res.doc.items), ['keep']);
+});
+
+test('a backend with no CAS still writes — the degradation is honest, not a refusal', async () => {
+  // A member on a build whose shapeDb predates saveUserGoalsIfRev must still be
+  // able to save a recipe. The race is open there, which is the cost of not
+  // locking them out.
+  const db = fakeDb({ goals: {} });
+  const res = await bsRecipesStore({ db, storage: memStorage() }).save({ id: 'a', title: 'A' });
+  assert.equal(res.ok, true);
+  assert.equal(db.calls.saveUserGoals.length, 1);
+  assert.equal(db.calls.saveUserGoals[0][1].rev, 1);
+});
+
+test('the CAS token sent is the one the read saw, not a re-derived number', async () => {
+  // A document whose rev is junk from another build must still be writable: the
+  // filter reproduces the raw value rather than a normalised one.
+  const seen = [];
+  const db = {
+    getUser: async () => ({ id: 'u1' }),
+    getUserGoals: async () => ({ v: 1, rev: 'abc', items: {} }),
+    saveUserGoalsIfRev: async (_k, data, expectedRev) => { seen.push({ expectedRev, rev: data.rev }); return { ok: true }; },
+  };
+  const res = await bsRecipesStore({ db, storage: memStorage() }).save({ id: 'a', title: 'A' });
+  assert.equal(res.ok, true);
+  assert.equal(seen[0].expectedRev, 'abc');
+  assert.equal(seen[0].rev, 1);            // unusable counter restarts, but still moves
 });

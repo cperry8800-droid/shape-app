@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Dagli prima un nome.",
   "myRecipe.errDelete": "Non è stato possibile eliminarla. Riprova.",
   "myRecipe.deleting": "Eliminazione…",
-  "myRecipe.errRead": "Non è stato possibile leggere le tue ricette ora — restano salvate."
+  "myRecipe.errRead": "Non è stato possibile leggere le tue ricette ora — restano salvate.",
+  "myRecipe.servings": "Porzioni",
+  "myRecipe.servingsPlaceholder": "per quante persone"
 }

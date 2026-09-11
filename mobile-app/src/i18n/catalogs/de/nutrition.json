@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Gib ihm zuerst einen Namen.",
   "myRecipe.errDelete": "Konnte gerade nicht gelöscht werden. Versuch es nochmal.",
   "myRecipe.deleting": "Wird gelöscht…",
-  "myRecipe.errRead": "Deine eigenen Rezepte konnten gerade nicht geladen werden — gespeichert sind sie weiterhin."
+  "myRecipe.errRead": "Deine eigenen Rezepte konnten gerade nicht geladen werden — gespeichert sind sie weiterhin.",
+  "myRecipe.servings": "Portionen",
+  "myRecipe.servingsPlaceholder": "für wie viele"
 }

@@ -18,6 +18,11 @@ import { bsSplitMethodProse } from './cookable.mjs';
 export const BS_RECIPES_KIND = 'client_recipes';
 export const BS_RECIPES_V = 1;
 
+// How many times a contended write re-reads and re-applies before giving up.
+// A member adding a recipe on two devices at once is the case; a bounded loop
+// is the difference between converging and spinning.
+export const BS_RECIPES_CAS_TRIES = 4;
+
 // Per-uid mirror. ⚠ NOT one shared key: on a shared device a single record is
 // whoever wrote last, which is the cross-account class the radio ask-gate was
 // rebuilt to avoid. `shape.recipes.` is registered in SHAPE_SCRUB_PREFIXES
@@ -125,6 +130,25 @@ export function bsRecipeItem(raw) {
 
 // The whole document. An absent/!object/attacker-shaped value becomes an empty
 // document; a row that will not normalize is DROPPED rather than kept partial.
+// The document's revision, as a NON-NEGATIVE INTEGER. Anything else — absent, a
+// string, a float, junk from another build — reads as 0, so the counter always
+// moves forward from somewhere. ⚠ This is NOT what the CAS filter compares
+// against; that is bsRecipesRevToken below, which must match the RAW stored
+// value byte for byte or a document written by another build could never be
+// written again.
+export function bsRecipesRev(raw) {
+  const r = raw && typeof raw === 'object' ? raw.rev : null;
+  const n = typeof r === 'number' && Number.isFinite(r) ? Math.floor(r) : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+// The value to compare-and-set on: the raw `rev` as a string, or null when the
+// key is absent (which Postgres reads as `data->>'rev' IS NULL`).
+export function bsRecipesRevToken(raw) {
+  if (!raw || typeof raw !== 'object' || raw.rev == null) return null;
+  return String(raw.rev);
+}
+
 export function bsRecipesDoc(raw) {
   const items = {};
   const src = raw && typeof raw === 'object' && raw.items && typeof raw.items === 'object' ? raw.items : {};
@@ -137,7 +161,7 @@ export function bsRecipesDoc(raw) {
     const item = bsRecipeItem(src[key]);
     if (item) items[item.id] = item;
   }
-  return { v: BS_RECIPES_V, items };
+  return { v: BS_RECIPES_V, rev: bsRecipesRev(raw), items };
 }
 
 // Newest first. Ties break on id so the order is total and a render cannot
@@ -156,7 +180,7 @@ export function bsRecipesPut(doc, item) {
   const d = bsRecipesDoc(doc);
   const it = bsRecipeItem(item);
   if (!it) return d;
-  return { v: BS_RECIPES_V, items: { ...d.items, [it.id]: it } };
+  return { v: BS_RECIPES_V, rev: d.rev, items: { ...d.items, [it.id]: it } };
 }
 
 // ⚠ A remove is an UPSERT with the key gone, never a row delete: `user_goals`
@@ -167,7 +191,7 @@ export function bsRecipesDrop(doc, id) {
   if (!key || !Object.prototype.hasOwnProperty.call(d.items, key)) return d;
   const items = { ...d.items };
   delete items[key];
-  return { v: BS_RECIPES_V, items };
+  return { v: BS_RECIPES_V, rev: d.rev, items };
 }
 
 // The pointer this recipe contributes to `client_library`.
@@ -261,7 +285,22 @@ export function bsRecipesStore({ db, storage } = {}) {
     } catch (e) { return null; }
   };
 
-  // Read-merge-write, bound to the account that initiated it.
+  // Write the document, compare-and-set on its revision where the backend can.
+  // Resolves { ok } | { conflict } | { error }.
+  //
+  // ⚠ THE FALLBACK IS AN HONEST DEGRADATION, NOT A PREFERENCE. Without
+  // saveUserGoalsIfRev the write is the unconditional upsert it always was, and
+  // the cross-device race below is open. Refusing to write at all would be
+  // worse: a member on a build whose shapeDb predates the CAS could not save a
+  // recipe.
+  const writeDoc = async (next, expectedRev) => {
+    if (db && db.saveUserGoalsIfRev) return db.saveUserGoalsIfRev(BS_RECIPES_KIND, next, expectedRev);
+    if (db && db.saveUserGoals) return db.saveUserGoals(BS_RECIPES_KIND, next);
+    return { error: { message: 'No backend' } };
+  };
+
+  // Read-merge-write, bound to the account that initiated it, and COMPARE-AND-SET
+  // on the document's revision.
   //
   // ⚠ THE ORDER IS LOAD-BEARING: capture the uid, read, RE-RESOLVE the uid, then
   // write. saveUserGoals resolves the user independently at SAVE time, so an
@@ -270,27 +309,48 @@ export function bsRecipesStore({ db, storage } = {}) {
   //
   // ⚠ AND saveUserGoals RESOLVES `{error}` RATHER THAN THROWING, so a bare await
   // inside a try can never see a failed write. The return value is inspected.
+  //
+  // ⚠ THE SERIAL LANE IS ONE JAVASCRIPT RUNTIME, AND THAT IS NOT THE THREAT.
+  // Two DEVICES can each read the same document, each add a recipe, and each
+  // write the whole thing back — leaving only the later write, with the earlier
+  // device's recipe gone and nothing reporting it. For a pointer that costs a
+  // re-save; for a body the member typed it is unrecoverable, which is the
+  // entire reason this kind exists rather than reusing client_library. So the
+  // write is conditional on the revision the read saw, and a conflict RE-READS
+  // AND RE-APPLIES `mutate` against the newer document — which is why commit
+  // takes a function rather than a finished document. An add re-adds onto their
+  // recipe; a delete re-deletes from it. (Codex, this PR.)
   const commit = (mutate) => bsRecipesSerial(async () => {
     const uid0 = await uidNow();
     if (!uid0) return { ok: false, reason: 'signed-out' };
 
-    const cloud = await readCloud();
-    if (cloud === null) return { ok: false, reason: 'unreadable' };
+    let base = null;
+    for (let attempt = 0; attempt < BS_RECIPES_CAS_TRIES; attempt += 1) {
+      const cloud = await readCloud();
+      if (cloud === null) return { ok: false, reason: 'unreadable', doc: base };
 
-    const uid1 = await uidNow();
-    if (!uid1 || uid1 !== uid0) return { ok: false, reason: 'account-changed' };
+      const uid1 = await uidNow();
+      if (!uid1 || uid1 !== uid0) return { ok: false, reason: 'account-changed' };
 
-    const next = mutate(bsRecipesDoc(cloud));
-    let res = null;
-    try {
-      res = db && db.saveUserGoals ? await db.saveUserGoals(BS_RECIPES_KIND, next) : { error: { message: 'No backend' } };
-    } catch (e) {
-      return { ok: false, reason: 'write-failed', doc: bsRecipesDoc(cloud) };
+      base = bsRecipesDoc(cloud);
+      const mutated = mutate(base);
+      const next = { ...mutated, rev: bsRecipesRev(base) + 1 };
+
+      let res = null;
+      try {
+        res = await writeDoc(next, bsRecipesRevToken(cloud));
+      } catch (e) {
+        return { ok: false, reason: 'write-failed', doc: base };
+      }
+      if (res && res.conflict) continue;          // another device wrote — re-read
+      if (!res || res.error) return { ok: false, reason: 'write-failed', doc: base };
+
+      writeMirror(uid0, next);
+      return { ok: true, doc: next };
     }
-    if (res && res.error) return { ok: false, reason: 'write-failed', doc: bsRecipesDoc(cloud) };
-
-    writeMirror(uid0, next);
-    return { ok: true, doc: next };
+    // Every attempt lost the race. Nothing was written and nothing was lost —
+    // the member's own copy is intact and the next save will land.
+    return { ok: false, reason: 'contended', doc: base };
   });
 
   return {

@@ -4401,6 +4401,53 @@ window.shapeDb = window.shapeDb || {
     if (res.error) { console.warn('[shape] saveUserGoals error', res.error); return { error: res.error }; }
     return { ok: true };
   },
+
+  // COMPARE-AND-SET write for a whole-document kind. Resolves
+  // { ok } | { conflict: true } | { error }.
+  //
+  // ⚠ WHY THIS EXISTS. saveUserGoals is an UNCONDITIONAL upsert, so two devices
+  // that read the same document, each add something, and each write back leave
+  // only the later write — the earlier device's addition is gone with nothing
+  // reporting it. For a preference that is a shrug; for a recipe a member typed,
+  // it is unrecoverable, because nothing else in the system can re-derive it.
+  // The caller re-reads and re-applies its mutation on a conflict.
+  //
+  // ⚠ NO MIGRATION: the revision lives INSIDE the jsonb document the caller
+  // already owns, and `user_goals` is keyed on (user_id, kind) with its own
+  // insert and update policies. `expectedRev` is the RAW `data->>'rev'` string
+  // as it was read (null when the key is absent), never a re-derived number —
+  // it has to match what Postgres compares, junk value included, or a document
+  // written by some other build could never be written again.
+  //
+  // ⚠ AND THE `.select()` IS LOAD-BEARING. PostgREST does not treat an UPDATE
+  // that matches zero rows as an error, so without asking for the affected rows
+  // back a lost race reports success — the exact defect /api/me/age-public
+  // shipped and was fixed for.
+  async saveUserGoalsIfRev(kind, data, expectedRev) {
+    if (!supabase) return { error: { message: 'No backend' } };
+    const u = await window.shapeDb.getUser();
+    if (!u) return { error: { message: 'Not logged in' } };
+    const row = { user_id: u.id, kind, data: data || {} };
+    const q = () => supabase.from('user_goals').update({ data: row.data }).eq('user_id', u.id).eq('kind', kind);
+    // An absent rev means "the document has never been written by a CAS-aware
+    // build". That is NOT the same as "no row exists" — getUserGoals returns {}
+    // for both — so the update is tried first and the insert is the fallback,
+    // never the other way round. Inserting first would conflict forever on a
+    // rev-less row that does exist.
+    const res = expectedRev == null
+      ? await q().is('data->>rev', null).select('kind')
+      : await q().eq('data->>rev', String(expectedRev)).select('kind');
+    if (res.error) { console.warn('[shape] saveUserGoalsIfRev error', res.error); return { error: res.error }; }
+    if (res.data && res.data.length) return { ok: true };
+    if (expectedRev != null) return { conflict: true };   // the row moved on
+    const ins = await supabase.from('user_goals').insert(row);
+    if (!ins.error) return { ok: true };
+    // 23505 unique_violation: another device created the row between the update
+    // and the insert. A conflict, not a failure — the caller re-reads.
+    if (ins.error.code === '23505') return { conflict: true };
+    console.warn('[shape] saveUserGoalsIfRev insert error', ins.error);
+    return { error: ins.error };
+  },
 };
 
 window.ShapeAuth = {

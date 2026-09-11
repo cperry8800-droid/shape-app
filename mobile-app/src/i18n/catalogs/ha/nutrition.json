@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Ka fara da ba shi suna.",
   "myRecipe.errDelete": "An kasa gogewa yanzu. Sake gwadawa.",
   "myRecipe.deleting": "Ana gogewa…",
-  "myRecipe.errRead": "An kasa karanta girke-girkenka yanzu — har yanzu suna ajiye."
+  "myRecipe.errRead": "An kasa karanta girke-girkenka yanzu — har yanzu suna ajiye.",
+  "myRecipe.servings": "Adadi",
+  "myRecipe.servingsPlaceholder": "mutane nawa"
 }

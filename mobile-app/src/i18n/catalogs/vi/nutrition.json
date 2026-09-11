@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Hãy đặt tên trước.",
   "myRecipe.errDelete": "Chưa xoá được. Thử lại nhé.",
   "myRecipe.deleting": "Đang xoá…",
-  "myRecipe.errRead": "Chưa đọc được công thức của bạn — chúng vẫn được lưu."
+  "myRecipe.errRead": "Chưa đọc được công thức của bạn — chúng vẫn được lưu.",
+  "myRecipe.servings": "Khẩu phần",
+  "myRecipe.servingsPlaceholder": "cho bao nhiêu người"
 }

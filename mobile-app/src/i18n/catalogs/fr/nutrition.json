@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Donnez-lui d’abord un nom.",
   "myRecipe.errDelete": "Suppression impossible pour le moment. Réessayez.",
   "myRecipe.deleting": "Suppression…",
-  "myRecipe.errRead": "Impossible de lire vos propres recettes pour le moment — elles restent enregistrées."
+  "myRecipe.errRead": "Impossible de lire vos propres recettes pour le moment — elles restent enregistrées.",
+  "myRecipe.servings": "Portions",
+  "myRecipe.servingsPlaceholder": "pour combien de personnes"
 }

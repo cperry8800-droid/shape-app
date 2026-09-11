@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Спочатку дайте йому назву.",
   "myRecipe.errDelete": "Зараз не вдалося видалити. Спробуйте ще раз.",
   "myRecipe.deleting": "Видалення…",
-  "myRecipe.errRead": "Зараз не вдалося прочитати ваші рецепти — вони збережені."
+  "myRecipe.errRead": "Зараз не вдалося прочитати ваші рецепти — вони збережені.",
+  "myRecipe.servings": "Порцій",
+  "myRecipe.servingsPlaceholder": "на скільки осіб"
 }

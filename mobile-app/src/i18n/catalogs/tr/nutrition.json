@@ -317,5 +317,7 @@
   "myRecipe.errNoName": "Önce bir ad ver.",
   "myRecipe.errDelete": "Şu anda silinemedi. Tekrar dene.",
   "myRecipe.deleting": "Siliniyor…",
-  "myRecipe.errRead": "Kendi tariflerin şu anda okunamadı — hepsi hâlâ kayıtlı."
+  "myRecipe.errRead": "Kendi tariflerin şu anda okunamadı — hepsi hâlâ kayıtlı.",
+  "myRecipe.servings": "Kaç kişilik",
+  "myRecipe.servingsPlaceholder": "kaç kişiye yeter"
 }
