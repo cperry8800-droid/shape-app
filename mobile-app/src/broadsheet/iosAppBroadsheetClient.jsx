@@ -13567,6 +13567,14 @@ function bsActivityFromPost(p) {
     // PR delta stamped at publish (vs the author's prior best); empty until a
     // genuine new best exists — the card shows the number with no delta otherwise.
     delta: (typeof p.delta === 'string' && p.delta.trim()) ? p.delta.trim() : null,
+    // ⚠ AN EXPLICIT PR MARKER, BECAUSE A FIRST RECORD HAS NO DELTA TO INFER ONE
+    // FROM. `delta` exists only against a PRIOR best, so a member's first
+    // accepted record for a lift carried no PR signal at all on a real post
+    // (`kind: 'pr'` is a DEMO-card concept and never set here) — it dropped out
+    // of the PR tab and drew as an ordinary load. Stamped by the Post-a-PR
+    // sheet once the server has accepted the record, so it is the server's
+    // verdict rather than the composer's opinion.
+    pr: p.pr === true,
     // Raw activity type (the composer's woType / activity_type column / sensor
     // workout name) — normalized to a reaction verb at render. Honest: empty
     // strings fall back to the "Props" verb, never a strength-only word.
@@ -13645,7 +13653,9 @@ function bsFeedTypeMatch(a, t) {
   // workouts/PRs (a career "milestone" is not a training new-best).
   const isMilestone = a.kind === 'milestone' || a.typeLabel === 'Milestone';
   if (t === 'milestones') return isMilestone;
-  if (t === 'prs') return (a.kind === 'pr' || !!a.delta) && !isMilestone;
+  // `a.pr` is the stamped marker (a first record has no delta); `a.kind` is the
+  // demo cards' own; `a.delta` covers every post published before the marker.
+  if (t === 'prs') return (a.kind === 'pr' || a.pr === true || !!a.delta) && !isMilestone;
   const isRun = a.kind === 'run' || a.typeLabel === 'Run';
   if (t === 'runs') return isRun;
   return !isRun && !isMeal && !isMilestone; // 'workouts' = every non-endurance, non-meal, non-milestone activity
@@ -13744,6 +13754,26 @@ function BSActivityBody({ it, c, INK, card }) {
 const BS_MILESTONE_STAMPS = ['promoted', 'shipped', 'certified', 'new_role', 'launched', 'milestone'];
 const bsMilestoneStampLabel = (s) => String(BS_MILESTONE_STAMPS.includes(s) ? s : 'milestone').replace('_', ' ').toUpperCase();
 
+// Which rung of the composer's three-way visibility control a member's own
+// privacy settings land on.
+//
+// ⚠ THE PICKER HAS NO 'followers' RUNG, AND 'profile' IS THE HONEST ONE TO LAND
+// ON — NOT 'public'. A "Just friends" member's post stays off the open feed
+// (the feed reads public/community, never profile) and their profile is already
+// gated to the people that setting names, so the rung's own description —
+// "shows on your profile" — is exactly what happens.
+//
+// ⚠ null IS "WE COULD NOT READ IT" AND {} IS "NO ROW YET, SO THE On · Public
+// DEFAULTS APPLY". Only the second may leave the audience open: a failed read
+// must not publish. It costs a member one visible click to widen it again,
+// where the other direction costs them a post they never meant to share.
+function bsComposerVisFor(doc) {
+  const rule = doc == null ? 'private' : (window.ShapeWorkoutShare && window.ShapeWorkoutShare.rule ? window.ShapeWorkoutShare.rule(doc) : 'private');
+  if (rule === 'private') return 'private';
+  if (rule === 'followers') return 'profile';
+  return 'public';
+}
+
 function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) {
   const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif";
@@ -13768,6 +13798,61 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
   const [delBusy, setDelBusy] = useStateBSC(false);
   // Visibility: 'public' (profile + feed) · 'profile' (profile only, everyone) · 'private' (just me)
   const [vis, setVis] = useStateBSC(ed ? (ed.privacy || 'public') : 'public');
+  // Set the moment the member uses the control, so a settings read landing a
+  // beat later can never overrule a choice they have already made.
+  const visTouched = React.useRef(false);
+  // ⚠ PUBLISH WAITS FOR THE PRIVACY READ, BECAUSE AN OPTIMISTIC DEFAULT IS A
+  // RACE THE MEMBER CAN WIN. `vis` seeds 'public' and the read below tightens
+  // it — so on a slow or stalled `getUserGoals` a member whose profile is
+  // Private, or whose workout sharing is Off, could fill the form and publish
+  // before it settles, and the post goes out publicly against the setting they
+  // chose precisely to stop that. The window is small and the harm is not
+  // recoverable, which is the wrong way round for a race to be left open.
+  //
+  // ⚠ IT GATES THE BUTTON RATHER THAN SEEDING CLOSED, so the common case is
+  // unchanged: a sharing member still sees PUBLIC lit from the first frame and
+  // never watches the control move. Seeding 'private' and opening up would
+  // flicker every member for the sake of the few.
+  //
+  // An edit reads nothing (the effect bails), and neither does a state with no
+  // account, no store or no rule to read — the preview, where nothing real
+  // posts. Both are resolved from the start, or the button would never arm.
+  const [visResolved, setVisResolved] = useStateBSC(!!ed);
+  // ⚠ THE DEFAULT FOLLOWS THE MEMBER'S OWN PRIVACY SETTINGS; THE PICKER STAYS
+  // THEIRS. This seeded a hard 'public' for every new post, so a member whose
+  // profile is Private — or who has turned Share workout data off — opened the
+  // composer with PUBLIC already lit, and a post made without reading the
+  // control went to the community feed against the setting they had chosen
+  // precisely to stop that. The rule is the app's one share rule, the same one
+  // the auto-share path and the live row use, so a member cannot be told two
+  // different things about their own audience by two surfaces.
+  //
+  // ⚠ IT IS A DEFAULT, NOT A CLAMP. Pressing PUBLIC still posts publicly: this
+  // sheet HAS an audience control and a control that silently does something
+  // else is worse than one that starts in the wrong place. The per-post
+  // override is the same shape as the session player's share toggle.
+  //
+  // 'followers' has no rung on this three-way control, and 'profile' is the
+  // honest one to land on — the post stays off the open feed, and their profile
+  // is already gated to the people the setting names. NOT 'public'.
+  //
+  // ⚠ SEEDED OPTIMISTIC AND TIGHTENED ON READ, never the other way round: a
+  // sharing member — the defaults, and most members — sees no movement at all,
+  // because the read resolves to what is already lit. An edit is left alone; a
+  // post's stored privacy is a choice its author already made, and re-privatising
+  // it because they have since gone quiet is a change to their history, which
+  // `bsMaybeRetightenAutoPosts` deliberately reserves for AUTO posts.
+  React.useEffect(() => {
+    if (ed) return undefined;
+    let on = true;
+    try {
+      if (!window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule || !window.shapeDb?.getUserGoals) { setVisResolved(true); return undefined; }
+      window.shapeDb.getUserGoals('client_settings')
+        .then((doc) => { if (!on) return; if (!visTouched.current) setVis(bsComposerVisFor(doc)); setVisResolved(true); })
+        .catch(() => { if (!on) return; if (!visTouched.current) setVis(bsComposerVisFor(null)); setVisResolved(true); });
+    } catch (e) { setVisResolved(true); }
+    return () => { on = false; };
+  }, []);
   const photoRef = React.useRef(null), videoRef = React.useRef(null);
 
   const TYPES = [
@@ -13796,7 +13881,9 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
     finally { setUpBusy(false); }
   };
 
-  const canPost = !busy && !upBusy && (
+  // `visResolved` is the privacy-read gate above: a new post cannot be published
+  // until the audience on screen is the member's own, not the optimistic seed.
+  const canPost = !busy && !upBusy && visResolved && (
     kind === 'note' ? !!(title.trim() || body.trim())
     : kind === 'photo' ? !!photoUrl
     : kind === 'video' ? !!videoUrl.trim()
@@ -13971,7 +14058,7 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null }) 
           <span style={label}>{tr('profile:log.field.visibility', { defaultValue: 'Visibility' })}</span>
           <div style={{ display: 'flex', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.16)}`, overflow: 'hidden' }}>
             {[['public', 'Public'], ['profile', 'Profile'], ['private', 'Just me']].map(([val, lab], i) => { const on = vis === val; return (
-              <button key={val} onClick={() => setVis(val)} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('profile:log.vis.' + val, { defaultValue: lab })}</button>
+              <button key={val} onClick={() => { visTouched.current = true; setVisResolved(true); setVis(val); }} style={{ flex: 1, padding: '9px 6px', border: 0, borderLeft: i ? `1px solid ${bsTHexA(INK, 0.12)}` : 0, cursor: 'pointer', background: on ? bsTHexA(TEAL, 0.16) : 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('profile:log.vis.' + val, { defaultValue: lab })}</button>
             ); })}
           </div>
           <div style={{ marginTop: 7, fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em', color: bsTHexA(INK, 0.5) }}>
@@ -15377,6 +15464,18 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const heroCover = (customEff && customEff.cover && customEff.cover.image) || null;
   const phaseLine = showCoachBand && (!signedInSelf || hasRealProgram);
   const phaseOnCover = !!heroCover && phaseLine;
+  // ⚠ THE ASCENT BAND AND THE PAD ABOVE IT ARE ONE NUMBER SPLIT IN TWO, and the
+  // split is the whole trick: over a cover photo the band is TALLER and the extra
+  // range is taken out of the dead padding above it, never added to the block. So
+  // the block height — and with it the photo's `cover` crop, the base square, the
+  // base label and the phase eyebrow — lands on exactly the pixels it did before,
+  // while the summit, the route and the figure climb 64px up into the picture and
+  // the chord steepens with them (rise/run 102/296 → 166/296). Raising the band by
+  // growing the block would have re-cropped the photo instead of moving the line.
+  // On paper there is no photo to climb into and no padding to spend, so the
+  // compact chart keeps its own height and is pixel-identical.
+  const BS_HERO_BLOCK = 278;
+  const heroAscentH = heroCover ? 214 : 150;
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={onMessage} />;
   return (
     <div className="bs-scroll" style={{ position: 'absolute', inset: 0, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: SANS, WebkitFontSmoothing: 'antialiased', display: 'flex', flexDirection: 'column' }}>
@@ -15479,11 +15578,21 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         <div style={heroCover ? { position: 'relative', marginTop: 14, overflow: 'hidden', borderTop: `1px solid ${bsTHexA(INK, 0.1)}`, borderBottom: `1px solid ${bsTHexA(INK, 0.1)}` } : { padding: '14px 0 2px' }}>
           {heroCover && <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
           {heroCover && <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(11,9,8,0.42) 0%, rgba(11,9,8,0.12) 34%, rgba(11,9,8,0.22) 58%, rgba(11,9,8,0.78) 100%)' }} />}
-          <div style={heroCover ? { position: 'relative', paddingTop: 128, paddingBottom: phaseOnCover ? 0 : 6 } : null}>
+          <div style={heroCover ? { position: 'relative', paddingTop: BS_HERO_BLOCK - heroAscentH, paddingBottom: phaseOnCover ? 0 : 6 } : null}>
           {(() => {
-            const W = 330, H = 150;
+            const W = 330, H = heroAscentH;
             const base = [12, H - 22], peak = [W - 22, 26];
-            const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${H - 34}, ${W * 0.62} ${H * 0.5} T ${peak[0]} ${peak[1]}`;
+            // ⚠ THE ROUTE IS SHAPED AS A FRACTION OF ITS OWN RISE, NOT OF H, or a
+            // taller band would DISTORT the climb instead of steepening it: the
+            // knee and the shoulder were literals (`H - 34`, `H * 0.5`) measured
+            // against a 150-tall box, and at 214 they would have flattened the
+            // approach to 7% of the rise and dropped the hand-over below half.
+            // The two fractions ARE those literals re-derived at H = 150
+            // (128 − 102·12/102 = 116 = H − 34; 128 − 102·53/102 = 75 = H/2), so
+            // the compact band is byte-identical and only the cover band moves.
+            const rise = base[1] - peak[1];
+            const KNEE = 12 / 102, SHOULDER = 53 / 102;
+            const ridge = `M ${base[0]} ${base[1]} Q ${W * 0.4} ${base[1] - rise * KNEE}, ${W * 0.62} ${base[1] - rise * SHOULDER} T ${peak[0]} ${peak[1]}`;
             // The figure rides the chord, capped clear of the summit flag. At
             // the top of the ladder it climbs to 0.82 so it stands AT the end of
             // the fully-drawn route (0.66 there read as "100% — two-thirds up");
@@ -15771,7 +15880,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      carries the timing; author header hidden (the profile owns
                      the identity). */
                   <div key={a.key || i} style={{ margin: '0 -8px' }}>
-                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} />
+                    <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === feedEff.length - 1} pagePad={0} variant="wall" />
                   </div>
                 ))}
               </div>
@@ -16578,7 +16687,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
                 <div key={a.key || i} style={{ margin: '0 -22px' }}>
-                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} />
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} variant="wall" />
                 </div>
               ))}
             </div>
@@ -18232,7 +18341,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // tally stays one unified count. PR/milestone (a new-best delta, or the demo
     // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
     const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
-    const actType = bsReactionType(_rawType, { isPR: a.real ? !!a.delta : a.kind === 'pr' });
+    const actType = bsReactionType(_rawType, { isPR: a.real ? (!!a.delta || a.pr === true) : a.kind === 'pr' });
     const cheer = bsReactionVerb(actType);
     // ⚠ EVERY MEASUREMENT ON THIS CARD IS TEXT BY THE TIME IT ARRIVES, so the
     // reader's unit preference is applied to the STRING. `t.uText` rewrites only
@@ -18280,7 +18389,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       const measure = String(heroStat[0] || '').trim();
       const lift = (a.real ? '' : String(a.lift || '')).trim();
       // A stamped PR (real posts carry `delta`; demo PRs carry kind 'pr').
-      const isPR = !!prDelta || (!a.real && a.kind === 'pr');
+      const isPR = !!prDelta || a.pr === true || (!a.real && a.kind === 'pr');
       // ⚠ THE DELTA RIDES IN THE PILL RATHER THAN ON ITS OWN LINE. The plate
       // used to state the record twice — a header above the card and the card's
       // own hero below it — which is the one thing the approved board does not
@@ -18976,6 +19085,37 @@ function BSDotNumber({ text, size = 34, color, dim, gap = 1, title }) {
 // anything the feed learns to show, the Wall shows the same day, and one
 // activity can never read two different ways on two surfaces.
 
+// ⚠ NO PRODUCTION CALLER TODAY, AND IT IS KEPT ON PURPOSE. The plate that used
+// this died with the Wall segment (#2036 → the activity sub-tab renders records
+// through BSActivityCard's own wall pill). What did NOT die is the invariant it
+// encodes and that `tests/units-weight-canonical.test.mjs` asserts eight times:
+// a record's FIGURE and its GAIN are converted together or not at all — convert
+// one alone and "+10 lb over last best" ends up under a kilogram number. Kept as
+// the one place that rule is executable; re-pointing those assertions at the two
+// live call sites that now do it by hand is a tidy-up, not a fix.
+// `toUnit` omitted keeps the record's own unit — the signature stays additive so
+// a caller that has no theme in hand is unchanged.
+function bsWallHeader(rec, prefs) {
+  const srcUnit = (rec && rec.unit != null && String(rec.unit).trim()) ? String(rec.unit).trim() : 'lb';
+  const unit = bsWallTargetUnit(srcUnit, prefs);
+  const gain = bsWallToUnit(bsWallGain(rec && rec.best, rec && rec.prev), srcUnit, unit);
+  // ⚠ "FIRST" IS WHETHER A PREVIOUS BEST EXISTS — NOT WHETHER A GAIN COULD BE
+  // COMPUTED FROM IT. Deriving it from `gain == null` meant any record whose
+  // improvement failed to produce a number (a rounding edge, a malformed stored
+  // value) was announced as the member's first on the wall while the ledger
+  // held a prior best. The two are different questions and they are asked
+  // separately now.
+  const prev = rec && rec.prev;
+  return {
+    label: String((rec && (rec.liftLabel || rec.liftKey)) || '').trim(),
+    figure: bsWallNum(bsWallToUnit(rec && rec.best, srcUnit, unit)),
+    unit,
+    reps: (rec && Number.isFinite(Number(rec.reps)) && Number(rec.reps) > 1) ? Number(rec.reps) : null,
+    gain,
+    first: prev == null || prev === '',
+  };
+}
+
 // The gain over the member's OWN previous best. Null when there is nothing to
 // be better than (their first record for that lift), which the plate then says
 // in words — printing "↑ +245" against no prior best would be a claim about a
@@ -19068,28 +19208,6 @@ function bsWallToUnit(value, from, to) {
   if (f.family === 'weight') return d.key === 'kg' ? n * BS_WALL_LB_TO_KG : n / BS_WALL_LB_TO_KG;
   return d.key === 'km' ? n * BS_WALL_MI_TO_KM : n / BS_WALL_MI_TO_KM;
 }
-// `toUnit` omitted keeps the record's own unit — the signature stays additive so
-// a caller that has no theme in hand is unchanged.
-function bsWallHeader(rec, prefs) {
-  const srcUnit = (rec && rec.unit != null && String(rec.unit).trim()) ? String(rec.unit).trim() : 'lb';
-  const unit = bsWallTargetUnit(srcUnit, prefs);
-  const gain = bsWallToUnit(bsWallGain(rec && rec.best, rec && rec.prev), srcUnit, unit);
-  // ⚠ "FIRST" IS WHETHER A PREVIOUS BEST EXISTS — NOT WHETHER A GAIN COULD BE
-  // COMPUTED FROM IT. Deriving it from `gain == null` meant any record whose
-  // improvement failed to produce a number (a rounding edge, a malformed stored
-  // value) was announced as the member's first on the wall while the ledger
-  // held a prior best. The two are different questions and they are asked
-  // separately now.
-  const prev = rec && rec.prev;
-  return {
-    label: String((rec && (rec.liftLabel || rec.liftKey)) || '').trim(),
-    figure: bsWallNum(bsWallToUnit(rec && rec.best, srcUnit, unit)),
-    unit,
-    reps: (rec && Number.isFinite(Number(rec.reps)) && Number(rec.reps) > 1) ? Number(rec.reps) : null,
-    gain,
-    first: prev == null || prev === '',
-  };
-}
 
 // YOUR BEST — one row per lift the member has, merging what their own training
 // data says with what the wall carries.
@@ -19126,12 +19244,23 @@ function bsWallYourBest(logged, posted) {
     rows.set(l.liftKey, row);
   }
   for (const row of rows.values()) {
-    // ⚠ THE GAP IS ONLY COMPARABLE IN ONE UNIT. A lift logged in kg against a
-    // ledger row in lb is two different numbers, and subtracting them would
-    // invent a gap out of the conversion. Left null; the row still shows both.
-    const comparable = row.posted != null && row.logged != null
-      && (!row.postedUnit || row.postedUnit === row.unit);
-    row.gap = comparable ? bsWallGain(row.logged, row.posted) : null;
+    // ⚠ THE TWO SIDES ARE NORMALISED BEFORE THEY ARE COMPARED, AND THIS
+    // CORRECTS THE RULE THAT USED TO SIT HERE. It read "a lift logged in kg
+    // against a ledger row in lb is two different numbers, and subtracting them
+    // would invent a gap" — which conflated INVENTING with CONVERTING. A
+    // conversion inside one family is exact, and refusing it had a cost the
+    // rule did not name: a logged 100 kg over a posted 200 lb is the higher,
+    // UNPOSTED best, and the row drew it as a settled fact with the old post's
+    // date and no way to put it up.
+    //
+    // What the old rule was right about is the FAMILY: a weight and a distance
+    // are genuinely not comparable, so a row whose two sides disagree about
+    // that keeps the conservative answer rather than crossing them.
+    const pUnit = row.postedUnit || row.unit;
+    const sameFamily = bsWallUnitFamily(pUnit).family === bsWallUnitFamily(row.unit).family;
+    const postedHere = (row.posted != null && sameFamily) ? bsWallToUnit(row.posted, pUnit, row.unit) : null;
+    const comparable = postedHere != null && row.logged != null;
+    row.gap = comparable ? bsWallGain(row.logged, postedHere) : null;
     row.unposted = row.logged != null && (row.posted == null || (comparable && row.gap != null));
     row.best = row.logged != null ? row.logged : row.posted;
   }
@@ -19142,16 +19271,6 @@ function bsWallYourBest(logged, posted) {
   });
 }
 
-// The lifts actually present in the loaded rows — the filter must never offer a
-// lift the wall cannot show, and must never hide one it can.
-function bsWallLifts(rows) {
-  const seen = new Map();
-  for (const r of (rows || [])) {
-    if (!r || !r.liftKey || seen.has(r.liftKey)) continue;
-    seen.set(r.liftKey, r.liftLabel || r.liftKey);
-  }
-  return [...seen.entries()].map(([key, label]) => ({ key, label }));
-}
 
 // Sample records for the SIGNED-OUT preview only. Each one is matched to a demo
 // activity in COMMUNITY_ACTIVITIES by name, so the preview's plate carries that
@@ -19169,122 +19288,179 @@ function bsWallLifts(rows) {
 // constant so the select never carries a literal for the i18n walk to find.
 const BS_WALL_UNITS = ['lb', 'kg'];
 
-const BS_WALL_DEMO = [
-  { who: 'Priya Shah',    liftKey: 'deadlift',   liftLabel: 'Deadlift',    best: 245,  prev: 235,  unit: 'lb', reps: 3 },
-  { who: 'Drew Oyelaran', liftKey: 'long run',   liftLabel: 'Long run',    best: 18.2, prev: 16.4, unit: 'mi', reps: null },
-  { who: 'Lena Fischer',  liftKey: 'pool swim',  liftLabel: 'Pool swim',   best: 2000, prev: 1600, unit: 'm',  reps: null },
-  { who: 'Devon Wells',   liftKey: 'bench press', liftLabel: 'Bench Press', best: 225, prev: 215,  unit: 'lb', reps: 5 },
-  { who: 'Marcus Bell',   liftKey: 'peak power', liftLabel: 'Peak power',  best: 612,  prev: 588,  unit: 'W',  reps: null },
-  { who: 'Quinn Harper',  liftKey: 'back squat', liftLabel: 'Back Squat',  best: 247,  prev: null, unit: 'lb', reps: 3 },
-];
-
-function bsWallDemoRows() {
-  return BS_WALL_DEMO.map((d) => {
-    const act = COMMUNITY_ACTIVITIES.find((a) => a.who === d.who) || null;
-    return {
-      key: `demo-${d.liftKey}-${d.who}`,
-      userId: null,
-      name: d.who,
-      liftKey: d.liftKey,
-      liftLabel: d.liftLabel,
-      best: d.best,
-      prev: d.prev,
-      unit: d.unit,
-      reps: d.reps,
-      ago: (act && act.ago) || '',
-      act,
-    };
-  }).filter((r) => r.act);
+// The rows as the strip draws them: each record in the READER's own unit, plus
+// the one decision the row's whole presentation turns on.
+//
+// ⚠ "UNPOSTED" IS A FACT ABOUT THE RECORD; "POSTABLE" IS A FACT ABOUT THE
+// SHEET, AND ONLY THE SECOND MAY DRAW A BUTTON. The wall carries more than
+// barbells — `myBestLifts` also returns the longest of each thing the member
+// does, in KILOMETRES — and `BSWallPostSheet` can express a weight and nothing
+// else (`BS_WALL_UNITS`), with `seed.unit` falling back to 'lb' for anything it
+// does not recognise. So a real 18.2 km run was offered a Post a PR button that
+// would have filed it as 18.2 LB on the member's own public record. A record
+// the sheet cannot express is shown as what it is — their best, out of their own
+// training — with no call to action and no claim about a wall it has no route
+// to. Derived from the UNIT rather than from a record kind, so a unit added to
+// that list becomes postable with nobody remembering this function exists.
+//
+// ⚠ REGISTERED, NOT CLOSED: an endurance record still has no way onto the wall
+// by hand. Closing it needs the sheet, the RPC's comparison and the ledger to
+// agree about distance — a feature, not this fix.
+//
+// Pure and separate from the component because a filter chain gets exactly this
+// kind of rule wrong silently, and because a `useEffect`-fed list cannot be
+// driven through the mount harness at all.
+function bsWallDisplayRows(rows, prefs) {
+  return (Array.isArray(rows) ? rows : []).map((r) => {
+    const u = bsWallTargetUnit(r.unit, prefs);
+    // The figure and the gap convert TOGETHER — converting one without the
+    // other is how "+20 lb to the wall" ends up under a kilogram number.
+    return { ...r, unit: u, best: bsWallToUnit(r.best, r.unit, u), gap: bsWallToUnit(r.gap, r.unit, u), postable: !!r.unposted && BS_WALL_UNITS.includes(u) };
+  });
 }
 
-// One record. The header is the Wall's; everything under it is the feed's card.
-function BSWallPlate({ rec, ctx, newest }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const h = bsWallHeader(rec, { weight: t.weightUnit, distance: t.distanceUnit });
-  const a = rec.act;
-  // A stamped record is one a coach has co-signed — either already, or by this
-  // viewing coach a moment ago (the optimistic co-sign the card itself reads).
-  // Anything else says so, because a stamp nobody withholds is worth nothing.
-  const stamped = !!(a && (a.cosign || (ctx.feedCtx.actCoSign && ctx.feedCtx.actCoSign[bsActivityKey(a)])));
-  // What the retired header uniquely said: how much this beat their own last
-  // best by. Empty for a first record — there is nothing to have beaten.
-  const recordNote = h.gain != null
-    ? tr('feed:wall.overShort', { defaultValue: '+{gain} {unit}', gain: bsWallNum(h.gain), unit: h.unit })
-    : '';
-  return (
-    // ⚠ THE PLATE ADDS NO SIDE INSET, AND THE HEADER PADS ITSELF INSTEAD.
-    // The card is built for the page's own width — the community feed renders
-    // it inside a container with NO horizontal padding at all — so every pixel
-    // a frame takes off the sides is a pixel its author row loses. Measured at
-    // 375px with a 14px inset: Drew Oyelaran's row ran 12px past the frame with
-    // `overflow: visible` (silently), and Priya's `PEAK · CLIENT` collided with
-    // the STRENGTH tag while the same card on the Feed had room for both. With
-    // no inset the card gets exactly the width it gets on the Feed, and the
-    // 3px spine reads as the frame's left edge rather than eating into it.
-    <BSPlate c={teal} tick={!!newest} pad="12px 0 10px" style={{ marginBottom: 12 }}>
-      {/* ⚠ THE HEADER RENDERS ONLY FOR A BARE RECORD. When the card is here it
-          carries the whole reading itself — the pill names the record, the
-          title names the lift, the drawn figure IS the number — and a header
-          above it stated all three a second time. What the header uniquely
-          held, the gain over the last best, rides in the pill now.
-          BSPlate draws the live tick at left:8, 6px wide, so the eyebrow needs
-          the room or it reads as one glyph joined to the mark. */}
-      {!a && (
-      <div style={{ padding: `0 14px 0 ${newest ? 22 : 15}px` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {tr('feed:wall.newBest', { defaultValue: 'New best' })}{h.label ? ` · ${h.label}` : ''}
-        </div>
-        {rec.ago && <div style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{rec.ago}</div>}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 30, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{h.figure}</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{h.unit}</span>
-        {h.reps != null && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>× {h.reps}</span>}
-      </div>
-      {(h.first || h.gain != null) && (
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: h.first ? t.INK50 : teal }}>
-          {h.first
-            ? tr('feed:wall.first', { defaultValue: 'First on the wall' })
-            : tr('feed:wall.over', { defaultValue: '↑ +{gain} {unit} over last best', gain: bsWallNum(h.gain), unit: h.unit })}
-        </div>
-      )}
-      </div>
-      )}
-      {/* ⚠ A BARE RECORD STILL NAMES ITS MEMBER. The attribution a plate usually
-          shows lives inside the wrapped card — so a row whose post is missing
-          (an older ledger row, one posted from outside the app, or one whose
-          post this caller cannot read) was an anonymous number on a board of
-          other people's records. */}
-      {!a && rec.name && (
-        <div style={{ marginTop: 6, padding: `0 14px 0 ${newest ? 22 : 15}px`, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <BSFacetAvatar size={26} c={bsTierColor(bsPostTier({ who: rec.name }))} initial={bsInitials(rec.name) || '?'} photo={rec.avatarUrl || undefined} showRank={false} />
-          <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rec.name}</span>
-        </div>
-      )}
-      {a && (
-        <div>
-          {/* pagePad 0 + isLast: the card's media strip bleeds 12px, which stays
-              inside this plate's 14px inset, and the trailing feed rule would
-              draw a second line under a frame that already has an edge. */}
-          <BSActivityCard a={a} ctx={ctx.feedCtx} isLast pagePad={0} variant="wall" recordNote={recordNote} />
-        </div>
-      )}
-      {a && !stamped && (
-        <div style={{ marginTop: 2, padding: '0 14px 0 15px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>
-          {tr('feed:wall.notStamped', { defaultValue: 'Not yet stamped' })}
-        </div>
-      )}
-    </BSPlate>
-  );
+
+
+
+// The two questions a hand-posted record has to answer before anything is
+// written, both off the ONE settings document, in one read.
+//
+// ⚠ THEY ARE DIFFERENT QUESTIONS AND THEY TAKE DIFFERENT RULES, which is why
+// this returns both rather than one verdict.
+//   • CAN THIS RECORD GO ON THE WALL?  `profileVisibility === 'Public'` — the
+//     exact gate `post_my_pr_to_wall` applies, so this refusal and the
+//     server's agree and the "your profile is private" line is never shown to
+//     somebody it is not about.
+//   • WHO CAN SEE THE POST?  `bsWorkoutSharePrivacy` — the app's ONE share
+//     rule (Share workout data × profile visibility), already the authority
+//     for the auto-share path and the live row.
+// A member with a public profile and Share workout data OFF therefore puts the
+// record on the wall — they pressed a button whose entire subject is the wall
+// — and keeps the POST to themselves. Their two settings say different things;
+// each is honoured on its own terms, and nothing is published that either one
+// refuses.
+//
+// ⚠ FAIL CLOSED ON THE AUDIENCE, OPEN ON THE GATE, AND SAY NOTHING WE DID NOT
+// READ. A read we cannot trust must not publish — so `privacy` is **null**
+// rather than 'private', and null is never feed-visible, which closes the
+// audience by construction. But null is also not a CLAIM: reporting an
+// unreadable read as "sharing workout data is off" would state a setting
+// nobody looked at, which is the same fabrication this sheet exists to stop,
+// wearing a refusal's clothes. The caller tells the three apart. The wall gate
+// stays open either way, so the SERVER re-checks visibility on its own
+// authority rather than this guessing on its behalf.
+async function bsWallShareState() {
+  try {
+    const db = window.shapeDb;
+    if (!db || !db.getUserGoals || !window.ShapeWorkoutShare || !window.ShapeWorkoutShare.rule) return { canWall: true, privacy: null };
+    // `getUserGoals` resolves null for every can't-know case and {} for a row
+    // that genuinely does not exist yet — only the second means "the defaults
+    // apply", so only the second may open the audience.
+    const doc = await db.getUserGoals('client_settings');
+    if (doc == null) return { canWall: true, privacy: null };
+    return { canWall: String(doc.profileVisibility || 'Public') === 'Public', privacy: window.ShapeWorkoutShare.rule(doc) };
+  } catch (e) { return { canWall: true, privacy: null }; }
 }
 
-// Post a PR — for a lift set somewhere the app was not watching. The RPC is the
-// authority on whether it lands: it re-checks the profile is public and that
-// the value beats the member's own best, and this sheet reports back whichever
-// answer it gives rather than claiming success.
+// The member's own prior best for one lift, in POUNDS, read from the ledger.
+//
+// ⚠ THIS IS THE CLIENT PRE-CHECK, RESTORED, AND THE PREVIOUS ROUND DELETED IT
+// FOR A REASON THAT NO LONGER HOLDS. That round announced first, so the RPC's
+// own `prev` was in hand before the post was built and nothing had to be read
+// here. Publishing first puts the post before the verdict again, so the delta
+// needs a prior best from somewhere — and refusing before the insert is what
+// stops "Post a PR" with a number that beats nothing publishing an ordinary
+// workout post nobody asked for.
+//
+// ⚠ THE ONLY ANSWER IS A NUMBER OR null, AND `null` COVERS BOTH WAYS OF NOT
+// HAVING ONE. "No record yet" and "could not read" look different and want the
+// SAME treatment at both call sites: neither may refuse the member (a first
+// record is a PR, and an unreadable ledger is not evidence against one), and
+// neither may stamp a gain (there is nothing to subtract, or nothing we trust).
+// An earlier cut carried a `known` flag to tell them apart; it was implied by
+// `lb != null` at every return, so it could not change either answer, and a
+// mutation removing it from both guards survived. Deleted rather than tested
+// around — the verdict's own `prev` repairs the delta afterwards either way.
+async function bsWallPriorBest(lift) {
+  try {
+    const led = window.ShapePRWall && window.ShapePRWall.mine ? await window.ShapePRWall.mine() : null;
+    // ⚠ `stored === 'supabase'` IS A PROVEN NO-OP TODAY, AND IS KEPT ANYWAY.
+    // Every non-supabase path in `myPRLedger` answers `data: []` (checked: the
+    // no-client bail and the query-error bail both do), so the lookup below
+    // already yields nothing and this line cannot change the answer — a mutation
+    // removing it survives, and that is recorded rather than covered, because
+    // the only fixture that could kill it would invent a shape production cannot
+    // produce. It stays because it is what would stop this comparing a member's
+    // real lift against a STALE LOCAL CACHE if that function ever grew one, and
+    // a stale best refuses a genuine PR — the one failure this pre-check exists
+    // to avoid.
+    if (!led || led.stored !== 'supabase') return { lb: null };
+    const row = (led.data || []).find((r) => String(r.liftKey || '').toLowerCase() === String(lift || '').toLowerCase());
+    if (!row) return { lb: null };
+    const n = Number(row.best);
+    if (!Number.isFinite(n)) return { lb: null };
+    return { lb: bsWallToUnit(n, row.unit || 'lb', 'lb') };
+  } catch (e) { return { lb: null }; }
+}
+
+// Every refusal this sheet can hit has a reason the member can act on, so none
+// of them is reported as a generic failure. One ladder, because the submit has
+// two exits into it and a second copy is how the two come to disagree.
+function bsWallSay(tr, reason) {
+  if (reason === 'not_public') window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info');
+  else if (reason === 'not_a_pr') window.__bsToast?.(tr('feed:wall.notAPR', { defaultValue: 'That does not beat your best for this lift yet.' }), 'info');
+  else window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error');
+}
+
+// Post a PR — for a lift set somewhere the app was not watching.
+//
+// ⚠ THE POST IS PUBLISHED FIRST AND THE LEDGER ADVANCES ONLY BEHIND A DURABLE
+// ONE. THIS IS THE FOURTH ORDERING THIS SHEET HAS HAD, and each of the first
+// three was fixed for a real defect and produced the next, so the reasoning is
+// worth more than the result:
+//
+//   1. Ledger only. Since #2036 the Wall IS the activity feed, so a ledger row
+//      on its own rendered NOTHING and a hand-posted record appeared nowhere.
+//   2. Post, then announce. Fixed the plate; a refused announce then left an
+//      orphan post with its own +5 award, and a retry made a second one.
+//   3. Announce, then post. Fixed the orphan post — and created a far worse
+//      one, because `post_my_pr_to_wall` refuses any value that does not BEAT
+//      the stored best: once the ledger had advanced, a failed insert left a
+//      record that could never be published, by a retry the server itself
+//      refuses as not-a-PR. Invisible, unrecoverable, and *Your best* showed it
+//      as posted.
+//   4. Post as an ordinary workout, announce, then STAMP THE RECORD FROM THE
+//      VERDICT — this one.
+//
+// ⚠ THE MARKER IS WRITTEN ONLY BEHIND AN ACCEPTED RECORD, and that is a
+// reviewer's remedy adopted rather than my own idea. It buys two things. The
+// plate can never claim a PR the server has not granted, so a refusal needs no
+// repair and an unreadable announce leaves the post UNDER-claiming rather than
+// over-claiming. And Shape's own flow stops being a way to write the marker
+// without a verdict.
+// ⚠ WHAT IT DOES NOT BUY IS A TRUST BOUNDARY, AND SAYING SO MATTERS MORE THAN
+// THE FIX. `community_posts.metrics` is client-written jsonb, so a member can
+// still put `pr: true` on their OWN post by hand — exactly as they have always
+// been able to put any `delta` there, which `bsFeedTypeMatch` has read as a PR
+// signal since long before this marker existed. Nothing privileged is reachable
+// that way: the ledger, the +5 award and the leaderboard all sit behind definer
+// RPCs that re-check the caller. Closing it properly means a server-side rule
+// over the whole `metrics` document, not a strip of the newest field — a
+// migration and an owner's call, registered rather than half-done here.
+//
+// ⚠ WHAT MAKES (4) DIFFERENT FROM (2) IS THAT THE POST IS MUTABLE.
+// `updateCommunityPost` merges into `metrics` (it never clobbers, and '' or
+// null removes a key), so the two things (2) could not do are now possible:
+// a retry UPDATES the post it already made instead of inserting a second one
+// with a second award, and a refused announce REPAIRS that post into the
+// ordinary workout post it honestly is, instead of leaving it claiming a record
+// the server just rejected.
+//
+// ⚠ AND THE DIRECTION OF THE REMAINING FAILURE IS THE WHOLE POINT. Nothing here
+// can advance the ledger for a plate that does not exist, so every failure is
+// retryable forever. What a failure CAN leave is a community post — visible,
+// ordinary, and the member's own to delete. An orphan post costs a tap; an
+// orphan ledger row cost the record.
 function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -19294,29 +19470,141 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   const [unit, setUnit] = useStateBSC(seed && seed.unit === 'kg' ? 'kg' : 'lb');
   const [reps, setReps] = useStateBSC(seed ? seed.reps || '' : '');
   const [busy, setBusy] = useStateBSC(false);
+  // ⚠ THE POST THIS SHEET HAS ALREADY MADE, HELD ACROSS RETRIES. Without it a
+  // second attempt inserts a second visible post and attempts a second +5 award
+  // for one record. It is deliberately NOT cleared on a refusal: a member who
+  // corrects the number upward should end up with ONE post, updated, not two.
+  const postIdRef = React.useRef(null);
   const ready = !!lift.trim() && Number(value) > 0 && !busy;
   const submit = async () => {
     if (!ready) return;
     setBusy(true);
+    const name = lift.trim(), num = Number(value), repNum = reps ? Number(reps) : null;
+    const loadStr = `${num} ${unit}`;
+    const stats = [{ l: 'Load', v: loadStr }];
+    if (repNum != null && Number.isFinite(repNum) && repNum > 0) stats.push({ l: 'Reps', v: String(repNum) });
+
+    // ── the two gates, and the prior best ────────────────────────────────────
+    let priv = null;
+    let prior = null;
+    try {
+      const share = await bsWallShareState();
+      if (!share.canWall) { setBusy(false); window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
+      // ⚠ AN AUDIENCE THE WALL CANNOT READ IS A REFUSAL, NOT A QUIET SUCCESS.
+      // The Wall is the activity feed's sub-tab and that read filters to
+      // feed-visible privacy values, so a post written as 'private' — what the
+      // share rule returns for a PUBLIC profile with Share workout data OFF —
+      // renders nowhere, while the RPC (which gates on profile visibility
+      // alone) would accept the record and let the toast say "On the wall."
+      // A read we could not make is not a setting we can name: it is refused
+      // like any other failure, while a read that DID resolve gets the sentence
+      // naming the setting that kept the record off.
+      if (share.privacy == null) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
+      if (share.privacy !== 'public') { setBusy(false); window.__bsToast?.(tr('feed:wall.notShared', { defaultValue: 'Sharing workout data is off, so records stay off the wall. Settings → Privacy.' }), 'info'); return; }
+      priv = share.privacy;
+      prior = await bsWallPriorBest(name);
+    } catch (e) { setBusy(false); bsWallSay(tr, 'error'); return; }
+
+    // ⚠ REFUSED BEFORE ANYTHING IS PUBLISHED, or pressing "Post a PR" with a
+    // number that beats nothing leaves an ordinary workout post behind. Compared
+    // in POUNDS: the ledger keeps a unit per row, so a raw comparison puts a
+    // 100 kg pull behind a 200 lb record and tells a member their real PR is not
+    // one. An unreadable ledger does not refuse — the server decides.
+    if (prior && prior.lb != null) {
+      const mineLb = bsWallToUnit(num, unit, 'lb');
+      if (Number.isFinite(mineLb) && mineLb <= prior.lb) { setBusy(false); bsWallSay(tr, 'not_a_pr'); return; }
+    }
+
+    // ── the plate ────────────────────────────────────────────────────────────
+    // Shaped exactly like the composer's own Strength payload, or the same
+    // record reads differently depending on which sheet made it. `pr: true` is
+    // the marker a first record needs: `delta` exists only against a PRIOR best,
+    // and both PR consumers on a real post read it (`kind: 'pr'` is demo-only),
+    // so a genuine first best was filtered out of the PR tab and drawn as an
+    // ordinary load.
+    // ⚠ THE PLATE CLAIMS NOTHING UNTIL THE SERVER HAS SAID SO. It is published as
+    // the ordinary workout post it honestly is; `pr` and `delta` are written
+    // afterwards, from the verdict. That is strictly more honest than stamping
+    // them optimistically and repairing on a refusal, and it is simpler: a
+    // refused announce now needs no repair at all, because there was never a
+    // claim to take back. It also means Shape's own flow can only ever write the
+    // marker behind an accepted record — see the note at `bsWallPriorBest` on
+    // what that does and does not buy.
+    //
+    // ⚠ AND THE FAILURE DIRECTION IS DELIBERATE: an announce we cannot read
+    // leaves the post UNDER-claiming (an ordinary workout that was really a
+    // record) rather than over-claiming. The retry corrects it; a member reading
+    // it in between is told less than the truth, never more.
+    const prMetrics = { kind: 'workout', workoutStats: stats, lift: name, load: loadStr };
+    let postId = postIdRef.current;
+    try {
+      if (postId) {
+        // A retry. Update the post already made rather than inserting another.
+        await window.ShapeCommunity?.update?.({ postId, title: name, metrics: prMetrics });
+      } else {
+        const made = await window.ShapeCommunity?.createPost?.({
+          channel: 'COMMUNITY', privacy: priv, title: name, activityType: 'strength',
+          metrics: prMetrics, skipPRAnnounce: true,
+        });
+        // ⚠ `createCommunityPost` DOES NOT THROW ON AN INSERT ERROR: it answers
+        // `{ stored: 'local', data: { id: 'local-…' } }`, whose id is not a uuid.
+        // Only a supabase row with an id is evidence a post exists.
+        if (made && made.stored === 'supabase' && made.data && made.data.id) postId = made.data.id;
+      }
+    } catch (e) { /* fall through to the not-published branch */ }
+    // Nothing was written anywhere, so the message is true and the retry is clean.
+    if (!postId) { setBusy(false); window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error'); return; }
+    postIdRef.current = postId;
+
+    // ── the record ───────────────────────────────────────────────────────────
     let res = null;
     try {
       res = await (window.ShapePRWall && window.ShapePRWall.post
-        ? window.ShapePRWall.post({ lift: lift.trim(), value: Number(value), unit, reps: reps ? Number(reps) : null })
+        ? window.ShapePRWall.post({ lift: name, value: num, unit, reps: repNum, postId })
         : null);
     } catch (e) { res = null; }
-    setBusy(false);
-    const reason = (res && res.reason) || (res && res.ok ? 'ok' : 'error');
-    if (res && res.ok) {
-      window.__bsToast?.(tr('feed:wall.posted', { defaultValue: 'On the wall.' }), 'ok');
-      onPosted && onPosted();
-      onClose && onClose();
+
+    // ⚠ A FAILED ANNOUNCE IS NOT A REFUSED ONE, AND THE POST IS LEFT ALONE.
+    // We do not know whether the ledger moved, so repairing the plate could
+    // un-mark a record that was accepted. The post id is retained and the sheet
+    // stays open: the same button re-announces the same post.
+    if (!res) { setBusy(false); window.__bsToast?.(tr('feed:wall.postedNoRecord', { defaultValue: 'Posted, but we couldn’t mark it a record — try again.' }), 'info'); return; }
+
+    if (!res.ok) {
+      // ⚠ NOTHING TO REPAIR. The post never claimed a record, so a refusal
+      // leaves exactly what it already was: the ordinary workout the member did.
+      setBusy(false);
+      bsWallSay(tr, res.reason || 'error');
       return;
     }
-    // Every refusal has a reason the member can act on, so none of them are
-    // reported as a generic failure.
-    if (reason === 'not_public') window.__bsToast?.(tr('feed:wall.notPublic', { defaultValue: 'Your profile is private, so records stay off the wall. Settings → Privacy.' }), 'info');
-    else if (reason === 'not_a_pr') window.__bsToast?.(tr('feed:wall.notAPR', { defaultValue: 'That does not beat your best for this lift yet.' }), 'info');
-    else window.__bsToast?.(tr('feed:wall.postError', { defaultValue: 'Could not post that record.' }), 'error');
+
+    // ⚠ ACCEPTED — SO NOW IT IS A RECORD, AND THE SERVER'S OWN `prev` IS THE
+    // AUTHORITY ON THE GAIN. `pr: true` is the marker a first record needs:
+    // `delta` exists only against a PRIOR best, and both PR consumers on a real
+    // post read it (`kind: 'pr'` is demo-only), so a genuine first best was
+    // filtered out of the PR tab and drawn as an ordinary load. `prev_value` is
+    // stored in the unit the row now carries — this post's unit — so no
+    // conversion is needed or possible here.
+    // ⚠ AND A FAILED STAMP COSTS THE MARKER, NOT THE RECORD. The ledger row is
+    // written and the toast is true either way; what a member loses is the plate
+    // saying "New PR", which the next attempt restores.
+    const trueGain = bsWallGain(num, res.prev);
+    try {
+      await window.ShapeCommunity?.update?.({
+        postId,
+        metrics: { pr: true, ...(trueGain != null ? { delta: `+${bsWallNum(trueGain)} ${unit}` } : {}) },
+      });
+    } catch (e) { /* the record stands either way */ }
+
+    setBusy(false);
+    window.__bsToast?.(tr('feed:wall.posted', { defaultValue: 'On the wall.' }), 'ok');
+    // ⚠ AND A CONSUMER THAT THROWS TAKES NOTHING WITH IT. The post is published,
+    // the record is written and the member has been told so truthfully — so the
+    // only things a throwing callback could add are a false failure message or
+    // an unhandled rejection out of a click handler. There is nothing left to
+    // report, so there is nothing to say.
+    try { onPosted && onPosted(); } catch (e) { /* the record stands */ }
+    try { onClose && onClose(); } catch (e) { /* so does the toast */ }
   };
   const field = { height: 40, width: '100%', boxSizing: 'border-box', background: t.SURFACE, border: `1px solid ${t.SURFACE_BORDER}`, borderRadius: 8, padding: '0 12px', fontFamily: t.BODY, fontSize: 15, color: t.INK, outline: 'none' };
   const lab = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 5 };
@@ -19359,81 +19647,34 @@ function BSWallPostSheet({ onClose, onPosted, seed = null }) {
   );
 }
 
-// The Wall segment. Mounted from BSClientFeed's tab branch, so the masthead,
-// the online rail and its hide/show control are already above it — the owner's
-// "make sure the wall concept includes the hide/show option for who is online"
-// is met by WHERE this sits, not by anything in here.
-function BSWall({ ctx }) {
+// The member's own records, and the two ways to put one up by hand. This is the
+// half of the retired Wall SEGMENT that was worth keeping: the board it used to
+// sit under is now the Feed's WALL sub-tab, rendering the same records through
+// the same card, but nothing replaced this. #2036 retired the segment and took
+// its only mount with it, so between then and now a member could not post a
+// record at all — and `tests/pr-wall-surface.test.mjs` went on passing, because
+// `loadBroadsheet` appends its own `export` to the source and reaches a
+// component whether or not anything renders it. A suite that cannot tell a
+// mounted surface from an unmounted one is why this needed a guard, not just a
+// fix; see 'the Wall's own controls are reachable from the sub-tab' there.
+function BSWallYourBest({ loggedIn, onLogActivity, onPostedRecord }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const { loggedIn, myRole, bsSubTab, hair, muted, cardInk } = ctx;
-  const isCoach = myRole === 'trainer' || myRole === 'nutritionist';
-  // ⚠ "PREVIEWING" IS NOT THE SAME QUESTION AS "SIGNED OUT", AND THE WALL READ
-  // THE WRONG ONE. Someone who taps PREVIEW THE APP FIRST from the paywall may
-  // well be signed in — they are simply not a member — and for them the live
-  // read returns an honest, empty board: the one surface in Chat that shows a
-  // prospect nothing. `window.ShapeCanChat` is the shell's own member signal
-  // (`memberAllowed`), already used for exactly this ("hidden only when
-  // memberAllowed is explicitly false — i.e. preview"), and it defaults to
-  // allow, so a member is never mistaken for a prospect.
-  //
-  // ⚠ A REAL MEMBER WITH AN EMPTY WALL STILL GETS THE EMPTY STATE. The feed
-  // falls back to its demo cast whenever the live read comes back empty, which
-  // shows a paying member a cast of strangers with nothing saying so; this does
-  // not copy that. The sample board is for people who cannot have a wall yet.
+  const hair = t.RULE, muted = t.INK50;
+  // ⚠ "PREVIEWING" IS NOT "SIGNED OUT" — the distinction the retired segment
+  // already paid for. Someone who tapped PREVIEW THE APP FIRST from the paywall
+  // may well be signed in; they are simply not a member, and offering them a
+  // control that writes to a ledger they do not have is worse than hiding it.
   const canChat = useBSCanChat();
   const previewing = !loggedIn || canChat === false;
-  const [scope, setScope] = useStateBSC('everyone');
-  const [lift, setLift] = useStateBSC('all');
-  // Three states, kept apart on purpose: null = still reading, [] = read and
-  // genuinely empty, { error } = could not read. An empty wall is the positive
-  // claim "nobody has set a record", and a surface that cannot tell that from
-  // "the read failed" will say the first when the truth is the second.
-  const [rows, setRows] = useStateBSC(null);
+  // null = still reading · { error } = could not read · [] = read and empty.
   const [mine, setMine] = useStateBSC(null);
   // `sheet` is false, true (a blank Post-a-PR), or a seed object taken from a
   // Your-best row — so tapping the button beside a record fills the form with
-  // the record rather than asking the member to retype what the app already
-  // knows.
+  // the record rather than asking the member to retype what the app knows.
   const [sheet, setSheet] = useStateBSC(false);
   const [nonce, setNonce] = useStateBSC(0);
-
-  // ⚠ THE SIGNED-OUT BOARD IS DERIVED AT RENDER, NOT SET BY AN EFFECT. A preview
-  // visitor has nothing to fetch, so routing them through a loading state would
-  // paint "Reading the wall…" at somebody who will never see a wall — and it
-  // would make the preview's content depend on an effect having run, which is
-  // exactly the shape that cannot be driven.
-  React.useEffect(() => {
-    if (previewing) return undefined;
-    let dead = false;
-    setRows(null);
-    const list = window.ShapePRWall && window.ShapePRWall.list;
-    if (!list) { setRows({ error: true }); return undefined; }
-    Promise.resolve(list({ limit: 40, scope }))
-      .then((res) => {
-        if (dead) return;
-        if (!res || res.stored !== 'supabase') { setRows({ error: true }); return; }
-        setRows((res.data || []).map((r) => ({
-          key: `${r.userId}-${r.liftKey}-${r.postedAt}`,
-          userId: r.userId,
-          name: r.name,
-          liftKey: r.liftKey,
-          liftLabel: r.liftLabel,
-          best: r.best,
-          prev: r.prev,
-          unit: r.unit,
-          reps: r.reps,
-          ago: bsAgoShort(r.postedAt) || '',
-          // A row whose post the caller cannot read (or that never had one)
-          // renders as a bare record: the number is still true, it just has no
-          // evidence attached, and there is nothing to react to.
-          act: r.post ? bsActivityFromPost(r.post) : null,
-        })));
-      })
-      .catch(() => { if (!dead) setRows({ error: true }); });
-    return () => { dead = true; };
-  }, [previewing, scope, nonce]);
 
   React.useEffect(() => {
     if (previewing) return undefined;
@@ -19460,111 +19701,39 @@ function BSWall({ ctx }) {
     return () => { dead = true; };
   }, [previewing, nonce]);
 
-  // Previewing: the sample board, every render, no effect involved. A member:
-  // whatever the read has resolved to so far.
-  const rowsEff = previewing ? bsWallDemoRows() : rows;
+  // Previewing: nothing to read and nothing to post. A member: whatever the
+  // read has resolved to so far.
   const mineEff = previewing ? [] : mine;
-  const loading = rowsEff === null;
-  const failed = !!(rowsEff && rowsEff.error);
-  const all = Array.isArray(rowsEff) ? rowsEff : [];
-  const lifts = bsWallLifts(all);
-  // ⚠ A SELECTION THE NEW ROWS DO NOT CARRY IS DROPPED, NOT HONOURED. The
-  // comment here used to claim the filter "can never produce an empty board out
-  // of a stale option" and the code did not do that: the choice survived a
-  // scope change, so picking Deadlift on Everyone and switching to Following
-  // painted "No records on the wall yet." over rows that existed — and when the
-  // new scope carries one lift or none the <select> is not rendered at all, so
-  // there was no way back. Clamping is the fix; the state is left alone so the
-  // selection returns if the member switches back.
-  const liftEff = lifts.some((l) => l.key === lift) ? lift : 'all';
-  const shown = liftEff === 'all' ? all : all.filter((r) => r.liftKey === liftEff);
 
-  const scopes = [
-    { key: 'everyone', label: tr('feed:wall.scopeEveryone', { defaultValue: 'Everyone' }) },
-    { key: 'following', label: tr('feed:wall.scopeFollowing', { defaultValue: 'Following' }) },
-    { key: 'coach', label: isCoach ? tr('feed:wall.scopeMyClients', { defaultValue: 'My clients' }) : tr('feed:wall.scopeCoach', { defaultValue: "Coach's clients" }) },
-  ];
-
-  // ⚠ THE PAGE GUTTER IS ON THE CONTROLS, NOT ON THE LIST. The community feed
-  // renders its cards in a container with no horizontal padding (`4px 0 84px`),
-  // so a Wall that indented the plates would hand the same card a narrower box
-  // than it gets one segment over — and the card would lay out differently on
-  // two surfaces showing the same activity.
-  const gutter = { padding: `0 ${t.padX}px` };
   return (
-    <div style={{ padding: '7px 0 90px' }}>
-      <div style={gutter}>
-      {/* ⚠ THE SCOPE TABS ARE SIGNED-IN ONLY. They are answered by the caller's
-          own follows and coach links, which a preview visitor does not have —
-          three tabs that highlight and change nothing are worse than no tabs,
-          and filtering the sample cast by an invented "following" would be a
-          fabrication. The lift filter stays: it genuinely narrows the sample
-          board. */}
-      {/* ⚠ THIS ROW WRAPS, AND IT HAS TO. Measured in a browser at 430px: the
-          three scope tabs plus the lift filter want 271px of a 213px row, and
-          with `nowrap` + `overflow: visible` the third tab simply ran past the
-          edge with nothing saying so — the same "it does not fit and never said
-          so" class as the availability grid the 09-09 round transposed. Wrapping
-          drops the filter to its own line when the tabs need the width, which is
-          the V3 precedent; the tabs wrap among themselves on a narrower phone
-          still. `marginLeft: auto` keeps the filter right-aligned in both. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, rowGap: 2 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
-          {!previewing && scopes.map((s) => bsSubTab({ key: s.key, on: scope === s.key, color: teal, onClick: () => setScope(s.key), label: s.label }))}
-        </div>
-        {lifts.length > 1 && (
-          <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0, marginLeft: 'auto' }}>
-            <select value={liftEff} onChange={(e) => setLift(e.target.value)} aria-label={tr('feed:wall.liftFilterAria', { defaultValue: 'Filter by lift' })}
-              style={{ appearance: 'none', WebkitAppearance: 'none', background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 4, padding: '7px 22px 7px 9px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, cursor: 'pointer', maxWidth: 140 }}>
-              <option value="all">{tr('feed:wall.liftAll', { defaultValue: 'All lifts' })}</option>
-              {lifts.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
-            </select>
-            <span aria-hidden style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 8, color: teal, pointerEvents: 'none' }}>▾</span>
-          </span>
-        )}
-      </div>
-      </div>
-
-      {previewing && (
-        <div style={{ margin: '8px 0 2px', ...gutter, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
-          {tr('feed:wall.demoNote', { defaultValue: 'Sample records · sign in for the live wall' })}
-        </div>
-      )}
-
-      <div style={{ marginTop: 12 }}>
-        {loading && (
-          <div style={{ padding: `28px ${t.padX}px`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>
-            {tr('feed:wall.loading', { defaultValue: 'Reading the wall…' })}
-          </div>
-        )}
-        {failed && (
-          <div style={{ padding: `26px ${t.padX}px` }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: cardInk, letterSpacing: '-0.01em' }}>{tr('feed:wall.unreadable', { defaultValue: "Couldn't read the wall just now." })}</div>
-            <button onClick={() => setNonce((n) => n + 1)} style={{ marginTop: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('feed:wall.retry', { defaultValue: 'Try again →' })}</button>
-          </div>
-        )}
-        {!loading && !failed && !shown.length && (
-          <div style={{ padding: `30px ${t.padX}px` }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: cardInk, letterSpacing: '-0.01em' }}>{tr('feed:wall.empty', { defaultValue: 'No records on the wall yet.' })}</div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontWeight: 600 }}>{tr('feed:wall.emptySub', { defaultValue: 'Set one and it lands here' })}</div>
-          </div>
-        )}
-        {shown.map((rec, i) => <BSWallPlate key={rec.key} rec={rec} ctx={ctx} newest={i === 0} />)}
-      </div>
-
-      {/* Your best — pinned under the board, read from the member's own ledger.
-          It shows even for a private member, whose records never reach the wall
-          above: they are still their records. */}
+    <>
       <div style={{ marginTop: 18, borderTop: `1px solid ${hair}`, padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('feed:wall.yourBest', { defaultValue: 'Your best' })}</div>
-          {!previewing && (
-            <button onClick={() => setSheet(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 0 6px 12px', minHeight: 40, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>
-              {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })} <span aria-hidden>＋</span>
-            </button>
-          )}
+        {/* ⚠ TWO DIFFERENT OBJECTS, SO TWO BUTTONS RATHER THAN ONE "POST".
+        A RECORD is a single number judged against this member's own stored best
+        — it goes to the PR ledger through post_my_pr_to_wall, and the server
+        refuses it if it does not beat that best. An ACTIVITY is a whole session
+        — it goes to the community feed and their profile, and nothing about it
+        is a claim of a personal best. Collapsing them into one control would
+        make a member open a sheet for one thing and pick the other inside it.
+        The eyebrow says WHY these exist at all: everything the watch caught is
+        already here without asking. */}
+    {!previewing && (
+      <>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: muted }}>
+          {tr('feed:wall.missedHead', { defaultValue: 'Trained without the app?' })}
         </div>
-        {/* ⚠ TWO DIFFERENT PEOPLE, TWO DIFFERENT SENTENCES. A prospect who
+        <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
+          <button onClick={onLogActivity} style={{ flex: '1 1 auto', minWidth: 140, minHeight: 40, padding: '0 14px', border: 0, borderRadius: 6, background: teal, color: '#031f1c', cursor: 'pointer', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 800 }}>
+            {tr('feed:wall.postActivity', { defaultValue: 'Post an activity' })} <span aria-hidden>＋</span>
+          </button>
+          <button onClick={() => setSheet(true)} style={{ flex: '1 1 auto', minWidth: 140, minHeight: 40, padding: '0 14px', borderRadius: 6, border: `1px solid ${bsTHexA(teal, 0.5)}`, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 800 }}>
+            {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })} <span aria-hidden>＋</span>
+          </button>
+        </div>
+      </>
+    )}
+    <div style={{ marginTop: previewing ? 0 : 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('feed:wall.yourBest', { defaultValue: 'Your best' })}</div>
+    {/* ⚠ TWO DIFFERENT PEOPLE, TWO DIFFERENT SENTENCES. A prospect who
             reached the preview from the paywall IS signed in — telling them to
             sign in is the same defect the radio ask-gate shipped in #2005, and
             it names the one step they have already taken. */}
@@ -19584,24 +19753,23 @@ function BSWall({ ctx }) {
             button to close it. The second is a fact: this is on the wall, set
             then. Giving both the same treatment is how a call to action turns
             into a list nobody reads. */}
-        {/* Displayed in the reader's unit. The figure and the gap are converted
-            TOGETHER from the row's own unit — converting one without the other
-            is how "+20 lb to the wall" ends up under a kilogram figure. The gap
-            is only ever non-null when both sides were already the same unit
-            (bsWallYourBest refuses to invent one across a conversion), so this
-            rescales a comparison that was valid rather than creating one. */}
-        {!previewing && Array.isArray(mineEff) && mineEff
-          .map((r) => { const u = bsWallTargetUnit(r.unit, { weight: t.weightUnit, distance: t.distanceUnit }); return { ...r, unit: u, best: bsWallToUnit(r.best, r.unit, u), gap: bsWallToUnit(r.gap, r.unit, u) }; })
+        {/* Displayed in the reader's unit, and gated on whether the sheet can
+            express the record at all — both in `bsWallDisplayRows`, which is
+            where the reasoning for each lives. The gap is only ever non-null
+            when both sides were already the same unit (bsWallYourBest refuses
+            to invent one across a conversion), so the conversion rescales a
+            comparison that was valid rather than creating one. */}
+        {!previewing && Array.isArray(mineEff) && bsWallDisplayRows(mineEff, { weight: t.weightUnit, distance: t.distanceUnit })
           .map((m) => (
-          <div key={m.liftKey} style={{ marginTop: 9, padding: m.unposted ? '10px 12px' : '9px 0', borderRadius: m.unposted ? 8 : 0, border: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : 0, background: m.unposted ? bsTHexA(teal, 0.08) : 'transparent', borderBottom: m.unposted ? `1px solid ${bsTHexA(teal, 0.45)}` : `1px solid ${hair}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div key={m.liftKey} style={{ marginTop: 9, padding: m.postable ? '10px 12px' : '9px 0', borderRadius: m.postable ? 8 : 0, border: m.postable ? `1px solid ${bsTHexA(teal, 0.45)}` : 0, background: m.postable ? bsTHexA(teal, 0.08) : 'transparent', borderBottom: m.postable ? `1px solid ${bsTHexA(teal, 0.45)}` : `1px solid ${hair}`, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.unposted ? teal : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: m.postable ? teal : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {tr('feed:wall.yourBest', { defaultValue: 'Your best' })} · {m.liftLabel}
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{bsWallNum(m.best)}</span>
                 <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{m.unit}</span>
-                {m.unposted ? (
+                {m.postable ? (
                   <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: t.AMBER || '#e0b15a', fontVariantNumeric: 'tabular-nums' }}>
                     {m.gap != null
                       ? tr('feed:wall.toTheWall', { defaultValue: '{gain} {unit} to the wall', gain: bsWallNum(m.gap), unit: m.unit })
@@ -19612,7 +19780,7 @@ function BSWall({ ctx }) {
                 )}
               </div>
             </div>
-            {m.unposted && (
+            {m.postable && (
               <button onClick={() => setSheet({ lift: m.liftLabel, value: String(m.best), unit: m.unit, reps: m.reps != null ? String(m.reps) : '' })}
                 style={{ flexShrink: 0, minHeight: 34, padding: '0 14px', border: 0, borderRadius: 6, background: teal, color: '#031f1c', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 760, cursor: 'pointer' }}>
                 {tr('feed:wall.postPR', { defaultValue: 'Post a PR' })}
@@ -19621,11 +19789,20 @@ function BSWall({ ctx }) {
           </div>
         ))}
       </div>
-
-      {sheet && <BSWallPostSheet seed={sheet && typeof sheet === 'object' ? sheet : null} onClose={() => setSheet(false)} onPosted={() => setNonce((n) => n + 1)} />}
-    </div>
+      {/* ⚠ A RECORD THAT LANDS HAS TO REACH THE BOARD, NOT JUST THIS STRIP.
+          `setNonce` reloads the member's own ledger rows; the Wall's cards are
+          the PARENT's `activityFeed` and reload only when its own nonce moves.
+          Without the second call the toast said "On the wall" over a board that
+          did not carry the record until something else remounted it — the same
+          claim-without-the-thing this whole sheet was rebuilt to stop. The
+          activity composer one level up already does both. */}
+      {sheet && <BSWallPostSheet seed={sheet && typeof sheet === 'object' ? sheet : null} onClose={() => setSheet(false)} onPosted={() => { setNonce((n) => n + 1); onPostedRecord && onPostedRecord(); }} />}
+    </>
   );
 }
+
+
+
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const t = useBS();
@@ -21101,6 +21278,14 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 // rather than in a parallel component.
                 return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="wall" /></React.Fragment>);
               })()}
+              {/* ⚠ THE MEMBER'S OWN RECORDS AND THE TWO WAYS TO ADD ONE BY HAND.
+                  This is the only mount — #2036 retired the Wall segment and the
+                  strip went with it, so a record the app did not watch had no way
+                  onto the board at all. `onLogActivity` opens the SAME
+                  BSLogActivitySheet the composer's icon opens: one publisher, so
+                  a session posted from here lands on the feed and the member's
+                  profile exactly as one posted from there does. */}
+              <BSWallYourBest loggedIn={loggedIn} onLogActivity={() => setShowLog(true)} onPostedRecord={() => setFeedNonce((n) => n + 1)} />
             </div>
           ) : (
           <div style={{ padding: `10px ${t.padX}px 84px`, display: 'flex', flexDirection: 'column', gap: 13 }}>
