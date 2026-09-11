@@ -128,6 +128,67 @@ const DPR_TREND_TABS = [
 // having to notice a second list exists.
 const DPR_TREND_KEYS = DPR_TREND_TABS.map((t) => t.k);
 
+// ── The per-chart time window (review 2026-09-09, R15) ─────────────────────
+// ⚠ IT IS A REAL FILTER OVER REAL DATES, not a request for a different dataset.
+// `/api/client/progress` already serves every point with its `date`, and the card threw
+// the dates away on its way to the plot — so the window costs no route change and
+// invents nothing. `all` is the DEFAULT because it is what this card has always drawn:
+// a member who never opens the ⚙ sees exactly the chart they saw yesterday.
+const DPR_WINDOWS = [
+  { v: "7d", label: "7D", days: 7 },
+  { v: "30d", label: "30D", days: 30 },
+  { v: "90d", label: "90D", days: 90 },
+  // ⚠ THE LABEL IS RESOLVED AT RENDER, not frozen here: on a capped history this option
+  // is "the most we have", not "everything". See `dprWindowLabel`.
+  { v: "all", label: "ALL", days: null },
+];
+const DPR_WINDOW_KEYS = DPR_WINDOWS.map((w) => w.v);
+
+// What the ⚙ calls each window. Only ALL changes: on a capped history it is "the most we
+// have", and offering a member a button that says ALL over a bounded window is the same
+// lie as the delta's, one step earlier.
+function dprWindowLabel(w, capped) { return w.days == null && capped ? "MAX" : w.label; }
+
+// Keep the points inside `days` of the newest point — NOT of `Date.now()`.
+//
+// ⚠ THAT CHOICE IS THE WHOLE HONESTY OF THE CONTROL. Anchored on today, a member who
+// stopped logging five weeks ago picks 30D and gets an EMPTY chart — which reads as "you
+// have no weight data" rather than "nothing in the last 30 days". Anchored on their last
+// entry, 30D means "the last 30 days you logged", which is the question someone looking
+// at their own trend is actually asking. The card says which it is.
+// The delta beside the latest value, and the span it was taken over.
+//
+// ⚠ THE SIGN IS TAKEN FROM THE FORMATTED MAGNITUDE, NOT THE RAW ONE — and a narrow
+// window is what made that matter. `fmt` rounds, so a real move of −0.25 lb rendered
+// "−0", a sign attached to a zero: it claims a direction the number it is printed beside
+// cannot support. Over ALL the raw delta is rarely small enough to round away; over 7D it
+// often is, so the window turned a latent rendering bug into a common one. A change that
+// makes a state reachable owes that state a definition.
+function dprDeltaLabel(delta, tab, win, capped) {
+  // ⚠ "SINCE START" IS A CLAIM ABOUT THE BEGINNING OF THE MEMBER'S RECORD, and both
+  // history reads behind this page are capped. For a member past that cap the earliest
+  // point on the chart is the SERVER'S CUTOFF, not the day they started — so under an
+  // "ALL" window the delta would measure from an arbitrary line and call it the
+  // beginning. It says what it actually spans when the payload reports the cap.
+  const span = win.days != null
+    ? " over " + win.label.toLowerCase() + " logged"
+    : capped ? " since the earliest shown" : " since start";
+  const mag = tab.fmt(Math.abs(delta));
+  if (Number(mag) === 0) return "no change" + span;
+  return (delta > 0 ? "+" : "−") + mag + span;
+}
+
+function dprWindowed(points, days) {
+  const rows = (points || []).filter((p) => p && p.date != null && isFinite(Number(p.value)));
+  if (days == null || rows.length === 0) return rows;
+  const at = (p) => new Date(String(p.date).length === 10 ? p.date + "T00:00:00" : p.date).getTime();
+  let newest = -Infinity;
+  for (const p of rows) { const t = at(p); if (isFinite(t) && t > newest) newest = t; }
+  if (!isFinite(newest)) return rows;                 // undated rows: a window cannot be applied
+  const from = newest - days * 86400000;
+  return rows.filter((p) => { const t = at(p); return !isFinite(t) || t >= from; });
+}
+
 // Big trend chart — migrated from the old page.
 function DprChart({ points, height = 180, color = DPR_TEAL, gradId = "g" }) {
   const W = 1000, H = height, pad = 24;
@@ -953,6 +1014,8 @@ function ClientProgressPage() {
   // at the render below, which is the pre-existing rule and the right one.
   const prefs = useRememberedChoices(live);
   const [trend, setTrend] = useRememberedChoice(prefs, "progressTrend", DPR_TREND_KEYS, "weight");
+  // The chart's time window, remembered per account beside the tab (R15's ⚙).
+  const [trendWin, setTrendWin] = useRememberedChoice(prefs, "progressTrendWindow", DPR_WINDOW_KEYS, "all");
   // Hoisted out of the card so the widget below can declare its own emptiness —
   // see the note on useDprWeeklyReadout.
   //
@@ -1045,6 +1108,9 @@ function ClientProgressPage() {
   // Empty is the honest answer — the chart then says "Log more … to draw this
   // trend." Matches the sibling `prs`/`lifts` lines directly below.
   const series = live ? ((progress && progress.series) || {}) : DPR_DEMO.series;
+  // Whether the route's history reads hit their cap — see dprDeltaLabel. Only ever true
+  // on a live payload; the demo series is short by construction.
+  const historyCapped = !!(live && progress && progress.historyCapped);
   const prs = live ? ((progress && progress.prs) || []) : DPR_DEMO.prs;
   const lifts = live ? ((strength && strength.lifts) || []) : DPR_DEMO.lifts;
   const availableTabs = DPR_TREND_TABS.filter((t) => (series[t.k] || []).length >= 2);
@@ -1054,7 +1120,17 @@ function ClientProgressPage() {
   // an empty Weight chart. Fall back to the first tab that actually has data.
   const selectedTab = DPR_TREND_TABS.find((t) => t.k === trend) || DPR_TREND_TABS[0];
   const activeTab = availableTabs.some((t) => t.k === selectedTab.k) ? selectedTab : (availableTabs[0] || selectedTab);
-  const activeSeries = (series[activeTab.k] || []).map((s) => Number(s.value)).filter((v) => isFinite(v));
+  const activeWindow = DPR_WINDOWS.find((w) => w.v === trendWin) || DPR_WINDOWS[DPR_WINDOWS.length - 1];
+  // ⚠ THE WINDOW IS APPLIED TO THE FULL SERIES, AND `availableTabs` IS NOT WINDOWED.
+  // Hiding a tab because the CURRENT window is thin would make the buttons flicker in and
+  // out as the member changes the window — and the tab list is about what they have ever
+  // logged, which the window does not change.
+  const activeAll = series[activeTab.k] || [];
+  const activeRows = dprWindowed(activeAll, activeWindow.days);
+  const activeSeries = activeRows.map((s) => Number(s.value)).filter((v) => isFinite(v));
+  // Does this tab have data that the WINDOW is excluding? That is a different sentence
+  // from "log more data", and the card says the right one.
+  const windowHidSome = activeWindow.days != null && activeAll.length >= 2 && activeSeries.length < 2;
   const latestVal = activeSeries.length ? activeSeries[activeSeries.length - 1] : null;
   const deltaVal = activeSeries.length >= 2 ? latestVal - activeSeries[0] : null;
 
@@ -1185,14 +1261,23 @@ function ClientProgressPage() {
       </div>
     ) },
 
-    { key: "trend", title: "Trend", size: "half", render: () => (
+    { key: "trend", title: "Trend", size: "half",
+      // R15's ⚙ — DashGrid renders the gear and the popover; the choice is remembered
+      // per account by the same store as the tab.
+      settings: [{ key: "window", label: "Time window", value: activeWindow.v,
+                   options: DPR_WINDOWS.map((w) => ({ v: w.v, label: dprWindowLabel(w, historyCapped) })),
+                   onPick: setTrendWin }],
+      render: () => (
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": activeTab.color, paddingLeft: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-          <span className="dash-eyebrow" style={{ color: activeTab.color }}>{activeTab.label} · trend</span>
+          <span className="dash-eyebrow" style={{ color: activeTab.color }}>{activeTab.label} · trend{activeWindow.days == null ? "" : " · " + activeWindow.label}</span>
           {latestVal != null && (
             <span style={{ fontFamily: DPR_MONO, fontSize: 10, color: DPR_INK50 }}>
               <span style={{ fontFamily: serif, fontSize: 19, color: activeTab.color }}>{activeTab.fmt(latestVal)}</span> {activeTab.unit}
-              {deltaVal != null && " · " + (deltaVal > 0 ? "+" : deltaVal < 0 ? "−" : "") + activeTab.fmt(Math.abs(deltaVal)) + " since start"}
+              {/* ⚠ NAMES THE SPAN IT WAS TAKEN OVER. "since start" meant the start of
+                  the series; with a window it is the start of the WINDOW, and a delta
+                  that does not say which span it covers is a number you cannot check. */}
+              {deltaVal != null && " · " + dprDeltaLabel(deltaVal, activeTab, activeWindow, historyCapped)}
             </span>
           )}
         </div>
@@ -1201,7 +1286,13 @@ function ClientProgressPage() {
           <DprChart points={activeSeries} color={activeTab.color} gradId={"g-" + activeTab.k} />
         ) : (
           <div style={{ padding: "40px 4px", textAlign: "center", color: DPR_INK50, fontSize: 13 }}>
-            {live ? "Log more " + activeTab.label.toLowerCase() + " data to draw this trend." : "Not enough data yet."}
+            {/* ⚠ THREE SENTENCES, NOT ONE. A window that excludes everything is not the
+                same claim as "you have not logged enough" — telling a member with two
+                years of weigh-ins to log more, because they picked 7D, is the honest-data
+                rule pointed the wrong way. */}
+            {windowHidSome
+              ? "Nothing logged in the last " + activeWindow.label.toLowerCase() + " of entries — widen the window in ⚙."
+              : live ? "Log more " + activeTab.label.toLowerCase() + " data to draw this trend." : "Not enough data yet."}
           </div>
         )}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
