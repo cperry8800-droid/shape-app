@@ -2058,14 +2058,14 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     });
   };
 
-  const selectSlot = (day, date, time, iso, month) => {
+  const selectSlot = (day, date, time, iso, month, at) => {
     if (time === '--') return;
     setAction({
       type: 'Booking',
       title: tr('marketplace:listing.slotTitle', { defaultValue: '{day}, {month} {date} at {time}', day, month, date, time }),
       body: tr('marketplace:listing.slotBody', { defaultValue: 'Free intro call with {name}. You can reschedule later from messages.', name: coach.name }),
       cta: tr('marketplace:listing.confirmBooking', { defaultValue: 'Confirm booking' }),
-      slot: { day, date, time, month, iso },
+      slot: { day, date, time, month, iso, at },
     });
   };
 
@@ -2170,7 +2170,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
     times.filter((x) => x && x !== '--').map((time) => ({ day, date, time, iso, month, weekday: new Date(`${iso}T00:00:00`).getDay() })));
 
   if (showCal) {
-    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : expandPreviewSlots()} demo={realAvail == null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()]); }} />;
+    return <BSCoachAvailabilityCalendar coach={coach} roleColor={roleColor} open={realAvail != null ? realAvail : expandPreviewSlots()} demo={realAvail == null} onBack={() => setShowCal(false)} onPick={(s) => { setShowCal(false); const d = new Date(`${s.iso}T00:00:00`); selectSlot(BSM_DAYS3[d.getDay()], String(d.getDate()), s.time, s.iso, BSM_MONTHS3[d.getMonth()], s.at); }} />;
   }
 
   // THE FULL PROFILE → the Signal living page, byte-identical component —
@@ -2190,7 +2190,11 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const fmtSlot = bsFmtSlot12;
   // One slot list feeds the station AND the calendar: real projected slots for
   // live coaches (realAvail; [] = honestly none), the preview pattern otherwise.
-  const projSlotRow = (s) => { const d = new Date(`${s.iso}T00:00:00`); return { day: BSM_DAYS3[s.weekday], date: String(d.getDate()), time: s.time, iso: s.iso, month: BSM_MONTHS3[d.getMonth()] }; };
+  // ⚠ `at` RIDES ALONG, and it is the only field the booking WRITE may use. The rest are
+  // the member's own calendar and clock for display; rebuilding an instant from them
+  // discards the coach's zone (see scheduledAtFromSlot). Demo rows carry no `at` and fall
+  // back, which is correct — nothing real is written for them.
+  const projSlotRow = (s) => { const d = new Date(`${s.iso}T00:00:00`); return { day: BSM_DAYS3[s.weekday], date: String(d.getDate()), time: s.time, iso: s.iso, month: BSM_MONTHS3[d.getMonth()], at: s.at }; };
   const allOpenSlots = realAvail != null
     ? realAvail.map(projSlotRow)
     : expandPreviewSlots();
@@ -2323,7 +2327,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
             ? tr('marketplace:listing.noTimezone', { defaultValue: "Open hours are set, but their timezone isn't — message {name} to find one.", name: firstName })
             : tr('marketplace:listing.noOpenTimes', { defaultValue: 'No open times this week — message {name} to find one.', name: firstName })}</div>
         ) : openSlots.map((s, i) => (
-          <button key={`${s.iso}-${s.time}`} onClick={() => selectSlot(s.day, s.date, s.time, s.iso, s.month)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+          <button key={`${s.iso}-${s.time}`} onClick={() => selectSlot(s.day, s.date, s.time, s.iso, s.month, s.at)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 9, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <span style={{ flexShrink: 0, width: 42, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{s.day}</span>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{fmtSlot(s.time)}</span>
             <Leader />

@@ -305,6 +305,28 @@
     let availabilityLoaded = false;
     let availUnreadable = false;
 
+    // ⚠ THE POST CARRIES THE *COACH'S* WALL CLOCK, NOT THE MEMBER'S. The route derives the
+    // appointment itself by resolving `date` + `time` in the coach's zone — it does not trust
+    // a client-sent instant — so these two fields have to be expressed in that same zone or
+    // the server resolves a different moment and refuses the booking. What the member SEES
+    // stays their own clock; only the wire format is the coach's. `en-US` h:mm AM/PM is the
+    // shape the route's `parseTime` accepts, and the date parts are read individually rather
+    // than via a locale pattern so no ICU spelling can reorder them.
+    function coachWallClock(iso, zone) {
+      if (!iso || !zone) return null;
+      const d = new Date(iso);
+      if (!isFinite(d.getTime())) return null;
+      const parts = {};
+      for (const p of new Intl.DateTimeFormat('en-US', {
+        timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
+      }).formatToParts(d)) parts[p.type] = p.value;
+      if (!parts.year || !parts.month || !parts.day) return null;
+      return {
+        date: parts.year + '-' + parts.month + '-' + parts.day,
+        time: d.toLocaleTimeString('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit' }),
+      };
+    }
+
     // The member's own calendar day for an instant — the key the picker and the slot list
     // must agree on. (The picker previously derived its keys with toISOString() from LOCAL
     // dates, which is a day out either side of midnight for most of the world.)
@@ -477,6 +499,10 @@
 
       const dateStr = new Date(selectedIso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
       const timeStr = window.BookingSlots.slotLabel(selectedIso);
+      // Refused here rather than sent half-formed: without the coach's zone the route has
+      // nothing to resolve the wall clock against and would decline anyway.
+      const coachClock = coachWallClock(selectedIso, coachZone);
+      if (!coachClock) { showToast('That time is no longer available. Please pick another.'); return; }
       const originalLabel = btn.textContent;
       btn.disabled = true; btn.textContent = 'Booking…';
 
@@ -484,14 +510,14 @@
         const res = await fetch('/api/consultation', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            // ⚠ `scheduledAt` IS THE BOOKING. `date`+`time` are kept for the mail copy and
-            // for an older server, but a wall-clock label is exactly the value that carries
-            // no zone — the route used to re-read it as UTC, which is how a New York coach's
-            // 9am became a 5am appointment. The instant is resolved once, client-side, in
-            // the coach's zone.
+            // ⚠ `date`+`time` ARE THE COACH'S WALL CLOCK AND THE SERVER RE-DERIVES THE
+            // INSTANT FROM THEM. `scheduledAt` is sent only as a CROSS-CHECK: the route
+            // resolves the same wall clock in the same zone with the same shared helper and
+            // refuses the booking if the two disagree, so a caller cannot name an arbitrary
+            // moment and neither side can drift from the other unnoticed.
             providerId: proId, professionalType: proType,
             scheduledAt: selectedIso, timezone: coachZone,
-            date: selectedDate, time: timeStr,
+            date: coachClock.date, time: coachClock.time,
             clientName: name, clientEmail: email, topic: topic, captchaToken: captchaToken
           })
         });

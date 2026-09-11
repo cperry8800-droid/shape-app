@@ -1270,6 +1270,19 @@ function toBookingDate(date, month = 'May') {
 }
 
 function scheduledAtFromSlot(slot = {}) {
+  // ⚠ PREFER THE RESOLVED INSTANT. `slot.at` is the epoch ms the availability projection
+  // produced by placing the coach's stored wall clock in the COACH's zone; `slot.iso` and
+  // `slot.time` are the MEMBER's own calendar and clock, kept for display. Rebuilding
+  // `scheduled_at` from those display fields threw the resolved instant away and stored the
+  // member's 09:00 for a coach who had opened 09:00 somewhere else entirely — the exact
+  // defect the 2026-09-11 timezone fix was for, one layer below where it was fixed. Caught
+  // by CodeRabbit on #2053 after the projection was already correct.
+  //
+  // ⚠ AND THE REBUILT STRING CARRIED NO ZONE AT ALL (`2026-09-17T09:00:00`), so the instant
+  // Postgres stored depended on the DATABASE's timezone setting rather than on anybody's
+  // intent. The fallback keeps it only for the demo/preview rows, which have no `at`.
+  const at = Number(slot.at);
+  if (Number.isFinite(at) && at > 0) return new Date(at).toISOString();
   const scheduledDate = slot.scheduled_date || toBookingDate(slot.date, slot.month || 'May');
   if (!scheduledDate || !slot.time || slot.time === '--') return null;
   return `${scheduledDate}T${String(slot.time).padStart(5, '0')}:00`;
