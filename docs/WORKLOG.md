@@ -141,17 +141,34 @@ changelog whenever something ships.
   before merging.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
-  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (THIRD AND FINAL RULING OF THE DAY).
-  CODEX IS THE ONLY EXTERNAL REVIEWER. CODERABBIT IS OUT.** Owner, 2026-09-11, after the
-  fallback had been exercised exactly once: ***"no more coderabbit"***. So: **trigger
-  `@codex review` on every PR; when Codex is unavailable there is NO second reviewer** — the
-  round is my own adversarial read of the diff plus a mutation round, and the PR says so
-  rather than pretending a layer ran.
+  ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (FOURTH RULING OF THE DAY). CODEX ON
+  EVERY PR; CODERABBIT WHEN CODEX IS NOT WORKING.** Owner, 2026-09-11, on a head Codex had
+  just refused: ***"then run coderabbit if codex is not working"***. So the order is
+  **conditional, not exclusive** — trigger `@codex review` first, and when it declines or
+  goes silent, trigger `@coderabbitai full review` on that same head rather than shipping
+  with no external layer. **The merge gate is untouched: CI green on the final head AND not
+  a draft.**
+  ⚠ **"NOT WORKING" IS A MEASUREMENT, AND IT HAS THE TWO FACES RECORDED BELOW** — a spoken
+  refusal within seconds (*"You have reached your Codex usage limits for code reviews"*) or
+  **silence**, no review and no `Running` on your head. Read the Codex summary comment before
+  falling back, and **retry once first**: the limit is a rolling window that was measured
+  lifting in six minutes on #2042 and in ~11 hours on #2036. Falling back on a stale memory
+  of yesterday's refusal skips the reviewer that would have answered.
+  ⚠ **THIS RESTORES THE SECOND RULING AND RETIRES THE THIRD**, which read
+  ***"no more coderabbit"*** and made Codex the only external reviewer. That is **no longer
+  the standing position** — but the reason it existed is worth keeping: the fallback is for
+  a head Codex could not review, never a second opinion on one it did. **Four rulings in one
+  day**, and the churn is itself the argument for a gate that names only CI: three reviewers
+  have moved in and out of this file in three weeks and `/console` has cost nothing for it.
   ⚠ **THREE RULINGS IN ONE DAY, AND THE MIDDLE ONE IS DEAD.** *"if codex is timed out then
   use coderabbit"* (the second) was live for about an hour, was used once on #2040, and is
   **superseded**. Its measurement is worth keeping — the fallback found two real things,
   including an ambiguity in these very conventions — but **do not trigger CodeRabbit on that
-  basis.** ⚠ And note what the churn cost: a reader landing between the second and third
+  basis.** ⚠ **REVIVED SAME DAY BY THE FOURTH RULING ABOVE — this "DEAD" is itself dead.**
+  The middle ruling's conditional shape is the standing one again (*"then run coderabbit if
+  codex is not working"*), so **do** trigger CodeRabbit on exactly that basis. Kept with its
+  marker rather than deleted, because deleting it would erase the measurement; but read the
+  banner, not this. ⚠ And note what the churn cost: a reader landing between the second and third
   rulings would have found a prohibition and its own replacement three lines apart. That is
   the defect CodeRabbit flagged, on the one PR it was brought back for, about this file.
   ⚠ **"TIMED OUT" IS A MEASUREMENT, NOT AN ASSUMPTION — AND IT HAS TWO FACES.** Codex posts a
@@ -272,11 +289,11 @@ changelog whenever something ships.
   Codex advises; it does not close the gate — the 2026-08-26 post-mortem below explains
   why naming a reviewer IN the gate has now broken `/console` twice, and that lesson is
   not reopened by this ruling.
-  ⚠ **AND CODERABBIT IS OUT — STILL TRUE, but the operative words are now *"no more
-  coderabbit"* (the third ruling at the head of this block), not the *"dont run coderabbit
-  moving forward"* quoted here.** Between the two the owner allowed it as a fallback for an
-  hour; that window is closed. Never trigger it: no `@coderabbitai full review`, no waiting on
-  it, no reading its absence as anything. **This retires the 2026-08-19 authorisation**
+  ⚠ **AND CODERABBIT IS OUT — ⚠ NO LONGER TRUE.** This whole paragraph is superseded by the
+  **fourth** ruling at the head of this block: CodeRabbit is the fallback again whenever Codex
+  is not working, and `@coderabbitai full review` on such a head is what the owner asked for.
+  Read the banner. What survives here is only the narrow shape of the permission — it is a
+  reviewer for a head Codex could not review, not a second opinion on one it did. **This retires the 2026-08-19 authorisation**
   recorded further down, and everything under it describing how to trigger, re-trigger, pay
   for or read a CodeRabbit verdict is HISTORY — kept only for the two rules that were never
   about CodeRabbit (*a verdict is only about the head it names*, *the absence of a record is
@@ -657,6 +674,19 @@ several are marked SHIPPED in their own text.
 Append new entries at the top, under this note.
 
 ### 2026-09-11 — The third Codex round: the ordering reversed a third time, a first record that was not a PR, and a gap refused for being in kilograms
+
+- ⚠ **AND THE FOURTH ROUND HAD NO CODEX: IT REFUSED THIS HEAD WITHIN A MINUTE** — *"You have
+  reached your Codex usage limits for code reviews"*, 19:54:37Z, the **spoken** face of the limit
+  rather than the silent one. Owner's ruling on being told: ***"then run coderabbit if codex is
+  not working"***, so CodeRabbit was triggered on `c991899` and **the conventions at the head of
+  this file are corrected at the source** — they had said *"no more coderabbit"* and named Codex
+  the only external reviewer, which would have had the next session ship a head with **no
+  external layer at all**. ⚠ **Two paragraphs below that banner still carried the prohibition**
+  and are marked rather than deleted (one of them says in as many words *"do not trigger
+  CodeRabbit on that basis"* about the basis that is now standing) — this file's own post-mortem
+  is that a reader landing between two rulings finds a prohibition and its replacement three
+  lines apart, and that is exactly what four rulings in one day produces. **The merge gate did
+  not move: CI green on the final head, and not a draft.**
 
 - **Three more findings on `2e8f47d`, all real — 2×P1 + 1×P2 — and two of them were defects the
   PREVIOUS round's fix had introduced.** Owner, on whether to take the root-cause reorder over a
