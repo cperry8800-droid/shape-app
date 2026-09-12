@@ -475,10 +475,25 @@ test('the price phone is not a screen the journey rail already showed', () => {
 
   const table = /var PH=\[([\s\S]*?)\n  \];/.exec(SRC);
   assert.ok(table, 'could not find the journey phone table');
-  const railFiles = [...table[1].matchAll(/'(\/newdesign\/[\w.-]+\.(?:jpg|png))'/g)].map((m) => m[1]);
-  const railHeads = [...table[1].matchAll(/,\s*'([^']+)',\n/g)].map((m) => m[1].trim());
+
+  // ⚠ EACH HEADLINE IS ANCHORED TO ITS OWN ENTRY'S PATH, NOT TO A LINE BREAK.
+  // This read `/,\s*'([^']+)',\n/g` and was right only for the table's CURRENT
+  // wrapping — Codex, #2056, reproduced rather than argued: reflow PH so the path
+  // sits alone on its line and the headline joins the body on the next, and every
+  // capture becomes a BODY SENTENCE instead of a headline. The count stays 5, so
+  // the vacuity check below still passes and the collision assertion silently
+  // stops testing what it names. Pairing each headline with the path in front of
+  // it is layout-independent: the only thing that can break it is the table no
+  // longer being [path, headline, …], which is the shape the guard is about.
+  const entries = [...table[1].matchAll(/'(\/newdesign\/[\w.-]+\.(?:jpg|png))'\s*,\s*'([^']+)'/g)];
+  const railFiles = entries.map((m) => m[1]);
+  const railHeads = entries.map((m) => m[2].trim());
   assert.ok(railFiles.length >= 5, `read ${railFiles.length} rail captures — the parse stopped matching`);
-  assert.ok(railHeads.length >= 5, `read ${railHeads.length} rail headlines — the parse stopped matching`);
+  // A capture per path, or the pairing above lost an entry and the disjointness
+  // below would be asserted against a table it only partly read.
+  const paths = [...table[1].matchAll(/'\/newdesign\/[\w.-]+\.(?:jpg|png)'/g)].length;
+  assert.equal(entries.length, paths,
+    `paired ${entries.length} headlines to ${paths} captures — an entry is not [path, headline, …]`);
 
   assert.ok(!railFiles.includes(shot),
     `the price phone shows ${shot}, which the journey rail already walked the reader through`);

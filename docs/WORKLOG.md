@@ -784,7 +784,28 @@ Append new entries at the top, under this note.
   appears in the fold eyebrow, at the summit, in the journey dial and beside the Score capture"* —
   and the Score capture is no longer what the price section carries. Corrected at the source, because
   a comment naming the wrong element is what the next reader edits.
-- **Verified:** `npm test` **3513/3513** (18 on the homepage guard, 1 new) · the newdesign
+- ⚠ **AND CODEX FOUND THAT GUARD READING THE WRONG FIVE STRINGS UNDER A LEGAL REFLOW — the one
+  thing I had asked it to check.** The headline parse was `/,\s*'([^']+)',\n/g`, which is right only
+  for the table's CURRENT wrapping. **Reproduced rather than argued:** move each entry's path onto
+  its own line and let the headline join the body on the next, and every capture becomes a **body
+  sentence** instead of a headline — the comma after the path no longer has a newline behind its
+  string, while the comma after the headline does. `railHeads.length` **stays 5**, so the vacuity
+  check still passes and the collision assertion silently stops testing what it names. Each headline
+  is anchored to **its own entry's path** now, which no line break can move, and a second assertion
+  pins one headline **per path** so a lost entry cannot pass as a shorter table. Driven three ways:
+  a pure reflow stays green (it is a legal edit), and the reflow **with** a duplicated price headline
+  — the case the old parse waved through — fails. *A guard that pins a layout pins whatever that
+  layout is wrong about*, in the guard written to close a duplication.
+- ⚠ **AND ITS OTHER FINDING IS RECORDED RATHER THAN ACTED ON, WHICH IS ITSELF THE SHIPPED-RECORD
+  QUESTION.** It asked for this changelog entry to be moved out of the reviewed commit, on the
+  reading that a shipped-history entry written before the review lands can be made stale by the
+  review — and the reflow finding above is exactly that risk realised. The entry is corrected in
+  place instead, which is what every entry in this file has done. **Registered as an owner call**:
+  the convention says *append when something ships*, and every historical entry cites its own
+  verification counts, so moving the write to a second PR is a change to the convention, not to
+  this diff.
+- **Verified:** `npm test` **3522/3522** on the head rebased onto `5e7a220bb` (18 on the homepage
+  guard, 1 new) · `tsc --noEmit` 0 · the newdesign
   precompile check (74 pages, 0 errors) · **5/5 mutations killed**, each proven to land, sanity
   green at both ends, the tree restored in a `finally` (the Score capture restored · the Score
   headline restored · the image removed · the caption's headline element removed · the capture
