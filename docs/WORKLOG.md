@@ -720,6 +720,80 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-12 — Split by split becomes mile by mile, and the range it was showing came from the post, not the splitter
+
+- **Owner, with two screenshots of Session details: *"The splits on the session review page on app need to
+  also show mile by mile splits, not a range."*** The 18.2-mile long run reported **three** splits —
+  `Miles 1–6 · 8:55/mi`, `Miles 7–12`, `Miles 13–18`. It reads **MILE 1 … MILE 18 + LAST 0.2** now, with a
+  per-mile HR column beside the pace. **No migration, no route, no i18n key** — every string on that table
+  is already keyed.
+- ⚠ **NOTHING IN THE SPLITTER WAS WRONG, AND THE COMMENT ON THAT VERY BLOCK NAMED IT AS THE CAUSE.** It
+  read *"the splitter bucketed 18.2 miles into THREE splits"*, which `bucketTrace` cannot do: it makes one
+  bucket per mile, so that run's own 30-sample trace yields **eighteen**. The three came from the demo
+  post's hand-written `breakdown`, which `bsPaceSplits` **prefers over the trace** — so the one component
+  named was the one component innocent. Corrected at the site rather than only here, because a comment
+  asserting a false cause is an instruction to fix the wrong thing.
+- ⚠ **A BREAKDOWN ROW IS ONE SPLIT, NEVER A SUMMARY OF SEVERAL — and that is the whole defect.** The
+  breakdown is a card strip; the model reads it as provider splits, so `Miles 1–6` does not arrive as a
+  coarse *label*, it arrives as a **six-mile split**: the table reported three rows for an eighteen-mile
+  run, the pace bar chart drew **three bars beside a thirty-point pace line from the same session**, and
+  the truncation link read *"All 3 splits ›"* — an invitation to see what was already on the screen.
+- ⚠ **NO LIVE POST CAN DO THIS, WHICH IS WHY THE FIX IS THE DATA AND THE GUARD IS ON THE CORPUS.** Read
+  against every writer: `bsBuildBreakdown` labels from the provider's own row or `Split N`, `d.rawSplits`
+  outranks the breakdown anyway, and the trace fallback labels `Mile N` by construction. So teaching
+  `bsPaceSplits` to unpick `Miles 1–6` would be unreachable code guarding against the author of the next
+  demo post. `tests/session-splits-per-mile.test.mjs` fails that author instead.
+- **Five demo runs rewritten, each reconciled against its OWN stat grid before a byte was written** — the
+  rows are derived and applied by script, never retyped. 18.2 mi (19 rows) · 11.2 mi (12) · 6.1 mi (7) ·
+  5.1 mi (6) · 3.2 mi (4). Every set reproduces that post's stated **total time to the second**, its
+  **avg pace**, its **best pace** where one is claimed, and an avg HR within 1 bpm of the stat with no
+  split above the stated max.
+- ⚠ **AND THE FIFTH POST WAS ALREADY "PER-MILE" AND STILL CARRIED A RANGE — my own guard's first run
+  caught it.** Quinn's 3.2-mile run read `Mile 1 | Mile 2 | Last 1.2`, and **`Last 1.2` covers mile 3 AND
+  a fifth of mile 4**: the same range claim, one row long, wearing no dash for a dash-hunting check to
+  find. The tail rule is *under a mile* now, not *a trailing row*.
+- ⚠ **THE NOTE COLUMN CARRIES HR RATHER THAN AN ADJECTIVE, BECAUSE ONLY ONE OF THE TWO IS RENDERED.** A
+  split-labelled breakdown is explicitly skipped by the set-by-set table, so its third cell reaches the
+  page ONLY through the model's `/bpm/` and `/ft|\bm\b/` parse — `'Warm-up'`, `'Steady'` and `'Negative
+  split'` were invisible on every surface that renders them. Swapping them for `'154 bpm'` costs nothing
+  and buys the table and the Splits page an **HR column per mile**. Pinned, or a mile table could lose it
+  with nobody noticing.
+- ⚠ **THE GUARD DERIVES ITS CORPUS AND ASSERTS IT FOUND ONE.** An AST sweep takes every array-of-string-rows
+  in the client module whose middle cell is a pace on **every** row — that shape *is* a split table and
+  nothing else in the file has it — and finds **8** (5 mile tables, plus laps, reps and 500 m splits, which
+  are legitimately not miles and pass). So a table added later is covered with nobody remembering the file
+  exists, and the reported 19-row run is asserted by name, because a sweep that drifts off the one table it
+  was written for passes vacuously.
+- ⚠ **THE RANGE RULE IS NOT A LIST OF SPELLINGS.** `Mile 1 to 6` is the same claim as `Miles 1–6`, so the
+  rule is *two numbers joined by any dash or a spelled-out span*, and the positive statement rides beside
+  it: **a mile table enumerates `Mile 1…K` consecutively**, which a range table fails for want of a
+  `Mile 2`. Both are proven by mutation, including the hyphen and the words-only forms a dash-only check
+  would wave through.
+- **The live path is pinned too, not only the demo.** `bucketTrace` is what a real GPS run with no provider
+  splits takes, so a new case drives an 18.2-mile trace and asserts the labels are `Mile 1 … Mile 18` with
+  no range among them — the granularity this ask is about, at the one place a real session gets it.
+- **Verified:** `npm test` **3518/3518** (6 new) · `tsc --noEmit` 0 · JSX parse · **11/11 mutations killed**,
+  each **proven to land** (occurrence-counted before the edit, the suite's `# pass`/`# fail` **parsed**
+  rather than read off a pipeline's exit status), sanity green at both ends, the tree restored in a
+  `finally` — three of them aimed at **the guard itself** (the sweep stopped matching · the range rule
+  narrowed to one dash · the tail rule loosened back) · the mobile build clean with `Mile 18` confirmed in
+  the emitted bundle behind a **negative control** (all **eleven** retired range labels read **0**) · and the
+  page **driven in Chromium at 375 and 430px** through the real entry flow: the board reads
+  **MILE 1..6 · pace · HR** under **ALL 19 SPLITS ›**, and the Splits page behind it carries **18 distinct
+  miles plus LAST 0.2** at 8:18/mi · 175 bpm, zero page errors and zero horizontal overflow at both.
+- ⚠ **AND THE HARNESS REPORTED THE FEATURE BROKEN THREE TIMES BEFORE IT REPORTED ON THE CODE.** Its init
+  script ran before `document.documentElement` existed and threw; it sampled at a fixed 3 s while the app
+  boots behind a LOADING masthead for longer, so the language picker read as absent; it clicked
+  `.first()`/`.last()` on a feed carrying **one Session-details button per card**, which opens somebody
+  else's session; and the final *"no part-mile tail row"* was a **case-sensitive** regex against a column
+  the page uppercases in CSS — the row was there all along, which the dump proved rather than the hunch.
+  *An instrument reports on itself unless every step waits for the thing it is about to measure.*
+- ⚠ **REGISTERED, NOT FIXED: the website's community card carries the same three ranges**
+  (`public/newdesign/dashboardCommunity.jsx`, `Miles 1–3 / 4–6 / 7–8`). It is a **different renderer on a
+  different surface** — an uncapped flex bar strip on a feed card, with the note column visible and no
+  Splits page behind it — so widening it from three bars to eight is a layout call on a surface the ask did
+  not name. The app has a session review page; the website does not.
+
 ### 2026-09-11 — The homepage climb is lifted off the stats, and the route it draws is otherwise untouched
 
 - **Owner, with a screenshot of the fold: *"line graph still off on new design website"* → *"index/home
