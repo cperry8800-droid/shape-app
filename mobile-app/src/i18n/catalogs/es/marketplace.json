@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} verá tu nota en sus mensajes de Shape. El hilo está sincronizado con tu página de Chat en Team.",
   "listing.messageTitle": "Mensaje a {name}",
   "listing.noOpenTimes": "No hay horas libres esta semana — escribe a {name} para encontrar una.",
+  "listing.noTimezone": "Hay horas libres, pero falta la zona horaria — escribe a {name} para encontrar una.",
   "listing.onWaitlist": "En lista de espera",
   "listing.openCheckout": "Abrir pago seguro",
   "listing.openSubscription": "Abrir suscripción segura",

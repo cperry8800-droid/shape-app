@@ -89,12 +89,38 @@ const DSC_DEMO = (() => {
 // ── Availability editor — the weekly slots the marketplace reads ────────────
 // Slots are hour blocks (start_minute on the hour); toggling rebuilds the
 // whole set and POSTs it (the route is delete-all + re-insert).
+//
+// ⚠ THE GRID IS THE COACH'S OWN CLOCK, AND UNTIL 2026-09-11 NOBODY RECORDED WHICH ONE.
+// A stored start_minute is a bare wall-clock minute — toggle "9a" and 540 is written —
+// so every reader had to invent a zone, and the live ones disagreed: the website read 540
+// as 09:00 UTC while the app read it as 09:00 in the MEMBER's zone. A New York coach who
+// opened 9am had members booking 5:00 AM on one surface and 9:00 AM on the other. The
+// POST now carries this browser's resolved zone, the route stamps it on the coach's row,
+// and the label below names it so a coach can see what they are declaring rather than
+// trusting an unqualified "9a".
 const DSC_HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 // provider_availability.weekday is getDay()-style: 0=Sun … 6=Sat (per the
 // migration + what the consultation/booking flow reads). Display Mon-first,
 // but STORE the real getDay index so the marketplace booking lines up.
 const DSC_AVAIL_DAYS = [["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6], ["Sun", 0]];
-function DscAvailability({ role, live, initial }) {
+// ⚠ THE LABEL STATES A FACT OR NOTHING. Live, it names the zone the hours are STORED
+// against (what members are actually booked in) and falls back to this browser's zone
+// only before the first save, marked as the one about to be stamped. In the demo preview
+// there is no stored zone and nothing is written, so naming one would be a claim about a
+// coach who does not exist.
+function dscZoneLabel(live, storedZone) {
+  if (!live) return "";
+  if (storedZone) return "times in " + storedZone;
+  const b = dscBrowserZone();
+  return b ? "times will be saved in " + b : "";
+}
+// This browser's IANA zone. Resolved once per render rather than cached in a module
+// constant: a laptop that changes zone mid-session should stamp the new one on the next
+// save, not the one it booted in.
+function dscBrowserZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+function DscAvailability({ role, live, initial, storedZone, onZone }) {
   // A Set of "weekday:hour" keys derived from the loaded slots (each slot
   // covers its duration in hourly cells).
   const seed = () => {
@@ -130,9 +156,21 @@ function DscAvailability({ role, live, initial }) {
       const res = await fetch("/api/my-availability", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, slots }),
+        // ⚠ WITHOUT THIS THE ROUTE REFUSES THE SAVE — deliberately, because hours nobody
+        // can place are hours no member can book, and writing them would report "live on
+        // your profile" over availability that renders nowhere.
+        body: JSON.stringify({ role, slots, timezone: dscBrowserZone() }),
       });
       setState(res.ok ? "saved" : "error");
+      // ⚠ ADOPT THE ZONE THE ROUTE ACTUALLY STORED, rather than assuming the one we sent
+      // landed. The label below is a claim about what members are booked in, so it has to
+      // come from the write's own answer — and a coach whose laptop changed zone would
+      // otherwise keep reading the previous one until a reload. Only on success: a failed
+      // save stored nothing, so the old label is still the true one.
+      if (res.ok && onZone) {
+        const j = await res.json().catch(() => null);
+        if (j && typeof j.timezone === "string" && j.timezone) onZone(j.timezone);
+      }
     } catch (e) { setState("error"); }
   };
   const toggle = (wd, h) => {
@@ -145,7 +183,9 @@ function DscAvailability({ role, live, initial }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <span className="dash-eyebrow" style={{ color: "#d8a23a" }}>Availability · feeds your marketplace profile</span>
+        <span className="dash-eyebrow" style={{ color: "#d8a23a" }}>
+          Availability · feeds your marketplace profile{dscZoneLabel(live, storedZone) ? " · " + dscZoneLabel(live, storedZone) : ""}
+        </span>
         <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, color: state === "saved" ? "#7bbf5a" : state === "error" ? "#e0644b" : DSC_INK50 }}>
           {state === "saving" ? "Saving…" : state === "saved" ? "Saved · live on your profile" : state === "error" ? "Couldn't save" : state === "demo" ? "Demo · saves once signed in" : blocks + " open hours/wk"}
         </span>
@@ -309,6 +349,8 @@ function CoachSchedulePage({ role }) {
   const [toast, setToast] = React.useState(null);
   const dragRef = React.useRef(null);
   const [dragId, setDragId] = React.useState(null);
+  // The zone the coach's stored hours are expressed in (null until first saved).
+  const [availZone, setAvailZone] = React.useState(null);
   const isLive = !!live;
 
   React.useEffect(() => {
@@ -319,6 +361,7 @@ function CoachSchedulePage({ role }) {
       if (!on) return;
       if (cal && Array.isArray(cal.events)) setEvents(cal.events);
       if (av && Array.isArray(av.slots)) setAvail(av.slots);
+      if (av && typeof av.timezone === "string") setAvailZone(av.timezone);
     })();
     return () => { on = false; };
   }, [role]);
@@ -420,7 +463,7 @@ function CoachSchedulePage({ role }) {
           {/* Availability */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#d8a23a", paddingLeft: 22 }}>
-              <DscAvailability role={role} live={isLive} initial={availSlots} />
+              <DscAvailability role={role} live={isLive} initial={availSlots} storedZone={availZone} onZone={setAvailZone} />
             </div>
             <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "14px 16px" }}>
               <div className="dash-eyebrow">How rescheduling works</div>

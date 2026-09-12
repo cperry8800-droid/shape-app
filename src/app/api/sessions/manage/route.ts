@@ -21,6 +21,7 @@ import { createNotification } from '@/lib/notify';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 
+import { normalizeZone } from '@/lib/time';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -188,8 +189,47 @@ export async function POST(request: Request) {
     try {
       // For a reschedule, the meaningful time is the NEW slot, not the old.
       const whenSource = action === 'reschedule' && newScheduledAt ? newScheduledAt : session.scheduled_at;
+      // ⚠ THIS NOTICE GOES TO THE MEMBER, SO IT HAS TO BE THE MEMBER'S CLOCK — and it used
+      // to be an UNLABELLED UTC time, so a member in New York was told 1:00 PM for a 9:00 AM
+      // session with nothing on screen saying which zone that was. Same defect class as the
+      // booking chain this shipped with (2026-09-11): a wall clock with no zone attached.
+      //
+      // Their captured zone is preferred; with none on file the zone is NAMED rather than
+      // guessed, because a labelled time a member has to convert is honest and a bare wrong
+      // number is not. (client_profiles.timezone is captured opportunistically on app open,
+      // so an account that has only ever used the website may not have one yet.)
+      //
+      // ⚠ READ THROUGH THE REQUEST-SCOPED CLIENT, NEVER THE SERVICE ROLE. An earlier cut used
+      // createAdminClient() here, which bypasses RLS to read another user's profile row inside
+      // a user-initiated request — flagged by CodeRabbit's security review on #2053, and
+      // correctly: this route uses the request client for everything else, so the admin client
+      // was the one place where RLS stopped being authoritative.
+      //
+      // ⚠ AND THE RLS OUTCOME IS EXACTLY THE RIGHT BEHAVIOUR, not a limitation to work around.
+      // `providers_read_subscriber_profiles` lets a coach read the profile of a client with an
+      // active or trialing subscription, and `client_profiles_read_own` covers nobody else. So
+      // a coach confirming a session for a paying client gets their real zone, and a coach
+      // confirming a FREE INTRO CONSULT for someone who is not their subscriber gets nothing —
+      // which is the correct answer, because we have no business reading a non-client's
+      // profile to format a sentence. That case falls to the named-zone branch below, which is
+      // what it did before this change anyway.
+      let memberZone: string | null = null;
+      try {
+        const { data: prof } = await supabase
+          .from('client_profiles')
+          .select('timezone')
+          .eq('user_id', session.client_id)
+          .maybeSingle();
+        memberZone = normalizeZone((prof as { timezone?: unknown } | null)?.timezone);
+      } catch {
+        memberZone = null; // a refused or failed read must not stop the notification
+      }
       const when = new Date(whenSource).toLocaleString('en-US', {
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+        timeZone: memberZone || 'UTC',
+        // Named whichever zone it lands in: the member's own needs no explanation, and a
+        // fallback that does not say "UTC" is exactly the unlabelled claim being removed.
+        ...(memberZone ? {} : { timeZoneName: 'short' as const }),
       });
       const copy = {
         confirm: { type: 'session_confirmed', title: 'Session confirmed', body: `Your coach confirmed your session on ${when}.` },

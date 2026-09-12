@@ -1471,6 +1471,13 @@ function LvCoachAvailability({ d }) {
   const [state, setState] = React.useState(uid ? "loading" : "demo");
   const [slots, setSlots] = React.useState(null);
   const [pid, setPid] = React.useState(null);
+  // ⚠ THE HOURS BELOW ARE THE COACH'S OWN CLOCK, AND WITHOUT NAMING IT "6a–10a" IS NOT A
+  // TIME. A stored start_minute is a bare wall-clock minute in the coach's day, so a
+  // visitor reading these as their own hours can be a whole working day out — which is
+  // the same unqualified-wall-clock defect the booking chain was fixed for on 2026-09-11.
+  // Only the label is added here: these ranges are a weekly pattern, not instants, so
+  // converting them to the viewer's zone would split a block across two days.
+  const [zone, setZone] = React.useState(null);
 
   React.useEffect(() => {
     if (!uid) { setState("demo"); return; }
@@ -1487,6 +1494,7 @@ function LvCoachAvailability({ d }) {
         const j = res.ok ? await res.json() : null;
         if (!on) return;
         setSlots(Array.isArray(j && j.slots) ? j.slots : []);
+        setZone(j && typeof j.timezone === "string" ? j.timezone : null);
         setState("live");
       } catch (e) { if (on) setState("none"); }
     })();
@@ -1500,7 +1508,21 @@ function LvCoachAvailability({ d }) {
     { weekday: 4, start_minute: 540, duration_min: 300 }, { weekday: 5, start_minute: 360, duration_min: 300 },
     { weekday: 6, start_minute: 540, duration_min: 180 },
   ];
-  const useSlots = state === "demo" ? demoSlots : (slots || []);
+  // ⚠ HOURS WE CANNOT PLACE ARE NOT HOURS, AND THEY MAY NOT CARRY A BOOKING CTA. With a live
+  // read and no stored zone this block used to draw unqualified wall-clock ranges ("6a–10a")
+  // AND a "Book a consult →" button — two defects at once: a time that is nobody's, and a
+  // control that leads to a dead end, because /api/consultation now refuses a booking it cannot
+  // place. Flagged by CodeRabbit on #2053. The demo preview is exempt: it is labelled
+  // "· example" and nothing it shows is a claim about a real coach.
+  //
+  // The zone arrives from /api/availability, which has already run it through normalizeZone, so
+  // any non-empty string here is a validated IANA name — no second validator needed.
+  const zoneOk = state === "demo" || (typeof zone === "string" && zone.length > 0);
+  const liveSlots = slots || [];
+  const useSlots = state === "demo" ? demoSlots : (zoneOk ? liveSlots : []);
+  // ⚠ AND "No open hours set" WOULD BE A FALSE CLAIM HERE — the coach HAS hours; we cannot
+  // place them. Distinguished rather than collapsed, the same rule the booking sheet follows.
+  const unplaceable = state !== "demo" && !zoneOk && liveSlots.length > 0;
   const byDay = new Map();
   for (const s of useSlots) {
     const wd = s.weekday;
@@ -1522,9 +1544,11 @@ function LvCoachAvailability({ d }) {
     <section style={{ maxWidth: 1240, margin: "0 auto", padding: "10px 40px 0" }}>
       <div style={dCard({ padding: "16px 22px 18px" })}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
-          <DKick c={LV_TEAL} style={{ fontSize: 10.5 }}>◷ Availability{state === "demo" ? " · example" : ""}</DKick>
+          <DKick c={LV_TEAL} style={{ fontSize: 10.5 }}>◷ Availability{state === "demo" ? " · example" : zone ? " · " + zone : ""}</DKick>
           <span style={{ fontFamily: dMono, fontSize: 10.5, color: dHexA(LV_INK, 0.45) }}>
-            {openDays ? "Open " + openDays + (openDays === 1 ? " day" : " days") + " a week" : "No open hours set"}
+            {unplaceable
+              ? "Open hours set \u00b7 timezone not recorded yet"
+              : openDays ? "Open " + openDays + (openDays === 1 ? " day" : " days") + " a week" : "No open hours set"}
           </span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>

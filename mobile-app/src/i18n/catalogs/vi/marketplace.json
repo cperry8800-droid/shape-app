@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} sẽ thấy ghi chú của bạn trong tin nhắn Shape. Cuộc trò chuyện đã đồng bộ với trang Chat của bạn trong Team.",
   "listing.messageTitle": "Nhắn {name}",
   "listing.noOpenTimes": "Tuần này không còn giờ trống — nhắn {name} để tìm giờ.",
+  "listing.noTimezone": "Có giờ trống nhưng chưa rõ múi giờ — nhắn {name} để tìm giờ.",
   "listing.onWaitlist": "Trong danh sách chờ",
   "listing.openCheckout": "Mở thanh toán an toàn",
   "listing.openSubscription": "Mở đăng ký an toàn",

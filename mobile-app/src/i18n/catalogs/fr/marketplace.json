@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} verra votre note dans ses messages Shape. La conversation est synchronisée avec votre page Chat, dans Team.",
   "listing.messageTitle": "Message à {name}",
   "listing.noOpenTimes": "Aucun créneau cette semaine — écrivez à {name} pour en trouver un.",
+  "listing.noTimezone": "Des créneaux existent, mais le fuseau horaire manque — écrivez à {name} pour en trouver un.",
   "listing.onWaitlist": "Sur la liste d’attente",
   "listing.openCheckout": "Ouvrir le paiement sécurisé",
   "listing.openSubscription": "Ouvrir l’abonnement sécurisé",

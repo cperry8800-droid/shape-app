@@ -12,6 +12,16 @@ changelog whenever something ships.
   retroactively change existing emoji or colors** already in the app/website
   (especially on profiles) — leave current ones as-is. Rule applies to new emoji
   only.
+- **The changelog entry comes AFTER the PR, not before — owner, 2026-09-11:** *"new rule, do
+  worklog after PR is completed"*. Write the dated entry once the PR is done, so it can record
+  what the review round actually found and what the final head actually was. ⚠ **THE REASON IS
+  MEASURED, ON THE PR THAT PROMPTED THE RULING.** #2053's entry was written before its review
+  round and said the fix was verified and complete; CodeRabbit then found a **P1 the entry had
+  no way to know about** — the timezone fix was correct everywhere a member LOOKED and still
+  wrong where the booking was STORED. An entry written early is not merely incomplete, it is a
+  **false claim in a file every session auto-loads**: the next reader would have believed the
+  write path was always right. Keep the *verification* numbers for last too — a suite count
+  from before the review round is a count for a tree that no longer exists.
 - **Migrations: just post the raw GitHub SQL link.** When a migration is
   created, reply with only the `raw.githubusercontent.com/.../supabase-migrations/<file>.sql`
   link — the user runs it on Supabase. Don't paste the SQL body or long explanations.
@@ -139,6 +149,21 @@ changelog whenever something ships.
   2026-08-24; the sweep is still needless churn**.) Docs/copy-only tweaks can
   skip it. Riskier changes additionally go to `staging` for a click-through
   before merging.
+- ⛔️ **ONE REVIEW TRIGGER PER PR, AND FRONT-LOAD EVERYTHING INTO IT — A ROUND BILLS BY FILE
+  COUNT.** Owner, 2026-09-11, after I ran two rounds on #2053: *"make sure it goes into this
+  coderabbit review so you don't use more money / Should have done that before running
+  coderabbit"*. CodeRabbit charges **$0.25 per reviewed file** beyond the included allowance
+  (~1 review/hour), so a 35-file diff is ~$9 **per round** — and the second round on that PR
+  re-derived context I already held. Before triggering, put it ALL in the trigger comment: what
+  changed and why, the areas you most want attacked, the evidence you already have, and what is
+  deliberately out of scope so it is not raised as new. **Then do not trigger again** — reply in
+  the existing thread instead. ⚠ **A second round is not free diligence, it is a second bill**,
+  and the fix round's own diff can be covered by the same comment if you write it properly the
+  first time.
+  ⚠ **AND READ THE HEAD A ROUND COVERS BEFORE ACTING ON IT.** #2053's submitted review carried
+  `sourceCommitId = coveredCommitId` = the FIRST head, so three of its six comments described
+  code a later commit had already replaced. Acting on them would have redone finished work — and
+  re-triggering to "get a clean verdict" would have bought a third bill for nothing.
 - **Review stack before shipping (required).** Layers that gate every
   non-trivial change.
   ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-11 (THIRD AND FINAL RULING OF THE DAY).
@@ -761,6 +786,199 @@ Append new entries at the top, under this note.
   band and its camps are a row under it). Reduced motion draws the finished route once and clears the
   camps; with JS off the fold is still the painted ridge with **no route and no phantom score**.
 
+### 2026-09-11 — One column, three readings: the booking chain learns what a coach's "9am" means
+
+- **The registered booking-timezone item, built — and the OWNER RULING it was waiting on dissolved rather
+  than being made.**
+  [`supabase-migrations/2026-09-11-provider-timezone.sql`](../supabase-migrations/2026-09-11-provider-timezone.sql)
+  is **APPLIED — the owner ran it 2026-09-11, and it is VERIFIED AGAINST THE LIVE CATALOG rather than taken
+  on report**: `trainers.timezone` and `nutritionists.timezone` both present, `text`, **nullable, no
+  default**; both column comments landed; and **21 trainers / 22 nutritionists with ZERO zones set**, so
+  nothing was backfilled and nothing was guessed, which is the whole of what the file promises to do.
+  ⚠ **AND THE "no backfill needed" PREMISE WAS RE-MEASURED AFTER THE APPLY RATHER THAN CARRIED ACROSS IT** —
+  `provider_availability` **0**, `sessions` **0**, still. *A migration's status belongs to the database, not
+  to the file describing it, and neither does the reason it was safe.*
+  ⚠ **AND THE ONE CLAIM THE MIGRATION MAKES THAT IS NOT ABOUT ITSELF WAS CHECKED TOO, because the
+  signed-out booking path depends on it.** Its header asserts both coach tables are public-read, which is
+  what lets the consultation page label an instant for an **anonymous** visitor; confirmed on production —
+  `trainers public read`, `nutritionists public read` and `public_read_availability` are all
+  `SELECT` to `{anon,authenticated}` with `using(true)`. Had that been wrong the zone would have read null
+  for every signed-out visitor and the surface would have offered no slots, honestly and uselessly.
+  The ruling existed because existing rows were ambiguous: they MEAN the coach's wall clock and were READ as
+  UTC, so calling them either one is a claim about bookings that already exist. **Measured on production
+  rather than assumed — as `postgres`, so RLS is bypassed and the zeros are real: `provider_availability`
+  holds ZERO rows and `sessions` holds ZERO rows.** There are no existing bookings and no existing hours, so
+  there was nothing to reinterpret, no backfill to decide, and the migration only ADDS a nullable column.
+  *A ruling whose premise you can settle in one query is worth measuring before it is escalated.*
+- ⚠ **AND THERE WERE THREE READINGS OF ONE COLUMN, NOT TWO — which is why nobody noticed.**
+  `provider_availability.start_minute` is documented by **its own migration** as *"minutes since midnight in
+  the coach's local day"*, and both editors write exactly that (toggle the cell marked **9a**, `540` is
+  stored). Nothing recorded WHICH local day, so every reader invented one: `consultation.html` and
+  `bookingSlots.js` read 540 as **09:00 UTC**, while the app's `coachAvailability.mjs` read it as **09:00 in
+  the MEMBER's zone**. So one coach row rendered **different times in the app and on the website and neither
+  was the coach's** — a New York coach who opened 9am had members booking **5:00 AM** on the site and
+  **9:00 AM** in the app. The board had recorded this as *"read as UTC"*, which was two thirds of it.
+- **The zone lives on the COACH, not on the slot** (`trainers.timezone` / `nutritionists.timezone`);
+  `client_profiles.timezone` is the precedent, nobody keeps Monday in New York and Tuesday in Tokyo, and an
+  availability row cannot answer the question for a coach who has set no hours. ⚠ **No CHECK constraint** — a
+  CHECK cannot join `pg_timezone_names`, so validation sits where the house already puts it: at the write
+  (`Intl` refusing the name) and at the read (fail closed).
+- ⚠ **A SAVE THAT CANNOT PLACE ITS HOURS IS REFUSED, NOT ACCEPTED.** Writing them anyway reports
+  *"Saved · live on your profile"* over availability that renders nowhere for every member, with nothing on
+  either screen saying why; refusing costs one reload. All three live editors send the zone — and the two
+  **legacy** dashboards are live, not dead: coaches are redirected there after claiming
+  (`stripe-onboarding/success`, `dashboard/claim`). `/api/my-availability` POST is the single write
+  chokepoint, so there is no fourth path.
+- ⚠ **ONE ALGORITHM, THREE FORCED COPIES, PROVEN NOT TO DRIFT.** `bookingSlots.js` is a plain browser
+  `<script>` with no bundler, the mobile bundle is a separate Vite build that cannot reach the website's
+  public dir, and the routes run in Node — so none of the three can import the others.
+  `tests/booking-timezone-parity.test.mjs` drives **all three** over **14 zones × 10 dates × 14 minutes**
+  and requires identical answers. ⚠ And it was cross-checked against an **independent** implementation:
+  Postgres and the app both place 9am New York on 2026-09-17 at exactly **13:00:00Z**.
+- ⚠ **THE PARITY GUARD FOUND TWO REAL DEFECTS IN THE FIX ITSELF, WITHIN MINUTES OF EXISTING.**
+  `Intl.DateTimeFormat({ timeZone: undefined })` **does not throw** — it means *"use the system zone"* — so
+  an absent zone silently fell back to **UTC on the server** and to the **member's clock in the app**: the
+  original defect, reintroduced through a default, with no error anywhere to notice it. Guarded at the
+  **formatter** in all three copies rather than at each caller, so every path is safe instead of only the
+  paths that remembered to ask.
+- ⚠ **A WALL TIME THE COACH'S ZONE SKIPS OVER IS REFUSED, NOT SHIFTED AN HOUR.** 02:30 never happens in New
+  York on the March transition, and the two-pass arithmetic alone silently returns **03:30** — an hour the
+  coach never declared. Each implementation formats its answer back and requires the wall clock it asked
+  for, which makes DST correctness a **checked property rather than a hoped-for one**. The fall-back overlap
+  needs no such care: 01:30 happening twice is two real instants with the right wall clock.
+- ⚠ **"NO OPEN HOURS" AND "HOURS WE CANNOT PLACE" ARE DIFFERENT CLAIMS, AND BOTH SURFACES NOW MAKE THE RIGHT
+  ONE.** An empty pattern is a fact about the **coach**; declared hours with no zone is a fact about **our
+  data**. Saying *"no open times"* for the second blames the coach for a missing column of ours. The zone is
+  checked **after** the empty pattern, or a coach who simply has no hours is told a story about timezones.
+- **Three more surfaces in the same chain were showing a member a time that was not theirs.**
+  `/api/consultation` built the appointment by reading the picker's **label** as UTC — and said so in its own
+  comment: *"close enough for a v1. We'll upgrade to per-coach timezones later."* It takes the resolved
+  instant now, and an older client's `date`+`time` is resolved in the **coach's** zone rather than UTC; its
+  confirmation mail names the coach's zone; and `/api/sessions/manage` told the **member** their session time
+  in **unlabelled UTC** (1:00 PM for a 9:00 AM session), which now uses their captured zone and **names** the
+  zone when falling back. ⚠ `consultation.html` also lost two further live bugs: `booked` compared as a
+  **string** (Postgres returns `+00:00` where it built `.000Z`, so a taken slot was offered again) and a
+  picker keyed on a **UTC date derived from a LOCAL one**, a day out either side of midnight.
+- ⚠ **MY OWN FIXTURES WERE ALL MIDDAY UTC, WHERE EVERY ZONE SHARES THE UTC DATE — so the mutation "walk UTC
+  dates instead of the coach's" SURVIVED THE ENTIRE SUITE.** The same trap this file already post-mortems on
+  its DST guard, walked into again. Closed with a **22:00Z** fixture (Sydney already tomorrow, Los Angeles
+  still today), which is the only shape that separates the two anchors. ⚠ And the same round exposed
+  **seven existing assertions that had gone vacuous**: they passed no zone, so `buildSlots` returned `[]` for
+  the ZONE's sake and none of them ever reached the reason they claimed to test.
+- ⚠ **AND MY OWN DIFF READ CAUGHT A FABRICATION I HAD JUST INTRODUCED.** A consultation link arriving with no
+  coach id never fetches availability at all, so my new *"this coach's open hours aren't on a clock yet"*
+  line **invented a coach and a reason** for it. Gated on `proId`, so it falls through to the ordinary
+  pick-a-date flow.
+- **i18n:** one new `marketplace:listing.noTimezone` × 13, each composed from **that catalog's own**
+  *"message {name}…"* clause verbatim so the two refusals read as siblings. A pure append in sorted position:
+  **1 insertion / 0 deletions per file**, identical key sets across all 13 at 186 keys.
+- **Verified:** `npm test` **3449/3449** · `tsc --noEmit` 0 · JSX parse on all four changed modules · plain-JS
+  parse on both pure modules · the newdesign precompile check (74 pages) · the migration **applied twice on a
+  real Postgres 16** with the columns nullable and every existing row left NULL · **19/23 mutations killed**,
+  each proven to land and restored in a `finally`, sanity green at both ends, with the **4 survivors proven
+  mutually-redundant** (each alone is a no-op because the other layer catches it; a combined mutation
+  removing both KILLS) and labelled belt-and-braces at each site · mobile build clean with the zone
+  confirmed in the emitted bundle as `booked:t.booked||[],weeks:6,zone:t.timezone` and all 13 translations
+  present, behind a **negative control** (the retired `setHours` projection reads **0**). ⚠ The minified
+  guard reads `!=\`string\`` — a double-quote grep returns 0 and looks like a miss, the trap this file
+  records.
+- ⚠ **NO ON-ACCOUNT PASS, AND IT CANNOT BE FAKED HERE.** Production holds 0 availability rows and 0 sessions,
+  so not one of these paths has run against real RLS with real data. The honest check is a coach publishing
+  hours and a member booking one.
+- ⚠ **REGISTERED, NOT FIXED** (all pre-existing): `/api/consultation` still does not validate the requested
+  instant against the coach's published availability; `sessions_no_conflict_idx` compares **instants only**,
+  so a 60-minute session at 09:00 and a 15-minute consult at 09:30 overlap without conflicting; the app's
+  projection still does not expand a collapsed block into hourly starts the way the website does; and
+  `shapeBackend.saveProviderAvailability` / `listProviderAvailability` are **dead exports** that would write
+  zone-less hours if a caller ever appeared.
+- ⚠ **AND THEN THE REVIEW ROUND FOUND THE FIX WAS RIGHT AT THE DISPLAY AND WRONG AT THE WRITE.** Owner:
+  *"when you open PR, run a initial round of coderabbit for review"* + *"just one round for now"*. It
+  returned **three findings and every one was real** — nothing refuted — and the first is the one that
+  matters: **the whole slot-projection suite was green while the booking WRITE discarded the resolved
+  instant.** `projSlotRow` carried a projected slot to the confirm sheet and dropped `at`, and
+  `scheduledAtFromSlot` rebuilt `scheduled_at` from `date`/`month`/`time` — the MEMBER's display fields — so
+  a New York coach's 09:00 was stored as the member's 09:00. ⚠ **And the rebuilt string carried NO ZONE AT
+  ALL** (`2026-09-17T09:00:00`), so the instant Postgres kept depended on the **database's** timezone rather
+  than on anybody's intent. *Being right about the instant says nothing about what gets stored* — which is
+  why `tests/booking-write-path.test.mjs` exists and why every entry above it was insufficient.
+- ⚠ **THE SECOND FINDING WAS A HOLE THE FIX ITSELF OPENED, AND IT IS THE THIRD TIME IN THIS PR.**
+  `/api/consultation` took the client's `scheduledAt` as authoritative — replacing *"read a wall clock as
+  UTC"* with *"believe whatever instant the caller sends"* — and that branch ran **before** the no-zone
+  refusal, so a caller could also book against a coach whose hours cannot be placed at all. The server
+  derives the appointment itself now and a sent instant is only ever a **cross-check**; the refusal guards
+  every path.
+- ⚠ **AND THE REVIEWER'S OWN REMEDY WOULD HAVE 409'd EVERY BOOKING, WHICH IS WHY A FINDING IS VERIFIED
+  RATHER THAN APPLIED.** It asked for `scheduledAt` to be rejected unless it equals `date`+`time` resolved
+  in the coach's zone — correct, except the page was sending the **member's** wall clock, so the two
+  disagree for every member outside the coach's zone. The wire format moved to the coach's clock, and the
+  agreement is **proven rather than reasoned**: 180 combinations across 6 zones × 5 dates, page → server,
+  zero mismatches, now a permanent guard.
+- **The third: the confirmation mail read `9:00 AM EDT UTC`.** `niceDate` already carries its own
+  `timeZoneName` and seven call sites appended a literal ` UTC`. ⚠ The duplication **predates this PR**
+  (it read `UTC UTC`); moving the zone to the coach's turned a redundancy into a contradiction — *a change
+  that makes an existing sloppiness visible owns it.*
+- ⚠ **TWO OF MY OWN NEW GUARDS WERE WRONG BEFORE THEY WERE RIGHT, BOTH CAUGHT BY MUTATION RATHER THAN BY
+  READING.** The round-trip sweep **never reached a DST gap** — its minutes skipped 02:00–03:00 — caught by
+  its own vacuity assertion; and a file-wide ban on the member-local pair matched the **localStorage** copy,
+  where member-local is **correct**, and failed the clean tree. Scoped to the request body. *A guard that
+  pins a spelling pins whatever that spelling is wrong about*, for the second time in one PR.
+- ⚠ **AND A SECOND ROUND ON THE FIX DIFF FOUND FOUR MORE — the owner asked for it (*"Run coderabbit
+  again"*), and the round that reviews the fixes is the one that keeps finding things.** (1) **SECURITY:**
+  the member-zone read used the **service role** inside a user-initiated route, bypassing RLS on another
+  user's profile row. Request-scoped now — and the RLS outcome is the **right behaviour rather than a
+  limitation**: `providers_read_subscriber_profiles` lets a coach read a **paying** client's zone and
+  nothing lets them read a free-consult stranger's, which is correct, and that case falls to the
+  already-labelled fallback. (2) `livingDesktop`'s marketplace profile drew **unqualified wall-clock hours
+  AND a live "Book a consult" CTA** for a coach with no stored zone — two defects at once, because the
+  consultation route now **refuses** such a booking, so the control led to a dead end. (3) **The zone was
+  stamped BEFORE the slots were replaced**, so a delete failure left a coach's **existing** hours
+  reinterpreted under the new zone — a silent three-hour shift on a New York → Los Angeles move, while
+  the save reported failure. (4) The editor's zone label went stale after a save.
+- ⚠ **THE STAMP WAS COMPENSATED RATHER THAN TRANSACTIONAL, AND THAT FIX WAS ITSELF A WRONG-TIME BUG —
+  CORRECTED THE SAME EVENING BY A THIRD ROUND (`832a2ea`).** PostgREST has no cross-table transaction and
+  an RPC would mean a **second migration for the owner to run**, so the first cut stamped the zone and
+  **rolled it back** on any later failure. That rollback restored the prior zone on **`id` alone**, with no
+  compare-and-set: request A stamps Los Angeles and its insert fails; request B then saves successfully
+  under Los Angeles; A's rollback restores New York and **B's just-saved hours are read three hours out**.
+  The editor POSTs on **every cell toggle with no debounce**, so concurrent saves from one coach are
+  ordinary rather than exotic. *The defect this whole PR exists to remove, re-introduced inside the fix
+  for it.*
+- ⚠ **THE ANSWER IS AN ORDER, NOT A SAFER ROLLBACK: `delete → stamp → insert`, CHOSEN SO THAT NOTHING
+  NEEDS UNDOING.** Every single-step failure is then self-consistent — *delete fails* → nothing stamped,
+  the old hours keep the old zone; *stamp fails* → the hours are gone and the old zone stands; *insert
+  fails* → the hours are gone and the new zone stands. **"No hours" is always safe** (every reader renders
+  it as *no open hours set*) where hours read in the wrong zone is the silent shift. So the rollback is
+  **deleted rather than made compare-and-set** — the race is unrepresentable instead of narrowed. ⚠ And a
+  concurrent save cannot reopen it, because **both requests carry the same resolved browser zone**: if A is
+  changing the zone then B is changing it to the same value, so whichever lands matches both requests'
+  intent. The residual is a coach saving from two machines in different zones at the same instant, which is
+  inherently ambiguous rather than a bug in this ordering.
+- ⚠ **THE RPC IS REGISTERED AS BELT-AND-BRACES, NOT BUILT, AND THE TRADE IS STATED AT THE CALL SITE.**
+  The reviewer's remedy — one transaction over both tables — is right in principle, and it is **a second
+  migration the owner has to run by hand**. After the reorder no single failure here can produce a wrong
+  time, and the costs are asymmetric: a wrong-time bug is worth a migration, a transient *"no hours until
+  you tap save again"* is not.
+- ⚠ **AND MY OWN GUARD PINNED THE ROLLBACK'S SPELLING, SO THE CORRECT FIX BROKE A TEST ABOUT
+  ATOMICITY.** It matched `const unstamp = async () => {` and `.update({ timezone: priorZone })` — i.e. it
+  asserted the presence of the thing that turned out to be the bug. Re-anchored on the invariant: the three
+  write steps are **ordered**, **no** rollback machinery exists (asserted as an **absence**, because
+  re-introducing it is the regression), and every failure branch fails the save. *A guard that pins a
+  spelling pins whatever that spelling is wrong about* — and this one was wrong within the hour.
+- ⚠ **AND THREE OF THAT ROUND'S SIX COMMENTS WERE ALREADY FIXED WHEN IT POSTED — the head-pinning trap
+  this file documents by name.** The submitted review's own coverage payload reads
+  `sourceCommitId = coveredCommitId = 5a8feb3`, the **first** head, so its mobile-`at`,
+  scheduledAt-equality and literal-`UTC` comments describe code `6eaec90` had already replaced. *A verdict
+  is only about the head it names* — and the re-review of `5a8feb3 → 9fd1d74` returned **"no new defects
+  in the fix diff"**, confirming each fix individually. Recorded because the two outputs arrived
+  together and reading the review alone would have sent me round the same three fixes twice.
+- **Verified on the final head:** `npm test` **3506/3506** · `tsc --noEmit` 0 · JSX + JS parse · the
+  newdesign precompile check · **18/18 mutations killed across two rounds** (13 on the first two review
+  rounds, 5 on the reorder), each proven to land, sanity green at both ends, the tree restored in a
+  `finally` — and each one **replaying one of the findings**, the third round's P1 included (the stamp moved
+  back above the delete), so the suite is proven to catch them rather than merely to be green after the fix
+  · mobile build clean with all three links confirmed in the emitted bundle
+  (`Number(e.at);if(Number.isFinite(t)&&t>0)return new Date(t).toISOString()` · `getMonth()],at:e.at` ·
+  `slot:{…,iso:i,at:s}`) · and all four required checks green.
 ### 2026-09-11 — The Instrument Board: Session details opens as a panel, and the numbers land in tables
 
 - **The owner's pick, built** ([`REVIEW-2026-09-11-session-details.md`](REVIEW-2026-09-11-session-details.md)

@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} will see your note in their Shape messages. The thread is synced to your Chat page under Team.",
   "listing.messageTitle": "Message {name}",
   "listing.noOpenTimes": "No open times this week — message {name} to find one.",
+  "listing.noTimezone": "Open hours are set, but their timezone isn't — message {name} to find one.",
   "listing.onWaitlist": "On the waiting list",
   "listing.openCheckout": "Open secure checkout",
   "listing.openSubscription": "Open secure subscription",

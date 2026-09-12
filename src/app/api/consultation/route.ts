@@ -37,6 +37,7 @@ import { cleanText as clean, isEmail, readJson } from '@/lib/request-utils';
 import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
+import { instantInZone, normalizeZone } from '@/lib/time';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
@@ -138,29 +139,77 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid time.' }, { status: 400 });
   }
 
-  // Treat the picker value as the local wall-clock time in the user's
-  // browser. JS's Date(year, month, day, h, m) constructor uses the
-  // server's local timezone, which on Vercel is UTC — close enough for a
-  // v1. We'll upgrade to per-coach timezones later.
-  const [y, m, d] = date.split('-').map((n) => parseInt(n, 10));
-  const scheduled = new Date(Date.UTC(y, m - 1, d, parsed.hour, parsed.minute, 0));
-  if (Number.isNaN(scheduled.getTime())) {
-    return NextResponse.json({ error: 'Invalid datetime.' }, { status: 400 });
-  }
-  if (scheduled.getTime() < Date.now() - 60 * 60 * 1000) {
-    return NextResponse.json({ error: 'Cannot book in the past.' }, { status: 400 });
-  }
-
   const admin = createAdminClient();
   const table = providerRole === 'trainer' ? 'trainers' : 'nutritionists';
+  // ⚠ `select('*')` IS MIGRATION-SAFE: naming `timezone` errors the WHOLE query on a
+  // pre-migration database, which would stop every booking rather than fall back. The
+  // house pattern (trainer/dashboard, trainer/analytics) for the same reason.
   const { data: provider, error: providerError } = await admin
     .from(table)
-    .select('id, name, owner_id, at_capacity, capacity_resume_at')
+    .select('*')
     .eq('id', providerIdRaw)
     .maybeSingle();
 
   if (providerError || !provider) {
     return NextResponse.json({ error: 'Provider not found.' }, { status: 404 });
+  }
+
+  // ── When the session actually is ────────────────────────────────────────────
+  //
+  // ⚠ THIS USED TO READ THE PICKER'S LABEL AS UTC, AND SAID SO: "close enough for a v1.
+  // We'll upgrade to per-coach timezones later." It was not close enough — a coach's
+  // availability is stored as a bare wall-clock minute in THEIR day, so a New York coach
+  // who opened 9am had members booking 5:00 AM while both were shown "9:00 AM".
+  //
+  // The booking page now resolves the instant itself, in the coach's zone, and sends it as
+  // `scheduledAt`; a wall-clock string is the one value that cannot carry a zone across
+  // the wire, so it is no longer what decides the appointment.
+  const providerZone = normalizeZone((provider as { timezone?: unknown }).timezone);
+
+  // ⚠ THE SERVER DERIVES THE INSTANT. IT DOES NOT TRUST ONE. An earlier cut of this fix took
+  // the client's `scheduledAt` as authoritative, which replaced "read a wall clock as UTC"
+  // with "believe whatever instant the caller sends" — and, worse, took that branch BEFORE
+  // the no-zone refusal below, so a caller could book against a coach whose hours cannot be
+  // placed at all. Both were introduced by the fix and caught by CodeRabbit on #2053.
+  //
+  // ⚠ THE REFUSAL IS NOW ON EVERY PATH. With no zone on file the submitted wall clock cannot
+  // be placed on any clock, and a booking we cannot place is worse than a booking that
+  // fails: the coach's own editor refuses to save hours without a zone, so this is a
+  // pre-fix row rather than a normal state.
+  if (!providerZone) {
+    return NextResponse.json(
+      { error: "This coach's calendar isn't ready for bookings yet. Please try again shortly." },
+      { status: 409 }
+    );
+  }
+  const [y, m, d] = date.split('-').map((n) => parseInt(n, 10));
+  const resolved = instantInZone(y, m, d, parsed.hour, parsed.minute, providerZone);
+  if (!Number.isFinite(resolved)) {
+    // Includes a wall time the coach's zone skips over on a spring-forward day — an hour
+    // that does not exist is not an hour anybody can be booked into.
+    return NextResponse.json({ error: 'Invalid datetime.' }, { status: 400 });
+  }
+  const scheduled = new Date(resolved);
+
+  // ⚠ A SENT INSTANT IS A CROSS-CHECK, NEVER THE ANSWER. The booking page resolves the same
+  // wall clock in the same zone with the same helper (src/lib/time.ts, shared by all three
+  // surfaces), so agreement is the normal case and a MISMATCH means the two sides disagree
+  // about what the member picked — which is exactly when a booking must not be written.
+  const sentAt = clean(body.scheduledAt, 40);
+  if (sentAt) {
+    const t = new Date(sentAt).getTime();
+    if (Number.isNaN(t) || t !== resolved) {
+      console.error('[shape-app] consultation instant mismatch', {
+        sentAt, resolvedAt: scheduled.toISOString(), providerZone, date, time,
+      });
+      return NextResponse.json(
+        { error: 'That time no longer matches the coach\'s calendar. Please pick it again.' },
+        { status: 409 }
+      );
+    }
+  }
+  if (scheduled.getTime() < Date.now() - 60 * 60 * 1000) {
+    return NextResponse.json({ error: 'Cannot book in the past.' }, { status: 400 });
   }
   if (isEffectivelyAtCapacity(provider)) {
     return NextResponse.json(
@@ -233,7 +282,11 @@ export async function POST(req: NextRequest) {
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',
-    timeZone: 'UTC',
+    // The coach's zone when we know it — more use to both parties than UTC, and the
+    // ICS below carries the real instant so each calendar shows its own local time.
+    // `timeZoneName` is what keeps this honest whichever zone it lands in: a bare
+    // wall-clock string with no zone is the defect this whole change is about.
+    timeZone: providerZone || 'UTC',
   });
   const summary = `Shape consultation with ${provider.name}`;
   const description = topic
@@ -284,7 +337,7 @@ export async function POST(req: NextRequest) {
   const clientHtml = `
     <div style="font-family:system-ui,sans-serif;max-width:560px;">
       <h2 style="margin:0 0 16px;">You're booked with ${providerNameHtml}</h2>
-      <p><strong>${niceDate} UTC</strong><br/>15-minute video consultation</p>
+      <p><strong>${niceDate}</strong><br/>15-minute video consultation</p>
       ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
       <p>${providerNameHtml} will confirm shortly. You'll get a second email with the call link once they accept.</p>
       <p style="color:#666;font-size:13px;margin-top:32px;">
@@ -296,7 +349,7 @@ export async function POST(req: NextRequest) {
     <div style="font-family:system-ui,sans-serif;max-width:560px;">
       <h2 style="margin:0 0 16px;">New consultation request</h2>
       <p><strong>${clientNameHtml}</strong> (${clientEmailHtml})<br/>
-      <strong>${niceDate} UTC</strong> — 15 min video</p>
+      <strong>${niceDate}</strong> — 15 min video</p>
       ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
       <p><a href="https://theshapecommunity.com/dashboard/${providerRole}">Open your dashboard →</a></p>
     </div>`.trim();
@@ -306,7 +359,7 @@ export async function POST(req: NextRequest) {
       <h2 style="margin:0 0 16px;">New consultation booking</h2>
       <p><strong>Coach:</strong> ${providerNameHtml} (${providerRole})<br/>
       <strong>Client:</strong> ${clientNameHtml} &lt;${clientEmailHtml}&gt;<br/>
-      <strong>When:</strong> ${niceDate} UTC<br/>
+      <strong>When:</strong> ${niceDate}<br/>
       <strong>Duration:</strong> 15 min video</p>
       ${topic ? `<p><em>Topic:</em> ${topicHtml}</p>` : ''}
       <p style="color:#666;font-size:12px;">Session ID: ${inserted.id}</p>
@@ -317,7 +370,7 @@ export async function POST(req: NextRequest) {
       to: clientEmail,
       subject: `Consultation booked with ${provider.name}`,
       html: clientHtml,
-      text: `You're booked with ${provider.name} on ${niceDate} UTC. 15-min video consultation.`,
+      text: `You're booked with ${provider.name} on ${niceDate}. 15-min video consultation.`,
       ics: clientIcs,
       icsFilename: 'shape-consultation.ics',
     }),
@@ -326,16 +379,16 @@ export async function POST(req: NextRequest) {
           to: coachEmail,
           subject: `New consultation request — ${clientName}`,
           html: coachHtml,
-          text: `New consultation request from ${clientName} (${clientEmail}) on ${niceDate} UTC.`,
+          text: `New consultation request from ${clientName} (${clientEmail}) on ${niceDate}.`,
           ics: coachIcs,
           icsFilename: 'shape-consultation.ics',
         })
       : Promise.resolve({ ok: false }),
     sendEmail({
       to: ADMIN_EMAIL,
-      subject: `Booking: ${clientName} → ${provider.name} (${niceDate} UTC)`,
+      subject: `Booking: ${clientName} → ${provider.name} (${niceDate})`,
       html: adminHtml,
-      text: `New booking. Coach: ${provider.name} (${providerRole}). Client: ${clientName} <${clientEmail}>. When: ${niceDate} UTC. Session ID: ${inserted.id}.${topic ? ' Topic: ' + topic : ''}`,
+      text: `New booking. Coach: ${provider.name} (${providerRole}). Client: ${clientName} <${clientEmail}>. When: ${niceDate}. Session ID: ${inserted.id}.${topic ? ' Topic: ' + topic : ''}`,
     }).catch((e) => { console.error('[consultation] admin notify failed', e); return { ok: false as const }; }),
   ]);
 

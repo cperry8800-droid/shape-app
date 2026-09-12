@@ -94,6 +94,7 @@
   "listing.messageSyncedBody": "{name} vedrà la tua nota nei messaggi di Shape. La conversazione è sincronizzata con la tua pagina Chat in Team.",
   "listing.messageTitle": "Messaggio a {name}",
   "listing.noOpenTimes": "Nessun orario libero questa settimana — scrivi a {name} per trovarne uno.",
+  "listing.noTimezone": "Ci sono orari liberi, ma manca il fuso orario — scrivi a {name} per trovarne uno.",
   "listing.onWaitlist": "In lista d’attesa",
   "listing.openCheckout": "Apri pagamento sicuro",
   "listing.openSubscription": "Apri abbonamento sicuro",

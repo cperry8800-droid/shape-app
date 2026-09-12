@@ -52,13 +52,17 @@ function CtLeader({ label, value, valueColor }) {
 // RLS-pinned `sessions` insert the mobile app uses to request one), and no website
 // surface called either.
 //
-// ⚠ THE TIMES ARE LABELLED IN THE MEMBER'S OWN ZONE, DELIBERATELY. `start_minute` is
-// a bare wall-clock minute with no timezone — the coach toggles the cell marked "9a"
-// and 540 is stored — and the booking chain reads it as 09:00 UTC. So the string "9:00
-// AM" is the coach's intent, not an instant, and for a coach in New York the session
-// actually lands at 5:00 AM. `BookingSlots.slotLabel` formats the REAL instant, so what
-// a member picks is what their calendar gets. The coach-side fix needs a timezone
-// column on the provider and a backfill — registered, not quietly redefined here.
+// ⚠ THE TIMES ARE LABELLED IN THE MEMBER'S OWN ZONE, DELIBERATELY, AND THE INSTANT
+// BEHIND THEM IS NOW THE COACH'S. `start_minute` is a bare wall-clock minute in the
+// coach's local day — they toggle the cell marked "9a" and 540 is stored — and until
+// 2026-09-11 the chain read it as 09:00 UTC, so a coach in New York had members booking
+// 5:00 AM while both parties were shown "9:00 AM". The coach's zone now comes back from
+// /api/availability and `BookingSlots` resolves the instant in it; `slotLabel` renders
+// that instant in the MEMBER's zone, which is the only clock they can act on.
+//
+// ⚠ AND A COACH WITH NO STORED ZONE OFFERS NOTHING RATHER THAN BEING READ AS UTC — the
+// `nozone` state below. That is a claim about OUR data, not about the coach, so it says
+// so: hours we cannot place are not hours a member can be allowed to book.
 // 14, because that is what the table's own migration says the client UI does:
 // "Client UI generates the next 14 days of concrete slots by projecting these rows
 // against each date." Matching the documented intent rather than picking a number.
@@ -72,7 +76,7 @@ function ctSupabase() {
 
 function CtBookSheet({ coach, onClose, onBooked }) {
   const accent = ctRoleColor(coach);
-  const [state, setState] = React.useState("loading");  // loading | ready | none | unreadable
+  const [state, setState] = React.useState("loading");  // loading | ready | none | nozone | unreadable
   const [slots, setSlots] = React.useState([]);
   const [pick, setPick] = React.useState(null);
   const [saving, setSaving] = React.useState(false);
@@ -91,8 +95,14 @@ function CtBookSheet({ coach, onClose, onBooked }) {
         // ⚠ AN UNREADABLE PATTERN IS NOT AN EMPTY ONE. "This coach has no open hours"
         // is a claim about the coach; a failed read is a claim about us.
         if (!j || !Array.isArray(j.slots)) { setState("unreadable"); return; }
+        // ⚠ "NO HOURS" IS KNOWABLE WITHOUT A ZONE; "WHEN" IS NOT. An empty pattern is a
+        // fact about the coach either way, so it keeps its own honest empty — the zone
+        // only decides whether declared hours can be placed.
+        if (!j.slots.length) { setSlots([]); setState("none"); return; }
+        if (!window.BookingSlots.isZone(j.timezone)) { setSlots([]); setState("nozone"); return; }
         const built = window.BookingSlots.buildSlots({
-          slots: j.slots, booked: j.booked, now: new Date(), days: CT_BOOK_DAYS, sessionMin: CT_SESSION_MIN,
+          slots: j.slots, booked: j.booked, zone: j.timezone,
+          now: new Date(), days: CT_BOOK_DAYS, sessionMin: CT_SESSION_MIN,
         });
         setSlots(built);
         setState(built.length ? "ready" : "none");
@@ -189,6 +199,12 @@ function CtBookSheet({ coach, onClose, onBooked }) {
             {state === "none" && (
               <div style={{ fontSize: 13.5, color: CT_INK55, marginTop: 18, lineHeight: 1.5 }}>
                 {coach.name.split(" ")[0]} has no open times in the next {CT_BOOK_DAYS} days. Message them and they can open one.
+              </div>
+            )}
+
+            {state === "nozone" && (
+              <div style={{ fontSize: 13.5, color: CT_INK55, marginTop: 18, lineHeight: 1.5 }}>
+                {coach.name.split(" ")[0]} has open hours set, but we can't place them on a clock yet — their timezone isn't recorded. Message them and they can set one up.
               </div>
             )}
 
