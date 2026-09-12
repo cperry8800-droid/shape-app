@@ -720,6 +720,80 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-12 — The homepage showed the same Shape Score twice, and the example labels stopped being badges
+
+- **Two owner notes on `public/newdesign/index.html`, one PR.** *"dont need 2 shape score
+  snapshots on home/index page on website … put the home page snapshot there instead"* and
+  *"remove all the example boxes"*. Presentation only — no migration, no route, no data change,
+  and no new asset.
+- ⚠ **IT WAS NOT TWO SIMILAR SCREENS, IT WAS THE SAME FRAME TWICE.** The journey rail's
+  stage 04 (`PH[3]`, `index.html:1134`) and the price section's standing phone (`:760`) both
+  carried **`home-score-v1.jpg`** under the headline **The Shape Score** and the sentence
+  *"One number over everything you log, with the ladder it climbs."* — byte-for-byte
+  identical, alt text included. A reader scrolled past one picture twice and learned nothing
+  the second time, on the one screen where they are deciding what $5 buys.
+- **The PRICE one is what moves, and the rail's does not.** Stage 04 of the journey is the
+  beat literally titled *Score* (`:688`), so the rail's Score capture is what that stage is
+  ABOUT — pulling it would leave a stage illustrated by somebody else's screen. The price
+  phone answers a different question and had simply been handed the same answer.
+- **It shows the app's Home screen, which is the one frame that answers "what does $5 buy".**
+  `getapp-home-v5.png` — the masthead and dateline, the calorie ledger against target, the
+  Radio card, the week strip, the check-in due and today's slate, all at once — against a
+  section whose own copy promises *"browse every coach, message your pros, track progress, log
+  meals, listen to Radio"*. The caption is **GetApp's own words for that screen** rather than
+  a new line: *Today, at a glance · The Shape Daily: your calendar, the calorie ledger, what's
+  left to log, and who's on the air.*
+- ⚠ **IT IS A PNG AMONG THE PAGE'S SEVEN JPEGs, AND THAT IS THE HONEST OPTION RATHER THAN
+  THE TIDY ONE.** There is no `home-home-v1.jpg`: the homepage set is eat · feed · grocery ·
+  habits · match · profile · score · session, and no Home capture among them. `getapp-home-v5.png`
+  IS the Home screen at **exactly 600×1387**, the same geometry as all eight, shared
+  byte-for-byte with GetApp.html's step 1 and referenced at the **same `?v=20260910`** so the two
+  pages share one cache entry. It costs 140 KB against a JPEG sibling's ~60, lazy-loaded several
+  screens below the fold. The tidy version is a re-shoot through the capture harness, not an edit
+  — and this container has **no PIL, no ImageMagick and no ffmpeg**, so a local convert would
+  have meant writing PNG bytes under a `.jpg` name, which is a lie in the filename.
+- ⚠ **AND `home-habits-v1.jpg` IS AN ORPHAN — 72 KB, shot for this page, referenced by
+  nothing.** Found while enumerating the set rather than reported. Registered, not deleted: it is
+  a capture somebody may want, and removing an asset is a different decision from fixing a
+  duplicate.
+- **The example labels lost their BOX, not their WORDS.** `.exlabel` was a bordered amber chip
+  (`1px solid rgba(230,195,115,.45)`, radius 4, padding 4/8) and five of them down one scroll read
+  as badges the page was proud of. The border, radius and padding are gone; the uppercase mono
+  micro-type stays.
+- ⚠ **DELETING THE WORDS WOULD HAVE CHANGED WHAT THE PAGE CLAIMS, WHICH IS WHY ONLY THE BOX
+  WENT.** This file already records the rule in as many words — ***"THE RULE IS NOT 'NEVER SAY
+  IT' BUT 'NEVER CLAIM IT UNLABELLED'"*** — and all five labels are load-bearing under it:
+  **`public.radio_station` does not exist**, so the ON AIR chip is a claim about a station that is
+  not broadcasting and *"Example · Radio opens with the app"* is what makes it allowed;
+  production holds **one trainer and one nutritionist with an `owner_id`**, so the eight
+  marketplace cards are AI portraits with fictional session counts and *"Example profiles until
+  real ones render"* is what keeps them from being fabricated people; the summit score is a drawn
+  figure; and both phone captures are the demo persona out of the signed-out preview. The page's
+  own footer says **"Every figure on this page is measured or labelled an example"** — true only
+  while the labels are there.
+- **A new guard closes the class rather than patching the instance.** *"the price phone is not a
+  screen the journey rail already showed"* parses the rail's `var PH=[…]` table and the
+  `#price` block and asserts the capture and the headline are disjoint.
+  ⚠ **AND A FLAT "NO CAPTURE TWICE ON THE PAGE" WOULD FAIL CORRECT CODE**, which is why it is
+  scoped to those two blocks: the moments strip and the rail deliberately **share**
+  `home-session-v1.jpg` and `home-feed-v1.jpg` under different headlines, and the rail's stage 0
+  is the seeded markup **by design** — the sibling test asserts that sameness. It also asserts
+  the parse **found** a rail (≥5 captures, ≥5 headlines) and that the referenced file exists in
+  the repo, so it cannot pass vacuously on a table it stopped matching.
+- ⚠ **AND THE EXAMPLE-LABEL GUARD'S OWN COMMENT WENT STALE IN THE SAME DIFF.** It read *"it
+  appears in the fold eyebrow, at the summit, in the journey dial and beside the Score capture"* —
+  and the Score capture is no longer what the price section carries. Corrected at the source, because
+  a comment naming the wrong element is what the next reader edits.
+- **Verified:** `npm test` **3513/3513** (18 on the homepage guard, 1 new) · the newdesign
+  precompile check (74 pages, 0 errors) · **5/5 mutations killed**, each proven to land, sanity
+  green at both ends, the tree restored in a `finally` (the Score capture restored · the Score
+  headline restored · the image removed · the caption's headline element removed · the capture
+  pointed at a file not in the repo) · and the section **driven in Chromium at 1440 and 390px**:
+  the Home capture loads at its natural 600×1387 and fills its frame (262×606 and 356×823), the
+  caption reads *Today, at a glance*, the label renders **unboxed**, and there is **zero horizontal
+  overflow and zero page errors** at both widths. (The 404s on `/_vercel/insights/script.js`,
+  `/api/me` and `/api/marketplace-stats` are the static test server, not the page.)
+
 ### 2026-09-12 — Split by split becomes mile by mile, and the range it was showing came from the post, not the splitter
 
 - **Owner, with two screenshots of Session details: *"The splits on the session review page on app need to

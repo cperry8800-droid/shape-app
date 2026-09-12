@@ -168,7 +168,8 @@ test('phones get the homepage — no width redirect', () => {
 
 test('every illustrative figure carries an example label', () => {
   // The score is a picture of the idea, not a reading. It appears in the fold
-  // eyebrow, at the summit, in the journey dial and beside the Score capture.
+  // eyebrow, at the summit and in the journey dial. The other labels mark the
+  // captured screens and the demo coach cast as examples.
   const labels = SRC.match(/class="exlabel"/g) || [];
   assert.ok(labels.length >= 4, `expected >= 4 example labels, found ${labels.length}`);
 
@@ -443,4 +444,44 @@ test('the journey phone has one capture per stage, and ships showing the first',
   // flick of the wheel and the last callback to fire would otherwise win.
   assert.match(SRC, /im\.onload=function\(\)\{ if\(phIdx!==mine\) return;/,
     'the phone swap must drop a result whose stage is no longer current');
+});
+
+test('the price phone is not a screen the journey rail already showed', () => {
+  // ⚠ IT WAS. The price section carried home-score-v1.jpg under the headline
+  // "The Shape Score" and the sentence "One number over everything you log,
+  // with the ladder it climbs." — byte-for-byte the journey rail's stage 04.
+  // So a reader scrolled past the same frame twice and learned nothing the
+  // second time, on the one screen where they are deciding what $5 buys.
+  //
+  // ⚠ AND "NO CAPTURE TWICE ON THE PAGE" WOULD FAIL CORRECT CODE, which is why
+  // this is scoped to these two blocks. The moments strip and the rail SHARE
+  // home-session-v1.jpg and home-feed-v1.jpg deliberately, under different
+  // headlines, and the rail's stage 0 is the seeded markup by design — the test
+  // above asserts that sameness. What must not repeat is the standing phone
+  // beside the price showing a stage the rail has already walked the reader
+  // through.
+  const price = /<section class="s" id="price">[\s\S]*?<\/section>/.exec(SRC);
+  assert.ok(price, 'the price section is gone — this guard is moot');
+
+  const img = /<img src="([^"?]+)[^"]*"/.exec(price[0]);
+  assert.ok(img, 'the price section has no capture — nothing to compare');
+  const shot = img[1];
+  assert.ok(existsSync(new URL('../public' + shot, import.meta.url)),
+    `${shot} is referenced but not in the repo`);
+
+  const cap = /<div class="phcap"><b>([^<]+)<\/b>/.exec(price[0]);
+  assert.ok(cap, 'the price caption lost its headline');
+  const headline = cap[1].trim();
+
+  const table = /var PH=\[([\s\S]*?)\n  \];/.exec(SRC);
+  assert.ok(table, 'could not find the journey phone table');
+  const railFiles = [...table[1].matchAll(/'(\/newdesign\/[\w.-]+\.(?:jpg|png))'/g)].map((m) => m[1]);
+  const railHeads = [...table[1].matchAll(/,\s*'([^']+)',\n/g)].map((m) => m[1].trim());
+  assert.ok(railFiles.length >= 5, `read ${railFiles.length} rail captures — the parse stopped matching`);
+  assert.ok(railHeads.length >= 5, `read ${railHeads.length} rail headlines — the parse stopped matching`);
+
+  assert.ok(!railFiles.includes(shot),
+    `the price phone shows ${shot}, which the journey rail already walked the reader through`);
+  assert.ok(!railHeads.includes(headline),
+    `the price caption says "${headline}", which is already a journey stage's headline`);
 });
