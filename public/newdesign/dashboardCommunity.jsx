@@ -10,6 +10,10 @@
 // KEEP IN SYNC with the SQL allowlist in award_work_milestone
 // (supabase-migrations/2026-07-13-work-milestone-points.sql) and
 // BS_MILESTONE_STAMPS in mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx.
+// The narrowest a split column may be: the widest label either row puts in one
+// ("LAST 0.4" at mono 9 measures 48px; "141 BPM" at mono 8.5 measures 36). Below
+// this the strip scrolls rather than clipping a label.
+const DC_SPLIT_MIN_COL = 48;
 const DC_MILESTONE_STAMPS = ["promoted", "shipped", "certified", "new_role", "launched", "milestone"];
 
 // ── Session-details graphs (website parity with the mobile app) ─────────────
@@ -172,22 +176,46 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
           else { perf = rows.map((r) => { const mm = String(r[1]).match(/[\d.]+/); return mm ? +mm[0] : 0; }); }
           const pmax = Math.max(...perf, 1);
           const bestIdx = isPace ? paceVals.indexOf(Math.min(...paceVals)) : perf.indexOf(Math.max(...perf));
+          // ⚠ THE UNIT IS STATED ONCE, ABOVE THE STRIP, RATHER THAN ON EVERY BAR.
+          // These columns are `flex: 1`, so their width is the card's divided by
+          // the row count — a label that fits over three bars ("7:52/mi", ~58px
+          // of serif 15) collides over nine. Stripping the suffix leaves "7:52"
+          // at ~32px and loses nothing, because the eyebrow chip carries the unit
+          // for the whole strip. Pace only: a strength row's "225 lb × 3" has no
+          // repeated suffix to hoist and is left exactly as authored.
+          const paceUnit = isPace ? (String(rows[0][1]).match(/\/\s*\S+$/) || [""])[0] : "";
+          const barLabel = (v) => (paceUnit ? String(v).replace(paceUnit, "") : String(v));
           return (<>
-            <Eyebrow chip={bestPaceStat ? accentChip("Best " + bestPaceStat[1]) : null}>{breakdown.label || "Splits"}</Eyebrow>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 132 }}>
+            <Eyebrow chip={bestPaceStat ? accentChip("Best " + bestPaceStat[1]) : (paceUnit ? greyChip(paceUnit) : null)}>{breakdown.label || "Splits"}</Eyebrow>
+            {/* ⚠ ONE SCROLLER AROUND BOTH ROWS, AND THE SCROLLBAR IS VISIBLE.
+                These columns are `flex: 1`, so nine of them on a phone are 31px
+                wide — measured at 390px, every one of the nine under-labels was
+                clipped ("141 BPM" needs 36px, "LAST 0.4" needs 48). Three splits
+                fitted; nine do not. A per-column floor plus a scroller keeps every
+                label legible AND every split reachable, which a narrower font or
+                an ellipsis would not. ⚠ BOTH ROWS SIT INSIDE THE SAME SCROLLER —
+                two would drift out of step the moment either was scrolled — and
+                the bar is NOT hidden: this page has already paid for a hidden
+                horizontal scroller once, on the availability grid, where 1p–8p
+                were unreachable with nothing on screen saying so. Desktop is
+                untouched: the content is 512px inside a 560px modal, so nothing
+                scrolls and no bar appears. */}
+            <div style={{ overflowX: "auto", overflowY: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: 132, minWidth: DC_SPLIT_MIN_COL * rows.length + 10 * (rows.length - 1) }}>
               {rows.map((r, i) => { const barH = 24 + (perf[i] / pmax) * 88; const best = i === bestIdx && rows.length > 1; return (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-                  <span style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: best ? TEAL_BRIGHT : INK, marginBottom: 6, whiteSpace: "nowrap" }}>{r[1]}</span>
+                  <span style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: best ? TEAL_BRIGHT : INK, marginBottom: 6, whiteSpace: "nowrap" }}>{barLabel(r[1])}</span>
                   <div style={{ width: "100%", maxWidth: 52, height: barH, borderRadius: "7px 7px 2px 2px", background: best ? TEAL : "rgba(46,224,196,0.24)", boxShadow: best ? "0 0 0 1px " + TEAL : "none" }} />
                 </div>); })}
             </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 9 }}>
+            <div style={{ display: "flex", gap: 10, marginTop: 9, minWidth: DC_SPLIT_MIN_COL * rows.length + 10 * (rows.length - 1) }}>
               {rows.map((r, i) => (
                 <div key={i} style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
                   <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r[0]}</div>
-                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "rgba(242,237,228,0.4)", marginTop: 3 }}>{r[2]}</div>}
+                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "rgba(242,237,228,0.4)", marginTop: 3, whiteSpace: "nowrap" }}>{r[2]}</div>}
                 </div>
               ))}
+            </div>
             </div>
           </>);
         })()}
@@ -343,7 +371,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           cadenceTrace: [168, 170, 172, 174, 173, 175, 174, 176, 175, 173, 177, 178, 176, 174, 177, 179, 178, 175, 178, 180, 179, 177, 180, 181, 179, 178, 181, 182, 181, 176],
           elevTrace: [40, 48, 62, 80, 72, 64, 84, 98, 90, 76, 92, 116, 108, 94, 88, 104, 128, 118, 100, 112, 136, 122, 110, 128, 148, 134, 116, 100, 86, 68]
         },
-        breakdown: { label: "Mile splits", rows: [["Miles 1–3", "7:52/mi", "Warm-up"], ["Miles 4–6", "7:41/mi", "Steady"], ["Miles 7–8", "7:24/mi", "Negative split"]] } } },
+        breakdown: { label: "Mile splits", rows: [["Mile 1", "8:01/mi", "141 bpm"], ["Mile 2", "7:56/mi", "147 bpm"], ["Mile 3", "7:52/mi", "151 bpm"], ["Mile 4", "7:46/mi", "154 bpm"], ["Mile 5", "7:43/mi", "157 bpm"], ["Mile 6", "7:38/mi", "161 bpm"], ["Mile 7", "7:32/mi", "166 bpm"], ["Mile 8", "7:18/mi", "172 bpm"], ["Last 0.4", "7:22/mi", "174 bpm"]] } } },
     { kind: "tier", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — limited drops open up on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
     { kind: "meal", who: "Priya S.", role: "Tempo · 1,284", time: "3h", title: "Sheet-pan salmon, sweet potato & broccoli", kcal: 620, p: 44, c: 58, f: 22, source: "From Rae · cook-along", likes: 12, comments: 2, tag: "NUTRITION" },
     { kind: "streak", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },

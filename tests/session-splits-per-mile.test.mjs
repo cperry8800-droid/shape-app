@@ -27,6 +27,13 @@ import { bsPaceSplits } from '../mobile-app/src/services/paceSplits.mjs';
 import { bsIbSplitTable } from '../mobile-app/src/services/instrumentBoard.mjs';
 
 const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+// ⚠ THE RULE COVERS BOTH SURFACES, BECAUSE THE DEFECT WAS ON BOTH. The app's
+// splits were fixed first and the website's community card kept the identical
+// three ranges — `Miles 1–3 / 4–6 / 7–8` on Jonah W.'s 8.4 mi run — because the
+// guard only swept the mobile module. A rule that polices one of two surfaces is
+// how the two come to disagree; the sweep now walks both.
+const WEB_SRC = 'public/newdesign/dashboardCommunity.jsx';
+const SOURCES = [SRC, WEB_SRC];
 // A pace cell: M:SS with a distance unit (run/swim), a bare M:SS lap time, or mph.
 const PACE = /^\d+:\d{2}(\/(mi|km|100m))?$|mph/i;
 // A RANGE: two numbers joined by any dash or a spelled-out span. Deliberately not
@@ -90,17 +97,24 @@ test('the split-table sweep reaches a real corpus (it cannot pass by finding not
   // The reported one: the 18.2-mile long run. If this stops being found, the
   // sweep has drifted off the very table the file was written for.
   assert.ok(mile.some((t) => t.rows.length === 19), 'the 18.2 mi long run is not in the corpus');
+  // …and the website's own card, which kept the ranges after the app lost them.
+  const web = splitTables(readFileSync(WEB_SRC, 'utf8'));
+  assert.ok(web.length >= 1, `found no split table in ${WEB_SRC}`);
+  assert.ok(web.some((t) => t.rows.length === 9), `the 8.4 mi run is not in ${WEB_SRC}'s corpus`);
 });
 
-test('no split row covers a range of miles', () => {
-  for (const t of splitTables()) {
-    assert.deepEqual(rangeLabels(t.rows), [], `${SRC}:${t.line} — range labels`);
+// Every split table on every surface that carries one.
+const allTables = () => SOURCES.flatMap((f) => splitTables(readFileSync(f, 'utf8')).map((t) => ({ ...t, file: f })));
+
+test('no split row covers a range of miles — on EITHER surface', () => {
+  for (const t of allTables()) {
+    assert.deepEqual(rangeLabels(t.rows), [], `${t.file}:${t.line} — range labels`);
   }
 });
 
 test('a mile table enumerates consecutive miles, with at most a trailing part-mile', () => {
-  for (const t of splitTables()) {
-    assert.equal(mileFault(t.rows), null, `${SRC}:${t.line}`);
+  for (const t of allTables()) {
+    assert.equal(mileFault(t.rows), null, `${t.file}:${t.line}`);
   }
 });
 
@@ -135,8 +149,8 @@ test('the shipped model renders every mile row, capped at 6 with the link agreei
 // it is the fastest instantaneous reading, and an average over a whole split can
 // never reach it (Lena's swim is that shape today). What cannot happen is a
 // split, which is an average, beating it.
-function postsWithBestPace() {
-  const ast = parse(readFileSync(SRC, 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
+function postsWithBestPace(src) {
+  const ast = parse(src === undefined ? readFileSync(SRC, 'utf8') : src, { sourceType: 'module', plugins: ['jsx'] });
   const out = [];
   const arr2 = (v) => (v && v.type === 'ArrayExpression'
     ? v.elements.filter((e) => e && e.type === 'ArrayExpression').map((e) => e.elements.map((c) => c && c.value))
@@ -182,7 +196,7 @@ function bestPaceFault(best, rows) {
 }
 
 test('no split is faster than the post’s own stated Best pace', () => {
-  const posts = postsWithBestPace();
+  const posts = [...postsWithBestPace(), ...postsWithBestPace(readFileSync(WEB_SRC, 'utf8'))];
   // A sweep that finds nothing passes vacuously.
   assert.ok(posts.length >= 3, `found only ${posts.length} posts carrying a Best pace`);
   for (const p of posts) {
