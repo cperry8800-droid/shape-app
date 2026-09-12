@@ -239,10 +239,17 @@
   .sh h2{font-size:clamp(28px,3.6vw,52px);margin-top:9px}
   .sh p{max-width:44ch;font-size:15px;color:var(--fg-2)}
   .lk{font-weight:700;font-size:14px;border-bottom:1px solid var(--teal);padding-bottom:2px;white-space:nowrap}
-  /* the example label — every illustrative figure on this page carries one */
+  /* The example label — every illustrative figure on this page carries one.
+     ⚠ NO BOX. It was a bordered amber chip and read as a badge the page was
+     proud of rather than a footnote; five of them down one scroll was the
+     loudest recurring element on a page whose subject is the product. The
+     BORDER went, not the WORDS: this label is what makes the ON AIR chip, the
+     demo coach cast, the drawn score and the captured screens allowed to be on
+     the page at all, and the footer's own claim ("every figure on this page is
+     measured or labelled an example") is only true while they are here.
+     Guarded by tests/homepage-climb.test.mjs. */
   .exlabel{display:inline-flex;align-items:center;gap:6px;font-family:var(--num);font-weight:700;font-size:10px;
-           letter-spacing:.07em;text-transform:uppercase;color:#e6c373;border:1px solid rgba(230,195,115,.45);
-           border-radius:4px;padding:4px 8px;font-variation-settings:'ROND' 30}
+           letter-spacing:.07em;text-transform:uppercase;color:#e6c373;font-variation-settings:'ROND' 30}
 
   /* ── the moments strip (replaces 525vh of pinned scroll) ── */
   .mo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
@@ -755,11 +762,23 @@
         </div>
       </div>
       <div>
+        <!-- ⚠ DELIBERATELY NOT THE SCORE CAPTURE. The journey rail's stage 04 already
+             carries home-score-v1.jpg under the SAME headline and the SAME sentence, so
+             this phone was the second of two identical Shape Score snapshots on one page
+             - the reader scrolled past the same frame twice and learned nothing the
+             second time. The price section is the one place someone is deciding what $5
+             buys, so it shows the screen that answers that in a single frame: the day's
+             calorie ledger, the week, the check-in due and today's slate at once.
+             It is a PNG among the page's JPEG captures because that is the Home capture
+             that EXISTS (600x1387, shared byte-for-byte with GetApp.html's step 1, same
+             ?v= so the two share one cache entry). It is lazy-loaded and several screens
+             below the fold; a JPEG sibling is a re-shoot, not an edit.
+             Guarded by tests/homepage-climb.test.mjs. -->
         <div class="appph">
           <span class="isl"></span>
-          <img src="/newdesign/home-score-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Shape Score page: the current standing, the tier, and the ladder from Raw to Legend" style="--y:0%">
+          <img src="/newdesign/getapp-home-v5.png?v=20260910" width="600" height="1387" loading="lazy" decoding="async" alt="The app's Home screen: the day's calorie ledger against target, this week's calendar, the check-in due, and today's slate" style="--y:0%">
         </div>
-        <div class="phcap"><b>The Shape Score</b>One number over everything you log, with the ladder it climbs.<span class="lbl-row"><span class="exlabel">Example member</span></span></div>
+        <div class="phcap"><b>Today, at a glance</b>The Shape Daily: your calendar, the calorie ledger, what's left to log, and who's on the air.<span class="lbl-row"><span class="exlabel">Example member</span></span></div>
       </div>
     </div>
   </div>
