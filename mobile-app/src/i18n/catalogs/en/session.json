@@ -291,6 +291,8 @@
   "board.colHr": "HR",
   "board.setBySet": "Set by set",
   "board.splitBySplit": "Split by split",
+  "board.tileMore": "{label}, {value} — more detail",
+  "board.tileOne": "This session records {label} once — there is nothing further behind it.",
   "board.allSplits": "All {n} splits ›",
   "board.needleBand": "{label} band · {lo} slowest → {hi} fastest"
 }

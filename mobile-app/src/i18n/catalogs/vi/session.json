@@ -291,6 +291,8 @@
   "board.colHr": "Nhịp",
   "board.setBySet": "Từng hiệp",
   "board.splitBySplit": "Từng chặng",
+  "board.tileMore": "{label}, {value} — xem chi tiết",
+  "board.tileOne": "Buổi tập này chỉ ghi {label} một lần — không có gì thêm phía sau.",
   "board.allSplits": "Tất cả {n} chặng ›",
   "board.needleBand": "Dải {label} · {lo} chậm nhất → {hi} nhanh nhất"
 }

@@ -291,6 +291,8 @@
   "board.colHr": "Bugu",
   "board.setBySet": "Saiti bayan saiti",
   "board.splitBySplit": "Sashe bayan sashe",
+  "board.tileMore": "{label}, {value} — ƙarin bayani",
+  "board.tileOne": "Wannan zaman ya auna {label} sau ɗaya kawai — babu ƙarin bayani a bayansa.",
   "board.allSplits": "Duk sassa {n} ›",
   "board.needleBand": "Kewayon {label} · {lo} mafi jinkiri → {hi} mafi sauri"
 }

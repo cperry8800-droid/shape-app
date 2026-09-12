@@ -4,8 +4,8 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsSdSplitUnit, bsSdNeedle } from '../services/sessionLedger.mjs';
-import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments } from '../services/instrumentBoard.mjs';
+import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
+import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
@@ -17738,11 +17738,21 @@ function BSSdRoute({ route, heat, t }) {
 // IT. A tile is ~105px wide on a 375px screen; a chart given its own room there
 // would be four pixels tall and say nothing. Behind the figure it does the one
 // job it can do at that size: say what shape the number came out of.
-function BSIbTile({ label, value, kind, ghostPath, needle, heat, t }) {
+// ⚠ THE TILE IS A `<button>`, NOT A DIV WITH AN onClick. It is the page's only
+// way into the stat's own evidence, so it has to be reachable by keyboard and
+// announce itself to a screen reader as something that opens — which a div does
+// not, whatever handler is hung on it. Every button style the browser supplies
+// is reset, so the plate below is pixel-identical to the one that shipped.
+function BSIbTile({ label, value, kind, ghostPath, needle, heat, t, onOpen, openLabel }) {
   const u = bsSdSplitUnit(value);
   const ink = (a) => bsTHexA(t.INK, a);
   return (
-    <div style={{ position: 'relative', minHeight: 66 }}>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-haspopup="dialog"
+      aria-label={openLabel}
+      style={{ position: 'relative', minHeight: 66, display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent' }}>
       {/* the two clipped layers + spine of a BSPlate, at tile scale — the notch
           is 9px here against the plate's 12 so six of them do not read as a row
           of dog-ears. */}
@@ -17766,8 +17776,166 @@ function BSIbTile({ label, value, kind, ghostPath, needle, heat, t }) {
             <line x1={needle.frac * 100} y1="16" x2={needle.frac * 100} y2="84" stroke={heat} strokeWidth="3" vectorEffect="non-scaling-stroke" />
           </svg>
         )}
+        {/* the affordance — a corner chevron at the notch, so a tile reads as
+            something that opens without spending any of its 105px on a word. */}
+        <span aria-hidden style={{ position: 'absolute', right: 6, top: 7, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, color: ink(0.32), lineHeight: 1 }}>›</span>
       </div>
+    </button>
+  );
+}
+
+
+// ── What a tile opens ───────────────────────────────────────────────────────
+//
+// Owner: "make each box at the top clickable to see more info / More detailed
+// breakdown." The sheet is assembled by `bsIbTileDetail`, which is pure and
+// tested, and RENDERED with the page's own instruments — `BSSdTrace` for the
+// series, `BSSdZoneCells` for the zones, `BSIbTable` for the columns.
+//
+// ⚠ REUSING THOSE THREE IS THE WHOLE DESIGN, NOT A SHORTCUT. A chart drawn
+// twice by two components is a chart that can come to disagree with itself, and
+// the tile is meant to open the evidence the page already holds rather than a
+// second opinion about it. (`BSSdTrace` mints its gradient ids per mount for
+// exactly this reason — it says so at its own definition.)
+//
+// ⚠ AND THE DUPLICATION IS DELIBERATE, on the precedent this page already set
+// for the zone bar: the tile is read in a second and cannot be read precisely,
+// this is read precisely and costs a tap. Refusing to "show zones twice" would
+// cost the board one of the two readings it exists to give.
+function BSIbTileSheet({ detail, heat, t, isRide, fmtPaceSec, onClose }) {
+  const tr = useShapeTr();
+  const muted = bsTHexA(t.INK, 0.55);
+  const ink = (a) => bsTHexA(t.INK, a);
+  if (!detail) return null;
+  const u = bsSdSplitUnit(detail.value);
+  const fam = detail.family;
+  const isPace = fam === 'pace';
+  // One formatter per family, so the band's ends, the chart's axis and the
+  // figure in the header all spell the same number the same way.
+  const fmtV = isPace
+    ? (isRide ? (v) => Number(v).toFixed(1) : fmtPaceSec)
+    : (v) => String(Math.round(v));
+  const r = detail.range;
+  // ⚠ THE BAND RUNS SLOWEST → FASTEST FOR PACE AND LOW → HIGH FOR EVERYTHING
+  // ELSE, because `marker.frac` is inverted for pace (faster reads higher, the
+  // page's own chart rule). Drawing the raw min at the left for a pace stat
+  // would put the session's best mile at the wrong end of its own band.
+  const bandLo = r ? fmtV(isPace && !isRide ? r.hi : r.lo) : null;
+  const bandHi = r ? fmtV(isPace && !isRide ? r.lo : r.hi) : null;
+  const secLabel = (txt) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: ink(0.6), marginTop: 18, paddingTop: 13, marginBottom: 10, borderTop: `1px solid ${ink(0.12)}` }}>
+      <span aria-hidden style={{ width: 12, height: 1.5, background: heat, borderRadius: 2 }} />
+      <span>{txt}</span>
     </div>
+  );
+  return (
+    <BSPostSheetShell
+      title={detail.label}
+      onClose={onClose}
+      /* ⚠ ABOVE 99990. `BSActivityDetail` renders at 99990 and the Splits page at
+         99992, while this shell defaults to 245 — a sheet taking the default
+         would open BEHIND the page that opened it and read as a dead tap. */
+      z={99995}
+      INK={t.INK}
+      BG={t.PAPER}>
+      <div className="bs-hide-scroll" role="document" style={{ flex: 1, minHeight: 80, overflowY: 'auto' }}>
+        {/* the figure, at the size the 105px tile could not give it */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{u.num}</span>
+          {u.unit ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: muted }}>{u.unit}</span> : null}
+        </div>
+
+        {/* the band — the tile's 40px needle at full width, with its ends named.
+            A tick says nothing until you know what the two ends are. */}
+        {detail.marker && r && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: muted, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{bandLo}</span>
+              <span style={{ position: 'relative', flex: 1, height: 16 }}>
+                <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 7.5, height: 1.5, background: ink(0.2), borderRadius: 2 }} />
+                <span aria-hidden style={{ position: 'absolute', left: `${detail.marker.frac * 100}%`, top: 1, bottom: 1, width: 3, marginLeft: -1.5, background: heat, borderRadius: 2 }} />
+              </span>
+              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: muted, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{bandHi}</span>
+            </div>
+          </div>
+        )}
+
+        {/* the series, full size — the thing the tile's 40×18px ghost hinted at */}
+        {detail.series && r && (
+          <>
+            {/* ⚠ NO RANGE LINE HERE, AND THE REASON IS WORTH THE COMMENT. A first
+                cut printed `MIN 121 · AVG 157 · MAX 176` above the chart, and on
+                the demo run that AVG sat forty pixels under a tile reading
+                `AVG HR 154` — two true statistics (the session's time-weighted
+                average against the unweighted mean of a 30-point trace) wearing
+                the same word, which reads as the page contradicting itself. The
+                extent is already stated TWICE: the band above marks this tile's
+                own value between the series' ends, and `BSSdTrace` labels its own
+                axis. A third statement was noise before it was a contradiction. */}
+            {secLabel(tr(`session:chart.${fam === 'hr' ? 'heartRate' : fam === 'pace' ? (isRide ? 'speed' : 'pace') : fam}`, { defaultValue: detail.label }))}
+            <BSSdTrace vals={detail.series} color={heat} invert={isPace && !isRide} fmt={fmtV} idKey={`ib-${fam}`} height={104} t={t} muted={muted} unit={u.unit} />
+          </>
+        )}
+
+        {detail.zones && (
+          <>
+            {secLabel(tr('feed:card.hrZones', { defaultValue: 'HR zones' }))}
+            <BSSdZoneCells zones={detail.zones.map((z) => [z.label, z.pct])} t={t} muted={muted} />
+          </>
+        )}
+
+        {/* ⚠ `BSIbTable` TAKES `{label,w,right}` HEADS AND `{cells,width,best}`
+            ROWS, not arrays of strings. The first cut passed strings, and every
+            row threw on `r.cells.map` — which the unit tests could not see,
+            because the harness renders one component deep and this table's body
+            never ran. The browser found it; the mount assertions could not. */}
+        {detail.splitCol && (
+          <>
+            {secLabel(tr('session:board.splitBySplit', { defaultValue: 'Split by split' }))}
+            <BSIbTable
+              head={[{ label: tr('session:splits.colSplit', { defaultValue: 'Split' }), w: 'minmax(0, 1fr)' },
+                { label: detail.label, w: 'auto', right: true }]}
+              rows={detail.splitCol.map((x) => ({
+                cells: [{ text: x.label }, { text: String(x.value) }],
+                width: Math.max(6, x.frac * 100),
+                best: x.best,
+              }))}
+              heat={heat} t={t} />
+          </>
+        )}
+
+        {detail.setRows && (() => {
+          // The page's own set table, so the sheet and the section below it
+          // cannot come to disagree about a set's load or which one led.
+          const tbl = bsIbSetTable(detail.setRows);
+          return (
+            <>
+              {secLabel(tr('session:board.setBySet', { defaultValue: 'Set by set' }))}
+              <BSIbTable
+                head={[{ label: tr('session:board.colSet', { defaultValue: 'Set' }), w: 'minmax(0, 1fr)' },
+                  { label: tr('session:board.colLifted', { defaultValue: 'Lifted' }), w: 'auto', right: true }]}
+                rows={tbl.rows.map((r2, i) => ({
+                  cells: [{ text: r2.label }, { text: r2.value }],
+                  width: tbl.widths[i],
+                  best: i === tbl.bestIdx,
+                }))}
+                heat={heat} t={t} />
+            </>
+          );
+        })()}
+
+        {/* ⚠ THE HONEST CASE, AND IT IS 22% OF TILES rather than a rare edge —
+            measured across the demo corpus. A session records some figures once
+            and once only; saying so is information, and padding the sheet with
+            an empty instrument to avoid an "empty" sheet is the fabrication this
+            whole page is careful about. */}
+        {detail.empty && (
+          <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, color: muted }}>
+            {tr('session:board.tileOne', { defaultValue: 'This session records {label} once — there is nothing further behind it.', label: detail.label })}
+          </div>
+        )}
+      </div>
+    </BSPostSheetShell>
   );
 }
 
@@ -17777,11 +17945,16 @@ function BSIbTile({ label, value, kind, ghostPath, needle, heat, t }) {
 // UNCHANGED. They were the right answer for "a figure that matters but does not
 // lead" before this redesign and they still are; re-styling them would have been
 // a change nobody asked for wearing the redesign's clothes.
-function BSIbTiles({ tiles, rest, heat, t, ghostFor, paceTrace, isRide }) {
+function BSIbTiles({ tiles, rest, heat, t, ghostFor, paceTrace, isRide, detailCtx, fmtPaceSec }) {
   const [ref, seen] = useBSSdInView();
   const reduced = bsSdReduced();
   const tr = useShapeTr();
   const ink = (a) => bsTHexA(t.INK, a);
+  // Which tile's sheet is open. ⚠ The STAT is held, not an index: the tile list
+  // is derived from the session's stats on every render, so an index would point
+  // at a different figure the moment that list changed underneath an open sheet.
+  const [openStat, setOpenStat] = useStateBSC(null);
+  const openDetail = openStat ? bsIbTileDetail(openStat, detailCtx || {}) : null;
   // The unit column is sized to the widest unit in the register so every numeral
   // in the dot-leader rows shares one right edge (the ledger's own rule).
   const restUnitCh = (rest || []).reduce((m, r) => Math.max(m, bsSdSplitUnit(r[1]).unit.length), 0);
@@ -17794,12 +17967,18 @@ function BSIbTiles({ tiles, rest, heat, t, ghostFor, paceTrace, isRide }) {
           const kind = bsIbTileKind(k, { hasNeedle: !!needle, hasGhost: !!ghostPath });
           return (
             <div key={`${k}-${i}`} style={reduced ? null : { animation: `bsSdFadeUp 420ms ease ${i * 70}ms both` }}>
-              <BSIbTile label={k} value={v} kind={kind} ghostPath={ghostPath} needle={needle} heat={heat} t={t} />
+              <BSIbTile
+                label={k} value={v} kind={kind} ghostPath={ghostPath} needle={needle} heat={heat} t={t}
+                onOpen={() => setOpenStat([k, v])}
+                openLabel={tr('session:board.tileMore', { defaultValue: '{label}, {value} — more detail', label: k, value: v })} />
             </div>
           );
         })}
       </div>
       {needleLegend(tiles, paceTrace, isRide, t, tr)}
+      {openDetail && (
+        <BSIbTileSheet detail={openDetail} heat={heat} t={t} isRide={isRide} fmtPaceSec={fmtPaceSec} onClose={() => setOpenStat(null)} />
+      )}
       {rest.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {rest.map(([k, v], i) => {
@@ -18033,10 +18212,34 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // number, on a clipped two-layer plate (crisp notch with a hairline edge).
   // Ghost sparkline behind a stat that HAS a series (HR/pace) — the tile hints
   // at the shape of the data behind its number.
+  const sport = String(d.sport || d.typeLabel || '').toLowerCase();
+  const isRideSport = /ride|bike|cycl|spin|watt|peloton/.test(sport);
+  const isSwimSport = /swim/.test(sport);
+  // ⚠ THE TRACE IN THE READER'S OWN UNITS. `detailStats` is unit-converted on
+  // its way here and `paceTrace` is not, so on a metric screen the tile's figure
+  // ('5:24/km') was being compared against a trace still in seconds per MILE —
+  // and `bsSdNeedle` then pinned the needle at 1.000, telling every metric member
+  // their average was the session's fastest sample. Measured on three of the five
+  // demo runs. Converted ONCE here and used by the ghost, the tiles, the legend
+  // and the tile sheets, so no two of them can disagree about the units.
+  // ⚠ `bsPaceSplits` deliberately keeps the RAW trace: its labels come from the
+  // breakdown, which `uBreak` has already converted, and its buckets are miles.
+  // The pace/speed figure as the page will DISPLAY it — `detailStats` is already
+  // unit-converted, so this is the string the tile shows and the one the trace
+  // has to match. Read from `d.detailStats` rather than `allStats` so a post
+  // whose HERO is the pace is covered too.
+  const paceStat = Array.isArray(d.detailStats) ? d.detailStats.find(([k]) => /pace|speed/i.test(String(k))) : null;
+  const paceTraceIn = bsSdPaceTraceIn(d.paceTrace, paceStat ? paceStat[1] : null);
+  // ⚠ DECLARED ABOVE `ghostFor` ON PURPOSE. `ghostFor` reads `paceTraceIn`, and
+  // a `const` is not hoisted — with the declaration below, the only thing keeping
+  // this out of a temporal-dead-zone ReferenceError was that nothing happens to
+  // call `ghostFor` during evaluation. That is a fact about the call graph rather
+  // than about the line, and there is no error boundary between here and a blank
+  // page; ordering makes it a fact about the code.
   const ghostFor = (k) => {
     const key = String(k).toLowerCase();
     const series = (/\bhr\b|heart|bpm/.test(key) && Array.isArray(d.trace) && d.trace.length > 1) ? d.trace
-      : (/pace|speed/.test(key) && Array.isArray(d.paceTrace) && d.paceTrace.length > 1) ? d.paceTrace : null;
+      : (/pace|speed/.test(key) && Array.isArray(paceTraceIn) && paceTraceIn.length > 1) ? paceTraceIn : null;
     if (!series) return null;
     const lo = Math.min(...series), hi = Math.max(...series), rng = (hi - lo) || 1;
     return series.map((v, i) => `${i ? 'L' : 'M'}${((i / (series.length - 1)) * 100).toFixed(1)} ${(88 - ((v - lo) / rng) * 76).toFixed(1)}`).join(' ');
@@ -18072,10 +18275,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // sports (M:SS, faster reads higher), Speed for rides (mph, higher reads
   // higher), Pace/100m for swims. Power is its own chart when watts are present.
   // HR (+zones), Cadence, Elevation, Splits all render whenever their series
-  // exists, for ANY activity (honest-absent otherwise).
-  const sport = String(d.sport || d.typeLabel || '').toLowerCase();
-  const isRideSport = /ride|bike|cycl|spin|watt|peloton/.test(sport);
-  const isSwimSport = /swim/.test(sport);
+  // exists, for ANY activity (honest-absent otherwise). ⚠ The three sport flags
+  // this rule reads are declared ABOVE `ghostFor`, which needs them.
   const paceCfg = isRideSport
     ? { label: tr('session:chart.speed', { defaultValue: 'Speed' }), invert: false, fmt: (v) => `${Number(v).toFixed(1)}`, chip: tr('session:chart.top', { defaultValue: 'Top' }), chipRe: /max.*speed|top.*speed/i }
     : { label: tr('session:chart.pace', { defaultValue: 'Pace' }), invert: true, fmt: fmtPaceSec, chip: tr('session:chart.fastest', { defaultValue: 'Fastest' }), chipRe: null };
@@ -18215,7 +18416,27 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             return (
               <>
                 {secHead(tr('session:detail.summary', { defaultValue: 'Summary' }))}
-                {tiles.length > 0 && <BSIbTiles tiles={tiles} rest={rest} heat={heat} t={t} ghostFor={ghostFor} paceTrace={d.paceTrace} isRide={isRideSport} />}
+                {tiles.length > 0 && (
+                  <BSIbTiles
+                    tiles={tiles} rest={rest} heat={heat} t={t} ghostFor={ghostFor}
+                    paceTrace={paceTraceIn} isRide={isRideSport} fmtPaceSec={fmtPaceSec}
+                    /* Every series this page already holds, handed over once. The
+                       sheet renders only what is actually here — `bsIbTileDetail`
+                       returns `empty` rather than an instrument reading nothing. */
+                    detailCtx={{
+                      hrTrace: d.trace, paceTrace: paceTraceIn, cadenceTrace: d.cadenceTrace,
+                      elevTrace: d.elevTrace, powerTrace: d.powerTrace, zones: d.zones,
+                      splits: paceData ? paceData.splits : null,
+                      // ⚠ SET ROWS ONLY WHEN THE BREAKDOWN IS SET-SHAPED — the
+                      // rule is `bsIbSetRowsFor`'s and is driven by a test, because
+                      // an expression written here is one only a source scan could
+                      // check. A split-labelled breakdown is already the splits
+                      // above, and handing it over would draw a run's miles under
+                      // `Volume` as though they were its working sets.
+                      setRows: bsIbSetRowsFor(d.breakdown),
+                      isRide: isRideSport,
+                    }} />
+                )}
                 {Array.isArray(d.zones) && d.zones.length > 0 && <BSIbZoneBar zones={d.zones} heat={heat} t={t} />}
               </>
             );

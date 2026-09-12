@@ -291,6 +291,8 @@
   "board.colHr": "Пульс",
   "board.setBySet": "Подход за подходом",
   "board.splitBySplit": "Отрезок за отрезком",
+  "board.tileMore": "{label}, {value} — подробнее",
+  "board.tileOne": "Эта тренировка фиксирует {label} один раз — за этим больше ничего нет.",
   "board.allSplits": "Все отрезки ({n}) ›",
   "board.needleBand": "Диапазон {label} · {lo} медленнейший → {hi} быстрейший"
 }

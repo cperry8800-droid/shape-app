@@ -291,6 +291,8 @@
   "board.colHr": "FC",
   "board.setBySet": "Série par série",
   "board.splitBySplit": "Tronçon par tronçon",
+  "board.tileMore": "{label}, {value} — plus de détails",
+  "board.tileOne": "Cette séance enregistre {label} une seule fois — il n’y a rien de plus derrière.",
   "board.allSplits": "Les {n} tronçons ›",
   "board.needleBand": "Plage {label} · {lo} le plus lent → {hi} le plus rapide"
 }

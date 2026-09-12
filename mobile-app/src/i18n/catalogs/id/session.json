@@ -291,6 +291,8 @@
   "board.colHr": "Detak",
   "board.setBySet": "Set demi set",
   "board.splitBySplit": "Split demi split",
+  "board.tileMore": "{label}, {value} — detail selengkapnya",
+  "board.tileOne": "Sesi ini mencatat {label} sekali saja — tidak ada rincian lain di baliknya.",
   "board.allSplits": "Semua {n} split ›",
   "board.needleBand": "Rentang {label} · {lo} paling lambat → {hi} tercepat"
 }

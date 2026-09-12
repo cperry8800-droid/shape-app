@@ -291,6 +291,8 @@
   "board.colHr": "FC",
   "board.setBySet": "Série a série",
   "board.splitBySplit": "Parcial a parcial",
+  "board.tileMore": "{label}, {value} — mais detalhes",
+  "board.tileOne": "Esta sessão registra {label} uma única vez — não há mais nada por trás.",
   "board.allSplits": "Todas as {n} parciais ›",
   "board.needleBand": "Faixa de {label} · {lo} mais lento → {hi} mais rápido"
 }
