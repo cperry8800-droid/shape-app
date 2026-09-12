@@ -815,6 +815,108 @@ Append new entries at the top, under this note.
   overflow and zero page errors** at both widths. (The 404s on `/_vercel/insights/script.js`,
   `/api/me` and `/api/marketplace-stats` are the static test server, not the page.)
 
+### 2026-09-12 — Every instrument tile opens its own evidence, and the trace finally agrees with the figure above it
+
+- **Owner, on the Session details board: *"Also the make each box at the top clickable to see more info / More
+  detailed breakdown."*** Tapping any of the six tiles now opens a sheet carrying that stat's **full-size
+  chart**, its **HR zones**, its **per-split column** and the **sets it is the sum of** — whatever the session
+  actually holds. The tile shows a label, a figure and sometimes a 40×18px ghost at 0.2 opacity; this is the
+  thing that ghost was hinting at. Mobile only. **No migration, no route.** #2057 → `5a1a1ee`.
+- ⚠ **THE SHEET IS ASSEMBLED FROM EVIDENCE, NOT PADDED TO A SHAPE — the page's own rule, applied to a new
+  control.** `bsIbTileDetail` is pure and tested; the RENDERING reuses `BSSdTrace`, `BSSdZoneCells` and
+  `BSIbTable`, so the sheet and the sections below it cannot come to disagree about one number. Zones belong to
+  the heart and nothing else; a split column exists only where the model carries one (**power has none, so none
+  is invented**); set rows reach only the scalars they are the breakdown OF, never Calories; a pace column
+  inverts so a longer bar is always a better reading, and **only pace has a "best" row** — a highest heart rate
+  is not a better one, and painting it in the session's heat would assert a ranking that does not exist.
+- ⚠ **EVERY TILE OPENS, INCLUDING THE 22% WITH NOTHING BEHIND THEM, AND THE FRACTION IS MEASURED RATHER THAN
+  GUESSED.** Driving the shipped function over every demo post: **45 of 58 tiles carry evidence, 13 do not** —
+  Time, Calories, HRV, Readiness. A large minority, not an edge, so gating the affordance on *"has a chart"*
+  would have left a fifth of the board dead under an ask that said **each** box. Those thirteen state that the
+  session records the figure once, which is information; a button that silently does nothing is not.
+- ⚠ **A VALUE THE CHART DOES NOT CONTAIN GETS NO MARKER.** A page can carry `Max HR 176` while the trace it is
+  drawn over tops out at 174 — both readings are true, and clamping the scalar onto the top would draw a line
+  at a sample the chart does not have. `bsSdNeedle` clamps, so the pace family inherits that; every other
+  family refuses out of range.
+- ⚠ **THE SHEET'S z HAD TO BE STATED, OR THE CONTROL WOULD HAVE READ AS A DEAD TAP.** `BSActivityDetail`
+  renders at **99990** and the Splits page at **99992**, while `BSPostSheetShell` defaults to **245** — a sheet
+  taking the default opens BEHIND the page that opened it. Pinned by a test that reads the floor **out of the
+  page's own source** rather than typing 99990, so it cannot go stale.
+- ⚠ **AND THE BROWSER CAUGHT A CRASH THE SHALLOW-RENDER TESTS STRUCTURALLY COULD NOT SEE.** `BSIbTable` takes
+  `{label,w,right}` heads and `{cells,width,best}` rows; the first cut handed it arrays of strings. Every mount
+  assertion passed — `drive()` renders ONE component deep, so the table's body never ran — and the real page
+  threw *"Cannot read properties of undefined (reading 'map')"* on the first tap, taking the whole detail page
+  down to the error boundary. The guard written for it takes each child element **with the props the sheet gave
+  it** and renders that child for real; it is **proven to catch the shipped crash** by replaying it.
+- ⚠ **A LIVE DEFECT THE BUILD SURFACED: THE TILE'S FIGURE WAS UNIT-CONVERTED AND THE TRACE BEHIND IT WAS NOT.**
+  `detailStats` goes through `uStats` → `bsSdUnitizeText`, so a metric member sees Drew's `8:42/mi` as
+  `5:24/km`; `paceTrace` was handed on RAW, still seconds per MILE. Both reach `bsSdNeedle`. **Measured on the
+  shipped corpus: the needle went 0.542 → 1.000** for Drew's average and 0.714 → 1.000 for Quinn's — the tile
+  told every metric member their average was the session's **fastest sample**, on three of the five runs in the
+  app. Pre-existing on the 40px needle; this PR draws it full size, so it owns it.
+- ⚠ **THE UNIT IS READ OFF THE FIGURE, NOT OFF THE SETTINGS — and the browser is what forced that.** A first cut
+  keyed the conversion on the reader's CURRENT preference, which is right when the page opens and wrong the
+  moment units are flipped WHILE it is open: `detailStats` is captured by `openDetail` and keeps the units it
+  was captured in, so the headline stayed `8:42/mi` while the chart under it redrew as **5:11–5:41 per km** —
+  one stat, two units, on one screen. Asking the FIGURE removes the question. Measured after: **1.000 → 0.554**
+  against **0.542** for the same run in imperial, and the marker lands at **54.2%** in a live metric flip.
+  ⚠ Only the `/mi` form is affected — `19.3 mph` and `1:42/100m` come back from `bsSdUnitizeText` **unchanged**,
+  so a ride's and a swim's figures already match their traces and converting those would CREATE the mismatch.
+- ⚠ **`Number.isFinite` ALONE CANNOT CLEAN A TRACE, AND MY OWN TEST CAUGHT IT.** `Number(null)`, `Number('')`
+  and `Number([])` are ALL 0 and all finite, so a gap in a series was not dropped — it was drawn as a heart rate
+  of **zero**, dragging the chart's low to the floor and moving the marker with it. The class this file already
+  post-mortems on the Wall's helpers, a demo payout's `joinedAt: 0` and the booking sheet's `start_minute`,
+  walked into again in the module written after all three.
+- ⚠ **A RULE WITH ONE CALL SITE NOBODY DRIVES IS A RULE NOBODY TESTS.** The mutation round showed
+  `bsIbSetRowsFor` could be correct and tested while the page bypassed it — no mount in this repo drives
+  `BSActivityDetail`. Extracted from an inline expression into the pure module and pinned **structurally** (the
+  `setRows` property's value must be a CallExpression to the gate), so renaming a variable or reformatting the
+  object cannot fail it and only an actual bypass can.
+- ⚠ **MY MUTATION HARNESS CORRUPTED THE WORKING TREE TWICE, AND THE SECOND TIME COMPOUNDED.** A background run
+  was killed by a `pkill` that **matched its own invoking shell** (exit 144, the trap this file already records
+  for `http.server`), and an interrupted run's `finally` never ran — so a deliberate defect was left in the
+  tree and then read as the code being broken. Worse: the next run **snapshotted the already-mutated file as
+  its clean baseline**, so restoring faithfully reinstated the defect, three times over. Two fixes, both at the
+  instrument: it **runs its sanity check BEFORE snapshotting**, so a broken tree can never become a baseline,
+  and it restores on `SIGINT`/`SIGTERM`/`SIGHUP` as well as in a `finally`. A separate checker asserts every
+  mutation's ORIGINAL text is present and its MUTATED text absent — **31/31 clean** before the commit.
+  *An instrument that edits the tree owes it a guaranteed restore AND a baseline it has proven.*
+- ⚠ **AND THE FIRST COMMIT SWEPT IN 35,626 LINES OF SCRATCH.** `git add -A` took the runner script and three
+  `.mutbak` snapshots. Caught by reading the commit's own file list before pushing, amended to **17 files /
+  1,058 insertions**. *A commit is a claim about what changed; `-A` makes that claim on your behalf.*
+- **i18n:** 2 new `session:board.*` keys × 13 locales, each composed from **that catalog's own** word for a
+  session (`detail.tabDetails`) and its own short forms rather than translated fresh. A pure append in sorted
+  position — **2 insertions / 0 deletions per file**. ⚠ A third key (`tileRange`) was authored, rendered, and
+  then **deleted from all 13** when its render came out: it printed `AVG 157` — the trace's unweighted mean —
+  forty pixels under a tile reading `AVG HR 154`, the session's time-weighted average. Two true statistics
+  wearing one word reads as the page contradicting itself. The band and the chart's own axis already state the
+  range twice; a third statement was noise before it was a contradiction.
+- ⚠ **CODEX NEVER REPORTED, AND THE RECORD SAYS SO RATHER THAN IMPLYING A LAYER RAN.** `@codex review` was
+  triggered on `ba723e4` with everything front-loaded into the one trigger comment, as the house rule requires.
+  It posted **no review, no `Running` and no refusal**. Owner: *"if codex didn't run … thats fine … just merge
+  if green."* So the review here is my own adversarial read plus the mutation and browser rounds, which is what
+  the PR and the merge commit say.
+  ⚠ **AND THE NEXT PR SETTLED WHICH FACE IT WAS, MINUTES LATER.** On the records-only PR opened right after
+  this one, Codex **auto-fired on open and answered in as many words**: *"You have reached your Codex usage
+  limits for code reviews."* So the silence on `ba723e4` was the **rate limit**, not the separate silent face —
+  the same window, seen through a trigger that happened to get a reply. Recorded because this file documents
+  the two faces as distinct and a session reading "silent" here would go looking for the wrong cause; and
+  because the limit is a **rolling window**, measured lifting in six minutes on #2042 and ~11 hours on #2036,
+  so *"Codex is out"* is never the lesson — **retry before concluding it is unavailable** is.
+- **Verified:** `npm test` **3546/3546** (25 new) · `tsc --noEmit` 0 · JSX parse · **mutation rounds killing
+  20/20 then 21/25**, the four survivors closed by new guards, each mutation occurrence-counted before the edit
+  and the suite's `# pass`/`# fail` **parsed** rather than read off a pipeline's exit status, sanity green at
+  both ends, tree restored in a `finally` **and on a signal** · mobile build clean with both keys and their
+  de/ru/vi values confirmed in the emitted bundle · and the page **driven in Chromium at 375 and 430px** through
+  the real entry flow: six tiles as buttons announcing a dialog at **66px** with their own accessible names, the
+  sheet opening above the detail page at **z 99995** with the trace, five labelled zone cells and **all 19
+  per-mile HR values**, the single-reading tile stating what it holds, the metric flip keeping headline and
+  chart in one unit — **zero horizontal overflow and zero page errors** at both widths.
+- ⚠ **REGISTERED, NOT FIXED:** the page does not re-capture `detailStats` on a live unit flip, so an open
+  Session details keeps the units it was opened in — pre-existing, and the fix makes the figure and the chart
+  AGREE rather than making the headline re-render. And `bsPaceSplits` deliberately keeps the RAW per-mile
+  trace: its buckets are miles and its labels come from the breakdown, which is converted elsewhere.
+
 ### 2026-09-12 — Split by split becomes mile by mile, and the range it was showing came from the post, not the splitter
 
 - **Owner, with two screenshots of Session details: *"The splits on the session review page on app need to
