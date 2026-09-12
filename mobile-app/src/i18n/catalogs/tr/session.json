@@ -291,6 +291,8 @@
   "board.colHr": "Nabız",
   "board.setBySet": "Set set",
   "board.splitBySplit": "Split split",
+  "board.tileMore": "{label}, {value} — daha fazla ayrıntı",
+  "board.tileOne": "Bu seans {label} değerini bir kez kaydediyor — arkasında başka bir şey yok.",
   "board.allSplits": "{n} split'in tümü ›",
   "board.needleBand": "{label} aralığı · {lo} en yavaş → {hi} en hızlı"
 }

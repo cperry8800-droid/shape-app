@@ -291,6 +291,8 @@
   "board.colHr": "HF",
   "board.setBySet": "Satz für Satz",
   "board.splitBySplit": "Split für Split",
+  "board.tileMore": "{label}, {value} — mehr Details",
+  "board.tileOne": "Diese Einheit erfasst {label} nur einmal — mehr steckt nicht dahinter.",
   "board.allSplits": "Alle {n} Splits ›",
   "board.needleBand": "{label}-Band · {lo} langsamste → {hi} schnellste"
 }

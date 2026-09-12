@@ -117,6 +117,45 @@ export function bsSdConvertValue(value, from, to) {
   return d.key === 'km' ? value * SD_MI_TO_KM : value / SD_MI_TO_KM;
 }
 
+// A PACE TRACE AND THE FIGURE ABOVE IT MUST BE IN THE SAME UNITS.
+//
+// ⚠ THEY WERE NOT, AND IT WAS LIVE. `detailStats` goes through `uStats`, which
+// maps `bsSdUnitizeText` over every value, so a metric reader sees Drew's
+// '8:42/mi' as '5:24/km' — while `paceTrace` was handed on RAW, still seconds
+// per MILE. Both then reach `bsSdNeedle`. Measured on the shipped demo corpus:
+// the needle went 0.542 → **1.000** for Drew's average and 0.714 → **1.000** for
+// Quinn's, so the tile told every metric member their average was the session's
+// fastest sample, on three of the five runs in the app.
+//
+// ⚠ THE UNIT IS READ OFF THE FIGURE, NOT OFF THE SETTINGS — and that is the
+// whole point rather than a detail. A first cut keyed the conversion on the
+// reader's CURRENT preference, which is right when the page is opened and wrong
+// the moment units are flipped WHILE it is open: `detailStats` is captured by
+// `openDetail` and keeps the units it was captured in, so the headline stayed
+// '8:42/mi' while the chart under it redrew as 5:11–5:41 per km. Caught in a
+// browser, not by reading. Asking the figure removes the question: if the stat
+// says /km the trace is made /km, and the two cannot disagree in either
+// direction.
+//
+// ⚠ AND ONLY THE `/mi` FORM IS AFFECTED, WHICH IS WHY THIS IS NOT A BLANKET
+// CONVERSION. Measured through `bsSdUnitizeText`: '19.3 mph' and '1:42/100m'
+// come back unchanged, so a ride's and a swim's figures are already in the same
+// units as their traces — and neither carries a `/km` suffix, so neither can
+// reach the conversion below.
+export function bsSdPaceTraceIn(trace, paceValue) {
+  if (!Array.isArray(trace) || !trace.length) return trace;
+  // The trace is seconds per MILE. It needs converting exactly when the figure
+  // drawn above it has already been converted to kilometres.
+  if (!/\/\s*km\b/i.test(String(paceValue == null ? '' : paceValue))) return trace;
+  // Seconds per mile → seconds per km is a DIVISION: a mile is longer, so each
+  // kilometre takes less time. The same rule, and the same constant, that
+  // `bsSdUnitizeText` applies to the figure — stated once so they cannot drift.
+  return trace.map((v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n / SD_MI_TO_KM : v;
+  });
+}
+
 // `prefs` is { weight: 'lb'|'kg', distance: 'mi'|'km' } — the reader's two
 // Settings units. Anything missing means "leave that family alone".
 export function bsSdUnitizeText(text, prefs) {
