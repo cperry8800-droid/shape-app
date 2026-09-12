@@ -43,6 +43,18 @@ test('bsPaceSplits: trace fallback buckets by distance when no provider splits',
   assert.equal(r.source, 'trace');
   assert.equal(r.splits.length, 3);           // 3 miles
   assert.ok(r.splits.every((s) => Number.isFinite(s.paceVal)));
+  // ⚠ AND THE LABELS ARE MILE BY MILE, not a range. This is the path a real GPS
+  // run with no provider splits takes, so it is where "Split by split" gets its
+  // granularity — a bucketing that ever summarised would read as `Miles 1–3`.
+  assert.deepEqual(r.splits.map((s) => s.label), ['Mile 1', 'Mile 2', 'Mile 3']);
+});
+
+test('bsPaceSplits: an 18-mile trace buckets mile by mile, never into ranges', () => {
+  const paceTrace = Array.from({ length: 30 }, (_, i) => 548 - i * 1.5);
+  const r = bsPaceSplits({ paceTrace, distanceMi: 18.2, sport: 'run' });
+  assert.equal(r.splits.length, 18);
+  assert.deepEqual(r.splits.map((s) => s.label), Array.from({ length: 18 }, (_, i) => `Mile ${i + 1}`));
+  assert.ok(r.splits.every((s) => !/\d\s*[-\u2013\u2014]\s*\d/.test(s.label)));
 });
 
 test('bsPaceSplits: no provider splits and no trace → source null, empty splits', () => {
