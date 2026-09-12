@@ -772,6 +772,49 @@ Append new entries at the top, under this note.
 - **The live path is pinned too, not only the demo.** `bucketTrace` is what a real GPS run with no provider
   splits takes, so a new case drives an 18.2-mile trace and asserts the labels are `Mile 1 … Mile 18` with
   no range among them — the granularity this ask is about, at the one place a real session gets it.
+- ⚠ **AND THE CODEX ROUND FOUND THAT MY OWN NEW TAIL ROW BEAT THE POST'S HEADLINE STATISTIC.** Three
+  findings, **all three real, none refuted.** The first is the one worth the words: Drew's stat grid claims
+  **Best pace 8:24/mi**, and the `Last 0.2` row I wrote read **8:18/mi** — so `bsPaceSplits` selected that
+  tail as `bestIdx` and drew it full height, i.e. **the page pointed at its own contradiction**. The rule is
+  one-directional and the corpus proves why: a stated best *faster* than every split is legitimate (it is the
+  fastest instantaneous reading, and an average over a whole split can never reach it — Lena's swim is that
+  shape today); a split, which **is** an average, beating it cannot happen. The tail is `8:26/mi` now, two
+  seconds come off miles 1 and 2, and the post still reproduces **2:38:14** to the second.
+- ⚠ **MY RECONCILIATION HARNESS HAD RELAXED IN THE WRONG DIRECTION, AND THAT IS THE ACTUAL MISS.** Its first
+  cut asserted *"the stated best pace is the fastest FULL MILE"*, which Sofia's post legitimately fails (her
+  best is achieved by the tail), so I loosened it to *"best pace is achieved by SOME split"* — which 8:18
+  satisfies **while being faster than the stated best**. The honest invariant was one word away and is now a
+  permanent guard over the whole corpus: **no split may be faster than the post's own stated Best pace**, with
+  the two units required to match, because a `/mi` split compared against a `/100m` best is nonsense passing
+  as a check. *Loosening an assertion that fails on correct data is right; loosening it past the thing it was
+  measuring is how the defect gets in.*
+- ⚠ **THE OTHER TWO WERE HOLES IN THE GUARD, AND BOTH ARE THE CLASS THIS FILE KEEPS PAYING FOR.** (1) `RANGE`
+  read `[-–—]` — **three dashes I happened to type** — so `Miles 1‑6` with the non-breaking hyphen an editor
+  or a paste substitutes silently matched **neither** `RANGE` nor `MILE`, read as *"not a mile table"*, and
+  walked through **both** rules with the suite green. It is `[\p{Pd}\u2212]` now: every dash punctuation mark,
+  plus the minus sign, which is a math symbol rather than punctuation and so has to be named. (2) The corpus
+  walker had a row floor of **2**, so a short activity authored as the single row `[['Miles 1–1.2', …]]` was
+  excluded from the corpus **before either rule ran** — and the corpus floors stayed satisfied, so the bad row
+  could be added in silence. The floor is 1; the corpus is **byte-identical at 8 tables**, so the widening is
+  pure future coverage rather than a change of subject.
+- ⚠ **AND PROVING THE THIRD FIX MEANT MAKING THE WALKER DRIVABLE, BECAUSE THE OBVIOUS CONTROL PROVES
+  NOTHING.** A control calling `rangeLabels` on a one-row table passes with the floor back at **2** — the floor
+  lives in the **walker**, not in the rules. `splitTables(src)` now takes an optional source, so the control
+  hands the real walker a synthetic module containing exactly that shape and asserts it is reached *and* that
+  the rule fires on it. Same reasoning lifted the best-pace comparison into `bestPaceFault`, so its control
+  runs the **same code the corpus does** rather than a restatement of it.
+- **Verified on the fixed head:** `npm test` **3521/3521** (9 new) · `tsc --noEmit` 0 · JSX parse · **8/9
+  mutations killed** across the review round, each proven to land, sanity green at both ends, the tree restored
+  in a `finally` — **all three findings replayed as their own mutations**, so the suite is proven to catch them
+  rather than merely to be green after the fix, and the one survivor is a **proven no-op**: it weakened the
+  first of the one-row control's two assertions while the second still throws on the same case, which the
+  floor-reverting mutation kills outright · the mobile build clean with the corrected rows confirmed in the
+  emitted bundle behind **negative controls** (the retired `8:18` tail and both retired mile paces read **0**).
+- ⚠ **AND THE ENTRY BELOW WAS WRITTEN BEFORE THE PR, WHICH THIS FILE'S OWN RULE FORBIDS.** *"The changelog
+  entry comes AFTER the PR"* — measured on #2053, where an entry written early made a claim the review then
+  refuted. It happened again here: the verification bullet below is a count for a tree that no longer exists,
+  and everything above this line is what the round it could not have known about actually found. Kept with its
+  original figures rather than rewritten, because the correction is the record.
 - **Verified:** `npm test` **3518/3518** (6 new) · `tsc --noEmit` 0 · JSX parse · **11/11 mutations killed**,
   each **proven to land** (occurrence-counted before the edit, the suite's `# pass`/`# fail` **parsed**
   rather than read off a pipeline's exit status), sanity green at both ends, the tree restored in a
