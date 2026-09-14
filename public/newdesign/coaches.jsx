@@ -6,14 +6,23 @@
 // ⚠ ITS SUBJECT IS THE DASHBOARD, and that is the owner's ask in as many words:
 // "i want a preview of that new page giving previews of the coaches dashboard
 // they will have access to and use once an account is created". So the hero is a
-// real capture rather than an illustration, and the tour below it is the coach
-// dashboard's own five pages, per role.
+// real capture rather than an illustration, and the tour below it is EVERY page
+// of the coach dashboard but Settings, per role, in the sidebar's own order.
+// Owner, 2026-09-14: "include previews of all of these, not just a few of the
+// ones you have already" (the sidebar, in a screenshot) · "but not settings".
+// `tests/coaches-page.test.mjs` derives that list from `coachNav.jsx`, so a tab
+// added to the dashboard fails there until it has a frame here.
 //
-// ⚠ AND THE PREVIEW THEY CAME FROM IS THE ONE THIS PR CLOSES, so a re-capture
-// needs a signed-in coach account or the gate lifted for the run. The shells now
-// send an anonymous visitor to Login.html, which is the whole point — but it also
-// means the recipe that produced these ten files no longer works as written, and
-// the next person to try it will read the redirect as the harness being broken.
+// ⚠ AND THE PREVIEW THEY CAME FROM IS THE ONE THE GATE CLOSED, so a re-capture
+// cannot fulfil `/api/me` with `{user:null}` any more: that is a MEASURED
+// signed-out visitor, and the shells send one to Login.html — the whole point.
+// The recipe is one status code different: fulfil `/api/me` with
+// `503 {user:null, unknown:true}`, the route's own indeterminate state, which the
+// gate deliberately fails open on and every other caller draws the signed-out
+// chrome for. Same demo practice, same sidebar, no redirect — the twelve frames
+// added on 2026-09-14 were shot that way and are pixel-consistent with the ten
+// shot before the gate existed. The next person to fulfil `{user:null}` will
+// read the redirect as the harness being broken; it is the gate working.
 //
 // ⚠ EVERY FRAME IS LABELLED "EXAMPLE ACCOUNT", IN THE FRAME ITSELF. These are
 // captures of the signed-out demo practice — real screens, invented numbers. An
@@ -34,7 +43,8 @@ const coSans = "'Schibsted Grotesk', 'Schibsted Fallback', 'Space Grotesk', syst
 const coDisp = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
 const coNum = "'Doto', 'Doto Fallback', ui-monospace, monospace";
 
-// The five dashboard pages, per role. `file` differs where the role's own tab
+// The dashboard's pages, per role, in the sidebar's own order (`coachNav.jsx`),
+// Settings excluded by owner ruling. `file` differs where the role's own tab
 // does: a trainer writes Programs, a nutritionist writes Plans.
 const CO_TOUR = {
   trainer: {
@@ -43,6 +53,9 @@ const CO_TOUR = {
       { key: "today", file: "today", name: "Today",
         body: "The day at a glance: your balance and next payout, today's sessions, the programs that are due, roster compliance, and a client pulse that says who needs eyes first.",
         list: ["Sessions today, with the next one marked", "Programs due, and how many are ready", "Joint-attention flags shared with the client's other coach", "Message any client from the row"] },
+      { key: "week", file: "week", name: "Week",
+        body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
+        list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
       { key: "schedule", file: "schedule", name: "Schedule",
         body: "Your week and your month. Clients book inside Shape; the calendar syncs both ways with Google, Apple and Outlook, with reminders and reschedule rules handled for you.",
         list: ["Week and month views", "Two-way calendar sync", "Open hours you set once, in your own time zone", "No-show and reschedule handling"] },
@@ -55,6 +68,21 @@ const CO_TOUR = {
       { key: "business", file: "business", name: "Business",
         body: "The money side, told straight: subscription revenue, payouts, the marketplace funnel and who left.",
         list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "Churn and median tenure", "A CSV for your accountant"] },
+      { key: "playlists", file: "playlists", name: "Playlists",
+        body: "Paste a Spotify or Apple Music link, attach it to a workout, and your client gets a play button on the session card. Optional, always skippable.",
+        list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to workouts in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
+      { key: "community", file: "community", name: "Community",
+        body: "The Shape community from inside your dashboard: posts, PRs and logged workouts from the people training on Shape, plus the channels and meetups around them.",
+        list: ["Universal and following feeds", "Filter by workouts, PRs, runs, nutrition, milestones", "Channels to join and meetups to find", "Post, reply, share and repost"] },
+      { key: "goal", file: "goal", name: "Goal",
+        body: "Your own targets for the quarter — clients, revenue, programs, adherence — each with a progress bar and the pace that gets it there. A revenue calculator turns your rate, hours and program sales into take-home.",
+        list: ["Client, revenue, program and adherence goals", "Progress and pace against the date", "Session rate × sessions, plus subscriptions and one-time sales", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
+      { key: "score", file: "score", name: "Score",
+        body: "Your coach score, added up from active clients, adherence, session completion, client PRs, programs published and reviews. It drives marketplace ranking and the verified badge.",
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "A leaderboard and how it works"] },
+      { key: "profile", file: "profile", name: "Profile",
+        body: "The profile clients see on the marketplace: your credentials, coaching philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
+        list: ["Credentials, philosophy and where you coach", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
     ],
   },
   nutri: {
@@ -63,6 +91,9 @@ const CO_TOUR = {
       { key: "today", file: "today", name: "Today",
         body: "The day at a glance: your balance and next payout, today's consults, the plans that are due, food-log compliance across the roster, and a client pulse that says who needs eyes first.",
         list: ["Consults today, with the next one marked", "Plans due, and how many are ready", "Joint-attention flags shared with the client's trainer", "Message any client from the row"] },
+      { key: "week", file: "week", name: "Week",
+        body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
+        list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
       { key: "schedule", file: "schedule", name: "Schedule",
         body: "Your week and your month. Clients book 20-minute check-ins or 60-minute consults inside Shape; the calendar syncs both ways with Google, Apple and Outlook.",
         list: ["Week and month views", "Two-way calendar sync", "Open hours you set once, in your own time zone", "Intake forms before the first consult"] },
@@ -75,6 +106,21 @@ const CO_TOUR = {
       { key: "business", file: "business", name: "Business",
         body: "The money side, told straight: subscription revenue, payouts, the marketplace funnel and who left.",
         list: ["Active clients, joined vs left, revenue over time", "Monthly recurring, net after the platform fee", "Churn and median tenure", "A CSV for your accountant"] },
+      { key: "playlists", file: "playlists", name: "Playlists",
+        body: "Paste a Spotify or Apple Music link, attach it to a meal, recipe or prep routine, and your client gets a play button in their kitchen. Optional, always skippable.",
+        list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to meals in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
+      { key: "community", file: "community", name: "Community",
+        body: "The Shape community from inside your dashboard: posts, PRs and logged workouts from the people training on Shape, plus the channels and meetups around them.",
+        list: ["Universal and following feeds", "Filter by workouts, PRs, runs, nutrition, milestones", "Channels to join and meetups to find", "Post, reply, share and repost"] },
+      { key: "goal", file: "goal", name: "Goal",
+        body: "Your own targets for the quarter — clients, revenue, plans, adherence — each with a progress bar and the pace that gets it there. A revenue calculator turns your consult rate, consults and meal-plan subscribers into take-home.",
+        list: ["Client, revenue, plan and adherence goals", "Progress and pace against the date", "Consult rate × consults, plus meal-plan subscriptions", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
+      { key: "score", file: "score", name: "Score",
+        body: "Your coach score, added up from active clients, log adherence, client body-composition wins, plans published, reviews and the Radio rooms you host. It drives marketplace ranking and the verified badge.",
+        list: ["Five tiers, Certified to Icon", "A breakdown of what earns the points", "What your tier unlocks", "A leaderboard and how it works"] },
+      { key: "profile", file: "profile", name: "Profile",
+        body: "The profile clients see on the marketplace: your credentials, practice philosophy, Shape score and streak, availability with a book-a-consult button, and your activity, reviews and music underneath.",
+        list: ["Credentials, philosophy and where you practise", "Availability, and a button to book a consult", "Activity, about, coaching, reviews and music", "Followers, following and posts"] },
     ],
   },
 };
@@ -122,9 +168,6 @@ function CoHero({ role, setRole }) {
             <a className="co-btn co-btn-g" href="SignupNutritionist.html">Apply as a nutritionist</a>
             <a href="Marketplace.html" style={{ color: CO_TEAL, fontWeight: 600, fontSize: 14, marginLeft: 6 }}>See coaches on Shape →</a>
           </div>
-          <p style={{ marginTop: 22, fontSize: 13, color: "rgba(238,243,240,0.55)" }}>
-            <b style={{ color: "rgba(238,243,240,0.72)", fontWeight: 600 }}>Free to join.</b> Every credential is checked on intake. Weekly payouts to your bank, or instant for 1%.
-          </p>
         </div>
         <CoFrame role={role} tab={today} />
       </div>
@@ -136,7 +179,7 @@ function CoFacts() {
   const facts = [
     ["$0", true, <>&nbsp;</>, "To join.", " No monthly dues, no setup fees, no per-booking cuts."],
     ["15%", true, null, "Only when you're paid.", " One platform fee on what clients pay you; card processing is separate."],
-    ["Weekly", false, null, "Payouts direct to your bank.", " Instant for 1%, any day."],
+    ["Weekly", false, null, "Payouts direct to your bank.", ""],
     ["Verified", false, null, "Every coach credential-checked on intake.", " CPT, CSCS, RD, RDN, CNS and state licences."],
   ];
   return (
@@ -230,7 +273,7 @@ function CoSteps() {
 }
 
 function CoCost() {
-  const nums = [["$0", false, "to join and list"], ["15%", true, "platform fee, only on what you're paid"], ["1%", false, "for an instant payout, any day"], ["0", false, "exclusivity — coach here, on your own site, anywhere"]];
+  const nums = [["$0", false, "to join and list"], ["15%", true, "platform fee, only on what you're paid"], ["0", false, "exclusivity — coach here, on your own site, anywhere"]];
   return (
     <section className="co-s" style={{ paddingTop: 0 }}>
       <div className="co-wrap">
@@ -262,7 +305,7 @@ function CoFAQ() {
     ["What does Shape cost me?", "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape takes a 15% platform fee when you get paid. Standard card processing is separate."],
     ["Can I bring my existing clients?", "Yes. Most coaches migrate their book early on, and we help with invitations, transfer flows and pricing continuity."],
     ["Am I locked in?", "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave any time and take your clients with you."],
-    ["How do payouts work?", "Direct to your bank on a weekly schedule, or instantly for 1% on any day."],
+    ["How do payouts work?", "Direct to your bank on a weekly schedule."],
     ["Can I sell programs without sessions?", "Yes. Publish programs or meal plans as one-time purchases or subscriptions. Many coaches earn a large share of their revenue from programs alone."],
   ];
   return (

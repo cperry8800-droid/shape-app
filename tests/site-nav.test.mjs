@@ -97,19 +97,48 @@ test('the Coaches link names a page that exists', () => {
   }
 });
 
-test('the Coaches menu is the same on both bars', () => {
+// Owner, 2026-09-14: "just have 1 link and have it say marketplace, since both
+// coaches and nutritionists are on same page. both of those tabs now take you to
+// same place". The menu used to carry Trainers and Nutritionists, each
+// deep-linking one of the marketplace's own two tabs — one page with the switch
+// at the top of it — so it offered one destination as two.
+//
+// ⚠ A BARE `Marketplace.html` IS NOW THE RIGHT TARGET, which is the opposite of
+// what the previous version of this test guarded: with two items, a bare link
+// landed on whichever tab was the default and read as broken; with one, picking
+// a side is the defect, because the item is the page and the page has the
+// switch. The hash reader in `marketplace.jsx` stays for anything else that
+// deep-links a tab.
+test('the Coaches menu is one Marketplace item, the same on both bars', () => {
   const items = NAV_TABLES.COACHES_ITEMS;
-  assert.deepEqual(items.map(([n]) => n), ['Trainers', 'Nutritionists']);
-  // Each one deep-links the marketplace's own tab, and `marketplace.jsx` reads
-  // that hash — a menu item pointing at a bare Marketplace.html would land on
-  // whichever tab happened to be the default and look like a broken link.
+  assert.deepEqual(items.map(([n]) => n), ['Marketplace']);
   for (const [name, href] of items) {
-    assert.match(href, /Marketplace\.html#(trainers|nutritionists)$/, name + ' does not deep-link a marketplace tab: ' + href);
+    assert.equal(target(href), 'Marketplace.html', name + ' does not point at the marketplace: ' + href);
+    assert.ok(!String(href).includes('#'), name + ' picks a marketplace tab; the one item must land on the page and its switch: ' + href);
+    assert.ok(existsSync(path.join(ND, target(href))), name + ' points at ' + href + ', which is not in public/newdesign');
   }
+  // The homepage's static menu: the same items, by label AND by target, in the
+  // same order. (Reading the panel rather than `includes`-ing each href, so an
+  // extra item the shared header does not carry fails too.)
   const menu = /<div class="nmenu">([\s\S]*?)<\/div>/.exec(INDEX);
   assert.ok(menu, 'the homepage has no Coaches menu');
-  for (const [, href] of items) {
-    assert.ok(menu[1].includes(href.replace(/^/, '/newdesign/')), 'the homepage menu is missing ' + href);
+  const home = [...menu[1].matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+    .map((a) => [a[2].replace(/<small>[\s\S]*?<\/small>/g, '').replace(/<[^>]*>/g, '').trim(), a[1]]);
+  assert.deepEqual(home.map(([n]) => n), items.map(([n]) => n), 'the homepage menu lists different items');
+  assert.deepEqual(home.map(([, h]) => target(h)), items.map(([, h]) => target(h)), 'the homepage menu points at different pages');
+  // ⚠ AND THE DRAWER, which is the only nav a phone has: it inlines the menu's
+  // items under Coaches, indented — every item must be there and no retired one
+  // may linger, or a phone keeps two links the desktop bar no longer offers.
+  const drawer = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
+  assert.ok(drawer, 'the homepage has no drawer');
+  const inDrawer = [...drawer[1].matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+    .map((a) => [a[2].replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').trim(), target(a[1])]);
+  for (const [name, href] of items) {
+    assert.ok(inDrawer.some(([n, h]) => n === name && h === target(href)), 'the drawer is missing the menu item ' + name + ' → ' + href);
+  }
+  for (const retired of ['Trainers', 'Nutritionists']) {
+    assert.ok(!inDrawer.some(([n]) => n === retired), 'the drawer still carries the retired menu item ' + retired);
+    assert.ok(!home.some(([n]) => n === retired), 'the homepage menu still carries the retired item ' + retired);
   }
 });
 

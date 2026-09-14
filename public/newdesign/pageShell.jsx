@@ -142,8 +142,18 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
 
 // ⚠ COACHES IS A PAGE AND A MENU. Clicking goes to the Coaches page — the one
 // place the site pitches itself to trainers AND nutritionists, and previews the
-// dashboard they get once an account exists; hovering opens the marketplace's
-// own two tabs, which `marketplace.jsx` reads off the hash.
+// dashboard they get once an account exists; hovering opens ONE item, the
+// marketplace.
+//
+// ⚠ ONE ITEM, NOT TWO. Owner, 2026-09-14: "just have 1 link and have it say
+// marketplace, since both coaches and nutritionists are on same page. both of
+// those tabs now take you to same place". The menu used to carry Trainers and
+// Nutritionists, each deep-linking one of the marketplace's own two tabs — but
+// those tabs are one page with the switch at the top of it, so the menu was
+// offering one destination as two. `marketplace.jsx` still reads a
+// `#trainers` / `#nutritionists` hash for anything that deep-links a tab (its
+// own switch writes one, so a copied URL lands where it was copied from); the
+// nav simply no longer picks a side.
 //
 // This pointed at `Marketplace.html` for one PR, because the page did not exist
 // yet and a nav entry to a 404 on all 70 pages is worse than a nav entry to the
@@ -151,8 +161,7 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
 // is actually in the repo, so the placeholder cannot outlive its reason.
 const COACHES_HREF = "Coaches.html";
 const COACHES_ITEMS = [
-  ["Trainers", "Marketplace.html#trainers", "Marketplace · training"],
-  ["Nutritionists", "Marketplace.html#nutritionists", "Marketplace · nutrition"],
+  ["Marketplace", "Marketplace.html"],
 ];
 
 // ⚠ THE SAME SEVEN LINKS THE HOMEPAGE HAS ALWAYS SHOWN, in the same order, with
@@ -595,7 +604,9 @@ function DashInbox({ signedIn, role, inbox }) {
 // body mapped only `items` (a drop had no href) and destructured each item as
 // `[n, h]`, which silently DROPS a third element — so inside a shell the menu
 // would have rendered without the "Marketplace · training" sub-labels while
-// rendering them everywhere else.
+// rendering them everywhere else. (No item carries a sub-label since the menu
+// became one Marketplace item on 2026-09-14; the third element is still passed
+// through so one can come back without re-opening this.)
 function navGroupsFor(authUser) {
   const groups = authUser ? PORTAL_NAV : SHAPE_NAV_GROUPS;
   if (!dashShellRole()) return groups;

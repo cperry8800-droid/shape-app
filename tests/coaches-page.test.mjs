@@ -45,10 +45,32 @@ function braceBlock(src, marker) {
 
 const CO_TOUR = new Function('return ' + braceBlock(PAGE, 'const CO_TOUR =') + ';')();
 
-test('the tour is real — these tests cannot pass vacuously', () => {
+// ⚠ THE TAB LIST IS DERIVED FROM THE SIDEBAR, NOT TYPED. Owner, 2026-09-14:
+// "include previews of all of these, not just a few of the ones you have already"
+// (the coach sidebar, in a screenshot) and "but not settings". So the tour carries
+// every tab `coachNav.jsx`'s two sidebar tables carry, in their order, minus
+// Settings — read out of those tables, so a tab added to the dashboard fails here
+// until it has a frame, and a tab retired there fails until its frame goes.
+function sidebarTabs(fnName) {
+  const NAV = read('coachNav.jsx');
+  const start = NAV.indexOf('function ' + fnName + '(');
+  assert.ok(start >= 0, 'coachNav.jsx no longer defines ' + fnName);
+  const m = /const items = \[([\s\S]*?)\n\s*\];/.exec(NAV.slice(start));
+  assert.ok(m, fnName + ' has no `const items = [...]` table');
+  const labels = [...m[1].matchAll(/\{\s*label:\s*"([^"]+)",\s*slug:\s*"([^"]+)"\s*\}/g)].map((x) => x[1]);
+  assert.ok(labels.length >= 10, fnName + ' parsed only ' + labels.length + ' sidebar tabs — the parse stopped matching');
+  assert.ok(labels.includes('Settings'), fnName + ' has no Settings tab — excluding it below would be vacuous');
+  return labels;
+}
+
+test('the tour is every sidebar tab but Settings, in the sidebar\'s order', () => {
   assert.deepEqual(Object.keys(CO_TOUR), ['trainer', 'nutri']);
-  for (const role of Object.keys(CO_TOUR)) {
-    assert.equal(CO_TOUR[role].tabs.length, 5, role + ' does not offer five dashboard pages');
+  for (const [role, fn] of [['trainer', 'trainerNavItems'], ['nutri', 'nutriNavItems']]) {
+    const expected = sidebarTabs(fn).filter((l) => l !== 'Settings');
+    assert.deepEqual(CO_TOUR[role].tabs.map((t) => t.name), expected,
+      role + ': the tour and the sidebar disagree about which pages the dashboard has');
+    assert.ok(!CO_TOUR[role].tabs.some((t) => /settings/i.test(t.name + ' ' + t.key + ' ' + t.file)),
+      role + ' previews Settings, which the owner excluded');
   }
 });
 
@@ -74,7 +96,9 @@ test('every frame the tour names is a capture that exists', () => {
   // in the deploy, and the likeliest cause is a tab that was renamed in the table.
   const onDisk = readdirSync(path.join(ND, 'coaches')).filter((f) => f.endsWith('.jpg'));
   assert.deepEqual(onDisk.filter((f) => !seen.has(f)), [], 'a capture in public/newdesign/coaches is rendered by nothing');
-  assert.equal(seen.size, 10, 'expected ten captures, the tour names ' + seen.size);
+  // Two roles × eleven sidebar tabs. A literal floor beside the derived list, so a
+  // parse that quietly returned fewer tabs cannot pass on fewer files.
+  assert.equal(seen.size, 22, 'expected twenty-two captures, the tour names ' + seen.size);
 });
 
 // ⚠ THE FRAME'S RATIO AND THE FILES' OWN SIZE ARE TWO NUMBERS THAT HAVE TO AGREE,
@@ -114,7 +138,7 @@ test('the frame crops the captures by the amount it means to', () => {
   const declared = Number(ratio[1]) / Number(ratio[2]);
 
   const files = readdirSync(path.join(ND, 'coaches')).filter((f) => f.endsWith('.jpg'));
-  assert.ok(files.length >= 10, 'read only ' + files.length + ' captures — the sweep stopped matching');
+  assert.ok(files.length >= 22, 'read only ' + files.length + ' captures — the sweep stopped matching');
 
   const sizes = new Set();
   for (const f of files) {
@@ -126,10 +150,10 @@ test('the frame crops the captures by the amount it means to', () => {
 });
 
 // The rule, lifted out so a control can drive it. ⚠ THE MUTATION ROUND IS WHY: inline,
-// relaxing `sizes.size === 1` to `>= 1` SURVIVED — the ten captures are uniform today,
+// relaxing `sizes.size === 1` to `>= 1` SURVIVED — the captures are uniform today (ten then, twenty-two now),
 // so a weakened check still passes on correct data and the suite cannot tell you it
 // stopped measuring anything. The repo has no mixed-size fixture and should not grow
-// ten more JPEGs to get one, so the control hands the same function a synthetic set.
+// a whole second set of JPEGs to get one, so the control hands the same function a synthetic set.
 function cropFault(sizes, declared) {
   // One geometry for all of them, or the same frame crops each one differently.
   assert.equal(sizes.size, 1, 'the captures are not all one size: ' + [...sizes].join(', '));
@@ -181,9 +205,18 @@ test('both roles and every tab are reachable', () => {
   }
   // The one place the two roles legitimately differ: a trainer writes Programs,
   // a nutritionist writes Plans, and the capture filename follows the tab.
-  assert.equal(CO_TOUR.trainer.tabs[3].name, 'Programs');
-  assert.equal(CO_TOUR.nutri.tabs[3].name, 'Plans');
-  assert.equal(CO_TOUR.nutri.tabs[3].file, 'plans');
+  const byKey = (role, key) => CO_TOUR[role].tabs.find((t) => t.key === key);
+  assert.equal(byKey('trainer', 'programs').name, 'Programs');
+  assert.equal(byKey('nutri', 'programs').name, 'Plans');
+  assert.equal(byKey('nutri', 'programs').file, 'plans');
+  // Every other tab's `key` and `file` are the sidebar slug — one spelling, so the
+  // filename the frame builds is the route the dashboard answers to.
+  for (const role of ['trainer', 'nutri']) {
+    for (const t of CO_TOUR[role].tabs) {
+      if (t.key === 'programs') continue;
+      assert.equal(t.file, t.key, `${role}/${t.key}: file "${t.file}" is not the tab's own key`);
+    }
+  }
 });
 
 // ── the promises the site no longer makes ───────────────────────────────────
