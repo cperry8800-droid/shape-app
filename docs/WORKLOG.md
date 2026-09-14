@@ -828,6 +828,23 @@ Append new entries at the top, under this note.
   open contradiction on two rows of peaks. At lock the sim now eases the heart's phase into the
   station's over a second, so B's orb, C's beams and D's rows all pulse together under the word.
   *The design that cannot hide a defect is the one that finds it.*
+- **Two more owner notes on the rows, minutes apart.** *"have the heart rate beat/pulse like a heart rate
+  monitor"* → the heart row is the monitor's own trace now: one glyph per beat — the spike, the dip, the
+  T wave — and **both rows are drawn the way a monitor draws**, a pen sweeping left to right with the
+  erase gap ahead of it, the newest sample at the pen, so the comparison of beats still holds because
+  one pen writes both rows on one clock; a ♡ beside the reading beats with the row (the monochrome
+  glyph the house rule allows, never an emoji). ⚠ **THE GLYPH IS DRAWN FROM THE INSTANT A BEAT
+  ARRIVES, AND NOTHING BEFORE IT.** A BLE strap (`0x180D`) sends heart-rate values and RR intervals,
+  never a waveform — so a real ECG's P wave, which precedes the R by ~170 ms, would be a claim about a
+  beat the app has not received yet. The row's timing is measured; its shape is a glyph, and the board
+  says so. Then *"and have the background dots pulse as well with the bpm, like how you had it before"*
+  → the field is back at full strength behind the rows (it had been held at 0.6 when the rows arrived),
+  quiet under the spectrum as before, and the whole field now breathes on the kick as well as lighting
+  per bin — **measured rather than eyeballed**: summing the canvas's alpha over a band of the field with
+  no row in it across 60 frames, the total peaks **eightfold** on every kick (ratio 8.2 matching, 8.0
+  listening), 28 frames apart, which is 128 BPM at 60 fps. ⚠ The first measurement read the MEAN alpha
+  rounded to an integer and reported a swing of 1 → 2 — the quantisation floor, not the field; a sum
+  over the same pixels is what shows the pulse.
 - ⚠ **THE BOARD'S PHONES ARE PREVIEWS ON A SIMULATED SIGNAL, AND THEY SAY SO ON THE PHONE.** A
   deterministic 128-BPM generator drives every canvas (no `Math.random`), a simulated strap cycles
   free → matching → locked and can be switched off to see the honest no-strap state, and the session
