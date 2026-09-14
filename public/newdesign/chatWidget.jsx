@@ -487,7 +487,7 @@ function ChatWidget(props) {
         // ROW. RLS returns every conversation the viewer participates in, and for
         // a trainer or nutritionist that includes all of THEIR CLIENTS' threads —
         // rows created with `title` set to the PROVIDER's name
-        // (2026-05-02-conversations-messages.sql:204). Without this filter a coach
+        // (2026-05-02-conversations-messages.sql:205-206). Without this filter a coach
         // opening the bubble on TrainerApp.html saw N threads all labelled with
         // their own name, indistinguishable, under a tab that reads "Your coaches"
         // (review: Codex P1). Asking for the rows where the viewer IS the client
