@@ -350,7 +350,14 @@ test('no speech seed publishes a tempo, and removing the confirm window brings t
   // refuses everything: the defect must be reachable for the fix to mean anything.
   let without = 0;
   for (let sd = 1; sd <= SEEDS; sd += 1) if (drive(speech(sd), 20, { confirmS: 0 }).last) without += 1;
-  assert.ok(without > 100, `only ${without} of ${SEEDS} seeds fabricated without the confirm window — the corpus no longer reaches the defect`);
+  // ⚠ A FRACTION, NOT A COUNT, AND THE COUNT COST A ROUND. This read
+  // `without > 100`, which silently ties the control to one corpus size: at
+  // SEEDS=120 the un-mutated tree FAILS here (~60 hits), so anyone testing
+  // whether the corpus could be smaller sees a red suite that reads as the fix
+  // breaking rather than as the control being mis-scaled. Measured with it
+  // fixed: at 120 both confirm-window mutations SURVIVE, so 500 is load-bearing
+  // and this test's 16.7s — 8% of the whole suite — is bought, not habitual.
+  assert.ok(without > SEEDS * 0.3, `only ${without} of ${SEEDS} seeds fabricated without the confirm window — the corpus no longer reaches the defect`);
 });
 
 test('MUTATION: without the coverage gate at all, two transients read as 120 BPM', () => {
