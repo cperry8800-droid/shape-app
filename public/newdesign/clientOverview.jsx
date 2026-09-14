@@ -5,30 +5,46 @@ const { useState: useSClientOv } = React;
 const DARK = "#06080a";
 const LIGHT = "#e9efed";
 
+// ── The site's type system ─────────────────────────────────────────────────
+// Anybody for display, Doto for readings, Schibsted Grotesk for body — the three
+// families `index.html` and `Coaches.html` moved to. This page was the last
+// marketing surface still set in Fraunces / Space Grotesk / JetBrains Mono, and
+// the seam showed the moment Members put it one click from the bar.
+//
+// ⚠ LOCAL CONSTANTS, NOT pageShell's `serif` / `sans`. Those name the SHARED
+// CHROME's families: the header and footer this page renders read them 37 times
+// and JetBrains Mono 30 more, on all 70 pages. So the page's own type has to be
+// named here — reaching for the shared ones would re-type the whole site — and
+// `Client.html` keeps requesting the old three FOR that chrome while adding
+// these, which is what `Coaches.html` does.
+const clDisp = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
+const clNum = "'Doto', 'Doto Fallback', ui-monospace, monospace";
+const clSans = "'Schibsted Grotesk', 'Schibsted Fallback', 'Space Grotesk', system-ui, sans-serif";
+
 // ---------- Hero ----------
 function ClientOvHero() {
   return (
     <section style={{ padding: "40px 72px 100px", position: "relative", overflow: "hidden", minHeight: "88vh", display: "flex", alignItems: "center", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto", width: "100%", position: "relative", display: "grid", gridTemplateColumns: "1.25fr 1fr", gap: 80, alignItems: "center" }}>
         <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>For clients</div>
-          <h1 style={{ fontFamily: serif, fontSize: "clamp(60px, 7.6vw, 128px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.92, margin: 0, color: LIGHT }}>
+          <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 40 }}>For clients</div>
+          <h1 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(60px, 7.6vw, 128px)", letterSpacing: "-0.03em", fontWeight: 500, lineHeight: 0.92, margin: 0, color: LIGHT }}>
             Shape your<br />
-            <em style={{ fontStyle: "italic", color: "transparent", WebkitTextStroke: `1.4px ${LIGHT}` }}>lifestyle.</em>
+            <em style={{ fontStyle: "normal", color: "transparent", WebkitTextStroke: `1.4px ${LIGHT}` }}>lifestyle.</em>
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 20, lineHeight: 1.5, color: "rgba(233,239,237,0.72)", margin: "40px 0 48px", maxWidth: 540 }}>
+          <p style={{ fontFamily: clSans, fontSize: 20, lineHeight: 1.5, color: "rgba(233,239,237,0.72)", margin: "40px 0 48px", maxWidth: 540 }}>
             Train smarter, eat better, and track every step of your progress. Shape puts certified coaches and tools in one place — so you can focus on becoming the best version of yourself.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a href="Marketplace.html" style={{ padding: "16px 28px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em" }}>Find your coach →</a>
-            <a href="/newdesign/Pricing.html" style={{ padding: "16px 28px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.25)", fontFamily: sans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
+            <a href="Marketplace.html" style={{ padding: "16px 28px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: clSans, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em" }}>Find your coach →</a>
+            <a href="/newdesign/Pricing.html" style={{ padding: "16px 28px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.25)", fontFamily: clSans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
           </div>
         </div>
         <div style={{ position: "relative" }}>
           <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>This week</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE WEEK · APR 13 — APR 19</div>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>This week</div>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE WEEK · APR 13 — APR 19</div>
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               {[
@@ -39,20 +55,20 @@ function ClientOvHero() {
                 { when: "Fri 07:00", kind: "WORKOUT", what: "Full body · deload", who: "Maya" },
               ].map((it, i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 72px 1fr auto", gap: 14, alignItems: "center", padding: "12px 14px", background: "rgba(233,239,237,0.03)", borderRadius: 8, border: "1px solid rgba(233,239,237,0.06)" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.93)", letterSpacing: "0.05em" }}>{it.when}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: it.kind === "WORKOUT" ? TEAL : it.kind === "MEAL" ? "#e8b14a" : "rgba(233,239,237,0.8)" }}>{it.kind}</div>
-                  <div style={{ fontFamily: serif, fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{it.what}</div>
-                  <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(233,239,237,0.55)" }}>{it.who}</div>
+                  <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.93)", letterSpacing: "0.05em" }}>{it.when}</div>
+                  <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 9.5, letterSpacing: "0.14em", color: it.kind === "WORKOUT" ? TEAL : it.kind === "MEAL" ? "#e8b14a" : "rgba(233,239,237,0.8)" }}>{it.kind}</div>
+                  <div style={{ fontFamily: clDisp, fontWeight: 500, fontVariationSettings: "'wdth' 100", fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{it.what}</div>
+                  <div style={{ fontFamily: clSans, fontSize: 11, color: "rgba(233,239,237,0.55)" }}>{it.who}</div>
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
               <span>5 sessions · 1 review</span>
               <span style={{ color: TEAL }}>on track ●</span>
             </div>
           </div>
-          <div style={{ position: "absolute", bottom: -24, left: -24, background: DARK, color: LIGHT, padding: "14px 18px", borderRadius: 10, fontFamily: sans, fontSize: 12, lineHeight: 1.4, boxShadow: "0 20px 72px rgba(0,0,0,0.25)", maxWidth: 220 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>Example · from Maya</div>
+          <div style={{ position: "absolute", bottom: -24, left: -24, background: DARK, color: LIGHT, padding: "14px 18px", borderRadius: 10, fontFamily: clSans, fontSize: 12, lineHeight: 1.4, boxShadow: "0 20px 72px rgba(0,0,0,0.25)", maxWidth: 220 }}>
+            <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>Example · from Maya</div>
             Great session. Added 5 lb to your working sets next week — you earned it.
           </div>
         </div>
@@ -74,8 +90,8 @@ function ClientOvStats() {
       <div style={{ maxWidth: 1320, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
         {items.map((it, i) => (
           <div key={i} style={{ padding: "12px 32px", borderLeft: i ? "1px solid rgba(233,239,237,0.1)" : "none" }}>
-            <div style={{ fontFamily: serif, fontSize: it.k.length > 6 ? 42 : 56, letterSpacing: "-0.035em", fontWeight: 400, color: LIGHT, lineHeight: 1 }}>{it.k}</div>
-            <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(233,239,237,0.6)", marginTop: 14, lineHeight: 1.5, maxWidth: 220 }}>{it.v}</div>
+            <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: it.k.length > 6 ? 42 : 56, letterSpacing: "-0.03em", fontWeight: 500, color: LIGHT, lineHeight: 1 }}>{it.k}</div>
+            <div style={{ fontFamily: clSans, fontSize: 13, color: "rgba(233,239,237,0.6)", marginTop: 14, lineHeight: 1.5, maxWidth: 220 }}>{it.v}</div>
           </div>
         ))}
       </div>
@@ -105,16 +121,16 @@ function ClientOvWhy() {
   return (
     <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.93)", color: DARK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape for you</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
-          Everything a coach gives you. <em style={{ fontStyle: "italic", color: TEAL }}>Nothing a chatbot can.</em>
+        <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Why Shape for you</div>
+        <h2 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
+          Everything a coach gives you. <em style={{ fontStyle: "normal", color: TEAL }}>Nothing a chatbot can.</em>
         </h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 48 }}>
           {pillars.map((p, i) => (
             <div key={i} style={{ paddingTop: 28, borderTop: `1px solid ${TEAL}` }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(6,8,10,0.4)", marginBottom: 20 }}>{p.n}</div>
-              <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 18, color: "rgba(6,8,10,1)" }}>{p.title}</div>
-              <p style={{ fontFamily: sans, fontSize: 14.5, lineHeight: 1.65, color: "rgba(6,8,10,0.8)", margin: 0 }}>{p.body}</p>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.12em", color: "rgba(6,8,10,0.4)", marginBottom: 20 }}>{p.n}</div>
+              <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 30, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 18, color: "rgba(6,8,10,1)" }}>{p.title}</div>
+              <p style={{ fontFamily: clSans, fontSize: 14.5, lineHeight: 1.65, color: "rgba(6,8,10,0.8)", margin: 0 }}>{p.body}</p>
             </div>
           ))}
         </div>
@@ -136,23 +152,23 @@ function ClientOvHow() {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 80, marginBottom: 80, alignItems: "end" }}>
           <div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>How it works</div>
-            <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 1 }}>
+            <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>How it works</div>
+            <h2 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 500, margin: 0, lineHeight: 1 }}>
               From curious<br />
-              <em style={{ fontStyle: "italic", color: TEAL }}>to coached.</em>
+              <em style={{ fontStyle: "normal", color: TEAL }}>to coached.</em>
             </h2>
           </div>
-          <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0, maxWidth: 520 }}>
+          <p style={{ fontFamily: clSans, fontSize: 16, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0, maxWidth: 520 }}>
             Browse, book a free intro call, and start when the fit is right. Nothing about this is generic: a real person reads what you tell them and writes for you.
           </p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
           {steps.map((s, i) => (
             <div key={i} style={{ padding: 32, background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.08)", borderRadius: 10, position: "relative" }}>
-              <div style={{ position: "absolute", top: 18, right: 20, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", color: TEAL }}>{s.time}</div>
-              <div style={{ fontFamily: serif, fontSize: 58, fontWeight: 400, color: TEAL, lineHeight: 1, letterSpacing: "-0.03em", marginBottom: 24 }}>{s.n}</div>
-              <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 400, letterSpacing: "-0.015em", color: LIGHT, marginBottom: 14, lineHeight: 1.15 }}>{s.t}</div>
-              <p style={{ fontFamily: sans, fontSize: 13.5, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0 }}>{s.b}</p>
+              <div style={{ position: "absolute", top: 18, right: 20, fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, letterSpacing: "0.1em", color: TEAL }}>{s.time}</div>
+              <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: 58, fontWeight: 500, color: TEAL, lineHeight: 1, letterSpacing: "-0.03em", marginBottom: 24 }}>{s.n}</div>
+              <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", color: LIGHT, marginBottom: 14, lineHeight: 1.15 }}>{s.t}</div>
+              <p style={{ fontFamily: clSans, fontSize: 13.5, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0 }}>{s.b}</p>
             </div>
           ))}
         </div>
@@ -192,9 +208,9 @@ function ClientOvPaths() {
   return (
     <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.93)", color: DARK }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Three ways in</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
-          Start with one. <em style={{ fontStyle: "italic", color: TEAL }}>Add more anytime.</em>
+        <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>Three ways in</div>
+        <h2 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 72px", lineHeight: 1, maxWidth: 1000 }}>
+          Start with one. <em style={{ fontStyle: "normal", color: TEAL }}>Add more anytime.</em>
         </h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
           {paths.map((p, i) => (
@@ -209,17 +225,17 @@ function ClientOvPaths() {
               position: "relative",
               minHeight: 380,
             }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: p.featured ? TEAL : "rgba(6,8,10,0.82)", marginBottom: 16 }}>{p.tag}</div>
-              <div style={{ fontFamily: serif, fontSize: 34, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1.05, marginBottom: 18 }}>{p.title}</div>
-              <p style={{ fontFamily: sans, fontSize: 14, lineHeight: 1.6, color: p.featured ? "rgba(233,239,237,0.72)" : "rgba(6,8,10,0.8)", margin: "0 0 24px", flex: 1 }}>{p.body}</p>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: p.featured ? TEAL : "rgba(6,8,10,0.8)", marginBottom: 20, letterSpacing: "0.04em" }}>{p.price}</div>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: p.featured ? TEAL : "rgba(6,8,10,0.82)", marginBottom: 16 }}>{p.tag}</div>
+              <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 34, fontWeight: 500, letterSpacing: "-0.02em", lineHeight: 1.05, marginBottom: 18 }}>{p.title}</div>
+              <p style={{ fontFamily: clSans, fontSize: 14, lineHeight: 1.6, color: p.featured ? "rgba(233,239,237,0.72)" : "rgba(6,8,10,0.8)", margin: "0 0 24px", flex: 1 }}>{p.body}</p>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 13, color: p.featured ? TEAL : "rgba(6,8,10,0.8)", marginBottom: 20, letterSpacing: "0.04em" }}>{p.price}</div>
               <a href={p.cta[1]} style={{
                 padding: "13px 18px",
                 borderRadius: 6,
                 background: p.featured ? TEAL : "transparent",
                 color: p.featured ? LIGHT : DARK,
                 border: p.featured ? "none" : `1px solid rgba(6,8,10,0.25)`,
-                fontFamily: sans,
+                fontFamily: clSans,
                 fontSize: 13,
                 fontWeight: 500,
                 textAlign: "center",
@@ -247,13 +263,13 @@ function ClientOvTools() {
   return (
     <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.82)", color: LIGHT }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>What you get</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 72px", lineHeight: 1 }}>Everything you actually <em style={{ fontStyle: "italic", color: TEAL }}>use.</em></h2>
+        <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>What you get</div>
+        <h2 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 72px", lineHeight: 1 }}>Everything you actually <em style={{ fontStyle: "normal", color: TEAL }}>use.</em></h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: "rgba(233,239,237,0.08)", border: "1px solid rgba(233,239,237,0.08)" }}>
           {tools.map((tool, i) => (
             <div key={i} style={{ padding: 36, background: DARK }}>
-              <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 400, letterSpacing: "-0.015em", color: LIGHT, marginBottom: 14, lineHeight: 1.15 }}>{tool.t}</div>
-              <p style={{ fontFamily: sans, fontSize: 13.5, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0 }}>{tool.b}</p>
+              <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 24, fontWeight: 500, letterSpacing: "-0.015em", color: LIGHT, marginBottom: 14, lineHeight: 1.15 }}>{tool.t}</div>
+              <p style={{ fontFamily: clSans, fontSize: 13.5, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0 }}>{tool.b}</p>
             </div>
           ))}
         </div>
@@ -283,15 +299,15 @@ function ClientOvSnapshots() {
   return (
     <section style={{ padding: "120px 72px", background: "rgba(6,8,10,0.8)", color: LIGHT, borderTop: "1px solid rgba(233,239,237,0.08)" }}>
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Inside the app</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "italic", color: TEAL }}>habits</em> and the <em style={{ fontStyle: "italic", color: TEAL }}>list</em>.</h2>
+        <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Inside the app</div>
+        <h2 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(38px, 4.8vw, 68px)", letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 60px", lineHeight: 1 }}>The <em style={{ fontStyle: "normal", color: TEAL }}>habits</em> and the <em style={{ fontStyle: "normal", color: TEAL }}>list</em>.</h2>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, alignItems: "stretch" }}>
           {/* Habits snapshot */}
           <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Habits</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE · WEEK 04 · APR 13 — APR 19</div>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Habits</div>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE · WEEK 04 · APR 13 — APR 19</div>
             </div>
             <div style={{ display: "grid", gap: 8 }}>
               {habits.map((h, i) => {
@@ -302,15 +318,15 @@ function ClientOvSnapshots() {
                     <div style={{ width: 14, height: 14, borderRadius: 4, border: `1px solid ${h.hit ? accent : "rgba(233,239,237,0.25)"}`, background: h.hit ? accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {h.hit && <span style={{ color: DARK, fontSize: 9, lineHeight: 1, fontWeight: 600 }}>{isDont ? "×" : "✓"}</span>}
                     </div>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: accent, textTransform: "uppercase" }}>{isDont ? "Don't" : "Do"}</div>
-                    <div style={{ fontFamily: serif, fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{h.name}</div>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: h.hit ? accent : "rgba(233,239,237,0.55)", letterSpacing: "0.05em", textAlign: "right" }}>{h.days}</div>
-                    <div style={{ fontFamily: sans, fontSize: 11, color: "rgba(233,239,237,0.5)" }}>{h.note}</div>
+                    <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 9, letterSpacing: "0.14em", color: accent, textTransform: "uppercase" }}>{isDont ? "Don't" : "Do"}</div>
+                    <div style={{ fontFamily: clDisp, fontWeight: 500, fontVariationSettings: "'wdth' 100", fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{h.name}</div>
+                    <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11.5, color: h.hit ? accent : "rgba(233,239,237,0.55)", letterSpacing: "0.05em", textAlign: "right" }}>{h.days}</div>
+                    <div style={{ fontFamily: clSans, fontSize: 11, color: "rgba(233,239,237,0.5)" }}>{h.note}</div>
                   </div>
                 );
               })}
             </div>
-            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
               <span>5 / 8 above target · 3 don'ts</span>
               <span style={{ color: TEAL }}>Shape Score +12 ●</span>
             </div>
@@ -319,19 +335,19 @@ function ClientOvSnapshots() {
           {/* Grocery list snapshot — tied to the meal plan above. */}
           <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Grocery list</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE · FROM RAE'S PLAN · WEEK 04</div>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Grocery list</div>
+              <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE · FROM RAE'S PLAN · WEEK 04</div>
             </div>
             <div style={{ display: "grid", gap: 10, flex: 1 }}>
               {grocery.map((g, i) => (
                 <div key={i} style={{ background: "rgba(233,239,237,0.03)", border: "1px solid rgba(233,239,237,0.06)", borderRadius: 8, padding: "10px 14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>{g.aisle}</div>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(233,239,237,0.5)" }}>{g.items.length} items</div>
+                    <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>{g.aisle}</div>
+                    <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 9.5, color: "rgba(233,239,237,0.5)" }}>{g.items.length} items</div>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 4 }}>
                     {g.items.map((it, j) => (
-                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: serif, fontSize: 14, color: LIGHT }}>
+                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: clDisp, fontWeight: 500, fontVariationSettings: "'wdth' 100", fontSize: 14, color: LIGHT }}>
                         <span style={{ width: 11, height: 11, borderRadius: 3, border: "1px solid rgba(233,239,237,0.35)", display: "inline-block" }} />
                         {it}
                       </div>
@@ -340,7 +356,7 @@ function ClientOvSnapshots() {
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em", gap: 12, flexWrap: "wrap" }}>
               <span>12 items · ~$72</span>
               <span style={{ display: "inline-flex", gap: 18 }}>
                 <span style={{ color: "rgba(233,239,237,0.78)" }}>☆ Save to library</span>
@@ -367,16 +383,16 @@ function ClientOvFAQ() {
   return (
     <section style={{ padding: "140px 72px", background: "rgba(233,239,237,0.93)", color: DARK }}>
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>FAQ</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: "0 0 48px", lineHeight: 1 }}>Common <em style={{ fontStyle: "italic", color: TEAL }}>questions.</em></h2>
+        <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>FAQ</div>
+        <h2 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 500, margin: "0 0 48px", lineHeight: 1 }}>Common <em style={{ fontStyle: "normal", color: TEAL }}>questions.</em></h2>
         <div style={{ borderTop: "1px solid rgba(6,8,10,0.1)" }}>
           {faqs.map((f, i) => (
             <div key={i} style={{ borderBottom: "1px solid rgba(6,8,10,0.1)" }}>
               <button onClick={() => setOpen(open === i ? -1 : i)} style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "28px 0", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                <span style={{ fontFamily: serif, fontSize: 24, fontWeight: 400, color: DARK, letterSpacing: "-0.015em" }}>{f.q}</span>
-                <span style={{ fontFamily: serif, fontSize: 28, color: TEAL, transform: open === i ? "rotate(45deg)" : "none", transition: "transform 0.2s" }}>+</span>
+                <span style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 24, fontWeight: 500, color: DARK, letterSpacing: "-0.015em" }}>{f.q}</span>
+                <span style={{ fontFamily: clNum, fontWeight: 700, fontSize: 24, color: TEAL, transform: open === i ? "rotate(45deg)" : "none", transition: "transform 0.2s" }}>+</span>
               </button>
-              {open === i && <p style={{ fontFamily: sans, fontSize: 15, lineHeight: 1.65, color: "rgba(6,8,10,0.8)", margin: "0 0 32px", maxWidth: 760 }}>{f.a}</p>}
+              {open === i && <p style={{ fontFamily: clSans, fontSize: 15, lineHeight: 1.65, color: "rgba(6,8,10,0.8)", margin: "0 0 32px", maxWidth: 760 }}>{f.a}</p>}
             </div>
           ))}
         </div>
@@ -391,16 +407,16 @@ function ClientOvCTA() {
     <section style={{ padding: "140px 72px", background: "rgba(6,8,10,0.8)", color: LIGHT, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0, background: "radial-gradient(800px 500px at 50% 100%, rgba(10,197,168,0.14), transparent 70%)" }} />
       <div style={{ maxWidth: 1100, margin: "0 auto", position: "relative", textAlign: "center" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Find your coach</div>
-        <h2 style={{ fontFamily: serif, fontSize: "clamp(40px, 5.2vw, 84px)", letterSpacing: "-0.04em", fontWeight: 400, lineHeight: 0.95, margin: "0 0 48px" }}>
-          You're ready.<br /><em style={{ fontStyle: "italic", color: TEAL }}>Pick someone real.</em>
+        <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 28 }}>Find your coach</div>
+        <h2 style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 90", fontSize: "clamp(40px, 5.2vw, 84px)", letterSpacing: "-0.03em", fontWeight: 500, lineHeight: 0.95, margin: "0 0 48px" }}>
+          You're ready.<br /><em style={{ fontStyle: "normal", color: TEAL }}>Pick someone real.</em>
         </h2>
-        <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(233,239,237,0.93)", margin: "0 auto 48px", maxWidth: 640 }}>
+        <p style={{ fontFamily: clSans, fontSize: 17, lineHeight: 1.6, color: "rgba(233,239,237,0.93)", margin: "0 auto 48px", maxWidth: 640 }}>
           Free intro calls. The right coach is usually a 20-minute conversation away.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="Marketplace.html" style={{ padding: "18px 32px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: sans, fontSize: 14, fontWeight: 500 }}>Browse coaches →</a>
-          <a href="/newdesign/Pricing.html" style={{ padding: "18px 32px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.3)", fontFamily: sans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
+          <a href="Marketplace.html" style={{ padding: "18px 32px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: clSans, fontSize: 14, fontWeight: 500 }}>Browse coaches →</a>
+          <a href="/newdesign/Pricing.html" style={{ padding: "18px 32px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.3)", fontFamily: clSans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
         </div>
       </div>
     </section>
@@ -410,7 +426,7 @@ function ClientOvCTA() {
 // ---------- Page ----------
 function ClientOverviewPage() {
   return (
-    <div style={{ background: DARK, color: LIGHT, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
+    <div style={{ background: DARK, color: LIGHT, fontFamily: clSans, minHeight: "100vh", position: "relative" }}>
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(6,8,10,0.15)", pointerEvents: "none" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
