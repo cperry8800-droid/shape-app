@@ -389,43 +389,72 @@ export function beatsFromRR(receivedAt, rr) {
   return out;
 }
 
-// A strap that sends only a rate still gives a measured RATE, so the glyph runs
-// on a phase accumulator off that rate. The placement is at worst one reading
-// late; the rate it draws is the one the strap sent.
-export function advanceHeartPhase(phase, bpm, dt) {
-  const p = Number.isFinite(phase) ? phase : 0;
-  if (!Number.isFinite(bpm) || !(bpm > 0) || !Number.isFinite(dt) || dt <= 0) return p;
-  return (p + dt * (bpm / 60)) % 1;
+
+// Advance the heart's phase by one frame AND return the beat instants that the
+// step actually crossed.
+//
+// ⚠ A ROW OF PAST BEATS IS HISTORY, NOT AN EXTRAPOLATION OF THE LATEST READING.
+// This replaced a `heartBeatsBetween(bpm, now, phase, t0, t1)` that rebuilt
+// EVERY beat in the visible window from the CURRENT rate — so a 120 → 100
+// reading redrew beats that genuinely landed 500 ms apart as though they had
+// landed 600 ms apart: the whole trace jumped backwards and ties appeared or
+// vanished for beats that had already happened and already been drawn. A strap
+// re-reports every few seconds, so that is the ordinary case rather than an
+// edge, and the row is three seconds long — wide enough to hold a rate change
+// every time one lands. Recording each crossing as it occurs is the only
+// version that stays true: a beat's instant is a fact about when it arrived,
+// and no later reading may move it. (Codex, P2 on #2072.)
+//
+// `t` is the END of the step and `dt` its length. Each integer the phase
+// crosses is a beat, and its instant is when the phase reached that integer.
+//
+// A negative or non-finite rate returns no beats and leaves the phase where it
+// was — the same refusal the previous function carried, and it is load-bearing
+// rather than belt-and-braces here: the phase is persistent state, so one NaN
+// reading would poison it for the life of the page.
+export function advanceHeart(phase, bpm, t, dt) {
+  const p0 = Number.isFinite(phase) ? phase : 0;
+  const beats = [];
+  if (!Number.isFinite(bpm) || !(bpm > 0)) return { phase: p0, beats };
+  if (!Number.isFinite(dt) || !(dt > 0) || !Number.isFinite(t)) return { phase: p0, beats };
+  const rate = bpm / 60; // cycles per second
+  const start = t - dt;
+  const raw = p0 + dt * rate;
+  // ⚠ THE BEAT COUNT AND THE PHASE WRAP ARE ONE COMPUTATION, DELIBERATELY — AND
+  // THE REASON IS CONSTRUCTION, NOT A DEFECT. The first cut collected crossings
+  // with `u <= dt` and wrapped the phase with a separate `% 1`, and this comment
+  // claimed that pair LOST a beat at the frame boundary. Measured rather than
+  // argued, because a because-clause is a claim: driving both forms over 4,000
+  // random (rate, frame-rate) runs and 300,000 random single steps, they agree
+  // on the count and the instants EVERY time. So the rewrite is a no-op today
+  // and its mutation is labelled as one rather than tested around.
+  //
+  // It is kept because the agreement is an arithmetic coincidence rather than a
+  // guarantee: two expressions that must always produce the same number, written
+  // twice. Taking both from `floor(raw)` makes them the same number by
+  // construction, and a beat the phase has already consumed can then never be
+  // one the loop declined to emit.
+  //
+  // (What the failing test that started this actually caught was its own
+  // expectation: 1/60 does not sum to 1, so the crossing due at t = 1.000 lands
+  // one frame late under BOTH forms. The fixture samples past the boundary now.)
+  const whole = Math.floor(raw);
+  // ⚠ THE CAP IS A LOOP BACKSTOP, NOT A DISPLAY BUDGET. `dt` is clamped to 0.1s
+  // by the caller, so 64 crossings in one step is 38,400 BPM — unreachable for
+  // any strap. It exists so a garbage rate cannot spin this loop, which is the
+  // same reason the function it replaced carried one.
+  for (let m = 1; m <= whole && m <= 64; m += 1) beats.push(start + (m - p0) / rate);
+  return { phase: raw - whole, beats };
 }
 
-// Beat instants in [t0, t1) implied by a rate and a phase.
+// Keep a recorded beat list inside the window the rows draw, in place.
 //
-// A negative rate walks the loop BACKWARDS forever and only the 4096 cap stops
-// it, so one bad reading becomes four thousand fabricated heartbeats on the
-// member's own row. `bpm > 0` is what refuses that, and the test drives it.
-//
-// ⚠ THE FINITENESS HALF IS BELT-AND-BRACES TODAY, AND IT IS LABELLED RATHER
-// THAN LEFT TO READ AS LIVE. Measured by driving the loop with the check
-// removed: Infinity and NaN both return [] anyway — `Infinity * 0` is NaN and
-// `NaN < t1` is false — so both mutations survive, correctly. It is kept for
-// two reasons, neither of them a hope: advanceHeartPhase four lines up needs
-// the same check for real (it folds the rate into persistent state, where a NaN
-// never washes out), and tempoBeatAt in radioTempo.mjs is this function's exact
-// twin where the identical relaxation DOES produce NaN — a grid that reports
-// itself settled and draws nothing. Same shape, different loop, different
-// answer. Three siblings taking a rate should refuse it the same way, or the
-// next reader has to re-derive which of the three is the exception.
-export function heartBeatsBetween(bpm, phaseAt, phase, t0, t1) {
-  const out = [];
-  if (!Number.isFinite(bpm) || !(bpm > 0)) return out;
-  if (!Number.isFinite(phaseAt) || !Number.isFinite(phase) || !(t1 > t0)) return out;
-  const p = 60 / bpm;
-  // The most recent beat at or before `phaseAt`, from the fractional phase.
-  const last = phaseAt - phase * p;
-  let k = Math.ceil((t0 - last) / p);
-  for (let b = last + k * p; b < t1; k += 1, b = last + k * p) {
-    out.push(b);
-    if (out.length > 4096) break;
-  }
-  return out;
+// The list is only ever appended to at the newest end and trimmed at the oldest,
+// so it stays sorted by construction — which is what `ties` below relies on.
+export function trimBeats(beats, cutoff) {
+  if (!Array.isArray(beats)) return beats;
+  let i = 0;
+  while (i < beats.length && !(beats[i] >= cutoff)) i += 1;
+  if (i > 0) beats.splice(0, i);
+  return beats;
 }

@@ -18,6 +18,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import * as babelParser from '@babel/parser';
+import { bpmGap, inSync } from '../mobile-app/src/services/radioSignalField.mjs';
 
 const SRC = new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url);
 const CATALOGS = new URL('../mobile-app/src/i18n/catalogs/', import.meta.url);
@@ -41,6 +43,49 @@ function fieldBody(src) {
   const body = src.slice(i, j);
   assert.ok(body.length > 3000, `the field slice is ${body.length} chars — this guard is reading the wrong thing`);
   return body;
+}
+
+// One declaration line out of a body, asserted unique so a rename cannot make an
+// assertion below vacuous by matching nothing.
+function lineOf(body, needle) {
+  const hits = body.split('\n').filter((l) => l.includes(needle));
+  assert.equal(hits.length, 1, `expected exactly one line containing ${needle}, got ${hits.length}`);
+  return hits[0].trim();
+}
+
+// The identifier `fieldK` is called with as its KICK argument, plus the source of
+// that identifier's own initializer. Parsed rather than matched, so any rewrite
+// that keeps the rule keeps passing and only losing the rule fails.
+function fieldKKickArg(src) {
+  const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
+  let call = null;
+  const walk = (n) => {
+    if (!n || typeof n.type !== 'string' || call) return;
+    if (n.type === 'CallExpression' && n.callee.type === 'Identifier' && n.callee.name === 'fieldK') { call = n; return; }
+    for (const k of Object.keys(n)) {
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach((c) => walk(c));
+      else if (v && typeof v.type === 'string') walk(v);
+    }
+  };
+  walk(ast.program);
+  if (!call || call.arguments.length < 2 || call.arguments[1].type !== 'Identifier') return null;
+  const name = call.arguments[1].name;
+  let init = null;
+  const find = (n) => {
+    if (!n || typeof n.type !== 'string' || init) return;
+    if (n.type === 'VariableDeclarator' && n.id.type === 'Identifier' && n.id.name === name && n.init) {
+      init = src.slice(n.init.start, n.init.end);
+      return;
+    }
+    for (const k of Object.keys(n)) {
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach((c) => find(c));
+      else if (v && typeof v.type === 'string') find(v);
+    }
+  };
+  find(ast.program);
+  return init == null ? null : { name, init };
 }
 
 function screenBody(src) {
@@ -114,17 +159,34 @@ test('an unreadable stream is a different claim from a quiet one', () => {
 
 test('a gap with only one measured end is not drawn as a gap', () => {
   const body = screenBody(code);
-  // ⚠ `signedDelta` is null until the detector settles, and the connected branch
-  // multiplies it to place the marker and interpolates it into the label — so it
-  // drew the marker at dead centre (null coerces to 0) under the words
-  // "null BPM". A strap with no station tempo takes the awaiting branch.
-  assert.match(
-    body, /hrStage === 'off' \|\| signedDelta == null \? \(/,
-    'the connected card renders again without a measured station tempo',
+  // ⚠ `signedDelta` is null until BOTH ends are measured, and the slot that draws
+  // it used to multiply it to place a marker and interpolate it into a label — so
+  // it drew the marker at dead centre (null coerces to 0) under the words
+  // "null BPM": a gap presented as measured when neither the arithmetic nor the
+  // reading existed.
+  //
+  // ⚠ AND THIS ASSERTION USED TO PIN THE CARD'S OWN BRANCH SPELLING
+  // (`hrStage === 'off' || signedDelta == null ? (`), so the D · Signal Field
+  // layout — which deletes that card and moves the gap onto the rail — failed a
+  // test about something else entirely. It DRIVES the two derivations now: a
+  // guard that pins a spelling pins whatever that spelling is wrong about.
+  const deriv = new Function(
+    'liveHr', 'stationBpm', 'hrmConnected', 'bpmGap', 'inSync',
+    `${lineOf(body, 'const signedDelta =')}\n${lineOf(body, 'const isSynced =')}\nreturn { signedDelta, isSynced };`,
   );
-  // And the two derived values stay null rather than collapsing to 0.
-  assert.match(body, /const signedDelta = stationBpm == null \? null :/, 'the gap is computed against an unmeasured tempo');
-  assert.match(body, /const isSynced = hrmConnected && syncDelta != null/, 'sync is claimed without a measured gap');
+  for (const [liveHr, stationBpm] of [[null, 128], [142, null], [null, null], [0, 128], [142, 0]]) {
+    const out = deriv(liveHr, stationBpm, true, bpmGap, inSync);
+    assert.equal(out.signedDelta, null, `a gap was computed from ${liveHr} against ${stationBpm}`);
+    assert.equal(out.isSynced, false, `sync was claimed from ${liveHr} against ${stationBpm}`);
+  }
+  // The control: with both ends measured it IS a number, or the assertions above
+  // would pass on a page that never computes a gap at all.
+  const real = deriv(142, 128, true, bpmGap, inSync);
+  assert.equal(real.signedDelta, 14, 'a gap with both ends measured is no longer computed');
+  assert.equal(real.isSynced, false, '14 BPM apart is not in sync');
+  assert.equal(deriv(130, 128, true, bpmGap, inSync).isSynced, true, '2 BPM apart is inside the tolerance');
+  // And nothing renders it while it is null.
+  assert.match(body, /\{signedDelta != null && \(/, 'the gap is rendered without a null check');
 });
 
 test('an unstarted player is not reported as a broken stream', () => {
@@ -145,15 +207,32 @@ test('reduced motion throttles the DRAWING and never the reading', () => {
   // §7: the spectrum redraws at ~4 fps and the field does not breathe.
   assert.match(body, /prefers-reduced-motion: reduce/, 'the field ignores the reduced-motion preference');
   assert.match(body, /t - lastDrawRef\.current < 1 \/ REDUCED_FPS/, 'the reduced-motion throttle is gone');
-  assert.match(body, /fieldK\(0, \(reduced \|\| !read\) \? 0 : read\.kick\)/, 'the field still breathes under reduced motion');
+  // ⚠ STRUCTURAL, NOT A SPELLING. This read `fieldK(0, (reduced || !read) ? 0 :
+  // read.kick)` — one literal that happened to carry both the reduced-motion rule
+  // AND the listening-state constant, so giving the field its crossfade argument
+  // broke a test about reduced motion. What matters is that the value handed to
+  // `fieldK` as the kick is one whose own derivation is gated on `reduced`; the
+  // parse below asks exactly that and nothing about how either is written.
+  const kickArg = fieldKKickArg(raw);
+  assert.ok(kickArg, 'fieldK is no longer called with a named kick — this guard cannot see the rule');
+  assert.match(kickArg.init, /reduced/, `the kick handed to the field (${kickArg.name}) is not gated on reduced motion`);
+  assert.match(kickArg.init, /read/, `the kick handed to the field (${kickArg.name}) is not derived from the reading`);
   // ⚠ AND THE THROTTLE MUST SIT BELOW THE READING. Starving the analyser read
   // and the detector to 4fps would leave the ring with a quarter of its samples
   // and the tempo would take four times as long to settle, or refuse entirely.
   // A member asking for less motion is not asking for a worse reading.
+  //
+  // ⚠ ANCHORED ON THE BINDING, NOT ON ITS INITIALIZER — this read
+  // `body.indexOf('const read = det.read(t)')` and so failed the day the reading
+  // learned to answer null for a paused station (Codex P2 on #2072): a correct
+  // fix broke a test about reduced motion. What this cares about is where the
+  // reading HAPPENS relative to the throttle, and a rename of the right-hand
+  // side does not move that. Fourth time this file has paid for a spelling pin.
   const iDet = body.indexOf('det.push(t, e)');
-  const iRead = body.indexOf('const read = det.read(t)');
+  const iRead = body.search(/const read = /);
   const iThrottle = body.indexOf('lastDrawRef.current < 1 / REDUCED_FPS');
   assert.ok(iDet > 0 && iRead > iDet, 'could not locate the reading in the frame body');
+  assert.match(body.slice(iRead, iRead + 120), /det\.read\(t\)/, 'the reading no longer comes from the detector');
   assert.ok(iThrottle > iRead, 'the reduced-motion throttle sits ABOVE the reading — it would starve the detector');
 });
 
