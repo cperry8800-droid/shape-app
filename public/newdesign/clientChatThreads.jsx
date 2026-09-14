@@ -1,6 +1,10 @@
 // Shared chat data for logged-in client pages.
 // Tabs: Team (your coaches), Clients (training partners), Trainers (other trainers),
-//       Nutritionists (other nutritionists), Community (channels).
+//       Nutritionists (other nutritionists), Channels, Help.
+//
+// The FEED tab is not here — `chatWidget.jsx` owns it, because two different
+// files supply this widget's tabs and adding it to one would give half the site
+// a Feed tab and the other half none.
 const clientChatTabs = [
   {
     id: "circle",
@@ -106,7 +110,12 @@ const clientChatTabs = [
   },
   {
     id: "community",
-    label: "Community",
+    // ⚠ LABEL "Channels", ID "community" — the id is the tab's address
+    // (`__openChat(who, "community")`, the persistence key, globalChatButton's
+    // own fallback set), so renaming it would break every caller for a cosmetic
+    // gain. The app calls this segment Channels; the LABEL is what a member
+    // reads, and "Community" now belongs to the Feed tab's own chip.
+    label: "Channels",
     eyebrow: "SHAPE COMMUNITY",
     title: "Channels",
     canCreate: true,

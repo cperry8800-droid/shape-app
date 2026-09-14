@@ -103,9 +103,13 @@ test('every frame the tour names is a capture that exists', () => {
   // in the deploy, and the likeliest cause is a tab that was renamed in the table.
   const onDisk = readdirSync(path.join(ND, 'coaches')).filter((f) => f.endsWith('.jpg'));
   assert.deepEqual(onDisk.filter((f) => !seen.has(f)), [], 'a capture in public/newdesign/coaches is rendered by nothing');
-  // Two roles × eleven sidebar tabs. A literal floor beside the derived list, so a
+  // Two roles × TEN sidebar tabs. A literal floor beside the derived list, so a
   // parse that quietly returned fewer tabs cannot pass on fewer files.
-  assert.equal(seen.size, 22, 'expected twenty-two captures, the tour names ' + seen.size);
+  // ⚠ WAS 22 (eleven tabs). Community left the sidebar when the feed moved into
+  // the chat bubble's Feed tab, and because this list is DERIVED from
+  // `coachNav.jsx`, dropping the nav entry is what moved this number — the two
+  // captures it named were deleted with it.
+  assert.equal(seen.size, 20, 'expected twenty captures, the tour names ' + seen.size);
 });
 
 // ⚠ THE FRAME'S RATIO AND THE FILES' OWN SIZE ARE TWO NUMBERS THAT HAVE TO AGREE,
@@ -145,7 +149,7 @@ test('the frame crops the captures by the amount it means to', () => {
   const declared = Number(ratio[1]) / Number(ratio[2]);
 
   const files = readdirSync(path.join(ND, 'coaches')).filter((f) => f.endsWith('.jpg'));
-  assert.ok(files.length >= 22, 'read only ' + files.length + ' captures — the sweep stopped matching');
+  assert.ok(files.length >= 20, 'read only ' + files.length + ' captures — the sweep stopped matching');
 
   const sizes = new Set();
   for (const f of files) {

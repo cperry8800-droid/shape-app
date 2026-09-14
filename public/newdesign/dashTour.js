@@ -35,8 +35,7 @@
       { navigate: go('nutrition'), anchor: q('hero-grocery'), fallback: q('webtab-nutrition'), eyebrow: 'Grocery', title: 'Grocery lists.', body: 'Your week’s meals become a shopping list, sorted by aisle — send it to Instacart.' },
       { navigate: go('library'), anchor: q('webtab-library'), fallback: q('webtab-library'), eyebrow: 'Library', title: 'Everything you save.', body: 'Workouts, plans, recipes and grocery lists you keep — in one place.' },
       { navigate: go('team'), anchor: q('webtab-team'), fallback: q('webtab-team'), eyebrow: 'Team', title: 'Your coaches.', body: 'Your trainer and nutritionist — message or book them in a tap.' },
-      { navigate: go('community'), anchor: q('hero-community'), fallback: q('webtab-community'), eyebrow: 'Community', title: 'The feed.', body: 'See what the community is doing and cheer them on.' },
-      { anchor: chatBtn, eyebrow: 'Chat', title: 'Messages.', body: 'Coaches, friends and channels — plus Nora, Shape’s concierge, any time.' },
+      { anchor: chatBtn, eyebrow: 'Chat', title: 'Messages & the Wall.', body: 'The feed, your coaches, friends and channels — plus Nora, Shape’s concierge, any time.' },
       { navigate: go('habits'), anchor: q('hero-habits'), fallback: q('webtab-habits'), eyebrow: 'Habits', title: 'Daily habits.', body: 'Small things that add up — each one feeds your Shape Score.' },
       { navigate: go('score'), anchor: q('hero-score'), fallback: q('webtab-score'), eyebrow: 'Score', title: 'Your Shape Score.', body: 'The one number that tells the truth, read every week.' },
       { navigate: go('goal'), anchor: q('webtab-goal'), fallback: q('webtab-goal'), eyebrow: 'Goal', title: 'What you’re shaping toward.', body: 'Targets, milestones and your ETA — the contract you set with yourself.' },
@@ -54,8 +53,7 @@
       { navigate: go('clients'), anchor: q('hero-clients'), fallback: q('webtab-clients'), eyebrow: 'Clients', title: 'Your roster.', body: 'Every client, sorted by who’s on track and who’s slipping.' },
       { navigate: go(plans), anchor: q('hero-' + plans), fallback: q('webtab-' + plans), eyebrow: plansLabel, title: 'Build & sell.', body: 'Create ' + plansLabel.toLowerCase() + ', assign them, and sell them in the marketplace.' },
       { navigate: go('business'), anchor: q('hero-business'), fallback: q('webtab-business'), eyebrow: 'Business', title: 'Your practice.', body: 'Revenue, payouts and clients at a glance.' },
-      { navigate: go('community'), anchor: q('hero-community'), fallback: q('webtab-community'), eyebrow: 'Community', title: 'The feed.', body: 'Stay close to clients and the wider community.' },
-      { anchor: chatBtn, eyebrow: 'Chat', title: 'Messages.', body: 'Clients, co-coaches and channels — plus Nora for anything Shape.' },
+      { anchor: chatBtn, eyebrow: 'Chat', title: 'Messages & the Wall.', body: 'The feed, your clients, co-coaches and channels — plus Nora for anything Shape.' },
       { navigate: go('profile'), anchor: q('hero-profile'), fallback: q('webtab-profile'), eyebrow: 'You', title: 'Your standing.', body: 'Your coach profile, payouts and Shape Score.' },
     ];
   }

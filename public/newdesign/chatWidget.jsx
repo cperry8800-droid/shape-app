@@ -189,16 +189,40 @@ function CwProposalCard({ a }) {
 
 function ChatWidget(props) {
   // normalize to tabs[]
+  // ── THE FEED TAB ─────────────────────────────────────────────────
+  // The app's Chat page is four segments — Feed / Team / Channels / Support —
+  // and this widget already carried three of them. The Wall is a CHIP INSIDE
+  // Feed there, not a surface beside it (#2036: "don't need 2 wall tabs"), so
+  // it arrives here rather than as a fifth tab.
+  //
+  // ⚠ IT IS OWNED BY THE WIDGET, NOT BY THE TAB SOURCE. Two different files
+  // supply `tabs` (`clientChatThreads.jsx` and `globalChatButton.js`'s own
+  // fallback set), so adding it to one would give half the site a Feed tab and
+  // the other half none, silently.
+  //
+  // ⚠ AND IT IS GATED ON THE MODULE BEING PRESENT. `communityFeed.jsx` is a
+  // separate script tag; a page that loads the widget without it would render a
+  // tab whose body throws, and there is NO ERROR BOUNDARY in `public/newdesign`
+  // — one ReferenceError blanks the page. Absent module → no tab, which is a
+  // missing feature rather than a broken site. `tests/chat-feed-tab.test.mjs`
+  // is what keeps that from being the normal case.
+  const feedReady = typeof window !== "undefined" && typeof window.CommunityFeed === "function";
   const tabs = React.useMemo(() => {
-    if (props.tabs && props.tabs.length) return props.tabs;
-    return [{
+    const FEED_TAB = {
+      id: "feed", label: "Feed", eyebrow: "THE WALL", title: "Community",
+      feed: true, threads: [],
+    };
+    const base = (props.tabs && props.tabs.length) ? props.tabs : null;
+    if (base) return feedReady ? [FEED_TAB].concat(base) : base;
+    const fallback = [{
       id: "default",
       label: props.title || "Messages",
       eyebrow: props.eyebrow || "DIRECT CHAT",
       title: props.title || "Messages",
       threads: props.threads || [],
     }];
-  }, [props.tabs, props.threads, props.title, props.eyebrow]);
+    return feedReady ? [FEED_TAB].concat(fallback) : fallback;
+  }, [props.tabs, props.threads, props.title, props.eyebrow, feedReady]);
 
   // When `docked`, the widget runs inside its own popped-out OS window:
   // always open, fills the window, no bubble / drag / resize.
@@ -325,11 +349,26 @@ function ChatWidget(props) {
           const raw = localStorage.getItem(key);
           if (raw) {
             const saved = JSON.parse(raw);
-            if (saved && Array.isArray(saved.threadsByTab) && saved.threadsByTab.length === tabs.length) {
-              setThreadsByTab(saved.threadsByTab);
-              if (Array.isArray(saved.activeByTab) && saved.activeByTab.length === tabs.length) {
-                setActiveByTab(saved.activeByTab);
-              }
+            // ⚠ MIGRATE THE PRE-FEED SHAPE RATHER THAN DISCARDING IT. These arrays
+            // are POSITIONAL, one entry per tab, and the hydrate accepted a saved
+            // record only on an exact length match. Prepending the Feed tab takes
+            // `tabs.length` from N to N+1, so EVERY existing member's record failed
+            // that check, was silently dropped, and was then overwritten with
+            // defaults on their next keystroke — losing sent messages and every
+            // channel they had created (review: Codex P1).
+            // The Feed tab is prepended, so an old record aligns with tabs[1..N]
+            // once an empty slot is pushed onto the front.
+            const fit = (arr, empty) => {
+              if (!Array.isArray(arr)) return null;
+              if (arr.length === tabs.length) return arr;
+              if (feedReady && tabs[0] && tabs[0].feed && arr.length === tabs.length - 1) return [empty].concat(arr);
+              return null;
+            };
+            const threads = saved && fit(saved.threadsByTab, []);
+            if (threads) {
+              setThreadsByTab(threads);
+              const active = fit(saved.activeByTab, 0);
+              if (active) setActiveByTab(active);
             }
           }
         } catch {}
@@ -337,7 +376,7 @@ function ChatWidget(props) {
       hydratedRef.current = true;
     })();
     return () => { cancelled = true; };
-  }, [tabs.length]);
+  }, [tabs.length, feedReady]);
 
   React.useEffect(() => {
     if (!hydratedRef.current || !storeKeyRef.current) return;
@@ -374,7 +413,7 @@ function ChatWidget(props) {
   const totalUnread = threadsByTab.reduce(
     (s, ts) => s + ts.reduce((a, t) => a + (t.unread || 0), 0), 0
   );
-  const tabUnread = (i) => threadsByTab[i].reduce((a, t) => a + (t.unread || 0), 0);
+  const tabUnread = (i) => (threadsByTab[i] || []).reduce((a, t) => a + (t.unread || 0), 0);
 
   // Drag state ------------------------------------------------------------
   const POS_KEY = "shape.chatWidget.pos";
@@ -492,7 +531,7 @@ function ChatWidget(props) {
       const searchTabs = tabId ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
       for (const ti of searchTabs) {
         if (ti < 0) continue;
-        const idx = threadsByTab[ti].findIndex(t => t.who.toLowerCase().includes(who.toLowerCase()));
+        const idx = (threadsByTab[ti] || []).findIndex(t => t.who.toLowerCase().includes(who.toLowerCase()));
         if (idx >= 0) {
           setTabIdx(ti);
           setActiveByTab(prev => prev.map((v, i) => i === ti ? idx : v));
@@ -1060,8 +1099,19 @@ function ChatWidget(props) {
             </div>
           )}
 
+          {/* Feed tab body — the Wall + the community feed. */}
+          {currentTab.feed && (
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              {React.createElement(window.CommunityFeed)}
+            </div>
+          )}
+
           {/* Body: threads + chat */}
-          <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", flex: 1, minHeight: 0 }}>
+          {/* ⚠ HIDDEN, NOT UNMOUNTED, while the Feed tab is up. This subtree owns
+              the message poll, the draft text and the scroll position of every
+              open thread; tearing it down on a tab switch would drop an unsent
+              draft and restart polling from scratch each time. */}
+          <div style={{ display: currentTab.feed ? "none" : "grid", gridTemplateColumns: "260px 1fr", flex: currentTab.feed ? "0 0 auto" : 1, minHeight: 0 }}>
           {/* Sidebar */}
           <div style={{ borderRight: "1px solid rgba(242,237,228,0.08)", display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid rgba(242,237,228,0.06)" }}>

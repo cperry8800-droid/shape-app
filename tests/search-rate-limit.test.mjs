@@ -21,7 +21,7 @@ const BACKEND = fs.readFileSync('mobile-app/src/services/shapeBackend.js', 'utf8
 const CLIENT = fs.readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'utf8');
 const SITE = fs.readFileSync('public/newdesign/siteSearch.js', 'utf8');
 const SHELL = fs.readFileSync('public/newdesign/pageShell.jsx', 'utf8');
-const COMMUNITY = fs.readFileSync('public/newdesign/dashboardCommunity.jsx', 'utf8');
+const COMMUNITY = fs.readFileSync('public/newdesign/communityFeed.jsx', 'utf8');
 const PROS = fs.readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', 'utf8');
 
 // -- the migration -----------------------------------------------------------
@@ -126,7 +126,7 @@ test('the app falls back to the legacy RPC only when the function is missing', (
 // one. The APP does not, and must not: it reaches the data layer, so the code is
 // written once there and every app caller asks `ShapeSearch.isRateLimited`.
 test('every caller recognises a refusal by its SQLSTATE, never by its message', () => {
-  const byCode = { 'siteSearch.js': SITE, 'pageShell.jsx': SHELL, 'dashboardCommunity.jsx': COMMUNITY };
+  const byCode = { 'siteSearch.js': SITE, 'pageShell.jsx': SHELL, 'communityFeed.jsx': COMMUNITY };
   for (const [name, src] of Object.entries(byCode)) {
     const body = stripComments(src);
     assert.match(body, /PT429/, `${name} cannot tell a refusal from an empty result`);
@@ -312,7 +312,7 @@ test('the missing-function fallback fires on missing functions and nothing else'
 // ⚠ SCOPE IS CROSS-BUNDLE HERE, WHICH IS WHY THE GUARD RESOLVES IT THAT WAY.
 // babel-standalone evaluates these scripts through global eval, so a TOP-LEVEL
 // `const` in one bundle is visible to every other bundle on the same page —
-// `dashboardCommunity.jsx` legitimately renders `fontFamily: serif` declared in
+// `communityFeed.jsx` legitimately renders `fontFamily: serif` declared in
 // `pageShell.jsx`. A declaration INSIDE a closure does not escape, which is
 // exactly why siteSearch.js's own `var SANS` never rescued pageShell. So the
 // guard unions the top-level declarations of every bundle a page co-loads, and
@@ -334,7 +334,7 @@ test('every font token a search surface renders resolves in its own page scope',
   );
 
   let checked = 0;
-  for (const surface of ['pageShell.jsx', 'dashboardCommunity.jsx', 'siteSearch.js']) {
+  for (const surface of ['pageShell.jsx', 'communityFeed.jsx', 'siteSearch.js']) {
     const src = stripComments(readBundle(surface));
     const used = new Set([...src.matchAll(/fontFamily:\s*([A-Za-z_$][\w$]*)\b/g)].map((m) => m[1]));
     if (!used.size) continue;

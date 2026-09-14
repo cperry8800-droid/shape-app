@@ -84,6 +84,7 @@
      then the router below swaps the active page client-side on #hash change — no
      full reload, no Babel recompile per tab. Shared chrome -->
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
+<script type="text/babel" src="communityFeed.jsx"></script>
 <script type="text/babel" src="chatWidget.jsx?v=20260715"></script>
 <script type="text/babel" src="clientChatThreads.jsx?v=20260609"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
@@ -106,7 +107,6 @@
 <script type="module">import * as CY from "/newdesign/cyclePhase.mjs?v=20260719"; window.ShapeCycleLib = CY;</script>
 <!-- Meal-prep records (canonical ES module, Cook Mode PR C): assigns window.ShapeMealPrepLib for the Nutrition tab's PREPPED display. -->
 <script type="module">import * as MP from "/newdesign/mealPrep.mjs?v=20260722"; window.ShapeMealPrepLib = MP;</script>
-<script type="text/babel" src="dashboardCommunity.jsx?v=20260713c"></script>
 <script type="text/babel" src="habits.jsx"></script>
 <script type="text/babel" src="clientHabits.jsx?v=20260713"></script>
 <script type="text/babel" src="clientLibrary.jsx?v=20260621c"></script>
@@ -135,7 +135,6 @@ const CA_ROUTES = {
   nutrition: () => <React.Fragment><ClientNutritionPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   library:   () => <React.Fragment><ClientLibraryPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   team:      () => <ClientTeamPage />,
-  community: () => <CommunityPage navItems={clientNavItems("community")} payoutCard={clientPayoutCard} chatTabs={clientChatTabs} />,
   score:     () => <React.Fragment><ClientScorePage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   habits:    () => <React.Fragment><ClientHabitsPage /><ChatWidget tabs={clientChatTabs} /></React.Fragment>,
   goal:      () => <ClientGoalsPage />,
