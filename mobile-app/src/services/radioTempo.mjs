@@ -31,8 +31,10 @@
 // settles at 0.9 × the ring and re-settles after a 128→140 change in the same
 // span, because the estimate is only trusted once the ring is nearly full (a
 // half-filled ring has no second half to disagree with, so it would settle on
-// less evidence than the gate promises). 6s buys a 5.40s first reading and a
-// 5.42s re-settle at ±0.25 BPM under ±15ms of jitter — ~13 beats in the ring and
+// less evidence than the gate promises). 6s buys a 5.40s first SEARCH and a
+// 5.42s re-search at ±0.25 BPM under ±15ms of jitter — ⚠ the first reading the
+// PAGE sees is 2s later than each of those, because CONFIRM_S below makes a
+// candidate persist before it is published: 7.40s and 7.42s, measured — ~13 beats in the ring and
 // ~6 in each half, which is enough for the resultant below to be sharp. Longer
 // is more accurate and leaves the member looking at "—" for longer; shorter
 // starts guessing.
@@ -90,6 +92,26 @@ export const SPLIT_TOL = 1;
 // How long a settled tempo survives with nothing settling behind it. A breakdown
 // or a quiet bar should not blank the reading; a track change should.
 export const HOLD_S = 4;
+
+// How long a candidate must keep coming back before it is published.
+//
+// ⚠ WHY THIS EXISTS, MEASURED: split-half agreement compares two argmaxes chosen
+// INDEPENDENTLY over 241 candidates, so two nearby peaks are common by
+// coincidence in dense aperiodic audio. Driving the suite's own speech generator
+// over 500 seeds, 237 of them published a confident BPM — a talk segment putting
+// a fabricated tempo on the page, which is the one thing this module exists to
+// prevent. (Found by Codex on this file's first review; reproduced before it was
+// acted on.)
+//
+// The fix is persistence rather than a higher score floor, because a floor has to
+// be tuned against real music nobody here can measure — the synthetic kick train
+// scores 0.998 where speech tops out at 0.804, but a real track with a soft kick
+// under vocals sits somewhere unknown between them, and a floor set from
+// synthetic data fails toward "—" forever on music. Persistence assumes only that
+// a true tempo is STABLE and a coincidence is not, which holds however clean the
+// signal is: measured over windows 1.5s apart, speech agrees within 1 BPM 15.9%
+// of the time and a real kick train 100.0%.
+export const CONFIRM_S = 2;
 
 // The kick envelope's decay, shared by the field's breath, the beat counter and
 // the station row. Matches the board.
@@ -316,11 +338,14 @@ export function createTempoDetector(opts) {
   const searchS = o.searchS == null ? SEARCH_S : o.searchS;
   const holdS = o.holdS == null ? HOLD_S : o.holdS;
   const minFill = o.minFill == null ? MIN_FILL : o.minFill;
+  const confirmS = o.confirmS == null ? CONFIRM_S : o.confirmS;
+  const tol = o.splitTol == null ? SPLIT_TOL : o.splitTol;
 
   let samples = [];
   let settled = null; // { bpm, phase, score }
   let settledAt = null;
   let lastSearch = null;
+  let pend = null; // { bpm, since } — a candidate that has not yet persisted
 
   function push(t, e) {
     if (!Number.isFinite(t) || !Number.isFinite(e)) return;
@@ -341,8 +366,36 @@ export function createTempoDetector(opts) {
       lastSearch = t;
       const s = tempoSettle(samples, o);
       if (s) {
-        settled = { bpm: s.bpm, phase: s.phase, score: s.score };
-        settledAt = t;
+        // The candidate has to keep coming back. A search that disagrees with the
+        // one before it restarts the clock rather than narrowing it, so a run of
+        // coincidences has to be coincidental in the SAME place to get through.
+        //
+        // ⚠ THE RESTART-ON-DISAGREEMENT HALF IS MEASURED AT 1 SEED IN 500, AND IT
+        // IS LABELLED RATHER THAN LEFT TO READ AS LOAD-BEARING. Dropping it (latch
+        // the first candidate, never restart) fabricates on 1 of 500 speech seeds
+        // where dropping the `pend = null` below fabricates on 16 — the two are
+        // layered and the other one carries nearly all the weight. It is close to
+        // unreachable by construction rather than by luck: reaching it needs two
+        // consecutive SUCCESSFUL settles more than `tol` apart with no null
+        // between them, and any change abrupt enough to jump a BPM also breaks
+        // split-half for a whole ring, which trips the null rule first. A smooth
+        // accelerando cannot do it either — drift slow enough to pass split-half
+        // within one window is, by the same arithmetic, slower than `tol` between
+        // windows. So there is no corpus that isolates this line short of tens of
+        // thousands of seeds, and it is kept because it states the actual rule:
+        // the clock times ONE candidate, not "time since something settled".
+        if (!pend || Math.abs(s.bpm - pend.bpm) > tol) pend = { bpm: s.bpm, since: t };
+        // Always publish the newest phase and score: the confirm window is about
+        // WHETHER to speak, never about speaking a stale grid. A phase held from
+        // two seconds ago would draw every beat late.
+        if (t - pend.since >= confirmS) {
+          settled = { bpm: s.bpm, phase: s.phase, score: s.score };
+          settledAt = t;
+        }
+      } else {
+        // No candidate at all this window: the run is broken, so the next one
+        // starts a fresh clock rather than resuming a half-finished confirmation.
+        pend = null;
       }
     }
     // The hold: a settled tempo survives a dropout, then goes. Nothing is
@@ -368,6 +421,7 @@ export function createTempoDetector(opts) {
     settled = null;
     settledAt = null;
     lastSearch = null;
+    pend = null;
   }
 
   return { push, read, reset, samples: () => samples.slice() };

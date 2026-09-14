@@ -146,10 +146,19 @@ per-beat residuals) moved into the browser, fed by the same analyser frames the 
   `phase + k · 60/bpm`. The kick envelope for the field, the counter and the station row is
   `exp(−(t − lastBeat) / 0.13)`.
 - **Holds** a settled tempo through a dropout of up to 4 s (a breakdown, a quiet bar), then decays to
-  `null`. A re-settle after a change must replace it within ~6 s.
+  `null`. A re-settle after a change must replace it within ~8 s.
+  ⚠ **CORRECTED 2026-09-14 WHILE BUILDING PR 1 — THIS SAID ~6 s, AND THE 6 s WAS BOUGHT WITH A
+  FABRICATION.** The detector met 6 s (5.40 s first reading) and published a confident BPM for
+  **237 of 500** speech seeds, because split-half agreement compares two argmaxes chosen
+  independently over 241 candidates and two nearby peaks are common by coincidence in dense
+  aperiodic audio — one lucky window, then the hold. Found by Codex on the PR and reproduced
+  before it was acted on. `CONFIRM_S = 2` makes a candidate persist before it is spoken, which
+  takes the speech fabrications to **0 of 500** and costs 2 s. *A latency target is not worth a
+  number nobody measured*, which is the rule this whole page is built on.
 - **Deterministic**: no `Math.random`, no wall clock inside the module — the caller passes `t`.
 
-Tests it must pass (§10): a synthetic 128-BPM click train settles within 6 s at ±0.5 BPM; silence
+Tests it must pass (§10): a synthetic 128-BPM click train settles within 8 s at ±0.5 BPM (see the
+correction above); silence
 and all-zero bins read `null`; ±15 ms jitter on the clicks still settles; a jump 128 → 140 re-settles;
 a mutation that lowers the confidence floor to 0 must make the silence case read a tempo (killed).
 
