@@ -726,7 +726,18 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // Nothing on either surface started hardcoding: had it, the deltas would not
   // have cancelled, which is the only reason this pair of equalities is worth
   // having at all.
-  assert.equal(partStrings, 193, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ MOVED 2026-09-14 BY THE RADIO SIGNAL FIELD, PR 2, AND IT MOVED **DOWN**:
+  // partStrings 193 -> 187. Nothing started resolving — six hardcoded English
+  // strings were DELETED with the dead code that carried them. The Radio page
+  // held three `{false && …}` blocks and an `r.PLAYLISTS` map the context never
+  // provides, and inside them sat `title="Channels"`, `'Live · always on'`,
+  // `'Coach · sent to you'`, a `${p.bpm} BPM · ${p.len} · ${p.tracks} tracks`
+  // template and a bare `NEW` pill — unkeyed copy that no locale could ever have
+  // rendered, because no render reached it. The brief asked for the ratchet to
+  // move by NOTHING on this surface, meaning no new hardcoding; deleting dead
+  // English is the other direction and is the whole reason the number is a
+  // ratchet rather than a pin.
+  assert.equal(partStrings, 187, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

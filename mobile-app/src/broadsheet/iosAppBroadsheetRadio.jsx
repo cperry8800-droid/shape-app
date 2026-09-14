@@ -2,6 +2,11 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { NoraStage } from '../../../public/newdesign/noraStage.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
+import {
+  BANDS, BAND_BINS, hasSignal, bandsFromBins, smoothBand, peakBand, barHeight, capVisible,
+  fieldBin, fieldK, fieldAlpha, fieldRadius,
+} from '../services/radioSignalField.mjs';
+import { createTempoDetector, tempoEnergyFromBins } from '../services/radioTempo.mjs';
 // iosAppBroadsheetRadio.jsx — Shape Radio in the Broadsheet visual language.
 // Provides:
 //   • BSRadioPrompt    — full-screen overlay asking "Listen to Shape Radio while in the app?"
@@ -60,6 +65,16 @@ import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 //   - "Halftone aurora" — subtle dot field that drifts behind the now-playing card.
 //   - Pulsing accent radial that breathes with BPM.
 //   - Optional "stage lights" — diagonal cream/dark sweep at edges.
+
+// Doto — the readings face, bundled locally in PR 1 (`fonts.css`).
+//
+// ⚠ EVERY CONSUMER MUST SET `'ROND' 100` EXPLICITLY. The axis defaults to 0,
+// which is the square-dot form the Radio review measured as unreadable at
+// display size — and an ignored or unset `font-variation-settings` is not an
+// error in any browser, linter or build, so getting this wrong is silent. The
+// fallback stack is the app's mono, because a missing Doto must still render a
+// figure rather than fall to a proportional face that shifts on every tick.
+const BS_DOTO = "'Doto', ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const { useState: useStateBR, useEffect: useEffectBR, useMemo: useMemoBR, useRef: useRefBR, useCallback: useCallbackBR, createContext: createContextBR, useContext: useContextBR } = React;
 const { BSPage, BSMasthead, BSPageHeader, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow, BSAvatar, BSFooter, BSLogo, useBS } = window;
@@ -1275,6 +1290,277 @@ function bsRadioCorner(ink, bg) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// THE SIGNAL FIELD — the page's own ground.
+//
+// One canvas behind the page's chrome, one requestAnimationFrame loop that
+// reads `getByteFrequencyData` ONCE per frame, feeds the tempo detector, draws
+// the field, then the spectrum. It portals nothing: this is the page's ground,
+// not a sheet.
+//
+// ⚠ EVERYTHING IT DRAWS IS A READING OR IT IS NOT DRAWN. `hasSignal` decides
+// whether there is a frame at all — an all-zero frame is a stream we cannot read
+// (no `Access-Control-Allow-Origin`), NOT a quiet passage — so the bars are not
+// drawn over it and the page says so in words instead. The field stays lit
+// either way, because the field is ground rather than a figure; it breathes on
+// a MEASURED tempo or it is simply still.
+// ---------------------------------------------------------------------------
+// How long the page will read a silent analyser before it is willing to say the
+// channel is sending nothing. Longer than any plausible start-up (the station
+// request plus `audio.play()`), short enough that a genuinely dead stream is
+// named rather than left silently blank.
+const SIGNAL_GRACE_S = 6;
+
+// Reduced motion, per the brief's §7: the spectrum redraws at ~4 fps and the
+// field does not breathe.
+//
+// ⚠ THE MEASUREMENT KEEPS RUNNING AT FULL RATE — ONLY THE DRAWING IS THROTTLED.
+// The analyser read and the detector are READINGS, not animation: starving them
+// to 4 fps would leave the ring with a quarter of its samples and the tempo
+// would take four times as long to settle, or refuse entirely. A member who
+// asks for less motion is asking for less motion, not for a worse reading.
+const REDUCED_FPS = 4;
+
+function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
+  const wrapRef = useRefBR(null);
+  const cvsRef = useRefBR(null);
+  // The detector and every per-frame buffer live in refs: this loop runs at
+  // 60Hz and must never re-render React.
+  const detRef = useRefBR(null);
+  const binsRef = useRefBR(null);   // the raw analyser frame
+  const smRef = useRefBR(null);     // smoothed band values
+  const pkRef = useRefBR(null);     // peak caps
+  const liveRef = useRefBR({ paused, teal, ink, onRead, onSignal });
+  liveRef.current = { paused, teal, ink, onRead, onSignal };
+  // The last tempo handed UP to React, so the loop can tell a change from a
+  // repeat. See the guard in the frame body.
+  const saidRef = useRefBR(undefined);
+  // Likewise for "is the analyser carrying anything at all" — one boolean, and
+  // the page only needs to hear about it when it flips.
+  const sigRef = useRefBR(undefined);
+  // Has a frame EVER carried anything on this mount? Once one has, a later
+  // all-zero frame really is the stream going quiet rather than a slow start.
+  const startedRef = useRefBR(false);
+  // `prefers-reduced-motion`, live: a member can change it while the page is open.
+  const reducedRef = useRefBR(false);
+  const lastDrawRef = useRefBR(-1);
+
+  useEffectBR(() => {
+    const wrap = wrapRef.current;
+    const cvs = cvsRef.current;
+    if (!wrap || !cvs) return undefined;
+    const ctx = cvs.getContext('2d');
+    if (!ctx) return undefined;
+
+    if (!detRef.current) detRef.current = createTempoDetector({});
+    const det = detRef.current;
+
+    // ⚠ devicePixelRatio IS CAPPED AT 2. A 3x phone triples the fill cost of a
+    // full-bleed dot field for a difference nobody can see at this dot size.
+    let W = 0; let H = 0;
+    const size = () => {
+      const r = wrap.getBoundingClientRect();
+      const dpr = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1);
+      W = Math.max(1, Math.round(r.width));
+      H = Math.max(1, Math.round(r.height));
+      cvs.width = Math.round(W * dpr);
+      cvs.height = Math.round(H * dpr);
+      cvs.style.width = `${W}px`;
+      cvs.style.height = `${H}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    size();
+    let ro = null;
+    try { ro = new ResizeObserver(() => size()); ro.observe(wrap); }
+    catch { /* no ResizeObserver here — the one-time size above still holds */ }
+
+    startedRef.current = false;
+    lastDrawRef.current = -1;
+    let mq = null;
+    const onMq = (e) => { reducedRef.current = !!(e && e.matches); };
+    try {
+      mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      reducedRef.current = !!mq.matches;
+      if (mq.addEventListener) mq.addEventListener('change', onMq);
+      else if (mq.addListener) mq.addListener(onMq);
+    } catch { /* no matchMedia here — full motion, which is the shipped default */ }
+    let raf = 0;
+    let stopped = false;
+    // The page's own monotonic clock. The detector takes `t` from its caller and
+    // reads no wall clock of its own, which is what makes it replayable.
+    const clock = () => ((typeof window !== 'undefined' && window.performance && window.performance.now)
+      ? window.performance.now() : 0);
+    const t0 = clock();
+
+    const frame = () => {
+      if (stopped) return;
+      raf = window.requestAnimationFrame(frame);
+      // ⚠ A HIDDEN PAGE DRAWS NOTHING AND FEEDS NOTHING. rAF is throttled when
+      // hidden, but a tab that still ticks would push sparse, irregular samples
+      // and the detector would read the GAPS as a tempo. Skipping the push keeps
+      // the ring honest; the hold then expires and the reading goes to "—",
+      // which is the truth about a page nobody is looking at.
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      const t = (clock() - t0) / 1000;
+      const cfg = liveRef.current;
+      const an = (window.ShapeRadioLive && window.ShapeRadioLive.analyser)
+        ? window.ShapeRadioLive.analyser() : null;
+
+      let bins = null;
+      if (an && an.frequencyBinCount) {
+        if (!binsRef.current || binsRef.current.length !== an.frequencyBinCount) {
+          binsRef.current = new Uint8Array(an.frequencyBinCount);
+        }
+        an.getByteFrequencyData(binsRef.current);
+        bins = binsRef.current;
+      }
+
+      const signal = hasSignal(bins);
+      const live = signal && !cfg.paused;
+      // ⚠ AN UNSTARTED PLAYER IS NOT A BROKEN STREAM, AND ONLY TIME TELLS THEM
+      // APART. `play()` is still awaiting the station request and `audio.play()`
+      // when this loop first reads the freshly created analyser, so its
+      // zero-filled buffer would report `false` before a single frame of channel
+      // audio had been sampled — the page would say "No signal data from the
+      // channel" about a player that had not started. The verdict stays UNKNOWN
+      // until either a frame has actually carried something, or we have been
+      // reading a silent analyser for longer than any start-up could plausibly
+      // take. (Codex, P2.)
+      if (signal) startedRef.current = true;
+      const verdict = signal ? true : ((startedRef.current || t >= SIGNAL_GRACE_S) ? false : null);
+      if (verdict !== sigRef.current) {
+        sigRef.current = verdict;
+        if (cfg.onSignal) cfg.onSignal(verdict);
+      }
+
+      // Feed the detector only from a readable frame. `tempoEnergyFromBins`
+      // returns null for a frame with nothing anywhere in it, and `push` refuses
+      // a non-finite sample, so a CORS-blocked stream can never enter the ring.
+      if (live) {
+        const e = tempoEnergyFromBins(bins);
+        if (e != null) det.push(t, e);
+      }
+      const read = det.read(t);
+      // ⚠ REPORT UP ONLY WHEN THE PUBLISHED READING CHANGES. `onRead` is a React
+      // setState and this loop runs at 60Hz — calling it every frame re-renders
+      // the whole page sixty times a second, which is exactly what the refs
+      // above exist to avoid. The page draws a ROUNDED integer, so that is the
+      // granularity at which a change is visible and the only granularity worth
+      // a render; the kick and the beat phase stay in here, where they are drawn
+      // rather than stored.
+      const said = read ? Math.round(read.bpm) : null;
+      if (said !== saidRef.current) {
+        saidRef.current = said;
+        if (cfg.onRead) cfg.onRead(read);
+      }
+
+      // The reading is done; everything below is drawing. Under reduced motion
+      // that redraws at ~4 fps, and the field's breath is forced off.
+      const reduced = reducedRef.current;
+      if (reduced && lastDrawRef.current >= 0 && t - lastDrawRef.current < 1 / REDUCED_FPS) return;
+      lastDrawRef.current = t;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // ── the field ─────────────────────────────────────────────────
+      // Ground, never figure. It lights per bin and breathes on the kick; with no
+      // measured tempo `fieldK(0, 0)` keeps it lit and simply still.
+      const k = fieldK(0, (reduced || !read) ? 0 : read.kick);
+      const cx = W / 2;
+      const cy = H * 0.52;
+      const nBins = bins ? Math.min(BAND_BINS, bins.length) : BAND_BINS;
+      ctx.save();
+      ctx.fillStyle = cfg.ink;
+      for (let y = 7; y < H; y += 14) {
+        for (let x = 7; x < W; x += 14) {
+          const v = live ? Math.max(0, Math.min(1, (bins[fieldBin(Math.hypot(x - cx, y - cy), nBins)] || 0) / 255)) : 0;
+          const a = fieldAlpha(v, k);
+          if (a <= 0.002) continue;
+          ctx.globalAlpha = a;
+          ctx.beginPath();
+          ctx.arc(x, y, fieldRadius(v, k), 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      // ── the spectrum ────────────────────────────────────────────
+      // Drawn ONLY over a frame that carries data, mirrored with the bass at the
+      // centre so the pump reads as one instrument rather than a sweep.
+      if (live) {
+        const raw = bandsFromBins(bins, BANDS);
+        if (!smRef.current || smRef.current.length !== BANDS) smRef.current = new Array(BANDS).fill(0);
+        if (!pkRef.current || pkRef.current.length !== BANDS) pkRef.current = new Array(BANDS).fill(0);
+        const sm = smRef.current;
+        const pk = pkRef.current;
+        const maxH = H * 0.30;
+        const baseY = H * 0.62;
+        const bw = W / (BANDS * 2);
+        const wBar = Math.max(1, bw - 1.5);
+        ctx.save();
+        ctx.fillStyle = cfg.teal;
+        for (let i = 0; i < BANDS; i += 1) {
+          sm[i] = smoothBand(sm[i], raw[i]);
+          pk[i] = peakBand(pk[i], sm[i]);
+          const h = barHeight(sm[i], maxH);
+          const capped = capVisible(pk[i], sm[i], maxH);
+          const hCap = capped ? barHeight(pk[i], maxH) : 0;
+          for (let d = 0; d < 2; d += 1) {
+            const x = d === 0 ? cx + i * bw : cx - (i + 1) * bw;
+            ctx.globalAlpha = 0.9;
+            ctx.fillRect(x, baseY - h, wBar, h);
+            // a soft reflection under the baseline — an echo, never a reading
+            ctx.globalAlpha = 0.14;
+            ctx.fillRect(x, baseY + 1, wBar, h * 0.42);
+            if (capped) {
+              ctx.globalAlpha = 0.8;
+              ctx.fillRect(x, baseY - hCap - 2, wBar, 1.5);
+            }
+          }
+        }
+        ctx.restore();
+      }
+    };
+    raf = window.requestAnimationFrame(frame);
+
+    return () => {
+      stopped = true;
+      if (raf) window.cancelAnimationFrame(raf);
+      if (ro) { try { ro.disconnect(); } catch { /* already gone */ } }
+      if (mq) {
+        try {
+          if (mq.removeEventListener) mq.removeEventListener('change', onMq);
+          else if (mq.removeListener) mq.removeListener(onMq);
+        } catch { /* already gone */ }
+      }
+      // ⚠ A TEMPO IS ONLY MEASURABLE WHILE SOMETHING IS READING THE ANALYSER, so
+      // leaving the page clears it rather than leaving a stale number on the
+      // context for Home to draw. A reading nobody is taking is not a reading.
+      // ⚠ AND THE MEMO IS RESET WITH IT. Without this a remount that settles on
+      // the same tempo as last time would compare equal to a stale `saidRef` and
+      // never report it — the page would sit at "—" over a detector that had
+      // already settled.
+      saidRef.current = undefined;
+      sigRef.current = undefined;
+      startedRef.current = false;
+      const cfg = liveRef.current;
+      if (cfg && cfg.onRead) cfg.onRead(null);
+      // ⚠ AND THE SIGNAL GOES BACK TO UNKNOWN, NOT TO FALSE. Nothing is reading
+      // the analyser once this unmounts, so "the stream sends no data" is a claim
+      // we are no longer entitled to make — and leaving it false would paint the
+      // no-signal line over a page that is simply not being looked at.
+      if (cfg && cfg.onSignal) cfg.onSignal(null);
+    };
+  }, []);
+
+  return (
+    <div ref={wrapRef} aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+      <canvas ref={cvsRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+    </div>
+  );
+}
+
 function BSRadioScreen({ onBack }) {
   const t = useBS();
   const r = useBSRadio();
@@ -1288,9 +1574,18 @@ function BSRadioScreen({ onBack }) {
   const screenKey = r.currentSongKey;
   const screenTrack = { a: r.nowPlaying?.title, b: r.nowPlaying?.artist };
   const screenSocial = (screenKey && r.songSocial[screenKey]) || RADIO_SOCIAL_EMPTY;
-  // Station tempo — the live now-playing payload carries no per-track BPM, so this
-  // is the STATION's nominal BPM (labeled as such), used as the HR-match target.
-  const stationBpm = r.LIVE.bpm;
+  // ⚠ THE STATION'S TEMPO IS MEASURED OR IT IS "—". This was `r.LIVE.bpm` — a
+  // 132 typed into a constant and rendered in three places as though somebody had
+  // counted it. `tempoRead` is whatever the signal field's detector has settled
+  // on THIS second, and it is null far more often than it is a number: a talk
+  // segment, a breakdown, a stream with no CORS header and a paused player all
+  // read null, and the page says "—" rather than guessing.
+  const [tempoRead, setTempoRead] = useStateBR(null);
+  const stationBpm = tempoRead ? tempoRead.bpm : null;
+  // ⚠ THREE STATES, NOT TWO: null is "nobody is reading the analyser", false is
+  // "we read it and it carries nothing". Only the second is a fact about the
+  // STREAM, and only the second earns the line below.
+  const [hasSig, setHasSig] = useStateBR(null);
   const [hrmConnected, setHrmConnected] = useStateBR(false);
   const [demoHr, setDemoHr] = useStateBR(114);
   const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
@@ -1298,9 +1593,14 @@ function BSRadioScreen({ onBack }) {
   const [showSets, setShowSets] = useStateBR(false);
   const [commentsOpen, setCommentsOpen] = useStateBR(false);
   const youHr = liveHr != null ? liveHr : demoHr;
-  const signedDelta = youHr - stationBpm;
-  const syncDelta = Math.abs(signedDelta);
-  const isSynced = hrmConnected && syncDelta <= 4;
+  // ⚠ NO MEASURED TEMPO MEANS NO GAP — NOT A GAP OF ZERO, AND NOT NaN. With
+  // `stationBpm` null the old arithmetic yielded NaN, and `Math.abs(NaN) <= 4`
+  // is false, so the card would have read "Matching…" forever against a station
+  // whose tempo nobody had measured. There is nothing to match until there is a
+  // reading, so the gap is null and `isSynced` is false by construction.
+  const signedDelta = stationBpm == null ? null : youHr - stationBpm;
+  const syncDelta = signedDelta == null ? null : Math.abs(signedDelta);
+  const isSynced = hrmConnected && syncDelta != null && syncDelta <= 4;
   // HR sync stage machine: off → free (connected) → matching → synced
   const hrStage = !hrmConnected ? 'off' : (matching ? (isSynced ? 'synced' : 'matching') : 'free');
   const hrStatus = { off: tr('radio:hr.notConnected', { defaultValue: 'Not connected' }), free: liveHr != null ? tr('radio:hr.live', { defaultValue: 'Live' }) : tr('radio:hr.free', { defaultValue: 'Free' }), matching: tr('radio:hr.matching', { defaultValue: 'Matching…' }), synced: tr('radio:hr.inSync', { defaultValue: 'In sync' }) }[hrStage];
@@ -1323,7 +1623,12 @@ function BSRadioScreen({ onBack }) {
   // Beat-matching (demo only) — ease YOU toward the track BPM while matching is
   // on. A real monitor reading always wins; we never fake live data.
   useEffectBR(() => {
-    if (!matching || liveHr != null) return undefined;
+    // ⚠ AND IT CANNOT EASE TOWARD A TEMPO NOBODY HAS MEASURED. `stationBpm` is
+    // null until the detector settles; easing toward null walks the demo figure
+    // to NaN and the card then reads a heart rate that is not a number.
+    // (`demoHr` and this whole easing are deleted in PR 3 — a strap-less
+    // "Connect monitor" must not fabricate a reading at all.)
+    if (!matching || liveHr != null || stationBpm == null) return undefined;
     const id = setInterval(() => {
       setDemoHr(prev => (prev === stationBpm ? prev : prev + (prev < stationBpm ? 1 : -1)));
     }, 200);
@@ -1447,31 +1752,58 @@ function BSRadioScreen({ onBack }) {
           background: `radial-gradient(95% 42% at 50% 17%, ${TEAL}1f, ${TEAL}08 42%, transparent 62%)`,
           pointerEvents: 'none',
         }} />
+        {/* ⚠ THE PAGE'S GROUND, AND THE ONLY THING ON IT THAT MOVES. The stage
+            light and the halftone stay as painted atmosphere; the field and the
+            spectrum are the analyser, drawn per frame, and they draw nothing at
+            all over a frame that carries no data. */}
+        <BSRadioSignalField paused={r.paused} teal={TEAL} ink={CREAM} onRead={setTempoRead} onSignal={setHasSig} />
         <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
 
         {/* Top breathing room before live readout */}
         <div style={{ height: 6 }} />
 
         <div style={{ position: 'relative', zIndex: 2, padding: `0 ${t.padX}px 14px` }}>
-          {/* On air + active listeners — sits high at the top-left of the box */}
+          {/* ⚠ ON AIR, WITH NO COUNT BESIDE IT. This read "On Air · 3,472" from
+              `BS_LIVE_STATION.listeners` — a number nobody has counted, on a
+              station that is not broadcasting. Nothing shows a listener count
+              until a provider reports one (brief §12, ruling 2). The tempo
+              reading takes the right-hand end of the rail, and reads "—" until
+              the detector has settled. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM }}>
             <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-            {onLive ? tr('radio:screen.onAir', { count: r.LIVE.listeners, defaultValue: 'On Air · {count, number}' }) : tr('radio:screen.coachPlaylist', { defaultValue: 'Coach Playlist' })}
+            <span>{onLive ? tr('radio:rail.onAir', { defaultValue: 'On Air' }) : tr('radio:screen.coachPlaylist', { defaultValue: 'Coach Playlist' })}</span>
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'baseline', gap: 5, color: stationBpm == null ? CREAM50 : TEAL }}>
+              <span style={{ fontFamily: BS_DOTO, fontSize: 15, fontWeight: 900, fontVariationSettings: "'ROND' 100", letterSpacing: '0.02em' }}>
+                {stationBpm == null ? '—' : Math.round(stationBpm)}
+              </span>
+              <span style={{ fontSize: 8, letterSpacing: '0.2em' }}>BPM</span>
+            </span>
           </div>
+
+          {/* ⚠ WHY THE PAGE SAYS NOTHING, WHEN IT CAN SAY IT HONESTLY. A stream
+              that sends no `Access-Control-Allow-Origin` hands the analyser
+              all-zero bins forever — the spectrum draws nothing and the tempo
+              reads "—", and without this line that is indistinguishable from a
+              station playing silence. It renders ONLY on `false` (we read the
+              analyser and it carried nothing) and never on `null` (nothing is
+              reading it yet), and never while paused, where an empty analyser is
+              exactly what a paused player should produce.
+              ⚠ AND IT REQUIRES THAT PLAYBACK IS ACTUALLY PERMITTED. Found by
+              driving the page rather than by reading it: playback is gated on a
+              signed-in account (licensing, not product — the provider's own
+              effect pauses for anyone else), so a signed-out visitor's analyser
+              reads all-zero for a reason that has NOTHING to do with the
+              channel. Without this clause the page would blame the broadcaster
+              for our own sign-in gate, which is the same class of false claim
+              the line exists to remove. */}
+          {hasSig === false && !r.paused && bsRadioSignedIn() && (
+            <div style={{ marginBottom: 12, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, fontWeight: 600 }}>
+              {tr('radio:screen.noSignalData', { defaultValue: 'No signal data from the channel' })}
+            </div>
+          )}
 
           {/* Now playing — centered hero */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            {/* BPM ring */}
-            <div style={{ position: 'relative', width: 88, height: 88 }}>
-              <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${CREAM25}` }} />
-              <div style={{ position: 'absolute', inset: 9, borderRadius: '50%', border: `1px solid ${TEAL}44` }} />
-              <div style={{ position: 'absolute', inset: 5, borderRadius: '50%', border: `1.5px solid ${TEAL}`, animation: r.paused ? 'none' : `bs-beat-ring ${(60 / stationBpm).toFixed(3)}s ease-out infinite` }} />
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em' }}>{stationBpm}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.18em', color: TEAL, fontWeight: 700, marginTop: 2 }}>{tr('radio:screen.stationBpm', { defaultValue: 'Station BPM' })}</div>
-              </div>
-            </div>
-
             {/* Now playing label + track */}
             <div style={{ marginTop: 11, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
@@ -1485,31 +1817,14 @@ function BSRadioScreen({ onBack }) {
             </div>
           </div>
 
-          {/* Waveform */}
-          <div style={{ margin: '10px auto 0', maxWidth: 210 }}>
-            <BSEQ bars={17} color={TEAL} height={20} gap={3} paused={r.paused} />
-          </div>
-
-          {/* Scrubber */}
-          {(() => {
-            const total = (() => { const p = String(np.len || '0:00').split(':'); return (+p[0] || 0) * 60 + (+p[1] || 0); })();
-            const elapsed = Math.round(total * 0.46);
-            const remain = Math.max(0, total - elapsed);
-            const fmt = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
-            const pct = total ? Math.round((elapsed / total) * 100) : 0;
-            return (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ position: 'relative', height: 2.5, borderRadius: 999, background: CREAM25 }}>
-                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 999, background: TEAL }} />
-                  <div style={{ position: 'absolute', left: `${pct}%`, top: '50%', transform: 'translate(-50%,-50%)', width: 10, height: 10, borderRadius: '50%', background: TEAL, boxShadow: `0 0 0 3px ${t.PAPER}` }} />
-                </div>
-                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.1em', color: CREAM50, fontWeight: 600 }}>
-                  <span>{fmt(elapsed)}</span>
-                  <span>-{fmt(remain)}</span>
-                </div>
-              </div>
-            );
-          })()}
+          {/* ⚠ THE SCRUBBER AND THE CSS-SINE EQ ARE BOTH GONE, AND FOR DIFFERENT
+              REASONS. The scrubber computed `elapsed = total * 0.46` over a
+              length the now-playing payload does not carry, so it rendered
+              `0:00 / -0:00` in every state — and a scrubber on a
+              non-interactive stream promises a seek the licence forbids
+              (prohibition 4 in this module's own header). The EQ was 17 bars on
+              a sine loop while a real analyser sat idle beside it; the spectrum
+              on the field behind this block is the same picture, measured. */}
 
           {/* Transport */}
           <div style={{ marginTop: 10, display: 'flex', alignItems: 'stretch', gap: 8 }}>
@@ -1579,8 +1894,6 @@ function BSRadioScreen({ onBack }) {
             />
           )}
 
-          <style>{`@keyframes bs-beat-ring { 0% { transform: scale(0.92); opacity: 0.95; } 50% { transform: scale(1.0); opacity: 0.55; } 100% { transform: scale(1.18); opacity: 0; } }`}</style>
-
           {/* Heart-rate sync — stages: not connected → free → matching → in sync.
               Full-bleed opaque band so no glow / stage-light shows through (plain black). */}
           <div style={{ marginTop: 16, marginLeft: -t.padX, marginRight: -t.padX, marginBottom: -14, padding: `14px ${t.padX}px 18px`, background: t.PAPER, position: 'relative', zIndex: 3, borderTop: `1px solid ${RULE_DK}` }}>
@@ -1597,9 +1910,17 @@ function BSRadioScreen({ onBack }) {
             <div style={{ marginTop: 13, display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 14 }}>
               <div>
                 <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>{tr('radio:hr.station', { defaultValue: 'Station' })}</div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{stationBpm}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: stationBpm == null ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{stationBpm == null ? '—' : Math.round(stationBpm)}</div>
               </div>
-              {hrStage === 'off' ? (
+              {/* ⚠ A GAP NEEDS BOTH ENDS, AND THE STATION'S END IS NOW MEASURED.
+                  `signedDelta` is null until the detector settles, and the
+                  connected branch below multiplies it to place the marker and
+                  interpolates it into the label — so it drew the marker at dead
+                  centre (null coerces to 0) under the words "null BPM": a gap
+                  presented as measured when neither the arithmetic nor the
+                  reading existed. A strap with no station tempo is exactly the
+                  awaiting state this branch already renders. (Codex, P2.) */}
+              {hrStage === 'off' || signedDelta == null ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: `1px dashed ${CREAM25}` }} />
@@ -1705,32 +2026,19 @@ function BSRadioScreen({ onBack }) {
         <DarkSection title={tr('radio:screen.channel', { defaultValue: 'Channel' })} meta={tr('radio:screen.liveChannel', { defaultValue: 'Live channel' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         {/* Schedule state — the ON AIR tag appears only over a real stream. */}
         <div style={{ padding: `0 ${t.padX}px` }}><BSSetsLine tone="dark" /></div>
-        {false && (
-        <DarkSection title="Channels" meta={onLive ? 'Live · always on' : 'Coach · sent to you'} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
-        )}
+        {/* ⚠ THE ROW'S META CARRIED A TYPED BPM AND A LISTENER COUNT, AND BOTH ARE
+            GONE. `screen.liveStationMeta` read "Live station · 132 BPM · 3,472
+            listening now" off `BS_LIVE_STATION` — two figures nobody has measured,
+            on a station that is not broadcasting. What is left is the one thing
+            that is true of the row: it is the live channel. */}
         <DarkChannelRow
           active={onLive} onClick={() => r.setChannel('live')}
           eyebrow={tr('radio:screen.live247', { defaultValue: 'LIVE · 24/7' })} eyebrowColor={TEAL}
           title={r.LIVE.show}
-          meta={tr('radio:screen.liveStationMeta', { bpm: r.LIVE.bpm, count: r.LIVE.listeners, defaultValue: 'Live station - {bpm} BPM - {count, plural, one {# listening now} other {# listening now}}' })}
+          meta={tr('radio:screen.liveChannel', { defaultValue: 'Live channel' })}
           right={<BSEQ bars={5} color={TEAL} height={28} gap={2} paused={r.paused || !onLive} />}
           t={t} cream={CREAM} cream50={CREAM50} rule={RULE_DK} accent={TEAL}
         />
-        {false && r.PLAYLISTS && r.PLAYLISTS.map(p => (
-          <DarkChannelRow
-            key={p.id}
-            active={r.activeChannel === p.id}
-            onClick={() => r.setChannel(p.id)}
-            eyebrow={`${p.role.toUpperCase()} · ${p.sent.toUpperCase()}`}
-            eyebrowColor={CREAM50}
-            title={p.name}
-            meta={`${p.by} · ${p.bpm} BPM · ${p.len} · ${p.tracks} tracks`}
-            right={p.unplayed
-              ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: '#050707', background: TEAL, padding: '3px 6px', textTransform: 'uppercase', fontWeight: 700 }}>NEW</span>
-              : <span style={{ fontFamily: t.DISPLAY, color: CREAM50 }}>▶</span>}
-            t={t} cream={CREAM} cream50={CREAM50} rule={RULE_DK} accent={TEAL}
-          />
-        ))}
 
         {/* SHAPE SETS — its own section (header like CHANNEL) + a full-width row that
             matches the Shape Radio Station row width. Links to the about page. */}
@@ -1741,7 +2049,13 @@ function BSRadioScreen({ onBack }) {
           display: 'flex', alignItems: 'center', gap: 12, padding: `14px ${t.padX}px`,
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>{tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} Club Shape</div>
+            {/* ⚠ GATED ON A REAL SCHEDULE. This said "Live from Club Shape"
+                unconditionally, over a series whose own page reads COMING SOON.
+                `BSSetsLine` already gates its ON AIR tag on `sets.real`; this
+                row now uses the same fact rather than asserting one. */}
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: TEAL }}>
+              {r.sets && r.sets.real ? `${tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} Club Shape` : 'Club Shape'}
+            </div>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: CREAM, marginTop: 4, lineHeight: 1.1 }}>Shape <span style={{ fontStyle: 'italic', color: TEAL }}>Sets.</span></div>
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, marginTop: 4, fontWeight: 600 }}>{tr('radio:screen.setsSubtitle', { defaultValue: 'What Shape Radio is · concert series · coach playlists' })}</div>
           </div>

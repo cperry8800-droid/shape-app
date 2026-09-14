@@ -20,6 +20,7 @@ import {
   kickShape, ecg, penRadius,
   bpmGap, inSync, gapText, lockStep, ties,
   beatsFromRR, advanceHeartPhase, heartBeatsBetween,
+  RAIL_BARS, railRms, railBarsLit,
 } from '../mobile-app/src/services/radioSignalField.mjs';
 
 // ---------------------------------------------------------------------------
@@ -332,6 +333,62 @@ test('a field dot reads bass at the centre and air at the edge', () => {
   assert.ok(fieldAlpha(1, 1) > fieldAlpha(0, 1), 'a lit bin does not brighten its dot');
   assert.ok(fieldRadius(1, 1) > fieldRadius(0, 1), 'a lit bin does not grow its dot');
   assert.ok(fieldAlpha(0, 1) > 0, 'an unlit dot vanished — the field is the page\'s ground');
+});
+
+// ---------------------------------------------------------------------------
+// The rail's signal meter. The whole point of it is the distinction between "we
+// read the stream and it is quiet" and "we cannot read the stream at all".
+// ---------------------------------------------------------------------------
+
+test('an unreadable frame reads null, and a quiet one reads a real zero', () => {
+  // No CORS on the stream: every bin is 0 forever. That is the absence of data,
+  // not a silent passage, and the rail must not draw a meter over it.
+  assert.equal(railRms(new Uint8Array(256)), null, 'an all-zero frame produced a level');
+  assert.equal(railRms([]), null, 'an empty frame produced a level');
+  assert.equal(railRms(null), null, 'a missing frame produced a level');
+  // A frame that carries something reads a real number.
+  const live = new Uint8Array(256);
+  for (let i = 0; i < 64; i += 1) live[i] = 200;
+  const r = railRms(live);
+  assert.ok(r > 0, 'a live frame read no level');
+  assert.ok(Math.abs(r - 200 / 255) < 1e-9, `a flat frame should read its own value, got ${r}`);
+});
+
+test('the meter reads the window the spectrum draws, not the whole frame', () => {
+  // ⚠ THIS IS THE ASSERTION THE HELPER EXISTS FOR. `fftSize` 512 gives 256 bins,
+  // and a real frame is mostly empty high bins. Averaging over all of them
+  // divides the reading by the fraction that carries anything — the meter would
+  // sit near the floor through music the spectrum is plainly showing.
+  const bins = new Uint8Array(256);
+  for (let i = 0; i < 64; i += 1) bins[i] = 255;   // the drawn window, full
+  // everything above BAND_BINS stays 0
+  const r = railRms(bins);
+  assert.ok(r > 0.99, `the meter averaged over the empty high bins: ${r}`);
+  // The control: a whole-frame average would read about half of this.
+  let whole = 0;
+  for (let i = 0; i < bins.length; i += 1) whole += (bins[i] / 255) ** 2;
+  whole = Math.sqrt(whole / bins.length);
+  assert.ok(whole < 0.55, 'the control is not measuring what it claims');
+  assert.ok(r > whole * 1.5, 'the windowed reading is indistinguishable from the whole-frame one');
+});
+
+test('any level above zero lights a bar, and an unknown level lights none', () => {
+  // A level that rounded to no bars would be indistinguishable from the
+  // unreadable case, which the rail states in words instead.
+  assert.equal(railBarsLit(null), 0, 'an unknown level lit a bar');
+  assert.equal(railBarsLit(0), 0, 'a measured zero lit a bar');
+  assert.equal(railBarsLit(NaN), 0, 'a NaN level lit a bar');
+  assert.equal(railBarsLit(0.0001), 1, 'a faint but real level lit nothing');
+  assert.equal(railBarsLit(1), RAIL_BARS, 'a full level did not fill the meter');
+  assert.equal(railBarsLit(99), RAIL_BARS, 'an out-of-range level overflowed the meter');
+  assert.equal(railBarsLit(-1), 0, 'a negative level lit a bar');
+  // Monotonic across the range — a meter that is not is not a meter.
+  let prev = -1;
+  for (let x = 0; x <= 1.0001; x += 0.05) {
+    const n = railBarsLit(x);
+    assert.ok(n >= prev, `the meter went backwards at ${x.toFixed(2)}`);
+    prev = n;
+  }
 });
 
 test('the module carries no clock and no randomness', async () => {

@@ -41,6 +41,8 @@ import {
   tempoKick,
   tempoBeatsBetween,
   tempoBarStep,
+  tempoEnergyFromBins,
+  TEMPO_BINS,
   RING_S,
 } from '../mobile-app/src/services/radioTempo.mjs';
 
@@ -552,6 +554,126 @@ test('the beat re-anchors after a cut in the music', () => {
   const worst = Math.max(...late.map((b) => Math.abs(b.beat - (off + Math.round((b.beat - off) / P) * P))));
   // Measured at 8.7ms against a half-beat of 234ms. A frozen phase sits at ~234.
   assert.ok(worst < 0.05, `beats land ${(worst * 1000).toFixed(0)}ms off the true onset — the phase was not re-anchored`);
+});
+
+// ---------------------------------------------------------------------------
+// What the browser actually feeds `push`.
+// ---------------------------------------------------------------------------
+
+test('a frame with nothing anywhere in it is the absence of data, not a zero', () => {
+  // A stream with no Access-Control-Allow-Origin hands the analyser all-zero
+  // bins forever. Pushing those would fill the ring with silence and flush a
+  // real reading out of the window, so the hold could never do its job.
+  assert.equal(tempoEnergyFromBins(new Uint8Array(256)), null, 'a CORS-blocked frame produced an energy');
+  assert.equal(tempoEnergyFromBins([]), null);
+  assert.equal(tempoEnergyFromBins(null), null);
+});
+
+test('REGRESSION: a quiet kick band is a real zero and must reach the ring', () => {
+  // ⚠ THE DEFECT THIS REPLAYS. A first cut tested whether the KICK BAND carried
+  // anything — which is true of a CORS-blocked frame and equally true of the
+  // quiet moment BETWEEN two kicks. Skipping those frames drops exactly the low
+  // samples the onset envelope is built from: every remaining sample is a peak,
+  // no rises are left to find, and the detector goes quiet on a track with a
+  // perfectly good beat. Found by driving the helper, not by reading it.
+  const between = new Uint8Array(256);
+  for (let i = 8; i < 64; i += 1) between[i] = 255;   // music above the band, band silent
+  assert.equal(tempoEnergyFromBins(between), 0, 'the quiet moment between kicks was dropped from the ring');
+  // And the frame IS readable, which is the half that separates it from CORS.
+  assert.notEqual(tempoEnergyFromBins(between), null);
+});
+
+test('the band is the kick band, and energy outside it does not move the reading', () => {
+  const kick = new Uint8Array(256);
+  kick[0] = 200; kick[1] = 180; kick[2] = 40; kick[3] = 20;
+  assert.equal(tempoEnergyFromBins(kick), 110, 'the band mean is not the mean of bins 0..3');
+
+  // Piling energy into every bin ABOVE the band must not change the answer —
+  // that is the whole reason the band is narrow. Feeding the whole frame instead
+  // buries the kick under vocals and hats, which is the dense-aperiodic case the
+  // confirm window had to be added for.
+  const loud = Uint8Array.from(kick);
+  for (let i = TEMPO_BINS; i < loud.length; i += 1) loud[i] = 255;
+  assert.equal(tempoEnergyFromBins(loud), 110, 'energy outside the kick band moved the reading');
+
+  // Non-finite entries are skipped rather than poisoning the mean, because
+  // `push` refuses a non-finite sample and a NaN here would silence the ring.
+  const ragged = [200, NaN, 200, undefined];
+  assert.equal(tempoEnergyFromBins(ragged), 200);
+  assert.ok(Number.isFinite(tempoEnergyFromBins(ragged)), 'a ragged frame produced a sample push would refuse');
+});
+
+// ---------------------------------------------------------------------------
+// The hold has to be able to EXPIRE, which for two rounds it could not.
+// ---------------------------------------------------------------------------
+
+test('REGRESSION: a settled tempo expires when the frames stop arriving', () => {
+  // ⚠ THE DEFECT THIS REPLAYS (Codex, P1 on #2066). `push` was the only place
+  // the ring was pruned, so when frames stopped — playback paused, the tab
+  // hidden, the stream gone — the ring sat unchanged and every later search
+  // re-found the SAME tempo and refreshed `settledAt` with it. The four-second
+  // hold was reset once a second, forever. Measured before the fix: a clean 128
+  // train stopped at t=11.98s still read 128 BPM at t=24s with `heldFor` pinned
+  // at 0.00 — a number on screen twelve seconds after anything was measured,
+  // which is the one thing this module exists to prevent.
+  const FPS = 60;
+  const P = 60 / 128;
+  const d = createTempoDetector({});
+  let t = 0;
+  for (let i = 0; i < 12 * FPS; i += 1) {
+    t = i / FPS;
+    d.push(t, 6 + 249 * Math.exp(-(t % P) / 0.05));
+    d.read(t);
+  }
+  const settled = d.read(t);
+  assert.ok(settled, 'the fixture never settled — this guard proves nothing');
+  assert.ok(Math.abs(settled.bpm - 128) <= 0.5, `settled at ${settled.bpm}`);
+
+  // The stream stops. Nothing is pushed; the page keeps reading.
+  const held = [];
+  for (let k = 1; k <= 10; k += 1) held.push(d.read(t + k));
+
+  // Inside the hold it survives — that is the hold doing its job through a
+  // breakdown or a quiet bar.
+  assert.ok(held[0], 'the reading vanished one second after the frames stopped');
+  // And past it, it is gone. HOLD_S is 4s from the LAST real search.
+  assert.equal(held[9], null, 'the reading never expired — the hold is being refreshed by searches over a stale ring');
+  const gone = held.findIndex((r) => r === null);
+  assert.ok(gone >= 0 && gone <= 6, `expired at +${gone + 1}s, which is not the hold this module promises`);
+
+  // ⚠ THE TWO LAYERS ARE REDUNDANT, MEASURED, SO NEITHER SINGLE MUTATION KILLS
+  // AND THE COMBINED ONE DOES. Stopping the frames at t=11.98s: both layers →
+  // expires at +5s; prune alone → +5s; freshness alone → +5s; NEITHER → never
+  // expires past 40s. Recorded here rather than left as two survivors nobody
+  // explained, and the runner carries the combined mutation.
+
+  // And `heldFor` must actually climb: pinned at 0 is the signature of the bug.
+  assert.ok(held[2] && held[2].heldFor > 1, `heldFor read ${held[2] && held[2].heldFor} — the hold is being reset every search`);
+});
+
+test('a stale ring is not searched, and a fresh one still is', () => {
+  // The freshness rule is what makes the expiry prompt rather than ringS late.
+  // Pruning alone would take a whole ring window to empty, and every search in
+  // that spell would go on refreshing the hold.
+  const FPS = 60;
+  const P = 60 / 128;
+  const d = createTempoDetector({});
+  let t = 0;
+  for (let i = 0; i < 12 * FPS; i += 1) {
+    t = i / FPS;
+    d.push(t, 6 + 249 * Math.exp(-(t % P) / 0.05));
+    d.read(t);
+  }
+  assert.ok(d.read(t), 'control: a fresh ring reads');
+  // A long gap, then frames resume: the detector must settle again rather than
+  // resurrecting the old answer the instant a sample arrives.
+  const resume = t + 30;
+  assert.equal(d.read(resume), null, 'a 30s silence left a reading standing');
+  for (let i = 0; i < 2 * FPS; i += 1) {
+    const tt = resume + i / FPS;
+    d.push(tt, 6 + 249 * Math.exp(-(tt % P) / 0.05));
+  }
+  assert.equal(d.read(resume + 2), null, 'two seconds of new audio was enough to publish a tempo');
 });
 
 test('the detector carries no wall clock and no randomness', async () => {

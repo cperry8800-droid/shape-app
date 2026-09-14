@@ -105,6 +105,57 @@ export function capVisible(peak, value, maxH) {
 }
 
 // ---------------------------------------------------------------------------
+// The rail's signal meter — five bars off the analyser, registered in PR 1 and
+// landing here beside its consumer.
+// ---------------------------------------------------------------------------
+
+export const RAIL_BARS = 5;
+
+// The level the meter reads: the RMS of the frame, 0..1, or **null** when the
+// frame carries no data at all.
+//
+// ⚠ NULL AND 0 ARE DIFFERENT CLAIMS, AND THE RAIL HAS TO DRAW THEM
+// DIFFERENTLY. An all-zero frame is a stream we cannot read — the stream sent no
+// `Access-Control-Allow-Origin`, so every bin is 0 forever — and five empty bars
+// under the word "Signal" reads as *the station is quiet*, which is a claim
+// about the music rather than about our own access. That case gets words
+// (`screen.noSignalData`), not a meter. A genuinely quiet bar in a stream we CAN
+// read returns a real 0, and the meter shows it.
+//
+// ⚠ IT READS THE SAME WINDOW THE SPECTRUM DRAWS (`BAND_BINS`), NOT THE WHOLE
+// FRAME. `fftSize` 512 gives 256 bins at ~86 Hz each, so a frame is mostly empty
+// high bins; averaging over all of them divides the reading by roughly the
+// fraction that carries anything, and the meter would sit at one bar through
+// music the spectrum is plainly showing. Same window, same story.
+export function railRms(bins) {
+  if (!hasSignal(bins)) return null;
+  const n = Math.min(BAND_BINS, bins.length);
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < n; i += 1) {
+    const v = bins[i];
+    if (!Number.isFinite(v)) continue;
+    const x = Math.max(0, Math.min(1, v / 255));
+    sum += x * x;
+    count += 1;
+  }
+  if (!count) return null;
+  return Math.sqrt(sum / count);
+}
+
+// How many bars are lit. The meter is a coarse five-step reading, so it rounds
+// UP and any level above zero lights at least one bar — "the stream is carrying
+// something" is the thing a glance needs to answer, and a level that rounded to
+// no bars would be indistinguishable from the unreadable case above.
+export function railBarsLit(rms, bars) {
+  const n = bars == null ? RAIL_BARS : bars;
+  if (rms == null || !Number.isFinite(rms)) return 0;
+  const x = Math.max(0, Math.min(1, rms));
+  if (!(x > 0)) return 0;
+  return Math.max(1, Math.min(n, Math.ceil(x * n)));
+}
+
+// ---------------------------------------------------------------------------
 // The field — the ground both states share.
 // ---------------------------------------------------------------------------
 
