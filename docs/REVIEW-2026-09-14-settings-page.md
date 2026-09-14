@@ -10,8 +10,18 @@ tabs: **Today · as shipped** (eleven real captures of the production build with
 tokens in two states, with a Black / Cream paper switch), **Backbone** (what every option corrects),
 **Carry-over** (every element on today's page and where it lives in each option) and **Pick**.
 
-**Records only.** No code changed, no migration, no PR. **Recommended: B · The Passport, with A's index
-rows behind each tile.** The pick is the owner's; §6 lists the rulings the build would need.
+**Owner's pick, same day: B · The Passport** — *"i like the passport"* → *"go with passport"*. Two more
+owner notes landed with it and are built into every concept on the board: *"dont forget to include the
+customizations section into the designs"* (each concept now carries the whole customization section —
+the Paper · Texture · Accent · Ink picker with its tiles and display weight, text size, Shape Radio, the
+four light-effect cells with the colour row, and the Home ticker — behind a door called **Customize**,
+which replaces the *Look & feel* name everywhere) and *"give the boxes a more square edgy look"* (every
+tile, card, quick switch, option cell and segment is a 3 px-radius box with a chamfered top-right corner
+and a hairline spine; the accent spine marks a switch that is on).
+
+**Records only.** No code changed, no migration, no PR. The recommendation below (B, with A's index rows
+behind each tile) is the one the owner confirmed; §5 is now the plan and §6 lists what the build still
+needs decided.
 
 ---
 
@@ -115,7 +125,7 @@ Corrections to the page as it is, not preferences of any concept. Each is measur
 
 | Today | Every option |
 |---|---|
-| Cosmetics above the account; the section list 1,420 px down | **Identity first, cosmetics last.** Name, tier, plan state open the page; Look & feel is one door among six |
+| Cosmetics above the account; the section list 1,420 px down | **Identity first, cosmetics last.** Name, tier, plan state open the page; Customize is one door among six, carrying the whole customization section |
 | Six control grammars; tap-to-cycle rows | **One grammar.** On/off = switch · 2–3 choices = segmented row · 4+ = picker sheet. Never tap-to-cycle, never a native select |
 | "More · 12 sections", a card called More, four duplicates | **One name, one place.** Six groups named by what a person calls the thing; *More* retired |
 | Time zone · Week starts · Preferences Language unread; Nora unreachable | **Removed or wired.** Time zone from the device unless a reader appears; Nora gets a row |
@@ -132,10 +142,13 @@ Corrections to the page as it is, not preferences of any concept. Each is measur
 
 ### A · The Index — who you are, then every setting as a row that shows its value
 The member at the top (avatar · name · handle · tier · plan line · *Edit*), a find field, then ~24 rows
-under six groups a person recognises — **You · Your training · How Shape talks to you · Look & feel ·
+under six groups a person recognises — **You · Your training · How Shape talks to you · Customize ·
 Privacy · Shape** — each row printing its current value on the right (`Units · Imperial`,
-`Notifications · 3 of 4 on`, `Appearance · Black · Teal`). Nothing is hidden behind a summary. Inside
-every pane, one grammar: a switch, then its qualifier as a chip row beneath it. **Root: ~1.6 screens
+`Notifications · 3 of 4 on`, `Appearance · Black · Teal · Regular`). Nothing is hidden behind a summary.
+Inside every pane, one grammar: a switch, then its qualifier as a chip row beneath it. The Customize
+group carries the whole customization section as rows — Appearance opens the picker as it is today
+(the Paper · Texture · Accent · Ink tabs, the tiles, display weight), then Text size, Shape Radio, Light
+effects and Home ticker each print their state. **Root: ~1.6 screens
 against 2.8.** *Cost:* the cheapest — a new list over the existing panes and takeovers; the
 appearance block moves, not rewritten. *Risk:* it is the pattern every phone has, so the least Shape of
 the three, and the longest root.
@@ -144,22 +157,30 @@ the three, and the longest root.
 A passport's data page. An identity card with the two things people come here to do (*Edit profile* ·
 *View public profile*); **three quick switches** for what gets flipped most (Radio · Online ·
 Check-ins — all three already one-tap toggles today); **six warm tiles** — Account (sign-in + billing)
-· Notifications · Privacy · Look & feel · Training & nutrition · Health & devices (integrations +
+· Notifications · Privacy · Customize · Training & nutrition · Health & devices (integrations +
 Cycle) — each carrying a one-line reading of what is inside; then *Also* (the Shape pages · Help &
 about with the one version · Your data) and Sign out. Coaches get a seventh tile, **Your practice**,
-and the capacity switch in the quick row. The tiles are **quiet rounded cards, never plates** — the
-house's two-tier rule (settings are forms). Look & feel opens as a page with the first five papers and
-accents inline and *All 18 ›* for the full grid. **Root: one screen.** *Cost:* a new root and one new
-page; the six panes are the existing ones regrouped. *Risk:* a tile grid can read as a launcher; a
+and the capacity switch in the quick row. The tiles are **squared, chamfered boxes** — a 3 px radius, a
+cut top-right corner, a hairline spine, the accent spine reserved for a switch that is on (owner:
+*"a more square edgy look"*) — and still quiet by the house's two-tier rule (settings are forms, never
+instrument plates). **Customize opens as a page** carrying the whole customization section: a live
+preview strip in the current paper, the Paper · Texture · Accent · Ink picker with its tiles and display
+weight, text size, Shape Radio, the four light-effect cells (Off · Subtle · Immersive · Hologram, each
+with its sub-line) with the colour row, and the Home ticker with a drag handle and a switch per metric,
+the metric named in words rather than by its storage key. Nothing today's picker offers is dropped.
+**Root: one screen.** *Cost:* a new root and one new page; the six panes are the existing ones
+regrouped. *Risk:* a tile grid can read as a launcher; a
 one-line state is a summary, so A's rows belong behind each tile; the quick row is the piece to guard
 against creep — three, never six.
 
 ### C · The Sections — a tabbed root, controls inline, nothing more than two taps away
 The appearance block already carries a *Paper · Texture · Accent · Ink* tab bar; C promotes that
-grammar to the whole page. Six tabs — **You · Training · Alerts · Look · Privacy · Help** (coaches:
+grammar to the whole page. Six tabs — **You · Training · Alerts · Customize · Privacy · Help** (coaches:
 **Practice** in front of Training) — each a short list with its controls inline: switches, segmented
-rows, and a picker sheet for long lists. No drill-in panes for ordinary settings and no Back inside
-Settings; the only depth left is a picker. *Cost:* the most rebuilt — the section tables become six
+rows, and a picker sheet for long lists. The Customize tab is the whole customization section inline —
+the picker with its tiles, display weight, text size, Language, Shape Radio, the effect cells and colour,
+the ticker. No drill-in panes for ordinary settings and no Back inside Settings; the only depth left is
+a picker. *Cost:* the most rebuilt — the section tables become six
 inline lists and every tap-to-cycle row becomes a switch or segment. *Risk:* a six-item tab strip
 scrolls at 390 px (the cut-off last label is the affordance, the same measurement the Coaches page
 made on the web); and back-gesture semantics need one decision — back closes Settings, never steps
@@ -174,6 +195,10 @@ go, and each is an owner ruling in §6.
 
 ## 5. The pick
 
+**The owner picked B · The Passport** (*"i like the passport"* → *"go with passport"*, 2026-09-14), with
+the two notes above built in: the whole customization section behind the Customize tile, and squared,
+chamfered boxes. The recommendation it confirms, kept as written:
+
 **Recommended: B · The Passport, with A's index rows behind each tile.** The ask was a friendlier
 layout; B is the one where a member sees themselves first, flips the three things they actually flip,
 and reaches everything else through six doors that fit on one screen. A's rows give each door a
@@ -181,18 +206,25 @@ readable inside, so a value is never more than one door away; C's tab bar stays 
 inside the theme picker. A is the fallback if the build budget is days rather than a week; C is the
 answer if the owner wants no drill-ins at all.
 
-**Build order, if B** — each step ships alone:
+**Build order · B** — each step ships alone:
 1. The backbone fixes that need no layout: the avatar becomes a named button; one version number
    from the build; a role-aware plan block; the three unread rows retired; storage keys out of the
    ticker copy; the tap-to-cycle rows become switches with chip qualifiers.
-2. The new root: identity card · quick switches · six tiles · *Also* · Sign out. The six panes are the
-   existing `renderRows` panes regrouped.
-3. Look & feel as a page: the appearance block, text size, radio, effects and the ticker behind one door.
+2. The new root: identity card · quick switches · six squared tiles with the chamfered corner · *Also* ·
+   Sign out. The six panes are the existing `renderRows` panes regrouped. The box treatment is one
+   shared style (radius 3, the cut corner, the spine), never per-tile.
+3. Customize as a page: the appearance picker whole (tabs, tiles, display weight), text size, Shape Radio,
+   the light-effect cells and colour row, and the Home ticker behind one door — unchanged in what it
+   offers, and the ticker rows named in words rather than by storage key.
 4. Edit profile as its own page.
 5. i18n: the new group names and tile states across all 13 locales; every retired string removed from
    all 13; the ratchet must move by exactly what the retirements account for.
 
-## 6. Owner rulings needed
+## 6. Owner rulings
+
+**Made, 2026-09-14:** the layout is **B · The Passport**; the customization section stays whole and lives
+behind one door in every concept; the boxes are **square and edgy** (3 px radius, chamfered top-right
+corner, hairline spine). Still needed before the build:
 
 - **The three quick switches.** Radio · Online · Check-ins is the proposal. Any three; never more.
 - **Time zone and Week starts.** Nothing reads either. Retire them, or name the reader they are for.

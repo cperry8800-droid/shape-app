@@ -758,7 +758,37 @@ Append new entries at the top, under this note.
   an identity card, three quick switches, six tiles), **C · The Sections** (a tabbed root with every
   control inline, nothing more than two taps away), **Backbone** (what all three correct), **Carry-over**
   (every element on today's page and where it lives in each) and **Pick**. **Recommended: B, with A's rows
-  behind each tile.** **No code changed, no migration, no PR. Pick pending.**
+  behind each tile.** **No code changed, no migration, no PR.**
+- **THE OWNER PICKED B · THE PASSPORT THE SAME DAY** — *"i like the passport"* → *"go with passport"* — with
+  two notes that reshaped every concept on the board before the pick was recorded. *"dont forget to include
+  the customizations section into the designs"*: the first board had compressed the theme picker to five
+  swatches and a dot row behind a door called *Look & feel*. Every concept now carries **the whole
+  customization section** — the Paper · Texture · Accent · Ink picker with its tiles and display weight, text
+  size, Shape Radio, the four light-effect cells (Off · Subtle · Immersive · Hologram, each with the app's own
+  sub-line) with the colour row, and the Home ticker with a drag handle and a switch per metric — behind a
+  door renamed **Customize** (A: an Appearance pane plus rows; B: a page, shown top and scrolled; C: a tab).
+  Each concept is three phones now, on a full-width row above its text. And *"give the boxes a more square
+  edgy look"*: every tile, card, quick switch, option cell, segment and chip is a **3 px-radius box with a
+  chamfered top-right corner and a hairline spine**, the accent spine reserved for a switch that is on; the
+  avatar diamond and the switches keep their shapes, because the avatar is the app's own mark and a switch
+  is a switch. Recorded on the board's B and Pick tabs, in the review's header, §3, §5 and §6.
+- ⚠ **THE CHAMFER IS DRAWN WITH THE PAPER COLOUR, NOT WITH `clip-path`, AND THAT IS WHAT KEEPS THE BORDER.**
+  A clip cuts the box's own 1 px border off along the diagonal, and on Black the tile fill is two tones from
+  the paper, so a clipped tile would read as a box with a missing corner. A pseudo-element paints the corner
+  in the paper colour and a 1 px rule along the cut instead, so the outline stays closed; it is only put on
+  boxes that sit directly on the paper (tiles, cards, quick switches, option cells, effect cells) and the
+  build would do the same with one shared style, never per-tile.
+- ⚠ **THREE INSTRUMENT DEFECTS IN THE BOARD ITSELF, EACH FOUND BY THE ONE LOOK RATHER THAN BY THE PROBE.**
+  The three-phone row wrapped 2 + 1 at 1280 px while the probe reported three phones at `s 0.82` with no
+  overflow: `<figure>` carries a UA margin of `1em 40px`, so each 320 px phone occupied 400 — the probe
+  measured the phones and never their margins. The effect cells drew a box inside a box, because
+  `.fx div` matched the heading and sub-line divs *inside* each cell as well as the cells (`.fx > div`
+  now). And the preview strip's masthead line sat outside `.mast`, so it never received the mast's own
+  flex-and-gap and the triangle ran into the text. *A probe that measures the element and not its box
+  passes on a layout the eye rejects in one second.*
+- **Verified, second publish:** the board driven again at 1280 and 400 px across A · B · C · Pick — **zero page
+  errors, zero horizontal overflow, zero boxes outside their phone**, three phones per row at 1280 and one per
+  row at 400, tile radius measured `3px 0 3px 3px`; all three rows and B on Cream captured and looked at.
 - ⚠ **THE PAGE IS 2.8 SCREENS TALL AND THE MEMBER'S OWN SETTINGS START 1.7 SCREENS DOWN.** Measured in
   Chromium at 390×844 on the production build: the root scroller is **2,376 px** (3.5 screens with
   Appearance open, 3.8 while editing), and the section list — Account, Privacy, Billing, Notifications —
@@ -817,10 +847,10 @@ Append new entries at the top, under this note.
   errors**, the root, the edit form, six panes and the Trainer variant captured · the board rendered once
   locally at 1280 and 400 px with **0 px horizontal overflow** and zero page errors (fallback faces — the
   container blocks Google Fonts, so the render checked layout, not type).
-- ⚠ **OWNER RULINGS NEEDED before a build** (review §6): the three quick switches · whether Time zone and
-  Week starts are retired or given a reader · the Preferences Language row · that a coach never sees the
-  member plan · whether the Shape pages stay inside Settings · search on every root or only A's · where
-  Nora's voice surfaces.
+- ⚠ **OWNER RULINGS STILL NEEDED before a build** (review §6; the layout, the customization section and the
+  box treatment are decided): the three quick switches · whether Time zone and Week starts are retired or
+  given a reader · the Preferences Language row · that a coach never sees the member plan · whether the
+  Shape pages stay inside Settings · search on every root or only A's · where Nora's voice surfaces.
 
 ### 2026-09-14 — The Radio page becomes the Signal Field, and the first attempt at it was the claims without the design
 
