@@ -257,7 +257,7 @@
           { who:"Sofia", t:"have you seen Rae's new recovery bowl?", time:"Tue 9:40 AM", me:false },
           { who:"You", t:"made it last night. 10/10.", time:"Tue 10:02 AM", me:true },
           { who:"Sofia", t:"bro the nutri plan is CLEAN", time:"40m", me:false } ] } ] },
-      { id:"community", label:"Community", eyebrow:"SHAPE COMMUNITY", title:"Channels", threads:[
+      { id:"community", label:"Channels", eyebrow:"SHAPE COMMUNITY", title:"Channels", threads:[
         { who:"# shape-community", role:"41,208 members · 2,104 online", last:"Nina O: drop your goal for the month", time:"4m", unread:12, messages:[
           { who:"Nina O.", t:"welcome everyone — drop your goal for the month", time:"4m", me:false },
           { who:"Marcus J.", t:"225 bench by end of month. locked in.", time:"3m", me:false },
@@ -481,7 +481,7 @@
   // (they share globals top-to-bottom, same as the babel path).
   function bootCompiledChat() {
     var map = window.__ndCompiled;
-    var names = ["pageShell.jsx", "clientChatThreads.jsx", "chatWidget.jsx"];
+    var names = ["pageShell.jsx", "clientChatThreads.jsx", "communityFeed.jsx", "chatWidget.jsx"];
     var pending = 0;
     function mountWhenReady() {
       try {
@@ -535,7 +535,7 @@
         root.id = "shape-rich-chat-root";
         document.body.appendChild(root);
       }
-      ["/newdesign/pageShell.jsx", "/newdesign/clientChatThreads.jsx", "/newdesign/chatWidget.jsx"].forEach(function (s) {
+      ["/newdesign/pageShell.jsx", "/newdesign/clientChatThreads.jsx", "/newdesign/communityFeed.jsx", "/newdesign/chatWidget.jsx"].forEach(function (s) {
         if (document.querySelector('script[data-shape-chat="' + s + '"]')) return;
         // Already loaded by the page itself (relative src, usually with a ?v
         // tag)? Re-injecting would re-eval its top-level consts in babel's

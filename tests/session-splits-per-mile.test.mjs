@@ -32,7 +32,7 @@ const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 // three ranges — `Miles 1–3 / 4–6 / 7–8` on Jonah W.'s 8.4 mi run — because the
 // guard only swept the mobile module. A rule that polices one of two surfaces is
 // how the two come to disagree; the sweep now walks both.
-const WEB_SRC = 'public/newdesign/dashboardCommunity.jsx';
+const WEB_SRC = 'public/newdesign/communityFeed.jsx';
 const SOURCES = [SRC, WEB_SRC];
 // A pace cell: M:SS with a distance unit (run/swim), a bare M:SS lap time, or mph.
 const PACE = /^\d+:\d{2}(\/(mi|km|100m))?$|mph/i;

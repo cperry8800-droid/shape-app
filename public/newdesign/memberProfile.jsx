@@ -185,7 +185,7 @@ function MemberProfilePage() {
     try { if (window.__openChat) { window.__openChat({ who: name, role: roleLabel }); return; } } catch (_) {}
     const btn = document.getElementById("shape-global-chat-button");
     if (btn) { btn.click(); return; }
-    window.location.href = "/newdesign/ClientCommunity.html";
+    window.location.href = "/newdesign/ClientDashboard.html";
   };
 
   return wrap(

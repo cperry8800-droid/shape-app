@@ -71,9 +71,6 @@ const CO_TOUR = {
       { key: "playlists", file: "playlists", name: "Playlists",
         body: "Paste a Spotify or Apple Music link, attach it to a workout, and your client gets a play button on the session card. Optional, always skippable.",
         list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to workouts in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
-      { key: "community", file: "community", name: "Community",
-        body: "The Shape community from inside your dashboard: posts, PRs and logged workouts from the people training on Shape, plus the channels and meetups around them.",
-        list: ["Universal and following feeds", "Filter by workouts, PRs, runs, nutrition, milestones", "Channels to join and meetups to find", "Post, reply, share and repost"] },
       { key: "goal", file: "goal", name: "Goal",
         body: "Your own targets for the quarter — clients, revenue, programs, adherence — each with a progress bar and the pace that gets it there. A revenue calculator turns your rate, hours and program sales into take-home.",
         list: ["Client, revenue, program and adherence goals", "Progress and pace against the date", "Session rate × sessions, plus subscriptions and one-time sales", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
@@ -109,9 +106,6 @@ const CO_TOUR = {
       { key: "playlists", file: "playlists", name: "Playlists",
         body: "Paste a Spotify or Apple Music link, attach it to a meal, recipe or prep routine, and your client gets a play button in their kitchen. Optional, always skippable.",
         list: ["A library of your playlists, with BPM range and length", "Attach matrix: assign playlists to meals in bulk", "Builder: deep-edit tracks and notes", "Listens per playlist, and what you've shared"] },
-      { key: "community", file: "community", name: "Community",
-        body: "The Shape community from inside your dashboard: posts, PRs and logged workouts from the people training on Shape, plus the channels and meetups around them.",
-        list: ["Universal and following feeds", "Filter by workouts, PRs, runs, nutrition, milestones", "Channels to join and meetups to find", "Post, reply, share and repost"] },
       { key: "goal", file: "goal", name: "Goal",
         body: "Your own targets for the quarter — clients, revenue, plans, adherence — each with a progress bar and the pace that gets it there. A revenue calculator turns your consult rate, consults and meal-plan subscribers into take-home.",
         list: ["Client, revenue, plan and adherence goals", "Progress and pace against the date", "Consult rate × consults, plus meal-plan subscriptions", "Weekly, monthly, quarterly and annual take-home, net of the platform fee"] },
@@ -216,7 +210,7 @@ function CoTour({ role, setRole }) {
             {["trainer", "nutri"].map((r) => (
               <button key={r} type="button" onClick={() => setRole(r)} aria-pressed={role === r}
                 className={role === r ? "co-role on" : "co-role"}>
-                <i data-role={r} /> {CO_TOUR[r].label}
+                {CO_TOUR[r].label}
               </button>
             ))}
           </div>
@@ -377,12 +371,10 @@ function CoachesPage() {
         .co-btn-p:hover{transform:translateY(-1px);background:#4ce4d4}
         .co-btn-g{border-color:rgba(238,243,240,0.10);color:${CO_INK};background:rgba(255,255,255,.02)}
         .co-btn-g:hover{border-color:rgba(52,214,197,.5);transform:translateY(-1px)}
-        .co-roles{display:inline-flex;border:1px solid rgba(238,243,240,0.10);border-radius:999px;padding:3px;gap:3px;background:rgba(255,255,255,.04)}
-        .co-role{font-family:${coSans};font-size:13.5px;font-weight:600;color:rgba(238,243,240,0.72);background:transparent;border:0;border-radius:999px;padding:8px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
-        .co-role i{width:8px;height:8px;border-radius:50%;display:block;background:rgba(238,243,240,0.36)}
-        .co-role.on{background:rgba(238,243,240,.08);color:${CO_INK}}
-        .co-role.on i[data-role="trainer"]{background:#d2693f}
-        .co-role.on i[data-role="nutri"]{background:#c9a15a}
+        .co-roles{display:inline-flex;border:1px solid rgba(238,243,240,0.10);border-radius:10px;padding:3px;gap:3px;background:rgba(255,255,255,.04)}
+        .co-role{font-family:${coSans};font-size:13.5px;font-weight:600;color:rgba(238,243,240,0.72);background:transparent;border:0;border-radius:7px;padding:8px 18px;cursor:pointer;display:inline-flex;align-items:center;transition:background .15s ease,color .15s ease}
+        .co-role:hover{color:${CO_INK}}
+        .co-role.on{background:rgba(238,243,240,.10);color:${CO_INK}}
         .co-tabs{display:flex;gap:4px;border-bottom:1px solid rgba(238,243,240,0.10);margin-bottom:22px;overflow-x:auto}
         .co-tab{font-family:${coSans};font-size:14px;font-weight:600;color:rgba(238,243,240,0.55);background:transparent;border:0;border-bottom:2px solid transparent;padding:12px 16px 14px;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
         .co-tab:hover{color:${CO_INK}}

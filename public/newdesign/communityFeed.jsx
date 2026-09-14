@@ -1,9 +1,19 @@
-// Shared dashboard Community page used by client, trainer, and nutritionist
-// dashboards. Each role's *Community.html shell loads this and renders
-// <CommunityPage navItems={...} payoutCard={...} chatTabs={...} /> so the
-// feed, channels, meetups, "My posts" filter, and "New post" composer stay
-// identical across roles. Only the sidebar nav and (optional) chat widget
-// vary per role.
+// The community feed, rendered INSIDE the chat bubble's Feed tab.
+//
+// ⚠ THIS WAS A DASHBOARD PAGE AND IS NOT ONE ANY MORE. It shipped as
+// `dashboardCommunity.jsx` behind a Community tab on all three dashboards,
+// beside a chat bubble that already carried Team / Channels / Help — i.e. the
+// website split the app's ONE Chat page across two surfaces. The app's own
+// Chat is four segments (Feed / Team / Channels / Support) and the Wall is a
+// CHIP INSIDE Feed, not a surface beside it (#2036: "don't need 2 wall tabs").
+// So the feed moved into the bubble, which already held the other three, and
+// the page, its three shells and its nav entries went.
+//
+// The CARD RENDERERS ARE UNTOUCHED by that move — FeedItem, the stat rows, the
+// session-details charts and the composer are the same code that shipped on the
+// page. What changed is the frame around them and the filter grammar, which is
+// now the app's own (Wall / <your role> / Community) rather than the web-only
+// activity-kind tabs.
 
 // THE APPOINTMENTS stamps (spec 2026-07-13) — the six canonical tokens,
 // mirroring the mobile composer; unknown values normalize to 'milestone'.
@@ -243,7 +253,74 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
   );
 }
 
-function CommunityPage({ navItems, payoutCard, chatTabs }) {
+// ── Card + Pill, LOCAL ON PURPOSE ─────────────────────────────────────
+// ⚠ THESE WERE DASHBOARD GLOBALS AND THIS MODULE MAY NO LONGER REACH THEM.
+// As a dashboard page it sat beside `trainerDashboard.jsx`, which declares both
+// at file scope — a classic script, so they land on `window`. It now renders
+// inside the chat bubble, which `globalChatButton.js` mounts on pages that load
+// no dashboard module at all, and there is NO ERROR BOUNDARY anywhere in
+// `public/newdesign`: one ReferenceError blanks the whole page.
+//
+// ⚠ AND `Pill` IS DECLARED TWICE IN THIS DIRECTORY WITH DIFFERENT DEFAULTS —
+// `trainerDashboard.jsx:217` (tone "mute") and `publicProfile.jsx:203` (tone
+// "default"). Last script loaded wins, so which one the feed rendered with was
+// a property of the page's tag order rather than of this file. The copy below
+// is `trainerDashboard.jsx`'s, which is the one the Community page actually
+// loaded, so the cards render exactly as they shipped.
+function CfCard({ children, style }) {
+  return <div style={{
+    background: "linear-gradient(180deg, rgba(242,237,228,0.062), rgba(242,237,228,0.035))",
+    border: "1px solid rgba(242,237,228,0.12)",
+    borderRadius: 22,
+    padding: 24,
+    boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    ...style
+  }}>{children}</div>;
+}
+function CfPill({ children, tone = "mute" }) {
+  const bg = tone === "teal" ? TEAL : "rgba(242,237,228,0.08)";
+  const col = tone === "teal" ? PAPER : "rgba(242,237,228,0.7)";
+  const bd = tone === "teal" ? "none" : "1px solid rgba(242,237,228,0.12)";
+  return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, background: bg, color: col, border: bd }}>{children}</span>;
+}
+
+// ── The app's feed chips, mirrored ──────────────────────────────────────
+// `iosAppBroadsheetClient.jsx` derives a post's chip from its channel and falls
+// back to the AUTHOR'S ROLE for rows written before that field existed. BOTH
+// halves are copied rather than re-invented: drop the fallback and every
+// pre-channel post disappears from every chip.
+const CF_KNOWN_CHANNELS = ["SHAPE", "TRAINER", "CLIENT", "NUTRI", "COMMUNITY"];
+function cfKindOfRole(r) {
+  const s = String(r || "").toLowerCase();
+  if (s.includes("shape") || s.includes("mod") || s.includes("official")) return "SHAPE";
+  if (s.includes("train") || s.includes("coach")) return "TRAINER";
+  if (s.includes("nutri") || s.includes("diet")) return "NUTRI";
+  return "CLIENT";
+}
+function cfChannelOf(p) {
+  const ch = String((p && p.channel) || "").trim().toUpperCase();
+  return CF_KNOWN_CHANNELS.indexOf(ch) >= 0 ? ch : cfKindOfRole(p && p.role);
+}
+function CF_CHIP_KEYS(role) {
+  const mine = role === "trainer" ? "TRAINER" : role === "nutritionist" ? "NUTRI" : "CLIENT";
+  return ["COMMUNITY", mine, "SHAPE"];
+}
+function CF_CHIP_LABEL(k) {
+  // ⚠ "Wall" IS THE COMMUNITY KEY AND "Community" IS THE SHAPE KEY. The app
+  // swaps those two labels deliberately and left the KEYS alone, because
+  // renaming them would touch every filter comparison in the component. Copied
+  // with the swap intact — read it as a typo and fix it, and a post lands on
+  // one chip in the app and the other one here.
+  if (k === "COMMUNITY") return "Wall";
+  if (k === "SHAPE") return "Community";
+  if (k === "TRAINER") return "Trainer";
+  if (k === "NUTRI") return "Nutritionist";
+  return "Client";
+}
+
+function CommunityFeed() {
   const ME = { who: "Priya M.", role: "Hypertrophy · 2,140" };
   const [composerOpen, setComposerOpen] = React.useState(false);
   // "+25 · CAREER" confirmation — shown ONLY when award_work_milestone
@@ -356,12 +433,16 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
   }, [claimCareerAward, careerPendingRead, careerQueueRead]);
   const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
-  const [filter, setFilter] = React.useState("ALL");
+  // The Wall is the landing chip, as it is in the app — a member opening the
+  // feed sees what people have DONE before what people have said.
+  const [filter, setFilter] = React.useState("COMMUNITY");
+  const myRole = (typeof window !== "undefined" && window.shapeViewerRole)
+    ? String(window.shapeViewerRole() || "").toLowerCase() : "client";
 
   const DEMO_FEED = [
-    { kind: "pr", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
-    { kind: "workout", who: "Elena R.", role: "Peak · 6,108", time: "32m", title: "Lower strength · Block 3", duration: "52 min", exercises: 6, rpe: 8.5, coach: "Maya Okafor", note: "Squats felt locked in today.", likes: 18, comments: 3, tag: "STRENGTH" },
-    { kind: "run", who: "Jonah W.", role: "Tempo · 980", time: "1h", distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", body: "Easy long. Brooklyn Half is Sunday — taper feels good.", likes: 24, comments: 6, tag: "RACING",
+    { kind: "pr", channel: "COMMUNITY", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
+    { kind: "workout", channel: "COMMUNITY", who: "Elena R.", role: "Peak · 6,108", time: "32m", title: "Lower strength · Block 3", duration: "52 min", exercises: 6, rpe: 8.5, coach: "Maya Okafor", note: "Squats felt locked in today.", likes: 18, comments: 3, tag: "STRENGTH" },
+    { kind: "run", channel: "COMMUNITY", who: "Jonah W.", role: "Tempo · 980", time: "1h", distance: "8.4 mi", pace: "7:42 / mi", duration: "1h 04m", elev: "+412 ft", body: "Easy long. Brooklyn Half is Sunday — taper feels good.", likes: 24, comments: 6, tag: "RACING",
       session: { sport: "run", title: "Long run · 8.4 mi",
         stats: [["Distance", "8.4 mi"], ["Avg pace", "7:42/mi"], ["Best pace", "7:18/mi"], ["Time", "1:04:42"], ["Avg HR", "156 bpm"], ["Max HR", "174 bpm"], ["Cadence", "176 spm"], ["Elevation", "412 ft"], ["Calories", "1,020"]],
         zones: [["Z1", 8], ["Z2", 38], ["Z3", 40], ["Z4", 12], ["Z5", 2]],
@@ -372,11 +453,11 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           elevTrace: [40, 48, 62, 80, 72, 64, 84, 98, 90, 76, 92, 116, 108, 94, 88, 104, 128, 118, 100, 112, 136, 122, 110, 128, 148, 134, 116, 100, 86, 68]
         },
         breakdown: { label: "Mile splits", rows: [["Mile 1", "8:01/mi", "141 bpm"], ["Mile 2", "7:56/mi", "147 bpm"], ["Mile 3", "7:52/mi", "151 bpm"], ["Mile 4", "7:46/mi", "154 bpm"], ["Mile 5", "7:43/mi", "157 bpm"], ["Mile 6", "7:38/mi", "161 bpm"], ["Mile 7", "7:32/mi", "166 bpm"], ["Mile 8", "7:18/mi", "172 bpm"], ["Last 0.4", "7:22/mi", "174 bpm"]] } } },
-    { kind: "tier", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — limited drops open up on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
-    { kind: "meal", who: "Priya S.", role: "Tempo · 1,284", time: "3h", title: "Sheet-pan salmon, sweet potato & broccoli", kcal: 620, p: 44, c: 58, f: 22, source: "From Rae · cook-along", likes: 12, comments: 2, tag: "NUTRITION" },
-    { kind: "streak", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },
-    { kind: "post", who: "Elena R.", role: "Peak · 6,108", time: "5h", body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },
-    { kind: "post", who: "Jonah W.", role: "Tempo · 980", time: "7h", body: "Race day Sunday — Brooklyn Half. Meet by the start corral at 6:45 if you're running. Coffee on me after.", likes: 19, comments: 8, tag: "RACING" },
+    { kind: "tier", channel: "COMMUNITY", who: "Ana P.", role: "Tempo · 752", time: "2h", from: "Raw", to: "Tempo", earned: 752, body: "Three weeks in. Tempo unlocked — limited drops open up on the store, here we come.", likes: 56, comments: 14, tag: "GENERAL" },
+    { kind: "meal", channel: "COMMUNITY", who: "Priya S.", role: "Tempo · 1,284", time: "3h", title: "Sheet-pan salmon, sweet potato & broccoli", kcal: 620, p: 44, c: 58, f: 22, source: "From Rae · cook-along", likes: 12, comments: 2, tag: "NUTRITION" },
+    { kind: "streak", channel: "COMMUNITY", who: "Diego R.", role: "Form · 2,540", time: "4h", days: 21, body: "Three weeks straight. Sunday-night protein prep is the unlock.", likes: 41, comments: 9, tag: "GENERAL" },
+    { kind: "post", channel: "SHAPE", who: "Elena R.", role: "Peak · 6,108", time: "5h", body: "Down 14 lb and running negative splits for the first time ever. Rae's post-run fueling protocol changed everything.", likes: 82, comments: 24, tag: "NUTRITION" },
+    { kind: "post", channel: "SHAPE", who: "Jonah W.", role: "Tempo · 980", time: "7h", body: "Race day Sunday — Brooklyn Half. Meet by the start corral at 6:45 if you're running. Coffee on me after.", likes: 19, comments: 8, tag: "RACING" },
   ];
   const [feed, setFeed] = React.useState(DEMO_FEED);
   // Community feed viewing lens — UNIVERSAL (everyone's public activity, the
@@ -449,6 +530,11 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
       return {
         kind: 'post',
         buckets: bucketsFor(p, m),
+        // ⚠ THE FEED CHANNEL IS NOT A COLUMN — it is stashed in the metrics
+        // jsonb (shapeBackend.js:3689), so reading `p.channel` here returns
+        // undefined for every row and the Wall renders empty. The app's own
+        // row mapper lifts it from the same place.
+        channel: (typeof m.channel === 'string' ? m.channel : '').trim().toUpperCase(),
         // THE PLATE data for real shared meals (spec 2026-07-12) — meal macros
         // only, honest-absent END TO END (CodeRabbit): a missing/malformed
         // value is null (the plate drops the row — never a fabricated "0 g"),
@@ -912,7 +998,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
     };
 
     return (
-      <Card style={{ padding: 22 }}>
+      <CfCard style={{ padding: 22 }}>
         <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
           <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6", flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -923,7 +1009,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
               <span style={{ fontSize: 11, color: "rgba(242,237,228,0.45)" }}>{p.time}</span>
               <span style={{ width: 3, height: 3, borderRadius: 999, background: "rgba(242,237,228,0.25)" }} />
-              <Pill>{p.tag}</Pill>
+              <CfPill>{p.tag}</CfPill>
             </div>
           </div>
         </div>
@@ -1047,213 +1133,31 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             </div>
           </div>
         )}
-      </Card>
+      </CfCard>
     );
   }
 
-  function ChannelsCard({ channels, meetups }) {
-    const [tab, setTab] = React.useState("channels"); // 'channels' | 'meetups'
-    const [query, setQuery] = React.useState("");
-    const [chFilter, setChFilter] = React.useState("all");
-    const [joinedMap, setJoinedMap] = React.useState(() => {
-      const m = {};
-      channels.forEach(c => { m[c.name] = c.joined; });
-      return m;
-    });
-    const toggle = (name) => setJoinedMap(prev => ({ ...prev, [name]: !prev[name] }));
-
-    const q = query.trim().toLowerCase();
-    const filtered = channels.filter(c => {
-      if (q && !(c.name.toLowerCase().includes(q) || c.lastMsg.toLowerCase().includes(q))) return false;
-      if (chFilter === "joined" && !joinedMap[c.name]) return false;
-      if (chFilter === "trending" && !c.trending) return false;
-      return true;
-    });
-    const joinedCount = channels.filter(c => joinedMap[c.name]).length;
-    const FilterPill = ({ k, label, count }) => {
-      const active = chFilter === k;
-      return (
-        <button onClick={() => setChFilter(k)} style={{
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
-          padding: "5px 10px", borderRadius: 999,
-          background: active ? INK : "rgba(242,237,228,0.04)",
-          color: active ? PAPER : "rgba(242,237,228,0.7)",
-          border: active ? "none" : "1px solid rgba(242,237,228,0.12)",
-          cursor: "pointer",
-        }}>{label}{count != null ? ` · ${count}` : ""}</button>
-      );
-    };
-
-    const meetupList = meetups || [];
-    const TabBtn = ({ k, label, count }) => {
-      const on = tab === k;
-      return (
-        <button onClick={() => setTab(k)} style={{
-          flex: 1,
-          padding: "10px 14px",
-          borderRadius: 999,
-          background: on ? INK : "transparent",
-          color: on ? PAPER : "rgba(242,237,228,0.72)",
-          border: on ? "none" : "1px solid rgba(242,237,228,0.14)",
-          fontFamily: sans, fontSize: 12.5, fontWeight: 500,
-          cursor: "pointer",
-          display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-        }}>
-          <span>{label}</span>
-          <span style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em",
-            background: on ? "rgba(242,237,228,0.18)" : "rgba(242,237,228,0.06)",
-            color: on ? PAPER : "rgba(242,237,228,0.65)",
-            padding: "2px 7px", borderRadius: 999,
-          }}>{count}</span>
-        </button>
-      );
-    };
-
-    return (
-      <Card>
-        <SectionTitle right={tab === "channels"
-          ? `${channels.length} CHANNELS`
-          : `${meetupList.length} SCHEDULED`}>{tab === "channels" ? "Channels" : "Meetups"}</SectionTitle>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <TabBtn k="channels" label="Channels" count={channels.length} />
-          <TabBtn k="meetups" label="Meetups" count={meetupList.length} />
-        </div>
-
-        {tab === "channels" && <>
-          <input
-            type="search"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search channels…"
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", marginBottom: 12 }}
-          />
-          <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-            <FilterPill k="all" label="ALL" count={channels.length} />
-            <FilterPill k="joined" label="JOINED" count={joinedCount} />
-            <FilterPill k="trending" label="TRENDING" />
-          </div>
-
-          {filtered.length === 0 && (
-            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13, textAlign: "center" }}>
-              No channels match.
-            </div>
-          )}
-          {filtered.map((c, i) => {
-            const joined = !!joinedMap[c.name];
-            return (
-              <div key={c.name} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <a href={`Community.html?channel=${encodeURIComponent(c.name)}`} style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: TEAL_BRIGHT, fontSize: 13, fontWeight: 500 }}>#</span>
-                    <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{c.name}</span>
-                    {c.trending && <Pill tone="teal">TRENDING</Pill>}
-                    {c.unread > 0 && joined && (
-                      <span style={{ background: TEAL, color: PAPER, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", padding: "2px 7px", borderRadius: 999 }}>{c.unread}</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.lastMsg}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.4)", letterSpacing: "0.08em", marginTop: 3 }}>{c.members.toLocaleString()} members · {c.at}</div>
-                </a>
-                <button onClick={() => toggle(c.name)} style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
-                  padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-                  background: joined ? "rgba(242,237,228,0.04)" : TEAL,
-                  color: joined ? "rgba(242,237,228,0.7)" : PAPER,
-                  border: joined ? "1px solid rgba(242,237,228,0.18)" : "none",
-                  whiteSpace: "nowrap",
-                }}>{joined ? "JOINED" : "JOIN"}</button>
-              </div>
-            );
-          })}
-
-          <div style={{ paddingTop: 14, marginTop: 6, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-            <a href="Community.html?new-channel=1" style={{ display: "block", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>+ NEW CHANNEL</a>
-          </div>
-        </>}
-
-        {tab === "meetups" && <>
-          {meetupList.length === 0 ? (
-            <div style={{ padding: "26px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13, textAlign: "center" }}>
-              No meetups scheduled.
-            </div>
-          ) : (
-            meetupList.map((m, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "12px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: TEAL_BRIGHT, marginBottom: 3 }}>{m.when}</div>
-                  <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.title}</div>
-                  <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{m.sub}</div>
-                </div>
-                <button style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em",
-                  padding: "6px 11px", borderRadius: 999, cursor: "pointer",
-                  background: m.rsvp ? "rgba(10,197,168,0.16)" : "rgba(242,237,228,0.04)",
-                  color: m.rsvp ? TEAL_BRIGHT : "rgba(242,237,228,0.7)",
-                  border: "1px solid " + (m.rsvp ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.12)"),
-                  whiteSpace: "nowrap",
-                }}>{m.rsvp ? "GOING" : "RSVP"}</button>
-              </div>
-            ))
-          )}
-          <div style={{ paddingTop: 14, marginTop: 6, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", gap: 14 }}>
-            <a href="Community.html?new-meetup=1" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>+ NEW MEETUP</a>
-            <a href="Community.html?meetups=1" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>VIEW ALL →</a>
-          </div>
-        </>}
-      </Card>
-    );
-  }
-
-  const channels = [
-    { name: "running",          members: 842, lastMsg: "anyone hitting the half this weekend?",       at: "2m",   joined: true,  unread: 4,  trending: true  },
-    { name: "powerlifting",     members: 526, lastMsg: "265 squat PR today — programming worked",     at: "14m",  joined: true,  unread: 1                  },
-    { name: "form-check",       members: 1304, lastMsg: "video posted — RDL hip hinge",               at: "1h",   joined: true,  unread: 0                  },
-    { name: "nutrition-talk",   members: 678, lastMsg: "best protein bars under 200 cal?",            at: "2h",   joined: true,  unread: 12                 },
-    { name: "marathon-training",members: 412, lastMsg: "week 8 of Pfitz 18/55 — heel strike fix",     at: "3h",   joined: false, unread: 0,  trending: true  },
-    { name: "hypertrophy",      members: 891, lastMsg: "high-frequency chest split, worth it?",      at: "5h",   joined: false, unread: 0                  },
-    { name: "recovery",         members: 384, lastMsg: "sauna + cold plunge protocol",                at: "6h",   joined: false, unread: 0                  },
-    { name: "newbie",           members: 1567, lastMsg: "first squat day — terrified",                at: "8h",   joined: false, unread: 0                  },
-    { name: "meal-prep",        members: 920, lastMsg: "sunday batch cook → 12 meals",                at: "yest", joined: false, unread: 0                  },
-    { name: "shape-radio",      members: 234, lastMsg: "live show in 20: deload weeks explained",     at: "9h",   joined: false, unread: 0                  },
-  ];
-  const meetups = [
-    { when: "SAT 6:30AM", title: "Prospect Park Long Run",      sub: "24 going · 12 from your borough",  rsvp: true  },
-    { when: "TUE 7:00PM", title: "Form check drop-in (Zoom)",   sub: "with Maya Okafor",                  rsvp: false },
-    { when: "APR 27",     title: "Brooklyn Half",               sub: "8 Shape runners confirmed",         rsvp: false },
-  ];
-
+  // ⚠ NO MEMBER COUNT AND NO "ACTIVE NOW". The page this replaced carried a
+  // hardcoded eyebrow reading "4,218 MEMBERS · 128 ACTIVE NOW" — two figures
+  // nobody measured, on a surface whose own cards are held to the honest-data
+  // rule. A count we cannot take is not shown at all.
   return (
-    <DashPage
-      navItems={navItems}
-      payoutCard={payoutCard}
-      eyebrow="4,218 MEMBERS · 128 ACTIVE NOW"
-      title="Community"
-      subtitle="What the Shape community is working on this week. Posts, meetups, and PRs from people training alongside you."
-      actions={<>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <button onClick={() => setMyPostsOnly(v => !v)} style={{ background: myPostsOnly ? "rgba(10,197,168,0.16)" : "transparent", color: myPostsOnly ? TEAL_BRIGHT : INK, border: `1px solid ${myPostsOnly ? "rgba(10,197,168,0.4)" : "rgba(242,237,228,0.25)"}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{myPostsOnly ? "All posts" : "My posts"}</button>
         <button onClick={() => setComposerOpen(true)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>New post</button>
-      </>}
-    >
-      <div data-tour="hero-community" style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 18px 22px" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
           {(() => {
-            const filters = [
-              { label: "ALL",      kinds: null },
-              { label: "WORKOUTS", kinds: ["workout"] },
-              { label: "PRs",      kinds: ["pr"] },
-              { label: "RUNS",     kinds: ["run"] },
-              { label: "NUTRITION", kinds: ["meal"] },
-              { label: "MILESTONES", kinds: ["streak", "tier", "milestone"] },
-              { label: "POSTS",    kinds: ["post"] },
-            ];
+            // The app's own chip grammar (iosAppBroadsheetClient.jsx CHIP_KEYS):
+            // Wall · <your role> · Community. Each chip is a CHANNEL, not an
+            // activity kind — which is the axis the app filters on, so the two
+            // surfaces now ask the same question of the same rows.
+            const chips = CF_CHIP_KEYS(myRole).map(k => ({ key: k, label: CF_CHIP_LABEL(k) }));
             const visible = feed.filter(p => {
               if (myPostsOnly && !p.isMe) return false;
-              const f = filters.find(x => x.label === filter);
-              // Real posts filter by their activity buckets (kind stays 'post'
-              // for the renderer; a PR'd run matches BOTH RUNS and PRs); demo
-              // cards have no buckets → kind as before.
-              return !f || !f.kinds || f.kinds.some(k => (p.buckets || [p.kind]).includes(k));
+              return cfChannelOf(p) === filter;
             });
             if (feedMode === "following" && liveEmpty) {
               return (
@@ -1281,12 +1185,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
                   })}
                 </div>
                 <div style={{ display: "flex", gap: 8, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap", alignItems: "center" }}>
-                  {filters.map((f) => {
-                    const on = f.label === filter;
+                  {chips.map((c) => {
+                    const on = c.key === filter;
                     return (
-                      <button key={f.label} onClick={() => setFilter(f.label)}
+                      <button key={c.key} onClick={() => setFilter(c.key)} aria-pressed={on}
                         style={{ padding: "6px 12px", borderRadius: 999, background: on ? "rgba(10,197,168,0.16)" : "rgba(242,237,228,0.04)", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", border: "1px solid " + (on ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.08)"), cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
-                        {f.label}
+                        {c.label}
                       </button>
                     );
                   })}
@@ -1299,7 +1203,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
                 {visible.length === 0
                   ? (
                     <div style={{ padding: "32px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13, textAlign: "center" }}>
-                      {myPostsOnly ? "You haven't posted yet. Tap New post to share something." : "Nothing in this filter yet."}
+                      {myPostsOnly ? "You haven't posted yet. Tap New post to share something." : "Nothing on " + CF_CHIP_LABEL(filter) + " yet."}
                     </div>
                   )
                   : visible.map((p, i) => <FeedItem key={p.id || i} p={p}
@@ -1310,12 +1214,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             );
           })()}
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <ChannelsCard channels={channels} meetups={meetups} />
-        </div>
       </div>
-      {chatTabs && <ChatWidget tabs={chatTabs} />}
       {careerToast && (
         <div role="status" style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "#14110e", border: "1px solid rgba(122,167,220,0.4)", borderRadius: 8, padding: "10px 18px", color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em" }}>+25 · CAREER · SHAPE SCORE</div>
       )}
@@ -1358,6 +1257,12 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
             setFeed(prev => [{ id: "me-" + Date.now(), isMe: true, isLive: false, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post }, ...prev]);
             // Persist to the live feed (best-effort; the optimistic post already shows).
             const metrics = {};
+            // ⚠ THE CHANNEL IS WRITTEN, NOT LEFT TO BE INFERRED. Without it a
+            // post made here has no `metrics.channel`, so the chip derivation
+            // falls back to the author's ROLE and a member's post can never
+            // reach the chip they posted it from. The app writes it the same
+            // way (createPost({ channel: kind })).
+            metrics.channel = filter;
             if (post.tag) metrics.tags = [String(post.tag).toUpperCase()];
             if (Array.isArray(post.mentions) && post.mentions.length) metrics.mentions = post.mentions;
             if (post.video) { metrics.kind = 'video'; metrics.video_url = post.video; }
@@ -1404,7 +1309,7 @@ function CommunityPage({ navItems, payoutCard, chatTabs }) {
           }}
         />
       )}
-    </DashPage>
+    </div>
   );
 }
 
@@ -1692,6 +1597,8 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
 }
 
 if (typeof window !== "undefined") {
-  window.CommunityPage = CommunityPage;
-  window.PostComposer = PostComposer;
+  // Only CommunityFeed is published. `PostComposer` was exported beside it and
+  // had ZERO consumers anywhere in the repo — it is used by this file alone, so
+  // the export was a global nobody read.
+  window.CommunityFeed = CommunityFeed;
 }

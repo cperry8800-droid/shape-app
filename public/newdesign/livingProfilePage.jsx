@@ -263,7 +263,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     const nm = (st.row && st.row.full_name) || (st.derived && st.derived.name);
     try { if (window.__openChat) { window.__openChat({ who: nm }); return; } } catch (e) {}
     const b = document.getElementById("shape-global-chat-button"); if (b) { b.click(); return; }
-    window.location.href = "/newdesign/ClientCommunity.html";
+    window.location.href = "/newdesign/ClientDashboard.html";
   };
   const onFollow = async () => {
     const c = cl(); if (!c || busy || !st.uid) return;

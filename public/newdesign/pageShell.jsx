@@ -229,21 +229,21 @@ const DASH_SHELL_STUBS = {
     "TrainerDashboard.html": "today", "TrainerSchedule.html": "schedule",
     "TrainerClients.html": "clients", "TrainerPrograms.html": "programs",
     "TrainerAnalytics.html": "business", "TrainerPlaylists.html": "playlists",
-    "TrainerCommunity.html": "community", "TrainerGoal.html": "goal",
+    "TrainerGoal.html": "goal",
     "TrainerScore.html": "score", "TrainerProfile.html": "profile",
   },
   nutritionist: {
     "NutritionistDashboard.html": "today", "NutritionistSchedule.html": "schedule",
     "NutritionistClients.html": "clients", "NutritionistPlans.html": "plans",
     "NutritionistAnalytics.html": "business", "NutritionistPlaylists.html": "playlists",
-    "NutritionistCommunity.html": "community", "NutritionistGoal.html": "goal",
+    "NutritionistGoal.html": "goal",
     "NutritionistScore.html": "score", "NutritionistProfile.html": "profile",
   },
   client: {
     "ClientDashboard.html": "today", "ClientProgress.html": "progress",
     "ClientTrain.html": "workouts", "ClientNutri.html": "nutrition",
     "ClientLibrary.html": "library", "ClientTeam.html": "team",
-    "ClientCommunity.html": "community", "ClientScore.html": "score",
+    "ClientScore.html": "score",
     "ClientHabits.html": "habits", "ClientGoal.html": "goal",
     "ClientMe.html": "settings",
   },
@@ -344,9 +344,14 @@ const DASH_INBOX_ROUTES = {
   checkin: "ClientDashboard.html",     // the check-in form lives on Today
   goal: "ClientGoal.html",
   score: "ClientScore.html",
-  feed: "ClientCommunity.html",
   habits: "ClientHabits.html",
 };
+// ⚠ `feed` IS NOT IN THAT MAP AND MUST NOT GO BACK IN. The feed had a page of
+// its own (`ClientCommunity.html`) and now lives in the chat bubble's Feed tab,
+// which is not a URL — so a notification about it opens the bubble instead of
+// navigating. Putting a filename back here would 404 the one notification that
+// is ABOUT the thing every page already carries.
+function dashInboxOpensFeed(n) { return !!(n && n.route === "feed"); }
 function dashInboxHref(n, role) {
   if (!n || typeof n.route !== "string") return null;
   // A coach's client_red / client_amber / checkin_submitted carries the client it is
@@ -582,7 +587,14 @@ function DashInbox({ signedIn, role, inbox }) {
                 );
                 const pad = { display: "block", width: "100%", textAlign: "left", background: "transparent", border: 0,
                               borderBottom: "1px solid rgba(242,237,228,0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
-                return href ? (
+                // A feed notice opens the bubble on its Feed tab rather than
+                // navigating; it is still one tap and still marks itself read.
+                return dashInboxOpensFeed(n) ? (
+                  <button key={n.id} onClick={() => {
+                    if (!n.read) markOne(n.id, true);
+                    try { if (window.__openChat) window.__openChat({ tab: "feed" }); else { const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); } } catch (e) {}
+                  }} style={{ ...pad, cursor: "pointer" }}>{inner}</button>
+                ) : href ? (
                   <a key={n.id} href={href} onClick={() => { if (!n.read) markOne(n.id, true); }} style={{ ...pad, cursor: "pointer" }}>{inner}</a>
                 ) : (
                   <div key={n.id} style={pad}>

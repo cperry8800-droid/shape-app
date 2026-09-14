@@ -101,7 +101,6 @@
 <script type="module">import * as SC from "/newdesign/shareCard.mjs?v=20260713"; window.ShapeShareCard = SC;</script>
 <script type="module">import * as LM from "/newdesign/listingMedia.mjs?v=20260723"; window.ShapeListingLib = LM;</script>
 <script type="module">import * as PL from "/newdesign/profileCustom.mjs?v=20260831"; window.ShapeProfileLib = PL;</script>
-<script type="text/babel" src="dashboardCommunity.jsx?v=20260713c"></script>
 <script type="text/babel" src="trainerGoalPage.jsx?v=20260630a"></script>
 <script type="text/babel" src="trainerScorePage.jsx?v=20260620w"></script>
 <script type="text/babel" data-presets="react" src="livingShared.jsx?v=17"></script>
@@ -137,7 +136,6 @@ const TA_ROUTES = {
   programs:  () => <TrainerProgramsPage />,
   business:  () => <CoachBusinessPage role="trainer" />,
   playlists: () => <PlaylistPage ctx={TRAINER_CTX} />,
-  community: () => <CommunityPage navItems={trainerNavItems("community")} payoutCard={trainerPayoutCard} />,
   goal:      () => <TrainerGoalPage />,
   score:     () => <TrainerScorePage />,
   profile:   () => <LiveProfilePage demoRole="trainer" shell={{ navItems: trainerNavItems("profile"), payoutCard: trainerPayoutCard }} extras={<DashProfileExtras />} />,

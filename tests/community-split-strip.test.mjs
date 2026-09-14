@@ -15,7 +15,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const SRC = 'public/newdesign/dashboardCommunity.jsx';
+const SRC = 'public/newdesign/communityFeed.jsx';
 const src = () => readFileSync(SRC, 'utf8');
 
 test('the pace unit is hoisted off the bars and stated once above the strip', () => {
@@ -81,7 +81,13 @@ test('the rows reconcile against the post’s OWN stat grid', () => {
   // ⚠ THE CAPTURE MUST SPAN THE WHOLE ARRAY. A lazy `(.+?)` up to `],` stops at
   // the FIRST pair, and the stats then parse to an empty object — which reads as
   // "the post has no Distance" rather than "the regex stopped early".
-  const post = /\{ kind: "run", who: "Jonah W\.".*?stats: \[((?:\["[^"]+", "[^"]+"\](?:, )?)+)\]/s.exec(s);
+  // \u26a0 FIELD ORDER IS NOT THE INVARIANT. This required `kind` to be IMMEDIATELY
+  // followed by `who`, so adding a field between them \u2014 `channel`, when the feed
+  // adopted the app's chip grammar \u2014 made it match nothing and the test failed
+  // with "the run post was not found" on a card that was right there. What it is
+  // actually about is Jonah W.'s RUN card and its stat grid, so that is what it
+  // asks for, with any intervening fields allowed.
+  const post = /\{ kind: "run", (?:\w+: "[^"]*", )*?who: "Jonah W\.".*?stats: \[((?:\["[^"]+", "[^"]+"\](?:, )?)+)\]/s.exec(s);
   assert.ok(post, 'the run post was not found');
   const stats = Object.fromEntries([...post[1].matchAll(/\["([^"]+)", "([^"]+)"\]/g)].map((m) => [m[1], m[2]]));
   // Guard the guard: an extraction that quietly returns nothing would make every
