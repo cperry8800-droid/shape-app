@@ -1444,7 +1444,16 @@
   /* Tapping the link you are already on fires no navigation, so the drawer has
      to close itself or it sits over the page with the scroll locked. */
   d.addEventListener('click',function(e){ if(e.target.closest('a')) set(false); });
-  window.addEventListener('resize',function(){ if(window.innerWidth>860) set(false); });
+  /* ⚠ The SAME query the stylesheet uses, not a second copy of the number. This
+     read `innerWidth>860` while the CSS had moved to 980, so resizing anywhere
+     in 861–980 slammed shut a drawer that was still the only nav there. Asking
+     matchMedia means the drawer closes exactly when the drawer stops existing,
+     and it fires once on the transition rather than on every pixel of a drag.
+     (Codex, #2063.) */
+  var mq=window.matchMedia('(max-width:980px)');
+  var onMq=function(e){ if(!e.matches) set(false); };
+  if(mq.addEventListener) mq.addEventListener('change',onMq);
+  else if(mq.addListener) mq.addListener(onMq);
 })();
 </script>
 
@@ -1568,9 +1577,32 @@
       var login=drawer.querySelector('a[href="/newdesign/Login.html"]');
       var cta=drawer.querySelector('a[href="/newdesign/Landing.html"]');
       if(login){login.textContent='Dashboard';login.href=dash;}
-      /* No second sign-out control: two of them would run the scrub chain twice.
-         The drawer links to the dashboard; sign-out lives in the header. */
-      if(cta&&cta.parentNode)cta.parentNode.removeChild(cta);
+      /* ⚠ THE DRAWER NEEDS ITS OWN SIGN OUT NOW, and this comment used to say the
+         opposite. It read "sign-out lives in the header" — true while the header's
+         Sign out was the filled `.ncta`, which no rule hides. The nav change made
+         Sign out the quiet `.login` (Dashboard took the button), and
+         `.nauth .login` is `display:none` at ≤980px — so a signed-in member on
+         the homepage below that width had NO way to sign out at all: hidden in
+         the header, absent from the drawer, on the only nav a phone has.
+
+         The concern the old comment names is real and is respected: the sign-out
+         CHAIN is not copied a third time. This delegates to
+         `window.shapePortalSignOut`, the canonical one pageShell.jsx defines at
+         module scope (and this page loads pageShell for the nav search), so the
+         cookie-then-session ordering, the cross-tab broadcast and the bounded
+         scrub stay in exactly one place. Two BUTTONS are not two chains — only
+         one of them can be clicked. (Codex, #2063.) */
+      if(cta){
+        cta.textContent='Sign out';
+        cta.href='#';
+        cta.addEventListener('click',function(e){
+          e.preventDefault();
+          if(window.shapePortalSignOut) window.shapePortalSignOut();
+          /* No fallback that reimplements the chain: if the helper is missing the
+             page is broken in a way a partial sign-out would make worse, not
+             better. The header's own control is the recovery. */
+        });
+      }
     })
     .catch(function(){});
 })();

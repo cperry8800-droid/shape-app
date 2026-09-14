@@ -264,6 +264,43 @@ test('the nav is set in the same faces on both bars', () => {
   assert.ok(navFaces[2].includes(homeDisp[1]), 'the shared header\'s nav display face is not the homepage\'s (' + homeDisp[1] + '): ' + navFaces[2]);
 });
 
+// ── 7b · sign-out is reachable at EVERY width ──────────────────────────────
+// ⚠ Codex, #2063. Making Dashboard the button made Sign out the quiet `.login`,
+// and `.nauth .login` is `display:none` in the collapsed rule — so a signed-in
+// member on the homepage below that width had no way to sign out at all: hidden
+// in the header, and the drawer deliberately carried none because the header's
+// used to be the unhidden `.ncta`. A control that exists at some widths and
+// nowhere at others is the dead-control class with a viewport attached.
+test('a signed-in member can sign out at every width, on both bars', () => {
+  // The homepage's collapsed rule hides the quiet link, so the DRAWER must carry
+  // sign-out — and it must delegate rather than copy the chain.
+  const hides = /\.nlinks,\.nauth \.login,[^}]*display:none/.test(INDEX);
+  assert.ok(hides, 'the homepage collapse rule changed shape — re-check where Sign out goes');
+  const drawerSwap = INDEX.slice(INDEX.indexOf('The drawer is the only nav a phone has'));
+  assert.match(drawerSwap, /textContent\s*=\s*'Sign out'/, 'the authenticated drawer offers no Sign out, and the header hides it when collapsed');
+  assert.match(drawerSwap, /window\.shapePortalSignOut/, 'the drawer reimplements the sign-out chain instead of delegating to the canonical one');
+  // ⚠ AND IT MUST NOT BE A THIRD COPY. pageShell defines the ordering once; the
+  // homepage header has the second. A third would be the "copied guard with its
+  // rationale left behind" this repo refuses.
+  assert.ok(!/api\/auth\/signout/.test(drawerSwap), 'the drawer carries its own copy of the sign-out chain');
+  // The shared header's drawer carries one too.
+  const shellDrawer = SHELL.slice(SHELL.indexOf('function MobileDrawer('), SHELL.indexOf('async function shapePortalSignOutStandalone'));
+  assert.match(shellDrawer, />Sign out</, 'the shared mobile drawer lost its Sign out');
+});
+
+test('the drawer closes on the same breakpoint that creates it', () => {
+  // ⚠ Codex, #2063. The close-on-resize listener restated the old 860 while the
+  // CSS moved to 980, so a resize anywhere in 861–980 shut a drawer that was
+  // still the only nav there. It asks matchMedia for the SAME query now, so the
+  // two cannot drift — assert exactly that, not the number.
+  const css = /@media \(max-width:(\d+)px\)\{\s*\.nlinks,\.nauth \.login/.exec(INDEX);
+  assert.ok(css, 'the homepage nav-collapse media query is gone');
+  const mq = /matchMedia\('\(max-width:(\d+)px\)'\)/.exec(INDEX);
+  assert.ok(mq, 'the drawer no longer asks matchMedia — it is restating a breakpoint again');
+  assert.equal(mq[1], css[1], 'the drawer closes at ' + mq[1] + 'px but collapses at ' + css[1] + 'px');
+  assert.ok(!/innerWidth\s*>\s*\d+\)\s*set\(false\)/.test(INDEX), 'the width-comparison listener is back');
+});
+
 // ── 8 · the pages the nav dropped are still reachable ──────────────────────
 test('removing the nav dropdowns did not orphan the pages they pointed at', () => {
   // ⚠ Measured when the three dropdowns were retired: nothing else on the site
