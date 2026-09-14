@@ -262,6 +262,17 @@ function ChatWidget(props) {
   const STORE_VER = "v2";
   const storeKeyRef = React.useRef(null);
   const hydratedRef = React.useRef(false);
+  // ⚠ A REF CANNOT GATE AN EFFECT — it triggers no re-render, so an effect that
+  // waits on `hydratedRef.current` never re-runs when it flips. The live-thread
+  // install below has to wait for the localStorage hydrate (see there), so the
+  // same fact is published as STATE as well.
+  const [hydrated, setHydrated] = React.useState(false);
+  // "pending" | "in" | "out" | "unknown" — the /api/me answer the hydrate below
+  // already fetches, published so the history read can decide whether it is worth
+  // loading the Supabase bundle at all. THREE states, not two: that route answers
+  // 200 {user:null} for a MEASURED signed-out visitor and 503 for a read that did
+  // not complete, and only the first is evidence of anything.
+  const [authProbe, setAuthProbe] = React.useState("pending");
   const dirtyRef = React.useRef(false);
 
   // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
@@ -333,14 +344,17 @@ function ChatWidget(props) {
     let cancelled = false;
     (async () => {
       let uid = "anon";
+      let probe = "unknown";
       try {
         const r = await fetch("/api/me", { credentials: "same-origin" });
         if (r.ok) {
           const j = await r.json();
           uid = (j && (j.user?.id || j.id || j.profile?.id)) || "anon";
+          probe = uid === "anon" ? "out" : "in";
         }
       } catch {}
       if (cancelled) return;
+      setAuthProbe(probe);
       const key = `shape.chat.${STORE_VER}.${uid}`;
       storeKeyRef.current = key;
       // Don't clobber a message the user typed before hydration finished.
@@ -374,6 +388,7 @@ function ChatWidget(props) {
         } catch {}
       }
       hydratedRef.current = true;
+      setHydrated(true);
     })();
     return () => { cancelled = true; };
   }, [tabs.length, feedReady]);
@@ -384,6 +399,209 @@ function ChatWidget(props) {
       localStorage.setItem(storeKeyRef.current, JSON.stringify({ threadsByTab, activeByTab }));
     } catch {}
   }, [threadsByTab, activeByTab]);
+
+  // ── REAL MESSAGE HISTORY ──────────────────────────────────────────
+  // ⚠ THE THREADS THIS WIDGET SHIPPED WITH ARE DEMO, AND THERE WAS NO HISTORY AT
+  // ALL. `clientChatThreads.jsx` types Maya Okafor, Marcus J. and the rest into
+  // the file, and a thread only became DB-backed when something handed
+  // `__openChat({ conversationId })` an explicit id. So a member who talked to
+  // their coach in the app opened the bubble on the web and saw invented messages
+  // from people who do not exist.
+  //
+  // ⚠ AN EARLIER DRAFT OF THIS COMMENT ADDED "and even then the poll below only
+  // ever fetched messages NEWER than `since`", AND THAT IS FALSE — corrected
+  // here rather than left, because it is the claim that made a bulk `messages`
+  // read look necessary. `fetchOnce` runs with NO `since` the first time a
+  // conversation is opened (`lastSeenRef` is empty), which is the route's own
+  // cold-load path, and that arm REPLACES `t.messages`. The gap was never the
+  // messages; it was that the thread LIST was invented, so no thread carried an
+  // id for the poll to read. A comment asserting a false cause is an instruction
+  // to fix the wrong thing.
+  //
+  // This reads the member's own conversations and replaces those demo threads.
+  // It needs NO new route: `conversations` is readable by its participants
+  // (`participants read conversations` → `can_access_conversation(id)`), which is
+  // the same path the app takes.
+  //
+  // ⚠ SCOPE: coach threads and member DMs — the two surfaces that carry message
+  // history, both out of `conversations`/`messages`. CHANNELS ARE NOT HERE: they
+  // are a separate `channels` table with its own rows and their own message
+  // store, so they are a different read rather than one more bucket, and the
+  // Channels tab keeps its sample set until that lands.
+  const [threadsLive, setThreadsLive] = React.useState(null); // null = not read yet
+  React.useEffect(() => {
+    // ⚠ A MEASURED SIGNED-OUT VISITOR IS THE ONLY ONE THIS REFUSES TO LOAD FOR.
+    // `authProbe` is the /api/me answer the hydrate already fetched, so the gate
+    // costs no extra request. "unknown" — that read did not complete — TRIES:
+    // loading the client for a signed-out visitor costs a download, where
+    // skipping it for a signed-in member shows them the demo cast, and the
+    // `getUser()` below settles the truth either way, so trying can never publish
+    // somebody else's threads.
+    if (authProbe === "pending") return undefined;
+    if (authProbe === "out") { setThreadsLive(false); return undefined; }
+    let cancelled = false;
+    (async () => {
+      // ⚠ LOAD THE CLIENT; DO NOT ASSUME IT. 25 of the 35 pages that carry this
+      // widget do not load /supabase.js — chatPopout.html and every marketing
+      // page among them — so `window.shapeDb` is undefined on mount and a bare
+      // early return here is PERMANENT: the pop-out opened from a signed-in
+      // dashboard would show the sample cast forever (review: Codex P1).
+      // `pageShell.jsx` is on all 35 and owns the lazy loader, with the vendor
+      // bundle's SRI hash in it, so it is REUSED rather than copied.
+      const sdb = (window.shapeEnsureDb ? await window.shapeEnsureDb() : null) || window.shapeDb;
+      const db = sdb && sdb.client;
+      if (cancelled) return;
+      if (!db) { setThreadsLive(false); return; }
+      // ⚠ BRIDGE THE COOKIE SESSION FIRST. A session living only in the Next.js
+      // HTTP cookies leaves this client ANON, so every read below returns nothing
+      // and a signed-in member is shown an empty inbox. This file already pays
+      // for that lesson twice (the activity line, the live station).
+      try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through */ }
+      if (cancelled) return;
+      let me = null;
+      try { const { data } = await db.auth.getUser(); me = data && data.user && data.user.id; } catch (e) {}
+      if (cancelled) return;
+      // Signed out keeps the sample threads — they are what a visitor previewing
+      // the site is meant to see, and there is nothing of theirs to read.
+      if (!me) { setThreadsLive(false); return; }
+
+      // A reading in the slot every other thread puts a time in. The sample
+      // threads say "2m" / "14m" / "just now"; a status word there is not a time.
+      const relTime = (iso) => {
+        if (!iso) return "now";
+        const t = new Date(iso).getTime();
+        if (!Number.isFinite(t)) return "now";
+        const sec = Math.floor((Date.now() - t) / 1000);
+        if (!(sec > 60)) return "now";
+        if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+        if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
+        return `${Math.floor(sec / 86400)}d`;
+      };
+
+      try {
+        // Coach threads: kind 'direct' with NO dm_key, and `client_id` = me. The
+        // dm_key rows are member↔member DMs and are listed separately below, by
+        // an RPC, because the other member's NAME is not on the conversation row.
+        //
+        // ⚠ THE `client_id` FILTER IS WHAT KEEPS A COACH'S OWN NAME OFF EVERY
+        // ROW. RLS returns every conversation the viewer participates in, and for
+        // a trainer or nutritionist that includes all of THEIR CLIENTS' threads —
+        // rows created with `title` set to the PROVIDER's name
+        // (2026-05-02-conversations-messages.sql:204). Without this filter a coach
+        // opening the bubble on TrainerApp.html saw N threads all labelled with
+        // their own name, indistinguishable, under a tab that reads "Your coaches"
+        // (review: Codex P1). Asking for the rows where the viewer IS the client
+        // is exactly what that tab means, it is indexed
+        // (`conversations (client_id, last_message_at desc)`), and it stays right
+        // for a dual-role account: a trainer who is also a member still gets their
+        // own nutritionist here. Their client-facing threads are a coach surface.
+        //
+        // ⚠ AND `provider_role is not null`, WHICH IS NOT BELT-AND-BRACES. There is
+        // a THIRD writer of `kind='direct'` rows with no `dm_key`:
+        // `get_or_create_coach_coach_conversation` (2026-05-26-shared-clients.sql:181)
+        // opens a coach↔coach thread titled 'Care team' with NO provider and
+        // `client_id` set to the client it is ABOUT — and the member is not a
+        // participant. `can_access_conversation` grants on `client_id = auth.uid()`
+        // all the same, so that row comes back to the member, and without this
+        // clause it rendered in "Your coaches" as `Care team · Trainer · Shape
+        // coach` — two coaches' private thread about them, mislabelled as one of
+        // their own. Requiring a provider is what that tab means, and it also
+        // makes the `roleLabel` fallback below unreachable rather than wrong.
+        // ⚠ REGISTERED, NOT FIXED: whether a member should be able to READ that
+        // thread at all is a question about `can_access_conversation`, i.e. a
+        // migration and somebody's ruling — not a filter in a chat widget. This
+        // stops surfacing it; it does not revoke anything.
+        const convRes = await db.from("conversations").select("*")
+          .eq("kind", "direct").is("dm_key", null).eq("client_id", me)
+          .not("provider_role", "is", null)
+          .order("last_message_at", { ascending: false, nullsFirst: false });
+        if (cancelled) return;
+        // ⚠ A FAILED READ IS NOT AN EMPTY INBOX. Falling through to `[]` here
+        // would replace a member's real coach threads with "no conversations",
+        // which is a claim rather than an absence.
+        if (convRes && convRes.error) { setThreadsLive(false); return; }
+        const convs = (convRes && convRes.data) || [];
+
+        const dmRes = await db.rpc("list_member_dm_threads");
+        if (cancelled) return;
+        // The DM leg failing is survivable on its own — the coach threads are
+        // still real — so it degrades to no DMs rather than discarding both.
+        const dmRows = (dmRes && !dmRes.error && dmRes.data) || [];
+
+        // ⚠ NO BULK `messages` READ HERE, AND ITS ABSENCE IS THE FIX RATHER THAN A
+        // SIMPLIFICATION. One combined `.in(conversation_id, [...])` ordered
+        // ASCENDING shares PostgREST's row ceiling across every conversation, so a
+        // long thread opened on its OLDEST messages while its own preview
+        // advertised a newer one, and a busy thread starved the quiet ones
+        // (review: Codex P2).
+        //
+        // It was also dead weight: the poll effect below fires `fetchOnce()` with
+        // no `since` the moment a thread is opened, and that arm REPLACES
+        // `t.messages` wholesale — so every row this read fetched was discarded by
+        // the first look at the thread. `/api/conversations/[id]/messages` is the
+        // one place that gets the cap right: newest-first, capped, re-reversed,
+        // with an incremental poll that deliberately stays ascending (route.ts).
+        // The history comes from there, per thread, on open.
+        //
+        // The LIST needs no messages: `conversations.last_message` is maintained
+        // by a trigger on every insert (the same migration, :146) and the DM RPC
+        // returns its own, so the previews are real without reading a single row.
+        const coachThreads = convs.map(c => {
+          const roleLabel = c.provider_role === "nutritionist" ? "Nutritionist" : "Trainer";
+          const who = c.title || roleLabel;
+          return {
+            who, role: `${roleLabel} · Shape coach`,
+            last: c.last_message || "New conversation",
+            time: relTime(c.last_message_at),
+            unread: 0, coach: true,
+            // ⚠ THIS FIELD IS WHY SEND, THE COLD LOAD AND THE POLL ALL WORK FOR
+            // FREE. The composer posts to /api/conversations/<id>/messages and
+            // both arms of the poll read that same route off the SAME id — all
+            // three are already keyed on `activeThread.conversationId`.
+            conversationId: c.id,
+            messages: [],
+          };
+        });
+
+        const dmThreads = dmRows.map(r => ({
+          who: r.other_name || "Member",
+          role: "Direct message",
+          last: r.last_message || "New conversation",
+          time: relTime(r.last_message_at),
+          unread: 0, conversationId: r.conversation_id, messages: [],
+        }));
+
+        if (!cancelled) setThreadsLive({ circle: coachThreads, friends: dmThreads });
+      } catch (e) {
+        if (!cancelled) setThreadsLive(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authProbe]);
+
+  // Install the real threads over the sample ones, by TAB ID rather than index
+  // — the tab list differs between the two files that supply it, so a positional
+  // write would land on whichever tab happened to sit there.
+  React.useEffect(() => {
+    if (!threadsLive || threadsLive === true) return;
+    // ⚠ WAIT FOR THE localStorage HYDRATE, OR THIS IS A RACE IT USUALLY WINS AND
+    // SOMETIMES LOSES. Both are async and neither is ordered against the other:
+    // the hydrate does a /api/me round trip, and this waits for that answer and
+    // then does a bundle load + getSession + getUser + two queries — so the
+    // hydrate lands first almost every time, and on the run where it does not it
+    // restores the SAVED (sample) threads OVER the real ones and the member sees
+    // the demo cast again. "Almost every time" is not an ordering.
+    if (!hydrated) return;
+    // ⚠ DO NOT CLOBBER SOMETHING THE MEMBER HAS ALREADY TYPED OR SENT. The same
+    // guard the localStorage hydrate uses; a real read landing mid-compose must
+    // not take their message away.
+    if (dirtyRef.current) return;
+    setThreadsByTab(prev => prev.map((list, i) => {
+      const id = tabs[i] && tabs[i].id;
+      const next = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
+      return next ? next : list;
+    }));
+  }, [threadsLive, tabs, hydrated]);
 
   const [creating, setCreating] = React.useState(false);
   const [newName, setNewName] = React.useState("");

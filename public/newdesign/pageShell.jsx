@@ -1350,7 +1350,15 @@ function ShapeMobileStyles() {
   );
 }
 
-Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch, dashShellHref, dashShellRole, DASH_SHELL_STUBS });
+// ⚠ `shapeEnsureDb` IS EXPORTED BECAUSE 25 OF THE 35 PAGES THAT CARRY THE CHAT
+// WIDGET DO NOT LOAD /supabase.js. The widget's message-history read needs the
+// client on exactly the pages that lack it (chatPopout.html and every marketing
+// page among them), and this loader already owns the vendor bundle's SRI hash
+// and the /supabase.js fallback — a second copy of that hash in another file is
+// the thing worth avoiding. Every page that loads chatWidget.jsx loads this file
+// first (asserted in tests/chat-message-history.test.mjs), including both of
+// globalChatButton.js's boot lists, so the global is there when it is read.
+Object.assign(window, { PAPER, INK, TEAL, TEAL_BRIGHT, serif, sans, Ph, Logo, Header, Footer, HeroBg, SiteSearch, dashShellHref, dashShellRole, DASH_SHELL_STUBS, shapeEnsureDb: ssEnsureDb });
 
 // ── Error tracking (Sentry, static website) — DELIBERATELY NOT HERE ──────────
 // This file used to set window.SHAPE_SENTRY_DSN and load sentryInit.js, on the
