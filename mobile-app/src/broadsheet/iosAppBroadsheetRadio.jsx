@@ -1305,6 +1305,22 @@ function bsRadioCorner(ink, bg) {
 // either way, because the field is ground rather than a figure; it breathes on
 // a MEASURED tempo or it is simply still.
 // ---------------------------------------------------------------------------
+// How long the page will read a silent analyser before it is willing to say the
+// channel is sending nothing. Longer than any plausible start-up (the station
+// request plus `audio.play()`), short enough that a genuinely dead stream is
+// named rather than left silently blank.
+const SIGNAL_GRACE_S = 6;
+
+// Reduced motion, per the brief's §7: the spectrum redraws at ~4 fps and the
+// field does not breathe.
+//
+// ⚠ THE MEASUREMENT KEEPS RUNNING AT FULL RATE — ONLY THE DRAWING IS THROTTLED.
+// The analyser read and the detector are READINGS, not animation: starving them
+// to 4 fps would leave the ring with a quarter of its samples and the tempo
+// would take four times as long to settle, or refuse entirely. A member who
+// asks for less motion is asking for less motion, not for a worse reading.
+const REDUCED_FPS = 4;
+
 function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
   const wrapRef = useRefBR(null);
   const cvsRef = useRefBR(null);
@@ -1322,6 +1338,12 @@ function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
   // Likewise for "is the analyser carrying anything at all" — one boolean, and
   // the page only needs to hear about it when it flips.
   const sigRef = useRefBR(undefined);
+  // Has a frame EVER carried anything on this mount? Once one has, a later
+  // all-zero frame really is the stream going quiet rather than a slow start.
+  const startedRef = useRefBR(false);
+  // `prefers-reduced-motion`, live: a member can change it while the page is open.
+  const reducedRef = useRefBR(false);
+  const lastDrawRef = useRefBR(-1);
 
   useEffectBR(() => {
     const wrap = wrapRef.current;
@@ -1352,6 +1374,16 @@ function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
     try { ro = new ResizeObserver(() => size()); ro.observe(wrap); }
     catch { /* no ResizeObserver here — the one-time size above still holds */ }
 
+    startedRef.current = false;
+    lastDrawRef.current = -1;
+    let mq = null;
+    const onMq = (e) => { reducedRef.current = !!(e && e.matches); };
+    try {
+      mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      reducedRef.current = !!mq.matches;
+      if (mq.addEventListener) mq.addEventListener('change', onMq);
+      else if (mq.addListener) mq.addListener(onMq);
+    } catch { /* no matchMedia here — full motion, which is the shipped default */ }
     let raf = 0;
     let stopped = false;
     // The page's own monotonic clock. The detector takes `t` from its caller and
@@ -1386,9 +1418,20 @@ function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
 
       const signal = hasSignal(bins);
       const live = signal && !cfg.paused;
-      if (signal !== sigRef.current) {
-        sigRef.current = signal;
-        if (cfg.onSignal) cfg.onSignal(signal);
+      // ⚠ AN UNSTARTED PLAYER IS NOT A BROKEN STREAM, AND ONLY TIME TELLS THEM
+      // APART. `play()` is still awaiting the station request and `audio.play()`
+      // when this loop first reads the freshly created analyser, so its
+      // zero-filled buffer would report `false` before a single frame of channel
+      // audio had been sampled — the page would say "No signal data from the
+      // channel" about a player that had not started. The verdict stays UNKNOWN
+      // until either a frame has actually carried something, or we have been
+      // reading a silent analyser for longer than any start-up could plausibly
+      // take. (Codex, P2.)
+      if (signal) startedRef.current = true;
+      const verdict = signal ? true : ((startedRef.current || t >= SIGNAL_GRACE_S) ? false : null);
+      if (verdict !== sigRef.current) {
+        sigRef.current = verdict;
+        if (cfg.onSignal) cfg.onSignal(verdict);
       }
 
       // Feed the detector only from a readable frame. `tempoEnergyFromBins`
@@ -1412,12 +1455,18 @@ function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
         if (cfg.onRead) cfg.onRead(read);
       }
 
+      // The reading is done; everything below is drawing. Under reduced motion
+      // that redraws at ~4 fps, and the field's breath is forced off.
+      const reduced = reducedRef.current;
+      if (reduced && lastDrawRef.current >= 0 && t - lastDrawRef.current < 1 / REDUCED_FPS) return;
+      lastDrawRef.current = t;
+
       ctx.clearRect(0, 0, W, H);
 
       // ── the field ─────────────────────────────────────────────────
       // Ground, never figure. It lights per bin and breathes on the kick; with no
       // measured tempo `fieldK(0, 0)` keeps it lit and simply still.
-      const k = fieldK(0, read ? read.kick : 0);
+      const k = fieldK(0, (reduced || !read) ? 0 : read.kick);
       const cx = W / 2;
       const cy = H * 0.52;
       const nBins = bins ? Math.min(BAND_BINS, bins.length) : BAND_BINS;
@@ -1479,6 +1528,12 @@ function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
       stopped = true;
       if (raf) window.cancelAnimationFrame(raf);
       if (ro) { try { ro.disconnect(); } catch { /* already gone */ } }
+      if (mq) {
+        try {
+          if (mq.removeEventListener) mq.removeEventListener('change', onMq);
+          else if (mq.removeListener) mq.removeListener(onMq);
+        } catch { /* already gone */ }
+      }
       // ⚠ A TEMPO IS ONLY MEASURABLE WHILE SOMETHING IS READING THE ANALYSER, so
       // leaving the page clears it rather than leaving a stale number on the
       // context for Home to draw. A reading nobody is taking is not a reading.
@@ -1488,6 +1543,7 @@ function BSRadioSignalField({ paused, teal, ink, onRead, onSignal }) {
       // already settled.
       saidRef.current = undefined;
       sigRef.current = undefined;
+      startedRef.current = false;
       const cfg = liveRef.current;
       if (cfg && cfg.onRead) cfg.onRead(null);
       // ⚠ AND THE SIGNAL GOES BACK TO UNKNOWN, NOT TO FALSE. Nothing is reading
@@ -1856,7 +1912,15 @@ function BSRadioScreen({ onBack }) {
                 <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM50, fontWeight: 700 }}>{tr('radio:hr.station', { defaultValue: 'Station' })}</div>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: stationBpm == null ? CREAM50 : CREAM, lineHeight: 1, letterSpacing: '-0.03em', marginTop: 2 }}>{stationBpm == null ? '—' : Math.round(stationBpm)}</div>
               </div>
-              {hrStage === 'off' ? (
+              {/* ⚠ A GAP NEEDS BOTH ENDS, AND THE STATION'S END IS NOW MEASURED.
+                  `signedDelta` is null until the detector settles, and the
+                  connected branch below multiplies it to place the marker and
+                  interpolates it into the label — so it drew the marker at dead
+                  centre (null coerces to 0) under the words "null BPM": a gap
+                  presented as measured when neither the arithmetic nor the
+                  reading existed. A strap with no station tempo is exactly the
+                  awaiting state this branch already renders. (Codex, P2.) */}
+              {hrStage === 'off' || signedDelta == null ? (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <div style={{ position: 'relative', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', borderTop: `1px dashed ${CREAM25}` }} />

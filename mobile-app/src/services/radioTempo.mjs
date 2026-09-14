@@ -392,22 +392,54 @@ export function createTempoDetector(opts) {
   let lastSearch = null;
   let pend = null; // { bpm, since } — a candidate that has not yet persisted
 
+  // Drop everything older than the ring window. Called from BOTH `push` and
+  // `read`, which is the whole of the fix below.
+  function prune(t) {
+    const cut = t - ringS;
+    if (samples.length && samples[0].t < cut) samples = samples.filter((s) => s.t >= cut);
+  }
+
   function push(t, e) {
     if (!Number.isFinite(t) || !Number.isFinite(e)) return;
     samples.push({ t, e });
-    const cut = t - ringS;
-    if (samples.length && samples[0].t < cut) samples = samples.filter((s) => s.t >= cut);
+    prune(t);
   }
 
   // `read` is called every frame; the search inside it is not.
   function read(t) {
     if (!Number.isFinite(t)) return null;
+    // ⚠ THE RING AGES WITH `t`, NOT ONLY WITH `push` — AND UNTIL IT DID, A
+    // SETTLED TEMPO COULD NEVER EXPIRE. `push` was the only pruner, so when the
+    // frames stopped (playback paused, the tab hidden, the stream gone) the ring
+    // sat unchanged and every later search re-found the SAME tempo and refreshed
+    // `settledAt` with it. The four-second hold was reset once a second forever.
+    // Measured before the fix: a clean 128 train, stopped at t=11.98s, still read
+    // 128 BPM at t=24s with `heldFor` pinned at 0.00 — a number on screen twelve
+    // seconds after anything was measured, which is the one thing this module
+    // exists to prevent. (Codex, P1 on #2066.)
+    prune(t);
     const due = lastSearch == null || t - lastSearch >= searchS;
     // Only search once the ring is genuinely full — a half-filled ring has no
     // second half to disagree with, so it would settle on less evidence than
     // the gate promises.
+    //
+    // ⚠ AND ONLY WHILE IT IS CURRENT — BELT-AND-BRACES WITH THE PRUNE ABOVE, AND
+    // LABELLED AS SUCH BECAUSE IT IS MEASURED. A first version of this comment
+    // argued the prune alone was insufficient (that a stopped stream would take a
+    // whole `ringS` to empty, so "—" would arrive `ringS + holdS` late). That is
+    // FALSE: `full` needs the ring to still SPAN `ringS * minFill`, and pruning
+    // the oldest samples breaks that span almost immediately. Driven on the
+    // 128-BPM fixture, stopping the frames at t=11.98s: both layers → +5s;
+    // prune alone → +5s; freshness alone → +5s; NEITHER → never expires past 40s.
+    // So each single mutation survives on its own and the combined one kills,
+    // which is what `tests/radio-tempo.test.mjs` now pins. Kept because they fail
+    // in different directions — the prune keeps the WINDOW honest, the freshness
+    // check keeps the SEARCH honest — and a later change to either threshold
+    // could make one of them the only thing holding.
+    // *A wrong because-clause is worse than none*, and this one lasted an hour.
+    const fresh = samples.length > 0 && t - samples[samples.length - 1].t <= searchS;
     const full = samples.length > 1 && t - samples[0].t >= ringS * minFill;
-    if (due && full) {
+    if (due && full && fresh) {
       lastSearch = t;
       const s = tempoSettle(samples, o);
       if (s) {

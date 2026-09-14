@@ -29,6 +29,20 @@ const raw = readFileSync(SRC, 'utf8');
 // explanation.
 const code = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
+// The canvas component sits ABOVE BSRadioScreen, so `screenBody` does not
+// contain it — two guards below were duly reading the wrong function until this
+// existed. Each slice asserts it found something, because a brace-matching slip
+// that returns a signature passes every assertion made against it.
+function fieldBody(src) {
+  const i = src.indexOf('function BSRadioSignalField(');
+  assert.ok(i > 0, 'BSRadioSignalField is gone — this guard no longer names anything');
+  const j = src.indexOf('function BSRadioScreen(', i);
+  assert.ok(j > i, 'could not find the end of BSRadioSignalField');
+  const body = src.slice(i, j);
+  assert.ok(body.length > 3000, `the field slice is ${body.length} chars — this guard is reading the wrong thing`);
+  return body;
+}
+
 function screenBody(src) {
   const i = src.indexOf('function BSRadioScreen(');
   assert.ok(i > 0, 'BSRadioScreen is gone — this guard no longer names anything');
@@ -96,6 +110,51 @@ test('an unreadable stream is a different claim from a quiet one', () => {
     body, /hasSig === false && !r\.paused && bsRadioSignedIn\(\)/,
     'the no-signal line no longer requires that playback is actually permitted',
   );
+});
+
+test('a gap with only one measured end is not drawn as a gap', () => {
+  const body = screenBody(code);
+  // ⚠ `signedDelta` is null until the detector settles, and the connected branch
+  // multiplies it to place the marker and interpolates it into the label — so it
+  // drew the marker at dead centre (null coerces to 0) under the words
+  // "null BPM". A strap with no station tempo takes the awaiting branch.
+  assert.match(
+    body, /hrStage === 'off' \|\| signedDelta == null \? \(/,
+    'the connected card renders again without a measured station tempo',
+  );
+  // And the two derived values stay null rather than collapsing to 0.
+  assert.match(body, /const signedDelta = stationBpm == null \? null :/, 'the gap is computed against an unmeasured tempo');
+  assert.match(body, /const isSynced = hrmConnected && syncDelta != null/, 'sync is claimed without a measured gap');
+});
+
+test('an unstarted player is not reported as a broken stream', () => {
+  const body = fieldBody(code);
+  // On entry `play()` is still awaiting the station request when this loop first
+  // reads the freshly created analyser, so a zero-filled buffer would say the
+  // channel sends nothing before one frame of it had been sampled.
+  assert.match(
+    body, /const verdict = signal \? true : \(\(startedRef\.current \|\| t >= SIGNAL_GRACE_S\) \? false : null\)/,
+    'the signal verdict no longer waits for playback to have started',
+  );
+  // The three-state contract: `false` is only ever reached through that gate.
+  assert.doesNotMatch(body, /cfg\.onSignal\(signal\)/, 'the raw per-frame signal is reported again, skipping the grace');
+});
+
+test('reduced motion throttles the DRAWING and never the reading', () => {
+  const body = fieldBody(code);
+  // §7: the spectrum redraws at ~4 fps and the field does not breathe.
+  assert.match(body, /prefers-reduced-motion: reduce/, 'the field ignores the reduced-motion preference');
+  assert.match(body, /t - lastDrawRef\.current < 1 \/ REDUCED_FPS/, 'the reduced-motion throttle is gone');
+  assert.match(body, /fieldK\(0, \(reduced \|\| !read\) \? 0 : read\.kick\)/, 'the field still breathes under reduced motion');
+  // ⚠ AND THE THROTTLE MUST SIT BELOW THE READING. Starving the analyser read
+  // and the detector to 4fps would leave the ring with a quarter of its samples
+  // and the tempo would take four times as long to settle, or refuse entirely.
+  // A member asking for less motion is not asking for a worse reading.
+  const iDet = body.indexOf('det.push(t, e)');
+  const iRead = body.indexOf('const read = det.read(t)');
+  const iThrottle = body.indexOf('lastDrawRef.current < 1 / REDUCED_FPS');
+  assert.ok(iDet > 0 && iRead > iDet, 'could not locate the reading in the frame body');
+  assert.ok(iThrottle > iRead, 'the reduced-motion throttle sits ABOVE the reading — it would starve the detector');
 });
 
 test('the Doto readings face is asked for its roundness axis', () => {
