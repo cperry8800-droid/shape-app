@@ -801,7 +801,33 @@ Append new entries at the top, under this note.
   comes up, and *× Listen only* returns. The board carries a Listening / Matching switch above the D
   phone and the phone's own keys do the same. ⚠ The first capture of the matching state showed only
   the phone's lower half: Playwright's click had scrolled the phone's INNER scroller to the key, which
-  is the harness and not the page — reset the scroller before the shot.
+  is the harness and not the page — reset the scroller before the shot. ⚠ **BOTH HALVES OF THIS BULLET
+  ARE SUPERSEDED BY THE NEXT ONE** — the waveform gave way to the spectrum and the figure to two rows;
+  kept because a dated bullet says what was true when it was written.
+- **D refined twice more the same evening, on the third and fourth owner notes — and the fourth is the
+  one that changed what D is.** *"use this for the signal field listening app and make sure it matches
+  the bpm of son. Also improve the look of that a little bit. make it look cleaner"*, with a crop of
+  A's spectrum → *Listening* is now the station's **spectrum**: 32 bands mirrored with the bass at the
+  centre, fast attack / slow release so it pumps on the beat without jittering, a thin peak cap close
+  to each bar, a soft reflection under the baseline, and a four-dot counter stepping through the bar so
+  the tempo is something you can see; the tempo reading moved to the top right, mirroring the rail,
+  because at the right end of the bars it sat **on** them. Then, with a screenshot of the matching
+  state: *"and again this when you are matching hrm is too confusing. too much going on. its hard to
+  tell whats happening"* → **the Lissajous figure is gone.** A trail of 260 points at four sub-steps a
+  frame draws about a second of a figure that precesses at the beat frequency, and at 112 against 128
+  that is two loops overlapping — a scribble to anyone who does not already know what a Lissajous
+  says. *Matching* is **two pulse rows on one clock** now: the station's beat above in teal (the kick's
+  own envelope), the heart below in rust (the strap's spike and its small return), three seconds of
+  each with the newest at the right, each row's reading at its left end, the lock state and **the gap
+  in BPM** at the top right. While the rates differ the lower row's peaks slide against the upper
+  row's; at lock thin ties join every pair and the lower row takes the station's teal. No strap → a
+  dashed flat line that says *No pulse · connect a monitor*. The field stays quiet in both states —
+  it is ground, never figure. ⚠ **AND THE SIMULATED STRAP NEVER BEAT IN STEP AT LOCK, ON ANY
+  CONCEPT.** The sim's `HR.phase` ran free of the station's phase, so a *locked* heart pulsed at the
+  right rate and the wrong moment — invisible on a Lissajous, which only cares about rates, and an
+  open contradiction on two rows of peaks. At lock the sim now eases the heart's phase into the
+  station's over a second, so B's orb, C's beams and D's rows all pulse together under the word.
+  *The design that cannot hide a defect is the one that finds it.*
 - ⚠ **THE BOARD'S PHONES ARE PREVIEWS ON A SIMULATED SIGNAL, AND THEY SAY SO ON THE PHONE.** A
   deterministic 128-BPM generator drives every canvas (no `Math.random`), a simulated strap cycles
   free → matching → locked and can be switched off to see the honest no-strap state, and the session
@@ -820,9 +846,11 @@ Append new entries at the top, under this note.
   origin, and Doto measured the **same width** as Saira because both had fallen back. *A font that
   measures like its fallback is its fallback.*
 - **Verified:** docs-only (the pre-commit hook skips the code gates); every `path:line` cited
-  re-read from `main` = `2d49f60`; the board driven at 1440 and 400 px across all six tabs — zero
-  page errors, zero horizontal overflow, the no-strap state rendering `——` · `Connect` ·
-  `Connect monitor` on B.
+  re-read from `main` = `2d49f60`; the board driven at 1440 and 400 px across all eight tabs — zero
+  page errors, zero horizontal overflow; D's five states captured (listening · the crossfade ·
+  matching at −8 BPM · locked at 0 BPM with the ties · no strap), with every label's box measured
+  against the phone rather than eyeballed — the station reading at 90 px wide against rows that start
+  at 116, the heart row's baseline at 396 against a Now block at 431.
 
 ### 2026-09-12 — The homepage showed the same Shape Score twice, and the example labels stopped being badges
 
