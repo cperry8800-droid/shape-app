@@ -19,6 +19,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import * as babelParser from '@babel/parser';
+import { stripComments } from './helpers/strip-comments.mjs';
 import { bpmGap, inSync } from '../mobile-app/src/services/radioSignalField.mjs';
 
 const SRC = new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url);
@@ -315,8 +316,40 @@ test('the station constant carries no tempo and no listener count', () => {
 test('no surface reads a tempo or an audience off the constant', () => {
   // The readers, not the declaration — a field can be deleted and a reader left
   // behind, which renders `undefined` rather than failing.
-  assert.doesNotMatch(code, /LIVE\.bpm/, 'a surface reads the station tempo off the constant again');
-  assert.doesNotMatch(code, /LIVE\.listeners/, 'a surface reads a listener count off the constant again');
+  // ⚠ SWEPT OVER THE WHOLE APP SOURCE, NOT THIS MODULE. `LIVE` is the radio
+  // CONTEXT, so any component under the provider can read it — and the first
+  // version of this guard asked only `code`, the radio module, while two live
+  // consumers in `iosAppBroadsheetClient.jsx` went on interpolating `LIVE.bpm`
+  // into a light-effects island chip and a Settings preview. With the field
+  // gone they rendered "· undefined BPM" over the member's screen, and the
+  // suite was green. (Codex, P2 on #2076.) A guard scoped to the file that
+  // DECLARES a value cannot see the files that READ it.
+  // ⚠ THE SHARED STRIPPER, NOT THIS FILE'S INLINE ONE. The regex at the top of
+  // this file opens a lazy block-comment span on any `/*` it meets — and the
+  // client module carries `accept="image/*"`, which is the exact input this
+  // repo has post-mortemed for deleting thousands of characters before the
+  // assertions ever read them. A sweep cannot report on source it silently
+  // removed.
+  const roots = ['mobile-app/src/broadsheet', 'mobile-app/src/services'];
+  const files = [];
+  const walk = (dir) => {
+    for (const e of readdirSync(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true })) {
+      if (e.name.startsWith('.')) continue;
+      if (e.isDirectory()) walk(`${dir}/${e.name}`);
+      else if (/\.(jsx|js|mjs)$/.test(e.name)) files.push(`${dir}/${e.name}`);
+    }
+  };
+  roots.forEach(walk);
+  assert.ok(files.length >= 8, `only ${files.length} modules swept — this guard is reading the wrong tree`);
+  let sawProvider = false;
+  for (const f of files) {
+    const src = stripComments(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
+    if (/BS_LIVE_STATION/.test(src)) sawProvider = true;
+    assert.doesNotMatch(src, /LIVE\.bpm/, `${f} reads the station tempo off the constant again`);
+    assert.doesNotMatch(src, /LIVE\.listeners/, `${f} reads a listener count off the constant again`);
+  }
+  // Vacuity: the sweep really did reach the module that declares the constant.
+  assert.ok(sawProvider, 'the sweep never reached the module declaring BS_LIVE_STATION');
   // And the key those two call sites rendered is retired from every catalog,
   // because a key nothing reads is thirteen values a translator must maintain.
   const locales = readdirSync(CATALOGS).filter((d) => !d.startsWith('.'));
