@@ -726,6 +726,141 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-14 — The dashboard needs an account, the coaches page shows them what they get, and a read that failed stops reading as signed out
+
+- **Three owner rulings, one PR** (#2064 → `bcacd1d`). *"I think we should not make the
+  dashboard accessible on website until an account is created"* · *"on the current coaches page
+  when signed out, i want a preview of that new page giving previews of the coaches dashboard
+  they will have acesss to and use once an account is created"* · *"remove the from application
+  to first client in under 2 weeks. dont want to gurantee anything like that yet"*. **No
+  migration, no new route** — one existing route gained a third answer.
+- ⚠ **GATING THREE FILES GATES THE WHOLE SURFACE, AND THAT IS A PROPERTY OF THE STUBS RATHER
+  THAN A SHORTCUT.** Every dashboard tab in `public/newdesign/` is a **redirect stub** —
+  `location.replace("<Shell>.html#<slug>")` — **31 of them, counted rather than estimated: 11
+  into `ClientApp.html`, 10 into `TrainerApp.html`, 10 into `NutritionistApp.html`.** The gate
+  sits in those three and nowhere else; a copy per tab would be 31 places for one of them to
+  drift.
+- ⚠ **THE THREE COPIES ARE BYTE-IDENTICAL, COMMENT INCLUDED, AND A TEST SAYS SO.** Three
+  near-copies of a security-shaped block is how one of them quietly grows an exception —
+  `tests/dash-signin-gate.test.mjs` extracts the gate from each shell and compares the text, so a
+  well-meaning tweak to one fails rather than diverging in silence. The same suite **executes**
+  the guard in `node:vm` against a scripted `/api/me` rather than pinning its spelling, so an
+  equivalent rewrite passes and a real regression fails.
+- ⚠ **A READING, NEVER THE ABSENCE OF ONE, MAY REDIRECT.** `!d || !hasOwnProperty(d, 'user')`
+  **returns** — it does not send anybody anywhere. A failed fetch, a proxy error page, a payload
+  we do not recognise: the dashboard renders and the surfaces inside it make their own calls, each
+  of which is already gated server-side by RLS. Bouncing on a read that never completed would take
+  a paying member's dashboard away over a blip, which is the expensive direction; showing a shell
+  to somebody who is not signed in shows them nothing, because every panel in it fetches.
+- **The round trip is preserved**: the gate sends `?next=` carrying
+  `pathname + search + hash`, `encodeURIComponent`d — load-bearing rather than tidy, because an
+  unencoded `#` terminates the query string and the member lands on the dashboard root instead of
+  the tab they asked for. `login.jsx` already validates that parameter against the same
+  same-origin rule as `src/lib/safe-redirect.mjs`.
+- **The Coaches page is the signed-out half of the same ruling** — `Coaches.html` +
+  `coaches.jsx`: a hero over a live dashboard frame, a facts strip, a role switch (trainer ·
+  nutritionist) over five real pages each, how it works, what it costs, an FAQ and the two apply
+  CTAs. **Ten 1440×900 captures of the real dashboard**, not illustrations.
+- ⚠ **EVERY FRAME CARRIES "EXAMPLE ACCOUNT" IN THE FRAME ITSELF**, because these are captures of
+  the signed-out demo practice — real screens, invented numbers — and an unlabelled picture of
+  invented figures on a marketing page is the honest-data defect this log catalogues on the
+  homepage. The mark is inside the image's own frame rather than in a caption beside it, so it
+  cannot be cropped off by a screenshot of the screenshot.
+- ⚠ **AND THE RECIPE THAT PRODUCED THOSE TEN FILES NO LONGER WORKS, WHICH IS WRITTEN AT THE
+  SOURCE.** The captures were taken through the signed-out preview this very PR closes, so a
+  re-capture needs a signed-in coach account or the gate lifted for the run. Recorded in
+  `coaches.jsx`'s header because the next person to try it will otherwise read the redirect as
+  their harness being broken.
+- **The timing promises are gone from three pages**, and the sweep that replaced them is paired
+  with its own retired copy: every ban in `PROMISES` carries the sentence it was written for, and
+  a separate test asserts each pattern still matches that sentence. **Without the positive control
+  a typo'd pattern reports a clean sweep forever** and the page it guards can say whatever it
+  likes.
+- ⚠ **"APPLY IN 10 MINUTES" IS DELIBERATELY NOT BANNED, AND THE LINE IS DRAWN ON WHO OWNS THE
+  CLOCK.** An **outcome** window is a promise about somebody else's business and goes; an
+  **applicant-effort** estimate is a statement about the form in front of them, which Shape
+  controls and can check. The test asserts no pattern fires on it, so widening the sweep cannot
+  quietly start banning the copy that legitimately survived. Whether that line should go too is an
+  **open owner call** and the test takes no position on it.
+- ⚠ **QUOTED SPEECH IS SCOPED OUT STRUCTURALLY RATHER THAN BY EXEMPTING THE SENTENCE THAT TRIPPED
+  IT.** `coach.jsx` carries a testimonial reading *"paid for itself in the first month"* — a claim
+  **attributed to a named coach**, where these patterns are about what Shape says in its own
+  voice. Measured rather than assumed: the raw source matches the month pattern and the
+  quote-scoped source does not, so the scoping is load-bearing. **It is also a real honest-data
+  question left open** — that coach is one of the invented marketplace personas, and the
+  preview-cast ruling is already an owner call from 2026-09-02.
+- ⚠ **AND THE CODEX ROUND'S P1 IS THE ONE THAT MATTERS: THE GATE'S FAIL-OPEN WAS HOLLOW, BECAUSE
+  `/api/me` COULD NOT TELL A FAILED READ FROM AN ANONYMOUS ONE.** `supabase.auth.getUser()`
+  validates the JWT against the auth server, so it resolves `{ user: null, error }` for a visitor
+  with no session **and** for a transient failure — indistinguishable downstream of the destructure
+  — and the route discarded the error and answered `200 { user: null }` for both. **Harmless for
+  as long as every caller used the answer only to pick which nav to draw; this PR is what made it
+  matter**, because three shells started REDIRECTING on it, to a login form that does not forward
+  a live session. So the careful `hasOwnProperty` check three files over was guarding against a
+  state the route could never produce.
+- ⚠ **THE FIX IS AN ALLOW-LIST OF REAL ANSWERS, NOT A DENY-LIST OF FAILURES, AND THE DIRECTION IS
+  THE WHOLE POINT.** Only two things mean a member is measurably not signed in: **no token at
+  all** (`isAuthSessionMissingError`, the SDK's own predicate) or **a token the auth server checked
+  and refused** (401/403). A 429, a 5xx, a dead socket, a shape nobody anticipated — all reads that
+  did not complete, and all now `503 { user: null, unknown: true }`. Written the other way round,
+  an unanticipated error reads as confirmed anonymity, which is the direction that costs a member
+  their dashboard.
+- ⚠ **503 RATHER THAN A 200 CARRYING A FLAG, BECAUSE A NEW FIELD IS A NEW THING FOR THREE COPIES
+  OF THE GATE TO LEARN AND ONE OF THEM TO FORGET.** Every caller already reads a non-OK response as
+  *draw the signed-out chrome*, and the gate already renders rather than redirecting on one — so
+  the third state costs the callers nothing. **Swept before the status code moved, not after: ten
+  pre-existing bare `/api/me` call sites across seven files, nine of which already treat a non-ok
+  response as signed-out with no behaviour change at all.**
+- ⚠ **THE TENTH IS REGISTERED, NOT FOLDED IN.** `publicProfile.jsx:1206` redirects to login on
+  **any** failure of that read — so a signed-in member tapping *Book* during an auth blip is sent
+  away from the coach they were booking, and its `catch` arm drops `?next=` entirely so even a
+  genuinely signed-out visitor loses their place. **Pre-existing**, the same class one surface
+  over, and widening this PR to fix it would be this PR widening itself. *Fix what this PR
+  introduced, register what predates it.*
+- ⚠ **AND TWO OF MY OWN NEW GUARDS WERE HOLLOW, WHICH ONLY THE MUTATION ROUND SHOWED.** The 503
+  assertion matched `status: 503` as a **source string** and **survived the branch condition being
+  replaced with `false`** — the string was present and unreachable; it parses the AST for an
+  `IfStatement` testing `!isMeasuredSignedOut(error)` now. And the capture-geometry check asserted
+  one distinct size across the ten frames, which **cannot fail on a corpus that is already
+  uniform**; `cropFault()` is lifted and driven against a synthetic control carrying mixed, taller
+  and shorter sets. *A guard that reports a pass is a broken instrument until the mutation is
+  proven to have landed.*
+- ⚠ **THE THIRD-STATE TEST INJECTS THE SDK'S OWN PREDICATE RATHER THAN RESTATING IT.** A local
+  copy of `isAuthSessionMissingError` would mean the suite drives **the copy** and goes green on a
+  day the library's own shape moves — which is the failure this route is about, one level up.
+  ⚠ Its TypeScript stripper also had to remove the **cast before the annotation**: running
+  `:\s*unknown` first turns `(error as { status?: unknown })` into `(error as { status? })`, a
+  syntax error that reads as *"the source is broken"* rather than *"the instrument mangled it."*
+- ⚠ **AND A COMMENT COUNTED A LIST IT DOES NOT OWN.** *"the six patterns above"* was written when
+  there were five, and the Codex round took it to seven. It names no number now. *A comment that
+  counts a list it does not own is a false claim with a fuse on it* — the same class this file
+  post-mortems as a comment naming the wrong element, which is what the next reader edits.
+- **Verified on the final head:** `npm test` **3599/3599** locally and **3654/3654** in CI — the
+  two differ because the `Tests (unit + mount)` job installs the mobile-app tree as well, so the
+  55 mount cases only run there · `tsc --noEmit` 0 · JSX parse on all four changed modules · the
+  newdesign precompile check (**75 pages**, up from 74) · **32 mutations across two rounds, 31
+  killed**, each proven to land, sanity green at both ends, the tree restored in a `finally` — the
+  one survivor being the labelled expected case (a provenance comment with no guard behind it) ·
+  the ten captures re-measured at **1440×900 apiece** rather than assumed · CR audit clean on every
+  changed file · and all four required checks green on `cea83dd`.
+- ⚠ **NO ON-ACCOUNT PASS, AND THAT IS THE STANDING CAVEAT.** The gate is driven against a scripted
+  `/api/me` and the Coaches page against the static server; no real coach account has been bounced
+  to login and back, and the 503 has never been produced by a real auth outage. The honest check is
+  a signed-in member opening a dashboard tab while the auth service is degraded.
+- ⚠ **REGISTERED, NOT FIXED:** the `publicProfile.jsx` booking redirect above; whether *"Apply in
+  10 minutes"* should also go; and the invented-persona testimonial the quote-scoping deliberately
+  steps around.
+- ⚠ **AND ONE ITEM I CARRIED AS OPEN IS ALREADY CLOSED — MEASURED WHILE WRITING THIS ENTRY, WHICH
+  IS THE ONLY REASON IT WAS CAUGHT.** #2064's own PR body says the logo *"is 52px on the two bars
+  and 60px on the 69 shared-header pages — raised in #2063 and still open."* **Both bars are 52px**
+  (`index.html`'s `.brand img{height:52px}` and `pageShell.jsx`'s `NAV_LOGO_H = 52`), on **70**
+  pages rather than 69, and `tests/site-nav.test.mjs` already **asserts the two are equal**. The
+  52-against-60 split is the state #2063 FIXED — its own header comment describes it in the past
+  tense — and I carried the before-picture forward as an outstanding call. *A "registered, not
+  fixed" item is a claim like any other, and the one that survives longest is the one nobody
+  re-derives*, because it reads as diligence rather than as an assertion. It is corrected here
+  rather than only in my head, since this file is what the next session auto-loads and the PR body
+  is now a merge commit that cannot be edited.
 ### 2026-09-14 — The Signal Field's two pure modules, and a tempo detector that had to learn to say nothing
 
 - **PR 1 of four off [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md) §11.**

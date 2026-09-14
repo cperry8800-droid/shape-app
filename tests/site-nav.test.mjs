@@ -14,7 +14,7 @@
 // source — nothing restates a link table the code could change underneath it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -76,6 +76,25 @@ test('the homepage bar and the shared header offer the same links, in the same o
   );
   assert.deepEqual(home.map(([, h]) => target(h)), shell.map(([, h]) => target(h)),
     'the two bars point the same labels at different pages');
+});
+
+// ⚠ THE PLACEHOLDER MUST NOT OUTLIVE ITS REASON. For one PR this pointed at
+// `Marketplace.html`, because Coaches.html did not exist yet and a nav entry to a
+// 404 on all 70 pages is worse than one to the next-best page. That is a debt,
+// and a debt with nothing watching it is a permanent feature — so the target has
+// to be a file that is actually in the repo.
+test('the Coaches link names a page that exists', () => {
+  const href = NAV_TABLES.COACHES_HREF;
+  assert.ok(href, 'COACHES_HREF did not parse out of pageShell.jsx');
+  assert.ok(existsSync(path.join(ND, target(href))),
+    'the nav\'s Coaches points at ' + href + ', which is not in public/newdesign');
+  // Both tables read the same constant, so neither bar can be pointed somewhere
+  // else without the other following.
+  for (const [name, groups] of [['signed out', NAV_TABLES.SHAPE_NAV_GROUPS], ['signed in', NAV_TABLES.PORTAL_NAV]]) {
+    const coaches = groups.find((g) => g.label === 'Coaches');
+    assert.ok(coaches, 'the ' + name + ' row has no Coaches entry');
+    assert.equal(coaches.href, href, 'the ' + name + ' row points Coaches somewhere else');
+  }
 });
 
 test('the Coaches menu is the same on both bars', () => {
