@@ -134,7 +134,7 @@ test('the shared radio wordmark RENDERS, and what it renders claims nothing', as
     else if (src[k] === '}') { depth--; if (started && depth === 0) { end = k + 1; break; } }
   }
   assert.ok(end > i, 'could not brace-match RadioWordmark');
-  const consts = (src.match(/^const (TEAL_BRIGHT|RUST|mono|sans)\s*=.*$/gm) || []).join('\n');
+  const consts = (src.match(/^const (TEAL_BRIGHT|RUST|mono|sans|navSans|navDisp)\s*=.*$/gm) || []).join('\n');
   // ⚠ guard the guard: without the constants the component throws a
   // ReferenceError and the failure reads as "the component is broken".
   assert.match(consts, /TEAL_BRIGHT/, 'the constants were not lifted');
@@ -151,7 +151,16 @@ test('the shared radio wordmark RENDERS, and what it renders claims nothing', as
 
   assert.ok(html.length > 200, 'the wordmark rendered almost nothing: ' + html.length + ' chars');
   assert.match(html, /href="\/newdesign\/Radio\.html"/);
-  assert.equal(text, 'Shape Radio', 'the wordmark says something else now: ' + JSON.stringify(text));
+  // ⚠ RE-ANCHORED 2026-09-14, and the reason is this file's own recurring lesson.
+  // This pinned the exact string 'Shape Radio'. The one-bar-on-every-page change
+  // made the shared wordmark a bordered pill reading 'Radio' — the form the
+  // homepage's own bar has always used, and the one the owner approved — so a
+  // correct change failed a test about a CLAIM. The spelling was never the
+  // invariant: what this test defends is that the wordmark exists, names Radio,
+  // carries the two-triangle mark, and says NOTHING ELSE. The pattern below
+  // permits either brand spelling and still fails the moment any other word —
+  // ON AIR, LIVE, NOW PLAYING — joins it.
+  assert.match(text, /^(Shape )?Radio$/, 'the wordmark says something else now: ' + JSON.stringify(text));
   assert.equal((html.match(/<polygon/g) || []).length, 2, 'the two-triangle mark changed');
   assert.equal(/ON\s*AIR/i.test(text), false, 'the rendered wordmark claims ON AIR');
 });

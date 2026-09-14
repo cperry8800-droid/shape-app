@@ -112,7 +112,7 @@
   /* ── nav: six primary items (was 17 targets) ─────────────── */
   nav{position:sticky;top:0;z-index:60;background:rgba(6,9,15,.72);backdrop-filter:blur(14px);
       border-bottom:1px solid var(--line-2)}
-  .navr{display:flex;align-items:center;gap:26px;height:66px}
+  .navr{display:flex;align-items:center;gap:26px;height:72px}
   /* ⚠ THE LINKS SIT ON THE BAR'S OWN MIDLINE, which is why the brand and the auth
      cluster are equal-BASIS flex columns rather than natural-width items. They weigh
      roughly 75px and 300px, so ANY rule that sizes them to their content lands the
@@ -120,8 +120,16 @@
      row used to do) centres nothing, it just pushes. `flex:1 1 0` makes the two
      shares equal, and the default `min-width:auto` still floors each at its own
      content, so when the row runs out of room it gives up the centring rather than
-     overflowing. Below 860px .nlinks is display:none and none of this applies. */
-  .brand{flex:1 1 0}
+     overflowing. Below 860px .nlinks is display:none and none of this applies.
+     ⚠ CORRECTED 2026-09-14 — "the default min-width:auto still floors each at its
+     own content" IS FALSE FOR THE AUTH SIDE, and that is the defect the owner
+     reported. `min-width:auto` floors a flex item at its MIN-CONTENT width, and a
+     row of text has a min-content width of its LONGEST WORD, not its whole line —
+     so below ~1220px the cluster was allowed to narrow until "Log in" broke across
+     two lines (measured 35x32 at 1180px) and "Get started" became a 50px block.
+     `min-width:max-content` floors each column at its content laid out on ONE line,
+     which is what the sentence above always meant. */
+  .brand{flex:1 1 0;min-width:max-content}
   /* ⚠ max-width:none defeats the global `img{max-width:100%}` FOR THIS ONE IMAGE,
      and without it the logo is squashed rather than merely small. .brand is a
      flex:1 1 0 column, and an image that may shrink to 100% of its parent has a
@@ -129,15 +137,17 @@
      Measured at 880px before this line: 56x36 against an intrinsic 75x36, i.e. the
      mark rendered 25% narrow with the height rule still satisfied. Pinned as
      intrinsic, the column floors at the logo's real width instead. */
-  .brand img{height:36px;width:auto;max-width:none;display:block}
+  .brand img{height:52px;width:auto;max-width:none;display:block}
   .nlinks{display:flex;align-items:center;justify-content:center;gap:22px;flex:0 1 auto}
   .nlinks a{font-size:13.5px;font-weight:500;color:var(--fg-2);transition:color .16s}
   .nlinks a:hover{color:var(--fg)}
-  .nauth{flex:1 1 0;display:flex;align-items:center;justify-content:flex-end;gap:14px}
-  .nauth .login{font-size:13.5px;font-weight:500;color:var(--fg-2)}
+  .nauth{flex:1 1 0;min-width:max-content;display:flex;align-items:center;justify-content:flex-end;gap:12px}
+  .nauth .login{font-size:13.5px;font-weight:500;color:var(--fg-2);white-space:nowrap;line-height:1}
   .nauth .login:hover{color:var(--fg)}
-  .ncta{font-family:var(--sans);font-weight:700;font-size:13.5px;background:var(--teal);color:#04110f;
-        padding:9px 16px;border-radius:5px;min-height:38px;display:inline-flex;align-items:center}
+  .ncta{font-family:var(--sans);font-weight:600;font-size:13px;background:var(--teal);color:#04110f;
+        padding:0 14px;border-radius:5px;height:34px;display:inline-flex;align-items:center;
+        white-space:nowrap;line-height:1;transition:background .16s}
+  .ncta:hover{background:#4ce4d4}
   /* ⚠ The permanent "ON AIR" chip is GONE. Measured 2026-09-11: public.radio_station
      does not exist in production, so /api/radio/now-playing falls through to the mock
      provider and the station is not broadcasting. A chip that always says ON AIR is a
@@ -146,9 +156,24 @@
      advertise at all rather than to sniff the mock's literal track title. */
   .nradio{display:inline-flex;align-items:center;gap:7px;font-family:var(--disp);font-weight:500;
           font-variation-settings:'wdth' 150;font-size:12px;letter-spacing:.02em;text-transform:uppercase;
-          color:var(--fg-2);border:1px solid var(--line);border-radius:5px;padding:7px 11px;min-height:38px}
+          color:var(--fg-2);border:1px solid var(--line);border-radius:5px;padding:0 11px;height:34px;
+          white-space:nowrap;line-height:1}
   .nradio:hover{color:var(--fg);border-color:rgba(var(--teal-rgb),.4)}
   .nradio svg{width:9px;height:11px;display:block}
+  /* The Coaches menu. ⚠ The trigger is a real link as well as a menu: clicking
+     goes to the Coaches page, hovering opens the marketplace's two tabs. A
+     trigger that only toggles makes the page it names unreachable from the bar. */
+  .ndrop{position:relative;display:inline-flex;align-items:center}
+  .ndrop>a{display:inline-flex;align-items:center;gap:5px}
+  .ndrop>a .car{font-size:8px;opacity:.6}
+  .nmenu{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);min-width:200px;
+         padding:8px;border-radius:8px;background:rgba(6,9,15,.98);border:1px solid var(--line);
+         box-shadow:0 20px 50px rgba(0,0,0,.5);display:none;z-index:70}
+  .ndrop:hover .nmenu,.ndrop:focus-within .nmenu{display:block}
+  .nmenu a{display:block;padding:10px 14px;border-radius:5px;font-size:13.5px;font-weight:500;
+           color:var(--fg-2);white-space:nowrap;line-height:1.2}
+  .nmenu a:hover{background:rgba(var(--teal-rgb),.12);color:var(--fg)}
+  .nmenu a small{display:block;font-size:11.5px;color:var(--fg-3);font-weight:400;margin-top:2px}
   .nburger{display:none;background:none;border:1px solid var(--line);border-radius:5px;color:var(--fg);
            width:40px;height:38px;align-items:center;justify-content:center;cursor:pointer}
   .nburger span{display:block;width:16px;height:1.5px;background:currentColor;position:relative}
@@ -168,7 +193,7 @@
      min-height still grows the fold if the copy will not fit. 78px to the camps,
      ~44px of camp, ~26px of air. Below 760px .hero becomes a grid with its own
      `padding:44px 0 0` and the camps are a real row, so this does not apply. */
-  .hero{position:relative;min-height:calc(100vh - 66px);display:flex;align-items:center;overflow:hidden;
+  .hero{position:relative;min-height:calc(100vh - 72px);display:flex;align-items:center;overflow:hidden;
         isolation:isolate;padding-bottom:148px}
   #terrain{position:absolute;inset:0;width:100%;height:100%;z-index:0;display:block}
   /* The painted fallback: reduced-motion and no-JS both land here, so the fold is
@@ -295,7 +320,7 @@
 
   /* ── the journey: five stages on ~300vh, not 1500 ────────── */
   .jtrack{height:320vh;position:relative}
-  .jpin{position:sticky;top:66px;height:calc(100vh - 66px);overflow:hidden;display:grid;
+  .jpin{position:sticky;top:72px;height:calc(100vh - 72px);overflow:hidden;display:grid;
         grid-template-columns:minmax(0,1fr) 264px;gap:40px;align-items:center;
         max-width:var(--maxw);margin:0 auto;padding:0 32px}
   #jcanvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
@@ -427,9 +452,20 @@
   @media (max-width:860px){
     .jpin{grid-template-columns:1fr}
     .jph{display:none}
+  }
+  /* ⚠ THE NAV COLLAPSES AT 980px, AND THAT NUMBER IS MEASURED, NOT PICKED.
+     Driven in Chromium: the signed-out bar needs ~975px — it overflowed by 15px
+     at 960 and fit at 980. It collapsed at 860 before, and at 880 THE BAR
+     ALREADY OVERFLOWED BY 18px ON MAIN; that went unnoticed because the auth
+     cluster was free to shrink below its own text, which is the same freedom
+     that broke "Log in" across two lines at 1180. Refusing to wrap turns that
+     shrink into an overflow, so the honest fix is to stop rendering the row at a
+     width it does not fit. `pageShell.jsx` collapses at the same 980 — one bar
+     means one breakpoint, or a 900px window gets a different nav per page. */
+  @media (max-width:980px){
     .nlinks,.nauth .login,.nauth .nradio{display:none}
     .nburger{display:flex}
-    .ndrawer{display:block;position:fixed;inset:66px 0 0;z-index:59;background:rgba(6,9,15,.97);
+    .ndrawer{display:block;position:fixed;inset:72px 0 0;z-index:59;background:rgba(6,9,15,.97);
              backdrop-filter:blur(16px);padding:26px 32px;transform:translateY(-12px);opacity:0;
              pointer-events:none;visibility:hidden;
              transition:opacity .22s,transform .22s,visibility .22s;overflow-y:auto}
@@ -440,7 +476,8 @@
        meets a second copy of the nav despite aria-expanded="false". `visibility`
        removes it from both, and it animates discretely: flipping at the END of the
        fade out and at the START of the fade in, so the transition still reads.
-       (Codex, #2045.) */
+       (Codex, #2045.) Carried here verbatim when the nav's breakpoint moved from
+       860 to 980 — the rule moved, the reason for it did not. */
     .ndrawer.open{opacity:1;transform:none;pointer-events:auto;visibility:visible}
     .ndrawer a{display:block;font-family:var(--disp);font-weight:500;font-variation-settings:'wdth' 100;
                font-size:22px;padding:14px 0;border-bottom:1px solid var(--line-2)}
@@ -498,8 +535,10 @@
 
   /* ⚠ A SHORT VIEWPORT CANNOT HOLD THE PINNED RAIL, AND overflow:hidden MEANT
      THE OVERFLOW WAS UNREACHABLE RATHER THAN SCROLLABLE. .jpin is a fixed
-     calc(100vh - 66px), so on a landscape phone it is ~324px against ~492px of
-     rail: measured in Chromium at 844x390 and 740x360, THREE OF FIVE stages sat
+     calc(100vh - <the bar's height>), so on a landscape phone it is ~324px
+     against ~492px of
+     rail: measured in Chromium at 844x390 and 740x360 when the bar was 66px,
+     THREE OF FIVE stages sat
      outside the box for the whole of the pinned scroll, with no way to reach
      them. Portrait and desktop are unaffected (0 clipped, measured).
      The fix is the treatment the other two degradations already take — the
@@ -538,7 +577,7 @@
     <!-- 3.6 KB / 265x128, not the 226 KB 3696px original for a 26px slot. -->
     <a class="brand" href="/newdesign/index.html"><img src="/shape-logo-nav-teal-white.png" width="265" height="128" alt="Shape" /></a>
     <div class="nlinks">
-      <a href="/newdesign/Marketplace.html">Coaches</a>
+      <span class="ndrop"><a href="/newdesign/Marketplace.html">Coaches<span class="car" aria-hidden="true">&#9662;</span></a><div class="nmenu"><a href="/newdesign/Marketplace.html#trainers">Trainers<small>Marketplace &middot; training</small></a><a href="/newdesign/Marketplace.html#nutritionists">Nutritionists<small>Marketplace &middot; nutrition</small></a></div></span>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Radio.html">Radio</a>
       <a href="/newdesign/Community.html">Community</a>
@@ -557,6 +596,8 @@
 </nav>
 <div class="ndrawer" id="ndrawer">
   <a href="/newdesign/Marketplace.html">Coaches</a>
+  <a href="/newdesign/Marketplace.html#trainers">&nbsp;&nbsp;Trainers</a>
+  <a href="/newdesign/Marketplace.html#nutritionists">&nbsp;&nbsp;Nutritionists</a>
   <a href="/newdesign/GetApp.html">App</a>
   <a href="/newdesign/Radio.html">Radio</a>
   <a href="/newdesign/Community.html">Community</a>
@@ -797,8 +838,12 @@
         <a href="/newdesign/Score.html">Shape Score</a>
         <a href="/newdesign/Store.html">Shape Store</a>
         <a href="/newdesign/Radio.html">Radio</a>
+        <a href="/newdesign/Recipes.html">Shape Kitchen</a>
+        <a href="/newdesign/Client.html">For members</a>
       </div>
       <div><h5>For coaches</h5>
+        <a href="/newdesign/Coach.html">For trainers</a>
+        <a href="/newdesign/Nutritionist.html">For nutritionists</a>
         <a href="/newdesign/SignupTrainer.html">Apply</a>
         <a href="/newdesign/TrainerPrograms.html">Programs</a>
         <a href="/newdesign/Pricing.html">Rates &amp; payouts</a>
@@ -1424,16 +1469,43 @@
       var radio=nauth.querySelector('.nradio');
       if(login)login.remove();
       if(cta)cta.remove();
+      /* The LINKS row swaps too, not just the auth cluster. Signed in, the row is
+         the essentials — Coaches (with its menu) and About; every other
+         destination is a tab of the dashboard the button now opens. This mirrors
+         PORTAL_NAV in pageShell.jsx, and tests/site-nav.test.mjs requires the two
+         to agree, because two hand-written copies of one bar is how the site came
+         to have two different bars in the first place. */
+      var links=document.querySelector('nav .nlinks');
+      if(links){
+        var keep={'Coaches':1,'About':1};
+        Array.prototype.slice.call(links.children).forEach(function(el){
+          /* ⚠ THE TRIGGER'S OWN TEXT, NOT THE SUBTREE'S. Coaches is a <span>
+             wrapping its anchor AND its menu panel, so `el.textContent` reads
+             "Coaches▾TrainersMarketplace · training…" — which matches nothing in
+             `keep`, and the first cut silently removed the one link the signed-in
+             row is supposed to keep. Direct text nodes of the anchor give
+             "Coaches"; the caret lives in a nested span and drops out for free. */
+          var a=el.matches('a')?el:el.querySelector('a');
+          var name=a?Array.prototype.filter.call(a.childNodes,function(n){return n.nodeType===3;})
+            .map(function(n){return n.textContent;}).join('').trim():'';
+          if(!keep[name])el.remove();
+        });
+      }
       var hi=document.createElement('span');
       hi.className='login';
-      hi.style.color='var(--cream)';
+      hi.style.color='var(--fg)';
       hi.textContent='Hi, '+(u.firstName||u.email||'there');
+      /* ⚠ DASHBOARD IS THE BUTTON AND SIGN OUT IS THE QUIET LINK — the reverse of
+         what this block used to build. Dashboard sits exactly where Get started
+         sits signed out, so the bar keeps one shape across the sign-in boundary,
+         and the control a member rarely wants stops being the loudest thing on
+         the row. */
       var dashLink=document.createElement('a');
-      dashLink.className='login';
+      dashLink.className='ncta';
       dashLink.href=dash;
       dashLink.textContent='Dashboard';
       var out=document.createElement('a');
-      out.className='ncta';
+      out.className='login';
       out.href='#';
       out.textContent='Sign out';
       out.addEventListener('click',function(e){
@@ -1470,8 +1542,8 @@
           });
       });
       nauth.insertBefore(hi,radio);
-      nauth.insertBefore(dashLink,radio);
       nauth.insertBefore(out,radio);
+      nauth.insertBefore(dashLink,radio);
       var navEl=document.querySelector('nav');
       if(navEl)navEl.classList.add('nav-signed-in');
     })

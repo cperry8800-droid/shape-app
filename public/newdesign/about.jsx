@@ -232,7 +232,7 @@ function AboutPage() {
       {/* Horizontal masthead + footer rules — frame the page like a print spread. */}
       <div aria-hidden style={{
         position: "fixed",
-        top: 96,
+        top: 86,
         left: 0,
         right: 0,
         height: 1,

@@ -1646,7 +1646,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
                       <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
                         <DisciplinesBlock d={d} direction={direction} />
                       </div>
-                      <aside style={{ display: "flex", flexDirection: "column", gap: 34, position: "sticky", top: 96 }} className="dk-rail">
+                      <aside style={{ display: "flex", flexDirection: "column", gap: 34, position: "sticky", top: 86 }} className="dk-rail">
                         <RecordsBlock d={d} />
                         {!coach && <RelationBlock d={d} />}
                       </aside>
@@ -1663,7 +1663,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
                   <div style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 40, alignItems: "start" }} className="dk-grid">
                     <div style={{ display: "flex", flexDirection: "column", gap: 34 }}><ClimbBlock d={d} owner={owner} /></div>
-                    <aside style={{ display: "flex", flexDirection: "column", gap: 34, position: "sticky", top: 96 }} className="dk-rail"><RecordsBlock d={d} /></aside>
+                    <aside style={{ display: "flex", flexDirection: "column", gap: 34, position: "sticky", top: 86 }} className="dk-rail"><RecordsBlock d={d} /></aside>
                   </div>
                 </div>
               </section>
