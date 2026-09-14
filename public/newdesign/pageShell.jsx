@@ -140,12 +140,16 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
   );
 }
 
-// ⚠ COACHES IS A PAGE AND A MENU, and until the Coaches page exists it is the
-// marketplace. PR 2 of this build creates `Coaches.html` and flips this one
-// constant; pointing at it before it exists would ship a 404 in the nav of all
-// 70 pages. The MENU items are already final — they deep-link the marketplace's
+// ⚠ COACHES IS A PAGE AND A MENU. Clicking goes to the Coaches page — the one
+// place the site pitches itself to trainers AND nutritionists, and previews the
+// dashboard they get once an account exists; hovering opens the marketplace's
 // own two tabs, which `marketplace.jsx` reads off the hash.
-const COACHES_HREF = "Marketplace.html";
+//
+// This pointed at `Marketplace.html` for one PR, because the page did not exist
+// yet and a nav entry to a 404 on all 70 pages is worse than a nav entry to the
+// next-best page. `tests/site-nav.test.mjs` now requires it to name a file that
+// is actually in the repo, so the placeholder cannot outlive its reason.
+const COACHES_HREF = "Coaches.html";
 const COACHES_ITEMS = [
   ["Trainers", "Marketplace.html#trainers", "Marketplace · training"],
   ["Nutritionists", "Marketplace.html#nutritionists", "Marketplace · nutrition"],
@@ -1081,10 +1085,11 @@ function Footer({ logoHeight = 64 } = {}) {
                DROPDOWNS WENT. Measured across public/newdesign, nothing else
                points at Coach.html, Nutritionist.html, Client.html or
                Recipes.html — so without this they are reachable only by typing
-               a URL. PR 2 folds the two coach pages into Coaches.html; the
-               footer carries them in the meantime. */
+               a URL. Coaches.html now sits above them in the nav, but it does
+               NOT replace them — both still carry their own copy and their own
+               application, and the footer is their only link. */
             ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"], ["Dashboard", "ClientDashboard.html"]]],
-            ["For trainers", [["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
+            ["For trainers", [["For coaches", "Coaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
             ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
             ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"]]],
           ].map(([h, items]) => (

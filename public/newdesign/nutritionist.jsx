@@ -173,9 +173,9 @@ function NutWhy() {
 function NutHow() {
   const steps = [
     { n: "01", t: "Apply with credentials", b: "RD, RDN, CNS, CSSD, or licensed dietitian. Upload your CDR number or state license. We verify every one.", time: "10 min" },
-    { n: "02", t: "Review in 2–3 days", b: "Our clinical team reads every application. Licensed dietitians review yours. Approvals come with onboarding notes.", time: "2–3 days" },
+    { n: "02", t: "We review your application", b: "Our clinical team reads every application. Licensed dietitians review yours. Approvals come with onboarding notes." },
     { n: "03", t: "Set up your practice", b: "Build intake forms, set session pricing, connect your calendar, upload plan templates. Import from existing clients.", time: "1–2 hrs" },
-    { n: "04", t: "Start getting matched", b: "Members searching by specialty find your profile. First consults usually book within the first two weeks.", time: "Ongoing" },
+    { n: "04", t: "Start getting matched", b: "Members searching by specialty find your profile.", time: "Ongoing" },
   ];
   return (
     <section style={{ padding: "140px 72px", background: INK, color: PAPER }}>
@@ -183,7 +183,7 @@ function NutHow() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 80, gap: 40, flexWrap: "wrap" }}>
           <div style={{ maxWidth: 680 }}>
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>How it works</div>
-            <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 82px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.98 }}>From application to first consult in <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>under two weeks.</em></h2>
+            <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 82px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.98 }}>From application to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>first consult.</em></h2>
           </div>
           <a href="SignupNutritionist.html" style={{ padding: "15px 26px", borderRadius: 2, background: PAPER, color: INK, fontFamily: sans, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>Start application →</a>
         </div>
@@ -192,7 +192,7 @@ function NutHow() {
             <div key={i} style={{ padding: "40px 32px 72px 0", borderLeft: i ? "1px solid rgba(26,22,18,0.12)" : "none", paddingLeft: i ? 32 : 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
                 <div style={{ fontFamily: mono, fontSize: 12, color: TEAL, letterSpacing: "0.14em" }}>{s.n}</div>
-                <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(26,22,18,0.45)", letterSpacing: "0.08em" }}>{s.time}</div>
+                {s.time ? <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(26,22,18,0.45)", letterSpacing: "0.08em" }}>{s.time}</div> : null}
               </div>
               <h3 style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", fontWeight: 400, margin: "0 0 14px", lineHeight: 1.15 }}>{s.t}</h3>
               <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(26,22,18,0.7)", lineHeight: 1.55, margin: 0 }}>{s.b}</p>
@@ -397,7 +397,7 @@ function NutCTA() {
           Apply in <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>10 minutes.</em>
         </h2>
         <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(26,22,18,0.7)", lineHeight: 1.55, margin: "0 auto 48px", maxWidth: 560 }}>
-          Free to join. No lock-in. Licensed dietitians review every application within 2–3 days.
+          Free to join. No lock-in. Licensed dietitians review every application.
         </p>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
           <a href="SignupNutritionist.html" style={{ padding: "18px 34px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 15, fontWeight: 600 }}>Start your application →</a>

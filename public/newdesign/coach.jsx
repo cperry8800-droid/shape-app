@@ -162,9 +162,9 @@ function TrainerWhy() {
 function TrainerHow() {
   const steps = [
     { n: "01", t: "Apply in 10 minutes", b: "Tell us about your credentials, specialty, and coaching style. We verify CPT, CSCS, or equivalent.", time: "10 min" },
-    { n: "02", t: "Review in 2–3 days", b: "Our team reads every application. We reach out to learn more or with an approval.", time: "2–3 days" },
+    { n: "02", t: "We review your application", b: "Our team reads every application. We reach out to learn more or with an approval." },
     { n: "03", t: "Set up your storefront", b: "Upload your programs, set session pricing, connect your calendar, write your bio. We help with copy.", time: "1–2 hrs" },
-    { n: "04", t: "Start getting matched", b: "Your profile goes live in the marketplace. New client inquiries land in your inbox within the first week.", time: "Ongoing" },
+    { n: "04", t: "Start getting matched", b: "Your profile goes live in the marketplace. New client inquiries land in your inbox.", time: "Ongoing" },
   ];
   return (
     <section style={{ padding: "140px 72px", background: INK, color: PAPER }}>
@@ -172,7 +172,7 @@ function TrainerHow() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", marginBottom: 80, gap: 40, flexWrap: "wrap" }}>
           <div style={{ maxWidth: 680 }}>
             <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>How it works</div>
-            <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 82px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.98 }}>From application to first client in <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>under two weeks.</em></h2>
+            <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 82px)", letterSpacing: "-0.04em", fontWeight: 300, margin: 0, lineHeight: 0.98 }}>From application to your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>first client.</em></h2>
           </div>
           <a href="SignupTrainer.html" style={{ padding: "15px 26px", borderRadius: 2, background: PAPER, color: INK, fontFamily: sans, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>Start application →</a>
         </div>
@@ -181,7 +181,7 @@ function TrainerHow() {
             <div key={i} style={{ padding: "40px 32px 72px 0", borderLeft: i ? "1px solid rgba(26,22,18,0.12)" : "none", paddingLeft: i ? 32 : 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 28 }}>
                 <div style={{ fontFamily: mono, fontSize: 12, color: TEAL, letterSpacing: "0.14em" }}>{s.n}</div>
-                <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(26,22,18,0.45)", letterSpacing: "0.08em" }}>{s.time}</div>
+                {s.time ? <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(26,22,18,0.45)", letterSpacing: "0.08em" }}>{s.time}</div> : null}
               </div>
               <h3 style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", fontWeight: 400, margin: "0 0 14px", lineHeight: 1.15 }}>{s.t}</h3>
               <p style={{ fontFamily: sans, fontSize: 14, color: "rgba(26,22,18,0.7)", lineHeight: 1.55, margin: 0 }}>{s.b}</p>
@@ -386,7 +386,7 @@ function TrainerCTA() {
           Apply in <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>10 minutes.</em>
         </h2>
         <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(26,22,18,0.7)", lineHeight: 1.55, margin: "0 auto 48px", maxWidth: 560 }}>
-          Free to join. No lock-in. We review every application personally — you'll hear back within 2–3 days.
+          Free to join. No lock-in. We review every application personally.
         </p>
         <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
           <a href="SignupTrainer.html" style={{ padding: "18px 34px", borderRadius: 2, background: TEAL, color: PAPER, fontFamily: sans, fontSize: 15, fontWeight: 600, letterSpacing: "0.01em" }}>Start your application →</a>
