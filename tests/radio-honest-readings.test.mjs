@@ -88,6 +88,14 @@ test('an unreadable stream is a different claim from a quiet one', () => {
   // channel, and only the second may draw the line.
   assert.match(body, /hasSig\s*===\s*false/, 'the no-signal line no longer distinguishes false from null');
   assert.doesNotMatch(body, /!\s*hasSig\s*&&/, 'the no-signal line fires on null — a page nobody is looking at is not a broken stream');
+  // ⚠ AND IT MAY ONLY FIRE WHERE PLAYBACK IS PERMITTED. Playback is gated on a
+  // signed-in account, so a signed-out visitor's analyser reads all-zero for a
+  // reason that has nothing to do with the channel — the page would be blaming
+  // the broadcaster for our own gate. Found by driving the page, not by reading.
+  assert.match(
+    body, /hasSig === false && !r\.paused && bsRadioSignedIn\(\)/,
+    'the no-signal line no longer requires that playback is actually permitted',
+  );
 });
 
 test('the Doto readings face is asked for its roundness axis', () => {

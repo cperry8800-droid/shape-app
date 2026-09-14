@@ -1731,8 +1731,16 @@ function BSRadioScreen({ onBack }) {
               station playing silence. It renders ONLY on `false` (we read the
               analyser and it carried nothing) and never on `null` (nothing is
               reading it yet), and never while paused, where an empty analyser is
-              exactly what a paused player should produce. */}
-          {hasSig === false && !r.paused && (
+              exactly what a paused player should produce.
+              ⚠ AND IT REQUIRES THAT PLAYBACK IS ACTUALLY PERMITTED. Found by
+              driving the page rather than by reading it: playback is gated on a
+              signed-in account (licensing, not product — the provider's own
+              effect pauses for anyone else), so a signed-out visitor's analyser
+              reads all-zero for a reason that has NOTHING to do with the
+              channel. Without this clause the page would blame the broadcaster
+              for our own sign-in gate, which is the same class of false claim
+              the line exists to remove. */}
+          {hasSig === false && !r.paused && bsRadioSignedIn() && (
             <div style={{ marginBottom: 12, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, fontWeight: 600 }}>
               {tr('radio:screen.noSignalData', { defaultValue: 'No signal data from the channel' })}
             </div>
