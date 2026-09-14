@@ -342,7 +342,13 @@ function BSRadioFx() {
   if (!r.radioOn || r.paused) return null;
   if (!r.fxMode || r.fxMode === 'off') return null;
   if (typeof RadioEffects !== 'function') return null;
-  const label = `${r.LIVE.show.toUpperCase()} · ${r.LIVE.bpm} BPM`;
+  // ⚠ THE ISLAND CHIP NAMES THE STATION AND NOTHING ELSE. It read
+  // `… · ${r.LIVE.bpm} BPM` off a typed-in 132 — a tempo nobody measured,
+  // floated over the member's screen in the one place they cannot miss it. The
+  // measured tempo lives on the Radio page, off the analyser; this overlay has
+  // no analyser and no business quoting one. What is left is the station's own
+  // name, which is a fact about us. (Codex, P2 on #2076.)
+  const label = r.LIVE.show.toUpperCase();
   return <RadioEffects mode={r.fxMode} label={label} tint={bsFxTint(r.fxColor, t)} />;
 }
 
@@ -33787,7 +33793,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           timer, never rendered while the live overlay (BSRadioFx) is active. */}
       {fxPreview && !(r.radioOn && !r.paused) && typeof RadioEffects === 'function' && createPortal((
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 80 }}>
-          <RadioEffects mode={fxPreview} label={`${tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} · ${r.LIVE.bpm} BPM`} tint={bsFxTint(r.fxColor, t)} />
+          {/* ⚠ SAME AS THE LIVE OVERLAY: this appended `· ${r.LIVE.bpm} BPM`,
+              which is a reading, on a preview where nothing is even playing. */}
+          <RadioEffects mode={fxPreview} label={tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} tint={bsFxTint(r.fxColor, t)} />
         </div>
       ), document.getElementById('bs-phone-surface') || document.body)}
 
