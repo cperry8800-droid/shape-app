@@ -737,7 +737,20 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // move by NOTHING on this surface, meaning no new hardcoding; deleting dead
   // English is the other direction and is the whole reason the number is a
   // ratchet rather than a pin.
-  assert.equal(partStrings, 187, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ MOVED AGAIN 2026-09-14 BY THE SIGNAL FIELD'S LAYOUT, AND **DOWN** ONCE
+  // MORE: partStrings 187 -> 182. The same shape as the cut above and the same
+  // five-string arithmetic: the Radio page's last `{false && …}` block — an
+  // `UP NEXT` panel carrying a 6:00 PM slot, a `▍ Tempo Run`, a
+  // `Long-form 165 BPM block` and a named host — is DELETED rather than left
+  // behind its `false`. Not one of those five could ever have rendered, in any
+  // locale, because no render reached them; they were being counted as copy this
+  // app ships in English to twelve locales while being invisible to all thirteen.
+  // ⚠ AND THE LAYOUT ITSELF MOVED IT BY ZERO, WHICH IS THE CERTIFICATION. The
+  // whole hero was rewritten — a mode label, a rail, a state block, two pulse
+  // rows, one wide key and a channel strip, twelve new keys × 13 locales — and
+  // every string on it resolves. Had the rewrite hardcoded so much as one word
+  // the deltas would not have come to exactly the five the deletion accounts for.
+  assert.equal(partStrings, 182, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

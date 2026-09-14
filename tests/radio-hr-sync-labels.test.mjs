@@ -17,6 +17,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
+// ⚠ THE DELTA SLOT IS DRIVEN THROUGH THE SHIPPED FORMATTER, NOT A RESTATEMENT OF
+// IT. The slot reads `gapText(signedDelta)`, so the lifted expression needs the
+// real function or it throws a ReferenceError and every assertion below reads as
+// "the code is broken". Importing it also means a change to how a gap is printed
+// is exercised here rather than only where it is defined.
+import { gapText } from '../mobile-app/src/services/radioSignalField.mjs';
 
 const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx';
 const src = stripComments(readFileSync(SRC, 'utf8'));
@@ -43,10 +49,12 @@ for (const [name, s] of [['stage', stageLine], ['status', statusLine], ['delta',
   assert.ok(s.length > 20, `${name} expression looks truncated: ${s}`);
 }
 
-const resolve = new Function(
-  'hrmConnected', 'matching', 'isSynced', 'liveHr', 'signedDelta', 'tr',
+const resolveFn = new Function(
+  'hrmConnected', 'matching', 'isSynced', 'liveHr', 'signedDelta', 'tr', 'gapText',
   `${stageLine}\n${statusLine}\nreturn { hrStage, chip: hrStatus, delta: (${deltaExpr}), pill: (${pillExpr}) };`
 );
+const resolve = (hrmConnected, matching, isSynced, liveHr, signedDelta, tr) =>
+  resolveFn(hrmConnected, matching, isSynced, liveHr, signedDelta, tr, gapText);
 
 // The translator answers with the key it was asked for, so two surfaces reading
 // one key are indistinguishable here — which is the whole point.
@@ -64,7 +72,7 @@ test('the three HR sync surfaces never resolve to one word', () => {
   let checked = 0;
   for (const s of STATES) {
     const r = resolve(s.hrmConnected, s.matching, s.isSynced, s.liveHr, s.signedDelta, trKey);
-    // The meter + pill only render once a monitor is connected.
+    // The state block + key only carry all three once a monitor is connected.
     if (r.hrStage === 'off') continue;
     checked++;
     const seen = [r.chip, r.delta, r.pill];
