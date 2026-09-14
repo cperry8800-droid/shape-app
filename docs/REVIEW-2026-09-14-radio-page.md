@@ -14,9 +14,14 @@ options"* (§4b).
 
 **Recommended: B · The Lock** — with A's tuner as its channel strip and C's light rig as its
 light-effects setting. §5.
+⚠ **SUPERSEDED THE SAME DAY BY THE OWNER'S PICK: D · The Signal Field** (§5), carrying the
+**shipped masthead** (§3, corrected). The build brief is
+[`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md); §7 below is
+the build order for B and is kept only for its reasoning.
 
 **Records only.** No code changed, no migration, no PR beyond the records. Four rulings are needed
-before a build (§6).
+before a build (§6) — each is **defaulted** in the brief so the build can start, and a ruling can
+reverse one without re-planning.
 
 ## 1. What the page is today (read from the code, measured in the browser)
 
@@ -120,6 +125,12 @@ in costume.
 - **Doto** for every reading, **Saira** (the app's display face, `DISPLAY_BS`) for every word; the
   wordmark stays at 12 px as a nameplate; `Vol. 1 · No. 1` and `Section · Music` go; the corners
   and the back row stay.
+  ⚠ **CORRECTED 2026-09-14 — OWNER RULING, ON THE PICK: *"make sure the correct masthead is on page
+  as well."* The masthead stays AS SHIPPED, byte-for-byte** — the mark with `Vol. 1 · No. 1`, the
+  corners, `← Back`, `Section · Music`, the centred 330-px wordmark and the hairline
+  (`iosAppBroadsheetRadio.jsx:1404–1433`). The nameplate and the two dropped labels were this
+  review's proposal, not a ruling; the board's D phone carries the shipped block now, and the brief
+  pins it with a guard. Everything else on this list stands.
 - The social row and the comments sheet are unchanged; the Sets page is unchanged.
 
 ## 4. The three options
@@ -146,7 +157,7 @@ in costume.
 | **Cost** | Medium — one canvas (field + spectrum + rows), a rail, a deck. | Small-medium — one image buffer scrolled a row per frame, a rail, a band, a deck. The cheapest of the five. |
 | **Risk** | The field must stay quiet behind the track (the scrims are load-bearing); a beat train is only honest at the detector's confidence. Its first two drafts — a Lissajous figure, then the same figure over a Y‑T waveform — were both sent back by the owner as too much to read, which is the measurement behind the rows. | Dense: the header and the deck need scrims; the lock is a readout rather than the page, so it sells the feature less than B or D. |
 
-**On the pick, with five on the board:** B stays recommended. **D** is the alternative if the lock
+**On the pick, with five on the board** (⚠ written before the owner picked — see §5)**:** B stays recommended. **D** is the alternative if the lock
 should be shown as physics rather than as an emblem — the most rigorous of the five and, since the
 rows replaced the figure, as legible as B. **E** is the strongest challenger on the brief's own words: the one image that says
 *radio* and *digital* at once, and the cheapest build — at the cost of making the stream the hero
@@ -159,7 +170,14 @@ those becomes a real reading in the build or reads "—".
 
 ## 5. The pick
 
-**B · The Lock.** Four reasons, in order: it makes the one feature no other radio app has the
+**The owner's pick, 2026-09-14: D · The Signal Field** — *"Ok i like it, lets go with that. make sure
+the correct masthead is on page as well. is the spec already written?"* Picked off the board after
+the two pulse rows and the monitor trace replaced the figure (§4b). Two consequences: the masthead
+ruling (§3, corrected — the shipped block stays byte-for-byte) and the build brief,
+[`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md), which replaces
+§7. What follows is the recommendation as it stood, kept for the reasoning.
+
+**The recommendation, as written before the pick — B · The Lock.** Four reasons, in order: it makes the one feature no other radio app has the
 page rather than a 147-px card under a scrubber that cannot move; it is the film's own language,
 so the app would finally show what the launch cut shows; it is honest by construction (no strap →
 no orb, no detector → no tempo, nothing invents a figure to fill the space); and it is the
@@ -182,7 +200,21 @@ light-effects setting), which is why the recommendation is B *with* them rather 
 4. **The light-effects modes** — stay in Settings, or move onto the page (C's Rig chip) whichever
    concept wins?
 
-## 7. Build order for B
+**Defaults taken in the D brief (its §12), each one reversible by a ruling:** 1 → Doto on Radio
+only, loaded with the screen; 2 → no listener count until a provider reports one; 3 → measured in
+the browser, "—" below the confidence floor; 4 → the light-effects modes stay in Settings. The
+pick decides none of the four by itself; the brief states the default it builds to so nothing
+waits, and a ruling the other way is a one-line change to a stated default rather than a
+re-plan.
+
+## 7. Build order for B — ⚠ SUPERSEDED
+
+⚠ **Superseded 2026-09-14 by the owner's pick (§5).** The build order for D is the brief's §11 —
+four PRs: the pure modules + Doto → the listening state → the matching state → the constants'
+other consumers. Kept because a review says what was read on the day it was read, and because
+steps 1 and 5 carry over unchanged (the analyser hook with its CORS caveat; the i18n keys and the
+guards). Step 3's "retire the section eyebrow" does **not** carry over — the masthead ruling keeps
+it (§3).
 
 1. **The analyser hook** — one subscription shared with the Nora stage (`ShapeRadioLive.analyser()`),
    a tempo detector beside it with a confidence gate. ⚠ The analyser carries data only when the

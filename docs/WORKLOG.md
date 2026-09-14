@@ -676,9 +676,12 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
-- **Shape Radio page redesign — the owner's pick is pending (B · The Lock recommended).** Review +
-  concept board: [`REVIEW-2026-09-14-radio-page.md`](REVIEW-2026-09-14-radio-page.md); four rulings
-  in its §6 come before a build. Registered 2026-09-14.
+- **Shape Radio page redesign — the owner picked D · The Signal Field (2026-09-14); THE NEXT BUILD.**
+  Code-level brief: [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md)
+  — four PRs, every line reference verified against `main` = `2d49f60`; read it before touching the
+  code. The review + board: [`REVIEW-2026-09-14-radio-page.md`](REVIEW-2026-09-14-radio-page.md). The
+  shipped masthead stays byte-for-byte (owner ruling, same day); the four §6 rulings are defaulted in
+  the brief's §12 and each is reversible without a re-plan.
 - **The Wall in the app — owner go-ahead 2026-09-10 (*"yes lets implement the new chat/wall look
   on app"*); THE CURRENT BUILD. The website update is ON HOLD (owner, same day).** Promote
   the PR Wall from a chat channel to a surface: a public definer read over `pr_wall_posts` +
@@ -737,7 +740,7 @@ Append new entries at the top, under this note.
   Booth** (the venue: Club Shape, a light rig whose two beams converge as the lock closes, the app's
   own hologram DJ at the console), **Carry-over** (every element on today's page and where it lives in
   each) and **Pick**. **Recommended: B**, with A's tuner as its channel strip and C's rig as its
-  light-effects setting. **No code changed, no migration, no PR.** Four owner rulings are registered
+  light-effects setting — ⚠ **superseded the same evening: the owner picked D (the bullet below).** **No code changed, no migration, no PR.** Four owner rulings are registered
   in the review's §6 — Doto in the app (Radio only or app-wide) · the listener count · measured vs
   declared tempo · whether the light-effects modes move onto the page.
 - ⚠ **THE PAGE READS FROM CONSTANTS AND MOVES ON TIMERS, AND BOTH WERE MEASURED RATHER THAN
@@ -845,6 +848,33 @@ Append new entries at the top, under this note.
   listening), 28 frames apart, which is 128 BPM at 60 fps. ⚠ The first measurement read the MEAN alpha
   rounded to an integer and reported a swing of 1 → 2 — the quantisation floor, not the field; a sum
   over the same pixels is what shows the pulse.
+- **The pick — owner, the same evening: *"Ok i like it, lets go with that. make sure the correct masthead
+  is on page as well. is the spec already written?"* → D · The Signal Field is the build.** Three things
+  followed. **The masthead ruling**: the review (§3) and the board's backbone had every concept shrink
+  the wordmark to a 12–14-px nameplate and drop `Vol. 1 · No. 1` and `Section · Music`; the ruling is
+  the shipped masthead **byte-for-byte** — the mark with the edition line, the corners, `← Back`, the
+  eyebrow, the centred 330-px wordmark and the hairline (`iosAppBroadsheetRadio.jsx:1404–1433`). The
+  board's D phone was re-cut to carry it (every layout constant moved down 72 px and the scrim stops
+  with them) and re-captured in all five states with no collision — the rail at y 241 against bars
+  whose caps top out below it, the heart row's baseline at 468 against a Now block measured at 508; the
+  carry-over table's three masthead rows read *kept as shipped* for D, and the Pick tab names the pick
+  above the recommendation it replaced, which stays on the board for its reasoning. ⚠ **A ruling that
+  KEEPS something is still a ruling that overrides the review, and it is marked at the source** — §3's
+  nameplate line carries the correction, because a review that still says the labels go is an
+  instruction to delete them. **The spec did not exist**: §7 was a build order for B. The code-level
+  brief for D is [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md):
+  what is deleted, with line references; the three data sources and where each is real today; two pure
+  modules (`radioSignalField.mjs` — the field, the spectrum, the rows; `radioTempo.mjs` — the launch
+  cut's comb-search detector in the browser, with a hold and a confidence floor); the strap path,
+  including the RR intervals `hrm.js` already receives and does not parse; the honest-states table; the
+  component and its layout; fourteen new `radio:*` keys × 13; the guards; and **four PRs** — the pure
+  modules + Doto → the listening state → the matching state → the constants' other consumers, which is
+  where `BS_LIVE_STATION.bpm` and `.listeners` finally stop being read. ⚠ **The four §6 rulings are
+  DEFAULTED there rather than waited on** — Doto on Radio only · no listener count · measured tempo ·
+  the effects stay in Settings — each stated as a default in the brief's §12, so the build can start
+  and a ruling the other way is a one-line change rather than a re-plan. The brief is written so the
+  build does not depend on who builds it: every rule in it is a line reference or a formula, not a
+  memory of this session.
 - ⚠ **THE BOARD'S PHONES ARE PREVIEWS ON A SIMULATED SIGNAL, AND THEY SAY SO ON THE PHONE.** A
   deterministic 128-BPM generator drives every canvas (no `Math.random`), a simulated strap cycles
   free → matching → locked and can be switched off to see the honest no-strap state, and the session
@@ -864,10 +894,13 @@ Append new entries at the top, under this note.
   measures like its fallback is its fallback.*
 - **Verified:** docs-only (the pre-commit hook skips the code gates); every `path:line` cited
   re-read from `main` = `2d49f60`; the board driven at 1440 and 400 px across all eight tabs — zero
-  page errors, zero horizontal overflow; D's five states captured (listening · the crossfade ·
-  matching at −8 BPM · locked at 0 BPM with the ties · no strap), with every label's box measured
-  against the phone rather than eyeballed — the station reading at 90 px wide against rows that start
-  at 116, the heart row's baseline at 396 against a Now block at 431.
+  page errors, zero horizontal overflow, re-run after the masthead re-cut and the Pick-tab change with
+  the same result; D's five states captured (listening · the crossfade · matching at −6 BPM · locked
+  at 0 BPM with the ties · no strap) with the shipped masthead on every one, every label's box measured
+  against the phone rather than eyeballed — the rail at y 241, the station and heart readings at 341
+  and 437, the heart row's baseline at 468 against a Now block measured at 508 (before the masthead:
+  the station reading at 90 px wide against rows that start at 116, the baseline at 396 against a Now
+  block at 431); the brief's line references re-read from the same `main`.
 
 ### 2026-09-12 — The homepage showed the same Shape Score twice, and the example labels stopped being badges
 
