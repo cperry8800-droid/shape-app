@@ -1100,17 +1100,48 @@ function Footer({ logoHeight = 64 } = {}) {
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)", justifyItems: "center", textAlign: "center" }}>
           {[
-            /* ⚠ THESE FOUR PAGES LOST THEIR ONLY LINK WHEN THE NAV'S THREE
-               DROPDOWNS WENT. Measured across public/newdesign, nothing else
-               points at Coach.html, Nutritionist.html, Client.html or
-               Recipes.html — so without this they are reachable only by typing
-               a URL. Coaches.html now sits above them in the nav, but it does
-               NOT replace them — both still carry their own copy and their own
-               application, and the footer is their only link. */
-            ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"], ["Dashboard", "ClientDashboard.html"]]],
-            ["For trainers", [["For coaches", "Coaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
-            ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
-            ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"]]],
+            /* ── THE CANONICAL FOOTER TABLE ────────────────────────────────
+               ⚠ THREE FOOTERS RENDER THIS SITE, AND THEY HAD DRIFTED INTO THREE
+               DIFFERENT DESIGNS. This component is one; `index.html` hand-writes
+               its own (a static page cannot import this React component);
+               `GetApp.html` hand-writes a third. Measured 2026-09-14 before this
+               was reconciled: the homepage carried The app + Shape Store and NO
+               link to Coaches.html, headed its second group "For coaches" where
+               this one said "For trainers", and put the legal links under Support
+               where this one put them under Company; GetApp carried only THREE
+               groups — no Support at all, so no Help and no Contact — and a
+               four-item Product list. `tests/site-footer.test.mjs` now compares
+               all three against this table, the way `tests/site-nav.test.mjs`
+               compares the two nav bars, and for the same reason: they drifted
+               because nothing compared them.
+
+               ⚠ EVERY TARGET HERE IS PUBLIC AND SIGNED-OUT READABLE — a rule, not
+               a coincidence. A footer is read overwhelmingly by people who are not
+               signed in. Three links used to point at dashboard pages
+               (Dashboard→ClientDashboard, Payouts→TrainerDashboard,
+               Programs→TrainerPrograms) and every one of those is a redirect stub
+               into a shell that, since the sign-in gate shipped, sends a measured
+               signed-out visitor to Login.html. They were dead ends for the entire
+               audience of a marketing footer. Owner's ruling: repoint at public
+               pages. Pricing.html carries the coach fee and payout facts;
+               Coaches.html is the coaches' pitch page.
+
+               ⚠ AND "PRESS" IS GONE. It pointed at `Team.html#press` in all three
+               footers — but Team.html is the CLIENT'S "My Team" page (its own
+               header: "the client's roster of coaches"), and there is no
+               `id="press"` anywhere on it. Wrong page, and a dead anchor on top.
+               Owner's ruling: remove it until there is a press page to name.
+
+               ⚠ THESE FOUR PAGES HAVE NO OTHER LINK. Measured across
+               public/newdesign, nothing else points at Coach.html,
+               Nutritionist.html, Client.html or Recipes.html — so without this
+               table they are reachable only by typing a URL. Coaches.html sits
+               above them in the nav and does NOT replace them: each still carries
+               its own copy and its own application. */
+            ["Product",     [["Marketplace", "Marketplace.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"]]],
+            ["For coaches", [["For coaches", "Coaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
+            ["Company",     [["About", "About.html"], ["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
+            ["Support",     [["Help", "/help.html"], ["Contact", "/contact.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
               <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{h}</div>
