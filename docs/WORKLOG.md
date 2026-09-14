@@ -726,6 +726,100 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-14 — The Coaches menu becomes one Marketplace item, the Coaches page previews every dashboard tab, and the 1% payout claim leaves the site
+
+- **Three owner rulings, one PR** (#2067 → `32b0203`). *"also for the coaches subtab, just have 1 link
+  and have it say marketplace, since both coaches and nutritionists are on same page. both of those tabs
+  now take you to same place"* · *"include previews of all of these, not just a few of the ones you have
+  already"* (the coach sidebar, in a screenshot) → *"but not settings"* · *"dont say 1% here"* → *"remove
+  that 1% everywhere its posted"*, plus *"remove this"* on the hero fine print. `public/newdesign/` only —
+  **no migration, no route, no mobile change.**
+- ⚠ **THE COACHES MENU OFFERED ONE PAGE AS TWO DESTINATIONS.** Trainers → `Marketplace.html#trainers`,
+  Nutritionists → `#nutritionists` — the marketplace's own two tabs, which are one page with the switch at
+  the top of it. One item now, **Marketplace**, on the shared header (`pageShell.jsx` `COACHES_ITEMS`),
+  the homepage's static bar and its drawer. ⚠ **THE HASH READER STAYS.** `marketplace.jsx` reads
+  `#trainers` / `#nutritionists` because its own switch WRITES the hash — a copied URL lands on the tab it
+  was copied from — and anything else may deep-link a tab; only its comment changed, since it claimed the
+  nav was what deep-linked it.
+- ⚠ **AND THE NAV GUARD INVERTED, ON PURPOSE.** `tests/site-nav.test.mjs` used to REQUIRE the hash on
+  each item — *"a menu item pointing at a bare Marketplace.html would land on whichever tab happened to be
+  the default and look like a broken link"* — which was right for two items and is the defect for one:
+  with a single item, picking a side is the broken link. It asserts one item, a bare target that exists,
+  the same on the header, the homepage menu **and the drawer** (the only nav a phone has), with neither
+  retired item lingering anywhere. **Six nav mutations killed**, the two-item menu restored among them.
+- **The tour is every sidebar tab but Settings, and the list is DERIVED, not typed.** `CO_TOUR` goes five
+  → **eleven** per role, in the sidebar's own order: Today · Week · Schedule · Clients · Programs/Plans ·
+  Business · Playlists · Community · Goal · Score · Profile. `tests/coaches-page.test.mjs` parses
+  `coachNav.jsx`'s two `const items = [{ label, slug }]` tables and subtracts Settings — with a vacuity
+  check that Settings is actually there to subtract — so a tab added to the dashboard fails until it has a
+  frame and a retired one fails until its frame goes. Twenty-two captures on disk, none orphaned; every
+  `file` is its tab's own `key` except Programs/Plans, **pinned by key now rather than by index** (they
+  moved from index 3 to 4, which is exactly how an index pin goes stale).
+- ⚠ **THE RECIPE #2064 RECORDED AS "NO LONGER WORKS AS WRITTEN" WORKS WITH ONE STATUS CODE — corrected
+  at the source.** Fulfilling `/api/me` with `200 {user:null}` is a MEASURED signed-out visitor now, and
+  the shell sends one to Login.html. `503 {user:null, unknown:true}` — the route's own third state —
+  fails the gate open and every other caller draws the signed-out chrome for it, so the twelve new frames
+  are pixel-consistent with the ten shot before the gate existed: same demo practice, same
+  *"— connects when payouts go live"* sidebar card, no redirect. Written in `coaches.jsx`'s header so the
+  next re-capture does not read the redirect as a broken harness. **Measured:** twelve frames at
+  **1440×900**, the repo copies byte-identical to the shots; the page driven in Chromium at 1440 and
+  390 — **44/44** tab clicks (11 tabs × 2 roles × 2 widths… 22 per width) load their own frame with the
+  right heading and `aria-selected`, zero page errors, zero body overflow; the eleven-tab strip fits at
+  1440 (1376/1376) and scrolls inside its own container at 390 (314/1040 — **it already scrolled at
+  five**, so this is not a regression, and the cut-off last label is the affordance).
+- ⚠ **TWO DELIBERATE DIVERGENCES FROM THE DASHBOARD'S OWN WORDS IN THE NEW COPY.** The Score page says
+  scores drive *"marketplace ranking, verified badge, and payout tier"*; the Coaches page repeats the
+  first two only, because the same page promises **one** platform fee and a payout tier would contradict
+  it — the dashboard line is pre-existing and **registered, not edited**. And nothing promises a timing;
+  the `PROMISES` sweep runs on every coach-facing page and passes. The demo profile's *"PREVIEW · DEMO
+  PROFILE — AN EXAMPLE OF A LIVE ACCOUNT"* strip and the Goal page's *"Sample view"* line sit inside the
+  profile and Goal frames and are **left in**: they are the page's own honest labels, and cropping them
+  out would make a labelled capture an unlabelled one.
+- **The 1% claim: seven sites across three files** — `coaches.jsx` (hero fine print removed; the Weekly
+  fact tile; the cost tile; the FAQ), `coach.jsx` (the Payouts blurb; the FAQ), `nutritionist.jsx` (the
+  Payouts & docs blurb; the FAQ). A grep for `for 1%|1% fee|instant payout|instantly for` over
+  `public/newdesign/` returns nothing. The `.co-nums` grid is two columns and now holds **three** tiles
+  (2 + 1) — left as the removal produced it rather than redesigned; the owner can call the rebalance.
+  ⚠ **AND I OVER-READ THE RULING — CORRECTED THE SAME EVENING.** I took *"remove that 1% everywhere
+  its posted"* as *remove the instant-payout claim*, and cut the whole clause at six of the seven sites.
+  Asked whether `Landing.html`'s *"Weekly · Payouts to coaches — or instant"* should go too, the owner
+  ruled: *"no you can say instant payouts just remove the 1% fee you had there"*. So the ruling was the
+  **figure**, never the claim: Landing's line stands, and the instant wording comes back — without the
+  fee — at the five sentence sites in the follow-up PR (the hero fine print stays gone on its own
+  ruling, *"remove this"*, and the cost tile's headline WAS the figure). *A ruling about a number is
+  not a ruling about the sentence around it* — measure the ask before widening it.
+- ⚠ **AND THE TOUR HARNESS REPORTED THE PAGE BROKEN ONCE, ON ITS OWN ASSUMPTION.** It clicked the
+  nutritionist's tabs by the TRAINER's labels, waited thirty seconds for a `Programs` tab on a role that
+  spells it `Plans`, and timed out — which reads as *"the nutritionist tour is broken"*. It iterates each
+  role's own labels now. *An instrument that carries one role's vocabulary into the other measures the
+  vocabulary.*
+- **Review:** Codex, one round on a manual trigger with everything front-loaded, **clean on
+  `a42bfa31d8`** (*"Didn't find any major issues"*, head-pinned by its own *Reviewed commit* line).
+  CodeRabbit not triggered (owner, this session: *"dont run coderabbit for PR"*). The merge gate was the
+  four required checks green on `a42bfa3` and not a draft.
+- **Verified on the final head:** `npm test` **3654/3654** — locally this time, matching CI's count,
+  because the mobile-app tree is installed in this container (the 3599-vs-3654 split #2064's entry
+  records was the tree's absence, not a different suite) · `tsc --noEmit` 0 · JSX parse on all seven
+  changed modules · the newdesign precompile check (**77 pages**, 0 errors) · **12/12 mutations killed**,
+  each proven to land, sanity green at both ends, the tree restored in a `finally` and on a signal — the
+  two hash items restored · the one item picking a side · a second homepage menu item · the retired
+  Trainers link lingering in the drawer · the drawer losing Marketplace · the homepage item pointing
+  elsewhere · the trainer Week tab dropped · Goal and Score swapped · a Settings tab added · a tab's file
+  drifting from its key · a capture deleted from disk · and **the sidebar parser stopping matching, which
+  the guard must FAIL rather than pass vacuously** (it does: *"trainerNavItems has no `const items =
+  [...]` table"*).
+- ⚠ **OPEN — `Client.html` ("For members") IS REACHABLE FROM THE FOOTER ONLY, and the owner asked to
+  explore incorporating it** (*"maybe a seperate client tab on nav bar. lets discuss"*). Read and rendered
+  before the discussion: it is in the **pre-2026-09-10 type system** (Fraunces / Space Grotesk /
+  JetBrains Mono, a photo hero) while the homepage and the Coaches page moved to Anybody / Doto /
+  Schibsted; it carries *"From curious to coached in a week"* — the timing-promise class the owner had
+  removed from the coach pages; its *"This week"* card, habits ledger and grocery mock are invented
+  figures with **no example label**, where the homepage and Coaches page label every one; and it says
+  *"Free — to join"* against the **$5/mo** member fee the homepage and Pricing state. Four options put to
+  the owner (a Members tab beside Coaches — recommended, pending a width measurement of the eight-link
+  bar between 860 and 1200px; a page-and-menu mirroring Coaches; renaming App; no bar change). **Pick
+  pending.**
+
 ### 2026-09-14 — The dashboard needs an account, the coaches page shows them what they get, and a read that failed stops reading as signed out
 
 - **Three owner rulings, one PR** (#2064 → `bcacd1d`). *"I think we should not make the
