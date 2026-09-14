@@ -81,12 +81,34 @@ const PROMISES = [
   [/time:\s*"(Same day|Week \d|Day \d|Tomorrow)"/i, 'a step chip naming an outcome window', 'time: "Same day"'],
 ];
 const CLEAN = stripComments(PAGE);
-// ⚠ THE BANS RUN OVER THE PAGE'S TEXT, NOT ITS JSX. The retired headline was
-// `<em>to coached</em> in a week.` — a tag in the middle of the sentence — and a
-// ban run over the raw source walked straight past it: the mutation restoring
-// that exact markup SURVIVED the first round. Tags out, whitespace collapsed,
-// then the sentence reads as a sentence.
-const TEXT = CLEAN.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+
+// ⚠ THE BANS RUN OVER WHAT THE PAGE SAYS, NOT OVER ITS JSX. The retired headline
+// was `<em>to coached</em> in a week.` — a tag in the middle of the sentence —
+// and a ban over the raw source walked straight past it: the mutation restoring
+// that exact markup SURVIVED the first round.
+//
+// ⚠ AND STRIPPING TAGS IS NOT ENOUGH — Codex's finding on this file. Two ordinary
+// ways to write the same sentence still defeated it:
+//   `to coached in a&nbsp;week`                  — an entity is not a space
+//   `to coached{" in a "}<strong>week</strong>`  — braces and quotes are not text
+// Both RENDER the banned promise to the reader. So: unwrap string expression
+// containers, decode the entities this codebase actually writes, fold every kind
+// of space (NBSP included) into one, and only then read the sentence. The
+// controls below carry both shapes — a ban is proven by the forms it must catch,
+// and a plain-string control passes on a ban that any real spelling would slip.
+//
+// ⚠ ONE FUNCTION, USED BY THE SWEEP AND BY ITS CONTROLS. The first cut wrote the
+// pipeline twice — once for the page, once for the controls — and the mutation
+// round proved what that buys: deleting the entity decode from the page's copy
+// SURVIVED, because the controls were exercising the other copy. A guard that
+// runs its own version of the code is measuring nothing.
+const renderText = (src) => src
+  .replace(/\{\s*(['"])((?:[^'"\\]|\\.)*)\1\s*\}/g, ' $2 ')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/&nbsp;|&#160;|&#xa0;/gi, ' ')
+  .replace(/&amp;/gi, '&').replace(/&rsquo;|&#8217;/gi, "'").replace(/&mdash;|&#8212;/gi, '\u2014')
+  .replace(/[\s\u00a0\u2007\u202f]+/g, ' ');
+const TEXT = renderText(CLEAN);
 
 test('the members page promises no timing', () => {
   for (const [re, why] of PROMISES) {
@@ -99,6 +121,22 @@ test('every members-page ban still catches the sentence it was written for', () 
   for (const [re, , sentence] of PROMISES) {
     assert.ok(re.test(sentence), 'the ban for "' + sentence + '" no longer matches it');
   }
+  // ⚠ AND CATCHES IT THROUGH THE MARKUP IT COULD BE WRITTEN IN.
+  const timing = PROMISES[0][0];
+  for (const spelling of [
+    '<em>to coached</em> in a week.',
+    'to coached in a&nbsp;week.',
+    'to coached{" in a "}<strong>week</strong>.',
+    "to coached{' in a '}week.",
+    'to coached in a\u00a0week.',
+  ]) {
+    assert.ok(timing.test(renderText(spelling)),
+      'the timing ban does not survive this spelling: ' + spelling);
+  }
+  // ⚠ AND THE NORMALISATION MUST NOT INVENT A MATCH. Collapsing a tag to a space
+  // joins nothing that was not adjacent; two separate elements are not one phrase.
+  assert.ok(!timing.test(renderText('to coached</em><em>in a month')),
+    'the normalisation manufactures a match out of unrelated text');
   // And the applicant-effort estimate the coach pages keep is not banned here either:
   // "Takes about 5 minutes" is a statement about our own form.
   for (const [re] of PROMISES) assert.ok(!re.test('Takes about 5 minutes — enough for us to match well.'));
