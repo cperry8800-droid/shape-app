@@ -4,11 +4,13 @@
 design ideas. Have it be less analog, and more radio futuristic style look"* → *"i want to see
 previews of designs"*.
 
-**Previews:** the live concept board — https://claude.ai/code/artifact/59dcada3-eadf-4ddb-8e68-8a5a92845a32 — six tabs:
+**Previews:** the live concept board — https://claude.ai/code/artifact/59dcada3-eadf-4ddb-8e68-8a5a92845a32 — eight tabs:
 **Today · as shipped** (real captures of the production build, signed-out preview), **A · The
-Transmitter**, **B · The Lock**, **C · The Booth** (each rendered phone-sized and animated on a
-simulated signal, with a strap toggle so the no-strap state can be seen), **Carry-over** (every
-element on today's page and where it lives in each option) and **Pick**.
+Transmitter**, **B · The Lock**, **C · The Booth**, **D · The Signal Field**, **E · The Waterfall**
+(each rendered phone-sized and animated on a simulated signal, with a strap toggle so the no-strap
+state can be seen), **Carry-over** (every element on today's page and where it lives in each option)
+and **Pick**. D and E were added the same day on the owner's *"can you give me 2 more design
+options"* (§4b).
 
 **Recommended: B · The Lock** — with A's tuner as its channel strip and C's light rig as its
 light-effects setting. §5.
@@ -131,6 +133,24 @@ in costume.
 | **Borrows** | Doto (the homepage ruling), the app's cream → amber → teal ladder, the venue's graphite. | The watch face in the launch cut (orb r 46, ring r 78, exactly one word, envelopes blended never phases); BSPlate's corner bracket, enlarged to the frame. | `club-shape-bg.jpg`, `RadioHologramDJ` + the `NoraStage` analyser wiring, the Sets page's glass grammar (blur 14, the teal → rust top line). |
 | **Cost** | Medium — a ruler, a spectrum canvas, a segment meter, an LED strip; every data path exists. | Medium — one canvas (the orb), the HUD frame, the deck; `hrStage` already exists and loses its demo branch. | Medium-large — the rig canvas, re-driving the hologram, a compressed backdrop (the 402 KB JPEG is too heavy for a page that stays open). |
 | **Risk** | Reads as a dashboard if readouts multiply; three is the cap. | A member who never pairs a strap sees a ring and an outline where the feature would be; the outline has to sell the pairing. | GPU cost on older phones (blur + additive beams + SVG ghosts); Nora is a placeholder model; a venue that reads as a stage sets an expectation the mock provider cannot meet yet. |
+
+### 4b. Two more, added the same day
+
+| | D · The Signal Field | E · The Waterfall |
+|---|---|---|
+| **Thesis** | One beam, two sources: the station's beat on one axis, your heart on the other — an oscilloscope figure that drifts while they differ and stands still the moment they agree. | The most radio image there is: the station's spectrum flowing down the screen in time, the way a software-defined receiver shows a band. |
+| **First screen** | A full-bleed dot field whose brightness is the live spectrum (bass at the centre) · the Lissajous figure (the measured beat drives the horizontal sweep, the strap the vertical) · a telemetry rail down the left (Tempo · You · On air · Signal) and the lock state at the right · Now · the track · the deck · one Match key · the channel strip as underlined tabs. | A status rail (On air · session clock · Tempo · Signal) · the waterfall as the ground (64 log-spaced bands across, one row per frame down, black → teal → cream, a hertz axis) · the channel strip · the Now band over a dark strip · the lock as a readout line (You · a bar that fills as the rates close · Station) · the deck · one Match key. |
+| **What moves** | Every dot on its spectrum bin; the beam's brightness on the level; the figure precesses while the two rates differ and closes into a standing ellipse when they match — how two frequencies have always been compared on a scope, so the lock is physics rather than an emblem. | Every row is one frame of the analyser, so the screen is a ten-second memory of the stream and nothing on it is generated; the rail's lamp on the detected beat; the lock bar on the strap. On a quiet passage the fall goes dark, which is true. |
+| **What reads "—"** | No strap → the vertical axis has no source, the figure collapses to a flat sweep and a line under it says the figure needs your pulse; Tempo until settled; no count, no scrubber. | You without a strap ("—", an empty bar, the key says Connect monitor); Tempo until settled; no count, no seek; the axis is labelled in hertz from the sample rate. |
+| **Borrows** | The analyser's time-domain and frequency data; the launch cut's *envelopes blended, never phases*; Doto; the app's state ladder; the Lissajous itself, a century of test equipment. | The analyser (the node the Nora stage reads); Doto; the state ladder; the waterfall convention every software-defined radio uses. |
+| **Cost** | Medium — one canvas (field + figure), a rail, a deck. | Small-medium — one image buffer scrolled a row per frame, a rail, a band, a deck. The cheapest of the five. |
+| **Risk** | A standing ellipse is a subtle moment; the state word and the colour carry it, and the field must stay quiet behind the track. | Dense: the header and the deck need scrims; the lock is a readout rather than the page, so it sells the feature less than B or D. |
+
+**On the pick, with five on the board:** B stays recommended. **D** is the alternative if the lock
+should be shown as physics rather than as an emblem — the most rigorous of the five and the most
+abstract. **E** is the strongest challenger on the brief's own words: the one image that says
+*radio* and *digital* at once, and the cheapest build — at the cost of making the stream the hero
+and the lock a readout.
 
 **The board's phones are previews, not builds.** The signal is simulated (a deterministic
 128-BPM generator), the strap is simulated (free → matching → locked on a loop, or off via the

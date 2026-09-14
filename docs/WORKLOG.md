@@ -729,7 +729,7 @@ Append new entries at the top, under this note.
   radio page on shape app. Can you give me 3 more design ideas. Have it be less analog, and more radio
   futuristic style look"* → *"i want to see previews of designs"*. The review is
   [`REVIEW-2026-09-14-radio-page.md`](REVIEW-2026-09-14-radio-page.md); the previews are a live
-  concept board — https://claude.ai/code/artifact/59dcada3-eadf-4ddb-8e68-8a5a92845a32 — six tabs:
+  concept board — https://claude.ai/code/artifact/59dcada3-eadf-4ddb-8e68-8a5a92845a32 — eight tabs:
   **Today · as shipped** (real captures of the production build), **A · The Transmitter** (a broadcast
   console: a tuner band for the channels, a real spectrum with peak-hold, three readouts, a
   segment-meter pulse lock), **B · The Lock** (a heads-up display: the member's heart as an orb inside
@@ -772,6 +772,20 @@ Append new entries at the top, under this note.
   scrubber at all; no strap → no number; Doto for readings, Saira for words; the wordmark stays as a
   14-px nameplate; the corners and the back row stay (house ruling); `Vol. 1 · No. 1` and
   `Section · Music` go.
+- **Two more the same day — owner: *"can you give me 2 more design options"*, then *"we dont need to do a
+  workflow"* when a judge-panel fan-out was started; it was stopped and the two were designed by hand.**
+  **D · The Signal Field**: a full-bleed dot field lit by the live spectrum, and a **Lissajous figure**
+  whose horizontal sweep is the measured beat and whose vertical sweep is the strap — the figure
+  precesses while the two rates differ and closes into a standing ellipse when they agree, which is
+  how two frequencies have always been compared on a scope: the lock as physics rather than as an
+  emblem. No strap → a flat sweep with the reason under it. **E · The Waterfall**: the station's
+  spectrum as a software-defined receiver's waterfall — 64 log-spaced bands across, one analyser
+  frame per row down, a ten-second memory of the stream as the ground of the page, the lock as a
+  readout line; the cheapest build of the five. The board is eight tabs now and the carry-over table
+  five columns; B stays the recommendation, with E named as the strongest challenger on the brief's
+  own words. ⚠ The waterfall's pre-fill first ran the simulated signal at **negative time**, where
+  the beat phase goes negative and the kick envelope inverts into a blow-up — 300 rows saturated to
+  cream, caught on the one look and fixed at the source (`t % BEAT` is only a phase for t ≥ 0).
 - ⚠ **THE BOARD'S PHONES ARE PREVIEWS ON A SIMULATED SIGNAL, AND THEY SAY SO ON THE PHONE.** A
   deterministic 128-BPM generator drives every canvas (no `Math.random`), a simulated strap cycles
   free → matching → locked and can be switched off to see the honest no-strap state, and the session
