@@ -763,11 +763,23 @@ Append new entries at the top, under this note.
   so the one page the new nav tab points at was the one page in the old type. Measured on the merged
   file: **18 display sites · 29 readings · 18 body · 0 italics left**.
 - ⚠ **THE THREE CONSTANTS ARE LOCAL TO THE PAGE, AND THAT IS FORCED RATHER THAN TIDY.**
-  `pageShell.jsx`'s module-scope `serif`, `sans` and `mono` are read **18, 39 and 12 times by the
+  `pageShell.jsx`'s module-scope `serif`, `sans` and `mono` are read **11, 33 and 9 times by the
   shared chrome** that ~70 pages render, so re-pointing them would have re-typeset the whole site
-  from one page's ask. ⚠ A first draft of this bullet said *"37 and 30"*, a figure that reproduces
-  against nothing — re-derived here from the merged file, because a count nobody re-runs is a claim. `Client.html`'s font link **keeps** Fraunces, Space Grotesk and JetBrains for that chrome and
-  **adds** the three new families for the page's own body.
+  from one page's ask.
+  ⚠ **AND THIS BULLET HAS NOW CARRIED A WRONG COUNT TWICE, THE SECOND TIME WHILE CORRECTING THE
+  FIRST — Codex's one finding on #2073.** A first draft said *"37 and 30"*, a figure that reproduces
+  against nothing. The re-derivation that replaced it — **18, 39 and 12** — was the right file and
+  the **wrong kind of measurement**: a whole-word text scan, which counts each declaration, the
+  word *serif* in a comment, and every **`sans-serif`** inside the font-stack strings those very
+  constants are built from. Measured as identifier references by AST, the split is exact:
+  serif **11 reads + 1 declaration + 6** in strings and comments = 18; sans **33 + 1 + 5** = 39;
+  mono **9 + 1 + 2** = 12. *A count nobody re-runs is a claim — and a count re-run with the wrong
+  instrument is the same claim wearing a receipt*, which is this entry's own `grep -c` lesson three
+  bullets down, arriving through a door I had just walked through.
+  ⚠ **The ARGUMENT is untouched, which is why the number was worth fixing rather than cutting.**
+  At 11/33/9 the chrome still reads all three on every one of ~70 pages, so re-pointing them from
+  one page's ask still re-typesets the site. `Client.html`'s font link **keeps** Fraunces, Space
+  Grotesk and JetBrains for that chrome and **adds** the three new families for the page's own body.
 - ⚠ **AND THE FIRST RENDER PASS REVIEWED THE WRONG TYPEFACE, WHICH IS THE 2026-09-11 LESSON ARRIVING
   THROUGH A NEW DOOR.** The local stylesheet is *fulfilled for the `fonts.googleapis.com` request*,
   so its base URL is that origin and a root-relative `url(/f/…)` inside it resolved against **Google**
