@@ -262,6 +262,11 @@ function ChatWidget(props) {
   const STORE_VER = "v2";
   const storeKeyRef = React.useRef(null);
   const hydratedRef = React.useRef(false);
+  // ⚠ A REF CANNOT GATE AN EFFECT — it triggers no re-render, so an effect that
+  // waits on `hydratedRef.current` never re-runs when it flips. The live-thread
+  // install below has to wait for the localStorage hydrate (see there), so the
+  // same fact is published as STATE as well.
+  const [hydrated, setHydrated] = React.useState(false);
   const dirtyRef = React.useRef(false);
 
   // Nora's voice OUTPUT (read replies aloud) — OFF by default, fully usable
@@ -374,6 +379,7 @@ function ChatWidget(props) {
         } catch {}
       }
       hydratedRef.current = true;
+      setHydrated(true);
     })();
     return () => { cancelled = true; };
   }, [tabs.length, feedReady]);
@@ -384,6 +390,149 @@ function ChatWidget(props) {
       localStorage.setItem(storeKeyRef.current, JSON.stringify({ threadsByTab, activeByTab }));
     } catch {}
   }, [threadsByTab, activeByTab]);
+
+  // ── REAL MESSAGE HISTORY ──────────────────────────────────────────
+  // ⚠ THE THREADS THIS WIDGET SHIPPED WITH ARE DEMO, AND THERE WAS NO HISTORY AT
+  // ALL. `clientChatThreads.jsx` types Maya Okafor, Marcus J. and the rest into
+  // the file; a thread only became DB-backed when something handed
+  // `__openChat({ conversationId })` an explicit id, and even then the poll below
+  // only ever fetched messages NEWER than `since`. So a member who talked to
+  // their coach in the app opened the bubble on the web and saw invented messages
+  // from people who do not exist.
+  //
+  // This reads the member's own conversations and replaces those demo threads.
+  // It needs NO new route: `conversations` is readable by its participants
+  // (`participants read conversations` → `can_access_conversation(id)`), which is
+  // the same path the app takes.
+  //
+  // ⚠ SCOPE: coach threads and member DMs — the two surfaces that carry message
+  // history, both out of `conversations`/`messages`. CHANNELS ARE NOT HERE: they
+  // are a separate `channels` table with its own rows and their own message
+  // store, so they are a different read rather than one more bucket, and the
+  // Channels tab keeps its sample set until that lands.
+  const [threadsLive, setThreadsLive] = React.useState(null); // null = not read yet
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const sdb = window.shapeDb;
+      const db = sdb && sdb.client;
+      if (!db) return;
+      // ⚠ BRIDGE THE COOKIE SESSION FIRST. A session living only in the Next.js
+      // HTTP cookies leaves this client ANON, so every read below returns nothing
+      // and a signed-in member is shown an empty inbox. This file already pays
+      // for that lesson twice (the activity line, the live station).
+      try { if (sdb.getSession) await sdb.getSession(); } catch (e) { /* fall through */ }
+      if (cancelled) return;
+      let me = null;
+      try { const { data } = await db.auth.getUser(); me = data && data.user && data.user.id; } catch (e) {}
+      if (cancelled) return;
+      // Signed out keeps the sample threads — they are what a visitor previewing
+      // the site is meant to see, and there is nothing of theirs to read.
+      if (!me) { setThreadsLive(false); return; }
+
+      const mapMessages = (rows, otherName) => (rows || [])
+        .slice()
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+        .map(m => ({
+          who: m.sender_id === me ? "You" : otherName,
+          t: m.body,
+          time: m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "now",
+          me: m.sender_id === me,
+          audio: (m.metadata && m.metadata.audio && m.metadata.audio.url) || null,
+          photo: (m.metadata && m.metadata.photo && m.metadata.photo.url) || null,
+        }));
+
+      try {
+        // Coach threads: kind 'direct' with NO dm_key. The dm_key rows are
+        // member↔member DMs and are listed separately below, by an RPC, because
+        // the other member's NAME is not on the conversation row.
+        const convRes = await db.from("conversations").select("*")
+          .eq("kind", "direct").is("dm_key", null)
+          .order("last_message_at", { ascending: false, nullsFirst: false });
+        if (cancelled) return;
+        // ⚠ A FAILED READ IS NOT AN EMPTY INBOX. Falling through to `[]` here
+        // would replace a member's real coach threads with "no conversations",
+        // which is a claim rather than an absence.
+        if (convRes && convRes.error) { setThreadsLive(false); return; }
+        const convs = (convRes && convRes.data) || [];
+
+        const dmRes = await db.rpc("list_member_dm_threads");
+        if (cancelled) return;
+        // The DM leg failing is survivable on its own — the coach threads are
+        // still real — so it degrades to no DMs rather than discarding both.
+        const dmRows = (dmRes && !dmRes.error && dmRes.data) || [];
+
+        const ids = convs.map(c => c.id).concat(dmRows.map(r => r.conversation_id)).filter(Boolean);
+        let byConv = {};
+        if (ids.length) {
+          const msgRes = await db.from("messages").select("*")
+            .in("conversation_id", ids).order("created_at", { ascending: true });
+          if (cancelled) return;
+          if (msgRes && msgRes.error) { setThreadsLive(false); return; }
+          byConv = ((msgRes && msgRes.data) || []).reduce((acc, m) => {
+            (acc[m.conversation_id] || (acc[m.conversation_id] = [])).push(m); return acc;
+          }, {});
+        }
+
+        const coachThreads = convs.map(c => {
+          const roleLabel = c.provider_role === "nutritionist" ? "Nutritionist" : "Trainer";
+          const who = c.title || roleLabel;
+          const msgs = mapMessages(byConv[c.id], who);
+          return {
+            who, role: `${roleLabel} · Shape coach`,
+            last: c.last_message || (msgs.length ? msgs[msgs.length - 1].t : "New conversation"),
+            time: c.last_message_at ? "synced" : "now",
+            unread: 0, coach: true,
+            // ⚠ THIS FIELD IS WHY SEND AND POLL WORK FOR FREE. The composer posts
+            // to /api/conversations/<id>/messages and the poll reads ?since= off
+            // the SAME id — both already keyed on `activeThread.conversationId`.
+            conversationId: c.id,
+            messages: msgs.map(m => ({ ...m, coach: !m.me })),
+          };
+        });
+
+        const dmThreads = dmRows.map(r => {
+          const who = r.other_name || "Member";
+          const msgs = mapMessages(byConv[r.conversation_id], who);
+          return {
+            who, role: "Direct message",
+            last: r.last_message || (msgs.length ? msgs[msgs.length - 1].t : "New conversation"),
+            time: r.last_message_at ? "synced" : "now",
+            unread: 0, conversationId: r.conversation_id, messages: msgs,
+          };
+        });
+
+        if (!cancelled) setThreadsLive({ circle: coachThreads, friends: dmThreads });
+      } catch (e) {
+        if (!cancelled) setThreadsLive(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Install the real threads over the sample ones, by TAB ID rather than index
+  // — the tab list differs between the two files that supply it, so a positional
+  // write would land on whichever tab happened to sit there.
+  React.useEffect(() => {
+    if (!threadsLive || threadsLive === true) return;
+    // ⚠ WAIT FOR THE localStorage HYDRATE, OR THIS IS A RACE IT USUALLY WINS AND
+    // SOMETIMES LOSES. Both are async and neither is ordered against the other:
+    // the hydrate does a /api/me round trip, this does getSession + getUser + up
+    // to three queries, so the hydrate lands first almost every time — and on the
+    // run where it does not, it restores the SAVED (sample) threads OVER the real
+    // ones and the member sees the demo cast again. "Almost every time" is not an
+    // ordering.
+    if (!hydrated) return;
+    // ⚠ DO NOT CLOBBER SOMETHING THE MEMBER HAS ALREADY TYPED OR SENT. The same
+    // guard the localStorage hydrate uses; a real read landing mid-compose must
+    // not take their message away.
+    if (dirtyRef.current) return;
+    setThreadsByTab(prev => prev.map((list, i) => {
+      const id = tabs[i] && tabs[i].id;
+      const next = Object.prototype.hasOwnProperty.call(threadsLive, id) ? threadsLive[id] : null;
+      return next ? next : list;
+    }));
+  }, [threadsLive, tabs, hydrated]);
 
   const [creating, setCreating] = React.useState(false);
   const [newName, setNewName] = React.useState("");
