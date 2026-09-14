@@ -9,7 +9,7 @@ import {
   ROW_WINDOW_S, GAP_PX, SAMPLE_STEP_PX, penSpeed, penX, instantAt, alphaAt,
   kickShape, ecg, penRadius,
   TIE_TOL_S, ties, bpmGap, inSync, gapText, lockStep,
-  advanceHeartPhase, heartBeatsBetween,
+  advanceHeart, trimBeats,
 } from '../services/radioSignalField.mjs';
 import {
   createTempoDetector, tempoEnergyFromBins, tempoBarStep, tempoBeatsBetween,
@@ -465,6 +465,7 @@ function BSRadioProvider({ children }) {
   // - radioOn=true, paused=true  → pause audio; keep poll running (harmless).
   // - radioOn=true, paused=false → play audio + ensure poll is running.
   useEffectBR(() => {
+    let cancelPlay = () => {};
     if (!radioOn) {
       window.ShapeRadioLive?.pause?.();
       window.ShapeRadioLive?.stopPolling?.();
@@ -487,7 +488,6 @@ function BSRadioProvider({ children }) {
       window.ShapeRadioLive?.pause?.();
       setPlayingSince(null);
     } else {
-      window.ShapeRadioLive?.play?.();
       // ⚠ THE SESSION CLOCK IS THE ONLY CLOCK ON THE PAGE, AND IT IS NOT A TRACK
       // POSITION. The scrubber it replaces computed `elapsed = total * 0.46`
       // over a length the now-playing payload does not carry — so it rendered
@@ -495,9 +495,28 @@ function BSRadioProvider({ children }) {
       // stream promises a seek the licence forbids (prohibition 4 in this
       // module's own header). This is how long the stream has been playing THIS
       // session: a fact we hold, about us, that no provider has to report.
-      setPlayingSince((v) => (v == null ? Date.now() : v));
+      //
+      // ⚠ WHICH IS WHY IT IS STAMPED ONLY ONCE `play()` HAS ACTUALLY STARTED,
+      // AND NEVER BESIDE THE CALL. That promise resolves FALSE for every way
+      // playback can fail — no `ShapeRadioLive` at all, `/api/radio/station`
+      // unreachable or unconfigured, `audio.play()` rejected by the autoplay
+      // policy, or the attempt superseded by a pause or a sign-out while it was
+      // starting (shapeBackend.js `play()`). Stamping on the call rendered a
+      // rail counting "On air · 0:07" upward for a member hearing nothing,
+      // which is the one thing this page exists not to do. The instant is taken
+      // when playback started, not when it was requested. (Codex, P1 on #2072.)
+      //
+      // The guard is the effect's own cleanup: a pause, a sign-out or radio-off
+      // re-runs this effect, which cancels the attempt in flight before its
+      // resolution can stamp a clock for playback that is already over.
+      let attemptLive = true;
+      cancelPlay = () => { attemptLive = false; };
+      Promise.resolve(window.ShapeRadioLive?.play?.()).then((ok) => {
+        if (!attemptLive || ok !== true) return;
+        setPlayingSince((v) => (v == null ? Date.now() : v));
+      }).catch(() => { /* play() already reports failure by resolving false */ });
     }
-    return () => window.ShapeRadioLive?.stopPolling?.();
+    return () => { cancelPlay(); window.ShapeRadioLive?.stopPolling?.(); };
   }, [radioOn, paused, authTick]);
 
   // The key for the track on air, built from the RAW now-playing fields (NOT the
@@ -1384,6 +1403,11 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
   // report them, RR intervals `hrm.js` does not yet parse), so the glyph runs on
   // the measured rate from the moment the reading arrives.
   const hrPhaseRef = useRefBR(0);
+  // Edge-detects the pause so the detector is reset once rather than every frame.
+  const pausedRef = useRefBR(false);
+  // The beats that actually arrived, in order, trimmed to the visible window.
+  // A list rather than a derivation: see `advanceHeart` in radioSignalField.mjs.
+  const hrBeatsRef = useRefBR([]);
 
   useEffectBR(() => {
     const wrap = wrapRef.current;
@@ -1512,7 +1536,18 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
         const e = tempoEnergyFromBins(bins);
         if (e != null) det.push(t, e);
       }
-      const read = det.read(t);
+      // ⚠ A PAUSED STATION HAS NO BEAT, AND THE HOLD MUST NOT OUTLIVE THE
+      // PLAYBACK. The detector holds a settled reading through a dropout on
+      // purpose — a few seconds of quiet mid-track is not a tempo change — but a
+      // PAUSE is not a dropout: the member stopped the stream, and for the length
+      // of that hold the station row went on pulsing a kick and the reading went
+      // on naming a BPM for audio nobody was playing. Resetting rather than only
+      // gating the read also drops the ring, so a resume rebuilds from frames
+      // that are actually contiguous instead of splicing across the gap.
+      // (Codex, P2 on #2072.)
+      if (cfg.paused && !pausedRef.current) det.reset();
+      pausedRef.current = !!cfg.paused;
+      const read = cfg.paused ? null : det.read(t);
       // ⚠ REPORT UP ONLY WHEN THE PUBLISHED READING CHANGES. `onRead` is a React
       // setState and this loop runs at 60Hz — calling it every frame re-renders
       // the whole page sixty times a second, which is exactly what the refs
@@ -1547,8 +1582,32 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
 
       // The heart's own clock. It advances on the MEASURED rate, so a strap that
       // has stopped reporting stops the glyph rather than drawing invented beats.
+      //
+      // ⚠ EACH BEAT IS RECORDED WHEN IT ARRIVES AND NEVER RE-DERIVED. The row
+      // holds three seconds, and a strap re-reports inside that window all the
+      // time — so rebuilding the window's beats from the LATEST rate (which is
+      // what this did until Codex's P2) redraws beats that genuinely landed
+      // 500 ms apart as though they had landed 600 ms apart the instant a
+      // 120 → 100 reading lands: the drawn trace jumps and ties appear or
+      // vanish for beats that already happened. An instant is a fact about when
+      // a beat arrived; no later reading may move it.
+      //
+      // ⚠ AND IT KEEPS RUNNING WHILE THE STATION IS PAUSED, DELIBERATELY. Pausing
+      // the radio does not take the strap off: the member's heart is still
+      // beating and the strap is still reporting it, so freezing this row would
+      // hold a stale frame under a live reading — a flatline where there is a
+      // pulse, which is the same class of lie as the station row pulsing to
+      // silence. What stops on pause is the STATION half, above. The picture a
+      // paused matching state should give is exactly that: your heart beating,
+      // the station flat, the gap reading "——".
       const hrBpm = Number.isFinite(cfg.heartBpm) && cfg.heartBpm > 0 ? cfg.heartBpm : null;
-      if (hrBpm != null) hrPhaseRef.current = advanceHeartPhase(hrPhaseRef.current, hrBpm, dt);
+      if (hrBpm != null) {
+        const adv = advanceHeart(hrPhaseRef.current, hrBpm, t, dt);
+        hrPhaseRef.current = adv.phase;
+        for (let i = 0; i < adv.beats.length; i += 1) hrBeatsRef.current.push(adv.beats[i]);
+      }
+      // Older than the window plus the half-second of lead-in the row samples.
+      trimBeats(hrBeatsRef.current, t - ROW_WINDOW_S - 0.5);
       const gap = bpmGap(hrBpm, read ? read.bpm : null);
       lockRef.current = lockStep(lockRef.current, cfg.matching && inSync(gap), dt);
 
@@ -1716,9 +1775,9 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
         const lockK = lockRef.current;
         const eH = hrBpm == null ? 0 : Math.exp(-hrPhaseRef.current / 0.13);
 
-        // The heart's beats inside the window, from the measured rate and the
-        // phase this loop has been accumulating.
-        const hb = hrBpm == null ? [] : heartBeatsBetween(hrBpm, t, hrPhaseRef.current, t - ROW_WINDOW_S - 0.5, t);
+        // The heart's beats inside the window — the ones this loop RECORDED as
+        // they arrived, not a reconstruction from the current rate.
+        const hb = hrBeatsRef.current;
         // The station's beats over the same window — the grid the detector
         // settled on, or nothing at all.
         const sb = read ? tempoBeatsBetween(read.bpm, read.phase, t - ROW_WINDOW_S - 0.5, t) : [];

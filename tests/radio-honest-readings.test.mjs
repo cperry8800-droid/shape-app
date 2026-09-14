@@ -221,10 +221,18 @@ test('reduced motion throttles the DRAWING and never the reading', () => {
   // and the detector to 4fps would leave the ring with a quarter of its samples
   // and the tempo would take four times as long to settle, or refuse entirely.
   // A member asking for less motion is not asking for a worse reading.
+  //
+  // ⚠ ANCHORED ON THE BINDING, NOT ON ITS INITIALIZER — this read
+  // `body.indexOf('const read = det.read(t)')` and so failed the day the reading
+  // learned to answer null for a paused station (Codex P2 on #2072): a correct
+  // fix broke a test about reduced motion. What this cares about is where the
+  // reading HAPPENS relative to the throttle, and a rename of the right-hand
+  // side does not move that. Fourth time this file has paid for a spelling pin.
   const iDet = body.indexOf('det.push(t, e)');
-  const iRead = body.indexOf('const read = det.read(t)');
+  const iRead = body.search(/const read = /);
   const iThrottle = body.indexOf('lastDrawRef.current < 1 / REDUCED_FPS');
   assert.ok(iDet > 0 && iRead > iDet, 'could not locate the reading in the frame body');
+  assert.match(body.slice(iRead, iRead + 120), /det\.read\(t\)/, 'the reading no longer comes from the detector');
   assert.ok(iThrottle > iRead, 'the reduced-motion throttle sits ABOVE the reading — it would starve the detector');
 });
 

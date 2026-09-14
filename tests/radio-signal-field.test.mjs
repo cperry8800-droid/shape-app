@@ -19,7 +19,7 @@ import {
   penSpeed, penX, behindOf, instantAt, alphaAt,
   kickShape, ecg, penRadius,
   bpmGap, inSync, gapText, lockStep, ties,
-  beatsFromRR, advanceHeartPhase, heartBeatsBetween,
+  beatsFromRR, advanceHeart, trimBeats,
   RAIL_BARS, railRms, railBarsLit,
 } from '../mobile-app/src/services/radioSignalField.mjs';
 
@@ -226,29 +226,127 @@ test('with no RR, the phase accumulator still runs at the MEASURED rate', () => 
   // The rate is measured either way; only the placement is at worst one reading
   // late. That is the honest fallback, and it must not stall.
   let p = 0;
-  for (let i = 0; i < 60; i += 1) p = advanceHeartPhase(p, 120, 1 / 60);
+  for (let i = 0; i < 60; i += 1) p = advanceHeart(p, 120, (i + 1) / 60, 1 / 60).phase;
   assert.ok(Math.abs(p - 0) < 1e-9 || Math.abs(p - 1) < 1e-9, `120bpm for 1s should complete 2 cycles, phase ${p}`);
-  assert.equal(advanceHeartPhase(0.3, null, 1 / 60), 0.3, 'an unknown rate advanced the phase');
-  assert.equal(advanceHeartPhase(0.3, 0, 1 / 60), 0.3);
+  assert.equal(advanceHeart(0.3, null, 1, 1 / 60).phase, 0.3, 'an unknown rate advanced the phase');
+  assert.equal(advanceHeart(0.3, 0, 1, 1 / 60).phase, 0.3);
 
-  const beats = heartBeatsBetween(120, 10, 0, 10, 11.2);
-  assert.ok(beats.length >= 2, 'no beats produced from a live rate');
-  for (let i = 1; i < beats.length; i += 1) {
-    assert.ok(Math.abs((beats[i] - beats[i - 1]) - 0.5) < 1e-9, 'beats are not on the stated rate');
+  // 120bpm crosses the phase every half second. ⚠ SAMPLED PAST THE BOUNDARY, NOT
+  // ON IT: 1/60 does not sum to exactly 1, so the crossing due at t = 1.000 lands
+  // at 1.0167 and a `=== 2 after exactly 1s` assertion fails on correct code —
+  // which it did, and reading the failure is what found the real boundary defect
+  // the source now records (a beat that was LOST rather than late). 66 frames is
+  // 2.2 cycles, so the count is two whichever side of the boundary the float
+  // falls on, and the SPACING is what pins the rate.
+  const seen = [];
+  let q = 0;
+  for (let i = 0; i < 66; i += 1) {
+    const a = advanceHeart(q, 120, (i + 1) / 60, 1 / 60);
+    q = a.phase;
+    seen.push(...a.beats);
   }
-  assert.deepEqual(heartBeatsBetween(null, 10, 0, 10, 11), [], 'beats were drawn with no rate');
+  assert.equal(seen.length, 2, `120bpm for 1.1s is two beats, got ${seen.length}`);
+  assert.ok(Math.abs((seen[1] - seen[0]) - 0.5) < 1e-6, 'beats are not on the stated rate');
+  // MUTATION — a step that drops a boundary crossing while the phase wraps
+  // anyway loses the beat outright, because the next frame's phase has already
+  // passed it. Driven over 600 frames at a rate whose period is not a frame
+  // multiple, the count must not fall short of what the elapsed time implies.
+  let r = 0;
+  let n = 0;
+  for (let i = 0; i < 600; i += 1) { const a = advanceHeart(r, 137, (i + 1) / 60, 1 / 60); r = a.phase; n += a.beats.length; }
+  assert.equal(n, Math.floor(10 * 137 / 60), `137bpm for 10s dropped beats: ${n}`);
 
-  // MUTATION — relax the guard to `bpm > 0` alone (the shape advanceHeartPhase
-  // one function up already rejected) and a NEGATIVE rate walks the loop
-  // backwards until the 4096 cap, putting four thousand fabricated beats on
-  // the member's own row. Infinity is the same guard from the other side: it
-  // yields [] only by arithmetic accident today.
+  // MUTATION — relax the guard to `bpm > 0` alone and a NEGATIVE rate walks the
+  // loop backwards until the cap, putting sixty-odd fabricated beats on the
+  // member's own row every frame. Infinity is the same guard from the other
+  // side. The phase is PERSISTENT state, so one NaN would poison it for the
+  // life of the page rather than washing out on the next frame.
   for (const bad of [-60, 0, Number.NaN, Number.POSITIVE_INFINITY]) {
-    assert.deepEqual(heartBeatsBetween(bad, 10, 0, 10, 11), [], `beats were drawn for bpm ${bad}`);
-    assert.equal(advanceHeartPhase(0.25, bad, 0.1), 0.25, `the phase advanced on bpm ${bad}`);
+    const a = advanceHeart(0.25, bad, 10, 0.1);
+    assert.deepEqual(a.beats, [], `beats were drawn for bpm ${bad}`);
+    assert.equal(a.phase, 0.25, `the phase advanced on bpm ${bad}`);
   }
-  // The anchor has to be readable too — it is what the whole series is measured from.
-  assert.deepEqual(heartBeatsBetween(60, Number.NaN, 0, 10, 11), [], 'beats were drawn with no anchor');
+  // The clock has to be readable too — every instant is measured FROM it, so
+  // without it each recorded beat is a NaN that the row then tries to place.
+  // ⚠ THE STEP MUST BE LONG ENOUGH TO CROSS, or the fixture proves nothing: at
+  // 60bpm a 0.1s step from phase 0.25 completes no cycle, so the guard is never
+  // reached and removing it survives. Measured by mutation, not assumed.
+  for (const dt of [1, 2.5]) {
+    const a = advanceHeart(0.25, 60, Number.NaN, dt);
+    assert.deepEqual(a.beats, [], `beats were drawn with no clock at dt ${dt}`);
+    assert.equal(a.phase, 0.25, `the phase advanced with no clock at dt ${dt}`);
+  }
+  // A control: the same step WITH a readable clock does record beats, so the
+  // assertion above is not passing because nothing crosses.
+  assert.equal(advanceHeart(0.25, 60, 10, 1).beats.length, 1, 'the control produced no beat to compare against');
+  assert.deepEqual(advanceHeart(0.25, 60, 10, Number.NaN).beats, [], 'beats were drawn with no step');
+});
+
+test('a rate change does not move beats that already happened', () => {
+  // ⚠ THE FINDING THIS FUNCTION EXISTS FOR (Codex P2 on #2072). The row holds
+  // three seconds and a strap re-reports inside that window constantly, so
+  // rebuilding the window's beats from the LATEST rate — which is what
+  // `heartBeatsBetween(bpm, now, phase, t0, t1)` did — redraws beats that
+  // genuinely landed 500ms apart as though they had landed 600ms apart the
+  // instant a 120 → 100 reading arrives. Recording each crossing is what makes
+  // an instant a fact rather than a derivation.
+  const beats = [];
+  let phase = 0;
+  const step = 1 / 60;
+  // Two seconds at 120bpm, then two at 100.
+  for (let i = 0; i < 240; i += 1) {
+    const t = (i + 1) * step;
+    const a = advanceHeart(phase, i < 120 ? 120 : 100, t, step);
+    phase = a.phase;
+    beats.push(...a.beats);
+  }
+  const early = beats.filter((b) => b <= 2);
+  assert.ok(early.length >= 3, `no early beats recorded, got ${early.length}`);
+  for (let i = 1; i < early.length; i += 1) {
+    assert.ok(Math.abs((early[i] - early[i - 1]) - 0.5) < 1e-6,
+      `a beat from the 120bpm stretch was re-spaced to ${(early[i] - early[i - 1]).toFixed(4)}s`);
+  }
+  // CONTROL — the rate really did change, so the test is not passing because
+  // nothing happened. The last two beats are on the 100bpm period.
+  const late = beats.slice(-2);
+  assert.ok(Math.abs((late[1] - late[0]) - 0.6) < 1e-6,
+    `the later beats are not on the new rate: ${(late[1] - late[0]).toFixed(4)}s`);
+  // MUTATION — extrapolate instead: rebuild the window from the final rate and
+  // the final phase, which is exactly what the retired function did. The early
+  // beats then come back at 0.6s spacing and the assertion above fails.
+  const p = 60 / 100;
+  const last = 4 - phase * p;
+  const rebuilt = [];
+  for (let k = Math.ceil((0 - last) / p); last + k * p < 2; k += 1) rebuilt.push(last + k * p);
+  assert.ok(rebuilt.length >= 3, 'the mutation produced nothing to compare against');
+  assert.ok(Math.abs((rebuilt[1] - rebuilt[0]) - 0.5) > 1e-3,
+    'the extrapolation happens to agree here, so this fixture cannot see the defect');
+});
+
+test('the recorded beats are trimmed to the window and stay sorted', () => {
+  const beats = [1, 2, 3, 4, 5];
+  trimBeats(beats, 3);
+  assert.deepEqual(beats, [3, 4, 5], 'the window was not trimmed in place');
+  trimBeats(beats, 0);
+  assert.deepEqual(beats, [3, 4, 5], 'a cutoff behind the list dropped live beats');
+  trimBeats(beats, 99);
+  assert.deepEqual(beats, [], 'a cutoff past the list left beats behind');
+  // A list that has been appended to and trimmed is still ordered, which is what
+  // `ties` reads it as.
+  const grow = [];
+  let phase = 0;
+  for (let i = 0; i < 600; i += 1) {
+    const t = (i + 1) / 60;
+    const a = advanceHeart(phase, 130, t, 1 / 60);
+    phase = a.phase;
+    grow.push(...a.beats);
+    trimBeats(grow, t - 3.5);
+  }
+  assert.ok(grow.length > 0, 'nothing survived the trim');
+  assert.ok(grow.length < 12, `the window is not being trimmed: ${grow.length} beats held`);
+  for (let i = 1; i < grow.length; i += 1) {
+    assert.ok(grow[i] > grow[i - 1], 'the recorded beats went out of order');
+  }
 });
 
 // ---------------------------------------------------------------------------

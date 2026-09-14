@@ -304,3 +304,109 @@ test('leaving the matching state releases the strap', () => {
   assert.match(fn, /setLiveHr\(null\)/, 'Listen only leaves the last reading on screen');
   assert.match(screen, /onClick=\{listenOnly\}/, 'nothing calls listenOnly — the strap can be opened and never closed');
 });
+
+// ---------------------------------------------------------------------------
+// The Codex round on b38f34f.
+// ---------------------------------------------------------------------------
+
+// The provider's playback effect, lifted and RUN rather than read. A source scan
+// cannot tell `play().then(stamp)` from `play(); stamp()` in any way that
+// survives a rewrite, and the whole finding is about which of the two it is.
+function playbackEffect() {
+  const i = code.indexOf('useEffectBR(() => {\n    let cancelPlay');
+  assert.ok(i > 0, 'the playback effect is gone — this guard no longer names anything');
+  const j = code.indexOf('}, [radioOn, paused, authTick]);', i);
+  assert.ok(j > i, 'could not find the end of the playback effect');
+  const body = code.slice(code.indexOf('{', i) + 1, code.lastIndexOf('}', j));
+  assert.ok(body.length > 400, `the effect slice is ${body.length} chars — this guard is reading the wrong thing`);
+  // eslint-disable-next-line no-new-func
+  return new Function('radioOn', 'paused', 'authTick', 'window', 'setNowPlaying', 'setPlayingSince', body);
+}
+
+async function runPlayback({ playResolves, pauseMidFlight = false }) {
+  const fn = playbackEffect();
+  const stamped = [];
+  let resolve;
+  const pending = new Promise((r) => { resolve = r; });
+  const win = {
+    ShapeAuth: { getCachedState: () => ({ user: { id: 'u1' } }) },
+    ShapeRadioLive: {
+      play: () => pending,
+      pause() {},
+      startPolling() {},
+      stopPolling() {},
+    },
+  };
+  const cleanup = fn(true, false, 0, win, () => {}, (v) => {
+    stamped.push(typeof v === 'function' ? v(null) : v);
+  });
+  if (pauseMidFlight) cleanup();
+  resolve(playResolves);
+  await pending;
+  await Promise.resolve();
+  await Promise.resolve();
+  return stamped;
+}
+
+test('the session clock starts when playback starts, not when it is requested', async () => {
+  // ⚠ CODEX P1 ON #2072. `ShapeRadioLive.play()` resolves FALSE for every way
+  // playback can fail — no provider, an unreachable or unconfigured station, an
+  // autoplay rejection, or a pause landing while it starts. Stamping beside the
+  // call rendered the rail counting "On air · 0:07" upward for a member hearing
+  // nothing at all, which is the exact fabrication this page exists to remove.
+  assert.equal((await runPlayback({ playResolves: true })).length, 1, 'a successful play did not start the clock');
+  assert.deepEqual(await runPlayback({ playResolves: false }), [], 'a failed play started the session clock anyway');
+  assert.deepEqual(await runPlayback({ playResolves: undefined }), [], 'an absent provider started the session clock');
+  // The stale-attempt guard: a pause or sign-out re-runs the effect, whose
+  // cleanup must cancel an attempt still in flight.
+  assert.deepEqual(await runPlayback({ playResolves: true, pauseMidFlight: true }),
+    [], 'a play that resolved after the member paused still stamped a clock');
+});
+
+test('a paused station has no beat, and the hold does not outlive the playback', () => {
+  const body = fieldBody();
+  // ⚠ CODEX P2 ON #2072. The detector holds a settled reading through a dropout
+  // on purpose, and a PAUSE is not a dropout — for the length of that hold the
+  // station row went on pulsing a kick for audio nobody was playing.
+  const read = body.match(/const read = ([^;]+);/);
+  assert.ok(read, 'the station reading is gone — this guard no longer names anything');
+  assert.match(read[1], /paused/, 'the station reading no longer asks whether playback is paused');
+  assert.match(read[1], /\?\s*null/, 'a paused station yields something other than no reading');
+  // Resetting rather than only gating also drops the ring, so a resume rebuilds
+  // from frames that are actually contiguous instead of splicing across the gap.
+  // ⚠ THE CONDITION, NOT THE CALL. A first cut matched `det.reset()` alone and a
+  // mutation to `if (false) det.reset()` walked straight through it: the string
+  // was present and unreachable, which is this repo's own recurring defect.
+  const reset = body.match(/if \(([^)]*)\) det\.reset\(\);/);
+  assert.ok(reset, 'the detector is no longer reset behind a condition when playback stops');
+  assert.match(reset[1], /paused/, 'the detector reset no longer fires on the pause');
+  assert.match(reset[1], /pausedRef/, 'the reset is no longer edge-detected — it would fire every frame while paused');
+  // ⚠ AND THE HEART HALF KEEPS RUNNING, DELIBERATELY. Pausing the radio does not
+  // take the strap off. Freezing this row would hold a flatline under a live
+  // reading, which is the same class of lie pointed the other way.
+  // ⚠ ASKED OF THE ENCLOSING CONDITION, NOT OF A LINE. A first cut matched
+  // `paused` and `advanceHeart` within one line, and the mutation that adds
+  // `&& !cfg.paused` to the guard puts them on ADJACENT lines — so the regression
+  // it was written for was exactly the shape it could not see.
+  const hrGuard = body.match(/if \(([^)]*)\) \{\s*const adv = advanceHeart/);
+  assert.ok(hrGuard, 'the heart clock is no longer guarded — this guard cannot see the rule');
+  assert.doesNotMatch(hrGuard[1], /paused/,
+    'the heart row was frozen on pause — a beating heart drawn as a flatline');
+});
+
+test('a heart beat is recorded when it arrives and never re-derived', () => {
+  const body = fieldBody();
+  // ⚠ CODEX P2 ON #2072. Rebuilding the visible window from the LATEST rate
+  // redrew beats that genuinely landed 500ms apart as though they had landed
+  // 600ms apart the instant a 120 → 100 reading arrived. The row holds three
+  // seconds and a strap re-reports inside that window constantly.
+  assert.doesNotMatch(body, /heartBeatsBetween/, 'the window is being extrapolated from the current rate again');
+  const hb = body.match(/const hb = ([^;]+);/);
+  assert.ok(hb, 'the heart row no longer reads a beat list');
+  assert.match(hb[1], /hrBeatsRef/, 'the heart row derives its beats instead of reading the recorded ones');
+  assert.doesNotMatch(hb[1], /hrBpm/, 'the heart row is deriving beats from the current rate again');
+  // The list is appended to as beats arrive and trimmed at the old end only.
+  assert.match(body, /advanceHeart\(hrPhaseRef\.current, hrBpm, t, dt\)/, 'the heart clock no longer records its crossings');
+  assert.match(body, /hrBeatsRef\.current\.push\(/, 'crossings are no longer recorded');
+  assert.match(body, /trimBeats\(hrBeatsRef\.current/, 'the recorded list is never trimmed — it grows for the life of the page');
+});
