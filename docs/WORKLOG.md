@@ -726,6 +726,157 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-14 — Members joins the nav, its page moves to the site's type system, and one footer replaces three
+
+- **Three PRs off one open item.** #2067's entry closed with *"`Client.html` ("For members") IS
+  REACHABLE FROM THE FOOTER ONLY, and the owner asked to explore incorporating it"*. Four options
+  were put; the owner picked **"Own tab beside Coaches"** and named it **Members**. That is #2069.
+  The page fixes they ticked alongside it are #2069 and #2070. Then, on a screenshot of the
+  homepage footer: *"make sure these are correctly linked and labeled correctly. also increase the
+  size of the shape logo in the bottom left of screen. make sure these bookmarks are same on each
+  page"* — #2071. `public/newdesign/` only; **no migration, no route, no mobile change.**
+- ⚠ **AN EIGHTH NAV LINK IS A WIDTH DECISION, AND IT WAS MEASURED RATHER THAN HOPED FOR.** The bar
+  reads **Coaches · Members · App · Radio · Community · Rewards · Pricing · About**, and the eighth
+  item overflowed between the collapse breakpoint and the desktop layout. Two levers rather than
+  one: the gap trims to 16px at ≤1100px and the collapse moves **980 → 1020px**, so a **1024px
+  iPad-landscape** window keeps the bar instead of falling to the drawer. Both the shared header and
+  the homepage's own static bar and drawer move together, or a phone gets one nav and a tablet
+  another.
+- **Three claims on the members page were the owner's to settle, and all three were wrong on the
+  page.** It promised *"From curious to coached in a week"* — the timing-promise class #2064 had
+  removed from three coach pages the day before; its *"This week"* card, habits ledger and grocery
+  mock were invented figures with **no example label**, where the homepage and Coaches page label
+  every one; and it read **"Free — to join"** against the $5/mo the homepage and Pricing both state.
+  **Owner ruling: *"Its free to join for coaches. Its $5 a month for members/clients"***, plus
+  *"remove Landing's 'or instant'"*.
+- ⚠ **AND THE TIMING SWEEP STRIPPED TAGS AND NOT ENTITIES OR JSX CONTAINERS — Codex's one finding on
+  #2069, and it is the class this file keeps paying for.** `in a&nbsp;week` and `{" in a "}` both
+  render the banned promise and both walked through the ban, because the normaliser removed
+  `<…>` and stopped. **The positive control missed them too**, which is the tell: the control ran a
+  *second copy* of the normalisation, so it could only ever agree with the sweep. One shared
+  `renderText` drives both now, and two control mutations that had survived are killed. *A control
+  that reimplements the thing it controls is not a control.*
+- **#2070 is the type port, and it is here because I parked it on my own judgement and was
+  wrong.** The owner had ticked *"Move it to the new type system"* among the page fixes; I deferred
+  it. `Client.html` was still in the pre-2026-09-10 system (Fraunces · Space Grotesk · JetBrains
+  Mono) while the homepage and the Coaches page had moved to **Anybody · Doto · Schibsted Grotesk**,
+  so the one page the new nav tab points at was the one page in the old type. Measured on the merged
+  file: **18 display sites · 29 readings · 18 body · 0 italics left**.
+- ⚠ **THE THREE CONSTANTS ARE LOCAL TO THE PAGE, AND THAT IS FORCED RATHER THAN TIDY.**
+  `pageShell.jsx`'s module-scope `serif`, `sans` and `mono` are read **18, 39 and 12 times by the
+  shared chrome** that ~70 pages render, so re-pointing them would have re-typeset the whole site
+  from one page's ask. ⚠ A first draft of this bullet said *"37 and 30"*, a figure that reproduces
+  against nothing — re-derived here from the merged file, because a count nobody re-runs is a claim. `Client.html`'s font link **keeps** Fraunces, Space Grotesk and JetBrains for that chrome and
+  **adds** the three new families for the page's own body.
+- ⚠ **AND THE FIRST RENDER PASS REVIEWED THE WRONG TYPEFACE, WHICH IS THE 2026-09-11 LESSON ARRIVING
+  THROUGH A NEW DOOR.** The local stylesheet is *fulfilled for the `fonts.googleapis.com` request*,
+  so its base URL is that origin and a root-relative `url(/f/…)` inside it resolved against **Google**
+  — which the container blocks. Absolute `http://127.0.0.1:4173/f/…` fixes it, and the proof is the
+  **width axis**, not `document.fonts.check()`: the same string measures **322px at `wdth 50` and
+  1288px at `wdth 150`** with the real files, and **640px both ways** in the fallback. `check()`
+  returns **true when nothing matched and the fallback is used**, so it cannot answer this question
+  at all.
+- ⚠ **AND THREE OF MY OWN INSTRUMENTS WERE BROKEN BEFORE THEY MEASURED ANYTHING.** `grep -c` counts
+  **lines, not occurrences**, so an assert of 8 italics ran against 9 (one `<h2>` carries two
+  `<em>`s) — the assert caught it and the file was never written. The style-object walker sorted
+  **largest-first**, so an enclosing JSX container swallowed every object literal and it found 10
+  blobs instead of ~50, one of them reporting `'wdth'` set on Doto; smallest-first with an
+  "encloses one already taken" skip is what actually reaches the innermost object. And the font-URL
+  parser matched axis names as `[a-z,]` — **`ROND` is uppercase**, so Doto parsed as a family with no
+  axes and the guard reported it as requested without a weight range.
+- ⚠ **CODEX RETURNED THREE P2s ON #2070 AND EVERY ONE WAS REAL, ALL THREE ABOUT BINDING.** Three
+  display sites set a family and an axis and **no weight**, so they rendered at 400 against the
+  sweep's 500. The axis-owner inference read *"whichever requested family carries this axis"* rather
+  than the family **in the same style object**, so moving an axis onto the wrong family left every
+  test green while the axis went inert. And the weight sweep was **newline-bounded**, so the paths
+  CTA — family and weight three lines apart — was never checked. All three fixed and confirmed on the
+  merged tree: **18 of 18 display sites carry a weight**, the walker is the binding, and the sweep
+  reads whole objects.
+- **#2071 is the footer, and the ask was one sentence with four defects behind it.** Three pages
+  render this site's footer — `pageShell.jsx` (the shared chrome), `index.html` (its own inline
+  markup) and `GetApp.html` (its own grid) — and they had drifted to **22, 23 and 17 links, no two
+  agreeing**. One canonical table now: **Product · For coaches · Company · Support, 22 links**, plus
+  the homepage logo **26 → 40px**.
+- ⚠ **`Press` POINTED AT THE CLIENT'S OWN PAGE, IN ALL THREE.** `Team.html#press` — and `Team.html`
+  is the member's **"My Team"** page (their coaches), carrying no `id="press"` anywhere. Wrong page
+  and a dead anchor on top. **Owner ruling: remove it** rather than repoint, because there is no
+  press page to point at.
+- ⚠ **AND THREE LINKS DEAD-ENDED THE ENTIRE AUDIENCE OF A MARKETING FOOTER.** Dashboard, Payouts and
+  Programs are redirect stubs into shells that — **since #2064's sign-in gate shipped** — send a
+  *measured* signed-out visitor to `Login.html`. A footer is read overwhelmingly by people who are
+  not signed in, so every one of those was a bounce. **Owner ruling: repoint at the public pages**
+  that answer the same question. The homepage also had **no Coaches link at all**.
+- ⚠ **AND THE REVIEW ROUND FOUND TWELVE PAGES PRINTING THE WHOLE FOOTER TWICE — a live defect far
+  bigger than the finding that pointed at it.** `pageShell` auto-mounted a second `<Footer />` into
+  any page carrying `<div id="site-footer">`, in a root of its own, and **never asked whether the
+  page already had one**. Every page that opted in did: **About · Client · Coach · Coaches ·
+  Community · Landing · Marketplace · Nutritionist · Pricing · Score · Store · Team** all render
+  `<Footer />` from their own module. So the mechanism had **no page it was the only footer for** —
+  its entire live effect was a duplicate. Driven in Chromium on Marketplace before the fix: two
+  `.shape-footer-grid` at **y 5090 and y 5621**, two logos, two *"Join the community"*, all four link
+  groups back to back. The div is out of all twelve and the mount is **retired**; re-rendered after,
+  every one reads exactly one grid.
+- ⚠ **IT IS NOT REPLACED WITH A GUARD, BECAUSE IT CANNOT HAVE ONE.** The mount runs from the **first
+  page script**, long before `#root` fills, so it can never see the footer the page is about to
+  render. The site's actual convention is the in-tree one — **25 modules render `<Footer />`
+  themselves** — and once the divs came out, nothing relied on the mount at all.
+- ⚠ **AND A COUNT IS NOT AVAILABLE FROM SOURCE, WHICH IS RECORDED WHERE THE NEXT PERSON WILL REACH
+  FOR ONE.** Codex asked for the *"exactly one footer"* test to count rather than detect, which is
+  the obvious fix and does not hold: counting `<Footer />` across a page and the modules it loads
+  **over-reports 3–4× on the dashboard pages** — `ClientDashboard` loads both `dashClient.jsx` and
+  `trainerDashboard.jsx`, each rendering a footer for the branch the *other* page takes, and nothing
+  in the text says which one runs. The counter reported **66 pages broken on a tree whose real number
+  is zero**. How many footers a page RENDERS is a browser question; the assertion that has an answer
+  is the absence one — no page carries the opt-in div, and the mount has not come back.
+- **The other two Codex findings were hollow guards of mine, and each fix is proven to be what
+  catches its defect.** The gated-link check matched only the legacy **stub** shape (a page
+  redirecting *into* a shell), so a footer pointing straight at `ClientApp.html` — which redirects to
+  Login *itself* — passed, and the equality and existence tests passed with it, so **the invariant
+  the test is named for was not enforced at all**. And `target()` stripped through the last slash, so
+  `/old/Score.html` and even an off-origin `https://example.com/Radio.html` compared **equal** to the
+  shared spelling, while the existence check only ever opens the shared table's own targets. Both
+  replayed as mutations: each is killed with its fix and **survives when that one line is reverted**.
+- ⚠ **AND THREE CLAIMS IN MY OWN COMMENTS WERE FALSE, FOUND BY RE-DERIVING THEM RATHER THAN BY THE
+  REVIEW.** The footer comment said GetApp carried **three groups with no Support**; it had **four**,
+  with Help and Contact — what it actually had was a four-item Product list, a "For trainers" group
+  that was Apply plus two dashboard dead ends naming no coach page, and no Pricing anywhere. And it
+  said **nothing else links `Client.html`** — which **#2069 made false the day before**, by adding
+  the Members tab in the same file. *A comment that measures a state the diff then destroys cannot be
+  re-derived by the next reader*, which is exactly why both were worth chasing.
+- **So the guard asserts the claim instead of the comment carrying it alone**: the three pages still
+  called footer-only must be **absent from the nav table**, with `Client.html` as the **control** —
+  a nav parser that stops matching reports every page as absent and passes all three assertions
+  vacuously, and the one page that IS in the nav is what catches that. ⚠ **A size floor sits beside
+  it and is not belt-and-braces**: a parser that still works but sees only **part** of the table
+  passes the control (Client.html is the second entry) while reading a fifth of the nav. Measured
+  both ways — truncate the match list to three and the floor alone fails; remove the floor as well
+  and it goes green.
+- ⚠ **AND A GUARD FROM #2067 PINNED THE DUPLICATION ITSELF.** It asserted `<div id="site-footer">`
+  was present on `Coaches.html` — i.e. it required the mechanism that turned out to be the bug — so
+  the correct fix **failed a test about the nav**. Re-anchored on the invariant it was ever about:
+  the page has a footer. *A guard that pins a spelling pins whatever that spelling is wrong about* —
+  and this file has now recorded that sentence more times than any other.
+- **Review:** Codex, one front-loaded round per PR, on all three — **1 finding on #2069, 3 on #2070,
+  3 on #2071, every one real and every one fixed**. CodeRabbit was **not triggered on any of them**
+  (owner, this session: *"dont run coderabbit for PR"*); its skip-review notice on each PR is
+  automatic and is not a review. The merge gate was the four required checks green on the final head
+  and not a draft.
+- **Verified on the final head:** `npm test` **3690/3690** · `tsc --noEmit` 0 · JSX parse on every
+  changed module · the newdesign precompile check (**75 pages** over 77 shared jsx, 0 errors) · **11 mutations killed on
+  the footer work**, each proven to land, sanity green at both ends, the tree restored in a `finally`
+  **and on a signal** — every shipped defect replayed as its own mutation, plus a
+  parse-stops-matching control · all twelve duplicate pages **re-rendered in Chromium** showing one
+  footer grid and one *"Join the community"*, down from two · all three footers showing **22 links and
+  the same four groups**, zero horizontal overflow at 1440 and 390 · and the nav bar measured at eight
+  widths so the eighth link's collapse point is a measurement rather than a guess.
+- ⚠ **REGISTERED, NOT FIXED:** the footer says *"For members"* and *"Shape Score"* where the nav says
+  **Members** and **Rewards** — a product call, not a footer sweep; **four pages carry no footer at
+  all** (`ClientPlaylists.html` · `NutritionistPublic.html` · `TrainerPublic.html` ·
+  `consultation.html`), pinned as the known set so a fifth is a decision somebody has to come here and
+  make; `GetApp.html` keeps its own **80px dark** logo, correct on a cream page, so the 40px floor is
+  the homepage's alone; and `publicProfile.jsx:1206` still redirects to login on **any** failure of
+  its `/api/me` read — pre-existing, one surface over, and carried forward from #2064's own register.
+
 ### 2026-09-14 — The Coaches menu becomes one Marketplace item, the Coaches page previews every dashboard tab, and the 1% payout claim leaves the site
 
 - **Three owner rulings, one PR** (#2067 → `32b0203`). *"also for the coaches subtab, just have 1 link
@@ -800,7 +951,7 @@ Append new entries at the top, under this note.
 - **Verified on the final head:** `npm test` **3654/3654** — locally this time, matching CI's count,
   because the mobile-app tree is installed in this container (the 3599-vs-3654 split #2064's entry
   records was the tree's absence, not a different suite) · `tsc --noEmit` 0 · JSX parse on all seven
-  changed modules · the newdesign precompile check (**77 pages**, 0 errors) · **12/12 mutations killed**,
+  changed modules · the newdesign precompile check (**77 pages**, 0 errors — ⚠ that is the SHARED-JSX count misread as the page count; the tool prints `75 pages, 77 shared jsx` and has since #2064, whose entry says 75 correctly) · **12/12 mutations killed**,
   each proven to land, sanity green at both ends, the tree restored in a `finally` and on a signal — the
   two hash items restored · the one item picking a side · a second homepage menu item · the retired
   Trainers link lingering in the drawer · the drawer losing Marketplace · the homepage item pointing
