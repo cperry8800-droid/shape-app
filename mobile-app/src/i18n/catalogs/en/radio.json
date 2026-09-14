@@ -18,7 +18,6 @@
   "nora.watch": "Watch Nora (preview)",
   "nowPlaying.dislikeSong": "Dislike song",
   "nowPlaying.likeSong": "Like song",
-  "nowPlaying.listening": "{count, plural, one {# listening} other {# listening}}",
   "nowPlaying.muted": "Muted",
   "nowPlaying.open": "Open →",
   "nowPlaying.tuneIn": "Tune in",

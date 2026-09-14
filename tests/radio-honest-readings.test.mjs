@@ -56,6 +56,45 @@ function lineOf(body, needle) {
 // The identifier `fieldK` is called with as its KICK argument, plus the source of
 // that identifier's own initializer. Parsed rather than matched, so any rewrite
 // that keeps the rule keeps passing and only losing the rule fails.
+// The expression `BSChannelMeter` uses as its bar COUNT, read off the AST.
+//
+// ⚠ A TEXT MATCH ON `RAIL_BARS` CANNOT SEE THIS, AND THE MUTATION ROUND PROVED
+// IT: the component clamps with `Math.min(RAIL_BARS, …)` as well as rendering
+// `Array.from({ length: RAIL_BARS })`, so swapping the render's length for a
+// literal 7 left the identifier in the body and a `match(/RAIL_BARS/)` passed
+// while the meter drew seven bars beside a five-bar rail. This asks the array
+// itself what it was given.
+function meterBarCount(src) {
+  const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
+  let fn = null;
+  const findFn = (n) => {
+    if (!n || typeof n.type !== 'string' || fn) return;
+    if (n.type === 'FunctionDeclaration' && n.id && n.id.name === 'BSChannelMeter') { fn = n; return; }
+    for (const k of Object.keys(n)) {
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach(findFn); else if (v && typeof v.type === 'string') findFn(v);
+    }
+  };
+  findFn(ast.program);
+  if (!fn) return null;
+  let len = null;
+  const findLen = (n) => {
+    if (!n || typeof n.type !== 'string' || len) return;
+    if (n.type === 'CallExpression' && n.callee.type === 'MemberExpression'
+      && n.callee.object.type === 'Identifier' && n.callee.object.name === 'Array'
+      && n.callee.property.name === 'from' && n.arguments[0] && n.arguments[0].type === 'ObjectExpression') {
+      const prop = n.arguments[0].properties.find((q) => q.key && (q.key.name === 'length' || q.key.value === 'length'));
+      if (prop) { len = prop.value; return; }
+    }
+    for (const k of Object.keys(n)) {
+      const v = n[k];
+      if (Array.isArray(v)) v.forEach(findLen); else if (v && typeof v.type === 'string') findLen(v);
+    }
+  };
+  findLen(fn.body);
+  return len;
+}
+
 function fieldKKickArg(src) {
   const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
   let call = null;
@@ -114,14 +153,15 @@ test('the scrubber is gone, and so is the ring it beat against', () => {
   // carry rendered `0:00 / -0:00` in every state — and a scrubber on a
   // non-interactive stream promises a seek the licence forbids.
   assert.doesNotMatch(body, /\*\s*0\.46/, 'the fabricated scrubber position is back');
-  // ⚠ SCOPED TO THE SCREEN, FOR THE SAME REASON AS THE READS ABOVE. The
-  // keyframes survive in `BSBeatRing`, which is the HOME card's ring and still
-  // beats to `LIVE.bpm` — PR 4's to retire. A file-wide assertion here fails on
-  // correct code today, which the first version of this guard duly did.
-  assert.doesNotMatch(body, /bs-beat-ring/, 'the screen animates a ring against a tempo nobody measured');
-  // And the animation the screen deleted is proven to have been the screen's:
-  // the component that still owns it is named, so nobody deletes the wrong one.
-  assert.match(code, /function BSBeatRing/, 'BSBeatRing went early — PR 4 owns it, and its retirement is a separate change');
+  // ⚠ THIS WAS SCOPED TO THE SCREEN AND IS NOW FILE-WIDE, WHICH IS THE WHOLE
+  // POINT OF THE CHANGE THAT WIDENED IT. The keyframes used to survive in
+  // `BSBeatRing`, the HOME card's ring, which beat to a typed-in `LIVE.bpm` —
+  // so a file-wide assertion failed on correct code and this guard deliberately
+  // named the component that still owned it. Home stopped claiming a tempo, the
+  // ring lost its last caller, and both are gone: there is no surface left that
+  // may animate against a tempo nobody measured.
+  assert.doesNotMatch(code, /bs-beat-ring/, 'a ring animates against a tempo nobody measured');
+  assert.doesNotMatch(code, /BSBeatRing/, 'the ring is back — its whole job is to render a tempo');
 });
 
 test('the retired keys are gone from every locale, and the new one is in all of them', () => {
@@ -250,4 +290,71 @@ test('the Doto readings face is asked for its roundness axis', () => {
     rond.length, uses.length - 1,
     `${uses.length - 1} Doto consumers but ${rond.length} set 'ROND' 100 — an unset axis renders the square-dot form silently`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// The typed-in station constants, retired at their last readers.
+// ---------------------------------------------------------------------------
+
+test('the station constant carries no tempo and no listener count', () => {
+  // ⚠ 132 AND 3,472 WERE BOTH PRESENTED AS READINGS. The first beat a ring on
+  // Home and printed itself inside it; the second read "3,472 listening" on the
+  // Home card AND on the muted bar. A station that is not broadcasting has no
+  // tempo to report and nobody counting its audience.
+  const i = code.indexOf('const BS_LIVE_STATION = {');
+  assert.ok(i > 0, 'the station constant is gone — this guard no longer names anything');
+  const decl = code.slice(i, code.indexOf('\n};', i));
+  assert.ok(decl.length > 60, `the constant slice is ${decl.length} chars — this guard is reading the wrong thing`);
+  assert.doesNotMatch(decl, /^\s*bpm:/m, 'the station declares a tempo again');
+  assert.doesNotMatch(decl, /listeners:/, 'the station declares a listener count again');
+  // A vacuity check: the constant still exists and still carries what IS true
+  // about it, so the two assertions above are not passing on an empty object.
+  assert.match(decl, /show:/, 'the constant lost the fields that are facts about us, not claims about a signal');
+});
+
+test('no surface reads a tempo or an audience off the constant', () => {
+  // The readers, not the declaration — a field can be deleted and a reader left
+  // behind, which renders `undefined` rather than failing.
+  assert.doesNotMatch(code, /LIVE\.bpm/, 'a surface reads the station tempo off the constant again');
+  assert.doesNotMatch(code, /LIVE\.listeners/, 'a surface reads a listener count off the constant again');
+  // And the key those two call sites rendered is retired from every catalog,
+  // because a key nothing reads is thirteen values a translator must maintain.
+  const locales = readdirSync(CATALOGS).filter((d) => !d.startsWith('.'));
+  assert.ok(locales.length >= 13, `only ${locales.length} catalogs found — this guard is reading the wrong directory`);
+  for (const L of locales) {
+    const cat = JSON.parse(readFileSync(new URL(`${L}/radio.json`, CATALOGS), 'utf8'));
+    assert.ok(!('nowPlaying.listening' in cat), `${L} still carries the retired listener-count key`);
+  }
+});
+
+test('the channel row draws the measured signal, never a keyframe loop', () => {
+  const body = screenBody(code);
+  // ⚠ IT WAS `<BSEQ bars={5}>` — five bars on a CSS @keyframes loop, animating
+  // whether or not a frame of audio had been sampled, three inches from a
+  // spectrum drawn off the real analyser. A picture of a signal is a claim.
+  const row = body.slice(body.indexOf('<DarkChannelRow'), body.indexOf('/>', body.indexOf('<DarkChannelRow')));
+  assert.ok(row.length > 80, `the channel row slice is ${row.length} chars — this guard is reading the wrong thing`);
+  assert.doesNotMatch(row, /BSEQ/, 'the channel row animates a sine again');
+  assert.match(row, /BSChannelMeter/, 'the channel row no longer draws a meter');
+  assert.match(row, /lit=\{railLit\}/, 'the meter is not fed the count the rail measured');
+  // The meter must not be able to invent a bar: it clamps to the rail's own
+  // width and refuses anything that is not a number.
+  // ⚠ ANCHORED ON THE NEXT FUNCTION, NOT ON A COMMENT. The first version ended
+  // this slice at `// Halftone aurora` — and `code` is comment-STRIPPED, so
+  // indexOf returned -1, the slice ran to the end of the file, and the guard
+  // failed on correct code because something else in the module animates. The
+  // upper bound below is what makes a runaway slice fail loudly instead of
+  // quietly asserting about the whole file.
+  const mi = code.indexOf('function BSChannelMeter');
+  assert.ok(mi > 0, 'the meter is gone — this guard no longer names anything');
+  const mj = code.indexOf('function BSHalftoneAurora', mi);
+  assert.ok(mj > mi, 'could not find the end of the meter');
+  const meter = code.slice(mi, mj);
+  assert.ok(meter.length > 150 && meter.length < 2000, `the meter slice is ${meter.length} chars — this guard is reading the wrong thing`);
+  assert.match(meter, /Number\.isFinite/, 'an unreadable count lights bars');
+  const len = meterBarCount(raw);
+  assert.ok(len, 'the meter no longer builds its bars from an array — this guard cannot see its width');
+  assert.equal(len.type, 'Identifier', `the meter renders a literal bar count (${raw.slice(len.start, len.end)}) instead of the rail's`);
+  assert.equal(len.name, 'RAIL_BARS', `the meter renders ${len.name} bars instead of the rail's RAIL_BARS`);
+  assert.doesNotMatch(meter, /animation/, 'the meter animates — it is a reading, not a picture of one');
 });

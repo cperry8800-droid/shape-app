@@ -18,7 +18,6 @@
   "nora.watch": "Nora ansehen (Vorschau)",
   "nowPlaying.dislikeSong": "Gefällt mir nicht",
   "nowPlaying.likeSong": "Gefällt mir",
-  "nowPlaying.listening": "{count, plural, one {# hört zu} other {# hören zu}}",
   "nowPlaying.muted": "Stumm",
   "nowPlaying.open": "Öffnen →",
   "nowPlaying.tuneIn": "Einschalten",

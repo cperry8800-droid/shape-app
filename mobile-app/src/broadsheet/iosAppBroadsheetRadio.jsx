@@ -147,11 +147,17 @@ function radioLocale() {
 // ═══════════════════════════════════════════════════════════
 // Data
 // ═══════════════════════════════════════════════════════════
+// ⚠ NO `bpm` AND NO `listeners`. Both were typed in — 132 and 3,472 — and both
+// were presented as readings: the first beat a ring on Home and printed itself
+// inside it, the second read "3,472 listening" on Home and on the muted bar. A
+// station that is not broadcasting has no tempo to report and nobody counting
+// its audience. The tempo is MEASURED on the Radio page or it reads "—"; there
+// is no listener count anywhere, because no provider reports one (brief §12,
+// ruling 2). What is left here is the station's own name and what it is, which
+// are facts about us rather than claims about a signal.
 const BS_LIVE_STATION = {
   name: 'Shape Radio',
   show: 'Shape Radio Station',
-  bpm: 132,
-  listeners: 3472,
   nextUp: 'Live mix all day',
   // 3-4 minute rolling track list
   tracks: [
@@ -694,6 +700,23 @@ function BSEQ({ bars = 22, color, height = 56, gap = 3, speed = 1.4, phase = 0, 
   );
 }
 
+// The channel row's signal meter — five bars, LIT OR NOT LIT, off the count the
+// rail measured from the analyser's own RMS. Deliberately not `BSEQ`: that one
+// animates on a CSS keyframe loop and says nothing about whether audio is
+// arriving, which is exactly the claim this row must not make. Zero lit bars is
+// the honest state for a frame we cannot read, and it is also what a paused or
+// unselected channel gets — there is no reading to draw either way.
+function BSChannelMeter({ lit = 0, teal, dim }) {
+  const n = Number.isFinite(lit) ? Math.max(0, Math.min(RAIL_BARS, Math.round(lit))) : 0;
+  return (
+    <div aria-hidden style={{ display: 'inline-flex', alignItems: 'flex-end', gap: 2, height: 28 }}>
+      {Array.from({ length: RAIL_BARS }).map((_, i) => (
+        <span key={i} style={{ width: 4, height: 8 + i * 4, borderRadius: 1, background: i < n ? teal : dim }} />
+      ))}
+    </div>
+  );
+}
+
 // Halftone aurora — animated radial-dot field, drifts and breathes
 function BSHalftoneAurora({ color, opacity = 0.55, paused = false }) {
   const t = useBS();
@@ -715,33 +738,12 @@ function BSHalftoneAurora({ color, opacity = 0.55, paused = false }) {
   );
 }
 
-// BPM ring — pulses on the beat
-function BSBeatRing({ bpm = 132, size = 42, color, paused = false }) {
-  const t = useBS();
-  const c = color || t.INK;
-  const dur = (60 / bpm).toFixed(3) + 's';
-  return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <div style={{
-        position: 'absolute', inset: 0, borderRadius: '50%',
-        border: `1.5px solid ${c}`,
-        animation: paused ? 'none' : `bs-beat-ring ${dur} ease-out infinite`,
-      }} />
-      <div style={{
-        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: c,
-      }}>{bpm}</div>
-      <style>{`
-        @keyframes bs-beat-ring {
-          0%   { transform: scale(0.92); opacity: 0.95; }
-          50%  { transform: scale(1.0);  opacity: 0.55; }
-          100% { transform: scale(1.18); opacity: 0; }
-        }
-      `}</style>
-    </div>
-  );
-}
-
+// ⚠ `BSBeatRing` LIVED HERE AND IS DELETED. It drew a ring pulsing at a `bpm`
+// prop and printed that number inside itself, and its last caller was the Home
+// card handing it `BS_LIVE_STATION.bpm` — a typed-in 132. With the constant
+// retired it had no caller at all, and a component whose whole job is to render
+// a tempo, kept beside a page that measures one, is the next reader's mistake
+// waiting to be made. Its `bs-beat-ring` keyframes went with it.
 // Shape Radio wordmark — picks the right PNG for the surface. On dark paper the
 // original white logo; on light paper a recolored variant where the white parts
 // (SHAPE + the second play-triangle) read as ink/black while the play triangle +
@@ -997,14 +999,25 @@ function BSNowPlaying({ onOpen }) {
             Shape Radio
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none', minWidth: 0 }}>
-            <span style={{ color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('radio:nowPlaying.listening', { count: r.LIVE.listeners, defaultValue: '{count, plural, one {# listening} other {# listening}}' })}</span>
             <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}26`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>{tr('radio:nowPlaying.open', { defaultValue: 'Open →' })}</span>
           </span>
         </div>
 
         {/* Body */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
-          <BSBeatRing bpm={r.LIVE.bpm} color={t.INK} size={28} paused={r.paused} />
+          {/* ⚠ A MARK, NOT A READING. This was `<BSBeatRing bpm={r.LIVE.bpm}>` — a
+              ring pulsing at a typed-in 132 with "132" printed inside it, which is
+              a claim about the station's tempo. The tempo is measured on the Radio
+              page, off the analyser, and nothing on Home reads that analyser: the
+              detector runs inside the Signal Field, and hoisting a 60Hz read onto
+              a Home card to feed one number is the wrong trade. So Home shows the
+              mark and says nothing it has not measured. The blinking dot in the
+              eyebrow above already carries "this is on air". */}
+          <div aria-hidden style={{
+            width: 28, height: 28, flexShrink: 0, borderRadius: '50%', border: `1.5px solid ${t.INK}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, color: t.INK, fontFamily: t.DISPLAY, lineHeight: 1,
+          }}>♪</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{
               fontFamily: t.DISPLAY, fontSize: 15, fontWeight: t.W.display, letterSpacing: '-0.025em',
@@ -1151,7 +1164,6 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
             Shape Radio · {tr('radio:nowPlaying.muted', { defaultValue: 'Muted' })}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none' }}>
-            <span>{tr('radio:nowPlaying.listening', { count: r.LIVE.listeners, defaultValue: '{count, plural, one {# listening} other {# listening}}' })}</span>
             <span style={{ color: t.ACCENT, fontWeight: 900, background: `${t.ACCENT}22`, border: `1px solid ${t.ACCENT}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4, padding: '3px 9px', letterSpacing: '0.12em', flex: 'none' }}>{tr('radio:nowPlaying.open', { defaultValue: 'Open →' })}</span>
           </span>
         </div>
@@ -2465,6 +2477,13 @@ function BSRadioScreen({ onBack }) {
         <DarkSection title={tr('radio:screen.channel', { defaultValue: 'Channel' })} meta={tr('radio:screen.liveChannel', { defaultValue: 'Live channel' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
         {/* Schedule state — the ON AIR tag appears only over a real stream. */}
         <div style={{ padding: `0 ${t.padX}px` }}><BSSetsLine tone="dark" /></div>
+        {/* ⚠ AND THE ROW'S BARS ARE THE ANALYSER'S, NOT A SINE. This was
+            `<BSEQ bars={5}>` — five bars on a CSS `@keyframes` loop, animating
+            whether or not a single frame of audio had been sampled, three inches
+            from a spectrum drawn off the real analyser. A picture of a signal is
+            a claim about the signal. It reads `railLit` now: the same measured
+            count the rail above it draws, so the two cannot disagree, and a frame
+            we cannot read lights none of them rather than miming a broadcast. */}
         {/* ⚠ THE ROW'S META CARRIED A TYPED BPM AND A LISTENER COUNT, AND BOTH ARE
             GONE. `screen.liveStationMeta` read "Live station · 132 BPM · 3,472
             listening now" off `BS_LIVE_STATION` — two figures nobody has measured,
@@ -2475,7 +2494,7 @@ function BSRadioScreen({ onBack }) {
           eyebrow={tr('radio:screen.live247', { defaultValue: 'LIVE · 24/7' })} eyebrowColor={TEAL}
           title={r.LIVE.show}
           meta={tr('radio:screen.liveChannel', { defaultValue: 'Live channel' })}
-          right={<BSEQ bars={5} color={TEAL} height={28} gap={2} paused={r.paused || !onLive} />}
+          right={<BSChannelMeter lit={railLit} teal={TEAL} dim={CREAM25} />}
           t={t} cream={CREAM} cream50={CREAM50} rule={RULE_DK} accent={TEAL}
         />
 
@@ -2730,6 +2749,6 @@ function BSShapeSetsScreen({ onBack }) {
 Object.assign(window, {
   BSRadioProvider, useBSRadio,
   BSRadioPrompt, BSNowPlaying, BSRadioScreen, BSShapeSetsScreen,
-  BSEQ, BSHalftoneAurora, BSBeatRing, BSStageLight,
+  BSEQ, BSHalftoneAurora, BSStageLight,
   BS_COACH_PLAYLISTS,
 });
