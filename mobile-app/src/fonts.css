@@ -676,3 +676,27 @@
   src: url(./assets/fonts/font-27.woff2) format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+/* latin — Doto Variable. The Radio page's readings (docs/BUILD-2026-09-14-radio-signal-field.md).
+   A dot-matrix face, so a MEASURED figure reads as a reading rather than as body copy.
+   ⚠ BOTH axes must survive: `wght` carries legibility at display size and `ROND`
+   carries the dot shape. Google Fonts once delivered `wght` alone and every
+   `font-variation-settings:'ROND' N` rule on the homepage was silently inert — an
+   ignored axis is not an error in any browser, linter or build. This is the
+   two-axis file (`doto-latin-full-normal`), and tests/radio-font-axes.test.mjs
+   reads the shipped bytes' own `fvar` table to prove it.
+   ⚠ AND `ROND` DEFAULTS TO 0, WHICH IS THE SQUARE-DOT FORM THE HOMEPAGE REVIEW
+   SAYS CANNOT BE READ AT DISPLAY SIZE — measured off this file's own fvar:
+   ROND 0..100 default 0, wght 100..900 default 900. So shipping the face is only
+   half the job: every element that sets `font-family: Doto` must ALSO set
+   `font-variation-settings: 'ROND' 100`, or it renders the unreadable default
+   with nothing anywhere reporting it. No consumer exists yet (this file ships the
+   face alone), and a guard over zero consumers passes vacuously — so the rule is
+   written here, and the guard lands with the first consumer. */
+@font-face {
+  font-family: 'Doto';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(./assets/fonts/font-28.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

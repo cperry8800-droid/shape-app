@@ -1,0 +1,398 @@
+// THE STATION'S TEMPO IS MEASURED OR IT IS NULL, AND NULL IS THE COMMON CASE.
+//
+// WHY THIS FILE EXISTS: the Radio page rendered `BS_LIVE_STATION.bpm` — a 132
+// typed into a constant — as a live reading in three places. `radioTempo.mjs`
+// replaces it with a measurement, which means the thing that has to be guarded
+// is not "does it find 128 in a 128 BPM track" (it does) but "does it ever
+// report a number it has not earned". Every case below that expects `null` is
+// the real subject.
+//
+// ⚠ AND THE FIRST RUN CORRECTED THE BUILD BRIEF ABOUT ITS OWN MUTATION.
+// docs/BUILD-2026-09-14-radio-signal-field.md §10 asks for "a mutation that
+// lowers the confidence floor to 0 must make the silence case read a tempo
+// (killed)". Measured across every combination of the three gates, that mutation
+// is a NO-OP: silence and a constant level produce no onsets at all — the
+// half-wave-rectified difference of a flat signal is zero everywhere — so they
+// read null with CONF_ABS, CONF_REL and SPLIT_TOL all disabled. A guard built on
+// it would have passed forever while proving nothing.
+//
+// What the gates actually hold, measured:
+//
+//   input     all gates   confAbs=0   confRel=0   splitTol=off   ALL OFF
+//   silence   null        null        null        null           null
+//   constant  null        null        null        null           null
+//   noise     null        null        null        null           120.25
+//   speech    null        null        null        109.25         109.25
+//
+// So: the three gates are mutually redundant against broadband NOISE (any one of
+// them rejects it), and SPLIT-HALF AGREEMENT alone is what stands between a
+// speech-like signal and a confident 109.25 BPM on the page. That is the mutation
+// this file carries, because it is the one that can actually fabricate a reading.
+//
+// Every generator below is deterministic — a seeded LCG, never Math.random — so
+// a failure here is always the detector's and never the fixture's.
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  createTempoDetector,
+  tempoOnsets,
+  tempoBeatAt,
+  tempoKick,
+  tempoBeatsBetween,
+  tempoBarStep,
+  RING_S,
+} from '../mobile-app/src/services/radioTempo.mjs';
+
+const FPS = 60;
+
+// The kick's envelope, as the station row draws it — a fast attack then a decay.
+function kickEnv(u) {
+  if (u < 0) return 0;
+  if (u < 0.03) return u / 0.03;
+  return Math.exp(-(u - 0.03) / 0.13);
+}
+
+// A bass-band click train at `bpm`. This is what the caller feeds the detector:
+// the analyser's bins 1–4 (~86–345 Hz), where a kick lives and a hi-hat does not.
+function train(bpm, opts) {
+  const o = opts || {};
+  const p = 60 / bpm;
+  const jitter = o.jitter || (() => 0);
+  const shift = o.shift || 0;
+  return (t) => {
+    const k = Math.floor((t - shift) / p);
+    let e = 0;
+    for (const kk of [k - 1, k]) e = Math.max(e, 255 * kickEnv(t - (shift + kk * p + jitter(kk))));
+    return 6 + e; // 6 is the quiet floor a real mix always has
+  };
+}
+
+// A deterministic pseudo-random source. Seeded per call site so two cases in this
+// file cannot influence each other through shared state.
+function lcg(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 1103515245 + 12345) % 2147483648;
+    return s / 2147483648;
+  };
+}
+
+// Deterministic jitter in ±ms, keyed on the beat index.
+function jitterOf(ms, seed) {
+  const r = lcg(seed);
+  const table = [];
+  for (let i = 0; i < 512; i += 1) table.push((r() * 2 - 1) * (ms / 1000));
+  return (k) => table[((k % 512) + 512) % 512];
+}
+
+// Speech: irregular bursts, no grid. The signal a talk segment or a DJ drop hands
+// the detector — plenty of onsets, no tempo.
+function speech(seed) {
+  const r = lcg(seed);
+  const on = [];
+  let t = 0;
+  while (t < 60) {
+    t += 0.15 + r() * 0.5;
+    on.push(t);
+  }
+  return (tt) => {
+    let e = 0;
+    for (const b of on) if (tt - b >= 0 && tt - b < 0.5) e = Math.max(e, 255 * kickEnv(tt - b));
+    return 6 + e;
+  };
+}
+
+// Drive the detector over `secs` of a signal and report when it first settled.
+function drive(energy, secs, opts) {
+  const d = createTempoDetector(opts || {});
+  let first = null;
+  let last = null;
+  for (let i = 0; i < Math.round(secs * FPS); i += 1) {
+    const t = i / FPS;
+    d.push(t, energy(t));
+    const r = d.read(t);
+    if (r && !first) first = { t, bpm: r.bpm, score: r.score };
+    if (r) last = r;
+  }
+  return { first, last };
+}
+
+// ---------------------------------------------------------------------------
+// It finds a tempo that is there.
+// ---------------------------------------------------------------------------
+
+test('a 128 BPM click train settles inside 6s, to within half a BPM', () => {
+  const { first, last } = drive(train(128), 12);
+  // The vacuity line: every `null` assertion below is worthless unless the
+  // detector demonstrably CAN settle.
+  assert.ok(first, 'a clean 128 BPM train never settled — the detector is inert');
+  assert.ok(first.t <= 6, `settled at ${first.t.toFixed(2)}s, past the 6s the page is willing to read "—" for`);
+  assert.ok(Math.abs(first.bpm - 128) <= 0.5, `settled at ${first.bpm}, not 128`);
+  assert.ok(last.score > 0.9, `score ${last.score} is low for a clean train`);
+});
+
+test('it holds across the whole declared range and refuses outside it', () => {
+  for (const bpm of [100, 112, 128, 140, 160]) {
+    const { last } = drive(train(bpm), 12);
+    assert.ok(last, `${bpm} BPM never settled`);
+    assert.ok(Math.abs(last.bpm - bpm) <= 0.5, `${bpm} BPM read as ${last.bpm}`);
+  }
+  // Out of range, it says nothing rather than folding the answer into the range.
+  // A 90 BPM track reported as a confident 135 would be the constant's defect
+  // with extra steps.
+  for (const bpm of [90, 170]) {
+    const { last } = drive(train(bpm), 12);
+    assert.equal(last, null, `${bpm} BPM is outside 100..160 and was reported as ${last && last.bpm}`);
+  }
+});
+
+test('±15ms of jitter still settles', () => {
+  const { first } = drive(train(128, { jitter: jitterOf(15, 11) }), 12);
+  assert.ok(first, 'a jittered train never settled — real music is never exact');
+  assert.ok(Math.abs(first.bpm - 128) <= 0.5, `jittered train read ${first.bpm}`);
+});
+
+test('a change from 128 to 140 replaces the reading inside 6s', () => {
+  const d = createTempoDetector({});
+  const a = train(128);
+  const b = train(140, { shift: 14 });
+  let replaced = null;
+  let sawOld = false;
+  for (let i = 0; i < Math.round(40 * FPS); i += 1) {
+    const t = i / FPS;
+    d.push(t, t < 14 ? a(t) : b(t));
+    const r = d.read(t);
+    if (r && t < 14 && Math.abs(r.bpm - 128) <= 1) sawOld = true;
+    if (r && t > 14 && Math.abs(r.bpm - 140) <= 1 && replaced === null) replaced = t - 14;
+  }
+  assert.ok(sawOld, 'never settled on the first tempo, so the change proves nothing');
+  assert.ok(replaced !== null, 'the new tempo never replaced the old one');
+  assert.ok(replaced <= 6, `took ${replaced.toFixed(2)}s to replace the reading`);
+});
+
+// ---------------------------------------------------------------------------
+// It refuses a tempo that is not there. This is the half that matters.
+// ---------------------------------------------------------------------------
+
+test('silence reads null', () => {
+  assert.equal(drive(() => 0, 15).last, null);
+});
+
+test('an all-zero analyser frame reads null — no CORS is not silence to animate over', () => {
+  // A stream without `Access-Control-Allow-Origin` gives every bin 0 forever.
+  // The page must not draw a plausible tempo over it.
+  assert.equal(drive(() => 0, 15).last, null);
+  // A constant non-zero level is the same claim: a level is not a beat.
+  assert.equal(drive(() => 128, 15).last, null);
+});
+
+test('broadband noise reads null', () => {
+  const r = lcg(1);
+  assert.equal(drive(() => r() * 255, 20).last, null);
+});
+
+test('speech reads null', () => {
+  assert.equal(drive(speech(7), 20).last, null);
+});
+
+test('a kick against an EQUALLY loud offbeat refuses rather than guessing the octave', () => {
+  // Genuinely ambiguous between 128 and its double. 256 is outside the range, so
+  // the honest answer is "—" and not either end.
+  const p = 60 / 128;
+  const energy = (t) => {
+    const k = Math.floor(t / p);
+    let e = 0;
+    for (const kk of [k - 1, k]) {
+      e = Math.max(e, 255 * kickEnv(t - kk * p));
+      e = Math.max(e, 255 * kickEnv(t - (kk * p + p / 2)));
+    }
+    return 6 + e;
+  };
+  assert.equal(drive(energy, 20).last, null);
+});
+
+test('an ordinary offbeat bassline under the kick still reads the kick', () => {
+  // The control for the case above: a real rolling bassline is quieter than the
+  // kick, and refusing THAT would make the detector useless on house.
+  const p = 60 / 128;
+  const energy = (t) => {
+    const k = Math.floor(t / p);
+    let e = 0;
+    for (const kk of [k - 1, k]) {
+      e = Math.max(e, 255 * kickEnv(t - kk * p));
+      e = Math.max(e, 150 * kickEnv(t - (kk * p + p / 2)));
+    }
+    return 6 + e;
+  };
+  const { last } = drive(energy, 20);
+  assert.ok(last, 'a kick with a quieter offbeat bass should still read');
+  assert.ok(Math.abs(last.bpm - 128) <= 1, `read ${last.bpm}`);
+});
+
+test('two transients are not a tempo', () => {
+  // THE WORST FABRICATION THIS MODULE CAN PRODUCE, and it was found by mutation
+  // rather than by reading. A door slam and a cough 2.5s apart are four onsets,
+  // and four onsets clustered in one corner of the ring fit ANY period: measured
+  // before the coverage gate existed, they scored 0.997 at 120 BPM and cleared
+  // every other floor — including the relative one, because with so few vectors
+  // the mean across the range rises too. The page would have read a confident
+  // "120" off two thumps.
+  const energy = (t) => {
+    let e = 0;
+    for (const b of [11.0, 13.5]) e = Math.max(e, 255 * kickEnv(t - b));
+    return 6 + e;
+  };
+  assert.equal(drive(energy, 20).last, null, 'two transients produced a tempo');
+});
+
+test('a slow riser is not a tempo', () => {
+  // One transient every four seconds: plenty of onsets, all bunched at the reset.
+  assert.equal(drive((t) => 6 + 240 * ((t % 4) / 4), 25).last, null);
+});
+
+test('MUTATION: without the SPAN rule, a slow riser reads as 104 BPM', () => {
+  // The coverage gate has two halves and they were measured separately rather
+  // than assumed to work together. The span rule is the one that holds a riser:
+  // its onsets are numerous (they clear the count) and all bunched at the reset.
+  const riser = (t) => 6 + 240 * ((t % 4) / 4);
+  assert.equal(drive(riser, 25).last, null);
+  assert.ok(drive(riser, 25, { coverFrac: 0 }).last, 'the span rule is no longer what holds a riser back');
+});
+
+test('MUTATION: without the coverage gate at all, two transients read as 120 BPM', () => {
+  // Two thumps clear NEITHER half on their own, so this mutation has to remove
+  // both — which is the honest statement of what the gate does: the count and
+  // the span are jointly, not individually, what rejects them.
+  const energy = (t) => {
+    let e = 0;
+    for (const b of [11.0, 13.5]) e = Math.max(e, 255 * kickEnv(t - b));
+    return 6 + e;
+  };
+  assert.equal(drive(energy, 20).last, null);
+  assert.equal(drive(energy, 20, { coverFrac: 0 }).last, null, 'the span rule alone now rejects them — re-measure which half holds');
+  assert.equal(drive(energy, 20, { minOnsets: 0 }).last, null, 'the count rule alone now rejects them — re-measure which half holds');
+  const mutated = drive(energy, 20, { coverFrac: 0, minOnsets: 0 }).last;
+  assert.ok(mutated, 'removing the whole coverage gate no longer lets two thumps through');
+});
+
+// ---------------------------------------------------------------------------
+// The hold: a settled tempo survives a dropout, and then it GOES.
+// ---------------------------------------------------------------------------
+
+test('a settled tempo survives a short dropout and is dropped after a long one', () => {
+  const d = createTempoDetector({});
+  const a = train(128);
+  let settledBy = null;
+  // 10s of music, then silence forever.
+  for (let i = 0; i < Math.round(10 * FPS); i += 1) {
+    const t = i / FPS;
+    d.push(t, a(t));
+    if (d.read(t) && settledBy === null) settledBy = t;
+  }
+  assert.ok(settledBy !== null, 'never settled, so the hold proves nothing');
+
+  // A breakdown: two seconds of quiet. The reading must survive it.
+  let t = 10;
+  for (; t < 12; t += 1 / FPS) d.push(t, 6), d.read(t);
+  assert.ok(d.read(12), 'a 2s breakdown blanked the reading — the hold is not holding');
+
+  // A track that has ended: past HOLD_S, the reading goes rather than freezing.
+  for (; t < 20; t += 1 / FPS) d.push(t, 6), d.read(t);
+  assert.equal(d.read(20), null, 'the tempo was held forever after the music stopped');
+});
+
+// ---------------------------------------------------------------------------
+// The gates, proven to be load-bearing rather than decorative.
+// ---------------------------------------------------------------------------
+
+test('MUTATION: relaxing split-half agreement fabricates a tempo out of speech', () => {
+  const sig = speech(7);
+  // Shipped: null.
+  assert.equal(drive(sig, 20).last, null, 'speech settles even with the gates on — the guard below proves nothing');
+  // Mutated: the one gate removed, and a confident reading appears from nothing.
+  const mutated = drive(sig, 20, { splitTol: 999 }).last;
+  assert.ok(
+    mutated,
+    'relaxing SPLIT_TOL did NOT produce a reading — split-half agreement is no longer '
+      + 'the gate holding speech back, so this guard has stopped testing what it names',
+  );
+});
+
+test('MUTATION: with all three gates off, broadband noise reports a tempo', () => {
+  const mk = () => {
+    const r = lcg(1);
+    return () => r() * 255;
+  };
+  assert.equal(drive(mk(), 20).last, null);
+  const mutated = drive(mk(), 20, { confAbs: 0, confRel: 0, splitTol: 999 }).last;
+  assert.ok(mutated, 'the three gates together are not what rejects noise');
+});
+
+// ---------------------------------------------------------------------------
+// The grid arithmetic the field, the counter and the rows all read.
+// ---------------------------------------------------------------------------
+
+test('the onset envelope is the rise only', () => {
+  // A decay is not a second beat.
+  const rising = tempoOnsets([{ t: 0, e: 1 }, { t: 1, e: 10 }, { t: 2, e: 100 }]);
+  assert.equal(rising.length, 2);
+  const falling = tempoOnsets([{ t: 0, e: 100 }, { t: 1, e: 10 }, { t: 2, e: 1 }]);
+  assert.equal(falling.length, 0, 'a decay produced onsets');
+  assert.equal(tempoOnsets([{ t: 0, e: 5 }, { t: 1, e: 5 }, { t: 2, e: 5 }]).length, 0, 'a flat level produced onsets');
+});
+
+test('beat arithmetic lands on the grid', () => {
+  const bpm = 120; // 0.5s period
+  assert.equal(tempoBeatAt(bpm, 0, 1.2), 1);
+  assert.equal(tempoBeatAt(bpm, 0, 1.0), 1);
+  assert.equal(tempoBeatAt(bpm, 0.25, 1.0), 0.75);
+  assert.equal(tempoBeatAt(null, 0, 1), null);
+
+  const beats = tempoBeatsBetween(bpm, 0, 1, 3);
+  assert.deepEqual(beats, [1, 1.5, 2, 2.5]);
+  assert.deepEqual(tempoBeatsBetween(null, 0, 1, 3), [], 'no grid must yield no beats');
+});
+
+// MUTATION — relax the grid guard from `bpm > 0` to a null check and a NEGATIVE
+// bpm emits beats. This is not the same case as `null`, which the assertion
+// above already covers and which returns [] by arithmetic accident whatever the
+// guard says (`60 / null` is Infinity, so the first candidate is already past
+// t1). A negative period walks BACKWARDS forever and only the 4096 cap stops
+// it, so a single bad reading becomes four thousand fabricated beats on the
+// station row rather than none. Zero is the same shape from the other side:
+// `60 / 0` is Infinity, so it must refuse rather than divide.
+test('a non-positive tempo emits nothing, on every beat helper', () => {
+  for (const bad of [-120, 0, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.deepEqual(tempoBeatsBetween(bad, 0, 1, 3), [], `beats were emitted for bpm ${bad}`);
+    assert.equal(tempoBeatAt(bad, 0, 1), null, `a beat was placed for bpm ${bad}`);
+    assert.equal(tempoKick(bad, 0, 1), 0, `a kick was drawn for bpm ${bad}`);
+    assert.equal(tempoBarStep(bad, 0, 1), null, `a bar step was counted for bpm ${bad}`);
+  }
+  // A phase we could not read is the same refusal — the grid is the PAIR.
+  assert.deepEqual(tempoBeatsBetween(120, Number.NaN, 1, 3), [], 'beats were emitted with no phase');
+  assert.equal(tempoBarStep(120, Number.NaN, 1), null, 'a bar step was counted with no phase');
+});
+
+test('the kick envelope peaks on the beat and decays, and is 0 with no grid', () => {
+  assert.equal(tempoKick(120, 0, 1.0), 1);
+  assert.ok(tempoKick(120, 0, 1.13) < 0.4, 'did not decay');
+  assert.ok(tempoKick(120, 0, 1.13) > 0.3, 'decayed too fast');
+  assert.equal(tempoKick(null, 0, 1), 0, 'a kick was drawn with no settled tempo');
+});
+
+test('the bar counter steps 0..3 and wraps', () => {
+  const bpm = 120;
+  assert.deepEqual([0, 0.5, 1.0, 1.5, 2.0].map((t) => tempoBarStep(bpm, 0, t)), [0, 1, 2, 3, 0]);
+  assert.equal(tempoBarStep(null, 0, 1), null, 'a counter stepped with no settled tempo');
+});
+
+test('the detector carries no wall clock and no randomness', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../mobile-app/src/services/radioTempo.mjs', import.meta.url), 'utf8');
+  // Stripped of comments first — this file's own header discusses both.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /Math\.random/, 'the detector must be replayable');
+  assert.doesNotMatch(code, /Date\.now|new Date\(/, 'the caller passes t; the module must not read a clock');
+  assert.ok(RING_S > 0);
+});
