@@ -550,9 +550,13 @@ function FeaturedCity() {
 }
 
 // ── The tab is addressable (2026-09-14) ─────────────────────────────────────
-// The nav's Coaches menu deep-links `Marketplace.html#trainers` and
-// `#nutritionists`, so the hash has to pick the tab — before this, both landed
-// on the page with Trainers lit whatever the link said.
+// A `#trainers` / `#nutritionists` hash picks the tab, and the switch below
+// writes one — so a copied URL lands on the tab it was copied from. The nav's
+// Coaches menu deep-linked both tabs for one PR; it links the bare page now
+// (owner, same day: "just have 1 link and have it say marketplace, since both
+// coaches and nutritionists are on same page"), so nothing in the nav depends
+// on this — but anything else may link a tab, and before this, every such link
+// landed with Trainers lit whatever it said.
 //
 // ⚠ AN UNKNOWN HASH KEEPS THE DEFAULT, never an empty page. This page carries
 // its own `#` anchors and anything may link to one, so the hash is read as a

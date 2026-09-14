@@ -161,8 +161,10 @@
   .nradio:hover{color:var(--fg);border-color:rgba(var(--teal-rgb),.4)}
   .nradio svg{width:9px;height:11px;display:block}
   /* The Coaches menu. ⚠ The trigger is a real link as well as a menu: clicking
-     goes to the Coaches page, hovering opens the marketplace's two tabs. A
-     trigger that only toggles makes the page it names unreachable from the bar. */
+     goes to the Coaches page, hovering opens its one item, the marketplace
+     (owner, 2026-09-14: one link, "Marketplace" — the trainers and nutritionists
+     tabs it used to list are one page). A trigger that only toggles makes the
+     page it names unreachable from the bar. */
   .ndrop{position:relative;display:inline-flex;align-items:center}
   .ndrop>a{display:inline-flex;align-items:center;gap:5px}
   .ndrop>a .car{font-size:8px;opacity:.6}
@@ -577,7 +579,7 @@
     <!-- 3.6 KB / 265x128, not the 226 KB 3696px original for a 26px slot. -->
     <a class="brand" href="/newdesign/index.html"><img src="/shape-logo-nav-teal-white.png" width="265" height="128" alt="Shape" /></a>
     <div class="nlinks">
-      <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true">&#9662;</span></a><div class="nmenu"><a href="/newdesign/Marketplace.html#trainers">Trainers<small>Marketplace &middot; training</small></a><a href="/newdesign/Marketplace.html#nutritionists">Nutritionists<small>Marketplace &middot; nutrition</small></a></div></span>
+      <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true">&#9662;</span></a><div class="nmenu"><a href="/newdesign/Marketplace.html">Marketplace</a></div></span>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Radio.html">Radio</a>
       <a href="/newdesign/Community.html">Community</a>
@@ -596,8 +598,7 @@
 </nav>
 <div class="ndrawer" id="ndrawer">
   <a href="/newdesign/Coaches.html">Coaches</a>
-  <a href="/newdesign/Marketplace.html#trainers">&nbsp;&nbsp;Trainers</a>
-  <a href="/newdesign/Marketplace.html#nutritionists">&nbsp;&nbsp;Nutritionists</a>
+  <a href="/newdesign/Marketplace.html">&nbsp;&nbsp;Marketplace</a>
   <a href="/newdesign/GetApp.html">App</a>
   <a href="/newdesign/Radio.html">Radio</a>
   <a href="/newdesign/Community.html">Community</a>
@@ -1490,7 +1491,7 @@
         Array.prototype.slice.call(links.children).forEach(function(el){
           /* ⚠ THE TRIGGER'S OWN TEXT, NOT THE SUBTREE'S. Coaches is a <span>
              wrapping its anchor AND its menu panel, so `el.textContent` reads
-             "Coaches▾TrainersMarketplace · training…" — which matches nothing in
+             "Coaches▾Marketplace" — which matches nothing in
              `keep`, and the first cut silently removed the one link the signed-in
              row is supposed to keep. Direct text nodes of the anchor give
              "Coaches"; the caret lives in a nested span and drops out for free. */
