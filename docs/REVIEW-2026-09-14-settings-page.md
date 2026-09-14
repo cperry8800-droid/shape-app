@@ -62,7 +62,7 @@ preview's demo persona, Black paper, Teal accent):
 |---|---|
 | Root scroll height | **2,376 px = 2.8 screens**; 2,960 px (3.5) with Appearance open; 3,187 px (3.8) while editing |
 | Distance to the section list ("More") | **1,420 px** — 1.7 screens, under the theme picker, radio, effects and the ticker editor |
-| Interactive elements on the root | **57**, of which **35 are under 44 px tall** |
+| Interactive elements on the root | **57**, of which **25 are under the house's 24 px floor** (35 under 44 px) |
 | Distinct type sizes on the root | **15** (7.5 · 8 · 8.5 · 9 · 9.5 · 10 · 11 · 13.5 · 14 · 14.28 · 15 · 16 · 18 · 20 · 30 px) |
 | Uppercase mono labels on the root | **50** |
 | Sub-label contrast (INK at 50 %, 8–8.5 px mono) | **4.8:1 on Black**, **3.5:1 on Cream**, **3.6:1 on White** — the two light papers fail AA |
@@ -90,9 +90,16 @@ preview's demo persona, Black paper, Teal accent):
    measured by grep across the client module and `services/`. A setting nothing reads is a claim the
    app cannot keep. **Nora's voice** (`:32985`) is the reverse: a five-row section, hardcoded English,
    defined in `sections` and **opened by no card** — unreachable.
-5. **Targets.** 35 of 57 controls sit under the 44 px floor this repo already records (WCAG 2.5.8 AA
-   is 24 px; the house floor is 44): Back and Edit at **13 px**, the three shortcut chips and *Join
-   now* at **28 px**, the ticker's ↑↓ at **19 × 20 px**, its toggles at **20 px**.
+5. **Targets.** **25 of 57** controls sit under the floor this repo actually records — Back and Edit
+   at **13 px**, the ticker's ↑↓ at **19 × 20 px**, its toggles at **20 px**.
+   ⚠ **CORRECTED 2026-09-14, and the correction is the floor rather than the finding.** This read
+   *"35 of 57 under the 44 px floor this repo already records (WCAG 2.5.8 AA is 24 px; the house
+   floor is 44)"*, and the parenthesis contradicts itself: `docs/WORKLOG.md` records the house floor
+   **twice** as **WCAG 2.5.8 AA at 24 px**, explicitly *"not Apple's 44pt HIG suggestion"* — once for
+   the availability grid's cell height and once for the coach profile's pills. There is no 44 px house
+   floor to be under. Re-derived from the same capture against 24 px: **25**, and every element named
+   above still fails it, which is why the finding stands and only its number moved. *A floor quoted
+   from memory is a claim, and this one contradicted the file it claimed to be quoting.*
 6. **Type.** Fifteen sizes on one screen; sub-labels and card summaries at 8–8.5 px mono in 50 % ink,
    which is under AA on the Cream and White papers (the code default is Cream:
    `tweaks.paperMode || 'light'`).
@@ -129,12 +136,12 @@ Corrections to the page as it is, not preferences of any concept. Each is measur
 | Six control grammars; tap-to-cycle rows | **One grammar.** On/off = switch · 2–3 choices = segmented row · 4+ = picker sheet. Never tap-to-cycle, never a native select |
 | "More · 12 sections", a card called More, four duplicates | **One name, one place.** Six groups named by what a person calls the thing; *More* retired |
 | Time zone · Week starts · Preferences Language unread; Nora unreachable | **Removed or wired.** Time zone from the device unless a reader appears; Nora gets a row |
-| 35 controls under 44 px | **44 px floor**; rows 52 px, switches 44 × 26, ticker reordered by handle or picker |
+| 25 controls under 24 px | **A 44 px floor for a ROW** (rows 52 px, switches 44 × 26, ticker reordered by handle or picker) — a comfortable row is a design choice above the 24 px accessibility floor, and the two are named separately so neither is mistaken for the other |
 | 8.5 px mono at 50 % ink, 3.5:1 on Cream | **Values at 10.5–12.5 px, 70 % ink**; 8.5 px mono only as a true eyebrow |
 | Two typed-in versions | **One version, from the build**, once, under Help & about |
 | $5 plan offered to coaches | **Role-aware plan block** — *Coach account · free* |
 | Storage keys as copy | **No keys in copy** |
-| Avatar is a `div` | **A real button**, named, 44 px |
+| Avatar is a `div` | **A real button**, named and keyboard-reachable, with a focus ring. Its 34 px box already clears the 24 px floor, and enlarging it would overlap the search button beside it |
 | Edit swaps in place | **Edit profile is its own page**, house faces throughout |
 | The appearance picker | **Kept whole** |
 

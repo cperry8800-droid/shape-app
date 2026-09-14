@@ -796,7 +796,14 @@ Append new entries at the top, under this note.
   ticker editor. It is headed **"More · 12 sections"**, and one of the twelve cards is itself called
   **More** (`iosAppBroadsheetClient.jsx:33098`). *The whole settings tree lives under a word that means
   "the rest".*
-- ⚠ **35 OF 57 CONTROLS ON THE ROOT ARE UNDER THE 44 PX FLOOR THIS FILE ALREADY RECORDS.** `← BACK` and
+- ⚠ **25 OF 57 CONTROLS ON THE ROOT ARE UNDER THE 24 PX FLOOR THIS FILE ALREADY RECORDS.** ⚠ **CORRECTED
+  THE SAME DAY — this said *"35 of 57 … under the 44 px floor this file already records"*, and THIS FILE
+  RECORDS NO SUCH FLOOR.** It records the opposite, twice and in as many words: **WCAG 2.5.8 AA is
+  24px, not Apple's 44pt HIG suggestion** (the coach profile's pills, 2026-09-02) and *"this repo's own
+  documented 24px WCAG 2.5.8 floor"* (the availability grid, 2026-09-09). Re-derived from the same
+  capture against 24 px: **25**, and every element named below still fails it — so the finding stands
+  and only its number moved. *A floor quoted from memory is a claim, and this one contradicted the file
+  it claimed to be quoting — in an entry written into that same file.* `← BACK` and
   `EDIT` are **13 px** tall; the three shortcut chips and *Join now* **28 px**; the ticker's ↑↓ arrows
   **19 × 20 px** and its seven toggles **20 px**. Fifteen distinct type sizes on one screen and fifty
   uppercase mono labels; the 8–8.5 px sub-labels at 50 % ink measure **3.5:1 on Cream** and 3.6:1 on
@@ -830,7 +837,7 @@ Append new entries at the top, under this note.
   the picker behind a *Look & feel* door; none redraws it.
 - **The backbone every option carries** (review §2): identity first and cosmetics last · one control
   grammar (switch / segmented / picker sheet; never tap-to-cycle, never a native select) · one name and
-  one place per thing, *More* retired · the unread rows removed or wired · a 44 px floor · values at
+  one place per thing, *More* retired · the unread rows removed or wired · a 24 px floor and 44 px rows · values at
   10.5–12.5 px and 70 % ink · one version from the build · a role-aware plan block · no storage keys in
   copy · the avatar as a named button · Edit profile as its own page.
 - ⚠ **THE FIRST MEASUREMENT WAS OF THE WRONG PAGE, WITH EVERY NUMBER PLAUSIBLE.** Settings is an overlay

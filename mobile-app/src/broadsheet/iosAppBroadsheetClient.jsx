@@ -255,6 +255,32 @@ function useBSPresence() {
 
 const BS_HEADER_AVATAR = 34; // canonical top-header avatar (+ paired search/pencil/gear) size
 
+// Which build am I running? The one place the app answers that.
+//
+// ⚠ IT USED TO ANSWER IT TWICE AND RENDER NEITHER. `<BSFooter left="Shape v2.4.0"
+// right="Build 2026.04" />` passes props into a component whose whole body is
+// `return null`, and the About section's `meta: 'v6.38.2'` sits on an object whose
+// consumers read only `.rows` — so both were typed-in numbers that reached no
+// screen, disagreeing with each other and with package.json's 0.1.0. A member
+// contacting support had nothing to quote.
+//
+// `__SHAPE_VERSION__` is inlined by Vite from mobile-app/package.json (see
+// vite.config.ts) and is therefore a fact about the bundle rather than a literal
+// anyone maintains by hand. The short commit rides beside it ONLY on a build that
+// has one — build-m.sh exports VITE_SHAPE_RELEASE on Vercel, and an Android,
+// Codemagic or local build does not — because a stamp we cannot measure is exactly
+// the fabrication this replaces. Outside a bundler (the Node test harness) there is
+// no define at all, so `typeof` is what keeps this from throwing, and the answer is
+// the honest empty string.
+function bsBuildLabel() {
+  let version = '';
+  try { version = (typeof __SHAPE_VERSION__ !== 'undefined' && __SHAPE_VERSION__) || ''; } catch (e) { version = ''; }
+  let sha = '';
+  try { sha = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SHAPE_RELEASE) || ''; } catch (e) { sha = ''; }
+  if (!version) return '';
+  return sha ? `${version} · ${String(sha).slice(0, 7)}` : version;
+}
+
 // Monochrome ⌕ — opens the universal search screen via a window event
 // (handled in BSClientAppInner / the coach shells), so any header can drop it
 // in without prop-threading. Always sits to the LEFT of the profile avatar.
@@ -286,11 +312,12 @@ function useBSIdentityTick() {
   }, []);
 }
 function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
+  const tr = useShapeTr();
   useBSIdentityTick();
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       <BSSearchCorner size={size} />
-      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={onProfile} />
+      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={onProfile} />
     </span>
   );
 }
@@ -311,12 +338,13 @@ function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
 // done it in that order since it shipped). A page in normal flow passes nothing
 // and keeps both controls.
 function BSMeCorner({ size = BS_HEADER_AVATAR, close = null }) {
+  const tr = useShapeTr();
   useBSIdentityTick();
   const goProfile = () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} };
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
       {close ? null : <BSSearchCorner size={size} />}
-      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
+      <BSFacetAvatar size={size} c={bsMyTierColor()} initial={bsMyInitials()} name={bsMyName()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
     </span>
   );
 }
@@ -12110,6 +12138,7 @@ function BSFollowSuggestions({ onOpenProfile }) {
 // profile photos (batched via ShapeProfiles.getUserAvatars; stock faces for demo), and
 // each person is a live link to their public profile (onOpenProfile).
 function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4', BG = '#100d0a', coach = false, self = false, ownerPhoto, onClose, onOpenProfile }) {
+  const tr = useShapeTr();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", SANS = "'Inter', system-ui, sans-serif", TEAL = '#34d6c5';
   // Ink/paper come in as props (this sheet is painted over the profile's own
   // ground), but the GUTTER is a density setting, so it reads the live theme —
@@ -12283,7 +12312,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSFacetAvatar size={BS_HEADER_AVATAR} c={bsMyTierColor()} initial={bsMyInitials() || '?'} name={bsMyName()} photo={bsMyPhoto() || undefined} showRank={false} BG={BG} INK={INK}
-                onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
+                label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
             </div>
           </div>
           {/* Title row — the owner's face sits beside the label, and × close sits
@@ -12761,7 +12790,8 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
-function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, BG, INK }) {
+function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, label, BG, INK }) {
+  const tr = useShapeTr();
   // The pulsing ring = online now (`live`). The corner DOT is a SEPARATE "active
   // right now" flag: `activity` 'workout' → teal dot, 'cooking' → amber dot. When
   // no `activity`/`online` is passed the dot falls back to `live` so existing
@@ -12792,8 +12822,36 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   // Ignore blank/stale stored photo values so they can't render an invisible image
   // over the initials.
   const photoSrc = bsValidPhoto(photo);
+  // ⚠ THIS WRAPPER WAS A BARE `div onClick` AND IT IS THE ONLY WAY INTO SETTINGS.
+  // No role, no tab stop, no keyboard, no name — so a screen reader never learned
+  // the corner avatar goes anywhere and a keyboard could not reach it at all. It
+  // is a real <button> when it has an onClick. The `editable` variant renders its
+  // own ✎ <button> inside, and a button inside a button is invalid, so THAT one
+  // takes button semantics by hand rather than nesting; no call site passes both
+  // today, and this is what keeps it correct if one ever does.
+  const interactive = !!onClick;
+  // The accessible name. An explicit `label` wins, because what the tap DOES is a
+  // fact about the caller, not about the avatar: the masthead corner opens
+  // Settings, a feed avatar opens the person it shows. With no label we can still
+  // say the honest generic thing, named when we know the name.
+  const a11yName = !interactive ? undefined : (label
+    || (name ? tr('profile:avatar.openNamed', { name, defaultValue: '{name} — open profile' })
+             : tr('profile:avatar.open', { defaultValue: 'Open profile' })));
+  const onKey = interactive ? (e) => {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); onClick(e); }
+  } : undefined;
+  const box = { width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: interactive ? 'pointer' : 'default' };
+  // A <button> carries its own chrome (border, padding, background, font), so it
+  // is reset to the div this replaces — the gem must look identical either way.
+  const asButton = interactive && !editable;
+  const Wrap = asButton ? 'button' : 'div';
+  const wrapProps = !interactive
+    ? { style: box }
+    : asButton
+      ? { type: 'button', onClick, 'aria-label': a11yName, className: 'bs-av-btn', style: { ...box, padding: 0, margin: 0, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', WebkitAppearance: 'none', appearance: 'none' } }
+      : { onClick, onKeyDown: onKey, role: 'button', tabIndex: 0, 'aria-label': a11yName, className: 'bs-av-btn', style: box };
   return (
-    <div onClick={onClick} style={{ width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: onClick ? 'pointer' : 'default' }}>
+    <Wrap {...wrapProps}>
       {live && <div className="bs-av-pulse" style={{ position: 'absolute', inset: -Math.round(size * 0.1), transform: 'rotate(45deg)', borderRadius: '30%', border: `2px solid ${FTEAL}`, boxShadow: `0 0 12px ${bsTHexA(FTEAL, 0.55)}`, pointerEvents: 'none', animation: 'bsAvPulse 2.4s ease-in-out infinite' }} />}
       {/* gem frame */}
       <div style={{ position: 'absolute', inset: 0, transform: 'rotate(45deg)', borderRadius: '27%', background: `linear-gradient(135deg, ${c}, ${bsShade(c, 0.5)})`, boxShadow: `0 5px 16px ${bsTHexA(c, 0.4)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
@@ -12807,7 +12865,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
         </div>
       </div>
       {editable && (
-        <button onClick={onEdit} aria-label="Change photo" style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BGv}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
+        <button type="button" onClick={onEdit} aria-label={tr('profile:avatar.changePhoto', { defaultValue: 'Change photo' })} style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BGv}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
       )}
       {!editable && showDot && (
         <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BGv, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BGv}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: dotColor }} /></span>
@@ -12817,7 +12875,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
           <span style={{ fontFamily: MONO, fontSize: Math.max(7, Math.round(size * 0.145)), fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: c, lineHeight: 1, textShadow: `0 1px 4px ${BGv}, 0 0 3px ${BGv}, 0 0 3px ${BGv}` }}>{tierLabel}</span>
         </div>
       )}
-    </div>
+    </Wrap>
   );
 }
 
@@ -15597,7 +15655,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={avPhoto || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </div>
               : <BSMeCorner />}
           </div>
@@ -16489,7 +16547,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                   <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={{ width: BS_HEADER_AVATAR, height: BS_HEADER_AVATAR, flexShrink: 0, borderRadius: 999, border: `1px solid ${bsTHexA(INK, 0.3)}`, background: 'transparent', color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
-                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar size={BS_HEADER_AVATAR} c={c} initial={bsMyInitials() || bsInitials(name) || '?'} photo={photo || (live && live.avatar) || bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 </div>
               : <BSMeCorner />}
           </div>
@@ -22423,6 +22481,7 @@ function bsLongPress(onTrigger) {
 
 function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null }) {
   const t = useBS();
+  const tr = useShapeTr();
   useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
   const [text, setText] = useStateBSC('');
   const [extras, setExtras] = useStateBSC([]);
@@ -22558,7 +22617,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                 {!me ? (
                   <BSFacetAvatar size={32} c={senderTC} initial={bsInitials(senderName) || '?'} photo={(m.userId && threadAvatars[m.userId]) || (!thread.group && (thread.userId || thread.counterpartId) ? threadAvatars[thread.userId || thread.counterpartId] : undefined) || (m.photo) || (!thread.conversationId && !thread.channelId ? bsDemoFace(senderName) : undefined)} live={bsIsUserOnline(m.userId)} activity={bsUserActivity(m.userId)} showRank={false} onClick={() => openP(senderName, m.userId)} />
                 ) : (
-                  <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
+                  <BSFacetAvatar size={32} c={bsMyTierColor()} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} live={bsAmLive()} activity={bsMyActivity()} showRank={false} label={tr('settings:avatar.mine', { defaultValue: 'Your profile and settings' })} onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }} />
                 )}
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
               {!me && thread.group && (
@@ -24832,7 +24891,7 @@ function BSCycleCalendarPage({ onBack }) {
         {tr('cycle:cal.hint', { defaultValue: 'Tap a day to log the first day of a period. Tap it again to remove it.' })}
       </div>
 
-      <div style={{ marginTop: 'auto' }}><BSFooter left="Shape v2.4.0" right="Build 2026.04" /></div>
+      <div style={{ marginTop: 'auto' }}><BSFooter /></div>
     </BSPage>
   );
 }
@@ -33000,7 +33059,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     },
     {
       title: 'About',
-      meta: 'v6.38.2',
       rows: [
         { l: tr('settings:about.aboutShape', { defaultValue: 'About Shape' }),     r: tr('settings:about.aboutShapeMeta', { defaultValue: 'Our story' }), action: () => setShowAbout(true) },
         { l: tr('settings:about.pricing', { defaultValue: 'Pricing' }),         r: tr('settings:about.pricingMeta', { defaultValue: '$5 / mo' }), action: () => setShowPricing(true) },
@@ -33012,6 +33070,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:about.codeOfConduct', { defaultValue: 'Code of conduct' }), r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowCodeOfConduct(true) },
         { l: tr('settings:about.consumerHealth', { defaultValue: 'Consumer health data' }), r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowConsumerHealth(true) },
         { l: tr('settings:about.subprocessors', { defaultValue: 'Subprocessors' }), r: tr('settings:about.legal', { defaultValue: 'Legal' }), action: () => setShowSubprocessors(true) },
+        // The app's ONE version claim, and the only one that renders. Omitted
+        // rather than shown empty outside a bundler — a blank value under a
+        // "Version" label reads as a build that could not be identified.
+        ...(bsBuildLabel() ? [{ l: tr('settings:about.version', { defaultValue: 'Version' }), r: bsBuildLabel() }] : []),
       ],
     },
     { title: 'Nutrition', meta: '', rows: nutritionRows },
@@ -33841,7 +33903,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       <BSRadioPrompt />
       <div style={{ marginTop: 'auto' }}>
-        <BSFooter left="Shape v2.4.0" right="Build 2026.04" />
+        <BSFooter />
       </div>
       </div>
 

@@ -62,6 +62,19 @@
   @keyframes bsAvDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.82); } }
   @keyframes bsspin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .bs-av-pulse, .bs-av-dot { animation: none !important; } }
+  /* The facet avatar as a CONTROL — it is the only way into Settings from a
+     masthead, and it shipped with no keyboard focus ring at all. :focus-visible,
+     so a tap never flashes a ring and a Tab always does.
+     ⚠ AND THE TAP TARGET IS DELIBERATELY NOT ENLARGED. The obvious move is a 44px
+     hit area in negative space, and it is the wrong one twice over: this repo's
+     documented floor is WCAG 2.5.8 AA at 24px (not Apple's 44pt suggestion), which
+     the avatar clears at every size it renders — 34px in a masthead, 32px on a chat
+     row — and in a chat row a 44px target would reach 6px past the gem on each side,
+     over the message bubble beside it, so tapping near the bubble's edge would open
+     a profile instead. Growing a target until it overlaps its neighbour is worse
+     than a target that already meets the floor. */
+  .bs-av-btn { -webkit-tap-highlight-color: transparent; }
+  .bs-av-btn:focus-visible { outline: 2px solid var(--bs-accent, #34d6c5); outline-offset: 3px; border-radius: 4px; }
 </style>
 </head>
 <body>
