@@ -113,8 +113,32 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # ⚠ `packages` IS NAMED BECAUSE THE ACTION'S DEFAULT NO LONGER EXISTS.
+      # setup-android's own action.yml defaults this input to `tools
+      # platform-tools`, and Google has retired the `tools` SDK package — so
+      # sdkmanager answers `Warning: Failed to find package 'tools'` and exits 1
+      # inside the action's own bundle, BEFORE a line of this repo compiles. The
+      # job reaches and passes npm ci and npm run build first, which is what
+      # makes the failure read as ours when it is not.
+      #
+      # Measured, not guessed, and re-derived from the run list rather than
+      # carried: the last GREEN Android Build on main is 2dfffbb at
+      # 2026-09-14 19:52:49Z, and the first RED one is e1c1dfe at 21:41:26Z.
+      # Nothing in that window touched this workflow or the Android project, so
+      # what moved is upstream of us. The one permitted re-run reproduced it
+      # identically, at the same stack frame, so it is not a flake.
+      #
+      # The SHA pin is deliberately UNTOUCHED. Bumping the action to dodge this
+      # would change what executes next to the release job's keystore secrets,
+      # which is the one thing the header comment above says must not move on a
+      # whim. Dropping a package name that no longer resolves is the smaller
+      # change and the honest one. `platform-tools` is still real (adb,
+      # fastboot); the cmdline-tools this action needs come from its own
+      # `cmdline-tools-version` input, not from here.
       - name: Set up Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: platform-tools
 
       - name: Cache Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
@@ -206,9 +230,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # Same as the debug job: the action's default `packages` names a retired
+      # SDK package. Set here too rather than only where the failure was seen —
+      # this job is skipped until a keystore exists, so a fix applied to one of
+      # the two would sit here undiscovered until the first signed build.
       - name: Set up Android SDK
         if: steps.secrets.outputs.present == 'true'
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: platform-tools
 
       - name: Cache Gradle
         if: steps.secrets.outputs.present == 'true'
