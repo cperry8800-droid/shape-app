@@ -28,7 +28,7 @@ function ClientOvHero() {
           <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 24 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>This week</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>APR 13 — APR 19</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE WEEK · APR 13 — APR 19</div>
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               {[
@@ -52,7 +52,7 @@ function ClientOvHero() {
             </div>
           </div>
           <div style={{ position: "absolute", bottom: -24, left: -24, background: DARK, color: LIGHT, padding: "14px 18px", borderRadius: 10, fontFamily: sans, fontSize: 12, lineHeight: 1.4, boxShadow: "0 20px 72px rgba(0,0,0,0.25)", maxWidth: 220 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(6,8,10,0.82)", marginBottom: 4 }}>From Maya</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>Example · from Maya</div>
             Great session. Added 5 lb to your working sets next week — you earned it.
           </div>
         </div>
@@ -64,7 +64,7 @@ function ClientOvHero() {
 // ---------- Value strip ----------
 function ClientOvStats() {
   const items = [
-    { k: "Free", v: "To join. Pay your coach directly — no middleman markup." },
+    { k: "$5/mo", v: "Flat membership. Pay your coach directly — no middleman markup." },
     { k: "Verified", v: "Every trainer and nutritionist is credential-checked." },
     { k: "Together", v: "Training, nutrition, and community in one place." },
     { k: "Yours", v: "Your data, your plan, your coach. Leave anytime." },
@@ -127,8 +127,8 @@ function ClientOvWhy() {
 function ClientOvHow() {
   const steps = [
     { n: "01", t: "Tell us what you want", b: "Goals, training history, schedule, injuries, food preferences. Takes about 5 minutes — enough for us to match well.", time: "5 min" },
-    { n: "02", t: "Match with a coach", b: "Browse verified trainers and nutritionists, or let Shape recommend. Filter by specialty, format, city, rate. Book a free intro call with up to three.", time: "Same day" },
-    { n: "03", t: "Start your first week", b: "Your coach writes your program. You get a calendar, messages thread, and log. Train, eat, check in. They read everything.", time: "Week 1" },
+    { n: "02", t: "Match with a coach", b: "Browse verified trainers and nutritionists, or let Shape recommend. Filter by specialty, format, city, rate. Book a free intro call with up to three.", time: "Free intro call" },
+    { n: "03", t: "Start your first week", b: "Your coach writes your program. You get a calendar, messages thread, and log. Train, eat, check in. They read everything.", time: "Your first program" },
     { n: "04", t: "Adjust as you go", b: "Your coach sets check-in times that fit your schedule — whatever cadence works for the two of you. They review progress and re-write. Swap coaches anytime, add a nutritionist, scale up or down — your call.", time: "Ongoing" },
   ];
   return (
@@ -139,11 +139,11 @@ function ClientOvHow() {
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 20 }}>How it works</div>
             <h2 style={{ fontFamily: serif, fontSize: "clamp(44px, 5.5vw, 80px)", letterSpacing: "-0.03em", fontWeight: 400, margin: 0, lineHeight: 1 }}>
               From curious<br />
-              <em style={{ fontStyle: "italic", color: TEAL }}>to coached</em> in a week.
+              <em style={{ fontStyle: "italic", color: TEAL }}>to coached.</em>
             </h2>
           </div>
           <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.6, color: "rgba(233,239,237,0.65)", margin: 0, maxWidth: 520 }}>
-            Most members find their coach in an afternoon and start the following Monday. Nothing about this has to be slow — but nothing about it is generic either.
+            Browse, book a free intro call, and start when the fit is right. Nothing about this is generic: a real person reads what you tell them and writes for you.
           </p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
@@ -291,7 +291,7 @@ function ClientOvSnapshots() {
           <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Habits</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>WEEK 04 · APR 13 — APR 19</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE · WEEK 04 · APR 13 — APR 19</div>
             </div>
             <div style={{ display: "grid", gap: 8 }}>
               {habits.map((h, i) => {
@@ -320,7 +320,7 @@ function ClientOvSnapshots() {
           <div style={{ background: "rgba(6,8,10,0.7)", border: "1px solid rgba(233,239,237,0.12)", borderRadius: 14, padding: 28, backdropFilter: "blur(12px)", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 22 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Grocery list</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>FROM RAE'S PLAN · WEEK 04</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(233,239,237,0.5)" }}>EXAMPLE · FROM RAE'S PLAN · WEEK 04</div>
             </div>
             <div style={{ display: "grid", gap: 10, flex: 1 }}>
               {grocery.map((g, i) => (
@@ -396,7 +396,7 @@ function ClientOvCTA() {
           You're ready.<br /><em style={{ fontStyle: "italic", color: TEAL }}>Pick someone real.</em>
         </h2>
         <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(233,239,237,0.93)", margin: "0 auto 48px", maxWidth: 640 }}>
-          Free to join. Free intro calls. The right coach is usually a 20-minute conversation away.
+          Free intro calls. The right coach is usually a 20-minute conversation away.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <a href="Marketplace.html" style={{ padding: "18px 32px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: sans, fontSize: 14, fontWeight: 500 }}>Browse coaches →</a>
@@ -414,7 +414,7 @@ function ClientOverviewPage() {
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Home%20page%202.png')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none" }} />
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, background: "rgba(6,8,10,0.15)", pointerEvents: "none" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
-        <Header active="Client Overview" />
+        <Header active="Members" />
         <ClientOvHero />
         <ClientOvWhy />
         <ClientOvHow />

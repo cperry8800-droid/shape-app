@@ -445,6 +445,7 @@
 
   /* ── responsive: the fold stacks, the grids collapse ─────── */
   @media (max-width:1100px){
+    .nlinks{gap:16px}
     .mo-grid,.co-grid{grid-template-columns:repeat(2,1fr)}
     .rd,.prc2{grid-template-columns:1fr;gap:34px}
     .rd{padding:36px 28px}
@@ -455,16 +456,23 @@
     .jpin{grid-template-columns:1fr}
     .jph{display:none}
   }
-  /* ⚠ THE NAV COLLAPSES AT 980px, AND THAT NUMBER IS MEASURED, NOT PICKED.
-     Driven in Chromium: the signed-out bar needs ~975px — it overflowed by 15px
-     at 960 and fit at 980. It collapsed at 860 before, and at 880 THE BAR
-     ALREADY OVERFLOWED BY 18px ON MAIN; that went unnoticed because the auth
-     cluster was free to shrink below its own text, which is the same freedom
-     that broke "Log in" across two lines at 1180. Refusing to wrap turns that
-     shrink into an overflow, so the honest fix is to stop rendering the row at a
-     width it does not fit. `pageShell.jsx` collapses at the same 980 — one bar
-     means one breakpoint, or a 900px window gets a different nav per page. */
-  @media (max-width:980px){
+  /* ⚠ THE NAV COLLAPSES AT 1020px, AND THAT NUMBER IS MEASURED, NOT PICKED.
+     It was 980 for seven links (the bar needed ~975px: 15px over at 960, fit at
+     980). The eighth link, Members (2026-09-14), re-measured the same way in
+     Chromium: at the 22px gap the row overflowed the viewport by 60px at 1000,
+     36 at 1024 and 20 at 1040, and fit at 1060. Two levers rather than one, so a
+     1024px window (iPad landscape) keeps the bar: the link gap drops to 16px at
+     ≤1100 (the rule in the block above), which makes the row fit at 1024 and
+     leaves it 18px over at 1000 — so the row stops rendering at ≤1020. Measured
+     after: no overflow at 1021 and up, the burger from 1020 down. Before that
+     it collapsed at 860, and at 880 THE BAR ALREADY OVERFLOWED BY 18px ON MAIN;
+     that went unnoticed because the auth cluster was free to shrink below its
+     own text, which is the same freedom that broke "Log in" across two lines at
+     1180. Refusing to wrap turns that shrink into an overflow, so the honest fix
+     is to stop rendering the row at a width it does not fit. `pageShell.jsx`
+     collapses at the same 1020 and tightens at the same 1100 — one bar means
+     one breakpoint, or a 1000px window gets a different nav per page. */
+  @media (max-width:1020px){
     .nlinks,.nauth .login,.nauth .nradio{display:none}
     .nburger{display:flex}
     .ndrawer{display:block;position:fixed;inset:72px 0 0;z-index:59;background:rgba(6,9,15,.97);
@@ -580,6 +588,7 @@
     <a class="brand" href="/newdesign/index.html"><img src="/shape-logo-nav-teal-white.png" width="265" height="128" alt="Shape" /></a>
     <div class="nlinks">
       <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true">&#9662;</span></a><div class="nmenu"><a href="/newdesign/Marketplace.html">Marketplace</a></div></span>
+      <a href="/newdesign/Client.html">Members</a>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Radio.html">Radio</a>
       <a href="/newdesign/Community.html">Community</a>
@@ -599,6 +608,7 @@
 <div class="ndrawer" id="ndrawer">
   <a href="/newdesign/Coaches.html">Coaches</a>
   <a href="/newdesign/Marketplace.html">&nbsp;&nbsp;Marketplace</a>
+  <a href="/newdesign/Client.html">Members</a>
   <a href="/newdesign/GetApp.html">App</a>
   <a href="/newdesign/Radio.html">Radio</a>
   <a href="/newdesign/Community.html">Community</a>
@@ -1446,12 +1456,12 @@
      to close itself or it sits over the page with the scroll locked. */
   d.addEventListener('click',function(e){ if(e.target.closest('a')) set(false); });
   /* ⚠ The SAME query the stylesheet uses, not a second copy of the number. This
-     read `innerWidth>860` while the CSS had moved to 980, so resizing anywhere
-     in 861–980 slammed shut a drawer that was still the only nav there. Asking
+     read `innerWidth>860` while the CSS had moved to 980 (1020 now), so resizing
+     anywhere in 861–980 slammed shut a drawer that was still the only nav there. Asking
      matchMedia means the drawer closes exactly when the drawer stops existing,
      and it fires once on the transition rather than on every pixel of a drag.
      (Codex, #2063.) */
-  var mq=window.matchMedia('(max-width:980px)');
+  var mq=window.matchMedia('(max-width:1020px)');
   var onMq=function(e){ if(!e.matches) set(false); };
   if(mq.addEventListener) mq.addEventListener('change',onMq);
   else if(mq.addListener) mq.addListener(onMq);
@@ -1582,7 +1592,7 @@
          opposite. It read "sign-out lives in the header" — true while the header's
          Sign out was the filled `.ncta`, which no rule hides. The nav change made
          Sign out the quiet `.login` (Dashboard took the button), and
-         `.nauth .login` is `display:none` at ≤980px — so a signed-in member on
+         `.nauth .login` is `display:none` at ≤1020px (980 when this was found) — so a signed-in member on
          the homepage below that width had NO way to sign out at all: hidden in
          the header, absent from the drawer, on the only nav a phone has.
 

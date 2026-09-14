@@ -179,7 +179,7 @@ function CoFacts() {
   const facts = [
     ["$0", true, <>&nbsp;</>, "To join.", " No monthly dues, no setup fees, no per-booking cuts."],
     ["15%", true, null, "Only when you're paid.", " One platform fee on what clients pay you; card processing is separate."],
-    ["Weekly", false, null, "Payouts direct to your bank.", ""],
+    ["Weekly", false, null, "Payouts direct to your bank.", " Or instant, any day."],
     ["Verified", false, null, "Every coach credential-checked on intake.", " CPT, CSCS, RD, RDN, CNS and state licences."],
   ];
   return (
@@ -305,7 +305,7 @@ function CoFAQ() {
     ["What does Shape cost me?", "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape takes a 15% platform fee when you get paid. Standard card processing is separate."],
     ["Can I bring my existing clients?", "Yes. Most coaches migrate their book early on, and we help with invitations, transfer flows and pricing continuity."],
     ["Am I locked in?", "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave any time and take your clients with you."],
-    ["How do payouts work?", "Direct to your bank on a weekly schedule."],
+    ["How do payouts work?", "Direct to your bank on a weekly schedule, or instantly on any day."],
     ["Can I sell programs without sessions?", "Yes. Publish programs or meal plans as one-time purchases or subscriptions. Many coaches earn a large share of their revenue from programs alone."],
   ];
   return (
