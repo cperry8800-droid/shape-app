@@ -676,6 +676,9 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
+- **Shape Radio page redesign — the owner's pick is pending (B · The Lock recommended).** Review +
+  concept board: [`REVIEW-2026-09-14-radio-page.md`](REVIEW-2026-09-14-radio-page.md); four rulings
+  in its §6 come before a build. Registered 2026-09-14.
 - **The Wall in the app — owner go-ahead 2026-09-10 (*"yes lets implement the new chat/wall look
   on app"*); THE CURRENT BUILD. The website update is ON HOLD (owner, same day).** Promote
   the PR Wall from a chat channel to a surface: a public definer read over `pr_wall_posts` +
@@ -719,6 +722,77 @@ several are marked SHIPPED in their own text.
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-09-14 — Shape Radio in the app, reviewed and re-imagined three ways: less analog, more radio-futuristic
+
+- **Records only — a review with previews, not a build.** Owner: *"can you do a review of the shape
+  radio page on shape app. Can you give me 3 more design ideas. Have it be less analog, and more radio
+  futuristic style look"* → *"i want to see previews of designs"*. The review is
+  [`REVIEW-2026-09-14-radio-page.md`](REVIEW-2026-09-14-radio-page.md); the previews are a live
+  concept board — https://claude.ai/code/artifact/59dcada3-eadf-4ddb-8e68-8a5a92845a32 — six tabs:
+  **Today · as shipped** (real captures of the production build), **A · The Transmitter** (a broadcast
+  console: a tuner band for the channels, a real spectrum with peak-hold, three readouts, a
+  segment-meter pulse lock), **B · The Lock** (a heads-up display: the member's heart as an orb inside
+  the station's ring, locking — the launch cut's watch face on the page it advertised), **C · The
+  Booth** (the venue: Club Shape, a light rig whose two beams converge as the lock closes, the app's
+  own hologram DJ at the console), **Carry-over** (every element on today's page and where it lives in
+  each) and **Pick**. **Recommended: B**, with A's tuner as its channel strip and C's rig as its
+  light-effects setting. **No code changed, no migration, no PR.** Four owner rulings are registered
+  in the review's §6 — Doto in the app (Radio only or app-wide) · the listener count · measured vs
+  declared tempo · whether the light-effects modes move onto the page.
+- ⚠ **THE PAGE READS FROM CONSTANTS AND MOVES ON TIMERS, AND BOTH WERE MEASURED RATHER THAN
+  ASSERTED.** `BS_LIVE_STATION` types in `bpm: 132` and `listeners: 3472`
+  (`iosAppBroadsheetRadio.jsx:123-124`); the count is shown twice on the page and once on Home, the
+  BPM three times; the now-playing payload is `{ title, artist, isNora }` and nothing else
+  (`src/lib/radio/provider.ts:2`). Driven in Chromium through the real entry flow: **25 animated
+  nodes, all CSS keyframes** — 22 EQ bars on four sine loops, the stage sweep, the blink, the beat
+  ring — while `ShapeRadioLive.analyser()` (`shapeBackend.js:8565`, fftSize 512, the element already
+  `crossOrigin='anonymous'`) is real and consumed only by the Nora stage. `iosAppReactive.jsx:3-4`
+  says it in as many words: *"here we fake it with a 132 BPM clock"*.
+- ⚠ **THE SCRUBBER IS DEAD TWICE OVER.** `elapsed = total * 0.46` (`:1496`) over a length the
+  payload never carries renders **`0:00 / -0:00`** with the dot at 0 % in the muted AND the tuned-in
+  state — and a scrubber on a non-interactive stream promises a seek the licence forbids
+  (prohibition 4 in the module's own header).
+- ⚠ **"CONNECT MONITOR" WITH NO STRAP FABRICATES 114 AND THEN LOCKS IT — captured, not inferred.**
+  No device in range falls to `demoHr` (`:1295`, `:1341`): `FREE · −18 BPM · YOU 114`, then `Match my
+  BPM` eases the invented figure to `IN SYNC · 0 BPM · 132 / 132`. The marketing recipe flagged this
+  on 2026-09-02; it is still live. Also found: a channel list of **one**, already selected, with
+  hyphens where the page uses middle dots (`:1715`); *"Live from Club Shape"* unconditional (`:1744`)
+  over a series whose own page reads COMING SOON; three `{false && …}` blocks and an `r.PLAYLISTS`
+  the context never provides; the Home widget's 8-px halftone dot field (`:921`); and a comment
+  calling the page fixed-dark (`:1414`) while `:1380` derives its palette from `t.isLight`.
+- **What "analog" is here, and what "radio-futuristic" has to mean for Shape.** The volume line and
+  the section eyebrow, the italic-accent-period title, cassette-deck bars on a sine loop, a halftone
+  field, readings that are constants. The answer is not knobs and neon — those are analog in
+  costume. It is **a signal you can see** (the spectrum or waveform off the real audio), **readings
+  that are readings** (Doto, the homepage's own 2026-09-10 type ruling: *"every measured figure reads
+  like a reading"*), and **the lock** (the member's heart and the station's beat, which the launch
+  cut already draws as an orb inside a ring). One backbone under all three: the visualiser reads the
+  analyser; tempo is measured or reads "—"; no listener count until a provider reports one; no
+  scrubber at all; no strap → no number; Doto for readings, Saira for words; the wordmark stays as a
+  14-px nameplate; the corners and the back row stay (house ruling); `Vol. 1 · No. 1` and
+  `Section · Music` go.
+- ⚠ **THE BOARD'S PHONES ARE PREVIEWS ON A SIMULATED SIGNAL, AND THEY SAY SO ON THE PHONE.** A
+  deterministic 128-BPM generator drives every canvas (no `Math.random`), a simulated strap cycles
+  free → matching → locked and can be switched off to see the honest no-strap state, and the session
+  clock starts at 14:22. Every one of those becomes a real reading in the build or reads "—".
+- ⚠ **TWO HARNESS DEFECTS, BOTH ONES THIS FILE ALREADY RECORDS, PAID FOR AGAIN.** The init script
+  observed `document.documentElement` before it existed (the 2026-09-12 lesson); the fix observed
+  `document` and re-added the native class on every mutation — and **`classList.add` queues an
+  attribute record even when the class is already present**, so the page spun in its own observer
+  until the add was guarded on `contains`. And the language picker needs its CONTINUE tap after the
+  language, which the first run skipped and reported as the app never reaching Home. The captures
+  rendered in the real display face — **Saira is bundled locally** (`mobile-app/src/fonts.css:516`),
+  so the container's blocked font hosts did not touch them. The board itself was rendered once with
+  all four families served from local files before publishing, because a render in fallback faces
+  reviews the wrong typeface (the 2026-09-10 lesson) — and the first local render did exactly that,
+  silently: the served CSS used root-relative `url(/fonts/…)`, which resolved against the Google
+  origin, and Doto measured the **same width** as Saira because both had fallen back. *A font that
+  measures like its fallback is its fallback.*
+- **Verified:** docs-only (the pre-commit hook skips the code gates); every `path:line` cited
+  re-read from `main` = `2d49f60`; the board driven at 1440 and 400 px across all six tabs — zero
+  page errors, zero horizontal overflow, the no-strap state rendering `——` · `Connect` ·
+  `Connect monitor` on B.
 
 ### 2026-09-12 — The homepage showed the same Shape Score twice, and the example labels stopped being badges
 
