@@ -726,6 +726,144 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-14 — The Radio page becomes the Signal Field, and the first attempt at it was the claims without the design
+
+- **The owner's pick, built — in two PRs, because the first one was mis-scoped and they said so.** #2066 → `2dfffbb`
+  and #2072 → `e1c1dfe`, off [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md) §8.
+  **No migration, no route.** Owner, on what #2066 shipped: *"not seeing new shape radio page on app"* →
+  *"thats not the new design we discussed"* → *"we had the customized signal design"*.
+- ⚠ **#2066 SHIPPED THE PAGE'S CLAIMS AND DEFERRED ITS LAYOUT, AND THE SPLIT WAS MINE TO MAKE AND WRONG.** It
+  removed the BPM ring beating to a typed-in `132`, the CSS-sine EQ and the scrubber parked at `0:00`, and wired the
+  real tempo detector behind them — all correct, and all invisible. What landed was **the old page with its visual
+  elements removed and a canvas behind it drawing at 2.3% opacity**: captured at 390px, the field's brightest pixel
+  was **alpha 6 of 255** over **480,888 fully transparent** ones. The page was emptier than before, not newer. *The
+  layout IS the design* — a step-2 that keeps the honest-data half and postpones the drawing is not half of this
+  feature, it is a regression wearing a principle.
+- **What the page is now**, under the shipped masthead byte-for-byte (owner ruling, same day — the mark, the edition
+  line, the corners, the back row, the eyebrow, the centred wordmark, the hairline). **Listening**: the station's
+  live spectrum off the real analyser — 32 bands mirrored with the bass at the centre, fast attack and slow release
+  so it pumps on the beat without jittering, a thin peak cap, a soft reflection under the baseline, and a four-beat
+  counter that steps on the **measured** tempo or does not step at all. **Matching**: the bands fold away over 0.7 s
+  and two pulse rows take their place, drawn the way a monitor draws — one pen sweeping left to right with the erase
+  gap ahead of it, the newest sample at the pen. The station's kick above in teal, the member's heart below in rust
+  as the monitor's own glyph. At lock the lower row takes the station's teal and thin ties join every genuinely
+  aligned pair. Plus the rail, the mode label, one wide key, *× Listen only*, and the channel strip.
+- ⚠ **THE GEOMETRY IS MEASURED, NEVER A LITERAL.** The drawing reads the figure block's real box against its own and
+  places every baseline as a fraction of it, so a longer mode label, the no-signal line appearing or a larger text
+  setting all move the figure and the drawing with it. The brief says so in as many words; the concept board's
+  375px literals would have been right on one phone and silently wrong everywhere else.
+- ⚠ **THE SPECTRUM WAS MIRRORED TWICE, AND ONLY LOOKING AT IT FOUND THAT.** `bandBin` reads
+  `|i − (BANDS/2 − 0.5)|`, so `bandsFromBins` already returns an array with bin 0 at its **centre** indices — the
+  mirror, built in. Drawing that array outward from the centre mirrored it again: a kick showed as **two humps a
+  quarter of the way in from each edge**, with a trough where the bass belongs. **It rendered, it animated, and it
+  passed every assertion written for it.** ⚠ And the two guards written for it were computing their formulas in the
+  TEST rather than lifting the shipped ones, so the page could be broken with the suite green — the mutation round
+  is what said so. *A guard that reimplements the code is measuring the guard.*
+- ⚠ **THE FIELD SAT OVER THE TYPE.** 8px mono at 0.18em over a grid of dots is a legibility problem, not a texture —
+  the brief's §8 risk note calls the scrims load-bearing. The scrim fades the field back above and below the figure,
+  **eased rather than linear** because a straight ramp is already spent exactly where the words are. Its alpha comes
+  from `globalAlpha`, **never a hex suffix on the paper colour**: this file already records two page backgrounds
+  voided that way.
+- ⚠ **AND COLLAPSING THE HEART-RATE CARD WOULD HAVE LEFT A BLUETOOTH CONNECTION WITH NO WAY TO CLOSE IT.** The old
+  card's ✕ was the only disconnect; the sweep caught it before a reviewer did. *× Listen only* releases the strap as
+  well as the mode, and the key reads *Connect monitor* again afterwards. **`demoHr` is deleted**, so *Connect
+  monitor* with nothing on your chest no longer fabricates **114 BPM** and eases that invention into "sync" —
+  flagged in the marketing recipe on 2026-09-02 and live until now. The dead `UP NEXT` block goes with it rather
+  than staying behind its `false`.
+- **i18n:** 12 new `radio:*` keys × 13 locales, each composed from that catalog's **own** existing radio wording
+  rather than translated fresh; 8 keys the deletions orphaned removed from all thirteen. **80 keys per locale,
+  parity clean, zero orphans.**
+- ⚠ **THE RATCHET IS THE CERTIFICATION, AND IT MOVED BY EXACTLY WHAT THE DELETIONS ACCOUNT FOR.** `partStrings`
+  **193 → 187** (#2066) **→ 182** (#2072); `noneStrings` **796 throughout, unmoved**. Had either rewrite hardcoded
+  one word the deltas would not have reconciled — a presentation change of this size must move the measurement by
+  **nothing** beyond the strings it removed.
+- **THE CODEX ROUND ON `b38f34f`: 1×P1 + 2×P2, every one real, every one a defect this build introduced.**
+- ⚠ **P1 — THE SESSION CLOCK COUNTED FOR AUDIO NOBODY WAS PLAYING.** `ShapeRadioLive.play()` resolves **false** for
+  every way playback can fail: no provider at all, `/api/radio/station` unreachable or unconfigured, `audio.play()`
+  refused by the autoplay policy, or the attempt superseded by a pause or a sign-out while it was starting. The
+  stamp sat beside the call and never read that answer, so the rail counted *"On air · 0:07"* upward for a member
+  hearing nothing — **the exact fabrication the scrubber was removed for, reintroduced by its replacement.** It is
+  stamped inside the promise now, at the instant playback **started** rather than when it was requested, and the
+  effect's own cleanup cancels an attempt in flight so a pause landing mid-start cannot stamp a clock for playback
+  that is already over.
+- ⚠ **P2 — A PAUSED STATION WENT ON PULSING A HELD BEAT.** The detector holds a settled reading through a dropout on
+  purpose; a **pause is not a dropout**. For the length of that hold the station row drew a kick and the reading
+  named a BPM for a stream the member had stopped. The detector is reset on the pause **edge** and the reading is
+  null while paused — resetting rather than only gating also drops the ring, so a resume rebuilds from frames that
+  are actually contiguous instead of splicing across the gap.
+- ⚠ **AND THE HEART HALF OF THAT FINDING IS DECLINED, WITH THE REASON AT THE SITE.** Pausing the radio does not take
+  the strap off: the member's heart is still beating and the strap is still reporting it. Freezing the row would
+  hold a flatline under a live reading, which is the same class of lie pointed the other way. **The honest picture
+  of a paused matching state is your heart beating, the station flat, and the gap reading `——`.**
+- ⚠ **P2 — A RATE CHANGE REWROTE BEATS THAT HAD ALREADY HAPPENED.** `heartBeatsBetween` rebuilt every beat in the
+  visible window from the **current** rate, so a 120 → 100 reading redrew beats that genuinely landed 500 ms apart
+  as though they had landed 600 ms apart: the drawn trace jumped and ties appeared or vanished for beats already on
+  screen. **The row holds three seconds and a strap re-reports inside that window constantly**, so this is the
+  ordinary case rather than an edge. `advanceHeart` records each crossing as it occurs and `trimBeats` drains the
+  old end; **an instant is a fact about when a beat arrived and no later reading may move it.**
+  `advanceHeartPhase` and `heartBeatsBetween` are **deleted** rather than left to read as live, and their guards
+  moved onto the replacement.
+- ⚠ **AND A BECAUSE-CLAUSE OF MINE DID NOT SURVIVE MEASUREMENT, SO IT IS CORRECTED AT THE SOURCE.** The new crossing
+  loop derives the beat count and the phase wrap from one `floor(raw)`, and I first wrote that the previous pair
+  (`u <= dt` plus a separate `% 1`) **LOST** a beat at the frame boundary. Driven over **4,000 random rate/frame-rate
+  runs and 300,000 random single steps, the two forms agree on the count and the instants every time** — so the
+  rewrite is a **no-op today**, its mutation is labelled as one rather than tested around, and the comment now
+  states the reason that is true: two expressions that must always produce the same number, written twice, agree by
+  arithmetic coincidence rather than by construction. What the failing test that started it actually caught was its
+  **own expectation** — 1/60 does not sum to 1, so the crossing due at t = 1.000 lands one frame late under **both**
+  forms. *A measurement nobody re-derives is a claim, and this one was wrong within the hour.*
+- ⚠ **THE P1 IS DRIVEN, NOT READ, AND THAT IS FORCED BY THE FINDING ITSELF.** No source scan can tell
+  `play().then(stamp)` from `play(); stamp()` in a way that survives a rewrite, so the provider's playback effect is
+  **lifted out of the source and run** against a scripted `play()`.
+- ⚠ **AND THREE OF MY OWN GUARDS WERE HOLLOW, EACH CAUGHT BY MUTATION RATHER THAN BY READING.** One matched
+  `det.reset()` as a **string**, so `if (false) det.reset()` walked straight through it — the present-and-unreachable
+  defect this file keeps recording. One matched `paused` and `advanceHeart` **within a line**, and the regression it
+  was written for puts them on *adjacent* lines, so the one shape it had to see was the one it could not. One used a
+  step too short to cross a beat at all, so removing the non-finite-clock guard survived; it carries a positive
+  control now. **13/14 then 14/14 killed.**
+- ⚠ **AND A SIBLING GUARD FAILED THE CORRECT FIX FOR THE FOURTH TIME IN THIS FILE'S RECORDS.** The reduced-motion
+  test pinned `const read = det.read(t)` **exactly**, so teaching the reading to answer null for a paused station
+  broke a test about something else entirely. Re-anchored on where the reading HAPPENS relative to the throttle,
+  which is what it was ever about. *A guard that pins a spelling pins whatever that spelling is wrong about.*
+- ⚠ **AND THE RENDER HARNESS REPORTED THE P1 FIX BROKEN, BECAUSE IT WAS MEASURING A DIFFERENT BUILD.** A failed play
+  still started the clock on every run. The static server on that port was rooted at a **copy of an earlier `dist`
+  made in a previous session**, so every browser reading — the five-viewport sweep included — was against the
+  pre-fix bundle. **The served file's md5 differed from the one on disk**, which is the check that settled it;
+  `grep` on the file I had built said the fix was there, and `curl` on the file the browser loaded said it was not.
+  *A render is evidence only of what actually rendered, and a served path is not a built path.* Every figure below
+  was re-taken after refreshing the root and confirming md5 parity.
+- **Verified on the final head:** `npm test` **3689/3689** · `tsc --noEmit` **0** · JSX parse · the pure module
+  imports clean · mobile build clean with all 13 locales' new values confirmed in the emitted bundle behind positive
+  **and** negative controls (the retired `Long-form 165 BPM block` and `Nilo Ceza` read **0**) · **two mutation
+  rounds, each proven to land, sanity green at both ends, the tree restored in a `finally` and on a signal** · and
+  the page **driven in Chromium at 320 · 375 · 390 · 430 plus reduced motion**: **zero page errors and zero
+  horizontal overflow at every width**, the tempo measured at **128** everywhere, the bass at the centre, matching
+  reached at all five, `−16 BPM` sliding, lock showing `IN SYNC / 0 BPM` with the ties drawn, and no strap showing a
+  dashed flat line, `——` and *No pulse · connect a monitor*.
+- ⚠ **THE CLOCK IS PROVEN BY A/B AGAINST A SCRIPTED `play()`, NOT BY ITS ABSENCE.** A play that **never resolves**
+  and a play that **resolves false** both leave the rail reading *Paused*; a play that **resolves true** starts a
+  clock that counts up. Without the positive control the fix would have been indistinguishable from a clock that
+  never works.
+- ⚠ **`Build debug APK` IS RED ON BOTH HEADS AND IS NOT THIS PR'S — MEASURED, THEN STOOD DOWN.**
+  `android-actions/setup-android@40fd30f` asks the SDK manager for a **`tools`** package Google has retired
+  (*"Warning: Failed to find package 'tools'"*) and dies **before any repo code compiles**; the job reaches and
+  passes `npm ci` and `npm run build` first. The last Android Build on `main` (`2dfffbb`, 19:52Z) was green and the
+  break landed in the hour after it. **The one permitted re-run was spent and reproduced identically**, at the same
+  stack frame in the action's own bundle, so it is not a flake. It is **not a required check**, so the merge gate
+  (four required checks green, not a draft) was met. The patch — `packages: platform-tools` on both jobs, SHA pin
+  untouched — is on the PR and is **owed as its own change**: that workflow is the one place in the repo that reads
+  a signing keystore, and it belongs in a diff a reviewer is reading as a workflow change.
+- ⚠ **NO ON-ACCOUNT PASS, AND IT CANNOT BE FAKED HERE.** There is no broadcasting station, so the spectrum, the rows
+  and the detector were driven against a **synthetic 128-BPM analyser and a simulated strap**. The all-zero-analyser
+  path is what a real CORS-less stream produces and is rendered honestly either way (a flat field, `—`, and a *No
+  signal data from the channel* line gated on a measured absence). The honest check is a real station on the air
+  with a real strap on a real chest.
+- ⚠ **REGISTERED, NOT FIXED:** `hrm.js` receives RR intervals and does not parse them — `beatsFromRR` is shipped and
+  unused, so a glyph is at worst one reading late. And the channel row still animates a **5-bar CSS sine** beside a
+  real analyser with `onLive` a permanent `true`: that belongs to the last PR of this build, which retires
+  `BS_LIVE_STATION.bpm` / `.listeners` at their final four readers (Home's `BSNowPlaying` count, Home's
+  `BSBeatRing`, the muted bar).
+
 ### 2026-09-14 — Members joins the nav, its page moves to the site's type system, and one footer replaces three
 
 - **Three PRs off one open item.** #2067's entry closed with *"`Client.html` ("For members") IS
