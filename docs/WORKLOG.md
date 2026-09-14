@@ -780,9 +780,14 @@ Append new entries at the top, under this note.
   Payouts & docs blurb; the FAQ). A grep for `for 1%|1% fee|instant payout|instantly for` over
   `public/newdesign/` returns nothing. The `.co-nums` grid is two columns and now holds **three** tiles
   (2 + 1) — left as the removal produced it rather than redesigned; the owner can call the rebalance.
-  ⚠ **REGISTERED, NOT FIXED:** `Landing.html` still reads *"Weekly · Payouts to coaches — or instant"* —
-  the instant-payout claim without the figure, outside the ruling's letter and not its spirit. An owner
-  call.
+  ⚠ **AND I OVER-READ THE RULING — CORRECTED THE SAME EVENING.** I took *"remove that 1% everywhere
+  its posted"* as *remove the instant-payout claim*, and cut the whole clause at six of the seven sites.
+  Asked whether `Landing.html`'s *"Weekly · Payouts to coaches — or instant"* should go too, the owner
+  ruled: *"no you can say instant payouts just remove the 1% fee you had there"*. So the ruling was the
+  **figure**, never the claim: Landing's line stands, and the instant wording comes back — without the
+  fee — at the five sentence sites in the follow-up PR (the hero fine print stays gone on its own
+  ruling, *"remove this"*, and the cost tile's headline WAS the figure). *A ruling about a number is
+  not a ruling about the sentence around it* — measure the ask before widening it.
 - ⚠ **AND THE TOUR HARNESS REPORTED THE PAGE BROKEN ONCE, ON ITS OWN ASSUMPTION.** It clicked the
   nutritionist's tabs by the TRAINER's labels, waited thirty seconds for a `Programs` tab on a role that
   spells it `Plans`, and timed out — which reads as *"the nutritionist tour is broken"*. It iterates each
