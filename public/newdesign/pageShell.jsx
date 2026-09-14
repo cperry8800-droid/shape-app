@@ -164,10 +164,17 @@ const COACHES_ITEMS = [
   ["Marketplace", "Marketplace.html"],
 ];
 
-// ⚠ THE SAME SEVEN LINKS THE HOMEPAGE HAS ALWAYS SHOWN, in the same order, with
-// the same targets — `tests/site-nav.test.mjs` parses `index.html`'s static nav
-// and requires this table to match it. That test is the whole point: the two
-// bars drifted into two different designs because nothing compared them.
+// ⚠ THE SAME LINKS THE HOMEPAGE SHOWS, in the same order, with the same targets
+// — `tests/site-nav.test.mjs` parses `index.html`'s static nav and requires this
+// table to match it. That test is the whole point: the two bars drifted into two
+// different designs because nothing compared them.
+//
+// ⚠ MEMBERS IS THE EIGHTH LINK, beside Coaches, and it is the members' door the
+// way Coaches is the coaches' — owner, 2026-09-14: `Client.html` ("For members")
+// was reachable from the footer alone; "maybe a seperate client tab on nav bar",
+// named Members because the footer already says "For members" and a visitor who
+// has not got a coach yet is not anyone's client. Signed in it drops out with the
+// rest of the pitch links (`PORTAL_NAV` is the essentials).
 //
 // ⚠ AND THE THREE `Dashboard` DROPDOWN ITEMS ARE GONE. The retired Clients /
 // Trainers / Nutritionists menus each carried one, which opened the demo
@@ -176,6 +183,7 @@ const COACHES_ITEMS = [
 // working and keep their footer links; they simply leave the bar.
 const SHAPE_NAV_GROUPS = [
   { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"], items: COACHES_ITEMS },
+  { kind: "link", label: "Members", href: "Client.html" },
   { kind: "link", label: "App", href: "GetApp.html" },
   { kind: "link", label: "Radio", href: "Radio.html" },
   { kind: "link", label: "Community", href: "Community.html" },
@@ -1175,18 +1183,28 @@ function ShapeMobileStyles() {
          happened to measure.
 
          1200 was honest for the OLD content — nine links including three
-         dropdowns, plus a heavy auth cluster. The bar is seven links signed out
-         and two signed in now.
+         dropdowns, plus a heavy auth cluster. The bar is eight links signed out
+         (Members joined it on 2026-09-14) and two signed in now.
 
-         ⚠ 980, NOT 860, AND THE HOMEPAGE MOVED TO MEET IT. Driven in Chromium,
-         the signed-out row needs ~975px: it overflowed by 15px at 960 and fit at
-         980. The homepage collapsed at 860 and its bar ALREADY OVERFLOWED BY 18px
-         at 880 on main — hidden because the auth cluster could shrink below its
-         own text, which is the same freedom that broke "Log in" onto two lines at
-         1180. Refusing to wrap turns that shrink into an overflow, so both bars
-         now stop rendering the row at a width it does not fit, at the SAME width:
-         one bar means one breakpoint. */
-      @media (max-width: 980px) {
+         ⚠ 1020, AND THE HOMEPAGE MOVED WITH IT — MEASURED, NOT PICKED. At seven
+         links the signed-out row needed ~975px (15px over at 960, fit at 980),
+         so both bars collapsed at 980. The eighth link, re-measured in Chromium:
+         at the 22px gap this row's links ran INTO the auth cluster by 20px at
+         1000 and 8px at 1024, touched at 1040, cleared by 10px at 1060. Two
+         levers rather than one, so a 1024px window (iPad landscape) keeps the
+         bar: the tab gap drops to 16px at ≤1100, which leaves 13px at 1024 and
+         1px at 1000 — and the row stops rendering at ≤1020. After: 12px clear at
+         1021, 26px at 1100 and up, the burger from 1020 down. The homepage
+         collapsed at 860 before any of this and its bar ALREADY OVERFLOWED BY
+         18px at 880 on main — hidden because the auth cluster could shrink below
+         its own text, which is the same freedom that broke "Log in" onto two
+         lines at 1180. Refusing to wrap turns that shrink into an overflow, so
+         both bars stop rendering the row at a width it does not fit, at the SAME
+         width and with the SAME gap rule: one bar means one breakpoint. */
+      @media (max-width: 1100px) {
+        .shape-nav-tabs { gap: 16px !important; }
+      }
+      @media (max-width: 1020px) {
         .shape-header-inner { padding: 0 24px !important; gap: 14px !important; }
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
