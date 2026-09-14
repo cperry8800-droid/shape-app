@@ -676,6 +676,12 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
+- **Shape Radio page redesign — the owner picked D · The Signal Field (2026-09-14); THE NEXT BUILD.**
+  Code-level brief: [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md)
+  — four PRs, every line reference verified against `main` = `2d49f60`; read it before touching the
+  code. The review + board: [`REVIEW-2026-09-14-radio-page.md`](REVIEW-2026-09-14-radio-page.md). The
+  shipped masthead stays byte-for-byte (owner ruling, same day); the four §6 rulings are defaulted in
+  the brief's §12 and each is reversible without a re-plan.
 - **The Wall in the app — owner go-ahead 2026-09-10 (*"yes lets implement the new chat/wall look
   on app"*); THE CURRENT BUILD. The website update is ON HOLD (owner, same day).** Promote
   the PR Wall from a chat channel to a surface: a public definer read over `pr_wall_posts` +
@@ -719,6 +725,182 @@ several are marked SHIPPED in their own text.
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-09-14 — Shape Radio in the app, reviewed and re-imagined three ways: less analog, more radio-futuristic
+
+- **Records only — a review with previews, not a build.** Owner: *"can you do a review of the shape
+  radio page on shape app. Can you give me 3 more design ideas. Have it be less analog, and more radio
+  futuristic style look"* → *"i want to see previews of designs"*. The review is
+  [`REVIEW-2026-09-14-radio-page.md`](REVIEW-2026-09-14-radio-page.md); the previews are a live
+  concept board — https://claude.ai/code/artifact/59dcada3-eadf-4ddb-8e68-8a5a92845a32 — eight tabs:
+  **Today · as shipped** (real captures of the production build), **A · The Transmitter** (a broadcast
+  console: a tuner band for the channels, a real spectrum with peak-hold, three readouts, a
+  segment-meter pulse lock), **B · The Lock** (a heads-up display: the member's heart as an orb inside
+  the station's ring, locking — the launch cut's watch face on the page it advertised), **C · The
+  Booth** (the venue: Club Shape, a light rig whose two beams converge as the lock closes, the app's
+  own hologram DJ at the console), **Carry-over** (every element on today's page and where it lives in
+  each) and **Pick**. **Recommended: B**, with A's tuner as its channel strip and C's rig as its
+  light-effects setting — ⚠ **superseded the same evening: the owner picked D (the bullet below).** **No code changed, no migration, no PR.** Four owner rulings are registered
+  in the review's §6 — Doto in the app (Radio only or app-wide) · the listener count · measured vs
+  declared tempo · whether the light-effects modes move onto the page.
+- ⚠ **THE PAGE READS FROM CONSTANTS AND MOVES ON TIMERS, AND BOTH WERE MEASURED RATHER THAN
+  ASSERTED.** `BS_LIVE_STATION` types in `bpm: 132` and `listeners: 3472`
+  (`iosAppBroadsheetRadio.jsx:123-124`); the count is shown twice on the page and once on Home, the
+  BPM three times; the now-playing payload is `{ title, artist, isNora }` and nothing else
+  (`src/lib/radio/provider.ts:2`). Driven in Chromium through the real entry flow: **25 animated
+  nodes, all CSS keyframes** — 22 EQ bars on four sine loops, the stage sweep, the blink, the beat
+  ring — while `ShapeRadioLive.analyser()` (`shapeBackend.js:8565`, fftSize 512, the element already
+  `crossOrigin='anonymous'`) is real and consumed only by the Nora stage. `iosAppReactive.jsx:3-4`
+  says it in as many words: *"here we fake it with a 132 BPM clock"*.
+- ⚠ **THE SCRUBBER IS DEAD TWICE OVER.** `elapsed = total * 0.46` (`:1496`) over a length the
+  payload never carries renders **`0:00 / -0:00`** with the dot at 0 % in the muted AND the tuned-in
+  state — and a scrubber on a non-interactive stream promises a seek the licence forbids
+  (prohibition 4 in the module's own header).
+- ⚠ **"CONNECT MONITOR" WITH NO STRAP FABRICATES 114 AND THEN LOCKS IT — captured, not inferred.**
+  No device in range falls to `demoHr` (`:1295`, `:1341`): `FREE · −18 BPM · YOU 114`, then `Match my
+  BPM` eases the invented figure to `IN SYNC · 0 BPM · 132 / 132`. The marketing recipe flagged this
+  on 2026-09-02; it is still live. Also found: a channel list of **one**, already selected, with
+  hyphens where the page uses middle dots (`:1715`); *"Live from Club Shape"* unconditional (`:1744`)
+  over a series whose own page reads COMING SOON; three `{false && …}` blocks and an `r.PLAYLISTS`
+  the context never provides; the Home widget's 8-px halftone dot field (`:921`); and a comment
+  calling the page fixed-dark (`:1414`) while `:1380` derives its palette from `t.isLight`.
+- **What "analog" is here, and what "radio-futuristic" has to mean for Shape.** The volume line and
+  the section eyebrow, the italic-accent-period title, cassette-deck bars on a sine loop, a halftone
+  field, readings that are constants. The answer is not knobs and neon — those are analog in
+  costume. It is **a signal you can see** (the spectrum or waveform off the real audio), **readings
+  that are readings** (Doto, the homepage's own 2026-09-10 type ruling: *"every measured figure reads
+  like a reading"*), and **the lock** (the member's heart and the station's beat, which the launch
+  cut already draws as an orb inside a ring). One backbone under all three: the visualiser reads the
+  analyser; tempo is measured or reads "—"; no listener count until a provider reports one; no
+  scrubber at all; no strap → no number; Doto for readings, Saira for words; the wordmark stays as a
+  14-px nameplate; the corners and the back row stay (house ruling); `Vol. 1 · No. 1` and
+  `Section · Music` go.
+- **Two more the same day — owner: *"can you give me 2 more design options"*, then *"we dont need to do a
+  workflow"* when a judge-panel fan-out was started; it was stopped and the two were designed by hand.**
+  **D · The Signal Field**: a full-bleed dot field lit by the live spectrum, and a **Lissajous figure**
+  whose horizontal sweep is the measured beat and whose vertical sweep is the strap — the figure
+  precesses while the two rates differ and closes into a standing ellipse when they agree, which is
+  how two frequencies have always been compared on a scope: the lock as physics rather than as an
+  emblem. No strap → a flat sweep with the reason under it. **E · The Waterfall**: the station's
+  spectrum as a software-defined receiver's waterfall — 64 log-spaced bands across, one analyser
+  frame per row down, a ten-second memory of the stream as the ground of the page, the lock as a
+  readout line; the cheapest build of the five. The board is eight tabs now and the carry-over table
+  five columns; B stays the recommendation, with E named as the strongest challenger on the brief's
+  own words. ⚠ The waterfall's pre-fill first ran the simulated signal at **negative time**, where
+  the beat phase goes negative and the kick envelope inverts into a blow-up — 300 rows saturated to
+  cream, caught on the one look and fixed at the source (`t % BEAT` is only a phase for t ≥ 0).
+- **D refined on two owner notes the same evening.** *"i like the signal field, can you make those 2
+  sources a little more distinct? like more obvious which one is station beat and which is heartbeat?"*
+  → the two sources are told apart by **colour and by axis**: the station is teal and horizontal, the
+  heart is rust (`#e06547`, the strap's colour on every wearable) and vertical; each axis flashes on
+  its own pulse with its own reading at its end (*Station · beat ↔* at the right, *You · heart ↕* at
+  the top), and the beam is cream until the two agree, then teal. Then *"also create a different design
+  for when you are just listening to shape radio and then have the signal field look appear when you
+  are initiating bpm and hrm matching"* → **D is two states of one instrument, which is what an
+  oscilloscope already is**: *Listening* is Y‑T mode — the station's live waveform sweeps the full width
+  as one teal trace over a quiet field, the track is the hero, the one key reads Match my BPM, and
+  nothing about the member's body is on the page until they ask; tapping the key is the switch to X‑Y
+  mode — the heart's axis grows out of the centre in rust, the trace folds into the figure, the field
+  comes up, and *× Listen only* returns. The board carries a Listening / Matching switch above the D
+  phone and the phone's own keys do the same. ⚠ The first capture of the matching state showed only
+  the phone's lower half: Playwright's click had scrolled the phone's INNER scroller to the key, which
+  is the harness and not the page — reset the scroller before the shot. ⚠ **BOTH HALVES OF THIS BULLET
+  ARE SUPERSEDED BY THE NEXT ONE** — the waveform gave way to the spectrum and the figure to two rows;
+  kept because a dated bullet says what was true when it was written.
+- **D refined twice more the same evening, on the third and fourth owner notes — and the fourth is the
+  one that changed what D is.** *"use this for the signal field listening app and make sure it matches
+  the bpm of son. Also improve the look of that a little bit. make it look cleaner"*, with a crop of
+  A's spectrum → *Listening* is now the station's **spectrum**: 32 bands mirrored with the bass at the
+  centre, fast attack / slow release so it pumps on the beat without jittering, a thin peak cap close
+  to each bar, a soft reflection under the baseline, and a four-dot counter stepping through the bar so
+  the tempo is something you can see; the tempo reading moved to the top right, mirroring the rail,
+  because at the right end of the bars it sat **on** them. Then, with a screenshot of the matching
+  state: *"and again this when you are matching hrm is too confusing. too much going on. its hard to
+  tell whats happening"* → **the Lissajous figure is gone.** A trail of 260 points at four sub-steps a
+  frame draws about a second of a figure that precesses at the beat frequency, and at 112 against 128
+  that is two loops overlapping — a scribble to anyone who does not already know what a Lissajous
+  says. *Matching* is **two pulse rows on one clock** now: the station's beat above in teal (the kick's
+  own envelope), the heart below in rust (the strap's spike and its small return), three seconds of
+  each with the newest at the right, each row's reading at its left end, the lock state and **the gap
+  in BPM** at the top right. While the rates differ the lower row's peaks slide against the upper
+  row's; at lock thin ties join every pair and the lower row takes the station's teal. No strap → a
+  dashed flat line that says *No pulse · connect a monitor*. The field stays quiet in both states —
+  it is ground, never figure. ⚠ **AND THE SIMULATED STRAP NEVER BEAT IN STEP AT LOCK, ON ANY
+  CONCEPT.** The sim's `HR.phase` ran free of the station's phase, so a *locked* heart pulsed at the
+  right rate and the wrong moment — invisible on a Lissajous, which only cares about rates, and an
+  open contradiction on two rows of peaks. At lock the sim now eases the heart's phase into the
+  station's over a second, so B's orb, C's beams and D's rows all pulse together under the word.
+  *The design that cannot hide a defect is the one that finds it.*
+- **Two more owner notes on the rows, minutes apart.** *"have the heart rate beat/pulse like a heart rate
+  monitor"* → the heart row is the monitor's own trace now: one glyph per beat — the spike, the dip, the
+  T wave — and **both rows are drawn the way a monitor draws**, a pen sweeping left to right with the
+  erase gap ahead of it, the newest sample at the pen, so the comparison of beats still holds because
+  one pen writes both rows on one clock; a ♡ beside the reading beats with the row (the monochrome
+  glyph the house rule allows, never an emoji). ⚠ **THE GLYPH IS DRAWN FROM THE INSTANT A BEAT
+  ARRIVES, AND NOTHING BEFORE IT.** A BLE strap (`0x180D`) sends heart-rate values and RR intervals,
+  never a waveform — so a real ECG's P wave, which precedes the R by ~170 ms, would be a claim about a
+  beat the app has not received yet. The row's timing is measured; its shape is a glyph, and the board
+  says so. Then *"and have the background dots pulse as well with the bpm, like how you had it before"*
+  → the field is back at full strength behind the rows (it had been held at 0.6 when the rows arrived),
+  quiet under the spectrum as before, and the whole field now breathes on the kick as well as lighting
+  per bin — **measured rather than eyeballed**: summing the canvas's alpha over a band of the field with
+  no row in it across 60 frames, the total peaks **eightfold** on every kick (ratio 8.2 matching, 8.0
+  listening), 28 frames apart, which is 128 BPM at 60 fps. ⚠ The first measurement read the MEAN alpha
+  rounded to an integer and reported a swing of 1 → 2 — the quantisation floor, not the field; a sum
+  over the same pixels is what shows the pulse.
+- **The pick — owner, the same evening: *"Ok i like it, lets go with that. make sure the correct masthead
+  is on page as well. is the spec already written?"* → D · The Signal Field is the build.** Three things
+  followed. **The masthead ruling**: the review (§3) and the board's backbone had every concept shrink
+  the wordmark to a 12–14-px nameplate and drop `Vol. 1 · No. 1` and `Section · Music`; the ruling is
+  the shipped masthead **byte-for-byte** — the mark with the edition line, the corners, `← Back`, the
+  eyebrow, the centred 330-px wordmark and the hairline (`iosAppBroadsheetRadio.jsx:1404–1433`). The
+  board's D phone was re-cut to carry it (every layout constant moved down 72 px and the scrim stops
+  with them) and re-captured in all five states with no collision — the rail at y 241 against bars
+  whose caps top out below it, the heart row's baseline at 468 against a Now block measured at 508; the
+  carry-over table's three masthead rows read *kept as shipped* for D, and the Pick tab names the pick
+  above the recommendation it replaced, which stays on the board for its reasoning. ⚠ **A ruling that
+  KEEPS something is still a ruling that overrides the review, and it is marked at the source** — §3's
+  nameplate line carries the correction, because a review that still says the labels go is an
+  instruction to delete them. **The spec did not exist**: §7 was a build order for B. The code-level
+  brief for D is [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md):
+  what is deleted, with line references; the three data sources and where each is real today; two pure
+  modules (`radioSignalField.mjs` — the field, the spectrum, the rows; `radioTempo.mjs` — the launch
+  cut's comb-search detector in the browser, with a hold and a confidence floor); the strap path,
+  including the RR intervals `hrm.js` already receives and does not parse; the honest-states table; the
+  component and its layout; fourteen new `radio:*` keys × 13; the guards; and **four PRs** — the pure
+  modules + Doto → the listening state → the matching state → the constants' other consumers, which is
+  where `BS_LIVE_STATION.bpm` and `.listeners` finally stop being read. ⚠ **The four §6 rulings are
+  DEFAULTED there rather than waited on** — Doto on Radio only · no listener count · measured tempo ·
+  the effects stay in Settings — each stated as a default in the brief's §12, so the build can start
+  and a ruling the other way is a one-line change rather than a re-plan. The brief is written so the
+  build does not depend on who builds it: every rule in it is a line reference or a formula, not a
+  memory of this session.
+- ⚠ **THE BOARD'S PHONES ARE PREVIEWS ON A SIMULATED SIGNAL, AND THEY SAY SO ON THE PHONE.** A
+  deterministic 128-BPM generator drives every canvas (no `Math.random`), a simulated strap cycles
+  free → matching → locked and can be switched off to see the honest no-strap state, and the session
+  clock starts at 14:22. Every one of those becomes a real reading in the build or reads "—".
+- ⚠ **TWO HARNESS DEFECTS, BOTH ONES THIS FILE ALREADY RECORDS, PAID FOR AGAIN.** The init script
+  observed `document.documentElement` before it existed (the 2026-09-12 lesson); the fix observed
+  `document` and re-added the native class on every mutation — and **`classList.add` queues an
+  attribute record even when the class is already present**, so the page spun in its own observer
+  until the add was guarded on `contains`. And the language picker needs its CONTINUE tap after the
+  language, which the first run skipped and reported as the app never reaching Home. The captures
+  rendered in the real display face — **Saira is bundled locally** (`mobile-app/src/fonts.css:516`),
+  so the container's blocked font hosts did not touch them. The board itself was rendered once with
+  all four families served from local files before publishing, because a render in fallback faces
+  reviews the wrong typeface (the 2026-09-10 lesson) — and the first local render did exactly that,
+  silently: the served CSS used root-relative `url(/fonts/…)`, which resolved against the Google
+  origin, and Doto measured the **same width** as Saira because both had fallen back. *A font that
+  measures like its fallback is its fallback.*
+- **Verified:** docs-only (the pre-commit hook skips the code gates); every `path:line` cited
+  re-read from `main` = `2d49f60`; the board driven at 1440 and 400 px across all eight tabs — zero
+  page errors, zero horizontal overflow, re-run after the masthead re-cut and the Pick-tab change with
+  the same result; D's five states captured (listening · the crossfade · matching at −6 BPM · locked
+  at 0 BPM with the ties · no strap) with the shipped masthead on every one, every label's box measured
+  against the phone rather than eyeballed — the rail at y 241, the station and heart readings at 341
+  and 437, the heart row's baseline at 468 against a Now block measured at 508 (before the masthead:
+  the station reading at 90 px wide against rows that start at 116, the baseline at 396 against a Now
+  block at 431); the brief's line references re-read from the same `main`.
 
 ### 2026-09-12 — The homepage showed the same Shape Score twice, and the example labels stopped being badges
 
