@@ -786,6 +786,22 @@ Append new entries at the top, under this note.
   own words. ⚠ The waterfall's pre-fill first ran the simulated signal at **negative time**, where
   the beat phase goes negative and the kick envelope inverts into a blow-up — 300 rows saturated to
   cream, caught on the one look and fixed at the source (`t % BEAT` is only a phase for t ≥ 0).
+- **D refined on two owner notes the same evening.** *"i like the signal field, can you make those 2
+  sources a little more distinct? like more obvious which one is station beat and which is heartbeat?"*
+  → the two sources are told apart by **colour and by axis**: the station is teal and horizontal, the
+  heart is rust (`#e06547`, the strap's colour on every wearable) and vertical; each axis flashes on
+  its own pulse with its own reading at its end (*Station · beat ↔* at the right, *You · heart ↕* at
+  the top), and the beam is cream until the two agree, then teal. Then *"also create a different design
+  for when you are just listening to shape radio and then have the signal field look appear when you
+  are initiating bpm and hrm matching"* → **D is two states of one instrument, which is what an
+  oscilloscope already is**: *Listening* is Y‑T mode — the station's live waveform sweeps the full width
+  as one teal trace over a quiet field, the track is the hero, the one key reads Match my BPM, and
+  nothing about the member's body is on the page until they ask; tapping the key is the switch to X‑Y
+  mode — the heart's axis grows out of the centre in rust, the trace folds into the figure, the field
+  comes up, and *× Listen only* returns. The board carries a Listening / Matching switch above the D
+  phone and the phone's own keys do the same. ⚠ The first capture of the matching state showed only
+  the phone's lower half: Playwright's click had scrolled the phone's INNER scroller to the key, which
+  is the harness and not the page — reset the scroller before the shot.
 - ⚠ **THE BOARD'S PHONES ARE PREVIEWS ON A SIMULATED SIGNAL, AND THEY SAY SO ON THE PHONE.** A
   deterministic 128-BPM generator drives every canvas (no `Math.random`), a simulated strap cycles
   free → matching → locked and can be switched off to see the honest no-strap state, and the session
