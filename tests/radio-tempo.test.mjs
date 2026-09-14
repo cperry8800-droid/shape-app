@@ -41,6 +41,8 @@ import {
   tempoKick,
   tempoBeatsBetween,
   tempoBarStep,
+  tempoEnergyFromBins,
+  TEMPO_BINS,
   RING_S,
 } from '../mobile-app/src/services/radioTempo.mjs';
 
@@ -552,6 +554,53 @@ test('the beat re-anchors after a cut in the music', () => {
   const worst = Math.max(...late.map((b) => Math.abs(b.beat - (off + Math.round((b.beat - off) / P) * P))));
   // Measured at 8.7ms against a half-beat of 234ms. A frozen phase sits at ~234.
   assert.ok(worst < 0.05, `beats land ${(worst * 1000).toFixed(0)}ms off the true onset — the phase was not re-anchored`);
+});
+
+// ---------------------------------------------------------------------------
+// What the browser actually feeds `push`.
+// ---------------------------------------------------------------------------
+
+test('a frame with nothing anywhere in it is the absence of data, not a zero', () => {
+  // A stream with no Access-Control-Allow-Origin hands the analyser all-zero
+  // bins forever. Pushing those would fill the ring with silence and flush a
+  // real reading out of the window, so the hold could never do its job.
+  assert.equal(tempoEnergyFromBins(new Uint8Array(256)), null, 'a CORS-blocked frame produced an energy');
+  assert.equal(tempoEnergyFromBins([]), null);
+  assert.equal(tempoEnergyFromBins(null), null);
+});
+
+test('REGRESSION: a quiet kick band is a real zero and must reach the ring', () => {
+  // ⚠ THE DEFECT THIS REPLAYS. A first cut tested whether the KICK BAND carried
+  // anything — which is true of a CORS-blocked frame and equally true of the
+  // quiet moment BETWEEN two kicks. Skipping those frames drops exactly the low
+  // samples the onset envelope is built from: every remaining sample is a peak,
+  // no rises are left to find, and the detector goes quiet on a track with a
+  // perfectly good beat. Found by driving the helper, not by reading it.
+  const between = new Uint8Array(256);
+  for (let i = 8; i < 64; i += 1) between[i] = 255;   // music above the band, band silent
+  assert.equal(tempoEnergyFromBins(between), 0, 'the quiet moment between kicks was dropped from the ring');
+  // And the frame IS readable, which is the half that separates it from CORS.
+  assert.notEqual(tempoEnergyFromBins(between), null);
+});
+
+test('the band is the kick band, and energy outside it does not move the reading', () => {
+  const kick = new Uint8Array(256);
+  kick[0] = 200; kick[1] = 180; kick[2] = 40; kick[3] = 20;
+  assert.equal(tempoEnergyFromBins(kick), 110, 'the band mean is not the mean of bins 0..3');
+
+  // Piling energy into every bin ABOVE the band must not change the answer —
+  // that is the whole reason the band is narrow. Feeding the whole frame instead
+  // buries the kick under vocals and hats, which is the dense-aperiodic case the
+  // confirm window had to be added for.
+  const loud = Uint8Array.from(kick);
+  for (let i = TEMPO_BINS; i < loud.length; i += 1) loud[i] = 255;
+  assert.equal(tempoEnergyFromBins(loud), 110, 'energy outside the kick band moved the reading');
+
+  // Non-finite entries are skipped rather than poisoning the mean, because
+  // `push` refuses a non-finite sample and a NaN here would silence the ring.
+  const ragged = [200, NaN, 200, undefined];
+  assert.equal(tempoEnergyFromBins(ragged), 200);
+  assert.ok(Number.isFinite(tempoEnergyFromBins(ragged)), 'a ragged frame produced a sample push would refuse');
 });
 
 test('the detector carries no wall clock and no randomness', async () => {

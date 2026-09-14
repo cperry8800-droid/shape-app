@@ -332,6 +332,51 @@ export function tempoBarStep(bpm, phase, t, beats) {
 // The detector — a ring plus a hold. The only stateful thing here.
 // ---------------------------------------------------------------------------
 
+// The number the browser feeds `push` — the kick band's energy, 0..255.
+//
+// ⚠ THE BAND IS A TEMPO DECISION, NOT A DRAWING ONE, WHICH IS WHY IT LIVES HERE
+// AND NOT WITH THE SPECTRUM. A beat is a low-frequency event: at 44.1 kHz with
+// `fftSize` 512 a bin is ~86 Hz, so bins 0..3 cover 0–344 Hz — the kick's
+// fundamental and its first harmonic, and almost nothing else. Feeding the whole
+// frame instead buries the kick under vocals and hats, which is exactly the
+// dense-aperiodic case the confirm window had to be added for; feeding a single
+// bin makes the reading hostage to where one station's kick happens to sit.
+//
+// ⚠ IT RETURNS null FOR A FRAME THAT CARRIES NO DATA, and `push` refuses a
+// non-finite sample, so an all-zero (CORS-blocked) frame cannot enter the ring
+// at all. That matters more than it looks: a ring full of zeros would flush a
+// real reading out of the window, so the hold could never do its job.
+//
+// ⚠ THE EMPTINESS TEST IS ON THE WHOLE FRAME, NOT ON THE KICK BAND, AND THE
+// DIFFERENCE IS THE WHOLE HELPER. A first cut asked whether the BAND carried
+// anything — which is true of a CORS-blocked frame and also true of the quiet
+// moment BETWEEN two kicks. Skipping those frames drops exactly the low samples
+// the onset envelope is built from: every remaining sample is a peak, there are
+// no rises left to find, and the detector goes quiet on a track with a perfectly
+// good beat. A quiet kick band is a real reading of ~0 and must enter the ring;
+// only a frame with nothing anywhere in it is the absence of data. Caught by
+// driving the helper rather than by reading it.
+export const TEMPO_BINS = 4;
+export function tempoEnergyFromBins(bins) {
+  if (!bins || !bins.length) return null;
+  let readable = false;
+  for (let i = 0; i < bins.length; i += 1) {
+    if (Number.isFinite(bins[i]) && bins[i] > 0) { readable = true; break; }
+  }
+  if (!readable) return null;
+  const n = Math.min(TEMPO_BINS, bins.length);
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < n; i += 1) {
+    const v = bins[i];
+    if (!Number.isFinite(v)) continue;
+    sum += Math.max(0, Math.min(255, v));
+    count += 1;
+  }
+  if (!count) return null;
+  return sum / count;
+}
+
 export function createTempoDetector(opts) {
   const o = opts || {};
   const ringS = o.ringS == null ? RING_S : o.ringS;
