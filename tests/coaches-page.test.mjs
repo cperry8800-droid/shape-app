@@ -256,8 +256,11 @@ test('no coach-facing page guarantees a timing', () => {
   // — a rationale that names the banned phrase must not trip the ban it explains.
   //
   // ⚠ "Apply in 10 minutes" is deliberately NOT banned. It says how long the
-  // applicant's own form takes, which Shape controls and can be checked; the six
-  // patterns above are promises about an OUTCOME or about our own turnaround.
+  // applicant's own form takes, which Shape controls and can be checked, where
+  // every pattern above is a promise about an OUTCOME or about our own turnaround.
+  // (That sentence used to say "the six patterns above" and there were five of them;
+  // it says seven now only if nobody ever adds an eighth. A comment that counts a
+  // list it does not own is a false claim with a fuse on it.)
   // Whether that line should go too is an open owner call, so this test takes no
   // position on it rather than pinning it either way.
   for (const f of COACH_FACING) {
