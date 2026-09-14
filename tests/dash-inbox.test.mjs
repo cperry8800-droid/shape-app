@@ -234,7 +234,14 @@ test('every breakpoint that hides the auth cluster shows the mobile bell', () =>
   // remembering this test exists.
   const blocks = SHELL.split(/@media\s*\(max-width:\s*\d+px\)\s*\{/).slice(1);
   const hiding = blocks.filter((b) => /\.shape-nav-auth\s*\{[^}]*display:\s*none/.test(b));
-  assert.ok(hiding.length >= 2, 'expected the collapsed-header breakpoints, found ' + hiding.length);
+  // ⚠ RE-ANCHORED 2026-09-14 — this read `>= 2`, which was the COUNT of collapse
+  // breakpoints on the day it was written rather than anything it cares about.
+  // The nav-bar unification moved the header's collapse from 1200px to 860px to
+  // match the homepage's and removed the duplicate lines from the 900px block,
+  // leaving ONE — so a correct change failed a test about the bell's reachability.
+  // The floor stays, because its real job is guard-the-guard: a sweep that finds
+  // NO hiding block would otherwise pass vacuously with the bell unreachable.
+  assert.ok(hiding.length >= 1, 'no breakpoint hides the auth cluster — this guard is reading nothing');
   for (const b of hiding) {
     assert.match(b, /\.shape-nav-bell\s*\{[^}]*display:\s*inline-flex/,
       'a breakpoint hides .shape-nav-auth without showing .shape-nav-bell — the bell is invisible there');

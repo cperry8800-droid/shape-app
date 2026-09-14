@@ -549,8 +549,43 @@ function FeaturedCity() {
     </section>);
 }
 
+// ── The tab is addressable (2026-09-14) ─────────────────────────────────────
+// The nav's Coaches menu deep-links `Marketplace.html#trainers` and
+// `#nutritionists`, so the hash has to pick the tab — before this, both landed
+// on the page with Trainers lit whatever the link said.
+//
+// ⚠ AN UNKNOWN HASH KEEPS THE DEFAULT, never an empty page. This page carries
+// its own `#` anchors and anything may link to one, so the hash is read as a
+// REQUEST for a tab rather than as an assertion about it: match the two names,
+// otherwise leave the tab alone.
+function mkTabFromHash(hash) {
+  const h = String(hash || "").replace(/^#/, "").toLowerCase();
+  if (h === "nutritionists" || h === "nutritionist") return "Nutritionist";
+  if (h === "trainers" || h === "trainer") return "Trainer";
+  return null;
+}
+function mkHashForTab(tab) { return tab === "Nutritionist" ? "#nutritionists" : "#trainers"; }
+
 function Marketplace() {
-  const [tab, setTab] = useS("Trainer");
+  // Read at FIRST render, not in an effect: seeding "Trainer" and correcting it
+  // after mount shows the wrong tab for a frame and fires the grid's reset
+  // effect twice.
+  const [tab, setTab] = useS(() => mkTabFromHash(typeof window !== "undefined" && window.location.hash) || "Trainer");
+  // Follow the hash while the page is open, so the menu works FROM the
+  // marketplace as well as onto it.
+  useE(() => {
+    const onHash = () => { const t = mkTabFromHash(window.location.hash); if (t) setTab(t); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  // ⚠ replaceState, NOT `location.hash = …`. Assigning the hash fires
+  // `hashchange`, which re-enters the listener above — and it would also push a
+  // history entry per tab press, so Back would walk the switch instead of
+  // leaving the page.
+  const pickTab = (next) => {
+    setTab(next);
+    try { window.history.replaceState(null, "", mkHashForTab(next)); } catch (e) {}
+  };
   const bgSrc = tab === "Trainer" ? "/Training-2.webp" : "/Nutrition-3.webp";
   return (
     <div style={{ background: INK_DEEP, color: INK, fontFamily: sans, minHeight: "100vh", position: "relative" }}>
@@ -558,7 +593,7 @@ function Marketplace() {
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 6%, rgba(26,24,19,0.28) 0%, rgba(11,14,12,0.52) 55%, rgba(11,14,12,0.74) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Marketplace" />
-        <MarketplaceHero tab={tab} setTab={setTab} />
+        <MarketplaceHero tab={tab} setTab={pickTab} />
         <Spotlight tab={tab} />
         <Grid tab={tab} />
         <FeaturedCity />

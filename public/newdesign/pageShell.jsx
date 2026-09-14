@@ -10,6 +10,32 @@ const serif = "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif";
 const sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif";
 const mono = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
 
+// ── THE NAV BAR (2026-09-14) ────────────────────────────────────────────────
+// ⚠ ONE BAR ON EVERY PAGE, AND THESE ARE ITS NUMBERS. The site had TWO nav bars
+// that disagreed about everything: the homepage's own static bar (66px tall,
+// 36px logo, sentence-case links, a filled CTA) and this header (~80px, 60px
+// logo, lowercase links, three dropdowns, an outlined CTA). The owner asked for
+// one, so `index.html`'s static bar and this component now render the same
+// design — and `tests/site-nav.test.mjs` parses both and requires the same link
+// table, because two implementations of one bar is exactly how they drifted the
+// first time.
+//
+// ⚠ THE NAV IS SET IN THE HOMEPAGE'S FACES, NOT THIS FILE'S. Owner: "make sure
+// the font is the same on nav across website". `sans`/`mono` above are Space
+// Grotesk and JetBrains Mono, which the pages BELOW the bar still use; the bar
+// itself is Schibsted Grotesk + Anybody, so a member moving between the
+// homepage and any other page sees one bar rather than two. Only the bar
+// changes face — nothing else in this file does.
+const navSans = "'Schibsted Grotesk', 'Schibsted Fallback', 'Space Grotesk', system-ui, sans-serif";
+const navDisp = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
+// The bar's height, read by the spacer, the sticky dashboard sidebar and the
+// homepage's fold. ⚠ NAMED ONCE: it is read in EIGHT places across three files
+// (two spacers, two sticky sidebars, the fold, the pinned journey rail, the
+// mobile drawer, the app banner's offset) and a number typed eight times is a
+// number that only moves in seven of them.
+const NAV_H = 72;
+const NAV_LOGO_H = 52;
+
 function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
   const bg = tone === "dark" ? "#0f1513" : "#efece6";
   const fg = tone === "dark" ? "rgba(255,255,255,0.4)" : "rgba(242,237,228,0.4)";
@@ -54,24 +80,35 @@ function Logo({ variant = "black", size = 28 }) {
 // playing. When the station is real, lighting this needs a public liveness
 // signal that does not undo that route's anonymous opacity — a decision, not a
 // one-line change. (The homepage was fixed the same way in the Climb rebuild.)
+// ⚠ BOXED, AND IT READS "RADIO" RATHER THAN "SHAPE RADIO". The homepage's bar
+// has always drawn this as a bordered pill the height of the Get started button
+// so the right-hand cluster reads as one row; this header drew an unboxed
+// two-word wordmark. One bar means one of them had to move, and the pill is the
+// one the owner approved. `tests/homepage-climb.test.mjs` pinned the exact
+// string 'Shape Radio' — re-anchored there on what it actually cares about (it
+// links to Radio, it carries the two-triangle mark, and it CLAIMS NOTHING),
+// because a guard that pins a spelling pins whatever that spelling is wrong
+// about.
 function RadioWordmark() {
   const cream = "rgba(245,239,225,0.92)";
   return (
-    <a href="/newdesign/Radio.html" aria-label="Shape Radio"
-      style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", whiteSpace: "nowrap", padding: "6px 0", lineHeight: 1 }}>
-      <span style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 7 }}>
-        <span style={{ color: cream }}>Shape</span>
-        <svg aria-hidden viewBox="8 8 79 98" style={{ height: 15, width: "auto", flex: "0 0 auto", display: "block" }}>
-          <polygon points="14,47 14,100 51,73" fill={TEAL_BRIGHT} />
-          <polygon points="81,14 81,65 44,39" fill={cream} />
-        </svg>
-        <span style={{ color: TEAL_BRIGHT }}>Radio</span>
-      </span>
+    <a className="shape-nav-radio" href="/newdesign/Radio.html" aria-label="Shape Radio"
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", whiteSpace: "nowrap", height: 34, padding: "0 11px", borderRadius: 5, border: "1px solid rgba(245,239,225,0.12)", color: "rgba(245,239,225,0.78)", fontFamily: navDisp, fontWeight: 500, fontVariationSettings: "'wdth' 150", fontSize: 12, letterSpacing: "0.02em", textTransform: "uppercase", lineHeight: 1, flex: "0 0 auto" }}>
+      <svg aria-hidden viewBox="8 8 79 98" style={{ width: 9, height: 11, flex: "0 0 auto", display: "block" }}>
+        <polygon points="14,47 14,100 51,73" fill={TEAL_BRIGHT} />
+        <polygon points="81,14 81,65 44,39" fill={cream} />
+      </svg>
+      Radio
     </a>
   );
 }
 
-function NavDropdown({ label, items, active, activeMatch }) {
+// ⚠ THE TRIGGER IS A LINK, NOT ONLY A MENU BUTTON. "Coaches" is a page AND a
+// menu: clicking it goes to the Coaches page, hovering opens the two marketplace
+// tabs. A trigger that only toggles would make the page it names unreachable
+// from the bar — the dead-control class this repo post-mortems. The click
+// handler therefore toggles ONLY when there is no `href` to go to.
+function NavDropdown({ label, href, items, active, activeMatch }) {
   const [open, setOpen] = React.useState(false);
   const closeTimer = React.useRef(null);
   const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
@@ -79,20 +116,22 @@ function NavDropdown({ label, items, active, activeMatch }) {
   const isActive = activeMatch.includes(active);
   return (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
-      <a onClick={() => setOpen(o => !o)} style={{ fontSize: 13, letterSpacing: "0.04em", textTransform: "lowercase", color: isActive ? "#f5efe1" : "rgba(245,239,225,0.78)", fontFamily: sans, fontWeight: 400, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1 }}>
-        {label}<span style={{ fontSize: 9, opacity: 0.5, lineHeight: 1 }}>▾</span>
+      <a href={href || undefined} className="shape-nav-link"
+        onClick={href ? undefined : () => setOpen(o => !o)}
+        style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: isActive ? "#f5efe1" : "rgba(245,239,225,0.78)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1, whiteSpace: "nowrap", textDecoration: isActive ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>
+        {label}<span aria-hidden style={{ fontSize: 8, opacity: 0.6, lineHeight: 1 }}>▾</span>
       </a>
       {/* Invisible hover bridge — fills the gap between trigger and panel so the
           cursor never crosses dead space that could trigger mouseLeave. */}
       {open && <div onMouseEnter={cancelClose} style={{ position: "absolute", top: "100%", left: 0, right: 0, height: 20 }} />}
       {open && (
-        <div onMouseEnter={cancelClose} onMouseLeave={scheduleClose} style={{ position: "absolute", top: "calc(100% + 4px)", left: "50%", transform: "translateX(-50%)", minWidth: 220 }}>
-          <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 10, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
-          {items.map(([n, href]) => (
-            <a key={n} href={href} style={{ display: "block", padding: "10px 14px", fontSize: 13, color: "rgba(242,237,228,0.85)", fontFamily: sans, borderRadius: 4, whiteSpace: "nowrap" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(10,197,168,0.12)"; e.currentTarget.style.color = INK; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(242,237,228,0.85)"; }}
-            >{n}</a>
+        <div onMouseEnter={cancelClose} onMouseLeave={scheduleClose} style={{ position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", minWidth: 200, zIndex: 70 }}>
+          <div style={{ background: "rgba(6,9,15,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(245,239,225,0.12)", borderRadius: 8, padding: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+          {items.map(([n, itemHref, sub]) => (
+            <a key={n} href={itemHref} style={{ display: "block", padding: "10px 14px", fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(245,239,225,0.78)", borderRadius: 5, whiteSpace: "nowrap", lineHeight: 1.2 }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(52,214,197,0.12)"; e.currentTarget.style.color = INK; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(245,239,225,0.78)"; }}
+            >{n}{sub ? <small style={{ display: "block", fontSize: 11.5, fontWeight: 400, color: "rgba(245,239,225,0.5)", marginTop: 2 }}>{sub}</small> : null}</a>
           ))}
           </div>
         </div>
@@ -101,45 +140,53 @@ function NavDropdown({ label, items, active, activeMatch }) {
   );
 }
 
-const SHAPE_NAV_GROUPS = [
-  { kind: "link", label: "About", href: "About.html" },
-  { kind: "drop", label: "Clients", match: ["Clients", "My Profile", "Overview", "Dashboard", "Client Overview", "Client Dashboard"], items: [["Overview", "Client.html"], ["Dashboard", "ClientDashboard.html"]] },
-  { kind: "drop", label: "Trainers", match: ["Trainers", "Trainer Profile", "Trainer Overview", "Trainer Dashboard"], items: [["Overview", "Coach.html"], ["Dashboard", "TrainerDashboard.html"]] },
-  { kind: "drop", label: "Nutritionists", match: ["Nutritionists", "Nutritionist Profile", "Nutritionist Overview", "Nutritionist Dashboard", "Recipes"], items: [["Overview", "Nutritionist.html"], ["Dashboard", "NutritionistDashboard.html"], ["Recipes", "Recipes.html"]] },
-  { kind: "link", label: "Marketplace", href: "Marketplace.html" },
-  { kind: "link", label: "Community", href: "Community.html" },
-  { kind: "drop", label: "Rewards", match: ["Rewards", "Shape Score", "Store"], items: [["Shape Score", "Score.html"], ["Shape Store", "Store.html"]] },
-  { kind: "link", label: "App", href: "GetApp.html" },
-  { kind: "link", label: "Pricing", href: "Pricing.html" },
+// ⚠ COACHES IS A PAGE AND A MENU, and until the Coaches page exists it is the
+// marketplace. PR 2 of this build creates `Coaches.html` and flips this one
+// constant; pointing at it before it exists would ship a 404 in the nav of all
+// 70 pages. The MENU items are already final — they deep-link the marketplace's
+// own two tabs, which `marketplace.jsx` reads off the hash.
+const COACHES_HREF = "Marketplace.html";
+const COACHES_ITEMS = [
+  ["Trainers", "Marketplace.html#trainers", "Marketplace · training"],
+  ["Nutritionists", "Marketplace.html#nutritionists", "Marketplace · nutrition"],
 ];
 
-// Role-scoped portal nav — shown instead of the marketing nav once a user
-// is signed in, so each profile only sees tabs relevant to it.
-const PORTAL_NAV = {
-  client: [
-    { kind: "link", label: "Dashboard", href: "ClientDashboard.html" },
-    { kind: "link", label: "Workouts", href: "ClientTrain.html" },
-    { kind: "link", label: "Nutrition", href: "ClientNutri.html" },
-    { kind: "link", label: "Progress", href: "ClientProgress.html" },
-    { kind: "link", label: "Community", href: "ClientCommunity.html" },
-  ],
-  trainer: [
-    { kind: "link", label: "Dashboard", href: "TrainerDashboard.html" },
-    { kind: "link", label: "Schedule", href: "TrainerSchedule.html" },
-    { kind: "link", label: "Clients", href: "TrainerClients.html" },
-    { kind: "link", label: "Programs", href: "TrainerPrograms.html" },
-    { kind: "link", label: "Messages", href: "TrainerMessages.html" },
-    { kind: "link", label: "Business", href: "TrainerAnalytics.html" },
-  ],
-  nutritionist: [
-    { kind: "link", label: "Dashboard", href: "NutritionistDashboard.html" },
-    { kind: "link", label: "Schedule", href: "NutritionistSchedule.html" },
-    { kind: "link", label: "Clients", href: "NutritionistClients.html" },
-    { kind: "link", label: "Plans", href: "NutritionistPlans.html" },
-    { kind: "link", label: "Messages", href: "NutritionistMessages.html" },
-    { kind: "link", label: "Business", href: "NutritionistAnalytics.html" },
-  ],
-};
+// ⚠ THE SAME SEVEN LINKS THE HOMEPAGE HAS ALWAYS SHOWN, in the same order, with
+// the same targets — `tests/site-nav.test.mjs` parses `index.html`'s static nav
+// and requires this table to match it. That test is the whole point: the two
+// bars drifted into two different designs because nothing compared them.
+//
+// ⚠ AND THE THREE `Dashboard` DROPDOWN ITEMS ARE GONE. The retired Clients /
+// Trainers / Nutritionists menus each carried one, which opened the demo
+// dashboard for an anonymous visitor — the access PR 2 gates behind an account.
+// `Client.html`, `Coach.html`, `Nutritionist.html` and `Recipes.html` keep
+// working and keep their footer links; they simply leave the bar.
+const SHAPE_NAV_GROUPS = [
+  { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"], items: COACHES_ITEMS },
+  { kind: "link", label: "App", href: "GetApp.html" },
+  { kind: "link", label: "Radio", href: "Radio.html" },
+  { kind: "link", label: "Community", href: "Community.html" },
+  { kind: "link", label: "Rewards", href: "Score.html" },
+  { kind: "link", label: "Pricing", href: "Pricing.html" },
+  { kind: "link", label: "About", href: "About.html" },
+];
+
+// ⚠ SIGNED IN, THE ROW IS THE ESSENTIALS AND NOTHING ELSE — the same row for a
+// member, a trainer and a nutritionist. Owner: "for signed in dont say workouts
+// and nutritionists for client. its repetitive… just have coaches", and "the
+// dashboard is totally built out. all of those tabs on nav are on the dashboard
+// nav bar".
+//
+// That is literally true, which is why the old per-role tables are deleted
+// rather than trimmed: every tab they carried — Workouts, Nutrition, Progress,
+// Schedule, Clients, Programs, Plans, Messages, Business — is a tab of the
+// dashboard that the teal Dashboard button opens. Rendering them here put the
+// same nine destinations on screen twice, and rendered `Dashboard` itself twice
+// (first tab, and again in the auth cluster).
+const PORTAL_NAV = [
+  { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists"], items: COACHES_ITEMS },
+  { kind: "link", label: "About", href: "About.html" },
+];
 
 // ── In-shell routing (review 2026-09-09, R19) ───────────────────────────────
 // Every page in this table is a PURE REDIRECT STUB — its entire body is
@@ -537,13 +584,19 @@ function DashInbox({ signedIn, role, inbox }) {
 // ⚠ Hrefs are rewritten HERE rather than at each render site — the desktop nav,
 // the mobile drawer and the dropdowns all read this one function, and the
 // drawer is the ONLY nav a phone has once the header collapses.
+// ⚠ ONE PLACE MAPS HREFS INTO THE SHELL, AND THIS IS IT, so the mobile drawer
+// gets it for free — `tests/dash-shell-routes.test.mjs` pins that.
+//
+// ⚠ A DROP'S OWN `href` IS MAPPED TOO, and the sub-label is CARRIED. The old
+// body mapped only `items` (a drop had no href) and destructured each item as
+// `[n, h]`, which silently DROPS a third element — so inside a shell the menu
+// would have rendered without the "Marketplace · training" sub-labels while
+// rendering them everywhere else.
 function navGroupsFor(authUser) {
-  const groups = authUser && authUser.role && PORTAL_NAV[authUser.role] ? PORTAL_NAV[authUser.role]
-    : authUser ? PORTAL_NAV.client
-    : SHAPE_NAV_GROUPS;
+  const groups = authUser ? PORTAL_NAV : SHAPE_NAV_GROUPS;
   if (!dashShellRole()) return groups;
   return groups.map((g) => g.kind === "drop"
-    ? { ...g, items: (g.items || []).map(([n, h]) => [n, dashShellHref(h)]) }
+    ? { ...g, href: dashShellHref(g.href), items: (g.items || []).map(([n, h, sub]) => [n, dashShellHref(h), sub]) }
     : { ...g, href: dashShellHref(g.href) });
 }
 
@@ -737,13 +790,21 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
           <a key={g.label} href={g.href} onClick={onClose} style={{ ...linkBase, color: active === g.label ? TEAL : INK, fontWeight: active === g.label ? 500 : 400 }}>{g.label}</a>
         ))}
       </nav>
+      {/* ⚠ THE DRAWER CARRIES THE SAME PAIR THE BAR DOES, so a phone is not
+          missing the one control the desktop treats as primary. Signed in it
+          used to offer Sign out ALONE — no way to reach the dashboard from the
+          only nav a phone has. Dashboard takes the filled slot here exactly as
+          it does on the bar. */}
       <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
         {authUser ? (
-          <a href="#" onClick={onLogout} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: sans, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "none" }}>Sign out</a>
+          <>
+            <a href="#" onClick={onLogout} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Sign out</a>
+            <a href={dashShellHref(authUser.role === 'trainer' ? 'TrainerDashboard.html' : authUser.role === 'nutritionist' ? 'NutritionistDashboard.html' : 'ClientDashboard.html')} onClick={onClose} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "#04110f", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Dashboard</a>
+          </>
         ) : (
           <>
-            <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: sans, fontSize: 14, letterSpacing: "0.08em", textTransform: "uppercase", textDecoration: "none" }}>Log in</a>
-            <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: INK, color: PAPER, fontFamily: sans, fontSize: 14, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", textDecoration: "none" }}>Get started</a>
+            <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Log in</a>
+            <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "#04110f", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Get started</a>
           </>
         )}
       </div>
@@ -876,30 +937,48 @@ function Header({ active }) {
     }
   }
   const roleLabel = (r) => r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Client';
-  const dashboardHref = (r) => r === 'trainer'
-    ? '/newdesign/TrainerDashboard.html'
+  // ⚠ THROUGH `dashShellHref`, so inside a shell the Dashboard button is a hash
+  // route rather than a full page load and an SPA boot. It was an absolute URL,
+  // which is exactly the two-page-loads defect R19 removed everywhere else.
+  const dashboardHref = (r) => dashShellHref(r === 'trainer'
+    ? 'TrainerDashboard.html'
     : r === 'nutritionist'
-      ? '/newdesign/NutritionistDashboard.html'
-      : '/newdesign/ClientDashboard.html';
+      ? 'NutritionistDashboard.html'
+      : 'ClientDashboard.html');
   // Wrap plain-link nav items in the same outer container shape NavDropdown
   // uses, so they share vertical-centering and any future container styles.
   const link = (name, href) => (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
-      <a href={href} className="shape-nav-link" style={{ fontSize: 13, letterSpacing: "0.04em", textTransform: "lowercase", color: active === name ? "#f5efe1" : "rgba(245,239,225,0.78)", fontFamily: sans, fontWeight: 400, whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center" }}>{name}</a>
+      <a href={href} className="shape-nav-link" style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: active === name ? "#f5efe1" : "rgba(245,239,225,0.78)", whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center", textDecoration: active === name ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>{name}</a>
     </div>
   );
+  // The auth cluster's shared shapes. ⚠ `whiteSpace: nowrap` on every one of
+  // them, and `min-width: max-content` on the two flex columns below: the
+  // homepage's bar broke "Log in" onto two lines at 1180px because a
+  // `flex: 1 1 0` column may shrink below its own content.
+  const quietLink = { fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(245,239,225,0.78)", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", cursor: "pointer", flex: "0 0 auto" };
+  const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_BRIGHT, color: "#04110f", padding: "0 14px", height: 34, borderRadius: 5, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
-      <div className="shape-header-inner" style={{ maxWidth: 1480, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", padding: "10px 44px", gap: 20 }}>
-        <a href="index.html" style={{ flex: "none", display: "inline-flex", alignItems: "center", lineHeight: 0, marginLeft: 16 }}>
-          <img src="/shape-logo-nav-teal-white.png" alt="Shape" style={{ height: 60, width: "auto", display: "block", objectFit: "contain" }} />
+      {/* ⚠ FLEX, NOT A 3-COLUMN GRID, and the two outer columns are equal-BASIS
+          (`flex: 1 1 0`) rather than natural-width. That is what puts the links
+          on the bar's own midline: sized to content, the logo (~124px) and the
+          auth cluster (~420px) are wildly different, so any centring lands the
+          middle group left of centre. `min-width: max-content` floors each
+          column at its own content, so when the row runs out of room it gives
+          up the centring rather than shrinking a column below its text — which
+          is precisely how the homepage's "Log in" came to render across two
+          lines at 1180px. */}
+      <div className="shape-header-inner" style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", height: NAV_H, padding: "0 32px", gap: 26 }}>
+        <a href="index.html" style={{ flex: "1 1 0", minWidth: "max-content", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
+          <img src="/shape-logo-nav-teal-white.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "block", objectFit: "contain" }} />
         </a>
-        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", minWidth: 0 }}>
+        <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", flex: "0 1 auto", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
-            ? <NavDropdown key={g.label} label={g.label} active={active} activeMatch={g.match} items={g.items} />
+            ? <NavDropdown key={g.label} label={g.label} href={g.href} active={active} activeMatch={g.match} items={g.items} />
             : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
           )}
         </nav>
@@ -910,17 +989,17 @@ function Header({ active }) {
             the desktop cluster still right-aligns where it always did; what moves is
             the burger, from the middle 1fr column (measured x=182 at 1024px) to the
             right edge, where a burger belongs. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 13, justifyContent: "flex-end", flexShrink: 0, minWidth: 0 }}>
-        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 13, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "flex-end", flex: "1 1 0", minWidth: "max-content" }}>
+        <div className="shape-nav-auth" style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
           <SiteSearch signedIn={!!authUser} />
           <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
           {authUser ? (
             <>
-              <span style={{ fontSize: 12.5, color: INK, fontFamily: sans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", letterSpacing: "-0.005em" }}>Hi, {authUser.firstName || authUser.email}</span>
+              <span style={{ fontSize: 13.5, color: INK, fontFamily: navSans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1, flex: "0 0 auto" }}>Hi, {authUser.firstName || authUser.email}</span>
               {authUser.roles && authUser.roles.length > 1 ? (
                 <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
-                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(10,197,168,0.1)", border: `1px solid ${TEAL}`, color: TEAL, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: "'JetBrains Mono', monospace", padding: "6px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap" }}>
-                    {roleLabel(authUser.role)} <span style={{ fontSize: 8, opacity: 0.7 }}>▾</span>
+                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(52,214,197,0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: TEAL_BRIGHT, fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
+                    {roleLabel(authUser.role)} <span aria-hidden style={{ fontSize: 8, opacity: 0.75 }}>▾</span>
                   </button>
                   {roleMenuOpen && (
                     <div style={{ position: "absolute", top: "100%", right: 0, paddingTop: 8, minWidth: 180, zIndex: 60 }}>
@@ -940,14 +1019,21 @@ function Header({ active }) {
                   )}
                 </div>
               ) : null}
-              <a href={dashboardHref(authUser.role)} style={{ fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(245,239,225,0.66)", fontFamily: mono, whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none" }}>Dashboard</a>
-              <a href="#" onClick={handleLogout} style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "8px 15px", borderRadius: 999, fontSize: 11.5, fontWeight: 400, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Sign out</a>
+              {/* ⚠ SIGN OUT IS THE QUIET ONE AND DASHBOARD IS THE BUTTON. It was
+                  the other way round: Dashboard rendered as a small mono link AND
+                  as the first role tab (twice on one bar), while Sign out — the
+                  one control a member rarely wants — was the loudest thing on the
+                  right. Dashboard now takes the teal button exactly where Get
+                  started sits signed out, so the bar keeps one shape across the
+                  sign-in boundary. */}
+              <a href="#" onClick={handleLogout} style={quietLink}>Sign out</a>
+              <a href={dashboardHref(authUser.role)} style={ctaBtn}>Dashboard</a>
               <RadioWordmark />
             </>
           ) : (
             <>
-              <a href="/newdesign/Login.html" style={{ fontSize: 13, fontWeight: 300, letterSpacing: "0.04em", textTransform: "lowercase", color: "rgba(245,239,225,0.78)", fontFamily: sans, whiteSpace: "nowrap", lineHeight: 1 }}>Log in</a>
-              <a href="/newdesign/Landing.html" style={{ background: "transparent", color: "#f5efe1", border: "1px solid #f5efe1", padding: "8px 15px", borderRadius: 999, fontSize: 11.5, fontWeight: 400, letterSpacing: "0.04em", textTransform: "lowercase", fontFamily: sans, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", lineHeight: 1, transition: "background .2s ease, color .2s ease" }}>Get started</a>
+              <a href="/newdesign/Login.html" style={quietLink}>Log in</a>
+              <a href="/newdesign/Landing.html" style={ctaBtn}>Get started</a>
               <RadioWordmark />
             </>
           )}
@@ -965,7 +1051,7 @@ function Header({ active }) {
       </div>
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
-    <div aria-hidden className="shape-header-spacer" style={{ height: 82 }} />
+    <div aria-hidden className="shape-header-spacer" style={{ height: NAV_H }} />
     </>
   );
 }
@@ -991,8 +1077,14 @@ function Footer({ logoHeight = 64 } = {}) {
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)", justifyItems: "center", textAlign: "center" }}>
           {[
-            ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Dashboard", "ClientDashboard.html"]]],
-            ["For trainers", [["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
+            /* ⚠ THESE FOUR PAGES LOST THEIR ONLY LINK WHEN THE NAV'S THREE
+               DROPDOWNS WENT. Measured across public/newdesign, nothing else
+               points at Coach.html, Nutritionist.html, Client.html or
+               Recipes.html — so without this they are reachable only by typing
+               a URL. PR 2 folds the two coach pages into Coaches.html; the
+               footer carries them in the meantime. */
+            ["Product",      [["Marketplace", "Marketplace.html"], ["Shape Score", "Score.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"], ["Dashboard", "ClientDashboard.html"]]],
+            ["For trainers", [["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Payouts", "TrainerDashboard.html"], ["Programs", "TrainerPrograms.html"]]],
             ["Company",      [["About", "About.html"], ["Press", "Team.html#press"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
             ["Support",      [["Help", "/help.html"], ["Contact", "/contact.html"]]],
           ].map(([h, items]) => (
@@ -1013,10 +1105,27 @@ function Footer({ logoHeight = 64 } = {}) {
 function ShapeMobileStyles() {
   return (
     <style>{`
+      /* ⚠ THE NAV'S TWO FAMILIES, REQUESTED HERE RATHER THAN IN 69 PAGE HEADS.
+         Owner: "make sure the font is the same on nav across website" — the bar is
+         Schibsted Grotesk + Anybody, and those 69 pages request neither. Without
+         this the bar silently renders the metrics fallback, which is not an error
+         anywhere: it draws, it just draws the wrong face.
+
+         ⚠ AND BOTH AXES ARE NAMED. Google Fonts serves only the axes you ask for
+         and PINS every other one at its default, so \`Anybody:wght@...\` alone would
+         deliver a font with NO wdth axis — after which every
+         font-variation-settings:'wdth' N in this bar is inert and the Radio pill
+         and role chip draw at the default width. That is the exact defect
+         tests/homepage-font-axes.test.mjs was written for, and it now derives from
+         this file too. @import must come first in a stylesheet, hence its position
+         above the @font-face rules. */
+      @import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Schibsted+Grotesk:wght@400..700&display=swap');
       /* Metrics-matched fallback fonts — the local fallback is scaled (size-adjust +
          ascent/descent overrides) to occupy the SAME space as the web font, so the swap
          on load doesn't reflow headers (Fraunces), sub-heads (JetBrains Mono) or body
          (Space Grotesk). Metrics from @capsizecss (next/font formula). CLS guard. */
+      @font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}
+      @font-face{font-family:'Schibsted Fallback';src:local('Arial');size-adjust:101%;ascent-override:95%;descent-override:25%;line-gap-override:0%}
       @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
       @font-face{font-family:'Space Grotesk Fallback';src:local('Arial');size-adjust:109.69%;ascent-override:89.71%;descent-override:26.62%;line-gap-override:0%}
       @font-face{font-family:'JetBrains Mono Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
@@ -1025,11 +1134,14 @@ function ShapeMobileStyles() {
       .shape-nav-link, .shape-foot-link { transition: color .16s ease, border-color .16s ease; }
       .shape-foot-link:hover { color: ${TEAL_BRIGHT} !important; }
       .shape-nav-link:hover { color: ${INK} !important; }
+      .shape-nav-radio:hover { color: ${INK} !important; border-color: rgba(52,214,197,0.4) !important; }
       .shape-header { transition: background .25s ease; }
-      /* Nudge the centered nav toward true page-center (the right cluster is
-         heavier than the logo, so it sits left-of-center). Condensed auth pills +
-         smaller radio logo free the room; zero below 1300 so it never crowds. */
-      .shape-nav-tabs { transform: translateX(clamp(0px, (100vw - 1300px) * 0.5, 72px)); }
+      /* ⚠ THE translateX NUDGE IS GONE, AND ITS JOB IS DONE STRUCTURALLY. It
+         shifted the centred nav right to compensate for an auth cluster heavier
+         than the logo — a viewport-width fudge for a layout problem. The header
+         row is now two equal-BASIS flex columns (flex: 1 1 0) with the links
+         between them, so the links sit on the bar's true midline at every width
+         with nothing to tune. */
       .shape-brand-logo {
         height: var(--shape-logo-h) !important;
         width: auto !important;
@@ -1039,33 +1151,45 @@ function ShapeMobileStyles() {
         display: block !important;
         flex: 0 0 auto;
       }
-      /* Header-only: the authed coach/portal nav + auth cluster is too wide to
-         sit on one row below ~1200px — collapse to the burger there (without
-         triggering the marketing typography/section scaling at 900). */
-      @media (max-width: 1200px) {
-        .shape-header-inner { padding: 12px 28px !important; gap: 14px !important; }
+      /* ⚠ 860px, TO MATCH THE HOMEPAGE — it was 1200, and that is 340px of the
+         site showing two different navs. The homepage's static bar collapses at
+         860, so between 860 and 1200 a laptop window got the full bar on the
+         homepage and a burger on all 69 other pages: the exact "one bar on every
+         page" failure this change exists to remove, just at a width nobody
+         happened to measure.
+
+         1200 was honest for the OLD content — nine links including three
+         dropdowns, plus a heavy auth cluster. The bar is seven links signed out
+         and two signed in now.
+
+         ⚠ 980, NOT 860, AND THE HOMEPAGE MOVED TO MEET IT. Driven in Chromium,
+         the signed-out row needs ~975px: it overflowed by 15px at 960 and fit at
+         980. The homepage collapsed at 860 and its bar ALREADY OVERFLOWED BY 18px
+         at 880 on main — hidden because the auth cluster could shrink below its
+         own text, which is the same freedom that broke "Log in" onto two lines at
+         1180. Refusing to wrap turns that shrink into an overflow, so both bars
+         now stop rendering the row at a width it does not fit, at the SAME width:
+         one bar means one breakpoint. */
+      @media (max-width: 980px) {
+        .shape-header-inner { padding: 0 24px !important; gap: 14px !important; }
         .shape-nav-tabs { display: none !important; }
         .shape-nav-auth { display: none !important; }
         .shape-nav-bell { display: inline-flex !important; }
         .shape-nav-burger { display: inline-flex !important; }
       }
       @media (max-width: 900px) {
-        /* Header */
-        .shape-header-inner { padding: 12px 18px !important; gap: 12px !important; }
-        .shape-header-spacer { height: 86px !important; }
-
-
-
-        .shape-nav-tabs { display: none !important; }
-        .shape-nav-auth { display: none !important; }
-        .shape-nav-bell { display: inline-flex !important; }
-        .shape-nav-burger { display: inline-flex !important; }
+        /* Header. ⚠ THE NAV-COLLAPSE LINES MOVED OUT OF THIS BLOCK to the 860px
+           one above. Leaving them here would have kept the collapse starting at
+           900 however low the other breakpoint went, which is the whole point of
+           moving it. This block keeps the dashboard-layout rules, which are
+           genuinely about a phone. */
+        .shape-header-inner { padding: 0 18px !important; gap: 12px !important; }
 
         /* Dashboard layout (240px sidebar + main): collapse to one column and
            turn the sidebar into a horizontal scrolling nav bar so signed-in
            members still see + reach their tabs on mobile. */
         [style*="grid-template-columns: 240px 1fr"] { grid-template-columns: 1fr !important; }
-        .shape-dash-aside { flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; gap: 8px !important; padding: 10px 16px !important; border-right: none !important; border-bottom: 1px solid rgba(242,237,228,0.08) !important; top: 96px !important; }
+        .shape-dash-aside { flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; gap: 8px !important; padding: 10px 16px !important; border-right: none !important; border-bottom: 1px solid rgba(242,237,228,0.08) !important; top: ${NAV_H}px !important; }
         .shape-dash-navlink { flex: 0 0 auto !important; white-space: nowrap !important; padding: 9px 13px !important; }
         .shape-dash-payout { display: none !important; }
 

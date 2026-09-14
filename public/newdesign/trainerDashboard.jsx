@@ -119,7 +119,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   const liveCount = live && live.kind === "live" && live.count != null ? live.count : null;
   const items = (navItems || []).map((n) => (liveCount != null && (n.slug === "clients" || n.label === "Clients")) ? { ...n, count: liveCount } : n);
   return (
-    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 82, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
+    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 72, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
       {items.map((n, i) => (
         <a key={i} href={n.href || "#"} data-tour={'webtab-' + (n.slug || '')} className="shape-dash-navlink" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
