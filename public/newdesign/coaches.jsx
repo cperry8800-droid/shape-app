@@ -176,20 +176,26 @@ function CoHero({ role, setRole }) {
 }
 
 function CoFacts() {
+  // ⚠ ALL FOUR FIGURES ARE SET IN THE DISPLAY FACE, NOT THE DOT-MATRIX ONE.
+  // Owner, 2026-09-14, on a screenshot of this strip: "have the font here match
+  // weekly and verified headings". $0 and 15% took the Doto branch — the face
+  // this site reserves for a MEASURED reading — while "Weekly" and "Verified"
+  // beside them took Anybody, so one four-up row carried two typefaces at two
+  // sizes. They are not readings: they are our own stated terms, the same kind
+  // of fact as the two words next to them. One style for the row, so the `isNum`
+  // branch is gone rather than left with no `true` to take it.
   const facts = [
-    ["$0", true, <>&nbsp;</>, "To join.", " No monthly dues, no setup fees, no per-booking cuts."],
-    ["15%", true, null, "Only when you're paid.", " One platform fee on what clients pay you; card processing is separate."],
-    ["Weekly", false, null, "Payouts direct to your bank.", " Or instant, any day."],
-    ["Verified", false, null, "Every coach credential-checked on intake.", " CPT, CSCS, RD, RDN, CNS and state licences."],
+    ["$0", "To join.", " No monthly dues, no setup fees, no per-booking cuts."],
+    ["15%", "Only when you're paid.", " One platform fee on what clients pay you; card processing is separate."],
+    ["Weekly", "Payouts direct to your bank.", " Or instant, any day."],
+    ["Verified", "Every coach credential-checked on intake.", " CPT, CSCS, RD, RDN, CNS and state licences."],
   ];
   return (
     <section style={{ borderTop: "1px solid rgba(238,243,240,0.055)", borderBottom: "1px solid rgba(238,243,240,0.055)", marginTop: 56 }}>
       <div className="co-wrap co-facts">
-        {facts.map(([big, isNum, _sp, lead, rest]) => (
+        {facts.map(([big, lead, rest]) => (
           <div key={lead} className="co-fact">
-            <div style={isNum
-              ? { fontFamily: coNum, fontWeight: 900, fontVariationSettings: "'ROND' 100", fontSize: 40, lineHeight: 1, color: CO_INK, fontVariantNumeric: "tabular-nums" }
-              : { fontFamily: coDisp, fontWeight: 500, fontVariationSettings: "'wdth' 95", fontSize: 34, lineHeight: 1, letterSpacing: "-0.01em", color: CO_INK, paddingTop: 3 }}>{big}</div>
+            <div style={{ fontFamily: coDisp, fontWeight: 500, fontVariationSettings: "'wdth' 95", fontSize: 34, lineHeight: 1, letterSpacing: "-0.01em", color: CO_INK, paddingTop: 3 }}>{big}</div>
             <div style={{ marginTop: 10, fontSize: 13, color: "rgba(238,243,240,0.72)" }}>
               <b style={{ color: CO_INK, fontWeight: 600 }}>{lead}</b>{rest}
             </div>

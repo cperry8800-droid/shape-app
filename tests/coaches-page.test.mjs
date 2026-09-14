@@ -337,3 +337,49 @@ test('the step cards state no duration they cannot keep', () => {
     assert.match(read(f), /\{s\.time \? <div/, f + ': the time chip renders unconditionally again');
   }
 });
+
+// ⚠ THE FACTS STRIP IS ONE TYPEFACE. Owner, 2026-09-14, on a screenshot of it:
+// "have the font here match weekly and verified headings". $0 and 15% were set in
+// Doto — the face this site reserves for a MEASURED reading — at 40px, while
+// "Weekly" and "Verified" beside them were Anybody at 34px, so a single four-up
+// row carried two faces at two sizes. The four are the same kind of claim (our
+// own stated terms, not a reading off anything), so they get one style.
+//
+// The guard is an ABSENCE plus a count, because "they look the same" is not
+// checkable from source and "one of them is Doto again" is: the dot-matrix face
+// may not be named inside this component at all, and exactly one figure style may
+// exist, so a later edit cannot reintroduce the split by branching or by pasting
+// a second styled div.
+test('the facts strip sets all four figures in one display face', () => {
+  const block = braceBlock(stripComments(PAGE), 'function CoFacts(');
+
+  // Vacuity: this really is the strip the ruling was about. Without it a renamed
+  // component leaves braceBlock reading some other function and every assertion
+  // below passes about the wrong code.
+  for (const word of ['"$0"', '"15%"', '"Weekly"', '"Verified"']) {
+    assert.ok(block.includes(word), `CoFacts no longer carries ${word} — this guard is reading the wrong block`);
+  }
+
+  assert.ok(
+    !/\bcoNum\b/.test(block),
+    'CoFacts names the dot-matrix face again — $0 and 15% are stated terms, not readings, and must be set like Weekly and Verified',
+  );
+
+  const figures = block.match(/fontFamily:\s*co[A-Za-z]+/g) || [];
+  assert.deepEqual(
+    figures,
+    ['fontFamily: coDisp'],
+    'CoFacts has more than one figure style, so its four tiles can diverge again',
+  );
+});
+
+// The control. The assertion above is an absence, and an absence passes for the
+// wrong reason if `coNum` has simply left the file — the page still sets its
+// eyebrows, its example-account mark and the cost tiles in Doto, and this is what
+// says so.
+test('the dot-matrix face is still in use outside the facts strip', () => {
+  const src = stripComments(PAGE);
+  const rest = src.replace(braceBlock(src, 'function CoFacts('), '');
+  const uses = (rest.match(/\bcoNum\b/g) || []).length;
+  assert.ok(uses >= 4, `coNum is used ${uses} times outside CoFacts — the absence check above would pass on a page with no Doto at all`);
+});
