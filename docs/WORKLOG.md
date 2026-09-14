@@ -726,6 +726,170 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-14 — The station's last two typed-in figures leave their readers, a four-up strip stops carrying two typefaces, and the Android job was never ours
+
+- **Three PRs, all merged on the four required checks green.** #2076 → `bb6ef16` (the last step of the
+  Signal Field build), #2078 → `802402d` (the Coaches facts strip), #2079 → `d99e654` (the Android SDK
+  break). **No migration, no route, no data change on any of them.**
+- **#2076 — `BS_LIVE_STATION` loses `bpm: 132` and `listeners: 3,472`, and so does every reader.** Home's
+  radio card printed *"3,472 listening"* in its eyebrow and drew a ring pulsing at 132 with **132 written
+  inside it**; the muted bar printed the same count; the channel row animated five bars on a CSS
+  `@keyframes` loop **three inches below a spectrum drawn off the real analyser**. The tempo is measured
+  on the Radio page or it reads `—`, and there is no listener count anywhere, because no provider reports
+  one (brief §12, ruling 2). What is left on the constant is the station's name and what it is — facts
+  about us, rather than claims about a signal.
+- ⚠ **HOME SHOWS A MARK, NOT A READING, AND THAT IS A TRADE RATHER THAN A SHORTFALL.** Nothing on Home
+  reads the analyser — the detector runs inside the Signal Field — and hoisting a 60 Hz read onto a Home
+  card to feed one number is the wrong price for it. The ring is replaced by the `♪` mark the muted bar
+  already uses; the blinking dot in the eyebrow above it already carries *"this is on air"*, which is true.
+  **`BSBeatRing` is DELETED** rather than left with no caller: its whole job is to render a tempo, and kept
+  beside a page that measures one it is the next reader's mistake waiting to be made. Its `bs-beat-ring`
+  keyframes went with it, **which is what lets a guard that had been scoped to one screen — precisely
+  because the ring survived on Home — become file-wide.** That widening is the change, and it is stated
+  inside the guard so nobody re-narrows it.
+- ⚠ **AND THE CHANNEL ROW DRAWS THE MEASUREMENT THE RAIL ABOVE IT ALREADY HOLDS.** `BSChannelMeter` reads
+  `railLit` — the same count the rail derives from the analyser's own RMS — so the two **cannot** disagree.
+  It is deliberately **not** `BSEQ`: that one animates on a keyframe loop and says nothing about whether
+  audio is arriving, which is exactly the claim this row must not make. A frame we cannot read lights
+  **none** of the bars rather than miming a broadcast. `BSEQ` itself stays, with two callers on the radio
+  **prompt** screen — decoration on a question is not a readout of a station.
+- ⚠ **THE CODEX P2 IS A MISS OF MINE, AND ITS SHAPE IS THE PART WORTH KEEPING.** Retiring the field left
+  **two live consumers in a different file** interpolating it — `BSRadioFx`'s light-effects island chip,
+  floated over the member's screen whenever an effect is on and Radio is playing, and the same chip on a
+  Settings preview **where nothing is even playing** — so both would have rendered **`· undefined BPM`**.
+  Both drop the clause: neither overlay has an analyser, so neither has any business quoting a tempo.
+- ⚠ **MY OWN GUARD COULD NOT SEE THEM BECAUSE IT ASKED THE WRONG FILE.** It swept the module that
+  **DECLARES** `BS_LIVE_STATION`, not the modules that **READ** it — and `LIVE` is the radio *context*, so
+  any component under the provider is a consumer. *A guard scoped to the file that declares a value cannot
+  see the files that consume it.* It walks every `.jsx`/`.js`/`.mjs` under `broadsheet/` and `services/`
+  now, asserts it **found** a corpus, and asserts it **reached the declaring module**, so it cannot pass
+  vacuously on an empty walk.
+- ⚠ **AND THE WIDENED SWEEP HAD TO STOP USING THAT FILE'S OWN INLINE COMMENT STRIPPER.** The regex at the
+  top of `radio-honest-readings.test.mjs` opens a lazy `/* */` span on any `/*` it meets. **Measured rather
+  than assumed: the client module carries 14 `image/*`-shaped strings and the radio module carries 0** — so
+  the inline stripper was safe everywhere it had ever been used, and would have silently deleted thousands
+  of characters out of the file the new sweep reads, **before a single assertion saw them**. It uses the
+  shared `tests/helpers/strip-comments.mjs`, which this repo wrote after paying for that defect four times.
+- ⚠ **ONE `${e.bpm} BPM` SURVIVES IN THAT FILE AND IS CORRECT**, which is why the sweep is about the
+  constant rather than about the letters *BPM*: it is a **coach playlist's own stated tempo**, a description
+  of curated content rather than a reading off a live station.
+- **i18n:** `nowPlaying.listening` had exactly the two call sites this removes, so it is dropped from all
+  thirteen catalogs — **79 keys per locale, key sets identical across all 13, zero orphans**, a clean
+  one-line deletion per file.
+- ⚠ **AND THE RATCHET IS UNMOVED, WHICH IS THE CERTIFICATION.** `partStrings` **182** and `noneStrings`
+  **796**, exactly where #2072 left them. The ratchet counts **unkeyed** strings, so a change that retires
+  two figures and a key must move it by **nothing** — had the rewrite hardcoded one word in place of the
+  removed key, the column would have gone up.
+- **#2078 — the Coaches facts strip was one row carrying two typefaces at two sizes.** Owner, on a
+  screenshot of it: *"and have the font here match weekly and verified headings"*. `$0` and `15%` took the
+  `isNum` branch — **Doto at weight 900, `'ROND' 100`, 40px, tabular-nums**, the face this site reserves for
+  a MEASURED reading — while *Weekly* and *Verified* beside them took **Anybody at 500, `'wdth' 95`, 34px**.
+- ⚠ **THE SPLIT DOES NOT SURVIVE ASKING WHAT THE FOUR ARE.** They are not readings off anything: they are
+  **our own stated terms**, the same kind of claim as the two words next to them. There is no station, no
+  meter and nothing measured behind `$0` — it is what we charge. So one style for the row.
+- ⚠ **THE BRANCH IS DELETED RATHER THAN LEFT WITH NO `true` TO TAKE IT.** Flipping both flags to `false`
+  would have left the Doto arm in the file with nothing able to reach it — **dead code that reads as live**,
+  which is how the split comes back. `isNum` and an unused `_sp` spacer went with it. **`coNum` stays and is
+  still read 7 times** (the eyebrows, the example-account mark, the FAQ marker, the cost tiles), so this is
+  the strip changing its mind rather than the page giving up its numeral face.
+- ⚠ **THE GUARD IS AN ABSENCE PLUS A COUNT, BECAUSE THAT IS WHAT IS CHECKABLE FROM SOURCE.** *"They look
+  the same"* is not a source question; *"one of them is Doto again"* is. The dot-matrix face may not be named
+  inside `CoFacts` **at all** (measured: **0**), and **exactly one** figure style may exist there
+  (`fontFamily: coDisp`), so the split cannot return by branching or by pasting a second styled div. A
+  vacuity check asserts the extracted block really is the strip — all four of `$0`/`15%`/`Weekly`/`Verified`
+  present — because a renamed component otherwise leaves the brace-matcher reading some other function while
+  every assertion passes about the wrong code. And the absence carries a **control**: `coNum` must still be
+  used **outside** the block, or the check passes for the wrong reason the day someone retires Doto entirely.
+- ⚠ **RENDERED, NOT ONLY SWEPT — AND THE BEFORE IS THE CONTROL.** `Coaches.html` cannot mount in this
+  container: React and Babel come from **unpkg, which the proxy blocks**, and the tags carry **SRI**, so a
+  substitute is rejected. So `CoFacts` is compiled out of the shipped `.jsx` and rendered with
+  `react-dom/server` — the technique this repo already uses for `RadioWordmark` — and the four tiles' real
+  inline styles are read off the output: **2 distinct figure styles before, 1 after**, with **zero `Doto` and
+  zero `ROND`** in the rendered markup.
+- ⚠ **A WIDTH MEASUREMENT WOULD HAVE BEEN VACUOUS AND IS NOT WHAT WAS TAKEN.** The faces themselves fall
+  back here (`fonts.gstatic.com` is blocked), and under fallback both families measure the same — so a width
+  check would have passed **before** the fix as well. The evidence is about what the page **declares**, which
+  is exactly what the change is. *The 2026-09-10 lesson, applied rather than re-paid.*
+- **#2079 — `Build debug APK` had been red on every mobile PR and every push to `main`, and it was never
+  ours.** `android-actions/setup-android`'s **own `action.yml`** defaults its `packages` input to
+  `tools platform-tools`, and Google has **retired the `tools` SDK package** — so sdkmanager answers
+  *"Warning: Failed to find package 'tools'"* and exits 1 **inside the action's own bundle, before a line of
+  this repo compiles**. The job reaches and passes `npm ci` and `npm run build` first, **which is exactly what
+  makes the failure read as ours when it is not**.
+- ⚠ **MEASURED FROM THE RUN LIST, AND RE-DERIVED RATHER THAN CARRIED — WHICH IS WHAT CAUGHT MY OWN ERROR.**
+  Last GREEN Android Build on `main` is **`2dfffbb` at 19:52:49Z**; first RED is **`e1c1dfe` at 21:41:26Z**;
+  `bb6ef16` at 22:28:54Z also red. Nothing in that window touched the workflow or the Android project, so
+  what moved is upstream of us. **A first draft of the in-file comment said the break landed *"in the hour
+  after"* `2dfffbb`; the measured window is 1h49m.** Corrected before it shipped. *A number nobody
+  re-derives is a claim* — and this one was a claim of mine, in a comment written to explain a measurement.
+- ⚠ **THE SHA PIN IS DELIBERATELY UNTOUCHED, AND THAT IS THE WHOLE SHAPE OF THE FIX.** Bumping the action
+  to dodge this would change **what executes next to the release job's keystore secrets** — the one thing
+  this file's own header says must not move on a whim, and the reason it was pinned **before** those secrets
+  exist. Dropping a package name that no longer resolves is the smaller change and the honest one.
+  `platform-tools` is still real (adb, fastboot); the cmdline-tools the action needs come from its own
+  `cmdline-tools-version` input, not from that list.
+- ⚠ **BOTH JOBS, INCLUDING THE ONE THAT HAS NEVER RUN.** `release-apk` is skipped until a keystore secret
+  exists, so a fix applied only where the failure was **observed** would have sat there undiscovered until
+  the first signed build — the worst possible moment to meet it.
+- ⚠ **AND THE PR EXERCISED ITS OWN FIX, WHICH IS WHY IT COULD BE MERGED ON EVIDENCE RATHER THAN ON
+  REASONING.** `android-build.yml` is in its own `paths` filter, so `Build debug APK` ran on that very diff
+  and went **green in 1m41s**, assembling and uploading the APK — against **~41 s and a hard failure** on the
+  three previous heads, which died inside `setup-android` before Gradle was reached. *A red run there would
+  have meant the diagnosis was wrong, and nothing else on the PR would have been worth much.*
+- ⚠ **IT RODE ALONE RATHER THAN INSIDE EITHER RADIO PR, DELIBERATELY.** It was diagnosed on #2072 and stood
+  down on there and on #2076 as not-this-PR's, with the patch written out both times. **That workflow is the
+  one place in the repo that reads a signing keystore**, so it belongs in a diff a reviewer is reading **as**
+  a workflow change, not as a footnote to a Radio PR.
+- **Review:** Codex, one front-loaded round per PR, no re-triggers. **#2076: one P2 on `763824c`, real, fixed
+  in `b8240f6`** — and per the one-round rule the fix head was **not** re-reviewed, so it is covered by my own
+  adversarial read plus the mutation round, and the PR says so rather than implying a layer ran.
+  **#2078: clean on `0c7cb43`. #2079: clean on `1a5f0b2`.** Both head-pinned by their own *Reviewed commit*
+  lines, with the summary row agreeing on the same head — so no head-pinning trap on either. **CodeRabbit was
+  not triggered on any of the three** (owner, this session: *"dont run coderabbit for PR"*); its skip-review
+  notice on each PR is automatic and is not a review.
+- **Verified on the merged tree:** `npm test` **3722/3722** · `tsc --noEmit` **0** · the newdesign precompile
+  check (**72 pages**, 0 errors) · JSX parse on every changed module · **15/15 then 5/5 mutations killed**,
+  each proven to land, sanity green at both ends, the tree restored in a `finally` **and on a signal** — with
+  **both of Codex's #2076 sites replayed as their own mutations**, so the suite is proven to catch them rather
+  than merely to be green after the fix.
+- ⚠ **ONE OF THOSE MUTATIONS SURVIVED ITS FIRST RUN AND THE MUTATION WAS THE DEFECT.** The #2078 control —
+  *"every other Doto use stripped, so the absence check could pass vacuously"* — **added an unused declaration
+  instead of removing the other uses**, so it changed the file and not the thing under test. Re-run properly
+  (every `coNum` replaced), it dies. *Proving a mutation changed the file is not proving it changed what the
+  guard is about.*
+- ⚠ **AND TWO PROCESS ERRORS OF MINE, BOTH WORTH THE LINE BECAUSE NEITHER WAS A CODE MISTAKE.** (1) I
+  reported #2076's CI as **hanging for 18 minutes** and went as far as timing the suite locally to hunt a
+  slowdown that did not exist: a `run_in_background` bash `sleep` **returns immediately**, so I was re-polling
+  the API within seconds of each check and reading a normal 3-minute run as a stall. *A wait that does not
+  wait is an instrument reporting on itself.* (2) On the #2079 merge I **guessed a 40-character head SHA**
+  from a 10-character prefix Codex had printed; the API refused it as a `409 Head branch was modified`, which
+  reads as a race and was a fabrication. Derived from `git rev-parse` on the retry. *An identifier you did
+  not read is not an identifier.*
+- ⚠ **AND THOSE TWO FIGURES MOVED WHILE THIS ENTRY WAS BEING WRITTEN, WHICH IS WHY THEY ARE RE-MEASURED
+  RATHER THAN CARRIED.** On the tree these three PRs produced (`d99e654`) the suite read **3714** and the
+  precompile **75 pages**. Another session merged #2077 and #2080 underneath — the community feed moving
+  into the chat bubble — taking the suite to **3722** and the page count to **72**. **Both deltas are
+  theirs, not this work's**, and they are stated here so the next reader does not read 75 → 72 as a
+  regression this wave caused.
+- ⚠ **THE MERGE CONFLICT WAS THIS FILE, AND IT IS THE TRAP THIS LOG ALREADY DOCUMENTS BY NAME.** The
+  changelog PR showed **only Vercel checks** and no CI — which reads as slowness and was
+  `mergeable_state: dirty`. GitHub creates no `pull_request` workflow runs for a PR whose merge commit it
+  cannot compute, so **a conflicted PR is indistinguishable from one whose CI has not started**. `ci.yml`
+  has no `paths` filter, so the absence was never a skip. Both sessions appended at the same anchor; both
+  entries are kept, neither is edited, mine sits above because it merges later — the resolution the
+  #2066 conflict settled. **Their commits are 4 seconds apart**, so the ordering is a convention rather
+  than a measurement, and saying so is cheaper than pretending it was derived.
+- ⚠ **AND THE FIRST THING CHECKED WAS NOT THE CONFLICT BUT WHETHER #2078 SURVIVED IT**, because #2077
+  edits `coaches.jsx` and `tests/coaches-page.test.mjs` — the two files #2078 had just changed. Measured on
+  the new `main`: `coNum` **0** inside `CoFacts`, **one** figure style, all four tiles present, and both new
+  guards still in the suite. Their edits were the Community tab and the role buttons, elsewhere in the file.
+  *A clean auto-merge is not evidence that your change is still the change you made.*
+- ⚠ **REGISTERED, NOT FIXED:** `hrm.js` still receives RR intervals and does not parse them — `beatsFromRR`
+  is shipped and unused, so a glyph is at worst one reading late; and there is still **no on-account pass**
+  on the Radio page, because there is no broadcasting station — the spectrum, the rows and the detector are
+  driven against a synthetic 128-BPM analyser and a simulated strap. The honest check is a real station on
+  the air with a real strap on a real chest.
+
 ### 2026-09-14 — The community feed leaves the dashboards for the chat bubble, which already held the rest of the app's Chat page
 
 - **Owner, on the plan to put the Wall on the Community page: *"actually just remove the community tab from the dashboards all together. the chat bubble basically already has everything there. Just add 'the wall' feed to the chat bubble. What do you think?"*** — plus *"leave the public community marketing page on main nav bar"*, *"remove the community tour tab we just created as well"*, and *"make sure that applies to coaches and member dashboards"*. #2077 → `ce3d537`. `public/newdesign/` only; **no migration, no route, no mobile change.**
