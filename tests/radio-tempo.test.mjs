@@ -412,14 +412,25 @@ test('MUTATION: relaxing split-half agreement fabricates a tempo out of speech',
   );
 });
 
-test('MUTATION: with all three gates off, broadband noise reports a tempo', () => {
+// ⚠ THIS SAID "ALL THREE GATES" AND IT TAKES FOUR — MEASURED, NOT ASSUMED.
+// The confirm window is load-bearing against broadband noise as well as speech:
+// noise's per-window argmax wanders (14 distinct BPMs published across one 20s
+// run with `confirmS: 0`), so restart-on-disagreement refuses it even with the
+// three scoring gates off. The old version passed only because `splitTol: 999`
+// ALSO relaxed the confirm window's own tolerance, which reads the same constant
+// — an undocumented coupling, so the test's failure message would have sent the
+// next reader to the wrong three gates. Proven by decoupling the two tolerances
+// in a scratch copy: this case fails, while the split-half mutation above still
+// passes. `confirmS: 0` is passed explicitly now, so the mutation says what it
+// relaxes and survives anyone later giving the confirm window its own knob.
+test('MUTATION: with all four gates off, broadband noise reports a tempo', () => {
   const mk = () => {
     const r = lcg(1);
     return () => r() * 255;
   };
   assert.equal(drive(mk(), 20).last, null);
-  const mutated = drive(mk(), 20, { confAbs: 0, confRel: 0, splitTol: 999 }).last;
-  assert.ok(mutated, 'the three gates together are not what rejects noise');
+  const mutated = drive(mk(), 20, { confAbs: 0, confRel: 0, splitTol: 999, confirmS: 0 }).last;
+  assert.ok(mutated, 'the four gates together are not what rejects noise');
 });
 
 // ---------------------------------------------------------------------------
