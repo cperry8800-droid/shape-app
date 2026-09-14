@@ -20,14 +20,38 @@
 <body>
 <div id="root"></div>
 <script>
-// Role guard — keep the dashboard in sync with the signed-in user's ACTIVE role.
-// A client/trainer who lands on the nutritionist SPA is redirected to their own
-// dashboard. Signed-out preview and nutritionists are unaffected (no redirect).
+// Sign-in gate + role guard. The dashboard is for people who have an account
+// (owner, 2026-09-14), so a signed-out visitor is sent to Login.html carrying
+// this page as ?next=. A signed-in member on the WRONG dashboard is forwarded
+// to their own. Anything we cannot measure renders — see the gate below.
 (function () {
   fetch('/api/me', { credentials: 'same-origin' })
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) {
-      var role = d && d.user && d.user.role;
+      // ⚠ SIGNED OUT IS A READING, NOT THE ABSENCE OF ONE — AND ONLY A READING MAY
+      // REDIRECT. /api/me answers 200 with { user: null } for an anonymous visitor, so
+      // "nobody is signed in" is something this endpoint SAYS. A 5xx, an HTML error
+      // page from a proxy, a parse failure and a dead network all arrive here as
+      // d === null instead, indistinguishable from one another — and redirecting on
+      // those would send a SIGNED-IN member to a login form that does not forward a
+      // live session (login.jsx routes only after a FRESH login), stranding them with
+      // a valid cookie and no way back. So the gate fails OPEN on everything it cannot
+      // measure: the cost of a false render is the signed-out preview this page
+      // shipped as, and the cost of a false redirect is the member's own dashboard.
+      if (!d || !Object.prototype.hasOwnProperty.call(d, 'user')) return;
+      if (!d.user) {
+        // The whole URL, so a stub's forward (TrainerScore.html → #score) survives the
+        // round trip. encodeURIComponent is load-bearing rather than tidy: an unencoded
+        // '#' would TERMINATE the query string and the hash would never reach the login
+        // page. URLSearchParams decodes it back there, and login.jsx then validates it
+        // against the same rules as src/lib/safe-redirect.mjs — so a pathname that
+        // somehow began '//' (a double-slashed request some servers serve) is refused
+        // and falls back to the role dashboard rather than leaving the origin.
+        var here = window.location.pathname + window.location.search + window.location.hash;
+        window.location.replace('/newdesign/Login.html?next=' + encodeURIComponent(here));
+        return;
+      }
+      var role = d.user.role;
       var dash = role === 'client' ? 'ClientApp.html' : role === 'trainer' ? 'TrainerApp.html' : null;
       if (dash) window.location.replace('/newdesign/' + dash + (window.location.hash || ''));
     })
