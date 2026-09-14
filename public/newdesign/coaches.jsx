@@ -9,6 +9,12 @@
 // real capture rather than an illustration, and the tour below it is the coach
 // dashboard's own five pages, per role.
 //
+// ⚠ AND THE PREVIEW THEY CAME FROM IS THE ONE THIS PR CLOSES, so a re-capture
+// needs a signed-in coach account or the gate lifted for the run. The shells now
+// send an anonymous visitor to Login.html, which is the whole point — but it also
+// means the recipe that produced these ten files no longer works as written, and
+// the next person to try it will read the redirect as the harness being broken.
+//
 // ⚠ EVERY FRAME IS LABELLED "EXAMPLE ACCOUNT", IN THE FRAME ITSELF. These are
 // captures of the signed-out demo practice — real screens, invented numbers. An
 // unlabelled picture of invented figures on a marketing page is the honest-data
@@ -289,7 +295,7 @@ function CoCTA() {
           <a className="co-btn co-btn-p" href="SignupTrainer.html">Apply as a trainer</a>
           <a className="co-btn co-btn-g" href="SignupNutritionist.html">Apply as a nutritionist</a>
         </div>
-        <p style={{ marginTop: 16, fontSize: 14, color: "rgba(238,243,240,0.55)" }}>Your dashboard opens the moment you're approved.</p>
+        <p style={{ marginTop: 16, fontSize: 14, color: "rgba(238,243,240,0.55)" }}>Your dashboard is waiting once your account is approved.</p>
       </div>
     </section>
   );

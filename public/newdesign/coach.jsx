@@ -345,7 +345,7 @@ function TrainerFAQ() {
   const faqs = [
     { q: "What credentials do I need?", a: "An accredited personal training certification (NASM, ACE, NSCA, ACSM, NCSF, or similar), plus proof of current CPR/AED. Specialty certs (CSCS, RKC, FMS) help but aren't required." },
     { q: "What does Shape cost trainers?", a: "You keep the vast majority of everything your clients pay you. No monthly dues, no listing fees — Shape only takes a small platform fee when you get paid. Standard card processing is separate." },
-    { q: "Can I bring my existing clients?", a: "Yes. Most trainers migrate their book within the first month. We'll help with invitations, transfer flows, and pricing continuity." },
+    { q: "Can I bring my existing clients?", a: "Yes. We'll help with invitations, transfer flows, and pricing continuity." },
     { q: "How fast do payouts land?", a: "Weekly, direct to your bank — usually Monday. Need it faster? Instant payouts for 1% are available any day." },
     { q: "Am I locked in?", a: "No exclusivity. Coach on Shape, on your own site, wherever — it's your business. Leave anytime, take your clients with you." },
     { q: "What if I only want to sell programs, not sessions?", a: "That works. Publish programs as one-time purchases or subscriptions. Many trainers earn 30–50% of revenue from programs alone." },

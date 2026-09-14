@@ -77,6 +77,85 @@ test('every frame the tour names is a capture that exists', () => {
   assert.equal(seen.size, 10, 'expected ten captures, the tour names ' + seen.size);
 });
 
+// ⚠ THE FRAME'S RATIO AND THE FILES' OWN SIZE ARE TWO NUMBERS THAT HAVE TO AGREE,
+// AND NOTHING FAILS WHEN THEY DRIFT. `CoFrame` declares `aspectRatio: "1440 / 860"`
+// over captures that are 1440x900, with `object-fit: cover` — so the browser scales
+// to fill and crops exactly 40px off the bottom, which is the chrome the shots carry.
+// Re-capture at a different height and the crop silently becomes something else: the
+// page still renders, the images still load, every other test still passes, and the
+// frames are simply wrong. Only comparing the declared ratio against the actual files
+// can see it, so that is what this does — reading both from source rather than from
+// two numbers typed here, which would go stale the same way.
+function jpegDims(buf) {
+  // The marker chain, walked rather than scanned: the bytes FF C0 occur constantly
+  // inside EXIF and embedded thumbnails, so a scan lands in a thumbnail and reports
+  // its size as the photo's. Segments are skipped by their declared length.
+  let i = 2;
+  while (i < buf.length - 1) {
+    if (buf[i] !== 0xff) { i++; continue; }
+    const m = buf[i + 1];
+    if (m === 0xd8 || m === 0x01 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+    if (i + 3 >= buf.length) return null;
+    const len = buf.readUInt16BE(i + 2);
+    // SOF0..SOF15, minus DHT (C4), DNL (C8) and DAC (CC), which share the range.
+    if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+      if (i + 9 > buf.length) return null;
+      return { h: buf.readUInt16BE(i + 5), w: buf.readUInt16BE(i + 7) };
+    }
+    if (len < 2) return null; // a zero length is how a walker is made to spin
+    i += 2 + len;
+  }
+  return null;
+}
+
+test('the frame crops the captures by the amount it means to', () => {
+  const ratio = /aspectRatio:\s*"(\d+)\s*\/\s*(\d+)"/.exec(PAGE);
+  assert.ok(ratio, 'CoFrame no longer declares an aspect ratio in the shape this reads');
+  const declared = Number(ratio[1]) / Number(ratio[2]);
+
+  const files = readdirSync(path.join(ND, 'coaches')).filter((f) => f.endsWith('.jpg'));
+  assert.ok(files.length >= 10, 'read only ' + files.length + ' captures — the sweep stopped matching');
+
+  const sizes = new Set();
+  for (const f of files) {
+    const d = jpegDims(readFileSync(path.join(ND, 'coaches', f)));
+    assert.ok(d, f + ': could not read its dimensions — not a JPEG this walker understands');
+    sizes.add(d.w + 'x' + d.h);
+  }
+  cropFault(sizes, declared);
+});
+
+// The rule, lifted out so a control can drive it. ⚠ THE MUTATION ROUND IS WHY: inline,
+// relaxing `sizes.size === 1` to `>= 1` SURVIVED — the ten captures are uniform today,
+// so a weakened check still passes on correct data and the suite cannot tell you it
+// stopped measuring anything. The repo has no mixed-size fixture and should not grow
+// ten more JPEGs to get one, so the control hands the same function a synthetic set.
+function cropFault(sizes, declared) {
+  // One geometry for all of them, or the same frame crops each one differently.
+  assert.equal(sizes.size, 1, 'the captures are not all one size: ' + [...sizes].join(', '));
+  const [w, h] = [...sizes][0].split('x').map(Number);
+  const cropped = h - w / declared;
+  assert.ok(cropped >= 0, 'the frame is TALLER than the captures, so cover would crop the sides instead: ' + cropped.toFixed(1) + 'px');
+  // 40px of chrome is what the shots carry. A tolerance rather than an equality,
+  // because a re-capture is allowed to differ by a pixel of rounding — but not by
+  // enough to eat a row of the dashboard.
+  assert.ok(cropped <= 60, 'the frame would crop ' + cropped.toFixed(1) + 'px off ' + h + 'px — more than the chrome the captures carry');
+}
+
+test('the crop rule fires on the shapes the repo does not currently contain', () => {
+  const ratio = 1440 / 860;
+  // A control first: the real geometry must PASS, or every assertion below is just a
+  // function that refuses everything.
+  assert.doesNotThrow(() => cropFault(new Set(['1440x900']), ratio));
+  // A mixed set — the case that survives when the size check is relaxed.
+  assert.throws(() => cropFault(new Set(['1440x900', '1440x960']), ratio), /not all one size/);
+  // Captures TALLER than the frame expects: cover then crops the sides, not the chrome.
+  assert.throws(() => cropFault(new Set(['1440x1400']), ratio), /more than the chrome/);
+  // Captures SHORTER than the frame: cover crops the sides instead, and the dashboard
+  // loses its left or right edge rather than its bottom strip.
+  assert.throws(() => cropFault(new Set(['1440x700']), ratio), /crop the sides/);
+});
+
 test('the frame carries its own label, not a caption near it', () => {
   // ⚠ These are the signed-out demo practice: real screens, invented numbers. An
   // unlabelled picture of invented figures on a marketing page is the honest-data
@@ -131,6 +210,20 @@ const PROMISES = [
    'New client inquiries land in your inbox within the first week.'],
   [/usually book within/i, 'a promise about when clients arrive',
    'First consults usually book within the first two weeks.'],
+  // ⚠ MONTHS, because the first version of this list enumerated week-shapes and
+  // called itself derived. Codex found two live claims it could not see — both coach
+  // pages promised a book would migrate "within the first month" — which is the same
+  // outcome window one unit up. An enumeration is not a proof that the enumeration is
+  // complete, and the only honest repair is to widen the unit rather than add the two
+  // sentences that happened to be found.
+  [/\b(in|within|during) the first (month|two months|2 months|few (weeks|months))\b/i,
+   'a promise about when an outcome lands',
+   'Most trainers migrate their book within the first month.'],
+  // And the immediacy form, which carries no number at all: "the moment", "instantly",
+  // "right away" promise a turnaround just as concretely as a figure does.
+  [/\b(the moment|as soon as|instantly|right away|immediately)\b[^.]{0,40}\bapprov/i,
+   'a promise that approval activates instantly',
+   "Your dashboard opens the moment you're approved."],
   [/\b2\s*[–—-]\s*3\s*days\b/i, 'a promise about our own review turnaround',
    'Review in 2–3 days'],
   [/hear back within/i, 'a promise about our own review turnaround',
@@ -168,7 +261,15 @@ test('no coach-facing page guarantees a timing', () => {
   // Whether that line should go too is an open owner call, so this test takes no
   // position on it rather than pinning it either way.
   for (const f of COACH_FACING) {
-    const body = stripComments(read(f));
+    // ⚠ QUOTED SPEECH IS OUT OF SCOPE, AND THE LINE IS DRAWN STRUCTURALLY RATHER THAN
+    // BY EXEMPTING THE ONE SENTENCE THAT TRIPPED IT. `coach.jsx` carries a testimonial
+    // reading "paid for itself in the first month" — a claim ATTRIBUTED to a named
+    // coach, where these patterns are about what Shape says in its own voice. It is a
+    // real honest-data question (that coach is one of the invented marketplace
+    // personas, and the preview-cast ruling is already an open owner call), but it is
+    // a different question from the one the owner settled here, and answering it by
+    // deleting a testimonial would be this PR widening itself.
+    const body = stripComments(read(f)).replace(/\bquote:\s*"(?:[^"\\]|\\.)*"/g, 'quote: ""');
     for (const [re, why] of PROMISES) {
       const hit = re.exec(body);
       assert.equal(hit, null, `${f} makes ${why}: “${hit && hit[0]}”`);
