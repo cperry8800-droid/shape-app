@@ -77,7 +77,14 @@ test('the tour is every sidebar tab but Settings, in the sidebar\'s order', () =
 test('the page is wired up and carries the shared nav', () => {
   assert.ok(/pageShell\.jsx/.test(HTML), 'Coaches.html does not load the shared header');
   assert.ok(/coaches\.jsx/.test(HTML), 'Coaches.html does not load its own module');
-  assert.ok(/<div id="site-footer">/.test(HTML), 'Coaches.html has no footer mount');
+  // ⚠ THIS PINNED `<div id="site-footer">` AND THAT DIV WAS THE BUG. pageShell
+  // auto-mounted a second <Footer /> into it without asking whether the page
+  // already rendered one — and Coaches.html does, from coaches.jsx — so the page
+  // printed the whole footer twice, and this guard asserted the duplication was
+  // present. The invariant it was ever about is that the page HAS a footer, so
+  // that is what it asks now, of the module that actually renders it.
+  assert.ok(/<Footer\s*\/>/.test(PAGE), 'coaches.jsx no longer renders the shared footer');
+  assert.ok(!/id="site-footer"/.test(HTML), 'Coaches.html opted back into the retired footer auto-mount');
 });
 
 test('every frame the tour names is a capture that exists', () => {

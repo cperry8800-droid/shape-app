@@ -30,10 +30,21 @@ const SHELL = read('pageShell.jsx');
 const INDEX = read('index.html');
 const GETAPP = read('GetApp.html');
 
-// A target's identity for comparison: the file it lands on plus any hash. The
-// three legitimately spell the same destination differently — the static pages
-// write `/newdesign/Marketplace.html`, the component writes `Marketplace.html`.
-const target = (href) => String(href || '').replace(/^.*\//, '');
+// A target's identity for comparison. The three legitimately spell the same
+// destination differently — the static pages write `/newdesign/Marketplace.html`,
+// the component writes `Marketplace.html` — so ONE prefix is normalised away and
+// nothing else.
+//
+// ⚠ IT USED TO STRIP THROUGH THE LAST SLASH, WHICH MADE DIFFERENT DESTINATIONS
+// COMPARE EQUAL. `/old/Marketplace.html` and even
+// `https://example.com/Marketplace.html` both reduced to `Marketplace.html`, so a
+// static copy that drifted to another directory or another ORIGIN still matched
+// the shared table and passed the whole suite — and the existence check below
+// only ever opens SHARED's own targets, so nothing else would have caught it.
+// Root-relative `/x.html` keeps its slash: those are real site-root paths (the
+// legal pages), distinct from a sibling `x.html`, and collapsing them would hide
+// that drift too.
+const target = (href) => String(href || '').trim().replace(/^\/newdesign\//, '');
 const deent = (s) => String(s).replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
 
 // ── the source of truth, lifted from the component ──────────────────────────
@@ -101,8 +112,16 @@ test('no footer link sends a signed-out visitor to a sign-in gate', () => {
       if (!existsSync(p)) continue;
       checked++;
       const body = readFileSync(p, 'utf8');
-      const stub = /location\.replace\(\s*["'](Client|Trainer|Nutritionist)App\.html/.exec(body);
+      // Two ways a target gates a signed-out visitor, and the second is the one
+      // this check used to miss. A legacy tab page is a stub that redirects into
+      // a shell; a SHELL redirects to Login itself. Matching only the stub shape
+      // meant a footer pointing straight at ClientApp.html — the most obvious
+      // way to write this link wrong — passed, and the equality and existence
+      // tests pass too, so the stated invariant was not enforced at all.
+      const stub = /location\.replace\(\s*["'`](Client|Trainer|Nutritionist)App\.html/.exec(body);
       assert.ok(!stub, `"${label}" → ${f} is a redirect stub into ${stub && stub[1]}App.html, which bounces a signed-out visitor to Login`);
+      const gate = /location\.replace\([^)]*Login\.html/.test(body);
+      assert.ok(!gate, `"${label}" → ${f} sends a signed-out visitor to Login.html itself — a footer link may not be account-gated`);
     }
   }
   assert.ok(checked >= 10, 'only ' + checked + ' targets checked — the sweep stopped matching');
@@ -136,6 +155,41 @@ test('the footer still carries the pages nothing else links', () => {
   }
 });
 
+// ⚠ THE COMMENT ABOVE THE FOOTER TABLE CLAIMS THREE OF THOSE PAGES HAVE NO OTHER
+// LINK, AND A CLAIM ABOUT THE NAV GOES STALE WHEN THE NAV MOVES. It named FOUR
+// until this PR: #2069 promoted Client.html to the `Members` tab and nothing
+// noticed, so the file carried a measurement that had been false since the day
+// before. This asserts the three it still names are absent from the nav table —
+// promote one and this fails, naming the comment, instead of leaving a wrong
+// reason sitting where the next reader decides whether a footer link is load
+// bearing.
+//
+// ⚠ AND THE TWO CHECKS ABOVE THE ASSERTIONS CATCH DIFFERENT FAILURES — neither
+// is belt-and-braces, which was measured rather than assumed. A nav parser that
+// stops matching ENTIRELY reports every page as absent and passes all three
+// assertions vacuously; Client.html, the one page that IS in the nav, is the
+// control that catches it. A parser that still works but sees only PART of the
+// table passes that control — Client.html is the second entry — while the three
+// pages it never reaches read as absent for the wrong reason; only the size
+// floor catches that. Proven by mutation both ways: truncate the match list to
+// three and the floor alone fails; remove the floor as well and it goes green on
+// a parse reading a fifth of the nav.
+test('the pages the footer comment calls footer-only are really not in the nav', () => {
+  const i = SHELL.indexOf('const SHAPE_NAV_GROUPS');
+  assert.ok(i > 0, 'SHAPE_NAV_GROUPS not found — this guard is reading nothing');
+  const table = SHELL.slice(i, SHELL.indexOf('\n];', i));
+  const navTargets = new Set([...table.matchAll(/href:\s*"([^"]+)"/g)].map((m) => target(m[1])));
+  assert.ok(navTargets.size >= 5, 'parsed only ' + navTargets.size + ' nav targets — the parser stopped matching');
+
+  assert.ok(navTargets.has('Client.html'),
+    'Client.html is the Members tab and must parse as present — if it does not, this guard cannot see a nav link at all');
+
+  for (const only of ['Coach.html', 'Nutritionist.html', 'Recipes.html']) {
+    assert.ok(!navTargets.has(only),
+      only + ' is in the nav now, so the footer comment calling it footer-only is false — correct the comment above FOOTER TABLE in pageShell.jsx');
+  }
+});
+
 // ⚠ NOT A PIXEL PIN — A FLOOR. The owner asked for the bottom-left logo to be
 // bigger; it was 26px. This asserts it did not quietly go back, without freezing
 // a design decision at one exact number.
@@ -147,14 +201,13 @@ test('the homepage footer logo is not back to its old size', () => {
 
 // The whole point is "same on each page", so the sweep has to know how many
 // pages there are and that each gets one.
-test('every page carries exactly one footer', () => {
+test('every page still carries a footer', () => {
   const pages = readdirSync(ND).filter((f) => f.endsWith('.html'));
   assert.ok(pages.length >= 70, 'only ' + pages.length + ' pages found');
   const without = [];
   for (const p of pages) {
     const s = readFileSync(path.join(ND, p), 'utf8');
-    if (/id="site-footer"/.test(s) || /<footer/i.test(s)) continue;
-    // a module it loads may render one
+    if (/<footer[\s>]/i.test(s)) continue;
     const mods = [...s.matchAll(/src="([\w.\-]+\.jsx)/g)].map((m) => m[1]);
     const has = mods.some((m) => existsSync(path.join(ND, m)) && /<footer|<Footer\b/.test(readFileSync(path.join(ND, m), 'utf8')));
     if (!has) without.push(p);
@@ -166,4 +219,32 @@ test('every page carries exactly one footer', () => {
   // fixed.
   assert.deepEqual(without.sort(), ['ClientPlaylists.html', 'NutritionistPublic.html', 'TrainerPublic.html', 'consultation.html'],
     'the set of pages with no footer changed: ' + without.join(', '));
+});
+
+// ⚠ THIS IS THE GUARD AGAINST TWELVE PAGES PRINTING THE FOOTER TWICE, and it is
+// deliberately an ABSENCE check rather than a count. `pageShell.jsx` used to
+// auto-mount a second <Footer /> into any page carrying this div, in a root of
+// its own, without ever asking whether the page already had one — and all twelve
+// that opted in did. Driven in Chromium on Marketplace before the fix: two
+// .shape-footer-grid at y 5090 and y 5621, the logo, "Join the community" and
+// all four link groups printed back to back. The mount is retired; the div is
+// inert, so a page adding one now gets NOTHING from it while looking like it
+// opted into something.
+//
+// ⚠ AND A COUNT IS NOT AVAILABLE FROM SOURCE, which is worth writing down because
+// the obvious fix here is to write one. Counting <Footer /> across a page and the
+// modules it loads over-reports by 3-4x on the dashboard pages: ClientDashboard
+// loads both dashClient.jsx and trainerDashboard.jsx, each of which renders a
+// footer for a branch the other page takes, and nothing in the text says which
+// one runs. A counter like that reports 66 pages broken on a tree where the real
+// number is zero. The number of footers a page RENDERS is a browser question;
+// the assertion below is the source question that actually has an answer.
+test('no page opts into the retired footer auto-mount', () => {
+  const pages = readdirSync(ND).filter((f) => f.endsWith('.html'));
+  assert.ok(pages.length >= 70, 'only ' + pages.length + ' pages found');
+  const optIn = pages.filter((p) => /id="site-footer"/.test(readFileSync(path.join(ND, p), 'utf8')));
+  assert.deepEqual(optIn, [],
+    'these pages carry <div id="site-footer">, which nothing mounts any more: ' + optIn.join(', '));
+  assert.ok(!/mountSiteFooter|getElementById\('site-footer'\)/.test(SHELL),
+    'the footer auto-mount is back in pageShell.jsx — it rendered a second footer on every page that opted in');
 });

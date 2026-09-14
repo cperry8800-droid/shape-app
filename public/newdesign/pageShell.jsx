@@ -179,8 +179,9 @@ const COACHES_ITEMS = [
 // ⚠ AND THE THREE `Dashboard` DROPDOWN ITEMS ARE GONE. The retired Clients /
 // Trainers / Nutritionists menus each carried one, which opened the demo
 // dashboard for an anonymous visitor — the access PR 2 gates behind an account.
-// `Client.html`, `Coach.html`, `Nutritionist.html` and `Recipes.html` keep
-// working and keep their footer links; they simply leave the bar.
+// `Coach.html`, `Nutritionist.html` and `Recipes.html` keep working and keep
+// their footer links; they simply leave the bar. (`Client.html` was in that
+// list too and is NOT any more — it came back as the `Members` tab below.)
 const SHAPE_NAV_GROUPS = [
   { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"], items: COACHES_ITEMS },
   { kind: "link", label: "Members", href: "Client.html" },
@@ -1104,13 +1105,18 @@ function Footer({ logoHeight = 64 } = {}) {
                ⚠ THREE FOOTERS RENDER THIS SITE, AND THEY HAD DRIFTED INTO THREE
                DIFFERENT DESIGNS. This component is one; `index.html` hand-writes
                its own (a static page cannot import this React component);
-               `GetApp.html` hand-writes a third. Measured 2026-09-14 before this
-               was reconciled: the homepage carried The app + Shape Store and NO
+               `GetApp.html` hand-writes a third. Measured 2026-09-14 from the
+               three files before this was reconciled — 22, 23 and 17 links, no
+               two agreeing: the homepage carried The app + Shape Store and NO
                link to Coaches.html, headed its second group "For coaches" where
-               this one said "For trainers", and put the legal links under Support
-               where this one put them under Company; GetApp carried only THREE
-               groups — no Support at all, so no Help and no Contact — and a
-               four-item Product list. `tests/site-footer.test.mjs` now compares
+               this one said "For trainers", and put the four deep-legal links
+               under Support where this one put them under Company; GetApp had
+               the same four group HEADS as this one and almost none of the same
+               contents — a four-item Product list (no The app, no Shape Store,
+               no Shape Kitchen, no For members), a three-item "For trainers"
+               that was Apply plus two dashboard dead ends and named no coach
+               page at all, and no Pricing anywhere.
+               `tests/site-footer.test.mjs` now compares
                all three against this table, the way `tests/site-nav.test.mjs`
                compares the two nav bars, and for the same reason: they drifted
                because nothing compared them.
@@ -1132,12 +1138,22 @@ function Footer({ logoHeight = 64 } = {}) {
                `id="press"` anywhere on it. Wrong page, and a dead anchor on top.
                Owner's ruling: remove it until there is a press page to name.
 
-               ⚠ THESE FOUR PAGES HAVE NO OTHER LINK. Measured across
-               public/newdesign, nothing else points at Coach.html,
-               Nutritionist.html, Client.html or Recipes.html — so without this
-               table they are reachable only by typing a URL. Coaches.html sits
-               above them in the nav and does NOT replace them: each still carries
-               its own copy and its own application. */
+               ⚠ THREE OF THESE PAGES HAVE NO OTHER LINK. Measured across
+               public/newdesign, nothing in the nav and nothing in any live page's
+               body points at Coach.html, Nutritionist.html or Recipes.html — so
+               without this table they are reachable only by typing a URL.
+               (`directionB.jsx` names all three and is a retired exploration,
+               loaded only by the *-print / index-explorations pages.) Coaches.html
+               sits above them in the nav and does NOT replace them: each still
+               carries its own copy and its own application.
+
+               ⚠ CLIENT.HTML IS THE EXCEPTION, AND IT IS NAMED RATHER THAN LEFT IN
+               THE LIST ABOVE. The `Members` tab points at it — added one PR before
+               this one — so the footer is not its only way in. This sentence used
+               to include it, and #2069 made that false without anything noticing;
+               `tests/site-footer.test.mjs` now asserts the three pages named above
+               are absent from the nav table, so the next tab promoted out of the
+               footer fails a test instead of quietly leaving a wrong claim here. */
             ["Product",     [["Marketplace", "Marketplace.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"]]],
             ["For coaches", [["For coaches", "Coaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
             ["Company",     [["About", "About.html"], ["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
@@ -1407,27 +1423,24 @@ function shapeConfirmOpen(opts) {
 }
 Object.assign(window, { ShapeConfirm: { open: shapeConfirmOpen } });
 
-// Auto-mount the shared site footer on any page that opts in with a
-// <div id="site-footer"></div> (the marketing pages). It renders in its own
-// root — separate from the page's #root — and carries its own styles, so it
-// looks right wherever it's dropped. Dashboard/app pages omit the div and are
-// unaffected.
-(function mountSiteFooter() {
-  try {
-    var el = document.getElementById('site-footer');
-    if (el && !el.getAttribute('data-mounted') && window.ReactDOM && window.ReactDOM.createRoot) {
-      // The footer mounts from the FIRST page script, long before the page's
-      // own app fills #root — on slow connections it painted alone at the top
-      // of the viewport, then got shoved thousands of px down when the app
-      // mounted (a 0.71 layout shift, the site's whole CLS). Reserve the first
-      // viewport for the app so the footer always starts below the fold.
-      var appRoot = document.getElementById('root');
-      if (appRoot && !appRoot.style.minHeight) appRoot.style.minHeight = '100vh';
-      el.setAttribute('data-mounted', '1');
-      window.ReactDOM.createRoot(el).render(<React.Fragment><ShapeMobileStyles /><Footer /></React.Fragment>);
-    }
-  } catch (e) {}
-})();
+// ⚠ THE `#site-footer` AUTO-MOUNT IS GONE, AND IT WAS RENDERING EVERY MARKETING
+// FOOTER TWICE. It mounted a second <Footer /> into any page carrying
+// <div id="site-footer"></div>, in a root of its own after #root — and it never
+// asked whether the page already had one. Every page that opted in did: measured
+// 2026-09-14, all TWELVE div-carrying pages (About, Client, Coach, Coaches,
+// Community, Landing, Marketplace, Nutritionist, Pricing, Score, Store, Team)
+// also render <Footer /> inside their own tree, so the mechanism had no page it
+// was the only footer for — its entire live effect was a duplicate. Driven in
+// Chromium on Marketplace before the fix: two .shape-footer-grid at y 5090 and
+// y 5621, two "Join the community", the whole footer printed back to back.
+//
+// Not replaced with a guard, because it cannot have one: this runs from the FIRST
+// page script, long before #root fills, so it can never see the footer the page
+// is about to render. The site's actual convention is the in-tree one — 25 page
+// modules render <Footer /> themselves and, once the divs came out, nothing at
+// all relied on this. `Footer` is still exported above for exactly that use.
+// `tests/site-footer.test.mjs` now COUNTS footers per page rather than detecting
+// one, so a page that grows a second fails instead of shipping it.
 
 // -----------------------------------------------------------------------------
 // Calendar overlay — shared across Client / Trainer / Nutritionist pages.
