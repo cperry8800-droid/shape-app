@@ -57,7 +57,7 @@ function ClientOvHero() {
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 72px 1fr auto", gap: 14, alignItems: "center", padding: "12px 14px", background: "rgba(233,239,237,0.03)", borderRadius: 8, border: "1px solid rgba(233,239,237,0.06)" }}>
                   <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.93)", letterSpacing: "0.05em" }}>{it.when}</div>
                   <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 9.5, letterSpacing: "0.14em", color: it.kind === "WORKOUT" ? TEAL : it.kind === "MEAL" ? "#e8b14a" : "rgba(233,239,237,0.8)" }}>{it.kind}</div>
-                  <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{it.what}</div>
+                  <div style={{ fontFamily: clDisp, fontWeight: 500, fontVariationSettings: "'wdth' 100", fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{it.what}</div>
                   <div style={{ fontFamily: clSans, fontSize: 11, color: "rgba(233,239,237,0.55)" }}>{it.who}</div>
                 </div>
               ))}
@@ -319,7 +319,7 @@ function ClientOvSnapshots() {
                       {h.hit && <span style={{ color: DARK, fontSize: 9, lineHeight: 1, fontWeight: 600 }}>{isDont ? "×" : "✓"}</span>}
                     </div>
                     <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 9, letterSpacing: "0.14em", color: accent, textTransform: "uppercase" }}>{isDont ? "Don't" : "Do"}</div>
-                    <div style={{ fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{h.name}</div>
+                    <div style={{ fontFamily: clDisp, fontWeight: 500, fontVariationSettings: "'wdth' 100", fontSize: 15, color: LIGHT, letterSpacing: "-0.005em" }}>{h.name}</div>
                     <div style={{ fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 11.5, color: h.hit ? accent : "rgba(233,239,237,0.55)", letterSpacing: "0.05em", textAlign: "right" }}>{h.days}</div>
                     <div style={{ fontFamily: clSans, fontSize: 11, color: "rgba(233,239,237,0.5)" }}>{h.note}</div>
                   </div>
@@ -347,7 +347,7 @@ function ClientOvSnapshots() {
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 4 }}>
                     {g.items.map((it, j) => (
-                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: clDisp, fontVariationSettings: "'wdth' 100", fontSize: 14, color: LIGHT }}>
+                      <div key={j} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: clDisp, fontWeight: 500, fontVariationSettings: "'wdth' 100", fontSize: 14, color: LIGHT }}>
                         <span style={{ width: 11, height: 11, borderRadius: 3, border: "1px solid rgba(233,239,237,0.35)", display: "inline-block" }} />
                         {it}
                       </div>

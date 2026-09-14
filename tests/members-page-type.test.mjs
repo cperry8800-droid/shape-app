@@ -69,41 +69,122 @@ function familyOf(constant) {
   return /'([^']+)'/.exec(m[1])[1]; // the first quoted name is the real face
 }
 
+// ── style objects, read whole ────────────────────────────────────────────────
+// ⚠ A LINE IS NOT A STYLE OBJECT, and both of Codex's findings on this file come
+// from pretending it is. The first cut swept `fontWeight:` from the REMAINDER OF
+// THE fontFamily LINE, so a multiline object — `fontFamily: clSans,` on one line
+// and `fontWeight: 500,` two lines down, which this page has at the paths CTA —
+// was invisible: an out-of-range weight there passed. And it checked each
+// variation axis against "whichever requested family carries that axis", which
+// says nothing about the family the RULE IS ON: move a `'wdth' 100` onto
+// `clSans` and the axis is inert on Schibsted while the guard still reads
+// `owners === ['Anybody']` and passes.
+//
+// So: brace-match every object literal, and read family, weight and axes from
+// the SAME object. The walker tracks quotes and template interpolation, because
+// a `}` inside a string or a `${…}` is not a closing brace.
+function styleObjects(src) {
+  const spans = [];
+  const stack = [];
+  // modes: 0 code · 1 '…' · 2 "…" · 3 `…` (template) — interpolation pushes back to 0
+  let mode = 0;
+  const tmpl = [];
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (mode === 0) {
+      if (c === '\\') { i++; continue; }
+      if (c === "'") mode = 1;
+      else if (c === '"') mode = 2;
+      else if (c === '`') { mode = 3; tmpl.push(stack.length); }
+      else if (c === '{') stack.push(i);
+      else if (c === '}') {
+        const open = stack.pop();
+        if (open === undefined) continue;
+        // a `}` that closes a template interpolation returns us to the template
+        if (tmpl.length && stack.length === tmpl[tmpl.length - 1]) { mode = 3; continue; }
+        spans.push([open, i + 1]);
+      }
+    } else if (mode === 3) {
+      if (c === '\\') { i++; continue; }
+      if (c === '`') { mode = 0; tmpl.pop(); }
+      else if (c === '$' && src[i + 1] === '{') { stack.push(i + 1); i++; mode = 0; }
+    } else {
+      if (c === '\\') { i++; continue; }
+      if ((mode === 1 && c === "'") || (mode === 2 && c === '"')) mode = 0;
+    }
+  }
+  // ⚠ SMALLEST FIRST, and skip any block that CONTAINS one already taken. The
+  // first cut sorted largest-first, so an enclosing JSX container swallowed the
+  // object literals inside it: the walker returned 10 blobs instead of ~50, and
+  // one of them carried a clNum family beside a clDisp axis and reported `'wdth'
+  // set on Doto`. The innermost block containing a fontFamily IS the style object.
+  spans.sort((a, b) => (a[1] - a[0]) - (b[1] - b[0]));
+  const out = [];
+  const claimed = [];
+  for (const [a, b] of spans) {
+    const body = src.slice(a, b);
+    if (!/\bfontFamily:/.test(body)) continue;
+    if (claimed.some(([x, y]) => a <= x && b >= y)) continue;  // encloses one we already took
+    claimed.push([a, b]);
+    out.push(body);
+  }
+  return out;
+}
+
+const OBJECTS = styleObjects(PAGE);
+
 test('the page requests every family it sets, with a usable weight range', () => {
-  const weights = { clDisp: [], clNum: [], clSans: [] };
-  for (const c of Object.keys(weights)) {
-    for (const m of PAGE.matchAll(new RegExp('fontFamily: ' + c + '([^\\n]*)', 'g'))) {
-      for (const w of m[1].matchAll(/fontWeight: (\d+)/g)) weights[c].push(Number(w[1]));
+  assert.ok(OBJECTS.length >= 40, 'parsed only ' + OBJECTS.length + ' style objects — the walker stopped matching');
+  const seenFamily = new Set();
+  for (const o of OBJECTS) {
+    const fam = /\bfontFamily: (clDisp|clNum|clSans)\b/.exec(o);
+    if (!fam) continue;                       // a style object on a shared-chrome family; not this page's type
+    seenFamily.add(fam[1]);
+    const face = familyOf(fam[1]);
+    assert.ok(REQ[face], fam[1] + ' is set in ' + face + ', which Client.html does not request');
+    const w = /\bfontWeight: (\d+)/.exec(o);
+    // ⚠ DISPLAY AND READINGS MUST NAME A WEIGHT. Anybody's default is 400 and this
+    // page's display is 500; Doto's is 400 and its labels are 700. Three clDisp
+    // sites shipped with the family and the axis and NO weight — they rendered at
+    // 400 among fifteen siblings at 500, and nothing said so. Body may inherit:
+    // Schibsted at its 400 default is the body face doing its job.
+    if (fam[1] !== 'clSans') {
+      assert.ok(w, fam[1] + ' sets no fontWeight, so it renders at the face default: ' + o.slice(0, 110));
+    }
+    if (w) {
+      const wght = REQ[face].wght;
+      assert.ok(wght, face + ' is requested without a weight range, so every fontWeight on it is pinned at the default');
+      assert.ok(Number(w[1]) >= wght[0] && Number(w[1]) <= wght[1],
+        `${face} is set at weight ${w[1]}, outside the requested ${wght[0]}..${wght[1]} — it will clamp`);
     }
   }
-  assert.ok(Object.values(weights).every((w) => w.length), 'a family is declared and never used — the sweep is reading nothing');
-  for (const [c, used] of Object.entries(weights)) {
-    const fam = familyOf(c);
-    assert.ok(REQ[fam], c + ' is set in ' + fam + ', which Client.html does not request');
-    const wght = REQ[fam].wght;
-    assert.ok(wght, fam + ' is requested without a weight range, so every fontWeight on it is pinned at the default');
-    for (const w of used) {
-      assert.ok(w >= wght[0] && w <= wght[1],
-        `${fam} is set at weight ${w}, outside the requested ${wght[0]}..${wght[1]} — it will clamp`);
-    }
-  }
+  assert.deepEqual([...seenFamily].sort(), ['clDisp', 'clNum', 'clSans'],
+    'a family is declared and never used — the sweep is reading nothing');
 });
 
-test('every variation axis the page sets is one it asked for, at a value in range', () => {
-  const used = [...PAGE.matchAll(/fontVariationSettings: "'(\w+)' (-?\d+(?:\.\d+)?)"/g)].map((m) => [m[1], Number(m[2])]);
-  assert.ok(used.length >= 2, 'found only ' + used.length + ' axis settings — the sweep stopped matching');
-  for (const [axis, value] of used) {
-    // ⚠ A SINGLE-FAMILY AXIS IS A RULE FOR THAT FAMILY, BY CONSTRUCTION: if exactly
-    // one requested family carries the axis, a rule setting it either targets that
-    // family or is inert — and inert is what this test forbids. Shared axes cannot
-    // be attributed this way, so they are named rather than guessed at.
-    const owners = Object.entries(REQ).filter(([, axes]) => axes[axis]).map(([f]) => f);
-    assert.equal(owners.length, 1,
-      `'${axis}' is requested by ${owners.length} families (${owners.join(', ') || 'none'}) — with none it is inert, with two this test cannot say whose rule it is`);
-    const [lo, hi] = REQ[owners[0]][axis];
-    assert.ok(value >= lo && value <= hi,
-      `'${axis}' ${value} is outside ${owners[0]}'s requested ${lo}..${hi}`);
+test('every variation axis is on a family that asked for it, at a value in range', () => {
+  let n = 0;
+  for (const o of OBJECTS) {
+    const axes = [...o.matchAll(/fontVariationSettings: "'(\w+)' (-?\d+(?:\.\d+)?)"/g)];
+    if (!axes.length) continue;
+    // ⚠ THE FAMILY IN THE SAME OBJECT, not "whoever requested this axis". An axis
+    // set on a family that did not request it is INERT — which is the whole defect
+    // this file exists for, and the version that asked only "is this axis
+    // requested by someone" could not see it.
+    const fam = /\bfontFamily: (clDisp|clNum|clSans)\b/.exec(o);
+    assert.ok(fam, 'a style object sets a variation axis and names no family, so it rides whatever it inherits: ' + o.slice(0, 110));
+    const face = familyOf(fam[1]);
+    for (const [, axis, value] of axes) {
+      n++;
+      const axes_ = REQ[face];
+      assert.ok(axes_ && axes_[axis],
+        `'${axis}' is set on ${face}, which Client.html does not request it with — the declaration is inert`);
+      const [lo, hi] = axes_[axis];
+      assert.ok(Number(value) >= lo && Number(value) <= hi,
+        `'${axis}' ${value} is outside ${face}'s requested ${lo}..${hi}`);
+    }
   }
+  assert.ok(n >= 2, 'found only ' + n + ' axis settings — the sweep stopped matching');
 });
 
 // ⚠ THE OLD THREE MUST STAY IN THE REQUEST. They are not this page's type — they
