@@ -726,6 +726,117 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-14 — The Signal Field's two pure modules, and a tempo detector that had to learn to say nothing
+
+- **PR 1 of four off [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md) §11.**
+  `mobile-app/src/services/radioTempo.mjs` (the detector) and `radioSignalField.mjs` (the geometry —
+  the mirrored spectrum, the pen-sweep rows, the ECG glyph, the gap, the ties, the lock easing), plus
+  Doto bundled as a local woff2. **No UI, no migration, no route, no i18n key** — neither module has
+  an importer yet, which is deliberate: the geometry and the detector are proven in isolation before
+  a canvas is pointed at them. #2062 → `6696491`.
+- ⚠ **THE POINT OF THE DETECTOR IS THAT IT RETURNS NULL FAR MORE OFTEN THAN A NUMBER.**
+  `BS_LIVE_STATION` types in `bpm: 132` and the page renders it as a live reading in three places.
+  Silence, an all-zero analyser frame (no CORS on the stream), broadband noise, speech and a slow
+  riser all read `null` here — **that is the feature, not a shortfall**, and every gate below exists
+  to keep it true.
+- ⚠ **MUTATION TESTING FOUND A FABRICATION THAT READING DID NOT.** Two thumps 2.5 s apart are four
+  onsets, and they scored **0.997 at 120 BPM** — clearing every confidence gate, because a handful of
+  vectors can raise the whole candidate range rather than one period. A coverage gate closes it: the
+  onsets must **span** the window, and there must be enough of them for the window's own length.
+  Measured — the span rule alone holds the slow riser and the count floor alone does not hold the
+  thumps, so both are tested as their own mutations rather than as one.
+- ⚠ **AND A TEST FOUND A DEFECT IN MY OWN GUARD: `bpm > 0` IS TRUE FOR INFINITY.** The arithmetic then
+  yields NaN (`floor(x / 0) * 0`), so `tempoBeatAt` handed back **NaN rather than null**, every
+  `== null` check downstream passed it, and the kick envelope and bar counter went NaN behind it — a
+  grid reporting itself settled while drawing nothing. Finite-and-positive now, named once as
+  `gridOk`. ⚠ The identical relaxation in `heartBeatsBetween` one module over is a **proven no-op**
+  (that loop's own arithmetic already yields `[]`) and is labelled as such at the site rather than
+  left reading as live. *Same shape, different loop, different answer.*
+- ⚠ **CODEX'S P1 IS THE ROUND PAYING FOR ITSELF, AND THE SUITE MISSED IT BECAUSE ONE SEED IS NOT A
+  SAMPLE.** Split-half agreement compares two argmaxes chosen **independently** over 241 candidates,
+  so two nearby peaks are common by coincidence in dense aperiodic audio — and the hold then turns one
+  lucky window into four seconds of confident output. Measured on the shipped detector: **237 of 500
+  speech seeds published a BPM**, at scores of 0.35–0.48, comfortably over the floor. My suite drove
+  `speech(7)`, which happens to refuse.
+- ⚠ **FIXED WITH PERSISTENCE, NOT A HIGHER SCORE FLOOR, AND THE REASON DECIDES IT.** A floor is the
+  tempting fix because the synthetic populations look cleanly separated — speech tops out at **0.804**,
+  a synthetic kick train sits at **0.998** — but real music with a soft kick under vocals sits
+  somewhere unmeasurable between them, and **this container has no real stream to measure against**.
+  A floor set from synthetic data fails toward "—" forever on actual music, which is the same
+  dishonesty pointing the other way. Persistence assumes only that a true tempo is **stable** and a
+  coincidence is not, which holds however clean the signal is: over windows 1.5 s apart, speech agrees
+  within 1 BPM **15.9%** of the time and a kick train **100.0%**. `CONFIRM_S = 2` takes the speech
+  fabrications to **0 of 500**.
+- ⚠ **IT COSTS 2 s AND BREAKS A TARGET I SET MYSELF, SO THE BRIEF IS CORRECTED AT THE SOURCE.** §5 asked
+  for a first reading within 6 s and the detector met it at **5.40 s** — while fabricating on half of
+  all speech. The first reading the page sees is **7.40 s** now and a 128 → 140 change re-settles at
+  **7.42 s**; traced across the change, the page goes `— → 128 → — → 140` rather than holding a stale
+  number. A record still promising 6 s would be an instruction to undo this.
+- ⚠ **THREE COMMITS PAST THE HEAD CODEX REVIEWED, EVERY ONE FROM MY OWN READ OF THE FIX-ROUND DIFF —
+  which this file's own rule says has not itself been reviewed.** (1) The broadband-noise mutation
+  asserted *"the three gates together are not what rejects noise"* while passing `splitTol: 999`,
+  which relaxes the three scoring gates **and**, since the confirm window reads the same constant, a
+  fourth. Proven by decoupling the two tolerances in a scratch copy: the split-half mutation still
+  passes and **this one fails**, because noise's per-window argmax wanders. `confirmS: 0` is explicit
+  now, so the mutation says what it relaxes and survives anyone later giving the confirm window its
+  own knob. (2) The speech test's control was `without > 100` — a **literal pinned to one corpus
+  size**, so shrinking the corpus fails the control on an *unmutated* tree and reads as the fix
+  breaking rather than the control being mis-scaled.
+- ⚠ **AND I WALKED INTO THAT ONE DIRECTLY, WHICH IS WHY THE NUMBER IS NOW RECORDED AT THE SITE.** A
+  120-seed experiment came back red and looked like evidence against the fix. With the control scaled
+  to a fraction the experiment answers cleanly: **at 120 seeds both confirm-window mutations survive**,
+  so 500 seeds and their **16.7 s — 8% of the whole suite, measured** — are bought rather than habitual.
+- ⚠ **A STANDALONE SEED SCAN WRITTEN TO SIZE THAT CORPUS DISAGREED WITH ALL OF IT, AND THE SCAN WAS
+  THE BROKEN INSTRUMENT.** It reported hits well inside 120 — because it carried **its own `lcg`**,
+  different multiplier and different modulus, so its *"seed 38"* was a different signal from the
+  suite's. **Third time in one session** that reimplementing a shipped helper instead of lifting it
+  produced a confident wrong answer (the first two: a hand-written `speech` fixture, and a brace
+  matcher that lifted a function without its `async`). *A fixture that invents a shape tests the
+  fixture.*
+- ⚠ **THE ECG GLYPH DRAWS NOTHING BEFORE THE BEAT ARRIVES.** A BLE strap (`0x180D`) sends heart-rate
+  values and RR intervals, **never a waveform**, so a real ECG's P wave — which precedes the R by
+  ~170 ms — would be a claim about a beat the app has not received yet. The glyph is zero for every
+  `u < 0` and the mutation that rings it early is killed.
+- ⚠ **THE FONT IS PROVEN BY ITS OWN BYTES, NOT BY ITS FILENAME.** On 2026-09-11 the homepage asked
+  Google Fonts for `Doto:wght@100..900`; that service pins every axis you do not name, so **`ROND`
+  arrived absent and sixteen `font-variation-settings` rules were silently inert** — and an ignored
+  axis is not an error in any browser, linter or build. fontsource ships two files whose **names differ
+  and whose bytes do not** (`doto-latin-full` and `doto-latin-rond` are byte-identical;
+  `doto-latin-wght` is a different file with one axis). `tests/radio-font-axes.test.mjs` parses the
+  shipped woff2's own `fvar` table to settle it. ⚠ **The parser is hand-rolled on purpose**: fontTools
+  is Python and this suite is Node, so a guard depending on it **would not run in CI at all** — which
+  is the same as not having one.
+- ⚠ **SHIPPING THE FACE IS HALF THE JOB: `ROND` DEFAULTS TO 0**, the square-dot form the review says
+  cannot be read at display size, so every consumer must set `'ROND' 100` explicitly. No consumer
+  exists yet and **a guard over zero consumers passes vacuously**, so the rule is written at the face
+  and the guard lands with the first consumer in PR 2.
+- **Two corrections to the brief, both measured:** it places the modules in `broadsheet/` where every
+  `.mjs` in this repo lives in `services/`; and its proposed silence mutation is a **no-op** — silence
+  produces no onsets at all, so lowering the confidence floor to 0 cannot make it read a tempo. The
+  measured gate table is recorded in the test header so the next reader inherits the finding.
+- **Review:** Codex reviewed `6ffea22` and returned the P1 above. Per the standing conventions it was
+  **not re-triggered** (one round per PR, everything front-loaded) and **CodeRabbit was not run**
+  (owner, this session) — its skip-review notice on the PR is automatic and is not a review. The three
+  commits after the Codex head are covered by my own adversarial read plus the mutation rounds, and the
+  PR says so rather than implying a layer ran.
+- **Verified:** `npm test` **3602/3602** · `tsc --noEmit` **0** · mobile build clean · the Doto face
+  confirmed in the emitted CSS at the full weight range and the woff2 **byte-identical** to source,
+  behind a negative control · every glyph the readings need present in the cmap (U+2212, `+`, `—`,
+  digits, bullet, middle dot) · **fontTools independently agreeing** with the hand-rolled parser on
+  both axes · and a mutation round **re-run on the merged tree: 30 of 34 killed**, each proven to
+  land, sanity green at both ends, the tree restored in a `finally` **and on a signal**.
+  ⚠ **THE FOUR SURVIVORS ARE THE FOUR ALREADY INVESTIGATED, AND THE COUNT WAS RE-DERIVED RATHER THAN
+  CARRIED** — a first draft of this entry claimed *"28/30 then 27/27"*, and the second half is a number
+  nothing produced. Two survivors are the heart-loop finiteness pair (**proven no-ops**, the loop's own
+  arithmetic already yields `[]`); one is the stale-grid freeze (**proven a no-op** — the hold sets
+  `settled` to null during any disruption, so `settled || {…}` always sees null when it matters); and
+  one is the restart-on-disagreement rule at **1 seed in 500**, labelled at the site with that number
+  rather than brute-forced, because reaching it needs two consecutive *successful* settles more than
+  `tol` apart with no null between them. *A measurement nobody re-derives is a claim* — and this one
+  was wrong before it was checked.
+- ⚠ **REGISTERED, NOT IN SCOPE:** the rail's five-bar signal meter (§8) has no helper yet — it lands in
+  PR 2 beside its consumer rather than widening this one.
+
 ### 2026-09-14 — Shape Radio in the app, reviewed and re-imagined three ways: less analog, more radio-futuristic
 
 - **Records only — a review with previews, not a build.** Owner: *"can you do a review of the shape
