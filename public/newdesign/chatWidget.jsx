@@ -349,11 +349,26 @@ function ChatWidget(props) {
           const raw = localStorage.getItem(key);
           if (raw) {
             const saved = JSON.parse(raw);
-            if (saved && Array.isArray(saved.threadsByTab) && saved.threadsByTab.length === tabs.length) {
-              setThreadsByTab(saved.threadsByTab);
-              if (Array.isArray(saved.activeByTab) && saved.activeByTab.length === tabs.length) {
-                setActiveByTab(saved.activeByTab);
-              }
+            // ⚠ MIGRATE THE PRE-FEED SHAPE RATHER THAN DISCARDING IT. These arrays
+            // are POSITIONAL, one entry per tab, and the hydrate accepted a saved
+            // record only on an exact length match. Prepending the Feed tab takes
+            // `tabs.length` from N to N+1, so EVERY existing member's record failed
+            // that check, was silently dropped, and was then overwritten with
+            // defaults on their next keystroke — losing sent messages and every
+            // channel they had created (review: Codex P1).
+            // The Feed tab is prepended, so an old record aligns with tabs[1..N]
+            // once an empty slot is pushed onto the front.
+            const fit = (arr, empty) => {
+              if (!Array.isArray(arr)) return null;
+              if (arr.length === tabs.length) return arr;
+              if (feedReady && tabs[0] && tabs[0].feed && arr.length === tabs.length - 1) return [empty].concat(arr);
+              return null;
+            };
+            const threads = saved && fit(saved.threadsByTab, []);
+            if (threads) {
+              setThreadsByTab(threads);
+              const active = fit(saved.activeByTab, 0);
+              if (active) setActiveByTab(active);
             }
           }
         } catch {}
@@ -361,7 +376,7 @@ function ChatWidget(props) {
       hydratedRef.current = true;
     })();
     return () => { cancelled = true; };
-  }, [tabs.length]);
+  }, [tabs.length, feedReady]);
 
   React.useEffect(() => {
     if (!hydratedRef.current || !storeKeyRef.current) return;

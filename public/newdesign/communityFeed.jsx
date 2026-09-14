@@ -468,6 +468,10 @@ function CommunityFeed() {
   });
   const switchFeedMode = (m) => { setFeedMode(m); try { localStorage.setItem('shape.feedMode', m); } catch (e) {} };
   const [liveEmpty, setLiveEmpty] = React.useState(false);
+  // ⚠ THREE STATES, NOT TWO. null = not resolved yet, false = measured signed
+  // out, true = measured signed in. Collapsing null into false would disable
+  // posting for a signed-in member for as long as the read takes.
+  const [signedIn, setSignedIn] = React.useState(null);
 
   // Hydrate the live posts on top of the demo content. The /api/community/feed
   // endpoint returns rows from community_posts (newest first); we map each row
@@ -592,6 +596,7 @@ function CommunityFeed() {
       let signedIn = false;
       let uid = null;
       try { const sb = window.shapeDb && window.shapeDb.client; if (sb) { const { data } = await sb.auth.getUser(); uid = data && data.user && data.user.id; signedIn = !!uid; } } catch (e) {}
+      setSignedIn(signedIn);
       let live = [];
       try {
         const r = await fetch('/api/community/feed' + (feedMode === 'following' ? '?mode=following' : ''), { credentials: 'same-origin' });
@@ -1145,7 +1150,22 @@ function CommunityFeed() {
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
         <button onClick={() => setMyPostsOnly(v => !v)} style={{ background: myPostsOnly ? "rgba(10,197,168,0.16)" : "transparent", color: myPostsOnly ? TEAL_BRIGHT : INK, border: `1px solid ${myPostsOnly ? "rgba(10,197,168,0.4)" : "rgba(242,237,228,0.25)"}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{myPostsOnly ? "All posts" : "My posts"}</button>
-        <button onClick={() => setComposerOpen(true)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>New post</button>
+        {/* ⚠ GATED, AND IT DID NOT USED TO NEED TO BE. As a dashboard page this
+            composer was already behind a signed-in shell. The feed now renders in
+            the site-wide chat bubble, which mounts on Landing and Login too — so a
+            signed-out visitor could compose, the row would paint optimistically,
+            and /api/community/feed would answer 401 into a `.then` that only ever
+            read the response for milestone posts. The post was never published and
+            the screen said it was (review: Codex P1).
+            It RENDERS rather than disappearing, and says why — the roster-CSV
+            precedent: a control that is simply absent is not discoverable, and one
+            that leads nowhere costs more trust than one that explains itself. */}
+        <button onClick={() => setComposerOpen(true)} disabled={signedIn !== true}
+          title={signedIn === false ? "Sign in to post" : signedIn === null ? "Checking your account…" : ""}
+          style={{ background: signedIn === true ? INK : "rgba(242,237,228,0.06)", color: signedIn === true ? PAPER : "rgba(242,237,228,0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: signedIn === true ? "pointer" : "default", whiteSpace: "nowrap" }}>New post</button>
+        {signedIn === false && (
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Sign in to post</span>
+        )}
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 18px 22px" }}>
         <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1254,7 +1274,16 @@ function CommunityFeed() {
             }
             setEditingPost(null);
             // Optimistic create
-            setFeed(prev => [{ id: "me-" + Date.now(), isMe: true, isLive: false, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post }, ...prev]);
+            // ⚠ THE CHANNEL GOES ON THE ROW, NOT ONLY ON THE REQUEST — and it is
+            // spread AFTER `post` so the chip the member posted from always wins.
+            // Without it this row has no `channel` and `cfChannelOf` falls back to
+            // the author's ROLE, which here is the hardcoded ME.role tier string
+            // ("Hypertrophy · 2,140"): it resolves to CLIENT, so a post made on
+            // the Wall VANISHES the instant it is published and does not come back
+            // until a remount refetches it (review: Codex P1). Same defect the
+            // demo cards had, in the one place it was not looked for.
+            const optimisticId = "me-" + Date.now();
+            setFeed(prev => [{ id: optimisticId, isMe: true, isLive: false, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post, channel: filter }, ...prev]);
             // Persist to the live feed (best-effort; the optimistic post already shows).
             const metrics = {};
             // ⚠ THE CHANNEL IS WRITTEN, NOT LEFT TO BE INFERRED. Without it a
@@ -1286,7 +1315,13 @@ function CommunityFeed() {
                 metrics: Object.keys(metrics).length ? metrics : undefined,
               }),
             }).then(async (r) => {
-              if (!isMs || !r || !r.ok) return;
+              // ⚠ ROLL BACK A REFUSED POST. This arm used to return early for
+              // every non-milestone post, so a 401/4xx/5xx left the optimistic row
+              // on screen forever — the member is shown a post that does not exist
+              // and is gone on their next load. The gate above makes the signed-out
+              // case unreachable; this covers the race and every other refusal.
+              if (!r || !r.ok) { setFeed(prev => prev.filter(x => x.id !== optimisticId)); return; }
+              if (!isMs) return;
               // The +25 CAREER award — AWAITED on the real post id (idempotent
               // monthly dedupe; granted=false on a same-month duplicate, and
               // the chip shows ONLY on a real grant). A failed claim queues
@@ -1305,7 +1340,7 @@ function CommunityFeed() {
                 const uid = j && j.post && j.post.author_id;
                 if (pid) await claimCareerAward(pid, true, uid);
               } catch (e) {}
-            }).catch(() => {});
+            }).catch(() => { setFeed(prev => prev.filter(x => x.id !== optimisticId)); });
           }}
         />
       )}

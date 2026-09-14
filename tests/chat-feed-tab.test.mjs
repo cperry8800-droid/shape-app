@@ -125,3 +125,52 @@ test('the Community tab is gone from all three dashboards', () => {
     assert.doesNotMatch(read(shell), /community: \(\) =>/, shell + ' still routes #community');
   }
 });
+
+// ── The Codex round on this change: three P1s, each replayed as its own guard ──
+// Every one was a defect the move INTRODUCED, so each is pinned here rather than
+// left to be green-after-the-fix.
+
+test('an optimistic post carries the chip it was posted from', () => {
+  // ⚠ P1. The channel was stamped only onto the REQUEST. The optimistic row had
+  // none, so cfChannelOf fell back to the author's role — which here is the
+  // hardcoded ME.role tier string ("Hypertrophy · 2,140") and resolves to CLIENT.
+  // A post made on the Wall vanished the instant it was published.
+  const s = stripComments(FEED);
+  const insert = /setFeed\(prev => \[\{ id: optimisticId[^\]]*\]\);/.exec(s);
+  assert.ok(insert, 'the optimistic insert no longer has the shape this reads');
+  assert.match(insert[0], /channel: filter/, 'the optimistic row does not carry its channel');
+  // AFTER the `...post` spread, or a composer that ever grows a channel key
+  // silently outranks the chip the member actually posted from.
+  assert.ok(insert[0].indexOf('...post') < insert[0].indexOf('channel: filter'),
+    'channel is spread before ...post, so it can be overridden');
+});
+
+test('posting is gated on a MEASURED signed-in, and a refused post rolls back', () => {
+  const s = stripComments(FEED);
+  // Three states: null unknown / false signed out / true signed in. `!signedIn`
+  // would disable posting for a signed-in member for as long as the read takes.
+  assert.match(s, /disabled=\{signedIn !== true\}/, 'the composer is no longer gated on a measured signed-in');
+  assert.match(s, /setSignedIn\(signedIn\)/, 'the loader no longer publishes the auth state');
+  // ⚠ THE ROLLBACK IS THE HALF THAT SURVIVES A RACE. The gate makes the
+  // signed-out case unreachable; this covers every other refusal, and the arm it
+  // replaced returned early for EVERY non-milestone post.
+  assert.match(s, /if \(!r \|\| !r\.ok\) \{ setFeed\(prev => prev\.filter\(x => x\.id !== optimisticId\)\); return; \}/,
+    'a refused post is no longer rolled back');
+  assert.match(s, /\.catch\(\(\) => \{ setFeed\(prev => prev\.filter\(x => x\.id !== optimisticId\)\); \}\)/,
+    'a network failure no longer rolls the optimistic row back');
+});
+
+test('the pre-Feed persisted chat state is migrated, not discarded', () => {
+  // ⚠ P1, and it is silent DATA LOSS. `threadsByTab` / `activeByTab` are
+  // positional, and the hydrate accepted a saved record only on an exact length
+  // match — so prepending the Feed tab made every existing member's record fail,
+  // get dropped, and be overwritten with defaults on their next keystroke.
+  const s = stripComments(WIDGET);
+  assert.doesNotMatch(s, /saved\.threadsByTab\.length === tabs\.length/,
+    'the hydrate is back to an exact-length match, which discards every pre-Feed record');
+  assert.match(s, /arr\.length === tabs\.length - 1/, 'the hydrate no longer accepts the pre-Feed shape');
+  assert.match(s, /\[empty\]\.concat\(arr\)/, 'the pre-Feed record is not realigned onto the Feed tab');
+  // The migration is keyed on the Feed tab existing, so it must re-run if the
+  // module lands late — otherwise it is decided on a tabs.length it never saw.
+  assert.match(s, /\}, \[tabs\.length, feedReady\]\);/, 'the hydrate effect no longer re-runs when the Feed tab appears');
+});
