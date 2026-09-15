@@ -29,8 +29,13 @@
 // knot rather than one figure. A depth-only clone of each mesh (colorWrite off,
 // drawn in the opaque pass) fills the depth buffer first, so only the nearest
 // surface passes the depth test and lights up. The clone shares the original's
-// skeleton AND its morph-target influences by reference — a copied influence
-// array would leave the depth of a blinking eyelid a frame behind the light.
+// skeleton AND its morph-target influences by reference. ⚠ A COPIED INFLUENCE
+// ARRAY IS NOT A LAG, IT IS PERMANENT: `Mesh.copy` SLICES that array ONCE, at
+// clone time, and three-vrm's morph bind writes IN PLACE into the ORIGINAL
+// primitive's array (over a `primitives` list resolved at load that never
+// contains our clone) — so a clone left as three.js makes it never sees another
+// write, and the depth of a blinking eyelid stays frozen at its clone-time value
+// for the life of the preview.
 //
 // Pure ESM with THREE INJECTED: the caller owns the three.js instance, and this
 // module has no bare import to resolve, so the shader sources and the

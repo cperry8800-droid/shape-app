@@ -736,8 +736,14 @@ Append new entries at the top, under this note.
   Playback is licensing-gated — `bsRadioSignedIn()` refuses a signed-out visitor outright — and in
   production **`public.radio_station` does not exist at all** — re-queried against the live catalog
   while writing this, not carried from the 2026-09-11 entry that first recorded it — so
-  `ShapeRadioLive.play()` resolves **false** for every member today; on the web the autoplay policy
-  refuses it again. The analyser therefore never carries a
+  `ShapeRadioLive.play()` resolves **false** for every member today — on the `!cfg.configured` bail,
+  **before it ever reaches `audio.play()`**. ⚠ **CORRECTED — THIS READ "on the web the autoplay policy
+  refuses it again", AND THAT POLICY IS NEVER CONSULTED IN THE CASE THE PARAGRAPH IS ABOUT** (Codex, on
+  the changelog PR). With no station `public/radio.html`'s `loadStation()` leaves `STREAM_URL` null, and
+  both `openRadio()` (reached from one call site, which passes `autoPlay: false`) and `togglePlay()`
+  return **without calling `audio.play()` at all** — so the page lands in its own *Coming soon* /
+  *Off air* copy rather than being refused by anything. *A refusal nobody asks for is not a second
+  reason; it is a sentence about a path the code does not take.* The analyser therefore never carries a
   frame, and every part of the instrument was gated on one: the grid's alpha and radius were scaled by
   `fieldK`, the spectrum's baseline and its four-beat counter waited for data. **The owner was not
   looking at the wrong page; they were looking at the right page in the state nobody had drawn.**
@@ -795,8 +801,19 @@ Append new entries at the top, under this note.
   hair through the face, a glowing knot rather than a figure. A `colorWrite:false` clone per mesh fills
   the depth buffer in the opaque pass first. ⚠ **`Mesh.copy` SLICES `morphTargetInfluences` while
   `SkinnedMesh.copy` SHARES the skeleton** — so a clone left as three.js makes it tracks the bones and
-  **not** the blend shapes, and a blinking eyelid's depth lags its light by a frame. The influences are
-  re-pointed at the original's array.
+  **not** the blend shapes. ⚠ **CORRECTED — THIS READ "a blinking eyelid's depth lags its light by a
+  frame", AND THE REAL FAILURE IS PERMANENT** (Codex, on the changelog PR). The slice is taken **once,
+  at clone time** — in **both** versions this ships against, checked rather than assumed
+  (`Mesh.copy` slices at `three/src/objects/Mesh.js:116` in `three@0.185.1`, the mobile bundle, and at
+  `:50` in `three@0.169.0`, the web page's import map) — and three-vrm's morph bind writes **in place**
+  into the ORIGINAL primitive's array
+  (`mesh.morphTargetInfluences[this.index] += …`, over a `primitives` list resolved at load that never
+  contains our clone), so **no later write reaches the clone at all** and its eyelid stays frozen at
+  whatever it carried when the hologram was applied, for the life of the preview. *A snapshot is not a
+  lag*, and calling it one makes the hazard sound self-correcting. The influences are re-pointed at the
+  original's array, **and the same understatement is corrected in the module's own comment and in the
+  guard's failure message** — a because-clause is a claim wherever it is written, which is the lesson
+  this same entry pays for again on the booth's accent.
 - ⚠ **AND MToon DRAWS ITS OUTLINE AS A SECOND ENTRY IN THE MESH'S MATERIAL ARRAY.** `_generateOutline`
   turns `mesh.material` into `[surface, outline]` **and adds two geometry groups**, so replacing the
   array naively leaves an inverted-hull shell behind — **a second, larger Nora** around the first.
@@ -835,8 +852,10 @@ Append new entries at the top, under this note.
   the newdesign precompile check · the full pre-commit gate including the mobile build ·
   **69 mutations killed across four rounds**, each proven to land (anchors occurrence-counted before the edit,
   the suite's own `# pass`/`# fail` **parsed** rather than read off a pipeline's exit status), sanity
-  green at both ends, the tree restored in a `finally` **and on a signal** — both Codex findings
-  replayed as their own mutations · and the Radio page **driven in Chromium across four states**
+  green at both ends, the tree restored in a `finally` **and on a signal** — **all three** Codex findings
+  replayed as their own mutations (#2088's gesture P1 and still-throttle P2, #2091's live-accent P2;
+  ⚠ this read *"both"*, which is the count for the first PR alone) · and the Radio page **driven in
+  Chromium across four states**
   (signed out · signed in with `play()` refused · playing against a synthetic 128-BPM analyser ·
   paused) with **zero page errors**, plus each Nora look captured from its own build.
 - ⚠ **ONE OF MY OWN GUARDS WAS BLIND BECAUSE IT MATCHED TOO WIDE A WINDOW.** The dot-matrix guard
