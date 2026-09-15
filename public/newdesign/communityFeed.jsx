@@ -279,6 +279,14 @@ function CfCard({ children, style }) {
     ...style
   }}>{children}</div>;
 }
+// ⚠ NO CALLER TODAY, AND KEPT DELIBERATELY. Its last call site was the author
+// row's activity-type chip, which the wall plate replaced with the app's own
+// heat-underlined caption. It stays because `tests/chat-feed-tab.test.mjs`
+// asserts this file has its OWN Card and Pill and renders neither dashboard
+// global — `Pill` is declared TWICE in this directory with different defaults,
+// so which one a bare `<Pill>` got was a property of script order. Having the
+// local one here is what a future pill should reach for; delete it only
+// together with that guard.
 function CfPill({ children, tone = "mute" }) {
   const bg = tone === "teal" ? TEAL : "rgba(242,237,228,0.08)";
   const col = tone === "teal" ? PAPER : "rgba(242,237,228,0.7)";

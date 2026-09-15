@@ -149,8 +149,15 @@ test('the feed carries no dashboard globals', () => {
   // at all. `Card` and `Pill` were file-scope declarations in
   // trainerDashboard.jsx — and `Pill` is declared TWICE in this directory with
   // different defaults, so which one it got was a property of tag order.
-  assert.doesNotMatch(FEED, /<Card[\s>]/, 'the feed renders the dashboard-global Card');
-  assert.doesNotMatch(FEED, /<Pill[\s>]/, 'the feed renders the dashboard-global Pill');
+  //
+  // ⚠ COMMENTS STRIPPED FIRST. This is a ban on what the feed RENDERS, and a
+  // comment naming the tag is a mention, not a render — so the raw-source form
+  // failed on the very sentence documenting why the local Pill is kept. That is
+  // the same defect the mapper's `p.channel` guard below was fixed for, in the
+  // same file: a guard that fires on its own rationale is measuring the prose.
+  const rendered = stripComments(FEED);
+  assert.doesNotMatch(rendered, /<Card[\s>]/, 'the feed renders the dashboard-global Card');
+  assert.doesNotMatch(rendered, /<Pill[\s>]/, 'the feed renders the dashboard-global Pill');
   assert.match(FEED, /function CfCard\(/, 'the feed lost its local Card');
   assert.match(FEED, /function CfPill\(/, 'the feed lost its local Pill');
 });
