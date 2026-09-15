@@ -138,6 +138,11 @@ function useRadioStation() {
       an.connect(ctx.destination);
       analyserRef.current = an;
       binsRef.current = new Uint8Array(an.frequencyBinCount);
+      // ⚠ PARKED FOR NORA'S BOOTH, WHICH IS AN ES MODULE AND CANNOT SEE THIS SCOPE.
+      // The old player did the same thing for the same reason: a second
+      // createMediaElementSource on one <audio> element throws, so the booth must be
+      // handed the graph rather than building its own.
+      window.__shapeRadioGraph = { analyser: an, context: ctx };
     } catch (e) {
       // ⚠ A STREAM WITHOUT CORS HEADERS TAINTS THE GRAPH and every bin reads zero.
       // That is a real state with its own honest line on the page ("No signal data

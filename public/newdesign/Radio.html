@@ -20,6 +20,19 @@
   img{display:block;max-width:100%}
   ::selection{background:#34d6c5;color:#04110f}
 </style>
+<!-- ⚠ FOR NORA'S BOOTH, AND IT MUST PRECEDE EVERY MODULE SCRIPT — a document gets
+     one import map and it has to be parsed before the first import it serves.
+     Carried over verbatim from the player this page retires, so the booth resolves
+     the same three.js it was built and verified against. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.169.0",
+    "three/addons/": "https://esm.sh/three@0.169.0/examples/jsm/",
+    "@pixiv/three-vrm": "https://esm.sh/@pixiv/three-vrm@3.1.6?deps=three@0.169.0"
+  }
+}
+</script>
 <script defer src="/_vercel/insights/script.js"></script></head><body>
 <script src="/newdesign/mobile-redirect.js"></script>
 <div id="root"></div>

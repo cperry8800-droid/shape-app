@@ -147,6 +147,81 @@ function RadioInApp() {
   );
 }
 
+// ⚠ NORA'S BOOTH CAME OFF THE PLAYER THIS PAGE RETIRES. It is the one thing
+// /radio.html had that this page did not, so retiring that page without it would
+// have lost a shipped feature. The stage is `noraStage.mjs` — the same module the
+// app's own Radio screen mounts — and three.js loads only when somebody asks for
+// it, because it is megabytes and most visitors never open the booth.
+function RadioNora() {
+  const canvasRef = React.useRef(null);
+  const stageRef = React.useRef(null);
+  const [state, setState] = React.useState("closed");   // closed | opening | open | unsupported | failed
+  const busy = React.useRef(false);
+
+  const open = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setState("opening");
+    try {
+      if (!window.WebGLRenderingContext) { setState("unsupported"); return; }
+      const g = window.__shapeRadioGraph || null;
+      if (g && g.context && g.context.state === "suspended") { try { await g.context.resume(); } catch (e) { /* a booth without audio still draws */ } }
+      const { NoraStage } = await import("/newdesign/noraStage.mjs");
+      const stage = new NoraStage({
+        canvas: canvasRef.current,
+        // ⚠ THE INSTRUMENT'S OWN ANALYSER, OR NONE. Nora reacts to what the station
+        // is actually playing; given no graph she stands rather than miming.
+        analyser: g ? g.analyser : null,
+        modelUrl: "/nora/placeholder.vrm",
+        color: RD_TEAL,
+      });
+      await stage.load();
+      stage.start();
+      stageRef.current = stage;
+      setState("open");
+    } catch (e) {
+      if (stageRef.current) { try { stageRef.current.dispose(); } catch (e2) {} stageRef.current = null; }
+      setState("failed");
+    } finally { busy.current = false; }
+  };
+
+  const close = () => {
+    if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} stageRef.current = null; }
+    setState("closed");
+  };
+
+  React.useEffect(() => () => { if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} } }, []);
+
+  const showing = state === "open" || state === "opening";
+  return (
+    <section id="nora" style={{ padding: "0 24px 96px" }}>
+      <div style={{ maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+        <RdReveal>
+          <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: RD_TEAL, fontVariationSettings: "'ROND' 100" }}>The booth</div>
+          <h2 style={{ fontFamily: RD_DISP, fontWeight: 500, fontVariationSettings: "'wdth' 105", fontSize: "clamp(26px,3vw,38px)", letterSpacing: "-0.02em", margin: "14px 0 0", color: RD_CREAM }}>Nora</h2>
+          <p style={{ fontFamily: RD_SANS, fontSize: 15, color: "rgba(238,243,240,0.7)", margin: "14px auto 0", maxWidth: 460, lineHeight: 1.6 }}>
+            Shape&rsquo;s resident, projected in light made of the field&rsquo;s own dots. She moves on
+            what the station is playing, so she only has something to react to while
+            something is on the air.
+          </p>
+          <div style={{ position: "relative", width: "100%", maxWidth: 420, aspectRatio: "3 / 4", margin: "26px auto 0", display: showing ? "block" : "none", border: "1px solid rgba(238,243,240,0.12)", background: "#04070c", overflow: "hidden" }}>
+            <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
+          </div>
+          {(state === "unsupported" || state === "failed") && (
+            <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: RD_CREAM50, marginTop: 20, fontVariationSettings: "'ROND' 100" }}>
+              {state === "unsupported" ? "This browser has no WebGL — the booth needs it" : "The booth could not start on this device"}
+            </div>
+          )}
+          <button type="button" onClick={showing ? close : open} disabled={state === "opening"}
+            style={{ marginTop: 22, height: 44, padding: "0 20px", background: "transparent", border: `1px solid ${RD_TEAL}`, color: RD_TEAL, fontFamily: RD_SANS, fontWeight: 600, fontSize: 13.5, cursor: state === "opening" ? "default" : "pointer", clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" }}>
+            {state === "opening" ? "Starting the booth…" : showing ? "Hide Nora" : "Watch Nora (preview)"}
+          </button>
+        </RdReveal>
+      </div>
+    </section>
+  );
+}
+
 function RadioJoin() {
   return (
     <section style={{ padding: "0 24px 110px" }}>
@@ -175,6 +250,7 @@ function RadioPage() {
       <RadioInstrument />
       <div id="sets"><RadioShapeSets /></div>
       <RadioInApp />
+      <RadioNora />
       <RadioJoin />
       <Footer />
       <style>{`
