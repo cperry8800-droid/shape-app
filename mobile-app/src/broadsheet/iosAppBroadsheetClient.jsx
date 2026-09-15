@@ -12879,7 +12879,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
         </div>
       </div>
       {editable && (
-        <button type="button" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(e); }} onKeyDown={(e) => e.stopPropagation()} aria-label={tr('profile:avatar.changePhoto', { defaultValue: 'Change photo' })} style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BGv}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(e); }} onKeyDown={(e) => e.stopPropagation()} aria-label={tr('profile:avatar.changePhoto', { defaultValue: 'Change photo' })} style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(24, Math.round(size * 0.3)), height: Math.max(24, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BGv}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
       )}
       {!editable && showDot && (
         <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BGv, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BGv}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: dotColor }} /></span>
@@ -31972,11 +31972,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // wrong-layer trap the 2026-09-14 settings review measured with a finder that
   // reported on Home while the screenshots showed Settings.
   const paneTopRef = React.useRef(null);
-  React.useLayoutEffect(() => {
+  const scrollPaneTop = () => {
     const el = paneTopRef.current;
     const scroller = el && el.closest ? el.closest('.bs-scroll') : null;
     if (scroller) scroller.scrollTop = 0;
-  }, [detail]);
+  };
+  React.useLayoutEffect(() => { scrollPaneTop(); }, [detail]);
   // THE CYCLE (spec 2026-07-19) — member-only consent surface. cycleBusy names
   // the in-flight write so a double-tap can't fire two consent RPCs.
   const cycle = useBSCycleSettings();
@@ -32652,10 +32653,41 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // handle nobody chose. It seeds from the ACCOUNT's real username, which is the one
   // thing that makes it the member's; a saved `client_identity` handle sets it too.
   const [handleKnown, setHandleKnown] = useStateBSC(!!_myUsername);
+  // ⚠ AND THE BIO. `identity.bio` seeds to the demo persona's "Cutting for summer…"
+  // for EVERY account. It renders nowhere in Settings — but the edit form showed it
+  // as the member's own words, and saving any OTHER field wrote it into
+  // client_identity, from where the public profile reads it back as theirs.
+  const [bioKnown, setBioKnown] = useStateBSC(false);
   // Deep-link: open straight into the edit-profile pane (e.g. the Goal page's
   // "Primary goal · Edit" card) instead of the Settings landing.
   const [editing, setEditing] = useStateBSC(initialPage === 'edit-profile');
-  const [draft, setDraft] = useStateBSC(identity);
+  // ⚠ THE EDIT PAGE OPENS AT ITS TOP TOO — the same Codex P2 the tile panes paid for,
+  // keyed on `editing` because it is NOT a `detail` value: toRoot clears every
+  // `detail` on shape:openProfile and this page holds an unsaved draft it must not
+  // discard. Same walk, same scroller, a second key.
+  React.useLayoutEffect(() => { scrollPaneTop(); }, [editing]);
+  // ⚠ THE DRAFT STARTS FROM WHAT THE MEMBER ACTUALLY HAS, NEVER FROM THE PERSONA.
+  // `identity` carries demo defaults — a Brooklyn address, a bio, a handle slugged
+  // from the name — so the signed-out preview has something to show. A form seeded
+  // straight from it presented those as a real member's own entries, and saveEdit
+  // then persisted them: the card's `locationKnown` guard lasted exactly one save of
+  // any other field, because the save wrote the seed back as a saved value.
+  const seedDraft = (id = identity) => ({
+    ...id,
+    handle: handleKnown ? id.handle : '',
+    location: locationKnown ? id.location : '',
+    bio: bioKnown ? id.bio : '',
+  });
+  const [draft, setDraft] = useStateBSC(seedDraft());
+  // ⚠ THE WRITE IS SCOPED TO WHAT THE MEMBER TOUCHED — Codex P1 on this PR. The draft
+  // is seeded from the *Known flags, and those are false until the client_identity
+  // read lands (and stay false when it fails): a member who tapped Edit inside that
+  // window and saved an unrelated field would have written '' over their stored city
+  // and bio — the same window the old seed-from-identity had, with Brooklyn as the
+  // wrong value instead of ''. So the form records which keys it edited, saveEdit
+  // writes only those, and when the read lands the untouched keys refresh from it.
+  const touchedRef = React.useRef(new Set());
+  const edit = (k, v) => { touchedRef.current.add(k); setDraft(prev => ({ ...prev, [k]: v })); };
   // Nav announce (spec §2): the shell only sees settingsStart at OPEN time;
   // this keeps the register current as the user moves within Settings. Only
   // the replayable keys (initialPage-supported) are announced.
@@ -32672,35 +32704,71 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         setIdentity(prev => ({ ...prev, ...d }));
         if ('location' in d) setLocationKnown(!!d.location);
         if ('handle' in d) setHandleKnown(!!d.handle);
-        // When opened directly in edit mode, seed the draft from the saved
-        // identity (which loads async) so the form shows real values, not defaults.
-        if (initialPage === 'edit-profile') setDraft(prev => ({ ...prev, ...d }));
+        if ('bio' in d) setBioKnown(!!d.bio);
+        // The draft takes the saved value of every key the member has not edited — on
+        // the deep link, where the form is already open at mount, and on the root, where
+        // they may have tapped Edit before this read landed. A key they have typed into
+        // is theirs and is left alone.
+        setDraft(prev => { const next = { ...prev }; for (const k of Object.keys(d)) if (!touchedRef.current.has(k)) next[k] = d[k]; return next; });
         try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
       }
     }).catch(() => {});
   }, []);
-  const startEdit = () => { setDraft(identity); setEditing(true); };
+  const startEdit = () => { touchedRef.current = new Set(); setDraft(seedDraft()); setEditing(true); };
   const saveEdit  = () => {
-    setIdentity(draft); setEditing(false);
-    setLocationKnown(!!(draft.location || '').trim());
-    // Persist the whole edited identity through the serialized writer (merges over
-    // the freshest stored doc, so the photo picker's photo and our avatarMode can't
-    // clobber each other). Optimistically update the cache first so on-screen
-    // avatars refresh instantly without navigating. avatarMode is always defined
-    // so a merge can't blank a saved preference.
+    // ⚠ ONLY WHAT THE MEMBER TOUCHED IS WRITTEN (see touchedRef). The draft is a copy
+    // of `identity`, which also carries `goal` (the Goal page's own field, written by
+    // its own editor) and the persona's `accent`, and its untouched keys may still be
+    // the seed's '' while the identity read is in flight or after it failed. Writing
+    // the whole draft overwrote a goal this form never displayed; writing every form
+    // field blanked a stored city and bio the form had not loaded yet. bsSaveIdentity
+    // MERGES over the freshest stored document, so a key left out of the patch cannot
+    // blank anything it already holds.
+    // ⚠ AND THE HANDLE IS WRITTEN WHEN THE MEMBER TYPED ONE. The previous guard read
+    // `if (!handleKnown) delete patch.handle` under a comment claiming this form had
+    // no handle field. It has always had one — so a member whose account carried no
+    // username typed a handle, tapped Save, and had it silently dropped. The draft
+    // seeds '' for a handle that is not theirs (seedDraft), so anything typed into the
+    // field is theirs by construction: normalised to one leading @, written, and
+    // marked known so the identity card prints it.
+    // ⚠ A CLEARED HANDLE IS WRITTEN AS '' — Codex P2 on this PR. Leaving the key out
+    // kept the old handle stored AND shown, so the member's edit was silently ignored;
+    // the hydrate already reads an empty stored handle as not-known, so '' is the
+    // clearing value both ends agree on. Only a TOUCHED field can clear: a handle that
+    // was never theirs sits in the draft as an untouched '' and is never written.
+    const touched = touchedRef.current;
+    const name = String(draft.name || '').trim() || identity.name;
+    const typed = String(draft.handle || '').trim().replace(/^@+/, '');
+    const handle = typed ? '@' + typed : '';
+    const location = String(draft.location || '').trim();
+    const bio = String(draft.bio || '');
+    const fields = {};
+    if (touched.has('name')) fields.name = name;
+    if (touched.has('initials')) fields.initials = draft.initials || '';
+    if (touched.has('avatarMode')) fields.avatarMode = draft.avatarMode || 'photo';
+    if (touched.has('location')) fields.location = location;
+    if (touched.has('link')) fields.link = draft.link || '';
+    if (touched.has('pronouns')) fields.pronouns = draft.pronouns || '';
+    if (touched.has('bio')) fields.bio = bio;
+    if (touched.has('handle')) fields.handle = handle;
+    setIdentity(prev => ({ ...prev, ...fields })); setEditing(false);
+    if (touched.has('location')) setLocationKnown(!!location);
+    if (touched.has('bio')) setBioKnown(!!bio.trim());
+    if (touched.has('handle')) setHandleKnown(!!handle);
+    // Persist through the serialized writer (merges over the freshest stored doc, so
+    // the photo picker's photo and our avatarMode can't clobber each other).
+    // Optimistically update the cache first so on-screen avatars refresh instantly
+    // without navigating.
+    // ⚠ ASKED OF WHAT THE MEMBER EDITED, NOT OF THE PATCH: the cached photo rides every
+    // write, so a check on the patch could never fire and an untouched Save still
+    // round-tripped the store — driven, 1 document written where 0 was expected.
+    if (!Object.keys(fields).length) return; // nothing edited: nothing to write
     const photo = bsMyPhotoRaw() || null;
-    // ⚠ A SYNTHESIZED HANDLE IS NOT WRITTEN, OR THE GUARD ABOVE LASTS ONE SAVE. This
-    // form has no handle field — the draft carries whatever was seeded — so saving
-    // any OTHER field used to persist the name-derived fallback into
-    // `client_identity`, after which the hydrate reads `handle` as present and
-    // promotes a handle nobody claimed to a claimed one. bsSaveIdentity MERGES over
-    // the stored document, so omitting the key cannot blank a real saved handle.
-    const patch = { ...draft, avatarMode: draft.avatarMode || 'photo', ...(photo ? { photo } : {}) };
-    if (!handleKnown) delete patch.handle;
+    const patch = photo ? { ...fields, photo } : fields;
     try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...patch }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
     bsSaveIdentity(patch);
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
-    try { window.ShapeAuth?.updateProfileName?.(draft.name); } catch (e) {}
+    if (touched.has('name')) { try { window.ShapeAuth?.updateProfileName?.(name); } catch (e) {} }
   };
   const cancelEdit = () => setEditing(false);
 
@@ -32872,13 +32940,37 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     </button>
   );
 
-  const DetailBack = ({ title }) => (
+  // ⚠ `onBack` IS WHERE THE ROW RETURNS TO, AND IT DEFAULTS TO THE SETTINGS ROOT. The
+  // tile panes are `detail` values and close with setDetail(''); the Edit profile page
+  // is keyed on `editing` (see there for why) and passes cancelEdit. Either way the row
+  // reads "← Settings" and lands ON Settings — never on the shell's own onBack, which
+  // closes Settings and lands on Home.
+  // The card's two actions and the edit page's Cancel · Save: ONE button, so the page
+  // reads as the card opened up and the two cannot drift. `tall` is the edit page's
+  // 44px row — the review's comfortable-row height, above the 24px floor, which this
+  // repo names separately so neither is mistaken for the other; the card keeps its own.
+  const PassportBtn = ({ label, onClick, fill, tall, grow = true }) => (
+    <button onClick={onClick} style={{
+      flex: grow ? 1 : '0 0 auto', minWidth: 0, minHeight: tall ? 44 : undefined, padding: tall ? '10px 16px' : '10px 8px',
+      borderRadius: 3, clipPath: BS_CHAMFER, cursor: 'pointer',
+      border: `1px solid ${fill ? t.ACCENT : t.RULE}`, background: fill ? bsTHexA(t.ACCENT, 0.1) : 'transparent',
+      color: fill ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800,
+      letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    }}>{label}</button>
+  );
+
+  const DetailBack = ({ title, onBack: back = () => setDetail('') }) => (
     <>
       {/* Masthead row first (the one inset), then ← Settings on its own row,
           flush left — the house rule for every drill-in pane. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        <button onClick={() => setDetail('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.title', { defaultValue: 'Settings' })}</button>
+        {/* ⚠ PADDED INTO A REAL TAP TARGET, MEASURED AT 78x13 ON THE EDIT PAGE — the same
+            13px row the root's own ← Back had until #2085 padded it. The negative margin
+            cancels the padding so the row is pixel-identical; only the hit area grew, to
+            29px, past the house floor (WCAG 2.5.8 AA at 24px). Every pane gets it, because
+            every pane renders this one row. */}
+        <button onClick={back} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.title', { defaultValue: 'Settings' })}</button>
       </div>
       <div style={{ padding: `12px ${t.padX}px 6px` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', lineHeight: 1 }}>{title}</div>
@@ -33034,7 +33126,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
     const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
     const kind = role === 'trainer' ? 'TRAINER' : role === 'nutritionist' ? 'NUTRI' : 'CLIENT';
-    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: bsMyPhoto() || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); setEditing(true); }} />;
+    // ⚠ THROUGH startEdit, NOT setEditing(true): the draft is re-seeded on every entry,
+    // or a form cancelled on the root and reopened from here carries the discarded
+    // edits back with it.
+    return <BSPublicProfile person={{ who: identity.name, init: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name), kind, userId: uid, photo: bsMyPhoto() || null }} isSelf onBack={() => setShowPublicProfile(false)} onEdit={() => { setShowPublicProfile(false); startEdit(); }} />;
   }
 
   const nutritionRows = [
@@ -33608,8 +33703,116 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         </div>
       </>)}
 
+      {/* ── EDIT PROFILE ── its own page, the Passport's registered next step. It used
+          to render INLINE on the root, under the root's own ← Back — which calls the
+          shell's onBack and closes Settings — so backing out of the form landed on Home
+          with the draft discarded. It carries the same masthead-and-← row as every
+          drill-in pane now, and that row returns to the SETTINGS root.
+          ⚠ KEYED ON `editing`, NEVER A `detail` VALUE. toRoot clears every `detail` on
+          shape:openProfile, and this page holds an unsaved draft it must not discard —
+          the invariant recorded beside toRoot. */}
+      {!detail && editing && (<>
+        <DetailBack title={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onBack={cancelEdit} />
+        {(() => {
+          const acc = bsMyTierColor(); // the avatar follows my Shape Score tier, as on the card
+          // The Passport's own grammar, not the old form's pills: a mono eyebrow over
+          // each field, squared boxes at radius 3, the house chamfer on every cell that
+          // is a control, and the THEME accent for focus and selection — the tier colour
+          // stays on the avatar, where the card keeps it. Values at 16px display; labels
+          // at 70% ink, the review's floor for a form.
+          const eyebrow = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, marginBottom: 6 };
+          const section = (txt, first) => <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, margin: first ? '6px 0 9px' : '20px 0 9px' }}>{txt}</div>;
+          const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '11px 13px', borderRadius: 3, border: `1px solid ${t.RULE}`, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s' };
+          const onFocus = (e) => { e.target.style.borderColor = t.ACCENT; };
+          const onBlur = (e) => { e.target.style.borderColor = t.RULE; };
+          // A cell is the quick switch's box as a radio: the whole cell is the control.
+          const cell = (on) => ({ flex: 1, minWidth: 0, minHeight: 44, padding: '9px 10px', borderRadius: 3, clipPath: BS_CHAMFER, cursor: 'pointer', textAlign: 'left', border: `1px solid ${on ? bsTHexA(t.ACCENT, 0.55) : t.RULE}`, background: on ? bsTHexA(t.ACCENT, 0.07) : t.PAPER2, color: on ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' });
+          const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
+          const bioLen = (draft.bio || '').length;
+          return (
+            <div style={{ padding: `2px ${t.padX}px 24px` }}>
+              {section(tr('settings:edit.photoAvatar', { defaultValue: 'Photo & avatar' }), true)}
+              {/* The avatar card — the identity card's own box. The ✎ badge is the one
+                  control here: a real <button> named "Change photo" inside BSFacetAvatar.
+                  The tier line reads the same role-aware `scoreProfile` as the card. */}
+              <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: '12px 13px', borderRadius: 3, clipPath: BS_CHAMFER, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+                <BSFacetAvatar size={54} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER2} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{draft.name || identity.name}</div>
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span aria-hidden="true" style={{ flexShrink: 0, width: 7, height: 7, borderRadius: 999, background: settingsTierC, display: 'inline-block' }} />
+                    {tr('settings:edit.tierColor', { tier: scoreProfile.tier, defaultValue: '{tier} tier color' })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Show in avatar — two cells, exactly one on (app-wide: photo or the initials gem) */}
+              <div style={{ marginTop: 12 }}>
+                <span style={eyebrow}>{tr('settings:edit.showInAvatar', { defaultValue: 'Show in avatar' })}</span>
+                <div role="radiogroup" style={{ display: 'flex', gap: 7 }}>
+                  {[['photo', tr('settings:edit.photo', { defaultValue: 'Photo' })], ['initials', tr('settings:edit.initials', { defaultValue: 'Initials' })]].map(([val, label]) => {
+                    const on = (draft.avatarMode || 'photo') === val;
+                    return <button key={val} role="radio" aria-checked={on} onClick={() => edit('avatarMode', val)} style={cell(on)}>{label}</button>;
+                  })}
+                </div>
+              </div>
+
+              {/* Custom avatar initials — optional override, max 2 characters */}
+              <label style={{ display: 'block', marginTop: 12 }}>
+                <span style={eyebrow}>{tr('settings:edit.avatarInitials', { defaultValue: 'Avatar initials' })} <span style={{ color: t.INK50 }}>{tr('settings:edit.max2', { defaultValue: '· max 2' })}</span></span>
+                <input value={draft.initials || ''} placeholder={bsInitials(draft.name) || 'AB'} maxLength={2}
+                  onChange={(e) => edit('initials', e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2))}
+                  onFocus={onFocus} onBlur={onBlur}
+                  style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
+              </label>
+
+              {section(tr('settings:edit.identity', { defaultValue: 'Identity' }))}
+              {[
+                { k: 'name',     label: tr('settings:edit.displayName', { defaultValue: 'Display name' }), ph: tr('settings:edit.displayNamePh', { defaultValue: 'Your name' }) },
+                { k: 'handle',   label: tr('settings:edit.handle', { defaultValue: 'Handle' }),       ph: '@handle' },
+                { k: 'location', label: tr('settings:edit.location', { defaultValue: 'Location' }),     ph: tr('settings:edit.locationPh', { defaultValue: 'City, State' }) },
+                { k: 'link',     label: tr('settings:edit.link', { defaultValue: 'Website / link' }), ph: tr('settings:edit.linkPh', { defaultValue: 'instagram.com/you' }) },
+              ].map(f => (
+                <label key={f.k} style={{ display: 'block', marginBottom: 10 }}>
+                  <span style={eyebrow}>{f.label}</span>
+                  <input value={draft[f.k] || ''} placeholder={f.ph} onChange={(e) => edit(f.k, e.target.value)}
+                    onFocus={onFocus} onBlur={onBlur} style={field} />
+                </label>
+              ))}
+
+              {section(tr('settings:edit.aboutYou', { defaultValue: 'About you' }))}
+              {/* Pronouns — three cells; tapping the lit one clears it */}
+              <div>
+                <span style={eyebrow}>{tr('settings:edit.pronouns', { defaultValue: 'Pronouns' })}</span>
+                <div style={{ display: 'flex', gap: 7 }}>
+                  {pronounOpts.map(p => {
+                    const on = draft.pronouns === p;
+                    return <button key={p} aria-pressed={on} onClick={() => edit('pronouns', on ? '' : p)} style={{ ...cell(on), textTransform: 'none', letterSpacing: 0, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: on ? t.ACCENT : t.INK }}>{p}</button>;
+                  })}
+                </div>
+              </div>
+
+              {/* Bio + counter */}
+              <label style={{ display: 'block', marginTop: 12 }}>
+                <span style={{ ...eyebrow, display: 'flex', justifyContent: 'space-between' }}><span>{tr('settings:edit.bio', { defaultValue: 'Bio' })}</span><span style={{ color: bioLen > 160 ? t.RUST : t.INK50, letterSpacing: '0.06em' }}>{bioLen}/160</span></span>
+                <textarea value={draft.bio || ''} maxLength={180} onChange={(e) => edit('bio', e.target.value)} rows={3}
+                  onFocus={onFocus} onBlur={onBlur}
+                  style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
+              </label>
+
+              {/* Cancel · Save — the identity card's own two buttons at the 44px row, so
+                  the page reads as the card opened up. */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+                <PassportBtn label={tr('settings:action.cancel', { defaultValue: 'Cancel' })} onClick={cancelEdit} tall grow={false} />
+                <PassportBtn label={tr('settings:edit.saveChanges', { defaultValue: 'Save changes' })} onClick={saveEdit} fill tall />
+              </div>
+            </div>
+          );
+        })()}
+      </>)}
+
       {/* ── SETTINGS PAGE ── */}
-      {!detail && (<>
+      {!detail && !editing && (<>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
         {/* ⚠ PADDED INTO A REAL TAP TARGET, MEASURED AT 47x13 BEFORE. The house floor
@@ -33625,7 +33828,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           The page used to open on an "ACCOUNT / Settings." masthead and three chips,
           with the member's own name nowhere on it. The corner EDIT link moved here
           too, onto a button that says what it edits. */}
-      {!editing && (() => {
+      {(() => {
         const acc = bsMyTierColor();
         const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
         const hasSub = !!(plan && plan.active === true);
@@ -33661,14 +33864,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         // belong to somebody else. A value you can overwrite inside an edit form is
         // not a claim; the first line of your own settings is.
         const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
-        const btn = (label, on, fill) => (
-          <button onClick={on} style={{
-            flex: 1, minWidth: 0, padding: '10px 8px', borderRadius: 3, clipPath: BS_CHAMFER, cursor: 'pointer',
-            border: `1px solid ${fill ? t.ACCENT : t.RULE}`, background: fill ? bsTHexA(t.ACCENT, 0.1) : 'transparent',
-            color: fill ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800,
-            letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>{label}</button>
-        );
         return (
           <div style={{ padding: `12px ${t.padX}px 0` }}>
             <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: '12px 13px', borderRadius: 3, clipPath: BS_CHAMFER, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
@@ -33688,17 +33883,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
-              {btn(tr('settings:passport.edit', { defaultValue: 'Edit profile' }), startEdit, true)}
-              {btn(tr('settings:more.publicProfile', { defaultValue: 'Public profile' }), () => setShowPublicProfile(true), false)}
+              <PassportBtn label={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onClick={startEdit} fill />
+              <PassportBtn label={tr('settings:more.publicProfile', { defaultValue: 'Public profile' })} onClick={() => setShowPublicProfile(true)} />
             </div>
           </div>
         );
       })()}
 
-      {/* Identity card — the avatar/name/tier/follows header now lives on the
-          profile (Me/Signal); Settings keeps the quick shortcuts + edit form. */}
+      {/* The quick switches. The edit form used to swap in here, under the root's own
+          ← Back; it is its own page above now. */}
       <div style={{ padding: `8px ${t.padX}px 16px` }}>
-        {!editing ? (
           <div>
             {/* ── QUICK SWITCHES ── the three things members actually flip, on the
                 root instead of two taps down. Each one is a REAL stored setting and
@@ -33734,96 +33928,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 onToggle={() => setPref('dailyCheckin', prefs.dailyCheckin !== 'Off' ? 'Off' : 'On')} />
             </div>
           </div>
-        ) : (
-          (() => {
-            const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-            const acc = bsMyTierColor(); // avatar + form accent follow my Shape Score tier (not a chosen color)
-            const lbl = { display: 'block', fontFamily: t.BODY, fontSize: 12.5, fontWeight: 600, letterSpacing: 0, textTransform: 'none', color: t.INK70, marginBottom: 6 };
-            const field = { width: '100%', boxSizing: 'border-box', padding: '13px 15px', border: `1px solid ${t.HAIR}`, background: bsTHexA(t.INK, 0.035), borderRadius: 14, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s, background 0.15s' };
-            const sectionHead = (txt) => <div style={{ fontFamily: t.BODY, fontSize: 12, fontWeight: 700, letterSpacing: 0, textTransform: 'none', color: t.INK50, margin: '22px 0 11px' }}>{txt}</div>;
-            const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
-            return (
-            <div>
-              {sectionHead(tr('settings:edit.photoAvatar', { defaultValue: 'Photo & avatar' }))}
-              {/* Avatar (tap ✎ to change the photo — no separate button) + the
-                  tier-color note. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-                <BSFacetAvatar size={60} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
-                <div style={{ minWidth: 0, fontFamily: t.BODY, fontSize: 12, fontWeight: 500, color: t.INK50, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 999, background: acc, display: 'inline-block' }} />
-                  {tr('settings:edit.tierColor', { tier: bsMyTier(), defaultValue: '{tier} tier color' })}
-                </div>
-              </div>
-
-              {/* Avatar source — show the photo or the initials gem (app-wide) */}
-              <div style={{ marginBottom: 14 }}>
-                <span style={lbl}>{tr('settings:edit.showInAvatar', { defaultValue: 'Show in avatar' })}</span>
-                <div style={{ display: 'inline-flex', border: `1px solid ${t.RULE}`, borderRadius: 999, overflow: 'hidden', background: t.PAPER2 }}>
-                  {[['photo', tr('settings:edit.photo', { defaultValue: 'Photo' })], ['initials', tr('settings:edit.initials', { defaultValue: 'Initials' })]].map(([val, label]) => {
-                    const on = (draft.avatarMode || 'photo') === val;
-                    return <button key={val} onClick={() => setDraft({ ...draft, avatarMode: val })} style={{ padding: '9px 18px', border: 0, background: on ? acc : 'transparent', color: on ? '#06110e' : t.INK70, cursor: 'pointer', fontFamily: t.BODY, fontSize: 13, fontWeight: 600, letterSpacing: 0 }}>{label}</button>;
-                  })}
-                </div>
-              </div>
-
-              {/* Custom avatar initials — optional override, max 2 characters */}
-              <label style={{ display: 'block', marginBottom: 13 }}>
-                <span style={lbl}>{tr('settings:edit.avatarInitials', { defaultValue: 'Avatar initials' })} <span style={{ textTransform: 'none', letterSpacing: 0, color: t.INK50, fontWeight: 600 }}>{tr('settings:edit.max2', { defaultValue: '· max 2' })}</span></span>
-                <input value={draft.initials || ''} placeholder={bsInitials(draft.name) || 'AB'} maxLength={2}
-                  onChange={(e) => setDraft({ ...draft, initials: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2) })}
-                  onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
-                  style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
-              </label>
-
-              {sectionHead(tr('settings:edit.identity', { defaultValue: 'Identity' }))}
-              {[
-                { k: 'name',     label: tr('settings:edit.displayName', { defaultValue: 'Display name' }), ph: tr('settings:edit.displayNamePh', { defaultValue: 'Your name' }) },
-                { k: 'handle',   label: tr('settings:edit.handle', { defaultValue: 'Handle' }),       ph: '@handle' },
-                { k: 'location', label: tr('settings:edit.location', { defaultValue: 'Location' }),     ph: tr('settings:edit.locationPh', { defaultValue: 'City, State' }) },
-                { k: 'link',     label: tr('settings:edit.link', { defaultValue: 'Website / link' }), ph: tr('settings:edit.linkPh', { defaultValue: 'instagram.com/you' }) },
-              ].map(f => (
-                <label key={f.k} style={{ display: 'block', marginBottom: 13 }}>
-                  <span style={lbl}>{f.label}</span>
-                  <input value={draft[f.k] || ''} placeholder={f.ph} onChange={(e) => setDraft({ ...draft, [f.k]: e.target.value })}
-                    onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
-                    style={field} />
-                </label>
-              ))}
-
-              {sectionHead(tr('settings:edit.aboutYou', { defaultValue: 'About you' }))}
-              {/* Pronouns — quick chips + free text */}
-              <div style={{ marginBottom: 13 }}>
-                <span style={lbl}>{tr('settings:edit.pronouns', { defaultValue: 'Pronouns' })}</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {pronounOpts.map(p => {
-                    const on = draft.pronouns === p;
-                    return <button key={p} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ padding: '9px 15px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? acc : t.RULE}`, background: on ? `${acc}1c` : 'transparent', color: t.INK, fontFamily: t.BODY, fontSize: 13, fontWeight: 500, letterSpacing: 0 }}>{p}</button>;
-                  })}
-                </div>
-              </div>
-
-              {/* Bio + counter */}
-              <label style={{ display: 'block', marginBottom: 16 }}>
-                <span style={{ ...lbl, display: 'flex', justifyContent: 'space-between' }}><span>{tr('settings:edit.bio', { defaultValue: 'Bio' })}</span><span style={{ color: (draft.bio || '').length > 160 ? t.RUST : t.INK50 }}>{(draft.bio || '').length}/160</span></span>
-                <textarea value={draft.bio} maxLength={180} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} rows={3}
-                  onFocus={(e) => { e.target.style.borderColor = acc; }} onBlur={(e) => { e.target.style.borderColor = t.RULE; }}
-                  style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
-              </label>
-
-              <div style={{ display: 'flex', gap: 9, marginTop: 4 }}>
-                <button onClick={cancelEdit} style={{ borderRadius: 999,
-                  flex: '0 0 auto', padding: '14px 24px', border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer',
-                  fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 600,
-                }}>{tr('settings:action.cancel', { defaultValue: 'Cancel' })}</button>
-                <button onClick={saveEdit} style={{ borderRadius: 999,
-                  flex: 1, padding: '14px', border: 0, background: teal, color: '#04201d', cursor: 'pointer',
-                  fontFamily: t.BODY, fontSize: 14, letterSpacing: 0, fontWeight: 700,
-                }}>{tr('settings:edit.saveChanges', { defaultValue: 'Save changes' })}</button>
-              </div>
-            </div>
-            );
-          })()
-        )}
       </div>
 
       {/* PREVIEW AS — signed-out demo only: switch profile type to browse each
@@ -34264,7 +34368,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       </>)}
 
-      {!detail && (<>
+      {!detail && !editing && (<>
       {/* ── THE DOORS ── a two-column grid of tiles, then the three Also rows.
           ⚠ THE HEADING IS NO LONGER "More · 12 sections". The 2026-09-14 review's
           sharpest measurement was that the whole settings tree lived under a word
