@@ -200,7 +200,7 @@ on; the nav's two radii become one cut.
   ticked, the counter stepped; off air the key read *Tune in* and the field rested; signed out the key
   was disabled with *Sign in to listen* under it; the smallest control on a fold measured 36px.
 - **F, driven rather than eyeballed.** On the drop: the wall led at tune-in (`wl` 1.00, the
-  label *Listening · the wall leads*), handed to the cloud 17.7 s later when the simulated
+  label *Listening · the wall leads*), handed to the cloud 17.8 s later when the simulated
   station's kick sat out (`wl` 0.02, *Listening · the cloud leads*), and back to the wall
   5.5 s after that when it returned. The tempo read **128 BPM** as the
   breakdown began (inside the detector's four-second hold) and **—** as the kick
@@ -214,6 +214,13 @@ on; the nav's two radii become one cut.
   with F's longer labels (measured off the rects: the mark ended at 245px, the label began at 184px). On
   a phone the label now sits under the wordmark, and the geometry was re-measured at 400 · 360 · 320 on
   A and F: label below the mark, above the rail, and the example-signal line inside the gutter.
+- **And a second one, from the first publish, that the direct probe could not see.** The Nav tab reported
+  a 487px scroll width at 400 in the harness and 400 in a hand-written probe — because the probe served
+  fallback fonts, under which the wordmark chip wrapped to a second row, while the real faces let it sit
+  on the first at x 185. Its chamfer frame is an `<svg>` with no size, and a replaced element keeps its
+  intrinsic 300×150 box under `inset:0`, so the frame ran 87px past the viewport. Sized explicitly;
+  re-measured at 400 on every tab: no overflow. *An instrument in the wrong typeface measures the wrong
+  layout* — the 2026-09-10 lesson, arriving through a probe this time rather than a review.
 - The Today tab is `renderToStaticMarkup` over `radio.jsx`'s own `RadioHero` and `RadioShapeSets`
   (the Sets card's reveal wrapper ships at opacity 0 until an observer fires; it is shown revealed) and
   the player's own markup and CSS scoped under one class, its idle rings running the page's own
