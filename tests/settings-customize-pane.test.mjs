@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as babelParser from '@babel/parser';
 import { SRC } from './helpers/broadsheet-mount.mjs';
+import { stripComments } from './helpers/strip-comments.mjs';
 
 const src = readFileSync(SRC, 'utf8');
 const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
@@ -121,4 +122,107 @@ test('every pane that hides the root is still reset when Settings is re-opened',
   // than assuming it — the customize pane is a `detail` value, not a new flag.
   const reset = src.slice(src.indexOf('const toRoot = () => {'), src.indexOf('const toRoot = () => {') + 900);
   assert.match(reset, /setDetail\(''\)/, 'the drill-in pane must be reset, or Customize re-opens over the root');
+});
+
+// ── THE PANE OPENS AT ITS TOP ────────────────────────────────────────────────
+// The span of `function BSSettings`, so every assertion below is about that
+// component rather than about the 35k-line module around it.
+function settingsNode() {
+  let found = null;
+  (function walk(n) {
+    if (!n || typeof n !== 'object' || found) return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (n.type === 'FunctionDeclaration' && n.id && n.id.name === 'BSSettings') { found = n; return; }
+    for (const k of Object.keys(n)) if (k !== 'loc') walk(n[k]);
+  })(ast.program);
+  return found;
+}
+
+// Every `React.useLayoutEffect(fn, deps)` inside a node, with its dep identifiers.
+function layoutEffects(root) {
+  const out = [];
+  (function walk(n) {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (n.type === 'CallExpression' && n.callee.type === 'MemberExpression'
+        && n.callee.object.name === 'React' && n.callee.property.name === 'useLayoutEffect') {
+      const deps = n.arguments[1] && n.arguments[1].type === 'ArrayExpression'
+        ? n.arguments[1].elements.map(e => (e && e.type === 'Identifier') ? e.name : null)
+        : null;
+      out.push({ node: n, deps });
+    }
+    for (const k of Object.keys(n)) if (k !== 'loc') walk(n[k]);
+  })(root);
+  return out;
+}
+
+test('a drill-in pane opens at its top, whatever the member had scrolled', () => {
+  // ⚠ REACHABLE ONLY BECAUSE OF THIS PANE, which is why it is this PR's to fix.
+  // BSPage keeps ONE `.bs-scroll` across every value of `detail` and never resets it
+  // when its children change — the browser behaviour `_bsScrollTopOnMount` exists for.
+  // A browser only clamps scrollTop when the NEW tree is SHORTER, so every pane that
+  // shipped before this one (Account is six rows, well under a viewport) corrected
+  // itself at 0 and nobody could see the defect. Customize is 355 lines: it keeps
+  // whatever the root was scrolled to and opens with its own DetailBack and tab bar
+  // already above the viewport.
+  const fn = settingsNode();
+  assert.ok(fn, 'BSSettings is not a function declaration any more — this whole file is measuring nothing');
+  const eff = layoutEffects(fn).find(e => e.deps && e.deps.length === 1 && e.deps[0] === 'detail');
+  assert.ok(eff, 'no layout effect keyed on `detail` — a pane opens wherever the root happened to be scrolled');
+  const body = src.slice(eff.node.start, eff.node.end);
+  assert.match(body, /scrollTop\s*=\s*0/, 'the effect keyed on `detail` does not reset the scroller');
+  // ⚠ BOTH DIRECTIONS, and the dep array is what says so: keyed on `detail` it runs
+  // on the way into a pane AND on the way back to the root. Backing out of a short
+  // pane already landed at 0 (the browser had clamped it), so this makes today's
+  // behaviour deterministic rather than changing it.
+});
+
+test('and it finds ITS OWN scroller by walking up, never the first one in the document', () => {
+  // ⚠ THE WRONG-LAYER TRAP, MEASURED ONCE ALREADY. `.bs-scroll` marks MANY scrollers
+  // — the chrome's own comment says so, rails included — and Settings renders as an
+  // overlay ABOVE a still-mounted tab tree, so `document.querySelector('.bs-scroll')`
+  // can return the page underneath. The 2026-09-14 settings review paid for this with
+  // a harness that reported on Home while the screenshots showed Settings.
+  const fn = settingsNode();
+  const eff = layoutEffects(fn).find(e => e.deps && e.deps.length === 1 && e.deps[0] === 'detail');
+  const body = src.slice(eff.node.start, eff.node.end);
+  assert.match(body, /\.closest\(\s*'\.bs-scroll'\s*\)/, 'the scroller is not resolved by walking up from our own tree');
+  // ⚠ COMMENTS STRIPPED, AND THIS GUARD CAUGHT ITSELF ON ITS FIRST RUN. The
+  // rationale above the effect names `document.querySelector('.bs-scroll')` in order
+  // to say we must NOT use it, and a raw scan read that sentence as the defect — a
+  // ban on a phrase failing the correct wording that explains the ban. The shared
+  // stripper, never a local one: this repo has post-mortemed four copies of a
+  // home-rolled stripper that deleted the source it was asserting over.
+  const settings = stripComments(src.slice(fn.start, fn.end));
+  assert.ok(!/document\.querySelector\(\s*['"]\.bs-scroll/.test(settings),
+    'BSSettings reaches for the first .bs-scroll in the document — that can be the page underneath');
+  // Guard-the-guard: the stripper must not have eaten the code this file asserts over.
+  assert.ok(settings.includes("closest('.bs-scroll')"),
+    'the stripper removed the effect itself — this assertion is measuring nothing');
+});
+
+test('and the ref it walks up from is attached INSIDE the scroller', () => {
+  // ⚠ THE SILENT HALF. Attach that ref to a node outside BSPage and `closest` finds
+  // nothing, the reset never runs, and every assertion above still passes — the fix
+  // becomes a no-op that reads as shipped. The ref NAME is derived from the effect
+  // rather than typed here, so a rename fails for the right reason or not at all.
+  const fn = settingsNode();
+  const eff = layoutEffects(fn).find(e => e.deps && e.deps.length === 1 && e.deps[0] === 'detail');
+  const body = src.slice(eff.node.start, eff.node.end);
+  const m = body.match(/([A-Za-z_$][\w$]*)\.current/);
+  assert.ok(m, 'the effect reads no ref — it cannot know which scroller is ours');
+  const refName = m[1];
+
+  let page = null;
+  (function walk(n) {
+    if (!n || typeof n !== 'object' || page) return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (n.type === 'JSXElement' && n.openingElement.name.type === 'JSXIdentifier'
+        && n.openingElement.name.name === 'BSPage') { page = n; return; }
+    for (const k of Object.keys(n)) if (k !== 'loc') walk(n[k]);
+  })(fn.body);
+  assert.ok(page, 'BSSettings no longer renders a BSPage — there is no scroller to reset');
+  const inside = src.slice(page.start, page.end);
+  assert.ok(inside.includes(`ref={${refName}}`),
+    `${refName} is not attached to any element inside <BSPage> — closest() finds nothing and the reset never runs`);
 });

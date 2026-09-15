@@ -31955,6 +31955,28 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  // ⚠ A DRILL-IN PANE OPENS AT ITS TOP, AND ONLY THE TALL ONE COULD EVER PROVE IT.
+  // BSPage keeps ONE `.bs-scroll` across every value of `detail` and never resets it
+  // when its children change — the browser behaviour `_bsScrollTopOnMount` exists for.
+  // Every pane that shipped before this one is SHORTER than the viewport (Account is
+  // six rows), so the browser clamped scrollTop to 0 for them by itself and nobody
+  // could see this. Customize is 355 lines: a member who scrolled down to reach its
+  // card opens a pane whose DetailBack and tab bar are ALREADY above the viewport,
+  // with nothing on screen saying where they are. Reset on every change of `detail`,
+  // in both directions — coming back to the root already landed at 0 for the short
+  // panes, so this makes today's behaviour deterministic rather than changing it.
+  // ⚠ AND THE SCROLLER IS FOUND BY WALKING UP FROM OUR OWN TREE, NEVER BY
+  // `document.querySelector('.bs-scroll')`. The chrome's own comment says that class
+  // marks MANY scrollers, rails included, and Settings renders ABOVE a still-mounted
+  // tab tree — so the first match in the document is the page underneath. That is the
+  // wrong-layer trap the 2026-09-14 settings review measured with a finder that
+  // reported on Home while the screenshots showed Settings.
+  const paneTopRef = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const el = paneTopRef.current;
+    const scroller = el && el.closest ? el.closest('.bs-scroll') : null;
+    if (scroller) scroller.scrollTop = 0;
+  }, [detail]);
   // THE CYCLE (spec 2026-07-19) — member-only consent surface. cycleBusy names
   // the in-flight write so a double-tap can't fire two consent RPCs.
   const cycle = useBSCycleSettings();
@@ -33202,7 +33224,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
   return (
     <BSPage tabBarHeight={0}>
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      <div ref={paneTopRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
 
       {/* ── DRILL-IN CARD PANES ── */}
       {detail === 'account' && (<><DetailBack title={tr('settings:section.account', { defaultValue: 'Account' })} />{renderRows(findSec('Account').rows)}</>)}
