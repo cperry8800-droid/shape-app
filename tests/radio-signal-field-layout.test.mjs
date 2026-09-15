@@ -19,7 +19,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
-import { penSpeed, ROW_WINDOW_S, GAP_PX, BANDS, bandsFromBins } from '../mobile-app/src/services/radioSignalField.mjs';
+import { penSpeed, ROW_WINDOW_S, GAP_PX, BANDS, bandsFromBins } from '../public/newdesign/radioSignalField.mjs';
 
 const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx';
 const raw = readFileSync(SRC, 'utf8');

@@ -85,11 +85,31 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { data } = await supabase
+  // ⚠ THE QUERY ERROR IS READ, AND DROPPING IT MANUFACTURED A FALSE 200 (Codex,
+  // #2101 round 4). The Supabase client RESOLVES rather than throws on a query
+  // fault — a statement timeout, an RLS change, a column that moved — so
+  // destructuring `{ data }` alone turned every one of those into `data: null`
+  // and answered **200 with configured:false**. That is not "there is no station";
+  // it is "we could not look", published with the authority of a successful
+  // response, and no client guard can tell the two apart because the status says
+  // everything went fine. The web player then printed "No station on the air yet".
+  //
+  // This is the same class the header above documents for computeMembership — the
+  // file explains the trap about one query and then walked into it on the next.
+  // 503 rather than 200, so the caller lands on the unavailable path it already
+  // has, and fail-closed stays fail-closed: no URL either way.
+  const { data, error } = await supabase
     .from('radio_station')
     .select('provider, station_name, stream_url')
     .eq('id', 1)
     .maybeSingle();
+  if (error) {
+    console.error('[radio/station] station lookup failed — failing CLOSED:', error.message);
+    return NextResponse.json(
+      { error: 'Radio is unavailable right now.', code: 'station_unavailable' },
+      { status: 503 }
+    );
+  }
   return NextResponse.json({
     name: data?.station_name || 'Shape Radio',
     streamUrl: data?.stream_url || null,

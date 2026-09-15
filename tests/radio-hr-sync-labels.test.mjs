@@ -22,7 +22,7 @@ import { stripComments } from './helpers/strip-comments.mjs';
 // real function or it throws a ReferenceError and every assertion below reads as
 // "the code is broken". Importing it also means a change to how a gap is printed
 // is exercised here rather than only where it is defined.
-import { gapText } from '../mobile-app/src/services/radioSignalField.mjs';
+import { gapText } from '../public/newdesign/radioSignalField.mjs';
 
 const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx';
 const src = stripComments(readFileSync(SRC, 'utf8'));

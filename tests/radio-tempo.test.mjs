@@ -44,7 +44,7 @@ import {
   tempoEnergyFromBins,
   TEMPO_BINS,
   RING_S,
-} from '../mobile-app/src/services/radioTempo.mjs';
+} from '../public/newdesign/radioTempo.mjs';
 
 const FPS = 60;
 
@@ -678,7 +678,7 @@ test('a stale ring is not searched, and a fresh one still is', () => {
 
 test('the detector carries no wall clock and no randomness', async () => {
   const { readFileSync } = await import('node:fs');
-  const src = readFileSync(new URL('../mobile-app/src/services/radioTempo.mjs', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../public/newdesign/radioTempo.mjs', import.meta.url), 'utf8');
   // Stripped of comments first — this file's own header discusses both.
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(code, /Math\.random/, 'the detector must be replayable');
