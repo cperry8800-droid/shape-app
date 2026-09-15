@@ -31,7 +31,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 import {
   fieldAlpha, fieldRadius, fieldK, FIELD_REST_ALPHA, FIELD_REST_RADIUS,
-} from '../mobile-app/src/services/radioSignalField.mjs';
+} from '../public/newdesign/radioSignalField.mjs';
 
 const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx';
 const raw = readFileSync(SRC, 'utf8');

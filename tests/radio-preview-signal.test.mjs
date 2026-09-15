@@ -24,10 +24,10 @@ import { stripComments } from './helpers/strip-comments.mjs';
 import {
   previewBins, previewSimOn, hasSignal, railRms, railBarsLit, RAIL_BARS,
   PREVIEW_BPM, PREVIEW_BINS,
-} from '../mobile-app/src/services/radioSignalField.mjs';
+} from '../public/newdesign/radioSignalField.mjs';
 import {
   createTempoDetector, tempoEnergyFromBins, tempoBarStep,
-} from '../mobile-app/src/services/radioTempo.mjs';
+} from '../public/newdesign/radioTempo.mjs';
 
 const SRC = new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url);
 const CATALOGS = new URL('../mobile-app/src/i18n/catalogs/', import.meta.url);

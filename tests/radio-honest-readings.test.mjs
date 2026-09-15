@@ -20,7 +20,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import * as babelParser from '@babel/parser';
 import { stripComments } from './helpers/strip-comments.mjs';
-import { bpmGap, inSync } from '../mobile-app/src/services/radioSignalField.mjs';
+import { bpmGap, inSync } from '../public/newdesign/radioSignalField.mjs';
 
 const SRC = new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url);
 const CATALOGS = new URL('../mobile-app/src/i18n/catalogs/', import.meta.url);
