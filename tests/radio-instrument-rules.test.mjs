@@ -332,6 +332,23 @@ test('a fetch that never landed does not claim there is no station', () => {
     && n.arguments.length === 1 && n.arguments[0].value === false).length > 0,
     'a terminal stop does not clear `playing` — the rail keeps claiming On air and the clock keeps counting');
 
+  // ⚠ AND THE NON-FAILURE BRANCH MUST **EXIT** BEFORE THE CLEANUP (Codex, round 8) —
+  // the fourth instance of one class, and the one I asked that round to go looking for.
+  // Every assertion above inspects what the failure path DOES and none proves the
+  // ordinary pause never reaches it: drop the `return` from `if (!bad) return` and a
+  // deliberate Pause falls through to setRefusal("unavailable") and drops the cached
+  // source — a station failure reported for a button the listener pressed on purpose,
+  // plus a needless refetch on every resume. Saying the right thing is not stopping.
+  const notBad = collect(stoppedFn, (n) => n.type === 'IfStatement'
+    && n.test.type === 'UnaryExpression' && n.test.operator === '!'
+    && n.test.argument.type === 'Identifier');
+  assert.ok(notBad.length > 0, 'the terminal handler does not branch on its failure flag at all');
+  assert.ok(notBad.some((g) => {
+    const nested = functionsOf(g);
+    return collect(g, (n) => n.type === 'ReturnStatement')
+      .some((r) => !nested.some((f) => r.start > f.start && r.end < f.end));
+  }), 'the non-failure branch does not return in its own scope — an ordinary pause falls through to the failure cleanup');
+
   // ⚠ AND THE OTHER DOOR INTO THE SAME FALSE CLAIM (Codex, round 3): `fetch` RESOLVES
   // on an HTTP error, so the catch never runs for the route's own 503 or 402 — both
   // reached the configuration verdict and were published as "No station on the air
@@ -502,10 +519,89 @@ test('a simulated now-playing payload is never published as a measured track', (
   // legitimately calls setNowPlaying — and this guard passed with an empty catch until
   // a mutation said otherwise. Third enclosing-node slip of the session: the node that
   // contains the thing you are looking for is rarely the node you meant.
+  // ⚠ AND THE POLL SUPERSEDES (Codex, round 8) — the same rule `play()` got in round 2
+  // and this did not. Two polls in flight (one slower than the 15 s interval) and the
+  // older landing last overwrites the current track with metadata already known to be
+  // stale, and drives radioProgram with it.
+  // The token is DERIVED rather than named here: find the variable the poll advances
+  // with `+= 1`, then require every setNowPlaying to sit inside a condition that reads
+  // it. Pinning the spelling `mine === seq` would pin whatever that spelling is wrong
+  // about, which is this repo's most-repeated lesson.
+  const bumps = collect(poll, (n) => n.type === 'AssignmentExpression' && n.operator === '+='
+    && n.left.type === 'Identifier');
+  assert.ok(bumps.length > 0, 'the now-playing poll advances no attempt token — a slow response can overwrite a newer one');
+  const tokenNames = new Set(bumps.map((b) => b.left.name));
+  const writes = collect(poll, (n) => calleeName(n) === 'setNowPlaying');
+  assert.ok(writes.length > 0, 'the poll never sets the track — this guard is reading the wrong function');
+  for (const w of writes) {
+    const guarding = collect(poll, (n) => (n.type === 'IfStatement' || n.type === 'LogicalExpression'
+      || n.type === 'ConditionalExpression')
+      && w.start > n.start && w.end < n.end
+      && collect(n.test || n.left || {}, (x) => x.type === 'Identifier' && tokenNames.has(x.name)).length > 0);
+    assert.ok(guarding.length > 0,
+      'a now-playing response is applied without checking it is still the current attempt — a slow poll can overwrite a newer one');
+  }
+
   for (const c of catches) {
     const handler = c.arguments[0];
     assert.ok(handler, 'the now-playing catch takes no handler');
     assert.ok(collect(handler, (n) => calleeName(n) === 'setNowPlaying').length > 0,
       'a failed now-playing poll keeps the last track on screen — a reading we cannot take is not a reading');
   }
+});
+
+test('Nora can be handed the analyser that did not exist when her booth opened', () => {
+  // ⚠ A REGRESSION AGAINST THE PAGE THIS ONE RETIRES (Codex, round 8). The old player
+  // built its stage only once the graph existed. Here the booth is its own control and
+  // a visitor very reasonably opens Nora BEFORE pressing Tune in — at which point
+  // `window.__shapeRadioGraph` is null, `NoraStage` stored that null, and there was no
+  // way to tell it otherwise. She stood still for the rest of the session with the
+  // station playing, which is the one feature the PR claimed was ported losslessly.
+  //
+  // Three files have to agree, so all three are read and the EVENT NAME IS DERIVED from
+  // the dispatcher rather than typed twice — two spellings of one channel is how the
+  // announcement and the listener come apart while each looks right.
+  const stageSrc = readFileSync(new URL('../public/newdesign/noraStage.mjs', import.meta.url), 'utf8');
+  const boothSrc = readFileSync(new URL('../public/newdesign/radio.jsx', import.meta.url), 'utf8');
+  const stageAst = parse(stageSrc, { sourceType: 'module' });
+  const boothAst = parse(boothSrc, { sourceType: 'script', plugins: ['jsx'] });
+
+  // 1. the stage can learn one later at all
+  const setter = collect(stageAst, (n) => n.type === 'ClassMethod' && n.key.name === 'setAnalyser');
+  assert.equal(setter.length, 1, 'NoraStage has no setAnalyser — a stage handed null stays deaf for the life of the page');
+  const setterSrc = stageSrc.slice(setter[0].start, setter[0].end);
+  assert.match(setterSrc, /this\.analyser\s*=/, 'setAnalyser does not store the analyser');
+  assert.match(setterSrc, /_freq\s*=\s*new Uint8Array/,
+    'setAnalyser does not resize the frequency buffer — it is sized from the analyser at construction');
+
+  // 2. the instrument announces the graph, and on which channel
+  const dispatches = collect(AST, (n) => n.type === 'NewExpression'
+    && n.callee.name === 'CustomEvent' && n.arguments[0] && n.arguments[0].type === 'StringLiteral');
+  assert.ok(dispatches.length > 0, 'the instrument announces no graph — an already-open booth can never learn of it');
+  const channels = dispatches.map((d) => d.arguments[0].value);
+
+  // 3. the booth listens on that same derived channel, and binds the analyser when it fires
+  const listeners = collect(boothAst, (n) => n.type === 'CallExpression'
+    && n.callee.type === 'MemberExpression' && n.callee.property.name === 'addEventListener'
+    && n.arguments[0] && n.arguments[0].type === 'StringLiteral'
+    && channels.includes(n.arguments[0].value));
+  assert.ok(listeners.length > 0,
+    `the booth listens on none of the channels the instrument announces (${channels.join(', ')})`);
+  const handlers = listeners.map((l) => l.arguments[1]).filter(Boolean);
+  assert.ok(handlers.some((h) => collect(h, (n) => n.type === 'MemberExpression'
+    && n.property.name === 'setAnalyser').length > 0)
+    || collect(boothAst, (n) => n.type === 'MemberExpression' && n.property.name === 'setAnalyser').length > 0,
+    'the booth hears the graph and never hands it to the stage');
+
+  // 4. ...and it re-reads after the async load, or a graph that arrived mid-download is
+  //    announced to a stage that does not exist yet — the both-ways problem setColor has
+  const open = innermost(functionsOf(boothAst).filter((f) => /await stage\.load\(\)/
+    .test(boothSrc.slice(f.start, f.end))), 'the booth open() handler');
+  const loadAwait = collect(open, (n) => n.type === 'AwaitExpression'
+    && /stage\.load\(\)/.test(boothSrc.slice(n.start, n.end)));
+  assert.equal(loadAwait.length, 1, 'could not locate the stage load await');
+  const afterLoad = collect(open, (n) => n.type === 'MemberExpression'
+    && n.property.name === 'setAnalyser' && n.start > loadAwait[0].end);
+  assert.ok(afterLoad.length > 0,
+    'the booth never re-reads the graph after the VRM finishes loading — one that arrived mid-download is lost');
 });

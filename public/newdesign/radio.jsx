@@ -158,6 +158,23 @@ function RadioNora() {
   const [state, setState] = React.useState("closed");   // closed | opening | open | unsupported | failed
   const busy = React.useRef(false);
 
+  // ⚠ THE GRAPH CAN ARRIVE AFTER THE BOOTH DOES, AND THE RETIRED PLAYER DID NOT HAVE
+  // THIS PROBLEM (Codex, #2101 round 8). It built its stage only once the graph existed;
+  // here the booth is its own control and a visitor very reasonably opens Nora BEFORE
+  // pressing Tune in. The stage stored the null it was handed and had no way to learn
+  // otherwise, so she stood still for the rest of the session with the station playing.
+  // The instrument announces the graph on `shape:radiograph` the moment it builds one.
+  React.useEffect(() => {
+    const bind = (e) => {
+      const g = (e && e.detail) || window.__shapeRadioGraph;
+      if (g && g.analyser && stageRef.current && stageRef.current.setAnalyser) {
+        try { stageRef.current.setAnalyser(g.analyser); } catch (e2) {}
+      }
+    };
+    window.addEventListener("shape:radiograph", bind);
+    return () => window.removeEventListener("shape:radiograph", bind);
+  }, []);
+
   const open = async () => {
     if (busy.current) return;
     busy.current = true;
@@ -176,6 +193,11 @@ function RadioNora() {
         color: RD_TEAL,
       });
       await stage.load();
+      // ⚠ AND THE LOAD IS ASYNC, so a graph that appeared WHILE the VRM was downloading
+      // would have been announced to a stage that did not exist yet — the same both-ways
+      // problem `setColor` carries for the accent. Re-read before starting.
+      const late = window.__shapeRadioGraph;
+      if (late && late.analyser && late.analyser !== stage.analyser) stage.setAnalyser(late.analyser);
       stage.start();
       stageRef.current = stage;
       setState("open");

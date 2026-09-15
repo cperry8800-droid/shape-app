@@ -75,6 +75,18 @@ export class NoraStage {
   // there is no hologram yet — the VRM load is async, and `_applyLook` reads
   // `this.color` when it runs — and a no-op under the 'avatar' look, which has no
   // hologram to recolour.
+  // ⚠ THE ANALYSER CAN ARRIVE AFTER THE STAGE DOES, so it is settable for the same
+  // reason the colour is (Codex, #2101 round 8). The constructor stored it once and
+  // the frequency buffer was sized from it, so a booth opened BEFORE the first Tune in
+  // got null and stayed nonreactive for the life of the page — even once the station
+  // was playing. Recreating the stage instead would re-download the VRM and flash the
+  // booth empty, which is the cost #2091 already measured for the accent.
+  setAnalyser(analyser) {
+    if (analyser === this.analyser) return;
+    this.analyser = analyser || null;
+    this._freq = new Uint8Array(analyser ? analyser.frequencyBinCount : 256);
+  }
+
   setColor(color) {
     if (!color || color === this.color) return;
     this.color = color;

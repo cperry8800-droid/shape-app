@@ -125,13 +125,20 @@ function useRadioStation() {
   // Now playing — the same route and the same 15 s interval as the app.
   React.useEffect(() => {
     let on = true;
-    const tick = () => fetch("/api/radio/now-playing", { cache: "no-store" })
+    // ⚠ THE SAME SUPERSEDE RULE AS `play()`, WHICH I APPLIED THERE AND NOT HERE
+    // (Codex, round 8). A poll still pending when the 15 s interval fires again leaves
+    // two in flight; if the newer returns first, the older lands afterwards, sees
+    // `on === true` and overwrites the current track — driving radioProgram with
+    // metadata that is already known to be stale, until some later poll happens to
+    // correct it.
+    let seq = 0;
+    const tick = () => { const mine = (seq += 1); return fetch("/api/radio/now-playing", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       // ⚠ A SIMULATED PAYLOAD IS NOT A TRACK. The route marks the mock provider's fixed
       // 'Tempo Lift / Shape Radio' — and any lookup it could not complete — as simulated,
       // and this page publishes neither: the title would be an invented reading under
       // "Now playing" and it would drive the field's own programme (Codex, round 5).
-      .then((d) => { if (on) setNowPlaying(d && !d.simulated && (d.title || d.artist) ? d : null); })
+      .then((d) => { if (on && mine === seq) setNowPlaying(d && !d.simulated && (d.title || d.artist) ? d : null); })
       // ⚠ AND A POLL THAT NEVER LANDED CLEARS IT TOO (Codex, round 6). This was an empty
       // catch, so a successful poll followed by a dropped connection left the LAST title
       // on screen under "Now playing" indefinitely — and feeding trackRef, so the field's
@@ -139,7 +146,7 @@ function useRadioStation() {
       // non-ok arm one line up already clears for exactly this reason, which is what made
       // the catch the odd one out rather than a judgement call: a reading we cannot take
       // is not a reading, whichever way the attempt failed.
-      .catch(() => { if (on) setNowPlaying(null); });
+      .catch(() => { if (on && mine === seq) setNowPlaying(null); }); };
     tick();
     const id = setInterval(tick, 15000);
     return () => { on = false; clearInterval(id); };
@@ -164,6 +171,10 @@ function useRadioStation() {
       // createMediaElementSource on one <audio> element throws, so the booth must be
       // handed the graph rather than building its own.
       window.__shapeRadioGraph = { analyser: an, context: ctx };
+      // ⚠ AND IT ANNOUNCES ITSELF, because the booth may already be open and holding a
+      // null (Codex, round 8). The global alone is a handoff only for whoever looks
+      // AFTER it is set; Nora's booth looks when it opens, which is very often first.
+      try { window.dispatchEvent(new CustomEvent("shape:radiograph", { detail: window.__shapeRadioGraph })); } catch (e) {}
     } catch (e) {
       // ⚠ A STREAM WITHOUT CORS HEADERS TAINTS THE GRAPH and every bin reads zero.
       // That is a real state with its own honest line on the page ("No signal data
