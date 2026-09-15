@@ -114,6 +114,27 @@ function bsRadioSignedIn() {
   try { return !!window.ShapeAuth?.getCachedState?.()?.user?.id; } catch (e) { return false; }
 }
 
+// THE TRANSPORT KEY READS THE MEASURED STATE, NEVER THE REQUESTED ONE.
+//
+// `paused` is what the member ASKED for; `playingSince` is what is HAPPENING —
+// it is stamped only once `play()` has actually started (the P1 on #2072) and
+// nulled on every pause. The shipped key read `paused` alone, so with playback
+// requested and refused it read "❚❚ Pause" beside a rail reading "Paused": two
+// readings of one stream on one screen, and the key offered to stop something
+// that was not running. Signed out, the same key rendered live over a deck the
+// licence gates (`bsRadioSignedIn`) — a dead tap. One decision, four answers:
+//   signIn — no account: the deck is disabled and the sign-in line says why.
+//   pause  — playback is running (the clock is stamped): offer to stop it.
+//   resume — the member paused it: offer to start it again.
+//   tune   — requested and not running: offer to ask again (`retryPlay`).
+// Both keys (the deck's and Home's) go through here, so they cannot disagree.
+function bsRadioTransportKey({ signedIn, playing, paused }) {
+  if (!signedIn) return 'signIn';
+  if (playing) return 'pause';
+  if (paused) return 'resume';
+  return 'tune';
+}
+
 function bsApplyOptimisticVote(s, vote) {
   const cur = s.myVote;
   let up = s.up || 0, down = s.down || 0, my = cur;
@@ -350,6 +371,40 @@ function BSRadioProvider({ children }) {
   // When this session's playback actually began, or null while nothing is
   // playing. Stamped by the playback effect below; read by the Radio page's rail.
   const [playingSince, setPlayingSince] = useStateBR(null);
+  // ⚠ ONE PLAYBACK ATTEMPT AT A TIME, AND EVERY ATTEMPT IS CANCELLABLE. The
+  // session clock is stamped only once `play()` has actually started (Codex P1
+  // on #2072), and a pause, a sign-out or radio-off must be able to cancel an
+  // attempt still in flight — or a play that resolves AFTER the member paused
+  // stamps a clock for playback that is already over. The token IS the
+  // attempt; cancelling it is flipping `live`. A newer attempt supersedes an
+  // older one the same way, so two taps cannot stamp twice.
+  const attemptRef = useRefBR(null);
+  const startPlay = () => {
+    if (attemptRef.current) attemptRef.current.live = false;
+    const token = { live: true };
+    attemptRef.current = token;
+    Promise.resolve(window.ShapeRadioLive?.play?.()).then((ok) => {
+      if (!token.live || ok !== true) return;
+      setPlayingSince((v) => (v == null ? Date.now() : v));
+    }).catch(() => { /* play() already reports failure by resolving false */ });
+  };
+  const cancelPlay = () => { if (attemptRef.current) { attemptRef.current.live = false; attemptRef.current = null; } };
+  // ⚠ A `play()` THAT DID NOT START HAS TO BE ASKABLE AGAIN — FROM THE TAP,
+  // SYNCHRONOUSLY. The effect below runs on [radioOn, paused, authTick], so once
+  // it has asked and been refused (an unconfigured station, an autoplay policy
+  // that wants a gesture, a request superseded while it was starting) nothing
+  // asks again until one of those three moves. The deck's key reads the
+  // MEASURED state and offers "Tune in" for exactly this case
+  // (`bsRadioTransportKey`), and this is what the tap calls.
+  //
+  // ⚠ IT CALLS `play()` INSIDE THE TAP'S OWN CALL STACK, NEVER THROUGH A STATE
+  // UPDATE. A first cut bumped a nonce the effect ran on — which asks `play()`
+  // a task later, outside the gesture's transient activation, so a browser
+  // that binds media playback to a gesture (WebKit) refused the retry exactly
+  // as it had refused the first attempt, forever. (Codex, P1 on #2088.) And
+  // `shapeBackend.play()` keeps its last good station read so the retry reaches
+  // `audio.play()` with no await in front of it — see the note there.
+  const retryPlay = () => { if (!radioOn || paused) return; startPlay(); };
   // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW") — kept
   // for the muted/fallback display path; live now-playing overrides via nowPlaying state.
   // ⚠ No trackIdx/setTrackIdx here, deliberately. A track-index setter on this
@@ -471,7 +526,6 @@ function BSRadioProvider({ children }) {
   // - radioOn=true, paused=true  → pause audio; keep poll running (harmless).
   // - radioOn=true, paused=false → play audio + ensure poll is running.
   useEffectBR(() => {
-    let cancelPlay = () => {};
     if (!radioOn) {
       window.ShapeRadioLive?.pause?.();
       window.ShapeRadioLive?.stopPolling?.();
@@ -513,14 +567,11 @@ function BSRadioProvider({ children }) {
       // when playback started, not when it was requested. (Codex, P1 on #2072.)
       //
       // The guard is the effect's own cleanup: a pause, a sign-out or radio-off
-      // re-runs this effect, which cancels the attempt in flight before its
-      // resolution can stamp a clock for playback that is already over.
-      let attemptLive = true;
-      cancelPlay = () => { attemptLive = false; };
-      Promise.resolve(window.ShapeRadioLive?.play?.()).then((ok) => {
-        if (!attemptLive || ok !== true) return;
-        setPlayingSince((v) => (v == null ? Date.now() : v));
-      }).catch(() => { /* play() already reports failure by resolving false */ });
+      // re-runs this effect, which cancels the attempt in flight (`cancelPlay`,
+      // above) before its resolution can stamp a clock for playback that is
+      // already over. The deck's retry goes through the same `startPlay`, so a
+      // retry in flight is cancelled the same way.
+      startPlay();
     }
     return () => { cancelPlay(); window.ShapeRadioLive?.stopPolling?.(); };
   }, [radioOn, paused, authTick]);
@@ -650,6 +701,7 @@ function BSRadioProvider({ children }) {
 
   const value = {
     radioOn, setRadioOn, setRadioPreference, paused, setPaused, playingSince,
+    retryPlay,
     nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
     fxMode, setFxMode, fxColor, setFxColor,
@@ -1061,14 +1113,30 @@ function BSNowPlaying({ onOpen }) {
             })}
           </div>
 
-          {/* Pause/play */}
-          <button onClick={(e) => { e.stopPropagation(); r.setPaused(p => !p); }} style={{
-            width: 28, height: 28, flexShrink: 0, borderRadius: 4,
-            background: `rgba(${t.inkRGB},0.34)`, color: t.PAPER, border: 0, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12,
-            fontWeight: 900,
-          }}>{r.paused ? '▶' : '❚❚'}</button>
+          {/* Pause/play — the MEASURED state, through the deck's own decision
+              (bsRadioTransportKey): a stream that was asked for and did not
+              start reads ▶ and asks again; it never reads ❚❚ over silence. */}
+          {(() => {
+            const key = bsRadioTransportKey({ signedIn: bsRadioSignedIn(), playing: r.playingSince != null, paused: r.paused });
+            const act = key === 'pause' ? () => r.setPaused(true)
+              : key === 'resume' ? () => r.setPaused(false)
+                : key === 'tune' ? () => r.retryPlay()
+                  : null;
+            const label = key === 'pause' ? tr('radio:screen.pause', { defaultValue: 'Pause' })
+              : key === 'resume' ? tr('radio:screen.resume', { defaultValue: 'Resume' })
+                : key === 'tune' ? tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })
+                  : tr('radio:screen.signInToListen', { defaultValue: 'Sign in to listen' });
+            return (
+              <button disabled={!act} aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); if (act) act(); }} style={{
+                width: 28, height: 28, flexShrink: 0, borderRadius: 4,
+                background: `rgba(${t.inkRGB},0.34)`, color: t.PAPER, border: 0, cursor: act ? 'pointer' : 'default',
+                opacity: act ? 1 : 0.5,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12,
+                fontWeight: 900,
+              }}>{key === 'pause' ? '❚❚' : '▶'}</button>
+            );
+          })()}
         </div>
       </div>
       </div>
@@ -1461,13 +1529,16 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
     let fig = null;
     const MEASURE_EVERY = 12;
     let sinceMeasure = MEASURE_EVERY;
+    // Returns whether the box MOVED, so the draw throttle can be told.
     const measureFigure = () => {
+      const prev = fig;
       const el = liveRef.current.figureRef && liveRef.current.figureRef.current;
-      if (!el) { fig = null; return; }
+      if (!el) { fig = null; return prev != null; }
       const fr = el.getBoundingClientRect();
       const wr = wrap.getBoundingClientRect();
-      if (!(fr.width > 0) || !(fr.height > 0)) { fig = null; return; }
+      if (!(fr.width > 0) || !(fr.height > 0)) { fig = null; return prev != null; }
       fig = { x: fr.left - wr.left, y: fr.top - wr.top, w: fr.width, h: fr.height };
+      return !prev || prev.x !== fig.x || prev.y !== fig.y || prev.w !== fig.w || prev.h !== fig.h;
     };
 
     let ro = null;
@@ -1626,19 +1697,39 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       // The reading is done; everything below is drawing. Under reduced motion
       // that redraws at ~4 fps, and the field's breath is forced off.
       const reduced = reducedRef.current;
-      if (reduced && lastDrawRef.current >= 0 && t - lastDrawRef.current < 1 / REDUCED_FPS) return;
-      lastDrawRef.current = t;
-
+      // ⚠ THE FIGURE IS RE-MEASURED ON THE FRAME CADENCE, NOT THE DRAW CADENCE.
+      // Under either throttle below a draw happens ~4 times a second, and
+      // counting DRAWS stretched MEASURE_EVERY from ~200 ms to ~3 s: a reflow
+      // that moves the figure without resizing either observed element — or a
+      // browser with no ResizeObserver — left the baseline, the counter and the
+      // scrims at the old coordinates for seconds (Codex, P2 on #2088). So the
+      // count runs every frame, and a measurement that MOVED the box forces a
+      // draw through the throttle.
       sinceMeasure += 1;
-      if (sinceMeasure >= MEASURE_EVERY) { sinceMeasure = 0; measureFigure(); }
+      let moved = false;
+      if (sinceMeasure >= MEASURE_EVERY) { sinceMeasure = 0; moved = measureFigure(); }
+      // ⚠ AND AT REST THE PICTURE IS STILL, SO IT IS DRAWN AT THE SAME CADENCE.
+      // With nothing on the air and the crossfade settled on listening nothing
+      // below moves — the grid at its rest, a dashed baseline, four unlit dots —
+      // and redrawing ~1,300 dots sixty times a second for a still picture is a
+      // battery cost on the one state a member can leave open all day. The READ
+      // above still runs every frame, so the first live frame is drawn within a
+      // quarter of a second of the stream starting.
+      const still = !live && kx === 0;
+      if (!moved && (reduced || still) && lastDrawRef.current >= 0 && t - lastDrawRef.current < 1 / REDUCED_FPS) return;
+      lastDrawRef.current = t;
 
       ctx.clearRect(0, 0, W, H);
 
       const kick = (reduced || !read) ? 0 : read.kick;
 
       // ── the field ─────────────────────────────────────────────────
-      // Ground, never figure. It lights per bin and breathes on the kick; with no
-      // measured tempo `fieldK(kx, 0)` keeps it lit and simply still.
+      // Ground, never figure. The grid is drawn at its REST whether or not
+      // anything is on the air (FIELD_REST_ALPHA — the first build scaled the
+      // rest by `fieldK` as well and the figure was a void; the reasoning is on
+      // the constant in radioSignalField.mjs). The light on it reads the bins
+      // and breathes on the kick, and with no measured tempo `fieldK(kx, 0)`
+      // keeps that light simply still.
       const k = fieldK(kx, kick);
       const cx = W / 2;
       const cy = fig ? fig.y + fig.h * 0.5 : H * 0.52;
@@ -1648,9 +1739,7 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       for (let y = 7; y < H; y += 14) {
         for (let x = 7; x < W; x += 14) {
           const v = live ? Math.max(0, Math.min(1, (bins[fieldBin(Math.hypot(x - cx, y - cy), nBins)] || 0) / 255)) : 0;
-          const a = fieldAlpha(v, k);
-          if (a <= 0.002) continue;
-          ctx.globalAlpha = a;
+          ctx.globalAlpha = fieldAlpha(v, k);
           ctx.beginPath();
           ctx.arc(x, y, fieldRadius(v, k), 0, Math.PI * 2);
           ctx.fill();
@@ -1698,60 +1787,86 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       scrim(fig.y + fig.h, H, 0, 0.94, 0.45);
 
       // ── the spectrum (listening) ────────────────────────────────
-      // Drawn ONLY over a frame that carries data, mirrored with the bass at the
-      // centre so the pump reads as one instrument rather than a sweep.
-      if (kx < 1 && live) {
-        const raw = bandsFromBins(bins, BANDS);
-        if (!smRef.current || smRef.current.length !== BANDS) smRef.current = new Array(BANDS).fill(0);
-        if (!pkRef.current || pkRef.current.length !== BANDS) pkRef.current = new Array(BANDS).fill(0);
-        const sm = smRef.current;
-        const pk = pkRef.current;
+      // The INSTRUMENT is drawn in the listening half whatever the air carries:
+      // its baseline and its four-beat counter are the fixed parts of the
+      // picture, the way a monitor's axis is there before a trace is. The BARS
+      // are drawn ONLY over a frame that carries data, mirrored with the bass at
+      // the centre so the pump reads as one instrument rather than a sweep.
+      //
+      // ⚠ THE FIRST BUILD GATED THE WHOLE BLOCK ON `live`, AND THE RESTING PAGE
+      // WAS A VOID. Nothing was drawn between the rail and the Now block for a
+      // signed-out visitor, a paused member, or anyone whose station is not
+      // broadcasting — which in production today is everyone — so the owner
+      // opened the page the day after #2072 merged and saw the old page with
+      // its parts removed. The honest picture of silence is not an empty box;
+      // it is the instrument, with a flat line where a reading would be.
+      if (kx < 1) {
         const maxH = fig.h * 0.50;
         const baseY = fig.y + fig.h * 0.70;
         const bw = fig.w / BANDS;
         const wBar = Math.max(1, bw - 1.6);
         ctx.save();
-        ctx.globalAlpha = 1 - kx;
-        const grad = ctx.createLinearGradient(0, baseY - maxH, 0, baseY);
-        grad.addColorStop(0, cfg.ink);
-        grad.addColorStop(0.32, cfg.teal);
-        grad.addColorStop(1, cfg.teal);
-        // ⚠ THE MIRROR IS IN THE BAND TABLE, NOT IN THE DRAWING, AND DOING IT
-        // TWICE PUT THE BASS AT THE QUARTERS. `bandBin` reads
-        // `|i − (BANDS/2 − 0.5)|`, so `bandsFromBins` already hands back an
-        // array whose CENTRE indices are bin 0 and whose ends are bin 63 — the
-        // mirror, built in. Drawing that array outwards from the centre mirrored
-        // it a second time: band 0 (a treble bin) landed dead centre and the kick
-        // showed up as two humps a quarter of the way in from each edge. Caught
-        // by looking at the render, not by reading it. The array is laid out
-        // left → right across the figure, and the picture is what it says.
-        for (let i = 0; i < BANDS; i += 1) {
-          sm[i] = smoothBand(sm[i], raw[i]);
-          pk[i] = peakBand(pk[i], sm[i]);
-          const h = barHeight(sm[i], maxH);
-          const capped = capVisible(pk[i], sm[i], maxH);
-          const hCap = capped ? barHeight(pk[i], maxH) : 0;
-          const x = fig.x + i * bw;
-          ctx.globalAlpha = (1 - kx) * (0.55 + 0.45 * sm[i]);
-          ctx.fillStyle = grad;
-          ctx.fillRect(x, baseY - h, wBar, h);
-          // a soft reflection under the baseline — an echo, never a reading
-          ctx.globalAlpha = (1 - kx) * 0.13;
-          ctx.fillRect(x, baseY + 1.5, wBar, h * 0.42);
-          if (capped) {
-            ctx.globalAlpha = (1 - kx) * 0.65;
-            ctx.fillStyle = cfg.ink;
-            ctx.fillRect(x, baseY - hCap - 2, wBar, 1.5);
+        if (live) {
+          const raw = bandsFromBins(bins, BANDS);
+          if (!smRef.current || smRef.current.length !== BANDS) smRef.current = new Array(BANDS).fill(0);
+          if (!pkRef.current || pkRef.current.length !== BANDS) pkRef.current = new Array(BANDS).fill(0);
+          const sm = smRef.current;
+          const pk = pkRef.current;
+          const grad = ctx.createLinearGradient(0, baseY - maxH, 0, baseY);
+          grad.addColorStop(0, cfg.ink);
+          grad.addColorStop(0.32, cfg.teal);
+          grad.addColorStop(1, cfg.teal);
+          // ⚠ THE MIRROR IS IN THE BAND TABLE, NOT IN THE DRAWING, AND DOING IT
+          // TWICE PUT THE BASS AT THE QUARTERS. `bandBin` reads
+          // `|i − (BANDS/2 − 0.5)|`, so `bandsFromBins` already hands back an
+          // array whose CENTRE indices are bin 0 and whose ends are bin 63 — the
+          // mirror, built in. Drawing that array outwards from the centre mirrored
+          // it a second time: band 0 (a treble bin) landed dead centre and the kick
+          // showed up as two humps a quarter of the way in from each edge. Caught
+          // by looking at the render, not by reading it. The array is laid out
+          // left → right across the figure, and the picture is what it says.
+          for (let i = 0; i < BANDS; i += 1) {
+            sm[i] = smoothBand(sm[i], raw[i]);
+            pk[i] = peakBand(pk[i], sm[i]);
+            const h = barHeight(sm[i], maxH);
+            const capped = capVisible(pk[i], sm[i], maxH);
+            const hCap = capped ? barHeight(pk[i], maxH) : 0;
+            const x = fig.x + i * bw;
+            ctx.globalAlpha = (1 - kx) * (0.55 + 0.45 * sm[i]);
+            ctx.fillStyle = grad;
+            ctx.fillRect(x, baseY - h, wBar, h);
+            // a soft reflection under the baseline — an echo, never a reading
+            ctx.globalAlpha = (1 - kx) * 0.13;
+            ctx.fillRect(x, baseY + 1.5, wBar, h * 0.42);
+            if (capped) {
+              ctx.globalAlpha = (1 - kx) * 0.65;
+              ctx.fillStyle = cfg.ink;
+              ctx.fillRect(x, baseY - hCap - 2, wBar, 1.5);
+            }
           }
+          // The station's own line, flashing on the beat it carries.
+          ctx.globalAlpha = (1 - kx) * (0.22 + 0.6 * kick);
+          ctx.fillStyle = cfg.teal;
+          ctx.fillRect(fig.x, baseY, fig.w, 1);
+        } else {
+          // ⚠ NO SIGNAL → A DASHED FLAT LINE, NEVER A BAR. The same grammar the
+          // matching state's rows use for a source that is not there (the
+          // station row "waits", the heart row with no strap): a flat reading is
+          // still a reading, drawn where the bars will stand, and the dashes say
+          // it is waiting for a source rather than measuring a silence.
+          ctx.strokeStyle = cfg.teal;
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = (1 - kx) * 0.38;
+          ctx.setLineDash([3, 5]);
+          ctx.beginPath(); ctx.moveTo(fig.x, baseY + 0.5); ctx.lineTo(fig.x + fig.w, baseY + 0.5); ctx.stroke();
+          ctx.setLineDash([]);
         }
-        // The station's own line, flashing on the beat it carries.
-        ctx.globalAlpha = (1 - kx) * (0.22 + 0.6 * kick);
-        ctx.fillStyle = cfg.teal;
-        ctx.fillRect(fig.x, baseY, fig.w, 1);
         // The four-beat counter — the one thing on the listening state that makes
         // the MEASURED tempo visible as a rhythm rather than as a number. With no
-        // settled grid `tempoBarStep` is null and the dots simply do not step.
-        const step4 = read ? tempoBarStep(read.bpm, read.phase, t, 4) : null;
+        // settled grid `tempoBarStep` is null and the dots simply do not step;
+        // with nothing on the air they are drawn unlit, because a counter that
+        // stepped over a flat line would be counting a beat nobody measured.
+        const step4 = (live && read) ? tempoBarStep(read.bpm, read.phase, t, 4) : null;
         const counterY = baseY + fig.h * 0.24;
         for (let b = 0; b < 4; b += 1) {
           const on = step4 === b;
@@ -2327,21 +2442,48 @@ function BSRadioScreen({ onBack }) {
             </div>
           </div>
 
-          {/* Transport */}
-          <div style={{ marginTop: 14, display: 'flex', alignItems: 'stretch', gap: 8 }}>
-            <button onClick={() => r.setPaused(p => !p)} style={{ borderRadius: 12,
-              flex: 1, padding: '10px', background: TEAL, color: '#050707', border: 0, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}>
-              {r.paused ? `▶  ${tr('radio:screen.resume', { defaultValue: 'Resume' })}` : `❚❚  ${tr('radio:screen.pause', { defaultValue: 'Pause' })}`}
-            </button>
-            <button onClick={() => r.setRadioPreference(false)} aria-label={tr('radio:screen.stop', { defaultValue: 'Stop' })} style={{ borderRadius: 12,
-              width: 46, background: 'transparent', color: CREAM, border: `1px solid ${CREAM25}`, cursor: 'pointer',
-              fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>■</button>
-          </div>
+          {/* Transport — the key reads the MEASURED state (bsRadioTransportKey),
+              so it and the rail's clock can never disagree about the stream. */}
+          {(() => {
+            const signedIn = bsRadioSignedIn();
+            const key = bsRadioTransportKey({ signedIn, playing: r.playingSince != null, paused: r.paused });
+            const act = key === 'pause' ? () => r.setPaused(true)
+              : key === 'resume' ? () => r.setPaused(false)
+                : key === 'tune' ? () => r.retryPlay()
+                  : null;
+            const label = key === 'pause' ? `❚❚  ${tr('radio:screen.pause', { defaultValue: 'Pause' })}`
+              : key === 'resume' ? `▶  ${tr('radio:screen.resume', { defaultValue: 'Resume' })}`
+                : `▶  ${tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}`;
+            return (
+              <>
+                <div style={{ marginTop: 14, display: 'flex', alignItems: 'stretch', gap: 8 }}>
+                  <button disabled={!act} onClick={() => { if (act) act(); }} style={{ borderRadius: 12,
+                    flex: 1, padding: '10px', background: act ? TEAL : 'transparent', color: act ? '#050707' : CREAM50,
+                    border: act ? 0 : `1px solid ${CREAM25}`, cursor: act ? 'pointer' : 'default',
+                    fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}>
+                    {label}
+                  </button>
+                  <button onClick={() => r.setRadioPreference(false)} aria-label={tr('radio:screen.stop', { defaultValue: 'Stop' })} style={{ borderRadius: 12,
+                    width: 46, background: 'transparent', color: CREAM, border: `1px solid ${CREAM25}`, cursor: 'pointer',
+                    fontFamily: t.MONO, fontSize: 11, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>■</button>
+                </div>
+                {/* ⚠ SIGNED OUT, THE DECK SAYS WHY IT IS OFF. Playback is
+                    licensing-gated (bsRadioSignedIn), so the key above is
+                    disabled — and a disabled key with nothing beside it is a
+                    dead control. This is the social row's own nudge, one row up,
+                    which is what the brief's §7 calls for on the signed-out row. */}
+                {!signedIn && (
+                  <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM50, textAlign: 'center' }}>
+                    {tr('radio:screen.signInToListen', { defaultValue: 'Sign in to listen' })}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Song social — shared like/dislike + a comments door. Renders ONLY on
               a real track (honest-absent on a placeholder). Counts are public;

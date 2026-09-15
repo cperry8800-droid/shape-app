@@ -8509,11 +8509,30 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   // it before any teardown, while state.user stays populated until the very end. See
   // the epoch note in playbackGate.mjs.
   const playbackGate = makePlaybackGate(() => state.user?.id, signOutGen);
+  // ⚠ THE LAST GOOD STATION READ IS KEPT, SO A RETRY REACHES `a.play()` WITH NO
+  // AWAIT IN FRONT OF IT. A browser that binds media playback to a gesture
+  // (WebKit) grants it for the tap's own call stack and a short window after;
+  // a first attempt that had to await the station request could be refused on
+  // that alone, and a retry that awaited it again was refused exactly the same
+  // way — the deck's "Tune in" could never recover the case it exists for
+  // (Codex, P1 on #2088). With the read cached the retry's play() runs
+  // synchronously up to and including `a.play()`, inside the tap. Only a GOOD
+  // read is kept (configured, with a stream URL): an unconfigured or refused
+  // station is re-asked every time, so production's mock provider is never
+  // cached as an answer. The cached read is refreshed BEHIND the play, so a
+  // changed stream URL is picked up on the next play rather than never.
+  let stationCache = null;
   async function play() {
     const live = playbackGate.begin();
     if (!live()) return false;
-    const cfg = await station();
-    if (!live() || !cfg || !cfg.configured) return false;
+    let cfg = stationCache;
+    if (cfg) {
+      station().then((fresh) => { if (fresh && fresh.configured && fresh.streamUrl) stationCache = fresh; }).catch(() => { /* keep the last good read */ });
+    } else {
+      cfg = await station();
+      if (!live() || !cfg || !cfg.configured) return false;
+      if (cfg.streamUrl) stationCache = cfg;
+    }
     const a = audio();
     if (a.src !== cfg.streamUrl) a.src = cfg.streamUrl;
     try {

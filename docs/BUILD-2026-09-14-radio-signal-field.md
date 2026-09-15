@@ -96,7 +96,14 @@ Bar height `max(3, v·maxH)`; the cap is drawn only when it sits more than 4 px 
 reads the bin at `floor(min(1, dist(dot, centre) / 430) · 63)` — bass at the centre, air at the edges.
 Alpha `(0.07 + 0.6·v) · fieldK`, radius `0.8 + 1.9·v·fieldK`, where
 `fieldK = (0.45 + 0.55·kx) · (0.72 + 0.28·kick)` — quiet under the spectrum, full behind the rows, and
-the whole field breathes on the kick. `kx` is the state (0 listening → 1 matching, eased over 0.7 s);
+the whole field breathes on the kick.
+⚠ **CORRECTED 2026-09-15 — the REST is a constant, not a fraction of `fieldK`.** As written, a dot with
+nothing on the air (`v = 0`, `fieldK` at its 0.324 floor) renders at **2.3% alpha and 0.8 px** — the void
+#2066's entry measured (brightest pixel alpha 6 of 255) and #2072 left in place in the one state everyone
+can reach: signed out, paused, or a station not broadcasting, which in production today is every member.
+The owner opened the page the day after #2072 merged and read it as "not the design". Shipped as
+alpha `FIELD_REST_ALPHA + 0.62·v·fieldK` and radius `FIELD_REST_RADIUS + 1.7·v·fieldK` — the grid keeps
+a rest whatever the field's strength, and only the LIGHT on it reads the bins and breathes on the kick. `kx` is the state (0 listening → 1 matching, eased over 0.7 s);
 `kick` is the beat envelope from §5 (0 when no tempo has settled — the field then only lights per bin).
 
 **The rows (matching).** One clock, three seconds of history across the row (`W` px), one pen sweeping
@@ -189,8 +196,16 @@ so the Home card and the effects (PR 4) read one measurement rather than three.
 | Analyser carries data, tempo settled | the spectrum pumping, the counter stepping, the tempo reading | the rows, the gap, the cues |
 | Analyser carries data, tempo not settled yet | the spectrum, the counter still, tempo "—" | the station row **waits** (flat, its reading "—"); the heart row runs; no gap |
 | Analyser all-zero while playing (no CORS on the stream) | a flat baseline, no counter, tempo "—", one line: *No signal data from the stream* | the same, the station row flat |
-| Radio paused / muted | the field only, the counter off, the key disabled | the pen stops; rows hold |
-| Signed out | as shipped: playback is gated (`bsRadioSignedIn`); the page shows the field and the track with the deck disabled and the existing sign-in nudge | the key reads *Match my BPM* and opens the sign-in nudge, not a fabricated row |
+| Radio paused / muted | the field at its rest, a **dashed** flat baseline, the counter unlit, the key reading *Resume* | the pen stops; rows hold |
+| Requested and not playing (`play()` refused — no station configured, autoplay wants a gesture) | the same resting instrument; the rail's clock reads *Paused*; the key reads *Tune in* and asks again | — |
+| Signed out | playback is gated (`bsRadioSignedIn`); the resting instrument and the track, the key **disabled** reading *Tune in*, and *Sign in to listen* under it (the social row's own nudge) | the key reads *Match my BPM* and opens the sign-in nudge, not a fabricated row |
+
+⚠ **CORRECTED 2026-09-15 — the paused row read "the field only", and "the field only" was a void.** With
+the rest scaled by `fieldK` (§4) the field at rest was invisible, so this row described an empty box and
+the build shipped one. The instrument's fixed parts — the baseline and the counter — are drawn in the
+listening half whatever the air carries; only the BARS are gated on a frame carrying data. And the key
+reads the MEASURED state (`playingSince`), never the requested one: the shipped key read `paused` alone and
+so read "❚❚ Pause" beside a rail reading "Paused" for a stream that had never started.
 | No strap (`off`) | the key reads *Connect monitor* | a dashed flat heart row, "——", *No pulse · connect a monitor* |
 | Strap connected, not matching (`free`) | the key reads *Match my BPM* | the heart row live in rust, the gap shown, no cues |
 | `synced` | — | the lower row teal, the ties, the state word teal, `0 BPM` |

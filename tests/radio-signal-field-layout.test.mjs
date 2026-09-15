@@ -203,7 +203,7 @@ test('the field is scrimmed back where the page has words over it', () => {
   assert.doesNotMatch(fn, /cfg\.paper\s*\+|\$\{cfg\.paper\}/, 'the scrim concatenates an alpha onto the paper colour');
   // It is painted UNDER the readings: the figure keeps its ground.
   const iScrim = body.indexOf('scrim(0, fig.y,');
-  const iSpec = body.indexOf('if (kx < 1 && live) {');
+  const iSpec = body.indexOf('if (kx < 1) {');
   const iRows = body.indexOf('if (kx > 0) {');
   assert.ok(iScrim > 0 && iSpec > iScrim, 'the scrim is painted over the spectrum');
   assert.ok(iRows > iScrim, 'the scrim is painted over the rows');
@@ -211,10 +211,12 @@ test('the field is scrimmed back where the page has words over it', () => {
 
 test('both states exist, and each draws only in its own half of the crossfade', () => {
   const body = fieldBody();
-  // The spectrum belongs to listening and is drawn ONLY over a frame that
-  // carries data; the rows belong to matching. `kx` is the eased crossfade, so
-  // both are visible mid-transition and neither is visible in the other's state.
-  assert.match(body, /if \(kx < 1 && live\) \{/, 'the spectrum is no longer gated on the listening half of the crossfade');
+  // The instrument belongs to listening and its BARS are drawn only over a
+  // frame that carries data (the resting shape is pinned by
+  // radio-rest-state.test.mjs); the rows belong to matching. `kx` is the eased
+  // crossfade, so both are visible mid-transition and neither is visible in the
+  // other's state.
+  assert.match(body, /if \(kx < 1\) \{/, 'the listening instrument is no longer gated on the listening half of the crossfade');
   assert.match(body, /if \(kx > 0\) \{/, 'the rows are no longer gated on the matching half of the crossfade');
   assert.match(body, /kxRef\.current/, 'the crossfade is no longer eased');
   // And the field is the ground under BOTH, which is what `fieldK`'s first
@@ -313,14 +315,30 @@ test('leaving the matching state releases the strap', () => {
 // cannot tell `play().then(stamp)` from `play(); stamp()` in any way that
 // survives a rewrite, and the whole finding is about which of the two it is.
 function playbackEffect() {
-  const i = code.indexOf('useEffectBR(() => {\n    let cancelPlay');
-  assert.ok(i > 0, 'the playback effect is gone — this guard no longer names anything');
-  const j = code.indexOf('}, [radioOn, paused, authTick]);', i);
-  assert.ok(j > i, 'could not find the end of the playback effect');
-  const body = code.slice(code.indexOf('{', i) + 1, code.lastIndexOf('}', j));
+  // The effect is found from the line that CLOSES it, walking back to its own
+  // opener: its first statement has changed twice (a local cancel, then none),
+  // and its dependency list may grow; neither is what this lift is about.
+  const end = /\}, \[radioOn, paused, authTick[^\]]*\]\);/.exec(code);
+  assert.ok(end, 'the playback effect is gone — this guard no longer names anything');
+  const i = code.lastIndexOf('useEffectBR(() => {', end.index);
+  assert.ok(i > 0, 'could not find the start of the playback effect');
+  const body = code.slice(code.indexOf('{', i) + 1, code.lastIndexOf('}', end.index));
   assert.ok(body.length > 400, `the effect slice is ${body.length} chars — this guard is reading the wrong thing`);
   // eslint-disable-next-line no-new-func
-  return new Function('radioOn', 'paused', 'authTick', 'window', 'setNowPlaying', 'setPlayingSince', body);
+  return new Function('radioOn', 'paused', 'authTick', 'window', 'setNowPlaying', 'setPlayingSince', 'startPlay', 'cancelPlay', body);
+}
+
+// The provider's own attempt — `startPlay` and `cancelPlay` — lifted and RUN.
+// A cancel restated in the test would prove nothing about the shipped one.
+function liftAttempt(win, setPlayingSince) {
+  const i = code.indexOf('const startPlay = () => {');
+  assert.ok(i > 0, 'startPlay is gone — this guard no longer names anything');
+  const j = code.indexOf('const cancelPlay = () => {', i);
+  assert.ok(j > i, 'cancelPlay is gone — an attempt in flight can no longer be cancelled');
+  const src = code.slice(i, code.indexOf('\n', j));
+  const attemptRef = { current: null };
+  // eslint-disable-next-line no-new-func
+  return new Function('attemptRef', 'setPlayingSince', 'window', `${src}\nreturn { startPlay, cancelPlay, attemptRef };`)(attemptRef, setPlayingSince, win);
 }
 
 async function runPlayback({ playResolves, pauseMidFlight = false }) {
@@ -337,9 +355,9 @@ async function runPlayback({ playResolves, pauseMidFlight = false }) {
       stopPolling() {},
     },
   };
-  const cleanup = fn(true, false, 0, win, () => {}, (v) => {
-    stamped.push(typeof v === 'function' ? v(null) : v);
-  });
+  const setPlayingSince = (v) => { stamped.push(typeof v === 'function' ? v(null) : v); };
+  const { startPlay, cancelPlay } = liftAttempt(win, setPlayingSince);
+  const cleanup = fn(true, false, 0, win, () => {}, setPlayingSince, startPlay, cancelPlay);
   if (pauseMidFlight) cleanup();
   resolve(playResolves);
   await pending;
