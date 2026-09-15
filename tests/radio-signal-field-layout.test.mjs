@@ -203,7 +203,7 @@ test('the field is scrimmed back where the page has words over it', () => {
   assert.doesNotMatch(fn, /cfg\.paper\s*\+|\$\{cfg\.paper\}/, 'the scrim concatenates an alpha onto the paper colour');
   // It is painted UNDER the readings: the figure keeps its ground.
   const iScrim = body.indexOf('scrim(0, fig.y,');
-  const iSpec = body.indexOf('if (kx < 1 && live) {');
+  const iSpec = body.indexOf('if (kx < 1) {');
   const iRows = body.indexOf('if (kx > 0) {');
   assert.ok(iScrim > 0 && iSpec > iScrim, 'the scrim is painted over the spectrum');
   assert.ok(iRows > iScrim, 'the scrim is painted over the rows');
@@ -211,10 +211,12 @@ test('the field is scrimmed back where the page has words over it', () => {
 
 test('both states exist, and each draws only in its own half of the crossfade', () => {
   const body = fieldBody();
-  // The spectrum belongs to listening and is drawn ONLY over a frame that
-  // carries data; the rows belong to matching. `kx` is the eased crossfade, so
-  // both are visible mid-transition and neither is visible in the other's state.
-  assert.match(body, /if \(kx < 1 && live\) \{/, 'the spectrum is no longer gated on the listening half of the crossfade');
+  // The instrument belongs to listening and its BARS are drawn only over a
+  // frame that carries data (the resting shape is pinned by
+  // radio-rest-state.test.mjs); the rows belong to matching. `kx` is the eased
+  // crossfade, so both are visible mid-transition and neither is visible in the
+  // other's state.
+  assert.match(body, /if \(kx < 1\) \{/, 'the listening instrument is no longer gated on the listening half of the crossfade');
   assert.match(body, /if \(kx > 0\) \{/, 'the rows are no longer gated on the matching half of the crossfade');
   assert.match(body, /kxRef\.current/, 'the crossfade is no longer eased');
   // And the field is the ground under BOTH, which is what `fieldK`'s first
@@ -315,8 +317,12 @@ test('leaving the matching state releases the strap', () => {
 function playbackEffect() {
   const i = code.indexOf('useEffectBR(() => {\n    let cancelPlay');
   assert.ok(i > 0, 'the playback effect is gone — this guard no longer names anything');
-  const j = code.indexOf('}, [radioOn, paused, authTick]);', i);
-  assert.ok(j > i, 'could not find the end of the playback effect');
+  // The effect's dependency list is allowed to GROW (the retry nonce joined it
+  // on 2026-09-15 — radio-rest-state.test.mjs requires it); what this lift
+  // needs is the line that closes the effect, not its exact spelling.
+  const end = /\}, \[radioOn, paused, authTick[^\]]*\]\);/.exec(code.slice(i));
+  assert.ok(end, 'could not find the end of the playback effect');
+  const j = i + end.index;
   const body = code.slice(code.indexOf('{', i) + 1, code.lastIndexOf('}', j));
   assert.ok(body.length > 400, `the effect slice is ${body.length} chars — this guard is reading the wrong thing`);
   // eslint-disable-next-line no-new-func

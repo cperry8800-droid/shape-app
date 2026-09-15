@@ -183,14 +183,36 @@ export function fieldK(kx, kick) {
   return (0.45 + 0.55 * x) * (0.72 + 0.28 * k);
 }
 
+// ⚠ THE UNLIT GRID IS DRAWN, AND ITS REST IS NOT A FRACTION OF THE LIGHT.
+// The first build scaled the WHOLE dot by `fieldK` — alpha `(0.07 + 0.6·v)·k`,
+// radius `0.8 + 1.9·v·k` — so with nothing on the air (v = 0, k at its 0.324
+// floor) every dot rendered at 2.3% alpha and 0.8 px: measured on the shipped
+// page at 390px, the brightest pixel in the figure was alpha 6 of 255. That is
+// the RESTING state — signed out, paused, or a station that is not
+// broadcasting, which in production today is every member — and it is the
+// state the owner opened and read as "not the design" a day after #2072
+// shipped. A ground nobody can see is not a ground; it is a void with a
+// formula behind it.
+//
+// So the grid keeps a rest whatever the field's strength, and only the LIGHT
+// on it reads the bins and breathes on the kick. `fieldK` still scales the
+// light — quiet under the spectrum, full behind the rows, breathing on the
+// beat — and no longer scales the ground, so the rest reads the same in both
+// states. The two constants are measured on the render rather than chosen (see
+// tests/radio-rest-state.test.mjs for the floor the guard holds them to).
+export const FIELD_REST_ALPHA = 0.16;
+export const FIELD_REST_RADIUS = 1.1;
+
 export function fieldAlpha(v, k) {
   const x = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
-  return (0.07 + 0.6 * x) * (Number.isFinite(k) ? k : 0);
+  const kk = Number.isFinite(k) ? Math.max(0, k) : 0;
+  return FIELD_REST_ALPHA + 0.62 * x * kk;
 }
 
 export function fieldRadius(v, k) {
   const x = Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0;
-  return 0.8 + 1.9 * x * (Number.isFinite(k) ? k : 0);
+  const kk = Number.isFinite(k) ? Math.max(0, k) : 0;
+  return FIELD_REST_RADIUS + 1.7 * x * kk;
 }
 
 // ---------------------------------------------------------------------------
