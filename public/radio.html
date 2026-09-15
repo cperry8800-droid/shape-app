@@ -790,7 +790,10 @@
           noraStage = new NoraStage({
             canvas:   document.getElementById('noraStage'),
             analyser,
-            modelUrl: '/nora/placeholder.vrm'
+            modelUrl: '/nora/placeholder.vrm',
+            // The projection's colour — this page's own teal, the one its LIVE
+            // label above the canvas already uses (noraHologram.mjs).
+            color:    '#2ee0c4'
           });
           await noraStage.load();
           noraStage.start();

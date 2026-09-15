@@ -70,6 +70,14 @@ test('TRANSITIVE imports are found, not just the first hop', () => {
       'Its absence means the deriver stopped following the graph past the first hop, so any ' +
       'change to a transitively-bundled module would skip the mobile build.',
   );
+  // And a second one of the same shape, added 2026-09-15: Nora's projection
+  // material is reached only through noraStage.mjs (mobile -> noraStage.mjs ->
+  // noraHologram.mjs). A shader edit that skipped the mobile build would ship a
+  // bundle whose Nora is whatever the last build rendered.
+  assert.ok(
+    inputs.includes('public/newdesign/noraHologram.mjs'),
+    'noraHologram.mjs is a SECOND-HOP dependency (mobile -> noraStage.mjs -> noraHologram.mjs) and is missing from the derived set',
+  );
 });
 
 test('every derived path actually exists', () => {
