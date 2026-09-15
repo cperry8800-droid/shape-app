@@ -480,3 +480,56 @@ export function trimBeats(beats, cutoff) {
   if (i > 0) beats.splice(0, i);
   return beats;
 }
+
+// ---------------------------------------------------------------------------
+// THE PREVIEW STATION — the one thing in this module that is NOT a reading.
+//
+// ⚠ IT IS FENCED OFF DOWN HERE FOR THAT REASON. Every other function above
+// draws what the analyser actually carried; this SYNTHESISES a frame, so it may
+// only ever reach a surface that says so in words. Its single caller gates it on
+// the shell's own `ShapeCanChat === false` — a visitor previewing the app — and
+// that population is SIGNED OUT by construction (`memberAllowed` in
+// iosAppBroadsheetMain.jsx is `isApprovedCoach || signedIn || membership.active`),
+// which is also exactly the population the licence forbids from listening (the
+// NON-INTERACTIVE BOUNDARY at the top of iosAppBroadsheetRadio.jsx). So a
+// simulated frame can never displace a reading a member might take for their
+// own: where it draws, there is nothing real to draw, and there never could be.
+//
+// ⚠ AND IT IS DETERMINISTIC IN `t` — no Math.random, no Date — so the guards can
+// drive the SHIPPED detector over it and assert it settles where this says it
+// does, rather than asserting that some numbers came out.
+export const PREVIEW_BPM = 128;
+export const PREVIEW_BINS = 256;
+
+// The whole guarantee, in one place and drivable: a simulated frame is drawn
+// only for a previewing visitor, and only over a frame that carried NOTHING.
+// Written as a named rule rather than inline so a guard can drive its truth
+// table — the two clauses are what stop a simulation ever standing in front of
+// a reading, and an inline `&&` can lose one of them to an edit with nothing
+// failing.
+export function previewSimOn(preview, realSignal) {
+  return !!preview && !realSignal;
+}
+
+export function previewBins(out, t) {
+  if (!out || !out.length) return out;
+  const time = Number.isFinite(t) ? t : 0;
+  const spb = 60 / PREVIEW_BPM;
+  // Phase, written so a negative `t` cannot invert the kick envelope into a
+  // blow-up — the defect the concept board's waterfall pre-fill paid for.
+  const u = (((time % spb) + spb) % spb) / spb;
+  const half = spb / 2;
+  const hatU = (((time % half) + half) % half) / half;
+  const kick = Math.exp(-u * 9);
+  const n = out.length;
+  for (let i = 0; i < n; i += 1) {
+    const f = i / n;
+    let v = 150 * Math.pow(1 - f, 1.8);                                          // the broadband body
+    v += 100 * kick * Math.exp(-f * 20);                                         // the kick, in the low bins
+    v += 42 * Math.max(0, Math.sin(time * 2.3 + f * 26)) * Math.exp(-f * 3.2);   // mids that move
+    if (f > 0.42) v += 34 * Math.exp(-hatU * 11);                                // hats on the half beat
+    v += (Math.sin(i * 12.9898 + time * 6.1) * 0.5 + 0.5) * 10;                  // texture, not noise
+    out[i] = Math.max(0, Math.min(255, Math.round(v)));
+  }
+  return out;
+}

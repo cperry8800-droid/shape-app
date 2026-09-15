@@ -10,6 +10,7 @@ import {
   kickShape, ecg, penRadius,
   TIE_TOL_S, ties, bpmGap, inSync, gapText, lockStep,
   advanceHeart, trimBeats,
+  previewBins, previewSimOn, PREVIEW_BINS,
 } from '../services/radioSignalField.mjs';
 import {
   createTempoDetector, tempoEnergyFromBins, tempoBarStep, tempoBeatsBetween,
@@ -112,6 +113,33 @@ const RADIO_SOCIAL_EMPTY = { up: 0, down: 0, myVote: null, commentCount: 0, comm
 // given a dead tap.
 function bsRadioSignedIn() {
   try { return !!window.ShapeAuth?.getCachedState?.()?.user?.id; } catch (e) { return false; }
+}
+
+// IS THIS SOMEBODY LOOKING AROUND, RATHER THAN A MEMBER?
+//
+// ⚠ IT DEFAULTS TO "MEMBER", AND THAT DIRECTION IS THE POINT. `ShapeCanChat` is
+// the shell's own `memberAllowed` (iosAppBroadsheetMain.jsx) — an approved
+// coach, a signed-in account, or an active subscription — published on a
+// `shape:canchat` event. Only an explicit `false` is a prospect; `undefined`
+// (the flag has not been published yet, on the first frames of a cold launch)
+// reads as a member, so a real member is never shown a simulated station while
+// the gate is still settling. The asymmetry is deliberate: showing a prospect
+// the honest empty for a second costs nothing, and showing a MEMBER a
+// fabricated signal for a second is the one thing this page must never do.
+//
+// ⚠ AND `false` IMPLIES SIGNED OUT, which is what makes the simulation safe at
+// all: `memberAllowed` ORs in `signedIn`, so a prospect cannot have a session,
+// and playback is licensed to signed-in accounts only. There is no reading for
+// a simulated frame to displace, and there never could be.
+function useBSRadioPreview() {
+  const [v, setV] = useStateBR(() => (typeof window !== 'undefined' ? window.ShapeCanChat === false : false));
+  useEffectBR(() => {
+    const on = () => { try { setV(window.ShapeCanChat === false); } catch (e) { setV(false); } };
+    window.addEventListener('shape:canchat', on);
+    on();
+    return () => window.removeEventListener('shape:canchat', on);
+  }, []);
+  return v;
 }
 
 // THE TRANSPORT KEY READS THE MEASURED STATE, NEVER THE REQUESTED ONE.
@@ -1448,17 +1476,23 @@ const SIGNAL_GRACE_S = 6;
 // asks for less motion is asking for less motion, not for a worse reading.
 const REDUCED_FPS = 4;
 
-function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, paper, figureRef, onRead, onSignal, onRail }) {
+function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, paper, figureRef, preview, onRead, onSignal, onRail }) {
   const wrapRef = useRefBR(null);
   const cvsRef = useRefBR(null);
   // The detector and every per-frame buffer live in refs: this loop runs at
   // 60Hz and must never re-render React.
   const detRef = useRefBR(null);
   const binsRef = useRefBR(null);   // the raw analyser frame
+  // ⚠ THE SIMULATED FRAME GETS ITS OWN BUFFER, NEVER `binsRef`. Sharing one
+  // would have the preview writing into the buffer the analyser reads into, so
+  // the instant a real frame arrived the two would be interleaving in the same
+  // array — and the bug would look like a flickering spectrum rather than like
+  // what it is.
+  const simBinsRef = useRefBR(null);
   const smRef = useRefBR(null);     // smoothed band values
   const pkRef = useRefBR(null);     // peak caps
-  const liveRef = useRefBR({ paused, matching, heartBpm, teal, heart, ink, paper, figureRef, onRead, onSignal, onRail });
-  liveRef.current = { paused, matching, heartBpm, teal, heart, ink, paper, figureRef, onRead, onSignal, onRail };
+  const liveRef = useRefBR({ paused, matching, heartBpm, teal, heart, ink, paper, figureRef, preview, onRead, onSignal, onRail });
+  liveRef.current = { paused, matching, heartBpm, teal, heart, ink, paper, figureRef, preview, onRead, onSignal, onRail };
   // The last tempo handed UP to React, so the loop can tell a change from a
   // repeat. See the guard in the frame body.
   const saidRef = useRefBR(undefined);
@@ -1594,8 +1628,28 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
         bins = binsRef.current;
       }
 
-      const signal = hasSignal(bins);
-      const live = signal && !cfg.paused;
+      // ⚠ THE SIMULATION NEVER OUTRANKS A READING, AND THE ORDER IS THE WHOLE
+      // GUARANTEE. The analyser is read first and `previewBins` runs only over
+      // a frame that carried nothing — so on any surface where something real
+      // is arriving, the real thing is what draws. In the population this is
+      // gated to (a signed-out visitor previewing the app) nothing real can
+      // arrive at all, which is why it is safe to draw anything here.
+      const realSignal = hasSignal(bins);
+      const sim = previewSimOn(cfg.preview, realSignal);
+      if (sim) {
+        if (!simBinsRef.current) simBinsRef.current = new Uint8Array(PREVIEW_BINS);
+        bins = previewBins(simBinsRef.current, t);
+      }
+      const signal = realSignal || sim;
+      // ⚠ AND A PREVIEW HAS NO PLAYBACK TO PAUSE. `paused` is the member's
+      // REQUEST about a stream a prospect cannot start — it seeds `true` for
+      // anyone with no stored radio preference, which is every first-time
+      // visitor — so honouring it here would reset the detector on frame one
+      // and hold the reading at null forever: bars over a rail that never names
+      // a tempo. It governs the STATION half only; the heart half deliberately
+      // keeps running through a pause and is untouched by this.
+      const pausedEff = sim ? false : !!cfg.paused;
+      const live = signal && !pausedEff;
       // ⚠ AN UNSTARTED PLAYER IS NOT A BROKEN STREAM, AND ONLY TIME TELLS THEM
       // APART. `play()` is still awaiting the station request and `audio.play()`
       // when this loop first reads the freshly created analyser, so its
@@ -1628,9 +1682,9 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       // gating the read also drops the ring, so a resume rebuilds from frames
       // that are actually contiguous instead of splicing across the gap.
       // (Codex, P2 on #2072.)
-      if (cfg.paused && !pausedRef.current) det.reset();
-      pausedRef.current = !!cfg.paused;
-      const read = cfg.paused ? null : det.read(t);
+      if (pausedEff && !pausedRef.current) det.reset();
+      pausedRef.current = pausedEff;
+      const read = pausedEff ? null : det.read(t);
       // ⚠ REPORT UP ONLY WHEN THE PUBLISHED READING CHANGES. `onRead` is a React
       // setState and this loop runs at 60Hz — calling it every frame re-renders
       // the whole page sixty times a second, which is exactly what the refs
@@ -2080,6 +2134,10 @@ function BSRadioScreen({ onBack }) {
   // How many of the rail's five bars are lit — a COUNT, reported up only when it
   // moves, so a 60Hz loop cannot re-render the page 60 times a second.
   const [railLit, setRailLit] = useStateBR(0);
+  // Someone previewing the app sees the instrument running on a SIMULATED
+  // station, labelled as one on the rail below. Owner ruling, 2026-09-15:
+  // "i want to show what it would look like for someone previewing the app".
+  const previewSim = useBSRadioPreview();
   const [hrmConnected, setHrmConnected] = useStateBR(false);
   const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
   const [matching, setMatching] = useStateBR(false);
@@ -2306,6 +2364,7 @@ function BSRadioScreen({ onBack }) {
         <BSRadioSignalField
           paused={r.paused} matching={matching} heartBpm={liveHr}
           teal={TEAL} heart={HEART} ink={CREAM} paper={t.PAPER} figureRef={figureRef}
+          preview={previewSim}
           onRead={setTempoRead} onSignal={setHasSig} onRail={setRailLit}
         />
         <BSStageLight color={TEAL} opacity={0.1} paused={r.paused} />
@@ -2325,13 +2384,33 @@ function BSRadioScreen({ onBack }) {
               station that is not broadcasting (brief §12, ruling 2). */}
           <div style={{ marginTop: 11, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM50 }}>
-                <span style={{ width: 5, height: 5, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />
-                {tr('radio:rail.onAir', { defaultValue: 'On Air' })}
+              {/* ⚠ THE BLINKING RED DOT IS THE BROADCAST CLAIM, SO IT GOES WHERE
+                  THE CLAIM DOES. On the preview this rail would otherwise read
+                  "● ON AIR" over bars the page itself generated — and one line
+                  under a label saying the signal is an example, which is worse
+                  than either half alone. The house rule is not "never say it"
+                  but "never claim it unlabelled"; here the honest label REPLACES
+                  the claim rather than sitting beside it. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: previewSim ? TEAL : CREAM50 }}>
+                {!previewSim && <span style={{ width: 5, height: 5, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />}
+                {previewSim
+                  ? tr('radio:rail.preview', { defaultValue: 'Preview' })
+                  : tr('radio:rail.onAir', { defaultValue: 'On Air' })}
               </div>
-              <div style={{ marginTop: 3, fontFamily: BS_DOTO, fontSize: 15, fontWeight: 900, fontVariationSettings: "'ROND' 100", letterSpacing: '0.02em', color: CREAM }}>
-                {sessionClock}
-              </div>
+              {/* ⚠ AND THE LABEL IS NOT SET IN THE READING FACE. Doto is this
+                  page's numeral face precisely because "every measured figure
+                  reads like a reading" (the 2026-09-10 type ruling) — so the one
+                  thing on the rail that is NOT a measurement must not wear it.
+                  The session clock keeps it; the example label is mono. */}
+              {previewSim ? (
+                <div style={{ marginTop: 4, maxWidth: 150, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', lineHeight: 1.35, color: CREAM50 }}>
+                  {tr('radio:rail.exampleSignal', { defaultValue: 'Example signal' })}
+                </div>
+              ) : (
+                <div style={{ marginTop: 3, fontFamily: BS_DOTO, fontSize: 15, fontWeight: 900, fontVariationSettings: "'ROND' 100", letterSpacing: '0.02em', color: CREAM }}>
+                  {sessionClock}
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM50 }}>
