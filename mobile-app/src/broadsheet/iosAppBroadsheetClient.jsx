@@ -31936,7 +31936,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     })();
     return () => { live = false; };
   }, []);
-  const [showAppearance, setShowAppearance] = useStateBSC(false);
+  // ⚠ OPEN BY DEFAULT SINCE THE PICKER MOVED BEHIND ITS OWN DOOR. Collapsed was
+  // right when it sat on the root above the member's account — it was costing that
+  // root 1.5 screens. Inside a pane the member reached by tapping *Customize*, a
+  // collapsed picker is a page whose entire body is a button saying "Customize",
+  // and the thing they came for is two taps away instead of one. The toggle still
+  // closes it; only the state it starts in changed.
+  const [showAppearance, setShowAppearance] = useStateBSC(true);
   const [appearTab, setAppearTab] = useStateBSC('paper');
   const [showLightFx, setShowLightFx] = useStateBSC(false);
   // Light-fx tap-to-preview: picking a mode flashes the REAL overlay for a few
@@ -31949,6 +31955,28 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return () => clearTimeout(tm);
   }, [fxPreview]);
   const [detail, setDetail] = useStateBSC(''); // '' = settings page; else a drill-in card pane
+  // ⚠ A DRILL-IN PANE OPENS AT ITS TOP, AND ONLY THE TALL ONE COULD EVER PROVE IT.
+  // BSPage keeps ONE `.bs-scroll` across every value of `detail` and never resets it
+  // when its children change — the browser behaviour `_bsScrollTopOnMount` exists for.
+  // Every pane that shipped before this one is SHORTER than the viewport (Account is
+  // six rows), so the browser clamped scrollTop to 0 for them by itself and nobody
+  // could see this. Customize is 355 lines: a member who scrolled down to reach its
+  // card opens a pane whose DetailBack and tab bar are ALREADY above the viewport,
+  // with nothing on screen saying where they are. Reset on every change of `detail`,
+  // in both directions — coming back to the root already landed at 0 for the short
+  // panes, so this makes today's behaviour deterministic rather than changing it.
+  // ⚠ AND THE SCROLLER IS FOUND BY WALKING UP FROM OUR OWN TREE, NEVER BY
+  // `document.querySelector('.bs-scroll')`. The chrome's own comment says that class
+  // marks MANY scrollers, rails included, and Settings renders ABOVE a still-mounted
+  // tab tree — so the first match in the document is the page underneath. That is the
+  // wrong-layer trap the 2026-09-14 settings review measured with a finder that
+  // reported on Home while the screenshots showed Settings.
+  const paneTopRef = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const el = paneTopRef.current;
+    const scroller = el && el.closest ? el.closest('.bs-scroll') : null;
+    if (scroller) scroller.scrollTop = 0;
+  }, [detail]);
   // THE CYCLE (spec 2026-07-19) — member-only consent surface. cycleBusy names
   // the in-flight write so a double-tap can't fire two consent RPCs.
   const cycle = useBSCycleSettings();
@@ -32577,10 +32605,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
   };
 
-  // Live Shape Score tier for the profile header (user-scoped — reflects the
-  // signed-in client / trainer / nutritionist's current tier).
-  const settingsScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
-  const settingsTierC = bsTierColor(settingsScore.tier);
+  // ⚠ THE TIER COLOUR READS THE ROLE-AWARE `scoreProfile` ABOVE, NOT A SECOND
+  // CLIENT-ONLY READING. This block used to declare its own
+  // `_bsUseLiveScore(SHAPE_SCORE_PROFILES.client)` — hardcoded to the CLIENT ladder
+  // — under a comment claiming it reflected "the signed-in client / trainer /
+  // nutritionist's current tier", which it could not: `_bsUseLiveScore` derives the
+  // ladder from the profile's own `roleLabel`, so a coach got Base/Tempo/Form where
+  // `bsCoachTier` would say Certified/Pro. It was DEAD on main — nothing read it —
+  // and the Passport's identity card is its first consumer, which is what made the
+  // divergence reachable: the very same Settings hands `scoreProfile` to
+  // BSShapeScorePage, so a coach would have read one tier on the card and a
+  // different one on the page it opens. Deleted rather than corrected in place:
+  // two score readings in one component is the defect, and one of them was already
+  // right.
+  const settingsTierC = bsTierColor(scoreProfile.tier);
 
   // Identity editing — seed name/handle from the signed-in account so the profile
   // matches before any edit; a saved client_identity (below) then overrides.
@@ -32600,6 +32638,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     link: '',
     goal: 'Lose fat',
   });
+  // ⚠ THE CITY IS ONLY PRINTED WHEN THE MEMBER SUPPLIED ONE. `identity.location`
+  // seeds to 'Brooklyn, NY' — the demo persona's — for EVERY account, and until the
+  // Passport it rendered nowhere but as a placeholder-ish default inside the edit
+  // form, where a value you can overwrite is not a claim. On the identity card it
+  // would be one: a fabricated home town on the first line of a real member's own
+  // settings. This tracks whether the saved `client_identity` document actually
+  // carried a location, which is the only thing that makes it theirs.
+  const [locationKnown, setLocationKnown] = useStateBSC(false);
+  // ⚠ AND THE HANDLE THE SAME WAY, FOR THE SAME REASON. `identity.handle` falls back
+  // to a slug of the display name (and bsMyName() itself falls back to the email
+  // local-part), so an account with no `profile.username` and no saved handle has a
+  // handle nobody chose. It seeds from the ACCOUNT's real username, which is the one
+  // thing that makes it the member's; a saved `client_identity` handle sets it too.
+  const [handleKnown, setHandleKnown] = useStateBSC(!!_myUsername);
   // Deep-link: open straight into the edit-profile pane (e.g. the Goal page's
   // "Primary goal · Edit" card) instead of the Settings landing.
   const [editing, setEditing] = useStateBSC(initialPage === 'edit-profile');
@@ -32618,6 +32670,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     window.shapeDb.getUserGoals('client_identity').then(d => {
       if (d && typeof d === 'object' && Object.keys(d).length) {
         setIdentity(prev => ({ ...prev, ...d }));
+        if ('location' in d) setLocationKnown(!!d.location);
+        if ('handle' in d) setHandleKnown(!!d.handle);
         // When opened directly in edit mode, seed the draft from the saved
         // identity (which loads async) so the form shows real values, not defaults.
         if (initialPage === 'edit-profile') setDraft(prev => ({ ...prev, ...d }));
@@ -32628,13 +32682,21 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const startEdit = () => { setDraft(identity); setEditing(true); };
   const saveEdit  = () => {
     setIdentity(draft); setEditing(false);
+    setLocationKnown(!!(draft.location || '').trim());
     // Persist the whole edited identity through the serialized writer (merges over
     // the freshest stored doc, so the photo picker's photo and our avatarMode can't
     // clobber each other). Optimistically update the cache first so on-screen
     // avatars refresh instantly without navigating. avatarMode is always defined
     // so a merge can't blank a saved preference.
     const photo = bsMyPhotoRaw() || null;
+    // ⚠ A SYNTHESIZED HANDLE IS NOT WRITTEN, OR THE GUARD ABOVE LASTS ONE SAVE. This
+    // form has no handle field — the draft carries whatever was seeded — so saving
+    // any OTHER field used to persist the name-derived fallback into
+    // `client_identity`, after which the hydrate reads `handle` as present and
+    // promotes a handle nobody claimed to a claimed one. bsSaveIdentity MERGES over
+    // the stored document, so omitting the key cannot blank a real saved handle.
     const patch = { ...draft, avatarMode: draft.avatarMode || 'photo', ...(photo ? { photo } : {}) };
+    if (!handleKnown) delete patch.handle;
     try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...patch }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
     bsSaveIdentity(patch);
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
@@ -32742,8 +32804,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     </div>
   );
 
-  // Line icons for the section cards.
-  const HubCard = ({ icon, title, summary, onClick, accent, last }) => (
+  // ⚠ `icon` IS GONE, NOT REPLACED. It was accepted by this component and read by
+  // NOTHING — thirteen call sites passed a glyph name that never rendered. The
+  // Passport is what made it safe to drop: the section cards it named are tiles now,
+  // so the Also list below is this component's only remaining caller. `value` is the
+  // right-hand reading the About row needs for the build number.
+  const HubCard = ({ title, summary, value, onClick, accent, last }) => (
     // No left spine — rows sit flush at the left margin (owner call 2026-07-14);
     // the accent survives on the title color (Account actions stays rust).
     <button onClick={onClick} style={{
@@ -32756,7 +32822,53 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: accent || t.INK, letterSpacing: '-0.02em' }}>{title}</span>
         {summary ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
       </span>
+      {value ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{value}</span> : null}
       <span style={{ flexShrink: 0, color: t.INK50, fontSize: 20, fontFamily: t.DISPLAY, lineHeight: 1 }}>›</span>
+    </button>
+  );
+
+  // ── THE PASSPORT'S TWO NEW PRIMITIVES ───────────────────────────────────────
+  // Squared and chamfered on the owner's note, 2026-09-14: "give the boxes a more
+  // square edgy look". The chamfer is the house one — the same polygon thirteen
+  // other surfaces already clip with — so the Passport looks like the app rather
+  // than like a new idea.
+  const BS_CHAMFER = 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)';
+
+  // A quick switch: the whole cell is the control, so the tap target is the box
+  // rather than the 26px pill inside it — comfortably past the house floor, which
+  // is WCAG 2.5.8 AA at 24px (never Apple's 44pt suggestion; this repo measured
+  // and recorded the difference).
+  const QuickSwitch = ({ label, on, value, onToggle }) => (
+    <button onClick={onToggle} aria-pressed={on} style={{
+      flex: 1, minWidth: 0, textAlign: 'left', cursor: 'pointer',
+      padding: '9px 10px 10px', borderRadius: 3, clipPath: BS_CHAMFER,
+      border: `1px solid ${on ? bsTHexA(t.ACCENT, 0.55) : t.RULE}`,
+      background: on ? bsTHexA(t.ACCENT, 0.07) : t.PAPER2, color: t.INK,
+    }}>
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+        <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        <span aria-hidden="true" style={{ flexShrink: 0, width: 24, height: 13, borderRadius: 999, background: on ? t.ACCENT : bsTHexA(t.INK, 0.18), position: 'relative', display: 'inline-block' }}>
+          <span style={{ position: 'absolute', top: 2, left: on ? 13 : 2, width: 9, height: 9, borderRadius: 999, background: on ? (t.isLight ? '#fff' : '#06110e') : t.INK50 }} />
+        </span>
+      </span>
+      <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, letterSpacing: '-0.015em', color: on ? t.ACCENT : t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
+    </button>
+  );
+
+  // A door. The glyph is a typographic symbol, never an emoji — the house rule for
+  // anything added from 2026-09 on. The summary states what is behind the door, so
+  // a member can read their setting without opening it (A · The Index's one idea,
+  // which the owner asked to keep inside B).
+  const PassportTile = ({ glyph, title, summary, onClick, accent }) => (
+    <button onClick={onClick} style={{
+      textAlign: 'left', cursor: 'pointer', width: '100%',
+      padding: '11px 12px 12px', borderRadius: 3, clipPath: BS_CHAMFER,
+      border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK,
+      display: 'flex', flexDirection: 'column', gap: 6, minHeight: 74,
+    }}>
+      <span aria-hidden="true" style={{ fontFamily: t.MONO, fontSize: 13, lineHeight: 1, color: accent || t.ACCENT }}>{glyph}</span>
+      <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', color: accent || t.INK, lineHeight: 1.15 }}>{title}</span>
+      {summary ? <span style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{summary}</span> : null}
     </button>
   );
 
@@ -33061,14 +33173,32 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       ],
     },
     {
+      // ⚠ THE TITLE STAYS AN ENGLISH LITERAL BECAUSE IT IS AN ADDRESS, NOT COPY.
+      // `findSec('Nora’s voice')` matches on it, so translating it here would
+      // make the section unfindable; the heading a member reads is rendered through
+      // `settings:section.nora` at the call site, exactly like every other pane.
       title: 'Nora’s voice',
       meta: prefs.noraVoice === 'On' ? 'On' : 'Off',
+      // ⚠ THESE FIVE ROWS WERE UNREACHABLE UNTIL THIS PR AND WERE HARDCODED
+      // ENGLISH. The 2026-09-14 review found the section defined in `sections` and
+      // opened by NO card; routing it into Notifications is the fix, and routing it
+      // as it stood would have shipped an English-only block into all twelve
+      // translated settings surfaces — a reachable regression rather than a
+      // dormant one. The labels and their right-hand readings are keyed here, and
+      // the two segmented rows get `segLabels`, the mechanism the Units row already
+      // uses for exactly this.
+      // ⚠ THE OPTION *VALUES* ARE DELIBERATELY NOT TOUCHED. `prefs[key]` holds the
+      // raw English token ('On', 'Supportive', 'Auto') and is what `setPref` stores
+      // and `renderRows` prints for a dropdown — the same for every already-reachable
+      // segmented row in Notifications, Preferences and Privacy. Localizing a STORED
+      // token needs a display mapping across the whole PREF_OPTIONS table, which is
+      // this module's own pre-existing gap and not this door's to close.
       rows: [
-        { l: 'Speak replies', key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice },
-        { l: 'Tone', key: 'noraTone', segmented: PREF_OPTIONS.noraTone },
-        { l: 'Voice', key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
-        { l: 'Preview voice', r: 'Listen', action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled) window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info'); }); } catch (e) {} } },
-        { l: 'What Nora remembers', r: 'View', action: () => setShowNoraMemory(true) },
+        { l: tr('settings:nora.speakReplies', { defaultValue: 'Speak replies' }), key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice, segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:common.off', { defaultValue: 'Off' })] },
+        { l: tr('settings:nora.tone', { defaultValue: 'Tone' }), key: 'noraTone', segmented: PREF_OPTIONS.noraTone, segLabels: [tr('settings:nora.toneSupportive', { defaultValue: 'Supportive' }), tr('settings:nora.toneDirect', { defaultValue: 'Direct' })] },
+        { l: tr('settings:nora.voice', { defaultValue: 'Voice' }), key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
+        { l: tr('settings:nora.preview', { defaultValue: 'Preview voice' }), r: tr('settings:nora.previewMeta', { defaultValue: 'Listen' }), action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled) window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info'); }); } catch (e) {} } },
+        { l: tr('settings:nora.memory', { defaultValue: 'What Nora remembers' }), r: tr('settings:nora.memoryMeta', { defaultValue: 'View' }), action: () => setShowNoraMemory(true) },
       ],
     },
     {
@@ -33109,7 +33239,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const cardAccountSummary = tr('settings:card.accountSummary', { defaultValue: 'Email · password · 2FA' });
   const cardHealthSummary = tr('settings:card.healthSummary', { defaultValue: 'Apple Health · WHOOP · Strava' });
   const cardAboutSummary = tr('settings:card.aboutSummary', { defaultValue: 'Help · contact · legal' });
+  // The door prints what is behind it, in the pane's own vocabulary: the paper and
+  // accent the Appearance header already states, then the reading scale. Composed
+  // from the SAME expressions those two headers use, so the card and the pane can
+  // never come to disagree about what the app is set to.
+  const cardCustomizeSummary = tr('settings:card.customizeSummary', {
+    paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode || 'light') }),
+    accent: tr('settings:accent.' + (tweaks.accentKey || 'blue'), { defaultValue: bsAccentLabel(tweaks.accentKey || 'blue') }),
+    size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }),
+    defaultValue: '{paper} · {accent} · {size}',
+  });
   const cardAccountActionsSummary = tr('settings:card.accountActionsSummary', { defaultValue: 'Export · pause · delete' });
+  // The cycle door's reading, named once and used by BOTH the row inside Health &
+  // devices and the card that still routes to the same pane — the `cardCustomizeSummary`
+  // rule: a summary composed twice is a summary that can come to disagree with itself.
+  const cycleSummary = cycle.optIn
+    ? (cycle.share ? tr('cycle:settings.summaryShared', { defaultValue: 'Tracking · shared with your coach' }) : tr('cycle:settings.summaryOn', { defaultValue: 'Tracking · private to you' }))
+    : tr('cycle:settings.summaryOff', { defaultValue: 'Off · phase, patterns & calendar' });
   // ── THE CYCLE handlers ────────────────────────────────────────────────────
   // Share on/off is ONE call with consentKind 'cycle_share' and p_opt_in
   // staying TRUE — the DB enforces one flag per receipt, so a share flip must
@@ -33157,40 +33303,171 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       : tr('cycle:err.generic', { defaultValue: "That didn't save. Try again." }));
   };
 
-  const settingCards = isCoachRole ? [
-    { title: tr('settings:section.account', { defaultValue: 'Account' }),             summary: cardAccountSummary,                                            detail: 'account' },
-    { title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
-    { title: tr('settings:section.practice', { defaultValue: 'Your practice' }),       summary: tr('settings:card.practiceSummary', { defaultValue: 'Listing · profile · availability · payouts · soundtracks' }),          detail: 'practice' },
-    { title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
-    { title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                             detail: 'notifications' },
-    { title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                              detail: 'privacy' },
-    { title: tr('settings:section.more', { defaultValue: 'More' }),                summary: tr('settings:card.moreSummaryCoach', { defaultValue: 'Public profile · Score · Store · Radio' }),                            detail: 'more' },
-    { title: tr('settings:section.about', { defaultValue: 'About' }),               summary: cardAboutSummary,                                           detail: 'about' },
-    { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }),     summary: cardAccountActionsSummary,                                          detail: 'accountactions', accent: t.RUST },
+  // ⚠ THE PLAN CARD MOVES BEHIND THE ACCOUNT TILE, AND GAINS THE ROLE GATE IT HAS
+  // NEVER HAD. It rendered *Shape Membership · Become a member to join the community
+  // · Join now →* for EVERY role — captured on the Trainer preview during the
+  // 2026-09-14 settings review — against the owner's standing ruling: "Its free to
+  // join for coaches. Its $5 a month for members/clients." A coach was being offered
+  // the member plan, and signed in would have read *Activate membership →*. The gate
+  // is one condition and this PR is the one that decides what a coach's identity card
+  // says about their plan, so it arrives in this diff either way: shipping the line
+  // gated and the card ungated would put two surfaces one tap apart in contradiction.
+  // The body below is UNCHANGED from where it sat on the root; only its wrapper moved.
+  // `!editing` is gone because the pane it now lives in is unreachable while editing.
+  const planCard = isCoachRole ? null : (() => {
+        // Two states drive the card: signedIn (any logged-in member, no free
+        // tier) and hasSub (a real active Stripe subscription). Real subscribers
+        // → Manage (billing portal). Signed-in without a sub → Activate
+        // membership (checkout, never the dead portal). Browsing → Join now.
+        const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+        const hasSub = !!(plan && plan.active === true);
+        const cents = plan && typeof plan.priceCents === 'number' ? plan.priceCents : 500;
+        const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
+        const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
+        const renewsLabel = renews && !isNaN(renews.getTime())
+          ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
+          : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
+        const cornerLabel = hasSub ? renewsLabel : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
+        const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' }) : (signedIn ? tr('settings:plan.activate', { defaultValue: 'Activate membership →' }) : tr('settings:plan.join', { defaultValue: 'Join now →' }));
+        return (
+          <div style={{ padding: `4px ${t.padX}px 14px` }}>
+            <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 14, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: '10px 12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                <BSEyebrow color={t.AMBER}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSEyebrow>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 3 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</span></div>
+                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
+                </div>
+                <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{btnLabel}</button>
+              </div>
+            </div>
+          </div>
+        );
+        })();
+
+  // ── THE SIX DOORS ── the Passport's tiles. Owner's pick, 2026-09-14: "i like the
+  // passport" → "go with passport". Thirteen hub cards for a client and ten for a
+  // coach become six tiles (seven for a coach) plus three Also rows — and NOT ONE
+  // DESTINATION IS LOST, because each tile opens a pane that renders whole sections:
+  // Billing rides inside Account, Nora's voice inside Notifications, Training,
+  // Nutrition and Preferences inside one door, and Cycle inside Health. A test
+  // asserts every section in `sections` is reachable and that every retired card's
+  // `detail` value still has a pane behind it.
+  //
+  // ⚠ THE SUMMARY IS THE HALF THAT MAKES SIX DOORS WORK. A tile with a name alone
+  // is a guess; a tile that prints its own current value is A · The Index's idea,
+  // which the owner asked to keep inside B ("with A's rows behind each tile"). Every
+  // one below is an EXISTING summary expression, so a tile and the pane behind it
+  // cannot come to disagree about what the app is set to.
+  const passportTiles = isCoachRole ? [
+    { glyph: '⌂', title: tr('settings:section.account', { defaultValue: 'Account' }),           summary: cardAccountSummary,  detail: 'account' },
+    { glyph: '◔', title: tr('settings:section.notifications', { defaultValue: 'Notifications' }), summary: cardNotifSummary,    detail: 'notifications' },
+    { glyph: '◇', title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,  detail: 'privacy' },
+    { glyph: '◐', title: tr('settings:section.customize', { defaultValue: 'Customize' }),         summary: cardCustomizeSummary, detail: 'customize' },
+    // ⚠ A COACH GETS PREFERENCES, NOT "TRAINING & NUTRITION". The coach card list has
+    // never carried the Training or Nutrition sections — those are a member's own
+    // training and eating preferences — so composing them into a coach's tile would
+    // ADD two sections their settings have never had. The tile is named for what it
+    // actually opens.
+    { glyph: '⚙', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),     summary: cardPrefsSummary,    detail: 'preferences' },
+    { glyph: '↯', title: tr('settings:section.health', { defaultValue: 'Health integrations' }),  summary: cardHealthSummary,   detail: 'health' },
+    { glyph: '▲', title: tr('settings:section.practice', { defaultValue: 'Your practice' }),      summary: tr('settings:card.practiceSummary', { defaultValue: 'Listing \u00b7 profile \u00b7 availability \u00b7 payouts \u00b7 soundtracks' }), detail: 'practice' },
   ] : [
-    { icon: 'user',    title: tr('settings:section.account', { defaultValue: 'Account' }),            summary: cardAccountSummary,                                            detail: 'account' },
-    { icon: 'sliders', title: tr('settings:section.preferences', { defaultValue: 'Preferences' }),         summary: cardPrefsSummary, detail: 'preferences' },
-    { icon: 'moon',    title: tr('cycle:settings.card', { defaultValue: 'Cycle' }),                     summary: cycle.optIn ? (cycle.share ? tr('cycle:settings.summaryShared', { defaultValue: 'Tracking · shared with your coach' }) : tr('cycle:settings.summaryOn', { defaultValue: 'Tracking · private to you' })) : tr('cycle:settings.summaryOff', { defaultValue: 'Off · phase, patterns & calendar' }), detail: 'cycle' },
-    { icon: 'leaf',    title: tr('settings:section.nutrition', { defaultValue: 'Nutrition' }),           summary: nutritionPrefs.dietary_style ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('dietary_style', nutritionPrefs.dietary_style, tr), defaultValue: '{value} · prefs' }) : tr('settings:card.nutritionSummary', { defaultValue: 'Diet · allergies · macros' }), detail: 'nutrition' },
-    { icon: 'dumbbell',title: tr('settings:section.training', { defaultValue: 'Training' }),            summary: trainingPrefs.experience ? tr('settings:card.prefsSuffix', { value: bsPrefOptionLabel('experience', trainingPrefs.experience, tr), defaultValue: '{value} · prefs' }) : tr('settings:card.trainingSummary', { defaultValue: 'Goal · experience · equipment' }), detail: 'training' },
-    { icon: 'link',    title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
-    { icon: 'bell',    title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                            detail: 'notifications' },
-    { icon: 'lock',    title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                             detail: 'privacy' },
-    { icon: 'card',    title: tr('settings:section.billing', { defaultValue: 'Membership & billing' }), summary: plan && plan.active ? tr('settings:card.billingActive', { defaultValue: 'Active · manage' }) : tr('settings:card.billingInactive', { defaultValue: 'Manage · invoices' }),      detail: 'billing' },
-    { icon: 'compass', title: tr('settings:section.more', { defaultValue: 'More' }),                summary: tr('settings:card.moreSummaryClient', { defaultValue: 'Goals · Habits · Library · Score · Store' }),                          detail: 'more' },
-    { icon: 'life',    title: tr('settings:section.about', { defaultValue: 'About' }),               summary: cardAboutSummary,                                           detail: 'about' },
-    { icon: 'shield',  title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }),     summary: cardAccountActionsSummary,                                          detail: 'accountactions', accent: t.RUST },
+    { glyph: '⌂', title: tr('settings:section.account', { defaultValue: 'Account' }),           summary: cardAccountSummary,  detail: 'account' },
+    { glyph: '◔', title: tr('settings:section.notifications', { defaultValue: 'Notifications' }), summary: cardNotifSummary,    detail: 'notifications' },
+    { glyph: '◇', title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,  detail: 'privacy' },
+    { glyph: '◐', title: tr('settings:section.customize', { defaultValue: 'Customize' }),         summary: cardCustomizeSummary, detail: 'customize' },
+    { glyph: '▲', title: tr('settings:section.trainNutri', { defaultValue: 'Training & nutrition' }),
+      // ⚠ THE VALUES THEY HAVE SET, OR THE NAMES OF WHAT IS INSIDE — NEVER BOTH
+      // FALLBACKS CONCATENATED. Joining the two retired cards' "not set yet" lines
+      // read "GOAL · EXPERIENCE · EQUIPMENT · DIET · ALLERGIES · MACROS", which is
+      // two clamped lines of 7.5px type on a 173px tile and says nothing. A member
+      // with either preference set reads that preference; a member with neither
+      // reads what the door opens onto.
+      summary: [
+        trainingPrefs.experience ? bsPrefOptionLabel('experience', trainingPrefs.experience, tr) : '',
+        nutritionPrefs.dietary_style ? bsPrefOptionLabel('dietary_style', nutritionPrefs.dietary_style, tr) : '',
+      ].filter(Boolean).join(' · ') || `${tr('settings:section.training', { defaultValue: 'Training' })} · ${tr('settings:section.nutrition', { defaultValue: 'Nutrition' })}`,
+      detail: 'trainnutri' },
+    { glyph: '↯', title: tr('settings:section.health', { defaultValue: 'Health integrations' }),  // The cycle's STATE belongs on the row inside; the tile names what is behind the
+      // door. "Apple Health · WHOOP · Strava · Off · phase, patterns & calendar" was
+      // the whole cycle summary pasted onto the end of the integrations one.
+      summary: `${cardHealthSummary} · ${tr('cycle:settings.card', { defaultValue: 'Cycle' })}`, detail: 'health' },
+  ];
+
+  // ── ALSO ── the three doors that are not settings: the Shape pages, the legal and
+  // support shelf (carrying the app's ONE real version claim), and the irreversible
+  // account actions, which keep their rust.
+  const alsoRows = [
+    { title: tr('settings:section.more', { defaultValue: 'More' }), summary: isCoachRole ? tr('settings:card.moreSummaryCoach', { defaultValue: 'Public profile · Score · Store · Radio' }) : tr('settings:card.moreSummaryClient', { defaultValue: 'Goals · Habits · Library · Score · Store' }), detail: 'more' },
+    { title: tr('settings:section.about', { defaultValue: 'About' }), summary: cardAboutSummary, value: bsBuildLabel(), detail: 'about' },
+    { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }), summary: cardAccountActionsSummary, detail: 'accountactions', accent: t.RUST },
   ];
 
   return (
     <BSPage tabBarHeight={0}>
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      <div ref={paneTopRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
 
       {/* ── DRILL-IN CARD PANES ── */}
-      {detail === 'account' && (<><DetailBack title={tr('settings:section.account', { defaultValue: 'Account' })} />{renderRows(findSec('Account').rows)}</>)}
-      {detail === 'health' && (<><DetailBack title={tr('settings:section.health', { defaultValue: 'Health integrations' })} />{renderRows(findSec('Health integrations').rows)}</>)}
-      {detail === 'notifications' && (<><DetailBack title={tr('settings:section.notifications', { defaultValue: 'Notifications' })} />{renderRows(findSec('Notifications').rows)}</>)}
+      {/* ── THE TILE PANES ── Six doors carry eleven sections, so a tile that
+          promises more than one of them RENDERS more than one of them. Every pane
+          below composes WHOLE existing sections through findSec + renderRows —
+          never a hand-picked subset — which is what makes "no row was lost" a
+          property of the code rather than a claim in a commit message. A test
+          asserts every section in `sections` is reachable from some pane. */}
+      {detail === 'account' && (<>
+        <DetailBack title={tr('settings:section.account', { defaultValue: 'Account' })} />
+        {planCard}
+        {renderRows(findSec('Account').rows)}
+        {/* ⚠ MEMBER-ONLY, LIKE THE PLAN CARD ABOVE IT. The coach card list has never
+            carried a Billing card, and every row in it opens the Stripe CUSTOMER
+            portal — which manages a member's $5 subscription. A coach joins free, so
+            those three rows would open a portal with no customer behind it: three
+            dead controls added by a composition that was meant to lose nothing. */}
+        {!isCoachRole && (<>
+          <SectionHead title={tr('settings:section.billing', { defaultValue: 'Membership & billing' })} />
+          {renderRows(findSec('Membership & billing').rows)}
+        </>)}
+      </>)}
+      {/* Cycle keeps its OWN pane — it is hand-rendered, not renderRows, because it
+          needs real toggles with async consent writes. What it loses in the Passport
+          is its own root card, so Health & devices carries the door. Client-only,
+          exactly as its card was: a coach has no cycle to track. */}
+      {detail === 'health' && (<>
+        <DetailBack title={tr('settings:section.health', { defaultValue: 'Health integrations' })} />
+        {renderRows(findSec('Health integrations').rows)}
+        {/* ⚠ NO SECTION HEAD ABOVE IT. One read it "Cycle / Cycle · Off · phase,
+            patterns & calendar" — the heading saying the row's own name back to it.
+            The row is self-describing; a head here is a word printed twice. */}
+        {!isCoachRole && renderRows([{ l: tr('cycle:settings.card', { defaultValue: 'Cycle' }), r: cycleSummary, action: () => setDetail('cycle') }])}
+      </>)}
+      {/* Nora's voice joins Notifications because it is the same question — how
+          the app speaks to you — and because it was defined in `sections` and
+          opened by NO card at all: a five-row section nothing could reach, found
+          during the 2026-09-14 review. */}
+      {detail === 'notifications' && (<>
+        <DetailBack title={tr('settings:section.notifications', { defaultValue: 'Notifications' })} />
+        {renderRows(findSec('Notifications').rows)}
+        <SectionHead title={tr('settings:section.nora', { defaultValue: 'Nora’s voice' })} />
+        {renderRows(findSec('Nora’s voice').rows)}
+      </>)}
       {detail === 'preferences' && (<><DetailBack title={tr('settings:section.preferences', { defaultValue: 'Preferences' })} />{renderRows(findSec('Preferences').rows)}</>)}
+      {/* Training & nutrition — the tile that carries how you train, how you eat,
+          and the preferences that shape both (units, meal times, phases, check-ins).
+          Three sections, one door. The `training`, `nutrition` and `preferences`
+          panes survive underneath: they are deep-link targets and the coach rows
+          still route to them. */}
+      {detail === 'trainnutri' && (<>
+        <DetailBack title={tr('settings:section.trainNutri', { defaultValue: 'Training & nutrition' })} />
+        {renderRows(findSec('Training').rows)}
+        <SectionHead title={tr('settings:section.nutrition', { defaultValue: 'Nutrition' })} />
+        {renderRows(findSec('Nutrition').rows)}
+        <SectionHead title={tr('settings:section.preferences', { defaultValue: 'Preferences' })} />
+        {renderRows(findSec('Preferences').rows)}
+      </>)}
       {detail === 'privacy' && (<><DetailBack title={tr('settings:section.privacy', { defaultValue: 'Privacy & data' })} />{renderRows(findSec('Privacy & data').rows)}</>)}
       {/* ── THE CYCLE (spec 2026-07-19) — hand-rendered, not renderRows: this
           pane needs real toggles with async consent writes + a disabled-until-
@@ -33250,7 +33527,70 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </div>
         </>);
       })()}
-      {detail === 'practice' && (<><DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />{renderRows(practiceRows)}</>)}
+      {/* ── YOUR PRACTICE ── the coach's seventh tile. Booking capacity and the
+          waiting room MOVED here from the settings root, where they were the first
+          two things a coach saw — above their own name. The Passport's backbone is
+          identity first, and practice management is not identity; it is also exactly
+          what this pane is named after. The JSX is UNCHANGED apart from two spaces
+          of indent: a move that also rewrites is a move nobody can review. */}
+      {detail === 'practice' && (<>
+        <DetailBack title={tr('settings:section.practice', { defaultValue: 'Your practice' })} />
+        {renderRows(practiceRows)}
+        {/* Coach-only — pause new bookings (at capacity) */}
+        {capacity && isCoachRole && (
+          <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: capacity.atCapacity ? t.PAPER2 : 'transparent' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? tr('settings:capacity.atCapacity', { defaultValue: 'At capacity' }) : tr('settings:capacity.open', { defaultValue: 'Open for bookings' })}</BSEyebrow>
+                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.pause', { defaultValue: 'Pause new bookings' })}</div>
+                <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.35 }}>
+                  {capacity.atCapacity ? tr('settings:capacity.descOn', { defaultValue: 'New clients see an “at capacity” notice — subscribe, book & buy are blocked.' }) : tr('settings:capacity.descOff', { defaultValue: 'Turn on to stop new subscriptions, bookings and purchases.' })}
+                </div>
+              </div>
+              <Toggle on={capacity.atCapacity} onClick={toggleCapacity} />
+            </div>
+          </div>
+        )}
+
+        {/* Coach-only — the waiting room roster (Task 11). A quiet management
+            list (not a live instrument plate) under the capacity toggle. */}
+        {capacity && isCoachRole && (() => {
+          const activeEntries = (waitRoom.entries || []).filter(e => e.position);
+          return (
+            <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
+              <BSEyebrow color={t.INK50}>{tr('settings:waitroom.title', { n: activeEntries.length, defaultValue: 'Waiting room ({n})' })}</BSEyebrow>
+              {activeEntries.length === 0 ? (
+                <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('settings:waitroom.empty', { defaultValue: "No one waiting yet — when you're at capacity, clients can join here." })}</div>
+              ) : (
+                <div style={{ marginTop: 4 }}>
+                  {activeEntries.map((e) => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderTop: `1px solid ${t.HAIR}` }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>
+                          {tr('settings:waitroom.entry', { position: e.position, name: e.clientName || tr('settings:waitroom.member', { defaultValue: 'Member' }), defaultValue: '#{position} · {name}' })}
+                        </div>
+                        {e.note ? <div style={{ marginTop: 1, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{e.note}</div> : null}
+                        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
+                          {e.status === 'invited' ? tr('settings:waitroom.invited', { defaultValue: 'Invited' }) : e.status === 'waiting' ? tr('settings:waitroom.waiting', { defaultValue: 'Waiting' }) : e.status}
+                        </div>
+                      </div>
+                      {e.status === 'waiting' && (
+                        <button
+                          onClick={() => inviteWaitEntry(e.id)}
+                          disabled={waitInviteBusy === e.id}
+                          style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+                        >
+                          {waitInviteBusy === e.id ? tr('settings:waitroom.inviting', { defaultValue: 'Inviting…' }) : tr('settings:waitroom.invite', { defaultValue: 'Invite' })}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </>)}
       {detail === 'nutrition' && (<><DetailBack title={tr('settings:section.nutrition', { defaultValue: 'Nutrition' })} />{renderRows(findSec('Nutrition').rows)}</>)}
       {detail === 'training' && (<><DetailBack title={tr('settings:section.training', { defaultValue: 'Training' })} />{renderRows(findSec('Training').rows)}</>)}
       {detail === 'billing' && (<><DetailBack title={tr('settings:section.billing', { defaultValue: 'Membership & billing' })} />{renderRows(findSec('Membership & billing').rows)}</>)}
@@ -33272,70 +33612,85 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {!detail && (<>
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={startEdit} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('settings:action.edit', { defaultValue: 'Edit' })}</button>
-        </div>
-        </div>
-      </div>
-      {/* Page heading */}
-      <div style={{ padding: `10px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700 }}>{tr('settings:section.account', { defaultValue: 'Account' })}</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, letterSpacing: '-0.03em', color: t.INK, margin: '5px 0 0', lineHeight: 1 }}>{tr('settings:head.title', { defaultValue: 'Settings' })}<span style={{ color: t.ACCENT }}>.</span></h1>
+        {/* ⚠ PADDED INTO A REAL TAP TARGET, MEASURED AT 47x13 BEFORE. The house floor
+            is WCAG 2.5.8 AA at 24px — never Apple's 44pt suggestion, a distinction
+            this repo measured and wrote down. The negative margin cancels the padding
+            so the row is pixel-identical; only the hit area grew. Fixed here rather
+            than registered because this is the line the Passport was already editing:
+            its EDIT sibling moved onto the identity card. */}
+        <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK, display: 'inline-flex', alignItems: 'center', gap: 6 }}>← {tr('settings:head.back', { defaultValue: 'Back' })}</button>
       </div>
 
-      {/* Coach-only — pause new bookings (at capacity) */}
-      {capacity && isCoachRole && (
-        <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: capacity.atCapacity ? t.PAPER2 : 'transparent' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ minWidth: 0 }}>
-              <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? tr('settings:capacity.atCapacity', { defaultValue: 'At capacity' }) : tr('settings:capacity.open', { defaultValue: 'Open for bookings' })}</BSEyebrow>
-              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.pause', { defaultValue: 'Pause new bookings' })}</div>
-              <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.35 }}>
-                {capacity.atCapacity ? tr('settings:capacity.descOn', { defaultValue: 'New clients see an “at capacity” notice — subscribe, book & buy are blocked.' }) : tr('settings:capacity.descOff', { defaultValue: 'Turn on to stop new subscriptions, bookings and purchases.' })}
+      {/* ── THE IDENTITY CARD ── who you are, first: the Passport's whole argument.
+          The page used to open on an "ACCOUNT / Settings." masthead and three chips,
+          with the member's own name nowhere on it. The corner EDIT link moved here
+          too, onto a button that says what it edits. */}
+      {!editing && (() => {
+        const acc = bsMyTierColor();
+        const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+        const hasSub = !!(plan && plan.active === true);
+        const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
+        // ⚠ THE STATUS LINE IS ROLE-GATED, LIKE THE CARD BEHIND IT. A coach reads
+        // their role; only a member reads a membership state. Composed from the SAME
+        // keys the plan card uses, so the line and the card agree.
+        // ⚠ AND `plan === null` IS "WE HAVE NOT READ IT", NOT "INACTIVE" — the two
+        // are different claims and this state's own declaration says so in as many
+        // words ("null until loaded; { active:false } when there's no active
+        // subscription"). `/api/stripe/subscription` is a fetch whose non-ok arm
+        // sets nothing and whose .catch swallows, so null is the state during EVERY
+        // load and permanently after a failure: a paying member would have read
+        // "MEMBERSHIP INACTIVE" under their own name on every open, and indefinitely
+        // on a bad network. Signed-OUT is the one case null still settles, because
+        // you cannot hold a subscription without an account — that reading is a fact
+        // about the session, not about the unread plan.
+        const planKnown = plan != null;
+        const statusLine = isCoachRole
+          ? (tweaks.role === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
+          : !signedIn
+            ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
+            : hasSub
+              ? (renews && !isNaN(renews.getTime())
+                  ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
+                  : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
+              : planKnown ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : '';
+        // ⚠ THE HANDLE IS PRINTED ONLY WHEN IT IS THEIRS, THE `locationKnown` RULE
+        // AGAIN. With no account username and no saved handle, the initializer
+        // SYNTHESIZES one from the display name — and bsMyName() falls back to the
+        // email local-part — so a legacy account's card would present `@chris.perry`
+        // as this member's public handle when they never claimed it and it may
+        // belong to somebody else. A value you can overwrite inside an edit form is
+        // not a claim; the first line of your own settings is.
+        const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
+        const btn = (label, on, fill) => (
+          <button onClick={on} style={{
+            flex: 1, minWidth: 0, padding: '10px 8px', borderRadius: 3, clipPath: BS_CHAMFER, cursor: 'pointer',
+            border: `1px solid ${fill ? t.ACCENT : t.RULE}`, background: fill ? bsTHexA(t.ACCENT, 0.1) : 'transparent',
+            color: fill ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800,
+            letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{label}</button>
+        );
+        return (
+          <div style={{ padding: `12px ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: '12px 13px', borderRadius: 3, clipPath: BS_CHAMFER, border: `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+              <BSFacetAvatar size={54} c={acc} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name)} name={identity.name} photo={(identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} BG={t.PAPER2} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{identity.name}</div>
+                {sub ? <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div> : null}
+                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span aria-hidden="true" style={{ flexShrink: 0, width: 7, height: 7, borderRadius: 999, background: settingsTierC, display: 'inline-block' }} />
+                  {/* ⚠ ITS OWN KEY, NOT `edit.tierColor` WITH THE WORD "color" STRIPPED.
+                      A `.replace(/ color$/, '')` is right in English and wrong in the
+                      other twelve: German's "Stufenfarbe" has no trailing " color" to
+                      cut, so the line would have read "Tempo Stufenfarbe · Mitglied".
+                      Each locale's value is built from its OWN word for a tier. */}
+                  {tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' })}{statusLine ? ' \u00b7 ' + statusLine : ''}
+                </div>
               </div>
             </div>
-            <Toggle on={capacity.atCapacity} onClick={toggleCapacity} />
-          </div>
-        </div>
-      )}
-
-      {/* Coach-only — the waiting room roster (Task 11). A quiet management
-          list (not a live instrument plate) under the capacity toggle. */}
-      {capacity && isCoachRole && (() => {
-        const activeEntries = (waitRoom.entries || []).filter(e => e.position);
-        return (
-          <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-            <BSEyebrow color={t.INK50}>{tr('settings:waitroom.title', { n: activeEntries.length, defaultValue: 'Waiting room ({n})' })}</BSEyebrow>
-            {activeEntries.length === 0 ? (
-              <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('settings:waitroom.empty', { defaultValue: "No one waiting yet — when you're at capacity, clients can join here." })}</div>
-            ) : (
-              <div style={{ marginTop: 4 }}>
-                {activeEntries.map((e) => (
-                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderTop: `1px solid ${t.HAIR}` }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>
-                        {tr('settings:waitroom.entry', { position: e.position, name: e.clientName || tr('settings:waitroom.member', { defaultValue: 'Member' }), defaultValue: '#{position} · {name}' })}
-                      </div>
-                      {e.note ? <div style={{ marginTop: 1, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{e.note}</div> : null}
-                      <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                        {e.status === 'invited' ? tr('settings:waitroom.invited', { defaultValue: 'Invited' }) : e.status === 'waiting' ? tr('settings:waitroom.waiting', { defaultValue: 'Waiting' }) : e.status}
-                      </div>
-                    </div>
-                    {e.status === 'waiting' && (
-                      <button
-                        onClick={() => inviteWaitEntry(e.id)}
-                        disabled={waitInviteBusy === e.id}
-                        style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
-                      >
-                        {waitInviteBusy === e.id ? tr('settings:waitroom.inviting', { defaultValue: 'Inviting…' }) : tr('settings:waitroom.invite', { defaultValue: 'Invite' })}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
+              {btn(tr('settings:passport.edit', { defaultValue: 'Edit profile' }), startEdit, true)}
+              {btn(tr('settings:more.publicProfile', { defaultValue: 'Public profile' }), () => setShowPublicProfile(true), false)}
+            </div>
           </div>
         );
       })()}
@@ -33345,10 +33700,38 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       <div style={{ padding: `8px ${t.padX}px 16px` }}>
         {!editing ? (
           <div>
-            <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
-              {[['Shape Score', () => setShowScore(true)], ['Store', () => setShowStore(true)], [tr('settings:shortcut.about', { defaultValue: 'About' }), () => setShowAbout(true)]].map(([l, on]) => (
-                <button key={l} onClick={on} style={{ flex: 1, textAlign: 'center', padding: '7px 5px', borderRadius: 9, border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, background: bsTHexA(t.ACCENT, 0.06), color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{l}</button>
-              ))}
+            {/* ── QUICK SWITCHES ── the three things members actually flip, on the
+                root instead of two taps down. Each one is a REAL stored setting and
+                writes through `setPref`, the module's one writer, so the mirror, the
+                live re-render and the presence broadcast all still happen — a bare
+                write here would have been a switch that looks like it worked.
+                ⚠ ONLINE IS `onlineVisible`, NOT `onlineRail`, AND THE TWO ARE
+                OPPOSITE CLAIMS. `onlineRail` is the member's own view of Community's
+                online row — its own description says "Hiding it changes only your
+                view — it never changes whether others can see you online". A switch
+                labelled Online wired to that would tell a member they were hidden
+                while they were still visible to everyone. `onlineVisible` is the one
+                that means what the label says.
+                ⚠ AND THERE IS NO FOURTH. The concept board's third cell read
+                "Check-ins · On Home"; that is `dailyCheckin`, which exists. Anything
+                else the board implied and the app does not store is not built. */}
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, margin: '6px 0 8px' }}>{tr('settings:passport.quick', { defaultValue: 'Quick switches' })}</div>
+            <div style={{ display: 'flex', gap: 7 }}>
+              <QuickSwitch
+                label={tr('settings:quick.radio', { defaultValue: 'Radio' })}
+                on={!!r.radioOn}
+                value={r.radioOn ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}
+                onToggle={() => r.setRadioPreference(!r.radioOn)} />
+              <QuickSwitch
+                label={tr('settings:quick.online', { defaultValue: 'Online' })}
+                on={prefs.onlineVisible !== 'Off'}
+                value={prefs.onlineVisible !== 'Off' ? tr('settings:quick.visible', { defaultValue: 'Visible' }) : tr('settings:quick.hidden', { defaultValue: 'Hidden' })}
+                onToggle={() => setPref('onlineVisible', prefs.onlineVisible !== 'Off' ? 'Off' : 'On')} />
+              <QuickSwitch
+                label={tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' })}
+                on={prefs.dailyCheckin !== 'Off'}
+                value={prefs.dailyCheckin !== 'Off' ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}
+                onToggle={() => setPref('dailyCheckin', prefs.dailyCheckin !== 'Off' ? 'Off' : 'On')} />
             </div>
           </div>
         ) : (
@@ -33443,41 +33826,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         )}
       </div>
 
-      {/* YOUR PLAN — subscription card (live from /api/stripe/subscription) */}
-      {!editing && (() => {
-        // Two states drive the card: signedIn (any logged-in member, no free
-        // tier) and hasSub (a real active Stripe subscription). Real subscribers
-        // → Manage (billing portal). Signed-in without a sub → Activate
-        // membership (checkout, never the dead portal). Browsing → Join now.
-        const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
-        const hasSub = !!(plan && plan.active === true);
-        const cents = plan && typeof plan.priceCents === 'number' ? plan.priceCents : 500;
-        const priceLabel = `$${cents % 100 === 0 ? cents / 100 : (cents / 100).toFixed(2)}/mo`;
-        const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
-        const renewsLabel = renews && !isNaN(renews.getTime())
-          ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
-          : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
-        const cornerLabel = hasSub ? renewsLabel : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
-        const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' }) : (signedIn ? tr('settings:plan.activate', { defaultValue: 'Activate membership →' }) : tr('settings:plan.join', { defaultValue: 'Join now →' }));
-        return (
-          <div style={{ padding: `4px ${t.padX}px 14px` }}>
-            <div style={{ border: `1px solid ${t.AMBER}55`, borderRadius: 14, background: `linear-gradient(150deg, ${t.AMBER}26, ${t.AMBER}08 45%, ${t.PAPER2} 85%), ${t.PAPER2}`, padding: '10px 12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <BSEyebrow color={t.AMBER}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSEyebrow>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 3 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>Shape <span style={{ fontStyle: 'italic', color: t.AMBER }}>{hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</span></div>
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.4 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
-                </div>
-                <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ flex: 'none', padding: '7px 13px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{btnLabel}</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* PREVIEW AS — signed-out demo only: switch profile type to browse each
           account type's demo data without an account. (Signed-in multi-role
           accounts use Profile mode below.) */}
@@ -33542,6 +33890,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           </>
         );
       })()}
+
+      </>)}
+
+      {/* ── CUSTOMIZE ── every cosmetic control the root used to carry, behind one
+          door. Owner, 2026-09-14: the Passport root is identity first and cosmetics
+          last, and the customization section keeps EVERYTHING it offered — the
+          Paper · Texture · Accent · Ink picker with its tiles and display weight,
+          text size, language, Shape Radio, the four light-effect modes with their
+          colour row, and the Home ticker. Nothing is trimmed; it moved.
+          ⚠ MEASURED, NOT ESTIMATED: these blocks were 1,420 px of a 2,376 px root —
+          the member's own account, privacy and billing began 1.7 screens BELOW the
+          theme picker. This is what puts them back on top.
+          The JSX below is UNCHANGED from where it sat on the root: a move that also
+          rewrites is a move nobody can review. */}
+      {detail === 'customize' && (<>
+      <DetailBack title={tr('settings:section.customize', { defaultValue: 'Customize' })} />
 
       {/* APPEARANCE */}
       <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
@@ -33898,11 +34262,27 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         })}
       </div>
 
-      {/* SECTION CARDS — drill into a focused pane */}
-      <SectionHead title={tr('settings:section.more', { defaultValue: 'More' })} meta={tr('settings:more.sectionsMeta', { n: settingCards.length, defaultValue: '{n} sections' })} />
-      <div style={{ padding: `4px ${t.padX}px 10px`, display: 'flex', flexDirection: 'column' }}>
-        {settingCards.map((c, i) => (
-          <HubCard key={c.title} icon={c.icon} title={c.title} summary={c.summary} accent={c.accent} last={i === settingCards.length - 1} onClick={() => setDetail(c.detail)} />
+      </>)}
+
+      {!detail && (<>
+      {/* ── THE DOORS ── a two-column grid of tiles, then the three Also rows.
+          ⚠ THE HEADING IS NO LONGER "More · 12 sections". The 2026-09-14 review's
+          sharpest measurement was that the whole settings tree lived under a word
+          meaning "the rest", one of whose twelve cards was itself called More. The
+          grid is the settings; More is one row in Also, where it belongs. */}
+      <SectionHead title={tr('settings:head.title', { defaultValue: 'Settings' })} meta={tr('settings:more.sectionsMeta', { n: passportTiles.length, defaultValue: '{n} sections' })} />
+      <div style={{ padding: `6px ${t.padX}px 10px`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {passportTiles.map((c) => (
+          <PassportTile key={c.detail} glyph={c.glyph} title={c.title} summary={c.summary} accent={c.accent} onClick={() => setDetail(c.detail)} />
+        ))}
+      </div>
+
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:passport.also', { defaultValue: 'Also' })}</div>
+      </div>
+      <div style={{ padding: `0 ${t.padX}px 10px`, display: 'flex', flexDirection: 'column' }}>
+        {alsoRows.map((c, i) => (
+          <HubCard key={c.detail} title={c.title} summary={c.summary} value={c.value} accent={c.accent} last={i === alsoRows.length - 1} onClick={() => setDetail(c.detail)} />
         ))}
       </div>
 

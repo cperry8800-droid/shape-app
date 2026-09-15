@@ -23,6 +23,25 @@ and a hairline spine; the accent spine marks a switch that is on).
 behind each tile) is the one the owner confirmed; §5 is now the plan and §6 lists what the build still
 needs decided.
 
+> ⚠ **SUPERSEDED BY THE BUILD, 2026-09-15 — B IS SHIPPED.** The three sentences above were true on the
+> day they were written and are false now, and this file is what the next reader acts on: *"Not built"*
+> over shipped code is an instruction to build it twice. **What shipped, in order:** the corner avatar
+> became a named control and the app states one real build number (#2084); the whole customization
+> section moved behind the **Customize** door (#2085); and the Passport root itself — the identity card,
+> three quick switches, six tiles (seven for a coach) and the Also list — with every tile opening a pane
+> that composes **whole** existing sections, so no row was lost. Still no migration.
+>
+> ⚠ **AND FOUR OF §6'S RULINGS WERE ANSWERED BY BUILDING, NOT BY ASKING.** The three quick switches are
+> Radio, Online and Check-ins, each a setting that already existed. The plan card and the identity
+> card's status line are **role-gated**, per the owner's standing ruling that coaches join free. The
+> Shape pages stay inside Settings, as one **Also** row. Nora's voice, which §1 found was defined in
+> `sections` and opened by **no card at all**, surfaces inside Notifications. **What is still open and
+> still needs the owner:** whether `timeZone`, `weekStarts` and the Preferences `language` are retired
+> or given a reader (all three are read by nothing, and two of them are printed on a coach's
+> Preferences tile), whether the Home ticker keeps printing each metric's **storage key** as its
+> member-facing sub-label, whether the seven `BS_TICKER_METRICS` names are keyed (they are hardcoded
+> English in thirteen locales), search on every root or only A's, and Edit profile as its own page.
+
 ---
 
 ## 1. What the page is today (read from the code, measured in Chromium)
