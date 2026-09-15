@@ -260,10 +260,25 @@ test('a fetch that never landed does not claim there is no station', () => {
   // counting for a member hearing nothing. Both terminal events are required, and
   // both must clear the cached source — the station fetch is gated on `!audio.src`,
   // so a dead URL would make every later press skip it and fail identically.
-  const listened = [...BARE.matchAll(/addEventListener\("(\w+)"/g)].map((m) => m[1]);
+  // ⚠ COLLECTING THE NAMES PROVES ONLY THAT THEY ARE WIRED (Codex, round 5). Pointing
+  // the `error` listener at the non-failure branch satisfies every check here while
+  // leaving the dead src cached and emitting no refusal — so every retry skips the
+  // station fetch and replays the URL that just failed. Each terminal listener is
+  // matched to the ARGUMENT it hands the cleanup path.
+  const listeners = collect(AST, (n) => n.type === 'CallExpression'
+    && n.callee.type === 'MemberExpression' && n.callee.property.name === 'addEventListener'
+    && n.arguments.length === 2 && n.arguments[0].type === 'StringLiteral');
+  const byEvent = Object.fromEntries(listeners.map((n) => [n.arguments[0].value, n.arguments[1]]));
   for (const ev of ['pause', 'ended', 'error']) {
-    assert.ok(listened.includes(ev), `the audio element has no \`${ev}\` listener — playback can stop with the page still claiming it is on air`);
+    assert.ok(byEvent[ev], `the audio element has no \`${ev}\` listener — playback can stop with the page still claiming it is on air`);
   }
+  for (const ev of ['ended', 'error']) {
+    const calls = collect(byEvent[ev], (n) => n.type === 'CallExpression' && n.arguments.length === 1
+      && n.arguments[0].type === 'BooleanLiteral');
+    assert.ok(calls.length === 1 && calls[0].arguments[0].value === true,
+      `the \`${ev}\` listener does not take the failure path — the dead source stays cached and nothing says why`);
+  }
+
   assert.ok((BARE.match(/removeAttribute\("src"\)/g) || []).length >= 2,
     'a dead stream URL survives, so the fetch gate makes every later press fail the same way');
 
@@ -276,6 +291,10 @@ test('a fetch that never landed does not claim there is no station', () => {
     return /startedAtRef\.current = null/.test(src) && /removeAttribute\("src"\)/.test(src);
   });
   assert.ok(stoppedFn, 'could not find the terminal-stop handler');
+  // the failure path is the one that refuses AND drops the cached source
+  const badPath = SRC.slice(stoppedFn.start, stoppedFn.end);
+  assert.ok(/setRefusal\("unavailable"\)/.test(badPath) && /removeAttribute\("src"\)/.test(badPath),
+    'the terminal failure path neither refuses nor drops the cached source');
   assert.ok(collect(stoppedFn, (n) => calleeName(n) === 'setPlaying'
     && n.arguments.length === 1 && n.arguments[0].value === false).length > 0,
     'a terminal stop does not clear `playing` — the rail keeps claiming On air and the clock keeps counting');
@@ -354,8 +373,15 @@ test('the station route never publishes a lookup failure as a configuration verd
     && n.test.type === 'Identifier' && n.test.name === 'error');
   assert.ok(guards.length > 0, 'the error is read and never branched on');
   const guard = guards[0];
-  const statuses = collect(guard, (n) => n.type === 'ObjectProperty'
-    && n.key.name === 'status' && typeof n.value.value === 'number');
+  // ⚠ AND IT MUST **RETURN** THAT RESPONSE (Codex, round 5). A first version of this
+  // guard checked only that an `if (error)` existed, carried a failure status and came
+  // before `configured` — all of which survive deleting the `return`, after which the
+  // handler falls through and emits 200 {configured:false} for the failed lookup again.
+  // The exact regression the test exists for, walking past the test.
+  const returns = collect(guard, (n) => n.type === 'ReturnStatement' && n.argument);
+  assert.ok(returns.length > 0, 'the station error branch does not return — the handler falls through to the 200');
+  const statuses = returns.flatMap((r) => collect(r, (n) => n.type === 'ObjectProperty'
+    && n.key.name === 'status' && typeof n.value.value === 'number'));
   assert.ok(statuses.length > 0, 'the error branch returns no explicit status');
   for (const st of statuses) {
     assert.ok(st.value.value >= 400,
@@ -365,4 +391,45 @@ test('the station route never publishes a lookup failure as a configuration verd
   assert.equal(verdict.length, 1, 'expected exactly one `configured` property in the route');
   assert.ok(guard.start < verdict[0].start,
     'the configuration verdict is computed before the lookup failure is refused');
+});
+
+test('a simulated now-playing payload is never published as a measured track', () => {
+  // ⚠ THE MOCK IS INDISTINGUISHABLE FROM A REAL TRACK ON THE WIRE (Codex, round 5),
+  // and this is production TODAY: the station row carries provider='mock', so
+  // /api/radio/now-playing answered 'Tempo Lift' / 'Shape Radio' with a 200 and the
+  // page printed it under "Now playing" and fed it to the field's programme. An
+  // invented reading, on the page whose whole argument is that every figure is
+  // measured or absent.
+  const npSrc = readFileSync(new URL('../src/app/api/radio/now-playing/route.ts', import.meta.url), 'utf8');
+  const npAst = parse(npSrc, { sourceType: 'module', plugins: ['typescript'] });
+
+  // the route reads its error rather than falling through to the mock on a fault
+  const decl = collect(npAst, (n) => n.type === 'VariableDeclarator' && n.id.type === 'ObjectPattern'
+    && collect(n.init || {}, (c) => c.type === 'StringLiteral' && c.value === 'radio_station').length > 0);
+  assert.equal(decl.length, 1, 'could not find the radio_station destructuring in the now-playing route');
+  assert.ok(decl[0].id.properties.map((pr) => pr.key && pr.key.name).includes('error'),
+    'the now-playing lookup drops its error — a query fault silently becomes the mock track');
+
+  // EVERY response it can return carries the marker, or one door publishes the mock unlabelled
+  const returns = collect(npAst, (n) => n.type === 'ReturnStatement' && n.argument
+    && n.argument.type === 'CallExpression');
+  assert.ok(returns.length >= 2, 'expected the now-playing route to have more than one exit');
+  for (const r of returns) {
+    assert.ok(collect(r, (n) => (n.type === 'ObjectProperty' && n.key.name === 'simulated')
+      || (n.type === 'Identifier' && n.name === 'simulated')).length > 0,
+      'a now-playing response leaves the simulated marker off — a caller cannot tell the mock from a real track');
+  }
+
+  // ⚠ AND THE MARKER IS DERIVED FROM THE SELECTOR, NOT RESTATED. Re-checking
+  // `provider === 'http' && nowPlayingUrl` at the call site is a second copy of the
+  // rule, free to drift the day a third provider is added.
+  const sel = readFileSync(new URL('../src/lib/radio/index.ts', import.meta.url), 'utf8');
+  assert.match(sel, /getProvider\(config\) === mockProvider/,
+    'isSimulated restates the provider rule instead of asking which provider was chosen');
+  assert.ok(!/provider === 'http'/.test(sel.slice(sel.indexOf('export function isSimulated'))),
+    'isSimulated re-derives the http condition — that is the copy that drifts');
+
+  // and the page refuses it
+  assert.match(BARE, /!d\.simulated/,
+    'the page publishes a simulated payload as the now-playing track');
 });

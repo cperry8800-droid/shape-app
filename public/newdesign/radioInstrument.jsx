@@ -127,7 +127,11 @@ function useRadioStation() {
     let on = true;
     const tick = () => fetch("/api/radio/now-playing", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (on) setNowPlaying(d && (d.title || d.artist) ? d : null); })
+      // ⚠ A SIMULATED PAYLOAD IS NOT A TRACK. The route marks the mock provider's fixed
+      // 'Tempo Lift / Shape Radio' — and any lookup it could not complete — as simulated,
+      // and this page publishes neither: the title would be an invented reading under
+      // "Now playing" and it would drive the field's own programme (Codex, round 5).
+      .then((d) => { if (on) setNowPlaying(d && !d.simulated && (d.title || d.artist) ? d : null); })
       .catch(() => {});
     tick();
     const id = setInterval(tick, 15000);
