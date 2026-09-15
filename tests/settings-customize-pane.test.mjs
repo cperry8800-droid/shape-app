@@ -95,9 +95,16 @@ test('the pane ends where it should, so the root keeps its own furniture', () =>
 });
 
 test('the door exists for both roles and routes to the pane', () => {
-  // `settingCards` is a role ternary; both arms must carry the door, or a coach
-  // loses every cosmetic control the move took off their root.
-  const cards = src.slice(src.indexOf('const settingCards = isCoachRole ?'));
+  // Both arms of the role ternary must carry the door, or a coach loses every
+  // cosmetic control the move took off their root.
+  // ⚠ RE-ANCHORED WHEN THE PASSPORT RETIRED `settingCards`. This pinned that name,
+  // so replacing thirteen hub cards with six tiles failed a test about the Customize
+  // door — which had not moved. The list is found by the SHAPE the invariant needs
+  // (a role ternary of settings doors) rather than by whatever it is called this
+  // month; a guard that pins a spelling pins whatever that spelling is wrong about.
+  const decl = src.match(/const (passportTiles|settingCards) = isCoachRole \?/);
+  assert.ok(decl, 'there is no role-split list of settings doors any more');
+  const cards = src.slice(src.indexOf(decl[0]));
   const body = cards.slice(0, cards.indexOf('\n  ];') + 5);
   const doors = body.split("detail: 'customize'").length - 1;
   assert.equal(doors, 2, `the Customize card appears in ${doors} of the two role lists`);

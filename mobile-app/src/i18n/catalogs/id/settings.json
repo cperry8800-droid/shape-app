@@ -27,6 +27,8 @@
   "section.more": "Lainnya",
   "section.about": "Tentang",
   "section.accountActions": "Tindakan akun",
+  "section.nora": "Suara Nora",
+  "section.trainNutri": "Latihan & nutrisi",
   "account.email": "Email",
   "account.phone": "Telepon",
   "account.password": "Kata sandi",
@@ -173,7 +175,6 @@
   "waitroom.inviting": "Mengundang…",
   "waitroom.toastInvited": "Diundang — mereka punya waktu untuk memesan.",
   "waitroom.toastError": "Tidak dapat mengirim undangan",
-  "shortcut.about": "Tentang",
   "edit.photoAvatar": "Foto & avatar",
   "edit.identity": "Identitas",
   "edit.aboutYou": "Tentang Anda",
@@ -499,5 +500,13 @@
   "pref.preferred_times.midday": "Siang",
   "pref.preferred_times.evenings": "Sore",
   "pref.preferred_times.late_evenings": "Malam",
-  "pref.preferred_times.variable": "Berubah-ubah"
+  "pref.preferred_times.variable": "Berubah-ubah",
+  "passport.quick": "Sakelar cepat",
+  "passport.also": "Lainnya",
+  "passport.edit": "Edit profil",
+  "passport.tierLine": "Tingkat {tier}",
+  "quick.radio": "Radio",
+  "quick.online": "Online",
+  "quick.visible": "Terlihat",
+  "quick.hidden": "Tersembunyi"
 }

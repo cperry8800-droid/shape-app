@@ -27,6 +27,8 @@
   "section.more": "Más",
   "section.about": "Acerca de",
   "section.accountActions": "Acciones de la cuenta",
+  "section.nora": "La voz de Nora",
+  "section.trainNutri": "Entrenamiento y nutrición",
   "account.email": "Correo electrónico",
   "account.phone": "Teléfono",
   "account.password": "Contraseña",
@@ -173,7 +175,6 @@
   "waitroom.inviting": "Invitando…",
   "waitroom.toastInvited": "Invitado: tiene un plazo para reservar.",
   "waitroom.toastError": "No se pudo enviar la invitación",
-  "shortcut.about": "Acerca de",
   "edit.photoAvatar": "Foto y avatar",
   "edit.identity": "Identidad",
   "edit.aboutYou": "Sobre ti",
@@ -499,5 +500,13 @@
   "pref.preferred_times.midday": "Mediodía",
   "pref.preferred_times.evenings": "Tardes",
   "pref.preferred_times.late_evenings": "Noches",
-  "pref.preferred_times.variable": "Variable"
+  "pref.preferred_times.variable": "Variable",
+  "passport.quick": "Ajustes rápidos",
+  "passport.also": "Además",
+  "passport.edit": "Editar perfil",
+  "passport.tierLine": "Nivel {tier}",
+  "quick.radio": "Radio",
+  "quick.online": "En línea",
+  "quick.visible": "Visible",
+  "quick.hidden": "Oculto"
 }

@@ -27,6 +27,8 @@
   "section.more": "Ещё",
   "section.about": "О приложении",
   "section.accountActions": "Действия с аккаунтом",
+  "section.nora": "Голос Норы",
+  "section.trainNutri": "Тренировки и питание",
   "account.email": "Эл. почта",
   "account.phone": "Телефон",
   "account.password": "Пароль",
@@ -173,7 +175,6 @@
   "waitroom.inviting": "Приглашение…",
   "waitroom.toastInvited": "Приглашён — у него есть время, чтобы записаться.",
   "waitroom.toastError": "Не удалось отправить приглашение",
-  "shortcut.about": "О приложении",
   "edit.photoAvatar": "Фото и аватар",
   "edit.identity": "Личность",
   "edit.aboutYou": "О вас",
@@ -499,5 +500,13 @@
   "pref.preferred_times.midday": "Полдень",
   "pref.preferred_times.evenings": "Вечер",
   "pref.preferred_times.late_evenings": "Поздний вечер",
-  "pref.preferred_times.variable": "Меняется"
+  "pref.preferred_times.variable": "Меняется",
+  "passport.quick": "Быстрые переключатели",
+  "passport.also": "Ещё",
+  "passport.edit": "Изменить профиль",
+  "passport.tierLine": "Уровень {tier}",
+  "quick.radio": "Радио",
+  "quick.online": "В сети",
+  "quick.visible": "Видно",
+  "quick.hidden": "Скрыто"
 }

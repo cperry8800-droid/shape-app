@@ -27,6 +27,8 @@
   "section.more": "Thêm",
   "section.about": "Giới thiệu",
   "section.accountActions": "Thao tác tài khoản",
+  "section.nora": "Giọng của Nora",
+  "section.trainNutri": "Tập luyện & dinh dưỡng",
   "account.email": "Email",
   "account.phone": "Điện thoại",
   "account.password": "Mật khẩu",
@@ -173,7 +175,6 @@
   "waitroom.inviting": "Đang mời…",
   "waitroom.toastInvited": "Đã mời — họ có một khoảng thời gian để đặt lịch.",
   "waitroom.toastError": "Không thể gửi lời mời",
-  "shortcut.about": "Giới thiệu",
   "edit.photoAvatar": "Ảnh & avatar",
   "edit.identity": "Danh tính",
   "edit.aboutYou": "Về bạn",
@@ -499,5 +500,13 @@
   "pref.preferred_times.midday": "Buổi trưa",
   "pref.preferred_times.evenings": "Buổi tối",
   "pref.preferred_times.late_evenings": "Tối muộn",
-  "pref.preferred_times.variable": "Thay đổi"
+  "pref.preferred_times.variable": "Thay đổi",
+  "passport.quick": "Công tắc nhanh",
+  "passport.also": "Khác",
+  "passport.edit": "Chỉnh sửa hồ sơ",
+  "passport.tierLine": "Bậc {tier}",
+  "quick.radio": "Radio",
+  "quick.online": "Trực tuyến",
+  "quick.visible": "Hiện",
+  "quick.hidden": "Ẩn"
 }

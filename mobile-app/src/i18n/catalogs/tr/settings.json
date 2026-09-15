@@ -27,6 +27,8 @@
   "section.more": "Daha fazla",
   "section.about": "Hakkında",
   "section.accountActions": "Hesap işlemleri",
+  "section.nora": "Nora’nın sesi",
+  "section.trainNutri": "Antrenman ve beslenme",
   "account.email": "E-posta",
   "account.phone": "Telefon",
   "account.password": "Parola",
@@ -173,7 +175,6 @@
   "waitroom.inviting": "Davet ediliyor…",
   "waitroom.toastInvited": "Davet edildi — rezervasyon için bir süresi var.",
   "waitroom.toastError": "Davet gönderilemedi",
-  "shortcut.about": "Hakkında",
   "edit.photoAvatar": "Fotoğraf ve avatar",
   "edit.identity": "Kimlik",
   "edit.aboutYou": "Hakkında",
@@ -499,5 +500,13 @@
   "pref.preferred_times.midday": "Öğlen",
   "pref.preferred_times.evenings": "Akşamlar",
   "pref.preferred_times.late_evenings": "Geç akşam",
-  "pref.preferred_times.variable": "Değişken"
+  "pref.preferred_times.variable": "Değişken",
+  "passport.quick": "Hızlı anahtarlar",
+  "passport.also": "Ayrıca",
+  "passport.edit": "Profili düzenle",
+  "passport.tierLine": "{tier} seviyesi",
+  "quick.radio": "Radyo",
+  "quick.online": "Çevrimiçi",
+  "quick.visible": "Görünür",
+  "quick.hidden": "Gizli"
 }

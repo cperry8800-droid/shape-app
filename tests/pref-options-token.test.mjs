@@ -167,9 +167,25 @@ test('every surface that shows a stored pref renders the label, not the token', 
   const rowSummaries = [...clientSrc.matchAll(/r: bsPrefOptionLabel\(row\.k, (nutrition|training)Prefs\[row\.k\], tr\)/g)];
   assert.equal(rowSummaries.length, 2, 'both row lists render labels');
 
+  // ⚠ RE-ANCHORED ON THE INVARIANT, NOT ON ONE SPELLING OF IT. This matched
+  // `summary: <key> ? tr(…)` — the exact shape the retired hub cards happened to use
+  // — so the Passport's tile, which renders the same label through the same helper in
+  // an array join, failed a test about tokens-vs-labels. A guard that pins a spelling
+  // pins whatever that spelling is wrong about.
+  //
+  // The rule is: a stored pref may be TESTED for truthiness anywhere, but the only
+  // way it may reach the screen is through bsPrefOptionLabel. Anything else renders
+  // the raw token ('high_protein' where a member should read 'High protein').
   for (const key of ['nutritionPrefs.dietary_style', 'trainingPrefs.experience']) {
-    const card = new RegExp(`summary: ${key.replace('.', '\\.')} \\? tr\\([^\\n]*?\\)`).exec(clientSrc);
-    assert.ok(card, `${key} hub card`);
-    assert.ok(/bsPrefOptionLabel\(/.test(card[0]), `${key} hub summary renders a label`);
+    const hits = [...clientSrc.matchAll(new RegExp(key.replace('.', '\\.'), 'g'))];
+    assert.ok(hits.length >= 2, `${key} is referenced ${hits.length} times — the scan stopped matching`);
+    for (const h of hits) {
+      const before = clientSrc.slice(Math.max(0, h.index - 60), h.index);
+      const after = clientSrc.slice(h.index + key.length, h.index + key.length + 12);
+      const inLabelCall = /bsPrefOptionLabel\(\s*'[a-z_]+',\s*$/.test(before);
+      const isCondition = /^\s*(\?|&&|\|\||\))/.test(after);
+      assert.ok(inLabelCall || isCondition,
+        `${key} reaches the screen without bsPrefOptionLabel — that renders the raw token: …${before.slice(-40)}${key}${after}`);
+    }
   }
 });
