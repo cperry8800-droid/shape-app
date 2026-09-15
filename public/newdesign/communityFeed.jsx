@@ -38,7 +38,29 @@ function buildZonesFromDurations(m) {
   const zd = (m && (m.zoneDurations || m.zone_durations)) || null;
   if (zd && typeof zd === "object") {
     const keys = ["zone_one_milli", "zone_two_milli", "zone_three_milli", "zone_four_milli", "zone_five_milli"];
-    const vals = keys.map(k => Number(zd[k]) || 0);
+    // ⚠ A MISSING ZONE IS NOT A ZERO, AND `Number(x) || 0` CANNOT TELL THEM
+    // APART. `Number(undefined)` is NaN and `NaN || 0` is 0, so a zone a provider
+    // never sent rendered as a MEASURED 0% — and the wall card's bar gives it a
+    // visible sliver. A member who never entered Z5 and a session we cannot read
+    // Z5 for are different claims, and only the first is ours to make.
+    //
+    // ⚠ AND THE WHOLE BAR IS REFUSED RATHER THAN THE ONE ZONE DROPPED, because
+    // these are PERCENTAGES OF A SUM: leaving a zone out shortens the
+    // denominator, so every OTHER segment is then reported larger than it was.
+    // Dropping the missing zone hides one fabrication and inflates the other
+    // four. `null` is a state both callers already render — the bar and the
+    // modal's cells simply do not appear.
+    //
+    // A numeric 0 IS kept: that is a real reading. This is the app's own
+    // `bsBuildZones` rule (`iosAppBroadsheetClient.jsx:13617-13645`), which was
+    // fixed there for exactly this and never carried across.
+    const vals = keys.map((k) => {
+      const raw = zd[k];
+      if (raw == null || raw === "") return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    });
+    if (vals.some((v) => v === null)) return null;
     const total = vals.reduce((s, v) => s + v, 0);
     if (total > 0) return vals.map((v, i) => ["Z" + (i + 1), Math.round((v / total) * 100)]);
   }
@@ -279,11 +301,400 @@ function CfCard({ children, style }) {
     ...style
   }}>{children}</div>;
 }
+// ⚠ NO CALLER TODAY, AND KEPT DELIBERATELY. Its last call site was the author
+// row's activity-type chip, which the wall plate replaced with the app's own
+// heat-underlined caption. It stays because `tests/chat-feed-tab.test.mjs`
+// asserts this file has its OWN Card and Pill and renders neither dashboard
+// global — `Pill` is declared TWICE in this directory with different defaults,
+// so which one a bare `<Pill>` got was a property of script order. Having the
+// local one here is what a future pill should reach for; delete it only
+// together with that guard.
 function CfPill({ children, tone = "mute" }) {
   const bg = tone === "teal" ? TEAL : "rgba(242,237,228,0.08)";
   const col = tone === "teal" ? PAPER : "rgba(242,237,228,0.7)";
   const bd = tone === "teal" ? "none" : "1px solid rgba(242,237,228,0.12)";
   return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, background: bg, color: col, border: bd }}>{children}</span>;
+}
+
+// The app's DISPLAY face. Saira is what the app sets its wall titles and hero
+// figures in; Space Grotesk is the app's OWN declared fallback for it
+// (iosAppBroadsheet.jsx:25), so a host that never gets the file degrades to
+// exactly what the app degrades to. `CfWallFonts` below fetches it.
+const CF_DISP = "'Saira', 'Space Grotesk', 'Space Grotesk Fallback', system-ui, sans-serif";
+
+// ⚠ THE WEIGHTS THIS PLATE NEEDS ARE NOT ON THE PAGE, AND THE PAGES DISAGREE
+// ABOUT WHICH ONES ARE. Measured across public/newdesign: the 71 pages carrying
+// a Google Fonts link ask for JetBrains Mono at max weight 500, 600 or 700
+// depending on the page, and Space Grotesk at 600 or 700 — so a card drawn at
+// mono 800 would be synthetically emboldened on some hosts and really bold on
+// others, i.e. the same record would render differently from one page to the
+// next. The bubble mounts on 35 of them, so the fix is one link from the module
+// rather than an edit to every host: sweeping 35 files for a font is the kind of
+// churn this repo post-mortems, and it would still leave the next host to
+// remember. Injected on FIRST RENDER of the feed, not at load, so a visitor who
+// never opens the bubble never pays for it.
+function cfEnsureWallFonts() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById("cf-wall-fonts")) return;
+  const l = document.createElement("link");
+  l.id = "cf-wall-fonts";
+  l.rel = "stylesheet";
+  l.href = "https://fonts.googleapis.com/css2?family=Saira:wght@500;600;700;800&family=JetBrains+Mono:wght@700;800&display=swap";
+  document.head.appendChild(l);
+}
+
+// ── THE WALL PLATE ──────────────────────────────────────────────────────────
+// The app's record card, ported. `BSActivityCard variant="wall"`
+// (iosAppBroadsheetClient.jsx:19008) is what the Wall renders in the app, and
+// the app applies it to EVERY card in the Feed segment rather than to the Wall
+// chip alone (:21907) — so it replaces the six per-kind demo blocks here too,
+// not just the ones on one chip.
+//
+// ⚠ IT IS A PORT, NOT AN IMPORT, AND THAT IS FORCED. `shareCard.mjs` already
+// mirrors one of these helpers (`bsHeroStatIndex`) for the share card — but it
+// is loaded by THREE pages (the app shells) while the bubble mounts on 35, so a
+// wall that reached for `window.ShapeShareCard` would draw its hero on three
+// pages and nothing on the other thirty-two. The helpers below are therefore
+// self-contained in this file, which every widget host already loads.
+//
+// ⚠ AND THE FIGURE IS DRAWN, NOT TYPESET. That is the whole difference between
+// this and what shipped: a record is a reading, so the app sets it in a 5×7 dot
+// matrix rather than in the page's serif. The glyph table, the geometry and the
+// renderability gate below are byte-equivalent to the app's, so a figure reads
+// the same on both surfaces. `tests/wall-dot-numeral.test.mjs` guards the app's
+// copy; `tests/community-wall-plate.test.mjs` guards this one against it.
+const CF_DOT_GLYPHS = {
+  "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+  "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+  "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+  "3": ["11111", "00010", "00100", "00010", "00001", "10001", "01110"],
+  "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+  "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+  "6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+  "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+  "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+  "9": ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
+  ".": ["00000", "00000", "00000", "00000", "00000", "00000", "00110"],
+  ",": ["00000", "00000", "00000", "00000", "00000", "00110", "01100"],
+  "-": ["00000", "00000", "00000", "01110", "00000", "00000", "00000"],
+  ":": ["00000", "00110", "00110", "00000", "00110", "00110", "00000"],
+  "/": ["00001", "00001", "00010", "00100", "01000", "10000", "10000"],
+};
+const CF_DOT_COLS = 5;
+const CF_DOT_ROWS = 7;
+
+// A character the matrix has no glyph for is DROPPED, not drawn as a blank
+// cell: a silent gap in a number reads as a different number.
+function cfDotChars(text) {
+  return String(text == null ? "" : text).split("").filter((ch) => ch === " " || CF_DOT_GLYPHS[ch]);
+}
+
+// ⚠ CAN THE MATRIX SAY THIS VALUE AT ALL? Dropping is right for a stray
+// character inside a figure the matrix mostly knows and WRONG for a value built
+// out of letters, because the drop is silent and the leftovers still look like a
+// reading — "8h 10m" would draw as "8 10". A caller asks first and typesets what
+// the matrix cannot spell. Empty is NOT renderable: an empty grid says nothing.
+function cfDotRenderable(text) {
+  const s = String(text == null ? "" : text);
+  return s.trim().length > 0 && s.split("").every((ch) => ch === " " || CF_DOT_GLYPHS[ch]);
+}
+
+function CfDotNumber({ text, size = 34, color, dim, gap = 1, title }) {
+  const ink = color || INK;
+  const off = dim || cfHexA(ink, 0.13);
+  const chars = cfDotChars(text);
+  if (!chars.length) return null;
+  // One dot is `unit` tall; a glyph is 7 units, so `size` IS the cap height —
+  // which is what lets type set beside it sit on the same baseline.
+  const unit = size / CF_DOT_ROWS;
+  const advance = (CF_DOT_COLS + gap) * unit;
+  const width = chars.length * advance - gap * unit;
+  const r = unit * 0.36;
+  const dots = [];
+  chars.forEach((ch, i) => {
+    const rows = CF_DOT_GLYPHS[ch];
+    if (!rows) return;                       // a space advances and draws nothing
+    for (let y = 0; y < CF_DOT_ROWS; y++) {
+      for (let x = 0; x < CF_DOT_COLS; x++) {
+        dots.push(<rect key={`${i}-${y}-${x}`}
+          x={i * advance + x * unit + (unit - r * 2) / 2}
+          y={y * unit + (unit - r * 2) / 2}
+          width={r * 2} height={r * 2} rx={r * 0.35}
+          fill={rows[y][x] === "1" ? ink : off} />);
+      }
+    }
+  });
+  return (
+    <svg width={width} height={size} viewBox={`0 0 ${width} ${size}`}
+      role={title ? "img" : undefined} aria-label={title || undefined}
+      aria-hidden={title ? undefined : true}
+      style={{ display: "block", flexShrink: 0 }}>{dots}</svg>
+  );
+}
+
+// The app's `bsTHexA`. Every colour the plate tints is a 6-digit hex, so this
+// never has to handle an rgba() input — and it must not be handed one: a hex
+// alpha appended to an rgba() string voids the whole CSS declaration, which is
+// the defect that made two textures erase every page background (2026-09-01).
+function cfHexA(hex, a) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6) return hex;
+  return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${a})`;
+}
+
+// ⚠ HEAT IS THE AUTHOR'S ROLE, NOT THE SITE ACCENT. The app colours the plate
+// by who wrote it (iosAppBroadsheetClient.jsx:18933) — trainer rust,
+// nutritionist gold, everyone else teal — so a coach's record reads as a coach's
+// at a glance. The bubble is always dark, so these are the app's dark values
+// verbatim; its light-mode pair is deliberately not carried, because there is no
+// light bubble to carry it for.
+const CF_HEAT = { TRAINER: "#c0533b", NUTRI: "#d8b25a", CLIENT: "#34d6c5", SHAPE: "#34d6c5" };
+function cfHeat(p) { return CF_HEAT[cfKindOfRole(p && p.role)] || CF_HEAT.CLIENT; }
+
+// The app's `bsSdSplitUnit` (services/sessionLedger.mjs:9), verbatim — only a
+// short trailing letter/%/slash token is a unit, so a composite ("2.4 · MO") and
+// a time ("25:31") stay whole and reach the renderability gate intact.
+function cfSplitUnit(text) {
+  const s = String(text == null ? "" : text).trim();
+  const m = s.match(/^([\d.,:]+)\s*([a-zA-Z%/]{1,6})$/);
+  return m ? { num: m[1], unit: m[2] } : { num: s, unit: "" };
+}
+
+// The ONE hero-promotion rule both surfaces share — copied from
+// `shareCard.mjs:59` rather than re-derived, so the wall's figure and the share
+// card's are the same stat. Runs lead with distance, lifts with load; else the
+// first value that reads as a measurement; else the first stat.
+function cfHeroStatIndex(stats, isRun) {
+  const rows = Array.isArray(stats) ? stats : [];
+  const pat = isRun ? /dist/i : /load|weight/i;
+  let i = rows.findIndex((r) => Array.isArray(r) && pat.test(String(r[0] || "")));
+  if (i < 0) i = rows.findIndex((r) => Array.isArray(r) && /\d/.test(String(r[1])) && /(lb|kg|mi|km)\b/i.test(String(r[1])));
+  return i < 0 ? 0 : i;
+}
+
+// The heart-rate trace as a plain polyline, scaled to its OWN min/max — a fixed
+// 0-200 axis flattens every real session into the same shallow ripple, and the
+// shape of the effort is the point. The app's `bsWallTrace`.
+function CfWallTrace({ points, color }) {
+  const nums = (Array.isArray(points) ? points : []).map(Number).filter(Number.isFinite);
+  if (nums.length < 2) return null;
+  const lo = Math.min(...nums), hi = Math.max(...nums), span = (hi - lo) || 1, w = 128, h = 30;
+  const d = nums.map((n, i) => `${(i / (nums.length - 1)) * w},${h - ((n - lo) / span) * (h - 2) - 1}`).join(" ");
+  return (
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden style={{ display: "block", overflow: "visible" }}>
+      <polyline points={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+// ── What the plate is a record OF ───────────────────────────────────────────
+// One model for both populations. A live post arrives with the provider's own
+// `workoutStats`; a demo post carries loose per-kind fields, so they are read
+// into the SAME [label, value] rows the app ranks — which is what lets one
+// renderer serve a lift, a ride, a swim and a rest day with no per-kind branch
+// below this function.
+//
+// ⚠ EVERY ROW IS DROPPED WHEN ITS VALUE IS ABSENT, never printed as a
+// placeholder. A demo meal with no fat logged shows three rows, not four with an
+// invented "0 g" — the honest-absent rule the meal plate above already follows.
+function cfWallStats(p) {
+  const row = (k, v) => (v === null || v === undefined || v === "" ? null : [k, String(v)]);
+  // A live post's real stats outrank anything derived: they are the provider's
+  // own labels, already the shape the app ranks.
+  const live = (p.session && Array.isArray(p.session.stats)) ? p.session.stats.filter((s) => Array.isArray(s) && s[0] && s[1] != null) : [];
+  if (live.length) return live;
+  const k = p.kind;
+  const rows = k === "pr" ? [row("Top set", p.load), row("Reps", p.reps)]
+    : k === "workout" ? [row("Time", p.duration), row("Exercises", p.exercises), row("RPE", p.rpe)]
+    : k === "run" ? [row("Distance", p.distance), row("Avg pace", p.pace), row("Time", p.duration), row("Elevation", p.elev)]
+    : k === "tier" ? [row("New tier", p.to), row("From", p.from), row("Points", typeof p.earned === "number" ? p.earned.toLocaleString() : p.earned)]
+    : k === "meal" ? [row("Calories", p.kcal), row("Protein", p.p == null ? null : p.p + " g"), row("Carbs", p.c == null ? null : p.c + " g"), row("Fat", p.f == null ? null : p.f + " g")]
+    : k === "streak" ? [row("Streak", p.days == null ? null : p.days + "d")]
+    : [];
+  return rows.filter(Boolean);
+}
+
+function cfWallModel(p) {
+  const isRun = p.kind === "run" || (Array.isArray(p.buckets) && p.buckets.indexOf("run") >= 0);
+  const stats = cfWallStats(p);
+  const heroIdx = stats.length ? cfHeroStatIndex(stats, isRun) : -1;
+  const heroStat = heroIdx >= 0 ? stats[heroIdx] : null;
+  const rest = stats.filter((_, i) => i !== heroIdx);
+  // The two facts that QUALIFY the figure — a top set means little without its
+  // reps. Beside the figure rather than under it, as in the app.
+  const facts = rest.slice(0, 2);
+  // ⚠ THE GRID HOLDS WHAT THE HERO AND FACTS HAVE NOT ALREADY SAID, which is a
+  // STATED DIVERGENCE from the app: there `detailStats` is the whole list, so a
+  // rich session legitimately repeats its lead figure in the grid below. On the
+  // thin demo posts this surface actually shows, that repeat is the same number
+  // three times inside 80px. The repo already draws this line the same way on
+  // the other surface built from these rows — `bsShareCardModel`
+  // (shareCard.mjs:34-36) filters the hero out of the share card's stat list —
+  // so this follows the share card rather than inventing a rule. Reverse it by
+  // passing `stats` here instead of `rest.slice(2)`.
+  const detail = rest.slice(2, 8);
+  const heat = cfHeat(p);
+  // A stamped PR: the demo kind, the explicit first-record marker, or a live
+  // post carrying the gain it beat. All three, as the app's own card reads them
+  // (`!!prDelta || a.pr === true || (!a.real && a.kind === 'pr')`) — a first
+  // record has the marker and NO delta, so the delta alone cannot decide this.
+  const isPR = p.kind === "pr" || p.pr === true || !!(p.delta && String(p.delta).trim());
+  const delta = p.delta ? String(p.delta).trim() : "";
+  // ⚠ THE GAIN RIDES IN THE PILL rather than on its own line, as in the app —
+  // the plate would otherwise state the record twice, once as a header and once
+  // as the figure below it.
+  const tail = delta ? ` · ${delta}` : "";
+  // ⚠ THE PILL NEVER REPEATS THE TITLE. The app names the lift in the pill
+  // because its demo PRs carry a title of their own ("Back Squat — new PR");
+  // here a demo PR has none, so `FeedItem` promotes the lift to the title — and
+  // naming it in both puts "Bench Press" twice, one line apart. The lift joins
+  // the pill only when something else is already the title.
+  // ⚠ AND THE MEASURE NEVER STANDS IN FOR IT, which is a second STATED
+  // DIVERGENCE. The app falls back to the measure when nothing names the lift —
+  // and on a LIVE post nothing ever does (it blanks `lift` for real posts too),
+  // so every real PR there reads "NEW PR · DISTANCE · +0:06/MI" with "DISTANCE"
+  // repeated as the hero eyebrow two lines below. The measure IS `heroStat[0]`,
+  // i.e. always that eyebrow, so it is redundant by construction rather than
+  // occasionally. Restore the app's wording by appending
+  // `|| (heroStat ? String(heroStat[0] || "").trim() : "")` below.
+  const lift = (p.lift || "").trim();
+  const titleUsed = String(p.title || p.lift || "").trim();
+  const prSubject = lift && lift !== titleUsed ? lift : "";
+  // ⚠ THE PILL IS A RECORD CLAIM, AND A POST WITH NO RECORD MAKES NONE. This is
+  // a STATED DIVERGENCE from the app, which pills every card as
+  // `${heroStat[0]} · ${heroStat[1]}` — on a workout that renders "TIME · 52 MIN"
+  // directly above a hero reading "TIME / 52 min", the same figure twice inside
+  // 40px. The Wall is a record board, so the pill says what was a record and
+  // stays quiet otherwise. Restore the app's behaviour by giving `pill` the
+  // `${heroStat[0]} · ${heroStat[1]}${tail}` fallback back.
+  const pill = isPR ? `New PR${prSubject ? ` · ${prSubject}` : ""}${tail}`
+    : p.kind === "tier" ? `Tier up${p.to ? ` · ${p.to}` : ""}`
+    : "";
+  const m = (p.session && p.session.metrics) || null;
+  const zones = (p.session && Array.isArray(p.session.zones) && p.session.zones.length)
+    ? p.session.zones : (m ? buildZonesFromDurations(m) : null);
+  const trace = m ? sessArr(m.hrTrace) : null;
+  return { heat, stats, heroStat, facts, detail, pill, zones, trace };
+}
+
+// The record half of the plate: what this is a record OF, its name, and the
+// figure. Block order, type sizes and colours are the app's
+// (iosAppBroadsheetClient.jsx:19156-19222).
+function CfWallPlate({ p, model, title }) {
+  const { heat, heroStat, facts, pill } = model;
+  const u = heroStat ? cfSplitUnit(heroStat[1]) : null;
+  return (
+    <div style={{ marginBottom: 12 }}>
+      {/* THE RECORD PILL — what this plate is a record of, stated before the
+          title. Suppressed when there is no figure behind it: a pill with
+          nothing in it is chrome. */}
+      {pill && (
+        <div style={{ display: "inline-flex", alignItems: "baseline", gap: 6, marginBottom: 7, padding: "4px 9px", borderRadius: 4, background: cfHexA(heat, 0.14), border: `1px solid ${cfHexA(heat, 0.4)}` }}>
+          <span style={{ fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: heat, whiteSpace: "nowrap" }}>{pill}</span>
+        </div>
+      )}
+      {title && (
+        <div style={{ fontFamily: CF_DISP, fontSize: 19, fontWeight: 800, color: INK, letterSpacing: "-0.015em", lineHeight: 1.1 }}>
+          {title}{/[.!?]$/.test(String(title)) ? null : <span style={{ color: heat }}>.</span>}
+        </div>
+      )}
+      {/* The honest hero figure — a post with no hero stat skips this entirely
+          rather than drawing a placeholder. Eyebrow ABOVE the figure. */}
+      {heroStat && (
+        <div>
+          <div style={{ fontFamily: mono, fontSize: 7.5, letterSpacing: "0.2em", textTransform: "uppercase", color: cfHexA(INK, 0.5), marginTop: 10 }}>{heroStat[0]}</div>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginTop: 2, flexWrap: "wrap" }}>
+            {/* ⚠ DRAWN WHERE THE MATRIX CAN SPELL IT, TYPESET WHERE IT CANNOT.
+                The fallback is not a nicety: `cfDotChars` DROPS an unknown
+                character, so a compound value would render as a different,
+                plausible-looking number ("8h 10m" → "8 10") with nothing on
+                screen saying so. */}
+            {cfDotRenderable(u.num)
+              ? <CfDotNumber text={u.num} size={38} color={INK} title={`${u.num}${u.unit ? " " + u.unit : ""}`} />
+              : <span style={{ fontFamily: CF_DISP, fontSize: 34, fontWeight: 700, color: INK, letterSpacing: "-0.035em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{u.num}</span>}
+            {u.unit ? <span style={{ fontFamily: mono, fontSize: 12, fontWeight: 700, color: cfHexA(INK, 0.55), lineHeight: 1.6 }}>{u.unit}</span> : null}
+            {facts.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, marginLeft: 4, paddingBottom: 2 }}>
+                {facts.map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", alignItems: "baseline", gap: 5, whiteSpace: "nowrap" }}>
+                    <span style={{ fontFamily: mono, fontSize: 7.5, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: cfHexA(INK, 0.45) }}>{k}</span>
+                    <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: cfHexA(INK, 0.8), fontVariantNumeric: "tabular-nums" }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div aria-hidden style={{ height: 2, marginTop: 9, background: `linear-gradient(90deg, ${heat}, ${cfHexA(heat, 0.25)} 55%, transparent)` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The evidence half: what Session details holds, previewed without a tap. A
+// record is a claim, and on a board of other people's claims the evidence has to
+// be visible. EVERY block is drawn from what the post actually carries, which is
+// what makes a ride's plate differ from a lift's with no per-kind branch here —
+// no zones and no trace renders neither, never an empty axis.
+function CfWallEvidence({ model, onOpen }) {
+  const { heat, detail, zones, trace } = model;
+  if (!detail.length && !zones && !trace && !onOpen) return null;
+  return (
+    <>
+      {detail.length > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 11, borderTop: `1px solid ${cfHexA(INK, 0.1)}`, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "11px 10px" }}>
+          {detail.map(([k, v], i) => (
+            <div key={`${k}-${i}`} style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: mono, fontSize: 7, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: cfHexA(INK, 0.45), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k}</div>
+              <div style={{ marginTop: 2, fontFamily: mono, fontSize: 12, fontWeight: 700, color: cfHexA(INK, 0.85), fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {(zones || trace) && (
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: zones && trace ? "1fr 1fr" : "1fr", gap: 12, alignItems: "end" }}>
+          {zones && (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: mono, fontSize: 7, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: cfHexA(INK, 0.45) }}>HR zones</div>
+              {/* One bar, each zone's share of the session by width. The shares
+                  are the session's own percentages, so the bar is full only
+                  because they sum to it. */}
+              <div style={{ display: "flex", gap: 2, marginTop: 5, height: 9, borderRadius: 2, overflow: "hidden" }}>
+                {/* ⚠ THE RAMP IS CLAMPED. The app's `0.25 + i*0.17` is sized
+                    for exactly five zones (0.25…0.93) and a sixth computes an
+                    alpha of 1.10 — out of range, so the browser drops the whole
+                    background. `buildZonesFromDurations` always returns five,
+                    but a demo post's hand-written `session.zones` is free to
+                    carry more. */}
+                {zones.map(([z, pct], i) => (
+                  <div key={z} title={`${z} ${pct}%`} style={{ flex: Math.max(pct, 0.5), background: cfHexA(heat, Math.min(1, 0.25 + (i * 0.17))) }} />
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+                {zones.map(([z, pct]) => (
+                  <span key={z} style={{ fontFamily: mono, fontSize: 7, fontWeight: 700, letterSpacing: "0.06em", color: cfHexA(INK, 0.5), fontVariantNumeric: "tabular-nums" }}>{z} {pct}%</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {trace && (
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: mono, fontSize: 7, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", color: cfHexA(INK, 0.45) }}>Heart rate</div>
+              <div style={{ marginTop: 5 }}><CfWallTrace points={trace} color={heat} /></div>
+            </div>
+          )}
+        </div>
+      )}
+      {/* The plate stays a glance — the full readout is the Session details
+          page. Ink text + a heat underline, no button chrome; the 44px target
+          comes from invisible padding rather than a visible bar. */}
+      {onOpen && (
+        <button onClick={onOpen} style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", minHeight: 44, marginTop: 4, padding: "14px 0", background: "transparent", border: 0, cursor: "pointer", textAlign: "left" }}>
+          <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: cfHexA(INK, 0.7), borderBottom: `1px solid ${heat}`, paddingBottom: 2 }}>Session details · full activity</span>
+        </button>
+      )}
+    </>
+  );
 }
 
 // ── The app's feed chips, mirrored ──────────────────────────────────────
@@ -436,6 +847,10 @@ function CommunityFeed() {
   // The Wall is the landing chip, as it is in the app — a member opening the
   // feed sees what people have DONE before what people have said.
   const [filter, setFilter] = React.useState("COMMUNITY");
+  // The plate's faces, fetched the first time a feed actually renders. See
+  // `cfEnsureWallFonts` for why it is one link from here rather than an edit to
+  // all 35 host pages.
+  React.useEffect(() => { cfEnsureWallFonts(); }, []);
   const myRole = (typeof window !== "undefined" && window.shapeViewerRole)
     ? String(window.shapeViewerRole() || "").toLowerCase() : "client";
 
@@ -529,7 +944,24 @@ function CommunityFeed() {
       // BUT carry the real device metrics so activity posts get a Session
       // details view (charts), mirroring the mobile app.
       const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
-      const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.filter(s => s && s.label && s.value != null).map(s => [String(s.label), String(s.value)]) : [];
+      // ⚠ THE APP WRITES workoutStats IN TWO SHAPES AND THIS READ ONLY ONE.
+      // `shapeBackend.js:3141` publishes a live session's rows as
+      // `{ label, value }`, but the app's own Log-activity composer
+      // (`iosAppBroadsheetClient.jsx:14060`) and the Post-a-PR sheet (`:20166`)
+      // both write `{ l, v }`. Accepting only the first dropped EVERY row from a
+      // post made in the app by hand: `wstats` came back empty, `hasSession` was
+      // false, and the card lost its hero, its facts and its stat grid with
+      // nothing failing anywhere. The app reads them through `bsActivityFromPost`
+      // (`:13660`), which never assumed either spelling.
+      const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.map((st) => {
+        if (!st || typeof st !== 'object') return null;
+        const label = st.label != null ? st.label : st.l;
+        const value = st.value != null ? st.value : st.v;
+        // An empty value is not a reading — the composer already drops those at
+        // the write (`.filter((s) => s.v)`), so a blank cell here would only
+        // ever come from a legacy or hand-written row.
+        return (label && value != null && String(value).trim()) ? [String(label), String(value)] : null;
+      }).filter(Boolean) : [];
       const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
       return {
         kind: 'post',
@@ -588,6 +1020,13 @@ function CommunityFeed() {
         createdAt: p.created_at || null,
         route: (p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length >= 2) ? p.route.points : null,
         delta: (typeof m.delta === 'string' && m.delta.trim()) ? m.delta.trim() : '',
+        // ⚠ A FIRST RECORD HAS A MARKER AND NO DELTA. `delta` exists only against
+        // a PRIOR best, so `BSWallPostSheet` stamps `metrics.pr: true` for a
+        // member's first accepted best (`iosAppBroadsheetClient.jsx:20223`) — and
+        // the app's own card reads exactly that (`a.pr === true`). Without
+        // lifting it, a genuine first record is drawn as an ordinary load with no
+        // "New PR" pill, which is the defect the app fixed for itself.
+        pr: m.pr === true,
       };
     };
     (async () => {
@@ -613,83 +1052,13 @@ function CommunityFeed() {
     return () => { alive = false; };
   }, [feedMode]);
 
-  // ── Inline renderers per feed kind ────────────────────────────────────
-  function PRStat({ p }) {
-    return (
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 18, alignItems: "center", padding: "16px 18px", marginBottom: 14, background: "rgba(46,224,196,0.07)", border: "1px solid rgba(46,224,196,0.22)", borderRadius: 10 }}>
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, fontWeight: 600 }}>NEW PR</div>
-          <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 6, color: INK }}>{p.load}</div>
-          <div style={{ fontSize: 11.5, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", marginTop: 4 }}>{p.delta} · {p.reps}</div>
-        </div>
-        <div style={{ paddingLeft: 18, borderLeft: "1px solid rgba(46,224,196,0.18)" }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)" }}>LIFT</div>
-          <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", marginTop: 4, color: INK }}>{p.lift}</div>
-        </div>
-      </div>
-    );
-  }
-  function WorkoutStat({ p }) {
-    return (
-      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, fontWeight: 600, marginBottom: 6 }}>WORKOUT LOGGED</div>
-        <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: INK, marginBottom: 8 }}>{p.title}</div>
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)", letterSpacing: "0.06em" }}>
-          <span>{p.duration.toUpperCase()}</span>
-          <span>{p.exercises} EXERCISES</span>
-          <span>RPE {p.rpe}</span>
-          <span>WITH {p.coach.split(" ")[0].toUpperCase()}</span>
-        </div>
-      </div>
-    );
-  }
-  function RunStat({ p }) {
-    return (
-      <div style={{ padding: "16px 18px", marginBottom: 14, background: "linear-gradient(100deg, rgba(106,140,255,0.10) 0%, rgba(242,237,228,0.04) 70%)", border: "1px solid rgba(106,140,255,0.22)", borderRadius: 10 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: "#9ab2ff", fontWeight: 600, marginBottom: 8 }}>RUN LOGGED</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-          {[["DIST", p.distance], ["PACE", p.pace], ["TIME", p.duration], ["ELEV", p.elev]].map(([l, v]) => (
-            <div key={l}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)" }}>{l}</div>
-              <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginTop: 2, lineHeight: 1 }}>{v}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-  function TierStat({ p }) {
-    return (
-      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(193,100,31,0.08)", border: "1px solid rgba(193,100,31,0.28)", borderRadius: 10 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: "#e89740", fontWeight: 600, marginBottom: 6 }}>TIER UP</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <span style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.015em", color: "rgba(242,237,228,0.55)" }}>{p.from}</span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: "#e89740" }}>→</span>
-          <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK }}>{p.to}</span>
-          <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)", letterSpacing: "0.06em" }}>{p.earned.toLocaleString()} PTS</span>
-        </div>
-      </div>
-    );
-  }
-  function MealStat({ p }) {
-    return (
-      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(232,151,64,0.06)", border: "1px solid rgba(232,151,64,0.22)", borderRadius: 10 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: "#e89740", fontWeight: 600, marginBottom: 6 }}>MEAL LOGGED</div>
-        <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginBottom: 10, lineHeight: 1.15 }}>{p.title}</div>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.7)", letterSpacing: "0.04em" }}>
-          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>KCAL</span> {p.kcal}</span>
-          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>P</span> {p.p}g</span>
-          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>C</span> {p.c}g</span>
-          <span><span style={{ color: "rgba(242,237,228,0.45)" }}>F</span> {p.f}g</span>
-        </div>
-        <div style={{ marginTop: 8, fontSize: 11.5, color: "rgba(242,237,228,0.5)" }}>{p.source}</div>
-      </div>
-    );
-  }
+  // ── The two blocks the wall plate does NOT absorb ─────────────────────
   // THE PLATE (spec 2026-07-12) — a REAL shared meal's signature block: kcal
   // headline, dot-leader macro lines, the AS PLANNED/ADJUSTED stamp + honest
-  // attribution. Renders only when mapPost stamps p.meal (metrics.kind==='meal');
-  // the demo MealStat above stays untouched. Never day totals, never targets.
+  // attribution. Renders only when mapPost stamps p.meal (metrics.kind==='meal').
+  // Never day totals, never targets. ⚠ It is a MEAL DOCUMENT, not a reading, so
+  // the wall plate does not replace it the way it replaced the six per-kind
+  // stat blocks — it sits under the plate, as the app's own meal block does.
   // THE APPOINTMENTS (spec 2026-07-13) — the work-milestone block: stamp chip
   // (always present — the six canonical tokens, unknown normalizes to
   // MILESTONE) + the detail line only when stored. Slate accent (#7aa7dc),
@@ -751,21 +1120,6 @@ function CommunityFeed() {
             {attribution && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attribution}</span>}
           </div>
         )}
-      </div>
-    );
-  }
-  function StreakStat({ p }) {
-    return (
-      <div style={{ padding: "16px 18px", marginBottom: 14, background: "rgba(46,224,196,0.07)", border: "1px solid rgba(46,224,196,0.2)", borderRadius: 10, display: "flex", alignItems: "center", gap: 18 }}>
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, fontWeight: 600 }}>STREAK</div>
-          <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 6, color: INK }}>{p.days}d</div>
-        </div>
-        <div style={{ flex: 1, display: "flex", gap: 4 }}>
-          {Array.from({ length: 21 }).map((_, i) => (
-            <div key={i} style={{ flex: 1, height: 32, borderRadius: 3, background: i < p.days ? TEAL : "rgba(242,237,228,0.06)" }} />
-          ))}
-        </div>
       </div>
     );
   }
@@ -942,6 +1296,18 @@ function CommunityFeed() {
   }
 
   function FeedItem({ p, onEdit, onDeleted }) {
+    // One model per card, both populations. `wallTitle` falls back to the lift
+    // so a demo PR — which carries no title of its own — still names what was
+    // lifted; `cfWallModel` then drops the lift from the pill so the plate does
+    // not say "Bench Press" twice, one line apart.
+    const wall = cfWallModel(p);
+    // ⚠ A DEMO RUN KEEPS ITS NAME IN `session.title` AND NOWHERE ELSE, so
+    // without this fallback the richest card on the board lost its headline —
+    // the retired session button was what used to print it. It is taken for
+    // DEMO posts only: `mapPost` sets a live post's `session.title` to
+    // `p.title || 'Activity'`, i.e. the same field plus a generic, so for a live
+    // post this could only ever contribute the word "Activity" as a headline.
+    const wallTitle = String(p.title || p.lift || (p.isLive ? "" : (p.session && p.session.title) || "")).trim();
     const [liked, setLiked] = React.useState(false);
     const [likeCount, setLikeCount] = React.useState(p.likes);
     const [sendOpen, setSendOpen] = React.useState(false);
@@ -1012,41 +1378,23 @@ function CommunityFeed() {
               <div style={{ fontSize: 11, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{p.role}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-              <span style={{ fontSize: 11, color: "rgba(242,237,228,0.45)" }}>{p.time}</span>
-              <span style={{ width: 3, height: 3, borderRadius: 999, background: "rgba(242,237,228,0.25)" }} />
-              <CfPill>{p.tag}</CfPill>
+              <span style={{ fontFamily: mono, fontSize: 10, color: cfHexA(INK, 0.45), letterSpacing: "0.04em" }}>{p.time}</span>
             </div>
           </div>
+          {/* The activity type as the app sets it — a heat-underlined caption
+              rather than a bordered chip. The 999px pill was the last piece of
+              pill chrome on the app's card and it went for the same reason. */}
+          {p.tag && <span style={{ flexShrink: 0, fontFamily: mono, fontSize: 8.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: cfHexA(INK, 0.7), borderBottom: `1px solid ${wall.heat}`, paddingBottom: 2, lineHeight: 1 }}>{p.tag}</span>}
         </div>
-        {p.session ? (
-          <button onClick={() => setSessionOpen(true)} style={{ width: "100%", textAlign: "left", cursor: "pointer", display: "block", background: "rgba(46,224,196,0.06)", border: "1px solid rgba(46,224,196,0.22)", borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, fontWeight: 600 }}>SESSION</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: TEAL_BRIGHT, fontWeight: 600 }}>Session details →</span>
-            </div>
-            <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK, marginBottom: (p.session.stats && p.session.stats.length) ? 10 : 0 }}>{p.session.title}</div>
-            {p.session.stats && p.session.stats.length > 0 && (
-              <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
-                {p.session.stats.slice(0, 3).map((st, i) => (
-                  <div key={i}>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{st[0]}</div>
-                    <div style={{ fontFamily: serif, fontSize: 19, color: INK, marginTop: 2, lineHeight: 1 }}>{st[1]}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </button>
-        ) : (<>
-          {p.kind === "pr"      && <PRStat p={p} />}
-          {p.kind === "workout" && <WorkoutStat p={p} />}
-          {p.kind === "run"     && <RunStat p={p} />}
-          {p.kind === "tier"    && <TierStat p={p} />}
-          {p.kind === "meal"    && <MealStat p={p} />}
-          {p.kind === "streak"  && <StreakStat p={p} />}
-        </>)}
+        {/* ⚠ THE PLATE REPLACES THE PER-KIND BLOCKS, NOT JUST THE WALL CHIP'S.
+            The app applies `variant="wall"` to every card in the Feed segment
+            (iosAppBroadsheetClient.jsx:21907) rather than to one chip, so the
+            six blocks this retired (PRStat/WorkoutStat/RunStat/TierStat/
+            MealStat/StreakStat) had no chip left to render on. */}
+        <CfWallPlate p={p} model={wall} title={wallTitle} />
         {p.meal && <MealPlate meal={p.meal} />}
         {p.milestone && <MilestoneStamp m={p.milestone} />}
-        {p.body && <div style={{ fontSize: 14.5, lineHeight: 1.55, color: "rgba(242,237,228,0.9)" }}>{p.body}</div>}
+        {p.body && p.body !== wallTitle && <div style={{ fontFamily: sans, fontSize: 13, lineHeight: 1.45, color: cfHexA(INK, 0.75), marginTop: 7 }}>{p.body}</div>}
         {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.05)" }} />}
         {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(242,237,228,0.08)" }} />}
         {Array.isArray(p.mentions) && p.mentions.length > 0 && (
@@ -1059,6 +1407,7 @@ function CommunityFeed() {
             ))}
           </div>
         )}
+        <CfWallEvidence model={wall} onOpen={p.session ? () => setSessionOpen(true) : null} />
         {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "rgba(242,237,228,0.55)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
           <button onClick={toggleLike} aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}
