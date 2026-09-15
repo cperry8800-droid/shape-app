@@ -44,6 +44,19 @@ function collect(node, pred) {
 
 const calleeName = (n) => (n.type === 'CallExpression' && n.callee && n.callee.type === 'Identifier' ? n.callee.name : null);
 
+// ⚠ EVERY NODE LOOKUP IN THIS FILE GOES THROUGH HERE, BECAUSE THE ENCLOSING-NODE SLIP
+// HAS NOW PRODUCED FIVE FINDINGS ACROSS TWO ROUNDS. A predicate that matches on source
+// text or on a contained token matches the TARGET and every function wrapping it —
+// `play` encloses the terminal handler, `useRadioStation` encloses `play`, a `.catch`
+// node's callee is its whole chain. `.find` then returns the outermost, which is the
+// one case where every later assertion is vacuously satisfied by unrelated code.
+// Routing all of them through one reducer makes picking the wrong one something you
+// have to do on purpose rather than something you have to remember not to do.
+function innermost(candidates, what) {
+  assert.ok(candidates.length > 0, `could not find ${what}`);
+  return candidates.reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
+}
+
 // The enclosing function of every node, so a guard can ask "is this call inside
 // the same function as that one" rather than counting lines between them.
 function functionsOf(root) {
@@ -67,8 +80,8 @@ test('the station route never decides the session — only /api/me does', () => 
   assert.ok(stationFns.length > 0, 'no function fetches /api/radio/station — this guard is reading the wrong file');
 
   // the innermost one, so an enclosing component does not answer for its child
-  const innermost = stationFns.reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
-  const offenders = collect(innermost, (n) => calleeName(n) === 'setSignedIn');
+  const target = innermost(stationFns, 'the station fetch');
+  const offenders = collect(target, (n) => calleeName(n) === 'setSignedIn');
   assert.equal(offenders.length, 0,
     'the station fetch moves `signedIn` — a route refusal is a fact about the attempt, not about the session');
 
@@ -176,9 +189,8 @@ test('a superseded tune-in attempt writes nothing', () => {
   // re-checked. Walked in source order, which is what makes it survive a rewrite
   // that moves the guards around.
   const fns = functionsOf(AST);
-  const play = fns
-    .filter((fn) => collect(fn, (n) => n.type === 'StringLiteral' && n.value === '/api/radio/station').length > 0)
-    .reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
+  const play = innermost(fns.filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/radio/station').length > 0), 'play()');
 
   // ⚠ WRITES INSIDE A NESTED CALLBACK ARE EXCLUDED, AND THAT IS LOAD-BEARING RATHER
   // THAN TIDY. `play` declares the audio element's own `pause`/`ended`/`error`
@@ -285,8 +297,7 @@ test('a fetch that never landed does not claim there is no station', () => {
       && n.id.type === 'Identifier'
       && /removeAttribute\("src"\)/.test(SRC.slice(n.init.start, n.init.end))
       && /startedAtRef\.current = null/.test(SRC.slice(n.init.start, n.init.end)));
-    assert.ok(d.length > 0, 'could not identify the terminal cleanup binding');
-    return d.reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b)).id.name;
+    return innermost(d, 'the terminal cleanup binding').id.name;
   })();
   for (const ev of ['ended', 'error']) {
     const calls = collect(byEvent[ev], (n) => n.type === 'CallExpression'
@@ -303,11 +314,16 @@ test('a fetch that never landed does not claim there is no station', () => {
   // asserting the listeners are wired says nothing about what they do, and a
   // `stopped` that forgets `setPlaying(false)` leaves the rail on "On air" with the
   // key offering Pause — the whole defect, with all three listeners present.
-  const stoppedFn = functionsOf(AST).find((f) => {
+  // ⚠ INNERMOST, NOT `.find` (Codex, round 7). `useRadioStation` encloses `play` which
+  // encloses this handler, so all three match the two markers and `.find` returned the
+  // outermost — after which `badPath` found `setRefusal("unavailable")` in the unrelated
+  // station-fetch branches and stayed green with the terminal path stripped of it. The
+  // lookup immediately above this one had already been fixed for the same reason in the
+  // previous round; this one was left, which is why the helper now owns the rule.
+  const stoppedFn = innermost(functionsOf(AST).filter((f) => {
     const src = SRC.slice(f.start, f.end);
     return /startedAtRef\.current = null/.test(src) && /removeAttribute\("src"\)/.test(src);
-  });
-  assert.ok(stoppedFn, 'could not find the terminal-stop handler');
+  }), 'the terminal-stop handler');
   // the failure path is the one that refuses AND drops the cached source
   const badPath = SRC.slice(stoppedFn.start, stoppedFn.end);
   assert.ok(/setRefusal\("unavailable"\)/.test(badPath) && /removeAttribute\("src"\)/.test(badPath),
@@ -321,9 +337,8 @@ test('a fetch that never landed does not claim there is no station', () => {
   // reached the configuration verdict and were published as "No station on the air
   // yet". The invariant is an ordering one: a non-ok response must return before
   // anything writes `configured`.
-  const play = functionsOf(AST)
-    .filter((fn) => collect(fn, (n) => n.type === 'StringLiteral' && n.value === '/api/radio/station').length > 0)
-    .reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
+  const play = innermost(functionsOf(AST).filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/radio/station').length > 0), 'play()');
   const okGuards = collect(play, (n) => n.type === 'IfStatement'
     && n.test.type === 'UnaryExpression' && n.test.operator === '!'
     && n.test.argument.type === 'MemberExpression' && n.test.argument.property.name === 'ok');
@@ -333,6 +348,17 @@ test('a fetch that never landed does not claim there is no station', () => {
   // the defect the whole refusal mechanism exists to prevent, reached from a new door.
   assert.ok(okGuards.some((g) => collect(g, (n) => calleeName(n) === 'setRefusal').length > 0),
     'the non-ok branch returns silently — the key stays enabled with nothing on screen saying why');
+  // ⚠ AND IT MUST RETURN (Codex, round 7). Speaking is not stopping: with `return false`
+  // gone, a 402 or 503 falls through, parses the error payload, reaches
+  // setConfigured(false) — which is still textually after this guard, so the ordering
+  // assertions below stay green — and the deck renders the unavailable refusal AND
+  // "No station on the air yet" together. That is round 3's two-answers-to-one-press
+  // defect, reachable again through the branch added to fix round 3.
+  assert.ok(okGuards.some((g) => {
+    const nested = functionsOf(g);
+    return collect(g, (n) => n.type === 'ReturnStatement')
+      .some((r) => !nested.some((f) => r.start > f.start && r.end < f.end));
+  }), 'the non-ok branch does not return in its own scope — a 402/503 falls through to the configuration verdict');
   const writes = collect(play, (n) => calleeName(n) === 'setConfigured');
   const afterFetch = writes.filter((w) => w.start > okGuards[0].start);
   assert.equal(writes.length - afterFetch.length, 1,
@@ -467,8 +493,7 @@ test('a simulated now-playing payload is never published as a measured track', (
   // the /api/me poll, whose own catch legitimately does not touch the track
   const pollFns = functionsOf(AST).filter((f) => collect(f, (n) => n.type === 'StringLiteral'
     && n.value === '/api/radio/now-playing').length > 0);
-  assert.ok(pollFns.length > 0, 'could not find the now-playing poll');
-  const poll = pollFns.reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
+  const poll = innermost(pollFns, 'the now-playing poll');
   const catches = collect(poll, (n) => n.type === 'CallExpression'
     && n.callee.type === 'MemberExpression' && n.callee.property.name === 'catch');
   assert.ok(catches.length > 0, 'the now-playing poll has no catch at all');
