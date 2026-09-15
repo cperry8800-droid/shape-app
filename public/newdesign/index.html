@@ -438,7 +438,18 @@
          color:var(--fg-3);margin:0 0 14px;font-variation-settings:'ROND' 30}
   .ft a{display:block;font-size:13.5px;color:var(--fg-2);padding:4px 0}
   .ft a:hover{color:var(--fg)}
-  .ft .logo{height:40px;width:auto;display:block}
+  /* ⚠ 64px IS THE SITE'S OWN FOOTER LOGO SIZE, not a number picked here:
+     `pageShell.jsx`'s Footer takes `logoHeight = 64` and ~70 pages render it.
+     This hand-written copy had been left at 40, so the homepage's footer mark
+     was the smallest on the site.
+     ⚠ AND THE BLOCK SHRINK-WRAPS ITS TAGLINE RATHER THAN CARRYING A max-width,
+     because the obvious version does not centre. `.tag2` caps at 34ch AT 13px,
+     which measures 281px; the same `34ch` written on the wrapper is resolved in
+     the wrapper's own (larger) font and measures 346 — so `margin:0 auto`
+     inside it put the mark 32px right of the sentence it belongs to. Measured:
+     `width:fit-content` lands both boxes on 281 and both mid-points on 173. */
+  .ft .fbrand{display:flex;flex-direction:column;align-items:center;width:fit-content}
+  .ft .logo{height:64px;width:auto;display:block}
   .ft .tag2{margin-top:14px;font-size:13px;color:var(--fg-3);max-width:34ch}
   .ftb{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-top:44px;padding-top:22px;
        border-top:1px solid var(--line-2);font-size:12px;color:var(--fg-3)}
@@ -839,7 +850,7 @@
 <footer class="ft">
 <div class="wrap">
 <div class="ftg">
-<div>
+<div class="fbrand">
 <img class="logo" src="/shape-logo-nav-white.png" width="265" height="128" alt="Shape" />
 <p class="tag2">Real coaches. One app. The whole loop. Every figure on this page is measured or labelled an example.</p>
 </div>
@@ -1273,11 +1284,32 @@
   for(var o=0;o<ORB;o++) orb.push({ r:1.0+rnd()*0.35, sp:0.5+rnd()*1.1, ph:rnd()*6.283, tilt:rnd()*Math.PI, sz:1.0+rnd()*1.2 });
   var LINKN=Math.min(N, window.innerWidth<760?34:52), stride=Math.max(1,Math.floor(N/LINKN)), MX=SH.length-1;
 
-  var DPR=Math.min(2,window.devicePixelRatio||1), W=0, H=0;
+  /* ⚠ THE CLOUD IS FITTED TO THE ROOM IT IS IN, NOT TO A FRACTION OF THE CANVAS.
+     #jcanvas is `inset:0` on .jpin, so it spans the PHONE COLUMN as well — and
+     cx=W*0.62 with R up to W*0.22 drove the orbs, which orbit at up to ORB_R*R,
+     straight through the phone card. MEASURED on the shipped page rather than
+     eyeballed: the painted cloud reached x 1205 at 1440x900 and 1318 at
+     1920x1080 against a phone whose left edge is 1144 at both, i.e. 61-174px
+     INSIDE it, and the centre glow washed over it too (grr=1.35R reached 1228).
+     So the phone's own rect is what the room ends at, and it is READ. */
+  var ORB_R=orb.reduce(function(m,o){ return Math.max(m,o.r); },0);     /* outer orbit, in units of R */
+  var PA_MAX=MODE.reduce(function(m,r){ return Math.max(m,r[2]); },0);  /* the amplitude R breathes by */
+  var ORB_PAD=8;        /* the orb's own glow box, drawn in px around it */
+  var J_GUT=40;         /* the gap the cloud keeps off the phone */
+  var J_MINCX=0.54;     /* ...and it stops shifting left here, so the rail text stays clear */
+
+  var DPR=Math.min(2,window.devicePixelRatio||1), W=0, H=0, phoneL=0;
   function resize(){ if(!cv)return; W=cv.clientWidth; H=cv.clientHeight;
+    /* offsetParent is null exactly when the phone is display:none, so this reads
+       the stylesheet's own breakpoint instead of restating it in JS — and the
+       two do NOT agree (CSS hides the phone at 860, `wide` below is 900). */
+    var ph=document.getElementById('jph'), cr=cv.getBoundingClientRect();
+    phoneL=(ph&&ph.offsetParent)?(ph.getBoundingClientRect().left-cr.left):0;
     cv.width=Math.max(1,Math.round(W*DPR)); cv.height=Math.max(1,Math.round(H*DPR));
     if(ctx)ctx.setTransform(DPR,0,0,DPR,0,0); }
   window.addEventListener('resize',resize); resize();
+  /* the capture is lazy, so its column can settle after this script runs */
+  window.addEventListener('load',resize);
 
   var t=0, rot=0, proj=[], lnodes=[];
   function frame(){
@@ -1299,7 +1331,16 @@
       /* the cloud sits in the room BETWEEN the rail and the phone on a wide
          screen, and centres once the phone is gone */
       var wide=W>900, cx=wide?W*0.62:W*0.5, cy=H*0.5,
-          R=Math.min(wide?W*0.22:W*0.30, H*0.30)*(1+mPa*Math.sin(t*mPs));
+          Rb=Math.min(wide?W*0.22:W*0.30, H*0.30);
+      if(phoneL>0){
+        /* shift left first, and only shrink once the shift is spent at the floor
+           — a cloud that clears the phone by getting smaller everywhere would
+           lose a quarter of its radius on a tall screen for nothing. */
+        var lim=phoneL-J_GUT, reach=ORB_R*(1+PA_MAX), floor=Math.min(cx, W*J_MINCX);
+        if(floor+reach*Rb+ORB_PAD>lim) Rb=Math.max(0,(lim-ORB_PAD-floor)/reach);
+        cx=Math.min(cx, lim-ORB_PAD-reach*Rb);
+      }
+      var R=Rb*(1+mPa*Math.sin(t*mPs));
       var dim=wide?1:0.62;                 /* narrow: the rail text is over it */
 
       ctx.clearRect(0,0,W,H);

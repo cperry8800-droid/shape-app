@@ -52,6 +52,46 @@ test('the lazy boot loads the feed before the widget, in BOTH of its lists', () 
   }
 });
 
+test("every module the precompiled boot asks for is in the pages' manifest", () => {
+  // ⚠ window.__ndCompiled IS DERIVED FROM THE PAGES, NOT WRITTEN BY HAND.
+  // scripts/build-newdesign.mjs builds it out of the `<script type="text/babel"
+  // src="…jsx">` tags it finds across public/newdesign/*.html — so a module NO
+  // page references has no entry at all. `map[name]` is then undefined,
+  // bootCompiledChat sets `sc.src = undefined`, the browser fetches a file
+  // literally called "undefined", 404s, and onerror drops the member into the
+  // plain fallback panel. The rich bubble never opens on ANY page that
+  // lazy-boots, and nothing fails anywhere a build or a suite would see it.
+  //
+  // ⚠ BOTH HALVES ARE DERIVED. Naming the four modules here would let the ask
+  // and the manifest drift apart with this still green, which is the whole
+  // failure being guarded.
+  const boot = /function bootCompiledChat\(\)\s*\{[\s\S]*?\n  \}/.exec(stripComments(BUTTON));
+  assert.ok(boot, 'bootCompiledChat no longer has the shape this reads — re-anchor the guard');
+  const decl = /var names\s*=\s*\[([^\]]*)\]/.exec(boot[0]);
+  assert.ok(decl, 'bootCompiledChat no longer declares a `names` array');
+  const names = (decl[1].match(/"([^"]+)"/g) || []).map((q) => q.slice(1, -1));
+  assert.ok(names.length >= 3 && names.includes('chatWidget.jsx'),
+    'read only ' + names.length + ' boot modules — the parse stopped matching');
+
+  // The precompile's own two regexes, so this asks the question the build
+  // answers rather than a paraphrase of it.
+  const BABEL_TAG = /<script\s+type="text\/babel"([^>]*)>([\s\S]*?)<\/script>/g;
+  const manifest = new Set();
+  for (const f of readdirSync(ND).filter((n) => n.endsWith('.html'))) {
+    for (const m of read(f).matchAll(BABEL_TAG)) {
+      const src = /src="([^"?]+)(?:\?[^"]*)?"/.exec(m[1]);
+      if (src) manifest.add(src[1]);
+    }
+  }
+  assert.ok(manifest.size >= 50,
+    'read only ' + manifest.size + ' compiled modules — the sweep stopped matching');
+
+  const orphans = names.filter((n) => !manifest.has(n));
+  assert.deepEqual(orphans, [],
+    'bootCompiledChat asks window.__ndCompiled for a module no page references, so it gets no ' +
+    'manifest entry, its script src is `undefined`, and the rich bubble falls back to the plain panel');
+});
+
 test('the Feed tab is gated on the module being present', () => {
   // ⚠ THERE IS NO ERROR BOUNDARY ANYWHERE IN public/newdesign. A tab whose body
   // renders an undefined component throws a ReferenceError and blanks the whole
