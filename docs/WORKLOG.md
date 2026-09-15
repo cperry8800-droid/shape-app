@@ -726,6 +726,164 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-15 — The Radio page had no signal, so it drew nothing; and Nora stops being a stock avatar
+
+- **Two owner reports on the same screen, two PRs.** *"seeing this on shape radio page not the
+  design"*, with a screenshot of the station reading `Paused` over an empty band — #2088 → `fb322c4`.
+  Then, on the block under it, *"the look of nora here needs to be updated, not so avatar looking"* —
+  #2091 → `c435e9e`. Mobile plus the web Radio stage; **no migration, no route, no data change.**
+- ⚠ **THE PAGE *WAS* THE SIGNAL FIELD. IT HAD NO SIGNAL, AND THE DESIGN DREW NOTHING WITHOUT ONE.**
+  Playback is licensing-gated — `bsRadioSignedIn()` refuses a signed-out visitor outright — and in
+  production **`public.radio_station` does not exist at all** — re-queried against the live catalog
+  while writing this, not carried from the 2026-09-11 entry that first recorded it — so
+  `ShapeRadioLive.play()` resolves **false** for every member today; on the web the autoplay policy
+  refuses it again. The analyser therefore never carries a
+  frame, and every part of the instrument was gated on one: the grid's alpha and radius were scaled by
+  `fieldK`, the spectrum's baseline and its four-beat counter waited for data. **The owner was not
+  looking at the wrong page; they were looking at the right page in the state nobody had drawn.**
+- ⚠ **A REST IS A CONSTANT, NOT A FRACTION OF THE SIGNAL — AND THAT IS THE WHOLE FIX.**
+  `FIELD_REST_ALPHA` / `FIELD_REST_RADIUS` are what the grid is; the bins and the kick only add light
+  **on top**. Measured in Chromium on the shipped build: a resting dot's centre reads **alpha 41 of
+  255** with **144 dots resolved**, where the 2026-09-14 entry records the void's brightest pixel at
+  **6 of 255** over 480,888 fully transparent ones. *An instrument at rest still looks like an
+  instrument; a multiplier by zero is not a rest.*
+- ⚠ **AND THE FIXED PARTS OF THE INSTRUMENT ARE DRAWN WHATEVER THE AIR CARRIES.** The baseline and the
+  four-beat counter are the page's own furniture, so only the **bars** wait for data: a silent baseline
+  is **dashed** and the counter sits unlit, which states *no signal* rather than stating nothing. The
+  still picture is redrawn at the reduced-motion cadence (`REDUCED_FPS = 4`) instead of 60 times a
+  second, because a picture that cannot change does not need a frame budget.
+- ⚠ **THE KEY READ WHAT WAS ASKED FOR WHILE THE RAIL READ WHAT WAS HAPPENING.** `bsRadioTransportKey`
+  is one decision — Pause · Resume · Tune in · Sign in — taken from `playingSince`, which is stamped
+  only on a play that actually **started**, and both the deck and the Home card go through it. Signed
+  out the deck is **disabled** with *Sign in to listen* under it: a key that cannot work is better off
+  saying so than resolving to Pause over silence.
+- ⚠ **CODEX P1 — THE RETRY COULD NEVER HAVE BEATEN WEBKIT'S GESTURE RULE.** My first draft re-ran the
+  playback effect through a nonce, so `play()` was reached from an effect rather than from the tap's
+  own call stack — and Safari grants media permission to the gesture, not to the app. Worse, the first
+  thing in that path was `await station()`, so even a tap-bound call would have lost the gesture to a
+  network round trip. The retry now calls `play()` **inside the handler**, and `shapeBackend.play()`
+  keeps its **last good station read** so it reaches `audio.play()` with **no await in front of it**,
+  refreshing the station in the background. *A permission granted to a gesture is spent by the first
+  await.*
+- ⚠ **CODEX P2 — THE STILL THROTTLE RETURNED BEFORE THE FIGURE WAS MEASURED.** The early return sat
+  above `sinceMeasure++`, so on a still page the every-12-frames re-measure stretched from ~200 ms to
+  **~3 s**: the drawing stayed pinned to a box that had already moved (a longer mode label, the
+  no-signal line appearing, a larger text setting). The measure moved **above** the throttle and a
+  **moved box forces a draw**, so the geometry the 09-14 brief promises would follow the figure
+  actually does.
+- **i18n:** one new `radio:screen.signInToListen` × 13, each composed from that catalog's own sign-in
+  and listen wording rather than translated fresh. The brief's §4 and §7 carry ⚠ CORRECTED markers at
+  the source — they described the rest as a fraction of `fieldK` and the paused row as an empty figure,
+  which is the state this PR exists to remove. *A brief that still describes the defect is an
+  instruction to rebuild it.*
+- **NORA — THE RIG WAS NEVER THE PROBLEM, THE MATERIAL WAS.** The DJ preview rendered the placeholder
+  VRM the way a model viewer renders a VRM: a key light, a fill, the model's own textures — so a lit
+  anime figure in a white t-shirt stood in a black box, which **is** a stock avatar whatever the
+  skeleton underneath is doing. The bones, the spring hair, the expressions and the audio-reactive
+  driver are **untouched**; `public/newdesign/noraHologram.mjs` changes what they are made of. She is
+  light made of **the Signal Field's own dots** — a screen-space dot matrix whose dot size follows a
+  fresnel term (edges bright, faces quiet), scanlines drifting down, a slow flicker, additive, breathing
+  on the room's level — with **wire** and **solid** on the same shader and **`avatar`** keeping the
+  VRM's materials, so the range is one constant apart.
+- ⚠ **THE VERTEX SHADER CARRIES THREE.JS'S OWN SKINNING AND MORPH CHUNKS, IN THREE.JS'S OWN ORDER, OR
+  THE PROJECTION IS A FROZEN T-POSE.** A hand-written `ShaderMaterial` on a `SkinnedMesh` gets none of
+  that for free: without `skinning_vertex` she never moves with her bones, and without
+  `morphtarget_vertex` she never blinks. Neither failure throws — it renders, perfectly, wrong.
+- ⚠ **ADDITIVE LIGHT NEEDS A DEPTH PREPASS, AND THE CLONE MUST SHARE THE MORPH INFLUENCES BY
+  REFERENCE.** With `depthWrite` off — which additive blending needs, or draw order decides what shows
+  — every surface behind a nearer one **adds through it**: arms through the torso, the far side of the
+  hair through the face, a glowing knot rather than a figure. A `colorWrite:false` clone per mesh fills
+  the depth buffer in the opaque pass first. ⚠ **`Mesh.copy` SLICES `morphTargetInfluences` while
+  `SkinnedMesh.copy` SHARES the skeleton** — so a clone left as three.js makes it tracks the bones and
+  **not** the blend shapes, and a blinking eyelid's depth lags its light by a frame. The influences are
+  re-pointed at the original's array.
+- ⚠ **AND MToon DRAWS ITS OUTLINE AS A SECOND ENTRY IN THE MESH'S MATERIAL ARRAY.** `_generateOutline`
+  turns `mesh.material` into `[surface, outline]` **and adds two geometry groups**, so replacing the
+  array naively leaves an inverted-hull shell behind — **a second, larger Nora** around the first.
+  Outline entries are dropped with the swap or the mesh is hidden, and `restore()` puts the original
+  array back **by reference** with the groups untouched.
+- **The block around the canvas becomes the booth** rather than a black box: the Signal Field's own
+  14 px dot pitch as the room's ground, scanlines over the figure, a floor glow and a light line — so
+  the preview reads as a place light is being thrown into. The mobile stage is handed `t.ACCENT` and
+  the web stage its own page teal, so neither hardcodes a colour the theme owns.
+- ⚠ **THREE IS INJECTED RATHER THAN IMPORTED, WHICH IS WHAT MAKES ANY OF THIS TESTABLE.** The module
+  has no bare import to resolve, so the shader sources, the material swap, the prepass and the restore
+  are driven in **Node against a stub scene graph** carrying three.js's own `add`/`remove`/`traverse`/
+  `clone` semantics — a WebGL render is not something CI can hold an opinion about.
+- ⚠ **AND CODEX FOUND THE PROJECTION KEEPING A COLOUR THE PAGE AROUND IT HAD ALREADY LEFT.** The
+  accent is a **live** setting: the Appearance picker recolours the page under a **still-mounted tab
+  tree** (Settings is an overlay, which this file recorded on 2026-09-15), and a cloud-preference
+  hydrate can land after first paint. The booth reads `t.ACCENT` at render so it follows on that
+  frame; the stage was constructed once, on `[noraOn]`, so the shader kept the colour it was born
+  with and the preview was **two colours** until Nora was toggled. ⚠ **AND THE COMMENT ABOVE THE
+  CONSTRUCTOR ASSERTED THE OPPOSITE IN AS MANY WORDS** — *"the projection takes the page's accent, so
+  Nora recolours with the rest of Radio"* — which is the class this file post-mortems over and over:
+  *a because-clause is a claim, and this one was wrong the day it was written.*
+- ⚠ **THE FIX IS A UNIFORM WRITE, NOT A REBUILD, AND THE TWO CHEAPER-LOOKING OPTIONS ARE BOTH
+  WORSE.** Adding `t.ACCENT` to the stage effect's deps would **re-download the VRM** and flash the
+  booth empty for a colour tap; re-applying the hologram would **re-clone every depth mesh**. And
+  `setColor` **stores** the colour as well as forwarding it, because `_applyLook` reads `this.color`
+  and the load is async — so an accent changed **while the VRM is still loading** reaches no stage at
+  all, and is carried on a ref and applied when the stage arrives. *Both directions, because a live
+  setting and an async load can cross in either order.*
+- ⚠ **AND THE BOOTH'S OWN HEX-ALPHA SUFFIXES WERE CHECKED RATHER THAN ASSUMED.** The chrome writes
+  `${TEAL}1f` / `${TEAL}33` / `${TEAL}0a`, and this file records twice that a hex alpha on an
+  `rgba()` string voids the whole declaration — which is how two textures made every page background
+  transparent. Measured at the source: **all nine accents are 6-digit hex**, the mono-contrast flip
+  returns hex too, and the `background` shorthand keeps its only colour in the **final** layer.
+- **Verified on the final heads:** `npm test` **3798/3798** · `tsc --noEmit` 0 · JSX and JS parse ·
+  the newdesign precompile check · the full pre-commit gate including the mobile build ·
+  **69 mutations killed across four rounds**, each proven to land (anchors occurrence-counted before the edit,
+  the suite's own `# pass`/`# fail` **parsed** rather than read off a pipeline's exit status), sanity
+  green at both ends, the tree restored in a `finally` **and on a signal** — both Codex findings
+  replayed as their own mutations · and the Radio page **driven in Chromium across four states**
+  (signed out · signed in with `play()` refused · playing against a synthetic 128-BPM analyser ·
+  paused) with **zero page errors**, plus each Nora look captured from its own build.
+- ⚠ **ONE OF MY OWN GUARDS WAS BLIND BECAUSE IT MATCHED TOO WIDE A WINDOW.** The dot-matrix guard
+  asserted `gl_FragCoord` appeared anywhere after the `uMode == 0` branch — and the **scanline** term
+  reads `gl_FragCoord.y` a few lines below it, so a mutation moving the matrix into model space
+  **survived**. Pinned to the cell expression itself and the mutation replayed, it dies. *A guard whose
+  window contains an unrelated use of the same token is measuring that use.*
+- ⚠ **AND THE BROWSER HARNESS MEASURED NOTHING ON ITS FIRST RUN.** Its canvas selector excluded
+  `[aria-hidden]` ancestors — and the booth's own chrome overlay is `aria-hidden`, so the element it
+  was written to measure was the one element it refused to find. *An instrument that filters out its
+  own subject reports an absence and calls it a finding.*
+- **AND THE ACCENT FIX IS PROVEN BY A/B IN A BROWSER, THROUGH THE APP'S OWN LIVE CONTROL.** Both
+  builds were served and driven identically — entry flow, the Home now-playing card, Nora on, the
+  tweaks panel's accent row, **RUST** picked — with the WebGL context patched to record every
+  `uniform3f` the page uploads. **Pre-fix (`3788085`): nothing at all after the flip** — the booth
+  recoloured and the projection did not, the defect reproduced. **Merged (`c435e9e`): `0.745 · 0.130
+  · 0.063`**, which is rust `#e06547` in linear sRGB, **and no teal**. `webgl contexts 1 → 1` on both,
+  so the difference is the uniform and not a rebuild. Zero page errors either side.
+- ⚠ **AND THE FIRST VERSION OF THAT CONTROL PROVED NOTHING, FOR A REASON WORTH THE LINE.** It cleared
+  the record **after** the flip and read an empty window — which looks like a failure and is
+  **three.js uploading a uniform only when it CHANGES**: everything after the write is silence on a
+  correct build as much as a broken one. Clearing **immediately before** the flip is the version that
+  separates them. *A control placed after the only event it can observe measures nothing, and reads
+  as a red result.*
+- ⚠ **NO ON-ACCOUNT PASS, AND IT IS THE STANDING CAVEAT.** Every signed-in reading here is a
+  **patched `ShapeAuth`**, the analyser is synthetic, and Nora renders against a **placeholder VRM**
+  in headless SwiftShader — so the shader is proven at three **0.185** (the mobile bundle) and argued
+  at **0.169** (the web page, whose esm.sh host this container's proxy blocks). The honest check is a
+  member on a device with a station actually on the air, and the real Nora in place of the placeholder.
+- ⚠ **AND THE ONE LOOK FOUND A CLAIM NEITHER PR WAS ABOUT: THE RAIL SAYS *ON AIR* WITH A BLINKING
+  RED DOT, UNCONDITIONALLY.** Captured on the page driven for the A/B above, in the state every
+  member is in today: the tempo reads `—`, the clock reads **Paused**, the key reads **SIGN IN TO
+  LISTEN**, and above all three the rail asserts **● ON AIR**. `radio:rail.onAir` has no gate at all
+  — the same block whose own comment records that a listener count was removed from it for being *"a
+  number nobody has counted on a station that is not broadcasting"*. This is the chip the 2026-09-11
+  entry took off the website nav, still live in the app, under the house rule that survived it: **the
+  rule is not "never say it" but "never claim it unlabelled"** — and here there is no label, no
+  station, and a dot that blinks. **Registered, not fixed:** both PRs were about what the page draws,
+  and retiring a claim is the owner's call, not a side effect of a render pass.
+- ⚠ **REGISTERED, NOT FIXED — AND IT IS THE OWNER'S CALL.** The signed-out preview still shows a
+  station that is **not broadcasting**, honestly: a resting field, `—` for the tempo and a dashed
+  baseline. Whether a prospect should instead see a **labelled simulated** 128-BPM station is a
+  product decision, not a code one; **the recommendation is no** — a labelled fake is still a moving
+  picture of a thing that is not happening, and this file's own honest-data doctrine is what the whole
+  Signal Field was built on. And `wire` · `solid` · `avatar` have **no production caller**: they exist
+  so the look can move with one constant once the real Nora replaces the placeholder VRM.
+
 ### 2026-09-15 — Edit profile becomes its own Passport page, and the form stops writing what it never loaded
 
 - **Two owner notes, one PR** — *"need to update design of this page edit profile page on app to match new settings design"* and *"when you hit the back button on edit profile need to route it back to the settings page not the home page"*. #2087 → `592addd`, the Passport's registered next step (*"Edit profile as its own page"*). Mobile only; **no migration, no route, no new i18n key** — every string on the page was already keyed in all 13 locales.
