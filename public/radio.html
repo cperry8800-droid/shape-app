@@ -19,10 +19,20 @@
      The app deleted its own equivalents — demoHr and BSBeatRing — on 2026-09-14 for
      exactly this, and the new page measures all three or prints an em-dash.
 
-     ⚠ THE REDIRECT STAYS RATHER THAN THE FILE BEING DELETED. Four legacy pages
-     (ai-trainers.html, client-profile.html, clients.html and the old footers) link
-     here by relative href, and the URL is in the wild. It replaces rather than
-     pushes, so Back goes where the visitor came from instead of bouncing.
+     ⚠ THE REDIRECT STAYS RATHER THAN THE FILE BEING DELETED, AND THE COUNT IS
+     DERIVED RATHER THAN REMEMBERED — a first draft of this comment said "four
+     legacy pages" and the real number is THIRTY, across 57 href sites. Almost
+     every one is the same pair on a page that has nothing else to do with Radio:
+     a RADIO button in the nav and a "Shape Radio" line in the footer. On top of
+     that signup-radio.html sends a new listener here in JS the moment they finish
+     signing up, so this is the landing page of a funnel as well as a nav target,
+     and the URL is in the wild besides. It replaces rather than pushes, so Back
+     goes where the visitor came from instead of bouncing.
+
+     ⚠ pwa-install.js lists '/radio.html' among its skipPaths, and that is a
+     PROVEN NO-OP for the new page rather than a gap this move opened: 39 legacy
+     pages load that script and NO newdesign page loads it at all, so the install
+     prompt was never reaching /newdesign/Radio.html to be suppressed there.
 
      Nora's booth was the one thing here that the new page did not have; it was
      ported before this went in, so nothing shipped was lost. -->
