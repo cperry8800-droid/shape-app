@@ -726,6 +726,89 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-15 — The Signal Field was drawn in the page's padded column, so it never filled the screen
+
+- **One owner message, one PR.** *"its not filling the width of screen"*, on the Radio page's
+  preview state. #2097 → `54e8a39`. Mobile only; **no migration, no route, no data change, no
+  i18n key.**
+- ⚠ **THE BARS TOOK THEIR WIDTH FROM THE FIGURE BLOCK, AND THE FIGURE BLOCK SITS INSIDE THE
+  PAGE'S OWN PADDING.** `measureFigure()` exists because the drawing must follow the type — a
+  longer mode label, the no-signal line appearing or a larger text setting all move it, and the
+  09-14 brief's rule is that nothing here is a literal. But that block renders inside
+  `padding: 12px ${t.padX}px 16px`, so taking its **width** made the spectrum a padded column
+  while the field's dots (`for x = 7; x < W; x += 14`) and both scrims (`fillRect(0, …, W, …)`)
+  ran edge to edge. **Measured in Chromium before a line was written: at 390px the teal spectrum
+  ran 18 → 371.5 — 354 of 390, with 18px of dead paper each side — against a canvas reporting
+  `left: 0, w: 390`.** *A page where everything is inset reads as a margin; one where the ground
+  reaches the edge and the instrument does not reads as the instrument being short.*
+- **THE FIGURE SAYS WHERE, THE CANVAS SAYS HOW WIDE.** `band = { x: 0, w: W }` — the wrap is
+  `position:absolute; inset:0` and sits as a **sibling** of the padded content div, beside the
+  page's own full-bleed glow layer whose comment already read *"fills the whole screen, no inset
+  frame"*. Every vertical position still derives from `fig`; the cells, the station's baseline,
+  its dashed no-signal twin and the four-beat counter take the band.
+- ⚠ **THE BAR GAP IS SPLIT ACROSS THE CELL, NOT TAKEN OFF ITS RIGHT EDGE.** Inside a padded
+  column a right-only gap was invisible; at full bleed it leaves the first bar flush against the
+  screen and the last **1.6px short of it** — and a **mirrored** spectrum, with the bass at the
+  centre, is exactly the wrong drawing to carry an asymmetry. One constant feeds both the width
+  and the offset, so they cannot drift apart.
+- ⚠ **THE MATCHING ROWS' TWO EDGES HAVE TWO DIFFERENT SOURCES, AND THAT IS THE POINT.** The LEFT
+  is a fact about the DOM — the station and heart readings are positioned `left: 0` **inside**
+  the figure block, so `x0 = fig.x + fig.w * 0.27` is about clearing *them* and survives the
+  band. The RIGHT is a fact about the instrument's width, so it is the band's. **Both halves are
+  drawn while `kx` crosses**, so a right edge that disagreed with the spectrum's would make the
+  instrument visibly change width the moment a member taps *Match my BPM*.
+- ⚠ **THE COUNTER'S RE-CENTRING IS A PROVEN NO-OP ON TODAY'S LAYOUT, AND IS RECORDED AS ONE
+  RATHER THAN LEFT TO READ AS A FIX.** The page's horizontal padding is symmetric, so
+  `fig.x + fig.w / 2` and `W / 2` are the same pixel — measured, fig.x 18 and fig.w 354, so
+  18 + 177 = 195 = 390 / 2. It is the **band's** because the counter belongs to the instrument,
+  so it stays on the bars' centre line the day the figure stops being centred in the screen.
+- ⚠ **THE GUARD ENFORCED THE DEFECT, SO THE CORRECT FIX BROKE A TEST ABOUT SOMETHING ELSE.**
+  `tests/radio-signal-field-layout.test.mjs` asserted `x1 <= fig.x + fig.w` and required **every**
+  geometry line to match `/\bfig\.[xywh]\b/`; `tests/radio-rest-state.test.mjs` pinned
+  `moveTo(fig.x, baseY`. Re-anchored on the invariants — vertical from `fig`, horizontal from the
+  band, `x0` staying the figure's **with the reason written at the site**. *A guard that pins a
+  spelling pins whatever that spelling is wrong about*, which is this file's most-repeated
+  sentence and was paid for again here.
+- ⚠ **AND THE BAND IS LIFTED AND RUN RATHER THAN PATTERN-MATCHED, BECAUSE THE DEFECT CAN COME
+  BACK BY A DIFFERENT DOOR.** `{ x: 0, w: W }` and `{ x: 0, w: W - 44 }` are indistinguishable to
+  any `assert.match` over the declaration, and the second **is** the padding restored. The test
+  evaluates the shipped line against a known screen and requires the whole screen back; both
+  mutations die, and the two-regex version this replaced let the second one through.
+- ⚠ **AND THE NEW FILL TEST CARRIES ITS OWN CONTROL, WITHOUT WHICH EVERY ASSERTION IN IT PASSES
+  ON THE DEFECT.** A band that equalled the figure satisfies *"the cells tile the band"*, *"the
+  first bar is at the left edge"* and *"the last is at the right"* while the bars sit in exactly
+  the padded column the owner reported. So it also asserts the band is **genuinely wider** than
+  the figure and the spectrum **genuinely starts left of it**.
+- ⚠ **AND THE HARNESS COULD NOT REACH THE PAGE AT ALL ON ITS FIRST RUN, WHICH IS WORTH THE LINE.**
+  It dispatched `shape:goRadio` — **an event that does not exist**; Radio is opened by the Home
+  now-playing card, which is a plain `div` with an `onClick`, and its one visible button
+  (**▶ TUNE IN**) calls `stopPropagation` and only turns the radio on. So a walker that clicks the
+  obvious control stays on Home forever and reports *"no canvas"*, which reads as the page being
+  broken. It clicks the card's eyebrow now. *An instrument aimed at the only button on a card is
+  aimed at the one thing that is not the control.*
+- **Review:** Codex, **one front-loaded round, clean on `cd79762`** — head-pinned by its own
+  *Reviewed commit* line (`cd79762862`) **with the summary row naming the same commit**, so no
+  head-pinning trap. Not re-triggered. **CodeRabbit was not run** (owner, this session: *"dont run
+  coderabbit for PR"*). The merge gate was the four required checks green on `cd79762` and not a
+  draft.
+- **Verified on the merged tree** (`54e8a39`), re-derived rather than carried — and the merged
+  tree was first proven **byte-identical** to the reviewed branch tree: `npm test`
+  ****3817/3817**** · `tsc --noEmit` **0** · JSX parse · the full pre-commit gate including the
+  mobile build · **11/11 mutations killed**, each **proven to land** (the anchor
+  occurrence-counted before the edit, the mutated text asserted present afterwards, and the
+  suite's own `# pass`/`# fail` **parsed** rather than read off a pipeline's exit status — where
+  `npm test | tail` reports `tail`'s status and a red run reads as green), sanity green at both
+  ends, the tree restored in a `finally` **and on a signal** · and the page **driven in Chromium
+  through the real signed-out preview flow at 320 · 390 · 430, in BOTH states**: listening spans
+  **0 → W at every width** (640 / 780 / 860 teal columns, i.e. every device column), matching
+  runs from the readings' clearance (94.5 / 113.5 / 124) to the screen's right edge, with **zero
+  horizontal overflow and zero page errors** everywhere.
+- ⚠ **REGISTERED, NOT FIXED, AND UNCHANGED BY THIS PR:** **Nora still reads the real analyser**,
+  so she stands still in the preview beside a spectrum that is moving; the **`ON AIR` chip on a
+  MEMBER's Radio page is still unconditional**, and retiring a claim is the owner's call; and
+  there is **still no on-account pass** — every reading here is the signed-out preview over the
+  simulated example signal, because there is still no station on the air.
+
 ### 2026-09-15 — Someone previewing the app sees the instrument running, on a station the page calls an example
 
 - **Three owner messages, one build.** *"not seeing the bars that move with the song. like the music
