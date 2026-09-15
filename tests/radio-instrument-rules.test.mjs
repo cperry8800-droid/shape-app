@@ -112,6 +112,122 @@ test('the station route never decides the session — only /api/me does', () => 
     '/api/me no longer sets the session — the guards above would pass vacuously');
 });
 
+test('a session the cookie cannot see still reaches playback', () => {
+  // ⚠ THE FINDING (Codex, round 10): `/api/me` reads the Next.js cookie and nothing
+  // else — it calls `createClient()` with no request, so a Bearer token is not even
+  // an option there — while this site ALSO keeps sessions in localStorage under
+  // `shape.auth`. `supabase.js` copies one into the cookie from `applyNavAuthState()`
+  // and that POST is fire-and-forget, so nothing orders it against this page's read.
+  // A member signed in on a legacy or static page was therefore measured as signed
+  // OUT, permanently (the effect has empty deps): the key read "Sign in to listen"
+  // and they were handed the visitor preview. The retired player did not have this
+  // defect — it awaited `shapeDb.getSession()` and sent the bearer — so this is a
+  // behaviour the rewrite lost rather than one nobody had built.
+  const fns = functionsOf(AST);
+
+  // (a) the SDK is asked at all
+  const sdkCalls = collect(AST, (n) => n.type === 'CallExpression'
+    && n.callee.type === 'MemberExpression' && n.callee.property && n.callee.property.name === 'getSession');
+  assert.equal(sdkCalls.length, 1,
+    'the page does not ask the SDK for a session exactly once — /api/me alone cannot see a localStorage session');
+
+  // (b) ...and the branch that acts on one STOPS. This is the class this file has now
+  // swept: `setSignedIn(true)` without an exit lets the /api/me fallback below it run
+  // and overwrite a real member back to `false`, which is the very defect being fixed,
+  // reintroduced one line under its own fix.
+  const sessionFn = innermost(fns.filter((fn) => collect(fn, (n) => n === sdkCalls[0]).length > 0), 'the session effect');
+  const trueBranches = collect(sessionFn, (n) => n.type === 'IfStatement'
+    && collect(n, (c) => calleeName(c) === 'setSignedIn'
+      && c.arguments.length === 1 && c.arguments[0].type === 'BooleanLiteral' && c.arguments[0].value === true).length > 0);
+  assert.equal(trueBranches.length, 1, 'no single branch resolves a live SDK session to signed-in');
+  assert.ok(exitsOwnScope(trueBranches[0].consequent),
+    'the SDK-session branch records the session and does not stop — the /api/me fallback below it overwrites a real member with false');
+
+  // (c) /api/me is the FALLBACK, in the same function — not a second effect racing it
+  assert.ok(collect(sessionFn, (n) => n.type === 'StringLiteral' && n.value === '/api/me').length > 0,
+    '/api/me is no longer the arbiter of the null case — a failed SDK bridge would read as confirmed signed-out');
+
+  // (d) THE TOKEN IS SENT, NOT MERELY CAPTURED. Round 9 finding 3 was exactly this
+  // shape one value over: a token that is assigned and never compared. Knowing the
+  // member is signed in is half of it — `/api/radio/station` resolves through
+  // `currentUser()`, which reads the cookie OR a Bearer, so a cookie-less member
+  // whose request carries neither is answered by that route's own 401.
+  const tokenWrites = collect(sessionFn, (n) => n.type === 'AssignmentExpression'
+    && n.left.type === 'MemberExpression' && n.left.property && n.left.property.name === 'current'
+    && n.left.object.type === 'Identifier'
+    && collect(n.right, (c) => c.type === 'Identifier' && c.name === 'access_token').length > 0);
+  assert.equal(tokenWrites.length, 1, 'the access token is not captured from the SDK session');
+  const tokenRefName = tokenWrites[0].left.object.name;
+
+  const stationFn = innermost(fns.filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/radio/station').length > 0), 'the station fetch');
+  const tokenReads = collect(stationFn, (n) => n.type === 'MemberExpression'
+    && n.object.type === 'Identifier' && n.object.name === tokenRefName && n.property && n.property.name === 'current');
+  assert.ok(tokenReads.length > 0,
+    `the station fetch never reads ${tokenRefName}.current — the bearer is captured and thrown away`);
+  assert.ok(collect(stationFn, (n) => (n.type === 'AssignmentExpression' && n.left.type === 'MemberExpression'
+      && n.left.property && n.left.property.name === 'Authorization')
+    || (n.type === 'ObjectProperty' && n.key && (n.key.name === 'Authorization' || n.key.value === 'Authorization'))).length > 0,
+    'the station fetch builds no Authorization header — a cookie-less member is refused by the route');
+});
+
+test('the lock screen is cleared when the reading is', () => {
+  // ⚠ THE FINDING (Codex, round 10): the retired player assigned
+  // `navigator.mediaSession.metadata` from every now-playing response, so system and
+  // lock-screen controls carried the track. The rewrite moved the poll into React
+  // state and dropped that assignment entirely — a shipped behaviour retired by a
+  // rewrite rather than by a decision.
+  //
+  // The half that matters more here is the CLEAR. `nowPlaying` is null for a
+  // simulated payload and for a poll that never landed, and a stale title on a lock
+  // screen is the same false claim as a stale title on the page — worse, because the
+  // page's own correction is not on screen beside it.
+  const msFns = functionsOf(AST).filter((fn) => collect(fn, (n) => (n.type === 'StringLiteral' || n.type === 'Identifier')
+    && (n.value === 'mediaSession' || n.name === 'mediaSession')).length > 0);
+  const ms = innermost(msFns, 'the media-session effect');
+
+  const metaWrites = collect(ms, (n) => n.type === 'AssignmentExpression'
+    && n.left.type === 'MemberExpression' && n.left.property && n.left.property.name === 'metadata');
+  assert.ok(metaWrites.some((n) => n.right.type === 'NewExpression'),
+    'nothing publishes the track to the media session — the lock screen shows no track');
+  assert.ok(metaWrites.some((n) => n.right.type === 'NullLiteral'),
+    'the media session is never cleared — a simulated or unreadable poll leaves a stale title on the lock screen');
+
+  // the clear is reachable from the empty reading, and that branch stops rather than
+  // falling through into the publish below it
+  const emptyBranches = collect(ms, (n) => n.type === 'IfStatement'
+    && n.test.type === 'UnaryExpression' && n.test.operator === '!'
+    && collect(n.test, (c) => c.type === 'Identifier' && c.name === 'nowPlaying').length > 0);
+  assert.equal(emptyBranches.length, 1, 'no branch acts on an absent reading');
+  assert.ok(exitsOwnScope(emptyBranches[0].consequent),
+    'the empty-reading branch does not stop — it would fall through and publish a track it has just cleared');
+
+  // ⚠ AND NOTHING IS INVENTED. The retired player defaulted the title to "Shape Radio"
+  // and the artist to "Live"; the first is the product's own name AND the mock
+  // provider's artist string, so a leak would read exactly like an honest empty — the
+  // ambiguity round 5's control had to work around. `album` is exempt: it names the
+  // station, which is a fact about us rather than a claim about the track.
+  const built = metaWrites.find((n) => n.right.type === 'NewExpression');
+  const arg = built.right.arguments[0];
+  assert.ok(arg && arg.type === 'ObjectExpression', 'the media metadata is not built from an object literal');
+  for (const prop of arg.properties) {
+    const key = prop.key && (prop.key.name || prop.key.value);
+    if (key !== 'title' && key !== 'artist') continue;
+    const fallbacks = collect(prop.value, (n) => n.type === 'LogicalExpression' && n.operator === '||'
+      && n.right.type === 'StringLiteral' && n.right.value !== '');
+    assert.equal(fallbacks.length, 0,
+      `the media session invents a ${key} when the reading carries none — an unmeasured claim on the lock screen`);
+  }
+
+  // and it follows the reading rather than firing once
+  const eff = collect(AST, (n) => n.type === 'CallExpression' && n.callee.type === 'MemberExpression'
+    && n.callee.property && n.callee.property.name === 'useEffect'
+    && n.arguments.length === 2 && n.arguments[0] === ms);
+  assert.equal(eff.length, 1, 'the media-session block is not a useEffect with a dependency array');
+  assert.ok(collect(eff[0].arguments[1], (n) => n.type === 'Identifier' && n.name === 'nowPlaying').length > 0,
+    'the media session does not depend on nowPlaying — it would keep whatever it published first');
+});
+
 test('a refused attempt stays retryable and says which refusal it was', () => {
   // The other half of the same finding: once a refusal stops disabling the key,
   // the key is live and must not be a control that visibly does nothing.

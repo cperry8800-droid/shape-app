@@ -109,16 +109,54 @@ function useRadioStation() {
   const binsRef = React.useRef(null);
   const startedAtRef = React.useRef(null);
   const attemptRef = React.useRef(0);
+  const tokenRef = React.useRef(null);
 
-  // The session. `/api/me` answers 200 {user:null} for a MEASURED signed-out
-  // visitor and 503 for a read that did not complete — three states, and only the
-  // first is "no account". A blip must not present a member with the preview.
+  // The session, and it lives in TWO stores rather than one (Codex, round 10).
+  // `/api/me` reads the Next.js cookie and NOTHING else — it calls `createClient()`
+  // with no request, so it has no way to see a session held in `shape.auth`, which is
+  // this site's own localStorage store. A member signed in through a legacy or static
+  // page has exactly that: `supabase.js` copies it into the cookie from
+  // `applyNavAuthState()`, and that POST is FIRE-AND-FORGET, so nothing orders it
+  // against this read. Asking the cookie alone therefore answered `{user:null}` for a
+  // real member — and because this effect runs once with empty deps, that verdict was
+  // PERMANENT: the key read "Sign in to listen" and they were handed the visitor
+  // preview for the life of the page. The retired player did not have this defect; it
+  // asked `shapeDb.getSession()` and sent the bearer, and the rewrite dropped both.
+  //
+  // `getSession()` is the UNION of the two stores — it returns the SDK session, and
+  // bootstraps one FROM the cookie bridge when localStorage is empty — so a session it
+  // returns is authoritative. A NULL from it is not: it answers null for a real visitor
+  // and for a bridge that failed alike, which is the same two-answers-one-value trap
+  // this file has now paid for at `/api/me`, at the station route and at the schedule.
+  // So `/api/me` still arbitrates the null case and the three-state rule is untouched:
+  // 200 {user:null} is measured signed-out, 503 is a read that did not complete, and
+  // this page keeps `null` for "could not tell" rather than presenting a member with
+  // the preview.
   React.useEffect(() => {
     let on = true;
-    fetch("/api/me", { cache: "no-store", credentials: "include" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d) => { if (on) setSignedIn(!!(d && d.user)); })
-      .catch(() => { if (on) setSignedIn(null); });   // could not tell: not "signed out"
+    (async () => {
+      try {
+        const session = window.shapeDb ? await window.shapeDb.getSession() : null;
+        if (!on) return;
+        if (session && session.access_token) {
+          // ⚠ HELD FOR THE STATION FETCH, which the retired player authorized the same
+          // way. `/api/radio/station` resolves through `currentUser()`, which accepts a
+          // Bearer token OR the cookie — so without the token a cookie-less member is
+          // answered by the route's own 401 and the key refuses somebody who is signed
+          // in. Knowing they are a member is only half of it; the request has to say so.
+          tokenRef.current = session.access_token;
+          setSignedIn(true);
+          return;
+        }
+      } catch (e) { /* fall through — the SDK is never the arbiter of "no" */ }
+      if (!on) return;
+      try {
+        const r = await fetch("/api/me", { cache: "no-store", credentials: "include" });
+        if (!r.ok) { if (on) setSignedIn(null); return; }   // could not tell: not "signed out"
+        const d = await r.json();
+        if (on) setSignedIn(!!(d && d.user));
+      } catch (e) { if (on) setSignedIn(null); }
+    })();
     return () => { on = false; };
   }, []);
 
@@ -151,6 +189,46 @@ function useRadioStation() {
     const id = setInterval(tick, 15000);
     return () => { on = false; clearInterval(id); };
   }, []);
+
+  // ⚠ THE LOCK SCREEN IS A SECOND SURFACE FOR THE SAME CLAIM, AND THE REWRITE DROPPED IT
+  // (Codex, round 10). The retired player assigned `navigator.mediaSession.metadata` from
+  // every now-playing response, so a member with the phone locked read the track and the
+  // artist on their system controls. This page updated React state and nothing else, so
+  // retiring /radio.html retired that with it — shipped behaviour lost in a rewrite rather
+  // than a decision anybody took.
+  //
+  // ⚠ AND IT CLEARS ON THE HONEST EMPTY, which is why this is an effect on `nowPlaying`
+  // rather than a line inside the poll's success arm. `nowPlaying` is null for a SIMULATED
+  // payload and for a poll that never landed, and a stale title on a lock screen is the same
+  // false claim as a stale title on the page — worse, because the page's own correction is
+  // not on screen beside it. Both surfaces are driven by the one value, so they cannot come
+  // to disagree about what is playing.
+  //
+  // ⚠ NO INVENTED FALLBACK. The retired player defaulted the title to "Shape Radio" and the
+  // artist to "Live"; the first is the PRODUCT'S OWN NAME and also the mock provider's
+  // artist string, which is the ambiguity round 5's control had to work around — a leak
+  // would have read exactly like an honest empty. Only what was measured is published.
+  //
+  // ⚠ METADATA ONLY, NO ACTION HANDLERS, DELIBERATELY. The retired page installed play/pause
+  // handlers unconditionally, and its `play` handler is recorded in docs/WORKLOG.md as the
+  // one of that file's six `play()` call sites carrying neither a station guard nor a
+  // `.catch`. With no handler the browser drives the element itself, which is correct here;
+  // restoring them is a behaviour change this PR is not about.
+  React.useEffect(() => {
+    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return undefined;
+    const ms = navigator.mediaSession;
+    const clear = () => { try { ms.metadata = null; } catch (e) {} };
+    if (!nowPlaying) { clear(); return undefined; }
+    if (typeof window.MediaMetadata !== "function") return undefined;
+    try {
+      ms.metadata = new window.MediaMetadata({
+        title: nowPlaying.title || "",
+        artist: nowPlaying.artist || "",
+        album: "Shape Radio",
+      });
+    } catch (e) { /* the API is present and refused the payload — say nothing rather than guess */ }
+    return clear;
+  }, [nowPlaying]);
 
   const ensureGraph = React.useCallback(() => {
     if (analyserRef.current || !audioRef.current) return;
@@ -244,7 +322,16 @@ function useRadioStation() {
     }
     if (!audio.src) {
       try {
-        const r = await fetch("/api/radio/station", { cache: "no-store", credentials: "include" });
+        // ⚠ THE BEARER, WHEN WE HAVE ONE (Codex, round 10). `credentials: "include"`
+        // carries the COOKIE, and a member whose session lives only in `shape.auth`
+        // has no current cookie to carry — so this route's `currentUser()` found
+        // nobody and answered its own 401 to somebody who is signed in. The retired
+        // player sent this header for exactly that reason. It is omitted rather than
+        // sent empty when there is no SDK session, so a cookie-only member is
+        // unchanged and an anonymous visitor still gets the honest 401.
+        const headers = {};
+        if (tokenRef.current) headers.Authorization = "Bearer " + tokenRef.current;
+        const r = await fetch("/api/radio/station", { cache: "no-store", credentials: "include", headers });
         // ⚠ A STATION REFUSAL IS NOT A SESSION MEASUREMENT, AND THIS LINE USED TO
         // TREAT IT AS ONE — `setSignedIn(false)` on either status (Codex, #2101).
         // BOTH legs of that were wrong, and each strands somebody:
