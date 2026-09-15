@@ -193,9 +193,31 @@ function useRadioStation() {
       audio = new Audio();
       audio.crossOrigin = "anonymous";  // required, or the analyser reads zeros
       audio.preload = "none";
+      // ⚠ A STREAM CAN STOP WITHOUT PAUSING, AND ONLY `pause` WAS LISTENED FOR
+      // (Codex, #2101 round 4). `ended` and a fatal media `error` both end playback
+      // and neither necessarily emits `pause` — so the rail went on reading "On air",
+      // the session clock went on counting, and the key went on offering Pause for a
+      // member hearing nothing. That is #2076's P1 exactly, reached from the far end:
+      // the clock is stamped where playback STARTED and nothing was stopping it where
+      // playback ENDED.
+      const stopped = (bad) => {
+        setPlaying(false);
+        startedAtRef.current = null;
+        if (!bad) return;
+        setRefusal("unavailable");
+        // ⚠ AND THE CACHED SOURCE IS DROPPED, or the recovery is unreachable: the
+        // fetch is gated on `!audio.src`, so a stale or dead URL would make every
+        // later press skip the station entirely and fail the same way forever.
+        // removeAttribute alone, with no load() — assigning a new src later runs
+        // the resource selection itself, and calling load() here risks re-entering
+        // this very handler.
+        if (audio.src) audio.removeAttribute("src");
+      };
       audio.addEventListener("play", () => setPlaying(true));
       audio.addEventListener("playing", () => setPlaying(true));
-      audio.addEventListener("pause", () => { setPlaying(false); startedAtRef.current = null; });
+      audio.addEventListener("pause", () => stopped(false));
+      audio.addEventListener("ended", () => stopped(true));
+      audio.addEventListener("error", () => stopped(true));
       audioRef.current = audio;
     }
     if (!audio.src) {
@@ -264,7 +286,18 @@ function useRadioStation() {
       // hearing nothing (#2076's P1).
       startedAtRef.current = performance.now() / 1000;
       return true;
-    } catch (e) { return false; }
+    } catch (e) {
+      // ⚠ A REJECTED play() USED TO RETURN IN SILENCE, AND THE SOURCE SURVIVED IT
+      // (Codex, #2101 round 4). WebKit refusing the first play after a fetch, an
+      // unsupported stream, a provider fault — all land here, and because the
+      // station fetch is gated on `!audio.src` every later press skipped it and
+      // failed identically. A live-looking key that can never work again, with
+      // nothing on screen saying why, until the page is reloaded.
+      if (!isCurrent()) return false;            // a newer press owns the verdict
+      setRefusal("unavailable");
+      if (audio.src) audio.removeAttribute("src");
+      return false;
+    }
   }, [signedIn, ensureGraph]);
 
   const pause = React.useCallback(() => {

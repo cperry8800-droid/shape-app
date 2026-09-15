@@ -180,8 +180,28 @@ test('a superseded tune-in attempt writes nothing', () => {
     .filter((fn) => collect(fn, (n) => n.type === 'StringLiteral' && n.value === '/api/radio/station').length > 0)
     .reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
 
+  // ⚠ WRITES INSIDE A NESTED CALLBACK ARE EXCLUDED, AND THAT IS LOAD-BEARING RATHER
+  // THAN TIDY. `play` declares the audio element's own `pause`/`ended`/`error`
+  // listeners, and those call `setRefusal` — so by SOURCE POSITION they sit before
+  // the first await and satisfied "the attempt resets its verdicts first" even with
+  // the real reset deleted. Measured: that mutation was caught only by a weaker
+  // text assertion elsewhere, so the positional rule below had quietly gone vacuous.
+  // A callback's definition site is not its execution order either, which is the
+  // same reason the dataflow walk must not see them.
+  //
+  // ⚠ AND IT IS LOAD-BEARING FOR `setRefusal` ALONE, WHICH IS WORTH THE LINE BECAUSE
+  // THE OBVIOUS MEASUREMENT SAYS OTHERWISE. Moving BOTH resets after the fetch fails
+  // with or without this filter — but only because `setConfigured` is reset on the
+  // next line and appears in no nested callback, so its half of the assertion covers
+  // the refusal's by accident. Isolated (move ONLY the refusal reset): with this
+  // filter the suite fails, without it the defect walks straight through. Today's
+  // coverage is a fact about where the two resets happen to sit, not about the rule.
+  const nested = functionsOf(play).filter((f) => f !== play);
+  const inNested = (at) => nested.some((f) => at > f.start && at < f.end);
+
   const marks = [];
   walk(play, (n) => {
+    if (inNested(n.start)) return;
     if (n.type === 'AwaitExpression') marks.push({ at: n.start, kind: 'await' });
     else if (calleeName(n) === 'isCurrent') marks.push({ at: n.start, kind: 'check' });
     else if (calleeName(n) === 'setRefusal' || calleeName(n) === 'setConfigured') marks.push({ at: n.start, kind: 'write', what: n.callee.name });
@@ -234,6 +254,32 @@ test('a fetch that never landed does not claim there is no station', () => {
   }
   assert.match(BARE, /st\.refusal === "unavailable"/, 'the unreachable-station refusal is never rendered');
 
+  // ⚠ AND A STREAM THAT STOPS MUST STOP THE CLAIM (Codex, round 4). Only `pause` was
+  // listened for; `ended` and a fatal media `error` end playback without necessarily
+  // emitting it, so the rail went on reading "On air" and the session clock went on
+  // counting for a member hearing nothing. Both terminal events are required, and
+  // both must clear the cached source — the station fetch is gated on `!audio.src`,
+  // so a dead URL would make every later press skip it and fail identically.
+  const listened = [...BARE.matchAll(/addEventListener\("(\w+)"/g)].map((m) => m[1]);
+  for (const ev of ['pause', 'ended', 'error']) {
+    assert.ok(listened.includes(ev), `the audio element has no \`${ev}\` listener — playback can stop with the page still claiming it is on air`);
+  }
+  assert.ok((BARE.match(/removeAttribute\("src"\)/g) || []).length >= 2,
+    'a dead stream URL survives, so the fetch gate makes every later press fail the same way');
+
+  // ...and the handler must clear the CLAIM, not merely exist. Found by mutation:
+  // asserting the listeners are wired says nothing about what they do, and a
+  // `stopped` that forgets `setPlaying(false)` leaves the rail on "On air" with the
+  // key offering Pause — the whole defect, with all three listeners present.
+  const stoppedFn = functionsOf(AST).find((f) => {
+    const src = SRC.slice(f.start, f.end);
+    return /startedAtRef\.current = null/.test(src) && /removeAttribute\("src"\)/.test(src);
+  });
+  assert.ok(stoppedFn, 'could not find the terminal-stop handler');
+  assert.ok(collect(stoppedFn, (n) => calleeName(n) === 'setPlaying'
+    && n.arguments.length === 1 && n.arguments[0].value === false).length > 0,
+    'a terminal stop does not clear `playing` — the rail keeps claiming On air and the clock keeps counting');
+
   // ⚠ AND THE OTHER DOOR INTO THE SAME FALSE CLAIM (Codex, round 3): `fetch` RESOLVES
   // on an HTTP error, so the catch never runs for the route's own 503 or 402 — both
   // reached the configuration verdict and were published as "No station on the air
@@ -274,4 +320,49 @@ test('the records do not claim an auto-retry the player does not have', () => {
   assert.ok(radioSection.length > 500, 'could not isolate the war room radio section');
   assert.ok(!/auto-retry(?!,? and the word is DROPPED)/i.test(radioSection.replace(/NO AUTO-RETRY[\s\S]*?as many words\./gi, '')),
     'the war room claims an auto-retry again — the player has one station fetch and it is on the Tune in press');
+});
+
+
+test('the station route never publishes a lookup failure as a configuration verdict', () => {
+  // ⚠ THE THIRD DOOR INTO THE SAME FALSE CLAIM, AND THE ONLY ONE NO CLIENT GUARD
+  // COULD SEE (Codex, round 4). The Supabase client RESOLVES on a query fault, so
+  // destructuring `{ data }` alone turned a statement timeout or a moved column into
+  // `data: null` and answered **200 with configured:false** — "we could not look",
+  // published with the authority of a successful response. The page then printed
+  // "No station on the air yet", and its own `!r.ok` guard was blind to it because
+  // the status said everything was fine.
+  //
+  // This file is TypeScript and was covered by nothing here, which is why the two
+  // mutations for it survived their first round.
+  const routeSrc = readFileSync(new URL('../src/app/api/radio/station/route.ts', import.meta.url), 'utf8');
+  const routeAst = parse(routeSrc, { sourceType: 'module', plugins: ['typescript'] });
+
+  const q = collect(routeAst, (n) => n.type === 'StringLiteral' && n.value === 'radio_station');
+  assert.equal(q.length, 1, 'expected exactly one radio_station query in the route');
+
+  // the destructuring that receives it must take the error
+  const decl = collect(routeAst, (n) => n.type === 'VariableDeclarator'
+    && n.id.type === 'ObjectPattern'
+    && collect(n.init || {}, (c) => c.type === 'StringLiteral' && c.value === 'radio_station').length > 0);
+  assert.equal(decl.length, 1, 'could not find the radio_station destructuring');
+  const names = decl[0].id.properties.map((pr) => pr.key && pr.key.name);
+  assert.ok(names.includes('error'),
+    'the station lookup drops its error — a query fault becomes a 200 saying configured:false');
+
+  // ...and it must REFUSE on it, with a non-200, before anything computes `configured`
+  const guards = collect(routeAst, (n) => n.type === 'IfStatement'
+    && n.test.type === 'Identifier' && n.test.name === 'error');
+  assert.ok(guards.length > 0, 'the error is read and never branched on');
+  const guard = guards[0];
+  const statuses = collect(guard, (n) => n.type === 'ObjectProperty'
+    && n.key.name === 'status' && typeof n.value.value === 'number');
+  assert.ok(statuses.length > 0, 'the error branch returns no explicit status');
+  for (const st of statuses) {
+    assert.ok(st.value.value >= 400,
+      `the station lookup failure is published as ${st.value.value} — a caller cannot tell it from a real answer`);
+  }
+  const verdict = collect(routeAst, (n) => n.type === 'ObjectProperty' && n.key.name === 'configured');
+  assert.equal(verdict.length, 1, 'expected exactly one `configured` property in the route');
+  assert.ok(guard.start < verdict[0].start,
+    'the configuration verdict is computed before the lookup failure is refused');
 });
