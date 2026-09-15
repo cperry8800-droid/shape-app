@@ -38,7 +38,29 @@ function buildZonesFromDurations(m) {
   const zd = (m && (m.zoneDurations || m.zone_durations)) || null;
   if (zd && typeof zd === "object") {
     const keys = ["zone_one_milli", "zone_two_milli", "zone_three_milli", "zone_four_milli", "zone_five_milli"];
-    const vals = keys.map(k => Number(zd[k]) || 0);
+    // ⚠ A MISSING ZONE IS NOT A ZERO, AND `Number(x) || 0` CANNOT TELL THEM
+    // APART. `Number(undefined)` is NaN and `NaN || 0` is 0, so a zone a provider
+    // never sent rendered as a MEASURED 0% — and the wall card's bar gives it a
+    // visible sliver. A member who never entered Z5 and a session we cannot read
+    // Z5 for are different claims, and only the first is ours to make.
+    //
+    // ⚠ AND THE WHOLE BAR IS REFUSED RATHER THAN THE ONE ZONE DROPPED, because
+    // these are PERCENTAGES OF A SUM: leaving a zone out shortens the
+    // denominator, so every OTHER segment is then reported larger than it was.
+    // Dropping the missing zone hides one fabrication and inflates the other
+    // four. `null` is a state both callers already render — the bar and the
+    // modal's cells simply do not appear.
+    //
+    // A numeric 0 IS kept: that is a real reading. This is the app's own
+    // `bsBuildZones` rule (`iosAppBroadsheetClient.jsx:13617-13645`), which was
+    // fixed there for exactly this and never carried across.
+    const vals = keys.map((k) => {
+      const raw = zd[k];
+      if (raw == null || raw === "") return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    });
+    if (vals.some((v) => v === null)) return null;
     const total = vals.reduce((s, v) => s + v, 0);
     if (total > 0) return vals.map((v, i) => ["Z" + (i + 1), Math.round((v / total) * 100)]);
   }
@@ -512,8 +534,11 @@ function cfWallModel(p) {
   // passing `stats` here instead of `rest.slice(2)`.
   const detail = rest.slice(2, 8);
   const heat = cfHeat(p);
-  // A stamped PR: the demo kind, or a live post carrying the gain it beat.
-  const isPR = p.kind === "pr" || !!(p.delta && String(p.delta).trim());
+  // A stamped PR: the demo kind, the explicit first-record marker, or a live
+  // post carrying the gain it beat. All three, as the app's own card reads them
+  // (`!!prDelta || a.pr === true || (!a.real && a.kind === 'pr')`) — a first
+  // record has the marker and NO delta, so the delta alone cannot decide this.
+  const isPR = p.kind === "pr" || p.pr === true || !!(p.delta && String(p.delta).trim());
   const delta = p.delta ? String(p.delta).trim() : "";
   // ⚠ THE GAIN RIDES IN THE PILL rather than on its own line, as in the app —
   // the plate would otherwise state the record twice, once as a header and once
@@ -919,7 +944,24 @@ function CommunityFeed() {
       // BUT carry the real device metrics so activity posts get a Session
       // details view (charts), mirroring the mobile app.
       const m = (p.metrics && typeof p.metrics === 'object') ? p.metrics : {};
-      const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.filter(s => s && s.label && s.value != null).map(s => [String(s.label), String(s.value)]) : [];
+      // ⚠ THE APP WRITES workoutStats IN TWO SHAPES AND THIS READ ONLY ONE.
+      // `shapeBackend.js:3141` publishes a live session's rows as
+      // `{ label, value }`, but the app's own Log-activity composer
+      // (`iosAppBroadsheetClient.jsx:14060`) and the Post-a-PR sheet (`:20166`)
+      // both write `{ l, v }`. Accepting only the first dropped EVERY row from a
+      // post made in the app by hand: `wstats` came back empty, `hasSession` was
+      // false, and the card lost its hero, its facts and its stat grid with
+      // nothing failing anywhere. The app reads them through `bsActivityFromPost`
+      // (`:13660`), which never assumed either spelling.
+      const wstats = Array.isArray(m.workoutStats) ? m.workoutStats.map((st) => {
+        if (!st || typeof st !== 'object') return null;
+        const label = st.label != null ? st.label : st.l;
+        const value = st.value != null ? st.value : st.v;
+        // An empty value is not a reading — the composer already drops those at
+        // the write (`.filter((s) => s.v)`), so a blank cell here would only
+        // ever come from a legacy or hand-written row.
+        return (label && value != null && String(value).trim()) ? [String(label), String(value)] : null;
+      }).filter(Boolean) : [];
       const hasSession = !!(m.hrTrace || m.paceTrace || m.powerTrace || m.cadenceTrace || m.elevTrace || m.zoneDurations || m.zone_durations || wstats.length);
       return {
         kind: 'post',
@@ -978,6 +1020,13 @@ function CommunityFeed() {
         createdAt: p.created_at || null,
         route: (p.route && typeof p.route === 'object' && Array.isArray(p.route.points) && p.route.points.length >= 2) ? p.route.points : null,
         delta: (typeof m.delta === 'string' && m.delta.trim()) ? m.delta.trim() : '',
+        // ⚠ A FIRST RECORD HAS A MARKER AND NO DELTA. `delta` exists only against
+        // a PRIOR best, so `BSWallPostSheet` stamps `metrics.pr: true` for a
+        // member's first accepted best (`iosAppBroadsheetClient.jsx:20223`) — and
+        // the app's own card reads exactly that (`a.pr === true`). Without
+        // lifting it, a genuine first record is drawn as an ordinary load with no
+        // "New PR" pill, which is the defect the app fixed for itself.
+        pr: m.pr === true,
       };
     };
     (async () => {

@@ -217,3 +217,77 @@ test('the chat tab keeps the app\'s own name for this segment, and its id', () =
   assert.doesNotMatch(tab[0], new RegExp(`label: "${chip}"`),
     'the tab took the chip\'s name, so two controls in one panel read the same');
 });
+
+// ── The Codex round on aab608c: three findings, each replayed as its own guard ──
+// Every one was real, and every one is a place the port silently lost data that
+// the app itself reads. Pinned here rather than left green-after-the-fix.
+
+test('both workoutStats schemas reach the plate — the app writes two', () => {
+  // ⚠ P1. `shapeBackend.js:3141` publishes a live session's rows as
+  // { label, value }; the app's Log-activity composer (:14060) and the
+  // Post-a-PR sheet (:20166) write { l, v }. Reading only the first dropped
+  // every row from a post made in the app BY HAND — no hero, no facts, no grid,
+  // and nothing failing anywhere. Both writers are read out of the app rather
+  // than restated, so the day a third shape appears this fails.
+  const app = readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'utf8');
+  assert.match(app, /\.map\(\(\[l, v\]\) => \(\{ l, v: String\(v \|\| ''\)\.trim\(\) \}\)\)/,
+    "the app's composer no longer writes { l, v } — re-derive this normalisation");
+  const backend = readFileSync('mobile-app/src/services/shapeBackend.js', 'utf8');
+  assert.match(backend, /workoutStats\.push\(\{ label: /,
+    'shapeBackend no longer writes { label, value } — re-derive this normalisation');
+
+  const mapper = /const mapPost = \(p, uid\) => \{[\s\S]*?\n    \};/.exec(stripComments(FEED));
+  assert.ok(mapper, 'mapPost moved — re-anchor this guard');
+  const ws = /const wstats = [\s\S]*?\n      \}\)\.filter\(Boolean\) : \[\];/.exec(mapper[0]);
+  assert.ok(ws, 'the workoutStats normalisation moved — re-anchor this guard');
+  // eslint-disable-next-line no-new-func
+  const read = new Function('m', `${ws[0]}\nreturn wstats;`);
+  assert.deepEqual(read({ workoutStats: [{ label: 'Avg HR', value: '168 bpm' }] }), [['Avg HR', '168 bpm']],
+    'the { label, value } shape (a live session) no longer reaches the plate');
+  assert.deepEqual(read({ workoutStats: [{ l: 'Top set', v: '315 lb' }] }), [['Top set', '315 lb']],
+    'the { l, v } shape (the app composer / Post-a-PR) no longer reaches the plate');
+  // An empty value is not a reading — a blank grid cell says nothing.
+  assert.deepEqual(read({ workoutStats: [{ l: 'Top set', v: '   ' }, { label: 'X', value: '' }] }), []);
+  assert.deepEqual(read({ workoutStats: [null, 'nope', 7] }), []);
+  assert.deepEqual(read({}), []);
+});
+
+test("a member's FIRST record still says New PR — it has a marker and no delta", () => {
+  // ⚠ P1. `delta` exists only against a PRIOR best, so BSWallPostSheet stamps
+  // `metrics.pr: true` for a first accepted record and no delta at all
+  // (iosAppBroadsheetClient.jsx:20223). Deciding the pill on the delta alone
+  // drew a genuine first record as an ordinary load — the exact defect the app
+  // had already fixed for itself.
+  const app = readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'utf8');
+  assert.match(app, /metrics: \{ pr: true, \.\.\.\(trueGain != null \? \{ delta: /,
+    'the app no longer stamps pr:true without a delta — re-derive this rule');
+  assert.match(app, /a\.pr === true/, "the app's card no longer reads a.pr — re-derive this rule");
+
+  const s = stripComments(FEED);
+  assert.match(s, /pr: m\.pr === true,/, 'mapPost no longer lifts the first-record marker');
+  assert.match(s, /const isPR = p\.kind === "pr" \|\| p\.pr === true \|\| /,
+    'the pill no longer reads the first-record marker, so a first PR loses its pill');
+});
+
+test('an incomplete HR zone distribution is refused, not zero-filled', () => {
+  // ⚠ P2. `Number(undefined) || 0` cannot tell a zone nobody sent from a zone
+  // genuinely spent at 0 — and because these are percentages of a SUM, dropping
+  // one shortens the denominator and inflates every other segment. The app
+  // refuses the whole distribution (bsBuildZones); the web copy zero-filled it,
+  // and this PR is what draws it on the wall.
+  const zb = /function buildZonesFromDurations\(m\) \{[\s\S]*?\n\}/.exec(FEED);
+  assert.ok(zb, 'buildZonesFromDurations moved — re-anchor this guard');
+  // eslint-disable-next-line no-new-func
+  const build = new Function(`${zb[0]}\nreturn buildZonesFromDurations;`)();
+  const full = { zone_one_milli: 1, zone_two_milli: 1, zone_three_milli: 1, zone_four_milli: 1, zone_five_milli: 1 };
+  assert.equal(build({ zoneDurations: full }).length, 5, 'a complete distribution must still render');
+  // A real zero is a real reading and keeps its place.
+  assert.equal(build({ zoneDurations: { ...full, zone_five_milli: 0 } }).length, 5);
+  for (const bad of [undefined, null, '', 'x', NaN, -1]) {
+    const zd = { ...full }; zd.zone_five_milli = bad;
+    assert.equal(build({ zoneDurations: zd }), null,
+      `an unreadable Z5 (${JSON.stringify(bad)}) must refuse the whole bar, not publish it as 0%`);
+  }
+  const { zone_five_milli, ...missing } = full;
+  assert.equal(build({ zoneDurations: missing }), null, 'an absent Z5 must refuse the whole bar');
+});
