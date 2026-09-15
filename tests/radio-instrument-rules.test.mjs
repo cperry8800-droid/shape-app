@@ -128,14 +128,17 @@ test('a session the cookie cannot see still reaches playback', () => {
   // (a) the SDK is asked at all
   const sdkCalls = collect(AST, (n) => n.type === 'CallExpression'
     && n.callee.type === 'MemberExpression' && n.callee.property && n.callee.property.name === 'getSession');
-  assert.equal(sdkCalls.length, 1,
-    'the page does not ask the SDK for a session exactly once — /api/me alone cannot see a localStorage session');
+  assert.ok(sdkCalls.length > 0,
+    'the page never asks the SDK for a session — /api/me alone cannot see a localStorage session');
 
   // (b) ...and the branch that acts on one STOPS. This is the class this file has now
   // swept: `setSignedIn(true)` without an exit lets the /api/me fallback below it run
   // and overwrite a real member back to `false`, which is the very defect being fixed,
   // reintroduced one line under its own fix.
-  const sessionFn = innermost(fns.filter((fn) => collect(fn, (n) => n === sdkCalls[0]).length > 0), 'the session effect');
+  const sessionFn = innermost(fns.filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/me').length > 0), 'the session effect');
+  assert.ok(collect(sessionFn, (n) => sdkCalls.includes(n)).length > 0,
+    'the session effect does not ask the SDK — it decides the session from the cookie alone');
   const trueBranches = collect(sessionFn, (n) => n.type === 'IfStatement'
     && collect(n, (c) => calleeName(c) === 'setSignedIn'
       && c.arguments.length === 1 && c.arguments[0].type === 'BooleanLiteral' && c.arguments[0].value === true).length > 0);
@@ -147,24 +150,34 @@ test('a session the cookie cannot see still reaches playback', () => {
   assert.ok(collect(sessionFn, (n) => n.type === 'StringLiteral' && n.value === '/api/me').length > 0,
     '/api/me is no longer the arbiter of the null case — a failed SDK bridge would read as confirmed signed-out');
 
-  // (d) THE TOKEN IS SENT, NOT MERELY CAPTURED. Round 9 finding 3 was exactly this
-  // shape one value over: a token that is assigned and never compared. Knowing the
-  // member is signed in is half of it — `/api/radio/station` resolves through
-  // `currentUser()`, which reads the cookie OR a Bearer, so a cookie-less member
-  // whose request carries neither is answered by that route's own 401.
-  const tokenWrites = collect(sessionFn, (n) => n.type === 'AssignmentExpression'
+  // (d) THE BEARER IS SENT, AND IT IS RESOLVED AT THE PRESS RATHER THAN CARRIED FROM
+  // THE MOUNT. Knowing the member is signed in is half of it — `/api/radio/station`
+  // resolves through `currentUser()`, which reads the cookie OR a Bearer, so a
+  // cookie-less member whose request carries neither gets that route's own 401.
+  //
+  // ⚠ AND THE OTHER HALF IS THAT A CAPTURED TOKEN IS WORSE THAN NONE (Codex, round 11).
+  // Access tokens expire and the SDK refreshes its own persisted session, while
+  // `currentUser()` gives ANY Bearer header PRECEDENCE over the cookie — the
+  // `if (bearer)` at src/lib/request-auth.ts:31 short-circuits, so the cookie branch is
+  // never reached. An hour-old page therefore sent a dead token, suppressed a working
+  // cookie with it, and re-sent the same dead token on every retry: the lockout this
+  // whole fix removes, reintroduced by the fix. So the assertion is an ABSENCE plus a
+  // location — no ref may hold the token at all, and the station function must resolve
+  // a session inside its own scope — which makes the stale case unrepresentable rather
+  // than something a later edit has to remember not to do.
+  assert.equal(collect(AST, (n) => n.type === 'AssignmentExpression'
     && n.left.type === 'MemberExpression' && n.left.property && n.left.property.name === 'current'
-    && n.left.object.type === 'Identifier'
-    && collect(n.right, (c) => c.type === 'Identifier' && c.name === 'access_token').length > 0);
-  assert.equal(tokenWrites.length, 1, 'the access token is not captured from the SDK session');
-  const tokenRefName = tokenWrites[0].left.object.name;
+    && collect(n.right, (c) => c.type === 'Identifier' && c.name === 'access_token').length > 0).length, 0,
+    'the access token is stashed on a ref — it goes stale, and a stale bearer outranks a valid cookie');
 
   const stationFn = innermost(fns.filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
     && n.value === '/api/radio/station').length > 0), 'the station fetch');
-  const tokenReads = collect(stationFn, (n) => n.type === 'MemberExpression'
-    && n.object.type === 'Identifier' && n.object.name === tokenRefName && n.property && n.property.name === 'current');
-  assert.ok(tokenReads.length > 0,
-    `the station fetch never reads ${tokenRefName}.current — the bearer is captured and thrown away`);
+  const liveReads = collect(stationFn, (n) => sdkCalls.includes(n));
+  assert.ok(liveReads.length > 0,
+    'the station fetch does not resolve the session itself — any bearer it sends was captured earlier and may be dead');
+  const tokenFrom = collect(stationFn, (n) => n.type === 'Identifier' && n.name === 'access_token');
+  assert.ok(tokenFrom.length > 0,
+    'the station fetch reads no access_token from the session it just resolved');
   assert.ok(collect(stationFn, (n) => (n.type === 'AssignmentExpression' && n.left.type === 'MemberExpression'
       && n.left.property && n.left.property.name === 'Authorization')
     || (n.type === 'ObjectProperty' && n.key && (n.key.name === 'Authorization' || n.key.value === 'Authorization'))).length > 0,

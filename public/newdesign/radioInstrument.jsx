@@ -109,7 +109,6 @@ function useRadioStation() {
   const binsRef = React.useRef(null);
   const startedAtRef = React.useRef(null);
   const attemptRef = React.useRef(0);
-  const tokenRef = React.useRef(null);
 
   // The session, and it lives in TWO stores rather than one (Codex, round 10).
   // `/api/me` reads the Next.js cookie and NOTHING else — it calls `createClient()`
@@ -139,12 +138,9 @@ function useRadioStation() {
         const session = window.shapeDb ? await window.shapeDb.getSession() : null;
         if (!on) return;
         if (session && session.access_token) {
-          // ⚠ HELD FOR THE STATION FETCH, which the retired player authorized the same
-          // way. `/api/radio/station` resolves through `currentUser()`, which accepts a
-          // Bearer token OR the cookie — so without the token a cookie-less member is
-          // answered by the route's own 401 and the key refuses somebody who is signed
-          // in. Knowing they are a member is only half of it; the request has to say so.
-          tokenRef.current = session.access_token;
+          // ⚠ THE SESSION IS MEASURED HERE AND THE TOKEN IS DELIBERATELY NOT KEPT
+          // (Codex, round 11). See the station fetch: a token captured at mount goes
+          // stale, and a stale one is WORSE than none at all.
           setSignedIn(true);
           return;
         }
@@ -329,8 +325,26 @@ function useRadioStation() {
         // player sent this header for exactly that reason. It is omitted rather than
         // sent empty when there is no SDK session, so a cookie-only member is
         // unchanged and an anonymous visitor still gets the honest 401.
+        //
+        // ⚠ AND IT IS READ **HERE**, NEVER CARRIED FROM THE MOUNT (Codex, round 11).
+        // A first draft captured it in the session effect, and that is worse than
+        // sending nothing: access tokens expire, the SDK refreshes its own persisted
+        // session, and `currentUser()` gives ANY Bearer header precedence over the
+        // cookie (`src/lib/request-auth.ts:31` — the `if (bearer)` short-circuits, so
+        // the cookie branch is never reached). So an hour-old page sent a dead token,
+        // SUPPRESSED a perfectly good cookie with it, and every retry re-sent the same
+        // dead token — the member locked out of playback that this whole fix exists to
+        // remove, arriving an hour later through the fix itself. I had flagged the
+        // staleness and called the 401 "retryable"; it is not, because the retry is
+        // identical. Resolving at the press makes the stale case unrepresentable
+        // rather than guarded, which is why there is no ref left to go stale.
+        let token = null;
+        try {
+          const live = window.shapeDb ? await window.shapeDb.getSession() : null;
+          token = (live && live.access_token) || null;
+        } catch (e) { token = null; }   // no header beats a dead one: the cookie still gets its turn
         const headers = {};
-        if (tokenRef.current) headers.Authorization = "Bearer " + tokenRef.current;
+        if (token) headers.Authorization = "Bearer " + token;
         const r = await fetch("/api/radio/station", { cache: "no-store", credentials: "include", headers });
         // ⚠ A STATION REFUSAL IS NOT A SESSION MEASUREMENT, AND THIS LINE USED TO
         // TREAT IT AS ONE — `setSignedIn(false)` on either status (Codex, #2101).
