@@ -35,7 +35,11 @@ needs decided.
 > Radio, Online and Check-ins, each a setting that already existed. The plan card and the identity
 > card's status line are **role-gated**, per the owner's standing ruling that coaches join free. The
 > Shape pages stay inside Settings, as one **Also** row. Nora's voice, which §1 found was defined in
-> `sections` and opened by **no card at all**, surfaces inside Notifications. **What is still open and
+> `sections` and opened by **no card at all**, surfaces inside Notifications — **and was keyed in all
+> thirteen locales as part of surfacing it**, because its five rows were hardcoded English and routing
+> them as they stood would have turned a dormant gap into a reachable English-only block in twelve
+> translated settings surfaces. Its option *values* are still raw English tokens, which is the whole
+> `PREF_OPTIONS` table's pre-existing gap and is registered rather than half-closed behind one door. **What is still open and
 > still needs the owner:** whether `timeZone`, `weekStarts` and the Preferences `language` are retired
 > or given a reader (all three are read by nothing, and two of them are printed on a coach's
 > Preferences tile), whether the Home ticker keeps printing each metric's **storage key** as its
