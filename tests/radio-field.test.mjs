@@ -22,9 +22,10 @@ import {
   PHRASE_BEATS, countBeat, phraseOf, cloudForm, morphEase, MORPH_S,
   KICK_ON, KICK_OFF, KICK_RELEASE_S, kickLow, kickEnvNext, kickPresentNext,
   LEAD_MODES, leadTarget, LEAD_TAU, easeLead, wallMix, cloudMix, WALL_GROUND_ALPHA,
-  TILE_PX, wallCols, wallRows, wallBand, meterNext, METER_FALL,
+  TILE_PX, wallCols, wallRows, wallBand, meterNext, METER_FALL, WALL_METER_SPAN, wallMaskText, WALL_MASK_MIN_COLS,
 } from '../public/newdesign/radioField.mjs';
 import { tempoEnergyFromBins, TEMPO_BINS, tempoBarStep, createTempoDetector } from '../public/newdesign/radioTempo.mjs';
+import { bandsFromBins, BANDS } from '../public/newdesign/radioSignalField.mjs';
 
 // ---------------------------------------------------------------------------
 // The song's own programme
@@ -403,24 +404,72 @@ test('neither half ever leaves the screen', () => {
 // The wall
 // ---------------------------------------------------------------------------
 
-test('the wall puts the bass at the centre, mirrored', () => {
+test('the centre column of the wall shows the bass', () => {
+  // ⚠ DRIVEN THROUGH THE REAL `bandsFromBins`, NOT ASSERTED ABOUT THE MAP. Its own
+  // band array is ALREADY mirrored — bands 15 and 16 read bin 0 — so a column map
+  // that mirrors again puts the bass a quarter in from each edge and a trough in the
+  // middle. That renders, animates, and satisfies any assertion written about the
+  // mapping rather than about the picture, which is why this asks the picture.
+  const bins = new Uint8Array(256);
+  for (let i = 0; i < 256; i += 1) bins[i] = Math.round(255 * Math.exp(-i / 6));  // a kick: all bass
+  const bands = bandsFromBins(bins, BANDS);
   const cols = 80;
-  const centre = wallBand(Math.floor(cols / 2), cols, 64);
-  const edgeL = wallBand(0, cols, 64);
-  const edgeR = wallBand(cols - 1, cols, 64);
-  assert.ok(centre < 2, `the centre column is band ${centre}, not the bass`);
-  assert.ok(edgeL > 60 && edgeR > 60, `the edges are ${edgeL}/${edgeR}, not the top bands`);
-  // mirrored: a column and its reflection show the same band
-  for (let c = 0; c < cols; c += 1) {
-    assert.equal(wallBand(c, cols, 64), wallBand(cols - 1 - c, cols, 64), `column ${c} is not mirrored`);
+  const heights = [];
+  for (let c = 0; c < cols; c += 1) heights.push(bands[wallBand(c, cols, BANDS)]);
+  // ⚠ THE PEAK IS A PLATEAU, SO ITS CENTRE IS WHAT IS COMPARED. Bands 15 and 16 both
+  // read bin 0, and with 80 columns over 32 bands several columns land on each — so
+  // `the first index of the maximum` sits at the plateau's left edge and reads as an
+  // off-centre bass. The first version of this assertion did exactly that and failed
+  // on a correct map.
+  const top = Math.max(...heights);
+  const plateau = heights.map((v, c) => (v >= top - 1e-9 ? c : -1)).filter((c) => c >= 0);
+  const peak = (plateau[0] + plateau[plateau.length - 1]) / 2;
+  assert.ok(Math.abs(peak - (cols - 1) / 2) <= 2.5, `the loudest columns centre on ${peak} of ${cols}, not the middle`);
+  // and exactly ONE hump: walking out from the centre the level only falls
+  for (let c = Math.floor(cols / 2); c < cols - 1; c += 1) {
+    assert.ok(heights[c + 1] <= heights[c] + 1e-9, `a second hump: column ${c + 1} is louder than ${c}`);
   }
-  // every answer is a real band index
+  assert.ok(heights[Math.floor(cols / 2)] > heights[0] * 2, 'the centre is not meaningfully louder than the edge');
+});
+
+test('the wall spans its band array end to end, whatever the column count', () => {
   for (const n of [1, 2, 3, 17, 80, 161]) {
+    const seen = new Set();
     for (let c = 0; c < n; c += 1) {
-      const b = wallBand(c, n, 64);
-      assert.ok(Number.isInteger(b) && b >= 0 && b < 64, `cols ${n} col ${c} -> ${b}`);
+      const b = wallBand(c, n, BANDS);
+      assert.ok(Number.isInteger(b) && b >= 0 && b < BANDS, `cols ${n} col ${c} -> ${b}`);
+      seen.add(b);
     }
+    if (n > 1) {
+      assert.equal(wallBand(0, n, BANDS), 0, `cols ${n}: the first column is not the first band`);
+      assert.equal(wallBand(n - 1, n, BANDS), BANDS - 1, `cols ${n}: the last column is not the last band`);
+    }
+    // a wide wall reaches every band rather than showing a few of them repeatedly
+    if (n >= BANDS) assert.equal(seen.size, BANDS, `cols ${n} reached only ${seen.size} bands`);
   }
+  // an out-of-range column is clamped rather than indexing past the array
+  assert.equal(wallBand(-5, 40, BANDS), 0);
+  assert.equal(wallBand(999, 40, BANDS), BANDS - 1);
+});
+
+test('the meters are given part of the wall, not all of it', () => {
+  // Run full height they fill the fold and the wordmark is behind a bar chart.
+  assert.ok(WALL_METER_SPAN > 0.2 && WALL_METER_SPAN < 0.8, `span ${WALL_METER_SPAN}`);
+});
+
+test('the wall says less when it has fewer tiles to say it with', () => {
+  // Eleven characters over the 24 columns a 390px screen gives is two tiles a letter:
+  // it renders as noise rather than as a word, which is worse than a shorter wordmark.
+  assert.equal(wallMaskText(wallCols(1440)), 'SHAPE RADIO');
+  assert.equal(wallMaskText(wallCols(390)), 'SHAPE');
+  assert.equal(wallMaskText(wallCols(320)), 'SHAPE');
+  // the threshold is crossed in the right direction, and a missing count degrades to
+  // the short form rather than to undefined
+  assert.equal(wallMaskText(WALL_MASK_MIN_COLS), 'SHAPE RADIO');
+  assert.equal(wallMaskText(WALL_MASK_MIN_COLS - 1), 'SHAPE');
+  for (const bad of [undefined, null, NaN, -1]) assert.equal(wallMaskText(bad), 'SHAPE');
+  // and the short form is always a word the grid can actually hold
+  assert.ok(wallCols(320) >= 'SHAPE'.length * 2, 'even the short wordmark has under two columns a letter at 320px');
 });
 
 test('the tile grid degrades rather than throwing on a zero-sized canvas', () => {

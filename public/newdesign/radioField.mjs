@@ -325,9 +325,14 @@ export function wallMix(wl) {
   const w = Number.isFinite(wl) ? Math.max(0, Math.min(1, wl)) : 1;
   return { meter: 0.12 + 0.88 * w, flood: w, mask: w };
 }
+// ⚠ THE CLOUD'S FLOOR IS WHAT MAKES THIS A COMPOSITION RATHER THAN AN ALTERNATION.
+// At 0.14 it was arithmetically present and visually absent: driven at 1440x900 with
+// the wall leading, the figure could not be seen at all — so a listener whose station
+// never breaks down would never learn the page has a second half. Embers have to read
+// as embers. Measured on the render rather than chosen.
 export function cloudMix(wl) {
   const w = Number.isFinite(wl) ? Math.max(0, Math.min(1, wl)) : 1;
-  return { light: 0.14 + 0.86 * (1 - w), size: 0.78 + 0.22 * (1 - w) };
+  return { light: 0.34 + 0.66 * (1 - w), size: 0.82 + 0.18 * (1 - w) };
 }
 
 // ---------------------------------------------------------------------------
@@ -344,13 +349,36 @@ export function wallRows(H) {
   return Math.max(0, Math.floor((Number.isFinite(H) ? H : 0) / TILE_PX));
 }
 
-// Mirrored, bass at the centre — the Signal Field's own layout, so the wall and the
-// app's spectrum put the same frequency in the same place.
+// ⚠ A STRETCH, NOT A MIRROR — AND THAT IS THE WHOLE POINT OF READING THE SOURCE.
+// `bandsFromBins` ALREADY returns a mirrored spectrum: its own `bandBin` takes
+// |i − 15.5|, so bands 15 and 16 both read bin 0 and the two ends read bin 63. A
+// column map that mirrored again put the bass a quarter of the way in from each
+// edge and a trough where the kick belongs — TWO humps, which renders, animates
+// and passes any assertion written about the map rather than about the picture.
+// The board paid for exactly this once; this is the same defect one surface over.
+// So a column stretches across the band array as it stands, and the centre column
+// lands on the centre band, which IS the bass.
 export function wallBand(col, cols, bands) {
   const n = Number.isFinite(cols) && cols > 0 ? cols : 1;
-  const b = (Number.isFinite(bands) ? bands : 64) - 1;
-  const mirror = Math.abs((Number.isFinite(col) ? col : 0) - (n / 2 - 0.5)) / (n / 2);
-  return Math.max(0, Math.min(b, Math.floor(mirror * b)));
+  const b = (Number.isFinite(bands) ? bands : 32) - 1;
+  const c = Number.isFinite(col) ? Math.max(0, Math.min(n - 1, col)) : 0;
+  return Math.max(0, Math.min(b, Math.round((n === 1 ? 0 : c / (n - 1)) * b)));
+}
+
+// ⚠ THE METERS GET THE LOWER PART OF THE WALL, NOT ALL OF IT. Run full height they
+// fill the fold on ordinary programme material and the wordmark and the type are
+// behind a bar chart — measured at 1440×900 before this existed. The app's own
+// spectrum has the same shape: it occupies a band of the screen, not the screen.
+export const WALL_METER_SPAN = 0.55;
+
+// ⚠ THE WALL SAYS LESS WHEN IT HAS FEWER TILES. "SHAPE RADIO" over the 24 columns a
+// 390px screen gives is eleven characters at two tiles each — it renders as noise
+// rather than as a word, which is worse than a shorter wordmark. Measured on the
+// render at 390 before this existed. The threshold is the point below which the long
+// form stops being letters.
+export const WALL_MASK_MIN_COLS = 44;
+export function wallMaskText(cols) {
+  return (Number.isFinite(cols) && cols >= WALL_MASK_MIN_COLS) ? 'SHAPE RADIO' : 'SHAPE';
 }
 
 // A meter rises instantly and falls slowly, like the bars it is made of.
