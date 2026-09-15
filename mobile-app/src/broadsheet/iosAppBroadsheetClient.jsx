@@ -31936,7 +31936,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     })();
     return () => { live = false; };
   }, []);
-  const [showAppearance, setShowAppearance] = useStateBSC(false);
+  // ⚠ OPEN BY DEFAULT SINCE THE PICKER MOVED BEHIND ITS OWN DOOR. Collapsed was
+  // right when it sat on the root above the member's account — it was costing that
+  // root 1.5 screens. Inside a pane the member reached by tapping *Customize*, a
+  // collapsed picker is a page whose entire body is a button saying "Customize",
+  // and the thing they came for is two taps away instead of one. The toggle still
+  // closes it; only the state it starts in changed.
+  const [showAppearance, setShowAppearance] = useStateBSC(true);
   const [appearTab, setAppearTab] = useStateBSC('paper');
   const [showLightFx, setShowLightFx] = useStateBSC(false);
   // Light-fx tap-to-preview: picking a mode flashes the REAL overlay for a few
@@ -33109,6 +33115,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const cardAccountSummary = tr('settings:card.accountSummary', { defaultValue: 'Email · password · 2FA' });
   const cardHealthSummary = tr('settings:card.healthSummary', { defaultValue: 'Apple Health · WHOOP · Strava' });
   const cardAboutSummary = tr('settings:card.aboutSummary', { defaultValue: 'Help · contact · legal' });
+  // The door prints what is behind it, in the pane's own vocabulary: the paper and
+  // accent the Appearance header already states, then the reading scale. Composed
+  // from the SAME expressions those two headers use, so the card and the pane can
+  // never come to disagree about what the app is set to.
+  const cardCustomizeSummary = tr('settings:card.customizeSummary', {
+    paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode || 'light') }),
+    accent: tr('settings:accent.' + (tweaks.accentKey || 'blue'), { defaultValue: bsAccentLabel(tweaks.accentKey || 'blue') }),
+    size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }),
+    defaultValue: '{paper} · {accent} · {size}',
+  });
   const cardAccountActionsSummary = tr('settings:card.accountActionsSummary', { defaultValue: 'Export · pause · delete' });
   // ── THE CYCLE handlers ────────────────────────────────────────────────────
   // Share on/off is ONE call with consentKind 'cycle_share' and p_opt_in
@@ -33164,6 +33180,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { title: tr('settings:section.health', { defaultValue: 'Health integrations' }), summary: cardHealthSummary,                                     detail: 'health' },
     { title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                             detail: 'notifications' },
     { title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                              detail: 'privacy' },
+    { title: tr('settings:section.customize', { defaultValue: 'Customize' }),      summary: cardCustomizeSummary,                                          detail: 'customize' },
     { title: tr('settings:section.more', { defaultValue: 'More' }),                summary: tr('settings:card.moreSummaryCoach', { defaultValue: 'Public profile · Score · Store · Radio' }),                            detail: 'more' },
     { title: tr('settings:section.about', { defaultValue: 'About' }),               summary: cardAboutSummary,                                           detail: 'about' },
     { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }),     summary: cardAccountActionsSummary,                                          detail: 'accountactions', accent: t.RUST },
@@ -33177,6 +33194,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { icon: 'bell',    title: tr('settings:section.notifications', { defaultValue: 'Notifications' }),       summary: cardNotifSummary,                                            detail: 'notifications' },
     { icon: 'lock',    title: tr('settings:section.privacy', { defaultValue: 'Privacy & data' }),      summary: cardPrivacySummary,                             detail: 'privacy' },
     { icon: 'card',    title: tr('settings:section.billing', { defaultValue: 'Membership & billing' }), summary: plan && plan.active ? tr('settings:card.billingActive', { defaultValue: 'Active · manage' }) : tr('settings:card.billingInactive', { defaultValue: 'Manage · invoices' }),      detail: 'billing' },
+    { icon: 'palette', title: tr('settings:section.customize', { defaultValue: 'Customize' }),     summary: cardCustomizeSummary,                                          detail: 'customize' },
     { icon: 'compass', title: tr('settings:section.more', { defaultValue: 'More' }),                summary: tr('settings:card.moreSummaryClient', { defaultValue: 'Goals · Habits · Library · Score · Store' }),                          detail: 'more' },
     { icon: 'life',    title: tr('settings:section.about', { defaultValue: 'About' }),               summary: cardAboutSummary,                                           detail: 'about' },
     { icon: 'shield',  title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }),     summary: cardAccountActionsSummary,                                          detail: 'accountactions', accent: t.RUST },
@@ -33543,6 +33561,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         );
       })()}
 
+      </>)}
+
+      {/* ── CUSTOMIZE ── every cosmetic control the root used to carry, behind one
+          door. Owner, 2026-09-14: the Passport root is identity first and cosmetics
+          last, and the customization section keeps EVERYTHING it offered — the
+          Paper · Texture · Accent · Ink picker with its tiles and display weight,
+          text size, language, Shape Radio, the four light-effect modes with their
+          colour row, and the Home ticker. Nothing is trimmed; it moved.
+          ⚠ MEASURED, NOT ESTIMATED: these blocks were 1,420 px of a 2,376 px root —
+          the member's own account, privacy and billing began 1.7 screens BELOW the
+          theme picker. This is what puts them back on top.
+          The JSX below is UNCHANGED from where it sat on the root: a move that also
+          rewrites is a move nobody can review. */}
+      {detail === 'customize' && (<>
+      <DetailBack title={tr('settings:section.customize', { defaultValue: 'Customize' })} />
+
       {/* APPEARANCE */}
       <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
         width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -33898,6 +33932,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         })}
       </div>
 
+      </>)}
+
+      {!detail && (<>
       {/* SECTION CARDS — drill into a focused pane */}
       <SectionHead title={tr('settings:section.more', { defaultValue: 'More' })} meta={tr('settings:more.sectionsMeta', { n: settingCards.length, defaultValue: '{n} sections' })} />
       <div style={{ padding: `4px ${t.padX}px 10px`, display: 'flex', flexDirection: 'column' }}>
