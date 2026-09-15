@@ -102,12 +102,13 @@ function useRadioStation() {
   const [signedIn, setSignedIn] = React.useState(null);   // null = not resolved yet
   const [playing, setPlaying] = React.useState(false);
   const [configured, setConfigured] = React.useState(null); // null = unread
-  const [refusal, setRefusal] = React.useState(null);        // null | "signin" | "age"
+  const [refusal, setRefusal] = React.useState(null);        // null | "signin" | "age" | "unavailable"
   const [nowPlaying, setNowPlaying] = React.useState(null);
   const audioRef = React.useRef(null);
   const analyserRef = React.useRef(null);
   const binsRef = React.useRef(null);
   const startedAtRef = React.useRef(null);
+  const attemptRef = React.useRef(0);
 
   // The session. `/api/me` answers 200 {user:null} for a MEASURED signed-out
   // visitor and 503 for a read that did not complete — three states, and only the
@@ -167,6 +168,21 @@ function useRadioStation() {
     // an unresolved one tries, and the station's own answer names what to do next
     // WITHOUT deciding who they are.
     if (signedIn === false) return false;
+
+    // ⚠ EVERY PRESS SUPERSEDES THE ONE BEFORE IT, AND THE KEY BEING RETRYABLE IS
+    // WHAT MADE THAT NECESSARY (Codex, #2101). `!audio.src` gates the fetch, so two
+    // presses during one slow round trip BOTH reach it — and with nothing sequencing
+    // them, the newer request could succeed and start playback while the older one
+    // came back 401 a moment later and painted a refusal over a station that was
+    // already on air. The same race let a stale response assign `audio.src` a second
+    // time, which reloads an element mid-play. A superseded attempt now writes
+    // nothing at all: not the refusal, not `configured`, not the source.
+    const attempt = (attemptRef.current += 1);
+    const isCurrent = () => attemptRef.current === attempt;
+    // and a new attempt clears the last one's verdict, so a refusal can never
+    // outlive the attempt that produced it
+    setRefusal(null);
+
     let audio = audioRef.current;
     if (!audio) {
       audio = new Audio();
@@ -199,14 +215,24 @@ function useRadioStation() {
         // broadcast. Only `/api/me` decides the session. This decides the attempt,
         // it says which one it was, and because `audio.src` is still unset the very
         // next press re-runs the whole fetch: retryable by construction.
+        if (!isCurrent()) return false;
         if (r.status === 401) { setRefusal("signin"); return false; }
         if (r.status === 403) { setRefusal("age"); return false; }
-        setRefusal(null);
         const cfg = r.ok ? await r.json() : null;
+        if (!isCurrent()) return false;               // .json() is a second await
         setConfigured(cfg ? !!cfg.configured : false);
         if (!cfg || !cfg.configured || !cfg.streamUrl) return false;
         audio.src = cfg.streamUrl;
-      } catch (e) { setConfigured(false); return false; }
+      } catch (e) {
+        // ⚠ A FETCH THAT NEVER LANDED IS NOT EVIDENCE THERE IS NO STATION, and this
+        // used to answer `setConfigured(false)` — which renders "No station on the
+        // air yet", a claim about the broadcast made from a failure of our own
+        // network. `configured` stays unread and the deck says what actually
+        // happened.
+        if (!isCurrent()) return false;
+        setRefusal("unavailable");
+        return false;
+      }
     }
     ensureGraph();
     try {
@@ -214,6 +240,7 @@ function useRadioStation() {
         await analyserRef.current.context.resume();
       }
       await audio.play();
+      if (!isCurrent()) return false;   // a newer press owns the clock
       // ⚠ STAMPED WHERE PLAYBACK STARTED, NOT WHERE IT WAS ASKED FOR. The app shipped
       // the other version and the rail counted a session clock upward for a member
       // hearing nothing (#2076's P1).
@@ -714,6 +741,9 @@ function RadioInstrument() {
               )}
               {st.refusal === "age" && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>Shape is for adults 18 and over</span>
+              )}
+              {st.refusal === "unavailable" && (
+                <span style={{ ...eb, color: RD_CREAM50 }}>Couldn&rsquo;t reach the station &mdash; press again</span>
               )}
               {st.configured === false && st.signedIn === true && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>No station on the air yet</span>

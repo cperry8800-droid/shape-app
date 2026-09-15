@@ -162,3 +162,85 @@ test('the wall flood is a field rule, not a canvas literal', () => {
   assert.ok(!/\bkick\s*[><]=?\s*[\d.]/.test(BARE),
     'the renderer compares the kick against a bare literal again — that decision belongs in radioField.mjs');
 });
+
+test('a superseded tune-in attempt writes nothing', () => {
+  // ⚠ THE FINDING (Codex, round 2): making the key retryable made two presses
+  // during one slow round trip ordinary, and `!audio.src` gates the fetch, so BOTH
+  // reach it. With nothing sequencing them the newer request could succeed and
+  // start playback while the older came back 401 and painted a refusal over a
+  // station already on air — and a stale response could assign `audio.src` a
+  // second time, reloading the element mid-play.
+  //
+  // The invariant is a dataflow one rather than a spelling: inside `play`, no
+  // state may be written while an `await` has resolved without the attempt being
+  // re-checked. Walked in source order, which is what makes it survive a rewrite
+  // that moves the guards around.
+  const fns = functionsOf(AST);
+  const play = fns
+    .filter((fn) => collect(fn, (n) => n.type === 'StringLiteral' && n.value === '/api/radio/station').length > 0)
+    .reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
+
+  const marks = [];
+  walk(play, (n) => {
+    if (n.type === 'AwaitExpression') marks.push({ at: n.start, kind: 'await' });
+    else if (calleeName(n) === 'isCurrent') marks.push({ at: n.start, kind: 'check' });
+    else if (calleeName(n) === 'setRefusal' || calleeName(n) === 'setConfigured') marks.push({ at: n.start, kind: 'write', what: n.callee.name });
+    else if (n.type === 'AssignmentExpression' && n.left.type === 'MemberExpression'
+      && ((n.left.object.name === 'audio' && n.left.property.name === 'src')
+        || n.left.object.name === 'startedAtRef')) marks.push({ at: n.start, kind: 'write', what: 'audio/clock' });
+  });
+  marks.sort((a, b) => a.at - b.at);
+
+  assert.ok(marks.some((m) => m.kind === 'await'), 'play() has no await — this guard is reading the wrong function');
+  assert.ok(marks.some((m) => m.kind === 'check'), 'play() never re-checks the attempt after an await');
+
+  let stale = false;
+  for (const m of marks) {
+    if (m.kind === 'await') stale = true;
+    else if (m.kind === 'check') stale = false;
+    else if (m.kind === 'write' && stale) {
+      assert.fail(`\`${m.what}\` is written after an await with no isCurrent() re-check — a superseded attempt can paint over a newer one`);
+    }
+  }
+
+  // and the attempt counter is actually bumped, or every isCurrent() is a no-op
+  assert.match(BARE, /attemptRef\.current \+= 1/, 'nothing advances the attempt counter');
+  // a new attempt clears the previous verdict, so a refusal cannot outlive it
+  const firstAwait = marks.find((m) => m.kind === 'await').at;
+  assert.ok(marks.some((m) => m.kind === 'write' && m.what === 'setRefusal' && m.at < firstAwait),
+    'no attempt clears the previous refusal before it starts — one can outlive the attempt that produced it');
+});
+
+test('a fetch that never landed does not claim there is no station', () => {
+  // ⚠ The catch used to answer `setConfigured(false)`, which renders "No station on
+  // the air yet" — a claim about the BROADCAST made out of a failure of our own
+  // network, on a page whose whole argument is that it measures or says nothing.
+  const fns = functionsOf(AST);
+  const catches = collect(AST, (n) => n.type === 'CatchClause'
+    && collect(n, (c) => calleeName(c) === 'setConfigured' || calleeName(c) === 'setRefusal').length > 0);
+  assert.ok(catches.length > 0, 'no catch clause touches the station state — this guard is reading the wrong file');
+  for (const c of catches) {
+    assert.equal(collect(c, (n) => calleeName(n) === 'setConfigured').length, 0,
+      'a failed station fetch sets `configured` — that renders "No station on the air yet" for a network fault');
+    assert.ok(collect(c, (n) => calleeName(n) === 'setRefusal').length > 0,
+      'a failed station fetch says nothing at all, leaving a live key that looks dead');
+  }
+  assert.match(BARE, /st\.refusal === "unavailable"/, 'the unreachable-station refusal is never rendered');
+});
+
+test('the records do not claim an auto-retry the player does not have', () => {
+  // ⚠ The war room carried "auto-retry states" from the RETIRED player into the
+  // record for this one (Codex, round 2), marking recovery as shipped. Both halves
+  // are derived here so the claim and the code cannot drift apart again.
+  assert.equal((BARE.match(/fetch\("\/api\/radio\/station"/g) || []).length, 1,
+    'the instrument fetches the station from more than one place — the no-auto-retry claim needs re-deriving');
+  assert.equal((BARE.match(/setInterval/g) || []).length, 1,
+    'a second interval appeared — check whether one of them now retries the station');
+  assert.ok(/setInterval\(tick, 15000\)/.test(BARE), 'the only interval is no longer the now-playing poll');
+
+  const wr = readFileSync(new URL('../src/lib/warroom.ts', import.meta.url), 'utf8');
+  const radioSection = wr.slice(wr.indexOf('Shape Radio — real licensed player'), wr.indexOf('Shape Score · Momentum'));
+  assert.ok(radioSection.length > 500, 'could not isolate the war room radio section');
+  assert.ok(!/auto-retry(?!,? and the word is DROPPED)/i.test(radioSection.replace(/NO AUTO-RETRY[\s\S]*?as many words\./gi, '')),
+    'the war room claims an auto-retry again — the player has one station fetch and it is on the Tune in press');
+});
