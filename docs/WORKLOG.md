@@ -929,6 +929,118 @@ Append new entries at the top, under this note.
   ⚠ **The mutation runner SKIPPED one whose anchor did not exist rather than placing it nearby**, which is the right failure: a runner that silently relocates an edit reports a kill for a mutation that never landed.
 - ⚠ **NO BROWSER RENDER, AND IT IS NOT AVAILABLE HERE.** These pages load React 18 UMD and Babel from **unpkg with SRI**, and this container's proxy answers `403 CONNECT` for that host — measured, not assumed — so a substitute would fail SRI and the pages cannot be driven at all. Every check above is static or drives functions lifted from the source.
 - ⚠ **REGISTERED, NOT FIXED:** the bubble still has **no message HISTORY** — its threads are `clientChatThreads.jsx` literals, a thread only becomes DB-backed when `__openChat({ conversationId })` is handed an explicit id, and `src/app/api/conversations/` holds exactly one file (`[id]/messages/route.ts`), so nothing lists a member's conversations or loads a thread's back-history. The shapes already match (`conversationToThread` emits what the widget renders) and RLS already allows the read (`participants read conversations`), so it needs no new route. And `public/mobile/` keeps its **own** copies of the community pages with relative hrefs, so this change does not reach that legacy surface.
+### 2026-09-14 — The settings page reviewed and re-imagined three ways: the tree was upside down, and a third of its controls were under 44 px
+
+- **Records only — a review with previews, not a build.** Owner: *"Can you review the settings page on
+  the shape app and come up with 3 new designs for layout and friendlier UI. settings page when you click
+  on avatar that comes up on app"* → *"i want to see previews of them"*. The review is
+  [`REVIEW-2026-09-14-settings-page.md`](REVIEW-2026-09-14-settings-page.md); the previews are a live
+  concept board — https://claude.ai/artifact/B1JCRUUEsstSt5pDSxWh4B — seven tabs: **Today · as shipped**
+  (eleven real captures of the production build with the measured figures), **A · The Index** (identity
+  first, then every setting as a grouped row that prints its own value), **B · The Passport** (one screen:
+  an identity card, three quick switches, six tiles), **C · The Sections** (a tabbed root with every
+  control inline, nothing more than two taps away), **Backbone** (what all three correct), **Carry-over**
+  (every element on today's page and where it lives in each) and **Pick**. **Recommended: B, with A's rows
+  behind each tile.** **No code changed, no migration, no PR.**
+- **THE OWNER PICKED B · THE PASSPORT THE SAME DAY** — *"i like the passport"* → *"go with passport"* — with
+  two notes that reshaped every concept on the board before the pick was recorded. *"dont forget to include
+  the customizations section into the designs"*: the first board had compressed the theme picker to five
+  swatches and a dot row behind a door called *Look & feel*. Every concept now carries **the whole
+  customization section** — the Paper · Texture · Accent · Ink picker with its tiles and display weight, text
+  size, Shape Radio, the four light-effect cells (Off · Subtle · Immersive · Hologram, each with the app's own
+  sub-line) with the colour row, and the Home ticker with a drag handle and a switch per metric — behind a
+  door renamed **Customize** (A: an Appearance pane plus rows; B: a page, shown top and scrolled; C: a tab).
+  Each concept is three phones now, on a full-width row above its text. And *"give the boxes a more square
+  edgy look"*: every tile, card, quick switch, option cell, segment and chip is a **3 px-radius box with a
+  chamfered top-right corner and a hairline spine**, the accent spine reserved for a switch that is on; the
+  avatar diamond and the switches keep their shapes, because the avatar is the app's own mark and a switch
+  is a switch. Recorded on the board's B and Pick tabs, in the review's header, §3, §5 and §6.
+- ⚠ **THE CHAMFER IS DRAWN WITH THE PAPER COLOUR, NOT WITH `clip-path`, AND THAT IS WHAT KEEPS THE BORDER.**
+  A clip cuts the box's own 1 px border off along the diagonal, and on Black the tile fill is two tones from
+  the paper, so a clipped tile would read as a box with a missing corner. A pseudo-element paints the corner
+  in the paper colour and a 1 px rule along the cut instead, so the outline stays closed; it is only put on
+  boxes that sit directly on the paper (tiles, cards, quick switches, option cells, effect cells) and the
+  build would do the same with one shared style, never per-tile.
+- ⚠ **THREE INSTRUMENT DEFECTS IN THE BOARD ITSELF, EACH FOUND BY THE ONE LOOK RATHER THAN BY THE PROBE.**
+  The three-phone row wrapped 2 + 1 at 1280 px while the probe reported three phones at `s 0.82` with no
+  overflow: `<figure>` carries a UA margin of `1em 40px`, so each 320 px phone occupied 400 — the probe
+  measured the phones and never their margins. The effect cells drew a box inside a box, because
+  `.fx div` matched the heading and sub-line divs *inside* each cell as well as the cells (`.fx > div`
+  now). And the preview strip's masthead line sat outside `.mast`, so it never received the mast's own
+  flex-and-gap and the triangle ran into the text. *A probe that measures the element and not its box
+  passes on a layout the eye rejects in one second.*
+- **Verified, second publish:** the board driven again at 1280 and 400 px across A · B · C · Pick — **zero page
+  errors, zero horizontal overflow, zero boxes outside their phone**, three phones per row at 1280 and one per
+  row at 400, tile radius measured `3px 0 3px 3px`; all three rows and B on Cream captured and looked at.
+- ⚠ **THE PAGE IS 2.8 SCREENS TALL AND THE MEMBER'S OWN SETTINGS START 1.7 SCREENS DOWN.** Measured in
+  Chromium at 390×844 on the production build: the root scroller is **2,376 px** (3.5 screens with
+  Appearance open, 3.8 while editing), and the section list — Account, Privacy, Billing, Notifications —
+  sits at **1,420 px** under the theme picker, the radio toggle, the light-effects picker and the Home
+  ticker editor. It is headed **"More · 12 sections"**, and one of the twelve cards is itself called
+  **More** (`iosAppBroadsheetClient.jsx:33098`). *The whole settings tree lives under a word that means
+  "the rest".*
+- ⚠ **25 OF 57 CONTROLS ON THE ROOT ARE UNDER THE 24 PX FLOOR THIS FILE ALREADY RECORDS.** ⚠ **CORRECTED
+  THE SAME DAY — this said *"35 of 57 … under the 44 px floor this file already records"*, and THIS FILE
+  RECORDS NO SUCH FLOOR.** It records the opposite, twice and in as many words: **WCAG 2.5.8 AA is
+  24px, not Apple's 44pt HIG suggestion** (the coach profile's pills, 2026-09-02) and *"this repo's own
+  documented 24px WCAG 2.5.8 floor"* (the availability grid, 2026-09-09). Re-derived from the same
+  capture against 24 px: **25**, and every element named below still fails it — so the finding stands
+  and only its number moved. *A floor quoted from memory is a claim, and this one contradicted the file
+  it claimed to be quoting — in an entry written into that same file.* `← BACK` and
+  `EDIT` are **13 px** tall; the three shortcut chips and *Join now* **28 px**; the ticker's ↑↓ arrows
+  **19 × 20 px** and its seven toggles **20 px**. Fifteen distinct type sizes on one screen and fifty
+  uppercase mono labels; the 8–8.5 px sub-labels at 50 % ink measure **3.5:1 on Cream** and 3.6:1 on
+  White — under AA on the code's default paper — and 4.8:1 on the Black the demo boots into.
+- ⚠ **SIX CONTROL GRAMMARS FOR ONE KIND OF DECISION, TWO OF THEM ON ONE SCREEN.** A choice is a switch
+  (Radio, ticker), a segmented row (Units, three Privacy rows), a **tap-to-cycle row** whose only
+  affordance is the value word (`cyclePref :32247` — the four Notifications rows and *Share workout data*
+  step through 3–4 options per tap with no menu), a `▾` dropdown, a tile grid, or a native `<select>`.
+  The Privacy pane mixes segmented pills and a tap-to-cycle row side by side; captured, not inferred.
+- ⚠ **FOUR THINGS APPEAR TWICE AND THREE SETTINGS ARE READ BY NOTHING.** Language is the root `<select>`
+  (wired to `ShapeLocale`, 13 locales) **and** a Preferences dropdown (`PREF_OPTIONS.language :31981` —
+  five options, consumed only by the card summary); Shape Radio, About and Shape Score each have a chip or
+  toggle on the root and a row in *More*. `timeZone` (six IANA ids rendered as `AMERICA/LOS_ANGELES`),
+  `weekStarts` and that `language` are stored by `setPref` and read by no code path — grepped across the
+  client module and `services/`. And **Nora's voice** (`:32985`) is the mirror case: a five-row section,
+  hardcoded English, defined in `sections` and **opened by no card**.
+- ⚠ **THE PLAN CARD HAS NO ROLE GATE, SO A TRAINER IS OFFERED THE $5 MEMBER PLAN.** `:33364–33397`
+  renders *Shape Membership · Become a member to join the community · Join now →* for every role —
+  captured on the Trainer preview — against the owner's ruling that coaches join free. Signed in, a coach
+  would read *Activate membership →*. **Registered as a task, not fixed here.**
+- ⚠ **TWO VERSION NUMBERS ON ONE PAGE, BOTH TYPED IN.** The footer says `Shape v2.4.0 · Build 2026.04`
+  (`:33836`), the About card says `v6.38.2` (`:32997`), and `mobile-app/package.json` says `0.1.0`. And
+  the ticker rows print the metric's **storage key** (`CAL · PRO · HAB · SLP · HRV · RHR · WGT`, `{m.key}`
+  at `:33806`) as their member-facing sub-label.
+- ⚠ **THE ONE CONTROL THAT OPENS SETTINGS HAS NO NAME.** `BSFacetAvatar` (`:12758`) is a `div` with an
+  `onClick` — no `role`, no `aria-label` — on every masthead. A screen reader never learns the avatar goes
+  anywhere.
+- **What is good stays in all three:** the appearance picker (18 papers · 25 textures · 9 accents · 10
+  inks as live tiles behind one tab bar — the best control on the page), the calm drill-in panes, the
+  plain-language privacy copy, and a plan card that is honest about Stripe state. The three options move
+  the picker behind a *Look & feel* door; none redraws it.
+- **The backbone every option carries** (review §2): identity first and cosmetics last · one control
+  grammar (switch / segmented / picker sheet; never tap-to-cycle, never a native select) · one name and
+  one place per thing, *More* retired · the unread rows removed or wired · a 24 px floor and 44 px rows · values at
+  10.5–12.5 px and 70 % ink · one version from the build · a role-aware plan block · no storage keys in
+  copy · the avatar as a named button · Edit profile as its own page.
+- ⚠ **THE FIRST MEASUREMENT WAS OF THE WRONG PAGE, WITH EVERY NUMBER PLAUSIBLE.** Settings is an overlay
+  above the still-mounted Home tree, and a scroller finder that picks the *largest* `.bs-scroll` picked
+  Home's: the counts came back describing the Home feed (*CHECK-IN DUE · SESSIONS · AVG KCAL*) while the
+  screenshots showed Settings, and every hub-card tap reported *"no hub card"*. It asks for the **topmost**
+  scroller now — the one containing `elementFromPoint` at mid-screen. *An instrument that measures the
+  layer under the one on screen reports on the wrong page, and nothing in its output says so.* The other
+  harness lesson is the one this file already records: the language picker's `English` button reads
+  `English\nENGLISH`, so an anchored `^English$` never matched and the flow sat on the picker for the
+  whole timeout.
+- **Verified:** docs-only (the pre-commit hook skips the code gates) · every `path:line` cited re-read
+  from `main` = `6abf4c1` · the page driven in Chromium through the real entry flow with **zero page
+  errors**, the root, the edit form, six panes and the Trainer variant captured · the board rendered once
+  locally at 1280 and 400 px with **0 px horizontal overflow** and zero page errors (fallback faces — the
+  container blocks Google Fonts, so the render checked layout, not type).
+- ⚠ **OWNER RULINGS STILL NEEDED before a build** (review §6; the layout, the customization section and the
+  box treatment are decided): the three quick switches · whether Time zone and Week starts are retired or
+  given a reader · the Preferences Language row · that a coach never sees the member plan · whether the
+  Shape pages stay inside Settings · search on every root or only A's · where Nora's voice surfaces.
 
 ### 2026-09-14 — The Radio page becomes the Signal Field, and the first attempt at it was the claims without the design
 

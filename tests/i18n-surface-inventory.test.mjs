@@ -329,13 +329,13 @@ function inventory() {
 const UNCOVERED = new Set([
   'Client::BSActivityBody', 'Client::BSActivityLogCta',
   'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan',
-  'Client::BSCardSheetHost', 'Client::BSChatThread',
+  'Client::BSCardSheetHost',
   'Client::BSClientNextPlate',
   'Client::BSClientProgress', 'Client::BSCoachAdjustBanner',
   'Client::BSCodeOfConductPage',
   'Client::BSConsumerHealthPage', 'Client::BSContactPage', 'Client::BSCrossoverCard',
-  'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview', 'Client::BSFacetAvatar',
-  'Client::BSFindCoachBar', 'Client::BSFollowListSheet', 'Client::BSFollowSuggestions',
+  'Client::BSDataCompliancePage', 'Client::BSDayBriefPreview',
+  'Client::BSFindCoachBar', 'Client::BSFollowSuggestions',
   'Client::BSHealthIntake',
   'Client::BSHelpPage',
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
@@ -409,6 +409,15 @@ const PARTIAL = new Set([
   // English at three sites, one a server route. Its own token/label cut — see the War
   // Room. The count above is this walk's FLOOR, not the surface's truth.
   'Client::BSSettings',
+  // ⚠ BSChatThread AND BSFollowListSheet ARE PARTIAL OVER ONE aria-label EACH, NOT
+  // OVER A LOCALIZATION EFFORT. Both render the member's OWN avatar in a corner, and
+  // that avatar opens Settings — so each passes the accessible name saying so
+  // (settings:avatar.mine), which is their first and only tr(). Every other string
+  // in them is exactly as hardcoded as it was; they changed BUCKET, not behaviour,
+  // and the string counts above reconcile to prove it. Localizing either one is its
+  // own cut, and finishing it moves them from here to fully covered.
+  'Client::BSChatThread',
+  'Client::BSFollowListSheet',
   // ⚠ BSAboutPage IS PARTIAL OVER A PROPER NAME, NOT OVER COPY — 45 tr() calls
   // and exactly one hardcoded string: `— Christopher Perry`, the founder's signature
   // under his own letter. No locale changes a person's name, for the same reason
@@ -750,7 +759,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // rows, one wide key and a channel strip, twelve new keys × 13 locales — and
   // every string on it resolves. Had the rewrite hardcoded so much as one word
   // the deltas would not have come to exactly the five the deletion accounts for.
-  assert.equal(partStrings, 182, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(partStrings, 220, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -760,9 +769,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // honest states cost `—`, `No macros on this one` and a `Cooked` stamp. Three
   // English strings on an uncovered surface is the price of not lying about a
   // number; keying the whole component is its own cut.
-  assert.equal(noneStrings, 796, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 36, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 94, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(noneStrings, 757, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(part.length, 38, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(none.length, 91, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned
@@ -781,6 +790,22 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // only aria-hidden decoration, so it sat in the no-copy bucket: every string
   // count, the covered count and both baselines are unchanged by its removal.
   assert.ok(rows.length >= 359, `components rendering JSX fell to ${rows.length} — expected at least 359`);
+  // ⚠ THE CORNER AVATAR BECAME A NAMED CONTROL, AND ITS ONE tr() RECLASSIFIED TWO
+  // BIG COMPONENTS — which is the ratchet working, not a regression. BSFacetAvatar
+  // was the only way into Settings and rendered as a bare `div onClick`: no role,
+  // no tab stop, no accessible name. Giving it button semantics also gave it a NAME,
+  // and a name is copy, so the component needed a translator for the first time; its
+  // one hardcoded string ('Change photo') went with it, so it leaves UNCOVERED
+  // FULLY covered. The two surfaces that host a self-avatar whose tap opens Settings
+  // — BSChatThread and BSFollowListSheet — pass that name explicitly, because what
+  // the tap DOES is a fact about the caller; each therefore gains its first tr() and
+  // moves UNCOVERED -> PARTIAL carrying every string it already hardcoded.
+  // The deltas reconcile exactly, which is the certification: partStrings 182 -> 220
+  // (+38, the two surfaces' own hardcoded strings changing bucket), noneStrings
+  // 796 -> 757 (-39, those same 38 plus BSFacetAvatar's one, now keyed),
+  // part.length 36 -> 38, none.length 94 -> 91, full.length 121 -> 124 (the avatar
+  // plus BSMeCorner and BSHeaderTools, which had no copy at all before this).
+  // Nothing started hardcoding: the +38 and one of the -39 are the SAME strings.
   assert.ok(full.length >= 95, `fully-localized components fell to ${full.length} — expected at least 95`);
 });
 

@@ -48,6 +48,18 @@ const BROWSER = new Set([
   'SpeechSynthesisUtterance', 'speechSynthesis', 'Intl',
 ]);
 
+// Build-time defines. A bundler REPLACES these identifiers with a literal before
+// the code ever runs (vite.config.ts `define`), so at runtime there is no
+// identifier left to resolve. They are listed one by one rather than matched by
+// shape, for the same reason BROWSER is explicit: the point is to notice a NEW
+// unresolved name, and "anything SHOUTY" would wave through the next real one.
+//
+// ⚠ EVERY READ OF ONE MUST STILL BE SAFE WITHOUT A BUNDLER, because this repo runs
+// these modules in Node (the mount harness compiles the real file). `typeof X` never
+// throws for an undeclared X, so a `typeof X !== 'undefined' && X` pair is safe by
+// short-circuit — and that is the only shape this set is permitted to excuse.
+const BUILD_DEFINES = new Set(['__SHAPE_VERSION__']);
+
 const files = readdirSync(DIR).filter((f) => /\.(jsx|js)$/.test(f));
 const parseFile = (f) => parse(readFileSync(join(DIR, f), 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
 const asts = new Map(files.map((f) => [f, parseFile(f)]));
@@ -94,7 +106,7 @@ test('broadsheet: every referenced identifier resolves (lexical | browser | wind
       Identifier(p) {
         if (!p.isReferencedIdentifier()) return;
         const n = p.node.name;
-        if (BROWSER.has(n) || windowNames.has(n)) return;
+        if (BROWSER.has(n) || windowNames.has(n) || BUILD_DEFINES.has(n)) return;
         if (p.scope.hasBinding(n)) return;
         unresolved.push(`${file}:${p.node.loc.start.line} :: ${n}`);
       },
@@ -102,6 +114,42 @@ test('broadsheet: every referenced identifier resolves (lexical | browser | wind
   }
   assert.deepEqual([...new Set(unresolved)], [],
     'identifier with no declaration, no browser global and no window export — this throws ReferenceError when the code path runs');
+});
+
+test('broadsheet: a build define is only ever read behind its own typeof check', () => {
+  // The BUILD_DEFINES exemption above is the one place this file waves an
+  // unresolved name through, so it is a RULE rather than a list: a bundler replaces
+  // these with a literal, but the Node mount harness compiles the same file with no
+  // define at all, where a bare read throws exactly the ReferenceError this suite
+  // exists to catch. `typeof X` is safe by the language, and `typeof X !== '…' && X`
+  // is safe by short-circuit; anything else is not, whatever the name.
+  const bad = [];
+  let seen = 0;
+  for (const [file, ast] of asts) {
+    traverse(ast, {
+      Identifier(p) {
+        if (!p.isReferencedIdentifier() || !BUILD_DEFINES.has(p.node.name)) return;
+        seen += 1;
+        if (p.parent.type === 'UnaryExpression' && p.parent.operator === 'typeof') return;
+        // Otherwise a `typeof <same name>` must guard it in the same && chain.
+        for (let up = p.parentPath; up; up = up.parentPath) {
+          if (up.node.type !== 'LogicalExpression' || up.node.operator !== '&&') continue;
+          const left = up.node.left;
+          let guarded = false;
+          traverse(left, {
+            noScope: true,
+            UnaryExpression(q) {
+              if (q.node.operator === 'typeof' && q.node.argument.name === p.node.name) guarded = true;
+            },
+          });
+          if (guarded) return;
+        }
+        bad.push(`${file}:${p.node.loc.start.line} :: ${p.node.name}`);
+      },
+    });
+  }
+  assert.ok(seen > 0, 'no build define is referenced anywhere — the exemption is dead, so delete it');
+  assert.deepEqual(bad, [], 'a build define is read without a typeof guard — this throws outside a bundler');
 });
 
 // A component NAME is a JSXIdentifier, not an Identifier, so the visitor above
