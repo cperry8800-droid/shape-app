@@ -18,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 import {
   NORA_LOOKS, NORA_DEFAULT_LOOK, HOLO_VERT, HOLO_FRAG,
-  holoParams, createHologram, applyHologram, updateHologram,
+  holoParams, createHologram, applyHologram, updateHologram, setHologramColor,
 } from '../public/newdesign/noraHologram.mjs';
 
 // --- a stub THREE: only what the module reaches for ------------------------
@@ -26,7 +26,7 @@ class StubMaterial { constructor(p = {}) { Object.assign(this, p); this.disposed
 const THREE = {
   ShaderMaterial: class extends StubMaterial { constructor(p) { super(p); this.isShaderMaterial = true; } },
   MeshBasicMaterial: class extends StubMaterial { constructor(p) { super(p); this.isMeshBasicMaterial = true; } },
-  Color: class { constructor(c) { this.hex = c; } },
+  Color: class { constructor(c) { this.hex = c; } set(c) { this.hex = c; return this; } },
   AdditiveBlending: 'additive', NormalBlending: 'normal', FrontSide: 'front', DoubleSide: 'double',
 };
 
@@ -171,4 +171,52 @@ test('the stage applies the look on load, drives it per frame and restores it on
   const radio = stripComments(readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', 'utf8'));
   // `[^)]`, not `[^}]`: the call carries a template literal (`${import.meta.env.BASE_URL}`) whose brace would end a `[^}]*` early.
   assert.match(radio, /new NoraStage\(\{[^)]*color: t\.ACCENT/, 'the Radio page no longer hands Nora the accent');
+});
+
+// ⚠ CODEX, 2026-09-15, P2 ON THE FIRST HEAD: the accent is a LIVE setting and the
+// stage was built with the one it was constructed with. Appearance → Accent
+// recolours the page under a still-mounted tab tree (Settings is an overlay), and
+// a cloud-preference hydrate can land after first paint — so the booth, which
+// reads `t.ACCENT` at render, moved while the projection inside it did not, and
+// the preview was two colours until Nora was toggled. The comment above the
+// constructor asserted the opposite in as many words, which is the class this
+// file post-mortems: a because-clause the code does not support.
+test('the accent is live: a colour change reaches the projection without a rebuild', () => {
+  const r = rig();
+  const h = applyHologram(THREE, r.root, 'dots', { color: '#34d6c5' });
+  assert.equal(h.holo.uniforms.uColor.value.hex, '#34d6c5');
+  const mat = r.face.material;
+  const clonesBefore = r.grp.children.filter((c) => c.name.endsWith('~')).length;
+
+  assert.equal(setHologramColor(h, '#e06547'), true);
+  assert.equal(h.holo.uniforms.uColor.value.hex, '#e06547', 'the colour did not reach the uniform');
+  // A uniform write, not a rebuild: the same material on the same meshes, and no
+  // second set of depth clones. Re-applying would re-clone every mesh in the rig.
+  assert.equal(r.face.material, mat, 'the material was rebuilt for a colour change');
+  assert.equal(r.grp.children.filter((c) => c.name.endsWith('~')).length, clonesBefore, 'the depth clones were rebuilt for a colour change');
+
+  // Null-safe in both of the ways it is actually called: before the VRM has
+  // loaded (no handle) and under the 'avatar' look (no hologram to recolour).
+  assert.equal(setHologramColor(null, '#fff'), false);
+  assert.equal(setHologramColor(applyHologram(THREE, r.root, 'avatar', {}), '#fff'), false);
+  assert.equal(setHologramColor(h, ''), false, 'an empty colour was written to the uniform');
+  assert.equal(h.holo.uniforms.uColor.value.hex, '#e06547');
+  h.restore();
+});
+
+test('the stage carries a live accent, and an accent changed mid-load is not lost', () => {
+  const stage = stripComments(readFileSync('public/newdesign/noraStage.mjs', 'utf8'));
+  assert.match(stage, /import \{[^}]*setHologramColor[^}]*\} from '\.\/noraHologram\.mjs'/, 'the stage cannot recolour the projection');
+  const set = stage.slice(stage.indexOf('setColor(color) {'), stage.indexOf('start() {'));
+  assert.ok(set.length > 40 && set.length < 400, `the setColor slice is ${set.length} chars — this guard is reading the wrong thing`);
+  assert.match(set, /this\.color = color/, 'setColor does not STORE the colour — _applyLook reads this.color, so a colour set before the VRM lands would be dropped');
+  assert.match(set, /setHologramColor\(this\._holo, color\)/, 'setColor does not forward to the projection');
+
+  const radio = stripComments(readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', 'utf8'));
+  // The effect that carries a LATER accent to a stage that already exists.
+  assert.match(radio, /useEffectBR\(\(\) => \{[^}]*noraStageRef\.current\.setColor\(t\.ACCENT\)[\s\S]{0,120}?\}, \[t\.ACCENT\]\)/, 'no effect carries a later accent to the stage, or it does not depend on t.ACCENT');
+  // ...and the other direction: an accent changed while the VRM is still loading
+  // reaches no stage at all, so the load applies the latest one on arrival.
+  assert.match(radio, /noraStageRef\.current = st;\s*\n\s*if \(noraColorRef\.current\) st\.setColor\(noraColorRef\.current\)/, 'the load does not apply the accent the ref is holding — an accent changed mid-load is lost');
+  assert.match(radio, /noraColorRef\.current = t\.ACCENT/, 'nothing keeps the latest accent for the in-flight load');
 });

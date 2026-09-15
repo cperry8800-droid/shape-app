@@ -204,6 +204,20 @@ export function applyHologram(THREE, root, look, opts) {
   };
 }
 
+// The accent is a LIVE setting — Appearance → Accent recolours the page under a
+// still-mounted tab tree, and a late cloud-preference hydrate does the same — and
+// the booth around the canvas reads `t.ACCENT` at render, so it follows on that
+// frame. The projection has to follow on the same frame or the preview is two
+// colours. It is a UNIFORM WRITE rather than a reason to rebuild: re-applying the
+// hologram would re-clone every depth mesh, and rebuilding the stage would
+// re-download the VRM and flash the booth empty for a colour change.
+export function setHologramColor(handle, color) {
+  const u = handle && handle.holo && handle.holo.uniforms;
+  if (!u || !color) return false;
+  u.uColor.value.set(color);
+  return true;
+}
+
 // Per frame: the clock and the room's level. Nothing here is a target eased
 // toward — the shader reads the instant.
 export function updateHologram(handle, { t = 0, level = 0 } = {}) {

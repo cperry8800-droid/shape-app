@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { computeBands, computeRigParams } from './noraReactive.mjs';
-import { applyHologram, updateHologram, NORA_DEFAULT_LOOK } from './noraHologram.mjs';
+import { applyHologram, updateHologram, setHologramColor, NORA_DEFAULT_LOOK } from './noraHologram.mjs';
 
 const FRAME_MS = 1000 / 30;
 
@@ -69,6 +69,17 @@ export class NoraStage {
   }
 
   setLook(look) { this.look = look || NORA_DEFAULT_LOOK; this._applyLook(); }
+
+  // The page's accent can change while the preview is open (Appearance → Accent,
+  // or a cloud-preference hydrate that lands after first paint). Stored even when
+  // there is no hologram yet — the VRM load is async, and `_applyLook` reads
+  // `this.color` when it runs — and a no-op under the 'avatar' look, which has no
+  // hologram to recolour.
+  setColor(color) {
+    if (!color || color === this.color) return;
+    this.color = color;
+    setHologramColor(this._holo, color);
+  }
 
   start() {
     if (this._raf) return;

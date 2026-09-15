@@ -2174,6 +2174,7 @@ function BSRadioScreen({ onBack }) {
   const [noraFailed, setNoraFailed] = useStateBR(false);
   const noraCanvasRef = useRefBR(null);
   const noraStageRef = useRefBR(null);
+  const noraColorRef = useRefBR(t.ACCENT);
   const toggleNora = () => setNoraOn(v => !v);
   useEffectBR(() => {
     if (!noraOn) return;
@@ -2183,17 +2184,29 @@ function BSRadioScreen({ onBack }) {
       try {
         if (!window.WebGLRenderingContext) { setNoraFailed(true); return; }
         const an = window.ShapeRadioLive?.analyser?.();
-        // The projection takes the page's accent, so Nora recolours with the rest
-        // of Radio when the Appearance accent changes (noraHologram.mjs).
+        // The projection takes the page's accent. This is the accent at CONSTRUCTION;
+        // a later change is carried by the effect below, because this effect depends
+        // on noraOn alone and re-running it would re-download the VRM.
         const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: `${import.meta.env.BASE_URL}nora/placeholder.vrm`, color: t.ACCENT });
         await st.load();
         if (disposed) { st.dispose(); return; }
         st.start();
         noraStageRef.current = st;
+        if (noraColorRef.current) st.setColor(noraColorRef.current);
       } catch (e) { console.warn('[nora] stage failed', e); setNoraFailed(true); }
     })();
     return () => { disposed = true; if (noraStageRef.current) { noraStageRef.current.dispose(); noraStageRef.current = null; } };
   }, [noraOn]);
+  // ⚠ THE ACCENT IS LIVE AND THE STAGE IS ASYNC, SO BOTH DIRECTIONS ARE COVERED.
+  // The booth around the canvas reads t.ACCENT at render, so it recolours on that
+  // frame; without this the shader keeps the colour it was constructed with and the
+  // preview is two colours until Nora is toggled. An accent changed WHILE the VRM is
+  // still loading reaches no stage at all, so the latest one is kept in a ref and the
+  // load applies it on arrival.
+  useEffectBR(() => {
+    noraColorRef.current = t.ACCENT;
+    if (noraStageRef.current) noraStageRef.current.setColor(t.ACCENT);
+  }, [t.ACCENT]);
 
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
