@@ -144,14 +144,19 @@ test('the listening instrument is drawn at rest; only its bars wait for data', (
   // A frame carrying nothing draws the baseline DASHED — the rows' own "no
   // source" grammar — where the bars will stand.
   assert.match(elseArm, /setLineDash\(\[3, 5\]\)/, 'a silent baseline is no longer dashed — it reads as a measured flat line');
-  assert.match(elseArm, /moveTo\(fig\.x, baseY/, 'the silent baseline is not drawn where the bars stand');
+  // ⚠ ANCHORED ON THE BAND, NOT THE FIGURE. The bars span the canvas since the
+  // owner reported the spectrum sitting in the page's padded column, so a silent
+  // baseline drawn across `fig` would be shorter than the bars it stands in for —
+  // which is a different claim about the instrument's width, not a shorter line.
+  assert.match(elseArm, /moveTo\(band\.x, baseY/, 'the silent baseline is not drawn where the bars stand');
+  assert.match(elseArm, /lineTo\(band\.x \+ band\.w/, 'the silent baseline stops short of where the bars end');
   assert.match(elseArm, /\.stroke\(\)/, 'the silent baseline is not drawn at all');
   // The counter is part of the instrument: drawn after BOTH arms, whatever the
   // air carries — and stepping only over data, or it would count beats nobody
   // measured over a flat line.
   assert.match(tail, /tempoBarStep\(/, 'the counter is no longer drawn at rest');
-  assert.match(tail, /ctx\.arc\(fig\.x \+ fig\.w \/ 2 - 21/, 'the four dots are no longer drawn at rest');
-  assert.doesNotMatch(liveArm, /tempoBarStep\(|fig\.w \/ 2 - 21/, 'the counter moved back inside the live gate');
+  assert.match(tail, /ctx\.arc\(band\.x \+ band\.w \/ 2 - 21/, 'the four dots are no longer drawn at rest');
+  assert.doesNotMatch(liveArm, /tempoBarStep\(|band\.w \/ 2 - 21/, 'the counter moved back inside the live gate');
   const step = tail.match(/const step4 = ([^;]+);/);
   assert.ok(step, 'the counter no longer reads a step');
   assert.match(step[1], /live/, 'the counter steps over a frame carrying nothing');

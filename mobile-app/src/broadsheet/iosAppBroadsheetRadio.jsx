@@ -1803,6 +1803,25 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
 
       if (!fig) return;
 
+      // ── the instrument's band ─────────────────────────────────────
+      // ⚠ THE FIGURE BLOCK SAYS **WHERE**, THE CANVAS SAYS **HOW WIDE**, AND
+      // CONFLATING THE TWO IS WHAT DREW THE SPECTRUM IN A PADDED COLUMN. The
+      // figure is measured because the drawing must follow the type — a longer
+      // mode label, the no-signal line appearing or a larger text setting all
+      // move it, and the geometry has to move with it (the 09-14 brief's rule,
+      // and why nothing here is a literal). But that block sits inside the
+      // page's own `padding: 12px ${t.padX}px 16px`, so taking its WIDTH made
+      // the bars a padded column while the field's dots and both scrims ran
+      // edge to edge. Measured in Chromium at 390px before this changed: the
+      // bars filled 354 of 390, i.e. 18px of dead paper each side, against a
+      // field reaching both edges — and that contrast is exactly what reads as
+      // "not filling the width of screen".
+      //
+      // So the vertical geometry still derives from `fig` and the horizontal
+      // extent derives from the canvas, which IS the screen: the wrap is
+      // `position:absolute; inset:0`, so `W` is the viewport width.
+      const band = { x: 0, w: W };
+
       // ── the scrims ────────────────────────────────────────────────
       // ⚠ LOAD-BEARING, AND THE RENDER IS WHAT PROVED IT. The field is
       // full-bleed, so its dots sit behind the rail, the Now block and the deck —
@@ -1857,8 +1876,16 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       if (kx < 1) {
         const maxH = fig.h * 0.50;
         const baseY = fig.y + fig.h * 0.70;
-        const bw = fig.w / BANDS;
-        const wBar = Math.max(1, bw - 1.6);
+        // ⚠ THE GAP IS SPLIT ACROSS THE CELL, NOT TAKEN OFF ITS RIGHT EDGE.
+        // Inside a padded column a right-only gap was invisible; at full bleed
+        // it leaves the first bar flush against the screen and the last one
+        // 1.6px short of it — an asymmetry the mirrored spectrum (bass at the
+        // centre) is exactly the wrong drawing to carry. Half each side keeps
+        // the instrument centred on the band it is drawn in, and ONE constant
+        // feeds both the width and the offset so they cannot drift apart.
+        const BAR_GAP = 1.6;
+        const bw = band.w / BANDS;
+        const wBar = Math.max(1, bw - BAR_GAP);
         ctx.save();
         if (live) {
           const raw = bandsFromBins(bins, BANDS);
@@ -1885,7 +1912,7 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
             const h = barHeight(sm[i], maxH);
             const capped = capVisible(pk[i], sm[i], maxH);
             const hCap = capped ? barHeight(pk[i], maxH) : 0;
-            const x = fig.x + i * bw;
+            const x = band.x + i * bw + BAR_GAP / 2;
             ctx.globalAlpha = (1 - kx) * (0.55 + 0.45 * sm[i]);
             ctx.fillStyle = grad;
             ctx.fillRect(x, baseY - h, wBar, h);
@@ -1901,7 +1928,7 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
           // The station's own line, flashing on the beat it carries.
           ctx.globalAlpha = (1 - kx) * (0.22 + 0.6 * kick);
           ctx.fillStyle = cfg.teal;
-          ctx.fillRect(fig.x, baseY, fig.w, 1);
+          ctx.fillRect(band.x, baseY, band.w, 1);
         } else {
           // ⚠ NO SIGNAL → A DASHED FLAT LINE, NEVER A BAR. The same grammar the
           // matching state's rows use for a source that is not there (the
@@ -1912,7 +1939,7 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
           ctx.lineWidth = 1;
           ctx.globalAlpha = (1 - kx) * 0.38;
           ctx.setLineDash([3, 5]);
-          ctx.beginPath(); ctx.moveTo(fig.x, baseY + 0.5); ctx.lineTo(fig.x + fig.w, baseY + 0.5); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(band.x, baseY + 0.5); ctx.lineTo(band.x + band.w, baseY + 0.5); ctx.stroke();
           ctx.setLineDash([]);
         }
         // The four-beat counter — the one thing on the listening state that makes
@@ -1931,7 +1958,15 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
           // BOX AND NOT A CONSTANT. The reflection runs `h * 0.42` below the
           // baseline, so at full height it reaches `maxH * 0.42`; the counter has
           // to sit under that or it reads as four more bars.
-          ctx.arc(fig.x + fig.w / 2 - 21 + b * 14, counterY, on ? 2.6 + 1.6 * kick : 2, 0, Math.PI * 2);
+          // ⚠ THE CENTRE IS THE BAND'S, AND ON TODAY'S LAYOUT THAT IS A PROVEN
+          // NO-OP — recorded rather than left to read as a fix. The page's own
+          // horizontal padding is symmetric (`padding: 12px ${t.padX}px 16px`),
+          // so `fig.x + fig.w / 2` and `W / 2` are the same pixel: measured at
+          // 390px, fig.x 18 and fig.w 354, and 18 + 177 = 195 = 390 / 2. It is
+          // the BAND's because the counter belongs to the instrument, and the
+          // instrument is the screen's width now — so it stays on the bars'
+          // centre line the day the figure stops being centred in the screen.
+          ctx.arc(band.x + band.w / 2 - 21 + b * 14, counterY, on ? 2.6 + 1.6 * kick : 2, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
@@ -1944,8 +1979,16 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       // the upper row's; at lock the ties join them and the lower row takes the
       // station's teal.
       if (kx > 0) {
+        // ⚠ THE TWO EDGES HAVE TWO DIFFERENT SOURCES, AND THAT IS THE POINT.
+        // The LEFT is a fact about the DOM: the station and heart readings are
+        // positioned `left: 0` inside the figure block, so the rows must clear
+        // THEM — hence `fig`, and hence the inset survives the band. The RIGHT
+        // is a fact about the instrument's width, so it is the band's. Both
+        // halves are drawn while `kx` crosses, so a right edge that disagreed
+        // with the spectrum's would make the instrument visibly change width
+        // the moment a member taps Match my BPM.
         const x0 = fig.x + fig.w * 0.27;
-        const x1 = fig.x + fig.w;
+        const x1 = band.x + band.w;
         const RW = x1 - x0;
         const pps = penSpeed(RW);
         const px = penX(t, x0, RW);
