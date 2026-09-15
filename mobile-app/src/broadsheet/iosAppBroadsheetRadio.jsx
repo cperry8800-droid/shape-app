@@ -2174,6 +2174,7 @@ function BSRadioScreen({ onBack }) {
   const [noraFailed, setNoraFailed] = useStateBR(false);
   const noraCanvasRef = useRefBR(null);
   const noraStageRef = useRefBR(null);
+  const noraColorRef = useRefBR(t.ACCENT);
   const toggleNora = () => setNoraOn(v => !v);
   useEffectBR(() => {
     if (!noraOn) return;
@@ -2183,15 +2184,29 @@ function BSRadioScreen({ onBack }) {
       try {
         if (!window.WebGLRenderingContext) { setNoraFailed(true); return; }
         const an = window.ShapeRadioLive?.analyser?.();
-        const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: `${import.meta.env.BASE_URL}nora/placeholder.vrm` });
+        // The projection takes the page's accent. This is the accent at CONSTRUCTION;
+        // a later change is carried by the effect below, because this effect depends
+        // on noraOn alone and re-running it would re-download the VRM.
+        const st = new NoraStage({ canvas: noraCanvasRef.current, analyser: an, modelUrl: `${import.meta.env.BASE_URL}nora/placeholder.vrm`, color: t.ACCENT });
         await st.load();
         if (disposed) { st.dispose(); return; }
         st.start();
         noraStageRef.current = st;
+        if (noraColorRef.current) st.setColor(noraColorRef.current);
       } catch (e) { console.warn('[nora] stage failed', e); setNoraFailed(true); }
     })();
     return () => { disposed = true; if (noraStageRef.current) { noraStageRef.current.dispose(); noraStageRef.current = null; } };
   }, [noraOn]);
+  // ⚠ THE ACCENT IS LIVE AND THE STAGE IS ASYNC, SO BOTH DIRECTIONS ARE COVERED.
+  // The booth around the canvas reads t.ACCENT at render, so it recolours on that
+  // frame; without this the shader keeps the colour it was constructed with and the
+  // preview is two colours until Nora is toggled. An accent changed WHILE the VRM is
+  // still loading reaches no stage at all, so the latest one is kept in a ref and the
+  // load applies it on arrival.
+  useEffectBR(() => {
+    noraColorRef.current = t.ACCENT;
+    if (noraStageRef.current) noraStageRef.current.setColor(t.ACCENT);
+  }, [t.ACCENT]);
 
   // Section accent — follows the global Appearance accent so Radio's
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
@@ -2588,8 +2603,18 @@ function BSRadioScreen({ onBack }) {
           </div>
           {/* Canvas — shown when Nora is on */}
           {noraOn && (
-            <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', maxHeight: '56vh', borderRadius: 14, overflow: 'hidden', background: '#0b0d10', marginBottom: 12 }}>
+            <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', maxHeight: '56vh', borderRadius: 14, overflow: 'hidden',
+              // The booth: the Signal Field's own 14px dot pitch as the room's ground, on the dark panel.
+              background: `radial-gradient(circle, ${TEAL}1f 0.9px, transparent 1.1px) 0 0 / 14px 14px, #0b0d10`, marginBottom: 12 }}>
               <canvas ref={noraCanvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+              {/* THE PROJECTION'S ROOM — scanlines over the figure and a floor glow
+                  under it, so she reads as light thrown into the booth rather than
+                  a model in a box. The same grammar as RadioHologramDJ (the Booth).
+                  Pointer-events none; the label above stays the label. */}
+              <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none',
+                background: `radial-gradient(ellipse 60% 26% at 50% 100%, ${TEAL}33, transparent 70%), repeating-linear-gradient(0deg, ${TEAL}0a 0px, ${TEAL}0a 1px, transparent 1px, transparent 3px)` }} />
+              <div aria-hidden style={{ position: 'absolute', left: '22%', right: '22%', bottom: 16, height: 1, pointerEvents: 'none',
+                background: TEAL, opacity: 0.6, boxShadow: `0 0 14px ${TEAL}` }} />
               {noraFailed && (
                 <img src={`${import.meta.env.BASE_URL}nora-avatar.png`} alt="Nora" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
               )}

@@ -5,14 +5,21 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 import { computeBands, computeRigParams } from './noraReactive.mjs';
+import { applyHologram, updateHologram, setHologramColor, NORA_DEFAULT_LOOK } from './noraHologram.mjs';
 
 const FRAME_MS = 1000 / 30;
 
 export class NoraStage {
-  constructor({ canvas, analyser, modelUrl }) {
+  constructor({ canvas, analyser, modelUrl, look, color }) {
     this.canvas = canvas;
     this.analyser = analyser;                 // an existing AnalyserNode (caller owns the audio graph)
     this.modelUrl = modelUrl;
+    // The LOOK — see noraHologram.mjs. 'dots' by default: Nora as a projection
+    // made of the Signal Field's own dots, in the page's accent. 'avatar' is the
+    // VRM's own materials, the look this stage shipped with until 2026-09-15.
+    this.look = look || NORA_DEFAULT_LOOK;
+    this.color = color || '#34d6c5';
+    this._holo = null;
     this.vrm = null;
     this._raf = 0;
     this._last = 0;
@@ -51,7 +58,27 @@ export class NoraStage {
     VRMUtils.rotateVRM0(vrm);
     this.scene.add(vrm.scene);
     this.vrm = vrm;
+    this._applyLook();
     return vrm;
+  }
+
+  _applyLook() {
+    if (this._holo) { this._holo.restore(); this._holo = null; }
+    if (!this.vrm || this.look === 'avatar') return;
+    this._holo = applyHologram(THREE, this.vrm.scene, this.look, { color: this.color, pixelRatio: this.renderer.getPixelRatio() });
+  }
+
+  setLook(look) { this.look = look || NORA_DEFAULT_LOOK; this._applyLook(); }
+
+  // The page's accent can change while the preview is open (Appearance → Accent,
+  // or a cloud-preference hydrate that lands after first paint). Stored even when
+  // there is no hologram yet — the VRM load is async, and `_applyLook` reads
+  // `this.color` when it runs — and a no-op under the 'avatar' look, which has no
+  // hologram to recolour.
+  setColor(color) {
+    if (!color || color === this.color) return;
+    this.color = color;
+    setHologramColor(this._holo, color);
   }
 
   start() {
@@ -62,8 +89,10 @@ export class NoraStage {
       this._last = now;
       const dt = this._clock.getDelta();
       if (this.analyser) this.analyser.getByteFrequencyData(this._freq);
-      const params = computeRigParams(computeBands(this._freq), now);
+      const bands = computeBands(this._freq);
+      const params = computeRigParams(bands, now);
       this._apply(params);
+      if (this._holo) updateHologram(this._holo, { t: now / 1000, level: bands.level });
       if (this.vrm) this.vrm.update(dt);
       this.renderer.render(this.scene, this.camera);
     };
@@ -96,6 +125,7 @@ export class NoraStage {
 
   dispose() {
     this.stop();
+    if (this._holo) { this._holo.restore(); this._holo = null; }
     if (this.vrm) { VRMUtils.deepDispose(this.vrm.scene); this.vrm = null; }
     this.renderer.dispose();
   }
