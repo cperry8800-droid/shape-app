@@ -23,6 +23,7 @@ import {
   KICK_ON, KICK_OFF, KICK_RELEASE_S, kickLow, kickEnvNext, kickPresentNext,
   LEAD_MODES, leadTarget, LEAD_TAU, easeLead, wallMix, cloudMix, WALL_GROUND_ALPHA,
   TILE_PX, wallCols, wallRows, wallBand, meterNext, METER_FALL, WALL_METER_SPAN, wallMaskText, WALL_MASK_MIN_COLS,
+  WALL_FLOOD_KICK, wallFloods,
 } from '../public/newdesign/radioField.mjs';
 import { tempoEnergyFromBins, TEMPO_BINS, tempoBarStep, createTempoDetector } from '../public/newdesign/radioTempo.mjs';
 import { bandsFromBins, BANDS } from '../public/newdesign/radioSignalField.mjs';
@@ -537,4 +538,42 @@ test('the detector really does answer null before it settles, and a number after
   assert.ok(settled, 'the detector never settled on a clean 128 BPM kick');
   assert.ok(Math.abs(settled.bpm - 128) < 2, `settled at ${settled && settled.bpm}`);
   assert.ok(settled.step === null || (settled.step >= 0 && settled.step < 4));
+});
+
+test('the flood lights the song\'s own band, and only on a kick that hits', () => {
+  // The rule moved here out of the canvas (Codex, #2101), so this is the first
+  // time it can be driven at all. `row` is counted from the TOP of the wall and
+  // `floodRows` is the depth of the programmed band at the BOTTOM, which is the
+  // one thing about it that is easy to get backwards.
+  const rows = 12;
+  const band = 4;                       // so rows 8..11 are the band
+  assert.equal(wallFloods(11, rows, band, 0.9), true, 'the bottom row did not flood on a hard kick');
+  assert.equal(wallFloods(8, rows, band, 0.9), true, 'the top of the band did not flood');
+  assert.equal(wallFloods(7, rows, band, 0.9), false, 'the row ABOVE the band flooded — the band is upside down');
+  assert.equal(wallFloods(0, rows, band, 0.9), false, 'the top of the wall flooded');
+
+  // and the kick has to actually hit
+  assert.equal(wallFloods(11, rows, band, WALL_FLOOD_KICK), false, 'the threshold is inclusive — a kick exactly at it floods');
+  assert.equal(wallFloods(11, rows, band, WALL_FLOOD_KICK + 1e-6), true, 'a kick just over the threshold did not flood');
+  assert.equal(wallFloods(11, rows, band, 0), false, 'silence floods the wall');
+
+  // a song whose programme carries no band can never flood, whatever the kick
+  assert.equal(wallFloods(11, rows, 0, 1), false, 'a zero-row band flooded');
+});
+
+test('the flood threshold is its own number, and is NOT the hand-over hysteresis', () => {
+  // ⚠ THE TIDY-UP THIS GUARD EXISTS TO REFUSE. KICK_ON/KICK_OFF are a hysteresis
+  // PAIR for a different question — is a kick present at all — and the gap
+  // between them is what stops the lead flickering on a borderline one. The
+  // flood asks how hard a kick must hit before the programmed band lights.
+  // Collapsing them would make the wall's brightest moment a side effect of a
+  // decision about which half of the field is leading.
+  assert.ok(WALL_FLOOD_KICK > 0 && WALL_FLOOD_KICK < 1, 'the flood threshold left the 0..1 range the kick is measured in');
+  assert.notEqual(WALL_FLOOD_KICK, KICK_ON, 'the flood threshold was collapsed onto the hand-over hysteresis');
+
+  // and it sits INSIDE the hysteresis band, which is the property that matters:
+  // a kick strong enough to flood is not yet necessarily strong enough to hand
+  // the lead over, so the wall lights before the field commits.
+  assert.ok(WALL_FLOOD_KICK > KICK_OFF && WALL_FLOOD_KICK < KICK_ON,
+    `the flood threshold (${WALL_FLOOD_KICK}) left the hysteresis band ${KICK_OFF}..${KICK_ON}`);
 });

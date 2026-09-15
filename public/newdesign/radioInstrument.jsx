@@ -82,8 +82,16 @@ function rdClock(s) {
 // read did not complete. Collapsing null into "signed out" tells a member with a
 // blip to sign in — the defect this repo post-mortems on #2005, where a coach who
 // was already signed in was shown a sign-in prompt. So an unresolved session gets
-// the ordinary key and the ATTEMPT settles it: /api/radio/station answers 401 to an
-// anonymous caller, and that answer is a measurement.
+// the ordinary key and TRIES.
+//
+// ⚠ AND WHAT COMES BACK IS NOT A SECOND MEASUREMENT OF THE SESSION, WHICH A FIRST
+// DRAFT OF THIS CLAIMED FOUR LINES BELOW THE PARAGRAPH THAT HAD IT RIGHT (Codex,
+// #2101). It read "the ATTEMPT settles it … and that answer is a measurement",
+// directly under the line above saying the page must decide signed-out from the
+// session and NOT from that refusal. The paragraph was correct and its own
+// because-clause overruled it. `/api/radio/station`'s 401 carries exactly the
+// ambiguity `/api/me`'s does — see `play()` — so nothing it answers may move
+// `signedIn`. A refusal is a fact about THIS ATTEMPT and is kept retryable.
 function rdTransportKey({ signedIn, playing, paused }) {
   if (signedIn === false) return "signin";
   if (playing && !paused) return "pause";
@@ -94,6 +102,7 @@ function useRadioStation() {
   const [signedIn, setSignedIn] = React.useState(null);   // null = not resolved yet
   const [playing, setPlaying] = React.useState(false);
   const [configured, setConfigured] = React.useState(null); // null = unread
+  const [refusal, setRefusal] = React.useState(null);        // null | "signin" | "age"
   const [nowPlaying, setNowPlaying] = React.useState(null);
   const audioRef = React.useRef(null);
   const analyserRef = React.useRef(null);
@@ -155,7 +164,8 @@ function useRadioStation() {
     // ⚠ NOT `if (!signedIn)`. That is false for BOTH a measured signed-out visitor and
     // an unresolved read, and on the second it made the key a control that silently
     // did nothing. A measured signed-out visitor never gets here (the key is disabled);
-    // an unresolved one tries, and the 401 below is what resolves them.
+    // an unresolved one tries, and the station's own answer names what to do next
+    // WITHOUT deciding who they are.
     if (signedIn === false) return false;
     let audio = audioRef.current;
     if (!audio) {
@@ -170,8 +180,28 @@ function useRadioStation() {
     if (!audio.src) {
       try {
         const r = await fetch("/api/radio/station", { cache: "no-store", credentials: "include" });
-        // the route's own refusal is the session answer we could not get from /api/me
-        if (r.status === 401 || r.status === 403) { setSignedIn(false); return false; }
+        // ⚠ A STATION REFUSAL IS NOT A SESSION MEASUREMENT, AND THIS LINE USED TO
+        // TREAT IT AS ONE — `setSignedIn(false)` on either status (Codex, #2101).
+        // BOTH legs of that were wrong, and each strands somebody:
+        //
+        //   • 401 is NOT "anonymous". `currentUser()` destructures `{ data }` and
+        //     DROPS the error, and the Supabase client resolves rather than throws
+        //     on an auth-server fault — so this route answers 401 for a transient
+        //     lookup failure exactly as it does for a real visitor. That is the
+        //     same ambiguity `/api/me` has, i.e. the thing the three-state rule at
+        //     the top of this file exists for, arriving through a second door.
+        //   • 403 is `refuseKnownMinor`: a CONFIRMED MINOR, who is signed IN. It is
+        //     a measurement of AGE and says nothing at all about the session.
+        //
+        // Setting `signedIn = false` on either disabled the key with no way back
+        // but a reload AND started the visitor preview — so a real member lost
+        // playback to a blip, and an under-18 account was shown a SIMULATED
+        // broadcast. Only `/api/me` decides the session. This decides the attempt,
+        // it says which one it was, and because `audio.src` is still unset the very
+        // next press re-runs the whole fetch: retryable by construction.
+        if (r.status === 401) { setRefusal("signin"); return false; }
+        if (r.status === 403) { setRefusal("age"); return false; }
+        setRefusal(null);
         const cfg = r.ok ? await r.json() : null;
         setConfigured(cfg ? !!cfg.configured : false);
         if (!cfg || !cfg.configured || !cfg.streamUrl) return false;
@@ -199,7 +229,7 @@ function useRadioStation() {
 
   React.useEffect(() => () => { if (audioRef.current) audioRef.current.pause(); }, []);
 
-  return { signedIn, playing, configured, nowPlaying, play, pause, analyserRef, binsRef, startedAtRef };
+  return { signedIn, playing, configured, nowPlaying, refusal, play, pause, analyserRef, binsRef, startedAtRef };
 }
 
 // ---------------------------------------------------------------------------
@@ -284,7 +314,7 @@ function rdMakeField(canvas, lib) {
         const level = meters[c] * F.WALL_METER_SPAN;
         const fromBottom = (rows - 1 - r) / rows;
         const on = fromBottom < level;
-        const flood = r >= rows - p.flood && kick > 0.3;
+        const flood = F.wallFloods(r, rows, p.flood, kick);
         let a = F.WALL_GROUND_ALPHA;
         let col = RD_TEAL;
         if (on) {
@@ -400,6 +430,16 @@ function RadioInstrument() {
   const track = st.nowPlaying;
   const title = track && track.title ? track.title : null;
   const artist = track && track.artist ? track.artist : null;
+  // ⚠ THE SAME LIVE-REF RULE AS `liveRef` ABOVE, AND IT WAS MISSED HERE (Codex,
+  // #2101). `applyTrack` is declared inside the field effect, whose deps are `[]`,
+  // so it closed over the title and artist of the MOUNT render — both null, because
+  // now-playing is a fetch. The `[title, artist]` effect then called that same stale
+  // function, so its key was "·" forever, `sig.trackKey` matched on every call, and
+  // the programme, the figure sweep and the beat reset never once followed the song
+  // — while the chrome, which reads these at render, displayed the real track. The
+  // page looked right and the field was deaf to it.
+  const trackRef = React.useRef({ title, artist });
+  trackRef.current = { title, artist };
 
   React.useEffect(() => {
     const lib = rdLib();
@@ -544,10 +584,11 @@ function RadioInstrument() {
 
     // The song's own programme, and the change of track as an event.
     const applyTrack = () => {
-      const key = `${title || ""}·${artist || ""}`;
+      const now = trackRef.current;                 // never the closure: see trackRef
+      const key = `${now.title || ""}·${now.artist || ""}`;
       if (key === sig.trackKey) return;
       sig.trackKey = key;
-      sig.program = F.radioProgram(title, artist);
+      sig.program = F.radioProgram(now.title, now.artist);
       sig.changeAt = performance.now() / 1000 - t0;
       sig.beats = { beats: 0, lastStep: null };
       sig.phrase = 0;
@@ -657,6 +698,22 @@ function RadioInstrument() {
               )}
               {key === "signin" && (
                 <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, color: RD_TEAL, textDecoration: "none" }}>Sign in to listen</a>
+              )}
+              {/* ⚠ A REFUSED ATTEMPT HAS TO SAY SO, OR THE FIX FOR THE ONE ABOVE
+                  LEAVES A LIVE KEY THAT DOES NOTHING VISIBLE. The 401 line names
+                  the likeliest cause without asserting it — we cannot tell an
+                  anonymous caller from an auth fault, and the key stays enabled,
+                  so pressing again is the recovery for the half that is not a
+                  sign-in. The 403 gets the route's OWN words rather than a
+                  sign-in prompt: telling a signed-in member to sign in is #2005,
+                  and telling a minor to is #2005 with the wrong remedy. */}
+              {st.refusal === "signin" && key !== "signin" && (
+                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, color: RD_TEAL, textDecoration: "none" }}>
+                  Couldn&rsquo;t start &mdash; sign in, or press again
+                </a>
+              )}
+              {st.refusal === "age" && (
+                <span style={{ ...eb, color: RD_CREAM50 }}>Shape is for adults 18 and over</span>
               )}
               {st.configured === false && st.signedIn === true && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>No station on the air yet</span>

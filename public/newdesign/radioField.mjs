@@ -371,6 +371,24 @@ export function wallBand(col, cols, bands) {
 // spectrum has the same shape: it occupies a band of the screen, not the screen.
 export const WALL_METER_SPAN = 0.55;
 
+// ⚠ THE FLOOD IS A RULE, SO IT LIVES HERE RATHER THAN IN THE CANVAS. It decides
+// when the song's own programmed band at the top of the wall lights on the kick —
+// a decision about the FIELD, not a fill — and it shipped as a bare `kick > 0.3`
+// inside the renderer, where nothing in Node could drive it and where it was a
+// THIRD kick threshold agreeing with neither of the two above it (Codex, #2101).
+//
+// ⚠ AND IT IS DELIBERATELY NOT `KICK_ON`, WHICH IS THE TEMPTING TIDY-UP. That pair
+// is HYSTERESIS for the hand-over — is there a kick present at all, and the gap
+// between 0.32 and 0.12 is what stops the lead flickering on a borderline one.
+// This asks something else: how hard must a kick hit before the programmed band
+// lights. Collapsing them would make the wall's brightest moment a side effect of
+// a decision about which half of the field leads, so the value is kept exactly as
+// it shipped and given a name and a home instead.
+export const WALL_FLOOD_KICK = 0.3;
+export function wallFloods(row, rows, floodRows, kick) {
+  return row >= rows - floodRows && kick > WALL_FLOOD_KICK;
+}
+
 // ⚠ THE WALL SAYS LESS WHEN IT HAS FEWER TILES. "SHAPE RADIO" over the 24 columns a
 // 390px screen gives is eleven characters at two tiles each — it renders as noise
 // rather than as a word, which is worse than a shorter wordmark. Measured on the
