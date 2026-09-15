@@ -131,6 +131,30 @@ test('the About section renders the build, and it is the only version claim left
   assert.ok(!stripComments(src).includes('left="Shape v'), 'the footer claim is gone, props and all');
 });
 
+test('every shipping pipeline stamps the commit this label promises', () => {
+  // ⚠ CODEX, P3, AND THE COMMENT WAS THE DEFECT. `bsBuildLabel`'s header first said
+  // an Android, Codemagic or local build carried no commit — reasoned from
+  // build-m.sh alone, without opening the native workflows. All three shipping
+  // pipelines set VITE_SHAPE_RELEASE themselves, so a member on ANY real build can
+  // quote the commit, and only a plain local build shows the version alone.
+  //
+  // Derived from the workflows rather than restated, so the claim is CHECKED: drop
+  // the stamp from a pipeline and this fails, instead of the comment quietly
+  // becoming false again.
+  const sets = (file, pattern) => {
+    const src = readFileSync(join(ROOT, file), 'utf8');
+    assert.match(src, pattern, `${file} no longer stamps VITE_SHAPE_RELEASE — the version label's claim is now false`);
+  };
+  // Vercel, the hosted /m/ bundle.
+  sets('scripts/build-m.sh', /export VITE_SHAPE_RELEASE=.*VERCEL_GIT_COMMIT_SHA/);
+  // Android: BOTH jobs — the debug APK and the signed one that actually ships.
+  const android = readFileSync(join(ROOT, '.github/workflows/android-build.yml'), 'utf8');
+  const stamps = android.split(/VITE_SHAPE_RELEASE:\s*\$\{\{\s*github\.sha\s*\}\}/).length - 1;
+  assert.equal(stamps, 2, `android-build.yml stamps ${stamps} of its 2 build jobs`);
+  // Codemagic, the iOS TestFlight build.
+  sets('codemagic.yaml', /export VITE_SHAPE_RELEASE=/);
+});
+
 test('the row is omitted rather than shown empty when there is no build to name', () => {
   // A "Version" label over a blank value reads as a build that could not be
   // identified. Outside a bundler there is no version, so there is no row.

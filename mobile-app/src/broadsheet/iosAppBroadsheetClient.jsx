@@ -266,12 +266,20 @@ const BS_HEADER_AVATAR = 34; // canonical top-header avatar (+ paired search/pen
 //
 // `__SHAPE_VERSION__` is inlined by Vite from mobile-app/package.json (see
 // vite.config.ts) and is therefore a fact about the bundle rather than a literal
-// anyone maintains by hand. The short commit rides beside it ONLY on a build that
-// has one — build-m.sh exports VITE_SHAPE_RELEASE on Vercel, and an Android,
-// Codemagic or local build does not — because a stamp we cannot measure is exactly
-// the fabrication this replaces. Outside a bundler (the Node test harness) there is
-// no define at all, so `typeof` is what keeps this from throwing, and the answer is
-// the honest empty string.
+// anyone maintains by hand. The short commit rides beside it whenever the build has
+// one, and a stamp we cannot measure is never invented.
+//
+// ⚠ EVERY SHIPPING BUILD HAS ONE — CHECKED IN THE WORKFLOWS, NOT INFERRED FROM
+// build-m.sh. This comment first said an Android, Codemagic or local build carried
+// no commit, reasoning from build-m.sh alone; all three shipping pipelines set
+// VITE_SHAPE_RELEASE themselves. Vercel: build-m.sh, from VERCEL_GIT_COMMIT_SHA.
+// Android debug AND signed: `VITE_SHAPE_RELEASE: ${{ github.sha }}`
+// (.github/workflows/android-build.yml). Codemagic iOS:
+// `export VITE_SHAPE_RELEASE="${CM_COMMIT:-$(git rev-parse HEAD)}"` (codemagic.yaml).
+// So a member on any real build can quote a version AND the commit it was cut from,
+// and the version-alone answer belongs to a plain local `npm run build`. Outside a
+// bundler (the Node test harness) there is no define at all, so `typeof` is what
+// keeps this from throwing, and the answer is the honest empty string.
 function bsBuildLabel() {
   let version = '';
   try { version = (typeof __SHAPE_VERSION__ !== 'undefined' && __SHAPE_VERSION__) || ''; } catch (e) { version = ''; }
@@ -12837,7 +12845,13 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
   const a11yName = !interactive ? undefined : (label
     || (name ? tr('profile:avatar.openNamed', { name, defaultValue: '{name} — open profile' })
              : tr('profile:avatar.open', { defaultValue: 'Open profile' })));
+  // ⚠ ONLY THE WRAPPER'S OWN KEYSTROKES, never a descendant's. The `editable`
+  // variant puts a real ✎ <button> inside this wrapper, and a keydown on it bubbles:
+  // without this check, Enter on the photo button would preventDefault() — killing
+  // the click the browser synthesizes from it — and open Settings instead. The ✎
+  // stops its own click and keydown too, so the guard holds from both directions.
   const onKey = interactive ? (e) => {
+    if (e.target !== e.currentTarget) return;
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); onClick(e); }
   } : undefined;
   const box = { width: size, height: size, flexShrink: 0, position: 'relative', display: 'grid', placeItems: 'center', cursor: interactive ? 'pointer' : 'default' };
@@ -12865,7 +12879,7 @@ function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', pho
         </div>
       </div>
       {editable && (
-        <button type="button" onClick={onEdit} aria-label={tr('profile:avatar.changePhoto', { defaultValue: 'Change photo' })} style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BGv}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onEdit && onEdit(e); }} onKeyDown={(e) => e.stopPropagation()} aria-label={tr('profile:avatar.changePhoto', { defaultValue: 'Change photo' })} style={{ position: 'absolute', bottom: -2, right: -2, zIndex: 2, width: Math.max(22, Math.round(size * 0.3)), height: Math.max(22, Math.round(size * 0.3)), borderRadius: 999, background: '#34d6c5', color: '#06110e', border: `2px solid ${BGv}`, cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: Math.max(11, Math.round(size * 0.16)), padding: 0 }}>✎</button>
       )}
       {!editable && showDot && (
         <span style={{ position: 'absolute', bottom: 0, right: 0, transform: 'translate(20%,20%)', background: BGv, borderRadius: 999, padding: 3, boxShadow: `0 0 0 2px ${BGv}` }}><span style={{ display: 'block', width: Math.max(6, Math.round(size * 0.13)), height: Math.max(6, Math.round(size * 0.13)), borderRadius: 999, background: dotColor }} /></span>

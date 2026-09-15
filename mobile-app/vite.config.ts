@@ -115,10 +115,13 @@ const stripSourcemaps = {
 // had nothing to quote. This is the one number, and it is measured rather than
 // typed: whatever `mobile-app/package.json` says at the moment the bundle is built.
 //
-// The commit rides beside it only when the build actually has one —
-// scripts/build-m.sh exports VITE_SHAPE_RELEASE from VERCEL_GIT_COMMIT_SHA, so a
-// Vercel build carries it and a local/Android/Codemagic build does not. Absent, the
-// app shows the version alone rather than inventing a stamp.
+// The commit rides beside it whenever the build has one, and EVERY shipping
+// pipeline sets it: build-m.sh from VERCEL_GIT_COMMIT_SHA on Vercel, and both
+// native builds set it themselves — `VITE_SHAPE_RELEASE: ${{ github.sha }}` in
+// .github/workflows/android-build.yml (debug and signed) and
+// `export VITE_SHAPE_RELEASE="${CM_COMMIT:-$(git rev-parse HEAD)}"` in codemagic.yaml.
+// A plain local `npm run build` sets nothing, and there the app shows the version
+// alone rather than inventing a stamp.
 const pkgVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')).version || '';
 
 export default defineConfig({

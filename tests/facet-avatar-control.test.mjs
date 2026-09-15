@@ -81,6 +81,36 @@ test('the keyboard path fires on Enter and Space and on nothing else', () => {
   assert.equal(fired, 3, 'no other key may activate it');
 });
 
+test('the nested ✎ button never activates the wrapper it sits inside', () => {
+  // ⚠ CODEX, P2. The `editable` + `onClick` branch keeps a real <button> INSIDE a
+  // role-button wrapper, and events bubble: a click on the photo button ran onEdit
+  // and then the wrapper's onClick, and Enter on it hit the wrapper's onKeyDown,
+  // which called preventDefault() — killing the click the browser synthesizes from
+  // that keystroke — and opened Settings instead of the photo picker. The branch
+  // written to keep this correct was the branch that got it wrong.
+  let opened = 0, edited = 0, stopped = 0;
+  const api = drive(BSFacetAvatar, { onClick: () => { opened += 1; }, editable: true, onEdit: () => { edited += 1; } });
+  const wrap = api.nodes()[0];
+
+  // A keystroke that BUBBLED from a descendant is not the wrapper's to act on.
+  wrap.props.onKeyDown({ key: 'Enter', target: {}, currentTarget: wrap, preventDefault() { throw new Error('must not preventDefault a descendant keystroke'); } });
+  assert.equal(opened, 0, 'Enter on the photo button must not open Settings');
+  // The wrapper's own keystroke still works.
+  const self = {};
+  wrap.props.onKeyDown({ key: 'Enter', target: self, currentTarget: self, preventDefault() {} });
+  assert.equal(opened, 1);
+
+  // And the ✎ stops its own events, so the guard holds from both directions.
+  const edit = api.nodes().find((n) => n.type === 'button' && n.props['aria-label']);
+  assert.ok(edit, 'the editable variant renders its ✎ button');
+  edit.props.onClick({ stopPropagation() { stopped += 1; } });
+  assert.equal(edited, 1, 'the photo button still edits the photo');
+  assert.equal(stopped, 1, 'and stops its click reaching the wrapper');
+  edit.props.onKeyDown({ stopPropagation() { stopped += 1; } });
+  assert.equal(stopped, 2, 'and stops its keystrokes too');
+  assert.equal(opened, 1, 'nothing the ✎ did opened Settings');
+});
+
 test('every string the avatar renders goes through the catalog', () => {
   // ⚠ ASSERTED THROUGH A STUBBED CATALOG, because the rendered text is IDENTICAL
   // whether the label is keyed or hardcoded — the key's default value is the same
