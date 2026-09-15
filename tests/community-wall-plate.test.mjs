@@ -11,7 +11,7 @@
 // rather than pinning our own spelling of it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
 const FEED = readFileSync('public/newdesign/communityFeed.jsx', 'utf8');
@@ -227,8 +227,17 @@ test('both workoutStats schemas reach the plate — the app writes two', () => {
   // { label, value }; the app's Log-activity composer (:14060) and the
   // Post-a-PR sheet (:20166) write { l, v }. Reading only the first dropped
   // every row from a post made in the app BY HAND — no hero, no facts, no grid,
-  // and nothing failing anywhere. Both writers are read out of the app rather
-  // than restated, so the day a third shape appears this fails.
+  // and nothing failing anywhere.
+  //
+  // ⚠ THIS BLOCK ONCE CLAIMED "so the day a third shape appears this fails".
+  // IT DID NOT, and the claim was repeated in the commit message and the PR
+  // body (Codex, #2099 round 2). Asserting that the two KNOWN writers still
+  // exist proves nothing about a THIRD: both keep existing when it arrives, so
+  // a producer emitting { name, val } would be dropped by mapPost with the
+  // suite green. What follows still earns its place — it pins each known
+  // writer's shape, so a shape CHANGE at either fails here — but the
+  // unrecognised-producer invariant is enforced by the derived guard below,
+  // not by this test.
   const app = readFileSync('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'utf8');
   assert.match(app, /\.map\(\(\[l, v\]\) => \(\{ l, v: String\(v \|\| ''\)\.trim\(\) \}\)\)/,
     "the app's composer no longer writes { l, v } — re-derive this normalisation");
@@ -250,6 +259,149 @@ test('both workoutStats schemas reach the plate — the app writes two', () => {
   assert.deepEqual(read({ workoutStats: [{ l: 'Top set', v: '   ' }, { label: 'X', value: '' }] }), []);
   assert.deepEqual(read({ workoutStats: [null, 'nope', 7] }), []);
   assert.deepEqual(read({}), []);
+});
+
+// ── The unrecognised-producer invariant, enforced rather than asserted ──────
+// Codex, #2099 round 2 (P2). The guard above proves the two KNOWN writers still
+// exist, which is silent about a third. This one DERIVES the writers: every
+// production file that mentions `workoutStats`, every identifier that flows into
+// it (including the local accumulator of a function called to build it), and
+// every two-key object literal pushed into or constructed as one of those. Then
+// it closes the loop — each derived shape is fed to the SHIPPED normaliser and
+// must reach the plate. A writer added in a new integration route is covered
+// with nobody remembering this file exists.
+//
+// Measured when written: 6 writers across 5 files, 15 literals, 2 shapes —
+// shapeBackend.js (live session), the app's Log-activity composer and Post-a-PR
+// sheet, and the Garmin, Strava and Whoop sync routes. Four of those six were
+// server-side and no guard had ever looked at them.
+function deriveWorkoutStatsWriters() {
+  const walk = (dir, out = []) => {
+    for (const e of readdirSync(dir)) {
+      const rel = `${dir}/${e}`;
+      if (statSync(rel).isDirectory()) { if (e !== 'node_modules') walk(rel, out); }
+      else if (/\.(?:m?js|jsx|ts|tsx)$/.test(e)) out.push(rel);
+    }
+    return out;
+  };
+  // ⚠ BRACE-AWARE, AND THAT IS LOAD-BEARING. A stat value is routinely a
+  // template literal (`${mins} min`), so a [^{}]* body stops at the first `${`
+  // and the literal is MISSED — which is worse than a false positive, because
+  // the sweep then reports clean. Measured: the naive form found 11 of 15 and
+  // skipped shapeBackend's writer entirely.
+  const objBody = (src, open) => {
+    let d = 0;
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '{') d++;
+      else if (src[i] === '}') { d--; if (!d) return src.slice(open + 1, i); }
+    }
+    return null;
+  };
+  // Top-level keys only, shorthand included (`{ label, value }` — how the Whoop
+  // and Strava helpers push).
+  const keysOf = (body) => {
+    const parts = []; let d = 0, cur = '';
+    for (const ch of body) {
+      if ('{[('.includes(ch)) d++;
+      else if ('}])'.includes(ch)) d--;
+      if (ch === ',' && d === 0) { parts.push(cur); cur = ''; } else cur += ch;
+    }
+    parts.push(cur);
+    return parts.map((x) => x.trim()).filter(Boolean)
+      .map((x) => { const i = x.indexOf(':'); return (i === -1 ? x : x.slice(0, i)).trim(); })
+      .filter((k) => /^[A-Za-z_$][\w$]*$/.test(k));
+  };
+  const lineOf = (src, i) => src.slice(0, i).split('\n').length;
+
+  const files = ['mobile-app/src', 'src'].flatMap((d) => walk(d))
+    .filter((f) => readFileSync(f, 'utf8').includes('workoutStats'));
+  const out = [];
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8');
+    const sinks = [{ name: 'workoutStats', at: null }];
+    for (const m of src.matchAll(/workoutStats\s*:\s*([A-Za-z_$][\w$]*)\s*(?=[,}\n])/g)) {
+      sinks.push({ name: m[1], at: lineOf(src, m.index) });
+    }
+    // `workoutStats: buildActivityStats(activity)` — follow the call to the
+    // accumulator the function pushes into.
+    for (const m of src.matchAll(/workoutStats\s*:\s*([A-Za-z_$][\w$]*)\s*\(/g)) {
+      const b = new RegExp(`function\\s+${m[1]}\\b[\\s\\S]*?\\n\\}`, 'm').exec(src);
+      if (b) for (const a of b[0].matchAll(/const\s+([A-Za-z_$][\w$]*)\s*:[^=]*=\s*\[\s*\]/g)) {
+        sinks.push({ name: a[1], at: lineOf(src, b.index + a.index) });
+      }
+    }
+    for (const s of sinks) {
+      // ⚠ NO `pat.exec()` PROBE BEFORE THIS LOOP. A /g regex advances lastIndex
+      // and matchAll inherits it, so a "does it match at all" guard silently
+      // eats the FIRST match — measured: it lost Garmin's first push, and both
+      // the Whoop and Strava writers entirely.
+      const pat = new RegExp(`\\b${s.name}\\s*(?:\\.push\\(\\s*|[^=\\n]{0,40}=\\s*\\[\\s*|[^\\n]{0,80}=>\\s*\\()\\{`, 'g');
+      for (const m of src.matchAll(pat)) {
+        const open = src.indexOf('{', m.index + m[0].length - 1);
+        const body = objBody(src, open);
+        if (body === null) continue;
+        const ln = lineOf(src, m.index);
+        // A derived sink can carry a generic name (`stats`, `out`) that also
+        // exists elsewhere in a 24k-line file, so scope it to its own region.
+        if (s.at !== null && Math.abs(ln - s.at) > 200) continue;
+        const keys = keysOf(body);
+        if (keys.length !== 2) continue;
+        out.push({ file: f, line: ln, keys });
+      }
+    }
+  }
+  return out;
+}
+
+test('every production writer of workoutStats emits a shape the plate can read', () => {
+  const writers = deriveWorkoutStatsWriters();
+
+  // VACUITY. A sweep that stops matching finds nothing and passes every
+  // "is this shape readable" assertion below on an empty set. These floors are
+  // what make a silent regression in the extractor fail instead.
+  //
+  // ⚠ THE TWO FLOORS ARE MUTUALLY REDUNDANT, AND THAT IS MEASURED RATHER THAN
+  // ASSUMED. Removing EITHER one alone is a no-op — a mutation that does so
+  // survives, because the other still fires. Removing BOTH, with the extractor
+  // degraded, goes GREEN on a sweep that has silently lost a third of the
+  // writers. So neither is decoration: together they are the only thing between
+  // a broken extractor and a passing suite, and a single-mutation survivor here
+  // is a fact about the design rather than a gap in it.
+  const files = new Set(writers.map((w) => w.file));
+  assert.ok(writers.length >= 12,
+    `the writer sweep found only ${writers.length} stat literals (15 when written) — the extractor stopped matching`);
+  assert.ok(files.size >= 5,
+    `the writer sweep reached only ${files.size} files (5 when written) — the extractor stopped matching`);
+  const shapes = new Set(writers.map((w) => [...w.keys].sort().join(',')));
+  // POSITIVE CONTROL: both known shapes must still be REACHED. Without this the
+  // floors above are satisfied by { label, value } alone (11 of the 15), and an
+  // extractor blind to the app's { l, v } writers would read as clean.
+  assert.ok(shapes.has('label,value'), 'the sweep no longer reaches any { label, value } writer');
+  assert.ok(shapes.has('l,v'), 'the sweep no longer reaches any { l, v } writer');
+
+  // THE INVARIANT. Every shape any production writer emits must reach the plate.
+  // Driven through the SHIPPED normaliser, not compared against a restated list
+  // — so a third producer fails here rather than being silently dropped.
+  const mapper = /const mapPost = \(p, uid\) => \{[\s\S]*?\n    \};/.exec(stripComments(FEED));
+  assert.ok(mapper, 'mapPost moved — re-anchor this guard');
+  const ws = /const wstats = [\s\S]*?\n      \}\)\.filter\(Boolean\) : \[\];/.exec(mapper[0]);
+  assert.ok(ws, 'the workoutStats normalisation moved — re-anchor this guard');
+  // eslint-disable-next-line no-new-func
+  const read = new Function('m', `${ws[0]}\nreturn wstats;`);
+
+  for (const shape of shapes) {
+    const [a, b] = shape.split(',');
+    const row = { [a]: 'L', [b]: 'V' };
+    const got = read({ workoutStats: [row] });
+    const where = writers.filter((w) => [...w.keys].sort().join(',') === shape)
+      .map((w) => `${w.file}:${w.line}`).join(', ');
+    assert.equal(got.length, 1,
+      `a production writer emits { ${a}, ${b} } and mapPost drops it, so every row from it ` +
+      `vanishes from the plate with nothing failing anywhere. Written at: ${where}`);
+    // Order-agnostic: mapPost reads by KEY, so a writer spelling the pair the
+    // other way round is fine in production and must not fail here.
+    assert.deepEqual([...got[0]].sort(), ['L', 'V'], `the { ${a}, ${b} } row reached the plate malformed`);
+  }
 });
 
 test("a member's FIRST record still says New PR — it has a marker and no delta", () => {
