@@ -7,10 +7,11 @@
 // ways to go quietly wrong that no render harness in this container can see
 // at a glance: a shader that does not carry three.js's skinning chunks (a frozen
 // T-pose), a depth prepass whose clone copies the morph influences instead of
-// sharing them (an eyelid whose depth lags its light), and an outline shell
-// left visible (a second, larger Nora around the first). Each is driven here
-// against a stub THREE and a fake graph, because the module takes THREE by
-// injection precisely so this can run in Node.
+// sharing them — a copy is a one-time slice, so that eyelid's depth freezes at
+// its clone-time value permanently rather than trailing the light by a frame —
+// and an outline shell left visible (a second, larger Nora around the first).
+// Each is driven here against a stub THREE and a fake graph, because the module
+// takes THREE by injection precisely so this can run in Node.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -115,7 +116,7 @@ test('the swap: every surface onto one light, the outline shells gone, the depth
     assert.equal(c.skeleton, r[c.name.replace('~', '')].skeleton, 'the depth clone has its own skeleton — it will not follow the rig');
   }
   const faceClone = clones.find((c) => c.name === 'face~');
-  assert.equal(faceClone.morphTargetInfluences, r.face.morphTargetInfluences, 'the depth clone COPIED the morph influences — a blinking eyelid\'s depth lags its light');
+  assert.equal(faceClone.morphTargetInfluences, r.face.morphTargetInfluences, 'the depth clone COPIED the morph influences — a copy is a one-time slice, so its eyelid freezes at the clone-time value and never blinks with the light again');
   // uCell is in device pixels.
   assert.equal(h.holo.uniforms.uCell.value, 5.5 * 2);
   assert.equal(h.holo.uniforms.uColor.value.hex, '#0ac5a8');
