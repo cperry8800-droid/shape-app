@@ -719,14 +719,41 @@ function CfWallEvidence({ model, onOpen }) {
 const CF_POST_CHANNEL = "COMMUNITY";
 
 // The author's role, from the tier string the feed carries instead of a role
-// column. It outlived the chip derivation it was written beside: `cfHeat` reads
-// it, so a trainer's plate is rust and a nutritionist's gold.
+// column. Read twice: `cfHeat` (a trainer's plate is rust, a nutritionist's
+// gold) and `cfChannelOf`'s fallback below.
 function cfKindOfRole(r) {
   const s = String(r || "").toLowerCase();
   if (s.includes("shape") || s.includes("mod") || s.includes("official")) return "SHAPE";
   if (s.includes("train") || s.includes("coach")) return "TRAINER";
   if (s.includes("nutri") || s.includes("diet")) return "NUTRI";
   return "CLIENT";
+}
+
+// ── Which channels this member may see ──────────────────────────────────────
+// ⚠ THE CHIP ROW WENT AND THE AUDIENCE BOUNDARY IT CARRIED DID NOT. Codex's P1
+// on #2102, verified at the source rather than taken: `/api/community/feed`
+// applies NO channel predicate at all — it filters `privacy`, plus `author_id`
+// in `following` mode, then `LIMIT 50` (`src/app/api/community/feed/route.ts`)
+// — so the chips were the ONLY thing scoping channels on this surface. And the
+// app says in its own comment what they mean: "SHAPE = individual members,
+// TRAINER/NUTRI/CLIENT = that role's peers only". So dropping the filter with
+// the row showed a CLIENT the trainer- and nutritionist-PEER channels for the
+// first time, and let those rows consume the 50-row window ahead of Wall
+// activity. The control is gone; the boundary is not.
+// ⚠ THE SET IS EXACTLY WHAT THIS MEMBER'S THREE CHIPS USED TO COVER, which is
+// what makes the removal a UI simplification rather than a change of audience:
+// nothing they could previously reach is hidden and nothing new is exposed.
+// `cfChannelOf` keeps BOTH halves of the app's derivation — the explicit
+// channel and the author's-role fallback — because dropping the fallback makes
+// every pre-channel post vanish from every scope.
+const CF_KNOWN_CHANNELS = ["SHAPE", "TRAINER", "CLIENT", "NUTRI", "COMMUNITY"];
+function cfChannelOf(p) {
+  const ch = String((p && p.channel) || "").trim().toUpperCase();
+  return CF_KNOWN_CHANNELS.indexOf(ch) >= 0 ? ch : cfKindOfRole(p && p.role);
+}
+function cfFeedScope(role) {
+  const mine = role === "trainer" ? "TRAINER" : role === "nutritionist" ? "NUTRI" : "CLIENT";
+  return ["COMMUNITY", mine, "SHAPE"];
 }
 
 function CommunityFeed() {
@@ -846,6 +873,8 @@ function CommunityFeed() {
   // `cfEnsureWallFonts` for why it is one link from here rather than an edit to
   // all 35 host pages.
   React.useEffect(() => { cfEnsureWallFonts(); }, []);
+  const myRole = (typeof window !== "undefined" && window.shapeViewerRole)
+    ? String(window.shapeViewerRole() || "").toLowerCase() : "client";
 
   const DEMO_FEED = [
     { kind: "pr", channel: "COMMUNITY", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
@@ -1355,10 +1384,16 @@ function CommunityFeed() {
         await client.from("community_comments").insert({ post_id: p.id, user_id: uid, author_name: name, body: t });
       } catch (e) {}
     };
+    // ⚠ A REPOST IS A FEED WRITE, so it carries the channel like every other
+    // one (Codex P2 on #2102). Without it the app's mapper falls back to the
+    // REPOSTER'S ROLE and files it under Client/Trainer/Nutri instead of the
+    // Wall — and the reposted card is the one most likely to be a record.
+    // Pre-existing, and this PR owns it: making `CF_POST_CHANNEL` the file's
+    // write-side invariant is what turned a gap into a broken invariant.
     const onRepost = async () => {
       if (!p.isLive || !p.id) { try { window.alert("Sample post — repost works on real posts."); } catch (e) {} return; }
       try {
-        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: p.title || "Repost", note: p.body || "", privacy: "public", metrics: { kind: "note", repostOf: { postId: p.id, who: p.who || "", title: p.title || "", body: String(p.body || "").slice(0, 240) } } }) });
+        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: p.title || "Repost", note: p.body || "", privacy: "public", metrics: { kind: "note", channel: CF_POST_CHANNEL, repostOf: { postId: p.id, who: p.who || "", title: p.title || "", body: String(p.body || "").slice(0, 240) } } }) });
         if (!res.ok) throw new Error("repost_failed");
         try { window.alert("Reposted to the feed"); } catch (e) {}
       } catch (e2) { try { window.alert("Could not repost."); } catch (e3) {} }
@@ -1522,12 +1557,16 @@ function CommunityFeed() {
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 18px 22px" }}>
         <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
           {(() => {
-            // ⚠ NO CHANNEL FILTER — see `CF_POST_CHANNEL`. The app splits this
-            // feed across three chips because its Chat has no tabs for those
-            // audiences; this bubble does, so the chips were duplicating tabs
-            // one level down and the row went. Every post the member can see is
-            // on one list, which is also the only reading that loses nothing.
-            const visible = feed.filter(p => !(myPostsOnly && !p.isMe));
+            // ⚠ ONE LIST, THE SAME AUDIENCE — see `cfFeedScope`. The app splits
+            // this feed across three chips because its Chat has no tabs for
+            // those audiences; this bubble does, so the chips were duplicating
+            // tabs one level down and the row went. What the chips SCOPED is
+            // kept: the three channels they covered, merged rather than widened.
+            const scope = cfFeedScope(myRole);
+            const visible = feed.filter(p => {
+              if (myPostsOnly && !p.isMe) return false;
+              return scope.indexOf(cfChannelOf(p)) >= 0;
+            });
             if (feedMode === "following" && liveEmpty) {
               return (
                 <>
