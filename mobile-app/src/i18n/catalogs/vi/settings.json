@@ -508,5 +508,14 @@
   "quick.radio": "Radio",
   "quick.online": "Trực tuyến",
   "quick.visible": "Hiện",
-  "quick.hidden": "Ẩn"
+  "quick.hidden": "Ẩn",
+  "nora.speakReplies": "Đọc câu trả lời",
+  "nora.tone": "Giọng điệu",
+  "nora.voice": "Giọng",
+  "nora.preview": "Nghe thử giọng",
+  "nora.previewMeta": "Nghe",
+  "nora.memory": "Những gì Nora nhớ",
+  "nora.memoryMeta": "Xem",
+  "nora.toneSupportive": "Động viên",
+  "nora.toneDirect": "Thẳng thắn"
 }

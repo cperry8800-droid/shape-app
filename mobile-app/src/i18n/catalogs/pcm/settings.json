@@ -508,5 +508,14 @@
   "quick.radio": "Radio",
   "quick.online": "Online",
   "quick.visible": "Dey show",
-  "quick.hidden": "Hide"
+  "quick.hidden": "Hide",
+  "nora.speakReplies": "Talk the replies",
+  "nora.tone": "Tone",
+  "nora.voice": "Voice",
+  "nora.preview": "Hear the voice",
+  "nora.previewMeta": "Listen",
+  "nora.memory": "Wetin Nora dey remember",
+  "nora.memoryMeta": "See am",
+  "nora.toneSupportive": "Supportive",
+  "nora.toneDirect": "Direct"
 }

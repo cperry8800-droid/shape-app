@@ -508,5 +508,14 @@
   "quick.radio": "Радіо",
   "quick.online": "Онлайн",
   "quick.visible": "Видно",
-  "quick.hidden": "Приховано"
+  "quick.hidden": "Приховано",
+  "nora.speakReplies": "Озвучувати відповіді",
+  "nora.tone": "Тон",
+  "nora.voice": "Голос",
+  "nora.preview": "Прослухати голос",
+  "nora.previewMeta": "Прослухати",
+  "nora.memory": "Що пам’ятає Нора",
+  "nora.memoryMeta": "Переглянути",
+  "nora.toneSupportive": "Підтримувальний",
+  "nora.toneDirect": "Прямий"
 }

@@ -508,5 +508,14 @@
   "quick.radio": "Radio",
   "quick.online": "Kan layi",
   "quick.visible": "A bayyane",
-  "quick.hidden": "Ɓoye"
+  "quick.hidden": "Ɓoye",
+  "nora.speakReplies": "Karanta amsoshi",
+  "nora.tone": "Salon magana",
+  "nora.voice": "Murya",
+  "nora.preview": "Saurari muryar",
+  "nora.previewMeta": "Saurara",
+  "nora.memory": "Abin da Nora ke tunawa",
+  "nora.memoryMeta": "Duba",
+  "nora.toneSupportive": "Mai ƙarfafawa",
+  "nora.toneDirect": "Kai tsaye"
 }

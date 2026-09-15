@@ -508,5 +508,14 @@
   "quick.radio": "Radio",
   "quick.online": "Online",
   "quick.visible": "Terlihat",
-  "quick.hidden": "Tersembunyi"
+  "quick.hidden": "Tersembunyi",
+  "nora.speakReplies": "Bacakan balasan",
+  "nora.tone": "Nada",
+  "nora.voice": "Suara",
+  "nora.preview": "Dengarkan suara",
+  "nora.previewMeta": "Dengarkan",
+  "nora.memory": "Yang diingat Nora",
+  "nora.memoryMeta": "Lihat",
+  "nora.toneSupportive": "Mendukung",
+  "nora.toneDirect": "Langsung"
 }

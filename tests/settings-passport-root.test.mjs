@@ -239,3 +239,148 @@ test('a coach gets Preferences, never a Training & nutrition door they never had
   assert.ok(coach.includes("detail: 'practice'"), 'a coach lost Your practice');
   assert.ok(!client.includes("detail: 'practice'"), 'a member is offered a coach’s practice settings');
 });
+
+// ── THE CODEX ROUND ON fcbf5c3 ── four P2s, every one verified against the source
+// before it was acted on, and every one a claim the Passport's identity card newly
+// makes. Each is replayed here as a guard, because the instrument that would
+// otherwise be reached for CANNOT SEE THEM: `BSSettings` is PARTIAL to the i18n
+// surface ratchet over exactly ONE string (its `'AB'` initials placeholder), and the
+// Nora labels below live in a local `const sections = [...]` object literal — that
+// walk's own documented blind shape. The ratchet's columns therefore read the same
+// before and after the fix, which is not evidence of anything. These are.
+
+// The `Nora’s voice` entry of the `sections` table, taken whole from its title line
+// to the close of its `rows` array. Comment-stripped through the SHARED helper: this
+// repo has paid four times for a locally re-derived stripper opening a lazy `/* */`
+// span on an `image/*` string.
+function noraSection() {
+  const clean = stripComments(src);
+  const i = clean.indexOf("title: 'Nora’s voice',");
+  assert.ok(i > 0, 'the Nora section is gone, or its title literal moved — findSec addresses it by that exact string');
+  const j = clean.indexOf('\n    },', i);
+  assert.ok(j > i, 'could not find the end of the Nora section');
+  return clean.slice(i, j);
+}
+
+test('every Nora row is keyed, because this PR is what made them reachable', () => {
+  const sec = noraSection();
+  // Vacuity first: a matcher that has stopped matching reports a clean sweep for
+  // ever, which is the failure this file is least able to notice.
+  const rows = [...sec.matchAll(/\{ l: /g)];
+  assert.ok(rows.length >= 5, `expected the five Nora rows, found ${rows.length}`);
+
+  // Every label and every right-hand reading goes through the translator. A bare
+  // string here is English shipped to twelve locales on a door that did not exist
+  // before this change.
+  const bareLabel = [...sec.matchAll(/\b([lr]): '([^']+)'/g)].map(m => `${m[1]}: '${m[2]}'`);
+  assert.deepEqual(bareLabel, [], 'a Nora row label or reading is a bare English literal again');
+
+  for (const k of ['nora.speakReplies', 'nora.tone', 'nora.voice', 'nora.preview',
+                   'nora.previewMeta', 'nora.memory', 'nora.memoryMeta']) {
+    assert.ok(sec.includes(`settings:${k}`), `the Nora rows no longer use settings:${k}`);
+  }
+
+  // Both segmented rows carry localized segment labels — `renderRows` prints the raw
+  // option token unless `segLabels` is supplied, so a keyed LABEL above an English
+  // ON/OFF pair is half a fix.
+  const segRows = [...sec.matchAll(/segmented: PREF_OPTIONS\.\w+/g)];
+  assert.equal(segRows.length, 2, 'the Nora segmented rows changed shape');
+  assert.equal([...sec.matchAll(/segLabels: \[/g)].length, 2,
+    'a Nora segmented row lost its segLabels and now prints its raw English token');
+});
+
+test('the Nora section title stays a literal, because it is an address and not copy', () => {
+  // The control for the test above: `findSec('Nora’s voice')` matches on this exact
+  // string, so "translate every string in the section" is the WRONG generalisation —
+  // it would make the section unfindable and the pane would render nothing at all.
+  assert.ok(src.includes("title: 'Nora’s voice',"), 'the Nora section title was translated — findSec can no longer address it');
+  assert.ok(src.includes("findSec('Nora’s voice')"), 'nothing addresses the Nora section any more');
+  assert.ok(src.includes("tr('settings:section.nora'"), 'the heading a member reads is no longer translated');
+});
+
+// The exact source span of a top-level component, by AST rather than by scanning
+// for the next `\nfunction ` — this module declares components BOTH ways, so a
+// text scan from `function BSSettings` runs 181k characters past its end and every
+// count taken over it is a count of half the file. Caught by this guard reporting
+// two score readings on a tree that has one.
+function componentSrc(name) {
+  let span = null;
+  for (const n of ast.program.body) {
+    if (n.type === 'FunctionDeclaration' && n.id && n.id.name === name) span = [n.start, n.end];
+    if (n.type === 'VariableDeclaration') {
+      for (const d of n.declarations) {
+        if (d.id.type === 'Identifier' && d.id.name === name && d.init) span = [d.init.start, d.init.end];
+      }
+    }
+  }
+  assert.ok(span, `there is no top-level ${name}`);
+  // ⚠ COMMENT-STRIPPED, OR A COUNT COUNTS ITS OWN RATIONALE. The first run of the
+  // score guard below reported TWO `_bsUseLiveScore(` calls on a tree with one: the
+  // second "call" was the sentence in the module explaining which call had been
+  // retired. Through the SHARED stripper, never a locally re-derived one.
+  return stripComments(src.slice(span[0], span[1]));
+}
+
+test('Settings takes ONE score reading, and it is the role-aware one', () => {
+  // Codex P2: the identity card rendered `settingsScore.tier` from a
+  // `_bsUseLiveScore(SHAPE_SCORE_PROFILES.client)` hardcoded to the CLIENT ladder,
+  // while the same component already had a role-aware `scoreProfile` — and hands
+  // THAT one to BSShapeScorePage. A coach would have read one tier on the card and
+  // another on the page it opens.
+  assert.ok(!/\bsettingsScore\b/.test(src), 'the second, client-only score reading is back');
+  const settings = componentSrc('BSSettings');
+  assert.ok(settings.length > 50_000 && settings.length < 200_000,
+    `the BSSettings span measured ${settings.length} chars — the extractor is reading the wrong thing`);
+  assert.equal([...settings.matchAll(/_bsUseLiveScore\(/g)].length, 1,
+    'BSSettings takes more than one score reading again — two readings is the defect');
+  assert.ok(/_bsUseLiveScore\(SHAPE_SCORE_PROFILES\[_scoreRoleKey\]/.test(settings),
+    'the one reading is no longer role-aware');
+  assert.ok(/tier: scoreProfile\.tier/.test(settings), 'the tier line stopped reading the role-aware profile');
+  assert.ok(/bsTierColor\(scoreProfile\.tier\)/.test(settings), 'the tier DOT stopped reading the role-aware profile');
+});
+
+test('an unread subscription is never reported as an inactive membership', () => {
+  // Codex P2: `plan` is null while /api/stripe/subscription is in flight AND for ever
+  // after a failed read (the non-ok arm sets nothing, the .catch swallows). Folding
+  // null into the inactive case told a paying member "MEMBERSHIP INACTIVE" under
+  // their own name on every open.
+  const clean = stripComments(src);
+  const i = clean.indexOf('const statusLine = isCoachRole');
+  assert.ok(i > 0, 'the identity card has no status line');
+  // ⚠ THE WHOLE STATEMENT, NOT UP TO THE FIRST `;` AFTER A NAMED ARM. The fix moved
+  // `plan.notMember` to the TOP of the chain, so a slice ending there stopped before
+  // the arm this test is named for and failed on a correct tree.
+  const line = clean.slice(i, clean.indexOf('const sub = ', i));
+  assert.ok(line.length > 200 && line.includes('plan.inactive'),
+    'the statusLine extractor is no longer reading the whole statement');
+
+  assert.ok(/const planKnown = plan != null;/.test(clean), 'the read/unread distinction is gone');
+  // ⚠ NOT `[^:]*` — `tr('settings:plan.inactive'` CONTAINS a colon, so the obvious
+  // character class can never reach the thing it is looking for and the guard fails
+  // on a correct tree.
+  assert.ok(/planKnown \? tr\('settings:plan\.inactive'/.test(line),
+    'the inactive claim is no longer gated on the plan having actually been read');
+  // Signed-out still settles, and that is a fact about the SESSION rather than about
+  // the unread plan — you cannot hold a subscription with no account. Without this
+  // the fix would trade a false claim for a lost true one.
+  assert.ok(/!signedIn\s*\n?\s*\? tr\('settings:plan\.notMember'/.test(line),
+    'a signed-out visitor stopped reading "Not a member", which is true for them');
+});
+
+test('the identity card prints a handle only when the member actually has one', () => {
+  // Codex P2: with no account username and no saved handle the initializer
+  // synthesizes one from the display name — and bsMyName() itself falls back to the
+  // email local-part — so the card presented a handle nobody claimed.
+  const clean = stripComments(src);
+  assert.ok(/const \[handleKnown, setHandleKnown\] = useStateBSC\(!!_myUsername\);/.test(clean),
+    'handleKnown is gone, or no longer seeds from the account’s real username');
+  assert.ok(/const sub = \[handleKnown \? identity\.handle : ''/.test(clean),
+    'the card prints identity.handle unconditionally again');
+  assert.ok(/if \('handle' in d\) setHandleKnown\(!!d\.handle\);/.test(clean),
+    'a saved client_identity handle no longer marks the handle as the member’s');
+  // And the write, or the guard lasts exactly one save: saveEdit persists the whole
+  // draft, so a synthesized handle used to land in client_identity and be read back
+  // as claimed on the next load.
+  assert.ok(/if \(!handleKnown\) delete patch\.handle;/.test(clean),
+    'saveEdit persists a synthesized handle again, which launders it into a claimed one');
+});

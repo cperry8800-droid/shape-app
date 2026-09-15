@@ -508,5 +508,14 @@
   "quick.radio": "Radyo",
   "quick.online": "Çevrimiçi",
   "quick.visible": "Görünür",
-  "quick.hidden": "Gizli"
+  "quick.hidden": "Gizli",
+  "nora.speakReplies": "Yanıtları seslendir",
+  "nora.tone": "Ton",
+  "nora.voice": "Ses",
+  "nora.preview": "Sesi dinle",
+  "nora.previewMeta": "Dinle",
+  "nora.memory": "Nora’nın hatırladıkları",
+  "nora.memoryMeta": "Görüntüle",
+  "nora.toneSupportive": "Destekleyici",
+  "nora.toneDirect": "Doğrudan"
 }

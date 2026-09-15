@@ -508,5 +508,14 @@
   "quick.radio": "Radio",
   "quick.online": "En línea",
   "quick.visible": "Visible",
-  "quick.hidden": "Oculto"
+  "quick.hidden": "Oculto",
+  "nora.speakReplies": "Leer las respuestas",
+  "nora.tone": "Tono",
+  "nora.voice": "Voz",
+  "nora.preview": "Escuchar la voz",
+  "nora.previewMeta": "Escuchar",
+  "nora.memory": "Lo que Nora recuerda",
+  "nora.memoryMeta": "Ver",
+  "nora.toneSupportive": "De apoyo",
+  "nora.toneDirect": "Directo"
 }

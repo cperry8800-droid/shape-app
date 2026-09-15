@@ -32605,10 +32605,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
   };
 
-  // Live Shape Score tier for the profile header (user-scoped — reflects the
-  // signed-in client / trainer / nutritionist's current tier).
-  const settingsScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
-  const settingsTierC = bsTierColor(settingsScore.tier);
+  // ⚠ THE TIER COLOUR READS THE ROLE-AWARE `scoreProfile` ABOVE, NOT A SECOND
+  // CLIENT-ONLY READING. This block used to declare its own
+  // `_bsUseLiveScore(SHAPE_SCORE_PROFILES.client)` — hardcoded to the CLIENT ladder
+  // — under a comment claiming it reflected "the signed-in client / trainer /
+  // nutritionist's current tier", which it could not: `_bsUseLiveScore` derives the
+  // ladder from the profile's own `roleLabel`, so a coach got Base/Tempo/Form where
+  // `bsCoachTier` would say Certified/Pro. It was DEAD on main — nothing read it —
+  // and the Passport's identity card is its first consumer, which is what made the
+  // divergence reachable: the very same Settings hands `scoreProfile` to
+  // BSShapeScorePage, so a coach would have read one tier on the card and a
+  // different one on the page it opens. Deleted rather than corrected in place:
+  // two score readings in one component is the defect, and one of them was already
+  // right.
+  const settingsTierC = bsTierColor(scoreProfile.tier);
 
   // Identity editing — seed name/handle from the signed-in account so the profile
   // matches before any edit; a saved client_identity (below) then overrides.
@@ -32636,6 +32646,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // settings. This tracks whether the saved `client_identity` document actually
   // carried a location, which is the only thing that makes it theirs.
   const [locationKnown, setLocationKnown] = useStateBSC(false);
+  // ⚠ AND THE HANDLE THE SAME WAY, FOR THE SAME REASON. `identity.handle` falls back
+  // to a slug of the display name (and bsMyName() itself falls back to the email
+  // local-part), so an account with no `profile.username` and no saved handle has a
+  // handle nobody chose. It seeds from the ACCOUNT's real username, which is the one
+  // thing that makes it the member's; a saved `client_identity` handle sets it too.
+  const [handleKnown, setHandleKnown] = useStateBSC(!!_myUsername);
   // Deep-link: open straight into the edit-profile pane (e.g. the Goal page's
   // "Primary goal · Edit" card) instead of the Settings landing.
   const [editing, setEditing] = useStateBSC(initialPage === 'edit-profile');
@@ -32655,6 +32671,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       if (d && typeof d === 'object' && Object.keys(d).length) {
         setIdentity(prev => ({ ...prev, ...d }));
         if ('location' in d) setLocationKnown(!!d.location);
+        if ('handle' in d) setHandleKnown(!!d.handle);
         // When opened directly in edit mode, seed the draft from the saved
         // identity (which loads async) so the form shows real values, not defaults.
         if (initialPage === 'edit-profile') setDraft(prev => ({ ...prev, ...d }));
@@ -32672,7 +32689,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     // avatars refresh instantly without navigating. avatarMode is always defined
     // so a merge can't blank a saved preference.
     const photo = bsMyPhotoRaw() || null;
+    // ⚠ A SYNTHESIZED HANDLE IS NOT WRITTEN, OR THE GUARD ABOVE LASTS ONE SAVE. This
+    // form has no handle field — the draft carries whatever was seeded — so saving
+    // any OTHER field used to persist the name-derived fallback into
+    // `client_identity`, after which the hydrate reads `handle` as present and
+    // promotes a handle nobody claimed to a claimed one. bsSaveIdentity MERGES over
+    // the stored document, so omitting the key cannot blank a real saved handle.
     const patch = { ...draft, avatarMode: draft.avatarMode || 'photo', ...(photo ? { photo } : {}) };
+    if (!handleKnown) delete patch.handle;
     try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...patch }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
     bsSaveIdentity(patch);
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
@@ -33149,14 +33173,32 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       ],
     },
     {
+      // ⚠ THE TITLE STAYS AN ENGLISH LITERAL BECAUSE IT IS AN ADDRESS, NOT COPY.
+      // `findSec('Nora’s voice')` matches on it, so translating it here would
+      // make the section unfindable; the heading a member reads is rendered through
+      // `settings:section.nora` at the call site, exactly like every other pane.
       title: 'Nora’s voice',
       meta: prefs.noraVoice === 'On' ? 'On' : 'Off',
+      // ⚠ THESE FIVE ROWS WERE UNREACHABLE UNTIL THIS PR AND WERE HARDCODED
+      // ENGLISH. The 2026-09-14 review found the section defined in `sections` and
+      // opened by NO card; routing it into Notifications is the fix, and routing it
+      // as it stood would have shipped an English-only block into all twelve
+      // translated settings surfaces — a reachable regression rather than a
+      // dormant one. The labels and their right-hand readings are keyed here, and
+      // the two segmented rows get `segLabels`, the mechanism the Units row already
+      // uses for exactly this.
+      // ⚠ THE OPTION *VALUES* ARE DELIBERATELY NOT TOUCHED. `prefs[key]` holds the
+      // raw English token ('On', 'Supportive', 'Auto') and is what `setPref` stores
+      // and `renderRows` prints for a dropdown — the same for every already-reachable
+      // segmented row in Notifications, Preferences and Privacy. Localizing a STORED
+      // token needs a display mapping across the whole PREF_OPTIONS table, which is
+      // this module's own pre-existing gap and not this door's to close.
       rows: [
-        { l: 'Speak replies', key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice },
-        { l: 'Tone', key: 'noraTone', segmented: PREF_OPTIONS.noraTone },
-        { l: 'Voice', key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
-        { l: 'Preview voice', r: 'Listen', action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled) window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info'); }); } catch (e) {} } },
-        { l: 'What Nora remembers', r: 'View', action: () => setShowNoraMemory(true) },
+        { l: tr('settings:nora.speakReplies', { defaultValue: 'Speak replies' }), key: 'noraVoice', segmented: PREF_OPTIONS.noraVoice, segLabels: [tr('settings:common.on', { defaultValue: 'On' }), tr('settings:common.off', { defaultValue: 'Off' })] },
+        { l: tr('settings:nora.tone', { defaultValue: 'Tone' }), key: 'noraTone', segmented: PREF_OPTIONS.noraTone, segLabels: [tr('settings:nora.toneSupportive', { defaultValue: 'Supportive' }), tr('settings:nora.toneDirect', { defaultValue: 'Direct' })] },
+        { l: tr('settings:nora.voice', { defaultValue: 'Voice' }), key: 'noraVoiceName', dropdown: PREF_OPTIONS.noraVoiceName },
+        { l: tr('settings:nora.preview', { defaultValue: 'Preview voice' }), r: tr('settings:nora.previewMeta', { defaultValue: 'Listen' }), action: () => { try { window.ShapeVoice?.speak?.("Hi, I'm Nora. This is how I'll sound.", undefined, { force: true }).then((r) => { if (r && r.ok === false && !r.disabled) window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info'); }); } catch (e) {} } },
+        { l: tr('settings:nora.memory', { defaultValue: 'What Nora remembers' }), r: tr('settings:nora.memoryMeta', { defaultValue: 'View' }), action: () => setShowNoraMemory(true) },
       ],
     },
     {
@@ -33591,14 +33633,34 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         // ⚠ THE STATUS LINE IS ROLE-GATED, LIKE THE CARD BEHIND IT. A coach reads
         // their role; only a member reads a membership state. Composed from the SAME
         // keys the plan card uses, so the line and the card agree.
+        // ⚠ AND `plan === null` IS "WE HAVE NOT READ IT", NOT "INACTIVE" — the two
+        // are different claims and this state's own declaration says so in as many
+        // words ("null until loaded; { active:false } when there's no active
+        // subscription"). `/api/stripe/subscription` is a fetch whose non-ok arm
+        // sets nothing and whose .catch swallows, so null is the state during EVERY
+        // load and permanently after a failure: a paying member would have read
+        // "MEMBERSHIP INACTIVE" under their own name on every open, and indefinitely
+        // on a bad network. Signed-OUT is the one case null still settles, because
+        // you cannot hold a subscription without an account — that reading is a fact
+        // about the session, not about the unread plan.
+        const planKnown = plan != null;
         const statusLine = isCoachRole
           ? (tweaks.role === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
-          : hasSub
-            ? (renews && !isNaN(renews.getTime())
-                ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
-                : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
-            : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
-        const sub = [identity.handle, locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
+          : !signedIn
+            ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
+            : hasSub
+              ? (renews && !isNaN(renews.getTime())
+                  ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
+                  : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
+              : planKnown ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : '';
+        // ⚠ THE HANDLE IS PRINTED ONLY WHEN IT IS THEIRS, THE `locationKnown` RULE
+        // AGAIN. With no account username and no saved handle, the initializer
+        // SYNTHESIZES one from the display name — and bsMyName() falls back to the
+        // email local-part — so a legacy account's card would present `@chris.perry`
+        // as this member's public handle when they never claimed it and it may
+        // belong to somebody else. A value you can overwrite inside an edit form is
+        // not a claim; the first line of your own settings is.
+        const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
         const btn = (label, on, fill) => (
           <button onClick={on} style={{
             flex: 1, minWidth: 0, padding: '10px 8px', borderRadius: 3, clipPath: BS_CHAMFER, cursor: 'pointer',
@@ -33621,7 +33683,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                       other twelve: German's "Stufenfarbe" has no trailing " color" to
                       cut, so the line would have read "Tempo Stufenfarbe · Mitglied".
                       Each locale's value is built from its OWN word for a tier. */}
-                  {tr('settings:passport.tierLine', { tier: settingsScore.tier, defaultValue: '{tier} tier' })} · {statusLine}
+                  {tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' })}{statusLine ? ' \u00b7 ' + statusLine : ''}
                 </div>
               </div>
             </div>
