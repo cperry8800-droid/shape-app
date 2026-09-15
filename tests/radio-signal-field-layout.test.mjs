@@ -62,28 +62,56 @@ for (const w of [280, 320, 331, 386, 420, 560]) {
   }
 }
 
+// The screen a box implies. The figure block sits inside the page's own
+// `padding: … ${t.padX}px`, so a screen carrying a figure of width `w` at `x` is
+// `x * 2 + w` across — derived from each box rather than typed, so a box added
+// later brings its own screen.
+const screenW = (fig) => fig.x * 2 + fig.w;
+
 function geometry() {
   const body = fieldBody();
-  const listening = [lineOf(body, 'const maxH ='), lineOf(body, 'const baseY ='), lineOf(body, 'const bw = fig.w'),
-    lineOf(body, 'const counterY =')];
-  const rows = ['const x0 =', 'const x1 =', 'const yS =', 'const aS =', 'const yH =', 'const aH =']
+  // ⚠ VERTICAL FROM THE FIGURE, HORIZONTAL FROM THE BAND — AND CONFLATING THE
+  // TWO IS WHAT DREW THE SPECTRUM IN A PADDED COLUMN. The figure is measured
+  // because the drawing must follow the type; but it lives inside the page's
+  // own horizontal padding, so taking its WIDTH left the bars 18px short of
+  // each edge at 390px while the field's dots and both scrims ran edge to edge.
+  // The owner's words: "its not filling the width of screen".
+  const vertical = ['const maxH =', 'const baseY =', 'const counterY =', 'const yS =', 'const aS =', 'const yH =', 'const aH =']
     .map((n) => lineOf(body, n));
-  // ⚠ EVERY ONE OF THESE MUST BE A FRACTION OF THE MEASURED BOX. A literal here
-  // is exactly the defect the brief warns against: it is right on one phone at
-  // one text size and silently wrong everywhere else.
-  for (const l of [...listening, ...rows]) {
-    assert.match(l, /\bfig\.[xywh]\b/, `this position is not derived from the measured figure: ${l}`);
+  const horizontal = ['const bw =', 'const x1 ='].map((n) => lineOf(body, n));
+  // ⚠ EVERY ONE OF THESE MUST BE A FRACTION OF A MEASURED BOX. A literal here is
+  // exactly the defect the brief warns against: it is right on one phone at one
+  // text size and silently wrong everywhere else.
+  for (const l of vertical) {
+    assert.match(l, /\bfig\.[yh]\b/, `this position is not derived from the measured figure: ${l}`);
   }
+  for (const l of horizontal) {
+    assert.match(l, /\bband\.[xw]\b/, `this position is not derived from the canvas the instrument is drawn on: ${l}`);
+  }
+  // ⚠ AND `x0` IS THE ONE HORIZONTAL POSITION THAT STAYS THE FIGURE'S, ON
+  // PURPOSE. The station and heart readings are positioned `left: 0` INSIDE the
+  // figure block, so the rows' left inset is a fact about where those readings
+  // are — not about how wide the instrument is.
+  assert.match(lineOf(body, 'const x0 ='), /\bfig\.[xw]\b/, 'the rows no longer clear the readings they are drawn beside');
   // `BANDS` is the shipped constant the band count comes from, injected rather
   // than restated — a local copy would drift the day it changed.
   // ⚠ THE BAR'S OWN x EXPRESSION IS LIFTED TOO, NOT RESTATED. A first version of
   // the mirror guard below computed `fig.x + i * bw` in the TEST — so putting the
   // second mirror back in the page changed nothing the guard could see, and the
   // mutation survived. A guard that reimplements the code is measuring the guard.
-  const barX = lineOf(body, 'const x = fig.x + i * bw');
-  const fn = new Function('fig', 'BANDS', `${[...listening, ...rows].join('\n')}\nreturn { maxH, baseY, bw, counterY, x0, x1, yS, aS, yH, aH };`);
-  const xf = new Function('fig', 'BANDS', 'i', `${lineOf(body, 'const bw = fig.w')}\n${barX}\nreturn x;`);
-  return Object.assign((fig) => fn(fig, BANDS), { barX: (fig, i) => xf(fig, BANDS, i) });
+  const decls = [lineOf(body, 'const maxH ='), lineOf(body, 'const baseY ='), lineOf(body, 'const BAR_GAP ='),
+    lineOf(body, 'const bw ='), lineOf(body, 'const wBar ='), lineOf(body, 'const counterY ='),
+    ...['const x0 =', 'const x1 =', 'const yS =', 'const aS =', 'const yH =', 'const aH ='].map((n) => lineOf(body, n))];
+  const barX = lineOf(body, 'const x = band.x + i * bw');
+  // ⚠ THE BAND IS LIFTED AND RUN, NOT PATTERN-MATCHED, because the whole finding
+  // is which of `W` and `fig.w` it takes — and a regex over the declaration
+  // cannot tell `{ x: 0, w: W }` from `{ x: 0, w: W - 44 }`, i.e. the padded
+  // column coming back by a different door.
+  const bandFn = new Function('W', 'fig', `${lineOf(body, 'const band =')}\nreturn band;`);
+  const bandFor = (fig) => bandFn(screenW(fig), fig);
+  const fn = new Function('fig', 'band', 'BANDS', `${decls.join('\n')}\nreturn { maxH, baseY, BAR_GAP, bw, wBar, counterY, x0, x1, yS, aS, yH, aH };`);
+  const xf = new Function('fig', 'band', 'BANDS', 'i', `${lineOf(body, 'const BAR_GAP =')}\n${lineOf(body, 'const bw =')}\n${barX}\nreturn x;`);
+  return Object.assign((fig) => ({ ...fn(fig, bandFor(fig), BANDS), band: bandFor(fig) }), { barX: (fig, i) => xf(fig, bandFor(fig), BANDS, i), band: bandFor });
 }
 
 test('the spectrum is drawn inside the figure the page measured', () => {
@@ -123,7 +151,8 @@ test('the bass lands in the MIDDLE of the spectrum, not at the quarters', () => 
   for (const fig of BOXES) {
     const { bw } = g(fig);
     const x = g.barX(fig, top) + bw / 2;
-    const centre = fig.x + fig.w / 2;
+    const { band } = g(fig);
+    const centre = band.x + band.w / 2;
     assert.ok(
       Math.abs(x - centre) <= bw,
       `a pure kick draws its tallest bar ${Math.round(x - centre)}px from the centre at ${JSON.stringify(fig)} — the spectrum is mirrored twice`,
@@ -132,6 +161,47 @@ test('the bass lands in the MIDDLE of the spectrum, not at the quarters', () => 
   // The control: the array really is mirrored, or the assertion above would hold
   // for a flat table that puts everything everywhere.
   assert.ok(raw[0] < raw[BANDS / 2] * 0.5, 'bandsFromBins no longer puts the bass at its centre — this guard is measuring nothing');
+});
+
+test('the instrument fills the screen, not the page\'s padded column', () => {
+  // ⚠ THE OWNER REPORTED THIS ON THE SHIPPED BUILD: "its not filling the width of
+  // screen". Measured in Chromium at 390px before the fix — the teal spectrum ran
+  // 18 → 371.5, i.e. 354 of 390 with 18px of dead paper each side, against a
+  // field of dots and two scrims that both reached the edges. The bars took their
+  // width from the FIGURE block, which sits inside the page's own
+  // `padding: 12px ${t.padX}px 16px`; the fix takes it from the canvas.
+  const g = geometry();
+  for (const fig of BOXES) {
+    const { bw, wBar, BAR_GAP, band } = g(fig);
+    // The cells tile the band exactly — no cell is spare and none overruns.
+    assert.ok(Math.abs(bw * BANDS - band.w) < 1e-9, `the ${BANDS} cells span ${(bw * BANDS).toFixed(1)}px of a ${band.w}px band at ${JSON.stringify(fig)}`);
+    const left = g.barX(fig, 0);
+    const right = g.barX(fig, BANDS - 1) + wBar;
+    assert.ok(left >= band.x - 1e-9, `the first bar starts off the canvas at ${JSON.stringify(fig)}`);
+    assert.ok(right <= band.x + band.w + 1e-9, `the last bar runs off the canvas at ${JSON.stringify(fig)}`);
+    assert.ok(left - band.x <= BAR_GAP, `the spectrum leaves ${(left - band.x).toFixed(1)}px of dead paper on the left at ${JSON.stringify(fig)}`);
+    assert.ok((band.x + band.w) - right <= BAR_GAP, `the spectrum leaves ${((band.x + band.w) - right).toFixed(1)}px of dead paper on the right at ${JSON.stringify(fig)}`);
+    // ⚠ THE CONTROL, WITHOUT WHICH EVERY ASSERTION ABOVE PASSES ON THE DEFECT.
+    // A band that equalled the figure would satisfy all four while the bars sat
+    // in exactly the padded column the owner reported. These boxes are inset, so
+    // the band is genuinely wider — and the spectrum genuinely starts left of it.
+    assert.ok(band.w > fig.w, `this box has no padding to be wrong about at ${JSON.stringify(fig)}`);
+    assert.ok(left < fig.x, `the spectrum still starts inside the padded column at ${JSON.stringify(fig)}`);
+    assert.ok(right > fig.x + fig.w, `the spectrum still ends inside the padded column at ${JSON.stringify(fig)}`);
+    // ⚠ AND THE GAP IS SPLIT, NOT TAKEN OFF THE RIGHT. At full bleed a
+    // right-only gap leaves the first bar flush against the screen and the last
+    // 1.6px short of it — an asymmetry a MIRRORED spectrum is the wrong drawing
+    // to carry.
+    assert.ok(Math.abs((left - band.x) - ((band.x + band.w) - right)) < 1e-9,
+      `the spectrum's two edges are not symmetric at ${JSON.stringify(fig)}`);
+  }
+  // ⚠ AND THE STATION'S BASELINE RUNS THE WHOLE BAND, or the bars stand on a
+  // line shorter than they are. It is the instrument's own axis — the thing
+  // that is there before a trace is — so it cannot be the padded column's
+  // width while the bars are the screen's. (Its DASHED twin, drawn when the
+  // frame carries nothing, is pinned by radio-rest-state.test.mjs.)
+  const body = fieldBody();
+  assert.match(body, /ctx\.fillRect\(band\.x, baseY, band\.w, 1\)/, 'the station baseline no longer spans the band the bars stand in');
 });
 
 test('the two rows cannot collide, and the station is always the upper one', () => {
@@ -152,9 +222,14 @@ test('the two rows cannot collide, and the station is always the upper one', () 
 test("the rows leave room for their own readings, and the pen can actually sweep", () => {
   const g = geometry();
   for (const fig of BOXES) {
-    const { x0, x1 } = g(fig);
+    const { x0, x1, bw, BAR_GAP, band } = g(fig);
     assert.ok(x0 > fig.x, `the rows start at the figure's left edge — nowhere for the readings at ${JSON.stringify(fig)}`);
-    assert.ok(x1 <= fig.x + fig.w + 0.001, `the rows run past the figure at ${JSON.stringify(fig)}`);
+    assert.ok(x1 <= band.x + band.w + 0.001, `the rows run off the canvas at ${JSON.stringify(fig)}`);
+    // ⚠ AND THEY END WHERE THE SPECTRUM ENDS. Both halves are drawn while `kx`
+    // crosses, so a right edge that disagreed with the spectrum's would make the
+    // instrument visibly change width the moment a member taps Match my BPM.
+    const specRight = band.x + bw * BANDS;
+    assert.ok(Math.abs(x1 - specRight) <= BAR_GAP, `the rows and the spectrum end ${Math.round(x1 - specRight)}px apart at ${JSON.stringify(fig)}`);
     const RW = x1 - x0;
     // ⚠ THE ERASE GAP IS A FIXED NUMBER OF PIXELS, so a row narrower than it has
     // no visible trace at all — every column would be inside the gap. Driven
@@ -176,9 +251,17 @@ test('the figure is measured from the page, never assumed', () => {
   // And nothing is drawn at all until there IS a box, or the first frames would
   // paint the spectrum at wherever `undefined` lands.
   assert.match(body, /if \(!fig\) return;/, 'the drawing runs without a measured figure');
+  // ⚠ AND THE BAND **IS** THE CANVAS, NEVER THE FIGURE, DRIVEN RATHER THAN READ.
+  // `W` is set from the wrap's own rect and the wrap is `position:absolute;
+  // inset:0`, so it IS the screen. Run against a known screen and a figure inset
+  // inside it, the band must come back as the whole screen — which a `fig`-derived
+  // band, or a `W` with padding subtracted back off it, both fail.
+  const g = geometry();
+  assert.deepEqual(g.band({ x: 22, y: 0, w: 280, h: 268 }), { x: 0, w: 324 },
+    'the instrument\'s band is no longer the canvas the page draws on');
   // The board's phone literals must not come back as geometry.
   for (const lit of ['812', '375']) {
-    assert.doesNotMatch(body, new RegExp(`fig\\.[xywh][^\\n]*\\b${lit}\\b`), `a ${lit}px literal is back in the geometry`);
+    assert.doesNotMatch(body, new RegExp(`(fig|band)\\.[xywh][^\\n]*\\b${lit}\\b`), `a ${lit}px literal is back in the geometry`);
   }
 });
 
