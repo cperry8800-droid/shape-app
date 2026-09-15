@@ -109,19 +109,27 @@ test('the thread pane is hidden, never unmounted, while the Feed tab is up', () 
     'the thread grid is no longer hidden-not-unmounted behind the Feed tab');
 });
 
-test('the chip labels keep the app\'s Wall/Community swap', () => {
-  // ⚠ THE APP SWAPS THESE TWO DELIBERATELY: the COMMUNITY key is labelled
-  // "Wall" and the SHAPE key is labelled "Community", because the Wall is a
-  // REDESIGN of the activity feed rather than a surface beside it. The keys were
-  // left alone so every filter comparison kept working. Read as a typo and
-  // "fixed", a post lands on one chip in the app and the other one here — so
-  // this asserts the app STILL does it, rather than pinning our own spelling.
+test('the bubble draws no chip row, and still stamps the app\'s Wall channel', () => {
+  // ⚠ THE CHIPS ARE GONE — owner, on a screenshot of them: "dont need client and
+  // community tabs here in chat bubble, already have them in chat bubble,
+  // repetitive." The bubble carries those audiences as TABS (Clients, Channels);
+  // the app's Chat does not, which is why it can afford the chips and this
+  // surface cannot. Re-adding them is the regression this bans.
+  const s = stripComments(FEED);
+  assert.doesNotMatch(s, /function CF_CHIP_(KEYS|LABEL)\b/, 'the chip row came back');
+  assert.doesNotMatch(s, /\bcfChannelOf\b/, 'the feed is filtering on channel again');
+  assert.doesNotMatch(s, /setFilter\(/, 'the feed grew a channel filter again');
+
+  // ⚠ AND THE WRITE SIDE MUST SURVIVE THE REMOVAL, which is the half that is
+  // easy to lose: the APP still files a post by its channel, and a post
+  // published from here with none falls back to the AUTHOR'S ROLE and lands on
+  // the app's Client chip instead of its Wall. The app labels the COMMUNITY key
+  // "Wall" and the SHAPE key "Community" — a deliberate swap — so this asserts
+  // the app STILL does it rather than pinning our own spelling of the stamp.
   assert.match(APP, /k === 'COMMUNITY' \? tr\('feed:tab\.wall'/,
-    "the app no longer labels the COMMUNITY key 'Wall' — re-derive the web chips");
-  assert.match(APP, /k === 'SHAPE' \? tr\('feed:chip\.community'/,
-    "the app no longer labels the SHAPE key 'Community' — re-derive the web chips");
-  assert.match(FEED, /if \(k === "COMMUNITY"\) return "Wall";/, 'the web feed dropped the Wall label');
-  assert.match(FEED, /if \(k === "SHAPE"\) return "Community";/, 'the web feed dropped the Community label');
+    "the app no longer labels the COMMUNITY key 'Wall' — re-derive CF_POST_CHANNEL");
+  assert.match(s, /const CF_POST_CHANNEL = "COMMUNITY";/,
+    'the feed no longer stamps the app\'s Wall channel on a post made here');
 });
 
 test('the feed reads the channel from metrics, not from a column', () => {
@@ -131,10 +139,9 @@ test('the feed reads the channel from metrics, not from a column', () => {
   // failing anywhere.
   assert.match(FEED, /channel: \(typeof m\.channel === 'string'/,
     'the feed no longer lifts the channel out of metrics');
-  // \u26a0 SCOPED TO THE MAPPER. A file-wide ban on `p.channel` fails correct
-  // code: `cfChannelOf` reads it legitimately, because by then `p` is a MAPPED
-  // post that carries the field the mapper just lifted. What must never happen
-  // is the MAPPER reading it off the raw API row.
+  // \u26a0 SCOPED TO THE MAPPER. What must never happen is the MAPPER reading
+  // `channel` off the raw API row; a mapped post carrying the field the mapper
+  // lifted is exactly the shape the rest of the file is entitled to read.
   // \u26a0 COMMENTS STRIPPED FIRST. The rationale comment inside the mapper quotes
   // `p.channel` to explain why it is NOT read — so the guard was failing on the
   // very sentence documenting the thing it checks.
@@ -185,10 +192,10 @@ test('an optimistic post carries the chip it was posted from', () => {
   const s = stripComments(FEED);
   const insert = /setFeed\(prev => \[\{ id: optimisticId[^\]]*\]\);/.exec(s);
   assert.ok(insert, 'the optimistic insert no longer has the shape this reads');
-  assert.match(insert[0], /channel: filter/, 'the optimistic row does not carry its channel');
+  assert.match(insert[0], /channel: CF_POST_CHANNEL/, 'the optimistic row does not carry its channel');
   // AFTER the `...post` spread, or a composer that ever grows a channel key
-  // silently outranks the chip the member actually posted from.
-  assert.ok(insert[0].indexOf('...post') < insert[0].indexOf('channel: filter'),
+  // silently outranks it.
+  assert.ok(insert[0].indexOf('...post') < insert[0].indexOf('channel: CF_POST_CHANNEL'),
     'channel is spread before ...post, so it can be overridden');
 });
 

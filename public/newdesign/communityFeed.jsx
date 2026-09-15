@@ -11,9 +11,10 @@
 //
 // The CARD RENDERERS ARE UNTOUCHED by that move — FeedItem, the stat rows, the
 // session-details charts and the composer are the same code that shipped on the
-// page. What changed is the frame around them and the filter grammar, which is
-// now the app's own (Wall / <your role> / Community) rather than the web-only
-// activity-kind tabs.
+// page. What changed is the frame around them: the cards are the app's WALL
+// PLATE (`CfWallPlate` + `CfWallEvidence`, ported from BSActivityCard's
+// variant="wall"), and the web-only activity-kind tabs are gone with no filter
+// row in their place — see `CF_POST_CHANNEL`.
 
 // THE APPOINTMENTS stamps (spec 2026-07-13) — the six canonical tokens,
 // mirroring the mobile composer; unknown values normalize to 'milestone'.
@@ -523,16 +524,17 @@ function cfWallModel(p) {
   // The two facts that QUALIFY the figure — a top set means little without its
   // reps. Beside the figure rather than under it, as in the app.
   const facts = rest.slice(0, 2);
-  // ⚠ THE GRID HOLDS WHAT THE HERO AND FACTS HAVE NOT ALREADY SAID, which is a
-  // STATED DIVERGENCE from the app: there `detailStats` is the whole list, so a
-  // rich session legitimately repeats its lead figure in the grid below. On the
-  // thin demo posts this surface actually shows, that repeat is the same number
-  // three times inside 80px. The repo already draws this line the same way on
-  // the other surface built from these rows — `bsShareCardModel`
-  // (shareCard.mjs:34-36) filters the hero out of the share card's stat list —
-  // so this follows the share card rather than inventing a rule. Reverse it by
-  // passing `stats` here instead of `rest.slice(2)`.
-  const detail = rest.slice(2, 8);
+  // ⚠ THE GRID IS THE WHOLE STAT SET, sliced to six — the app's `detailStats`
+  // verbatim (iosAppBroadsheetClient.jsx:19096 builds it UNFILTERED, :19357
+  // renders `.slice(0, 6)`), so a session's lead figure legitimately appears
+  // again in the grid under it.
+  // ⚠ IT SHIPPED FILTERED IN #2099 AND WAS REVERSED ON THE OWNER'S CALL ("this
+  // still not replicating what is on app on wall feed"). It held
+  // `rest.slice(2, 8)` — what the hero and the facts had not already said —
+  // which on a two-stat demo PR (Top set + Reps) left NOTHING and drew no grid
+  // at all, where the app draws both rows. Do not re-filter it: the repeat is
+  // the app's, and the two surfaces have to read the same.
+  const detail = stats.slice(0, 6);
   const heat = cfHeat(p);
   // A stamped PR: the demo kind, the explicit first-record marker, or a live
   // post carrying the gain it beat. All three, as the app's own card reads them
@@ -544,32 +546,26 @@ function cfWallModel(p) {
   // the plate would otherwise state the record twice, once as a header and once
   // as the figure below it.
   const tail = delta ? ` · ${delta}` : "";
-  // ⚠ THE PILL NEVER REPEATS THE TITLE. The app names the lift in the pill
-  // because its demo PRs carry a title of their own ("Back Squat — new PR");
-  // here a demo PR has none, so `FeedItem` promotes the lift to the title — and
-  // naming it in both puts "Bench Press" twice, one line apart. The lift joins
-  // the pill only when something else is already the title.
-  // ⚠ AND THE MEASURE NEVER STANDS IN FOR IT, which is a second STATED
-  // DIVERGENCE. The app falls back to the measure when nothing names the lift —
-  // and on a LIVE post nothing ever does (it blanks `lift` for real posts too),
-  // so every real PR there reads "NEW PR · DISTANCE · +0:06/MI" with "DISTANCE"
-  // repeated as the hero eyebrow two lines below. The measure IS `heroStat[0]`,
-  // i.e. always that eyebrow, so it is redundant by construction rather than
-  // occasionally. Restore the app's wording by appending
-  // `|| (heroStat ? String(heroStat[0] || "").trim() : "")` below.
+  // The app's `wallPill` (iosAppBroadsheetClient.jsx:19015), rule for rule: a
+  // stamped PR names the lift, falling back to the measure when nothing names
+  // it; anything else names the measure and the figure it was set at. No hero,
+  // no pill — a pill with nothing in it is chrome.
+  // ⚠ BOTH FALLBACKS SHIPPED SUPPRESSED IN #2099 AND WERE REVERSED ON THE
+  // OWNER'S CALL. The pill used to stay EMPTY for a non-record, so an ordinary
+  // workout carried none at all where the app carries "TIME · 52 MIN"; and the
+  // PR branch used to drop the measure, so a live PR read "NEW PR · +0:06/MI"
+  // where the app reads "NEW PR · DISTANCE · +0:06/MI". Both repeat something
+  // the plate says again below — and both are what the app says, which is the
+  // thing this surface is for. There is deliberately NO per-kind branch here
+  // either (a `tier` post falls to "New tier · Tempo"), because the app has
+  // none: one rule, every card.
+  // ⚠ `lift` IS DEMO-ONLY BY CONSTRUCTION — `mapPost` never sets it, which is
+  // the same blanking the app writes out as `(a.real ? '' : a.lift)`.
+  const measure = heroStat ? String(heroStat[0] || "").trim() : "";
   const lift = (p.lift || "").trim();
-  const titleUsed = String(p.title || p.lift || "").trim();
-  const prSubject = lift && lift !== titleUsed ? lift : "";
-  // ⚠ THE PILL IS A RECORD CLAIM, AND A POST WITH NO RECORD MAKES NONE. This is
-  // a STATED DIVERGENCE from the app, which pills every card as
-  // `${heroStat[0]} · ${heroStat[1]}` — on a workout that renders "TIME · 52 MIN"
-  // directly above a hero reading "TIME / 52 min", the same figure twice inside
-  // 40px. The Wall is a record board, so the pill says what was a record and
-  // stays quiet otherwise. Restore the app's behaviour by giving `pill` the
-  // `${heroStat[0]} · ${heroStat[1]}${tail}` fallback back.
-  const pill = isPR ? `New PR${prSubject ? ` · ${prSubject}` : ""}${tail}`
-    : p.kind === "tier" ? `Tier up${p.to ? ` · ${p.to}` : ""}`
-    : "";
+  const pill = !heroStat ? ""
+    : isPR ? `New PR${lift ? ` · ${lift}` : (measure ? ` · ${measure}` : "")}${tail}`
+    : `${measure}${heroStat[1] ? ` · ${heroStat[1]}` : ""}${tail}`;
   const m = (p.session && p.session.metrics) || null;
   const zones = (p.session && Array.isArray(p.session.zones) && p.session.zones.length)
     ? p.session.zones : (m ? buildZonesFromDurations(m) : null);
@@ -697,38 +693,40 @@ function CfWallEvidence({ model, onOpen }) {
   );
 }
 
-// ── The app's feed chips, mirrored ──────────────────────────────────────
-// `iosAppBroadsheetClient.jsx` derives a post's chip from its channel and falls
-// back to the AUTHOR'S ROLE for rows written before that field existed. BOTH
-// halves are copied rather than re-invented: drop the fallback and every
-// pre-channel post disappears from every chip.
-const CF_KNOWN_CHANNELS = ["SHAPE", "TRAINER", "CLIENT", "NUTRI", "COMMUNITY"];
+// ── The channel a post made here is stamped with ────────────────────────────
+// ⚠ THE WEB NO LONGER FILTERS ON IT AND MUST STILL WRITE IT. The app files a
+// post onto one of its Feed chips by this field — stashed in the metrics jsonb,
+// never a column — and falls back to the AUTHOR'S ROLE when it is absent. So a
+// post published from this bubble with no channel lands on the app's Client
+// chip instead of its Wall, silently. COMMUNITY is what the app's own composer
+// stamps on every logged session, PR and workout, and it is the app's WALL chip
+// (the app labels the COMMUNITY key "Wall" and the SHAPE key "Community" — a
+// deliberate swap, since the Wall is a redesign of the activity feed rather
+// than a surface beside it; the KEYS were left alone so every comparison kept
+// working. Read that as a typo and "fix" it, and a post made here lands on a
+// different chip in the app).
+// ⚠ THE CHIP ROW THIS FILE USED TO DRAW IS GONE — owner, on a screenshot of it:
+// "dont need client and community tabs here in chat bubble, already have them
+// in chat bubble, repetitive." The bubble carries Team · Clients · Trainers ·
+// Nutri · Friends · Channels · Help as TABS, so the Client and Community chips
+// duplicated two of them one level down; the app's Chat has no such tabs, which
+// is why it can afford the chips and this surface cannot. The remaining chip
+// would have been a picker with one option, i.e. a label wearing a control, so
+// the row went with them and the feed shows every post. NOTHING WAS HIDDEN in
+// the trade: the two SHAPE-channel demo posts are members' own notes and exist
+// nowhere else on this surface, so filtering to COMMUNITY alone would have
+// dropped them outright.
+const CF_POST_CHANNEL = "COMMUNITY";
+
+// The author's role, from the tier string the feed carries instead of a role
+// column. It outlived the chip derivation it was written beside: `cfHeat` reads
+// it, so a trainer's plate is rust and a nutritionist's gold.
 function cfKindOfRole(r) {
   const s = String(r || "").toLowerCase();
   if (s.includes("shape") || s.includes("mod") || s.includes("official")) return "SHAPE";
   if (s.includes("train") || s.includes("coach")) return "TRAINER";
   if (s.includes("nutri") || s.includes("diet")) return "NUTRI";
   return "CLIENT";
-}
-function cfChannelOf(p) {
-  const ch = String((p && p.channel) || "").trim().toUpperCase();
-  return CF_KNOWN_CHANNELS.indexOf(ch) >= 0 ? ch : cfKindOfRole(p && p.role);
-}
-function CF_CHIP_KEYS(role) {
-  const mine = role === "trainer" ? "TRAINER" : role === "nutritionist" ? "NUTRI" : "CLIENT";
-  return ["COMMUNITY", mine, "SHAPE"];
-}
-function CF_CHIP_LABEL(k) {
-  // ⚠ "Wall" IS THE COMMUNITY KEY AND "Community" IS THE SHAPE KEY. The app
-  // swaps those two labels deliberately and left the KEYS alone, because
-  // renaming them would touch every filter comparison in the component. Copied
-  // with the swap intact — read it as a typo and fix it, and a post lands on
-  // one chip in the app and the other one here.
-  if (k === "COMMUNITY") return "Wall";
-  if (k === "SHAPE") return "Community";
-  if (k === "TRAINER") return "Trainer";
-  if (k === "NUTRI") return "Nutritionist";
-  return "Client";
 }
 
 function CommunityFeed() {
@@ -844,15 +842,10 @@ function CommunityFeed() {
   }, [claimCareerAward, careerPendingRead, careerQueueRead]);
   const [editingPost, setEditingPost] = React.useState(null);
   const [myPostsOnly, setMyPostsOnly] = React.useState(false);
-  // The Wall is the landing chip, as it is in the app — a member opening the
-  // feed sees what people have DONE before what people have said.
-  const [filter, setFilter] = React.useState("COMMUNITY");
   // The plate's faces, fetched the first time a feed actually renders. See
   // `cfEnsureWallFonts` for why it is one link from here rather than an edit to
   // all 35 host pages.
   React.useEffect(() => { cfEnsureWallFonts(); }, []);
-  const myRole = (typeof window !== "undefined" && window.shapeViewerRole)
-    ? String(window.shapeViewerRole() || "").toLowerCase() : "client";
 
   const DEMO_FEED = [
     { kind: "pr", channel: "COMMUNITY", who: "Marcus J.", role: "Tempo · 1,412", time: "8m", lift: "Bench Press", load: "225 lb", delta: "+10 lb", reps: "5 × 5", body: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", likes: 47, comments: 12, tag: "STRENGTH" },
@@ -909,8 +902,11 @@ function CommunityFeed() {
     };
     // Filter buckets for a REAL post — `kind` stays 'post' (the renderer
     // contract: the pr/run/workout demo renderers need fields the API omits);
-    // the buckets ONLY feed the filter tabs, so a real logged run lands under
-    // RUNS instead of just ALL/POSTS. Mirrors the app's bsActivityFromPost
+    // ⚠ THE BUCKETS OUTLIVED THE FILTER TABS THEY WERE WRITTEN FOR. They fed
+    // the web-only activity-kind row, which is gone; what reads them now is
+    // `cfWallModel`, whose `isRun` decides whether the plate's hero figure is
+    // the DISTANCE or the load — so a real logged run still has to bucket as a
+    // run or its plate leads with the wrong number. Mirrors the app's bsActivityFromPost
     // cut: only posts with real activity evidence type as activities — the
     // API defaults activity_type to 'workout' even on plain notes, so the
     // type string alone can't be trusted. Non-exclusive like the mobile
@@ -1296,10 +1292,7 @@ function CommunityFeed() {
   }
 
   function FeedItem({ p, onEdit, onDeleted }) {
-    // One model per card, both populations. `wallTitle` falls back to the lift
-    // so a demo PR — which carries no title of its own — still names what was
-    // lifted; `cfWallModel` then drops the lift from the pill so the plate does
-    // not say "Bench Press" twice, one line apart.
+    // One model per card, both populations.
     const wall = cfWallModel(p);
     // ⚠ A DEMO RUN KEEPS ITS NAME IN `session.title` AND NOWHERE ELSE, so
     // without this fallback the richest card on the board lost its headline —
@@ -1307,7 +1300,17 @@ function CommunityFeed() {
     // DEMO posts only: `mapPost` sets a live post's `session.title` to
     // `p.title || 'Activity'`, i.e. the same field plus a generic, so for a live
     // post this could only ever contribute the word "Activity" as a headline.
-    const wallTitle = String(p.title || p.lift || (p.isLive ? "" : (p.session && p.session.title) || "")).trim();
+    const wallTitle = String(
+      p.title
+      // ⚠ A DEMO PR'S HEADLINE IS COMPOSED, NOT THE BARE LIFT. The app builds
+      // `${lift} — new PR` (iosAppBroadsheetClient.jsx:18957) because its demo
+      // PRs carry no `title` of their own either; a bare "Bench Press" is a
+      // divergence, not a simplification. Live posts never reach this branch —
+      // `mapPost` sets no `lift` at all.
+      || (p.lift && p.kind === "pr" ? `${p.lift} — new PR` : "")
+      || p.lift
+      || (p.isLive ? "" : (p.session && p.session.title) || "")
+    ).trim();
     const [liked, setLiked] = React.useState(false);
     const [likeCount, setLikeCount] = React.useState(p.likes);
     const [sendOpen, setSendOpen] = React.useState(false);
@@ -1519,15 +1522,12 @@ function CommunityFeed() {
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 18px 22px" }}>
         <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
           {(() => {
-            // The app's own chip grammar (iosAppBroadsheetClient.jsx CHIP_KEYS):
-            // Wall · <your role> · Community. Each chip is a CHANNEL, not an
-            // activity kind — which is the axis the app filters on, so the two
-            // surfaces now ask the same question of the same rows.
-            const chips = CF_CHIP_KEYS(myRole).map(k => ({ key: k, label: CF_CHIP_LABEL(k) }));
-            const visible = feed.filter(p => {
-              if (myPostsOnly && !p.isMe) return false;
-              return cfChannelOf(p) === filter;
-            });
+            // ⚠ NO CHANNEL FILTER — see `CF_POST_CHANNEL`. The app splits this
+            // feed across three chips because its Chat has no tabs for those
+            // audiences; this bubble does, so the chips were duplicating tabs
+            // one level down and the row went. Every post the member can see is
+            // on one list, which is also the only reading that loses nothing.
+            const visible = feed.filter(p => !(myPostsOnly && !p.isMe));
             if (feedMode === "following" && liveEmpty) {
               return (
                 <>
@@ -1553,26 +1553,19 @@ function CommunityFeed() {
                     return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(242,237,228,0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
                   })}
                 </div>
-                <div style={{ display: "flex", gap: 8, fontSize: 12, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", flexWrap: "wrap", alignItems: "center" }}>
-                  {chips.map((c) => {
-                    const on = c.key === filter;
-                    return (
-                      <button key={c.key} onClick={() => setFilter(c.key)} aria-pressed={on}
-                        style={{ padding: "6px 12px", borderRadius: 999, background: on ? "rgba(10,197,168,0.16)" : "rgba(242,237,228,0.04)", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", border: "1px solid " + (on ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.08)"), cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
-                        {c.label}
-                      </button>
-                    );
-                  })}
-                  {myPostsOnly && (
+                {/* The MY POSTS ONLY badge kept its own row when the chips went:
+                    it is a state readout, not one of them. */}
+                {myPostsOnly && (
+                  <div style={{ display: "flex", alignItems: "center" }}>
                     <span style={{ marginLeft: "auto", padding: "5px 10px", borderRadius: 999, background: "rgba(10,197,168,0.12)", color: TEAL_BRIGHT, border: "1px solid rgba(10,197,168,0.3)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em" }}>
                       MY POSTS ONLY · {feed.filter(p => p.isMe).length}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
                 {visible.length === 0
                   ? (
                     <div style={{ padding: "32px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13, textAlign: "center" }}>
-                      {myPostsOnly ? "You haven't posted yet. Tap New post to share something." : "Nothing on " + CF_CHIP_LABEL(filter) + " yet."}
+                      {myPostsOnly ? "You haven't posted yet. Tap New post to share something." : "Nothing posted yet."}
                     </div>
                   )
                   : visible.map((p, i) => <FeedItem key={p.id || i} p={p}
@@ -1624,15 +1617,12 @@ function CommunityFeed() {
             setEditingPost(null);
             // Optimistic create
             // ⚠ THE CHANNEL GOES ON THE ROW, NOT ONLY ON THE REQUEST — and it is
-            // spread AFTER `post` so the chip the member posted from always wins.
-            // Without it this row has no `channel` and `cfChannelOf` falls back to
-            // the author's ROLE, which here is the hardcoded ME.role tier string
-            // ("Hypertrophy · 2,140"): it resolves to CLIENT, so a post made on
-            // the Wall VANISHES the instant it is published and does not come back
-            // until a remount refetches it (review: Codex P1). Same defect the
-            // demo cards had, in the one place it was not looked for.
+            // spread AFTER `post` so a composer that ever grows a channel key
+            // cannot silently outrank it. Nothing on THIS surface filters on it
+            // any more, but the row is the same shape the mapper emits and the
+            // app files by this field: see `CF_POST_CHANNEL`.
             const optimisticId = "me-" + Date.now();
-            setFeed(prev => [{ id: optimisticId, isMe: true, isLive: false, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post, channel: filter }, ...prev]);
+            setFeed(prev => [{ id: optimisticId, isMe: true, isLive: false, who: ME.who, role: ME.role, time: "now", likes: 0, comments: 0, ...post, channel: CF_POST_CHANNEL }, ...prev]);
             // Persist to the live feed (best-effort; the optimistic post already shows).
             const metrics = {};
             // ⚠ THE CHANNEL IS WRITTEN, NOT LEFT TO BE INFERRED. Without it a
@@ -1640,7 +1630,7 @@ function CommunityFeed() {
             // falls back to the author's ROLE and a member's post can never
             // reach the chip they posted it from. The app writes it the same
             // way (createPost({ channel: kind })).
-            metrics.channel = filter;
+            metrics.channel = CF_POST_CHANNEL;
             if (post.tag) metrics.tags = [String(post.tag).toUpperCase()];
             if (Array.isArray(post.mentions) && post.mentions.length) metrics.mentions = post.mentions;
             if (post.video) { metrics.kind = 'video'; metrics.video_url = post.video; }

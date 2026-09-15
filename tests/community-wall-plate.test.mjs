@@ -211,9 +211,13 @@ test('the chat tab keeps the app\'s own name for this segment, and its id', () =
   assert.match(tab[0], new RegExp(`label: "${segment}"`),
     `the tab label no longer matches the app's own name for this segment (${segment})`);
   assert.match(tab[0], /feed: true/, 'the `feed` flag is what the body split and the record migration key on');
-  // And the Wall stays the CHIP, so the panel never carries two controls with
-  // the same label. `tests/chat-feed-tab.test.mjs` pins the chip labels
-  // themselves against the app's; this pins that the tab is not one of them.
+  // And the tab never takes the Wall's name. ⚠ THE CHIP ROW ITSELF IS GONE from
+  // the web (owner: "dont need client and community tabs here in chat bubble …
+  // repetitive" — the bubble carries those audiences as TABS, which the app's
+  // Chat does not), so this no longer guards against two controls in one panel;
+  // it guards the reason the owner gave for reverting the rename, which is that
+  // the app's top segment is Feed. `tests/chat-feed-tab.test.mjs` pins the
+  // removal and the write-side channel that outlived it.
   assert.doesNotMatch(tab[0], new RegExp(`label: "${chip}"`),
     'the tab took the chip\'s name, so two controls in one panel read the same');
 });
@@ -419,6 +423,107 @@ test("a member's FIRST record still says New PR — it has a marker and no delta
   assert.match(s, /pr: m\.pr === true,/, 'mapPost no longer lifts the first-record marker');
   assert.match(s, /const isPR = p\.kind === "pr" \|\| p\.pr === true \|\| /,
     'the pill no longer reads the first-record marker, so a first PR loses its pill');
+});
+
+// ── The three rules #2099 diverged on, reversed and pinned ──────────────────
+// Each was a deliberate STATED divergence from the app, each shipped, and the
+// owner reported the result as "still not replicating what is on app on wall
+// feed". They are the app's rules now, repetition and all — so each is checked
+// from BOTH ends: the app still does it (or this guard is describing a rule
+// that has moved), and the web's shipped model produces the same answer.
+function wallModel() {
+  const scope = {};
+  // ⚠ `cfHeat` AND `sessArr` ARE STUBBED, NOT LIFTED — both are one-liners well
+  // under lift()'s body floor, and neither is what these three rules are about
+  // (heat is the author's role; sessArr is an array guard). Everything the rules
+  // actually run through is the shipped source.
+  new Function('S', `
+    const cfHeat = () => '#34d6c5';
+    const sessArr = (v) => (Array.isArray(v) && v.length > 1) ? v : null;
+    ${lift(FEED, 'buildZonesFromDurations')}
+    ${lift(FEED, 'cfHeroStatIndex')}
+    ${lift(FEED, 'cfWallStats')}
+    ${lift(FEED, 'cfWallModel')}
+    S.model = cfWallModel;
+  `)(scope);
+  return scope.model;
+}
+
+test('a post with no record still carries a pill — the measure and its figure', () => {
+  // ⚠ THE APP PILLS EVERY CARD. This shipped suppressed: the pill was treated as
+  // a RECORD claim, so an ordinary workout drew none at all. Reversed on the
+  // owner's call.
+  assert.match(APP, /return `\$\{measure\}\$\{heroStat\[1\] \? ` · \$\{heroStat\[1\]\}` : ''\}\$\{tail\}`;/,
+    "the app's wallPill no longer falls back to measure · figure — re-derive the web rule");
+  const model = wallModel();
+  // The demo workout, field for field.
+  const w = model({ kind: 'workout', role: 'Peak · 6,108', duration: '52 min', exercises: 6, rpe: 8.5 });
+  assert.equal(w.pill, 'Time · 52 min', 'a workout with no record draws no pill');
+  // And a first-record PR still leads with New PR rather than the measure.
+  const pr = model({ kind: 'pr', role: 'Tempo · 1,412', lift: 'Bench Press', load: '225 lb', reps: '5 × 5', delta: '+10 lb' });
+  assert.equal(pr.pill, 'New PR · Bench Press · +10 lb', 'the PR pill lost its lift or its gain');
+});
+
+test('a PR pill falls back to the measure when nothing names the lift', () => {
+  // ⚠ A LIVE PR NEVER NAMES ONE — `mapPost` sets no `lift`, exactly as the app
+  // blanks it (`a.real ? '' : a.lift`). Without the fallback every real PR read
+  // "New PR · +0:06/mi" where the app reads "New PR · Distance · +0:06/mi".
+  assert.match(APP, /\$\{lift \? ` · \$\{lift\}` : \(measure \? ` · \$\{measure\}` : ''\)\}/,
+    "the app's PR pill no longer falls back to the measure — re-derive the web rule");
+  const model = wallModel();
+  const m = model({ kind: 'pr', role: 'Tempo · 1,412', load: '225 lb', reps: '5 × 5', delta: '+10 lb' });
+  assert.equal(m.pill, 'New PR · Top set · +10 lb', 'a lift-less PR lost the measure from its pill');
+});
+
+test('the stat grid is the whole set, not what the hero and facts left over', () => {
+  // ⚠ THE APP'S `detailStats` IS UNFILTERED and the card renders its first six.
+  // This shipped as `rest.slice(2, 8)`, which on a two-stat PR left NOTHING and
+  // drew no grid at all — the emptiest card on the board was the record.
+  const s = stripComments(APP);
+  assert.match(s, /const detailStats = uStats\(a\.real \? \(a\.fullStats \|\| statsRaw\) : \(a\.stats \|\| statsRaw\)\);/,
+    "the app's detailStats is no longer the whole stat set — re-derive the web rule");
+  assert.match(s, /\{detailStats\.slice\(0, 6\)\.map\(/,
+    'the app no longer renders detailStats unfiltered — re-derive the web rule');
+  const model = wallModel();
+  const pr = model({ kind: 'pr', role: 'Tempo · 1,412', lift: 'Bench Press', load: '225 lb', reps: '5 × 5' });
+  assert.deepEqual(pr.detail, [['Top set', '225 lb'], ['Reps', '5 × 5']],
+    'the two-stat PR draws an empty grid again');
+  // And the hero IS in it, which is the part that was filtered out.
+  assert.deepEqual(pr.heroStat, ['Top set', '225 lb']);
+  assert.ok(pr.detail.some(([k]) => k === pr.heroStat[0]),
+    'the grid is filtering the hero out again');
+  // Six is the cap, taken off the FRONT — a nine-stat run shows the first six.
+  const run = model({ kind: 'run', role: 'Tempo · 980', session: { stats: [
+    ['Distance', '8.4 mi'], ['Avg pace', '7:42/mi'], ['Best pace', '7:18/mi'], ['Time', '1:04:42'],
+    ['Avg HR', '156 bpm'], ['Max HR', '174 bpm'], ['Cadence', '176 spm'], ['Elevation', '412 ft'], ['Calories', '1,020'],
+  ] } });
+  assert.equal(run.detail.length, 6, 'the grid cap moved off the app\'s six');
+  assert.deepEqual(run.detail[0], ['Distance', '8.4 mi'], 'the grid no longer starts at the first stat');
+});
+
+test("a demo PR's headline is composed the way the app composes it", () => {
+  // ⚠ THE APP'S DEMO PRs CARRY NO `title` EITHER — it BUILDS one
+  // (iosAppBroadsheetClient.jsx:18957). A bare lift is a divergence, not a
+  // simplification: the plate then reads "Bench Press." where the app reads
+  // "Bench Press — new PR." Derived from the app's own expression, so the day it
+  // rewords the suffix this fails rather than the two drifting in silence.
+  const m = /a\.kind === 'pr' \? `\$\{a\.lift\}([^`]*)`/.exec(stripComments(APP));
+  assert.ok(m, "the app no longer composes a demo PR's title — re-derive the web rule");
+  const suffix = m[1];
+  assert.ok(suffix.trim().length > 2,
+    `the app's PR title suffix parsed as "${suffix}" — the read stopped matching`);
+  assert.ok(stripComments(FEED).includes('`${p.lift}' + suffix + '`'),
+    `the web no longer composes a demo PR's headline as the app does (suffix "${suffix}")`);
+});
+
+test('a note post with nothing measured draws no pill and no grid', () => {
+  // The honest-absent half of the same rule: restoring the fallbacks must not
+  // start inventing a pill for a post that measured nothing.
+  const model = wallModel();
+  const n = model({ kind: 'post', role: 'Peak · 6,108', body: 'Race day Sunday.' });
+  assert.equal(n.pill, '', 'a plain note grew a pill');
+  assert.equal(n.heroStat, null);
+  assert.deepEqual(n.detail, []);
 });
 
 test('an incomplete HR zone distribution is refused, not zero-filled', () => {
