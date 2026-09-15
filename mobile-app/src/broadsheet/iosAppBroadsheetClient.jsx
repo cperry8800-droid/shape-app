@@ -32679,6 +32679,15 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     bio: bioKnown ? id.bio : '',
   });
   const [draft, setDraft] = useStateBSC(seedDraft());
+  // ⚠ THE WRITE IS SCOPED TO WHAT THE MEMBER TOUCHED — Codex P1 on this PR. The draft
+  // is seeded from the *Known flags, and those are false until the client_identity
+  // read lands (and stay false when it fails): a member who tapped Edit inside that
+  // window and saved an unrelated field would have written '' over their stored city
+  // and bio — the same window the old seed-from-identity had, with Brooklyn as the
+  // wrong value instead of ''. So the form records which keys it edited, saveEdit
+  // writes only those, and when the read lands the untouched keys refresh from it.
+  const touchedRef = React.useRef(new Set());
+  const edit = (k, v) => { touchedRef.current.add(k); setDraft(prev => ({ ...prev, [k]: v })); };
   // Nav announce (spec §2): the shell only sees settingsStart at OPEN time;
   // this keeps the register current as the user moves within Settings. Only
   // the replayable keys (initialPage-supported) are announced.
@@ -32696,54 +32705,70 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         if ('location' in d) setLocationKnown(!!d.location);
         if ('handle' in d) setHandleKnown(!!d.handle);
         if ('bio' in d) setBioKnown(!!d.bio);
-        // When opened directly in edit mode, seed the draft from the saved
-        // identity (which loads async) so the form shows real values, not defaults.
-        if (initialPage === 'edit-profile') setDraft(prev => ({ ...prev, ...d }));
+        // The draft takes the saved value of every key the member has not edited — on
+        // the deep link, where the form is already open at mount, and on the root, where
+        // they may have tapped Edit before this read landed. A key they have typed into
+        // is theirs and is left alone.
+        setDraft(prev => { const next = { ...prev }; for (const k of Object.keys(d)) if (!touchedRef.current.has(k)) next[k] = d[k]; return next; });
         try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...d }; } catch (e) {}
       }
     }).catch(() => {});
   }, []);
-  const startEdit = () => { setDraft(seedDraft()); setEditing(true); };
+  const startEdit = () => { touchedRef.current = new Set(); setDraft(seedDraft()); setEditing(true); };
   const saveEdit  = () => {
-    // ⚠ ONLY WHAT THE FORM SHOWS IS WRITTEN. The draft is a copy of `identity`, which
-    // also carries `goal` (the Goal page's own field, written by its own editor) and
-    // the persona's `accent`; writing the whole draft let this form overwrite a goal
-    // it never displayed. bsSaveIdentity MERGES over the freshest stored document, so
-    // a key left out of the patch cannot blank anything it already holds.
+    // ⚠ ONLY WHAT THE MEMBER TOUCHED IS WRITTEN (see touchedRef). The draft is a copy
+    // of `identity`, which also carries `goal` (the Goal page's own field, written by
+    // its own editor) and the persona's `accent`, and its untouched keys may still be
+    // the seed's '' while the identity read is in flight or after it failed. Writing
+    // the whole draft overwrote a goal this form never displayed; writing every form
+    // field blanked a stored city and bio the form had not loaded yet. bsSaveIdentity
+    // MERGES over the freshest stored document, so a key left out of the patch cannot
+    // blank anything it already holds.
     // ⚠ AND THE HANDLE IS WRITTEN WHEN THE MEMBER TYPED ONE. The previous guard read
     // `if (!handleKnown) delete patch.handle` under a comment claiming this form had
     // no handle field. It has always had one — so a member whose account carried no
     // username typed a handle, tapped Save, and had it silently dropped. The draft
-    // now seeds '' for a handle that is not theirs (seedDraft), so anything in the
+    // seeds '' for a handle that is not theirs (seedDraft), so anything typed into the
     // field is theirs by construction: normalised to one leading @, written, and
-    // marked known so the identity card prints it. A cleared field leaves the stored
-    // handle in place — the document has no way to unset one, and a blank line on
-    // the card would claim the member has none.
+    // marked known so the identity card prints it.
+    // ⚠ A CLEARED HANDLE IS WRITTEN AS '' — Codex P2 on this PR. Leaving the key out
+    // kept the old handle stored AND shown, so the member's edit was silently ignored;
+    // the hydrate already reads an empty stored handle as not-known, so '' is the
+    // clearing value both ends agree on. Only a TOUCHED field can clear: a handle that
+    // was never theirs sits in the draft as an untouched '' and is never written.
+    const touched = touchedRef.current;
     const name = String(draft.name || '').trim() || identity.name;
     const typed = String(draft.handle || '').trim().replace(/^@+/, '');
     const handle = typed ? '@' + typed : '';
     const location = String(draft.location || '').trim();
     const bio = String(draft.bio || '');
-    const fields = {
-      name, initials: draft.initials || '', avatarMode: draft.avatarMode || 'photo',
-      location, link: draft.link || '', pronouns: draft.pronouns || '', bio,
-      ...(handle ? { handle } : {}),
-    };
+    const fields = {};
+    if (touched.has('name')) fields.name = name;
+    if (touched.has('initials')) fields.initials = draft.initials || '';
+    if (touched.has('avatarMode')) fields.avatarMode = draft.avatarMode || 'photo';
+    if (touched.has('location')) fields.location = location;
+    if (touched.has('link')) fields.link = draft.link || '';
+    if (touched.has('pronouns')) fields.pronouns = draft.pronouns || '';
+    if (touched.has('bio')) fields.bio = bio;
+    if (touched.has('handle')) fields.handle = handle;
     setIdentity(prev => ({ ...prev, ...fields })); setEditing(false);
-    setLocationKnown(!!location);
-    setBioKnown(!!bio.trim());
-    if (handle) setHandleKnown(true);
+    if (touched.has('location')) setLocationKnown(!!location);
+    if (touched.has('bio')) setBioKnown(!!bio.trim());
+    if (touched.has('handle')) setHandleKnown(!!handle);
     // Persist through the serialized writer (merges over the freshest stored doc, so
     // the photo picker's photo and our avatarMode can't clobber each other).
     // Optimistically update the cache first so on-screen avatars refresh instantly
-    // without navigating. avatarMode is always defined so a merge can't blank a saved
-    // preference.
+    // without navigating.
+    // ⚠ ASKED OF WHAT THE MEMBER EDITED, NOT OF THE PATCH: the cached photo rides every
+    // write, so a check on the patch could never fire and an untouched Save still
+    // round-tripped the store — driven, 1 document written where 0 was expected.
+    if (!Object.keys(fields).length) return; // nothing edited: nothing to write
     const photo = bsMyPhotoRaw() || null;
     const patch = photo ? { ...fields, photo } : fields;
     try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...patch }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
     bsSaveIdentity(patch);
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
-    try { window.ShapeAuth?.updateProfileName?.(name); } catch (e) {}
+    if (touched.has('name')) { try { window.ShapeAuth?.updateProfileName?.(name); } catch (e) {} }
   };
   const cancelEdit = () => setEditing(false);
 
@@ -33727,7 +33752,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div role="radiogroup" style={{ display: 'flex', gap: 7 }}>
                   {[['photo', tr('settings:edit.photo', { defaultValue: 'Photo' })], ['initials', tr('settings:edit.initials', { defaultValue: 'Initials' })]].map(([val, label]) => {
                     const on = (draft.avatarMode || 'photo') === val;
-                    return <button key={val} role="radio" aria-checked={on} onClick={() => setDraft({ ...draft, avatarMode: val })} style={cell(on)}>{label}</button>;
+                    return <button key={val} role="radio" aria-checked={on} onClick={() => edit('avatarMode', val)} style={cell(on)}>{label}</button>;
                   })}
                 </div>
               </div>
@@ -33736,7 +33761,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               <label style={{ display: 'block', marginTop: 12 }}>
                 <span style={eyebrow}>{tr('settings:edit.avatarInitials', { defaultValue: 'Avatar initials' })} <span style={{ color: t.INK50 }}>{tr('settings:edit.max2', { defaultValue: '· max 2' })}</span></span>
                 <input value={draft.initials || ''} placeholder={bsInitials(draft.name) || 'AB'} maxLength={2}
-                  onChange={(e) => setDraft({ ...draft, initials: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2) })}
+                  onChange={(e) => edit('initials', e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2))}
                   onFocus={onFocus} onBlur={onBlur}
                   style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
               </label>
@@ -33750,7 +33775,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               ].map(f => (
                 <label key={f.k} style={{ display: 'block', marginBottom: 10 }}>
                   <span style={eyebrow}>{f.label}</span>
-                  <input value={draft[f.k] || ''} placeholder={f.ph} onChange={(e) => setDraft({ ...draft, [f.k]: e.target.value })}
+                  <input value={draft[f.k] || ''} placeholder={f.ph} onChange={(e) => edit(f.k, e.target.value)}
                     onFocus={onFocus} onBlur={onBlur} style={field} />
                 </label>
               ))}
@@ -33762,7 +33787,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
                 <div style={{ display: 'flex', gap: 7 }}>
                   {pronounOpts.map(p => {
                     const on = draft.pronouns === p;
-                    return <button key={p} aria-pressed={on} onClick={() => setDraft({ ...draft, pronouns: on ? '' : p })} style={{ ...cell(on), textTransform: 'none', letterSpacing: 0, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: on ? t.ACCENT : t.INK }}>{p}</button>;
+                    return <button key={p} aria-pressed={on} onClick={() => edit('pronouns', on ? '' : p)} style={{ ...cell(on), textTransform: 'none', letterSpacing: 0, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: on ? t.ACCENT : t.INK }}>{p}</button>;
                   })}
                 </div>
               </div>
@@ -33770,7 +33795,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               {/* Bio + counter */}
               <label style={{ display: 'block', marginTop: 12 }}>
                 <span style={{ ...eyebrow, display: 'flex', justifyContent: 'space-between' }}><span>{tr('settings:edit.bio', { defaultValue: 'Bio' })}</span><span style={{ color: bioLen > 160 ? t.RUST : t.INK50, letterSpacing: '0.06em' }}>{bioLen}/160</span></span>
-                <textarea value={draft.bio || ''} maxLength={180} onChange={(e) => setDraft({ ...draft, bio: e.target.value })} rows={3}
+                <textarea value={draft.bio || ''} maxLength={180} onChange={(e) => edit('bio', e.target.value)} rows={3}
                   onFocus={onFocus} onBlur={onBlur}
                   style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
               </label>

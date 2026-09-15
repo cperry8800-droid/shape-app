@@ -484,14 +484,22 @@ test('the draft is seeded from what the member has, never from the demo persona'
   assert.match(clean, /const seedDraft = \(id = identity\) => \(\{\s*\.\.\.id,\s*handle: handleKnown \? id\.handle : '',\s*location: locationKnown \? id\.location : '',\s*bio: bioKnown \? id\.bio : '',\s*\}\);/,
     'seedDraft no longer withholds the persona’s handle, city or bio');
   assert.match(clean, /const \[draft, setDraft\] = useStateBSC\(seedDraft\(\)\);/, 'the initial draft is not seeded');
-  assert.match(clean, /const startEdit = \(\) => \{ setDraft\(seedDraft\(\)\); setEditing\(true\); \};/, 'startEdit seeds from identity again');
+  // The invariant, not the line: startEdit seeds through seedDraft (it also clears the
+  // touched set since the Codex round — pinned in its own test below).
+  assert.match(clean, /const startEdit = \(\) => \{[^}]*setDraft\(seedDraft\(\)\);[^}]*setEditing\(true\);/, 'startEdit seeds from identity again');
   // Both entries: the card's button and the public profile's Edit.
   assert.match(clean, /setShowPublicProfile\(false\); startEdit\(\); \}\}/, 'the public profile’s Edit skips startEdit, so a cancelled draft comes back');
   assert.match(clean, /const \[bioKnown, setBioKnown\] = useStateBSC\(false\);/, 'bioKnown is gone');
   assert.match(clean, /if \('bio' in d\) setBioKnown\(!!d\.bio\);/, 'the hydrate no longer learns whether a bio was saved');
 });
 
-test('saveEdit writes only the form’s fields, and a typed handle is written', () => {
+test('saveEdit writes only the keys the member touched — Codex P1 and P2 on #2087', () => {
+  // P1: the draft seeds '' for a city and bio whose *Known flags are still false —
+  // i.e. until the client_identity read lands, and forever if it fails — so writing
+  // every form field blanked a stored city and bio the form had never loaded. P2: a
+  // saved handle cleared in the field must be written as '' or the merge keeps it.
+  // One rule closes both: only a TOUCHED key is written, and a touched handle is
+  // written whatever its value.
   const clean = stripComments(src);
   const i = clean.indexOf('const saveEdit  = () => {');
   assert.ok(i > 0, 'saveEdit is gone');
@@ -499,10 +507,42 @@ test('saveEdit writes only the form’s fields, and a typed handle is written', 
   assert.ok(body.length > 400 && body.length < 4000, `saveEdit span is ${body.length} chars`);
   assert.ok(!body.includes('...draft'), 'saveEdit spreads the whole draft again — goal and accent ride a form that never shows them');
   assert.ok(!/\bgoal\b/.test(body), 'saveEdit writes goal, the Goal page’s own field');
+  assert.match(body, /const touched = touchedRef\.current;/, 'saveEdit no longer asks which keys were touched');
+  for (const k of ['name', 'initials', 'avatarMode', 'location', 'link', 'pronouns', 'bio', 'handle']) {
+    assert.match(body, new RegExp(`if \\(touched\\.has\\('${k}'\\)\\) fields\\.${k} = `), `${k} is written whether or not the member touched it`);
+  }
+  assert.ok(!/fields = \{\s*name/.test(body), 'the fields object is built unconditionally again');
   assert.match(body, /const typed = String\(draft\.handle \|\| ''\)\.trim\(\)\.replace\(\/\^@\+\/, ''\);/, 'the handle is not normalised');
-  assert.match(body, /\.\.\.\(handle \? \{ handle \} : \{\}\)/, 'a typed handle is not written (or an empty one is)');
-  assert.match(body, /if \(handle\) setHandleKnown\(true\);/, 'a typed handle does not mark the handle as the member’s');
-  assert.match(body, /setLocationKnown\(!!location\);/, 'saveEdit does not record whether a city was written');
-  assert.match(body, /setBioKnown\(!!bio\.trim\(\)\);/, 'saveEdit does not record whether a bio was written');
+  assert.match(body, /if \(touched\.has\('handle'\)\) fields\.handle = handle;/, 'a cleared handle is not written as \'\' (P2), or an untouched one is');
+  assert.ok(!/\.\.\.\(handle \? \{ handle \} : \{\}\)/.test(body), 'the handle is written only when non-empty again — clearing it is silently ignored (P2)');
+  assert.match(body, /if \(touched\.has\('handle'\)\) setHandleKnown\(!!handle\);/, 'a written handle does not set handleKnown to whether it is non-empty');
+  assert.match(body, /if \(touched\.has\('location'\)\) setLocationKnown\(!!location\);/, 'locationKnown moves on an untouched save');
+  assert.match(body, /if \(touched\.has\('bio'\)\) setBioKnown\(!!bio\.trim\(\)\);/, 'bioKnown moves on an untouched save');
+  // Of `fields`, never of `patch`: the cached photo rides every patch, so a check on the
+  // patch never fires — driven on the first cut, an untouched Save wrote one document.
+  assert.match(body, /if \(!Object\.keys\(fields\)\.length\) return;/, 'an untouched save still round-trips the store (or the check asks the patch, which the photo always fills)');
   assert.match(body, /bsSaveIdentity\(patch\);/, 'saveEdit no longer persists through the serialized writer');
+});
+
+test('an open draft takes the saved values of its untouched keys when the identity read lands', () => {
+  // The P1 half that keeps the FORM honest: a member who tapped Edit before the read
+  // landed saw '' in Location; when the read lands the untouched keys refresh, on the
+  // deep link AND on the root — the old refresh ran only for `initialPage`.
+  const clean = stripComments(src);
+  const i = clean.indexOf("setIdentity(prev => ({ ...prev, ...d }))");
+  assert.ok(i > 0, 'the client_identity hydrate is gone');
+  const hydrate = clean.slice(i, i + 700);
+  assert.match(hydrate, /setDraft\(prev => \{ const next = \{ \.\.\.prev \}; for \(const k of Object\.keys\(d\)\) if \(!touchedRef\.current\.has\(k\)\) next\[k\] = d\[k\]; return next; \}\);/,
+    'the hydrate no longer refreshes the untouched keys of an open draft (or it overwrites touched ones)');
+  assert.ok(!/if \(initialPage === 'edit-profile'\) setDraft/.test(hydrate), 'the refresh is gated on the deep link again — a root-opened form never learns its saved values');
+  assert.match(clean, /const touchedRef = React\.useRef\(new Set\(\)\);/, 'touchedRef is gone');
+  assert.match(clean, /const edit = \(k, v\) => \{ touchedRef\.current\.add\(k\); setDraft\(prev => \(\{ \.\.\.prev, \[k\]: v \}\)\); \};/, 'edit() no longer records the key it changes');
+  assert.match(clean, /const startEdit = \(\) => \{ touchedRef\.current = new Set\(\); setDraft\(seedDraft\(\)\); setEditing\(true\); \};/, 'startEdit does not clear the touched set, so a cancelled edit still counts as touched');
+});
+
+test('every control on the edit page writes through edit(), so nothing edited can go unwritten', () => {
+  const pane = editPane();
+  assert.ok(!pane.includes('setDraft('), 'a control writes the draft directly, bypassing the touched set — its edit is never saved');
+  const sites = pane.split('edit(').length - 1;
+  assert.ok(sites >= 5, `expected the five edit sites (avatar source, initials, the identity fields, pronouns, bio); found ${sites}`);
 });
