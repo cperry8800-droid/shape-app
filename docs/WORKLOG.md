@@ -741,9 +741,19 @@ Append new entries at the top, under this note.
   refuses it again", AND THAT POLICY IS NEVER CONSULTED IN THE CASE THE PARAGRAPH IS ABOUT** (Codex, on
   the changelog PR). With no station `public/radio.html`'s `loadStation()` leaves `STREAM_URL` null, and
   both `openRadio()` (reached from one call site, which passes `autoPlay: false`) and `togglePlay()`
-  return **without calling `audio.play()` at all** — so the page lands in its own *Coming soon* /
-  *Off air* copy rather than being refused by anything. *A refusal nobody asks for is not a second
-  reason; it is a sentence about a path the code does not take.* The analyser therefore never carries a
+  return **without calling `audio.play()` at all** — so from the page's own controls it lands in its own
+  *Coming soon* / *Off air* copy rather than being refused by anything. *A refusal nobody asks for is
+  not a second reason; it is a sentence about a path the code does not take.* ⚠ **AND THAT CORRECTION
+  WAS ITSELF TOO ABSOLUTE, WHICH IS THE LESSON RATHER THAN THE FIX** (Codex, on the correction PR). It
+  said **nothing** refuses it, and one path does reach `audio.play()`: the Media Session `play` handler
+  (`public/radio.html:682`) is installed unconditionally, checks no `STREAM_URL`, and is the only one of
+  that file's **six** `play()` call sites carrying neither a guard nor a `.catch` — while
+  `loadStation()`'s unconfigured branch installs the *Coming soon* **metadata** through
+  `applyNowPlaying()`, in exactly this state. Whether a browser surfaces a media control that can fire
+  it with nothing ever played is **not measured here**, so the honest claim is about the code rather
+  than the screen. And the diagnosis survives the qualification: an `<audio>` with no `src` rejects for
+  having **no supported source**, which is still not the autoplay policy. *"Nothing refuses it" is a
+  claim about every path, and one path refutes it.* The analyser therefore never carries a
   frame, and every part of the instrument was gated on one: the grid's alpha and radius were scaled by
   `fieldK`, the spectrum's baseline and its four-beat counter waited for data. **The owner was not
   looking at the wrong page; they were looking at the right page in the state nobody had drawn.**
