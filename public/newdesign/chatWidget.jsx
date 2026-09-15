@@ -208,6 +208,16 @@ function ChatWidget(props) {
   // is what keeps that from being the normal case.
   const feedReady = typeof window !== "undefined" && typeof window.CommunityFeed === "function";
   const tabs = React.useMemo(() => {
+    // ⚠ THE LABEL IS "Feed" AND THE WALL IS THE CHIP INSIDE IT — the app's own
+    // shape, and the owner's ruling when it was briefly renamed on 2026-09-15:
+    // "leave it as feed". Measured rather than read off the call site, whose
+    // `defaultValue` is not what renders: the app's catalog carries
+    // `feed:tab.feed = "Feed"` and `feed:tab.wall = "Wall"`, so its top segment
+    // is Feed and Wall is the sub-tab. Labelling this one Wall put TWO controls
+    // reading "Wall" in one panel (the tab and its own default chip) and an
+    // empty state reading "Nothing on Wall yet." inside a tab called Wall.
+    // `tests/community-wall-plate.test.mjs` derives this label from that
+    // catalog, so the two surfaces cannot drift apart silently.
     const FEED_TAB = {
       id: "feed", label: "Feed", eyebrow: "THE WALL", title: "Community",
       feed: true, threads: [],

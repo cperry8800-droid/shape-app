@@ -142,6 +142,127 @@ test('the Coaches menu is one Marketplace item, the same on both bars', () => {
   }
 });
 
+// ── 1b · Radio is offered once per width ───────────────────────────────────
+// Owner, 2026-09-15: "remove the radio tab from main middle dashboard and leave
+// the existing radio tab next to get started. dont need 2 tabs on dash". The bar
+// carried BOTH a `Radio` link in the middle row and `RadioWordmark`, the bordered
+// ▸◂ RADIO pill in the auth cluster — one destination twice on one row.
+//
+// ⚠ AND THE DRAWER KEEPS ITS RADIO LINK, WHICH IS THE HALF A TIDY-UP WOULD GET
+// WRONG. The collapse rule hides the whole auth cluster, so at ≤1020px the pill
+// is not on screen and the drawer is the only nav a phone has: dropping Radio
+// from it removes the ONLY route to the page from every phone rather than
+// removing a second tab. So the invariant is not "Radio is not in the nav" — it
+// is "Radio is offered exactly once at every width": the pill above the
+// breakpoint, the drawer below it.
+test('Radio left the middle row on both bars, and the pill it duplicated stayed', () => {
+  assert.ok(!NAV_TABLES.SHAPE_NAV_GROUPS.some((g) => target(g.href) === 'Radio.html'),
+    'Radio is back in the shared header\'s link row, beside the ▸◂ RADIO pill that already offers it');
+  const home = homepageLinks();
+  assert.ok(home.length >= 5, 'parsed only ' + home.length + ' homepage links — this guard is reading nothing');
+  assert.ok(!home.some(([, h]) => target(h) === 'Radio.html'),
+    'Radio is back in the homepage\'s middle row, beside the .nradio pill that already offers it');
+
+  // The pill is the one that stayed — on BOTH bars. (`homepage-climb.test.mjs`
+  // renders the shared one; this only needs its target, to compare against the
+  // drawer's below.)
+  const pill = /<a className="shape-nav-radio" href="([^"]+)"/.exec(SHELL);
+  assert.ok(pill, 'RadioWordmark no longer renders an anchor — the pill the middle-row link was removed in favour of is gone');
+  assert.equal(target(pill[1]), 'Radio.html');
+  const homePill = /<a class="nradio" href="([^"]+)"/.exec(INDEX);
+  assert.ok(homePill, 'the homepage lost its .nradio pill — Radio is now offered nowhere on that bar');
+  assert.equal(target(homePill[1]), 'Radio.html');
+
+  // ⚠ THE PREMISE IS THE COLLAPSE RULE, so assert it rather than assume it. If a
+  // later change made the pill visible on a phone, the drawer's Radio would be a
+  // duplicate again and this test would be defending the wrong shape.
+  const homeCollapse = /@media \(max-width:(\d+)px\)\{\s*([^}]*)\}/.exec(
+    INDEX.slice(INDEX.indexOf('@media (max-width:1020px){')));
+  assert.ok(homeCollapse, 'the homepage collapse rule is gone');
+  assert.match(homeCollapse[2], /\.nauth \.nradio/, 'the homepage pill is no longer hidden when the bar collapses, so the drawer\'s Radio is a duplicate');
+  // Brace-matched, not cut at the first `}` — that lands on the end of the block's
+  // FIRST rule, so the assertion would read one declaration and pass or fail on
+  // whichever rule happens to be written first.
+  const at = SHELL.indexOf('@media (max-width: 1020px) {');
+  assert.notEqual(at, -1, 'the shared header\'s nav-collapse media query is gone');
+  let depth = 0, end = -1;
+  for (let i = SHELL.indexOf('{', at); i < SHELL.length; i++) {
+    if (SHELL[i] === '{') depth++;
+    else if (SHELL[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  assert.ok(end > at, 'could not brace-match the collapse block');
+  assert.match(SHELL.slice(at, end), /\.shape-nav-auth \{ display: none/,
+    'the shared header\'s auth cluster (which carries the pill) is no longer hidden when the bar collapses');
+});
+
+test('both drawers still carry Radio, pointing where the pill points', () => {
+  // ⚠ The shared drawer renders from the SAME table the bar does, so removing
+  // Radio from the table took it out of the drawer too — it is rendered
+  // explicitly there now, and that line is what this asserts. It is the only
+  // thing standing between a phone and no route to Radio at all.
+  const drawer = SHELL.slice(SHELL.indexOf('function MobileDrawer('), SHELL.indexOf('async function shapePortalSignOutStandalone'));
+  assert.ok(drawer.length > 400, 'could not slice MobileDrawer — this guard is reading nothing');
+  const pill = target(/<a className="shape-nav-radio" href="([^"]+)"/.exec(SHELL)[1]);
+  const inShell = [...drawer.matchAll(/<a href="([^"]+)"[^>]*>Radio<\/a>/g)].map((m) => target(m[1]));
+  assert.deepEqual(inShell, [pill],
+    'the shared mobile drawer offers Radio ' + inShell.length + ' times — it must be exactly once, at ' + pill +
+    ' (the pill is display:none at this width, so this link is the only route to the page from a phone)');
+
+  const home = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
+  assert.ok(home, 'the homepage has no drawer');
+  const links = [...home[1].matchAll(/<a href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+    .map((a) => [a[2].replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').trim(), target(a[1])]);
+  assert.ok(links.length >= 8, 'parsed only ' + links.length + ' homepage drawer links — the parse stopped matching');
+  const radios = links.filter(([, h]) => h === 'Radio.html');
+  assert.deepEqual(radios, [['Radio', pill]],
+    'the homepage drawer offers Radio ' + radios.length + ' times — it must be exactly once, and it is the only route to the page below 1020px');
+
+  // ⚠ AND IN THE SAME PLACE IN BOTH: after every tab, because Radio is no longer
+  // one of them — it is the pill standing in where the pill cannot render. The
+  // shared drawer gets that for free (it is appended after the table's own map);
+  // the homepage's is hand-written, so the two can drift, which is exactly how
+  // the site came to have two different nav bars in the first place.
+  const tabs = new Set(NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => target(g.href)));
+  const lastTab = links.map(([, h]) => h).lastIndexOf([...links].reverse().find(([, h]) => tabs.has(h))[1]);
+  const radioAt = links.findIndex(([, h]) => h === 'Radio.html');
+  assert.ok(radioAt > lastTab,
+    'the homepage drawer puts Radio at ' + radioAt + ', among the tabs (the last tab is at ' + lastTab +
+    ') — the shared drawer appends it after them, and two drawers that disagree is the drift this file exists to catch');
+});
+
+// ── 1c · the bar's stylesheet is still a stylesheet ────────────────────────
+// ⚠ A BACKTICK IN A COMMENT INSIDE THIS FILE'S CSS IS CODE, AND NOTHING ELSE IN
+// THE GATE CAN SEE IT. `<style>{`…`}</style>` is one template literal, and the
+// long ⚠ notes explaining the media queries live INSIDE it — so a comment that
+// quotes a selector the way every other comment in the repo does (`.shape-nav-x`)
+// closes the template early. Measured on the real occurrence, 2026-09-15: the
+// file still PARSES, `tsc` is clean, the mobile build is clean and all ~3,800
+// tests pass, because `…`.shape-header-inner` to 24px` is legal JavaScript — a
+// member read, then a subtraction chain over the bare identifiers `header` and
+// `inner`. The whole shared header then throws `ReferenceError: header is not
+// defined` at render and ~70 pages lose their chrome. Only a browser caught it.
+//
+// The tell is structural and needs no list of forbidden characters: with the
+// stray backticks the <style> child stops being a TemplateLiteral and becomes a
+// BinaryExpression. Proven both ways before this was written.
+test('the shared header\'s stylesheet is ONE template literal, not an expression around one', async () => {
+  const { parse } = await import('@babel/parser');
+  const ast = parse(SHELL, { sourceType: 'module', plugins: ['jsx'] });
+  const kinds = [];
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node.type === 'JSXElement' && node.openingElement.name && node.openingElement.name.name === 'style') {
+      for (const c of node.children) if (c.type === 'JSXExpressionContainer') kinds.push(c.expression.type);
+    }
+    for (const k of Object.keys(node)) if (!k.startsWith('loc') && !k.endsWith('Comments')) walk(node[k]);
+  })(ast.program);
+  assert.ok(kinds.length >= 1, 'pageShell renders no <style> with an expression child — this guard is reading nothing');
+  assert.deepEqual(kinds, kinds.map(() => 'TemplateLiteral'),
+    'a <style> block is ' + kinds.join('/') + ' rather than a plain template literal — almost certainly a backtick inside one of its CSS comments, ' +
+    'which parses, builds and tests green and throws at render');
+});
+
 // ── 2 · signed in, the row is the essentials ────────────────────────────────
 // Owner: "for signed in dont say workouts and nutritionists for client. its
 // repetitive… just have coaches", and "all of those tabs on nav are on the

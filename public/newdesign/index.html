@@ -490,7 +490,25 @@
      1180. Refusing to wrap turns that shrink into an overflow, so the honest fix
      is to stop rendering the row at a width it does not fit. `pageShell.jsx`
      collapses at the same 1020 and tightens at the same 1100 — one bar means
-     one breakpoint, or a 1000px window gets a different nav per page. */
+     one breakpoint, or a 1000px window gets a different nav per page.
+
+     ⚠ RE-MEASURED 2026-09-15, WHEN RADIO LEFT THE ROW: the justification above
+     is for EIGHT links and there are seven now, so 1020 is a ceiling with slack
+     rather than the tight fit it was. Driven in Chromium in the real faces (the
+     fallback measures a different typeface, so the wdth axis was checked live
+     first — 322px at wdth 50 against 1288 at 150), with the collapse rule
+     overridden so each width reports whether the row WOULD have fitted: this bar
+     fits at 960 and puts 10 · 30 · 50 · 70px on the page at 940 · 920 · 900 · 880,
+     and the shared header fits to 920 (3px clear) and overlaps by 1px at 900.
+     So the binding width is ~950 and nothing can overflow at 1021.
+
+     ⚠ AND IT IS DELIBERATELY NOT RE-TIGHTENED. Lowering it would hand a 960–1020
+     window the row back, which is a real gain and is not what was asked for — and
+     it is not a one-number change: the ≤1020 block also tightens
+     `.shape-header-inner` to 24px padding / 14px gap on the shared header, so the
+     row would arrive at those widths with LESS room than this sweep gave it and
+     the block would have to be split before the number moved. Left as a ceiling,
+     measured, rather than moved on a sweep that did not model the split. */
   @media (max-width:1020px){
     .nlinks,.nauth .login,.nauth .nradio{display:none}
     .nburger{display:flex}
@@ -609,7 +627,6 @@
       <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true">&#9662;</span></a><div class="nmenu"><a href="/newdesign/Marketplace.html">Marketplace</a></div></span>
       <a href="/newdesign/Client.html">Members</a>
       <a href="/newdesign/GetApp.html">App</a>
-      <a href="/newdesign/Radio.html">Radio</a>
       <a href="/newdesign/Community.html">Community</a>
       <a href="/newdesign/Score.html">Rewards</a>
       <a href="/newdesign/Pricing.html">Pricing</a>
@@ -629,11 +646,25 @@
   <a href="/newdesign/Marketplace.html">&nbsp;&nbsp;Marketplace</a>
   <a href="/newdesign/Client.html">Members</a>
   <a href="/newdesign/GetApp.html">App</a>
-  <a href="/newdesign/Radio.html">Radio</a>
   <a href="/newdesign/Community.html">Community</a>
   <a href="/newdesign/Score.html">Rewards</a>
   <a href="/newdesign/Pricing.html">Pricing</a>
   <a href="/newdesign/About.html">About</a>
+  <!-- ⚠ RADIO STAYS IN THE DRAWER THOUGH IT LEFT THE BAR (owner, 2026-09-15:
+       "dont need 2 tabs on dash"). The bar offered it twice — as a middle-row link
+       and as the ▸◂ RADIO pill beside Get started — and the pill is the one that
+       stayed. That duplication was a DESKTOP one: `.nauth .nradio` is display:none
+       in the ≤1020px collapse rule above (line ~504), so under that width the pill
+       is not on screen and this drawer is the only nav there is — removing this
+       line would delete the destination from every phone rather than de-duplicate
+       anything.
+
+       LAST, after the tabs, because it is no longer one of them — it is the pill
+       standing in where the pill cannot render, which is where the shared
+       header's own drawer puts it. `tests/site-nav.test.mjs` requires both
+       drawers to agree on that, the way it already requires both bars to agree on
+       their row. -->
+  <a href="/newdesign/Radio.html">Radio</a>
   <a href="/newdesign/Login.html">Log in</a>
   <a href="/newdesign/Landing.html">Get started</a>
 </div>
