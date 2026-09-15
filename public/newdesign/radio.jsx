@@ -29,7 +29,17 @@ function RdReveal({ children, delay = 0, style = {} }) {
 }
 
 function RdSetsComingUp() {
-  const [rows, setRows] = React.useState(null);   // null = still loading → render nothing
+  // ⚠ THREE STATES, NOT TWO — `null` is "not resolved yet" and renders nothing,
+  // `false` is "we could not read the schedule", and an array is a MEASURED answer.
+  // All three of this component's failure doors used to publish `[]`, which renders
+  // "Schedule lands with the first broadcast." — a claim about the STATION made out
+  // of a failure of OUR OWN: a Supabase client that never loaded, a query that
+  // faulted, a request that never landed. That is the same class as the "No station
+  // on the air yet" this page took four rounds to close at its three doors, sitting
+  // one component below it the whole time, and this PR's own description asserts that
+  // "the schedule under it is real". A schedule we could not read is not a schedule
+  // that is empty.
+  const [rows, setRows] = React.useState(null);
   React.useEffect(() => {
     let on = true;
     const db = window.shapeDb && window.shapeDb.client;
@@ -37,7 +47,7 @@ function RdSetsComingUp() {
     // Guard BOTH exports: a browser holding an older cached copy of the module
     // would have bsSetsNow but not bsSetsWindow, and calling through would
     // throw rather than degrade (the module-cache lesson from #1772).
-    if (!db || !lib || !lib.bsSetsNow || !lib.bsSetsWindow) { setRows([]); return undefined; }
+    if (!db || !lib || !lib.bsSetsNow || !lib.bsSetsWindow) { setRows(false); return undefined; }
     // The SAME window the app queries, from the same canonical definition —
     // recomputing it here is how the two surfaces drift (review: CodeRabbit).
     // No row limit: a limit could truncate away the set that is on air, and the
@@ -48,14 +58,20 @@ function RdSetsComingUp() {
       .order("starts_at", { ascending: true })
       .then((res) => {
         if (!on) return;
-        const data = res && !res.error && Array.isArray(res.data) ? res.data : [];
-        // UPCOMING ONLY — deliberately no live/"Now" row. The website has no
-        // player and no stream gate, so marking a set as on air here would
-        // claim a broadcast the page cannot support (and would say it even on
-        // the mock provider). A set already under way simply isn't "coming up".
-        setRows(lib.bsSetsNow(data, Date.now()).upcoming);
+        // A query fault resolves rather than throws, so this arm is where most
+        // unreadable answers land — and it is the one that used to coerce them to [].
+        if (!res || res.error || !Array.isArray(res.data)) { setRows(false); return; }
+        // UPCOMING ONLY — deliberately no live/"Now" row, and the REASON has changed
+        // even though the behaviour has not. It used to read "the website has no
+        // player and no stream gate", and this PR put both at the top of this page.
+        // What still holds is narrower and better: `nora_sets` is a SCHEDULE, and a
+        // start time that has passed is not a measurement that anything is being
+        // transmitted. The instrument above can tell whether audio is arriving; this
+        // table cannot, so a "Now" row here would be a broadcast claim derived from a
+        // calendar. A set already under way simply isn't "coming up".
+        setRows(lib.bsSetsNow(res.data, Date.now()).upcoming);
       })
-      .catch(() => { if (on) setRows([]); });
+      .catch(() => { if (on) setRows(false); });
     return () => { on = false; };
   }, []);
   if (rows === null) return null;
@@ -68,7 +84,9 @@ function RdSetsComingUp() {
   return (
     <div style={{ marginTop: 40, textAlign: "left", maxWidth: 560, marginLeft: "auto", marginRight: "auto" }}>
       <div style={{ fontFamily: RD_NUM, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: RD_TEAL, marginBottom: 10 }}>Coming up</div>
-      {rows.length === 0 ? (
+      {rows === false ? (
+        <div style={{ fontFamily: RD_NUM, fontSize: 12, letterSpacing: "0.06em", color: "rgba(242,237,228,0.55)" }}>Couldn&rsquo;t read the schedule just now.</div>
+      ) : rows.length === 0 ? (
         <div style={{ fontFamily: RD_NUM, fontSize: 12, letterSpacing: "0.06em", color: "rgba(242,237,228,0.55)" }}>Schedule lands with the first broadcast.</div>
       ) : rows.map((s, i) => (
         <div key={s.id} style={{ display: "flex", alignItems: "baseline", gap: 14, padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.14)" : "none" }}>
@@ -179,6 +197,15 @@ function RadioNora() {
     if (busy.current) return;
     busy.current = true;
     setState("opening");
+    // ⚠ THE STAGE IS HELD LOCALLY SO THE FAILURE PATH CAN REACH IT (Codex, round 9).
+    // `stageRef` was assigned only after load() AND start() had both succeeded, so a VRM
+    // download or parse that threw left the catch with `stageRef.current` still null and
+    // nothing to dispose — while `NoraStage` allocates its `WebGLRenderer` in the
+    // CONSTRUCTOR, two statements earlier. Every retry leaked another live context, and a
+    // browser caps those and silently evicts the oldest rather than reporting one: the
+    // symptom is the booth quietly failing to draw on some later attempt, with nothing in
+    // the log and no line to point at.
+    let made = null;
     try {
       if (!window.WebGLRenderingContext) { setState("unsupported"); return; }
       const g = window.__shapeRadioGraph || null;
@@ -192,6 +219,7 @@ function RadioNora() {
         modelUrl: "/nora/placeholder.vrm",
         color: RD_TEAL,
       });
+      made = stage;
       await stage.load();
       // ⚠ AND THE LOAD IS ASYNC, so a graph that appeared WHILE the VRM was downloading
       // would have been announced to a stage that did not exist yet — the same both-ways
@@ -202,7 +230,14 @@ function RadioNora() {
       stageRef.current = stage;
       setState("open");
     } catch (e) {
-      if (stageRef.current) { try { stageRef.current.dispose(); } catch (e2) {} stageRef.current = null; }
+      // Both, and deduped: `made` is the stage this attempt built and `stageRef.current`
+      // is one an earlier open left behind. They are the same object on a retry that got
+      // as far as assigning the ref, and different when it did not.
+      const prior = stageRef.current;
+      stageRef.current = null;
+      for (const dead of new Set([prior, made].filter(Boolean))) {
+        try { dead.dispose(); } catch (e2) {}
+      }
       setState("failed");
     } finally { busy.current = false; }
   };

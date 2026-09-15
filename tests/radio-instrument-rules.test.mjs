@@ -57,6 +57,21 @@ function innermost(candidates, what) {
   return candidates.reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
 }
 
+// ⚠ AND THE SIBLING CLASS GETS THE SAME TREATMENT, FOR THE SAME REASON (round 9).
+// "A branch that SAYS the right thing has not necessarily STOPPED" has now produced
+// six findings across rounds 3, 4, 6, 8 and 9 — the non-ok branch existing at all,
+// the station route's return, the non-ok branch's own return, the pause exit, the
+// status refusals, and the isCurrent check below — and every fix was a fresh copy of
+// the same four lines. The question is asked in one place now: does this node's OWN
+// control flow leave the function? A return inside a nested function is somebody
+// else's exit and does not count, which was round 7's finding.
+function ownScopeExits(node) {
+  const own = functionsOf(node);
+  return collect(node, (n) => n.type === 'ReturnStatement' || n.type === 'ThrowStatement')
+    .filter((r) => !own.some((f) => r.start > f.start && r.end < f.end));
+}
+const exitsOwnScope = (node) => ownScopeExits(node).length > 0;
+
 // The enclosing function of every node, so a guard can ask "is this call inside
 // the same function as that one" rather than counting lines between them.
 function functionsOf(root) {
@@ -115,6 +130,42 @@ test('a refused attempt stays retryable and says which refusal it was', () => {
   assert.match(BARE, /disabled=\{key === "signin"\}/, 'the key is disabled by something other than the transport key');
   assert.ok(!/disabled=\{[^}]*refusal/.test(BARE),
     'a refusal disables the key — then the attempt is not retryable, which is the defect');
+
+  // ⚠ AND EACH STATUS BRANCH MUST **STOP**, WHICH NOTHING ABOVE ASKED — the SIXTH
+  // instance of the round-3/4/6/8 class and the first one found inside a guard rather
+  // than inside the code. Every assertion above reads source TEXT for the two
+  // setRefusal calls; not one proves either branch exits. Proven by mutation before it
+  // was written: drop `return false` from the 401 and all eleven tests stay green,
+  // while the branch falls straight into `if (!r.ok)` — which is TRUE for a 401 — and
+  // the refusal is OVERWRITTEN with "unavailable". A member whose session lookup
+  // faulted is then told we could not complete the attempt instead of to sign in, and
+  // a confirmed minor gets the same sentence, which is round 1's whole finding undone
+  // by the absence of one keyword.
+  //
+  // The branches are DERIVED from the status comparison rather than named, so a third
+  // code added later arrives already covered.
+  const playFn = innermost(functionsOf(AST).filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/radio/station').length > 0), 'play()');
+  const statusBranches = collect(playFn, (n) => n.type === 'IfStatement'
+    && n.test.type === 'BinaryExpression' && n.test.operator === '==='
+    && [n.test.left, n.test.right].some((x) => x.type === 'MemberExpression' && x.property && x.property.name === 'status')
+    && [n.test.left, n.test.right].some((x) => x.type === 'NumericLiteral'));
+  assert.ok(statusBranches.length >= 2,
+    `expected the status-coded refusal branches in play(), found ${statusBranches.length}`);
+  const named = [];
+  for (const g of statusBranches) {
+    const code = [g.test.left, g.test.right].find((x) => x.type === 'NumericLiteral').value;
+    const says = collect(g, (n) => calleeName(n) === 'setRefusal'
+      && n.arguments.length === 1 && n.arguments[0].type === 'StringLiteral');
+    assert.ok(says.length > 0, `the ${code} branch records no refusal, so the deck can say nothing about it`);
+    named.push(says[0].arguments[0].value);
+    assert.ok(exitsOwnScope(g),
+      `the ${code} branch does not return in its own scope — it falls into the !r.ok guard, which overwrites its refusal with the generic one`);
+  }
+  // ...and they name DIFFERENT refusals, or two causes are given one remedy — which is
+  // the #2005 defect the sentences above exist to keep apart.
+  assert.equal(new Set(named).size, named.length,
+    `two status branches share one refusal (${named.join(', ')})`);
 });
 
 test('the parked track callback reads the live track, not its mount closure', () => {
@@ -211,20 +262,46 @@ test('a superseded tune-in attempt writes nothing', () => {
   const nested = functionsOf(play).filter((f) => f !== play);
   const inNested = (at) => nested.some((f) => at > f.start && at < f.end);
 
-  const marks = [];
+  // ⚠ A CHECK IS A BRANCH THAT EXITS, NOT A CALL (Codex, round 9). This marked every
+  // `isCurrent()` CALL as a check, so `isCurrent();` as a bare statement — its result
+  // thrown away — cleared `stale` and let every later write straight through, which is
+  // the whole defect the walk exists to catch. The same says-but-does-not-stop shape as
+  // the four branches this file already guards, this time inside the instrument that
+  // guards them: a call's PRESENCE standing in for what its result does.
+  //
+  // Two shapes count, and both are exits rather than mentions:
+  //   (a) `if (!isCurrent()) return …` — a check for everything after it;
+  //   (b) a write inside `if (isCurrent()) { … }` — a check for that block alone.
+  // Anything else FAILS rather than passing. That direction is deliberate: an
+  // unrecognised guard shape is one nobody has proven, and a walk that silently
+  // accepts it is the instrument this finding was about.
+  const namesIsCurrent = (n) => collect(n, (c) => calleeName(c) === 'isCurrent').length > 0;
+  const exitChecks = collect(play, (n) => n.type === 'IfStatement' && !inNested(n.start)
+    && n.test.type === 'UnaryExpression' && n.test.operator === '!' && namesIsCurrent(n.test)
+    && exitsOwnScope(n.consequent));
+  const blockGuards = collect(play, (n) => n.type === 'IfStatement' && !inNested(n.start)
+    && n.test.type === 'CallExpression' && calleeName(n.test) === 'isCurrent');
+  const inBlockGuard = (at) => blockGuards.some((g) => at > g.consequent.start && at < g.consequent.end);
+
+  const marks = exitChecks.map((c) => ({ at: c.start, kind: 'check' }));
   walk(play, (n) => {
     if (inNested(n.start)) return;
     if (n.type === 'AwaitExpression') marks.push({ at: n.start, kind: 'await' });
-    else if (calleeName(n) === 'isCurrent') marks.push({ at: n.start, kind: 'check' });
-    else if (calleeName(n) === 'setRefusal' || calleeName(n) === 'setConfigured') marks.push({ at: n.start, kind: 'write', what: n.callee.name });
+    else if ((calleeName(n) === 'setRefusal' || calleeName(n) === 'setConfigured') && !inBlockGuard(n.start)) marks.push({ at: n.start, kind: 'write', what: n.callee.name });
     else if (n.type === 'AssignmentExpression' && n.left.type === 'MemberExpression'
       && ((n.left.object.name === 'audio' && n.left.property.name === 'src')
-        || n.left.object.name === 'startedAtRef')) marks.push({ at: n.start, kind: 'write', what: 'audio/clock' });
+        || n.left.object.name === 'startedAtRef') && !inBlockGuard(n.start)) marks.push({ at: n.start, kind: 'write', what: 'audio/clock' });
   });
   marks.sort((a, b) => a.at - b.at);
 
   assert.ok(marks.some((m) => m.kind === 'await'), 'play() has no await — this guard is reading the wrong function');
-  assert.ok(marks.some((m) => m.kind === 'check'), 'play() never re-checks the attempt after an await');
+  assert.ok(marks.some((m) => m.kind === 'check'),
+    'play() has no isCurrent() branch that EXITS — a call whose result goes nowhere guards nothing');
+  // ...and the calls and the branches agree in number, or one `isCurrent()` is doing
+  // something this walk does not model and is being counted as though it were.
+  assert.equal(collect(play, (n) => calleeName(n) === 'isCurrent' && !inNested(n.start)).length,
+    exitChecks.length + blockGuards.length,
+    'an isCurrent() call is neither an exiting branch nor a guarded block — its result is unused or used in a shape this guard cannot verify');
 
   let stale = false;
   for (const m of marks) {
@@ -343,11 +420,8 @@ test('a fetch that never landed does not claim there is no station', () => {
     && n.test.type === 'UnaryExpression' && n.test.operator === '!'
     && n.test.argument.type === 'Identifier');
   assert.ok(notBad.length > 0, 'the terminal handler does not branch on its failure flag at all');
-  assert.ok(notBad.some((g) => {
-    const nested = functionsOf(g);
-    return collect(g, (n) => n.type === 'ReturnStatement')
-      .some((r) => !nested.some((f) => r.start > f.start && r.end < f.end));
-  }), 'the non-failure branch does not return in its own scope — an ordinary pause falls through to the failure cleanup');
+  assert.ok(notBad.some(exitsOwnScope),
+    'the non-failure branch does not return in its own scope — an ordinary pause falls through to the failure cleanup');
 
   // ⚠ AND THE OTHER DOOR INTO THE SAME FALSE CLAIM (Codex, round 3): `fetch` RESOLVES
   // on an HTTP error, so the catch never runs for the route's own 503 or 402 — both
@@ -371,11 +445,8 @@ test('a fetch that never landed does not claim there is no station', () => {
   // assertions below stay green — and the deck renders the unavailable refusal AND
   // "No station on the air yet" together. That is round 3's two-answers-to-one-press
   // defect, reachable again through the branch added to fix round 3.
-  assert.ok(okGuards.some((g) => {
-    const nested = functionsOf(g);
-    return collect(g, (n) => n.type === 'ReturnStatement')
-      .some((r) => !nested.some((f) => r.start > f.start && r.end < f.end));
-  }), 'the non-ok branch does not return in its own scope — a 402/503 falls through to the configuration verdict');
+  assert.ok(okGuards.some(exitsOwnScope),
+    'the non-ok branch does not return in its own scope — a 402/503 falls through to the configuration verdict');
   const writes = collect(play, (n) => calleeName(n) === 'setConfigured');
   const afterFetch = writes.filter((w) => w.start > okGuards[0].start);
   assert.equal(writes.length - afterFetch.length, 1,
@@ -446,9 +517,7 @@ test('the station route never publishes a lookup failure as a configuration verd
   // satisfying the fix written for it one round earlier. This is the same nested-scope
   // rule already applied to `play()`'s marks, which I wrote in the same session and did
   // not carry across to the route.
-  const guardNested = functionsOf(guard);
-  const ownReturn = (n) => !guardNested.some((f) => n.start > f.start && n.end < f.end);
-  const returns = collect(guard, (n) => n.type === 'ReturnStatement' && n.argument).filter(ownReturn);
+  const returns = ownScopeExits(guard).filter((n) => n.type === 'ReturnStatement' && n.argument);
   assert.ok(returns.length > 0, 'the station error branch does not return in its own scope — the handler falls through to the 200');
   const statuses = returns.flatMap((r) => collect(r, (n) => n.type === 'ObjectProperty'
     && n.key.name === 'status' && typeof n.value.value === 'number'));
@@ -527,19 +596,43 @@ test('a simulated now-playing payload is never published as a measured track', (
   // with `+= 1`, then require every setNowPlaying to sit inside a condition that reads
   // it. Pinning the spelling `mine === seq` would pin whatever that spelling is wrong
   // about, which is this repo's most-repeated lesson.
+  // ⚠ AND THE TOKEN MUST BE COMPARED WITH ITS SNAPSHOT, NOT MERELY MENTIONED (Codex,
+  // round 9). This required only that the incremented identifier OCCUR somewhere in an
+  // enclosing condition, so `if (on && seq > 0)` satisfied it completely while an older
+  // poll could still overwrite a newer track. Naming a variable is not comparing it.
+  //
+  // So both halves are derived: the token from the `+= 1`, and the SNAPSHOT from the
+  // declarator that captured it (`const mine = (seq += 1)`). Every setNowPlaying must
+  // then sit inside a condition that compares those two — which is the only expression
+  // that can actually tell a superseded response from the current one.
+  const pollParents = new Map();
+  walk(poll, (n, p) => { if (p) pollParents.set(n, p); });
   const bumps = collect(poll, (n) => n.type === 'AssignmentExpression' && n.operator === '+='
     && n.left.type === 'Identifier');
   assert.ok(bumps.length > 0, 'the now-playing poll advances no attempt token — a slow response can overwrite a newer one');
-  const tokenNames = new Set(bumps.map((b) => b.left.name));
+  const pairs = bumps.map((b) => {
+    const p = pollParents.get(b);
+    const snap = p && p.type === 'VariableDeclarator' && p.id && p.id.type === 'Identifier' ? p.id.name
+      : (p && p.type === 'AssignmentExpression' && p.left.type === 'Identifier' && p.right === b ? p.left.name : null);
+    return { token: b.left.name, snap };
+  }).filter((x) => x.snap && x.snap !== x.token);
+  assert.ok(pairs.length > 0,
+    'the poll advances a token without capturing the value for this tick — there is nothing to compare a late response against');
+  const comparesPair = (node) => collect(node, (x) => x.type === 'BinaryExpression'
+    && (x.operator === '===' || x.operator === '!==')
+    && pairs.some((p) => {
+      const names = [x.left, x.right].filter((sd) => sd.type === 'Identifier').map((sd) => sd.name);
+      return names.includes(p.token) && names.includes(p.snap);
+    })).length > 0;
   const writes = collect(poll, (n) => calleeName(n) === 'setNowPlaying');
   assert.ok(writes.length > 0, 'the poll never sets the track — this guard is reading the wrong function');
   for (const w of writes) {
     const guarding = collect(poll, (n) => (n.type === 'IfStatement' || n.type === 'LogicalExpression'
       || n.type === 'ConditionalExpression')
       && w.start > n.start && w.end < n.end
-      && collect(n.test || n.left || {}, (x) => x.type === 'Identifier' && tokenNames.has(x.name)).length > 0);
+      && comparesPair(n.test || n.left || {}));
     assert.ok(guarding.length > 0,
-      'a now-playing response is applied without checking it is still the current attempt — a slow poll can overwrite a newer one');
+      'a now-playing response is applied without comparing this tick against the current attempt — a slow poll can overwrite a newer one');
   }
 
   for (const c of catches) {
@@ -587,11 +680,39 @@ test('Nora can be handed the analyser that did not exist when her booth opened',
     && channels.includes(n.arguments[0].value));
   assert.ok(listeners.length > 0,
     `the booth listens on none of the channels the instrument announces (${channels.join(', ')})`);
-  const handlers = listeners.map((l) => l.arguments[1]).filter(Boolean);
-  assert.ok(handlers.some((h) => collect(h, (n) => n.type === 'MemberExpression'
-    && n.property.name === 'setAnalyser').length > 0)
-    || collect(boothAst, (n) => n.type === 'MemberExpression' && n.property.name === 'setAnalyser').length > 0,
-    'the booth hears the graph and never hands it to the stage');
+  // ⚠ THE HANDLER ITSELF, WITH NO WHOLE-FILE FALLBACK (Codex, round 9). That `||` was
+  // written as belt-and-braces and removed the belt: the post-load re-read in step 4 is
+  // another `setAnalyser` in the same file, so deleting the call from THIS handler left
+  // the assertion green — while a graph built after Nora has fully opened would never be
+  // bound, because the one-time re-read has already happened. A fallback that can be
+  // satisfied by the thing you are about to assert separately is not a fallback.
+  // ⚠ AND THE HANDLER IS PASSED BY NAME, SO IT HAS TO BE RESOLVED TO ITS BINDING —
+  // which is what the `||` was quietly covering for. `addEventListener("…", bind)` hands
+  // an Identifier, and collecting over an Identifier finds nothing: the check was
+  // failing on correct code and passing on the fallback, which is the worst of both.
+  // An unresolvable handler now FAILS rather than being waved through.
+  const resolveFn = (arg) => {
+    if (!arg) return null;
+    if (arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression') return arg;
+    if (arg.type !== 'Identifier') return null;
+    const decls = collect(boothAst, (n) => n.type === 'VariableDeclarator'
+      && n.id.type === 'Identifier' && n.id.name === arg.name && n.init
+      && (n.init.type === 'ArrowFunctionExpression' || n.init.type === 'FunctionExpression'));
+    if (decls.length) return innermost(decls, `the handler ${arg.name}`).init;
+    const fds = collect(boothAst, (n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === arg.name);
+    return fds.length ? innermost(fds, `the handler ${arg.name}`) : null;
+  };
+  const handlers = listeners.map((l) => resolveFn(l.arguments[1])).filter(Boolean);
+  assert.equal(handlers.length, listeners.length,
+    'a shape:radiograph listener was registered with a handler this guard cannot resolve — it would pass without ever being read');
+  // ⚠ A CALL, NOT A MENTION. The handler guards on `stageRef.current.setAnalyser`
+  // before calling it, so a MemberExpression match is satisfied by the CAPABILITY CHECK
+  // alone — replacing the call body with `void g.analyser` left this green. Same shape
+  // as the round-9 isCurrent finding one test up: a token appearing where the thing it
+  // names is supposed to happen.
+  assert.ok(handlers.some((h) => collect(h, (n) => n.type === 'CallExpression'
+    && n.callee.type === 'MemberExpression' && n.callee.property.name === 'setAnalyser').length > 0),
+    'the booth hears the graph and never hands it to the stage — a graph built after she opened is lost');
 
   // 4. ...and it re-reads after the async load, or a graph that arrived mid-download is
   //    announced to a stage that does not exist yet — the both-ways problem setColor has
@@ -604,4 +725,153 @@ test('Nora can be handed the analyser that did not exist when her booth opened',
     && n.property.name === 'setAnalyser' && n.start > loadAwait[0].end);
   assert.ok(afterLoad.length > 0,
     'the booth never re-reads the graph after the VRM finishes loading — one that arrived mid-download is lost');
+
+  // 5. ...and a load that THROWS leaves nothing running (Codex, round 9). `stageRef` is
+  //    assigned only once load() and start() have both succeeded, so the catch had
+  //    `stageRef.current === null` and disposed nothing — while NoraStage allocates its
+  //    WebGLRenderer in the CONSTRUCTOR. Each retry leaked another live context, which a
+  //    browser caps and silently evicts rather than reporting: the symptom is the booth
+  //    quietly failing to draw on some later attempt with nothing in the log.
+  //
+  //    The load-bearing part is WHERE the handle is taken. A binding assigned after the
+  //    await is not reachable from a failure of that await, which is the bug exactly, so
+  //    the assignment is required to sit BEFORE it.
+  // ⚠ THE TRY THAT COVERS THE LOAD, not the smallest one: open() also wraps
+  // `context.resume()` in its own try, and `innermost` would pick that — the
+  // enclosing-node reducer being right for containment lookups and wrong here, where
+  // the node wanted is the one that CONTAINS the await rather than the one nearest it.
+  const tries = collect(open, (n) => n.type === 'TryStatement'
+    && loadAwait[0].start > n.block.start && loadAwait[0].end < n.block.end);
+  assert.equal(tries.length, 1, `expected exactly one try around the stage load, found ${tries.length}`);
+  const tryStmt = tries[0];
+  const inTry = (n) => n.start > tryStmt.block.start && n.end < tryStmt.block.end;
+  const outerNames = new Set(collect(open, (n) => n.type === 'VariableDeclarator'
+    && n.id.type === 'Identifier' && !inTry(n)).map((n) => n.id.name));
+  const handles = collect(tryStmt.block, (n) => n.type === 'AssignmentExpression'
+    && n.left.type === 'Identifier' && outerNames.has(n.left.name)
+    && n.start < loadAwait[0].start);
+  assert.ok(handles.length > 0,
+    'the stage open() builds is never handed to a binding outside the try before the load — a failed load leaves its WebGLRenderer undisposed');
+  const handler = tryStmt.handler;
+  assert.ok(handler, 'open() has no catch clause at all');
+  const handleNames = new Set(handles.map((h) => h.left.name));
+  assert.ok(collect(handler, (n) => n.type === 'Identifier' && handleNames.has(n.name)).length > 0,
+    'the failure path never reads the stage this attempt built — its WebGL context leaks, and a browser evicts rather than reports');
+  assert.ok(collect(handler, (n) => n.type === 'MemberExpression' && n.property.name === 'dispose').length > 0,
+    'the failure path disposes nothing');
+});
+
+test('a set schedule we could not read is never published as an empty one', () => {
+  // ⚠ THE FIFTH INSTANCE OF THE ROUND-3/4/6/8 CLASS, AND THE FIRST I WENT LOOKING FOR
+  // RATHER THAN BEING HANDED. That class is *a statement's presence standing in for the
+  // control flow around it*; its sibling, which this closes, is *a failure of ours
+  // published as a fact about the station*. `RdSetsComingUp` had THREE doors — a
+  // Supabase client that never loaded, a query that faulted, a request that never
+  // landed — and all three answered `setRows([])`, which renders "Schedule lands with
+  // the first broadcast." That is the "No station on the air yet" finding one component
+  // below where it took four rounds to close, and this PR's own description asserts the
+  // schedule here "is real".
+  //
+  // ⚠ AND THE GUARD ASKS THE INVARIANT, NOT THE SENTINEL. It DERIVES which value means
+  // "could not read" from the doors themselves, so renaming it to a string or a symbol
+  // keeps the test meaningful; what it forbids is the empty array, and what it requires
+  // is that the sentinel is settled before `rows` is ever read as a list.
+  const src = readFileSync(new URL('../public/newdesign/radio.jsx', import.meta.url), 'utf8');
+  const ast = parse(src, { sourceType: 'script', plugins: ['jsx'] });
+
+  const fn = innermost(
+    collect(ast, (n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === 'RdSetsComingUp'),
+    'RdSetsComingUp in radio.jsx',
+  );
+
+  const litKey = (n) => {
+    if (!n) return null;
+    if (n.type === 'NullLiteral') return 'null';
+    if (n.type === 'BooleanLiteral' || n.type === 'StringLiteral' || n.type === 'NumericLiteral') {
+      return `${n.type}:${String(n.value)}`;
+    }
+    return null;
+  };
+
+  // the "not resolved yet" value, read off useState rather than assumed
+  const useStateCall = innermost(
+    collect(fn, (n) => n.type === 'CallExpression' && n.callee && n.callee.type === 'MemberExpression'
+      && n.callee.property && n.callee.property.name === 'useState'),
+    'the useState call in RdSetsComingUp',
+  );
+  assert.equal(useStateCall.arguments.length, 1, 'useState takes one initial value here');
+  const unresolved = litKey(useStateCall.arguments[0]);
+  assert.ok(unresolved, 'the initial state is not a literal, so "not resolved yet" cannot be identified');
+
+  const setters = collect(fn, (n) => calleeName(n) === 'setRows');
+  assert.ok(setters.length >= 4, `expected the three failure doors plus the success arm, found ${setters.length}`);
+
+  // 1. no door publishes a MEASURED empty for a read that did not happen
+  const emptyArrays = setters.filter((n) => n.arguments.length === 1
+    && n.arguments[0].type === 'ArrayExpression' && n.arguments[0].elements.length === 0);
+  assert.equal(emptyArrays.length, 0,
+    'setRows([]) — an unreadable schedule rendered as "Schedule lands with the first broadcast."');
+
+  // 2. exactly one sentinel across the doors, and it is not the not-resolved value
+  const doorLits = setters.map((n) => litKey(n.arguments[0])).filter(Boolean);
+  const kinds = new Set(doorLits);
+  assert.equal(kinds.size, 1,
+    `the failure doors disagree about what "could not read" is (${[...kinds].join(', ') || 'none'})`);
+  const sentinel = doorLits[0];
+  assert.notEqual(sentinel, unresolved,
+    'the unreadable sentinel is the same value as "not resolved yet", so the two states cannot be told apart');
+  assert.equal(doorLits.length, 3, `expected all three failure doors to set it, found ${doorLits.length}`);
+
+  // 3. the sentinel is settled BEFORE rows is read as a list
+  const rowsIs = (n) => n.type === 'BinaryExpression' && (n.operator === '===' || n.operator === '!==')
+    && ((n.left.type === 'Identifier' && n.left.name === 'rows' && litKey(n.right) === sentinel)
+      || (n.right.type === 'Identifier' && n.right.name === 'rows' && litKey(n.left) === sentinel));
+  const cmps = collect(fn, rowsIs);
+  assert.ok(cmps.length > 0, 'nothing in the render distinguishes the unreadable schedule from an empty one');
+  const listReads = collect(fn, (n) => n.type === 'MemberExpression'
+    && n.object.type === 'Identifier' && n.object.name === 'rows'
+    && n.property && (n.property.name === 'length' || n.property.name === 'map'));
+  assert.ok(listReads.length > 0, 'the render never reads rows as a list — this guard is pointed at the wrong component');
+  assert.ok(Math.min(...cmps.map((n) => n.start)) < Math.min(...listReads.map((n) => n.start)),
+    'rows is read as a list before the unreadable sentinel is ruled out');
+
+  // 4. ...and the not-resolved branch STOPS, which is the round-8 discipline applied here
+  const unresolvedCmp = innermost(
+    collect(fn, (n) => n.type === 'BinaryExpression' && n.operator === '==='
+      && ((n.left.type === 'Identifier' && n.left.name === 'rows' && litKey(n.right) === unresolved)
+        || (n.right.type === 'Identifier' && n.right.name === 'rows' && litKey(n.left) === unresolved))),
+    'the "not resolved yet" comparison',
+  );
+  const unresolvedIf = innermost(
+    collect(fn, (n) => n.type === 'IfStatement' && n.test.start <= unresolvedCmp.start && n.test.end >= unresolvedCmp.end),
+    'the if guarding the not-resolved state',
+  );
+  const uBody = unresolvedIf.consequent.type === 'BlockStatement'
+    ? unresolvedIf.consequent.body : [unresolvedIf.consequent];
+  assert.ok(uBody.length > 0 && uBody[uBody.length - 1].type === 'ReturnStatement',
+    'the not-resolved branch does not return, so an unresolved schedule falls through into the render');
+
+  // 5. ...and every door STOPS too. A door that records the verdict and then carries on
+  //    is the round-8 pause branch exactly: the state is right for one statement and
+  //    then the success arm overwrites it.
+  const parents = new Map();
+  walk(fn, (n, p) => { if (p) parents.set(n, p); });
+  const escapes = (call) => {
+    let cur = call;
+    while (cur && cur !== fn) {
+      const p = parents.get(cur);
+      if (!p) return false;
+      if (p.type === 'FunctionExpression' || p.type === 'ArrowFunctionExpression') return false;
+      if (Array.isArray(p.body) && p.body.includes(cur)) {
+        const after = p.body.slice(p.body.indexOf(cur) + 1);
+        if (after.length) return !(after[0].type === 'ReturnStatement' || after[0].type === 'ThrowStatement');
+      }
+      cur = p;
+    }
+    return false;
+  };
+  for (const call of setters.filter((n) => litKey(n.arguments[0]) === sentinel)) {
+    assert.equal(escapes(call), false,
+      `a failure door at offset ${call.start} records "could not read" and then carries on`);
+  }
 });
