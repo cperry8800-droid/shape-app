@@ -438,7 +438,18 @@
          color:var(--fg-3);margin:0 0 14px;font-variation-settings:'ROND' 30}
   .ft a{display:block;font-size:13.5px;color:var(--fg-2);padding:4px 0}
   .ft a:hover{color:var(--fg)}
-  .ft .logo{height:40px;width:auto;display:block}
+  /* ⚠ 64px IS THE SITE'S OWN FOOTER LOGO SIZE, not a number picked here:
+     `pageShell.jsx`'s Footer takes `logoHeight = 64` and ~70 pages render it.
+     This hand-written copy had been left at 40, so the homepage's footer mark
+     was the smallest on the site.
+     ⚠ AND THE BLOCK SHRINK-WRAPS ITS TAGLINE RATHER THAN CARRYING A max-width,
+     because the obvious version does not centre. `.tag2` caps at 34ch AT 13px,
+     which measures 281px; the same `34ch` written on the wrapper is resolved in
+     the wrapper's own (larger) font and measures 346 — so `margin:0 auto`
+     inside it put the mark 32px right of the sentence it belongs to. Measured:
+     `width:fit-content` lands both boxes on 281 and both mid-points on 173. */
+  .ft .fbrand{display:flex;flex-direction:column;align-items:center;width:fit-content}
+  .ft .logo{height:64px;width:auto;display:block}
   .ft .tag2{margin-top:14px;font-size:13px;color:var(--fg-3);max-width:34ch}
   .ftb{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-top:44px;padding-top:22px;
        border-top:1px solid var(--line-2);font-size:12px;color:var(--fg-3)}
@@ -839,7 +850,7 @@
 <footer class="ft">
 <div class="wrap">
 <div class="ftg">
-<div>
+<div class="fbrand">
 <img class="logo" src="/shape-logo-nav-white.png" width="265" height="128" alt="Shape" />
 <p class="tag2">Real coaches. One app. The whole loop. Every figure on this page is measured or labelled an example.</p>
 </div>
@@ -1269,15 +1280,56 @@
   var MODE=[ [0.85,0.92,0.05,1.2,0.35,1.0], [0.06,0.96,0.03,1.2,0.90,0.7],
              [0.05,1.12,0.02,1.0,0.04,0.9], [0.07,1.32,0.05,1.7,0.10,1.6],
              [0.04,1.12,0.04,1.1,0.00,0.8] ];
-  var ORB=(window.innerWidth<760?7:11), orb=[];
-  for(var o=0;o<ORB;o++) orb.push({ r:1.0+rnd()*0.35, sp:0.5+rnd()*1.1, ph:rnd()*6.283, tilt:rnd()*Math.PI, sz:1.0+rnd()*1.2 });
+  var ORB=(window.innerWidth<760?7:11), ORB_R0=1.00, ORB_RSPAN=0.35, orb=[];
+  for(var o=0;o<ORB;o++) orb.push({ r:ORB_R0+rnd()*ORB_RSPAN, sp:0.5+rnd()*1.1, ph:rnd()*6.283, tilt:rnd()*Math.PI, sz:1.0+rnd()*1.2 });
   var LINKN=Math.min(N, window.innerWidth<760?34:52), stride=Math.max(1,Math.floor(N/LINKN)), MX=SH.length-1;
 
-  var DPR=Math.min(2,window.devicePixelRatio||1), W=0, H=0;
+  /* ⚠ THE CLOUD IS FITTED TO THE ROOM IT IS IN, NOT TO A FRACTION OF THE CANVAS.
+     #jcanvas is `inset:0` on .jpin, so it spans the PHONE COLUMN as well — and
+     cx=W*0.62 with R up to W*0.22 drove the orbs, which orbit at up to 1.35*R,
+     straight through the phone card. MEASURED on the shipped page rather than
+     eyeballed: the painted cloud reached x 1205 at 1440x900 and 1318 at
+     1920x1080 against a phone whose left edge is 1144 at both, i.e. 61-174px
+     INSIDE it, and the centre glow washed over it too (grr=1.35R reached 1228).
+     So the phone's own rect is what the room ends at, and it is READ. */
+  /* ⚠ EVERY ROW HERE IS A BOUND, NEVER A SAMPLE — that distinction is the whole
+     point of the table. This first read `ORB_R = max(orb[i].r)`, which is the
+     largest of ELEVEN UNSEEDED DRAWS from [1.00, 1.35): typically ~1.32, but a
+     low sample silently buys the cloud room it does not have, and the clearance
+     below is then a property of that page load rather than of the code. Worse,
+     the centre glow reaches 1.35*R whatever the orbs drew, so it escapes an
+     orb-derived bound entirely. A measurement can pass by luck; a bound cannot.
+     [reach in units of R, pad in px] for each thing this frame paints: */
+  var GLOW_R0=1.25, GLOW_RAMP=0.10;  /* the centre glow's outer stop, grr */
+  var ORB_GLOW=8, ECG_GLOW=28, ARC_GLOW=16, ECG_HALF=0.92, ARC_R=0.81;
+  /* the widest the point cloud itself reaches is MEASURED off the shapes that
+     were just built, rather than restated from their constructors — so a new
+     stage, or a change to one, carries here on its own. */
+  var CLOUD_R=(function(){ var m=0,i,j,q,d; for(i=0;i<SH.length;i++){ for(j=0;j<SH[i].length;j++){
+    q=SH[i][j]; d=Math.sqrt(q[0]*q[0]+q[2]*q[2]); if(d>m)m=d; } } return m; })();
+  var PAINT=[
+    [ORB_R0+ORB_RSPAN, ORB_GLOW],   /* an orb's orbit + its own glow box */
+    [GLOW_R0+GLOW_RAMP, 0],         /* the centre glow, which no orb bounds */
+    [CLOUD_R, 3.3],                 /* the cloud + its widest dot radius */
+    [ECG_HALF, ECG_GLOW],           /* the ECG sweep head + its glow box */
+    [ARC_R, ARC_GLOW]               /* the arc + its head glow, wider than its 5.5px stroke */
+  ];
+  var PA_MAX=MODE.reduce(function(m,r){ return Math.max(m,r[2]); },0);  /* the amplitude R breathes by */
+  var J_GUT=40;         /* the gap the cloud keeps off the phone */
+  var J_MINCX=0.54;     /* ...and it stops shifting left here, so the rail text stays clear */
+
+  var DPR=Math.min(2,window.devicePixelRatio||1), W=0, H=0, phoneL=0;
   function resize(){ if(!cv)return; W=cv.clientWidth; H=cv.clientHeight;
+    /* offsetParent is null exactly when the phone is display:none, so this reads
+       the stylesheet's own breakpoint instead of restating it in JS — and the
+       two do NOT agree (CSS hides the phone at 860, `wide` below is 900). */
+    var ph=document.getElementById('jph'), cr=cv.getBoundingClientRect();
+    phoneL=(ph&&ph.offsetParent)?(ph.getBoundingClientRect().left-cr.left):0;
     cv.width=Math.max(1,Math.round(W*DPR)); cv.height=Math.max(1,Math.round(H*DPR));
     if(ctx)ctx.setTransform(DPR,0,0,DPR,0,0); }
   window.addEventListener('resize',resize); resize();
+  /* the capture is lazy, so its column can settle after this script runs */
+  window.addEventListener('load',resize);
 
   var t=0, rot=0, proj=[], lnodes=[];
   function frame(){
@@ -1299,15 +1351,33 @@
       /* the cloud sits in the room BETWEEN the rail and the phone on a wide
          screen, and centres once the phone is gone */
       var wide=W>900, cx=wide?W*0.62:W*0.5, cy=H*0.5,
-          R=Math.min(wide?W*0.22:W*0.30, H*0.30)*(1+mPa*Math.sin(t*mPs));
+          Rb=Math.min(wide?W*0.22:W*0.30, H*0.30);
+      if(phoneL>0){
+        /* SHIFT BUYS ROOM BEFORE SHRINKING SPENDS IT. The first loop sizes Rb
+           against `floor` — the far end of the shift — so nothing gives up radius
+           that moving left could have saved; the second then moves cx only as far
+           as that radius actually needs. A cloud that cleared the phone purely by
+           getting smaller would lose a quarter of its radius on a tall screen for
+           nothing.
+           ⚠ AND EACH EFFECT IS SOLVED ON ITS OWN TERMS, not against one worst-case
+           pair. Pairing the widest reach with the largest pad is also safe and
+           costs ~9% of the radius at 1440 — to a 28px pad belonging to an effect
+           that only reaches 0.92R. */
+        var lim=phoneL-J_GUT, floor=Math.min(cx, W*J_MINCX), br=1+PA_MAX, pi, pe;
+        for(pi=0;pi<PAINT.length;pi++){ pe=PAINT[pi];
+          Rb=Math.min(Rb, Math.max(0,(lim-pe[1]-floor)/(pe[0]*br))); }
+        for(pi=0;pi<PAINT.length;pi++){ pe=PAINT[pi];
+          cx=Math.min(cx, lim-pe[1]-pe[0]*br*Rb); }
+      }
+      var R=Rb*(1+mPa*Math.sin(t*mPs));
       var dim=wide?1:0.62;                 /* narrow: the rail text is over it */
 
       ctx.clearRect(0,0,W,H);
       var trainness=(a===2)?(1-kk):((b===2)?kk:0);
-      var sweepU=(t*0.33)%1.0, sweepX0=-0.92+sweepU*1.84, beatFlash=0;
+      var sweepU=(t*0.33)%1.0, sweepX0=-ECG_HALF+sweepU*2*ECG_HALF, beatFlash=0;
       if(trainness>0.001){ for(var bsp=0;bsp<3;bsp++) beatFlash=Math.max(beatFlash, Math.exp(-Math.pow((sweepU-(bsp+0.5)/3)/0.035,2))); }
 
-      var grr=R*(1.25+0.1*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,grr);
+      var grr=R*(GLOW_R0+GLOW_RAMP*Math.sin(t*1.6)), g=ctx.createRadialGradient(cx,cy,0,cx,cy,grr);
       g.addColorStop(0,'rgba(52,214,197,'+Math.min(0.30,(0.12+0.05*Math.sin(t*1.6)+0.16*beatFlash*trainness)*mBri*dim).toFixed(3)+')');
       g.addColorStop(0.55,'rgba(52,214,197,0.04)'); g.addColorStop(1,'rgba(52,214,197,0)');
       ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
@@ -1343,10 +1413,10 @@
         var ox1=ox*cyr-oz*syr, oz1=ox*syr+oz*cyr, oy1=oy*cxr-oz1*sxr, oz2=oy*sxr+oz1*cxr;
         var od=(oz2+1.5)/3.0; if(od<0)od=0; else if(od>1)od=1;
         var OX=cx+ox1*R, OY=cy+oy1*R;
-        var og=ctx.createRadialGradient(OX,OY,0,OX,OY,8);
+        var og=ctx.createRadialGradient(OX,OY,0,OX,OY,ORB_GLOW);
         og.addColorStop(0,'rgba(170,255,244,'+Math.min(1,(0.45+0.45*od)*mBri*dim).toFixed(3)+')');
         og.addColorStop(1,'rgba(52,214,197,0)');
-        ctx.fillStyle=og; ctx.fillRect(OX-8,OY-8,16,16);
+        ctx.fillStyle=og; ctx.fillRect(OX-ORB_GLOW,OY-ORB_GLOW,2*ORB_GLOW,2*ORB_GLOW);
         ctx.beginPath(); ctx.fillStyle='rgba(225,255,250,'+Math.min(1,(0.55+0.45*od)*mBri*dim).toFixed(3)+')';
         ctx.arc(OX,OY,(0.7+od*1.5)*ob.sz,0,6.283); ctx.fill(); }
 
@@ -1356,22 +1426,22 @@
         sg2.addColorStop(0,'rgba(190,255,247,'+sga.toFixed(3)+')');
         sg2.addColorStop(0.4,'rgba(52,214,197,'+(sga*0.5).toFixed(3)+')');
         sg2.addColorStop(1,'rgba(52,214,197,0)');
-        ctx.fillStyle=sg2; ctx.fillRect(SHX-28,SHY-28,56,56);
+        ctx.fillStyle=sg2; ctx.fillRect(SHX-ECG_GLOW,SHY-ECG_GLOW,2*ECG_GLOW,2*ECG_GLOW);
         ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+sga.toFixed(3)+')';
         ctx.arc(SHX,SHY,2.6+1.8*beatFlash,0,6.283); ctx.fill(); }
 
       var scoreness=(a===3)?(1-kk):((b===3)?kk:0);
       if(scoreness>0.04){
         var praw=Math.max(0,Math.min(1,(fs-3)/0.85)), pr=praw*praw;
-        var fill=0.04+pr*0.82, rr3=0.81*R, sa=-Math.PI/2, ea=sa+fill*6.283;
+        var fill=0.04+pr*0.82, rr3=ARC_R*R, sa=-Math.PI/2, ea=sa+fill*6.283;
         ctx.lineCap='round';
         if(fill>0.01){
           ctx.beginPath(); ctx.arc(cx,cy,rr3,sa,ea); ctx.strokeStyle='rgba(52,214,197,'+(scoreness*0.16*dim).toFixed(3)+')'; ctx.lineWidth=11; ctx.stroke();
           ctx.beginPath(); ctx.arc(cx,cy,rr3,sa,ea); ctx.strokeStyle='rgba(150,255,240,'+(scoreness*0.55*dim).toFixed(3)+')'; ctx.lineWidth=2.5; ctx.stroke();
           var lx=cx+Math.cos(ea)*rr3, ly=cy+Math.sin(ea)*rr3;
-          var lg=ctx.createRadialGradient(lx,ly,0,lx,ly,16);
+          var lg=ctx.createRadialGradient(lx,ly,0,lx,ly,ARC_GLOW);
           lg.addColorStop(0,'rgba(190,255,247,'+(scoreness*dim).toFixed(3)+')'); lg.addColorStop(1,'rgba(52,214,197,0)');
-          ctx.fillStyle=lg; ctx.fillRect(lx-16,ly-16,32,32);
+          ctx.fillStyle=lg; ctx.fillRect(lx-ARC_GLOW,ly-ARC_GLOW,2*ARC_GLOW,2*ARC_GLOW);
           ctx.beginPath(); ctx.fillStyle='rgba(235,255,251,'+(scoreness*dim).toFixed(3)+')'; ctx.arc(lx,ly,3,0,6.283); ctx.fill(); }
         ctx.textAlign='center'; ctx.textBaseline='middle';
         /* the numerals are the scoreboard face here too, so a figure on this page
