@@ -208,8 +208,15 @@ function ChatWidget(props) {
   // is what keeps that from being the normal case.
   const feedReady = typeof window !== "undefined" && typeof window.CommunityFeed === "function";
   const tabs = React.useMemo(() => {
+    // ⚠ THE LABEL IS "Wall" AND THE ID IS STILL "feed". Owner, 2026-09-15:
+    // "also change the name on tab to wall as well". The id is the tab's
+    // ADDRESS — `__openChat(who, "feed")`, `DASH_INBOX_ROUTES.feed`, and the
+    // positional chat record below all key on it — so only the visible label
+    // moves, which is exactly what the Channels relabel did on 2026-09-14.
+    // ⚠ AND THE EYEBROW GIVES WAY, or the header reads "THE WALL / Wall". It
+    // takes the app's own name for this segment's contents instead.
     const FEED_TAB = {
-      id: "feed", label: "Feed", eyebrow: "THE WALL", title: "Community",
+      id: "feed", label: "Wall", eyebrow: "RECORDS", title: "The Wall",
       feed: true, threads: [],
     };
     const base = (props.tabs && props.tabs.length) ? props.tabs : null;
