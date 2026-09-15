@@ -183,15 +183,37 @@ test('the wall helpers are self-contained — they may not reach for ShapeShareC
     'the wall block reaches for a module 32 of its 35 hosts do not load');
 });
 
-test('the chat tab reads Wall and is still addressed as "feed"', () => {
-  // Owner, 2026-09-15: "also change the name on tab to wall as well". The id is
-  // the tab's ADDRESS — __openChat(who, "feed"), DASH_INBOX_ROUTES.feed, and the
-  // positional record migration all key on it — so only the label moves.
+test('the chat tab keeps the app\'s own name for this segment, and its id', () => {
+  // ⚠ DERIVED FROM THE APP'S CATALOG, NOT PINNED. The label was briefly changed
+  // to "Wall" on 2026-09-15 and the owner reverted it — "leave it as feed" —
+  // because the app's top segment IS Feed and the Wall is the chip inside it,
+  // so a tab called Wall put two controls reading "Wall" in one panel. Reading
+  // the catalog rather than restating "Feed" means the day the app renames its
+  // segment, this fails instead of the two surfaces drifting apart in silence.
+  // ⚠ AND THE CATALOG IS WHAT RENDERS, not the `defaultValue` at the app's call
+  // site — this repo has shipped a JSX default that disagreed with the catalog
+  // before, and the catalog won.
+  // ⚠ THE CATALOG IS FLAT-KEYED — "tab.feed", not { tab: { feed } }. Reading it
+  // as nested returns undefined and the assertion then reads as "the app
+  // renamed its segment" while the app has not moved at all.
+  const cat = JSON.parse(readFileSync('mobile-app/src/i18n/catalogs/en/feed.json', 'utf8'));
+  const segment = cat['tab.feed'];
+  const chip = cat['tab.wall'];
+  assert.equal(typeof segment, 'string', 'the app no longer keys its Feed segment at feed:tab.feed');
+  assert.equal(typeof chip, 'string', 'the app no longer keys its Wall chip at feed:tab.wall');
+  assert.notEqual(segment, chip, 'the app now calls its segment and its chip the same thing');
+
   const tab = /const FEED_TAB = \{[\s\S]*?\};/.exec(stripComments(WIDGET));
   assert.ok(tab, 'FEED_TAB moved — re-anchor this guard');
+  // The id is the tab's ADDRESS — __openChat(who, "feed"), DASH_INBOX_ROUTES.feed
+  // and the positional record migration all key on it. Only a label may move.
   assert.match(tab[0], /id: "feed"/, 'the tab id changed, which orphans every deep link to it');
-  assert.match(tab[0], /label: "Wall"/, 'the tab label is no longer Wall');
+  assert.match(tab[0], new RegExp(`label: "${segment}"`),
+    `the tab label no longer matches the app's own name for this segment (${segment})`);
   assert.match(tab[0], /feed: true/, 'the `feed` flag is what the body split and the record migration key on');
-  // The header would otherwise read "THE WALL" above a tab called Wall.
-  assert.doesNotMatch(tab[0], /eyebrow: "THE WALL"/, 'the eyebrow still repeats the tab label');
+  // And the Wall stays the CHIP, so the panel never carries two controls with
+  // the same label. `tests/chat-feed-tab.test.mjs` pins the chip labels
+  // themselves against the app's; this pins that the tab is not one of them.
+  assert.doesNotMatch(tab[0], new RegExp(`label: "${chip}"`),
+    'the tab took the chip\'s name, so two controls in one panel read the same');
 });
