@@ -205,10 +205,17 @@ test('a superseded tune-in attempt writes nothing', () => {
 
   // and the attempt counter is actually bumped, or every isCurrent() is a no-op
   assert.match(BARE, /attemptRef\.current \+= 1/, 'nothing advances the attempt counter');
-  // a new attempt clears the previous verdict, so a refusal cannot outlive it
-  const firstAwait = marks.find((m) => m.kind === 'await').at;
-  assert.ok(marks.some((m) => m.kind === 'write' && m.what === 'setRefusal' && m.at < firstAwait),
-    'no attempt clears the previous refusal before it starts — one can outlive the attempt that produced it');
+
+  // ⚠ AND A NEW ATTEMPT CLEARS **BOTH** VERDICTS (Codex, round 3). `configured` used
+  // to outlive the attempt that produced it, so a listener who got {configured:false}
+  // and pressed again could be shown the new refusal AND "No station on the air yet"
+  // together — two answers to one press. Asserted as "before the first await", which
+  // is what makes it a reset rather than an outcome.
+  const firstAw = marks.find((m) => m.kind === 'await').at;
+  for (const setter of ['setRefusal', 'setConfigured']) {
+    assert.ok(marks.some((m) => m.kind === 'write' && m.what === setter && m.at < firstAw),
+      `a new attempt does not reset \`${setter}\` before it starts — the previous attempt's verdict can outlive it`);
+  }
 });
 
 test('a fetch that never landed does not claim there is no station', () => {
@@ -226,6 +233,30 @@ test('a fetch that never landed does not claim there is no station', () => {
       'a failed station fetch says nothing at all, leaving a live key that looks dead');
   }
   assert.match(BARE, /st\.refusal === "unavailable"/, 'the unreachable-station refusal is never rendered');
+
+  // ⚠ AND THE OTHER DOOR INTO THE SAME FALSE CLAIM (Codex, round 3): `fetch` RESOLVES
+  // on an HTTP error, so the catch never runs for the route's own 503 or 402 — both
+  // reached the configuration verdict and were published as "No station on the air
+  // yet". The invariant is an ordering one: a non-ok response must return before
+  // anything writes `configured`.
+  const play = functionsOf(AST)
+    .filter((fn) => collect(fn, (n) => n.type === 'StringLiteral' && n.value === '/api/radio/station').length > 0)
+    .reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
+  const okGuards = collect(play, (n) => n.type === 'IfStatement'
+    && n.test.type === 'UnaryExpression' && n.test.operator === '!'
+    && n.test.argument.type === 'MemberExpression' && n.test.argument.property.name === 'ok');
+  assert.ok(okGuards.length > 0, 'nothing branches on r.ok — a 503 still reads as "no station"');
+  // ...and that branch must SAY something. Found by mutation: a guard that merely
+  // returns avoids the false claim and leaves a live key that looks dead, which is
+  // the defect the whole refusal mechanism exists to prevent, reached from a new door.
+  assert.ok(okGuards.some((g) => collect(g, (n) => calleeName(n) === 'setRefusal').length > 0),
+    'the non-ok branch returns silently — the key stays enabled with nothing on screen saying why');
+  const writes = collect(play, (n) => calleeName(n) === 'setConfigured');
+  const afterFetch = writes.filter((w) => w.start > okGuards[0].start);
+  assert.equal(writes.length - afterFetch.length, 1,
+    'expected exactly one setConfigured before the r.ok guard (the per-attempt reset)');
+  assert.ok(afterFetch.length > 0 && afterFetch.every((w) => w.start > okGuards[0].start),
+    'a non-ok station response reaches the configuration verdict — 503 and 402 would read as "no station"');
 });
 
 test('the records do not claim an auto-retry the player does not have', () => {

@@ -179,9 +179,14 @@ function useRadioStation() {
     // nothing at all: not the refusal, not `configured`, not the source.
     const attempt = (attemptRef.current += 1);
     const isCurrent = () => attemptRef.current === attempt;
-    // and a new attempt clears the last one's verdict, so a refusal can never
-    // outlive the attempt that produced it
+    // ⚠ AND IT CLEARS BOTH OF THE LAST ONE'S VERDICTS, NOT JUST THE REFUSAL (Codex,
+    // round 3). `configured` outlived the attempt that produced it, so a listener who
+    // got {configured:false} and pressed again could be shown the new attempt's
+    // refusal AND "No station on the air yet" at the same time — two answers to one
+    // press. A previous draft of this comment called those mutually exclusive by
+    // construction; they were not, because only one of the two was being reset.
     setRefusal(null);
+    setConfigured(null);
 
     let audio = audioRef.current;
     if (!audio) {
@@ -218,9 +223,22 @@ function useRadioStation() {
         if (!isCurrent()) return false;
         if (r.status === 401) { setRefusal("signin"); return false; }
         if (r.status === 403) { setRefusal("age"); return false; }
-        const cfg = r.ok ? await r.json() : null;
+        // ⚠ AND EVERY OTHER NON-OK ANSWER IS AN ATTEMPT WE COULD NOT COMPLETE, NOT A
+        // FACT ABOUT THE BROADCAST (Codex, round 3). `fetch` RESOLVES on an HTTP
+        // error, so the catch below never runs for one — which meant the previous
+        // round removed the false "No station on the air yet" from the rejected-fetch
+        // door and left it standing in this one. The route's own 503 (its membership
+        // check faulting, documented in its header as failing CLOSED) and its 402
+        // both came through here and were published as "no station".
+        //
+        // ⚠ THE 402 IS DELIBERATELY NOT GIVEN ITS OWN SENTENCE HERE. A signed-in
+        // non-member needs a join prompt, and what that says is an OWNER copy call
+        // already open in the war room. What this fixes is the lie: "we could not
+        // complete that" is true of a 402, where "there is no station" is not.
+        if (!r.ok) { setRefusal("unavailable"); return false; }
+        const cfg = await r.json();
         if (!isCurrent()) return false;               // .json() is a second await
-        setConfigured(cfg ? !!cfg.configured : false);
+        setConfigured(!!(cfg && cfg.configured));
         if (!cfg || !cfg.configured || !cfg.streamUrl) return false;
         audio.src = cfg.streamUrl;
       } catch (e) {
