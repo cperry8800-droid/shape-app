@@ -169,7 +169,24 @@ const COACHES_ITEMS = [
 // table to match it. That test is the whole point: the two bars drifted into two
 // different designs because nothing compared them.
 //
-// ⚠ MEMBERS IS THE EIGHTH LINK, beside Coaches, and it is the members' door the
+// ⚠ RADIO IS NOT IN THIS TABLE AND THAT IS DELIBERATE — owner, 2026-09-15:
+// "remove the radio tab from main middle dashboard and leave the existing radio
+// tab next to get started. dont need 2 tabs on dash". The bar carried BOTH a
+// `Radio` link here and `RadioWordmark`, the bordered ▸◂ RADIO pill in the auth
+// cluster beside Get started — one destination offered twice on one row, the
+// same defect the Coaches menu was trimmed for one day earlier. The pill stays;
+// it is the one with the mark on it.
+//
+// ⚠ AND THE DUPLICATION ONLY EVER EXISTED AT ≥1021px, WHICH IS WHY THE DRAWER
+// KEEPS ITS OWN RADIO LINK. At ≤1020 the collapse rule hides the whole auth
+// cluster (`.shape-nav-auth`, and `.nauth .nradio` on the homepage), so the pill
+// is not on screen at all and the drawer is the only nav a phone has — dropping
+// Radio from it would not remove a second tab, it would remove the ONLY route to
+// Radio from every phone. `MobileDrawer` renders it explicitly for that reason
+// and `tests/site-nav.test.mjs` pins it, or the next reader tidies the drawer to
+// match the bar and silently loses the page.
+//
+// ⚠ MEMBERS IS THE SECOND LINK, beside Coaches, and it is the members' door the
 // way Coaches is the coaches' — owner, 2026-09-14: `Client.html` ("For members")
 // was reachable from the footer alone; "maybe a seperate client tab on nav bar",
 // named Members because the footer already says "For members" and a visitor who
@@ -186,7 +203,6 @@ const SHAPE_NAV_GROUPS = [
   { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"], items: COACHES_ITEMS },
   { kind: "link", label: "Members", href: "Client.html" },
   { kind: "link", label: "App", href: "GetApp.html" },
-  { kind: "link", label: "Radio", href: "Radio.html" },
   { kind: "link", label: "Community", href: "Community.html" },
   { kind: "link", label: "Rewards", href: "Score.html" },
   { kind: "link", label: "Pricing", href: "Pricing.html" },
@@ -825,6 +841,22 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
              body scroll still locked and no feedback. */
           <a key={g.label} href={g.href} onClick={onClose} style={{ ...linkBase, color: active === g.label ? TEAL : INK, fontWeight: active === g.label ? 500 : 400 }}>{g.label}</a>
         ))}
+        {/* ⚠ RADIO IS RENDERED HERE AND NOT FROM THE TABLE, because the table is
+            the DESKTOP row and Radio left it on purpose (owner, 2026-09-15: "dont
+            need 2 tabs on dash" — the bar carried both this link and the ▸◂ RADIO
+            pill). The pill is the one that stayed, and the collapse rule hides the
+            WHOLE auth cluster at ≤1020px, so below that width the pill is not on
+            screen and this drawer is the only nav there is. Deleting this line
+            would not remove a duplicate — it would remove the only route to Radio
+            from every phone, on all ~70 pages this header renders.
+
+            It points at the pill's own href rather than a second spelling of the
+            same page, so the two cannot drift; `tests/site-nav.test.mjs` compares
+            them. Unconditional, like the pill: the bar shows that pill signed in
+            and signed out, so the drawer offers Radio in both states too (signed
+            in it never did, because `PORTAL_NAV` has no Radio entry — that was a
+            gap at every narrow width, not a design). */}
+        <a href="/newdesign/Radio.html" onClick={onClose} style={{ ...linkBase, color: active === "Radio" ? TEAL : INK, fontWeight: active === "Radio" ? 500 : 400 }}>Radio</a>
       </nav>
       {/* ⚠ THE DRAWER CARRIES THE SAME PAIR THE BAR DOES, so a phone is not
           missing the one control the desktop treats as primary. Signed in it
@@ -1085,6 +1117,22 @@ function Header({ active }) {
         </button>
         </div>
       </div>
+      {/* ⚠ REGISTERED, NOT FIXED — THIS DRAWER IS CLIPPED TO THE HEADER'S OWN
+          72px BOX, AND IT PREDATES THIS CHANGE. `.shape-header` carries
+          `backdrop-filter: blur(20px) saturate(1.05)`, and a backdrop-filter makes
+          an element the containing block for its position:fixed DESCENDANTS — so
+          the drawer's `inset: 0` resolves against the header instead of the
+          viewport. Measured in Chromium at 390×900, on this branch and on
+          origin/main alike: the dialog's box is 390×72 with its links laid out
+          down to y 656, and forcing `backdrop-filter: none` on the header takes it
+          straight to 390×900. It scrolls (overflowY: auto), so the links are
+          reachable rather than lost — but every one of them, Sign out included, is
+          being read through a 72px slot on every page this Header renders.
+          The homepage's own drawer is unaffected: `.ndrawer` is a SIBLING of its
+          <nav>, not a child, so nothing filters above it.
+          The fix is to render this outside <header> (or portal it to body) and is
+          a change to the chrome of ~70 pages, so it is not smuggled into a PR
+          about which links the bar carries. */}
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
     <div aria-hidden className="shape-header-spacer" style={{ height: NAV_H }} />
@@ -1259,7 +1307,19 @@ function ShapeMobileStyles() {
          its own text, which is the same freedom that broke "Log in" onto two
          lines at 1180. Refusing to wrap turns that shrink into an overflow, so
          both bars stop rendering the row at a width it does not fit, at the SAME
-         width and with the SAME gap rule: one bar means one breakpoint. */
+         width and with the SAME gap rule: one bar means one breakpoint.
+
+         ⚠ RE-MEASURED 2026-09-15, WHEN RADIO LEFT THE ROW — the paragraph above
+         is the eight-link measurement and the row is seven links now, so 1020 is
+         a ceiling with slack rather than a tight fit. Forced visible below the
+         breakpoint in the real faces, this bar fits to 920 with 3px clear and
+         overlaps its auth cluster by 1px at 900; the homepage's fits at 960 and
+         overflows from 940, so the homepage is the binding one at ~950. NOT
+         re-tightened: the block below also drops .shape-header-inner to 24px
+         padding / 14px gap, so a lower breakpoint would give the row less room
+         than the sweep did and that block would have to be split first. The
+         number is kept and the reason for it is now the measurement, not the
+         eighth link. */
       @media (max-width: 1100px) {
         .shape-nav-tabs { gap: 16px !important; }
       }
