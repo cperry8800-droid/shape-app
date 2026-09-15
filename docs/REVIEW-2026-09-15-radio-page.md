@@ -18,7 +18,7 @@ signed out — and a Next track button; F adds a Hand-over row — on the drop �
 **Backbone**, **Pick**.
 
 ⚠ **THE STATION ON THE BOARD IS SIMULATED AND SAYS SO ON EVERY FOLD.** Nothing is broadcasting
-(`public.radio_station` has no row — re-recorded on 2026-09-15). The board synthesises a deterministic
+(⚠ corrected: this read *"`public.radio_station` has no row"*; the owner applied the migration mid-session and the table holds one row with `provider='mock'` and a null `stream_url`, per #2096, so nothing plays and now-playing answers the mock). The board synthesises a deterministic
 128-BPM signal (no `Math.random`), and every reading on it is then *measured* from that signal by the
 app's own detector: the tempo reads "—" until `createTempoDetector` settles and then **128 BPM ·
 measured**, the rail's five bars are `railBarsLit(railRms(bins))`, the counter steps on the detector's
@@ -56,8 +56,7 @@ Two pages for one station, and both perform without a signal.
   *Track BPM* is `currentBpm = 120`; a **Demo HR** slider fabricates a heart rate and the badge reads
   *"Locked — your pace is the song"* from it. The app deleted its own `demoHr` and `BSBeatRing` for
   exactly this on 09-14.
-- **Now playing.** `/api/radio/now-playing` falls through to the mock provider whenever
-  `radio_station` has no row and answers *"Tempo Lift · Shape Radio"*; the player writes that over its
+- **Now playing.** `/api/radio/now-playing` falls through to the mock provider because the row carries `provider='mock'` (⚠ this read *"whenever `radio_station` has no row"*; the route selects `provider, now_playing_url` and never reads `stream_url`, per #2096) and answers *"Tempo Lift · Shape Radio"*; the player writes that over its
   own *Coming soon* the moment `startNowPlayingPoll()` runs (it runs on every play path). A route
   ruling, not a design.
 - **Three type systems and three teals.** The page: Fraunces · Space Grotesk · JetBrains Mono with
@@ -85,10 +84,16 @@ Live · Shape Sets · Nora — laid out for a desktop. Only the **field** differ
   64 bands across, intensity in the track's palette, the current frame as a bright trace at the head.
   A change of track is a hairline with the title at it: the station's log. The app's own review named
   a waterfall as the strongest challenger; taking it on the web lets the app follow.
-- **C · The Cloud.** Nine hundred dots in three dimensions in one of the homepage's five formations
-  (sphere, two rings, ECG, dial, the mark), each lit by its band, the cloud breathing on the kick
-  through `fieldK`, slow turn, cursor parallax; the seed picks the formation and a change of track
-  morphs one into the next over 1.5 s. Canvas 2D; no WebGL.
+- **C · The Cloud.** Nine hundred dots in three dimensions in one of eight formations — the homepage's
+  five (sphere, two rings, ECG, dial, the mark) plus a heart (the strap's glyph, filled), a record
+  (twelve grooves, flat, tilted by the view) and the Signal Field's own mirrored spectrum in points
+  (each column lit by its band, bass at the centre) — each dot lit by its band, the cloud breathing on
+  the kick through `fieldK`, a slow swing of about forty degrees each way (never a full turn: four of
+  the eight are flat, and a flat figure edge-on is a line), cursor parallax. **The figure changes with
+  the song** (the owner's ask on the board: *"can you make the sphere images/figures change"*): the seed
+  picks the opening figure and the song's order through the rest, and every eight bars, counted off the
+  detector's own four-beat step, the cloud morphs to the next one over 1.5 s. No measured tempo, no
+  phrase, no change; a change of track still morphs. Canvas 2D; no WebGL.
 - **D · The Wall.** Club Shape's LED wall: a 16px tile grid, every column a meter for its band, the
   wordmark burnt through the tiles as a mask, the kick flooding the floor rows, a two-tone program per
   track. The loudest; reduced motion holds the tiles at their base tone.
@@ -107,8 +112,9 @@ Live · Shape Sets · Nora — laid out for a desktop. Only the **field** differ
   The hand-over is an eased crossfade (τ 0.4 s, on the clock rather than per frame, so reduced motion
   answers on the same timescale); the page never changes identity, only which of its two lights is up.
   With no signal data the seed decides, so the song keeps an identity. The fold's own simulated station
-  sits its kick out for four bars in every sixteen so the hand-over can be seen. The heaviest fold on
-  the board; two renderers, one rule.
+  sits its kick out for four bars in every sixteen so the hand-over can be seen. The cloud carries C's
+  eight figures and its per-phrase morph, and each time it comes forward it comes forward as the next
+  figure. The heaviest fold on the board; two renderers, one rule.
 
 **Per-song sync, the mechanism (Backbone 04):** the analyser at 60 fps (the picture is the audio); the
 measured tempo (the kick envelope drives the breath); a deterministic seed from the track's title and
@@ -214,6 +220,12 @@ on; the nav's two radii become one cut.
   with F's longer labels (measured off the rects: the mark ended at 245px, the label began at 184px). On
   a phone the label now sits under the wordmark, and the geometry was re-measured at 400 · 360 · 320 on
   A and F: label below the mark, above the rail, and the example-signal line inside the gutter.
+- **The figures, driven.** On C the figure read `1` at the tempo's settle and `4`
+  12.5 s later, on the first phrase boundary the detector counted; on F it read `1` with the
+  wall leading and `4` once the cloud came forward. Each of the eight was captured through a harness
+  hook and looked at; the heart shipped upside down on its first capture (model +y is screen-down, the
+  reason the mark negates y) and the spectrum shipped as a smeared wedge (the column jitter and a straight
+  envelope), and both were corrected before this render.
 - **And a second one, from the first publish, that the direct probe could not see.** The Nav tab reported
   a 487px scroll width at 400 in the harness and 400 in a hand-written probe — because the probe served
   fallback fonts, under which the wordmark chip wrapped to a second row, while the real faces let it sit
