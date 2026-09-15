@@ -18,7 +18,7 @@ Chromium with the real faces served locally, never carried from a draft.
 `public/newdesign/Login.html` + `login.jsx` (474 lines; the card is `LoginCard`).
 
 - **Two type systems on one site.** The card is Fraunces (a 40px title with a stroked italic
-  *Shape*), Space Grotesk and JetBrains Mono. The homepage (#2058), Coaches (#2064) and Members
+  *Shape*), Space Grotesk and JetBrains Mono. The homepage (#2045), Coaches (#2064) and Members
   (#2070) pages moved to Anybody · Doto · Schibsted Grotesk. A member who taps Log in from the
   new nav lands in the old typeface.
 - **The white box is a default, not a decision.** `ShapeTurnstile.render`
