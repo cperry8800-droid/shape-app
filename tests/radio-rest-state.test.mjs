@@ -247,12 +247,107 @@ test('a signed-out deck says why it is off, in the catalog\'s own words', () => 
   assert.equal(en['screen.signInToListen'], 'Sign in to listen');
 });
 
-test('a refused play can be asked again from the key', () => {
-  // The provider exposes a retry that bumps a nonce, and the playback effect
-  // runs on that nonce — or "Tune in" is a key that does nothing.
-  assert.match(code, /const \[playNonce, setPlayNonce\] = useStateBR\(0\)/, 'the retry nonce is gone');
-  assert.match(code, /retryPlay: \(\) => setPlayNonce\(/, 'the provider no longer offers a retry');
-  const deps = code.match(/\}, \[radioOn, paused, authTick([^\]]*)\]\);/);
-  assert.ok(deps, 'the playback effect is gone — this guard no longer names anything');
-  assert.match(deps[1], /playNonce/, 'the playback effect does not re-run on the retry — "Tune in" is a dead key');
+test('a refused play is asked again FROM THE TAP, synchronously, and every attempt is cancellable', async () => {
+  // ⚠ CODEX P1 ON #2088. A first cut bumped a nonce the playback effect ran on:
+  // that asks play() a task later, outside the gesture's transient activation,
+  // so a browser that binds media playback to a gesture refused the retry
+  // exactly as it had refused the first attempt. The retry has to call play()
+  // inside the tap's own call stack.
+  assert.doesNotMatch(code, /playNonce|setPlayNonce/, 'the retry goes through a state update again');
+  const m = code.match(/const retryPlay = \(\) => \{([^\n]*)\};/);
+  assert.ok(m, 'retryPlay is gone — this guard no longer names anything');
+  // eslint-disable-next-line no-new-func
+  const retry = new Function('radioOn', 'paused', 'startPlay', m[1]);
+  let asked = 0;
+  retry(true, false, () => { asked += 1; });
+  assert.equal(asked, 1, 'Tune in does not ask play() inside the tap');
+  retry(true, true, () => { asked += 1; });
+  retry(false, false, () => { asked += 1; });
+  assert.equal(asked, 1, 'a paused or switched-off radio is asked to play by the retry');
+  assert.match(code, /^\s*retryPlay,$/m, 'the provider no longer offers the retry');
+
+  // startPlay: lifted from the provider and RUN. play() must be CALLED before
+  // anything is awaited — that is the whole finding — and a newer attempt or a
+  // cancel must leave an older resolution unable to stamp the clock.
+  const i = code.indexOf('const startPlay = () => {');
+  const j = code.indexOf('const cancelPlay = () => {', i);
+  assert.ok(i > 0 && j > i, 'startPlay/cancelPlay are gone');
+  const src = code.slice(i, code.indexOf('\n', j));
+  const resolvers = [];
+  const win = { ShapeRadioLive: { play: () => new Promise((r) => { resolvers.push(r); }) } };
+  const stamped = [];
+  const setPlayingSince = (v) => { stamped.push(typeof v === 'function' ? v(null) : v); };
+  // eslint-disable-next-line no-new-func
+  const { startPlay, cancelPlay } = new Function('attemptRef', 'setPlayingSince', 'window', `${src}\nreturn { startPlay, cancelPlay };`)({ current: null }, setPlayingSince, win);
+  const tick = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
+  startPlay();
+  assert.equal(resolvers.length, 1, 'play() was not called inside startPlay\'s own call stack');
+  startPlay();
+  assert.equal(resolvers.length, 2);
+  resolvers[0](true); await tick();
+  assert.deepEqual(stamped, [], 'a superseded attempt stamped the clock');
+  resolvers[1](true); await tick();
+  assert.equal(stamped.length, 1, 'the live attempt did not start the clock');
+  startPlay(); cancelPlay(); resolvers[2](true); await tick();
+  assert.equal(stamped.length, 1, 'a cancelled attempt stamped the clock');
+  startPlay(); resolvers[3](false); await tick();
+  assert.equal(stamped.length, 1, 'a refused play started the clock');
+});
+
+test('a cached station read lets a retry reach audio.play() with no await in front of it', async () => {
+  // shapeBackend's play(), lifted and RUN against a scripted station and a
+  // recording audio element. The first play has to await the station; the
+  // retry must not.
+  const src = stripComments(readFileSync('mobile-app/src/services/shapeBackend.js', 'utf8'));
+  const decl = 'let stationCache = null;';
+  assert.ok(src.includes(decl), 'the station cache is gone — a retry awaits the station again, outside the gesture');
+  const fnSrc = braceBlock(src, 'async function play() {');
+  const make = (cfg) => {
+    const log = [];
+    const playbackGate = { begin: () => { const live = () => true; live.mustStop = () => false; return live; } };
+    let reads = 0;
+    const station = () => new Promise((r) => { reads += 1; setTimeout(() => r(cfg), 0); });
+    const a = { src: '', play: () => { log.push('play'); return Promise.resolve(); }, pause() {} };
+    // eslint-disable-next-line no-new-func
+    const f = new Function('playbackGate', 'station', 'audio', `${decl}\n${fnSrc}\nreturn { play, cache: () => stationCache };`)(playbackGate, station, () => a);
+    return { play: f.play, cache: f.cache, log, reads: () => reads, a };
+  };
+  const good = make({ configured: true, streamUrl: 'https://stream.example/live' });
+  const p1 = good.play();
+  assert.deepEqual(good.log, [], 'the first play reached audio.play() before the station was known');
+  assert.equal(await p1, true);
+  assert.deepEqual(good.log, ['play']);
+  assert.ok(good.cache(), 'a good station read was not kept for the retry');
+  const p2 = good.play();
+  assert.deepEqual(good.log, ['play', 'play'], 'the retry awaited the station before audio.play() — outside the tap');
+  assert.equal(await p2, true);
+  assert.equal(good.a.src, 'https://stream.example/live');
+  // An unconfigured station (production's mock provider today) is never cached.
+  const mock = make({ configured: false });
+  assert.equal(await mock.play(), false);
+  assert.equal(mock.cache(), null, 'an unconfigured station was cached as an answer');
+  assert.equal(await mock.play(), false);
+  assert.equal(mock.reads(), 2, 'an unconfigured station is not re-asked');
+  // A refused read (401 signed out → null) is never cached either.
+  const refused = make(null);
+  assert.equal(await refused.play(), false);
+  assert.equal(refused.cache(), null);
+});
+
+test('the figure is re-measured on the frame cadence, and a moved box forces a draw', () => {
+  // ⚠ CODEX P2 ON #2088. With the measure counted AFTER the throttle it ran
+  // every 12 DRAWS — ~3 s at rest — so a reflow that moved the figure without
+  // resizing either observed element left the baseline and the scrims at the
+  // old coordinates for seconds.
+  const body = fieldBody();
+  const lines = body.split('\n').filter((l) => l.includes('REDUCED_FPS) return;'));
+  assert.equal(lines.length, 1);
+  const iMeasure = body.indexOf('sinceMeasure += 1;');
+  assert.ok(iMeasure > 0, 'the measure cadence is gone');
+  assert.ok(iMeasure < body.indexOf(lines[0]), 'the figure is measured after the draw throttle — every 12 DRAWS, ~3 s at rest');
+  assert.match(lines[0], /!moved &&/, 'a measurement that moved the box no longer forces a draw through the throttle');
+  assert.match(body, /moved = measureFigure\(\)/, 'the measurement\'s answer is not read');
+  const mf = braceBlock(body, 'const measureFigure = () => {');
+  assert.match(mf, /return !prev \|\| prev\.x !== fig\.x \|\| prev\.y !== fig\.y \|\| prev\.w !== fig\.w \|\| prev\.h !== fig\.h;/, 'measureFigure no longer reports whether the box moved');
+  assert.match(mf, /fig = null; return prev != null;/, 'a figure that disappeared does not count as a move');
 });

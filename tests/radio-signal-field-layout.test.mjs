@@ -315,18 +315,30 @@ test('leaving the matching state releases the strap', () => {
 // cannot tell `play().then(stamp)` from `play(); stamp()` in any way that
 // survives a rewrite, and the whole finding is about which of the two it is.
 function playbackEffect() {
-  const i = code.indexOf('useEffectBR(() => {\n    let cancelPlay');
-  assert.ok(i > 0, 'the playback effect is gone — this guard no longer names anything');
-  // The effect's dependency list is allowed to GROW (the retry nonce joined it
-  // on 2026-09-15 — radio-rest-state.test.mjs requires it); what this lift
-  // needs is the line that closes the effect, not its exact spelling.
-  const end = /\}, \[radioOn, paused, authTick[^\]]*\]\);/.exec(code.slice(i));
-  assert.ok(end, 'could not find the end of the playback effect');
-  const j = i + end.index;
-  const body = code.slice(code.indexOf('{', i) + 1, code.lastIndexOf('}', j));
+  // The effect is found from the line that CLOSES it, walking back to its own
+  // opener: its first statement has changed twice (a local cancel, then none),
+  // and its dependency list may grow; neither is what this lift is about.
+  const end = /\}, \[radioOn, paused, authTick[^\]]*\]\);/.exec(code);
+  assert.ok(end, 'the playback effect is gone — this guard no longer names anything');
+  const i = code.lastIndexOf('useEffectBR(() => {', end.index);
+  assert.ok(i > 0, 'could not find the start of the playback effect');
+  const body = code.slice(code.indexOf('{', i) + 1, code.lastIndexOf('}', end.index));
   assert.ok(body.length > 400, `the effect slice is ${body.length} chars — this guard is reading the wrong thing`);
   // eslint-disable-next-line no-new-func
-  return new Function('radioOn', 'paused', 'authTick', 'window', 'setNowPlaying', 'setPlayingSince', body);
+  return new Function('radioOn', 'paused', 'authTick', 'window', 'setNowPlaying', 'setPlayingSince', 'startPlay', 'cancelPlay', body);
+}
+
+// The provider's own attempt — `startPlay` and `cancelPlay` — lifted and RUN.
+// A cancel restated in the test would prove nothing about the shipped one.
+function liftAttempt(win, setPlayingSince) {
+  const i = code.indexOf('const startPlay = () => {');
+  assert.ok(i > 0, 'startPlay is gone — this guard no longer names anything');
+  const j = code.indexOf('const cancelPlay = () => {', i);
+  assert.ok(j > i, 'cancelPlay is gone — an attempt in flight can no longer be cancelled');
+  const src = code.slice(i, code.indexOf('\n', j));
+  const attemptRef = { current: null };
+  // eslint-disable-next-line no-new-func
+  return new Function('attemptRef', 'setPlayingSince', 'window', `${src}\nreturn { startPlay, cancelPlay, attemptRef };`)(attemptRef, setPlayingSince, win);
 }
 
 async function runPlayback({ playResolves, pauseMidFlight = false }) {
@@ -343,9 +355,9 @@ async function runPlayback({ playResolves, pauseMidFlight = false }) {
       stopPolling() {},
     },
   };
-  const cleanup = fn(true, false, 0, win, () => {}, (v) => {
-    stamped.push(typeof v === 'function' ? v(null) : v);
-  });
+  const setPlayingSince = (v) => { stamped.push(typeof v === 'function' ? v(null) : v); };
+  const { startPlay, cancelPlay } = liftAttempt(win, setPlayingSince);
+  const cleanup = fn(true, false, 0, win, () => {}, setPlayingSince, startPlay, cancelPlay);
   if (pauseMidFlight) cleanup();
   resolve(playResolves);
   await pending;

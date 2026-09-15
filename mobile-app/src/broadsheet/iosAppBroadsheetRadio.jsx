@@ -371,15 +371,40 @@ function BSRadioProvider({ children }) {
   // When this session's playback actually began, or null while nothing is
   // playing. Stamped by the playback effect below; read by the Radio page's rail.
   const [playingSince, setPlayingSince] = useStateBR(null);
-  // ⚠ A `play()` THAT DID NOT START HAS TO BE ASKABLE AGAIN, FROM A KEY. The
-  // playback effect below runs on [radioOn, paused, authTick] — so once it has
-  // asked and been refused (an unconfigured station, an autoplay policy that
-  // wants a gesture, a request superseded while it was starting) nothing asks
-  // again until one of those three moves. The deck's key reads the MEASURED
-  // state and offers "Tune in" for exactly this case (`bsRadioTransportKey`);
-  // tapping it bumps this nonce, which re-runs the effect. A tap is also the
-  // one shape an autoplay refusal accepts.
-  const [playNonce, setPlayNonce] = useStateBR(0);
+  // ⚠ ONE PLAYBACK ATTEMPT AT A TIME, AND EVERY ATTEMPT IS CANCELLABLE. The
+  // session clock is stamped only once `play()` has actually started (Codex P1
+  // on #2072), and a pause, a sign-out or radio-off must be able to cancel an
+  // attempt still in flight — or a play that resolves AFTER the member paused
+  // stamps a clock for playback that is already over. The token IS the
+  // attempt; cancelling it is flipping `live`. A newer attempt supersedes an
+  // older one the same way, so two taps cannot stamp twice.
+  const attemptRef = useRefBR(null);
+  const startPlay = () => {
+    if (attemptRef.current) attemptRef.current.live = false;
+    const token = { live: true };
+    attemptRef.current = token;
+    Promise.resolve(window.ShapeRadioLive?.play?.()).then((ok) => {
+      if (!token.live || ok !== true) return;
+      setPlayingSince((v) => (v == null ? Date.now() : v));
+    }).catch(() => { /* play() already reports failure by resolving false */ });
+  };
+  const cancelPlay = () => { if (attemptRef.current) { attemptRef.current.live = false; attemptRef.current = null; } };
+  // ⚠ A `play()` THAT DID NOT START HAS TO BE ASKABLE AGAIN — FROM THE TAP,
+  // SYNCHRONOUSLY. The effect below runs on [radioOn, paused, authTick], so once
+  // it has asked and been refused (an unconfigured station, an autoplay policy
+  // that wants a gesture, a request superseded while it was starting) nothing
+  // asks again until one of those three moves. The deck's key reads the
+  // MEASURED state and offers "Tune in" for exactly this case
+  // (`bsRadioTransportKey`), and this is what the tap calls.
+  //
+  // ⚠ IT CALLS `play()` INSIDE THE TAP'S OWN CALL STACK, NEVER THROUGH A STATE
+  // UPDATE. A first cut bumped a nonce the effect ran on — which asks `play()`
+  // a task later, outside the gesture's transient activation, so a browser
+  // that binds media playback to a gesture (WebKit) refused the retry exactly
+  // as it had refused the first attempt, forever. (Codex, P1 on #2088.) And
+  // `shapeBackend.play()` keeps its last good station read so the retry reaches
+  // `audio.play()` with no await in front of it — see the note there.
+  const retryPlay = () => { if (!radioOn || paused) return; startPlay(); };
   // currently-playing track index in BS_LIVE_STATION.tracks (0 == "NOW") — kept
   // for the muted/fallback display path; live now-playing overrides via nowPlaying state.
   // ⚠ No trackIdx/setTrackIdx here, deliberately. A track-index setter on this
@@ -501,7 +526,6 @@ function BSRadioProvider({ children }) {
   // - radioOn=true, paused=true  → pause audio; keep poll running (harmless).
   // - radioOn=true, paused=false → play audio + ensure poll is running.
   useEffectBR(() => {
-    let cancelPlay = () => {};
     if (!radioOn) {
       window.ShapeRadioLive?.pause?.();
       window.ShapeRadioLive?.stopPolling?.();
@@ -543,17 +567,14 @@ function BSRadioProvider({ children }) {
       // when playback started, not when it was requested. (Codex, P1 on #2072.)
       //
       // The guard is the effect's own cleanup: a pause, a sign-out or radio-off
-      // re-runs this effect, which cancels the attempt in flight before its
-      // resolution can stamp a clock for playback that is already over.
-      let attemptLive = true;
-      cancelPlay = () => { attemptLive = false; };
-      Promise.resolve(window.ShapeRadioLive?.play?.()).then((ok) => {
-        if (!attemptLive || ok !== true) return;
-        setPlayingSince((v) => (v == null ? Date.now() : v));
-      }).catch(() => { /* play() already reports failure by resolving false */ });
+      // re-runs this effect, which cancels the attempt in flight (`cancelPlay`,
+      // above) before its resolution can stamp a clock for playback that is
+      // already over. The deck's retry goes through the same `startPlay`, so a
+      // retry in flight is cancelled the same way.
+      startPlay();
     }
     return () => { cancelPlay(); window.ShapeRadioLive?.stopPolling?.(); };
-  }, [radioOn, paused, authTick, playNonce]);
+  }, [radioOn, paused, authTick]);
 
   // The key for the track on air, built from the RAW now-playing fields (NOT the
   // '—'-substituted display copy), so a title-only or artist-only track keys the
@@ -680,7 +701,7 @@ function BSRadioProvider({ children }) {
 
   const value = {
     radioOn, setRadioOn, setRadioPreference, paused, setPaused, playingSince,
-    retryPlay: () => setPlayNonce((n) => n + 1),
+    retryPlay,
     nowPlaying, activeChannel, setChannel,
     showPrompt, askedPrompt, answerPrompt, requestRadioPrompt,
     fxMode, setFxMode, fxColor, setFxColor,
@@ -1508,13 +1529,16 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
     let fig = null;
     const MEASURE_EVERY = 12;
     let sinceMeasure = MEASURE_EVERY;
+    // Returns whether the box MOVED, so the draw throttle can be told.
     const measureFigure = () => {
+      const prev = fig;
       const el = liveRef.current.figureRef && liveRef.current.figureRef.current;
-      if (!el) { fig = null; return; }
+      if (!el) { fig = null; return prev != null; }
       const fr = el.getBoundingClientRect();
       const wr = wrap.getBoundingClientRect();
-      if (!(fr.width > 0) || !(fr.height > 0)) { fig = null; return; }
+      if (!(fr.width > 0) || !(fr.height > 0)) { fig = null; return prev != null; }
       fig = { x: fr.left - wr.left, y: fr.top - wr.top, w: fr.width, h: fr.height };
+      return !prev || prev.x !== fig.x || prev.y !== fig.y || prev.w !== fig.w || prev.h !== fig.h;
     };
 
     let ro = null;
@@ -1673,6 +1697,17 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       // The reading is done; everything below is drawing. Under reduced motion
       // that redraws at ~4 fps, and the field's breath is forced off.
       const reduced = reducedRef.current;
+      // ⚠ THE FIGURE IS RE-MEASURED ON THE FRAME CADENCE, NOT THE DRAW CADENCE.
+      // Under either throttle below a draw happens ~4 times a second, and
+      // counting DRAWS stretched MEASURE_EVERY from ~200 ms to ~3 s: a reflow
+      // that moves the figure without resizing either observed element — or a
+      // browser with no ResizeObserver — left the baseline, the counter and the
+      // scrims at the old coordinates for seconds (Codex, P2 on #2088). So the
+      // count runs every frame, and a measurement that MOVED the box forces a
+      // draw through the throttle.
+      sinceMeasure += 1;
+      let moved = false;
+      if (sinceMeasure >= MEASURE_EVERY) { sinceMeasure = 0; moved = measureFigure(); }
       // ⚠ AND AT REST THE PICTURE IS STILL, SO IT IS DRAWN AT THE SAME CADENCE.
       // With nothing on the air and the crossfade settled on listening nothing
       // below moves — the grid at its rest, a dashed baseline, four unlit dots —
@@ -1681,11 +1716,8 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       // above still runs every frame, so the first live frame is drawn within a
       // quarter of a second of the stream starting.
       const still = !live && kx === 0;
-      if ((reduced || still) && lastDrawRef.current >= 0 && t - lastDrawRef.current < 1 / REDUCED_FPS) return;
+      if (!moved && (reduced || still) && lastDrawRef.current >= 0 && t - lastDrawRef.current < 1 / REDUCED_FPS) return;
       lastDrawRef.current = t;
-
-      sinceMeasure += 1;
-      if (sinceMeasure >= MEASURE_EVERY) { sinceMeasure = 0; measureFigure(); }
 
       ctx.clearRect(0, 0, W, H);
 
