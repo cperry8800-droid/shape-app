@@ -726,6 +726,128 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-15 — Someone previewing the app sees the instrument running, on a station the page calls an example
+
+- **Three owner messages, one build.** *"not seeing the bars that move with the song. like the music
+  studio bar design we had"* → *"its the design we already agreed on, not sure the confusion"* →
+  ***"i want to show what it would look like for someone previewing the app, demo mode/view"***.
+  #2095 → `67df880`. Mobile only; **no migration, no route, no data change.** This closes the
+  registered owner call the 2026-09-15 Radio entry left open, and closes it the other way from the
+  recommendation recorded there.
+- ⚠ **THE BARS WERE NEVER MISSING — THEY WERE WAITING, AND THAT WAS MEASURED BEFORE A LINE WAS
+  WRITTEN.** The shipped build was driven in Chromium with a synthetic analyser patched in: the
+  spectrum drew immediately, **118 of 130 sampled columns carrying teal, 79 of them changing height
+  in 420 ms, spread 241 px, the tempo reading 128** — against **44 columns, 0 moving, `—`** on
+  silence. Same build, same code path, one difference: whether there was audio. *A report that a
+  feature is absent is a claim about a state, and the state was the analyser's.*
+- ⚠ **AND THE CAUSE WAS UPSTREAM OF EVERY PIXEL: THERE IS NO STATION.** `radio_station` did not
+  exist in production that morning; the owner applied the migration mid-session, and re-querying the
+  live catalog then gave **one row, `provider='mock'`, `stream_url` NULL** — so `configured` is
+  `!!stream_url` = false, `ShapeRadioLive.play()` bails before `audio.play()`, the analyser carries
+  all-zero bins and `hasSignal` is false. **The migration was step 1 of 2 and changed nothing
+  visible**, which is worth recording because it looked like it should have.
+- ⚠ **AND THE STREAM MUST SEND `Access-Control-Allow-Origin`, WHICH IS A PROVIDER-SELECTION
+  CONSTRAINT AND NOT A DETAIL.** `audio()` sets `crossOrigin='anonymous'` because Web Audio cannot
+  read a cross-origin stream without it, and the analyser is what the entire Signal Field runs on.
+  So a stream with no ACAO **does not load at all** — and stripping `crossOrigin` to work around
+  that trades a dead player for a silent analyser, i.e. exactly the blank page this entry is about.
+  Registered before the provider is chosen rather than discovered after.
+- **What a prospect sees now**, and only a prospect: the instrument on a labelled, simulated 128 BPM
+  station — the mirrored spectrum with the bass at the centre, peak caps, the reflection under the
+  baseline, the four-beat counter stepping, the rail meter lit, the tempo reading.
+- ⚠ **A FABRICATED SIGNAL IS THE ONE THING THIS PAGE WAS BUILT TO REFUSE, SO THE PERMISSION IS
+  FENCED BY THREE PROPERTIES AND EACH HAS ITS OWN GUARD.** **(1) Only a preview, and only over
+  silence.** The analyser is read **first**; `previewSimOn(preview, realSignal)` is a named pure rule
+  rather than an inline `&&`, so its truth table is driven — the two clauses are what stop a
+  simulation ever standing in front of a reading — and the simulated frame gets **its own buffer**,
+  never `binsRef`, so the two can never interleave. **(2) The page says so, in place of the claim.**
+  **(3) A member is never shown it, including mid-boot.**
+- ⚠ **THE BLINKING RED `ON AIR` DOT *IS* THE BROADCAST CLAIM, SO IT IS REPLACED RATHER THAN
+  LABELLED — AND THAT IS A DELIBERATE DIVERGENCE FROM A STANDING RULING.** The owner ruled on
+  2026-09-11 that *"just have on air showing on demo mode which is fine"*, and the house rule is
+  *never say it unlabelled* rather than *never say it*. Here the label and the claim would sit **one
+  line apart on the same rail** — `● ON AIR` directly above *Example signal* — and a page
+  contradicting itself in two adjacent lines is worse than either half alone. So the preview reads
+  **`PREVIEW / EXAMPLE SIGNAL`** with no dot. Flagged to the owner as a divergence rather than
+  slipped in.
+- ⚠ **AND THE LABEL IS NOT SET IN THE READING FACE.** Doto is this page's numeral face precisely
+  because *every measured figure reads like a reading* (the 2026-09-10 type ruling) — so the one
+  thing on the rail that is **not** a measurement must not wear it. The session clock keeps Doto;
+  the example label is mono. A guard asserts `BS_DOTO` does not appear in that block.
+- ⚠ **`paused` SEEDS **TRUE** FOR EVERY FIRST-TIME VISITOR, AND HONOURING IT WOULD HAVE SHIPPED
+  BARS OVER A RAIL THAT NEVER NAMES A TEMPO.** It is read from `shape.radio.pref`, which a prospect
+  does not have — and it is the member's **request** about a stream they cannot start. Left alone it
+  would have reset the detector on frame one and held the reading at null forever. The station half
+  reads a `pausedEff` now; **the heart half deliberately keeps running through a pause** (the P2 on
+  #2072) and is untouched, and a guard asserts no station-half site still reads the raw flag.
+- ⚠ **THE SIMULATED FRAME IS DETERMINISTIC IN `t` — NO `Math.random`, NO `Date` — WHICH IS WHAT
+  MAKES IT CHECKABLE RATHER THAN PLAUSIBLE.** The guard drives the **shipped** tempo detector over
+  it and it settles on **128 BPM at t = 7.40 s** — the identical figure the real station path is
+  recorded at on 2026-09-14, because it is the same detector and the same confirm window. *A
+  generator that drew convincing bars and carried no beat would have passed every other assertion
+  and left the rail reading "—" forever.*
+- **i18n:** two new `radio:rail.*` keys × 13 locales, each composed from that catalog's **own**
+  preview vocabulary (`onboarding:preview.title` — *Vorschau · Vista previa · Aperçu · Pratinjau ·
+  Önizleme · Перегляд · Xem trước*) and its own word for signal, rather than translated fresh. A
+  pure **2-line insertion per file** in the `rail.*` run's sorted position; 82 keys, parity across
+  all 13.
+- ⚠ **MY OWN BRACE MATCHER WAS A BROKEN INSTRUMENT BEFORE IT WAS A GUARD — THE #2032 DEFECT, PAID
+  FOR AGAIN.** Both components these guards extract take a **destructured
+  parameter** — as do **13 of the 14** `BS*` components in that file, `BSRadioPrompt()` being the one
+  exception — so counting braces from the first `{` opens and closes on the parameter list and hands
+  back the **signature**, after which every assertion made against it is vacuously true. ⚠ This read
+  *"every component on this page"*, which is false and misleads about **which** signatures trigger
+  the defect (Codex, on the records PR): a function with no parameter list at all is the one shape
+  the naive matcher handles correctly, because its first `{` really is the body. **Only the length floor surfaced it**; four
+  guards had been reading **129 characters of parameter list** for the field and **33** for the
+  screen — measured, because a number nobody re-derives is a claim, and I had first written 90. It skips the parameter list now,
+  and the floor is kept. *A guard that reports a pass is a broken instrument until something proves
+  it read the code.*
+- ⚠ **AND THE RENDER HARNESS REPORTED THE FEATURE BROKEN IN GERMAN, THREE TIMES, ALWAYS FOR THE
+  SAME REASON: AN ENGLISH-ANCHORED INSTRUMENT POINTED AT A LOCALIZED SCREEN.** Its wait was
+  `!/LOADING/i` — **and the boot splash is localized too, reading `WIRD GELADEN`** — so the wait
+  returned instantly and the whole walk ran against the splash, then reported *"the Radio page has
+  no canvas"*, which reads exactly like a product failure. The forward button is `WEITER`, not
+  Continue; the paywall is *Erst die App ansehen*; the dismiss `aria-label` is localized as well. It
+  waits for the **picker** now (English is listed in every locale), which needs no English anywhere.
+- ⚠ **AND THE FIRST BAR-MOVEMENT PROBE MEASURED NOTHING, ON A CHANNEL THAT CANNOT ANSWER.** It took
+  the top-most pixel per column by **alpha** — and the field paints the whole canvas opaque, so the
+  threshold is satisfied at `y=0` in every column and it returned a flat profile on a page full of
+  bars. The bars are the only strongly **teal** thing in that band, so that is what it looks for
+  now. *A probe pointed at the wrong channel returns zeros and reads as a finding.*
+- **THE SAFETY PROPERTY IS DRIVEN, NOT ASSERTED, AND ON ONE PAGE LOAD.** The gate listens on
+  `shape:canchat`, so flipping the shell's flag to member mid-page is exactly what happens when a
+  membership check resolves under someone who has just joined: **118 teal columns at 128 BPM → 44
+  columns and `ON AIR / Paused / — BPM`, with no reload**, in English and German both.
+- ⚠ **THE GATE DEFAULTS TO "MEMBER", AND THE ASYMMETRY IS THE POINT.** Only an explicit
+  `window.ShapeCanChat === false` is a prospect; `undefined` — the flag not yet published on a cold
+  launch — reads as a member. Showing a prospect the honest empty for a second costs nothing;
+  showing a **member** a fabricated signal for a second is the one thing this page must never do.
+  And `false` implies **signed out** (`memberAllowed` ORs in `signedIn`), which is the population the
+  licence bars from listening — so where this draws there is nothing real to displace, and there
+  never could be. A mutation replacing it with `!== true` is killed.
+- **Review:** Codex, one front-loaded round, **clean on `93020d8`** — head-pinned by its own
+  *Reviewed commit* line **with the summary row naming the same commit**, so no head-pinning trap.
+  Not re-triggered. **CodeRabbit was not run** (owner, this session: *"dont run coderabbit for
+  PR"*). The merge gate was the four required checks green on `93020d8` and not a draft.
+- **Verified on the merged tree** (`67df880`), re-derived rather than carried — and the merged tree
+  was first proven **byte-identical** to the reviewed branch tree: `npm test` **3816/3816** ·
+  `tsc --noEmit` **0** · JSX parse · the full pre-commit gate including the mobile build · i18n
+  parity **13/13 at 82 keys** · all 13 translated values confirmed **in the emitted bundle** behind
+  a positive control (`Station · beat`) and two negative ones · **16/16 mutations killed**, each
+  **proven to land** (occurrence-counted before the edit, the suite's own `# pass`/`# fail`
+  **parsed** rather than read off a pipeline's exit status), sanity green at both ends, the tree
+  restored in a `finally` **and on a signal** — the one that was skipped for matching its anchor
+  twice was **reported as a skip and re-run properly**, not silently applied to the first match ·
+  and the page driven in Chromium through the real signed-out preview flow with **no patching at
+  all**, English and German, **zero horizontal overflow and zero page errors**.
+- ⚠ **REGISTERED, NOT FIXED:** **Nora still reads the real analyser**, so she stands still in the
+  preview beside a spectrum that is moving — wiring her stage to the same simulated frame is its own
+  change; the **`ON AIR` chip on a MEMBER's Radio page is still unconditional**, still asserting a
+  broadcast over a clock reading Paused, and retiring a claim is the owner's call; and there is
+  **still no on-account pass** — the member path was exercised by flipping the gate, not by a real
+  member with real audio, because there is still no station on the air.
+
 ### 2026-09-15 — The Radio page had no signal, so it drew nothing; and Nora stops being a stock avatar
 
 - **Two owner reports on the same screen, two PRs.** *"seeing this on shape radio page not the
@@ -737,7 +859,15 @@ Append new entries at the top, under this note.
   production **`public.radio_station` does not exist at all** — re-queried against the live catalog
   while writing this, not carried from the 2026-09-11 entry that first recorded it — so
   `ShapeRadioLive.play()` resolves **false** for every member today — on the `!cfg.configured` bail,
-  **before it ever reaches `audio.play()`**. ⚠ **CORRECTED — THIS READ "on the web the autoplay policy
+  **before it ever reaches `audio.play()`**.
+  ⚠ **THE TABLE EXISTS NOW, AND THE FINDING IS UNCHANGED — the owner applied
+  `2026-06-19-radio-station.sql` on 2026-09-15, hours after this was written.** Re-queried against
+  the live catalog: `radio_station` holds its one row with `provider='mock'` and a **null
+  `stream_url`**, and `configured` is `!!stream_url` — so it is still false, `play()` still bails at
+  the same line, and every sentence in this bullet still describes today. **What moved is the
+  premise, not the conclusion**, and it moved inside a day: *a migration's status belongs to the
+  database, not to the file describing it*, which is this file's own rule paying out on the file
+  itself. ⚠ **CORRECTED — THIS READ "on the web the autoplay policy
   refuses it again", AND THAT POLICY IS NEVER CONSULTED IN THE CASE THE PARAGRAPH IS ABOUT** (Codex, on
   the changelog PR). With no station `public/radio.html`'s `loadStation()` leaves `STREAM_URL` null, and
   both `openRadio()` (reached from one call site, which passes `autoPlay: false`) and `togglePlay()`
@@ -2186,7 +2316,13 @@ Append new entries at the top, under this note.
   WENT.** This file already records the rule in as many words — ***"THE RULE IS NOT 'NEVER SAY
   IT' BUT 'NEVER CLAIM IT UNLABELLED'"*** — and all five labels are load-bearing under it:
   **`public.radio_station` does not exist**, so the ON AIR chip is a claim about a station that is
-  not broadcasting and *"Example · Radio opens with the app"* is what makes it allowed;
+  not broadcasting and ⚠ **(THE TABLE EXISTS SINCE 2026-09-15 AND THE CLAIM STILL HOLDS: its
+  row carries a null `stream_url`, so there is nothing to play and the station is still not
+  broadcasting. The premise moved; the labelling rule did not.)** ⚠ This marker first read *"so
+  `configured` is false and both radio routes still fall through to the mock provider"*, **which
+  bundles two independent facts** (Codex, on the records PR): `/api/radio/station` never invokes a
+  provider at all, and `/api/radio/now-playing` returns mock because of `provider`, not because of
+  `stream_url`. The chip is a claim about **broadcasting**, and that is what the null stream settles. *"Example · Radio opens with the app"* is what makes it allowed;
   production holds **one trainer and one nutritionist with an `owner_id`**, so the eight
   marketplace cards are AI portraits with fictional session counts and *"Example profiles until
   real ones render"* is what keeps them from being fabricated people; the summit score is a drawn
@@ -3093,7 +3229,16 @@ Append new entries at the top, under this note.
 - ⚠ **THE STATION IS NOT BROADCASTING, SO NOTHING CLAIMS IT IS — AND WHERE IT IS SHOWN, IT IS
   LABELLED.** Measured against production rather than inferred, and **re-queried before the
   final commit**: **`public.radio_station` does not exist**, so `/api/radio/now-playing` falls
-  through to the mock provider. The nav's permanent **ON AIR** chip, the **LIVE** badge and the
+  through to the mock provider. ⚠ **THE TABLE EXISTS SINCE 2026-09-15 AND THE FALL-THROUGH IS
+  UNCHANGED — BUT NOT FOR THE REASON A MISSING STREAM WOULD SUGGEST** (Codex, on the records PR).
+  `/api/radio/now-playing` selects **`provider, now_playing_url`** and never reads `stream_url` at
+  all, so it returns the mock payload because the row carries **`provider='mock'`** — `getProvider`
+  hands back `httpProvider` only on `provider === 'http' && nowPlayingUrl`. A row with a null
+  `stream_url` but an HTTP provider and a now-playing URL would use the HTTP provider. So **the
+  station being unconfigured and the now-playing fall-through are two separate facts**, and only the
+  second is what this bullet is about. ⚠ My first version of this marker said the row being
+  unconfigured was the cause — I had **checked the right code and drawn the wrong arrow**, which is
+  this file's own *a because-clause is a claim* defect committed inside a correction to a claim. The nav's permanent **ON AIR** chip, the **LIVE** badge and the
   `@keyframes eq` equaliser are gone.
   ⚠ **THE RADIO CARD DOES CARRY AN ON AIR CHIP, AND THE RULE IS NOT "NEVER SAY IT" BUT "NEVER
   CLAIM IT UNLABELLED"** (owner: *"just have on air showing on demo mode which is fine. once
