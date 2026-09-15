@@ -792,9 +792,13 @@ Append new entries at the top, under this note.
   pure **2-line insertion per file** in the `rail.*` run's sorted position; 82 keys, parity across
   all 13.
 - ⚠ **MY OWN BRACE MATCHER WAS A BROKEN INSTRUMENT BEFORE IT WAS A GUARD — THE #2032 DEFECT, PAID
-  FOR AGAIN.** Every component on this page takes a **destructured parameter**, so counting braces
-  from the first `{` opens and closes on the parameter list and hands back the **signature**, after
-  which every assertion made against it is vacuously true. **Only the length floor surfaced it**; four
+  FOR AGAIN.** Both components these guards extract take a **destructured
+  parameter** — as do **13 of the 14** `BS*` components in that file, `BSRadioPrompt()` being the one
+  exception — so counting braces from the first `{` opens and closes on the parameter list and hands
+  back the **signature**, after which every assertion made against it is vacuously true. ⚠ This read
+  *"every component on this page"*, which is false and misleads about **which** signatures trigger
+  the defect (Codex, on the records PR): a function with no parameter list at all is the one shape
+  the naive matcher handles correctly, because its first `{` really is the body. **Only the length floor surfaced it**; four
   guards had been reading **129 characters of parameter list** for the field and **33** for the
   screen — measured, because a number nobody re-derives is a claim, and I had first written 90. It skips the parameter list now,
   and the floor is kept. *A guard that reports a pass is a broken instrument until something proves
@@ -2313,8 +2317,12 @@ Append new entries at the top, under this note.
   IT' BUT 'NEVER CLAIM IT UNLABELLED'"*** — and all five labels are load-bearing under it:
   **`public.radio_station` does not exist**, so the ON AIR chip is a claim about a station that is
   not broadcasting and ⚠ **(THE TABLE EXISTS SINCE 2026-09-15 AND THE CLAIM STILL HOLDS: its
-  row is unconfigured — `stream_url` null — so `configured` is false and both radio routes still fall
-  through to the mock provider. The premise moved; the labelling rule did not.)** *"Example · Radio opens with the app"* is what makes it allowed;
+  row carries a null `stream_url`, so there is nothing to play and the station is still not
+  broadcasting. The premise moved; the labelling rule did not.)** ⚠ This marker first read *"so
+  `configured` is false and both radio routes still fall through to the mock provider"*, **which
+  bundles two independent facts** (Codex, on the records PR): `/api/radio/station` never invokes a
+  provider at all, and `/api/radio/now-playing` returns mock because of `provider`, not because of
+  `stream_url`. The chip is a claim about **broadcasting**, and that is what the null stream settles. *"Example · Radio opens with the app"* is what makes it allowed;
   production holds **one trainer and one nutritionist with an `owner_id`**, so the eight
   marketplace cards are AI portraits with fictional session counts and *"Example profiles until
   real ones render"* is what keeps them from being fabricated people; the summit score is a drawn
@@ -3221,8 +3229,16 @@ Append new entries at the top, under this note.
 - ⚠ **THE STATION IS NOT BROADCASTING, SO NOTHING CLAIMS IT IS — AND WHERE IT IS SHOWN, IT IS
   LABELLED.** Measured against production rather than inferred, and **re-queried before the
   final commit**: **`public.radio_station` does not exist**, so `/api/radio/now-playing` falls
-  through to the mock provider. ⚠ **THE TABLE EXISTS SINCE 2026-09-15 AND THIS IS STILL TRUE OF THE
-  ROUTE: the row is unconfigured (`stream_url` null), so the fall-through to mock is unchanged.** The nav's permanent **ON AIR** chip, the **LIVE** badge and the
+  through to the mock provider. ⚠ **THE TABLE EXISTS SINCE 2026-09-15 AND THE FALL-THROUGH IS
+  UNCHANGED — BUT NOT FOR THE REASON A MISSING STREAM WOULD SUGGEST** (Codex, on the records PR).
+  `/api/radio/now-playing` selects **`provider, now_playing_url`** and never reads `stream_url` at
+  all, so it returns the mock payload because the row carries **`provider='mock'`** — `getProvider`
+  hands back `httpProvider` only on `provider === 'http' && nowPlayingUrl`. A row with a null
+  `stream_url` but an HTTP provider and a now-playing URL would use the HTTP provider. So **the
+  station being unconfigured and the now-playing fall-through are two separate facts**, and only the
+  second is what this bullet is about. ⚠ My first version of this marker said the row being
+  unconfigured was the cause — I had **checked the right code and drawn the wrong arrow**, which is
+  this file's own *a because-clause is a claim* defect committed inside a correction to a claim. The nav's permanent **ON AIR** chip, the **LIVE** badge and the
   `@keyframes eq` equaliser are gone.
   ⚠ **THE RADIO CARD DOES CARRY AN ON AIR CHIP, AND THE RULE IS NOT "NEVER SAY IT" BUT "NEVER
   CLAIM IT UNLABELLED"** (owner: *"just have on air showing on demo mode which is fine. once
