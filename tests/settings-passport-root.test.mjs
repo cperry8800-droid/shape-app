@@ -217,7 +217,7 @@ test('the tiles are squared and chamfered, on the owner’s note', () => {
   // house polygon thirteen other surfaces already clip with, named once here.
   assert.match(src, /const BS_CHAMFER = 'polygon\(0 0, calc\(100% - 11px\) 0, 100% 11px, 100% 100%, 0 100%\)'/,
     'the house chamfer is not defined');
-  for (const c of ['PassportTile', 'QuickSwitch']) {
+  for (const c of ['PassportTile', 'QuickSwitch', 'PassportBtn']) {
     const i = src.indexOf(`const ${c} = `);
     assert.ok(i > 0, `${c} is gone`);
     const body = src.slice(i, i + 1600);
@@ -378,9 +378,131 @@ test('the identity card prints a handle only when the member actually has one', 
     'the card prints identity.handle unconditionally again');
   assert.ok(/if \('handle' in d\) setHandleKnown\(!!d\.handle\);/.test(clean),
     'a saved client_identity handle no longer marks the handle as the member’s');
-  // And the write, or the guard lasts exactly one save: saveEdit persists the whole
-  // draft, so a synthesized handle used to land in client_identity and be read back
-  // as claimed on the next load.
-  assert.ok(/if \(!handleKnown\) delete patch\.handle;/.test(clean),
-    'saveEdit persists a synthesized handle again, which launders it into a claimed one');
+  // And the write, or the guard lasts exactly one save: saveEdit used to persist the
+  // whole draft, so a synthesized handle landed in client_identity and was read back
+  // as claimed on the next load. ⚠ RE-ANCHORED 2026-09-15: the first fix dropped the
+  // key with `if (!handleKnown) delete patch.handle` — under a comment claiming the
+  // form had no handle field. It has one, so that line also dropped every handle a
+  // member TYPED. The invariant is now upstream: a handle that is not theirs never
+  // enters the draft, so the write can trust what is in the field.
+  assert.ok(/handle: handleKnown \? id\.handle : '',/.test(clean),
+    'seedDraft hands the synthesized handle to the form again, and the save writes it back as claimed');
+  assert.ok(!clean.includes('delete patch.handle'),
+    'the guard that dropped every typed handle is back');
+});
+
+// ── THE EDIT PAGE (2026-09-15) ── the Passport's registered next step, built on the
+// owner's two notes: "need to update design of this page edit profile page on app to
+// match new settings design" and "when you hit the back button on edit profile need to
+// route it back to the settings page not the home page". The form used to render
+// INLINE on the root under the root's own ← Back, which is the shell's onBack.
+
+function editPane() {
+  const a = src.indexOf('{!detail && editing && (<>');
+  assert.ok(a > 0, 'there is no Edit profile pane — the form is back inline on the root');
+  const b = src.indexOf('{!detail && !editing && (<>', a);
+  assert.ok(b > a, 'the root fragment no longer follows the edit pane');
+  const pane = src.slice(a, b);
+  assert.ok(pane.length > 3000 && pane.length < 14000, `edit pane span is ${pane.length} chars — the extractor is reading something else`);
+  assert.ok(pane.includes('onClick={saveEdit}') && pane.includes('onClick={cancelEdit}'), 'the pane no longer carries Save and Cancel');
+  return pane;
+}
+
+test('Edit profile is its own page whose Back returns to Settings, never to Home', () => {
+  const pane = editPane();
+  assert.match(pane, /<DetailBack title=\{tr\('settings:passport\.edit'[^\n]*onBack=\{cancelEdit\} \/>/,
+    'the pane’s back row does not return to the Settings root');
+  assert.ok(!pane.includes('onClick={onBack}'), 'the pane carries the shell’s own Back, which closes Settings and lands on Home');
+  // DetailBack must honour the target, or every pane's row says "← Settings" and does
+  // something else.
+  const i = src.indexOf('const DetailBack = ');
+  assert.ok(i > 0, 'DetailBack is gone');
+  const db = src.slice(i, i + 1400);
+  assert.match(db, /const DetailBack = \(\{ title, onBack: back = \(\) => setDetail\(''\) \}\)/,
+    'DetailBack no longer takes a back target that defaults to the root');
+  assert.match(db, /<button onClick=\{back\}/, 'DetailBack ignores the back target it was given');
+});
+
+test('the root, its own Back and the doors are hidden while editing', () => {
+  const s = componentSrc('BSSettings');
+  const gates = s.split('{!detail && !editing && (<>').length - 1;
+  assert.equal(gates, 2, `the root is gated on !editing at ${gates} sites, not 2 — the masthead or the tiles render under the edit page`);
+  assert.ok(!/\{!detail && \(<>/.test(s), 'a root fragment is gated on !detail alone again — it renders under the edit page');
+  const root = s.indexOf('{!detail && !editing && (<>');
+  const tiles = s.indexOf('{!detail && !editing && (<>', root + 1);
+  // The shell's Back — the one that closes Settings — renders exactly once, inside the
+  // root fragment, so it cannot be reached from the edit page.
+  assert.equal(s.split('onClick={onBack}').length - 1, 1, 'the shell’s Back renders at more than one site');
+  const shellBack = s.indexOf('onClick={onBack}');
+  assert.ok(shellBack > root && shellBack < tiles, 'the shell’s Back (onClick={onBack}) is outside the !editing root fragment');
+});
+
+test('the edit page is squared and chamfered, in the Passport’s own grammar', () => {
+  const pane = editPane();
+  // Every control cell in the form is the quick switch's box; every text box is squared.
+  const lines = pane.split('\n').filter(l => l.includes('<button '));
+  assert.equal(lines.length, 2, `expected the two cell rows (avatar source, pronouns), found ${lines.length} <button> lines`);
+  for (const l of lines) assert.match(l, /style=\{(cell\(on\)|\{ \.\.\.cell\(on\))/, `a control in the form is not a Passport cell: ${l.trim().slice(0, 80)}`);
+  const cellAt = pane.indexOf('const cell = ');
+  assert.ok(cellAt > 0, 'the cell style is gone');
+  assert.match(pane.slice(cellAt, cellAt + 400), /borderRadius: 3, clipPath: BS_CHAMFER/, 'the cell lost its square corner or its chamfer');
+  const fieldAt = pane.indexOf('const field = ');
+  assert.ok(fieldAt > 0, 'the field style is gone');
+  assert.match(pane.slice(fieldAt, fieldAt + 300), /borderRadius: 3,/, 'the text boxes are rounded again');
+  // Every radius in the form is 3 and every clip is the chamfer — the 7px tier dot is
+  // a dot, not a pill, and is the one radius-999 the pane may carry. Stated as "no
+  // other value" rather than "no 999": a cell that spreads cell(on) and then overrides
+  // its clipPath is still a cell(on) by the line check above.
+  const noDot = pane.replace(/width: 7, height: 7, borderRadius: 999/g, '');
+  const radii = [...noDot.matchAll(/borderRadius: ([^,}\n]+)/g)].map(m => m[1].trim());
+  // ⚠ THE FLOOR IS THREE, MEASURED: the field, the cell and the avatar card. A first
+  // draft said four and failed the correct tree — a vacuity floor is a claim too.
+  assert.ok(radii.length >= 3, `expected the field, the cell and the avatar card to set a radius; found ${radii.length}`);
+  assert.deepEqual([...new Set(radii)], ['3'], `a rounded box came back into the form: ${radii.filter(r => r !== '3').join(', ')}`);
+  const clips = [...noDot.matchAll(/clipPath: ([^,}\n]+)/g)].map(m => m[1].trim());
+  assert.ok(clips.length >= 2, 'the form no longer clips its cells and its avatar card');
+  assert.deepEqual([...new Set(clips)], ['BS_CHAMFER'], `a cell overrides the chamfer: ${clips.filter(c => c !== 'BS_CHAMFER').join(', ')}`);
+  // The avatar card is the identity card's box, with the ✎ control on the avatar.
+  assert.match(pane, /<BSFacetAvatar [^\n]*editable onEdit=/, 'the avatar lost its ✎ control');
+  // Cancel · Save are the card's own button — the two cannot drift.
+  assert.equal(pane.split('<PassportBtn ').length - 1, 2, 'Cancel and Save are not the card’s own button');
+  assert.match(pane, /<PassportBtn label=\{tr\('settings:edit\.saveChanges'[^\n]*onClick=\{saveEdit\} fill tall \/>/, 'Save is not the filled, 44px PassportBtn');
+  const cardAt = src.indexOf('const sub = [handleKnown ? identity.handle');
+  assert.ok(cardAt > 0, 'the identity card is gone');
+  assert.equal(src.slice(cardAt, cardAt + 3000).split('<PassportBtn ').length - 1, 2, 'the identity card’s two actions no longer use PassportBtn');
+  // And the tier line reads the same role-aware reading as the card, or a coach reads
+  // two tiers one tap apart — the Codex P2 from #2085, kept closed.
+  assert.match(pane, /tr\('settings:edit\.tierColor', \{ tier: scoreProfile\.tier,/, 'the edit page’s tier line is not the role-aware reading');
+});
+
+test('the draft is seeded from what the member has, never from the demo persona', () => {
+  // `identity` carries demo defaults (a Brooklyn address, a bio, a slugged handle) so
+  // the signed-out preview has something to show. A form seeded straight from it
+  // presented those as a real member's own entries, and saveEdit persisted them — the
+  // card's locationKnown guard lasted exactly one save of any other field.
+  const clean = stripComments(src);
+  assert.match(clean, /const seedDraft = \(id = identity\) => \(\{\s*\.\.\.id,\s*handle: handleKnown \? id\.handle : '',\s*location: locationKnown \? id\.location : '',\s*bio: bioKnown \? id\.bio : '',\s*\}\);/,
+    'seedDraft no longer withholds the persona’s handle, city or bio');
+  assert.match(clean, /const \[draft, setDraft\] = useStateBSC\(seedDraft\(\)\);/, 'the initial draft is not seeded');
+  assert.match(clean, /const startEdit = \(\) => \{ setDraft\(seedDraft\(\)\); setEditing\(true\); \};/, 'startEdit seeds from identity again');
+  // Both entries: the card's button and the public profile's Edit.
+  assert.match(clean, /setShowPublicProfile\(false\); startEdit\(\); \}\}/, 'the public profile’s Edit skips startEdit, so a cancelled draft comes back');
+  assert.match(clean, /const \[bioKnown, setBioKnown\] = useStateBSC\(false\);/, 'bioKnown is gone');
+  assert.match(clean, /if \('bio' in d\) setBioKnown\(!!d\.bio\);/, 'the hydrate no longer learns whether a bio was saved');
+});
+
+test('saveEdit writes only the form’s fields, and a typed handle is written', () => {
+  const clean = stripComments(src);
+  const i = clean.indexOf('const saveEdit  = () => {');
+  assert.ok(i > 0, 'saveEdit is gone');
+  const body = clean.slice(i, clean.indexOf('const cancelEdit = ', i));
+  assert.ok(body.length > 400 && body.length < 4000, `saveEdit span is ${body.length} chars`);
+  assert.ok(!body.includes('...draft'), 'saveEdit spreads the whole draft again — goal and accent ride a form that never shows them');
+  assert.ok(!/\bgoal\b/.test(body), 'saveEdit writes goal, the Goal page’s own field');
+  assert.match(body, /const typed = String\(draft\.handle \|\| ''\)\.trim\(\)\.replace\(\/\^@\+\/, ''\);/, 'the handle is not normalised');
+  assert.match(body, /\.\.\.\(handle \? \{ handle \} : \{\}\)/, 'a typed handle is not written (or an empty one is)');
+  assert.match(body, /if \(handle\) setHandleKnown\(true\);/, 'a typed handle does not mark the handle as the member’s');
+  assert.match(body, /setLocationKnown\(!!location\);/, 'saveEdit does not record whether a city was written');
+  assert.match(body, /setBioKnown\(!!bio\.trim\(\)\);/, 'saveEdit does not record whether a bio was written');
+  assert.match(body, /bsSaveIdentity\(patch\);/, 'saveEdit no longer persists through the serialized writer');
 });

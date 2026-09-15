@@ -163,6 +163,26 @@ function layoutEffects(root) {
   return out;
 }
 
+// The reset for a pane key. The effect's own body USED to carry the walk; the Edit
+// profile page (2026-09-15) gave it a second key, so the walk lives in one helper and
+// each effect calls it. Resolve through the call, or a guard pinned to the old inline
+// spelling fails the correct tree — the class this repo has paid for a dozen times.
+// ⚠ DERIVED, NOT TYPED: the helper's name is read out of the effect body.
+function resetBodyFor(dep) {
+  const fn = settingsNode();
+  assert.ok(fn, 'BSSettings is not a function declaration any more — this whole file is measuring nothing');
+  const eff = layoutEffects(fn).find(e => e.deps && e.deps.length === 1 && e.deps[0] === dep);
+  assert.ok(eff, `no layout effect keyed on \`${dep}\` — that pane opens wherever the root happened to be scrolled`);
+  const body = src.slice(eff.node.start, eff.node.end);
+  if (/scrollTop\s*=\s*0/.test(body)) return { body, via: null };
+  const call = body.match(/\{\s*([A-Za-z_$][\w$]*)\(\);?\s*\}/);
+  assert.ok(call, `the effect keyed on \`${dep}\` neither resets the scroller nor calls anything that could`);
+  const settings = src.slice(fn.start, fn.end);
+  const m = settings.match(new RegExp('const ' + call[1] + ' = \\(\\) => \\{[\\s\\S]*?\\n  \\};'));
+  assert.ok(m, `the effect keyed on \`${dep}\` calls ${call[1]}(), which BSSettings does not define`);
+  return { body: m[0], via: call[1] };
+}
+
 test('a drill-in pane opens at its top, whatever the member had scrolled', () => {
   // ⚠ REACHABLE ONLY BECAUSE OF THIS PANE, which is why it is this PR's to fix.
   // BSPage keeps ONE `.bs-scroll` across every value of `detail` and never resets it
@@ -172,16 +192,19 @@ test('a drill-in pane opens at its top, whatever the member had scrolled', () =>
   // itself at 0 and nobody could see the defect. Customize is 355 lines: it keeps
   // whatever the root was scrolled to and opens with its own DetailBack and tab bar
   // already above the viewport.
-  const fn = settingsNode();
-  assert.ok(fn, 'BSSettings is not a function declaration any more — this whole file is measuring nothing');
-  const eff = layoutEffects(fn).find(e => e.deps && e.deps.length === 1 && e.deps[0] === 'detail');
-  assert.ok(eff, 'no layout effect keyed on `detail` — a pane opens wherever the root happened to be scrolled');
-  const body = src.slice(eff.node.start, eff.node.end);
+  const { body } = resetBodyFor('detail');
   assert.match(body, /scrollTop\s*=\s*0/, 'the effect keyed on `detail` does not reset the scroller');
   // ⚠ BOTH DIRECTIONS, and the dep array is what says so: keyed on `detail` it runs
   // on the way into a pane AND on the way back to the root. Backing out of a short
   // pane already landed at 0 (the browser had clamped it), so this makes today's
   // behaviour deterministic rather than changing it.
+  // ⚠ AND THE EDIT PROFILE PAGE, WHICH IS KEYED ON `editing` AND NOT ON `detail`
+  // (toRoot clears every `detail`, and that page holds an unsaved draft). It is a pane
+  // by every measure that matters here — taller than a viewport, opened from a root
+  // the member may have scrolled — so it takes the same reset, through the same walk.
+  const edit = resetBodyFor('editing');
+  assert.match(edit.body, /scrollTop\s*=\s*0/, 'the edit page opens wherever the root was scrolled');
+  assert.equal(edit.body, body, 'the two keys reset through different code — one of them will drift');
 });
 
 test('and it finds ITS OWN scroller by walking up, never the first one in the document', () => {
@@ -191,8 +214,7 @@ test('and it finds ITS OWN scroller by walking up, never the first one in the do
   // can return the page underneath. The 2026-09-14 settings review paid for this with
   // a harness that reported on Home while the screenshots showed Settings.
   const fn = settingsNode();
-  const eff = layoutEffects(fn).find(e => e.deps && e.deps.length === 1 && e.deps[0] === 'detail');
-  const body = src.slice(eff.node.start, eff.node.end);
+  const { body } = resetBodyFor('detail');
   assert.match(body, /\.closest\(\s*'\.bs-scroll'\s*\)/, 'the scroller is not resolved by walking up from our own tree');
   // ⚠ COMMENTS STRIPPED, AND THIS GUARD CAUGHT ITSELF ON ITS FIRST RUN. The
   // rationale above the effect names `document.querySelector('.bs-scroll')` in order
@@ -214,8 +236,7 @@ test('and the ref it walks up from is attached INSIDE the scroller', () => {
   // becomes a no-op that reads as shipped. The ref NAME is derived from the effect
   // rather than typed here, so a rename fails for the right reason or not at all.
   const fn = settingsNode();
-  const eff = layoutEffects(fn).find(e => e.deps && e.deps.length === 1 && e.deps[0] === 'detail');
-  const body = src.slice(eff.node.start, eff.node.end);
+  const { body } = resetBodyFor('detail');
   const m = body.match(/([A-Za-z_$][\w$]*)\.current/);
   assert.ok(m, 'the effect reads no ref — it cannot know which scroller is ours');
   const refName = m[1];
