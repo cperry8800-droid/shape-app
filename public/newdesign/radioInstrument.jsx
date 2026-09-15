@@ -132,7 +132,14 @@ function useRadioStation() {
       // and this page publishes neither: the title would be an invented reading under
       // "Now playing" and it would drive the field's own programme (Codex, round 5).
       .then((d) => { if (on) setNowPlaying(d && !d.simulated && (d.title || d.artist) ? d : null); })
-      .catch(() => {});
+      // ⚠ AND A POLL THAT NEVER LANDED CLEARS IT TOO (Codex, round 6). This was an empty
+      // catch, so a successful poll followed by a dropped connection left the LAST title
+      // on screen under "Now playing" indefinitely — and feeding trackRef, so the field's
+      // programme went on following a song we could no longer confirm was playing. The
+      // non-ok arm one line up already clears for exactly this reason, which is what made
+      // the catch the odd one out rather than a judgement call: a reading we cannot take
+      // is not a reading, whichever way the attempt failed.
+      .catch(() => { if (on) setNowPlaying(null); });
     tick();
     const id = setInterval(tick, 15000);
     return () => { on = false; clearInterval(id); };

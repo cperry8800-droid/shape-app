@@ -272,11 +272,28 @@ test('a fetch that never landed does not claim there is no station', () => {
   for (const ev of ['pause', 'ended', 'error']) {
     assert.ok(byEvent[ev], `the audio element has no \`${ev}\` listener — playback can stop with the page still claiming it is on air`);
   }
+  // ⚠ AND THE CALLEE IS CHECKED, NOT JUST THE ARGUMENT (Codex, round 6). The previous
+  // version accepted ANY one-argument call passing `true`, so `() => noop(true)`
+  // satisfied it while clearing nothing, refusing nothing and dropping no source — and
+  // the separate inspection of the cleanup function never connected it to either event.
+  // The name is read off the cleanup function's own binding rather than typed here, so
+  // renaming it cannot silently unhook this.
+  const cleanupName = (() => {
+    // the INNERMOST match: `play` encloses this handler, so its own declarator
+    // contains both markers too and a naive collect returns two
+    const d = collect(AST, (n) => n.type === 'VariableDeclarator' && n.init
+      && n.id.type === 'Identifier'
+      && /removeAttribute\("src"\)/.test(SRC.slice(n.init.start, n.init.end))
+      && /startedAtRef\.current = null/.test(SRC.slice(n.init.start, n.init.end)));
+    assert.ok(d.length > 0, 'could not identify the terminal cleanup binding');
+    return d.reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b)).id.name;
+  })();
   for (const ev of ['ended', 'error']) {
-    const calls = collect(byEvent[ev], (n) => n.type === 'CallExpression' && n.arguments.length === 1
-      && n.arguments[0].type === 'BooleanLiteral');
+    const calls = collect(byEvent[ev], (n) => n.type === 'CallExpression'
+      && n.callee.type === 'Identifier' && n.callee.name === cleanupName
+      && n.arguments.length === 1 && n.arguments[0].type === 'BooleanLiteral');
     assert.ok(calls.length === 1 && calls[0].arguments[0].value === true,
-      `the \`${ev}\` listener does not take the failure path — the dead source stays cached and nothing says why`);
+      `the \`${ev}\` listener does not call \`${cleanupName}(true)\` — the dead source stays cached and nothing says why`);
   }
 
   assert.ok((BARE.match(/removeAttribute\("src"\)/g) || []).length >= 2,
@@ -378,8 +395,18 @@ test('the station route never publishes a lookup failure as a configuration verd
   // before `configured` — all of which survive deleting the `return`, after which the
   // handler falls through and emits 200 {configured:false} for the failed lookup again.
   // The exact regression the test exists for, walking past the test.
-  const returns = collect(guard, (n) => n.type === 'ReturnStatement' && n.argument);
-  assert.ok(returns.length > 0, 'the station error branch does not return — the handler falls through to the 200');
+  // ⚠ AND THE RETURN MUST BE THE BRANCH'S OWN, NOT ONE NESTED INSIDE A CALLBACK
+  // (Codex, round 6). `collect` descends recursively, so
+  //     if (error) { const fail = () => { return NextResponse.json(..., {status:503}); }; fail(); }
+  // supplies a ReturnStatement and a failure status while the handler DISCARDS that
+  // response and falls through to the 200 — the very regression this guard exists for,
+  // satisfying the fix written for it one round earlier. This is the same nested-scope
+  // rule already applied to `play()`'s marks, which I wrote in the same session and did
+  // not carry across to the route.
+  const guardNested = functionsOf(guard);
+  const ownReturn = (n) => !guardNested.some((f) => n.start > f.start && n.end < f.end);
+  const returns = collect(guard, (n) => n.type === 'ReturnStatement' && n.argument).filter(ownReturn);
+  assert.ok(returns.length > 0, 'the station error branch does not return in its own scope — the handler falls through to the 200');
   const statuses = returns.flatMap((r) => collect(r, (n) => n.type === 'ObjectProperty'
     && n.key.name === 'status' && typeof n.value.value === 'number'));
   assert.ok(statuses.length > 0, 'the error branch returns no explicit status');
@@ -432,4 +459,28 @@ test('a simulated now-playing payload is never published as a measured track', (
   // and the page refuses it
   assert.match(BARE, /!d\.simulated/,
     'the page publishes a simulated payload as the now-playing track');
+
+  // ⚠ AND A POLL THAT NEVER LANDED CLEARS THE READING TOO (Codex, round 6). An empty
+  // catch left the last title on screen under "Now playing" — and feeding radioProgram —
+  // long after the connection dropped, while the non-ok arm beside it cleared correctly.
+  // the INNERMOST function that names the route — the enclosing hook also contains
+  // the /api/me poll, whose own catch legitimately does not touch the track
+  const pollFns = functionsOf(AST).filter((f) => collect(f, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/radio/now-playing').length > 0);
+  assert.ok(pollFns.length > 0, 'could not find the now-playing poll');
+  const poll = pollFns.reduce((a, b) => (a.end - a.start <= b.end - b.start ? a : b));
+  const catches = collect(poll, (n) => n.type === 'CallExpression'
+    && n.callee.type === 'MemberExpression' && n.callee.property.name === 'catch');
+  assert.ok(catches.length > 0, 'the now-playing poll has no catch at all');
+  // ⚠ THE HANDLER, NOT THE CALL NODE. A `.catch(fn)` CallExpression's CALLEE is the
+  // whole preceding chain, so collecting over the node descends into the `.then` that
+  // legitimately calls setNowPlaying — and this guard passed with an empty catch until
+  // a mutation said otherwise. Third enclosing-node slip of the session: the node that
+  // contains the thing you are looking for is rarely the node you meant.
+  for (const c of catches) {
+    const handler = c.arguments[0];
+    assert.ok(handler, 'the now-playing catch takes no handler');
+    assert.ok(collect(handler, (n) => calleeName(n) === 'setNowPlaying').length > 0,
+      'a failed now-playing poll keeps the last track on screen — a reading we cannot take is not a reading');
+  }
 });
