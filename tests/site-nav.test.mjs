@@ -211,14 +211,41 @@ test('every control in the auth cluster refuses to wrap', () => {
   assert.match(INDEX, /\.ncta\{[\s\S]{0,240}?white-space:nowrap/, 'the homepage Get started can wrap again');
 });
 
-test('Get started came down in size, and Radio matches its height', () => {
+test('Get started stays small, and Radio matches its height', () => {
   // Owner: "reduce the size of get started box".
+  // ⚠ RE-ANCHORED: this pinned `height:34px` literally, so the N1 nav treatment —
+  // which takes the pair to 36 with the house chamfer — broke a test about the pair
+  // being SMALL and MATCHED. A guard that pins a spelling pins whatever that
+  // spelling is wrong about. The invariants are the two that were ever meant: the
+  // CTA is well under the 38px floor it came down from, and the chip is exactly the
+  // same height, so the right-hand cluster reads as one row.
   const cta = /\.ncta\{([\s\S]*?)\}/.exec(INDEX);
   assert.ok(cta, 'the homepage CTA rule is gone');
-  assert.match(cta[1], /height:34px/, 'the CTA is not 34px tall: ' + cta[1]);
+  const ctaH = /height:(\d+)px/.exec(cta[1]);
+  assert.ok(ctaH, 'the CTA has no height: ' + cta[1]);
+  assert.ok(Number(ctaH[1]) < 38, 'the CTA is back up to ' + ctaH[1] + 'px');
   assert.ok(!/min-height:38px/.test(cta[1]), 'the CTA kept its 38px floor');
   const radio = /\.nradio\{([\s\S]*?)\}/.exec(INDEX);
-  assert.match(radio[1], /height:34px/, 'the Radio pill no longer matches the button height');
+  const radioH = /height:(\d+)px/.exec(radio[1]);
+  assert.ok(radioH, 'the Radio pill has no height');
+  assert.equal(radioH[1], ctaH[1], 'the Radio pill no longer matches the button height');
+  // and the shared header draws the same pair, or one bar reads two ways
+  const shellH = /const NAV_PILL_H = (\d+)/.exec(SHELL);
+  assert.ok(shellH, 'NAV_PILL_H is gone from pageShell');
+  assert.equal(shellH[1], ctaH[1], 'the two bars draw the pair at different heights');
+  // the chamfer is on both, and it is the same cut
+  const cut = (s) => (/calc\(100% - (\d+)px\) 0/.exec(s) || [])[1];
+  assert.equal(cut(cta[1]), '8', 'the homepage CTA lost its chamfer');
+  assert.equal(cut(radio[1]), '8', 'the homepage Radio pill lost its chamfer');
+  // ⚠ THE SHELL NAMES THE CUT ONCE AND INTERPOLATES IT, so there is no literal
+  // `calc(100% - 8px)` to match there — asking for one reported a chamfer that is
+  // plainly in the file as missing. The invariant is that it is the same cut, which
+  // means reading the constant it is built from.
+  const shellCut = /const NAV_CUT = (\d+)/.exec(SHELL);
+  assert.ok(shellCut, 'NAV_CUT is gone from pageShell');
+  assert.equal(shellCut[1], '8', 'the shared header uses a different cut from the homepage');
+  assert.match(SHELL, /navChamfer[\s\S]{0,120}calc\(100% - \$\{NAV_CUT\}px\)/, 'the shared chamfer is not built from NAV_CUT');
+  assert.ok(/clipPath: navChamfer/.test(SHELL), 'the shared header lost its chamfer');
 });
 
 test('the logo is larger than it was, on both bars', () => {

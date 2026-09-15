@@ -134,14 +134,36 @@ test('the shared radio wordmark RENDERS, and what it renders claims nothing', as
     else if (src[k] === '}') { depth--; if (started && depth === 0) { end = k + 1; break; } }
   }
   assert.ok(end > i, 'could not brace-match RadioWordmark');
-  const consts = (src.match(/^const (TEAL_BRIGHT|RUST|mono|sans|navSans|navDisp)\s*=.*$/gm) || []).join('\n');
-  // ⚠ guard the guard: without the constants the component throws a
-  // ReferenceError and the failure reads as "the component is broken".
+  // ⚠ EVERY MODULE-SCOPE CONST, NOT A HAND-LISTED SIX. The named set went stale the
+  // day the wordmark grew a chamfer — it closes over NAV_PILL_H, navChamfer and
+  // TEAL_APP now — and the failure read as "the component is broken" rather than
+  // "the harness is incomplete". A single-line const is safe to lift wholesale;
+  // anything multi-line is a function and is lifted separately below.
+  // A single-line const is safe to lift; a multi-line literal's first line alone is a
+  // parse error. The test is "ends in a semicolon once any trailing comment is off",
+  // because half of this file's constants carry one.
+  const consts = (src.match(/^const [A-Za-z_$][\w$]* = .*$/gm) || [])
+    .filter((l) => l.replace(/\s*\/\/.*$/, '').trim().endsWith(';'))
+    .join('\n');
+  // ...plus the helper components it renders, brace-matched like the wordmark itself
+  const helpers = ['NavFrame'].map((name) => {
+    const at = src.indexOf('function ' + name + '(');
+    assert.ok(at > 0, name + ' is gone from pageShell');
+    let d = 0, on = false, stop = -1;
+    for (let k = src.indexOf('{', src.indexOf(')', at)); k < src.length; k++) {
+      if (src[k] === '{') { d++; on = true; } else if (src[k] === '}') { d--; if (on && d === 0) { stop = k + 1; break; } }
+    }
+    assert.ok(stop > at, 'could not brace-match ' + name);
+    return src.slice(at, stop);
+  }).join('\n');
+  // ⚠ guard the guard: without these the component throws a ReferenceError and the
+  // failure reads as "the component is broken".
   assert.match(consts, /TEAL_BRIGHT/, 'the constants were not lifted');
+  assert.match(helpers, /function NavFrame/, 'the wordmark\'s helpers were not lifted');
 
   // the `return` is appended AFTER transpiling — a bare top-level return is a
   // parse error in module scope and would fail before any JSX is compiled
-  const js = transformSync(consts + '\n' + src.slice(i, end), {
+  const js = transformSync(consts + '\n' + helpers + '\n' + src.slice(i, end), {
     presets: [['@babel/preset-react', { runtime: 'classic' }]],
     filename: 'wordmark.jsx', configFile: false, babelrc: false,
   }).code;

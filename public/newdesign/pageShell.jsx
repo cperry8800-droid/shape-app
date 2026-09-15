@@ -5,6 +5,10 @@ const INK = "#f2ede4";          // warm cream text
 const INK_DEEP = "#0b0e0c";     // true cinema base (footer / deep surfaces)
 const TEAL = "#0ac5a8";         // refined cinema teal accent
 const TEAL_BRIGHT = "#2ee0c4";
+// The app's own accent, the one the homepage, the Radio page and every mobile
+// surface paint. The nav pair uses this; the rest of the site's chrome still uses
+// the two above, which is a wider sweep than a nav change.
+const TEAL_APP = "#34d6c5";
 const RUST = "#d2693f";         // warm secondary accent
 const serif = "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif";
 const sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif";
@@ -89,13 +93,49 @@ function Logo({ variant = "black", size = 28 }) {
 // links to Radio, it carries the two-triangle mark, and it CLAIMS NOTHING),
 // because a guard that pins a spelling pins whatever that spelling is wrong
 // about.
+// ⚠ THE CHAMFER IS A CLIP PLUS A DRAWN OUTLINE, NOT A CLIP ALONE. A clip-path cuts
+// the element's OWN border off along the diagonal, so a bordered pill clipped this
+// way reads as a box with a corner missing. The fill is clipped and the outline is
+// an SVG path that follows the same eight-pixel cut — the treatment the concept
+// board's N1 used, for this reason.
+const NAV_CUT = 8;
+const NAV_PILL_H = 36;   // the pair's own height; NAV_H below is the logo's and is unrelated
+const navChamfer = `polygon(0 0, calc(100% - ${NAV_CUT}px) 0, 100% ${NAV_CUT}px, 100% 100%, 0 100%)`;
+
+// The outline, sized by a ResizeObserver rather than by a viewBox: an <svg> with no
+// intrinsic size keeps its 300x150 default under inset:0, which on this very site
+// ran a frame 87px past a 400px viewport.
+function NavFrame({ stroke }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || !el.parentElement) return undefined;
+    const box = el.parentElement;
+    const draw = () => {
+      const w = box.clientWidth; const h = box.clientHeight;
+      const p = el.querySelector("path");
+      if (p && w > 0 && h > 0) p.setAttribute("d", `M.5 .5H${w - NAV_CUT}L${w - 0.5} ${NAV_CUT}V${h - 0.5}H.5Z`);
+    };
+    const ro = new ResizeObserver(draw);
+    ro.observe(box);
+    draw();
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <svg ref={ref} aria-hidden style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", display: "block" }}>
+      <path fill="none" stroke={stroke} strokeWidth="1" d="M.5 .5H.5Z" />
+    </svg>
+  );
+}
+
 function RadioWordmark() {
   const cream = "rgba(245,239,225,0.92)";
   return (
     <a className="shape-nav-radio" href="/newdesign/Radio.html" aria-label="Shape Radio"
-      style={{ display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", whiteSpace: "nowrap", height: 34, padding: "0 11px", borderRadius: 5, border: "1px solid rgba(245,239,225,0.12)", color: "rgba(245,239,225,0.78)", fontFamily: navDisp, fontWeight: 500, fontVariationSettings: "'wdth' 150", fontSize: 12, letterSpacing: "0.02em", textTransform: "uppercase", lineHeight: 1, flex: "0 0 auto" }}>
-      <svg aria-hidden viewBox="8 8 79 98" style={{ width: 9, height: 11, flex: "0 0 auto", display: "block" }}>
-        <polygon points="14,47 14,100 51,73" fill={TEAL_BRIGHT} />
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", whiteSpace: "nowrap", height: NAV_PILL_H, padding: "0 12px", clipPath: navChamfer, color: "rgba(245,239,225,0.78)", fontFamily: navDisp, fontWeight: 500, fontVariationSettings: "'wdth' 150", fontSize: 12, letterSpacing: "0.02em", textTransform: "uppercase", lineHeight: 1, flex: "0 0 auto" }}>
+      <NavFrame stroke="rgba(245,239,225,0.14)" />
+      <svg aria-hidden viewBox="8 8 79 98" style={{ width: 11, height: 13, flex: "0 0 auto", display: "block" }}>
+        <polygon points="14,47 14,100 51,73" fill={TEAL_APP} />
         <polygon points="81,14 81,65 44,39" fill={cream} />
       </svg>
       Radio
@@ -993,7 +1033,11 @@ function Header({ active }) {
   // homepage's bar broke "Log in" onto two lines at 1180px because a
   // `flex: 1 1 0` column may shrink below its own content.
   const quietLink = { fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(245,239,225,0.78)", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", cursor: "pointer", flex: "0 0 auto" };
-  const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_BRIGHT, color: "#04110f", padding: "0 14px", height: 34, borderRadius: 5, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
+  // ⚠ THE APP'S TEAL, NOT THE SITE'S OLD ONE. #2ee0c4 was this header's own value
+  // and #34d6c5 is the pair the app, the homepage and the Radio page all paint, so
+  // the two sat a shade apart in one bar. No border, so the fill can simply be
+  // clipped — only the bordered chip beside it needs a drawn outline.
+  const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "#04110f", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.06)" }}>
