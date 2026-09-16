@@ -36200,110 +36200,110 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   );
 }
 
+// About — "The Note" (owner pick, 2026-09-16, off the concept board's A5 tab and
+// docs/REVIEW-2026-09-15-about-and-kitchen.md). The same page the website runs,
+// in the app's own tokens: an eyebrow, one headline that is the belief the
+// company is built on, three sentences from the letter each on its own line,
+// signed. Then the four facts and the door. The whole letter — verbatim, drop
+// cap and pull-quotes intact — and the approved bio sit behind one closed line.
+//
+// ⚠ THERE IS NO PORTRAIT ON THIS PAGE, ON EITHER SURFACE. Owner, 2026-09-16:
+// "remove my picture from the about pages on both website and app". That RETIRES
+// the 2026-08-28 founder-card ruling (#1945), which had moved the portrait to the
+// page bottom as the letter's sign-off; the signed name stays and carries the
+// sign-off alone. `founder.webp` is deleted from both trees, and
+// tests/about-note.test.mjs fails if either surface reaches for it again.
+//
+// ⚠ TWO DOORS HERE AS WELL, AND THE ONE-DOOR VERSION THIS SHIPPED WITH RESTED
+// ON A PREMISE THAT IS FALSE. It read "this app has nowhere to send it" — true
+// only of an IN-APP route, which is not what the door needs: coach signup lives
+// on the website, and this module already opens external web destinations
+// (`bsOpenCheckout` for Stripe, and the Terms page's own link). So the board's
+// second door was dropped for want of a mechanism that was already here, and a
+// signed-out visitor who wanted to become a coach lost the only route the page
+// offers them. ⚠ It goes through `bsOpenCheckout` rather than a bare
+// `location.href` DESPITE the checkout-specific name: on native that is the
+// Capacitor Browser hop, and a raw navigation would take the WebView itself to
+// a marketing page with no way back into the app.
+// ⚠ ABSOLUTE, NOT RELATIVE, AND THAT IS ABOUT THE NATIVE BUILD RATHER THAN
+// STYLE. On the web this page is served from the same origin as the website, so
+// a relative href would resolve — on iOS/Android the WebView's origin is the
+// Capacitor scheme, where `/newdesign/Coaches.html` resolves to nothing. Same
+// host form the Terms link already uses.
+const BS_ABOUT_COACH_URL = 'https://www.theshapecommunity.com/newdesign/Coaches.html';
 function BSAboutPage({ onBack }) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const tealB = t.isLight ? '#0a8f87' : '#5fe6d6';
   const px = t.padX;
-  // Same letter the website runs — drop-cap intro + two pull-quotes.
+  const [open, setOpen] = useStateBSC(false);
+  // The letter, behind the expander — the same seven paragraphs and two
+  // pull-quotes that shipped on the page itself, unchanged.
   const para = { fontFamily: t.DISPLAY, fontSize: 15.5, lineHeight: 1.72, color: t.INK70, margin: '0 0 22px' };
   const pull = { fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 22, lineHeight: 1.18, letterSpacing: '-0.02em', fontWeight: 500, color: t.INK, margin: '30px 0' };
-  // ⚠ THE DROP CAP IS TAKEN CODEPOINT-SAFELY FROM THE TRANSLATED VALUE, not by
-  // slicing a hardcoded English "S" off the front. `charAt(0)` splits a surrogate
-  // pair (an emoji, or any astral letter) into two broken halves; the spread
-  // walks codepoints. A locale whose first letter is multi-byte still renders.
+  const line = { fontFamily: t.DISPLAY, fontSize: 16.5, lineHeight: 1.5, color: t.INK70, margin: '18px auto 0', maxWidth: 420 };
   const letterP1 = tr('settings:aboutPage.letter.p1', { defaultValue: 'Shape is about exactly what its name suggests — shaping your life into what you want it to be. Your routines, your sleep, what you cook, the music that moves you, how you talk to yourself on hard days, the people you spend Saturday with. We built Shape to be the place where you can work on all of it, on your own terms.' });
   const p1Chars = [...String(letterP1 || '')];
   const p1Cap = p1Chars[0] || '';
   const p1Rest = p1Chars.slice(1).join('');
-  // ⚠ Every split-accent slot below is authored NON-EMPTY in all thirteen —
-  // i18n runs with `returnEmptyString: false`, so an empty catalog value renders
-  // the RAW KEY on screen. A locale with nothing to put in a slot writes
-  // punctuation or a particle (the Score-intro precedent), never "".
+  // ⚠ EVERY FACT IS CHECKED AGAINST WHAT THE PRODUCT ACTUALLY DOES — a strip of
+  // four claims is the easiest place on the page to state one nobody measured,
+  // and two of these four were measured wrong the first time.
+  //
+  // ⚠ THE CREDENTIALS FACT IS SCOPED TO THE BADGE, because this app's own Terms
+  // say the opposite of a blanket claim in as many words: "Unless a coach shows
+  // a Verified badge, the credentials on their profile are self-reported and not
+  // independently verified by Shape" (BSTermsPage, clause 04). This line first
+  // read "Coach credentials checked" under a comment reasoning that the ✓
+  // Verified badge renders PER COACH so "every coach verified" would contradict
+  // the surface it points at — which is right, and refutes the weaker blanket
+  // claim for exactly the same reason. A conditional badge IS the evidence that
+  // not every coach was checked. ⚠ REGISTERED, NOT FIXED: the website FAQ
+  // (public/newdesign/shared.jsx) still says "Every coach is vetted … We verify
+  // licenses on application and re-check annually", which contradicts the Terms.
+  // That pre-dates this page; the Terms are the operative document, so a NEW
+  // claim follows them.
+  //
+  // ⚠ AND THE COACH PRICE SAYS WHAT IS FREE. "Free for coaches" beside "$5 a
+  // month for members" reads as a price comparison and states the wrong half of
+  // it: coaches pay a 15% platform fee on what clients pay them (PLATFORM_FEE_RATE,
+  // src/lib/platform-fee.ts). The owner's 2026-09-14 ruling is "free to JOIN for
+  // coaches", which is the qualifier this dropped and the Coaches page keeps
+  // ("$0 to join and list", beside the fee). The locale count is the number of
+  // catalogs in mobile-app/src/i18n/catalogs.
+  const facts = [
+    tr('settings:aboutPage.factFee', { defaultValue: '$5 a month for members' }),
+    tr('settings:aboutPage.factCoach', { defaultValue: 'Coaches join free' }),
+    tr('settings:aboutPage.factChecked', { defaultValue: 'Verified coaches carry a badge' }),
+    tr('settings:aboutPage.factLangs', { defaultValue: '13 languages' }),
+  ];
   return (
     <BSPage>
-      {/* minimal back row (the hero is the title, mirroring the website) */}
+      {/* minimal back row (the note is the page, mirroring the website) */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${px}px 0` }}>
         {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} style={{ marginBottom: 12 }} />}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
+          {/* ⚠ PADDED WITH A CANCELLING NEGATIVE MARGIN, so the hit area grows
+              and the glyph does not move. Measured on the shipped page: 10px mono
+              in a zero-padding button is a 13px-TALL TAP TARGET, under this repo's
+              own documented floor — WCAG 2.5.8 AA at 24px, never Apple's 44pt
+              suggestion. 29px now. The Passport's own panes were padded this way
+              in #2087; this page has its own back row and never was. */}
+          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 10px', margin: '-8px -10px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK, fontWeight: 700 }}>← {tr('common:action.back', { defaultValue: 'Back' })}</button>
           <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('settings:aboutPage.eyebrow', { defaultValue: 'About · Shape' })}</span>
         </div>
       </div>
 
-      {/* HERO — A place / for helping shape a lifestyle (teal-stroke "shape") */}
-      <div style={{ padding: `34px ${px}px 26px`, textAlign: 'center' }}>
-        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 300, letterSpacing: '-0.045em', margin: 0, lineHeight: 0.94, color: t.INK }}>
-          {tr('settings:aboutPage.heroPre', { defaultValue: 'A place' })}<br />{tr('settings:aboutPage.heroMid', { defaultValue: 'for helping' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 400, color: 'transparent', WebkitTextStroke: `1.1px ${teal}` }}>{tr('settings:aboutPage.heroAccent', { defaultValue: 'shape' })}</em>{tr('settings:aboutPage.heroPost', { defaultValue: ' a lifestyle' })}
+      {/* THE NOTE — eyebrow, the belief, three lines from the letter, signed */}
+      <div style={{ padding: `34px ${px}px 0`, textAlign: 'center' }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, fontWeight: 700 }}>{tr('settings:aboutPage.noteEyebrow', { defaultValue: 'From the founder' })}</div>
+        <h1 style={{ fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 500, letterSpacing: '-0.025em', margin: '12px auto 0', lineHeight: 1.08, color: t.INK, maxWidth: 300 }}>
+          {tr('settings:aboutPage.noteHead', { defaultValue: 'Great coaching shouldn’t be a luxury.' })}
         </h1>
-        <p style={{ fontFamily: t.DISPLAY, fontSize: 16, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.005em', color: t.INK70, margin: '28px auto 0', maxWidth: 560, lineHeight: 1.55 }}>
-          {tr('settings:aboutPage.heroLead', { defaultValue: "Your trainer already mapped out the next few weeks. Your nutritionist's plan became a grocery list before you thought to ask. When you open the workout card, the music starts — your coach picked it for that session. Shape Score watches all of it. Miss a day, it knows. Build a streak, it shows. The community isn't moderated positivity — it's people who are also mid-loop, figuring it out in real time. Nobody here is finished. That's the point." })}
-        </p>
-      </div>
-
-      {/* THE IDEA — coach platform + social network (leads, right after the hero) */}
-      <div style={{ padding: `8px ${px}px 8px` }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontStyle: 'italic', fontWeight: 400, letterSpacing: '-0.02em', color: teal, marginBottom: 14, lineHeight: 1.05 }}>{tr('settings:aboutPage.idea.kicker', { defaultValue: 'The idea.' })}</div>
-          <h3 style={{ fontFamily: t.DISPLAY, fontSize: 26, letterSpacing: '-0.03em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.08, color: t.INK }}>
-            {tr('settings:aboutPage.idea.h1Pre', { defaultValue: 'The platform coaches build their' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.idea.h1Accent', { defaultValue: 'business' })}</em>{tr('settings:aboutPage.idea.h1Post', { defaultValue: ' on.' })}{' '}{tr('settings:aboutPage.idea.h2Pre', { defaultValue: 'The' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.idea.h2Accent', { defaultValue: 'social network' })}</em>{tr('settings:aboutPage.idea.h2Post', { defaultValue: ' for coaching, training and nutrition.' })}
-          </h3>
-        </div>
-        {[
-          ['coach', tr('settings:aboutPage.idea.coachEyebrow', { defaultValue: 'For coaches' }), tr('settings:aboutPage.idea.coachHead', { defaultValue: 'Your business and your audience — one home.' }), tr('settings:aboutPage.idea.coachBody', { defaultValue: "Run your whole practice — clients, programs, payments — and build your following on the social platform made for coaching, training, and nutrition. Your content, your clients, your income, in one place: not five apps and the wrong crowd. Here, everyone's already training — so your audience is the right one. This is where a coaching business is built and seen." })],
-          ['member', tr('settings:aboutPage.idea.memberEyebrow', { defaultValue: 'For members' }), tr('settings:aboutPage.idea.memberHead', { defaultValue: "A training life that's actually social." }), tr('settings:aboutPage.idea.memberBody', { defaultValue: "Real coaches, plans that are yours, and people training alongside you who are mid-loop too. Not a highlight reel — the day-to-day of getting better, shared with the ones in your corner. The coach gets you started; the community keeps you here." })],
-        ].map(([key, ey, h, p]) => (
-          <div key={key} style={{ borderTop: `2px solid ${teal}`, paddingTop: 18, marginBottom: 24 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: tealB, marginBottom: 10 }}>{ey}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 21, letterSpacing: '-0.015em', fontWeight: 400, fontStyle: 'italic', color: t.INK, lineHeight: 1.18, marginBottom: 10 }}>{h}</div>
-            <p style={{ fontFamily: t.DISPLAY, fontSize: 15, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.58, margin: 0 }}>{p}</p>
-          </div>
-        ))}
-        <p style={{ fontFamily: t.DISPLAY, fontSize: 16.5, fontStyle: 'italic', color: t.INK70, textAlign: 'center', margin: '30px auto 0', lineHeight: 1.55 }}>{tr('settings:aboutPage.idea.closerPre', { defaultValue: 'Coaches bring the people. The people build the place.' })}{' '}<em style={{ color: tealB }}>{tr('settings:aboutPage.idea.closerAccent', { defaultValue: "That's the whole idea." })}</em></p>
-      </div>
-
-      {/* LETTER */}
-      <div style={{ padding: `40px ${px}px 24px` }}>
-        <h2 style={{ fontFamily: t.DISPLAY, fontSize: 24, letterSpacing: '-0.02em', fontWeight: 400, margin: '0 0 8px', lineHeight: 1.18, color: t.INK, textAlign: 'center', fontStyle: 'italic' }}>
-          <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.letter.h1Accent', { defaultValue: 'Fitness' })}</em>{tr('settings:aboutPage.letter.h1Post', { defaultValue: ' is the entry point.' })}{' '}{tr('settings:aboutPage.letter.h2Pre', { defaultValue: 'Your' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.letter.h2Accent', { defaultValue: 'lifestyle' })}</em>{tr('settings:aboutPage.letter.h2Post', { defaultValue: ' is the goal.' })}
-        </h2>
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0 34px' }}><span style={{ width: 24, height: 1, background: t.RULE }} /></div>
-
-        <p style={para}>
-          <span style={{ float: 'left', fontFamily: t.DISPLAY, fontSize: 74, lineHeight: 0.82, fontWeight: 400, color: teal, padding: '8px 12px 0 0', marginTop: 4 }}>{p1Cap}</span>{p1Rest}
-        </p>
-        <p style={para}>{tr('settings:aboutPage.letter.p2', { defaultValue: "It starts with a coach. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us." })}</p>
-        <p style={para}>{tr('settings:aboutPage.letter.p3', { defaultValue: "Shape builds the loop around all of it. Your trainer programs your week before you arrive — every set, every tempo, every cue loaded the night before so you're never standing at the rack wondering what's next. Your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from." })}</p>
-        <p style={para}>{tr('settings:aboutPage.letter.p4', { defaultValue: "As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned." })}</p>
-
-        <div style={{ ...pull, textAlign: 'right', paddingRight: 16, borderRight: `3px solid ${teal}` }}>{tr('settings:aboutPage.letter.pull1Pre', { defaultValue: 'Not a vanity metric.' })}{' '}<em style={{ color: tealB }}>{tr('settings:aboutPage.letter.pull1Accent', { defaultValue: 'A mirror.' })}</em></div>
-
-        <p style={para}>{tr('settings:aboutPage.letter.p5', { defaultValue: "There's also a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, a specific body composition goal, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down." })}</p>
-        <p style={para}>{tr('settings:aboutPage.letter.p6Pre', { defaultValue: "And then there's the part no app gets right:" })}{' '}<em style={{ fontStyle: 'italic', color: tealB, fontWeight: 500 }}>{tr('settings:aboutPage.letter.p6Accent', { defaultValue: 'the community' })}</em>{tr('settings:aboutPage.letter.p6Post', { defaultValue: '. You can keep your journey private — or share it. What you cooked, what your nutritionist recommended this week, what you lifted, what your coach said. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.' })}</p>
-
-        <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>{tr('settings:aboutPage.letter.pull2', { defaultValue: "The community isn't a forum. It's the people in your loop." })}</div>
-
-        <p style={{ ...para, marginBottom: 0 }}>{tr('settings:aboutPage.letter.p7', { defaultValue: 'Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.' })}</p>
-      </div>
-
-      {/* FOUNDER card — the face behind the letter. Owner call 2026-08-28: back
-          at the PAGE BOTTOM (directly under the letter, before the CTA),
-          reversing the 2026-07-21 moved-up call; it now IS the sign-off — the
-          card carries the signed name, so the separate sign-off block is gone. */}
-      <div style={{ padding: `10px ${px}px 0`, textAlign: 'center' }}>
-        {/* Feathered-to-transparent portrait (baked into the WebP) so it blends
-            into any paper; a soft theme-toned glow pools light behind it. */}
-        <div style={{ position: 'relative', width: 150, height: 150, margin: '0 auto 8px' }}>
-          <div aria-hidden style={{ position: 'absolute', inset: -12, borderRadius: '50%', background: `radial-gradient(circle at 50% 44%, ${bsTHexA(t.INK, 0.1)} 0%, ${bsTHexA(tealB, 0.07)} 42%, transparent 72%)`, pointerEvents: 'none' }} />
-          <img
-            src={`${import.meta.env.BASE_URL}founder.webp`}
-            alt={tr('settings:aboutPage.founderAlt', { defaultValue: 'Christopher Perry, founder of Shape' })}
-            width="150" height="150"
-            style={{ position: 'relative', width: 150, height: 150, objectFit: 'contain', display: 'block' }}
-          />
-        </div>
+        <p style={line}>{tr('settings:aboutPage.noteL1', { defaultValue: 'Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people.' })}</p>
+        <p style={{ ...line, marginTop: 12 }}>{tr('settings:aboutPage.noteL2', { defaultValue: 'Coaches bring the people. The people build the place.' })}</p>
+        <p style={{ ...line, marginTop: 12 }}>{tr('settings:aboutPage.noteL3', { defaultValue: 'The rest is just showing up.' })}</p>
         {/* ⚠ THE SIGNED NAME IS DELIBERATELY NOT KEYED. It is a real person's
             name, not copy — no locale changes it, for the same reason none
             changes the shipped `+1 555 123 4567` phone example or the `AB`
@@ -36311,30 +36311,116 @@ function BSAboutPage({ onBack }) {
             values for a string a translator must not touch. It is recorded in
             the ratchet's PARTIAL baseline instead of being special-cased
             inside `usable()` — a false exclusion there hides real copy. */}
-        <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>— Christopher Perry</div>
+        <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontStyle: 'italic', fontWeight: 700, fontSize: 17, color: t.INK }}>— Christopher Perry</div>
         <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginTop: 6 }}>{tr('settings:aboutPage.founderRole', { defaultValue: 'Founder · Shape' })}</div>
-        {/* Owner-approved bio (mirrors about.jsx). */}
-        <p style={{ fontFamily: t.DISPLAY, fontSize: 14, fontStyle: 'italic', fontWeight: 400, color: t.INK70, lineHeight: 1.6, maxWidth: 460, margin: '12px auto 0' }}>
-          {tr('settings:aboutPage.founderBio', { defaultValue: 'Christopher spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.' })}
-        </p>
+
+        {/* The long form, one closed line: the letter WHOLE, then the bio under
+            its own label. Nothing approved was deleted — it moved one tap down,
+            so the note itself stays at about eighty words. */}
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open ? 'true' : 'false'}
+          style={{ marginTop: 14, display: 'inline-flex', alignItems: 'baseline', gap: 8, background: 'transparent', border: 0, padding: '10px 12px', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: teal }}
+        >
+          {tr('settings:aboutPage.letterOpen', { defaultValue: 'The whole letter' })}
+          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:aboutPage.letterMins', { defaultValue: '4 min' })} {open ? '▴' : '▾'}</span>
+        </button>
       </div>
 
-      {/* CTA — the page's true closer, and a real door: tapping it opens the
-          community feed (the shell listens for shape:goCommunity — the
-          shape:openMarket pattern; About is client-only, so the client shell
-          is the one host). */}
-      <div style={{ padding: `58px ${px}px 40px`, textAlign: 'center' }}>
-        <h3 style={{ fontFamily: t.DISPLAY, fontSize: 38, letterSpacing: '-0.035em', fontWeight: 300, fontStyle: 'italic', margin: 0, lineHeight: 1.0, color: t.INK }}>{tr('settings:aboutPage.ctaPre', { defaultValue: 'Join the' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 600, color: teal }}>{tr('settings:aboutPage.ctaAccent', { defaultValue: 'community.' })}</em></h3>
+      {open && (
+        <div style={{ padding: `8px ${px}px 0`, textAlign: 'left' }}>
+          {/* ⚠ Every split-accent slot below is authored NON-EMPTY in all thirteen —
+              i18n runs with `returnEmptyString: false`, so an empty catalog value
+              renders the RAW KEY on screen. A locale with nothing to put in a slot
+              writes punctuation or a particle (the Score-intro precedent), never
+              "". This note moved here with the letter: the hero it used to sit
+              above is gone, and the letter is where the split slots now live. */}
+          <h2 style={{ fontFamily: t.DISPLAY, fontSize: 24, letterSpacing: '-0.02em', fontWeight: 400, margin: '0 0 26px', lineHeight: 1.18, color: t.INK, textAlign: 'center', fontStyle: 'italic' }}>
+            <em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.letter.h1Accent', { defaultValue: 'Fitness' })}</em>{tr('settings:aboutPage.letter.h1Post', { defaultValue: ' is the entry point.' })}{' '}{tr('settings:aboutPage.letter.h2Pre', { defaultValue: 'Your' })}{' '}<em style={{ fontStyle: 'italic', fontWeight: 500, color: teal }}>{tr('settings:aboutPage.letter.h2Accent', { defaultValue: 'lifestyle' })}</em>{tr('settings:aboutPage.letter.h2Post', { defaultValue: ' is the goal.' })}
+          </h2>
+
+          {/* ⚠ THE DROP CAP IS TAKEN CODEPOINT-SAFELY FROM THE TRANSLATED VALUE,
+              not by slicing a hardcoded English "S" off the front. `charAt(0)`
+              splits a surrogate pair (an emoji, or any astral letter) into two
+              broken halves; the spread walks codepoints. A locale whose first
+              letter is multi-byte still renders. */}
+          <p style={para}>
+            <span style={{ float: 'left', fontFamily: t.DISPLAY, fontSize: 62, lineHeight: 0.82, fontWeight: 400, color: teal, padding: '8px 12px 0 0', marginTop: 4 }}>{p1Cap}</span>{p1Rest}
+          </p>
+          <p style={para}>{tr('settings:aboutPage.letter.p2', { defaultValue: "It starts with a coach. Having great ones shouldn't be a luxury. Most apps replace them with chatbots; most gyms gate the good ones behind packages. We thought there was a better way: open the door for trainers, nutritionists, and registered dietitians who actually care, and make that level of guidance affordable for the rest of us." })}</p>
+          <p style={para}>{tr('settings:aboutPage.letter.p3', { defaultValue: "Shape builds the loop around all of it. Your trainer programs your week before you arrive — every set, every tempo, every cue loaded the night before so you're never standing at the rack wondering what's next. Your nutritionist builds a meal plan around your specific goals — whether that's hitting a macro target, managing a dietary restriction, building around a health condition, or just eating better — and that plan turns into a grocery list you can actually shop from." })}</p>
+          <p style={para}>{tr('settings:aboutPage.letter.p4', { defaultValue: "As you show up — day after day, workout after workout, habit after habit — your Shape Score rises with you. It tracks your consistency, rewards your effort, and reflects the status you've actually earned." })}</p>
+
+          <div style={{ ...pull, textAlign: 'right', paddingRight: 16, borderRight: `3px solid ${teal}` }}>{tr('settings:aboutPage.letter.pull1Pre', { defaultValue: 'Not a vanity metric.' })}{' '}<em style={{ color: tealB }}>{tr('settings:aboutPage.letter.pull1Accent', { defaultValue: 'A mirror.' })}</em></div>
+
+          <p style={para}>{tr('settings:aboutPage.letter.p5', { defaultValue: "There's also a place to write down what you're shaping toward — strength, sleep, calm, confidence, a marathon, a specific body composition goal, just feeling like yourself again. Structure when you need it. Discipline you build, not something handed down." })}</p>
+          <p style={para}>{tr('settings:aboutPage.letter.p6Pre', { defaultValue: "And then there's the part no app gets right:" })}{' '}<em style={{ fontStyle: 'italic', color: tealB, fontWeight: 500 }}>{tr('settings:aboutPage.letter.p6Accent', { defaultValue: 'the community' })}</em>{tr('settings:aboutPage.letter.p6Post', { defaultValue: '. You can keep your journey private — or share it. What you cooked, what your nutritionist recommended this week, what you lifted, what your coach said. Tips, recipes, nutrition advice, coaches and dietitians worth trying. A whole feed of people figuring out the same things you are.' })}</p>
+
+          <div style={{ ...pull, paddingLeft: 16, borderLeft: `3px solid ${teal}` }}>{tr('settings:aboutPage.letter.pull2', { defaultValue: "The community isn't a forum. It's the people in your loop." })}</div>
+
+          <p style={{ ...para, marginBottom: 0 }}>{tr('settings:aboutPage.letter.p7', { defaultValue: 'Shape is the place where you find the coach, build the habits, earn your score, hear the music, and meet the people. The rest is just showing up.' })}</p>
+
+          {/* The approved bio, labelled — a bio is not part of the letter, so it
+              gets its own head rather than reading as a final paragraph of it. */}
+          <div style={{ marginTop: 30, paddingTop: 22, borderTop: `1px solid ${t.RULE}` }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: tealB, marginBottom: 12, fontWeight: 700 }}>{tr('settings:aboutPage.bioLabel', { defaultValue: 'About the founder' })}</div>
+            <p style={{ ...para, marginBottom: 0 }}>{tr('settings:aboutPage.founderBio', { defaultValue: 'Christopher spent a decade in finance — building relationships, helping grow businesses, and always knowing that one day he’d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief — great coaching shouldn’t be a luxury or unaffordable, and shouldn’t mean doing it alone. It’s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.' })}</p>
+          </div>
+        </div>
+      )}
+
+      {/* THE FACTS — one line, wrapping. ⚠ Each fact is its own flex item and
+          NOTHING here is `nowrap`: a locale whose fact is longer than the screen
+          would otherwise push the page sideways, and an internal wrap is a far
+          smaller cost than horizontal overflow. */}
+      <div style={{ margin: `34px ${px}px 0`, padding: '14px 0', borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'baseline', columnGap: 8, rowGap: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, fontWeight: 700, lineHeight: 1.7 }}>
+        {facts.map((f, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <span aria-hidden style={{ color: t.INK30 }}>·</span>}
+            <span>{f}</span>
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* THE TWO DOORS — one per audience, both real destinations. The member
+          door opens the community feed in-app (the shell listens for
+          shape:goCommunity — the shape:openMarket pattern). The coach door leaves
+          for the website's coach page, because that is where coach signup lives.
+
+          ⚠ THIS PAGE IS NOT CLIENT-ONLY, WHICH THE COMMENT HERE USED TO CLAIM.
+          About rides the SHARED BSSettings, which both coach shells embed
+          (iosAppBroadsheetPros.jsx:1356) — and that file records a shipped bug
+          from believing otherwise: #1795, where the coach-side door was a dead
+          tap until the pros shell grew its own shape:goCommunity listener. It
+          has one now, so the member door works in all three shells. The coach
+          door does not depend on a listener at all, which is one thing a URL
+          opener buys over an event.
+
+          ⚠ AND A COACH SEES "BECOME A COACH", DELIBERATELY. The website shows
+          the same door to everyone including signed-in coaches; this is the
+          company's story page rather than a personalised surface, and the
+          parity guard exists to keep the two saying the same thing. Gating it
+          on a role would need a signal this component does not take, and
+          getting that gate backwards hides the door from the one audience it
+          is for.
+
+          ⚠ They WRAP rather than shrink: at 320px two 13/22 buttons do not fit
+          one row, and a door whose label is clipped is the affordance failing. */}
+      <div style={{ padding: `26px ${px}px 40px`, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
         <button
           onClick={() => { try { window.dispatchEvent(new Event('shape:goCommunity')); } catch (e) {} }}
-          style={{ marginTop: 16, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: teal }}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '13px 22px', borderRadius: 6, background: teal, color: t.isLight ? '#ffffff' : '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}
         >{tr('settings:aboutPage.ctaAction', { defaultValue: 'Open the community →' })}</button>
+        <button
+          onClick={() => { try { bsOpenCheckout(BS_ABOUT_COACH_URL); } catch (e) {} }}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '13px 22px', borderRadius: 6, background: 'transparent', color: teal, border: `1px solid ${teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}
+        >{tr('settings:aboutPage.ctaCoach', { defaultValue: 'Become a coach →' })}</button>
       </div>
       <BSFooter right="About" />
     </BSPage>
   );
 }
-
 // Pricing — the $5/mo membership page, adapted to the broadsheet (mirrors the
 // website /newdesign/Pricing). "Browse all coaches" hops to the marketplace via
 // a global event (settings is a full-screen takeover, so we close it first).

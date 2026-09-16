@@ -4,17 +4,23 @@
 <title>Shape — About</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Doto:ROND,wght@0..100,100..900&family=Schibsted+Grotesk:wght@400..700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <style>
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #1a1612; color: #f2ede4; -webkit-font-smoothing: antialiased; }
-  .about-beat-h b { font-weight: 600; font-style: italic; }
+  html, body { margin: 0; padding: 0; background: #f4f1ea; color: #14171c; -webkit-font-smoothing: antialiased; }
   a { color: inherit; text-decoration: none; cursor: pointer; }
   img { display: block; max-width: 100%; }
+  button { font-family: inherit; }
   ::selection { background: #0ac5a8; color: #0a0f0d; }
+  /* Metrics-matched fallbacks for the page's own three families (the same
+     declarations Recipes.html, Client.html and Coaches.html carry), so a
+     blocked font host still lays the note out at the right widths. */
+  @font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}
+  @font-face{font-family:'Schibsted Fallback';src:local('Arial');size-adjust:101%;ascent-override:95%;descent-override:25%;line-gap-override:0%}
+  @font-face{font-family:'Doto Fallback';src:local('Courier New');size-adjust:99%;ascent-override:102%;descent-override:26%;line-gap-override:0%}
 </style>
 <script defer src="/_vercel/insights/script.js"></script></head><body>
 <script src="/newdesign/mobile-redirect.js"></script>
