@@ -10,7 +10,7 @@ So the brief is **professional · easy to read · easy to navigate**, three genu
 per page, with a new look allowed and the Shape mark, name and copy as the constant.
 
 ⚠ **THIS FILE DESCRIBES THE FIRST ROUND ONLY, AND THE OWNER PICKED OUT OF THE SECOND — SHIPPED
-2026-09-16 AS THE NOTE.** On seeing A1–A3 the owner ruled them *too much going on, too much wording*,
+2026-09-16 AS THE NOTE (#2111 → `b03becab5`).** On seeing A1–A3 the owner ruled them *too much going on, too much wording*,
 and three much shorter options were added to the board: **A4 · One screen**, **A5 · The Note** and
 **A6 · The Ledger**, each one screen and 70–85 words against 798 today. The pick is **A5 · The Note**
 (*"do the about the note design"*), built for the website and the app, with the founder's
@@ -257,6 +257,15 @@ Every element on today's pages and where it lives in each option.
 
 ## 6. Recommendation and build order
 
+⚠ **AND TWO OF THE FOUR FACTS THIS REVIEW TREATS AS SETTLED WERE WRONG, FOUND BY THE CODEX ROUND ON THE
+BUILD.** *"Coach credentials checked"* contradicts `BSTermsPage` clause 04 — *"Unless a coach shows a
+Verified badge, the credentials on their profile are self-reported and not independently verified by
+Shape"* — and *"Free for coaches"* beside *"$5 a month for members"* states the wrong half of a price
+comparison, since coaches pay a 15% platform fee. They ship as **"Verified coaches carry a badge"** and
+**"Coaches join free"**. ⚠ **REGISTERED, NOT FIXED:** `public/newdesign/shared.jsx:17` still says *"Every
+coach is vetted … We verify licenses on application and re-check annually"*, which contradicts those
+Terms and pre-dates this page — an owner ruling, not a code fix.
+
 ⚠ **SUPERSEDED FOR ABOUT — THE OWNER PICKED A5 · THE NOTE.** The recommendation below is kept because
 its reasoning is still the reasoning (a light page beside a dark homepage is a real trade, and A5 takes
 it), but it recommends one of the three options the owner then rejected as too long. The Kitchen half
@@ -279,7 +288,7 @@ distinctive, at the price of a new palette.
    catalog's own words), the guards re-anchored (`tests/about-page-i18n.test.mjs` pins the drop cap, the
    NBSPs, the arrow and the ≥40 `tr()` calls; every option keeps all four).
    ⚠ **WHAT SHIPPED DIVERGES, AND THE DIVERGENCE IS THE PICK.** A5 · The Note retires 23 of the 44 keys
-   (the hero, the two-audience block, the CTA headline and the portrait's alt text) and adds 12; the
+   (the hero, the two-audience block, the CTA headline and the portrait's alt text) and adds 13 (⚠ 12 at first push — the Codex round added `ctaCoach` with the app’s second door); the
    letter family is kept WHOLE behind the expander, so the drop cap — and the guard that proves it is
    taken codepoint-safely — survives. The two numeric pins in that guard (≥40 keys, ≥40 `tr()` calls)
    were claims about the page's LENGTH and were made false by a redesign that removed copy; they are
