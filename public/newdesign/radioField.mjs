@@ -468,6 +468,30 @@ export function wallMaskText(cols) {
 //   HEIGHT: at least 27 rows, because the loop only ever shrinks and floor(rows x
 //           0.42) must start at or above 11 to reach it — see `startCell` below.
 //
+// ⚠ AND THE BAND BELOW 30 ROWS WAS NEVER SWEPT, WHICH IS A GAP IN THE VERIFICATION
+// RATHER THAN IN THE CODE. The fold is max(420, min(74vh, 660)), so rows 26-30 need a
+// viewport height of 568-647 — a window nothing in the original sweep used, because
+// its shortest viewport was 700 (fold 518, 32 rows). Measured afterwards, on this tree
+// and on a served copy of the pre-anchor build, at 1920 x vh 560/600/628/649/700:
+//
+//   fold  rows  font before/after   top gap b/a    bottom gap b/a
+//    420    26      10 / 10           14 / 14         -8 / -8      (pre-existing)
+//    444    27      11 / 11           -2 / -2         16 / 16      (pre-existing)
+//    465    29      12 / 11           30 / 14          5 / 21
+//    480    30      12 / 11           30 / 30         20 / 20
+//    518    32      13 / 11           30 / 46         42 / 42
+//
+// Two things follow, and they point opposite ways. (1) At 26 and 27 rows the wordmark
+// and the chrome TOUCH — a bottom overlap at 420 and a top one at 444, measured off
+// the mask rows; against the renderer's own painted rect (c*TILE_PX + 2, size
+// TILE_PX - TILE_GAP_PX) the same two read ~6px of overlap and exactly 0, i.e. meeting.
+// They are BIT-IDENTICAL on both builds, so they predate the anchor and are registered
+// here rather than fixed: fix what a change introduces, register what it does not.
+// (2) Where the anchor DOES bite, it helps. The font was stepping 10/11/12/13 across
+// this band and is a constant 11 from 27 rows up, and the tightest clearance at 29 rows
+// goes 5 → 14px. The anchor makes 28 and 29 rows AGREE where they differed before,
+// which is the thing that was asked for rather than a regression from it.
+//
 // ⚠ AND 80 COLUMNS IS A FOLD, NOT A WINDOW. The fold is the document content width,
 // so on a platform with classic scrollbars a 1280px WINDOW is a ~1265px fold — 79
 // columns — and lands one font step below. REGISTERED rather than tuned away: the

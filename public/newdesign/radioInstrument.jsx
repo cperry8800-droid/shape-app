@@ -672,6 +672,49 @@ function rdMakeField(canvas, lib) {
     // FROM the bottom: the rows the deck and the Now block sit on are the brightest
     // on the wall, and at the symmetric ramp the type was legible only where the
     // spectrum happened to be quiet. Driven at 1440x900 and 390 before it moved.
+    //
+    // ⚠ AND THOSE TWO WIDTHS ARE THE ONES STAGING THE CHROME LEAVES ALONE, so the
+    // note above does not cover the worst case any more. `wallBand` STRETCHES the
+    // mirrored 32-band spectrum across the columns, so the fold's centre is the BASS
+    // and its edges the treble — and centring the chrome in a 1440 stage therefore
+    // marches the Now block toward the loudest column as the monitor widens. Driving
+    // the shipped `wallBand` on the deck's leftmost column at
+    // 1440/1680/1920/2560/3440/3840: it read band 1/1/1/0/0/0 before and reads
+    // 1/3/4/7/9/10 now. At 1440 and below nothing moves at all: min(W, RD_STAGE) is W,
+    // the auto margin is 0, and the padding is the same number the old inline rule used.
+    //
+    // ⚠ MEASURED RATHER THAN REASONED ABOUT, AND ON THE WEAKEST LINE. Contrast here is
+    // decided by the 14px RD_CREAM50 secondary line, not by the teal eyebrow above it,
+    // and it is a PER-PIXEL question — so the reading is the brightest backdrop pixel
+    // under that line's own box over 60 frames of the preview signal, composited at the
+    // text's own 0.55 alpha. (An earlier pass of mine fed the DECLARED colour to the
+    // luminance formula, which measures OPAQUE cream and reports ~13:1 on type that sits
+    // near 5:1. A contrast number taken without the alpha is a number for a colour
+    // nothing on the page paints.) A/B against a served copy of the pre-staging build:
+    //
+    //            1440    1920    2560    3440    3840
+    //   before   5.15    5.15    5.18    5.22    5.24
+    //   after    5.15    5.12    5.11    5.08    5.05      (AA floor 4.5)
+    //
+    // ⚠ SO IT IS REGISTERED, NOT FIXED, AND THE REASON IS THE SPREAD RATHER THAN THE
+    // FLOOR. AA holds at every width with 0.55 to spare at the worst. And the tempting
+    // severity argument — "it was constant across monitors and now grows with width" —
+    // does not survive the control: it ran 5.15 -> 5.24 BEFORE, a spread of 0.09,
+    // against 0.10 now. Same spread, opposite sign. Nothing width-dependent was
+    // introduced here. (The teal eyebrow moves further in absolute terms, 8.89 -> 6.93
+    // at 3840, crossing AAA 7.0 — but this repo's documented bar is AA, and it clears
+    // that by 2.4.)
+    //
+    // ⚠ AND DO NOT RE-TUNE THESE STOPS TO CLOSE IT. This gradient is
+    // createLinearGradient(0, 0, 0, H) filled across the whole width: purely vertical,
+    // with no horizontal term at all. Darkening it dims the meters at EVERY column and
+    // EVERY width, including 1440 and below where the block has not moved — a vertical
+    // remedy for a horizontal problem, paid for site-wide, on the instrument that is
+    // the page's whole subject. A canvas scrim keyed to the staged x-range is worse
+    // still: a darker 1440-wide rectangle inside a 3840 fold is a visible vertical seam
+    // on exactly the monitors it would be meant to help. If it ever has to be closed,
+    // close it in the DOM with a wash bounded by the type itself, which travels with
+    // the block and is therefore the same at every width by construction.
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, "rgba(6,9,15,0.86)");
     g.addColorStop(0.2, "rgba(6,9,15,0)");
