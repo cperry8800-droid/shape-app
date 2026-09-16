@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "La recette ne chronomètre pas tous les temps, prévoyez une marge",
   "prep.earliestSearched": "Le plus tôt parmi les ordres testés",
   "prep.noWindow": "Aucun plat ici n'attend assez longtemps pour en commencer un autre",
-  "prep.noStation": "Votre cuisine n'a ni feu ni four libre pour le chevauchement"
+  "prep.noStation": "Votre cuisine n'a ni feu ni four libre pour le chevauchement",
+  "cta.with": "Cuisiner avec autre chose",
+  "prep.startingWith": "On commence par",
+  "prep.cookEyebrow": "Cuisiner ensemble",
+  "prep.cookPickTitle": "Qu'est-ce qu'on cuisine d'autre ?",
+  "prep.cookWrapTitle": "C'est tout.",
+  "prep.nextUp": "Suivant",
+  "prep.addAnother": "Cochez un autre plat et Shape gère le timing — en même temps, l'un après l'autre, ou tout à table en même temps.",
+  "prep.timingComing": "Comment ils sont synchronisés — en même temps, séparément, ou tout à table en même temps."
 }

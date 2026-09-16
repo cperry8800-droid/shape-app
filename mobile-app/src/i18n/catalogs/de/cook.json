@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "Manche Schritte gibt das Rezept ohne Zeit an — plane Puffer ein",
   "prep.earliestSearched": "Das früheste der geprüften Reihenfolgen",
   "prep.noWindow": "Kein Gericht hier wartet lang genug, um ein anderes zu beginnen",
-  "prep.noStation": "Deine Küche hat keine freie Platte oder Röhre für die Überschneidung"
+  "prep.noStation": "Deine Küche hat keine freie Platte oder Röhre für die Überschneidung",
+  "cta.with": "Mit etwas anderem kochen",
+  "prep.startingWith": "Wir starten mit",
+  "prep.cookEyebrow": "Zusammen kochen",
+  "prep.cookPickTitle": "Was kochen wir noch?",
+  "prep.cookWrapTitle": "Das war alles.",
+  "prep.nextUp": "Weiter",
+  "prep.addAnother": "Wähle ein weiteres Gericht, und Shape übernimmt das Timing — gleichzeitig, eins nach dem anderen oder alles zusammen auf dem Tisch.",
+  "prep.timingComing": "Wie das Timing läuft — gleichzeitig, getrennt oder alles zusammen auf dem Tisch."
 }

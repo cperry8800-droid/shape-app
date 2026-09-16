@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "Công thức không tính giờ cho một số bước, hãy trừ hao thêm",
   "prep.earliestSearched": "Sớm nhất trong các thứ tự đã thử",
   "prep.noWindow": "Không món nào ở đây chờ đủ lâu để bạn bắt đầu món khác",
-  "prep.noStation": "Bếp của bạn không còn bếp lò hay lò nướng trống để làm chồng lên"
+  "prep.noStation": "Bếp của bạn không còn bếp lò hay lò nướng trống để làm chồng lên",
+  "cta.with": "Nấu cùng món khác",
+  "prep.startingWith": "Bắt đầu với",
+  "prep.cookEyebrow": "Nấu cùng nhau",
+  "prep.cookPickTitle": "Nấu thêm món gì?",
+  "prep.cookWrapTitle": "Vậy là xong.",
+  "prep.nextUp": "Tiếp",
+  "prep.addAnother": "Chọn thêm một món và Shape sẽ tính giờ giúp bạn — nấu cùng lúc, lần lượt từng món, hoặc cùng lên bàn một lượt.",
+  "prep.timingComing": "Cách tính giờ — cùng lúc, riêng từng món, hoặc cùng lên bàn một lượt."
 }

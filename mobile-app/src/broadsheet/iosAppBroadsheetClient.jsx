@@ -720,6 +720,32 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:goWall', open);
   }, []);
 
+  // "＋ Cook with something else" → the Eat tab's prep session, seeded with the
+  // dish the member was standing on. Same shape as goWall: every takeover above
+  // the tab body is cleared (the door is reachable from the Catalogue, which can
+  // be opened over Settings), and the request carries a nonce so tapping it twice
+  // on the same dish re-opens the session rather than being swallowed as an
+  // unchanged prop.
+  // ⚠ THE COOKABLE IS CARRIED, NOT A LOOKUP KEY. Two of the three doors sit on
+  // dishes the Eat tab cannot resolve on its own — a member's own recipe lives in
+  // their `client_recipes` document, and a meal opened from Home belongs to that
+  // day's program — so a key would arrive somewhere with nothing to resolve it
+  // against and the session would open empty, which is the defect this door
+  // exists to fix wearing a different coat.
+  const [cookWith, setCookWith] = useStateBSC(null);
+  React.useEffect(() => {
+    const open = (e) => {
+      const c = e && e.detail && e.detail.cookable;
+      if (!c || !(c.steps || []).length) return;
+      navJumpRef.current.navPush(); setShowSettings(false); setSettingsStart('');
+      setShowCalendar(false); setShowSearch(false); setShowCycle(false);
+      setCookWith({ cookable: c, mine: !!(e.detail && e.detail.mine), nonce: Date.now() });
+      setTab('eat');
+    };
+    window.addEventListener('shape:cookWith', open);
+    return () => window.removeEventListener('shape:cookWith', open);
+  }, []);
+
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
   React.useEffect(() => {
@@ -980,7 +1006,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const screens = {
     home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goTrain={goTrain} goEat={() => { navPush(); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
-    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} />,
+    eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
     market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
@@ -2341,6 +2367,50 @@ const BS_LIB_KINDS = {
   grocery: { label: 'Groceries', color: '#3b74b8' },
 };
 
+// THE SECOND DOOR, beside every "Cook this" (2026-09-15). The multi-dish picker
+// has existed since PR C and was reachable ONLY through "Prep the week" on the
+// menu and the shop list — so a member standing on a recipe, at the moment they
+// wanted to cook something alongside it, had no route to it and no sign that one
+// existed. That is the whole of the reported defect.
+//
+// ⚠ IT DOES NOT CHANGE WHAT "COOK THIS" DOES. Cooking one dish is the common
+// case and still goes straight to the walkthrough; routing it through a picker
+// to confirm a choice already made would tax every single-dish cook to serve the
+// rarer one. Two doors, each honest about where it goes.
+//
+// ⚠ AND IT FIRES AN EVENT RATHER THAN CALLING A HANDLER, because the three call
+// sites sit in three different trees: the Shape Kitchen recipe inside
+// BSClientEat, the meal preview inside BOTH BSClientHome and BSClientEat, and
+// the member's own recipe inside the Catalogue on another tab entirely. There is
+// no common parent to thread a prop through. `shape:cookWith` is the same
+// cross-surface mechanism the shell already routes for shape:openMarket and
+// shape:goWall.
+function BSCookWithDoor({ cookable, mine = false, tone = null }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  // Held to the session's own bar: a cookable with no written method has nothing
+  // to interleave, so offering to cook it alongside something would open a picker
+  // whose seed cannot be cooked. The solo "Cook this" door above stays either way
+  // — its tier ladder decides what the walkthrough honestly offers.
+  if (!cookable || !(cookable.steps || []).length) return null;
+  const accent = tone || t.ACCENT;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        try { window.dispatchEvent(new CustomEvent('shape:cookWith', { detail: { cookable, mine } })); } catch (e) {}
+      }}
+      style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}
+    >
+      <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent, flexShrink: 0 }}>
+        ＋ {tr('cook:cta.with', { defaultValue: 'Cook with something else' })}
+      </span>
+      <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+      <span aria-hidden style={{ color: accent, fontWeight: 700, fontSize: 13, flexShrink: 0 }}>→</span>
+    </button>
+  );
+}
+
 function BSLibraryDetail({ item, onBack, myDoc = null }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -2493,6 +2563,7 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
               <button type="button" onClick={() => setCooking(true)} style={{ width: '100%', padding: '15px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
                 {tr('cook:cta', { defaultValue: 'Cook this' })} →
               </button>
+              <BSCookWithDoor cookable={mineCookable} mine tone={teal} />
             </div>
           ) : null}
         </>
@@ -6784,6 +6855,7 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
           </span>
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: teal, fontWeight: 800 }}>→</span>
         </button>
+        <BSCookWithDoor cookable={cookable} tone={teal} />
       </div>
       )}
 
@@ -8371,6 +8443,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 // keeps what's done and writes nothing more). Entirely optional — a door, never
 // a gate: the menu, recipes and grocery list all work without it.
 const BS_PREP_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// The seeded dish's candidate key. STABLE FROM THE FIRST RENDER, which is what
+// lets the initial selection tick it with no effect and no migration: the
+// member's own recipes hydrate asynchronously (`myDoc`), so a key resolved
+// against the candidate list would change under a tick already made and the
+// selection would be silently dropped. The seed keeps its own key and the
+// DUPLICATE IS REMOVED FROM THE BASE LIST INSTEAD — one row either way, and the
+// merged mise can never count the dish twice.
+const BS_PREP_SEED_KEY = 'seed-dish';
 // THE BOARD — the multi-track interleaved prep player (PR D orchestration §6).
 // Walks the orchestrator's timeline across recipes: while one recipe's authored
 // passive window holds (a real running timer, HOLDING lane), the NOW lane surfaces
@@ -8706,7 +8786,19 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   );
 }
 
-function BSPrepSession({ program, onClose }) {
+// `seed` (2026-09-15): the dish the member arrived WITH, from "Cook with
+// something else" on a recipe, a meal or one of their own recipes. It is the
+// answer to the reported defect — the multi-dish picker was only ever reachable
+// through the "Prep the week" door on the menu and the shop list, so a member
+// standing on a recipe, at the exact moment they wanted a second dish, had no
+// route to it at all. Seeded, the session opens with that dish already ticked
+// and every other candidate one tap away.
+// ⚠ IT ALSO CHANGES WHAT THE SESSION CLAIMS TO BE. Arriving from the menu the
+// session IS the Sunday ritual and says so; arriving from a recipe it is two
+// dishes tonight, and a screen that answered "The week is set." would be
+// describing something the member did not do. Same engine, two framings, chosen
+// by the door — never a default that is wrong for one of them.
+function BSPrepSession({ program, onClose, seed = null }) {
   const t = useBS();
   const tr = useShapeTr();
   _bsScrollTopOnMount();
@@ -8722,7 +8814,14 @@ function BSPrepSession({ program, onClose }) {
   // wearing the member's title.
   const { doc: myDoc } = useBSMyRecipes();
   const [stage, setStage] = useStateBSC('picker'); // picker | mise | transition | cook | wrap
-  const [sel, setSel] = useStateBSC({});           // key -> servings (number)
+  // key -> servings (number). A seeded dish starts ticked — the member already
+  // said they were cooking it by tapping its door, so making them tick it again
+  // would be asking a question they have answered.
+  const [sel, setSel] = useStateBSC(() => (
+    seed && seed.cookable && (seed.cookable.steps || []).length
+      ? { [BS_PREP_SEED_KEY]: seed.cookable.servings || 1 }
+      : {}
+  ));
   const [miseChecked, setMiseChecked] = useStateBSC({});
   const [cookIdx, setCookIdx] = useStateBSC(0);
   const [doneEntries, setDoneEntries] = useStateBSC([]);
@@ -8754,7 +8853,7 @@ function BSPrepSession({ program, onClose }) {
   // (tier ≤ 2 — mise-only meals stay solo cooks); recipe mapping is the tested
   // exact-match inside bsCookableFromMeal (recipeId else exact title, no fuzzy —
   // bsHomeLiveWeek drops recipeId, so mapping at the meal is the honest path).
-  const candidates = React.useMemo(() => {
+  const baseCandidates = React.useMemo(() => {
     const out = [];
     (program || []).forEach((dy, dayIdx) => ((dy && dy.meals) || []).forEach((meal, mi) => {
       const c = bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES);
@@ -8802,6 +8901,39 @@ function BSPrepSession({ program, onClose }) {
     } catch (e) {}
     return out;
   }, [program, myDoc]);
+
+  // The dish the member arrived with. Held to the SAME bar as every other
+  // candidate — a real written method — because the whole session is built on
+  // walkable steps; a cookable with none has nothing to interleave and would
+  // sit in the picker as a row that cannot be cooked.
+  const seedCookable = (seed && seed.cookable && (seed.cookable.steps || []).length) ? seed.cookable : null;
+  const seedGroup = tr('cook:prep.startingWith', { defaultValue: 'Starting with' });
+
+  // ⚠ THE SEED REPLACES ITS DUPLICATE RATHER THAN JOINING IT. A member can tap
+  // "Cook with something else" on a dish the session can ALREADY see — this
+  // week's Tuesday dinner, or a recipe saved to their library — and two rows for
+  // one dish is not a cosmetic problem: `bsMergeMise` merges by ingredient, so
+  // ticking both would buy and prep everything twice, and the orchestrator would
+  // schedule the dish against itself. Matched on `mealId` first (an identity)
+  // and on an exact normalized title only as a fallback, which is the same rule
+  // the library dedupe above already applies.
+  const candidates = React.useMemo(() => {
+    if (!seedCookable) return baseCandidates;
+    const id = seedCookable.mealId;
+    const title = String(seedCookable.title || '').trim().toLowerCase();
+    const rest = baseCandidates.filter((c) => !(
+      (id != null && c.cookable.mealId != null && c.cookable.mealId === id)
+      || (title && String(c.cookable.title || '').trim().toLowerCase() === title)
+    ));
+    return [{
+      key: BS_PREP_SEED_KEY,
+      cookable: seedCookable,
+      group: seedGroup,
+      mealId: seedCookable.mealId,
+      mealTitle: null,
+      mine: !!(seed && seed.mine),
+    }, ...rest];
+  }, [baseCandidates, seedCookable, seedGroup, seed]);
 
   const selected = React.useMemo(() => candidates
     .filter((x) => sel[x.key] != null)
@@ -9098,6 +9230,25 @@ function BSPrepSession({ program, onClose }) {
     />;
   }
 
+  // ⚠ THE SESSION NAMES WHAT THE MEMBER IS ACTUALLY DOING. Entered from the menu
+  // or the shop list it is the Sunday ritual and keeps every word of it; entered
+  // from a recipe's "Cook with something else" it is two dishes tonight, and the
+  // week's vocabulary would be describing something that is not happening — a
+  // picker headed "What are we prepping?" and a finish reading "The week is set."
+  // after one dinner. The MISE title is deliberately shared: "One board,
+  // everything." is true of both, and a second key for one screen would be
+  // thirteen more values a translator has to keep in step for no gain.
+  const cookNow = !!seedCookable;
+  const sessionEyebrow = cookNow
+    ? tr('cook:prep.cookEyebrow', { defaultValue: 'Cook together' })
+    : tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' });
+  const sessionPickTitle = cookNow
+    ? tr('cook:prep.cookPickTitle', { defaultValue: 'What else is cooking?' })
+    : tr('cook:prep.pickTitle', { defaultValue: 'What are we prepping?' });
+  const sessionWrapTitle = cookNow
+    ? tr('cook:prep.cookWrapTitle', { defaultValue: "That's everything." })
+    : tr('cook:prep.wrapTitle', { defaultValue: 'The week is set.' });
+
   const head = (eyebrow, title) => (
     <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -9113,7 +9264,7 @@ function BSPrepSession({ program, onClose }) {
     <BSPage noSwipe mast={false}>
       <div role="dialog" aria-modal="true" aria-label={tr('cook:prep.aria', { defaultValue: 'Prep session' })}>
         {stage === 'picker' && (<>
-          {head(tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' }), tr('cook:prep.pickTitle', { defaultValue: 'What are we prepping?' }))}
+          {head(sessionEyebrow, sessionPickTitle)}
           {seam}
           <div style={{ padding: `16px ${t.padX}px 24px` }}>
             {candidates.length === 0 && (
@@ -9150,6 +9301,30 @@ function BSPrepSession({ program, onClose }) {
                 </React.Fragment>
               );
             })}
+            {/* ⚠ THE TIMING CHOICE IS NAMED HERE, WHERE THE DECISION IT DEPENDS ON
+                IS BEING MADE. It is asked on the mise, one screen later, and that is
+                where it stays — the three options can only be COSTED once the kitchen
+                is known, and a row quoting minutes it had not computed would be
+                advertising a schedule it does not run. But a member with one dish
+                ticked has no way to know that ticking a second one unlocks anything at
+                all, which is the reported defect in one sentence. So: at one dish, say
+                what a second one buys; at two or more, say what is coming. No figures
+                on either line — nothing has been planned yet. */}
+            {candidates.length > 1 && selected.length === 1 && (
+              <div style={{ marginTop: 14, paddingLeft: 9, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}`, fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.55, color: t.INK70 }}>
+                {tr('cook:prep.addAnother', { defaultValue: 'Tick another dish and Shape will time them for you — cooked together, one after the other, or landing on the table at once.' })}
+              </div>
+            )}
+            {selected.length > 1 && (
+              <div style={{ marginTop: 14, paddingLeft: 9, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
+                <div style={{ ...bandEyebrow, fontSize: 8, color: t.INK50 }}>
+                  {tr('cook:prep.nextUp', { defaultValue: 'Next' })}
+                </div>
+                <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.55, color: t.INK70 }}>
+                  {tr('cook:prep.timingComing', { defaultValue: 'How these are timed — at the same time, separately, or all on the table at once.' })}
+                </div>
+              </div>
+            )}
             {selected.length > 0 && (
               <button onClick={() => setStage('mise')} style={{ ...primaryBtn, width: '100%', marginTop: 18 }}>
                 {tr('cook:prep.toMise', { defaultValue: 'Merge the mise · {n} →', n: selected.length })}
@@ -9159,7 +9334,7 @@ function BSPrepSession({ program, onClose }) {
         </>)}
 
         {stage === 'mise' && (<>
-          {head(tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' }), tr('cook:prep.miseTitle', { defaultValue: 'One board, everything.' }))}
+          {head(sessionEyebrow, tr('cook:prep.miseTitle', { defaultValue: 'One board, everything.' }))}
           {seam}
           <div style={{ padding: `16px ${t.padX}px 24px` }}>
             {mise.ingredients.map((r, i) => {
@@ -9489,7 +9664,7 @@ function BSPrepSession({ program, onClose }) {
         </>)}
 
         {stage === 'wrap' && (<>
-          {head(tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' }), tr('cook:prep.wrapTitle', { defaultValue: 'The week is set.' }))}
+          {head(sessionEyebrow, sessionWrapTitle)}
           {seam}
           <div style={{ padding: `18px ${t.padX}px 24px` }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, lineHeight: 1.4 }}>
@@ -9617,6 +9792,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
           </span>
           <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: t.ACCENT, fontWeight: 800 }}>→</span>
         </button>
+        <BSCookWithDoor cookable={cookable} />
       </div>
       )}
 
@@ -9880,14 +10056,31 @@ function bsBuildPlanGrocery(program, author, name, tr) {
   };
 }
 
-function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {} }) {
+function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initialView = '', onStartConsumed = () => {}, cookWith = null, onCookWithConsumed = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();   // cook:prep.* chrome (PR C) — never shadows the theme t
   const prepEntries = useBSPrepEntries();   // PREPPED stamps on the day's courses
   const bsEatProgram = useBSProgram();
   const [view, setView] = useStateBSC(initialView || 'eat'); // 'eat' | 'grocery' | 'library'
   const [prepOpen, setPrepOpen] = useStateBSC(false);   // the Prep Session takeover (PR C)
+  // The dish a "＋ Cook with something else" door arrived with, or null for the
+  // "Prep the week" doors on the menu and the shop list. It decides BOTH the
+  // session's opening selection and the words it uses about itself, so the two
+  // can never disagree about which session this is.
+  const [prepSeed, setPrepSeed] = useStateBSC(null);
+  // ⚠ EVERY DOOR GOES THROUGH ONE OPENER, so "Prep the week" cannot inherit the
+  // seed left by an earlier "Cook with something else". Opening the week's ritual
+  // and finding last night's dish already ticked is the kind of stale state that
+  // reads as the app having its own plans for you.
+  const openPrep = React.useCallback((s = null) => { setPrepSeed(s); setPrepOpen(true); }, []);
   React.useEffect(() => { if (initialView) onStartConsumed(); }, []);
+  // Keyed on the nonce rather than on the cookable: tapping the same dish's door
+  // twice is two requests, and an identity comparison would swallow the second.
+  React.useEffect(() => {
+    if (!cookWith || !cookWith.cookable) return;
+    openPrep({ cookable: cookWith.cookable, mine: !!cookWith.mine });
+    onCookWithConsumed();
+  }, [cookWith && cookWith.nonce]);
   React.useEffect(() => {
     window.ShapeNav?.announce?.({ sub: view });
     return () => window.ShapeNav?.announce?.(null);
@@ -11241,8 +11434,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
 
   // The Prep Session overlays EVERY eat view (its door lives on the menu AND
   // the grocery page) — entirely optional, a door never a gate.
-  if (prepOpen) return <BSPrepSession program={PROGRAM} onClose={() => setPrepOpen(false)} />;
-  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => setPrepOpen(true)} /></>;
+  if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { setPrepOpen(false); setPrepSeed(null); }} />;
+  if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => openPrep()} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onBack={() => setView('grocery')} onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
   if (view === 'recipes') {
@@ -11471,7 +11664,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         </button>
         {/* PREP THE WEEK (PR C) — the Sunday-ritual door. Optional always: the
             menu + shop list are complete without it. */}
-        <button type="button" onClick={() => setPrepOpen(true)} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
+        <button type="button" onClick={() => openPrep()} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : t.ACCENT }}>{tr('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
           <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
           <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>

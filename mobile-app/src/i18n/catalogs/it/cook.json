@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "La ricetta non indica il tempo di alcuni passaggi: tieniti un margine",
   "prep.earliestSearched": "Il più presto tra gli ordini che abbiamo provato",
   "prep.noWindow": "Nessun piatto qui aspetta abbastanza per iniziarne un altro",
-  "prep.noStation": "La tua cucina non ha fuochi o forno liberi per la sovrapposizione"
+  "prep.noStation": "La tua cucina non ha fuochi o forno liberi per la sovrapposizione",
+  "cta.with": "Cucinare con altro",
+  "prep.startingWith": "Si parte da",
+  "prep.cookEyebrow": "Cucinare insieme",
+  "prep.cookPickTitle": "Cos'altro cuciniamo?",
+  "prep.cookWrapTitle": "È tutto.",
+  "prep.nextUp": "Avanti",
+  "prep.addAnother": "Seleziona un altro piatto e Shape si occupa dei tempi: insieme, uno dopo l'altro, o tutto in tavola allo stesso momento.",
+  "prep.timingComing": "Come vengono sincronizzati: allo stesso tempo, separatamente, o tutto in tavola insieme."
 }

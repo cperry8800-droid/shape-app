@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "Girkin bai ba wasu matakai lokaci ba, ka ba kanka ƙarin lokaci",
   "prep.earliestSearched": "Mafi wuri cikin tsarin da muka gwada",
   "prep.noWindow": "Babu abinci a nan da ke jira sosai har ka fara wani",
-  "prep.noStation": "Kicin ɗinka ba shi da murhu ko oven da ya rage don haɗuwar"
+  "prep.noStation": "Kicin ɗinka ba shi da murhu ko oven da ya rage don haɗuwar",
+  "cta.with": "Girka tare da wani abu",
+  "prep.startingWith": "Za a fara da",
+  "prep.cookEyebrow": "Girka tare",
+  "prep.cookPickTitle": "Me kuma za mu girka?",
+  "prep.cookWrapTitle": "Shi ke nan.",
+  "prep.nextUp": "Gaba",
+  "prep.addAnother": "Zaɓi wani abinci, Shape kuma zai tsara lokacin — a lokaci guda, ɗaya bayan ɗaya, ko duka a kan tebur lokaci guda.",
+  "prep.timingComing": "Yadda za a tsara lokacin — a lokaci guda, daban-daban, ko duka a kan tebur lokaci guda."
 }

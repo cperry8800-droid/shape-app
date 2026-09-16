@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "Resep tidak memberi waktu untuk sebagian langkah, sediakan waktu lebih",
   "prep.earliestSearched": "Paling awal dari urutan yang kami coba",
   "prep.noWindow": "Tidak ada hidangan di sini yang menunggu cukup lama untuk memulai yang lain",
-  "prep.noStation": "Dapurmu tidak punya tungku atau oven kosong untuk tumpang tindihnya"
+  "prep.noStation": "Dapurmu tidak punya tungku atau oven kosong untuk tumpang tindihnya",
+  "cta.with": "Masak bareng menu lain",
+  "prep.startingWith": "Mulai dengan",
+  "prep.cookEyebrow": "Masak bersama",
+  "prep.cookPickTitle": "Masak apa lagi?",
+  "prep.cookWrapTitle": "Semuanya beres.",
+  "prep.nextUp": "Lanjut",
+  "prep.addAnother": "Centang menu lain dan Shape yang atur waktunya — bersamaan, satu per satu, atau semua siap disajikan sekaligus.",
+  "prep.timingComing": "Cara mengatur waktunya — bersamaan, terpisah, atau semua siap disajikan sekaligus."
 }
