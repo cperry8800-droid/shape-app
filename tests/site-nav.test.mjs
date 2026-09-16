@@ -497,6 +497,73 @@ test('the drawer closes on the same breakpoint that creates it', () => {
   assert.ok(!/innerWidth\s*>\s*\d+\)\s*set\(false\)/.test(INDEX), 'the width-comparison listener is back');
 });
 
+// ── 7c · the eighth tab has room to be on screen ───────────────────────────
+test('the header tightens ABOVE the collapse, so the eight-link row is never clipped', () => {
+  // ⚠ THIS IS A MEASUREMENT PINNED AS AN INVARIANT, not a taste. `Kitchen` took
+  // the shared header's row from seven links to eight, and ALL of that bar's
+  // tightening used to live in the ≤1020 block — the block that also hides the
+  // row. Driven naturally in Chromium on Pricing.html with the real faces: the
+  // eight-link row needed 508px at 1021 and the flex row gave it 493, so `About`
+  // overhung its own box by 5px at 1040 and 15px at 1021 — CUT OFF at every
+  // width from 1044 down to the collapse, on a 1024px window among others.
+  //
+  // Splitting the tightening out to the ≤1100 block clears it: re-measured, clip
+  // is 0 at every width from 1440 to 1021, with 18px still between the row and
+  // the auth cluster. The breakpoint itself is deliberately NOT moved — raising
+  // it to 1060 would have taken 40px of desktop away AND split this bar from the
+  // homepage's, whose own flex row measured clean to 1021 with the same links.
+  //
+  // What is asserted is the thing that can be deleted by accident: the trim
+  // exists in a block ABOVE the collapse. A CSS fit is a browser question; that
+  // this block still tightens before the row is asked to survive is not.
+  const trim = /@media \(max-width: 1100px\) \{([\s\S]*?)\n {6}\}/.exec(SHELL);
+  assert.ok(trim, 'the shared header lost its ≤1100px tightening block');
+  assert.match(trim[1], /\.shape-header-inner\s*\{[^}]*padding:/, 'the ≤1100 block no longer trims the header inner padding');
+  assert.match(trim[1], /\.shape-header-inner\s*\{[^}]*gap:/, 'the ≤1100 block no longer trims the header inner gap');
+  assert.match(trim[1], /\.shape-nav-tabs\s*\{[^}]*gap:/, 'the ≤1100 block no longer trims the tab gap');
+  // Guard the guard: the block must sit ABOVE the collapse or it tightens nothing
+  // the row can use. Both numbers are read, never restated.
+  const collapse = /@media \(max-width: (\d+)px\) \{\s*\.shape-header-inner[^}]*\}\s*\.shape-nav-tabs \{ display: none/.exec(SHELL);
+  assert.ok(collapse, 'the shared header nav-collapse block is gone');
+  // ⚠ The breakpoint is read by walking BACK from the trim to the @media that
+  // encloses it, never by a fixed-width window: a window is a length, and the
+  // comment above this block is free to grow past whatever length is chosen.
+  const trimIdx = SHELL.indexOf('.shape-nav-tabs { gap:');
+  assert.ok(trimIdx > 0, 'the tab-gap trim is gone');
+  const opens = [...SHELL.slice(0, trimIdx).matchAll(/@media \(max-width: (\d+)px\) \{/g)];
+  assert.ok(opens.length, 'no @media block encloses the tab-gap trim');
+  const trimAt = Number(opens[opens.length - 1][1]);
+  assert.ok(trimAt > Number(collapse[1]),
+    `the tightening block (${trimAt}px) is not above the collapse (${collapse[1]}px) — it can never give the row room`);
+});
+
+// ── 7d · the drawer is the only nav a phone has ────────────────────────────
+test('the homepage drawer carries every link the homepage bar carries', () => {
+  // ⚠ THE MUTATION ROUND IS WHAT FOUND THIS, and it is a class rather than one
+  // link: deleting `Kitchen` from the homepage DRAWER alone left the whole suite
+  // green. Below 1020px `.nlinks` is display:none and this drawer is the only
+  // nav the page has, so a link missing here is a destination no phone can reach
+  // — the exact failure the Radio comment in index.html already warns about, in
+  // the other direction.
+  //
+  // The two lists are DERIVED from the markup, and the drawer's extras are named
+  // rather than counted: it legitimately carries the dropdown's own item inline
+  // (Marketplace), plus Radio and the auth pair the collapse rule hides.
+  const bar = homepageLinks().map(([l]) => l);
+  const m = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
+  assert.ok(m, 'the homepage drawer is gone — this guard is reading nothing');
+  const drawer = [...m[1].matchAll(/<a [^>]*>([\s\S]*?)<\/a>/g)]
+    .map((a) => a[1].replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim());
+  assert.ok(drawer.length >= 6, 'parsed only ' + drawer.length + ' drawer links — the parse stopped matching');
+  const missing = bar.filter((l) => !drawer.includes(l));
+  assert.deepEqual(missing, [], 'the homepage drawer is missing ' + missing.join(', ') + ' — below 1020px that is a destination no phone can reach');
+  // Guard the guard: a parser that returned the whole bar would satisfy the line
+  // above for free. The drawer must carry the extras that are ONLY in it.
+  for (const extra of ['Marketplace', 'Radio']) {
+    assert.ok(drawer.includes(extra), 'the drawer lost ' + extra + ', which the bar does not carry as a tab');
+  }
+});
+
 // ── 8 · the pages the nav dropped are still reachable ──────────────────────
 test('removing the nav dropdowns did not orphan the pages they pointed at', () => {
   // ⚠ Measured when the three dropdowns were retired: nothing else on the site

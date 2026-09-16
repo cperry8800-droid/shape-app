@@ -7330,158 +7330,560 @@ function bsSkParseIngredient(s) {
   return { q: '', n: s };
 }
 
-// Recipe box — your personal recipes: All / Saved (liked) / meal-type filters,
-// each card sends to ITS OWN grocery list, with a ♥ Save toggle. Shape Kitchen
-// (the full catalog) stays reachable via the "Browse" card.
+// ═══════════════════════════════════════════════════════════════════════════
+// THE MENU — the Shape Kitchen as a menu you read, not a grid you sift.
+// Owner pick 2026-09-15 off docs/REVIEW-2026-09-15-about-and-kitchen.md §K3,
+// for BOTH surfaces: public/newdesign/recipesPage.jsx is the website's copy and
+// this is the app's. A hundred recipes grouped by how long they take to cook —
+// under 15 minutes · 15 to 30 · 30 to 60 · over an hour — with a sticky jump
+// row between the courses, search and the filters as toggles on one strip, and
+// "Today's board" putting three dishes in large type for the reader who does
+// not want to choose.
+//
+// ⚠ THE RULES ARE THE WEBSITE'S, LIFTED RATHER THAN RE-DERIVED, so the two
+// surfaces put the same recipe in the same course and show the SAME board on
+// the same day. Band edges, the day seed and the picking rule are compared
+// against the website's own copy in tests/recipe-menu-parity.test.mjs — a
+// number changed on one side fails there rather than drifting quietly.
+//
+// ⚠ ONE DESIGN, TWO TYPE SYSTEMS, AND THAT IS DELIBERATE. The website sets its
+// readings in Doto because Doto is the SITE's numeral face (the 2026-09-10 type
+// ruling); the app sets them in `t.MONO` because this app's contract is "No
+// serifs. No script." (iosAppBroadsheet.jsx:10-14) and Doto here is the Radio
+// page's own instrument face (the 2026-09-14 §12 default, "Doto on Radio
+// only"). Same grammar — a label, then a figure — in each house's own face.
+//
+// ⚠ REGISTERED, NOT FIXED: `BSNutritionTopTabs` — the Day / Grocery / Library /
+// Recipes row this page renders under its masthead — carries four hardcoded
+// English labels, and after this cut they are the only English left on the
+// screen. It is a shared component with three other consumers, so keying it is
+// its own change rather than a side effect of the Kitchen's.
+//
+// ⚠ AND THE COLOURS ARE TOKENS, NEVER THE WEBSITE'S BONE/TERRACOTTA LITERALS.
+// The app has 18 papers; the website's page-local palette would read as one of
+// them and be wrong on the other seventeen. The website's two accents map onto
+// the app's own two: teal (the Eat section's colour, and the literal this file
+// uses 73 times) carries the masthead, and `t.ACCENT` — the member's own accent
+// — carries the course numerals and a lit toggle.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// A course pages at this many rows; "Show all N" opens the rest. A search never
+// pages — a result a reader searched for must not hide behind a button. And a
+// course only pages when the door would hide at least BS_KM_PAGE_SLACK rows: a
+// door opening onto two more lines is a tap that buys nothing.
+const BS_KM_PAGE = 12;
+const BS_KM_PAGE_SLACK = 4;
+function bsKmPaged(n) { return n > BS_KM_PAGE + BS_KM_PAGE_SLACK; }
+
+// A recipe's stated time is a compact string ("35 min", "1 hr", "1 hr 15 min");
+// the minutes are read off it rather than typed beside it, so the catalog stays
+// the one source. There is no numeric minutes field anywhere in
+// shapeKitchenData.js — measured: 24 distinct `time` strings, grammar
+// "N min" | "N hr" | "N hr M min". Unparseable → null, and the guard asserts
+// every catalog recipe parses: a recipe with no readable time would otherwise
+// vanish from a page whose whole structure is "by time".
+function bsRecipeMinutes(r) {
+  const s = String((r && r.time) || '').toLowerCase();
+  const h = s.match(/(\d+(?:\.\d+)?)\s*(?:hr|hrs|hour|hours|h)\b/);
+  const m = s.match(/(\d+(?:\.\d+)?)\s*(?:min|mins|minute|minutes|m)\b/);
+  if (!h && !m) return null;
+  return Math.round((h ? parseFloat(h[1]) * 60 : 0) + (m ? parseFloat(m[1]) : 0));
+}
+// Bands are half-open on the top edge so 15 min sits in course one and 30 min
+// in course two — "under 15" reads as "up to and including a quarter hour",
+// which is what a cook means by it. The TITLES are keyed at the render site;
+// only the key and the predicate live here, because a band edge is a rule and a
+// heading is copy.
+const BS_KM_COURSES = [
+  { key: 'under15', test: (m) => m <= 15 },
+  { key: 'c15to30', test: (m) => m > 15 && m <= 30 },
+  { key: 'c30to60', test: (m) => m > 30 && m <= 60 },
+  { key: 'over60', test: (m) => m > 60 },
+];
+// Index into BS_KM_COURSES, or -1 for a recipe whose time cannot be read. Every
+// recipe lands in EXACTLY one course by construction (the bands partition the
+// positive minutes), and the guard proves it over the shipped catalog.
+function bsKmCourseIndex(r) {
+  const m = bsRecipeMinutes(r);
+  if (m == null || !(m > 0)) return -1;
+  return BS_KM_COURSES.findIndex((c) => c.test(m));
+}
+function bsKmSortByTime(list) {
+  return list.slice().sort((a, b) => {
+    const d = (bsRecipeMinutes(a) || 0) - (bsRecipeMinutes(b) || 0);
+    return d || String(a.title).localeCompare(String(b.title));
+  });
+}
+function bsKmIsAuthored(r) {
+  const a = bsRecipeAttribution(r);
+  return !!a && a.kind === 'authored';
+}
+// Everything a reader might type. ⚠ THE INGREDIENT SHAPE DIVERGES FROM THE
+// WEBSITE AND IS MAPPED RATHER THAN SPREAD: the app's catalog carries
+// `[{n, m, k?}]` objects (shapeKitchenData.js) where the website's parity copy
+// carries plain strings, so `...r.ingredients` would put "[object Object]" in
+// the haystack and a search for an ingredient would match nothing, silently.
+function bsKmHaystack(r) {
+  const a = bsRecipeAttribution(r);
+  const ing = (r.ingredients || []).map((i) => (i && typeof i === 'object' ? `${i.n || ''} ${i.m || ''}` : String(i || '')));
+  return [r.title, r.diet, ...(r.tags || []), a ? a.name : '', a && a.role ? a.role : '', ...ing]
+    .join(' ').toLowerCase();
+}
+// The filter rules, kept pure so they can be driven: Diet + Protein are ONE
+// single-select axis (recipeMatchesDiet), Free From + Goals a multi-select layer
+// (recipeNeeds, every chosen need must hold), Shape pros = authored only, Saved =
+// in the reader's library, and the search over bsKmHaystack.
+function bsKmMatches(r, f) {
+  if (f.diet && f.diet !== 'All' && !recipeMatchesDiet(r, f.diet)) return false;
+  if (f.needs && f.needs.length) {
+    const needsOf = recipeNeeds(r);
+    if (!f.needs.every((n) => needsOf.includes(n))) return false;
+  }
+  if (f.pros && !bsKmIsAuthored(r)) return false;
+  if (f.saved && !(f.savedIds && f.savedIds.has(`recipe:${bsSkSlug(r.title)}`))) return false;
+  if (f.q) {
+    const words = String(f.q).toLowerCase().split(/\s+/).filter(Boolean);
+    const hay = bsKmHaystack(r);
+    if (!words.every((w) => hay.includes(w))) return false;
+  }
+  return true;
+}
+// Today's board: one pro-authored dish from each of the first three courses,
+// rotating with the day so the board is different tomorrow, and never the same
+// dish twice (the courses are disjoint). Only the unfiltered menu shows it — a
+// board of three unfiltered dishes under an active filter would contradict it.
+function bsKmDaySeed(date) {
+  const d = date || new Date();
+  const start = new Date(d.getFullYear(), 0, 1);
+  return Math.floor((d - start) / 86400000);
+}
+function bsKmBoardPicks(courses, seed) {
+  const out = [];
+  courses.slice(0, 3).forEach((c, i) => {
+    const pros = c.rows.filter(bsKmIsAuthored);
+    if (!pros.length) return;
+    out.push(pros[(seed + i) % pros.length]);
+  });
+  return out;
+}
+
+// A filter toggle, and the ONE piece of this page that is a component rather
+// than inline markup.
+//
+// ⚠ `label` IS A PROP AND MUST STAY ONE. `drive()` renders a component ONE level
+// deep (tests/helpers/broadsheet-mount.mjs), so a nested component's own output
+// is never in the tree — which is precisely why the harness reaches a control
+// like this by `n.props.label === '<token>'` (`clickChip`) instead of by its
+// rendered text. tests/kitchen-allergen-surfaces.test.mjs selects Gluten-free
+// that way. Renaming the prop to `children`/`text` breaks the selection with a
+// throw rather than a silent pass, but it breaks it.
+//
+// ⚠ AND THE SAME ONE-LEVEL RULE IS WHY THE RECIPE ROW BELOW IS NOT A COMPONENT.
+// A `<BSKmRow/>` would put every title, byline, certification and `Send to
+// grocery` outside the rendered tree, so `box.row()` would return null and the
+// three allergen assertions would fail for a reason that is not about the page.
+// The row is a plain closure that is CALLED, so its host elements land inline —
+// which also costs nothing at runtime, since a called function has no component
+// identity to remount.
+function BSKmToggle({ label, on, color, onClick, count }) {
+  const t = useBS();
+  const c = on ? (color || t.ACCENT) : t.RULE;
+  return (
+    <button type="button" onClick={onClick} aria-pressed={!!on} style={{
+      flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6,
+      minHeight: 32, padding: '7px 11px', borderRadius: 3, cursor: 'pointer',
+      border: `1px solid ${c}`, background: on ? bsTHexA(color || t.ACCENT, 0.09) : 'transparent',
+      color: on ? (color || t.ACCENT) : t.INK70,
+      fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+    }}>
+      {label}
+      {typeof count === 'number' ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, color: on ? (color || t.ACCENT) : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{count}</span> : null}
+    </button>
+  );
+}
+
+// Recipe box — the Shape Kitchen catalog as the Menu.
 function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onProfile = () => {} }) {
   const t = useBS();
+  const tr = useShapeTr();
   _bsScrollTopOnMount();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const lib = useBSLibrary();
-  const [filter, setFilter] = useStateBSC('all');
   const [q, setQ] = useStateBSC('');
-  // Advanced filters (folded in from the old Shape Kitchen page).
   const [diet, setDiet] = useStateBSC('All');
   const [needs, setNeeds] = useStateBSC([]);
-  const [filtersOpen, setFiltersOpen] = useStateBSC(false);
-  const toggleNeed = (n) => setNeeds(prev => prev.includes(n) ? prev.filter(x => x !== n) : [...prev, n]);
+  const [pros, setPros] = useStateBSC(false);
+  const [savedOnly, setSavedOnly] = useStateBSC(false);
+  const [expanded, setExpanded] = useStateBSC(() => new Set());
+  const [activeCourse, setActiveCourse] = useStateBSC(0);
+  // The jump row sticks inside BSPage's own `.bs-scroll`, and BSPage hangs a
+  // CONDENSING masthead over the top of that scroller once it passes 64px
+  // (iosAppBroadsheet.jsx:534-543). A row stuck at top:0 would therefore spend
+  // the whole scroll underneath it. The offset is MEASURED off that bar rather
+  // than restating its padding + row height, so a safe-area inset, a notch
+  // floor or a text-size change moves the two together.
+  const [stickyTop, setStickyTop] = useStateBSC(0);
+  const jumpRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const measure = () => {
+      try {
+        const el = document.querySelector('[data-bs-pinned-mast]');
+        const h = el ? Math.round(el.getBoundingClientRect().height) : 0;
+        setStickyTop(h > 0 ? h : 0);
+      } catch (e) { /* no DOM (the mount harness) — 0 is the honest answer */ }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    const later = setTimeout(measure, 320);
+    return () => { window.removeEventListener('resize', measure); clearTimeout(later); };
+  }, []);
+
   const recId = (r) => `recipe:${bsSkSlug(r.title)}`;
-  const savedIds = new Set(lib.filter(x => x.kind === 'recipe').map(x => x.id));
-  const tagHas = (r, word) => (r.tags || []).some(tg => String(tg).toLowerCase().includes(word));
-  const isPlant = (r) => ['vegan', 'vegetarian', 'plant-based'].includes(String(r.diet || '').toLowerCase()) || tagHas(r, 'plant');
-  const matchFilter = (r) => {
-    if (filter === 'all') return true;
-    if (filter === 'saved') return savedIds.has(recId(r));
-    if (filter === 'plant') return isPlant(r);
-    return tagHas(r, filter);
+  const savedIds = new Set(lib.filter((x) => x.kind === 'recipe').map((x) => x.id));
+  const all = Array.isArray(recipes) ? recipes : [];
+
+  const toggleNeed = (n) => setNeeds((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]));
+  const pickDiet = (d) => setDiet((prev) => (prev === d ? 'All' : d));
+  const searching = q.trim().length > 0;
+  const anyFilter = diet !== 'All' || needs.length > 0 || pros || savedOnly;
+  const clearAll = () => { setDiet('All'); setNeeds([]); setPros(false); setSavedOnly(false); setQ(''); };
+
+  const filters = { q: q.trim(), diet, needs, pros, saved: savedOnly, savedIds };
+  const savedCount = all.filter((r) => savedIds.has(recId(r))).length;
+  const prosCount = all.filter(bsKmIsAuthored).length;
+  const shown = all.filter((r) => bsKmMatches(r, filters));
+
+  const COURSE_TITLE = {
+    under15: tr('nutrition:kitchen.courseUnder15', { defaultValue: 'Under 15 minutes' }),
+    c15to30: tr('nutrition:kitchen.course15to30', { defaultValue: '15 to 30 minutes' }),
+    c30to60: tr('nutrition:kitchen.course30to60', { defaultValue: '30 to 60 minutes' }),
+    over60: tr('nutrition:kitchen.courseOver60', { defaultValue: 'Over an hour' }),
   };
-  const query = q.trim().toLowerCase();
-  const list = recipes
-    .filter(matchFilter)
-    .filter(r => recipeMatchesDiet(r, diet))
-    .filter(r => needs.length === 0 || needs.every(n => recipeNeeds(r).includes(n)))
-    .filter(r => !query || [r.title, r.by, r.source, ...(r.tags || [])].join(' ').toLowerCase().includes(query));
-  const savedCount = recipes.filter(r => savedIds.has(recId(r))).length;
-  const pills = [['all', 'All', recipes.length], ['saved', 'Saved', savedCount], ['breakfast', 'Breakfast'], ['lunch', 'Lunch'], ['dinner', 'Dinner'], ['snack', 'Snack'], ['plant', 'Plant-based']];
-  const dietCount = (d) => recipes.filter(r => recipeMatchesDiet(r, d)).length;
-  const advCount = (diet !== 'All' ? 1 : 0) + needs.length;
-  const resetAdv = () => { setDiet('All'); setNeeds([]); };
-  const Chip = ({ label, on, color, onClick, count }) => (
-    <button type="button" onClick={onClick} aria-pressed={on} style={{
-      flex: '0 0 auto', padding: '8px 12px', borderRadius: 3, cursor: 'pointer',
-      border: `1px solid ${on ? (color || t.ACCENT) : t.RULE}`, background: 'transparent',
-      color: on ? (color || t.ACCENT) : t.INK70,
-      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
-    }}>{label}{typeof count === 'number' ? ` ${count}` : ''}</button>
+  const COURSE_SHORT = {
+    under15: tr('nutrition:kitchen.shortUnder15', { defaultValue: '≤ 15 min' }),
+    c15to30: tr('nutrition:kitchen.short15to30', { defaultValue: '15–30 min' }),
+    c30to60: tr('nutrition:kitchen.short30to60', { defaultValue: '30–60 min' }),
+    over60: tr('nutrition:kitchen.shortOver60', { defaultValue: '1 hr +' }),
+  };
+  const nRecipes = (n) => tr('nutrition:kitchen.nRecipes', { defaultValue: '{n, plural, one {# recipe} other {# recipes}}', n });
+
+  const courses = BS_KM_COURSES.map((c, i) => ({ ...c, rows: bsKmSortByTime(shown.filter((r) => bsKmCourseIndex(r) === i)) }));
+  // A recipe whose time cannot be read is still on the menu — under its own
+  // heading, which renders only when there is one. The catalog has none today.
+  const untimed = bsKmSortByTime(shown.filter((r) => bsKmCourseIndex(r) === -1));
+  const board = (!anyFilter && !searching) ? bsKmBoardPicks(courses, bsKmDaySeed()) : [];
+  const toggleExpanded = (key) => setExpanded((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+
+  // Scroll spy for the jump row: the last course whose head has passed the
+  // sticky row is the one you are reading. The scroller is found from our OWN
+  // node rather than by `document.querySelector('.bs-scroll')` — that class
+  // marks many scrollers in this app (rails included) and the first in the
+  // document is not reliably the page's.
+  const shownLen = shown.length;
+  React.useEffect(() => {
+    const host = jumpRef.current && jumpRef.current.closest ? jumpRef.current.closest('.bs-scroll') : null;
+    if (!host) return undefined;
+    const onScroll = () => {
+      try {
+        let idx = 0;
+        BS_KM_COURSES.forEach((c, i) => {
+          const el = document.getElementById(`bskm-${c.key}`);
+          if (el && el.getBoundingClientRect().top - stickyTop - 56 <= 0) idx = i;
+        });
+        setActiveCourse(idx);
+      } catch (e) { /* the spy is an affordance, never a render dependency */ }
+    };
+    host.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => host.removeEventListener('scroll', onScroll);
+  }, [stickyTop, shownLen]);
+
+  const jumpTo = (key) => {
+    try {
+      const host = jumpRef.current && jumpRef.current.closest ? jumpRef.current.closest('.bs-scroll') : null;
+      const el = document.getElementById(`bskm-${key}`);
+      if (!host || !el) return;
+      const y = host.scrollTop + el.getBoundingClientRect().top - host.getBoundingClientRect().top - stickyTop - 46;
+      // ⚠ `behavior: 'smooth'` is the OPTION, and an option beats the element's
+      // own `scroll-behavior`, so a CSS reduced-motion rule cannot switch it off
+      // the way it can for an anchor jump. The preference is read here instead.
+      const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      host.scrollTo({ top: Math.max(0, y), behavior: still ? 'auto' : 'smooth' });
+    } catch (e) { /* no smooth scroll is not a broken page */ }
+  };
+
+  const creditOf = (r) => {
+    const a = bsRecipeAttribution(r);
+    if (!a) return '';
+    if (a.kind === 'authored') return a.role ? `${a.role} · ${a.name}` : a.name;
+    return tr('nutrition:kitchen.fromSource', { defaultValue: 'From {name}', name: a.name });
+  };
+
+  // One reading: a small label, then the figure in MONO with tabular figures so
+  // two rows' numbers line up. A called helper, not a component — see the note
+  // on BSKmToggle above for why that distinction is load bearing here.
+  const reading = (k, label, value) => (
+    <span key={k} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4, whiteSpace: 'nowrap' }}>
+      <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{label}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+    </span>
   );
-  const Group = ({ label, children }) => (
-    <div>
-      <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', color: t.INK50, marginBottom: 7 }}>{label}</div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
-    </div>
-  );
+
+  const row = (recipe) => {
+    const dc = BS_SK_DIET_COLOR[recipe.diet] || teal;
+    const a = bsRecipeAttribution(recipe);
+    const id = recId(recipe);
+    const saved = savedIds.has(id);
+    // ⚠ 80 of the 100 recipes have NO `allergenNotes` key at all — `undefined`,
+    // not `[]` — so the array is coalesced before it is read, twice.
+    const notes = recipe.allergenNotes || [];
+    return (
+      <div key={id} style={{ padding: '13px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+        <button type="button" onClick={() => onOpenRecipe(recipe)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: t.W.display, letterSpacing: '-0.015em', lineHeight: 1.15, color: t.INK }}>{recipe.title}</span>
+            {recipe.diet ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, lineHeight: 1.4 }}>
+                <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: dc, display: 'inline-block' }} />
+                {recipe.diet}
+              </span>
+            ) : null}
+          </span>
+          {/* Two honest ways to be credited: a person with their role, or the
+              public-domain source. Every byline goes through
+              bsRecipeAttribution — a sourced recipe carries `by: null`, and
+              three surfaces once crashed on `.by.toUpperCase()`. */}
+          {a ? (
+            <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.04em', color: t.INK50 }}>
+              {a.kind === 'authored' && a.role ? <b style={{ color: t.ACCENT, fontWeight: 800 }}>{a.role}{' · '}</b> : null}
+              {a.kind === 'authored' ? a.name : tr('nutrition:kitchen.fromSource', { defaultValue: 'From {name}', name: a.name })}
+            </span>
+          ) : null}
+        </button>
+        {/* Allergen claim note, on the RESULT ROW. This list is what the FREE
+            FROM toggles return, and the row carries `Send to grocery` — so a
+            member can put generic oats / soy sauce / broth / margarine on a
+            shopping list without ever opening the card that qualifies the
+            claim. The certification is the safety-bearing half, so it renders
+            ABOVE the grocery action, never after it. Certification clause only;
+            the brand examples stay on the detail card. Unattributed — the
+            catalog's own voice, never behind the recipe's byline.
+            ⚠ THE EYEBROW IS A JS TEMPLATE, NOT AN ICU PLACEHOLDER. The word is
+            keyed and the allergen is interpolated in JavaScript, because the
+            mount harness's `tr` returns `defaultValue` WITHOUT interpolating —
+            an ICU `{allergen}` would render literally and every assertion on
+            `ALLERGEN · GLUTEN` would read a brace instead of the allergen. */}
+        {notes.length > 0 ? (
+          <div style={{ marginTop: 6, paddingLeft: 8, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
+            {notes.map((n, ni) => (
+              <div key={ni} style={{ marginTop: ni ? 4 : 0, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.45, color: t.INK70 }}>
+                <span style={{ fontWeight: 800, letterSpacing: '0.16em', color: t.INK50 }}>{`${tr('nutrition:kitchen.allergen', { defaultValue: 'ALLERGEN' })} · ${String(n.allergen || '').toUpperCase()} `}</span>
+                {n.certification}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 7, flexWrap: 'wrap' }}>
+          {reading('rdTime', tr('nutrition:kitchen.rdTime', { defaultValue: 'Time' }), recipe.time)}
+          {reading('rdKcal', tr('nutrition:kitchen.rdKcal', { defaultValue: 'Kcal' }), recipe.kcal)}
+          {reading('rdP', tr('nutrition:kitchen.rdProtein', { defaultValue: 'P' }), recipe.macros.p)}
+          {reading('rdC', tr('nutrition:kitchen.rdCarbs', { defaultValue: 'C' }), recipe.macros.c)}
+          {reading('rdF', tr('nutrition:kitchen.rdFat', { defaultValue: 'F' }), recipe.macros.f)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 2 }}>
+          <button type="button" onClick={() => onSendToGrocery(recipe)} style={{ minHeight: 44, display: 'flex', flex: 1, alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>{tr('nutrition:kitchen.sendToGrocery', { defaultValue: 'Send to grocery' })}</span>
+            <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
+            <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 12 }}>→</span>
+          </button>
+          <button type="button" onClick={() => bsLibToggle(bsRecipeLibItem(recipe))} aria-pressed={saved}
+            aria-label={saved ? tr('nutrition:kitchen.unsaveAria', { defaultValue: 'Remove from your library' }) : tr('nutrition:kitchen.saveAria', { defaultValue: 'Save to your library' })}
+            style={{ minHeight: 44, minWidth: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: saved ? teal : t.INK50, whiteSpace: 'nowrap' }}>
+            {saved ? `♥ ${tr('nutrition:kitchen.saved', { defaultValue: 'Saved' })}` : `♡ ${tr('nutrition:kitchen.save', { defaultValue: 'Save' })}`}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const strip = { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' };
+
   return (
     <BSPage>
       <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Eat · Shape Kitchen</div>
-        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.92, letterSpacing: '-0.035em', color: t.INK }}>Shape<br/><span style={{ fontStyle: 'italic', color: teal }}>Kitchen.</span></h1>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>Save the meals you cook — send any recipe straight to its own grocery list.</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('nutrition:kitchen.eyebrow', { defaultValue: 'Shape Kitchen' })}</div>
+        <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, lineHeight: 0.94, letterSpacing: '-0.035em', color: t.INK }}>
+          {tr('nutrition:eat.menuKicker', { defaultValue: 'The menu' })}<span style={{ color: t.ACCENT }}>.</span>
+        </h1>
+        <div style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>
+          {tr('nutrition:kitchen.menuSub', { defaultValue: "Recipes from Shape's nutritionists and dieticians, and from the public record, grouped by how long they take to cook. Tap any row for the full recipe." })}
+        </div>
       </div>
       <BSNutritionTopTabs active="recipes" onChange={onChangeView} />
-      <div style={{ padding: `12px ${t.padX}px 8px` }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search recipes…" style={{ width: '100%', boxSizing: 'border-box', padding: '10px 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' }} />
+
+      {/* Tools: search, then the filters as toggles on one scrolling strip.
+          Diet and Protein share ONE single-select axis; Free From and Goals
+          stack. There is no "Filters" drawer any more — the Menu's whole claim
+          is that what is on the page is what there is. */}
+      <div style={{ padding: `12px ${t.padX}px 0` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1px solid ${t.RULE}`, paddingBottom: 2 }}>
+          <span aria-hidden style={{ color: t.INK50, fontSize: 15 }}>⌕</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder={tr('nutrition:kitchen.searchPlaceholder', { defaultValue: 'Search the menu' })}
+            aria-label={tr('nutrition:kitchen.searchPlaceholder', { defaultValue: 'Search the menu' })}
+            style={{ flex: 1, minWidth: 0, padding: '9px 0', border: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, outline: 'none' }} />
+          {q ? (
+            <button type="button" onClick={() => setQ('')} aria-label={tr('nutrition:kitchen.clearSearch', { defaultValue: 'Clear search' })}
+              style={{ minHeight: 32, minWidth: 32, border: 0, background: 'transparent', color: t.INK50, fontSize: 17, lineHeight: 1, cursor: 'pointer' }}>×</button>
+          ) : null}
+        </div>
       </div>
-      {/* One filter section: quick type pills + a Filters toggle that expands
-          the advanced Diet / Protein / Free-from / Goals groups in place. */}
-      <div style={{ padding: `2px ${t.padX}px 10px` }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-          {pills.map(([k, label, count]) => {
-            const on = filter === k;
-            return <button type="button" key={k} onClick={() => setFilter(k)} aria-pressed={on} style={{ flex: '0 0 auto', padding: '8px 13px', borderRadius: 3, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: 'transparent', color: on ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}{typeof count === 'number' ? ` · ${count}` : ''}</button>;
+      <div style={{ padding: `10px ${t.padX}px 0` }}>
+        <div style={strip}>
+          <BSKmToggle label={`♡ ${tr('nutrition:kitchen.saved', { defaultValue: 'Saved' })}`} on={savedOnly} color={teal} count={savedCount} onClick={() => setSavedOnly((v) => !v)} />
+          <BSKmToggle label={tr('nutrition:kitchen.shapePros', { defaultValue: 'Shape pros' })} on={pros} color={teal} count={prosCount} onClick={() => setPros((v) => !v)} />
+          {/* ⚠ THE CHIP LABELS ARE CATALOG TOKENS AND STAY ENGLISH, WHICH IS
+              REGISTERED RATHER THAN OVERLOOKED. `RECIPE_DIETS` and friends are
+              the same strings `recipeMatchesDiet` and `recipeNeeds` COMPARE
+              against (shapeKitchenData.js), so translating them at the render
+              site needs a token/label split through the data file — the pattern
+              this repo has done three times elsewhere. It is its own change, and
+              doing half of it here would break the filters in twelve locales.
+              The i18n ratchet cannot see them either: it walks `.jsx` only, and
+              that file is `.js`. Stated in the CUT note beside the numbers. */}
+          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
+          {RECIPE_DIETS.map((d) => <BSKmToggle key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => pickDiet(d)} />)}
+          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
+          {RECIPE_PROTEINS.map((d) => <BSKmToggle key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => pickDiet(d)} />)}
+          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
+          {RECIPE_FREE_FROM.map((n) => <BSKmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />)}
+          <span aria-hidden style={{ flex: '0 0 auto', width: 1, height: 20, background: t.RULE, margin: '0 3px' }} />
+          {RECIPE_GOALS.map((n) => <BSKmToggle key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} />)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 9 }}>
+          {(anyFilter || searching) ? (
+            <button type="button" onClick={clearAll} style={{ border: 0, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', minHeight: 32, padding: '6px 0' }}>{tr('nutrition:kitchen.clear', { defaultValue: 'Clear' })} ×</button>
+          ) : <span />}
+          {/* Unfiltered the count names what it counts; filtered it does not —
+              "17 of 100" sits between a row of recipe filters and a list of
+              recipes, so the referent is never in doubt, and an "N of M recipes"
+              form would put a bare number against an inflected noun in ru/uk,
+              which is the agreement hazard this file already records. */}
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+            {(anyFilter || searching)
+              ? tr('nutrition:kitchen.countOf', { defaultValue: '{shown} of {total}', shown: shown.length, total: all.length })
+              : nRecipes(all.length)}
+          </span>
+        </div>
+      </div>
+
+      {/* Jump row — sticky under BSPage's own condensing masthead. */}
+      <div ref={jumpRef} style={{ position: 'sticky', top: stickyTop, zIndex: 3, background: t.PAPER, borderBottom: `1px solid ${t.RULE}`, marginTop: 10, padding: `8px ${t.padX}px` }}>
+        <div style={strip} aria-label={tr('nutrition:kitchen.jumpTo', { defaultValue: 'Jump to a course' })}>
+          {BS_KM_COURSES.map((c, i) => {
+            const n = courses[i].rows.length;
+            const on = activeCourse === i && n > 0;
+            return (
+              <button key={c.key} type="button" disabled={!n} onClick={() => jumpTo(c.key)} style={{
+                flex: '0 0 auto', display: 'inline-flex', alignItems: 'baseline', gap: 6, minHeight: 30,
+                padding: '6px 9px', borderRadius: 4, border: 0, cursor: n ? 'pointer' : 'default',
+                background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK70 : t.INK30),
+                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+              }}>
+                {COURSE_SHORT[c.key]}
+                <span style={{ fontSize: 8.5, fontWeight: 700, opacity: on ? 0.75 : 1, color: on ? t.PAPER : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+              </button>
+            );
           })}
-          <button type="button" onClick={() => setFiltersOpen(o => !o)} aria-expanded={filtersOpen} style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px', borderRadius: 3, border: `1px solid ${(filtersOpen || advCount) ? t.ACCENT : t.RULE}`, background: 'transparent', color: (filtersOpen || advCount) ? t.ACCENT : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-            Filters{advCount > 0 ? ` · ${advCount}` : ''}
-            <span style={{ display: 'inline-block', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}>▾</span>
-          </button>
-          {advCount > 0 && (
-            <button type="button" onClick={resetAdv} style={{ flex: '0 0 auto', padding: '8px 11px', borderRadius: 3, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear</button>
+        </div>
+      </div>
+
+      {/* Today's board — three pro-authored dishes, one from each of the first
+          three courses, different tomorrow. Only on the unfiltered menu. */}
+      {board.length > 0 ? (
+        <div style={{ padding: `18px ${t.padX}px 0` }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('nutrition:kitchen.boardTitle', { defaultValue: "Today's board" })}</div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{tr('nutrition:kitchen.boardSub', { defaultValue: 'Different tomorrow' })}</div>
+          </div>
+          {board.map((r) => (
+            <button key={bsSkSlug(r.title)} type="button" onClick={() => onOpenRecipe(r)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `2px solid ${t.INK}`, padding: '11px 0 13px', cursor: 'pointer' }}>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.02em', lineHeight: 1.1, color: t.INK }}>{r.title}</span>
+              {r.blurb ? <span style={{ display: 'block', marginTop: 5, fontSize: 12.5, lineHeight: 1.4, color: t.INK70 }}>{r.blurb}</span> : null}
+              <span style={{ display: 'block', marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{creditOf(r)} · {r.time} · {r.kcal} kcal</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {/* The courses */}
+      {shown.length === 0 ? (
+        <div style={{ padding: `44px ${t.padX}px 28px`, textAlign: 'center' }}>
+          {savedOnly && savedCount === 0 && !searching && needs.length === 0 && diet === 'All' && !pros ? (
+            <React.Fragment>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.02em', color: t.INK }}>{tr('nutrition:kitchen.emptyLibraryTitle', { defaultValue: 'Your library is empty' })}</div>
+              <div style={{ marginTop: 8, fontSize: 13.5, color: t.INK70 }}>{tr('nutrition:kitchen.emptyLibraryBody', { defaultValue: 'Tap ♡ Save on any recipe to keep it here.' })}</div>
+            </React.Fragment>
+          ) : (
+            <React.Fragment>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.02em', color: t.INK }}>{tr('nutrition:kitchen.emptyTitle', { defaultValue: 'Nothing on the menu matches' })}</div>
+              <div style={{ marginTop: 8, fontSize: 13.5, color: t.INK70 }}>{tr('nutrition:kitchen.emptyBody', { defaultValue: 'Try fewer filters, or a different word.' })}</div>
+              <button type="button" onClick={clearAll} style={{ marginTop: 14, minHeight: 40, padding: '10px 16px', borderRadius: 4, border: `1px solid ${teal}`, background: 'transparent', color: teal, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('nutrition:kitchen.clearEverything', { defaultValue: 'Clear everything' })}</button>
+            </React.Fragment>
           )}
         </div>
-        {filtersOpen && (
-          <div style={{ marginTop: 13, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <Group label="DIET">
-              <Chip label="All" on={diet === 'All'} onClick={() => setDiet('All')} count={recipes.length} />
-              {RECIPE_DIETS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-            </Group>
-            <Group label="PROTEIN">
-              {RECIPE_PROTEINS.map(d => <Chip key={d} label={d} on={diet === d} color={BS_SK_DIET_COLOR[d]} onClick={() => setDiet(diet === d ? 'All' : d)} count={dietCount(d)} />)}
-            </Group>
-            <Group label="FREE FROM">
-              {RECIPE_FREE_FROM.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
-            </Group>
-            <Group label="GOALS">
-              {RECIPE_GOALS.map(n => <Chip key={n} label={n} on={needs.includes(n)} onClick={() => toggleNeed(n)} count={recipes.filter(r => recipeNeeds(r).includes(n)).length} />)}
-            </Group>
-          </div>
-        )}
-      </div>
-      <div style={{ padding: `8px ${t.padX}px 8px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {list.length === 0 ? (
-          <div style={{ padding: '20px 2px', textAlign: 'center', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, color: t.INK70 }}>{filter === 'saved' ? (savedCount === 0 && !q.trim() && advCount === 0 ? 'No saved recipes yet — tap ♡ Save on any recipe.' : 'No saved recipes match.') : 'No recipes match.'}</div>
-        ) : list.map((r, i) => {
-          const dc = BS_SK_DIET_COLOR[r.diet] || teal;
-          const id = recId(r);
-          const saved = savedIds.has(id);
-          const cat = (r.tags && r.tags[0]) || r.diet || 'Recipe';
-          // A sourced recipe has no author, so `r.by` was '' and the eyebrow rendered
-          // a dangling separator on every USDA row. Credit the source by name.
-          const credit = bsRecipeAttribution(r);
-          const coach = credit ? (credit.kind === 'authored' ? credit.name.split(' ')[0] : credit.name) : '';
-          const no = SHAPE_KITCHEN_RECIPES.indexOf(r) + 1 || null;
-          return (
-            <div key={`${r.title}-${i}`} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER, padding: '12px 14px' }}>
-              <button type="button" onClick={() => onOpenRecipe(r)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: dc }}>{no ? `Nº ${no} · ` : ''}{cat}{coach ? ` · ${coach}` : ''}</span>
-                <span style={{ display: 'block', marginTop: 5, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.05 }}>{r.title}</span>
-                <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.04em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.kcal} kcal · {r.macros.p}P / {r.macros.c}C / {r.macros.f}F · {r.time}</span>
-              </button>
-              {/* Allergen claim note, on the RESULT ROW. This list is what the
-                  FREE FROM filters return, and the row carries `Send to grocery`
-                  — so a member can put generic oats / soy sauce / broth /
-                  margarine on a shopping list without ever opening the card that
-                  qualifies the claim. The certification is the safety-bearing
-                  half, so it renders ABOVE the grocery action, never after it.
-                  Certification clause only; the brand examples stay on the
-                  detail card (the website result grid's established treatment,
-                  public/newdesign/recipesPage.jsx). Unattributed — the catalog's
-                  own voice, never behind the recipe's byline.
-                  ⚠ 71 of 85 recipes have NO `allergenNotes` key at all —
-                  `undefined`, not `[]` — so the array is coalesced before it is
-                  read, twice (the length test and the map). */}
-              {(r.allergenNotes || []).length > 0 && (
-                <div style={{ marginTop: 6, paddingLeft: 8, borderLeft: `2px solid ${bsTHexA(t.ACCENT, 0.45)}` }}>
-                  {(r.allergenNotes || []).map((n, ni) => (
-                    <div key={ni} style={{ marginTop: ni ? 4 : 0, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.45, color: t.INK70 }}>
-                      <span style={{ fontWeight: 800, letterSpacing: '0.16em', color: t.INK50 }}>{`ALLERGEN · ${String(n.allergen || '').toUpperCase()} `}</span>
-                      {n.certification}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
-                <button type="button" onClick={() => onSendToGrocery(r)} style={{ minHeight: 44, display: 'flex', flex: 1, alignItems: 'center', gap: 8, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}>Send to grocery</span>
-                  <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
-                  <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 12 }}>→</span>
-                </button>
-                <button type="button" onClick={() => bsLibToggle(bsRecipeLibItem(r))} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: saved ? teal : t.INK50, whiteSpace: 'nowrap' }}>{saved ? '✓ Saved' : '♡ Save'}</button>
-              </div>
+      ) : null}
+
+      {courses.map((c, i) => {
+        if (!c.rows.length) return null;
+        const open = expanded.has(c.key) || searching;
+        const rows = (open || !bsKmPaged(c.rows.length)) ? c.rows : c.rows.slice(0, BS_KM_PAGE);
+        const paged = !open && bsKmPaged(c.rows.length);
+        return (
+          <div key={c.key} id={`bskm-${c.key}`} style={{ padding: `22px ${t.padX}px 0`, scrollMarginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
+              <b aria-hidden style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, lineHeight: 1, color: t.ACCENT, letterSpacing: '-0.01em' }}>{String(i + 1).padStart(2, '0')}</b>
+              <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: t.W.display, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK }}>{COURSE_TITLE[c.key]}</h2>
+              <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{nRecipes(c.rows.length)}</span>
             </div>
-          );
-        })}
+            {rows.map((r) => row(r))}
+            {/* ⚠ THE DOOR CARRIES A KEY THAT NAMES ITS STATE, and that is a test
+                handle rather than a React necessity. Every door renders the same
+                COPY — and in the mount harness `tr` does not interpolate, so all
+                four read the literal "Show all {n}". A suite that has to open
+                them to see the rows behind them (the allergen guards do) would
+                otherwise be picking by position. `clickKey('more-<course>')` is
+                the stable identity the harness was given for exactly this. */}
+            {paged ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 0' }}>
+                <button key={`more-${c.key}`} type="button" onClick={() => toggleExpanded(c.key)} style={{ width: '100%', minHeight: 42, borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('nutrition:kitchen.showAll', { defaultValue: 'Show all {n}', n: c.rows.length })} →</button>
+              </div>
+            ) : (expanded.has(c.key) && !searching && bsKmPaged(c.rows.length)) ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 0' }}>
+                <button key={`fewer-${c.key}`} type="button" onClick={() => toggleExpanded(c.key)} style={{ width: '100%', minHeight: 42, borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK50, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('nutrition:kitchen.showFewer', { defaultValue: 'Show fewer' })} ↑</button>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+
+      {untimed.length > 0 ? (
+        <div id="bskm-untimed" style={{ padding: `22px ${t.padX}px 0` }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, borderBottom: `2px solid ${t.INK}`, paddingBottom: 8 }}>
+            <b aria-hidden style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: t.W.display, lineHeight: 1, color: t.ACCENT }}>—</b>
+            <h2 style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: t.W.display, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK }}>{tr('nutrition:kitchen.untimed', { defaultValue: 'Time not stated' })}</h2>
+            <span style={{ marginLeft: 'auto', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{nRecipes(untimed.length)}</span>
+          </div>
+          {untimed.map((r) => row(r))}
+        </div>
+      ) : null}
+
+      <div style={{ padding: `30px ${t.padX}px 26px`, textAlign: 'center', fontSize: 11.5, lineHeight: 1.5, color: t.INK50 }}>
+        {tr('nutrition:kitchen.publicDomainCredit', { defaultValue: 'Public-domain recipes come from USDA MyPlate Kitchen and are credited on every line and every page.' })}
       </div>
-      <BSFooter right="Shape Kitchen" />
+      <BSFooter />
     </BSPage>
   );
 }
