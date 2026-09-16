@@ -7454,8 +7454,19 @@ function bsKmMatches(r, f) {
 // board of three unfiltered dishes under an active filter would contradict it.
 function bsKmDaySeed(date) {
   const d = date || new Date();
-  const start = new Date(d.getFullYear(), 0, 1);
-  return Math.floor((d - start) / 86400000);
+  // ⚠ NOT (d - Jan 1) / 86400000, WHICH MEASURES ELAPSED TIME RATHER THAN
+  // CALENDAR DAYS. A DST day is not 24 hours, so in a zone whose summer offset
+  // runs ahead of its January one the quotient is an hour short for the whole of
+  // spring-forward → fall-back and the board turns over at 1 a.m.; where the
+  // offset goes the other way it turns over at 11 p.m. the day before. Measured
+  // in both directions, not reasoned about — America/Los_Angeles and
+  // Europe/Berlin read the previous day's seed at 00:30 all summer, and
+  // Australia/Sydney reads the next day's at 23:00 all winter. Mapping the LOCAL
+  // calendar components onto Date.UTC gives an ordinal in which every day is 24
+  // hours by construction, which is what a day counter wants.
+  const day = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const start = Date.UTC(d.getFullYear(), 0, 1);
+  return Math.floor((day - start) / 86400000);
 }
 function bsKmBoardPicks(courses, seed) {
   const out = [];

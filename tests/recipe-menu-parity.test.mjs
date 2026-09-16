@@ -144,6 +144,29 @@ test('both Menus put the same recipe in the same course, and page at the same ro
   }
   assert.equal(app.paged(app.PAGE + app.SLACK), false, 'a door that hides only the slack is a tap that buys nothing');
   assert.equal(app.paged(app.PAGE + app.SLACK + 1), true, 'the paging door never opens');
+
+  // ⚠ AND THE ROW ORDER, NOT ONLY THE PAGING BOOLEANS — CODEX'S FINDING, AND A
+  // MUTATION PROVED IT BEFORE IT WAS FIXED. Reversing the app's tie-break for
+  // SOURCED recipes only leaves course membership identical, leaves every
+  // `paged(n)` identical, and never reaches the board (which filters to authored
+  // dishes first), so the whole file went GREEN while the two surfaces listed
+  // different rows above "Show all". What a reader sees is the ORDER, so that is
+  // what has to agree: the full course and, separately, the first page of it,
+  // because a divergence past row 12 is invisible until somebody opens the door.
+  for (let i = 0; i < app.COURSES.length; i += 1) {
+    const a = app.sortByTime(SHAPE_KITCHEN_RECIPES.filter((r) => app.courseIndex(r) === i)).map((r) => r.title);
+    const b = web.sortByTime(SHAPE_KITCHEN_RECIPES.filter((r) => web.courseIndex(r) === i)).map((r) => r.title);
+    assert.deepEqual(a, b, `the two Menus order course ${app.COURSES[i].key} differently`);
+    // Vacuity: an empty course compares two empty arrays and is about nothing.
+    assert.ok(a.length > 0, `course ${app.COURSES[i].key} is empty — this comparison is about nothing`);
+  }
+  // ⚠ THERE IS DELIBERATELY NO SEPARATE FIRST-PAGE COMPARISON, AND THAT IS A
+  // MEASUREMENT RATHER THAN AN OMISSION. One was written and then removed: if the
+  // whole course arrays are deepEqual then every slice of them is, so
+  // `a.slice(0, PAGE)` vs `b.slice(0, PAGE)` cannot fail where the line above
+  // passes — its paired mutation (drop the slice check, restore the sourced-only
+  // sort divergence) was KILLED by the full comparison alone. A guard that cannot
+  // fire reads as a safety net to the next person and is holding nothing.
 });
 
 test("both Menus show the same Today's board on the same day", () => {
@@ -191,8 +214,25 @@ test('both Menus date the board from the same day, in local time', () => {
   // so re-assigning `process.env.TZ` mid-run does not reliably move it; a child
   // per zone is the only form of this check that is about anything. The same
   // reasoning and the same shape as tests/booking-timezone-parity.test.mjs.
+  //
+  // ⚠ AND THE FIXTURES REACH PAST THE DST TRANSITION, WHICH CODEX'S ROUND IS
+  // WHAT FORCED. The first version sampled noon and the two ends of the year, and
+  // a seed written as elapsed milliseconds since local Jan 1 passes all of them:
+  // a DST day is not 24 hours, so from spring-forward to fall-back the quotient
+  // runs an hour short and the board turned over at 1 a.m. rather than local
+  // midnight — and where the summer offset runs BEHIND January's it turned over
+  // at 11 p.m. the day before. Both directions are sampled: 00:30 in a northern
+  // summer and 23:00 in a southern one.
+  //
+  // ⚠ AND THE THREE ADDED FIXTURES ARE LOAD-BEARING, MEASURED RATHER THAN
+  // ASSUMED. Driven per (zone, instant) against the defect: of the six original
+  // fixtures exactly ONE pair caught it — 2026-06-15T23:59 in Australia/Sydney,
+  // by accident — and the NORTHERN direction, which is where most DST-observing
+  // readers are, was caught by nothing at all. 2026-03-09T00:30 and
+  // 2026-07-04T00:30 catch it in America/Los_Angeles.
   const DATES = ['2026-01-01T00:30:00', '2026-03-08T12:00:00', '2026-06-15T23:59:00',
-    '2026-12-31T23:30:00', '2024-02-29T06:00:00', '2026-11-01T01:30:00'];
+    '2026-12-31T23:30:00', '2024-02-29T06:00:00', '2026-11-01T01:30:00',
+    '2026-03-09T00:30:00', '2026-07-04T00:30:00', '2026-07-04T23:00:00'];
   const script = `
     const { readFileSync } = require('node:fs');
     ${lift.toString()}
@@ -207,20 +247,32 @@ test('both Menus date the board from the same day, in local time', () => {
     const out = { tz: Intl.DateTimeFormat().resolvedOptions().timeZone, rows: [] };
     for (const iso of ${JSON.stringify(DATES)}) {
       const d = new Date(iso);
-      out.rows.push([iso, web.daySeed(d), app.daySeed(d), Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000)]);
+      // The LOCAL calendar ordinal is what the seed claims to be. Mapping the
+      // local components onto Date.UTC makes every day 24 hours by construction,
+      // so this is the one comparison an elapsed-time seed cannot satisfy.
+      const localOrd = Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 1)) / 86400000);
+      const janOff = new Date(d.getFullYear(), 0, 1).getTimezoneOffset();
+      out.rows.push([iso, web.daySeed(d), app.daySeed(d), Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000), localOrd, d.getTimezoneOffset() !== janOff]);
     }
     process.stdout.write(JSON.stringify(out));
   `;
   let separated = 0;
+  let offsetShifted = 0;
   for (const TZ of ['UTC', 'Pacific/Kiritimati', 'Pacific/Niue', 'Australia/Sydney', 'America/Los_Angeles']) {
     const raw = execFileSync(process.execPath, ['-e', script], { env: { ...process.env, TZ }, encoding: 'utf8' });
     const out = JSON.parse(raw);
     assert.equal(out.tz, TZ, `the child did not take ${TZ} — this check would be measuring UTC five times`);
-    for (const [iso, a, b, utcDay] of out.rows) {
+    for (const [iso, a, b, utcDay, localOrd, shifted] of out.rows) {
       assert.equal(b, a, `in ${TZ} the two Menus date ${iso} differently (web ${a}, app ${b})`);
+      assert.equal(b, localOrd, `in ${TZ} the seed for ${iso} is ${b}, and that local calendar day is ${localOrd}`);
       if (b !== utcDay) separated += 1;
+      if (shifted) offsetShifted += 1;
     }
   }
+  // Guard the guard, second half: at least one (zone, instant) pair must sit at
+  // an offset OTHER than that zone's January offset, or the assertion above is
+  // satisfied by the elapsed-time seed this round removed.
+  assert.ok(offsetShifted > 0, 'no sampled instant sits past a DST transition — this check cannot see an elapsed-time seed');
   // Guard the guard: at least one (zone, instant) pair must put the LOCAL day
   // somewhere other than the UTC day, or every assertion above is satisfied by a
   // UTC implementation and this test is about nothing.
