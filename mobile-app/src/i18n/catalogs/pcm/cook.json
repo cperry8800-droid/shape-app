@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "Di recipe no time some steps, so give yourself extra",
   "prep.earliestSearched": "Di earliest for di orders wey we check",
   "prep.noWindow": "No dish here dey wait long enough make you start another one",
-  "prep.noStation": "Your kitchen no get free burner or oven for the overlap"
+  "prep.noStation": "Your kitchen no get free burner or oven for the overlap",
+  "cta.with": "Cook am with anoda tin",
+  "prep.startingWith": "We dey start with",
+  "prep.cookEyebrow": "Cook dem together",
+  "prep.cookPickTitle": "Wetin else we go cook?",
+  "prep.cookWrapTitle": "Na everytin be dat.",
+  "prep.nextUp": "Next",
+  "prep.addAnother": "Tick anoda food and Shape go arrange di time — together, one afta di oda, or everytin go reach table one time.",
+  "prep.timingComing": "How di time go work — same time, separate, or everytin reach table one time."
 }

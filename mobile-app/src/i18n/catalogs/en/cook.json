@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "Some steps are not timed by the recipe, so give yourself extra time",
   "prep.earliestSearched": "The earliest of the orders we searched",
   "prep.noWindow": "No dish here waits long enough for you to start another",
-  "prep.noStation": "Your kitchen has no free burner or oven for the overlap"
+  "prep.noStation": "Your kitchen has no free burner or oven for the overlap",
+  "cta.with": "Cook with something else",
+  "prep.startingWith": "Starting with",
+  "prep.cookEyebrow": "Cook together",
+  "prep.cookPickTitle": "What else is cooking?",
+  "prep.cookWrapTitle": "That's everything.",
+  "prep.nextUp": "Next",
+  "prep.addAnother": "Tick another dish and Shape will time them for you — cooked together, one after the other, or landing on the table at once.",
+  "prep.timingComing": "How these are timed — at the same time, separately, or all on the table at once."
 }

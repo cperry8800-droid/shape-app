@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "Tarif bazı adımlara süre vermiyor, kendine pay bırak",
   "prep.earliestSearched": "Denediğimiz sıralamalar içinde en erkeni",
   "prep.noWindow": "Burada başka bir yemeğe başlayacak kadar uzun bekleyen bir yemek yok",
-  "prep.noStation": "Mutfağında çakışma için boş ocak ya da fırın yok"
+  "prep.noStation": "Mutfağında çakışma için boş ocak ya da fırın yok",
+  "cta.with": "Başka bir şeyle pişir",
+  "prep.startingWith": "Şununla başlıyoruz",
+  "prep.cookEyebrow": "Birlikte pişir",
+  "prep.cookPickTitle": "Başka ne pişiriyoruz?",
+  "prep.cookWrapTitle": "Hepsi bu.",
+  "prep.nextUp": "İleri",
+  "prep.addAnother": "Başka bir yemek seç, zamanlamayı Shape ayarlasın — aynı anda, birbiri ardına ya da hepsi birden sofrada.",
+  "prep.timingComing": "Zamanlama nasıl olsun — aynı anda, ayrı ayrı ya da hepsi birden sofrada."
 }

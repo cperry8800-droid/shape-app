@@ -119,5 +119,13 @@
   "prep.startAtEstimated": "La receta no cronometra algunos pasos, así que date margen",
   "prep.earliestSearched": "El más temprano de los órdenes que probamos",
   "prep.noWindow": "Ningún plato aquí espera lo suficiente para empezar otro",
-  "prep.noStation": "Tu cocina no tiene fuego ni horno libre para el solapamiento"
+  "prep.noStation": "Tu cocina no tiene fuego ni horno libre para el solapamiento",
+  "cta.with": "Cocinar con otra cosa",
+  "prep.startingWith": "Empezamos con",
+  "prep.cookEyebrow": "Cocinar juntos",
+  "prep.cookPickTitle": "¿Qué más cocinamos?",
+  "prep.cookWrapTitle": "Eso es todo.",
+  "prep.nextUp": "Siguiente",
+  "prep.addAnother": "Marca otro plato y Shape se encarga de los tiempos: al mismo tiempo, uno tras otro o todo junto en la mesa.",
+  "prep.timingComing": "Cómo se coordinan los tiempos: al mismo tiempo, por separado o todo junto en la mesa."
 }
