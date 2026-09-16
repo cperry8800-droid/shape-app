@@ -21,7 +21,7 @@ import {
   bpmGap, inSync, gapText, lockStep, ties,
   beatsFromRR, advanceHeart, trimBeats,
   RAIL_BARS, railRms, railBarsLit,
-} from '../mobile-app/src/services/radioSignalField.mjs';
+} from '../public/newdesign/radioSignalField.mjs';
 
 // ---------------------------------------------------------------------------
 // The glyph. The single most load-bearing rule in the file.
@@ -491,7 +491,7 @@ test('any level above zero lights a bar, and an unknown level lights none', () =
 
 test('the module carries no clock and no randomness', async () => {
   const { readFileSync } = await import('node:fs');
-  const src = readFileSync(new URL('../mobile-app/src/services/radioSignalField.mjs', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../public/newdesign/radioSignalField.mjs', import.meta.url), 'utf8');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert.doesNotMatch(code, /Math\.random/, 'the geometry must be replayable');
   assert.doesNotMatch(code, /Date\.now|new Date\(/, 'the caller passes t');

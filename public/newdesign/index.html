@@ -145,8 +145,8 @@
   .nauth .login{font-size:13.5px;font-weight:500;color:var(--fg-2);white-space:nowrap;line-height:1}
   .nauth .login:hover{color:var(--fg)}
   .ncta{font-family:var(--sans);font-weight:600;font-size:13px;background:var(--teal);color:#04110f;
-        padding:0 14px;border-radius:5px;height:34px;display:inline-flex;align-items:center;
-        white-space:nowrap;line-height:1;transition:background .16s}
+        padding:0 15px;height:36px;display:inline-flex;align-items:center;
+        white-space:nowrap;line-height:1;transition:background .16s;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
   .ncta:hover{background:#4ce4d4}
   /* ⚠ The permanent "ON AIR" chip is GONE. Measured 2026-09-11: public.radio_station
      does not exist in production, so /api/radio/now-playing falls through to the mock
@@ -154,12 +154,20 @@
      claim nothing on this page can check — /api/radio/station is deliberately 401 for
      anonymous callers and hides `configured` on purpose, so the honest shape is to not
      advertise at all rather than to sniff the mock's literal track title. */
-  .nradio{display:inline-flex;align-items:center;gap:7px;font-family:var(--disp);font-weight:500;
+  /* ⚠ THE CHAMFER IS A CLIP PLUS A DRAWN OUTLINE, because a clip-path cuts the
+     element's own border off along the diagonal and a bordered pill clipped alone
+     reads as a box with a corner missing. The fill is clipped; `.nvfr` is the SVG
+     path that follows the same cut. pageShell.jsx draws the identical pair for the
+     other 67 pages — one bar, two implementations, and they move together. */
+  .nradio{position:relative;display:inline-flex;align-items:center;gap:7px;font-family:var(--disp);font-weight:500;
           font-variation-settings:'wdth' 150;font-size:12px;letter-spacing:.02em;text-transform:uppercase;
-          color:var(--fg-2);border:1px solid var(--line);border-radius:5px;padding:0 11px;height:34px;
+          color:var(--fg-2);padding:0 12px;height:36px;
+          clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);
           white-space:nowrap;line-height:1}
-  .nradio:hover{color:var(--fg);border-color:rgba(var(--teal-rgb),.4)}
-  .nradio svg{width:9px;height:11px;display:block}
+  .nradio:hover{color:var(--fg)}
+  .nradio:hover .nvfr path{stroke:rgba(var(--teal-rgb),.45)}
+  .nradio svg.mark{width:11px;height:13px;display:block}
+  .nvfr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:block}
   /* The Coaches menu. ⚠ The trigger is a real link as well as a menu: clicking
      goes to the Coaches page, hovering opens its one item, the marketplace
      (owner, 2026-09-14: one link, "Marketplace" — the trainers and nutritionists
@@ -628,7 +636,7 @@
       <span id="shape-nav-search" style="display:inline-flex;align-items:center"></span>
       <a class="login" href="/newdesign/Login.html">Log in</a>
       <a class="ncta" href="/newdesign/Landing.html">Get started</a>
-      <a class="nradio" href="/newdesign/Radio.html" aria-label="Shape Radio"><svg aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="rgba(238,243,240,.92)"/></svg>Radio</a>
+      <a class="nradio" href="/newdesign/Radio.html" aria-label="Shape Radio"><svg class="nvfr" aria-hidden="true"><path fill="none" stroke="rgba(238,243,240,.14)" stroke-width="1"/></svg><svg class="mark" aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="rgba(238,243,240,.92)"/></svg>Radio</a>
       <button class="nburger" id="nburger" aria-label="Menu" aria-expanded="false" aria-controls="ndrawer"><span></span></button>
     </div>
   </div>
@@ -1731,6 +1739,23 @@
     ReactDOM.createRoot(el).render(React.createElement(window.SiteSearch, { signedIn: false }));
   }
 })();
+</script>
+<script>
+  /* The chamfer outline. An <svg> with no viewBox has no geometry of its own, so
+     the path is drawn from the element's measured box and re-drawn when it moves. */
+  (function () {
+    var box = document.querySelector('.nradio');
+    if (!box) return;
+    var p = box.querySelector('.nvfr path');
+    if (!p) return;
+    var draw = function () {
+      var w = box.clientWidth, h = box.clientHeight, c = 8;
+      if (w > 0 && h > 0) p.setAttribute('d', 'M.5 .5H' + (w - c) + 'L' + (w - 0.5) + ' ' + c + 'V' + (h - 0.5) + 'H.5Z');
+    };
+    if (window.ResizeObserver) new ResizeObserver(draw).observe(box);
+    else addEventListener('resize', draw);
+    draw();
+  })();
 </script>
 </body>
 </html>

@@ -11,10 +11,10 @@ import {
   TIE_TOL_S, ties, bpmGap, inSync, gapText, lockStep,
   advanceHeart, trimBeats,
   previewBins, previewSimOn, PREVIEW_BINS,
-} from '../services/radioSignalField.mjs';
+} from '../../../public/newdesign/radioSignalField.mjs';
 import {
   createTempoDetector, tempoEnergyFromBins, tempoBarStep, tempoBeatsBetween,
-} from '../services/radioTempo.mjs';
+} from '../../../public/newdesign/radioTempo.mjs';
 // iosAppBroadsheetRadio.jsx — Shape Radio in the Broadsheet visual language.
 // Provides:
 //   • BSRadioPrompt    — full-screen overlay asking "Listen to Shape Radio while in the app?"
