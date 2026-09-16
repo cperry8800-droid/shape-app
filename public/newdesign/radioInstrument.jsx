@@ -701,9 +701,16 @@ function rdMakeField(canvas, lib) {
     // severity argument — "it was constant across monitors and now grows with width" —
     // does not survive the control: it ran 5.15 -> 5.24 BEFORE, a spread of 0.09,
     // against 0.10 now. Same spread, opposite sign. Nothing width-dependent was
-    // introduced here. (The teal eyebrow moves further in absolute terms, 8.89 -> 6.93
-    // at 3840, crossing AAA 7.0 — but this repo's documented bar is AA, and it clears
-    // that by 2.4.)
+    // introduced here.
+    //
+    // ⚠ AND THE TWO FIGURES REPRODUCE DIFFERENTLY, WHICH IS WORTH KNOWING BEFORE
+    // ANYONE RE-DERIVES THEM. The cream line is stable: 5.05 on five independent runs at
+    // 3840, and 5.24-5.27 on three of the control. The teal eyebrow is a sampled
+    // worst-case over a pulsing meter and moves run to run — ~8.9 → ~6.8 at 3840
+    // (measured 8.96/8.89/8.89 against 6.84/6.76/6.76/6.76/6.76). So quote the eyebrow as
+    // a range or not at all; an earlier draft of this note gave it as 6.93, which is
+    // outside everything five runs produced. It crosses AAA 7.0 either way, and this
+    // repo's documented bar is AA, which it clears by 2.3.
     //
     // ⚠ AND DO NOT RE-TUNE THESE STOPS TO CLOSE IT. This gradient is
     // createLinearGradient(0, 0, 0, H) filled across the whole width: purely vertical,
