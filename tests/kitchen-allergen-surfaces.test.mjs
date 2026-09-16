@@ -50,6 +50,27 @@ const pickRecipe = (pred, why) => {
 
 const driveBox = (props) => drive(MOD.BSRecipeBox, props, { rowMarker: ROW_MARKER });
 
+// ⚠ THE MENU PAGES EACH COURSE, so the list these three tests reason about is
+// NOT what the first render holds. BSRecipeBox groups the catalog by cooking
+// time and shows the first 12 rows of any course longer than 16, behind a
+// "Show all N" door (the design the owner picked on 2026-09-15). Measured on
+// today's catalog that is 61 of 100 recipes off the first render — which is why
+// this helper exists rather than a `slice`: a guard about certifications must
+// see every row that claims one, not the dozen that happen to be above a door.
+//
+// It is DERIVED, not a list of course keys: each open door carries the React key
+// `more-<course>` and each opened one `fewer-<course>`, so clicking every
+// `more-*` until none remain opens exactly the doors that exist — a course added
+// or retired needs no edit here. The bound is a runaway guard, not a count.
+const openAllCourses = (box) => {
+  for (let i = 0; i < 12; i += 1) {
+    const door = box.nodes().find((n) => typeof n.key === 'string' && n.key.startsWith('more-') && n.props && typeof n.props.onClick === 'function');
+    if (!door) return box;
+    box.clickKey(door.key);
+  }
+  throw new Error('openAllCourses did not run out of doors — the paging door key stopped changing state');
+};
+
 
 // The text of ONE note block: from its own eyebrow through its composed text.
 // ⚠ Scoped deliberately — the merged mise's INGREDIENT rows already name every
@@ -85,8 +106,14 @@ test('recipe box: the Gluten-free filter returns rows that carry their certifica
   const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
-  box.click('Filters');
+  // ⚠ `box.click('Filters')` USED TO STAND HERE and is deleted, not relocated.
+  // The Menu has no filters drawer: its whole claim is that what is on the page
+  // is what there is, so the toggles render on one scrolling strip and there is
+  // no button to open. What this test is about — a free-from claim carrying its
+  // certification — is untouched by that; `clickChip` still reaches the toggle
+  // because it is still a component with a `label` prop carrying the raw token.
   box.clickChip('Gluten-free');
+  openAllCourses(box);
 
   const listed = SHAPE_KITCHEN_RECIPES.filter((r) => recipeNeeds(r).includes('Gluten-free'));
   assert.ok(listed.length > 0, 'nothing claims Gluten-free — the filter proves nothing');
@@ -113,6 +140,7 @@ test('recipe box: the certification renders BEFORE the row grocery action, unatt
   const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
+  openAllCourses(box);
   const r = NOTED.find((x) => recipeNeeds(x).includes('Gluten-free') && x.allergenNotes[0].allergen === 'gluten');
   assert.ok(r, 'no gluten-noted recipe with a restored claim');
   const row = box.row(r.title);
@@ -125,6 +153,14 @@ test('recipe box: the certification renders BEFORE the row grocery action, unatt
   // would attribute a brand/certification recommendation to a named author or
   // to the USDA — the exact fabrication `allergenNotes` exists to prevent.
   const credit = String(r.by || r.source || '');
+  // ⚠ GUARD THE GUARD. `!block.includes(credit)` passes for free if the credit
+  // is not on the row at all — and the harness's `tr` returns a defaultValue
+  // WITHOUT interpolating, so a credit rendered through an ICU placeholder
+  // reads as the literal "{name}" here. Today's fixture is authored, so its
+  // byline is a bare name and really is on the row; asserting that first is what
+  // stops a future fixture change turning this into a check of nothing.
+  assert.ok(!credit || row.includes(credit),
+    `"${r.title}" renders no credit at all — the byline assertion below would pass vacuously`);
   if (credit) {
     const eyebrowAt = row.indexOf(`ALLERGEN · ${n.allergen.toUpperCase()}`);
     const block = row.slice(eyebrowAt, row.indexOf(n.certification) + n.certification.length);
@@ -136,6 +172,7 @@ test('recipe box: the note block renders on exactly the note-bearing rows', () =
   const box = driveBox({
     recipes: SHAPE_KITCHEN_RECIPES, onOpenRecipe() {}, onSendToGrocery() {}, onChangeView() {},
   });
+  openAllCourses(box);
   const expected = SHAPE_KITCHEN_RECIPES.reduce((a, r) => a + (r.allergenNotes || []).length, 0);
   assert.equal(count(box.text, 'ALLERGEN · '), expected,
     'the row note block rendered on the wrong set of recipes');

@@ -345,7 +345,7 @@ const UNCOVERED = new Set([
   'Client::BSNotifications', 'Client::BSNotifyPrefs',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProfileIdentityHead', 'Client::BSProgChart',
-  'Client::BSRecipeBox', 'Client::BSRecipePreview', 'Client::BSReconcile',
+  'Client::BSRecipePreview', 'Client::BSReconcile',
   'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
   'Client::BSScoreCardDark', 'Client::BSSdTrace', 'Client::BSSearchCorner',
   'Client::BSSessionsScreen', 'Client::BSSleepHistory', 'Client::BSStepGoalSheet',
@@ -769,9 +769,31 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // honest states cost `—`, `No macros on this one` and a `Cooked` stamp. Three
   // English strings on an uncovered surface is the price of not lying about a
   // number; keying the whole component is its own cut.
-  assert.equal(noneStrings, 757, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ CUT 19 — THE SHAPE KITCHEN BECOMES THE MENU. BSRecipeBox (19 walk-visible
+  // strings) leaves UNCOVERED FULLY COVERED, so noneStrings 757 -> 738 and
+  // none.length 91 -> 90, while partStrings 220 and part.length 38 are
+  // UNCHANGED — a cut that landed a surface in PARTIAL would be half-done, which
+  // is what CUT 8 and CUT 12 say in the same words.
+  //
+  // ⚠ AND THE SURFACE WAS REWRITTEN WHOLE IN THE SAME DIFF, WHICH IS WHAT MAKES
+  // THE NON-MOVEMENT THE CERTIFICATION RATHER THAN A TIDY-UP. The page went from
+  // a pill row over one flat list to four time-banded courses, a sticky jump
+  // row, a board, per-course paging doors and two empty states — 40 new keys ×
+  // 13 locales. Had the rewrite hardcoded so much as one word, noneStrings would
+  // not have come to exactly the 19 the old component accounts for.
+  //
+  // ⚠ 19 IS A FLOOR AND THE BLIND SHAPES ARE NAMED, as every cut note here does.
+  // The old component's seven pill labels lived in a LOCAL ARRAY LITERAL, which
+  // this walk cannot see, and every diet / protein / free-from / goal chip label
+  // comes from `shapeKitchenData.js` — a `.js` file, and DIR is filtered to
+  // `.jsx`. The rewrite keys far more than 19 strings and still carries those
+  // chip labels in English: they are catalog TOKENS that `recipeNeeds` and
+  // `recipeMatchesDiet` compare against, so translating them at the render site
+  // needs a token/label split across the data file, which is its own change.
+  // Registered, not smuggled in.
+  assert.equal(noneStrings, 738, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 38, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 91, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 90, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

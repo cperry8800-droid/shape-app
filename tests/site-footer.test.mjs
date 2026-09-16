@@ -155,25 +155,32 @@ test('the footer still carries the pages nothing else links', () => {
   }
 });
 
-// ⚠ THE COMMENT ABOVE THE FOOTER TABLE CLAIMS THREE OF THOSE PAGES HAVE NO OTHER
-// LINK, AND A CLAIM ABOUT THE NAV GOES STALE WHEN THE NAV MOVES. It named FOUR
-// until this PR: #2069 promoted Client.html to the `Members` tab and nothing
+// ⚠ THE COMMENT ABOVE THE FOOTER TABLE CLAIMS SOME OF THOSE PAGES HAVE NO OTHER
+// LINK, AND A CLAIM ABOUT THE NAV GOES STALE WHEN THE NAV MOVES. It has now been
+// wrong twice: #2069 promoted Client.html to the `Members` tab and nothing
 // noticed, so the file carried a measurement that had been false since the day
-// before. This asserts the three it still names are absent from the nav table —
-// promote one and this fails, naming the comment, instead of leaving a wrong
-// reason sitting where the next reader decides whether a footer link is load
-// bearing.
+// before; this PR promotes Recipes.html to the `Kitchen` tab and the comment is
+// corrected in the same diff. This asserts the two it still names are absent
+// from the nav table — promote one and this fails, naming the comment, instead
+// of leaving a wrong reason sitting where the next reader decides whether a
+// footer link is load bearing.
 //
 // ⚠ AND THE TWO CHECKS ABOVE THE ASSERTIONS CATCH DIFFERENT FAILURES — neither
 // is belt-and-braces, which was measured rather than assumed. A nav parser that
-// stops matching ENTIRELY reports every page as absent and passes all three
-// assertions vacuously; Client.html, the one page that IS in the nav, is the
-// control that catches it. A parser that still works but sees only PART of the
-// table passes that control — Client.html is the second entry — while the three
-// pages it never reaches read as absent for the wrong reason; only the size
-// floor catches that. Proven by mutation both ways: truncate the match list to
-// three and the floor alone fails; remove the floor as well and it goes green on
-// a parse reading a fifth of the nav.
+// stops matching ENTIRELY reports every page as absent and passes both
+// assertions vacuously; the pages that ARE in the nav are the controls that
+// catch it. A parser that still works but sees only PART of the table passes
+// those controls — Client.html is the second entry — while the pages it never
+// reaches read as absent for the wrong reason; only the size floor catches that.
+// Proven by mutation both ways: truncate the match list to three and the floor
+// alone fails; remove the floor as well and it goes green on a parse reading a
+// fifth of the nav.
+//
+// ⚠ AND THE SECOND CONTROL STRICTLY STRENGTHENS IT RATHER THAN DUPLICATING THE
+// FIRST. Recipes.html is the FOURTH quoted target, so a parse that reaches it has
+// read twice as much of the table as one that only reaches Client.html — the two
+// controls bracket the truncation the floor is aimed at instead of sitting on top
+// of each other.
 test('the pages the footer comment calls footer-only are really not in the nav', () => {
   const i = SHELL.indexOf('const SHAPE_NAV_GROUPS');
   assert.ok(i > 0, 'SHAPE_NAV_GROUPS not found — this guard is reading nothing');
@@ -181,10 +188,12 @@ test('the pages the footer comment calls footer-only are really not in the nav',
   const navTargets = new Set([...table.matchAll(/href:\s*"([^"]+)"/g)].map((m) => target(m[1])));
   assert.ok(navTargets.size >= 5, 'parsed only ' + navTargets.size + ' nav targets — the parser stopped matching');
 
-  assert.ok(navTargets.has('Client.html'),
-    'Client.html is the Members tab and must parse as present — if it does not, this guard cannot see a nav link at all');
+  for (const [page, tab] of [['Client.html', 'Members'], ['Recipes.html', 'Kitchen']]) {
+    assert.ok(navTargets.has(page),
+      page + ' is the ' + tab + ' tab and must parse as present — if it does not, this guard cannot see a nav link at all');
+  }
 
-  for (const only of ['Coach.html', 'Nutritionist.html', 'Recipes.html']) {
+  for (const only of ['Coach.html', 'Nutritionist.html']) {
     assert.ok(!navTargets.has(only),
       only + ' is in the nav now, so the footer comment calling it footer-only is false — correct the comment above FOOTER TABLE in pageShell.jsx');
   }

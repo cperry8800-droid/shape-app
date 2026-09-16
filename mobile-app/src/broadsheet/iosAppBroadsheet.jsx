@@ -621,7 +621,13 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   const MastCorner = (typeof window !== 'undefined' && window.BSMastCorner) || null;
   const mastReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pinnedMast = mast ? (
-    <div aria-hidden={!mastCondensed} style={{
+    // ⚠ `data-bs-pinned-mast` IS AN ANCHOR, NOT DECORATION. This bar hangs OVER
+    // the top of the scroller, so a page with a `position: sticky` sub-bar (the
+    // Shape Kitchen menu's jump row) must offset that row by this bar's height
+    // or spend the whole scroll underneath it. The attribute lets such a page
+    // MEASURE the bar instead of restating its padding + row height, which a
+    // safe-area inset, a notch floor or a text-size change would make wrong.
+    <div aria-hidden={!mastCondensed} data-bs-pinned-mast="" style={{
       position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60,
       // Match the in-page masthead's gutter (t.padX) AND its element rhythm — a
       // full-size corner (34) with room to breathe, so scrolling doesn't shrink
