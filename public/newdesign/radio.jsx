@@ -262,6 +262,17 @@ function RadioNora() {
       stageRef.current = stage;
       setState("open");
     } catch (e) {
+      // ⚠ SAY WHAT HAPPENED. This catch used to swallow the error entirely, and that is
+      // why the booth could sit broken: on 2026-09-16 it was throwing
+      // `VRMUtils.combineSkeletons is not a function` on EVERY open — the web import map
+      // had drifted off the versions the app installs — and the only thing a member or
+      // anyone reading a console could see was "The booth could not start on this
+      // device", which names no cause. Finding it took reproducing this function's own
+      // sequence by hand with the error made visible. The app's copy of this flow has
+      // always warned (`console.warn('[nora] stage failed', e)`); this one did not.
+      // The member-facing message is deliberately unchanged — it is honest and there is
+      // nothing useful to say to them — but the reason now reaches the console.
+      try { console.warn("[nora] booth failed to start", e); } catch (e2) {}
       // Both, and deduped: `made` is the stage this attempt built and `stageRef.current`
       // is one an earlier open left behind. They are the same object on a retry that got
       // as far as assigning the ref, and different when it did not.
