@@ -109,6 +109,21 @@ function useRadioStation() {
   const binsRef = React.useRef(null);
   const startedAtRef = React.useRef(null);
   const attemptRef = React.useRef(0);
+  // ⚠ A LATER MEASUREMENT OF THE SESSION OUTRANKS AN EARLIER ONE, AND ONLY ONE
+  // DIRECTION IS EVIDENCE (Codex, round 12). The mount probe and the press are two
+  // readings of one thing, taken at different times, and the mount probe's `/api/me`
+  // leg is a round trip that can still be in flight when the member presses. If the
+  // SDK bridges or refreshes a session in between, the press resolves one, the station
+  // answers 200 and audio starts — and then the OLD probe lands `{user:null}` and
+  // publishes `signedIn = false` over a member who is listening, which disables the
+  // transport and starts the VISITOR PREVIEW SIMULATION on top of a real stream. A
+  // fabricated signal shown to a paying member is the one thing this page exists to
+  // refuse, reached by a stale answer to a question already settled.
+  //
+  // Only ever set by a reading that proves a session EXISTS: a `getSession()` that
+  // failed proves nothing (a dead bridge answers null exactly as a real visitor does),
+  // so the press can upgrade this to signed-in and can never downgrade it.
+  const sessionSettledRef = React.useRef(false);
 
   // The session, and it lives in TWO stores rather than one (Codex, round 10).
   // `/api/me` reads the Next.js cookie and NOTHING else — it calls `createClient()`
@@ -141,6 +156,7 @@ function useRadioStation() {
           // ⚠ THE SESSION IS MEASURED HERE AND THE TOKEN IS DELIBERATELY NOT KEPT
           // (Codex, round 11). See the station fetch: a token captured at mount goes
           // stale, and a stale one is WORSE than none at all.
+          sessionSettledRef.current = true;
           setSignedIn(true);
           return;
         }
@@ -148,10 +164,12 @@ function useRadioStation() {
       if (!on) return;
       try {
         const r = await fetch("/api/me", { cache: "no-store", credentials: "include" });
-        if (!r.ok) { if (on) setSignedIn(null); return; }   // could not tell: not "signed out"
+        // ⚠ `on` IS NOT ENOUGH HERE: the component is still mounted, so the only thing
+        // that makes this answer stale is a NEWER reading, which is what the ref tracks.
+        if (!r.ok) { if (on && !sessionSettledRef.current) setSignedIn(null); return; }   // could not tell: not "signed out"
         const d = await r.json();
-        if (on) setSignedIn(!!(d && d.user));
-      } catch (e) { if (on) setSignedIn(null); }
+        if (on && !sessionSettledRef.current) setSignedIn(!!(d && d.user));
+      } catch (e) { if (on && !sessionSettledRef.current) setSignedIn(null); }
     })();
     return () => { on = false; };
   }, []);
@@ -343,6 +361,10 @@ function useRadioStation() {
           const live = window.shapeDb ? await window.shapeDb.getSession() : null;
           token = (live && live.access_token) || null;
         } catch (e) { token = null; }   // no header beats a dead one: the cookie still gets its turn
+        // ⚠ AND RESOLVING ONE IS ITSELF A MEASUREMENT — a newer one than the mount
+        // probe, which may still be in flight. Upgrade only: this can prove a session
+        // exists and can never prove one absent.
+        if (token) { sessionSettledRef.current = true; setSignedIn(true); }
         const headers = {};
         if (token) headers.Authorization = "Bearer " + token;
         const r = await fetch("/api/radio/station", { cache: "no-store", credentials: "include", headers });
@@ -919,7 +941,7 @@ function RadioInstrument() {
               {st.refusal === "unavailable" && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>Couldn&rsquo;t reach the station &mdash; press again</span>
               )}
-              {st.configured === false && st.signedIn === true && (
+              {st.configured === false && st.signedIn !== false && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>No station on the air yet</span>
               )}
             </div>

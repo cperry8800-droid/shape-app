@@ -94,11 +94,22 @@ test('the station route never decides the session — only /api/me does', () => 
   const stationFns = fns.filter((fn) => collect(fn, (n) => n.type === 'StringLiteral' && n.value === '/api/radio/station').length > 0);
   assert.ok(stationFns.length > 0, 'no function fetches /api/radio/station — this guard is reading the wrong file');
 
-  // the innermost one, so an enclosing component does not answer for its child
+  // ⚠ RE-ANCHORED (round 12): this asserted the station fetch never touches `signedIn`
+  // AT ALL, which is broader than the finding and became wrong. The invariant is about
+  // DIRECTION, not contact: this function may never conclude signed-OUT, because the
+  // two ways it could — a 401 (ambiguous: `currentUser()` drops the error, so an
+  // auth-server fault answers 401 exactly as a real visitor does) and a 403 (a
+  // CONFIRMED MINOR, who is signed IN) — are both facts about the attempt.
+  //
+  // A session the press RESOLVES is a different thing: it proves one exists, and it is
+  // a NEWER reading than the mount probe, which may still be in flight. Forbidding it
+  // outright is what let a stale `{user:null}` land over a member already listening and
+  // start the visitor preview on top of a real stream. So: upgrade only.
   const target = innermost(stationFns, 'the station fetch');
-  const offenders = collect(target, (n) => calleeName(n) === 'setSignedIn');
+  const offenders = collect(target, (n) => calleeName(n) === 'setSignedIn'
+    && !(n.arguments.length === 1 && n.arguments[0].type === 'BooleanLiteral' && n.arguments[0].value === true));
   assert.equal(offenders.length, 0,
-    'the station fetch moves `signedIn` — a route refusal is a fact about the attempt, not about the session');
+    'the station fetch concludes something other than signed-IN — a route refusal is a fact about the attempt, not about the session');
 
   // ...and nothing anywhere may assert signed-out as a literal. `/api/me` sets it
   // from its OWN answer (`!!(d && d.user)`) or to null; a bare `false` can only
@@ -239,6 +250,70 @@ test('the lock screen is cleared when the reading is', () => {
   assert.equal(eff.length, 1, 'the media-session block is not a useEffect with a dependency array');
   assert.ok(collect(eff[0].arguments[1], (n) => n.type === 'Identifier' && n.name === 'nowPlaying').length > 0,
     'the media session does not depend on nowPlaying — it would keep whatever it published first');
+});
+
+test('a settled session is not undone by a probe that was already in flight', () => {
+  // ⚠ THE FINDING (Codex, round 12). The mount probe and the press are two readings of
+  // one thing taken at different times, and the probe's `/api/me` leg is a round trip
+  // that can still be in flight when the member presses. If the SDK bridges or refreshes
+  // a session in between, the press resolves one, the station answers 200, audio starts —
+  // and then the OLD probe lands `{user:null}`, publishes signed-out over a member who is
+  // listening, disables the transport and starts the VISITOR PREVIEW SIMULATION on top of
+  // a real stream. A fabricated signal shown to a paying member is the one thing this page
+  // exists to refuse, reached by a stale answer to a question already settled.
+  const fns = functionsOf(AST);
+
+  // there is a marker, and the press sets it
+  const settles = collect(AST, (n) => n.type === 'AssignmentExpression'
+    && n.left.type === 'MemberExpression' && n.left.property && n.left.property.name === 'current'
+    && n.right.type === 'BooleanLiteral' && n.right.value === true
+    && n.left.object.type === 'Identifier' && /settled/i.test(n.left.object.name));
+  assert.ok(settles.length >= 2,
+    'the session has no settled marker set by both the mount probe and the press');
+  const markerName = settles[0].left.object.name;
+
+  const stationFn = innermost(fns.filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/radio/station').length > 0), 'the station fetch');
+  assert.ok(collect(stationFn, (n) => settles.includes(n)).length > 0,
+    'the press never marks the session settled — its newer reading cannot outrank the mount probe');
+
+  // ⚠ AND SETTLING MUST PUBLISH IN THE SAME BREATH. Found by mutation, not by reading:
+  // marking the session settled WITHOUT resolving it blocks the mount probe's write and
+  // then never supplies one of its own, so `signedIn` stays unresolved for the life of
+  // the page — the marker suppressing the only reading that was going to arrive. The
+  // rule is applied to EVERY settle rather than the press's, because it is the same
+  // mistake wherever the marker is set.
+  for (const st of settles) {
+    const together = collect(AST, (n) => n.type === 'IfStatement'
+      && st.start > n.start && st.end < n.end
+      && collect(n, (c) => calleeName(c) === 'setSignedIn'
+        && c.arguments.length === 1 && c.arguments[0].type === 'BooleanLiteral' && c.arguments[0].value === true).length > 0);
+    assert.ok(together.length > 0,
+      'the session is marked settled without being resolved — the marker blocks the probe and supplies nothing');
+  }
+
+  // EVERY /api/me write is gated on it. This is the half that matters: a marker nothing
+  // reads is decoration, and the read has to be on the writes rather than merely present
+  // somewhere in the effect.
+  const sessionFn = innermost(fns.filter((fn) => collect(fn, (n) => n.type === 'StringLiteral'
+    && n.value === '/api/me').length > 0), 'the session effect');
+  const probeWrites = collect(sessionFn, (n) => calleeName(n) === 'setSignedIn'
+    && !(n.arguments.length === 1 && n.arguments[0].type === 'BooleanLiteral' && n.arguments[0].value === true));
+  assert.ok(probeWrites.length > 0, 'the mount probe publishes no session verdict — this guard is reading the wrong function');
+  for (const w of probeWrites) {
+    const guarded = collect(sessionFn, (n) => n.type === 'IfStatement'
+      && collect(n.test, (c) => c.type === 'MemberExpression' && c.object.type === 'Identifier'
+        && c.object.name === markerName).length > 0
+      && w.start > n.start && w.end < n.end);
+    assert.ok(guarded.length > 0,
+      `a mount-probe write to signedIn is not gated on ${markerName} — it can overwrite a session the press already settled`);
+  }
+
+  // ...and a measured verdict is never hidden behind an UNMEASURED session. `configured`
+  // is only ever set from a 200, which the route answers to a signed-in caller alone, so
+  // gating its line on `=== true` hid a reading we had actually taken.
+  assert.equal((BARE.match(/configured === false && st\.signedIn === true/g) || []).length, 0,
+    'the no-station verdict is gated on a resolved session — a measured answer hidden behind an unmeasured one');
 });
 
 test('a refused attempt stays retryable and says which refusal it was', () => {
