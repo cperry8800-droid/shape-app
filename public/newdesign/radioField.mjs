@@ -20,6 +20,20 @@
 // read off the analyser's own low bins, never off a section map, because a section
 // map would be typed in.
 
+// ⚠ THESE TWO IMPORTS CARRY NO `?v=` WHILE THE PAGE'S OWN DO, AND THAT IS WORTH
+// THE LINE BECAUSE IT LOOKS LIKE A HOLE IN THE CACHE-KEY STORY Radio.html TELLS.
+// The page imports all four modules under content hashes, so after a deploy a browser
+// fetches radioSignalField.mjs under a NEW url while this file goes on asking for the
+// bare one — and module identity is per-url, so the two do not share an instance:
+// the browser ends up holding a fresh copy for the page and possibly a cached copy for
+// this file. Measured rather than worried about: neither module declares a single
+// top-level `let` or `var` (0 in both), so both are pure functions over their
+// arguments and a second instance costs a fetch and nothing else. That is the property
+// that makes this harmless, and it is the property to re-check before adding any
+// module-level state to either file — at which point the two instances would hold
+// two different states and the bare imports would need keys of their own.
+// Pre-existing and byte-identical to the build before the wordmark anchor landed, so
+// it is registered here rather than changed under cover of a layout fix.
 import { ecg } from './radioSignalField.mjs';
 import { tempoEnergyFromBins } from './radioTempo.mjs';
 
