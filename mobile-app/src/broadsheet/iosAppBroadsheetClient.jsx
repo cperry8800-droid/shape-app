@@ -36385,9 +36385,26 @@ function BSAboutPage({ onBack }) {
 
       {/* THE TWO DOORS — one per audience, both real destinations. The member
           door opens the community feed in-app (the shell listens for
-          shape:goCommunity — the shape:openMarket pattern; About is client-only,
-          so the client shell is the one host). The coach door leaves for the
-          website's coach page, because that is where coach signup lives.
+          shape:goCommunity — the shape:openMarket pattern). The coach door leaves
+          for the website's coach page, because that is where coach signup lives.
+
+          ⚠ THIS PAGE IS NOT CLIENT-ONLY, WHICH THE COMMENT HERE USED TO CLAIM.
+          About rides the SHARED BSSettings, which both coach shells embed
+          (iosAppBroadsheetPros.jsx:1356) — and that file records a shipped bug
+          from believing otherwise: #1795, where the coach-side door was a dead
+          tap until the pros shell grew its own shape:goCommunity listener. It
+          has one now, so the member door works in all three shells. The coach
+          door does not depend on a listener at all, which is one thing a URL
+          opener buys over an event.
+
+          ⚠ AND A COACH SEES "BECOME A COACH", DELIBERATELY. The website shows
+          the same door to everyone including signed-in coaches; this is the
+          company's story page rather than a personalised surface, and the
+          parity guard exists to keep the two saying the same thing. Gating it
+          on a role would need a signal this component does not take, and
+          getting that gate backwards hides the door from the one audience it
+          is for.
+
           ⚠ They WRAP rather than shrink: at 320px two 13/22 buttons do not fit
           one row, and a door whose label is clipped is the affordance failing. */}
       <div style={{ padding: `26px ${px}px 40px`, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
