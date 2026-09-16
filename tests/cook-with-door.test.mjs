@@ -56,6 +56,18 @@ const PROGRAM = [{
 const rows = (s) => s.nodes().filter((n) => n.props && typeof n.props['aria-pressed'] === 'boolean');
 const ticked = (s) => rows(s).filter((n) => n.props['aria-pressed'] === true);
 
+// `s.click` matches on text STARTING WITH the label, and a TICKED row's text
+// starts with its ✓ glyph — so a title alone can select a row but never
+// deselect it. Toggling by content instead is robust to the glyph, and to it
+// changing.
+const toggle = (s, title) => {
+  const btn = s.nodes().find((n) => n.type === 'button' && n.props.onClick
+    && typeof n.props['aria-pressed'] === 'boolean' && textOf(n).includes(title));
+  assert.ok(btn, `no picker row for ${JSON.stringify(title)}`);
+  btn.props.onClick({ preventDefault() {}, stopPropagation() {} });
+  return s.render();
+};
+
 test('a seeded session opens with that dish already ticked', () => {
   const s = drive(MOD.BSPrepSession, { program: PROGRAM, seed: { cookable: SEED }, onClose() {} });
 
@@ -88,6 +100,62 @@ test('the seed REPLACES its duplicate rather than joining it', () => {
   assert.equal(rows(s).length, PROGRAM[0].meals.length,
     'the seed took the duplicate\'s place, so the row count is unchanged');
   assert.equal(ticked(s).length, 1, 'and the surviving row is the ticked one');
+});
+
+test('two identities that DISAGREE are two dishes, whatever the titles say', () => {
+  // Codex, this PR. A member's own recipe may be called anything, so an exact
+  // title match is a CLAIM about identity rather than proof of it — and where
+  // both sides carry a real id, the ids settle it. Deduping here would take a
+  // dish off the picker the member can see is not the one they arrived with.
+  const seedC = { ...COOKABLES[0], title: PROGRAM[0].meals[0].title, mealId: 'my-own-uuid' };
+  const s = drive(MOD.BSPrepSession, { program: PROGRAM, seed: { cookable: seedC, mine: true }, onClose() {} });
+
+  assert.equal(rows(s).length, PROGRAM[0].meals.length + 1,
+    'the colliding-title program meal survives, because its id proves it is a different dish');
+  const titles = rows(s).map((n) => textOf({ props: { children: n } }));
+  assert.equal(titles.filter((x) => x.includes(PROGRAM[0].meals[0].title)).length, 2,
+    'both dishes of that name are offered');
+
+  // Guard the guard: with the seed's identity ABSENT the title is all there is,
+  // and it must still dedupe — or this test passes on a rule that never merges.
+  const noId = { ...COOKABLES[0], title: PROGRAM[0].meals[0].title, mealId: undefined };
+  const s2 = drive(MOD.BSPrepSession, { program: PROGRAM, seed: { cookable: noId }, onClose() {} });
+  assert.equal(rows(s2).length, PROGRAM[0].meals.length, 'no identity to compare — the title decides');
+});
+
+test('replacing a program row carries its day and slot', () => {
+  // `writeEntry` stamps dayIdx and slot onto the prep record; the wrap's
+  // "{days} covered" and bsPrepMatch read them back. A replacement that dropped
+  // them would let a session that genuinely prepped Tuesday's dinner report no
+  // day at all. (Codex, this PR.)
+  const s = drive(MOD.BSPrepSession, { program: PROGRAM, seed: { cookable: COOKABLES[1] }, onClose() {} });
+  const seedRow = rows(s)[0];
+  assert.ok(textOf({ props: { children: seedRow } }).includes(COOKABLES[1].title), 'the seed leads the list');
+
+  // The metadata is not rendered, so it is read off the candidate the component
+  // built — reached through the servings stepper's own handler closure would be
+  // indirect; instead assert via the shipped source that both fields are carried.
+  assert.match(SRC_BARE, /dayIdx: hit \? hit\.dayIdx : undefined/, 'dayIdx comes from the matched row');
+  assert.match(SRC_BARE, /slot: hit \? hit\.slot : undefined/, 'and so does slot');
+  assert.match(SRC_BARE, /dayIdx: it\.dayIdx, slot: it\.slot/, 'and writeEntry is still what reads them');
+});
+
+test('unticking the arrived-with dish drops the cook-together claim', () => {
+  // The seeded row is an ordinary toggle. A member may drop the dish they came
+  // with and cook something else — and a session reading the PROP would then
+  // head a one-dish cook "Cook together" and ask "What else is cooking?" about a
+  // dish that is not going to be cooked. (Codex, this PR.)
+  const s = drive(MOD.BSPrepSession, { program: PROGRAM, seed: { cookable: SEED }, onClose() {} });
+  assert.match(s.text, /Cook together/, 'seeded and ticked: the claim is true');
+
+  toggle(s, SEED.title);                   // untick the seed
+  assert.equal(ticked(s).length, 0, 'the seed is a real toggle');
+  assert.doesNotMatch(s.text, /Cook together/, 'and the claim goes with it');
+  assert.doesNotMatch(s.text, /What else is cooking\?/);
+  assert.match(s.text, /What are we prepping\?/, 'it is the ordinary session it has become');
+
+  toggle(s, SEED.title);                   // and back
+  assert.match(s.text, /Cook together/, 'restored when the dish is restored');
 });
 
 test('a seed the session has no other route to gets its own row', () => {

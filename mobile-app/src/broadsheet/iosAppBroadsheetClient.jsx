@@ -8914,25 +8914,42 @@ function BSPrepSession({ program, onClose, seed = null }) {
   // week's Tuesday dinner, or a recipe saved to their library — and two rows for
   // one dish is not a cosmetic problem: `bsMergeMise` merges by ingredient, so
   // ticking both would buy and prep everything twice, and the orchestrator would
-  // schedule the dish against itself. Matched on `mealId` first (an identity)
-  // and on an exact normalized title only as a fallback, which is the same rule
-  // the library dedupe above already applies.
+  // schedule the dish against itself.
+  //
+  // ⚠ AN IDENTITY ON BOTH SIDES DECIDES, IN BOTH DIRECTIONS — the title is a
+  // fallback for where one is MISSING, never a tiebreak against one that is
+  // there. Two dishes carrying different `mealId`s are two dishes however their
+  // titles read, and a member's own recipe may be called anything: this file
+  // already refuses to resolve a `myrecipe:` pointer by exact title for exactly
+  // that reason, because such a match is a CLAIM about identity rather than
+  // proof of it. Deduping them would take a dish off the picker that the member
+  // can see is not the one they arrived with. (Codex, this PR.)
   const candidates = React.useMemo(() => {
     if (!seedCookable) return baseCandidates;
     const id = seedCookable.mealId;
     const title = String(seedCookable.title || '').trim().toLowerCase();
-    const rest = baseCandidates.filter((c) => !(
-      (id != null && c.cookable.mealId != null && c.cookable.mealId === id)
-      || (title && String(c.cookable.title || '').trim().toLowerCase() === title)
-    ));
+    const same = (c) => {
+      const cid = c.cookable.mealId;
+      if (id != null && cid != null) return cid === id;
+      return !!title && String(c.cookable.title || '').trim().toLowerCase() === title;
+    };
+    const hit = baseCandidates.find(same);
     return [{
       key: BS_PREP_SEED_KEY,
       cookable: seedCookable,
       group: seedGroup,
-      mealId: seedCookable.mealId,
-      mealTitle: null,
+      // ⚠ THE MATCHED ROW'S SCHEDULING METADATA COMES WITH IT. `writeEntry`
+      // stamps `dayIdx` and `slot` onto the prep record, and the wrap's
+      // "{days} covered" plus `bsPrepMatch` read them back — so a replacement
+      // that dropped them would let a session which genuinely prepped Tuesday's
+      // dinner report no day at all, and leave the Prepped ✓ stamp unmatched on
+      // the menu. (Codex, this PR.)
+      dayIdx: hit ? hit.dayIdx : undefined,
+      slot: hit ? hit.slot : undefined,
+      mealId: (hit && hit.mealId != null) ? hit.mealId : seedCookable.mealId,
+      mealTitle: hit ? hit.mealTitle : null,
       mine: !!(seed && seed.mine),
-    }, ...rest];
+    }, ...baseCandidates.filter((c) => !same(c))];
   }, [baseCandidates, seedCookable, seedGroup, seed]);
 
   const selected = React.useMemo(() => candidates
@@ -9238,7 +9255,13 @@ function BSPrepSession({ program, onClose, seed = null }) {
   // after one dinner. The MISE title is deliberately shared: "One board,
   // everything." is true of both, and a second key for one screen would be
   // thirteen more values a translator has to keep in step for no gain.
-  const cookNow = !!seedCookable;
+  // ⚠ AND IT FOLLOWS THE SELECTION, NOT THE PROP. The seeded row is an ordinary
+  // toggle — a member may untick the dish they arrived with and cook something
+  // else entirely — and a session reading the prop would then head a one-dish
+  // cook "Cook together" and ask "What else is cooking?" about a dish that is
+  // not going to be cooked. Dropping the arrived-with dish drops the claim with
+  // it, and the session is the ordinary prep it has become. (Codex, this PR.)
+  const cookNow = !!seedCookable && sel[BS_PREP_SEED_KEY] != null;
   const sessionEyebrow = cookNow
     ? tr('cook:prep.cookEyebrow', { defaultValue: 'Cook together' })
     : tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' });
