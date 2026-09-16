@@ -495,6 +495,23 @@ function rdMakeField(canvas, lib) {
   let mx = 0;
   let my = 0;
 
+  // ⚠ THE MASK IS MEMOISED ON THE GRID SIZE, SO A FONT THAT ARRIVES LATE IS NEVER
+  // ASKED ABOUT AGAIN. `buildMask` is called only when cols/rows change, the fold's
+  // height is fixed and its width is the viewport's — so on a cold load where the
+  // first frame beats Anybody over the wire, the word is fitted to the FALLBACK's
+  // metrics and its letterforms are baked into the mask for the life of the page.
+  // That caching predates this change; what the change does is make it cost more. The
+  // old budget was a fraction of the grid, so a wrong face still filled ~88% of the
+  // fold and merely looked slightly off; against a constant tile budget a wrong face
+  // costs whole font steps, and the documented 1120x128 silently is not what renders.
+  // Dropping the mask on `fonts.ready` re-derives it ONCE from the real metrics.
+  // Guarded because `document.fonts` is not universal, and a browser without it is
+  // exactly the one that was never going to swap the face anyway.
+  if (typeof document !== "undefined" && document.fonts && document.fonts.ready
+      && typeof document.fonts.ready.then === "function") {
+    document.fonts.ready.then(() => { mask = null; }).catch(() => {});
+  }
+
   canvas.addEventListener("pointermove", (e) => {
     const r = canvas.getBoundingClientRect();
     if (!r.width || !r.height) return;
@@ -518,9 +535,10 @@ function rdMakeField(canvas, lib) {
     // that used to live here — `mh * 0.42` and `mw * 0.88` — are fractions OF THE
     // GRID, so the word grew with the monitor: 1120px wide at a 1280 fold and 1712px
     // at 3440, while COLLAPSING from 87.5% of the fold to 44.2%. `wallWordFit` caps
-    // it at a tile count instead, so above the anchor the word is the same size
-    // everywhere and below it the fold's own share still binds. The fitting loop
-    // stays here because only a canvas can measure text.
+    // it at a tile count instead, so on a fold at least 80 columns wide AND 27 rows
+    // tall the word is the same size everywhere, and outside that the fold's own
+    // share still binds — see wallWordFit for both conditions and why each exists.
+    // The fitting loop stays here because only a canvas can measure text.
     const fit = F.wallWordFit(mw, mh);
     let fs = fit.startCell;
     c.font = `600 ${fs}px ${RD_DISP}`;

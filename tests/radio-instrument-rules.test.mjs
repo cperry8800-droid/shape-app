@@ -80,6 +80,27 @@ function functionsOf(root) {
 
 
 // ── the fold sits in the site's own measure ────────────────────────────────────
+test('the wordmark mask is re-derived when the display face arrives', () => {
+  // ⚠ THE MASK IS MEMOISED ON THE GRID SIZE ALONE, so without this the font size the
+  // fitting loop chose — and the letterforms baked into the bitmap — are whichever
+  // face was resolved on the FIRST draw, for the life of the page. The fold's height
+  // is fixed and its width is the viewport's, so nothing else ever invalidates it.
+  //
+  // That caching predates the tile-count budget; what the budget does is make it cost
+  // more. A fraction-of-the-grid budget meant a fallback face still filled ~88% of the
+  // fold and merely looked slightly off; against a constant budget a wrong face costs
+  // whole font steps, so the documented 1120x128 silently would not be what renders on
+  // any cold load that beats the webfont.
+  assert.ok(/document\.fonts[\s\S]{0,200}?\.ready[\s\S]{0,200}?mask = null/.test(BARE),
+    'nothing drops the wordmark mask when the display face loads: a cold load bakes the ' +
+    'fallback metrics into the wall for the life of the page');
+
+  // and it must be GUARDED, because document.fonts is not universal and a browser
+  // without it is exactly the one that was never going to swap the face anyway
+  assert.ok(/document\.fonts &&/.test(BARE) || /document\.fonts\s*\?\./.test(BARE),
+    'document.fonts is read without a guard — a browser without it throws at module scope');
+});
+
 test('the fold stages its chrome in the same width the site header uses', () => {
   // ⚠ THE POINT IS THAT THE TWO CANNOT DRIFT. The fold was the only section on the
   // page with no width bound: its two chrome blocks were pinned `left: 32, right: 32`

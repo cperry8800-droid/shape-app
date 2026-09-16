@@ -450,9 +450,28 @@ export function wallMaskText(cols) {
 // It did: measured, 'SHAPE RADIO' is 76.24 mask cells at font 12 and 69.88 at 11, so
 // budgets of 70.4 and 76 both resolved to 11. That is a coincidence of the font
 // metrics, not a property of the design, and it would break the day the word or the
-// face changed. At 70 the anchor binds at every fold from 1280 up and the constancy
-// is structural. The range is stateable rather than approximate: the word is the same
-// size on every fold at least ceil(70 / 0.88) = 80 columns wide, i.e. 1280px.
+// face changed. At 70 the anchor binds and the constancy is structural.
+//
+// ⚠ AND THE RANGE HAS TWO CONDITIONS, NOT ONE. A first draft of this paragraph stated
+// it as a width alone — "the same size on every fold at least 80 columns wide" — 25
+// lines below the paragraph that had already corrected it, so the file said two
+// opposite things about one number and the width-only sentence was the one a reader
+// looking for the range would land on. Both conditions, stated once:
+//
+//   WIDTH : at least 80 columns, because 'SHAPE RADIO' at font 11 is 69.88 cells and
+//           the fold's own share is cols x 0.88 — 80 x 0.88 = 70.0 clears it by 0.12
+//           of a cell, and 79 gives 69.52 and does NOT.
+//   HEIGHT: at least 27 rows, because the loop only ever shrinks and floor(rows x
+//           0.42) must start at or above 11 to reach it — see `startCell` below.
+//
+// ⚠ AND 80 COLUMNS IS A FOLD, NOT A WINDOW. The fold is the document content width,
+// so on a platform with classic scrollbars a 1280px WINDOW is a ~1265px fold — 79
+// columns — and lands one font step below. REGISTERED rather than tuned away: the
+// only lever is WALL_WORD_COL_FRAC, and raising it to cover 79 columns would be a
+// constant reverse-engineered from one advance width rather than derived from
+// anything. The band is [1264, 1280) fold pixels and costs one step (992x112 against
+// 1120x128); before this change the same word ran 1120 to 1712px across the desktop
+// range, so the residual is a 13% variation in a narrow band where it was 53%.
 export const WALL_WORD_MAX_COLS = 70;
 export const WALL_WORD_COL_FRAC = 0.88;  // the fold's own bound, below the anchor
 export const WALL_WORD_ROW_FRAC = 0.42;
