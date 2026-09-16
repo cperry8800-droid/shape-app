@@ -9,7 +9,19 @@ shape design and brand imaging"* → *"no you can introduce new look"*.
 So the brief is **professional · easy to read · easy to navigate**, three genuinely different directions
 per page, with a new look allowed and the Shape mark, name and copy as the constant.
 
-**Previews:** the live concept board — https://claude.ai/artifact/TGwV8RdJsUMYySWBtt1oqK — eight tabs:
+⚠ **THIS FILE DESCRIBES THE FIRST ROUND ONLY, AND THE OWNER PICKED OUT OF THE SECOND — SHIPPED
+2026-09-16 AS THE NOTE.** On seeing A1–A3 the owner ruled them *too much going on, too much wording*,
+and three much shorter options were added to the board: **A4 · One screen**, **A5 · The Note** and
+**A6 · The Ledger**, each one screen and 70–85 words against 798 today. The pick is **A5 · The Note**
+(*"do the about the note design"*), built for the website and the app, with the founder's
+photograph removed from both on the same ruling (*"remove my picture from the about pages on both
+website and app"*). So: the board has **eleven** tabs, not the eight named below; §3's three options are
+the record of what was too much; and §6's A2 recommendation is **superseded**. The Kitchen half of this
+file is unaffected — K3 · The Menu shipped on 2026-09-16 as written.
+
+**Previews:** the live concept board — https://claude.ai/artifact/TGwV8RdJsUMYySWBtt1oqK — eleven tabs
+(⚠ the list below is the first round's eight; A4 · One screen, A5 · The Note and A6 · The Ledger joined
+it in the second):
 **Today · as shipped** (real captures of all three surfaces with the measured figures), **A1 · The Brief**,
 **A2 · The Dossier**, **A3 · The Chapters** (each rendered as a 1280px website page AND a 390px app page),
 **K1 · The Pantry**, **K2 · The Index**, **K3 · The Menu** (each as a 1280px page and the same page at phone
@@ -90,6 +102,13 @@ the account nudge · a credit on every recipe, in structure rather than in a par
 pages at `/recipes/<slug>` untouched.
 
 ## 3. The About page, three ways
+
+⚠ **NONE OF THESE THREE IS WHAT SHIPPED.** The owner read them as *too much going on, too much
+wording*; **A5 · The Note** (the board's second round) is the built page — an eyebrow, one headline,
+three sentences from the letter, a signature, four facts and the doors, with the whole letter and the
+approved bio behind one closed line, and **no portrait on either surface**. The three below are kept as
+the record of what was rejected and why, which is what made the short options answerable.
+
 
 ### A1 · The Brief — a new look, light paper
 
@@ -238,6 +257,11 @@ Every element on today's pages and where it lives in each option.
 
 ## 6. Recommendation and build order
 
+⚠ **SUPERSEDED FOR ABOUT — THE OWNER PICKED A5 · THE NOTE.** The recommendation below is kept because
+its reasoning is still the reasoning (a light page beside a dark homepage is a real trade, and A5 takes
+it), but it recommends one of the three options the owner then rejected as too long. The Kitchen half
+stands and shipped.
+
 **About: A2 · The Dossier.** It fixes reading and navigation without a brand decision, reads as the
 same product as the homepage and the app, and reuses the plate grammar the app already ships. A1 is the
 right pick if the goal is "a professional company page" first and a light About page beside a dark
@@ -254,6 +278,14 @@ distinctive, at the price of a new palette.
    (`BSAboutPage`, keeping all 44 keys; the switcher's 4–6 new keys × 13 locales, each composed from the
    catalog's own words), the guards re-anchored (`tests/about-page-i18n.test.mjs` pins the drop cap, the
    NBSPs, the arrow and the ≥40 `tr()` calls; every option keeps all four).
+   ⚠ **WHAT SHIPPED DIVERGES, AND THE DIVERGENCE IS THE PICK.** A5 · The Note retires 23 of the 44 keys
+   (the hero, the two-audience block, the CTA headline and the portrait's alt text) and adds 12; the
+   letter family is kept WHOLE behind the expander, so the drop cap — and the guard that proves it is
+   taken codepoint-safely — survives. The two numeric pins in that guard (≥40 keys, ≥40 `tr()` calls)
+   were claims about the page's LENGTH and were made false by a redesign that removed copy; they are
+   replaced by a two-way coverage check between the component and the catalog, which a redesign cannot
+   make stale. `tests/about-note.test.mjs` is new and holds the cross-surface parity and the absence of
+   any portrait.
 2. Kitchen: `recipesPage.jsx` only (plus its tests; `tests/recipe-render.test.mjs` compiles and renders
    the page with `@babel/preset-react`, so the new page must keep rendering under a stubbed shell and
    never dereference `.by` on a sourced recipe).
