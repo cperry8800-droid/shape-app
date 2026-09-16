@@ -78,6 +78,51 @@ function functionsOf(root) {
   return collect(root, (n) => n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression');
 }
 
+
+// ── the fold sits in the site's own measure ────────────────────────────────────
+test('the fold stages its chrome in the same width the site header uses', () => {
+  // ⚠ THE POINT IS THAT THE TWO CANNOT DRIFT. The fold was the only section on the
+  // page with no width bound: its two chrome blocks were pinned `left: 32, right: 32`
+  // against the VIEWPORT while the header centres its content in 1440, so measured on
+  // the real page the fold's wordmark sat 240px left of the header's logo at 1920,
+  // 560px at 2560 and 1000px at 3440. RD_STAGE is READ FROM the header rather than
+  // restated, so changing one without the other fails here rather than showing up as
+  // a hero that is out of line with the page on a wide monitor.
+  const shell = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  const inner = /className="shape-header-inner"[^>]*?maxWidth:\s*(\d+)/.exec(stripComments(shell));
+  assert.ok(inner, 'could not read .shape-header-inner maxWidth — this guard is not looking at the header any more');
+  const headerMeasure = Number(inner[1]);
+
+  const stage = /\bconst RD_STAGE = (\d+)\b/.exec(BARE);
+  assert.ok(stage, 'RD_STAGE is gone — the fold is full-bleed again');
+  assert.equal(Number(stage[1]), headerMeasure,
+    `the fold stages at ${stage[1]} and the header at ${headerMeasure}: the hero is out of line with the page above it`);
+
+  // and both blocks actually USE it — a constant nothing reads is not a stage
+  for (const block of ['rd-top', 'rd-bottom']) {
+    const m = new RegExp(`className="${block}"[^>]*?maxWidth:\\s*RD_STAGE`).exec(BARE);
+    assert.ok(m, `.${block} does not stage: it is still pinned to the viewport`);
+  }
+});
+
+test('the wordmark size is decided by the rules module, not by the renderer', () => {
+  // ⚠ A RULE WITH ONE CALL SITE NOBODY DRIVES IS A RULE NOBODY TESTS. `wallWordFit`
+  // can be correct and tested while buildMask quietly keeps its own literals, which
+  // is exactly how the word came to grow with the monitor: the two bounds were
+  // `mh * 0.42` and `mw * 0.88`, both fractions OF THE GRID. Structural, so an
+  // equivalent rewrite passes and only a bypass fails.
+  assert.ok(/F\.wallWordFit\(/.test(BARE), 'buildMask no longer asks the rules module for the budget');
+  assert.ok(!/measureText\([^)]*\)\.width\s*>\s*mw\s*\*/.test(BARE),
+    'the fitting loop is bounded by the grid again rather than by the budget');
+  assert.ok(!/fillText\(\s*word\s*,\s*mw\s*\/\s*2/.test(BARE),
+    'the word is centred on a half column again — that alone is a one-tile jitter');
+
+  // and a browser holding a stale cached copy of the module must DEGRADE rather than
+  // call through to undefined inside a render — the guard this file's header is about
+  assert.ok(/!F\.wallWordFit\b/.test(BARE),
+    'rdLib does not check wallWordFit, so a stale cached module throws in a render');
+});
+
 test('the station route never decides the session — only /api/me does', () => {
   // ⚠ THE FINDING: `play()` read `/api/radio/station`'s 401 and 403 as a session
   // measurement and called `setSignedIn(false)`. Neither is one. A 401 is

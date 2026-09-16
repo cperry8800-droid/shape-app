@@ -40,6 +40,24 @@ const RD_CREAM = "#eef3f0";
 const RD_CREAM50 = "rgba(238,243,240,0.55)";
 const RD_CREAM30 = "rgba(238,243,240,0.34)";
 
+// ⚠ THE FOLD WAS THE ONLY SECTION ON THIS PAGE WITH NO WIDTH BOUND, and on a wide
+// monitor that pulled its chrome to the corners and took it out of line with the
+// site above it. Its two blocks were pinned `left: 32, right: 32` against the
+// VIEWPORT, while the shared header centres its own content in 1440
+// (`pageShell.jsx`'s `.shape-header-inner`: maxWidth 1440, padding 0 32px) and every
+// other section here is bounded too (Shape Sets 860, Nora 760, Join 760). Measured
+// on the real page, the fold's wordmark sat 240px left of the header's logo at 1920,
+// 560px at 2560 and 1000px at 3440, and the deck and the strip ran from 712px apart
+// at 1280 to 2872px at 3440.
+//
+// RD_STAGE IS THAT SAME MEASURE RATHER THAN A NUMBER CHOSEN TO LOOK RIGHT, so the
+// fold and the header agree by construction instead of by coincidence — change one
+// and the guard in tests/radio-instrument-rules.test.mjs fails: it READS the header's
+// own maxWidth out of pageShell.jsx rather than restating it. Measured after: the
+// misalignment is 0 and the deck-to-strip gap a constant 872 at every width from
+// 1440 up, and below 1440 nothing moves at all.
+const RD_STAGE = 1440;
+
 const RD_REDUCED = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const RD_REDUCED_FPS = 4;   // the app's own reduced-motion cadence
 
@@ -52,7 +70,7 @@ const rdLib = () => {
   const S = typeof window !== "undefined" ? window.ShapeSignalField : null;
   const T = typeof window !== "undefined" ? window.ShapeRadioTempo : null;
   if (!F || !S || !T) return null;
-  if (!F.cloudForm || !F.leadTarget || !S.bandsFromBins || !T.createTempoDetector) return null;
+  if (!F.cloudForm || !F.leadTarget || !F.wallWordFit || !S.bandsFromBins || !T.createTempoDetector) return null;
   return { F, S, T };
 };
 
@@ -496,14 +514,22 @@ function rdMakeField(canvas, lib) {
     c.fillStyle = "#000"; c.fillRect(0, 0, mw, mh);
     c.fillStyle = "#fff";
     const word = F.wallMaskText(mw);
-    let fs = Math.floor(mh * 0.42);
+    // ⚠ THE BUDGET COMES FROM THE RULES MODULE, NOT FROM THE GRID. The two fractions
+    // that used to live here — `mh * 0.42` and `mw * 0.88` — are fractions OF THE
+    // GRID, so the word grew with the monitor: 1120px wide at a 1280 fold and 1712px
+    // at 3440, while COLLAPSING from 87.5% of the fold to 44.2%. `wallWordFit` caps
+    // it at a tile count instead, so above the anchor the word is the same size
+    // everywhere and below it the fold's own share still binds. The fitting loop
+    // stays here because only a canvas can measure text.
+    const fit = F.wallWordFit(mw, mh);
+    let fs = fit.startCell;
     c.font = `600 ${fs}px ${RD_DISP}`;
-    while (fs > 4 && c.measureText(word).width > mw * 0.88) {
+    while (fs > 4 && c.measureText(word).width > fit.maxCols) {
       fs -= 1;
       c.font = `600 ${fs}px ${RD_DISP}`;
     }
     c.textAlign = "center"; c.textBaseline = "middle";
-    c.fillText(word, mw / 2, mh * 0.46);
+    c.fillText(word, fit.centreCol, mh * 0.46);
     mask = c.getImageData(0, 0, mw, mh).data;
   }
 
@@ -847,8 +873,13 @@ function RadioInstrument() {
             the rail wraps: driven at 390 the rail's three items ran into the
             example-signal line and the mode label ran into the wordmark. Pinning the
             two BLOCKS and letting their contents flow puts the same layout at every
-            width and makes a collision unrepresentable rather than tuned away. */}
-        <div className="rd-top" style={{ position: "absolute", left: 32, right: 32, top: 26, display: "flex", flexDirection: "column", gap: 10 }}>
+            width and makes a collision unrepresentable rather than tuned away.
+            ⚠ AND THAT CLAIM WAS ONLY HALF TRUE UNTIL THE BLOCKS WERE STAGED. It holds
+            WITHIN each block; it did not hold BETWEEN them, because both were pinned to
+            the viewport — measured, the deck and the strip ran 712px apart at 1280 and
+            2872px at 3440, which is not the same layout at every width. RD_STAGE is
+            what makes the sentence true. */}
+        <div className="rd-top" style={{ position: "absolute", left: 0, right: 0, top: 26, maxWidth: RD_STAGE, margin: "0 auto", padding: "0 32px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" className="rd-wm" style={{ height: 20, width: "auto", flex: "0 0 auto" }} />
             <div className="rd-mode" style={{ ...eb, color: RD_CREAM30, marginLeft: "auto" }}>{modeLabel}</div>
@@ -886,7 +917,7 @@ function RadioInstrument() {
           )}
         </div>
 
-        <div className="rd-bottom" style={{ position: "absolute", left: 32, right: 32, bottom: 32, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="rd-bottom" style={{ position: "absolute", left: 0, right: 0, bottom: 32, maxWidth: RD_STAGE, margin: "0 auto", padding: "0 32px", display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20 }}>
             <div className="rd-now" style={{ minWidth: 0 }}>
               <div style={{ ...eb, color: RD_TEAL, marginBottom: 8 }}>Now playing</div>
@@ -919,8 +950,14 @@ function RadioInstrument() {
                   Stop
                 </button>
               )}
+              {/* ⚠ 24px IS THE FLOOR, AND THESE TWO WERE 13. WCAG 2.5.8 AA, which is
+                  this repo's own documented number rather than Apple's 44pt
+                  suggestion. Both are anchors in the deck and both measured 13px
+                  tall at every viewport — the eyebrow style is 11px type with no
+                  padding, so the box was the line box. The minHeight is on an
+                  inline-flex box so the row's baseline does not move. */}
               {key === "signin" && (
-                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, color: RD_TEAL, textDecoration: "none" }}>Sign in to listen</a>
+                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, display: "inline-flex", alignItems: "center", minHeight: 24, color: RD_TEAL, textDecoration: "none" }}>Sign in to listen</a>
               )}
               {/* ⚠ A REFUSED ATTEMPT HAS TO SAY SO, OR THE FIX FOR THE ONE ABOVE
                   LEAVES A LIVE KEY THAT DOES NOTHING VISIBLE. The 401 line names
@@ -931,7 +968,7 @@ function RadioInstrument() {
                   sign-in prompt: telling a signed-in member to sign in is #2005,
                   and telling a minor to is #2005 with the wrong remedy. */}
               {st.refusal === "signin" && key !== "signin" && (
-                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, color: RD_TEAL, textDecoration: "none" }}>
+                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, display: "inline-flex", alignItems: "center", minHeight: 24, color: RD_TEAL, textDecoration: "none" }}>
                   Couldn&rsquo;t start &mdash; sign in, or press again
                 </a>
               )}
@@ -961,8 +998,8 @@ function RadioInstrument() {
       <style>{`
         @media (max-width: 760px) {
           .rd-fold { height: min(74vh, 560px) !important; }
-          .rd-top { left: 18px !important; right: 18px !important; top: 20px !important; }
-          .rd-bottom { left: 18px !important; right: 18px !important; bottom: 20px !important; }
+          .rd-top { padding: 0 18px !important; top: 20px !important; }
+          .rd-bottom { padding: 0 18px !important; bottom: 20px !important; }
           .rd-wm { height: 16px !important; }
           .rd-mode { margin-left: 0 !important; }
           .rd-rail { gap: 14px !important; font-size: 10px !important; }
