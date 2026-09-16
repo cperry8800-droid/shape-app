@@ -252,7 +252,7 @@ function ClientOvPaths() {
 function ClientOvTools() {
   const tools = [
     { t: "Real programming", b: "Your coach writes it. Sets, reps, progressions, substitutions — plus meal plans built around your goals. Updated every cycle based on how you're actually moving and eating." },
-    { t: "Shape Radio", b: "Curated stations for lifting, running, recovery, and focus. Auto-matches the tempo of your session — your warm-up, your working sets, your cool-down." },
+    { t: "Shape Radio", b: "One live channel and the playlists your coaches put together — ad-free, included with your membership, and there whenever the app is open." },
     { t: "Habits", b: "Build the good ones, break the bad. Track sleep, steps, mood, hydration, screen time, anything — your streaks roll up into your Shape Score." },
     { t: "Grocery list", b: "Your nutritionist's meal plan turns itself into a shoppable list, organized by aisle, with a live running cost. One tap sends the whole thing to Instacart." },
     { t: "Shape calendar", b: "Your own training calendar inside Shape — workouts, meals, check-ins, and calls all in one view. Your coach sees what you see, and updates land in real time." },

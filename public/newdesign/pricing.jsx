@@ -29,7 +29,7 @@ const PLATFORM_FEATURES = [
   "Full progress tracking & analytics",
   "Nutrition schedule & macro tracking",
   "Community forum access",
-  "Shape Radio — ad-free workout music",
+  "Shape Radio — ad-free, included with membership",
 ];
 
 const EXAMPLE_COACHES = [
@@ -44,7 +44,7 @@ const PRICING_FAQ = [
   { q: "How much do trainers and nutritionists cost?", a: "Each pro sets their own price. Trainers typically run $60–$150 per session or $80–$250/month for full programming. Nutritionists typically run $120–$250 per consult or $120–$300/month for plans + reviews. You see each coach's rate on their profile before you subscribe." },
   { q: "Can I cancel any time?", a: "Yes — the $5/mo cancels instantly from your settings. Coach subscriptions cancel on the same screen. No penalties, no lock-in. Your data and training history stay with you." },
   { q: "Do trainers and nutritionists pay to be on Shape?", a: "No monthly dues, no setup fees. Shape takes a 15% platform fee on everything clients pay you — you only pay when you earn. Standard card processing is separate." },
-  { q: "Is Shape Radio really included?", a: "Yes — ad-free workout mixes, BPM-curated stations, live DJ sets from residents. Part of the $5/mo. Offline downloads included. No upsell." },
+  { q: "Is Shape Radio really included?", a: "Yes — one live channel, coach playlists and live DJ sets from residents, all ad-free. Part of the $5/mo. Offline downloads included. No upsell." },
 ];
 
 const REDUCED_PR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;

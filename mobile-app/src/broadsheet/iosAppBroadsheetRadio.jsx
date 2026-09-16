@@ -915,7 +915,7 @@ function BSRadioPrompt() {
             <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> {tr('radio:prompt.liveNow', { defaultValue: 'Live now · Ad-free' })}
           </div>
           <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 34, letterSpacing: '-0.035em', lineHeight: 0.96, color: t.INK }}>
-            {tr('radio:prompt.title', { defaultValue: 'Want music' })}<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>{tr('radio:prompt.titleAccent', { defaultValue: 'while you move?' })}</span>
+            {tr('radio:prompt.title', { defaultValue: 'Want music' })}<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>{tr('radio:prompt.titleAccent', { defaultValue: 'while the app is open?' })}</span>
           </h1>
           <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70, maxWidth: 340 }}>
             {tr('radio:prompt.body', { defaultValue: 'Radio will stream in the background — on your workouts, meal preps, or whenever the app is open. Always ad-free. You can pause anytime.' })}
