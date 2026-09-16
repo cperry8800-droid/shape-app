@@ -1,5 +1,14 @@
 # Review · 2026-09-15 · The website's Radio page, six ways
 
+**Status: BUILT AND SHIPPED — #2101 → `c156576`, 2026-09-16.** ⚠ The line below said *"not built"*
+and is kept rather than rewritten, because a review says what was read on the day it was read — but a
+status line left uncorrected is what the next reader acts on, and *"not built"* over a shipped page is
+an instruction to build it twice. **Two items in §6 are genuinely still open and say so at their own
+sites**: N1's Doto chip (three of 74 pages load Doto, so on the other 71 the dot-matrix effect is
+simply gone) and L1's *"SHAPE RADIO"* label (the pill reads "RADIO" by an owner ruling recorded in
+`pageShell.jsx`). Each reverses something already settled, so each is the owner's call rather than a
+side effect of the build.
+
 **Status: not built.** Records only — a review with live previews; the spec comes after the pick.
 Owner: *"new design for shape radio page on website … similar to the app page … speaking and in sync
 with each other … 5 designs … edgy, new, modern, looking like an advanced radio station … moving
