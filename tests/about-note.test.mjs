@@ -64,6 +64,28 @@ function webConst(name) {
   return new Function(`return (${src.slice(open, end)})`)()
 }
 
+/** Longest common substring length, case-insensitive. Used to check a translated
+ *  sentence against a word the product already owns, which survives inflection
+ *  where an equality or `includes` check would fail correct translations
+ *  (uk "\u041f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0436\u0435\u043d\u0456" against the badge's "\u041f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0436\u0435\u043d\u043e"). */
+function lcsLen(a, b) {
+  const x = String(a).toLowerCase()
+  const y = String(b).toLowerCase()
+  let best = 0
+  let prev = new Array(y.length + 1).fill(0)
+  for (let i = 1; i <= x.length; i += 1) {
+    const cur = new Array(y.length + 1).fill(0)
+    for (let j = 1; j <= y.length; j += 1) {
+      if (x[i - 1] === y[j - 1]) {
+        cur[j] = prev[j - 1] + 1
+        if (cur[j] > best) best = cur[j]
+      }
+    }
+    prev = cur
+  }
+  return best
+}
+
 test('neither surface carries a portrait, and the asset is gone', () => {
   // Owner, 2026-09-16: "remove my picture from the about pages on both website
   // and app". Three independent ways it could come back, all closed.
@@ -123,19 +145,87 @@ test('the four facts are the same four on both surfaces', () => {
     en['aboutPage.factLangs'],
   ], 'the website facts strip has drifted from the catalog')
 
-  // ⚠ THE COACH FACT MAY NOT PROMISE WHAT THE MARKETPLACE WITHHOLDS. Its ✓
-  // Verified badge renders PER COACH (`c.verified &&` in marketplace.jsx), so a
-  // blanket "every coach verified" would be contradicted by the first listing a
-  // reader opens. Intake credential-checking is the claim coaches.jsx makes for
-  // all of them, and it is the claim repeated here.
-  const checked = en['aboutPage.factChecked']
-  assert.doesNotMatch(checked, /\bverified\b/i,
-    'the coach fact claims verification, which the marketplace grants per coach')
-
   // And the locale count is a MEASUREMENT, not a number somebody typed: it must
   // equal the catalogs actually shipped.
   assert.match(en['aboutPage.factLangs'], new RegExp(`\\b${LOCALES.length}\\b`),
     `the languages fact does not state the ${LOCALES.length} catalogs that ship`)
+})
+
+test('the credentials fact is scoped to the badge, in every locale', () => {
+  // ⚠ THIS ASSERTION USED TO REQUIRE THE OPPOSITE, AND IT WAS WRONG. It read
+  // `doesNotMatch(checked, /\bverified\b/i)` under a comment reasoning that the
+  // ✓ Verified badge renders PER COACH, so a blanket "every coach verified"
+  // would be contradicted by the first listing a reader opens. That reasoning is
+  // right and it refutes the WEAKER blanket claim ("Coach credentials checked")
+  // for exactly the same reason: a conditional badge IS the evidence that not
+  // every coach was checked. Banning the word "verified" then pinned a spelling
+  // and forbade the only honest wording there is.
+  //
+  // The product's own Terms are the operative document, so they are the guard's
+  // guard: if that sentence ever goes, this claim has to be re-derived rather
+  // than left standing.
+  const termsClause = /Unless a coach shows a Verified badge, the credentials on their profile are self-reported and not independently verified by Shape/
+  assert.match(readFileSync(APP, 'utf8'), termsClause,
+    'the Terms no longer say credentials are self-reported — re-derive the About facts against whatever replaced it')
+
+  // en names the badge outright; the other twelve are checked against a word the
+  // PRODUCT owns rather than one this test types, so an inflected translation
+  // still passes and a translation that drops the concept fails.
+  assert.match(cat('en')['aboutPage.factChecked'], /badge/i,
+    'the en credentials fact no longer names the badge that scopes it')
+
+  for (const loc of LOCALES) {
+    const badge = JSON.parse(readFileSync(`${CAT}/${loc}/profile.json`, 'utf8'))['coach.verified']
+    assert.ok(badge, `${loc}: profile:coach.verified is missing — the derivation has nothing to compare against`)
+    const word = badge.replace(/\u2713/g, '').trim()
+    assert.ok(word.length >= 6, `${loc}: the badge name is too short to derive from`)
+    // ⚠ THE FLOOR IS PROVEN LOAD-BEARING, NOT ASSUMED. Dropping it to 1 on its
+    // own is a no-op — every shipped locale shares 7–13 characters with its badge
+    // word, so a lower floor changes no answer and the mutation survives. What
+    // proves it is the COMBINED run: floor 1 AND ru's fact rewritten without the
+    // badge word goes green, where floor 6 catches it. A floor is proven by a read
+    // that has stopped matching, never by its own deletion.
+    const n = lcsLen(cat(loc)['aboutPage.factChecked'], word)
+    assert.ok(n >= 6,
+      `${loc}: the credentials fact does not carry the badge word from profile:coach.verified (${word}) — longest shared run was ${n}`)
+  }
+
+  // ⚠ THE RESIDUAL, STATED RATHER THAN PAPERED OVER: this proves the fact is
+  // ABOUT verification-by-badge; it cannot prove the claim is SCOPED. A locale
+  // could still read "coach credentials verified" — a universal claim carrying
+  // the same word — and pass. Scoping is authored, and the thing that catches a
+  // regression there is reading the Terms above, not this loop. Measured while
+  // writing it: the retired fr value, "Diplômes des coachs vérifiés", survives
+  // this check, which is why it is named here.
+})
+
+test('the coach price fact says what is free', () => {
+  // ⚠ "Free for coaches" beside "$5 a month for members" reads as a price
+  // comparison and states the wrong half of it: coaches pay a platform fee on
+  // everything clients pay them. The owner's 2026-09-14 ruling is "free to JOIN
+  // for coaches", and coaches.jsx keeps that qualifier ("$0 to join and list")
+  // directly beside the fee. Guard the guard first — if Shape ever stops taking
+  // a fee, the unqualified claim becomes true and this test should be the thing
+  // that says so.
+  const fee = readFileSync('src/lib/platform-fee.mjs', 'utf8')
+  const m = fee.match(/PLATFORM_FEE_RATE\s*=\s*([0-9.]+)/)
+  assert.ok(m, 'PLATFORM_FEE_RATE is gone — re-derive the About coach fact')
+  assert.ok(Number(m[1]) > 0,
+    'the platform fee is zero, so "free for coaches" may be unqualified again — revisit this fact')
+  // ⚠ THE PAIR SPANS TWO ARRAY ELEMENTS, so this pattern may not be written to
+  // stop at a quote. A first cut used `[^"]*` between them and failed on correct
+  // code, reporting "the Coaches page no longer states what is free" about a page
+  // that says it in the very next literal: `["$0", false, "to join and list"]`.
+  assert.match(readFileSync('public/newdesign/coaches.jsx', 'utf8'), /"\$0"[\s\S]{0,60}?to join/,
+    'the Coaches page no longer states what is free — the About fact is derived from its wording')
+
+  assert.match(cat('en')['aboutPage.factCoach'], /\bjoin/i,
+    'the en coach fact no longer names the act that is free, so it reads as "coaches pay nothing"')
+  // ⚠ The other twelve are authored from each locale's own joining verb and are
+  // NOT asserted here, deliberately: those verbs share no stem with anything the
+  // product already keys (es "se unen" against "\u00danete", en "join" against
+  // "Join Shape" — four characters), so a cross-locale derivation would be a
+  // spelling pin dressed as a measurement. Parity and non-emptiness cover them.
 })
 
 test('the facts strip wraps on both surfaces rather than pushing the page sideways', () => {
@@ -218,4 +308,74 @@ test('the letter is whole and identical on both surfaces', () => {
   // Exactly one drop cap, and it is the letter's opening paragraph on both.
   assert.equal(blocks.filter((b) => b.drop).length, 1, 'the letter has lost (or gained) a drop cap')
   assert.equal(blocks[0].drop, true, 'the drop cap is not on the letter\'s first paragraph')
+})
+
+test('both surfaces close on the same two doors', () => {
+  // ⚠ THE APP SHIPPED WITH ONE DOOR AND THE REASON WAS FALSE. It read "this app
+  // has nowhere to send it", which is true only of an IN-APP route — not what the
+  // door needs. Coach signup lives on the website, and this module already opens
+  // external web destinations. So a signed-out visitor who wanted to become a
+  // coach lost the page's only route to it, for want of a mechanism that was
+  // already there. Both surfaces carry both doors now, and each half of that is
+  // asserted separately because they fail independently.
+  const web = stripped(WEB)
+  const app = appBody()
+  const en = cat('en')
+
+  // The website's coach door points at a page that EXISTS — a href nobody
+  // resolves is the dead control this page is supposed to be the opposite of.
+  const href = web.match(/href="(\/newdesign\/Coaches\.html)"/)
+  assert.ok(href, 'the website lost its coach door')
+  assert.ok(existsSync(`public${href[1]}`), `the website coach door points at a missing page (${href[1]})`)
+  assert.match(web, /href="\/newdesign\/GetApp\.html"/, 'the website lost its member door')
+
+  // The app's coach door leaves for that same page. ⚠ ABSOLUTE, because on
+  // native the WebView's origin is the Capacitor scheme and a root-relative path
+  // resolves to nothing there; and through `bsOpenCheckout`, because a bare
+  // `location.href` takes the WebView ITSELF to a marketing page with no way back
+  // into the app. Both are invisible on the web build, which is where this would
+  // be tested by hand.
+  const url = app.match(/BS_ABOUT_COACH_URL/) && readFileSync(APP, 'utf8').match(/const BS_ABOUT_COACH_URL = '([^']+)'/)
+  assert.ok(url, 'the app lost its coach door URL')
+  assert.match(url[1], /^https:\/\//, 'the app coach door is not an absolute URL — it resolves to nothing on native')
+  assert.ok(url[1].endsWith(href[1]),
+    `the two surfaces point at different coach pages (app ${url[1]}, website ${href[1]})`)
+  assert.match(app, /bsOpenCheckout\(BS_ABOUT_COACH_URL\)/,
+    'the app coach door does not go through the Capacitor-aware opener')
+  assert.doesNotMatch(app, /location\.href\s*=/,
+    'the app page navigates the WebView itself — on native that strands the member outside the app')
+  assert.match(app, /shape:goCommunity/, 'the app lost its member door')
+
+  // The two labels are the same sentence, or the surfaces offer what reads as
+  // two different things.
+  assert.ok(en['aboutPage.ctaCoach'], 'the coach door label is not keyed')
+  // ⚠ NO `|| 'Become a coach'` FALLBACK HERE, and that is the point. A first
+  // cut carried one, so a regex that stopped matching would have compared the
+  // catalog against this test's own typed copy and passed forever. It has to
+  // fail loudly instead.
+  const webLabel = web.match(/>([^<>{}]*?)\s*\u2192<\/a>\s*<\/div>/)
+  assert.ok(webLabel, 'could not read the website coach door label — this guard is measuring nothing')
+  assert.equal(en['aboutPage.ctaCoach'].replace(/\s*\u2192\s*$/, '').trim(), webLabel[1].trim(),
+    'the app and website coach doors say different things')
+  for (const loc of LOCALES) {
+    const v = cat(loc)['aboutPage.ctaCoach']
+    assert.ok(v && v.trim(), `${loc} is missing aboutPage.ctaCoach`)
+    assert.ok(v.includes('\u2192'), `${loc}: the coach door lost its arrow`)
+  }
+
+  // And the pair WRAPS rather than clipping a label — at 320px two 13/22 buttons
+  // do not fit one row. ⚠ THE TWO SURFACES DO IT DIFFERENTLY AND ARE ASSERTED
+  // SEPARATELY: the website drops its flex row to a one-column grid in a media
+  // query, the app wraps the flex row itself (a React Native-style inline style
+  // has no media query to reach for). A first cut OR'd three patterns together,
+  // which passes when ANY surface happens to carry ANY of them.
+  assert.match(web, /className="about-doors"/, 'the website doors lost the class its media query targets')
+  assert.match(readFileSync(WEB, 'utf8'),
+    /\.about-doors\s*\{[^}]*grid-template-columns:\s*1fr/,
+    'the website doors no longer stack on a narrow screen')
+  const appAt = app.indexOf('shape:goCommunity')
+  const appHead = app.slice(Math.max(0, appAt - 700), appAt)
+  const appOpen = appHead.lastIndexOf('<div style={{')
+  assert.ok(appOpen >= 0, 'the app doors container is not a styled div')
+  assert.match(appHead.slice(appOpen), /flexWrap:\s*['"]wrap['"]/, 'the app doors do not wrap')
 })

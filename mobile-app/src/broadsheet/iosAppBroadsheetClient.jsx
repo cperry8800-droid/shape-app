@@ -36214,13 +36214,23 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
 // sign-off alone. `founder.webp` is deleted from both trees, and
 // tests/about-note.test.mjs fails if either surface reaches for it again.
 //
-// ⚠ ONE DOOR HERE, TWO ON THE WEBSITE, AND THE DIFFERENCE IS A MEASUREMENT
-// RATHER THAN A STYLE CALL. The board's phone frame draws "Become a coach →"
-// beside the community door — and this app has nowhere to send it: coach signup
-// lives on the website (SignupTrainer / SignupNutritionist), `shape:openMarket`
-// opens the marketplace to FIND a coach rather than become one, and there is no
-// third event. A door that leads nowhere costs more trust than an absent one, so
-// the app closes on the community door it already had.
+// ⚠ TWO DOORS HERE AS WELL, AND THE ONE-DOOR VERSION THIS SHIPPED WITH RESTED
+// ON A PREMISE THAT IS FALSE. It read "this app has nowhere to send it" — true
+// only of an IN-APP route, which is not what the door needs: coach signup lives
+// on the website, and this module already opens external web destinations
+// (`bsOpenCheckout` for Stripe, and the Terms page's own link). So the board's
+// second door was dropped for want of a mechanism that was already here, and a
+// signed-out visitor who wanted to become a coach lost the only route the page
+// offers them. ⚠ It goes through `bsOpenCheckout` rather than a bare
+// `location.href` DESPITE the checkout-specific name: on native that is the
+// Capacitor Browser hop, and a raw navigation would take the WebView itself to
+// a marketing page with no way back into the app.
+// ⚠ ABSOLUTE, NOT RELATIVE, AND THAT IS ABOUT THE NATIVE BUILD RATHER THAN
+// STYLE. On the web this page is served from the same origin as the website, so
+// a relative href would resolve — on iOS/Android the WebView's origin is the
+// Capacitor scheme, where `/newdesign/Coaches.html` resolves to nothing. Same
+// host form the Terms link already uses.
+const BS_ABOUT_COACH_URL = 'https://www.theshapecommunity.com/newdesign/Coaches.html';
 function BSAboutPage({ onBack }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -36238,17 +36248,34 @@ function BSAboutPage({ onBack }) {
   const p1Cap = p1Chars[0] || '';
   const p1Rest = p1Chars.slice(1).join('');
   // ⚠ EVERY FACT IS CHECKED AGAINST WHAT THE PRODUCT ACTUALLY DOES — a strip of
-  // four claims is the easiest place on the page to state one nobody measured.
-  // "Coach credentials checked", NOT "every coach verified": the marketplace's
-  // ✓ Verified badge renders PER COACH, so the stronger claim would contradict
-  // the surface it points at. Intake credential-checking is what the Coaches
-  // page claims for all of them. The fee, the coach price and the locale count
-  // are the shipped $5/mo, the owner's 2026-09-14 free-for-coaches ruling, and
-  // the number of catalogs in mobile-app/src/i18n/catalogs.
+  // four claims is the easiest place on the page to state one nobody measured,
+  // and two of these four were measured wrong the first time.
+  //
+  // ⚠ THE CREDENTIALS FACT IS SCOPED TO THE BADGE, because this app's own Terms
+  // say the opposite of a blanket claim in as many words: "Unless a coach shows
+  // a Verified badge, the credentials on their profile are self-reported and not
+  // independently verified by Shape" (BSTermsPage, clause 04). This line first
+  // read "Coach credentials checked" under a comment reasoning that the ✓
+  // Verified badge renders PER COACH so "every coach verified" would contradict
+  // the surface it points at — which is right, and refutes the weaker blanket
+  // claim for exactly the same reason. A conditional badge IS the evidence that
+  // not every coach was checked. ⚠ REGISTERED, NOT FIXED: the website FAQ
+  // (public/newdesign/shared.jsx) still says "Every coach is vetted … We verify
+  // licenses on application and re-check annually", which contradicts the Terms.
+  // That pre-dates this page; the Terms are the operative document, so a NEW
+  // claim follows them.
+  //
+  // ⚠ AND THE COACH PRICE SAYS WHAT IS FREE. "Free for coaches" beside "$5 a
+  // month for members" reads as a price comparison and states the wrong half of
+  // it: coaches pay a 15% platform fee on what clients pay them (PLATFORM_FEE_RATE,
+  // src/lib/platform-fee.ts). The owner's 2026-09-14 ruling is "free to JOIN for
+  // coaches", which is the qualifier this dropped and the Coaches page keeps
+  // ("$0 to join and list", beside the fee). The locale count is the number of
+  // catalogs in mobile-app/src/i18n/catalogs.
   const facts = [
     tr('settings:aboutPage.factFee', { defaultValue: '$5 a month for members' }),
-    tr('settings:aboutPage.factCoach', { defaultValue: 'Free for coaches' }),
-    tr('settings:aboutPage.factChecked', { defaultValue: 'Coach credentials checked' }),
+    tr('settings:aboutPage.factCoach', { defaultValue: 'Coaches join free' }),
+    tr('settings:aboutPage.factChecked', { defaultValue: 'Verified coaches carry a badge' }),
     tr('settings:aboutPage.factLangs', { defaultValue: '13 languages' }),
   ];
   return (
@@ -36356,14 +36383,22 @@ function BSAboutPage({ onBack }) {
         ))}
       </div>
 
-      {/* THE DOOR — a real one: tapping it opens the community feed (the shell
-          listens for shape:goCommunity — the shape:openMarket pattern; About is
-          client-only, so the client shell is the one host). */}
-      <div style={{ padding: `26px ${px}px 40px`, textAlign: 'center' }}>
+      {/* THE TWO DOORS — one per audience, both real destinations. The member
+          door opens the community feed in-app (the shell listens for
+          shape:goCommunity — the shape:openMarket pattern; About is client-only,
+          so the client shell is the one host). The coach door leaves for the
+          website's coach page, because that is where coach signup lives.
+          ⚠ They WRAP rather than shrink: at 320px two 13/22 buttons do not fit
+          one row, and a door whose label is clipped is the affordance failing. */}
+      <div style={{ padding: `26px ${px}px 40px`, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
         <button
           onClick={() => { try { window.dispatchEvent(new Event('shape:goCommunity')); } catch (e) {} }}
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '13px 22px', borderRadius: 6, background: teal, color: t.isLight ? '#ffffff' : '#04201d', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}
         >{tr('settings:aboutPage.ctaAction', { defaultValue: 'Open the community →' })}</button>
+        <button
+          onClick={() => { try { bsOpenCheckout(BS_ABOUT_COACH_URL); } catch (e) {} }}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '13px 22px', borderRadius: 6, background: 'transparent', color: teal, border: `1px solid ${teal}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}
+        >{tr('settings:aboutPage.ctaCoach', { defaultValue: 'Become a coach →' })}</button>
       </div>
       <BSFooter right="About" />
     </BSPage>

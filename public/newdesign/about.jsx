@@ -84,7 +84,29 @@ const AN_NOTE = {
   bio: "Christopher spent a decade in finance \u2014 building relationships, helping grow businesses, and always knowing that one day he\u2019d build and run his own. A lifelong athlete with marathons and an Ironman behind him, he turned that drive toward his real passion: health and fitness. Shape is built on a simple belief \u2014 great coaching shouldn\u2019t be a luxury or unaffordable, and shouldn\u2019t mean doing it alone. It\u2019s the best platform he could make for personal coaching and sharing the journey: a true community, built to help you shape your life how you want it.",
 };
 
-const AN_FACTS = ["$5 a month for members", "Free for coaches", "Coach credentials checked", "13 languages"];
+// ⚠ EVERY FACT IS CHECKED AGAINST WHAT THE PRODUCT ACTUALLY DOES, AND TWO OF
+// THESE FOUR WERE MEASURED WRONG THE FIRST TIME.
+//
+// The credentials fact is SCOPED TO THE BADGE, because the app's own Terms say
+// the opposite of a blanket claim in as many words: "Unless a coach shows a
+// Verified badge, the credentials on their profile are self-reported and not
+// independently verified by Shape" (BSTermsPage clause 04,
+// mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx). This read "Coach
+// credentials checked", reasoned from the ✓ Verified badge in marketplace.jsx
+// rendering PER COACH — which refutes the blanket claim rather than supporting
+// it: a conditional badge IS the evidence that not every coach was checked.
+// ⚠ REGISTERED, NOT FIXED: shared.jsx's FAQ still says "Every coach is vetted
+// … We verify licenses on application and re-check annually", which contradicts
+// those Terms. It pre-dates this page; the Terms are the operative document, so
+// a NEW claim follows them rather than the FAQ.
+//
+// And the coach price says what is free. "Free for coaches" beside "$5 a month
+// for members" reads as a price comparison and states the wrong half of it:
+// coaches pay a 15% platform fee on what clients pay them (PLATFORM_FEE_RATE,
+// src/lib/platform-fee.ts), which coaches.jsx states beside its own "$0 to join
+// and list". "Join" is the qualifier the owner's 2026-09-14 ruling carried and
+// this had dropped.
+const AN_FACTS = ["$5 a month for members", "Coaches join free", "Verified coaches carry a badge", "13 languages"];
 
 function AboutNote() {
   const [open, setOpen] = React.useState(false);
