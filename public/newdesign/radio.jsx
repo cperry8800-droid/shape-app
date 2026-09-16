@@ -114,7 +114,7 @@ function RadioShapeSets() {
             Shape <em style={{ fontStyle: "italic", fontWeight: 600, color: RD_TEAL }}>Sets.</em>
           </h2>
           <p style={{ fontFamily: RD_SANS, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
-            A virtual concert series broadcast straight from <strong style={{ color: RD_CREAM, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement, captured on the floor and streamed through Shape Radio.
+            A virtual concert series broadcast straight from <strong style={{ color: RD_CREAM, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts, captured on the floor and streamed through Shape Radio.
           </p>
           <div style={{ marginTop: 36, fontFamily: RD_NUM, fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: RD_TEAL, fontWeight: 500 }}>
             Coming soon
@@ -137,27 +137,24 @@ function RadioInApp() {
         <RdReveal>
           <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: RD_TEAL, fontVariationSettings: "'ROND' 100" }}>In the app</div>
           <h2 style={{ fontFamily: RD_DISP, fontWeight: 500, fontVariationSettings: "'wdth' 105", fontSize: "clamp(30px,3.4vw,46px)", letterSpacing: "-0.025em", lineHeight: 1.02, margin: "14px 0 0", color: RD_CREAM }}>
-            The same instrument, on your phone.
+            The same station, on your phone.
           </h2>
           <p style={{ fontFamily: RD_SANS, fontSize: 15.5, lineHeight: 1.6, color: "rgba(238,243,240,0.72)", maxWidth: 460, margin: "18px 0 0" }}>
-            Shape Radio in the app draws the station from the same two modules this page
-            does, so the tempo you read here and the tempo you read there are one
-            measurement rather than two guesses. The phone adds the half the web does not
-            have: a heart-rate strap over Bluetooth, and the station&rsquo;s beat and your own
-            pulse drawn on one clock until they lock.
+            Shape Radio is part of the Shape app, so what is playing here is what is
+            playing there. One membership covers both &mdash; nothing extra to set up and
+            nothing extra to pay.
           </p>
           <a href="/newdesign/GetApp.html" style={{ display: "inline-flex", alignItems: "center", height: 44, padding: "0 20px", marginTop: 26, background: RD_TEAL, color: "#04110f", fontFamily: RD_SANS, fontWeight: 700, fontSize: 14, textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" }}>
             Get the app
           </a>
         </RdReveal>
         <RdReveal delay={90}>
-          <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(238,243,240,0.4)", fontVariationSettings: "'ROND' 100", marginBottom: 12 }}>The Signal Field</div>
+          <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(238,243,240,0.4)", fontVariationSettings: "'ROND' 100", marginBottom: 12 }}>On screen</div>
           <p style={{ fontFamily: RD_SANS, fontSize: 14.5, lineHeight: 1.6, color: "rgba(238,243,240,0.62)", maxWidth: 420, margin: 0 }}>
-            On the phone the station is a dot field lit by the same bands, with the
-            spectrum mirrored around the bass and a four-beat counter stepping on the
-            measured tempo. Tap <em style={{ fontStyle: "normal", color: RD_CREAM }}>Match my BPM</em> and it becomes two
-            pulse rows on one clock &mdash; the station above, your heart below &mdash; and thin ties
-            join every pair that lands together.
+            While a track plays, the app draws it: a field of dots that moves with the
+            music and keeps time with the beat. Wear a heart-rate strap and you can put
+            your own pulse on screen beside it with <em style={{ fontStyle: "normal", color: RD_CREAM }}>Match my BPM</em> &mdash; there if
+            you want it, easy to ignore if you don&rsquo;t.
           </p>
         </RdReveal>
       </div>
@@ -173,6 +170,31 @@ function RadioInApp() {
 function RadioNora() {
   const canvasRef = React.useRef(null);
   const stageRef = React.useRef(null);
+  // ⚠ THE UNMOUNT CLEANUP COULD NOT REACH A STAGE THAT WAS STILL LOADING, and the app's
+  // own copy of this flow has the guard this one was missing
+  // (iosAppBroadsheetRadio.jsx: `if (disposed) { st.dispose(); return; }` after load()).
+  // `stageRef` is assigned only AFTER load() and start() have both resolved, so between
+  // the click and the end of a ~10.7MB VRM download it is still null — and close(), and
+  // the unmount cleanup, both look at nothing but `stageRef`. Unmount inside that window
+  // and the load finishes anyway, start() installs a requestAnimationFrame loop, and an
+  // unreachable stage renders on holding a live WebGL context. Browsers cap those and
+  // silently EVICT THE OLDEST rather than reporting one, so the symptom would not be a
+  // leak message: it is the booth quietly failing to draw on some later attempt.
+  //
+  // ⚠ THIS IS HARDENING, NOT A REPRODUCED SYMPTOM, AND THE DIFFERENCE IS WORTH THE LINE.
+  // The obvious way in — tap Hide while it loads — IS NOT REACHABLE: the button carries
+  // `disabled={state === "opening"}` for exactly that window, and a disabled button fires
+  // no React onClick. Measured rather than reasoned about: a driver told to click during a
+  // deliberately slowed VRM download waited for the control to become enabled and landed a
+  // NORMAL close after the load had finished (264 booth draw calls, then none) — the path
+  // that already worked. So the only way to abandon a load here is an unmount, and on this
+  // page that is a navigation, which discards the context anyway. The guard stays because
+  // it is free, and because it is the one the app's own copy of this flow already has —
+  // but it is not credited with a fix.
+  //
+  // A counter rather than a boolean, because close() → open() → close() must not let an
+  // older attempt's guard fire against a newer attempt's stage.
+  const genRef = React.useRef(0);
   const [state, setState] = React.useState("closed");   // closed | opening | open | unsupported | failed
   const busy = React.useRef(false);
 
@@ -196,6 +218,11 @@ function RadioNora() {
   const open = async () => {
     if (busy.current) return;
     busy.current = true;
+    const myGen = ++genRef.current;
+    // Abandoned means: closed, or unmounted, while this attempt was awaiting something.
+    // Nothing is painted on that path — the component may be gone, and close() has already
+    // said what the state is.
+    const abandoned = () => genRef.current !== myGen;
     setState("opening");
     // ⚠ THE STAGE IS HELD LOCALLY SO THE FAILURE PATH CAN REACH IT (Codex, round 9).
     // `stageRef` was assigned only after load() AND start() had both succeeded, so a VRM
@@ -211,6 +238,7 @@ function RadioNora() {
       const g = window.__shapeRadioGraph || null;
       if (g && g.context && g.context.state === "suspended") { try { await g.context.resume(); } catch (e) { /* a booth without audio still draws */ } }
       const { NoraStage } = await import("/newdesign/noraStage.mjs");
+      if (abandoned()) return;                 // nothing built yet — nothing to dispose
       const stage = new NoraStage({
         canvas: canvasRef.current,
         // ⚠ THE INSTRUMENT'S OWN ANALYSER, OR NONE. Nora reacts to what the station
@@ -221,6 +249,10 @@ function RadioNora() {
       });
       made = stage;
       await stage.load();
+      // ⚠ THE WINDOW THIS WHOLE GUARD IS ABOUT — the VRM is ~10.7MB, so this await is
+      // where a member navigating away or tapping Hide actually lands. start() is never
+      // called, so no render loop is installed and the context is released here.
+      if (abandoned()) { try { stage.dispose(); } catch (e) {} return; }
       // ⚠ AND THE LOAD IS ASYNC, so a graph that appeared WHILE the VRM was downloading
       // would have been announced to a stage that did not exist yet — the same both-ways
       // problem `setColor` carries for the accent. Re-read before starting.
@@ -243,11 +275,15 @@ function RadioNora() {
   };
 
   const close = () => {
+    genRef.current += 1;                        // retires an attempt that is still loading
     if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} stageRef.current = null; }
     setState("closed");
   };
 
-  React.useEffect(() => () => { if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} } }, []);
+  React.useEffect(() => () => {
+    genRef.current += 1;                        // same, for a load still in flight at unmount
+    if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} stageRef.current = null; }
+  }, []);
 
   const showing = state === "open" || state === "opening";
   return (

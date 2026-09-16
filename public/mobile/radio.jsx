@@ -135,8 +135,8 @@ function RadioPitch() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           {[
-            ["Mixed for movement", "Every track is vetted for tempo consistency. No slow-down bridges that break a set. No key jumps during intervals."],
-            ["Synced to your program", "Radio reads your workout and keeps the Shape Radio Station ready when you're squatting, running, or on the treadmill. You just press play."],
+            ["Chosen, not shuffled", "Every track is picked for the station rather than pulled off a chart. No filler between the good ones."],
+            ["Stations and coach playlists", "One live channel, plus the playlists your coaches put together. Open the app and press play."],
             ["Offline-ready", "Download any station or show for outdoor runs, lifts in garage gyms, flights, or anywhere reception dies. Up to 20 hours at a time."],
             ["Ad-free, always", "Your membership covers it. No skips between tracks, no host shouting about mattresses, no pre-rolls. Just the music you came for."],
           ].map(([t, b], i) => (

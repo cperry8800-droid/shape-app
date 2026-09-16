@@ -152,8 +152,13 @@ export default defineConfig({
   resolve: {
     // noraStage.mjs (in ../public/newdesign) uses bare 'three' and '@pixiv/three-vrm'
     // specifiers. When Vite bundles it from outside node_modules it can't find them,
-    // so we pin both to this mobile-app's own node_modules copies (same versions as
-    // the web import-map — three@0.169.0 + @pixiv/three-vrm@3.1.6).
+    // so we pin both to this mobile-app's own node_modules copies.
+    // ⚠ THIS COMMENT USED TO NAME THE VERSIONS AND SAY THEY MATCHED THE WEB IMPORT MAP.
+    // They had stopped matching — a bump moved these and left public/newdesign/Radio.html
+    // behind, which killed Nora's booth on the web while the app was fine, and this
+    // sentence is what made the drift invisible to anyone who read it. The versions are
+    // package.json's and the web import map must equal them;
+    // tests/nora-stage-version-parity.test.mjs is what keeps the two equal now.
     alias: [
       {
         find: /^three\/addons\/(.*)/,

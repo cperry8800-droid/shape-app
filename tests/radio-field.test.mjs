@@ -23,6 +23,7 @@ import {
   KICK_ON, KICK_OFF, KICK_RELEASE_S, kickLow, kickEnvNext, kickPresentNext,
   LEAD_MODES, leadTarget, LEAD_TAU, easeLead, wallMix, cloudMix, WALL_GROUND_ALPHA,
   TILE_PX, wallCols, wallRows, wallBand, meterNext, METER_FALL, WALL_METER_SPAN, wallMaskText, WALL_MASK_MIN_COLS,
+  WALL_MASK_INK,
   WALL_FLOOD_KICK, wallFloods,
 } from '../public/newdesign/radioField.mjs';
 import { tempoEnergyFromBins, TEMPO_BINS, tempoBarStep, createTempoDetector } from '../public/newdesign/radioTempo.mjs';
@@ -471,6 +472,41 @@ test('the wall says less when it has fewer tiles to say it with', () => {
   for (const bad of [undefined, null, NaN, -1]) assert.equal(wallMaskText(bad), 'SHAPE');
   // and the short form is always a word the grid can actually hold
   assert.ok(wallCols(320) >= 'SHAPE'.length * 2, 'even the short wordmark has under two columns a letter at 320px');
+});
+
+// THE WORDMARK'S SIZE FALLS OUT OF THE VIEWPORT WIDTH, AND THAT IS WHAT THE OWNER SAW.
+// The wall is a fixed 660px tall, so `rows` never changes; `cols` is floor(W/TILE_PX),
+// and the fit loop shrinks the type until the word fits 88% of the columns. The glyph
+// height is therefore a function of WIDTH ALONE — 6 tiles at 768px, 10 at 1280, 15 at
+// 1920. Owner, 2026-09-16: "the look and clarity of this changes with the monitor size."
+// These two guards are the part of that which is a RULE rather than a rasterisation.
+test('the long wordmark is only offered where it is still letters', () => {
+  const ROWS = wallRows(660);
+  // the fit rule, lifted rather than restated: the widest the word may be drawn, in
+  // tiles, and the tallest — both exactly as buildMask applies them.
+  const capTiles = Math.floor(ROWS * 0.42);
+  // 11 characters need roughly 7 tiles of width each at that height; the point of the
+  // gate is that BELOW it there is no height left worth reading.
+  assert.ok(WALL_MASK_MIN_COLS >= 64,
+    `WALL_MASK_MIN_COLS is ${WALL_MASK_MIN_COLS}: at 44 the long form was allowed at ~704px, where it draws six tiles tall and is noise`);
+  assert.ok(WALL_MASK_MIN_COLS <= wallCols(1440),
+    'the gate has risen past 1440, which is an ordinary desktop — the long form should still be offered there');
+  // the widths either side of the gate resolve the way the rule says
+  assert.equal(wallMaskText(wallCols(1280)), 'SHAPE RADIO', '1280 is above the gate');
+  assert.equal(wallMaskText(wallCols(1024)), 'SHAPE', '1024 draws eight tiles tall — the short form is the legible one');
+  assert.equal(wallMaskText(wallCols(768)), 'SHAPE', '768 draws six tiles tall, which is the noise case');
+  assert.ok(capTiles >= 14, `the height cap is ${capTiles} tiles — too low for the long form to ever be clean`);
+});
+
+test('a tile lights on coverage, and the threshold leaves the stems standing', () => {
+  // The mask is supersampled and each tile carries 0..255 of COVERAGE. A 600-weight
+  // face at 10-11 tiles tall draws stems about one tile wide, so a half-tile threshold
+  // erases them: the word came out skeletal. This is the measured quarter-tile rule.
+  assert.ok(Number.isFinite(WALL_MASK_INK), 'the ink rule is not a number');
+  assert.ok(WALL_MASK_INK > 0 && WALL_MASK_INK < 128,
+    `WALL_MASK_INK is ${WALL_MASK_INK}: at or above half a tile the one-tile stems of the long wordmark drop out`);
+  assert.ok(WALL_MASK_INK >= 32,
+    `WALL_MASK_INK is ${WALL_MASK_INK}: below an eighth of a tile the counters close up and the word fills in`);
 });
 
 test('the tile grid degrades rather than throwing on a zero-sized canvas', () => {

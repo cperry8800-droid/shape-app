@@ -486,25 +486,56 @@ function rdMakeField(canvas, lib) {
 
   // The wordmark burnt through the tiles, rendered once per grid size into an
   // offscreen mask rather than measured per frame.
+  //
+  // ⚠ SUPERSAMPLED, BECAUSE THE MASK USED TO BE RASTERISED AT ONE PIXEL PER TILE and
+  // that is what made the word mush. The offscreen canvas was `mw × mh` — at 1440 that
+  // is 90 × 41 PIXELS for the whole wall — so "SHAPE RADIO" was a ~11px font in a 90px
+  // bitmap, and every tile took its state from ONE sampled pixel. Whether a tile lit
+  // was then decided by where a glyph's stem happened to fall relative to a single
+  // sample point: stems dropped out, counters filled in, and the same letter came out
+  // differently at two widths. Owner, 2026-09-16, on the rendered page: "the look and
+  // clarity of this changes with the monitor size."
+  //
+  // Rendering at MASK_SS samples per tile per axis and lighting a tile on its COVERAGE
+  // — how much of that tile the glyph actually fills — is what makes a letterform land
+  // the same way at every size. The type is unchanged: same face, same weight, same
+  // fit rule, same integral tile heights (the fit loop still steps a whole tile at a
+  // time). Only the sampling moved.
+  const MASK_SS = 8;
   function buildMask(cols, rows) {
     mw = cols; mh = rows;
     if (!(mw > 0 && mh > 0)) { mask = null; return; }
     const m = document.createElement("canvas");
-    m.width = mw; m.height = mh;
+    m.width = mw * MASK_SS; m.height = mh * MASK_SS;
     const c = m.getContext("2d");
     if (!c) { mask = null; return; }
-    c.fillStyle = "#000"; c.fillRect(0, 0, mw, mh);
+    c.fillStyle = "#000"; c.fillRect(0, 0, m.width, m.height);
     c.fillStyle = "#fff";
     const word = F.wallMaskText(mw);
-    let fs = Math.floor(mh * 0.42);
+    // fs is carried in SUPERSAMPLED px and stepped a whole tile at a time, so the set
+    // of sizes this can choose is exactly the set it chose before.
+    let fs = Math.floor(mh * 0.42) * MASK_SS;
     c.font = `600 ${fs}px ${RD_DISP}`;
-    while (fs > 4 && c.measureText(word).width > mw * 0.88) {
-      fs -= 1;
+    while (fs > 4 * MASK_SS && c.measureText(word).width > m.width * 0.88) {
+      fs -= MASK_SS;
       c.font = `600 ${fs}px ${RD_DISP}`;
     }
     c.textAlign = "center"; c.textBaseline = "middle";
-    c.fillText(word, mw / 2, mh * 0.46);
-    mask = c.getImageData(0, 0, mw, mh).data;
+    c.fillText(word, m.width / 2, m.height * 0.46);
+    const px = c.getImageData(0, 0, m.width, m.height).data;
+    // One BYTE per tile now, not four: the draw loop wants coverage, not a colour.
+    const cov = new Uint8Array(mw * mh);
+    for (let r = 0; r < mh; r += 1) {
+      for (let cc = 0; cc < mw; cc += 1) {
+        let sum = 0;
+        for (let y = 0; y < MASK_SS; y += 1) {
+          const base = ((r * MASK_SS + y) * m.width + cc * MASK_SS) * 4;
+          for (let x = 0; x < MASK_SS; x += 1) sum += px[base + x * 4];
+        }
+        cov[r * mw + cc] = sum / (MASK_SS * MASK_SS);
+      }
+    }
+    mask = cov;
   }
 
   return function draw(ctx, W, H, sig, st, t) {
@@ -533,7 +564,7 @@ function rdMakeField(canvas, lib) {
     const litFull = sig.hasSig ? 0.25 + 0.55 * Math.min(1, (sig.rms || 0) * 2) : 0.14;
     for (let r = 0; r < rows; r += 1) {
       for (let c = 0; c < cols; c += 1) {
-        const lit = mask[(r * mw + c) * 4] > 128;
+        const lit = mask[r * mw + c] > F.WALL_MASK_INK;   // coverage, not a single sample
         const level = meters[c] * F.WALL_METER_SPAN;
         const fromBottom = (rows - 1 - r) / rows;
         const on = fromBottom < level;
