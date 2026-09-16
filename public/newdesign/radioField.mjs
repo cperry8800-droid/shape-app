@@ -410,12 +410,14 @@ export function wallMaskText(cols) {
 //   fold 2560x660 -> 1696x176 px, 66.3%
 //   fold 3440x660 -> 1712x176 px, 49.8%
 //
-// Eight distinct sizes across the desktop range: 1120 -> 1712px absolute while
-// COLLAPSING from 87.5% to 44.2% of the fold at 4K, so it was neither the same size
-// nor the same proportion. It was NON-MONOTONIC too — 544px at a 660 fold against
-// 592px at 756 — because `wallMaskText` changes the word underneath it. The extent
-// was a side effect of two integer divisions and a fitting loop rather than anything
-// anyone chose.
+// Seven distinct sizes across those eight measured folds (1696x176 lands at both 2560
+// and 3840): 1120 -> 1712px absolute while COLLAPSING from 87.5% to 44.2% of the fold
+// at 4K, so it was neither the same size nor the same proportion. And it was
+// NON-MONOTONIC IN HEIGHT — a 660px-wide fold drew the word 128px tall and a WIDER
+// 756px one drew it 80px tall — because `wallMaskText` swaps 'SHAPE' for the longer
+// 'SHAPE RADIO' underneath the fitting loop, which then has to shrink to fit it. The
+// extent was a side effect of two integer divisions and a fitting loop rather than
+// anything anyone chose.
 //
 // ⚠ THE BUDGET IS A TILE COUNT, WHICH IS WHAT MAKES IT A SIZE RATHER THAN A RATIO.
 // Above the anchor the word is pixel-identical at every width; below it the fold's
@@ -458,9 +460,11 @@ export function wallMaskText(cols) {
 // opposite things about one number and the width-only sentence was the one a reader
 // looking for the range would land on. Both conditions, stated once:
 //
-//   WIDTH : at least 80 columns, because 'SHAPE RADIO' at font 11 is 69.88 cells and
-//           the fold's own share is cols x 0.88 — 80 x 0.88 = 70.0 clears it by 0.12
-//           of a cell, and 79 gives 69.52 and does NOT.
+//   WIDTH : at least 80 columns. 'SHAPE RADIO' at font 11 is 69.88 cells; the budget
+//           is min(70, cols x 0.88), so at 80 columns the fold's share is 70.4, the
+//           ANCHOR binds at 70, and 70 clears 69.88 by 0.12 of a cell. At 79 the
+//           fold's share is 69.52, which binds INSTEAD of the anchor and does not
+//           clear it — so the word drops a font step.
 //   HEIGHT: at least 27 rows, because the loop only ever shrinks and floor(rows x
 //           0.42) must start at or above 11 to reach it — see `startCell` below.
 //

@@ -497,6 +497,14 @@ test('the tile grid degrades rather than throwing on a zero-sized canvas', () =>
 // 'wdth' 50 and 1002px at 'wdth' 150, where a fallback measures identically both ways).
 // It lives here rather than in a comment because a measurement no assertion reads is a
 // claim — and the whole change rests on WALL_WORD_MAX_COLS selecting font 11.
+// ⚠ DERIVED FROM THE GRID, NOT TYPED. The narrowest fold this page is designed for is
+// a 1280px window, and how many columns that is depends on TILE_PX — so it is asked
+// rather than remembered. Every guard below that says "the narrowest desktop fold" means
+// this number; a literal would go stale the day the tile size moves and would keep
+// passing while the anchor stopped binding where the module says it binds.
+const NARROWEST_DESKTOP_PX = 1280;
+const NARROWEST_DESKTOP_COLS = wallCols(NARROWEST_DESKTOP_PX);
+
 const WORD_CELLS = {
   'SHAPE RADIO': { 6: 38.12, 7: 44.47, 8: 50.82, 9: 57.18, 10: 63.53, 11: 69.88, 12: 76.24, 13: 82.59 },
   SHAPE: { 6: 19.02, 7: 22.19, 8: 25.36, 9: 28.53, 10: 31.70, 11: 34.87, 12: 38.04, 13: 41.21 },
@@ -517,17 +525,27 @@ test('the anchor is the value that actually selects the intended font step', () 
     `the anchor ${WALL_WORD_MAX_COLS} admits font 12 (${w[12]} cells), which no desktop fold's ` +
     'own share can hold — the word would be one size on a wide fold and another on a narrow one');
 
-  // and the WIDTH condition in the comment is this arithmetic, not a remembered number
+  // and the WIDTH condition in the comment is this arithmetic, not a remembered number.
+  // ⚠ THE TWO SIDES ARE DERIVED SEPARATELY AND THE CLAIM IS THAT THEY MEET. The left is
+  // a fact about the FONT (how many cells 'SHAPE RADIO' needs at font 11, divided by the
+  // fold's own share); the right is a fact about the GRID (how many columns a 1280px fold
+  // has at TILE_PX). Writing either as a literal 80 would hide that the module's whole
+  // choice of anchor rests on their coinciding — change TILE_PX and the right side moves
+  // while the left does not, which is exactly when someone needs to be told. Measured:
+  // TILE_PX 16 -> 20 takes the narrowest fold to 64 columns and this guard fails naming
+  // both sides; with NARROWEST_DESKTOP_COLS written as the literal 80 the same tree is
+  // GREEN. The literal is a no-op today and blind the day the grid moves.
   const floorCols = Math.ceil(w[11] / WALL_WORD_COL_FRAC);
-  assert.equal(floorCols, 80,
-    `the documented 80-column floor is now ${floorCols} — the comment on wallWordFit is stale`);
+  assert.equal(floorCols, NARROWEST_DESKTOP_COLS,
+    `the anchor's width floor is ${floorCols} columns and the narrowest desktop fold is ` +
+    `${NARROWEST_DESKTOP_COLS} — they no longer meet, so wallWordFit's comment is stale`);
 });
 
 test('the wordmark budget is a tile count, so it stops growing with the monitor', () => {
   // The measured fold widths, as column counts (fold px / TILE_PX). The word used to
   // run 1120px wide at 1280 and 1712px at 3440 because both of its bounds were
   // fractions OF THE GRID; above the anchor the budget must now be one number.
-  const desktop = [80, 85, 90, 105, 120, 160, 215, 240];
+  const desktop = [NARROWEST_DESKTOP_COLS, 85, 90, 105, 120, 160, 215, 240];
   const budgets = new Set(desktop.map((c) => wallWordFit(c, 41).maxCols));
   assert.equal(budgets.size, 1, `the budget still varies across the desktop range: ${[...budgets]}`);
   assert.equal([...budgets][0], WALL_WORD_MAX_COLS);
@@ -535,9 +553,10 @@ test('the wordmark budget is a tile count, so it stops growing with the monitor'
   // ⚠ AND THE ANCHOR MUST BIND AT THE NARROWEST DESKTOP WIDTH, or this passes for the
   // wrong reason: two different budgets can still paint the same word if the fitting
   // loop happens to land on the same step, which is a fact about the font metrics
-  // rather than about the design. 80 columns is a 1280px fold.
-  assert.ok(80 * WALL_WORD_COL_FRAC >= WALL_WORD_MAX_COLS,
-    `the anchor ${WALL_WORD_MAX_COLS} exceeds the narrowest desktop fold's own share ${80 * WALL_WORD_COL_FRAC}`);
+  // rather than about the design.
+  assert.ok(NARROWEST_DESKTOP_COLS * WALL_WORD_COL_FRAC >= WALL_WORD_MAX_COLS,
+    `the anchor ${WALL_WORD_MAX_COLS} exceeds the narrowest desktop fold's own share ` +
+    `${NARROWEST_DESKTOP_COLS * WALL_WORD_COL_FRAC}`);
 });
 
 test('below the anchor the fold\'s own width still binds, so a phone shrinks the word', () => {

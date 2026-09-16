@@ -619,7 +619,19 @@ function rdMakeField(canvas, lib) {
     const ang = (RD_REDUCED ? 0 : Math.sin(t * 0.21) * 0.7) + mx * 0.9;
     const tilt = 0.48 + my * 0.5;
     const R = Math.min(W, H) * 0.36;
-    const cx = W * 0.62;
+    // ⚠ THE CLOUD IS THE ONE FIGURE THAT WAS STILL TRACKING THE VIEWPORT, and bounding
+    // the wordmark is what made that visible. Its RADIUS was already constant on any
+    // desktop fold — min(W, H) is the 660px height for every W above it, so R is 238
+    // at 1440 and at 3840 alike — but its CENTRE was `W * 0.62`, a fraction of the
+    // whole screen. Measured, that put it 154px right of the fold's middle at 1280 and
+    // 413px at 3440: the word stopped moving and the figure beside it did not, so the
+    // two drifted apart as the monitor widened. It is placed in the same stage the
+    // chrome and the word sit in now, so the composition is one thing at every width.
+    // ⚠ The 0.62 and 0.48 are UNCHANGED — this moves the box they are a fraction OF,
+    // not the fractions, so at 1440 and below the cloud lands exactly where it always
+    // did (min(W, RD_STAGE) is W there, and the offset is 0).
+    const stageW = Math.min(W, RD_STAGE);
+    const cx = (W - stageW) / 2 + stageW * 0.62;
     const cy = H * 0.48;
     const pts = [];
     const ca = Math.cos(ang); const sa = Math.sin(ang);
@@ -882,7 +894,7 @@ function RadioInstrument() {
   const eb = { fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontVariationSettings: "'ROND' 100" };
 
   return (
-    <section style={{ padding: "96px 0 0" }}>
+    <section className="rd-hero" style={{ padding: "96px 0 0" }}>
       <div ref={wrapRef} className="rd-fold" style={{ position: "relative", height: "min(74vh, 660px)", minHeight: 420, background: RD_BG, overflow: "hidden" }}>
         <canvas ref={canvasRef} aria-hidden style={{ position: "absolute", inset: 0, display: "block" }} />
 
@@ -1014,10 +1026,38 @@ function RadioInstrument() {
       </div>
 
       <style>{`
+        /* ⚠ THE SHARED CHROME PUTS A MOBILE GUTTER ON EVERY <section>, AND THIS ONE IS
+           A FULL-BLEED HERO. pageShell.jsx pads section 22px at <=900 and 18px lower
+           still — deliberate, and right for the marketing sections it was written for
+           ("so content doesn't hug the edge"), which all carry an inline horizontal
+           padding of their own. This section carries a horizontal padding of ZERO precisely
+           because the wall is meant to reach both edges, and the rule overrode it:
+           measured at 900, the fold was 856px inside a 900px body, so the hero was
+           inset 22px while the fixed header — which is not in a <section> — was not,
+           and the wordmark sat 22px right of the header's logo with both gutters
+           already matching at 18. The rule is untouched for every other section on
+           every other page; this one opts out, and its own chrome keeps the gutter. */
+        .rd-hero { padding-left: 0 !important; padding-right: 0 !important; }
+
+        /* ⚠ THE HEADER'S GUTTER STEPS AND THE FOLD'S DID NOT, so staging the chrome
+           bought alignment only above 1100px — which is exactly where the sweep that
+           measured it ran. .shape-header-inner goes 32 -> 24 at <=1100 (pageShell.jsx)
+           and -> 18 at <=900, while these blocks carried a flat inline 32 and stepped
+           only at <=760. Measured on the real page: the fold's wordmark sat 8px right
+           of the header's logo at 1024 and 1100, and 36px right at 900. Mirroring the
+           header's own breakpoints is what makes "0 at every width" true rather than
+           true-where-it-was-looked-at. The <=760 block below owns top/bottom only; its
+           padding would be the same 18 this rule already set. */
+        @media (max-width: 1100px) {
+          .rd-top, .rd-bottom { padding: 0 24px !important; }
+        }
+        @media (max-width: 900px) {
+          .rd-top, .rd-bottom { padding: 0 18px !important; }
+        }
         @media (max-width: 760px) {
           .rd-fold { height: min(74vh, 560px) !important; }
-          .rd-top { padding: 0 18px !important; top: 20px !important; }
-          .rd-bottom { padding: 0 18px !important; bottom: 20px !important; }
+          .rd-top { top: 20px !important; }
+          .rd-bottom { bottom: 20px !important; }
           .rd-wm { height: 16px !important; }
           .rd-mode { margin-left: 0 !important; }
           .rd-rail { gap: 14px !important; font-size: 10px !important; }
