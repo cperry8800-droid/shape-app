@@ -23,6 +23,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { parse } from '@babel/parser';
 
 const HTML = readFileSync(new URL('../public/newdesign/Radio.html', import.meta.url), 'utf8');
 
@@ -36,11 +37,38 @@ const HTML = readFileSync(new URL('../public/newdesign/Radio.html', import.meta.
 // that mutation SURVIVED its round. The floor has to come from the page too: EVERY
 // module this page imports must also appear in the versioned set, so one dropping out
 // of the strict parse is a failure rather than a smaller corpus.
-const ANY_MODULE = /from\s+"\/newdesign\/([^"]+?\.[Mm][Jj][Ss])(\?[^"]*)?"/g;
-const VERSIONED = /from\s+"\/newdesign\/([A-Za-z0-9_-]+\.mjs)\?v=([A-Za-z0-9]+)"/g;
+//
+// ⚠ AND THE FLOOR IS PARSED, NOT MATCHED, BECAUSE THE FIRST VERSION OF IT CARRIED THE
+// SAME ASSUMPTION AS THE THING IT CHECKS. Both halves were regexes anchored on a DOUBLE
+// quote (`from "/newdesign/…"`), so an import rewritten with single quotes fell out of
+// the versioned set AND out of the floor TOGETHER: the equality below still held, and
+// that import could ship with no content hash and no failure here. `ALL` is the set the
+// floor is derived from, so it has to be derived some way the versioned set cannot be
+// wrong in lockstep with. The module bodies are parsed instead — quotes, line breaks and
+// an import-shaped string inside a comment cannot move the answer, and a body that stops
+// parsing throws rather than reading as an empty page. (Codex, #2113.)
+const MODULE_BLOCK = /<script\b[^>]*\btype=(["'])module\1[^>]*>([\s\S]*?)<\/script>/gi;
+const PREFIX = '/newdesign/';
 
-const ALL = [...HTML.matchAll(ANY_MODULE)].map((m) => m[1]);
-const IMPORTS = [...HTML.matchAll(VERSIONED)].map((m) => ({ file: m[1], key: m[2] }));
+const SPECS = [...HTML.matchAll(MODULE_BLOCK)].flatMap(([, , body], n) => {
+  let ast;
+  try {
+    ast = parse(body, { sourceType: 'module' });
+  } catch (err) {
+    throw new Error(`module script block ${n + 1} on Radio.html does not parse, so this guard cannot read its imports: ${err.message}`);
+  }
+  return ast.program.body
+    .filter((node) => node.type === 'ImportDeclaration')
+    .map((node) => node.source.value);
+}).map((spec) => {
+  const q = spec.indexOf('?');
+  return { path: q < 0 ? spec : spec.slice(0, q), query: q < 0 ? '' : spec.slice(q + 1) };
+}).filter((s) => s.path.startsWith(PREFIX) && /\.mjs$/i.test(s.path));
+
+const ALL = SPECS.map((s) => s.path.slice(PREFIX.length));
+const IMPORTS = SPECS
+  .map((s) => ({ file: s.path.slice(PREFIX.length), key: (/^v=([A-Za-z0-9]+)$/.exec(s.query) || [])[1] }))
+  .filter((i) => i.key);
 
 const hashOf = (file) =>
   createHash('sha256')

@@ -539,6 +539,19 @@ export function wallWordFit(cols, rows) {
     // or even — measured, that alone moved the painted word between 1104 and 1120px
     // across the desktop range, a one-tile jitter in a figure that is otherwise
     // constant. Snapping it takes the desktop range to a single distinct size.
+    // ⚠ AND THE SNAP HAS ITS OWN COST, WHICH THIS COMMENT DID NOT NAME AND A REVIEW
+    // ROUND DID (Codex, #2113): it puts the word up to HALF A COLUMN off the middle,
+    // and one tile is 16px. Measured across 1280..3840 — worst offset from the fold's
+    // centre 8.0px, at W = 1296, where `cols` crosses 80 to 81 and the anchor steps a
+    // whole tile for one pixel of viewport. That is real and it is 0.71% of an 1120px
+    // word. The remedy is REFUSED on the measurement rather than on the reasoning:
+    // dropping the round takes the worst offset 8.0 -> 7.5px and the worst step
+    // 16 -> 8px, so it buys HALF A PIXEL of centring — and pays the 16px size jitter
+    // above for it, which is the one property this whole change exists to hold
+    // constant. A 16px swing in how BIG the word is reads; half a pixel of where it
+    // sits does not. The quantisation itself is not removable: the mask is one pixel
+    // per tile, so the word can only ever be placed on a 16px grid, and the choice is
+    // which of the two artifacts to spend — not whether to have one.
     centreCol: Math.round(c / 2),
   };
 }

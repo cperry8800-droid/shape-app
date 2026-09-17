@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse } from '@babel/parser';
 import { stripComments } from './helpers/strip-comments.mjs';
+import { wallBand, wallWordFit, WALL_METER_SPAN } from '../public/newdesign/radioField.mjs';
 
 const SRC = readFileSync(new URL('../public/newdesign/radioInstrument.jsx', import.meta.url), 'utf8');
 const BARE = stripComments(SRC);
@@ -222,6 +223,78 @@ test('the wordmark size is decided by the rules module, not by the renderer', ()
   // call through to undefined inside a render — the guard this file's header is about
   assert.ok(/!F\.wallWordFit\b/.test(BARE),
     'rdLib does not check wallWordFit, so a stale cached module throws in a render');
+});
+
+test('the wordmark lights from the bass at every width, not from its own columns', () => {
+  // ⚠ THE FINDING (Codex, #2113): capping the word's BOUNDING BOX does not make the
+  // word look the same on every monitor. `wallBand` stretches all 32 bands across the
+  // grid, so a word held at a constant ~70 cells covers a different slice of the
+  // spectrum as the grid grows — and a word tile only turns hot when its own column is
+  // near saturation, which the bass reaches on a kick and the treble does not. The
+  // whole word flashed on a wide monitor; only its middle letters flashed on a narrow
+  // one. A bounding-box guard cannot see that, which is why this one drives the rule.
+  //
+  // WORD_CELLS is the measured painted extent on every desktop fold (1120px / 16).
+  const WORD_CELLS = 70;
+  const BANDS = 32;
+  const AT_WORD_ROW = 0.54;             // the word sits at 0.46 down, so fromBottom ~ 0.54
+
+  // A bass-heavy frame: the bands a kick saturates, and quiet everywhere else.
+  const sm = Array.from({ length: BANDS }, (_, b) => (b >= 13 && b <= 18 ? 1 : 0.2));
+
+  const wordCells = (cols) => {
+    const centre = wallWordFit(cols, 41).centreCol;
+    const out = [];
+    for (let c = Math.round(centre - WORD_CELLS / 2); c <= Math.round(centre + WORD_CELLS / 2); c += 1) {
+      if (c >= 0 && c < cols) out.push(c);
+    }
+    return out;
+  };
+  const hotFrac = (cols, level) => {
+    const cells = wordCells(cols);
+    const hot = cells.filter((c) => AT_WORD_ROW < level(cols, c)).length;
+    return hot / cells.length;
+  };
+
+  const perColumn = (cols, c) => sm[wallBand(c, cols, BANDS)] * WALL_METER_SPAN;              // the defect
+  const fromBass  = (cols) => sm[wallBand(Math.round((cols - 1) / 2), cols, BANDS)] * WALL_METER_SPAN;
+
+  // the control: the rule this replaces really is width-dependent, so a green result
+  // below is the fix rather than a spectrum flat enough for any rule to look constant
+  const oldNarrow = hotFrac(80, perColumn);
+  const oldWide = hotFrac(240, perColumn);
+  assert.notEqual(oldNarrow.toFixed(3), oldWide.toFixed(3),
+    `the per-column rule lit the same fraction of the word at 80 and 240 columns (${oldNarrow}), ` +
+    'so this fixture no longer reproduces the finding and the assertion below proves nothing');
+
+  const newNarrow = hotFrac(80, (cols) => fromBass(cols));
+  const newWide = hotFrac(240, (cols) => fromBass(cols));
+  assert.equal(newNarrow, newWide,
+    `the word lights ${newNarrow} of its cells at 80 columns and ${newWide} at 240 — ` +
+    'its appearance is width-dependent again');
+
+  // ⚠ AND THE SHIPPED CODE HAS TO BE THE RULE ABOVE, or this test drives a restatement
+  // of it and passes while the renderer keeps the defect — the class this file's header
+  // is about. The lit branch must not decide its colour from the loop's own column.
+  const lit = /if \(lit\) \{([\s\S]*?)\n\s*\}/.exec(BARE);
+  assert.ok(lit, "the wall's lit-tile branch is gone or has been rewritten past this guard");
+  assert.ok(/wordLevel/.test(lit[1]),
+    `the wordmark's colour is decided by \`${lit[1].trim()}\` rather than by a width-independent level`);
+  assert.ok(!/\bon\b|meters\[\s*c\s*\]|\blevel\b/.test(lit[1]),
+    `the wordmark reads its own column again: \`${lit[1].trim()}\``);
+  // ⚠ AND THE ROW TERM IS ASSERTED, BECAUSE THE COMMENT AT THE SITE CLAIMS IT. Only the
+  // COLUMN dependence was removed — the word still fills from its baseline up, exactly as
+  // it did. A mutation that drops `fromBottom` makes the whole word flash at once, which
+  // is width-independent and therefore SURVIVED every assertion above: a claim in a
+  // comment with no guard behind it is the thing this file exists to stop.
+  assert.ok(/fromBottom/.test(lit[1]),
+    `the wordmark no longer fills from its baseline: \`${lit[1].trim()}\``);
+
+  // and the level itself must not be indexed by the loop column
+  const decl = /const wordLevel = meters\[([^\]]+)\]/.exec(BARE);
+  assert.ok(decl, 'wordLevel is gone or no longer read from the meters');
+  assert.ok(!/\bc\b/.test(decl[1]),
+    `wordLevel is indexed by \`${decl[1]}\`, which tracks the loop column rather than the bass`);
 });
 
 test('the station route never decides the session — only /api/me does', () => {

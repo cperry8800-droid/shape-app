@@ -575,6 +575,22 @@ function rdMakeField(canvas, lib) {
       meters[c] = F.meterNext(meters[c], v);
     }
     const litFull = sig.hasSig ? 0.25 + 0.55 * Math.min(1, (sig.rms || 0) * 2) : 0.14;
+    // ⚠ THE WORD READS THE BASS AT EVERY WIDTH, NOT WHATEVER BAND ITS COLUMN LANDS ON.
+    // `wallBand` stretches all 32 bands across the grid, so a word held at a constant ~70
+    // cells covers a DIFFERENT slice of the spectrum as the monitor widens — measured, bands
+    // 2..29 at 80 columns, 7..25 at 120, 11..20 at 240. A word tile only goes hot when its
+    // own column is near saturation (the word sits at 0.46 down, so `fromBottom` is ~0.54
+    // against a 0.55 span: meters[c] > 0.98), and bass reaches that on a kick where treble
+    // does not. So the WHOLE word flashed on a wide monitor and only its middle letters
+    // flashed on a narrow one: the hero still read differently per monitor in the one
+    // property a fixed bounding box cannot fix. The centre column IS the bass —
+    // `bandsFromBins` is already mirrored, so bands 15/16 both read bin 0 and wallBand puts
+    // them at the middle — so the word takes that meter at every width and lights as one
+    // mark. This is the WIDE-monitor behaviour adopted everywhere rather than a new one.
+    // ⚠ The ROW dependence is deliberately kept: `fromBottom` still decides, so the word
+    // fills from its baseline up exactly as it did. Only the column term is removed, and
+    // only for the word — the wall's own tiles are untouched and still read their own band.
+    const wordLevel = meters[Math.round((cols - 1) / 2)] * F.WALL_METER_SPAN;
     for (let r = 0; r < rows; r += 1) {
       for (let c = 0; c < cols; c += 1) {
         const lit = mask[(r * mw + c) * 4] > 128;
@@ -591,7 +607,7 @@ function rdMakeField(canvas, lib) {
         if (flood) { a = Math.max(a, kick * 0.8 * wmix.flood); col = RD_HOT; }
         if (lit) {
           a = Math.max(a, 0.14 + (litFull - 0.14) * wmix.mask);
-          if (on) col = RD_HOT;
+          if (fromBottom < wordLevel) col = RD_HOT;
         }
         ctx.fillStyle = rdRgba(col, Math.min(1, a));
         ctx.fillRect(c * F.TILE_PX + 2, r * F.TILE_PX + 2, F.TILE_PX - F.TILE_GAP_PX, F.TILE_PX - F.TILE_GAP_PX);
