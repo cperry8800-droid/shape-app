@@ -243,6 +243,13 @@ const SHAPE_NAV_GROUPS = [
   { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"], items: COACHES_ITEMS },
   { kind: "link", label: "Members", href: "Client.html" },
   { kind: "link", label: "App", href: "GetApp.html" },
+  // ⚠ THE KITCHEN WAS FOOTER-ONLY UNTIL NOW, which is the same standing
+  // `Client.html` had before the `Members` tab (#2069). Owner, 2026-09-16:
+  // "also need to create a link for it on nav bar on website". One word, like
+  // every other item in this row; the page's own masthead still reads Shape
+  // Kitchen. The footer keeps its own "Shape Kitchen" entry — a footer is read
+  // by people who never look at the bar.
+  { kind: "link", label: "Kitchen", href: "Recipes.html" },
   { kind: "link", label: "Community", href: "Community.html" },
   { kind: "link", label: "Rewards", href: "Score.html" },
   { kind: "link", label: "Pricing", href: "Pricing.html" },
@@ -1242,22 +1249,24 @@ function Footer({ logoHeight = 64 } = {}) {
                `id="press"` anywhere on it. Wrong page, and a dead anchor on top.
                Owner's ruling: remove it until there is a press page to name.
 
-               ⚠ THREE OF THESE PAGES HAVE NO OTHER LINK. Measured across
+               ⚠ TWO OF THESE PAGES HAVE NO OTHER LINK. Measured across
                public/newdesign, nothing in the nav and nothing in any live page's
-               body points at Coach.html, Nutritionist.html or Recipes.html — so
+               body points at Coach.html or Nutritionist.html — so
                without this table they are reachable only by typing a URL.
                (`directionB.jsx` names all three and is a retired exploration,
                loaded only by the *-print / index-explorations pages.) Coaches.html
                sits above them in the nav and does NOT replace them: each still
                carries its own copy and its own application.
 
-               ⚠ CLIENT.HTML IS THE EXCEPTION, AND IT IS NAMED RATHER THAN LEFT IN
-               THE LIST ABOVE. The `Members` tab points at it — added one PR before
-               this one — so the footer is not its only way in. This sentence used
-               to include it, and #2069 made that false without anything noticing;
-               `tests/site-footer.test.mjs` now asserts the three pages named above
-               are absent from the nav table, so the next tab promoted out of the
-               footer fails a test instead of quietly leaving a wrong claim here. */
+               ⚠ CLIENT.HTML AND RECIPES.HTML ARE THE EXCEPTIONS, AND THEY ARE
+               NAMED RATHER THAN LEFT IN THE LIST ABOVE. The `Members` tab points at
+               the first and the `Kitchen` tab at the second, so the footer is not
+               the only way in to either. That sentence used to include Client.html
+               and #2069 made it false without anything noticing;
+               `tests/site-footer.test.mjs` now asserts the two pages named above
+               are absent from the nav table AND that both exceptions are present in
+               it, so the next tab promoted out of the footer fails a test instead of
+               quietly leaving a wrong claim here. */
             ["Product",     [["Marketplace", "Marketplace.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"]]],
             ["For coaches", [["For coaches", "Coaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
             ["Company",     [["About", "About.html"], ["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
@@ -1365,6 +1374,20 @@ function ShapeMobileStyles() {
          number is kept and the reason for it is now the measurement, not the
          eighth link. */
       @media (max-width: 1100px) {
+        /* ⚠ THE INNER'S OWN PADDING AND GAP TIGHTEN HERE TOO, AND THAT IS THE
+           BLOCK SPLIT #2103's NOTE SAID WOULD HAVE TO HAPPEN FIRST. It observed
+           that all of this tightening lived in the ≤1020 block, so a row asked
+           to survive below 1020 would arrive there with LESS room, not more.
+           The eighth tab (Kitchen) is what made it bind: measured naturally on
+           Pricing.html, the eight-link row needs 508px at 1021 and the flex row
+           gave it 493 — the About tab overhung its own box by 5px at 1040 and
+           15px at 1021, i.e. it was CUT OFF at every width from 1044 down to the
+           collapse. Freeing 16px of side padding and 8px of each gap clears it
+           with room to spare, which is why the breakpoint below is NOT moved:
+           taking 40px of desktop away would also have split this bar from the
+           homepage's, whose own flex row measured clean to 1021 with the same
+           eight links. */
+        .shape-header-inner { padding: 0 24px !important; gap: 18px !important; }
         .shape-nav-tabs { gap: 16px !important; }
       }
       @media (max-width: 1020px) {

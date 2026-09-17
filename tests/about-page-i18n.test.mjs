@@ -4,25 +4,35 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
+import { stripComments } from './helpers/strip-comments.mjs'
 
 const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'
 const CAT = 'mobile-app/src/i18n/catalogs'
 
 /** The component body, comments stripped — the rationale at each site quotes the
  *  very expressions these tests ban, so a raw-text assertion would fire on its
- *  own explanation. (The trap this repo has now paid for four times.) */
+ *  own explanation. (The trap this repo has now paid for four times.)
+ *
+ *  ⚠ THE SHARED STRIPPER, NOT THE LOCAL LINE FORM THIS USED TO CARRY. That form
+ *  (`l.replace(/(^|[^:])\/\/.*$/, '$1')`) is a silent NO-OP on any CRLF source,
+ *  because `\r` is a line terminator in JS regex: `.` cannot cross it and `$`
+ *  sits past it. It happens to be safe here — this file is LF — and it was not
+ *  safe in the sibling guard that reads the CRLF-tracked website page, where it
+ *  let the ban fire on the comment explaining the ban. One implementation. */
 function aboutBody() {
   const src = readFileSync(SRC, 'utf8')
   const start = src.indexOf('function BSAboutPage(')
   assert.ok(start > 0, 'BSAboutPage is gone — this guard is about a component that must exist')
   const next = src.indexOf('\nfunction BSPricingPage(', start)
   assert.ok(next > start, 'could not find the end of BSAboutPage')
-  return src
-    .slice(start, next)
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .map(l => l.replace(/(^|[^:])\/\/.*$/, '$1'))
-    .join('\n')
+  return stripComments(src.slice(start, next))
+}
+
+/** Every `settings:aboutPage.*` key the component actually asks for, read off
+ *  the comment-stripped body so a key quoted in a rationale is not counted. */
+function aboutKeysUsed() {
+  const body = aboutBody()
+  return new Set([...body.matchAll(/'settings:(aboutPage\.[A-Za-z0-9_.]+)'/g)].map(m => m[1]))
 }
 
 test('the drop cap is taken codepoint-safely from the TRANSLATED value', () => {
@@ -68,7 +78,13 @@ test('no split-accent slot is authored empty in any locale', () => {
 
   const en = JSON.parse(readFileSync(`${CAT}/en/settings.json`, 'utf8'))
   const keys = Object.keys(en).filter(k => k.startsWith('aboutPage.'))
-  assert.ok(keys.length >= 40, `expected the aboutPage family, saw ${keys.length} keys`)
+  // ⚠ THE FLOOR IS DERIVED, NOT A NUMBER. It read `>= 40` and went stale the day
+  // The Note retired the hero and the two-audience block — a literal floor is a
+  // claim about the page's length, which is exactly the thing a redesign moves.
+  // What it is actually guarding is that the parse found the family at all, so
+  // it is compared against what the component renders.
+  assert.ok(keys.length >= aboutKeysUsed().size,
+    `the aboutPage family (${keys.length}) is smaller than what the page renders`)
 
   for (const loc of locales) {
     const d = JSON.parse(readFileSync(`${CAT}/${loc}/settings.json`, 'utf8'))
@@ -91,25 +107,23 @@ test('no split-accent slot is authored empty in any locale', () => {
 // renaming the login screen's headline must not move the About page's closer.
 // The house rule is "share only where a rename SHOULD move both" — it does not.
 
-test('the hero keeps its non-breaking pairs and the CTA keeps its arrow', () => {
-  // Both are invisible in a diff and both are real render regressions: losing an
-  // NBSP breaks the 46px hero mid-phrase on a narrow screen, and the arrow is UI
-  // grammar (the cut-7 rule for the fullwidth ＋) that no locale may drop.
-  const NB = '\u00a0'
+test('the door keeps its arrow and the brand nouns survive translation', () => {
+  // ⚠ THE HERO'S NON-BREAKING PAIRS ARE NOT CHECKED HERE ANY MORE, AND THAT IS A
+  // RETIREMENT RATHER THAN A GAP. `aboutPage.heroPre`/`heroPost` carried an NBSP
+  // because the 46px hero broke mid-phrase on a narrow screen; The Note has no
+  // hero and those keys are out of all thirteen catalogs, so the assertion would
+  // now be about nothing. The arrow is UI grammar (the cut-7 rule for the
+  // fullwidth ＋) that no locale may drop, and it is still on screen.
   const locales = readdirSync(CAT).filter(d => !d.startsWith('.'))
   const en = JSON.parse(readFileSync(`${CAT}/en/settings.json`, 'utf8'))
 
-  // Guard the guard: the English itself must carry them, or every locale below
-  // is being compared against nothing.
-  assert.ok(en['aboutPage.heroPre'].includes(NB), 'the en hero lead lost its NBSP')
-  assert.ok(en['aboutPage.heroPost'].includes(NB), 'the en hero tail lost its NBSP')
-  assert.ok(en['aboutPage.ctaAction'].includes('\u2192'), 'the en CTA lost its arrow')
+  // Guard the guard: the English itself must carry it, or every locale below is
+  // being compared against nothing.
+  assert.ok(en['aboutPage.ctaAction'].includes('\u2192'), 'the en door lost its arrow')
 
   for (const loc of locales) {
     const d = JSON.parse(readFileSync(`${CAT}/${loc}/settings.json`, 'utf8'))
-    assert.ok(d['aboutPage.heroPre'].includes(NB), `${loc}: heroPre lost its non-breaking space`)
-    assert.ok(d['aboutPage.heroPost'].includes(NB), `${loc}: heroPost lost its non-breaking space`)
-    assert.ok(d['aboutPage.ctaAction'].includes('\u2192'), `${loc}: the CTA action lost its arrow`)
+    assert.ok(d['aboutPage.ctaAction'].includes('\u2192'), `${loc}: the door lost its arrow`)
     for (const noun of ['Shape Score', 'Ironman']) {
       for (const k of Object.keys(en).filter(x => x.startsWith('aboutPage.'))) {
         if (en[k].includes(noun)) {
@@ -128,7 +142,18 @@ test('the About page holds no hardcoded copy but the founder\'s name', () => {
   assert.match(body, /— Christopher Perry/, 'the founder signature is gone')
   assert.doesNotMatch(body, /tr\(\s*'settings:aboutPage\.founderName/,
     'the founder name was keyed — thirteen identical values for a proper noun')
-  const calls = body.match(/tr\(\s*'settings:aboutPage\./g) || []
-  assert.ok(calls.length >= 40,
-    `expected the page to route its copy through tr(), saw ${calls.length} calls`)
+  // ⚠ NOT A CALL-COUNT FLOOR. It read `>= 40` and was made false by a redesign
+  // that removed copy rather than by anything going wrong — a number that tracks
+  // how long the page happens to be cannot tell a regression from an edit. The
+  // invariant that survives a redesign is that the page and the catalog agree in
+  // BOTH directions: every key the page asks for exists, and every key the
+  // catalog holds is asked for. A hardcoded string shows up as an orphaned key.
+  const used = aboutKeysUsed()
+  assert.ok(used.size >= 20, `the tr() parse found only ${used.size} aboutPage keys`)
+  const en = JSON.parse(readFileSync(`${CAT}/en/settings.json`, 'utf8'))
+  const family = Object.keys(en).filter(k => k.startsWith('aboutPage.'))
+  const missing = [...used].filter(k => !(k in en))
+  assert.deepEqual(missing, [], 'the page asks for aboutPage keys the catalog does not have')
+  const orphans = family.filter(k => !used.has(k))
+  assert.deepEqual(orphans, [], 'the catalog holds aboutPage keys the page no longer renders')
 })
