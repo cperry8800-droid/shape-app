@@ -311,11 +311,15 @@ export const HOT_PAPER = '#06090f';
 // baseline) would push the hot tone past the base and INVERT the pair, which is
 // the one thing the cap below exists to prevent. The wall has the same property
 // on its own ground: at alpha 0.55 its approved amber renders 3.32:1 and its
-// teal 3.88:1. And the geometry helps rather than hurts -- the hot tip only
-// exists on a tall bar, a tall bar is a loud band, and the bar's alpha rises
-// with that same level, so the tip is drawn near alpha 1.0 exactly when it is
-// biggest. Raised by review on 2026-09-17; the mechanism is real, the remedy is
-// not, and the claim is what was wrong.
+// teal 3.88:1. And the geometry softens it rather than sharpening it, though
+// NOT by making the tip conditional: `barHeight` floors a bar at 3px, so even a
+// silent band draws one and the tip is BAR_HOT_FRAC of it -- 0.6px, sub-pixel.
+// What moves together is the tip's SIZE and the bar's ALPHA, both off the same
+// level: the dimmest tips are also the smallest, and a tip only reaches full
+// height as its bar reaches alpha 1.0. Raised by review on 2026-09-17, twice --
+// once for the mechanism, which is real and whose remedy is refused above, and
+// once because this clause first claimed the tip "only exists on a tall bar",
+// which the 3px floor makes false. A because-clause is a claim.
 // ⚠ IT IS CAPPED BY THE BASE'S OWN CONTRAST, AND THAT CAP IS NOT A SOFTENING --
 // IT IS WHAT KEEPS THE WEBSITE'S RELATIONSHIP INTACT. Measured on the wall's own
 // ground, teal reads 10.8:1 and amber 8.8:1, so the approved pair ALREADY draws

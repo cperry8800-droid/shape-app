@@ -29,6 +29,7 @@ import {
 } from '../public/newdesign/radioSignalField.mjs';
 import { WALL_FLOOD_KICK } from '../public/newdesign/radioField.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
+import * as babelParser from '@babel/parser';
 
 const WEB = readFileSync(new URL('../public/newdesign/radioInstrument.jsx', import.meta.url), 'utf8');
 const APP = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url), 'utf8');
@@ -93,40 +94,42 @@ function accents() {
 }
 
 /**
- * Every top-level key of a `const NAME = { ... }` table, found by walking braces
- * rather than by the same regex that reads the entries.
- * ⚠ THIS IS THE CONTROL FOR THE TWO PARSERS BELOW, AND IT IS THE POINT. A parser
- * that reads entries with one narrow pattern goes quietly blind to an entry
- * formatted any other way — across two lines, in double quotes, with a comment
- * between the key and the brace — and a floor of `>= 18` still passes on today's
+ * Every top-level key of a `const NAME = { ... }` table, read off the AST.
+ * ⚠ THIS IS THE CONTROL FOR THE TWO PARSERS BELOW, AND IT IS PARSED RATHER THAN
+ * SCANNED FOR A MEASURED REASON. A parser that reads entries with one narrow
+ * pattern goes quietly blind to an entry formatted any other way -- across two
+ * lines, in double quotes -- and a floor of `>= 18` still passes on today's
  * table while the new paper is never exercised. So the entry parsers must
- * account for EVERY key this finds, not merely for enough of them.
+ * account for EVERY key this finds. But a CHARACTER walk that counts braces is
+ * the same defect one level up: it cannot tell a brace in a comment or a string
+ * from a real one, and a control that has itself gone blind guards nothing.
+ * Measured on the first cut -- a comment reading `{ paper, ink }` above an entry
+ * produced a PHANTOM key `entry`, and an unbalanced `}` in a comment would end
+ * the table early. The AST has no such failure mode: comments and string bodies
+ * are not nodes it can confuse for structure. Raised by review on 2026-09-17.
  */
 function tableKeys(src, name) {
-  const at = src.indexOf('const ' + name + ' = {');
-  assert.ok(at >= 0, `${name} is no longer declared — this sweep is looking at nothing`);
-  const open = src.indexOf('{', at);
-  let depth = 0; let end = -1;
-  for (let i = open; i < src.length; i += 1) {
-    if (src[i] === '{') depth += 1;
-    else if (src[i] === '}') { depth -= 1; if (depth === 0) { end = i; break; } }
-  }
-  assert.ok(end > open, `${name}'s braces do not balance — the walk cannot be trusted`);
-  const body = src.slice(open + 1, end);
-  // top-level keys only: depth 0 within the body, `key:` followed by a value
-  const keys = []; depth = 0; let line = '';
-  for (let i = 0; i < body.length; i += 1) {
-    const c = body[i];
-    if (c === '{' || c === '[') depth += 1;
-    else if (c === '}' || c === ']') depth -= 1;
-    if (c === '\n') { line = ''; continue; }
-    line += c;
-    if (c === ':' && depth === 0) {
-      const m = /(?:^|[,{\s])['"]?([A-Za-z_$][\w$-]*)['"]?\s*:$/.exec(line);
-      if (m) keys.push(m[1]);
+  const ast = babelParser.parse(src, { sourceType: 'module', plugins: ['jsx'] });
+  let found = null;
+  const walk = (node) => {
+    if (found || !node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (node.type === 'VariableDeclarator'
+      && node.id && node.id.type === 'Identifier' && node.id.name === name
+      && node.init && node.init.type === 'ObjectExpression') { found = node.init; return; }
+    for (const k of Object.keys(node)) {
+      if (k === 'loc' || k === 'leadingComments' || k === 'trailingComments') continue;
+      walk(node[k]);
     }
-  }
-  assert.ok(keys.length > 0, `${name} parsed to zero keys — the brace walk stopped matching`);
+  };
+  walk(ast.program);
+  assert.ok(found, `${name} is no longer declared as an object literal — this sweep is looking at nothing`);
+  const keys = found.properties
+    .filter((pr) => pr.type === 'ObjectProperty' && !pr.computed)
+    .map((pr) => (pr.key.type === 'Identifier' ? pr.key.name : pr.key.value));
+  assert.equal(keys.length, found.properties.length,
+    `${name} has a spread or computed key this control cannot account for — it must not silently skip one`);
+  assert.ok(keys.length > 0, `${name} parsed to zero keys — the AST read stopped matching`);
   return keys;
 }
 
