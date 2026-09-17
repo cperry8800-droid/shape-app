@@ -1213,10 +1213,17 @@ function Footer({ logoHeight = 64 } = {}) {
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)", justifyItems: "center", textAlign: "center" }}>
           {[
             /* ── THE CANONICAL FOOTER TABLE ────────────────────────────────
-               ⚠ THREE FOOTERS RENDER THIS SITE, AND THEY HAD DRIFTED INTO THREE
-               DIFFERENT DESIGNS. This component is one; `index.html` hand-writes
-               its own (a static page cannot import this React component);
-               `GetApp.html` hand-writes a third. Measured 2026-09-14 from the
+               ⚠ THREE FOOTERS RENDERED THIS SITE, AND THEY HAD DRIFTED INTO
+               THREE DIFFERENT DESIGNS. This component is one; `index.html`
+               hand-writes its own (a static page cannot import this React
+               component); `GetApp.html` hand-wrote a third.
+               ⚠ CORRECTED 2026-09-17 — GETAPP NO LONGER HAND-WRITES ONE. The App
+               page was rebuilt as One Day and mounts THIS component in a root of
+               its own, so two footers render the site and the reconciliation below
+               is between this table and the homepage's copy. Left in place rather
+               than cut because the measurement is the reason the table exists, and
+               a comment still naming a third copy is an instruction to re-add it.
+               Measured 2026-09-14 from the
                three files before this was reconciled — 22, 23 and 17 links, no
                two agreeing: the homepage carried The app + Shape Store and NO
                link to Coaches.html, headed its second group "For coaches" where

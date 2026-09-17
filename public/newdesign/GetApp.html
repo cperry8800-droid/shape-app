@@ -3,452 +3,516 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Get the Shape App — iOS &amp; Android</title>
-<meta name="description" content="A guided, step-by-step walkthrough of the Shape app — train, eat, recover, and stay accountable with a real human coach." />
+<title>One day on Shape — the app, hour by hour</title>
+<meta name="description" content="A member's day inside the Shape app, from the first check-in to the last set logged — ten real screens, captured from the app's own signed-out preview." />
 <link rel="canonical" href="https://theshapecommunity.com/newdesign/GetApp.html">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-<!-- React + Babel so the global chat bubble mounts the full rich ChatWidget
-     (same as every other newdesign page) instead of the fallback panel. -->
+<!-- ⚠ BYTE-IDENTICAL TO index.html AND Radio.html, AND THE AXES ARE SPELLED OUT.
+     Google Fonts serves the axes you name and PINS EVERY OTHER ONE at its default,
+     so `Doto:wght@...` alone ships the square-dot form and every `'ROND' N` rule on
+     this page is silently inert — not an error in any browser, linter or build. The
+     homepage shipped exactly that on 09-11. Identical to the other two pages' link so
+     the three share one cache entry; tests/getapp-page.test.mjs pins both facts. -->
+<link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wdth,wght@0,50..150,100..900;1,50..150,100..900&family=Doto:ROND,wght@0..100,100..900&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet" />
+<!-- React + Babel: the shared header and footer are pageShell.jsx components, and the
+     global chat button mounts the full rich ChatWidget. In production
+     scripts/build-newdesign.mjs compiles both text/babel tags to content-hashed
+     nd/ bundles and strips the standalone compiler; this tag is what makes the raw
+     dev path work. -->
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <style>
-  /* Metrics-matched fallback fonts (CLS: the local fallback occupies the web font's
-     space, so the swap doesn't reflow headers/sub-heads/body). @capsizecss metrics. */
-  @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
-  @font-face{font-family:'Space Grotesk Fallback';src:local('Arial');size-adjust:109.69%;ascent-override:89.71%;descent-override:26.62%;line-gap-override:0%}
-  @font-face{font-family:'JetBrains Mono Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
+  /* =====================================================================
+     THE APP PAGE — ONE DAY
+     One member's day inside the app, hour by hour: eight beats from 06:45 to
+     Sunday, each one a screen of the real app beside the copy that says what it
+     is for. Owner's pick off docs/REVIEW-2026-09-17-app-page.md (Concept B);
+     built from docs/BUILD-2026-09-17-app-page-one-day.md.
+
+     What it replaced: a ten-click carousel that wrote ONE step into the DOM at a
+     time (measured: 1 of 10 titles present, and with JS off an empty title over a
+     hardcoded "01 / 08" two steps stale), behind the page's own two-link bar —
+     the one nav destination on the site where the site's nav disappeared. Every
+     word and every capture is in the HTML at first paint now, and the page carries
+     the shared header and the canonical footer like every other page.
+     ===================================================================== */
+
   :root {
-    --paper: #efe5cd;
-    --paper-2: #e6dabe;
-    --paper-3: #f7f1e3;
-    --ink: #0a0d0c;
-    --ink-2: rgba(10,13,12,0.62);
-    --ink-3: rgba(10,13,12,0.4);
-    --teal: #0ac5a8;
-    --teal-bright: #0ac5a8;
-    --orange: #d2693f;
-    --hairline: rgba(10,13,12,0.1);
-    --hairline-2: rgba(10,13,12,0.06);
-    --serif: 'Fraunces', 'Fraunces Fallback', serif;
-    --sans: 'Space Grotesk', 'Space Grotesk Fallback', sans-serif;
-    --mono: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace;
-    --screen: #f4eedf;
+    --paper:  #06090f;
+    --paper2: #0a0f17;
+    --ink:    #eef3f0;
+    --ink2:   rgba(238,243,240,0.72);
+    --ink3:   rgba(238,243,240,0.55);
+    --line:   rgba(238,243,240,0.12);
+    --line2:  rgba(238,243,240,0.07);
+    /* The app's own teal on the app's own dark paper — 10.9:1. The retired cream
+       page used #0ac5a8 on #efe5cd, which computes to 1.75:1 and was the worst
+       contrast on the site. */
+    --acc:    #34d6c5;
+    --ex:     #e6c373;
+    --btnFg:  #04110f;
+    --disp: 'Anybody', 'Anybody Fallback', system-ui, sans-serif;
+    --num:  'Doto', 'Doto Fallback', ui-monospace, monospace;
+    --sans: 'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif;
   }
+  /* Metrics-matched fallbacks, so the swap when the web fonts land does not reflow
+     the page (@capsizecss metrics, the same pattern the retired page carried). */
+  @font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}
+  @font-face{font-family:'Doto Fallback';src:local('Courier New');size-adjust:99.98%;ascent-override:102.02%;descent-override:30%;line-gap-override:0%}
+  @font-face{font-family:'Schibsted Fallback';src:local('Arial');size-adjust:104.5%;ascent-override:92%;descent-override:24%;line-gap-override:0%}
+
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  html, body { margin: 0; padding: 0; }
   html { -webkit-text-size-adjust: 100%; }
-  body { overflow-x: hidden; min-height: 100vh; display: flex; flex-direction: column; }
+  body {
+    background: var(--paper); color: var(--ink);
+    font-family: var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  /* ⚠ `clip`, NOT `hidden`, AND IT IS WHAT MAKES THE STICKY COPY WORK AT ALL.
+     `overflow-x: hidden` on an ancestor makes that ancestor a SCROLL CONTAINER,
+     and a `position: sticky` descendant then sticks to a box that does not
+     scroll — so it silently never engages. Measured in Chromium before this
+     changed: scrolled 320px into beat 3, the copy sat at -272 instead of the 96
+     it asks for; with `clip` it sits at 96 exactly. `clip` clips the same way
+     without creating the scroll container. Safari below 16 does not know it and
+     falls back to visible, which costs nothing here: the page measures ZERO
+     horizontal overflow at 320, 390, 430, 860, 900, 1024, 1280 and 1440, so
+     there is nothing for it to clip.
+     ⚠ It carries !important because `pageShell.jsx` injects
+     `html, body { overflow-x: hidden }` into the BODY at runtime — later in
+     document order than this stylesheet and at the same specificity, so without
+     it the shell's rule wins and the sticky goes back to never engaging. */
+  html, body { overflow-x: clip !important; }
   img { display: block; max-width: 100%; }
   a { color: inherit; text-decoration: none; }
-  button { font-family: inherit; cursor: pointer; border: 0; background: none; }
-  ::selection { background: var(--teal); color: var(--paper); }
+  button { font-family: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+  ::selection { background: var(--acc); color: var(--btnFg); }
+  :focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
 
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; width: 100%; }
+  /* ONE element owns the side gutter at every width. See the shell reconciliation
+     block at the foot of this stylesheet for why nothing else may add one. */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; width: 100%; }
 
-  .nav { position: sticky; top: 0; z-index: 50; background: rgba(239,229,205,0.85); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--hairline-2); }
-  .nav-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; gap: 16px; }
-  .brand img { height: 60px; width: auto; display: block; }
-  .nav-back { font-size: 13px; color: var(--ink-2); }
-  .nav-back:hover { color: var(--ink); }
+  /* ---- type ---------------------------------------------------------- */
+  .eb  { font-family: var(--num); font-weight: 700; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; font-variation-settings: 'ROND' 30; color: var(--acc); }
+  .eb2 { font-family: var(--num); font-weight: 700; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; font-variation-settings: 'ROND' 30; color: var(--ink2); }
+  .num { font-family: var(--num); font-weight: 700; font-variation-settings: 'ROND' 30; letter-spacing: .04em; }
+  /* A measured figure is set in the dot-matrix face at its display weight, so it
+     reads as a reading rather than as body copy (the site's 09-10 type ruling). */
+  .big { font-family: var(--num); font-weight: 900; font-variation-settings: 'ROND' 100; font-size: 72px; line-height: 1; letter-spacing: -.01em; color: var(--ink); }
+  .big i { font-style: normal; font-family: var(--sans); font-weight: 500; font-size: 20px; letter-spacing: 0; color: var(--ink2); margin-left: 6px; }
+  h1, h2, h3 { font-family: var(--disp); font-weight: 500; letter-spacing: -.012em; margin: 0; font-variation-settings: 'wdth' 92; text-wrap: balance; }
+  h1 { font-size: 72px; line-height: .98; }
+  h2 { font-size: 34px; line-height: 1.06; }
+  p  { font-size: 16px; line-height: 1.55; color: var(--ink2); margin: 0; }
 
-  .tour { display: flex; flex-direction: column; }
-  .tour-head { text-align: center; padding: 40px 0 8px; }
-  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; color: var(--teal); text-transform: uppercase; }
-  .tour-head h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 6vw, 50px); letter-spacing: -0.03em; line-height: 1; margin: 12px 0 0; }
+  /* ⚠ THE LABEL IS WHAT MAKES THE FIGURES ON THIS PAGE ALLOWED. Every capture is
+     the app's signed-out preview — a demo persona with invented numbers — so each
+     one is labelled, the homepage's own convention. The hero carries the long form
+     once; each beat carries the short one beside its own screen. The house rule is
+     not "never show it" but "never claim it unlabelled". */
+  .exlabel { display: inline-flex; align-items: center; gap: 6px; font-family: var(--num); font-weight: 700; font-size: 10px; letter-spacing: .07em; text-transform: uppercase; font-variation-settings: 'ROND' 30; color: var(--ex); }
+  .exlabel::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ex); flex: 0 0 auto; }
 
-  .stage {
-    display: grid; grid-template-columns: 1fr 360px; gap: 64px;
-    align-items: center; padding: 24px 0 56px; max-width: 1040px;
-    margin: 0 auto; width: 100%; min-height: 70vh;
-  }
-  .copy { min-width: 0; }
-  .step-no { font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; color: var(--ink-3); text-transform: uppercase; display: flex; align-items: baseline; gap: 12px; }
-  .step-no b { color: var(--teal); }
-  .copy h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4.4vw, 42px); letter-spacing: -0.025em; line-height: 1.05; margin: 16px 0 14px; }
-  .copy p { font-size: 16px; line-height: 1.62; color: var(--ink-2); margin: 0; max-width: 460px; }
+  /* ---- the phone ------------------------------------------------------ */
+  /* ONE bezel for every screen. The retired page flipped its frame to cream on
+     four of the ten steps while every capture is the app's Black paper, so the
+     bezel changed colour five times across one walkthrough. */
+  .ph { position: relative; aspect-ratio: 600 / 1387; border-radius: 34px; padding: 7px; background: #14110d; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 22px 44px rgba(0,0,0,.28); margin: 0 auto; }
+  .ph-scr { width: 100%; height: 100%; overflow: hidden; border-radius: 28px; background: #0b0b0b; }
+  .ph-scr img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
 
-  .controls { display: flex; align-items: center; gap: 14px; margin-top: 34px; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 9px;
-    padding: 13px 22px; border-radius: 10px; font: 600 14px/1 var(--sans);
-    transition: transform .12s ease, background .15s ease, opacity .15s ease;
-  }
-  .btn.primary { background: var(--ink); color: var(--paper); }
-  .btn.primary:hover { transform: translateY(-1px); }
-  .btn.ghost { border: 1px solid rgba(10,13,12,0.2); color: var(--ink); }
-  .btn.ghost:hover { background: rgba(10,13,12,0.05); }
-  .btn[disabled] { opacity: 0.32; pointer-events: none; }
+  /* ---- buttons -------------------------------------------------------- */
+  .btn { display: inline-flex; align-items: center; gap: 8px; font-family: var(--sans); font-weight: 700; font-size: 14px; min-height: 46px; padding: 0 20px; border: 1px solid transparent; }
+  .btn.p { background: var(--acc); color: var(--btnFg); clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%); }
+  .btn.g { border-color: var(--line); color: var(--ink); }
+  .btn.g:hover { border-color: var(--acc); }
 
-  .dots { display: flex; gap: 8px; margin-top: 26px; flex-wrap: wrap; }
-  .dot { width: 9px; height: 9px; border-radius: 999px; background: rgba(10,13,12,0.18); border: 0; padding: 0; transition: all .2s ease; }
-  .dot:hover { background: rgba(10,13,12,0.34); }
-  .dot.on { background: var(--teal); width: 26px; }
+  /* ---- the hero ------------------------------------------------------- */
+  .hero { padding: 76px 0 40px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: end; }
+  .hero h1 { font-size: 92px; margin-top: 14px; }
+  .hero p { font-size: 18px; max-width: 46ch; margin-top: 16px; }
+  .hero .cta-row { margin-top: 30px; }
+  .hero-side { padding-bottom: 10px; }
+  .clock { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .clock div { border: 1px solid var(--line); padding: 12px 12px 10px; }
+  .clock .num { font-size: 22px; color: var(--ink); display: block; font-weight: 900; font-variation-settings: 'ROND' 100; }
+  .clock .eb2 { margin-top: 6px; display: block; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
 
-  .phone {
-    width: 320px; max-width: 84vw; aspect-ratio: 320 / 716; margin: 0 auto;
-    position: relative; box-sizing: border-box; border-radius: 56px; padding: 9px;
-    background: var(--screen);
-    border: 1px solid rgba(10,13,12,0.14);
-    box-shadow:
-      8px 16px 30px rgba(40,30,15,0.16),
-      0 22px 44px rgba(40,30,15,0.14),
-      inset 0 1px 1px rgba(255,255,255,0.5);
-  }
-  .phone::after {
-    content: ''; position: absolute; inset: 3px; border-radius: 53px;
-    pointer-events: none; box-shadow: inset 0 0 0 1px rgba(120,100,60,0.08);
-  }
-  .island {
-    position: absolute; top: 16px; left: 50%; width: 92px; height: 27px;
-    transform: translateX(-50%); border-radius: 999px; background: #050505;
-    z-index: 3; pointer-events: none;
-  }
-  .screen-crop {
-    position: relative; width: 100%; height: 100%; overflow: hidden;
-    border-radius: 48px; background: var(--screen);
-    box-shadow: inset 0 0 0 1px rgba(120,100,60,0.08);
-  }
-  .screen-crop img {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    object-fit: cover; object-position: center top;
-    opacity: 0; transition: opacity .45s ease;
-  }
-  .screen-crop img.on { opacity: 1; }
-  .phone.dark { background: #14110d; border-color: rgba(255,255,255,0.16); }
-  .phone.dark .screen-crop { background: #14110d; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
-  .phone.dark::after { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
+  /* ---- the timeline --------------------------------------------------- */
+  .tl { position: relative; border-top: 1px solid var(--line); margin-top: 24px; }
+  .beat { position: relative; display: grid; grid-template-columns: 1fr 380px; gap: 56px; padding: 48px 0 56px; border-bottom: 1px solid var(--line2); min-height: 600px; }
+  /* The sky: the day warming at dawn, cooling through the afternoon and turning
+     over at night. One custom property per beat, set inline on the section. */
+  .beat::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 60% 70% at 78% 40%, var(--sky), transparent 70%); }
+  /* The copy holds at the top of the viewport while its screen scrolls past. This
+     is the only scroll choreography on the page.
+     `position: sticky` also makes this the containing block for the absolute
+     .time, which is why there is no separate `position: relative` here.
+     ⚠ MEASURED, because a sticky element with no travel is a declaration with
+     nothing behind it: the copy runs 192-217px inside a 630px beat, so it has
+     413-438px to hold through. See the note on .beat-ph for the column that does
+     not, and why. */
+  .beat-copy { padding-left: 120px; align-self: start; position: sticky; top: 96px; }
+  .beat .time { position: absolute; left: 0; top: 2px; font-family: var(--num); font-weight: 900; font-variation-settings: 'ROND' 100; font-size: 26px; color: var(--acc); letter-spacing: .02em; width: 100px; }
+  .beat .time.sun { font-size: 16px; font-weight: 700; font-variation-settings: 'ROND' 30; letter-spacing: .09em; padding-top: 5px; }
+  .beat h2 { margin-top: 10px; font-size: 44px; }
+  .beat p { margin-top: 14px; max-width: 44ch; font-size: 16px; }
+  .beat .num { margin-top: 16px; font-size: 12px; color: var(--ink); display: block; }
+  .beat .num b { color: var(--acc); }
+  .beat .exlabel { margin-top: 14px; }
+  /* ⚠ THE PHONE COLUMN IS NOT STICKY, AND THAT IS STRUCTURAL RATHER THAN A
+     CHOICE. The phone IS what makes a beat as tall as it is — 272px wide at
+     600/1387 is 629px, against a 630px beat content box — so measured travel is
+     ONE PIXEL on six of the eight beats. Declaring `position: sticky` there
+     would be an effect that cannot happen, which is worse than no effect: the
+     next reader reads it as working. The two-phone beats have 75px of travel and
+     are deliberately left the same, because two beats behaving differently from
+     six is a worse page than eight behaving alike.
+     To make it real the beat would have to be taller than the phone, and this
+     page is already the longest of the three concepts the owner chose from. */
+  .beat-ph { align-self: start; display: flex; gap: 16px; justify-content: center; min-width: 0; }
+  .beat-ph .ph { flex: 0 1 auto; min-width: 0; }
 
-  .phone-col { display: flex; justify-content: center; }
-
-  .progress-rail { height: 2px; background: var(--hairline-2); position: relative; }
-  .progress-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--teal); transition: width .35s ease; }
-
-  /* Waitlist CTA */
-  .cta { text-align: center; padding: 64px 0 48px; border-top: 1px solid var(--hairline-2); background: var(--paper-3); }
-  .cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 5.4vw, 44px); letter-spacing: -0.025em; line-height: 1.02; margin: 10px 0 14px; }
-  .cta .eyebrow { color: var(--orange); }
-  .cta p { font-size: 15px; color: var(--ink-2); max-width: 460px; margin: 0 auto 24px; line-height: 1.55; }
-  .store-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .store-btn { display: inline-flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 12px; background: var(--ink); color: var(--paper); cursor: pointer; transition: transform .12s ease, opacity .15s ease; }
-  .store-btn:hover { transform: translateY(-1px); }
-  .store-btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
-  .store-btn.is-outline { background: transparent; color: var(--ink); border: 1px solid rgba(10,13,12,0.22); }
-  .store-btn small { display: block; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
-  .store-btn b { display: block; font-size: 15px; font-weight: 600; }
-  .glyph { width: 20px; height: 20px; flex: 0 0 auto; display: block; color: inherit; }
-  .glyph path { fill: currentColor; }
-  .notify-widget { margin-top: 22px; min-height: 44px; }
-  .notify-toggle { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--hairline); padding: 6px 2px; }
+  /* ---- the doors ------------------------------------------------------ */
+  .doors { border-top: 1px solid var(--line); background: var(--paper2); }
+  .doors-in { max-width: 1180px; margin: 0 auto; padding: 64px 32px; display: grid; grid-template-columns: 1.2fr 1fr; gap: 56px; align-items: start; }
+  .doors-copy p { max-width: 46ch; margin-top: 18px; }
+  .doors .big { margin-top: 14px; }
+  .doors .cta-row { margin-top: 28px; }
+  .doors-store { padding-top: 6px; }
+  .doors-store .small { font-size: 14px; margin-top: 10px; max-width: 38ch; }
+  .store-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .chip { display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; border: 1px solid var(--line); color: var(--ink); border-radius: 4px; background: none; font-family: inherit; text-align: left; }
+  .chip:hover { border-color: var(--ink3); }
+  .chip[aria-pressed="true"] { border-color: var(--acc); background: rgba(52,214,197,0.08); }
+  .chip small { display: block; font-family: var(--num); font-weight: 700; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; font-variation-settings: 'ROND' 30; color: var(--ink2); }
+  .chip b { display: block; font-size: 14px; font-weight: 600; }
+  .gl { width: 18px; height: 18px; flex: 0 0 auto; display: block; }
+  .notify-widget { margin-top: 18px; min-height: 46px; }
+  .notify-toggle { font-family: var(--num); font-weight: 700; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-variation-settings: 'ROND' 30; color: var(--ink2); border-bottom: 1px solid var(--line); padding: 10px 2px; }
   .notify-toggle:hover { color: var(--ink); }
   .notify-toggle.is-hidden { display: none; }
-  .notify-form { display: none; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .notify-form { display: none; gap: 8px; flex-wrap: wrap; align-items: center; }
   .notify-form.is-open { display: flex; }
-  .notify-form input { font-family: var(--sans); font-size: 14px; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(10,13,12,0.2); background: var(--paper); color: var(--ink); min-width: 240px; }
-  .notify-form input:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
-  .notify-form button { font: 600 14px/1 var(--sans); padding: 12px 20px; border-radius: 10px; background: var(--ink); color: var(--paper); }
-  .notify-msg { font-size: 13px; margin: 12px 0 0; min-height: 18px; }
-  .notify-msg.ok { color: var(--teal); }
-  .notify-msg.err { color: var(--orange); }
+  .notify-form input[type="email"] { font-family: var(--sans); font-size: 14px; padding: 0 14px; min-height: 46px; border-radius: 3px; border: 1px solid var(--line); background: rgba(238,243,240,0.05); color: var(--ink); min-width: 240px; flex: 1 1 240px; }
+  .notify-form button[type="submit"] { font-family: var(--sans); font-weight: 700; font-size: 14px; min-height: 46px; padding: 0 20px; background: var(--acc); color: var(--btnFg); clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%); }
+  .notify-msg { font-size: 13px; margin: 12px 0 0; min-height: 18px; color: var(--ink2); }
+  .notify-msg.ok { color: var(--acc); }
+  .notify-msg.err { color: #f0a08a; }
+  /* The browser door. The app is built into /m/ on every deploy
+     (vercel.json's buildCommand) and its own paywall is written for prospects
+     ("Preview the app first"), and until now no page on the site linked it. */
+  .try { display: inline-block; margin-top: 20px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--acc); border-bottom: 1px solid var(--acc); padding: 6px 0; }
 
-  .ga-footer { position: relative; padding: 56px 72px 36px; background: var(--paper); color: var(--ink); margin-top: auto; }
-  .ga-footer-inner { max-width: 1320px; margin: 0 auto; }
-  .ga-footer-cta { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-bottom: 36px; text-align: center; }
-  .ga-footer-cta img { height: 48px; width: auto; display: block; }
-  .ga-footer-tag { font-family: var(--serif); font-size: 20px; font-style: italic; letter-spacing: -0.02em; color: var(--ink); }
-  .ga-footer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; padding-top: 30px; border-top: 1px solid var(--hairline); justify-items: center; text-align: center; }
-  .ga-footer-head { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--teal); margin-bottom: 14px; }
-  .ga-footer-grid > div > a { display: block; font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); text-decoration: none; margin-bottom: 8px; transition: color .15s ease; }
-  .ga-footer-grid > div > a:hover { color: var(--ink); }
-  .ga-footer-base { margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--hairline-2); display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; color: var(--ink-3); }
-  @media (max-width: 920px) {
-    .ga-footer { padding: 32px 22px 24px; }
-    .ga-footer-grid { grid-template-columns: 1fr 1fr; gap: 28px; padding-top: 28px; }
-    .ga-footer-base { flex-direction: column; gap: 10px; align-items: flex-start; }
+  /* ---- narrow ---------------------------------------------------------- */
+  /* ⚠ THE BREAKPOINT IS 900, NOT THE BOARD'S 860, AND IT IS THE SHELL'S. The
+     shared header's stylesheet (pageShell.jsx, ShapeMobileStyles) restyles
+     `main`, `section`, `h1`, `h2` and `h3` at exactly 900px. Two breakpoints 40px
+     apart would leave an 861-900 band taking half of each layout — a two-column
+     beat under a phone-sized headline. One number, and it is the chrome's. */
+  @media (max-width: 900px) {
+    .wrap { padding: 0 18px; }
+    .hero { grid-template-columns: 1fr; gap: 20px; padding: 30px 0 18px; }
+    .clock { grid-template-columns: repeat(2, 1fr); }
+    .beat { grid-template-columns: 1fr; gap: 18px; padding: 24px 0 28px; min-height: 0; }
+    /* Sticky needs a taller-than-viewport beat to have any travel; stacked, each
+       beat is about a screen, so both columns go static and simply read in order. */
+    .beat-copy { padding-left: 0; position: static; }
+    /* ⚠ 264px AND WRAPPING, BECAUSE THE POINT OF THE PAGE IS TO SEE THE APP.
+       The board this page was built from put the phones at 200px on a phone and
+       sat the two-screen beats side by side at 182px each. Looked at rather than
+       measured: a 600px-wide capture shown 200px wide is a third of its pixels,
+       which renders the app's own 8px mono at under 3px — you can tell WHICH
+       screen it is and you cannot read it, and a pair at 182px is the worst case
+       on the page. 264px is this page's own precedent (what the retired
+       carousel used at this width) and still leaves 90px of the 390px screen.
+       Wrapping costs the two paired beats a row each; it buys every screen the
+       same size, which is what makes the eight beats read as one walk. */
+    .beat-ph { gap: 12px; flex-wrap: wrap; }
+    .beat-ph .ph { max-width: 264px; }
+    .beat .time { position: static; width: auto; margin-bottom: 8px; display: block; font-size: 22px; }
+    .beat p { font-size: 14px; margin-top: 10px; }
+    .beat::before { background: radial-gradient(ellipse 80% 40% at 50% 70%, var(--sky), transparent 70%); }
+    .doors-in { grid-template-columns: 1fr; gap: 36px; padding: 44px 18px; }
+    .notify-form input[type="email"] { min-width: 0; }
   }
 
-  @media (max-width: 860px) {
-    .stage { grid-template-columns: 1fr; gap: 32px; padding: 16px 0 44px; min-height: 0; }
-    .phone-col { order: -1; }
-    .phone { width: 264px; padding: 7px; border-radius: 46px; }
-    .screen-crop { border-radius: 40px; }
-    .copy { text-align: center; }
-    .copy p { margin: 0 auto; }
-    .step-no, .controls, .dots { justify-content: center; }
-    .tour-head { padding: 26px 0 4px; }
-    .foot-row { justify-content: center; text-align: center; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .screen-crop img { transition: none; }
-    .progress-fill { transition: none; }
+  /* ---- reconciling with the shared header's stylesheet ------------------ */
+  /* ⚠ THIS BLOCK IS LOAD-BEARING AND IS NOT TIDYING. Rendering <Header /> also
+     renders pageShell.jsx's ShapeMobileStyles, which injects SITE-WIDE rules at
+     <=900px for every marketing page that lays its sections out with inline
+     padding:
+         main    { padding-left: 18px !important; padding-right: 18px !important }
+         section { padding-left: 22px !important; padding-right: 22px !important }
+         h1 / h2 / h3 { font-size: clamp(...) !important }
+     This page does not lay out that way — ONE .wrap owns the gutter — so those
+     rules stack rather than help: main 18 + wrap 18 + section 22 = 58px of inset
+     on a 390px screen, against the 18 the layout was measured at. And the forced
+     type would put a 52px beat heading on a 700px tablet where this page's scale
+     says 28.
+     That style block is injected into the BODY at runtime, so it comes after this
+     one in document order: with equal specificity and both !important, IT would
+     win. These selectors are one class more specific on purpose. Scoped to
+     .ga-main so no other page is touched.
+     tests/getapp-page.test.mjs pins this block; delete it and the phone layout
+     changes silently. */
+  @media (max-width: 900px) {
+    main.ga-main { padding-left: 0 !important; padding-right: 0 !important; }
+    .ga-main section { padding-left: 0 !important; padding-right: 0 !important; }
+    /* The page's own scale, restated at a specificity the shell cannot beat.
+       At 320 / 390 / 900 these resolve to 35 / 43 / 48 and 24 / 27 / 30. */
+    .ga-main h1 { font-size: clamp(34px, 11vw, 48px) !important; line-height: 1.02 !important; letter-spacing: -.012em !important; }
+    .ga-main h2 { font-size: clamp(24px, 7vw, 30px) !important; line-height: 1.08 !important; letter-spacing: -.012em !important; }
   }
 </style>
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body>
 
-<div class="progress-rail"><div class="progress-fill" id="progressFill"></div></div>
+<div id="shape-chrome-header"></div>
 
-<header class="nav">
-  <div class="wrap nav-row">
-    <a href="/newdesign/index.html" class="brand" aria-label="Shape home"><img src="/shape-logo-black.png?v=2" alt="Shape" /></a>
-    <a href="#notify" class="nav-back">Notify me →</a>
-  </div>
-</header>
-
-<main class="tour">
-  <div class="tour-head">
-    <div class="eyebrow">The walkthrough</div>
-    <h1 id="tourTitle">See how Shape works.</h1>
-  </div>
-
+<main class="ga-main">
   <div class="wrap">
-    <div class="stage">
-      <div class="copy">
-        <div class="step-no"><b id="stepNum">01</b><span id="stepTotal">/ 08</span><span id="stepKind"></span></div>
-        <h2 id="stepTitle"></h2>
-        <p id="stepBody"></p>
-        <div class="controls">
-          <button class="btn ghost" id="prevBtn">← Back</button>
-          <button class="btn primary" id="nextBtn">Next →</button>
-        </div>
-        <div class="dots" id="dots" role="tablist" aria-label="Walkthrough steps"></div>
-      </div>
 
-      <div class="phone-col">
-        <div class="phone" id="phone">
-          <div class="island"></div>
-          <div class="screen-crop" id="screenCrop"></div>
+    <section class="hero">
+      <div>
+        <div class="eb">The app &#183; one day, hour by hour</div>
+        <h1>One day on Shape.</h1>
+        <p>From the first check-in to the last set logged, this is what a member&rsquo;s day looks like inside the app. Every screen below is the real app in its signed-out preview; nothing is a mock-up.</p>
+        <div class="cta-row">
+          <a class="btn p" href="/newdesign/Landing.html">Get started &#8594;</a>
+          <a class="btn g" href="#notify">Notify me when it ships</a>
         </div>
+      </div>
+      <div class="hero-side">
+        <div class="clock">
+          <div><span class="num">10</span><span class="eb2">screens</span></div>
+          <div><span class="num">$5</span><span class="eb2">a month</span></div>
+          <div><span class="num">13</span><span class="eb2">languages</span></div>
+          <div><span class="num">0</span><span class="eb2">ads on Radio</span></div>
+        </div>
+        <div style="margin-top:14px"><span class="exlabel">Example member &#183; captured from the app&rsquo;s signed-out preview</span></div>
+      </div>
+    </section>
+
+    <div class="tl">
+      <section class="beat" style="--sky:rgba(255,180,84,.14)">
+        <div class="beat-copy">
+          <div class="time">06:45</div>
+          <div class="eb">WAKE &#183; HOME</div>
+          <h2>Today, at a glance.</h2>
+          <p>The Shape Daily: calendar, calorie ledger, what is left to log, who is on the air. Skim it in five seconds, dive in if you want.</p>
+          <div class="num"><b>&#9632;</b> 1568 / 2100 kcal &#183; check-in due</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-home-v5.png?v=20260917" width="600" height="1387" alt="The app&rsquo;s Home screen: the day&rsquo;s calorie ledger against target, the week strip, the check-in due and today&rsquo;s slate" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(255,180,84,.08)">
+        <div class="beat-copy">
+          <div class="time">07:20</div>
+          <div class="eb">BREAKFAST &#183; EAT</div>
+          <h2>Macros, tallied live.</h2>
+          <p>Daily meal plans from your nutritionist. The day&rsquo;s deficit or surplus ticks as you log; swaps are built in.</p>
+          <div class="num"><b>&#9632;</b> 532 kcal left &#183; protein 118 / 165</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-nutri-v3.png?v=20260910" width="600" height="1387" alt="The app&rsquo;s Eat screen: the day&rsquo;s meals with the calorie and protein ledger running against target" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(52,214,197,.10)">
+        <div class="beat-copy">
+          <div class="time">09:00</div>
+          <div class="eb">TRAIN &#183; TRAIN</div>
+          <h2>Know what&rsquo;s coming.</h2>
+          <p>Every move, set and cue from your trainer, before you walk into the gym. No coach yet? Build your own week from a starter template.</p>
+          <div class="num"><b>&#9632;</b> 6 moves &#183; 54 min &#183; RPE 8</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-train-v3.png?v=20260910" width="600" height="1387" alt="The app&rsquo;s Train screen: today&rsquo;s session listed move by move with sets, loads and the trainer&rsquo;s cues" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(52,214,197,.08)">
+        <div class="beat-copy">
+          <div class="time">10:15</div>
+          <div class="eb">LOGGED &#183; THE WALL</div>
+          <h2>Records, on the wall.</h2>
+          <p>Every personal best lands on a board your people can see, with the whole session under it and your coach&rsquo;s co-sign.</p>
+          <div class="num"><b>&#9632;</b> 245 lb &#183; new PR</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-wall-v1.png?v=20260911b" width="600" height="1387" alt="The app&rsquo;s Wall: a personal best as a record plate, with the session&rsquo;s stats, heart-rate zones and trace beneath it" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(238,243,240,.05)">
+        <div class="beat-copy">
+          <div class="time">13:00</div>
+          <div class="eb">SHOP &#183; GROCERY</div>
+          <h2>A list that builds itself.</h2>
+          <p>Organized by aisle with a live running cost. Coach swaps land inline; one tap sends the whole list to Instacart.</p>
+          <div class="num"><b>&#9632;</b> 89 items &#183; ~$44 to go</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-grocery-v2.png?v=20260910" width="600" height="1387" alt="The app&rsquo;s grocery list, collapsed by aisle with a running cost and a send-to-Instacart action" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(52,214,197,.12)">
+        <div class="beat-copy">
+          <div class="time">18:00</div>
+          <div class="eb">RADIO &#183; RADIO</div>
+          <h2>Great music, included.</h2>
+          <p>The Shape Radio station and the playlists your coaches put together, ad-free, inside the app. Membership covers it; nothing extra to buy.</p>
+          <div class="num"><b>&#9632;</b> Live &#183; Shape Sets &#183; Nora</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:272px"><div class="ph-scr"><img src="/newdesign/getapp-radio-v3.png?v=20260917" width="600" height="1387" alt="The app&rsquo;s Radio page: the Signal Field drawing the station&rsquo;s live spectrum over a field of dots" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(120,110,255,.10)">
+        <div class="beat-copy">
+          <div class="time">20:30</div>
+          <div class="eb">THE ROOM &#183; COMMUNITY + HABITS</div>
+          <h2>The social side of strong. Small things, tracked.</h2>
+          <p>See who is training right now, ask the room a question, answer someone else&rsquo;s. A members&rsquo; feed, channels for your people, and a thread straight to your coach. Tap to log a habit, earn Shape Score for every check, and see the last seven days as a grid.</p>
+          <div class="num"><b>&#9632;</b> Feed &#183; Team &#183; Channels &#183; Support &#183; +3 banked today</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-community-v2.png?v=20260911" width="600" height="1387" alt="The app&rsquo;s Community feed: members&rsquo; posts with who is online along the top" loading="lazy" decoding="async"></div></div><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-habits-v1.png?v=20260910" width="600" height="1387" alt="The app&rsquo;s Habits ledger: each habit tapped to log, with the last seven days as a grid" loading="lazy" decoding="async"></div></div></div>
+      </section>
+      <section class="beat" style="--sky:rgba(230,195,115,.10)">
+        <div class="beat-copy">
+          <div class="time sun">SUNDAY</div>
+          <div class="eb">THE WEEK &#183; SCORE + PROFILE</div>
+          <h2>One number that matters. A profile that&rsquo;s alive.</h2>
+          <p>A five-tier ladder rewarding consistency across training, nutrition and recovery. It only moves when you show up. Your climb, your Shape Score, PRs and playlists on a living page that grows as you do. Public or private; it is yours.</p>
+          <div class="num"><b>&#9632;</b> 1,284 pts &#183; Tempo &#183; 43% of the way to Form</div>
+          <span class="exlabel">Example member</span>
+        </div>
+        <div class="beat-ph"><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-score-v3.png?v=20260910" width="600" height="1387" alt="The app&rsquo;s Shape Score: the points total, the tier held and the ladder above it" loading="lazy" decoding="async"></div></div><div class="ph" style="width:182px"><div class="ph-scr"><img src="/newdesign/getapp-profile-v2.png?v=20260911" width="600" height="1387" alt="The app&rsquo;s member profile: the ascent drawn over the cover photo, with PRs and playlists below" loading="lazy" decoding="async"></div></div></div>
+      </section>
+    </div>
+
+  </div>
+
+  <section class="doors" id="notify">
+    <div class="doors-in">
+      <div class="doors-copy">
+        <div class="eb">Members &#183; one platform fee &#183; cancel any time</div>
+        <div class="big">$5<i>/mo</i></div>
+        <p>Browse every coach, message your pros, track the whole loop, log meals, listen to Radio. Coaches join free.</p>
+        <div class="cta-row">
+          <a class="btn p" href="/newdesign/Landing.html">Get started &#8594;</a>
+          <a class="btn g" href="/newdesign/Pricing.html">See pricing</a>
+        </div>
+      </div>
+      <div class="doors-store">
+        <div class="eb2">Coming to the App Store and Google Play</div>
+        <p class="small">We will send the store link the day it ships. Nothing else, ever.</p>
+        <div class="store-row">
+          <button type="button" class="chip" data-platform="ios" aria-pressed="false"><svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.42 2.2-1.13 3.02-.82.97-2.16 1.72-3.27 1.63-.14-1.1.42-2.27 1.1-3.04.78-.89 2.16-1.55 3.3-1.61zM20.5 17.05c-.55 1.27-.82 1.84-1.53 2.96-.99 1.57-2.39 3.53-4.12 3.54-1.54.02-1.94-1.01-4.03-1-2.09.01-2.53 1.02-4.07 1-1.73-.02-3.05-1.78-4.04-3.35C.27 17.5-.18 13.5 1.36 11.04c1.04-1.66 2.69-2.64 4.24-2.64 1.58 0 2.57 1.06 3.87 1.06 1.26 0 2.03-1.06 3.86-1.06 1.38 0 2.85.75 3.9 2.05-3.43 1.88-2.87 6.77.27 8.6z" fill="currentColor"/></svg><span><small>Notify me on</small><b>App Store</b></span></button>
+          <button type="button" class="chip" data-platform="android" aria-pressed="false"><svg class="gl" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 2.1a1 1 0 0 0-.6.92v17.96a1 1 0 0 0 .6.92l10.13-9.9zm11.27 7.07 2.9-2.83-8.9-5.06a1 1 0 0 0-.5-.14zm0 5.66-6.5 6.3a1 1 0 0 0 .5-.14l8.9-5.06zm1.4-1.37 3.5-1.99a1 1 0 0 0 0-1.74l-3.5-1.99-3.18 3.1z" fill="currentColor"/></svg><span><small>Notify me on</small><b>Google Play</b></span></button>
+        </div>
+        <div class="notify-widget">
+          <button type="button" class="notify-toggle" aria-expanded="false">Notify me</button>
+          <form class="notify-form" novalidate>
+            <!-- \u26a0 THE STORE THE MEMBER PICKED, AND IT WAS BEING THROWN AWAY. The
+                 retired form posted { email, source } only, and
+                 src/app/api/app-waitlist/route.ts defaults a MISSING platform to
+                 'ios' — so every Google Play sign-up has been filed, and mailed,
+                 as an App Store one. The chips write this field. Left empty when
+                 nobody picked a store, which is honest: the route's own default
+                 then applies exactly as it does today. -->
+            <input type="hidden" name="platform" value="" />
+            <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
+            <button type="submit">Submit</button>
+          </form>
+          <p class="notify-msg" role="status" aria-live="polite"></p>
+        </div>
+        <a class="try" href="/m/">Or open it in your browser &#8594;</a>
       </div>
     </div>
-  </div>
+  </section>
 </main>
 
-<section class="cta" id="notify">
-  <div class="wrap">
-    <div class="eyebrow">Coming soon</div>
-    <h2>Be the first to download.</h2>
-    <p>We'll send the App Store link the day it ships. Nothing else, ever.</p>
-    <div class="store-row">
-      <span class="store-btn" role="button" tabindex="0" aria-label="Notify me on App Store"><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.42 2.2-1.13 3.02-.82.97-2.16 1.72-3.27 1.63-.14-1.1.42-2.27 1.1-3.04.78-.89 2.16-1.55 3.3-1.61zM20.5 17.05c-.55 1.27-.82 1.84-1.53 2.96-.99 1.57-2.39 3.53-4.12 3.54-1.54.02-1.94-1.01-4.03-1-2.09.01-2.53 1.02-4.07 1-1.73-.02-3.05-1.78-4.04-3.35C.27 17.5-.18 13.5 1.36 11.04c1.04-1.66 2.69-2.64 4.24-2.64 1.58 0 2.57 1.06 3.87 1.06 1.26 0 2.03-1.06 3.86-1.06 1.38 0 2.85.75 3.9 2.05-3.43 1.88-2.87 6.77.27 8.6z"/></svg><span><small>Notify me on</small><b>App Store</b></span></span>
-      <span class="store-btn is-outline" role="button" tabindex="0" aria-label="Notify me on Google Play"><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.6 2.1a1 1 0 0 0-.6.92v17.96a1 1 0 0 0 .6.92l10.13-9.9zm11.27 7.07 2.9-2.83-8.9-5.06a1 1 0 0 0-.5-.14zm0 5.66 -6.5 6.3a1 1 0 0 0 .5-.14l8.9-5.06zm1.4-1.37 3.5-1.99a1 1 0 0 0 0-1.74l-3.5-1.99-3.18 3.1z"/></svg><span><small>Notify me on</small><b>Google Play</b></span></span>
-    </div>
-    <div class="notify-widget">
-      <button type="button" class="notify-toggle" aria-expanded="false">Notify me</button>
-      <form class="notify-form" novalidate>
-        <input type="email" name="email" placeholder="you@email.com" autocomplete="email" required aria-label="Email address" />
-        <button type="submit">Submit</button>
-      </form>
-      <p class="notify-msg" role="status" aria-live="polite"></p>
-    </div>
-  </div>
-</section>
+<div id="shape-chrome-footer"></div>
 
-<footer class="ga-footer">
-  <div class="ga-footer-inner">
-    <div class="ga-footer-cta">
-      <img src="/shape-logo-black.png?v=2" alt="Shape" style="height:80px;width:auto;margin:0 auto;object-fit:contain;" />
-      <div class="ga-footer-tag">Join the community</div>
-    </div>
-    <div class="ga-footer-grid">
-      <div>
-        <div class="ga-footer-head">Product</div>
-        <a href="/newdesign/Marketplace.html">Marketplace</a>
-        <a href="/newdesign/GetApp.html">The app</a>
-        <a href="/newdesign/Score.html">Shape Score</a>
-        <a href="/newdesign/Store.html">Shape Store</a>
-        <a href="/newdesign/Radio.html">Radio</a>
-        <a href="/newdesign/Recipes.html">Shape Kitchen</a>
-        <a href="/newdesign/Client.html">For members</a>
-      </div>
-      <div>
-        <div class="ga-footer-head">For coaches</div>
-        <a href="/newdesign/Coaches.html">For coaches</a>
-        <a href="/newdesign/Coach.html">For trainers</a>
-        <a href="/newdesign/Nutritionist.html">For nutritionists</a>
-        <a href="/newdesign/SignupTrainer.html">Apply</a>
-        <a href="/newdesign/Pricing.html">Rates &amp; payouts</a>
-      </div>
-      <div>
-        <div class="ga-footer-head">Company</div>
-        <a href="/newdesign/About.html">About</a>
-        <a href="/newdesign/Pricing.html">Pricing</a>
-        <a href="/privacy.html">Privacy</a>
-        <a href="/terms.html">Terms</a>
-      </div>
-      <div>
-        <div class="ga-footer-head">Support</div>
-        <a href="/help.html">Help</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/code-of-conduct.html">Code of conduct</a>
-        <a href="/data-compliance.html">Data &amp; compliance</a>
-        <a href="/health-data-privacy.html">Consumer health data</a>
-        <a href="/subprocessors.html">Subprocessors</a>
-      </div>
-    
-    </div>
-    <div class="ga-footer-base">
-      <span>© 2026 SHAPE</span>
-    </div>
-  </div>
-</footer>
-
-<script>
-(function () {
-  var STEPS = [
-    { kind: "HOME",     title: "Today, at a glance.",         body: "The Shape Daily — calendar, calorie ledger, what's left to log, who's on the air. Skim it in five seconds, dive in if you want.", img: "/newdesign/getapp-home-v5.png?v=20260917", dark: true },
-    { kind: "TRAIN",    title: "Know what's coming.",          body: "Every move, set, and cue from your trainer — before you walk into the gym. Tap a move for video, note warmups, mark a substitute. No coach yet? Build your own week — starter templates and custom programs, coach optional.", img: "/newdesign/getapp-train-v3.png?v=20260910", dark: false },
-    { kind: "EAT",      title: "Macros, tallied live.",        body: "Daily meal plans from your nutritionist. The day's deficit (or surplus) ticks as you log. Swaps for travel days built in.", img: "/newdesign/getapp-nutri-v3.png?v=20260910", dark: false },
-    { kind: "GROCERY",  title: "List that builds itself.",     body: "Organized by aisle with a live running cost. Coach swaps land inline. One tap to send the whole list to Instacart.", img: "/newdesign/getapp-grocery-v2.png?v=20260910", dark: false },
-    { kind: "HABITS",   title: "Small things, tracked.",       body: "Tap to log. Earn Shape Score for every check. Pick friends to be notified when you miss — accountability without the guilt trip.", img: "/newdesign/getapp-habits-v1.png?v=20260910", dark: true },
-    { kind: "SCORE",    title: "One number that matters.",     body: "A five-tier ladder rewarding consistency across training, nutrition, and recovery. It only moves when you show up.", img: "/newdesign/getapp-score-v3.png?v=20260910", dark: true },
-    { kind: "PROFILE",  title: "A profile that's alive.",      body: "Your climb, your Shape Score, PRs and playlists — a living page that grows as you do. Make it public or keep it private; it's yours.", img: "/newdesign/getapp-profile-v2.png?v=20260911", dark: true },
-    { kind: "RADIO",    title: "Great music, included.",       body: "One live channel and the playlists your coaches put together, ad-free, right inside the app. Your membership covers it — nothing extra to buy.", img: "/newdesign/getapp-radio-v3.png?v=20260917", dark: true },
-    { kind: "COMMUNITY", title: "The social side of strong.",   body: "See who's training right now, ask the room a question, and answer someone else's. A live members' feed, channels for your people, and a thread straight to your coach turn solo workouts into a community — the energy of a gym floor, wherever you train.", img: "/newdesign/getapp-community-v2.png?v=20260911", dark: false },
-    { kind: "THE WALL", title: "Records, on the wall.",         body: "Every personal best — a lift, a run, a ride — lands on a board your people can see. A record carries the whole session under it: the top set, the heart rate you did it at, your coach's co-sign. It is the same feed your training already fills, read as records rather than posts.", img: "/newdesign/getapp-wall-v1.png?v=20260911b", dark: true }
-  ];
-
-  var i = 0;
-  var screenCrop = document.getElementById("screenCrop");
-  var phone = document.getElementById("phone");
-  var dotsWrap = document.getElementById("dots");
-  var prevBtn = document.getElementById("prevBtn");
-  var nextBtn = document.getElementById("nextBtn");
-  var stepNum = document.getElementById("stepNum");
-  var stepTotal = document.getElementById("stepTotal");
-  var stepKind = document.getElementById("stepKind");
-  var stepTitle = document.getElementById("stepTitle");
-  var stepBody = document.getElementById("stepBody");
-  var progressFill = document.getElementById("progressFill");
-  var imgs = [];
-
-  STEPS.forEach(function (s, idx) {
-    var im = document.createElement("img");
-    im.src = s.img;
-    im.alt = s.kind + " screen";
-    im.loading = idx === 0 ? "eager" : "lazy";
-    screenCrop.appendChild(im);
-    imgs.push(im);
-
-    var d = document.createElement("button");
-    d.className = "dot";
-    d.setAttribute("role", "tab");
-    d.setAttribute("aria-label", "Step " + (idx + 1) + ": " + s.kind);
-    d.addEventListener("click", function () { go(idx); });
-    dotsWrap.appendChild(d);
-  });
-  var dots = dotsWrap.querySelectorAll(".dot");
-  stepTotal.textContent = "/ " + String(STEPS.length).padStart(2, "0");
-
-  function render() {
-    var s = STEPS[i];
-    imgs.forEach(function (im, idx) { im.classList.toggle("on", idx === i); });
-    phone.classList.toggle("dark", !!s.dark);
-    stepNum.textContent = String(i + 1).padStart(2, "0");
-    stepKind.textContent = "· " + s.kind;
-    stepTitle.textContent = s.title;
-    stepBody.textContent = s.body;
-    dots.forEach(function (d, idx) {
-      d.classList.toggle("on", idx === i);
-      d.setAttribute("aria-selected", idx === i ? "true" : "false");
-    });
-    prevBtn.disabled = i === 0;
-    nextBtn.textContent = i === STEPS.length - 1 ? "Get the app →" : "Next →";
-    progressFill.style.width = ((i + 1) / STEPS.length * 100) + "%";
-  }
-
-  function go(n) {
-    if (n < 0 || n >= STEPS.length) return;
-    i = n;
-    render();
-  }
-
-  prevBtn.addEventListener("click", function () { go(i - 1); });
-  nextBtn.addEventListener("click", function () {
-    if (i === STEPS.length - 1) {
-      var notify = document.getElementById("notify");
-      if (notify) notify.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    go(i + 1);
-  });
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "ArrowRight") { if (i < STEPS.length - 1) go(i + 1); }
-    else if (e.key === "ArrowLeft") { go(i - 1); }
-  });
-
-  render();
-})();
+<script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260714d"></script>
+<script type="text/babel" data-presets="react">
+// The site's own chrome, in two roots of its own. <Header /> renders the fixed
+// 72px bar AND its own spacer, so <main> needs no offset; it also renders the
+// shell's stylesheet, which the reconciliation block above is written against.
+// ⚠ NEVER id="site-footer" on either root: that id was the retired auto-mount
+// opt-in that rendered twelve pages' footers twice, and tests/site-footer.test.mjs
+// asserts its absence on every page.
+ReactDOM.createRoot(document.getElementById("shape-chrome-header")).render(<Header active="App" />);
+ReactDOM.createRoot(document.getElementById("shape-chrome-footer")).render(<Footer />);
 </script>
 
 <script>
-  (function () {
-    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+(function () {
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  var widget = document.querySelector('.notify-widget');
+  if (!widget) return;
+  var form = widget.querySelector('.notify-form');
+  var email = widget.querySelector('input[name="email"]');
+  var platform = widget.querySelector('input[name="platform"]');
+  var submit = widget.querySelector('button[type="submit"]');
+  var msg = widget.querySelector('.notify-msg');
+  var toggle = widget.querySelector('.notify-toggle');
+  if (!form || !email || !platform || !submit || !msg || !toggle) return;
 
-    document.querySelectorAll('.notify-widget').forEach(function (widget) {
-      var form = widget.querySelector('.notify-form');
-      var input = widget.querySelector('input[name="email"]');
-      var btn = widget.querySelector('button[type="submit"]');
-      var msg = widget.querySelector('.notify-msg');
-      var toggle = widget.querySelector('.notify-toggle');
-      if (!form || !input || !btn || !msg || !toggle) return;
+  function openForm() {
+    form.classList.add('is-open');
+    toggle.classList.add('is-hidden');
+    toggle.setAttribute('aria-expanded', 'true');
+    setTimeout(function () { email.focus(); }, 30);
+  }
+  toggle.addEventListener('click', openForm);
 
-      function openForm() {
-        form.classList.add('is-open');
-        toggle.classList.add('is-hidden');
-        toggle.setAttribute('aria-expanded', 'true');
-        setTimeout(function () { input.focus(); }, 30);
-      }
-      toggle.addEventListener('click', openForm);
-
-      var section = widget.closest('#notify') || document;
-      section.querySelectorAll('.store-btn').forEach(function (b) {
-        b.addEventListener('click', openForm);
-        b.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openForm(); }
-        });
+  var chips = document.querySelectorAll('.chip[data-platform]');
+  Array.prototype.forEach.call(chips, function (chip) {
+    chip.addEventListener('click', function () {
+      platform.value = chip.getAttribute('data-platform') || '';
+      Array.prototype.forEach.call(chips, function (c) {
+        c.setAttribute('aria-pressed', String(c === chip));
       });
-
-      form.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        var email = (input.value || '').trim();
-        msg.className = 'notify-msg';
-        if (!EMAIL_RE.test(email)) {
-          msg.classList.add('err');
-          msg.textContent = 'Please enter a valid email.';
-          return;
-        }
-
-        var originalLabel = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = 'Saving...';
-
-        try {
-          var res = await fetch('/api/app-waitlist', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email, source: 'GetApp.html' })
-          });
-          if (!res.ok) {
-            var body = await res.json().catch(function () { return {}; });
-            msg.classList.add('err');
-            msg.textContent = body.error || 'Could not save your email. Please try again.';
-          } else {
-            msg.classList.add('ok');
-            msg.textContent = "You're on the list. We'll email you the day it is live";
-            input.value = '';
-          }
-        } catch (err) {
-          msg.classList.add('err');
-          msg.textContent = 'Network error. Please try again.';
-        } finally {
-          btn.disabled = false;
-          btn.textContent = originalLabel;
-        }
-      });
+      openForm();
     });
-  })();
+  });
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var addr = (email.value || '').trim();
+    msg.className = 'notify-msg';
+    if (!EMAIL_RE.test(addr)) {
+      msg.classList.add('err');
+      msg.textContent = 'Please enter a valid email.';
+      return;
+    }
+    var label = submit.textContent;
+    submit.disabled = true;
+    submit.textContent = 'Saving\u2026';
+    try {
+      var res = await fetch('/api/app-waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: addr, platform: platform.value, source: 'GetApp.html' })
+      });
+      if (!res.ok) {
+        var body = await res.json().catch(function () { return {}; });
+        msg.classList.add('err');
+        msg.textContent = body.error || 'Could not save your email. Please try again.';
+      } else {
+        msg.classList.add('ok');
+        msg.textContent = "You're on the list. We'll email you the day it is live.";
+        email.value = '';
+      }
+    } catch (err) {
+      msg.classList.add('err');
+      msg.textContent = 'Network error. Please try again.';
+    } finally {
+      submit.disabled = false;
+      submit.textContent = label;
+    }
+  });
+})();
 </script>
 
 <script src="globalChatButton.js?v=20260714c" defer></script>
