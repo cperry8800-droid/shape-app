@@ -86,6 +86,9 @@ function accents() {
   const missed = want.filter((k) => !(k in out));
   assert.deepEqual(missed, [],
     `the accent parser read ${Object.keys(out).length} of ${want.length} entries and silently skipped ${missed.join(', ')} — widen it rather than lowering the floor`);
+  // both ways — see the note in papers()
+  assert.deepEqual(Object.keys(out).sort(), [...want].sort(),
+    'the brace walk and the entry parser disagree about which accents exist');
   return out;
 }
 
@@ -139,6 +142,13 @@ function papers() {
   const missed = want.filter((k) => !(k in out));
   assert.deepEqual(missed, [],
     `the paper parser read ${Object.keys(out).length} of ${want.length} entries and silently skipped ${missed.join(', ')} — widen it rather than lowering the floor`);
+  // ⚠ AND THE COMPARISON RUNS BOTH WAYS, OR THE CONTROL CAN GO BLIND TOO. A
+  // `want` subset check passes vacuously when the brace walk UNDER-reports, and
+  // then the parser's blindness is unguarded again — the control controlling
+  // nothing. Equality means a walk that stopped early fails here rather than
+  // quietly shrinking the corpus both sides agree on.
+  assert.deepEqual(Object.keys(out).sort(), [...want].sort(),
+    'the brace walk and the entry parser disagree about which papers exist');
   return out;
 }
 
