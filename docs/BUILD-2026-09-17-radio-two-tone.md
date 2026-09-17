@@ -254,3 +254,22 @@ reaching the hot tone — the render drive in §6 is what catches this one, the 
 WORKLOG entry (the changelog comes after the PR, per the head of that file), the ⚠ marker on the
 2026-09-14 brief's §4/§7, and the pair table above copied into the WORKLOG entry so the next reader
 does not re-derive it.
+
+⚠ **CORRECTED 2026-09-17, BY THE REVIEW ROUND ON #2118 — THE LIGHTNESS STEP IS SIGNED BY THE
+PAPER, NOT FIXED.** This brief derived the partner with a fixed `+HOT_DL` (+0.0627), on the
+reading that amber "sits lighter than teal". That is a fact about **the wall's ground**, not
+about amber: on the wall the ground is near-black, so *lighter* and *further from the ground*
+are the same sentence — and they come apart the moment the paper is light, which this screen's
+paper frequently is (`BSRadioScreen` paints `t.PAPER`). Measured across all **18 papers × 9
+accents**, the fixed step put **14 pairs between 1.00:1 and 1.55:1**, every one of them a light
+paper on **Blue or Violet**, with **manila + violet at 1.00:1** — the loudest fifth of the
+instrument, the peak caps and the loud field dots drawn in the paper's own colour. `hotFor` takes
+the paper now and steps **away** from it, then walks on until it clears a floor; the worst pair in
+the matrix goes **1.00:1 → 3.03:1**. The hue rotation and the saturation are **untouched**, so the
+pair keeps the character the wall gave it and `hotFor('#34d6c5')` still returns `#e0a24a` byte for
+byte — only which way it steps is the paper's call. ⚠ **And the floor is capped by the base's own
+contrast**, because on the wall's ground the approved pair reads teal **10.8:1** and amber
+**8.8:1** — the hot tone is *already* the lower-contrast half, so demanding it beat a marginal base
+would invert the relationship the owner picked. That cap is a **measured no-op on today's tables**
+(11 pairs have a sub-3:1 base and every one of their partners already clears 5.9:1) and is
+labelled as one at the site rather than left to read as live.

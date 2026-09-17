@@ -288,6 +288,32 @@ const _A = rgbToHsl(hexToRgb(WEB_HOT));
 export const HOT_DH = _A[0] - _T[0];   // -138.5 degrees: the hue offset teal -> amber
 export const HOT_S = _A[1];            // 0.7075: amber's own saturation
 export const HOT_DL = _A[2] - _T[2];   // +0.0627: amber sits this much lighter
+                                       // FURTHER FROM THE GROUND than teal. The
+                                       // sign is a fact about the wall's ground,
+                                       // not about amber -- see HOT_PAPER below.
+
+// The wall's own ground (radioInstrument.jsx: RD_BG). `hotFor` defaults to it so
+// a paperless call still reproduces the website pair exactly; the app always
+// passes its own `t.PAPER`, which is a live theme value and is frequently light.
+export const HOT_PAPER = '#06090f';
+
+// The floor the hot tone must clear against the paper it is drawn on. 3:1 is
+// WCAG 1.4.11 for a non-text graphical object, which is what these marks are.
+// ⚠ IT IS CAPPED BY THE BASE'S OWN CONTRAST, AND THAT CAP IS NOT A SOFTENING --
+// IT IS WHAT KEEPS THE WEBSITE'S RELATIONSHIP INTACT. Measured on the wall's own
+// ground, teal reads 10.8:1 and amber 8.8:1, so the approved pair ALREADY draws
+// its hot tone at lower contrast than its base. Demanding that the hot tone beat
+// a base which is itself marginal would invert that relationship and make the
+// loud fifth louder than the instrument. So the hot tone is asked to clear 3:1,
+// or to match the base where even the base cannot -- never more.
+// ⚠ AND THE CAP IS A MEASURED NO-OP ON TODAY'S TABLES, LABELLED RATHER THAN LEFT
+// TO READ AS LIVE. Swept over all 18 papers x 9 accents, the base falls below
+// 3:1 on 11 chromatic pairs (manila/amber is the worst at 1.69:1) -- and on
+// every one of them the partner already clears 5.9:1 at the first step, so
+// capping the floor changes no output. It is kept because it states the rule
+// that stops a future low-contrast accent inverting the pair silently, not
+// because it is doing anything today.
+export const HOT_MIN_CONTRAST = 3;
 
 // ⚠ BELOW THIS SATURATION AN ACCENT HAS NO HUE TO ROTATE. The theme offers white
 // and black, and `makePalette` additionally flips any accent to #ffffff or
@@ -296,12 +322,39 @@ export const HOT_DL = _A[2] - _T[2];   // +0.0627: amber sits this much lighter
 // degrees produces the same grey and would read as the feature being broken.
 export const HOT_ACHROMATIC_S = 0.08;
 
-export function hotFor(accent) {
+function _lin(v) { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+function _lum(hex) { const rgb = hexToRgb(hex); if (!rgb) return 0; const [r, g, b] = rgb.map(_lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
+function _contrast(a, b) { const x = _lum(a); const y = _lum(b); const hi = Math.max(x, y); const lo = Math.min(x, y); return (hi + 0.05) / (lo + 0.05); }
+
+// ⚠ THE LIGHTNESS STEP IS SIGNED BY THE PAPER, NOT FIXED. HOT_DL is positive
+// because the wall's ground is near-black, so "amber sits lighter than teal"
+// and "amber sits FURTHER FROM THE GROUND than teal" are the same sentence
+// there -- and they come apart the moment the paper is light. Carried as a
+// fixed +0.0627 the partner steps TOWARDS a light paper: measured across all
+// 18 papers x 9 accents, that put 14 pairs between 1.00:1 and 1.55:1, every
+// one of them a light paper on Blue or Violet, with manila/violet landing on
+// 1.00:1 -- the loudest fifth of the instrument drawn in the paper's own
+// colour. The hue rotation and the saturation are untouched, so the pair keeps
+// the character the wall gave it; only which way it steps is the paper's call.
+export function hotFor(accent, paper = HOT_PAPER) {
   const rgb = hexToRgb(accent);
   if (!rgb) return accent;
   const [h, s, l] = rgbToHsl(rgb);
   if (s < HOT_ACHROMATIC_S) return accent;
-  return hslToHex([h + HOT_DH, HOT_S, Math.min(0.92, Math.max(0.08, l + HOT_DL))]);
+  const ground = hexToRgb(paper) ? paper : HOT_PAPER;
+  const away = rgbToHsl(hexToRgb(ground))[2] > 0.5 ? -1 : 1;
+  // Never asked to beat a base that is itself marginal -- see HOT_MIN_CONTRAST.
+  const floor = Math.min(_contrast(accent, ground), HOT_MIN_CONTRAST);
+  // Walk away from the paper and stop at the FIRST tone that clears the floor,
+  // so a pair that already reads is left where the wall's own offsets put it.
+  let out = null;
+  for (let step = 0; step <= 60; step++) {
+    const li = Math.min(0.96, Math.max(0.04, l + away * (HOT_DL + step * 0.015)));
+    out = hslToHex([h + HOT_DH, HOT_S, li]);
+    if (_contrast(out, ground) >= floor) return out;
+    if (li <= 0.04 || li >= 0.96) break;
+  }
+  return out;
 }
 
 // Where the hot tone goes. Every one of these is the website's own number, and

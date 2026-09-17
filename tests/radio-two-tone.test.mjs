@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs';
 import {
   hotFor, rgbToHsl, hexToRgb, hslToHex,
   WEB_TEAL, WEB_HOT, HOT_DH, HOT_S, HOT_DL, HOT_ACHROMATIC_S,
-  BAR_HOT_FRAC, FIELD_HOT_V, FLOOD_KICK,
+  BAR_HOT_FRAC, FIELD_HOT_V, FLOOD_KICK, HOT_PAPER, HOT_MIN_CONTRAST,
 } from '../public/newdesign/radioSignalField.mjs';
 import { WALL_FLOOD_KICK } from '../public/newdesign/radioField.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
@@ -85,6 +85,38 @@ function accents() {
   return out;
 }
 
+/** `makePalette`'s paper table, parsed out of the theme rather than named here. */
+function papers() {
+  const block = /const PAPERS = \{([\s\S]*?)\n  \};/.exec(THEME);
+  assert.ok(block, 'makePalette no longer declares a `PAPERS` table — this sweep is looking at nothing');
+  const out = {};
+  for (const m of block[1].matchAll(/(\w+)\s*:\s*\{ paper: '(#[0-9a-f]{6})'[^\n]*?light: (true|false)/gi)) {
+    out[m[1]] = { paper: m[2], light: m[3] === 'true' };
+  }
+  return out;
+}
+
+/** WCAG relative luminance + contrast, so the floor is measured, not eyeballed. */
+function lum(hex) {
+  const [r, g, b] = hexToRgb(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) {
+  const x = lum(a); const y = lum(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** What `makePalette` actually hands the Radio screen for a (paper, accent). */
+function baseFor(paper, pair) {
+  const base = paper.light ? pair.light : pair.dark;
+  // the palette's own mono flip — an accent that cannot clear the paper is
+  // replaced before the field ever sees it, so the sweep must apply it too.
+  return contrast(base, paper.paper) < 1.6 ? (paper.light ? '#000000' : '#ffffff') : base;
+}
+
 test('every accent the theme offers gets a partner, and the mono ones get none', () => {
   const A = accents();
   const keys = Object.keys(A);
@@ -119,13 +151,92 @@ test('every accent the theme offers gets a partner, and the mono ones get none',
       // three, because that is the pair the offsets were derived from. Anything
       // beyond these is the rule drifting rather than the hex rounding.
       assert.ok(Math.abs(s2 - HOT_S) < 0.01, `${name}.${mode}: the partner's saturation is ${s2.toFixed(4)}, not amber's ${HOT_S.toFixed(4)}`);
-      const wantL = Math.min(0.92, Math.max(0.08, l + HOT_DL));
-      assert.ok(Math.abs(l2 - wantL) < 0.005, `${name}.${mode}: the partner's lightness is ${l2.toFixed(3)}, not ${wantL.toFixed(3)}`);
+      // ⚠ THE LIGHTNESS IS THE PAPER'S CALL, SO THIS SWEEP PINS ONLY THE
+      // PAPERLESS DEFAULT — the wall's own dark ground, where the step is up.
+      // The paper-aware behaviour is swept over the real PAPERS table below;
+      // pinning `l + HOT_DL` here would have been the assertion that let a
+      // 1.00:1 partner ship on manila.
+      const wantL = Math.min(0.96, Math.max(0.04, l + HOT_DL));
+      assert.ok(l2 >= wantL - 0.005, `${name}.${mode}: the partner's lightness is ${l2.toFixed(3)}, below the wall's own ${wantL.toFixed(3)}`);
       // and the two tones are actually distinguishable
       assert.notEqual(hot.toLowerCase(), base.toLowerCase(), `${name}.${mode} produced the same colour twice`);
     }
   }
   assert.ok(chromatic >= 12, 'only ' + chromatic + ' chromatic accents were exercised — the sweep is not reaching the table');
+});
+
+// ── the paper the instrument is drawn on ─────────────────────────────────────
+// ⚠ THIS SWEEP EXISTS BECAUSE THE ONE ABOVE READ THE ACCENT TABLE IN ISOLATION.
+// The partner was derived with a FIXED +HOT_DL, which is only "away from the
+// ground" while the ground is dark — and this screen is theme-adaptive, so it is
+// frequently light. Measured across all 18 papers x 9 accents, that shipped 14
+// pairs between 1.00:1 and 1.55:1, every one a light paper on Blue or Violet,
+// with manila + violet landing on 1.00:1: the loudest fifth of the instrument,
+// the peak caps and the loud field dots drawn in the paper's own colour. Found
+// by review on 2026-09-17.
+test('on every paper the theme offers, the hot tone clears its floor', () => {
+  const P = papers(); const A = accents();
+  const pk = Object.keys(P); const ak = Object.keys(A);
+  assert.ok(pk.length >= 18, 'parsed only ' + pk.length + ' papers — the table parse stopped matching');
+  assert.ok(ak.length >= 9, 'parsed only ' + ak.length + ' accents — the table parse stopped matching');
+  assert.ok(pk.some((k) => P[k].light) && pk.some((k) => !P[k].light),
+    'the sweep reached only one kind of paper — the light ones are the whole point');
+
+  let worst = Infinity; let worstAt = '';
+  let chromatic = 0;
+  for (const [pname, paper] of Object.entries(P)) {
+    for (const [aname, pair] of Object.entries(A)) {
+      const base = baseFor(paper, pair);
+      const hot = hotFor(base, paper.paper);
+      const [, s] = rgbToHsl(hexToRgb(base));
+      if (s < HOT_ACHROMATIC_S) {
+        assert.equal(hot, base, `${pname}/${aname}: an achromatic base got a second tone`);
+        continue;
+      }
+      chromatic += 1;
+      const ch = contrast(hot, paper.paper);
+      // ⚠ THE FLOOR IS CAPPED BY THE BASE, AND THAT IS NOT SLACK. On the wall's
+      // own ground the approved pair reads teal 10.8 and amber 8.8, so the hot
+      // tone is ALREADY the lower-contrast half. Demanding it beat a base that
+      // is itself marginal would invert the relationship the owner picked.
+      const floor = Math.min(contrast(base, paper.paper), HOT_MIN_CONTRAST);
+      assert.ok(ch >= floor - 1e-9,
+        `${pname}/${aname}: base ${base} reads ${contrast(base, paper.paper).toFixed(2)}:1 and its partner ${hot} only ${ch.toFixed(2)}:1`);
+      if (ch < worst) { worst = ch; worstAt = `${pname}/${aname}`; }
+    }
+  }
+  assert.ok(chromatic >= 100, 'only ' + chromatic + ' pairs were exercised — the sweep is not reaching the tables');
+  // A measured backstop, so a rule that technically clears each cap but
+  // collapses the set cannot pass. Measured 3.03 on steel/rose at the fix.
+  assert.ok(worst >= 1.6, `the worst pair in the whole matrix is ${worstAt} at ${worst.toFixed(2)}:1`);
+});
+
+test('the partner steps AWAY from the paper, never towards it', () => {
+  // The one-line statement of the defect: on a light paper a fixed +HOT_DL
+  // walks the partner towards the ground it has to be read against.
+  const P = papers(); const A = accents();
+  for (const [pname, paper] of Object.entries(P)) {
+    const pl = rgbToHsl(hexToRgb(paper.paper))[2];
+    for (const [aname, pair] of Object.entries(A)) {
+      const base = baseFor(paper, pair);
+      const [, s, l] = rgbToHsl(hexToRgb(base));
+      if (s < HOT_ACHROMATIC_S) continue;
+      const [, , l2] = rgbToHsl(hexToRgb(hotFor(base, paper.paper)));
+      if (pl > 0.5) assert.ok(l2 <= l + 1e-9, `${pname}/${aname}: a light paper and the partner went LIGHTER (${l.toFixed(3)} -> ${l2.toFixed(3)})`);
+      else assert.ok(l2 >= l - 1e-9, `${pname}/${aname}: a dark paper and the partner went DARKER (${l.toFixed(3)} -> ${l2.toFixed(3)})`);
+    }
+  }
+});
+
+test('the paperless default is the wall\'s own ground', () => {
+  // So a call with no paper reproduces the website rather than guessing, and
+  // the app's own call site is the thing that has to supply the real one.
+  assert.equal(HOT_PAPER.toLowerCase(), decl(WEB, 'RD_BG', 'radioInstrument.jsx'),
+    'HOT_PAPER is not the wall\'s own RD_BG any more');
+  assert.equal(hotFor(WEB_TEAL), hotFor(WEB_TEAL, HOT_PAPER),
+    'the paperless default is not the wall\'s ground');
+  assert.equal(hotFor(WEB_TEAL, HOT_PAPER).toLowerCase(), WEB_HOT.toLowerCase(),
+    'the wall\'s own pair no longer reproduces on the wall\'s own ground');
 });
 
 test('a value that is not a colour passes through rather than throwing', () => {
@@ -135,6 +246,13 @@ test('a value that is not a colour passes through rather than throwing', () => {
   for (const junk of ['', 'rgba(1,2,3,0.5)', 'var(--x)', '#abc', 'nonsense', null, undefined, 0]) {
     assert.doesNotThrow(() => hotFor(junk), 'hotFor threw on ' + JSON.stringify(junk));
     assert.equal(hotFor(junk), junk, 'hotFor invented a colour for ' + JSON.stringify(junk));
+    // ⚠ AND THE SAME FOR THE PAPER, WHICH IS ALSO READ OFF A LIVE THEME. An
+    // unreadable ground must fall back to the wall's own, never to a light one:
+    // guessing light would step the partner the wrong way on every dark paper,
+    // which is the defect this whole sweep exists for, pointed backwards.
+    assert.doesNotThrow(() => hotFor(WEB_TEAL, junk), 'hotFor threw on a paper of ' + JSON.stringify(junk));
+    assert.equal(hotFor(WEB_TEAL, junk), hotFor(WEB_TEAL, HOT_PAPER),
+      'an unreadable paper did not fall back to the wall\'s own ground: ' + JSON.stringify(junk));
   }
 });
 
@@ -192,17 +310,24 @@ test('the instrument draws in two tones, and the hot one lands where the wall pu
 
 test('the hot tone is derived from the live accent and handed to the field', () => {
   // A correct derivation says nothing about whether anything uses it.
-  assert.match(APP, /const HOT = useMemoBR\(\(\) => hotFor\(TEAL\), \[TEAL\]\);/,
+  assert.match(APP, /const HOT = useMemoBR\(\(\) => hotFor\(TEAL, t\.PAPER\), \[TEAL, t\.PAPER\]\);/,
     'the Radio screen does not derive its hot tone from the accent');
   assert.match(APP, /const TEAL = t\.ACCENT;/, 'the base tone is no longer the Settings accent');
   assert.match(APP, /teal=\{TEAL\} hot=\{HOT\}/, 'the field is not handed the hot tone');
 
-  // ⚠ THE DEPS ARE THE POINT, NOT THE MEMO. `[TEAL]` is what makes the second
-  // half of the ask true: the Appearance picker recolours a still-mounted tree,
-  // so an empty dep array would freeze the hot tone at whatever the accent was
-  // when the page mounted and only the base tone would follow the picker.
+  // ⚠ THE DEPS ARE THE POINT, NOT THE MEMO. They are what make the second half
+  // of the ask true: the Appearance picker recolours a still-mounted tree, so a
+  // missing dep freezes the hot tone at whatever the theme was when the page
+  // mounted while the base tone goes on following the picker — one tone live
+  // and one stale, which is worse than either. BOTH the accent and the paper
+  // are deps: the accent sets the hue, and the paper decides which way the
+  // partner steps, so a paper change has to re-derive it too.
   const memo = /const HOT = useMemoBR\([^;]*\);/.exec(APP)[0];
-  assert.match(memo, /\[TEAL\]\)/, 'the hot tone is memoised without the accent in its deps — it would not follow the picker');
+  const deps = /\},?\s*\[([^\]]*)\]\)/.exec(memo);
+  assert.ok(deps || /,\s*\[([^\]]*)\]\)/.test(memo), 'the hot tone memo has no dep array at all');
+  const list = /\[([^\]]*)\]\)/.exec(memo)[1];
+  assert.match(list, /\bTEAL\b/, 'the hot tone is memoised without the accent in its deps — it would not follow the picker');
+  assert.match(list, /\bt\.PAPER\b/, 'the hot tone is memoised without the paper in its deps — it would not follow a paper change');
 
   // and the field reads both off the live ref, so a new pair lands next frame
   const body = fieldBody();

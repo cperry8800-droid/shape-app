@@ -2342,7 +2342,14 @@ function BSRadioScreen({ onBack }) {
   // setting (the Appearance picker recolours a still-mounted tree), and the field
   // reads its colours off liveRef every frame, so a new pair lands on the next
   // frame with nothing to rebuild.
-  const HOT = useMemoBR(() => hotFor(TEAL), [TEAL]);
+  // ⚠ THE PAPER IS AN ARGUMENT, NOT A DETAIL. The hot tone steps AWAY from the
+  // ground it is drawn on, and this screen is theme-adaptive (the block below
+  // paints `t.PAPER`), so a partner derived without it steps towards a light
+  // paper and fades into it — measured at 1.00:1 on manila + violet before this
+  // was passed. `t.PAPER` joins the deps for the same reason `TEAL` is in them:
+  // the Appearance picker changes the paper on a still-mounted tree, and the
+  // pair has to follow on that frame rather than on the next remount.
+  const HOT = useMemoBR(() => hotFor(TEAL, t.PAPER), [TEAL, t.PAPER]);
   // The heart's own colour — see the note at BS_HEART. It is deliberately NOT
   // the theme accent: the two rows have to be told apart at a glance.
   const HEART = BS_HEART;
