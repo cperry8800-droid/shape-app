@@ -130,38 +130,6 @@ function RadioShapeSets() {
 // Below the instrument
 // ---------------------------------------------------------------------------
 
-function RadioInApp() {
-  return (
-    <section style={{ padding: "96px 24px" }}>
-      <div className="rd-two" style={{ maxWidth: 1040, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "clamp(32px,4vw,72px)", alignItems: "center" }}>
-        <RdReveal>
-          <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: RD_TEAL, fontVariationSettings: "'ROND' 100" }}>In the app</div>
-          <h2 style={{ fontFamily: RD_DISP, fontWeight: 500, fontVariationSettings: "'wdth' 105", fontSize: "clamp(30px,3.4vw,46px)", letterSpacing: "-0.025em", lineHeight: 1.02, margin: "14px 0 0", color: RD_CREAM }}>
-            The same station, on your phone.
-          </h2>
-          <p style={{ fontFamily: RD_SANS, fontSize: 15.5, lineHeight: 1.6, color: "rgba(238,243,240,0.72)", maxWidth: 460, margin: "18px 0 0" }}>
-            Shape Radio is part of the Shape app, so what is playing here is what is
-            playing there. One membership covers both &mdash; nothing extra to set up and
-            nothing extra to pay.
-          </p>
-          <a href="/newdesign/GetApp.html" style={{ display: "inline-flex", alignItems: "center", height: 44, padding: "0 20px", marginTop: 26, background: RD_TEAL, color: "#04110f", fontFamily: RD_SANS, fontWeight: 700, fontSize: 14, textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" }}>
-            Get the app
-          </a>
-        </RdReveal>
-        <RdReveal delay={90}>
-          <div style={{ fontFamily: RD_NUM, fontWeight: 700, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(238,243,240,0.4)", fontVariationSettings: "'ROND' 100", marginBottom: 12 }}>On screen</div>
-          <p style={{ fontFamily: RD_SANS, fontSize: 14.5, lineHeight: 1.6, color: "rgba(238,243,240,0.62)", maxWidth: 420, margin: 0 }}>
-            While a track plays, the app draws it: a field of dots that moves with the
-            music and keeps time with the beat. Wear a heart-rate strap and you can put
-            your own pulse on screen beside it with <em style={{ fontStyle: "normal", color: RD_CREAM }}>Match my BPM</em> &mdash; there if
-            you want it, easy to ignore if you don&rsquo;t.
-          </p>
-        </RdReveal>
-      </div>
-    </section>
-  );
-}
-
 // ⚠ NORA'S BOOTH CAME OFF THE PLAYER THIS PAGE RETIRES. It is the one thing
 // /radio.html had that this page did not, so retiring that page without it would
 // have lost a shipped feature. The stage is `noraStage.mjs` — the same module the
@@ -353,14 +321,12 @@ function RadioPage() {
       <Header active="Radio" />
       <RadioInstrument />
       <div id="sets"><RadioShapeSets /></div>
-      <RadioInApp />
       <RadioNora />
       <RadioJoin />
       <Footer />
       <style>{`
         html, body { background: #06090f !important; }
         .radio-page ::selection { background: #34d6c5; color: #04110f; }
-        @media (max-width: 860px) { .rd-two { grid-template-columns: 1fr !important; } }
       `}</style>
     </div>
   );

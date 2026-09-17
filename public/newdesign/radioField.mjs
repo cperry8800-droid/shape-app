@@ -20,6 +20,20 @@
 // read off the analyser's own low bins, never off a section map, because a section
 // map would be typed in.
 
+// ⚠ THESE TWO IMPORTS CARRY NO `?v=` WHILE THE PAGE'S OWN DO, AND THAT IS WORTH
+// THE LINE BECAUSE IT LOOKS LIKE A HOLE IN THE CACHE-KEY STORY Radio.html TELLS.
+// The page imports all four modules under content hashes, so after a deploy a browser
+// fetches radioSignalField.mjs under a NEW url while this file goes on asking for the
+// bare one — and module identity is per-url, so the two do not share an instance:
+// the browser ends up holding a fresh copy for the page and possibly a cached copy for
+// this file. Measured rather than worried about: neither module declares a single
+// top-level `let` or `var` (0 in both), so both are pure functions over their
+// arguments and a second instance costs a fetch and nothing else. That is the property
+// that makes this harmless, and it is the property to re-check before adding any
+// module-level state to either file — at which point the two instances would hold
+// two different states and the bare imports would need keys of their own.
+// Pre-existing and byte-identical to the build before the wordmark anchor landed, so
+// it is registered here rather than changed under cover of a layout fix.
 import { ecg } from './radioSignalField.mjs';
 import { tempoEnergyFromBins } from './radioTempo.mjs';
 
@@ -428,6 +442,149 @@ export const WALL_MASK_MIN_COLS = 80;
 export const WALL_MASK_INK = 64;
 export function wallMaskText(cols) {
   return (Number.isFinite(cols) && cols >= WALL_MASK_MIN_COLS) ? 'SHAPE RADIO' : 'SHAPE';
+}
+
+// ⚠ AND THE WORDMARK IS THE SAME SIZE ON EVERY MONITOR, WHICH IT WAS NOT.
+// The mask is built at grid resolution and painted one tile per mask pixel, and its
+// font was fitted to a FRACTION of the grid — `rows * 0.42`, shrunk until the word
+// fitted `cols * 0.88`. Both fractions are OF THE GRID, and the grid tracks the
+// monitor, so the word grew with the screen. Measured on the real page:
+//
+//   fold 1280x533 -> 1120x128 px, 87.5% of the fold
+//   fold 1920x660 -> 1600x176 px, 83.3%
+//   fold 2560x660 -> 1696x176 px, 66.3%
+//   fold 3440x660 -> 1712x176 px, 49.8%
+//
+// Seven distinct sizes across those eight measured folds (1696x176 lands at both 2560
+// and 3840): 1120 -> 1712px absolute while COLLAPSING from 87.5% to 44.2% of the fold
+// at 4K, so it was neither the same size nor the same proportion. And it was
+// NON-MONOTONIC IN HEIGHT — a 660px-wide fold drew the word 128px tall and a WIDER
+// 756px one drew it 80px tall — because `wallMaskText` swaps 'SHAPE' for the longer
+// 'SHAPE RADIO' underneath the fitting loop, which then has to shrink to fit it. The
+// extent was a side effect of two integer divisions and a fitting loop rather than
+// anything anyone chose.
+//
+// ⚠ THE BUDGET IS A TILE COUNT, WHICH IS WHAT MAKES IT A SIZE RATHER THAN A RATIO.
+// Above the anchor the word is pixel-identical at every width; below it the fold's
+// own share still binds, so a phone shrinks it exactly as before instead of
+// overflowing. Measured after: 1120x128 at every desktop width from 1280 to 3840 —
+// ONE distinct size — and it shrinks with the fold below that: 1024, 756 and 354px
+// folds get progressively smaller words rather than an overflowing one.
+// ⚠ THAT CONSTANT IS ABOUT WIDTH AND CARRIES A HEIGHT CONDITION, which the first
+// draft of this paragraph left out: it holds for every fold at least 27 rows tall.
+// Below that only the `minHeight: 420` floor is left, and there the row fraction
+// binds instead and the word is 992x112 — see the note on `startCell`.
+//
+// ⚠ AND THE FIX IS HERE RATHER THAN IN THE GRID, WHICH IS THE TEMPTING PLACE.
+// Making `wallCols`/`wallRows` a fixed count with a derived tile size would make the
+// word constant and break four things that are right today: those two functions ARE
+// the renderer's zero-size guard (`if (!cols || !rows) return`), which would stop
+// firing and run a full nested loop plus a getImageData readback every frame on a
+// hidden fold; `WALL_MASK_MIN_COLS` is a column count standing in for a PHYSICAL
+// width (44 x 16 = 704px), so a constant count answers its question the same way on
+// a phone and a 4K; `WALL_METER_SPAN`'s 0.55 was measured against 41 rows; and
+// `TILE_PX` is the PITCH as well as the tile size at the one fillRect that draws the
+// wall, so a derived tile would leave the wall short of the fold or running off it.
+// The wall's own grain — TILE_GAP_PX / TILE_PX — is ALREADY a constant 25% at every
+// size, which is the very property this change is about. So the grid is untouched
+// and only the word is bounded.
+//
+// ⚠ 70 IS DERIVED FROM THE NARROWEST DESKTOP FOLD, NOT PICKED. For the budget to be
+// ONE number across the range it has to be no larger than the smallest fold's own
+// share: a 1280px fold is 80 columns, and 80 x 0.88 = 70.4. Above 70 the fold would
+// bind at 1280 and the anchor at 1440, which is two budgets — and the word would be
+// the same size at both only if the fitting loop happened to land on the same step.
+// It did: measured, 'SHAPE RADIO' is 76.24 mask cells at font 12 and 69.88 at 11, so
+// budgets of 70.4 and 76 both resolved to 11. That is a coincidence of the font
+// metrics, not a property of the design, and it would break the day the word or the
+// face changed. At 70 the anchor binds and the constancy is structural.
+//
+// ⚠ AND THE RANGE HAS TWO CONDITIONS, NOT ONE. A first draft of this paragraph stated
+// it as a width alone — "the same size on every fold at least 80 columns wide" — 25
+// lines below the paragraph that had already corrected it, so the file said two
+// opposite things about one number and the width-only sentence was the one a reader
+// looking for the range would land on. Both conditions, stated once:
+//
+//   WIDTH : at least 80 columns. 'SHAPE RADIO' at font 11 is 69.88 cells; the budget
+//           is min(70, cols x 0.88), so at 80 columns the fold's share is 70.4, the
+//           ANCHOR binds at 70, and 70 clears 69.88 by 0.12 of a cell. At 79 the
+//           fold's share is 69.52, which binds INSTEAD of the anchor and does not
+//           clear it — so the word drops a font step.
+//   HEIGHT: at least 27 rows, because the loop only ever shrinks and floor(rows x
+//           0.42) must start at or above 11 to reach it — see `startCell` below.
+//
+// ⚠ AND THE BAND BELOW 30 ROWS WAS NEVER SWEPT, WHICH IS A GAP IN THE VERIFICATION
+// RATHER THAN IN THE CODE. The fold is max(420, min(74vh, 660)), so rows 26-30 need a
+// viewport height of 568-647 — a window nothing in the original sweep used, because
+// its shortest viewport was 700 (fold 518, 32 rows). Measured afterwards, on this tree
+// and on a served copy of the pre-anchor build, at 1920 x vh 560/600/628/649/700:
+//
+//   fold  rows  font before/after   top gap b/a    bottom gap b/a
+//    420    26      10 / 10           14 / 14         -8 / -8      (pre-existing)
+//    444    27      11 / 11           -2 / -2         16 / 16      (pre-existing)
+//    465    29      12 / 11           30 / 14          5 / 21
+//    480    30      12 / 11           30 / 30         20 / 20
+//    518    32      13 / 11           30 / 46         42 / 42
+//
+// Two things follow, and they point opposite ways. (1) At 26 and 27 rows the wordmark
+// and the chrome TOUCH — a bottom overlap at 420 and a top one at 444, measured off
+// the mask rows; against the renderer's own painted rect (c*TILE_PX + 2, size
+// TILE_PX - TILE_GAP_PX) the same two read ~6px of overlap and exactly 0, i.e. meeting.
+// They are BIT-IDENTICAL on both builds, so they predate the anchor and are registered
+// here rather than fixed: fix what a change introduces, register what it does not.
+// (2) Where the anchor DOES bite, it helps. The font was stepping 10/11/12/13 across
+// this band and is a constant 11 from 27 rows up, and the tightest clearance at 29 rows
+// goes 5 → 14px. The anchor makes 28 and 29 rows AGREE where they differed before,
+// which is the thing that was asked for rather than a regression from it.
+//
+// ⚠ AND 80 COLUMNS IS A FOLD, NOT A WINDOW. The fold is the document content width,
+// so on a platform with classic scrollbars a 1280px WINDOW is a ~1265px fold — 79
+// columns — and lands one font step below. REGISTERED rather than tuned away: the
+// only lever is WALL_WORD_COL_FRAC, and raising it to cover 79 columns would be a
+// constant reverse-engineered from one advance width rather than derived from
+// anything. The band is [1264, 1280) fold pixels and costs one step (992x112 against
+// 1120x128); before this change the same word ran 1120 to 1712px across the desktop
+// range, so the residual is a 13% variation in a narrow band where it was 53%.
+export const WALL_WORD_MAX_COLS = 70;
+export const WALL_WORD_COL_FRAC = 0.88;  // the fold's own bound, below the anchor
+export const WALL_WORD_ROW_FRAC = 0.42;
+export function wallWordFit(cols, rows) {
+  const c = Number.isFinite(cols) && cols > 0 ? Math.floor(cols) : 0;
+  const r = Number.isFinite(rows) && rows > 0 ? Math.floor(rows) : 0;
+  return {
+    // ⚠ THE START IS UNBOUNDED, AND A FIRST DRAFT OF THIS COMMENT CLAIMED A CAP HERE
+    // WOULD BE A PROVEN NO-OP. THAT WAS FALSE AND THE MEASUREMENT IS WHAT SAID SO.
+    // The loop only ever shrinks, so on a fold tall enough to start ABOVE the step the
+    // width budget allows, the width decides and the start does not matter — that is
+    // every fold from 27 rows up, which is where the constant 1120x128 comes from. On
+    // a SHORTER fold the start is already below that step and the ROW fraction decides
+    // instead: measured, a 420px fold is 26 rows, starts at font 10, and 'SHAPE RADIO'
+    // is 63.53 cells there — inside the 70 budget, so it never shrinks and the word is
+    // 992x112 rather than 1120x128. That is the right answer for a fold with less room
+    // (a 128px word is 30% of a 420px fold against 19% of a 660px one), so the start is
+    // left free to do it. What is NOT true is that the width budget decides everywhere.
+    startCell: Math.max(1, Math.floor(r * WALL_WORD_ROW_FRAC)),
+    maxCols: Math.min(WALL_WORD_MAX_COLS, c * WALL_WORD_COL_FRAC),
+    // ⚠ SNAPPED TO A WHOLE COLUMN. The mask is sampled on integer columns, so a word
+    // centred on a half column rounds differently depending on whether `cols` is odd
+    // or even — measured, that alone moved the painted word between 1104 and 1120px
+    // across the desktop range, a one-tile jitter in a figure that is otherwise
+    // constant. Snapping it takes the desktop range to a single distinct size.
+    // ⚠ AND THE SNAP HAS ITS OWN COST, WHICH THIS COMMENT DID NOT NAME AND A REVIEW
+    // ROUND DID (Codex, #2113): it puts the word up to HALF A COLUMN off the middle,
+    // and one tile is 16px. Measured across 1280..3840 — worst offset from the fold's
+    // centre 8.0px, at W = 1296, where `cols` crosses 80 to 81 and the anchor steps a
+    // whole tile for one pixel of viewport. That is real and it is 0.71% of an 1120px
+    // word. The remedy is REFUSED on the measurement rather than on the reasoning:
+    // dropping the round takes the worst offset 8.0 -> 7.5px and the worst step
+    // 16 -> 8px, so it buys HALF A PIXEL of centring — and pays the 16px size jitter
+    // above for it, which is the one property this whole change exists to hold
+    // constant. A 16px swing in how BIG the word is reads; half a pixel of where it
+    // sits does not. The quantisation itself is not removable: the mask is one pixel
+    // per tile, so the word can only ever be placed on a 16px grid, and the choice is
+    // which of the two artifacts to spend — not whether to have one.
+    centreCol: Math.round(c / 2),
+  };
 }
 
 // A meter rises instantly and falls slowly, like the bars it is made of.

@@ -40,6 +40,24 @@ const RD_CREAM = "#eef3f0";
 const RD_CREAM50 = "rgba(238,243,240,0.55)";
 const RD_CREAM30 = "rgba(238,243,240,0.34)";
 
+// ⚠ THE FOLD WAS THE ONLY SECTION ON THIS PAGE WITH NO WIDTH BOUND, and on a wide
+// monitor that pulled its chrome to the corners and took it out of line with the
+// site above it. Its two blocks were pinned `left: 32, right: 32` against the
+// VIEWPORT, while the shared header centres its own content in 1440
+// (`pageShell.jsx`'s `.shape-header-inner`: maxWidth 1440, padding 0 32px) and every
+// other section here is bounded too (Shape Sets 860, Nora 760, Join 760). Measured
+// on the real page, the fold's wordmark sat 240px left of the header's logo at 1920,
+// 560px at 2560 and 1000px at 3440, and the deck and the strip ran from 712px apart
+// at 1280 to 2872px at 3440.
+//
+// RD_STAGE IS THAT SAME MEASURE RATHER THAN A NUMBER CHOSEN TO LOOK RIGHT, so the
+// fold and the header agree by construction instead of by coincidence — change one
+// and the guard in tests/radio-instrument-rules.test.mjs fails: it READS the header's
+// own maxWidth out of pageShell.jsx rather than restating it. Measured after: the
+// misalignment is 0 and the deck-to-strip gap a constant 872 at every width from
+// 1440 up, and below 1440 nothing moves at all.
+const RD_STAGE = 1440;
+
 const RD_REDUCED = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const RD_REDUCED_FPS = 4;   // the app's own reduced-motion cadence
 
@@ -52,7 +70,7 @@ const rdLib = () => {
   const S = typeof window !== "undefined" ? window.ShapeSignalField : null;
   const T = typeof window !== "undefined" ? window.ShapeRadioTempo : null;
   if (!F || !S || !T) return null;
-  if (!F.cloudForm || !F.leadTarget || !S.bandsFromBins || !T.createTempoDetector) return null;
+  if (!F.cloudForm || !F.leadTarget || !F.wallWordFit || !S.bandsFromBins || !T.createTempoDetector) return null;
   return { F, S, T };
 };
 
@@ -477,6 +495,23 @@ function rdMakeField(canvas, lib) {
   let mx = 0;
   let my = 0;
 
+  // ⚠ THE MASK IS MEMOISED ON THE GRID SIZE, SO A FONT THAT ARRIVES LATE IS NEVER
+  // ASKED ABOUT AGAIN. `buildMask` is called only when cols/rows change, the fold's
+  // height is fixed and its width is the viewport's — so on a cold load where the
+  // first frame beats Anybody over the wire, the word is fitted to the FALLBACK's
+  // metrics and its letterforms are baked into the mask for the life of the page.
+  // That caching predates this change; what the change does is make it cost more. The
+  // old budget was a fraction of the grid, so a wrong face still filled ~88% of the
+  // fold and merely looked slightly off; against a constant tile budget a wrong face
+  // costs whole font steps, and the documented 1120x128 silently is not what renders.
+  // Dropping the mask on `fonts.ready` re-derives it ONCE from the real metrics.
+  // Guarded because `document.fonts` is not universal, and a browser without it is
+  // exactly the one that was never going to swap the face anyway.
+  if (typeof document !== "undefined" && document.fonts && document.fonts.ready
+      && typeof document.fonts.ready.then === "function") {
+    document.fonts.ready.then(() => { mask = null; }).catch(() => {});
+  }
+
   canvas.addEventListener("pointermove", (e) => {
     const r = canvas.getBoundingClientRect();
     if (!r.width || !r.height) return;
@@ -512,16 +547,33 @@ function rdMakeField(canvas, lib) {
     c.fillStyle = "#000"; c.fillRect(0, 0, m.width, m.height);
     c.fillStyle = "#fff";
     const word = F.wallMaskText(mw);
-    // fs is carried in SUPERSAMPLED px and stepped a whole tile at a time, so the set
-    // of sizes this can choose is exactly the set it chose before.
-    let fs = Math.floor(mh * 0.42) * MASK_SS;
+    // ⚠ THE BUDGET COMES FROM THE RULES MODULE, NOT FROM THE GRID (#2113). The two
+    // fractions that used to live here — `mh * 0.42` and `mw * 0.88` — are fractions
+    // OF THE GRID, so the word grew with the monitor: 1120px wide at a 1280 fold and
+    // 1712px at 3440, while COLLAPSING from 87.5% of the fold to 44.2%. `wallWordFit`
+    // caps it at a tile count instead — see wallWordFit for both conditions and why
+    // each exists. The fitting loop stays here because only a canvas can measure text.
+    //
+    // ⚠ AND IT IS READ IN TILES WHILE THIS CANVAS IS SUPERSAMPLED, WHICH IS THE ONE
+    // THING THE TWO FIXES HAD TO AGREE ABOUT. Every value `wallWordFit` returns is a
+    // CELL or a COLUMN count; on a one-pixel-per-tile canvas those units coincide with
+    // px and nothing has to be scaled, which is why main reads them bare. Here a column
+    // is MASK_SS px, so each is scaled on the way into the context — miss one and the
+    // word is drawn an eighth of its budget wide, which still RENDERS and is simply the
+    // wrong size at every width, i.e. the defect both changes exist to remove.
+    //
+    // The step stays a whole tile (MASK_SS px), so the set of font sizes this can
+    // choose is exactly the set main chooses — supersampling changes how accurately a
+    // tile is measured, never which sizes are on offer.
+    const fit = F.wallWordFit(mw, mh);
+    let fs = fit.startCell * MASK_SS;
     c.font = `600 ${fs}px ${RD_DISP}`;
-    while (fs > 4 * MASK_SS && c.measureText(word).width > m.width * 0.88) {
+    while (fs > 4 * MASK_SS && c.measureText(word).width > fit.maxCols * MASK_SS) {
       fs -= MASK_SS;
       c.font = `600 ${fs}px ${RD_DISP}`;
     }
     c.textAlign = "center"; c.textBaseline = "middle";
-    c.fillText(word, m.width / 2, m.height * 0.46);
+    c.fillText(word, fit.centreCol * MASK_SS, mh * 0.46 * MASK_SS);
     const px = c.getImageData(0, 0, m.width, m.height).data;
     // One BYTE per tile now, not four: the draw loop wants coverage, not a colour.
     const cov = new Uint8Array(mw * mh);
@@ -562,6 +614,22 @@ function rdMakeField(canvas, lib) {
       meters[c] = F.meterNext(meters[c], v);
     }
     const litFull = sig.hasSig ? 0.25 + 0.55 * Math.min(1, (sig.rms || 0) * 2) : 0.14;
+    // ⚠ THE WORD READS THE BASS AT EVERY WIDTH, NOT WHATEVER BAND ITS COLUMN LANDS ON.
+    // `wallBand` stretches all 32 bands across the grid, so a word held at a constant ~70
+    // cells covers a DIFFERENT slice of the spectrum as the monitor widens — measured, bands
+    // 2..29 at 80 columns, 7..25 at 120, 11..20 at 240. A word tile only goes hot when its
+    // own column is near saturation (the word sits at 0.46 down, so `fromBottom` is ~0.54
+    // against a 0.55 span: meters[c] > 0.98), and bass reaches that on a kick where treble
+    // does not. So the WHOLE word flashed on a wide monitor and only its middle letters
+    // flashed on a narrow one: the hero still read differently per monitor in the one
+    // property a fixed bounding box cannot fix. The centre column IS the bass —
+    // `bandsFromBins` is already mirrored, so bands 15/16 both read bin 0 and wallBand puts
+    // them at the middle — so the word takes that meter at every width and lights as one
+    // mark. This is the WIDE-monitor behaviour adopted everywhere rather than a new one.
+    // ⚠ The ROW dependence is deliberately kept: `fromBottom` still decides, so the word
+    // fills from its baseline up exactly as it did. Only the column term is removed, and
+    // only for the word — the wall's own tiles are untouched and still read their own band.
+    const wordLevel = meters[Math.round((cols - 1) / 2)] * F.WALL_METER_SPAN;
     for (let r = 0; r < rows; r += 1) {
       for (let c = 0; c < cols; c += 1) {
         const lit = mask[r * mw + c] > F.WALL_MASK_INK;   // coverage, not a single sample
@@ -578,7 +646,7 @@ function rdMakeField(canvas, lib) {
         if (flood) { a = Math.max(a, kick * 0.8 * wmix.flood); col = RD_HOT; }
         if (lit) {
           a = Math.max(a, 0.14 + (litFull - 0.14) * wmix.mask);
-          if (on) col = RD_HOT;
+          if (fromBottom < wordLevel) col = RD_HOT;
         }
         ctx.fillStyle = rdRgba(col, Math.min(1, a));
         ctx.fillRect(c * F.TILE_PX + 2, r * F.TILE_PX + 2, F.TILE_PX - F.TILE_GAP_PX, F.TILE_PX - F.TILE_GAP_PX);
@@ -606,7 +674,19 @@ function rdMakeField(canvas, lib) {
     const ang = (RD_REDUCED ? 0 : Math.sin(t * 0.21) * 0.7) + mx * 0.9;
     const tilt = 0.48 + my * 0.5;
     const R = Math.min(W, H) * 0.36;
-    const cx = W * 0.62;
+    // ⚠ THE CLOUD IS THE ONE FIGURE THAT WAS STILL TRACKING THE VIEWPORT, and bounding
+    // the wordmark is what made that visible. Its RADIUS was already constant on any
+    // desktop fold — min(W, H) is the 660px height for every W above it, so R is 238
+    // at 1440 and at 3840 alike — but its CENTRE was `W * 0.62`, a fraction of the
+    // whole screen. Measured, that put it 154px right of the fold's middle at 1280 and
+    // 413px at 3440: the word stopped moving and the figure beside it did not, so the
+    // two drifted apart as the monitor widened. It is placed in the same stage the
+    // chrome and the word sit in now, so the composition is one thing at every width.
+    // ⚠ The 0.62 and 0.48 are UNCHANGED — this moves the box they are a fraction OF,
+    // not the fractions, so at 1440 and below the cloud lands exactly where it always
+    // did (min(W, RD_STAGE) is W there, and the offset is 0).
+    const stageW = Math.min(W, RD_STAGE);
+    const cx = (W - stageW) / 2 + stageW * 0.62;
     const cy = H * 0.48;
     const pts = [];
     const ca = Math.cos(ang); const sa = Math.sin(ang);
@@ -647,6 +727,56 @@ function rdMakeField(canvas, lib) {
     // FROM the bottom: the rows the deck and the Now block sit on are the brightest
     // on the wall, and at the symmetric ramp the type was legible only where the
     // spectrum happened to be quiet. Driven at 1440x900 and 390 before it moved.
+    //
+    // ⚠ AND THOSE TWO WIDTHS ARE THE ONES STAGING THE CHROME LEAVES ALONE, so the
+    // note above does not cover the worst case any more. `wallBand` STRETCHES the
+    // mirrored 32-band spectrum across the columns, so the fold's centre is the BASS
+    // and its edges the treble — and centring the chrome in a 1440 stage therefore
+    // marches the Now block toward the loudest column as the monitor widens. Driving
+    // the shipped `wallBand` on the deck's leftmost column at
+    // 1440/1680/1920/2560/3440/3840: it read band 1/1/1/0/0/0 before and reads
+    // 1/3/4/7/9/10 now. At 1440 and below nothing moves at all: min(W, RD_STAGE) is W,
+    // the auto margin is 0, and the padding is the same number the old inline rule used.
+    //
+    // ⚠ MEASURED RATHER THAN REASONED ABOUT, AND ON THE WEAKEST LINE. Contrast here is
+    // decided by the 14px RD_CREAM50 secondary line, not by the teal eyebrow above it,
+    // and it is a PER-PIXEL question — so the reading is the brightest backdrop pixel
+    // under that line's own box over 60 frames of the preview signal, composited at the
+    // text's own 0.55 alpha. (An earlier pass of mine fed the DECLARED colour to the
+    // luminance formula, which measures OPAQUE cream and reports ~13:1 on type that sits
+    // near 5:1. A contrast number taken without the alpha is a number for a colour
+    // nothing on the page paints.) A/B against a served copy of the pre-staging build:
+    //
+    //            1440    1920    2560    3440    3840
+    //   before   5.15    5.15    5.18    5.22    5.24
+    //   after    5.15    5.12    5.11    5.08    5.05      (AA floor 4.5)
+    //
+    // ⚠ SO IT IS REGISTERED, NOT FIXED, AND THE REASON IS THE SPREAD RATHER THAN THE
+    // FLOOR. AA holds at every width with 0.55 to spare at the worst. And the tempting
+    // severity argument — "it was constant across monitors and now grows with width" —
+    // does not survive the control: it ran 5.15 -> 5.24 BEFORE, a spread of 0.09,
+    // against 0.10 now. Same spread, opposite sign. Nothing width-dependent was
+    // introduced here.
+    //
+    // ⚠ AND THE TWO FIGURES REPRODUCE DIFFERENTLY, WHICH IS WORTH KNOWING BEFORE
+    // ANYONE RE-DERIVES THEM. The cream line is stable: 5.05 on five independent runs at
+    // 3840, and 5.24-5.27 on three of the control. The teal eyebrow is a sampled
+    // worst-case over a pulsing meter and moves run to run — ~8.9 → ~6.8 at 3840
+    // (measured 8.96/8.89/8.89 against 6.84/6.76/6.76/6.76/6.76). So quote the eyebrow as
+    // a range or not at all; an earlier draft of this note gave it as 6.93, which is
+    // outside everything five runs produced. It crosses AAA 7.0 either way, and this
+    // repo's documented bar is AA, which it clears by 2.3.
+    //
+    // ⚠ AND DO NOT RE-TUNE THESE STOPS TO CLOSE IT. This gradient is
+    // createLinearGradient(0, 0, 0, H) filled across the whole width: purely vertical,
+    // with no horizontal term at all. Darkening it dims the meters at EVERY column and
+    // EVERY width, including 1440 and below where the block has not moved — a vertical
+    // remedy for a horizontal problem, paid for site-wide, on the instrument that is
+    // the page's whole subject. A canvas scrim keyed to the staged x-range is worse
+    // still: a darker 1440-wide rectangle inside a 3840 fold is a visible vertical seam
+    // on exactly the monitors it would be meant to help. If it ever has to be closed,
+    // close it in the DOM with a wash bounded by the type itself, which travels with
+    // the block and is therefore the same at every width by construction.
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, "rgba(6,9,15,0.86)");
     g.addColorStop(0.2, "rgba(6,9,15,0)");
@@ -869,7 +999,7 @@ function RadioInstrument() {
   const eb = { fontFamily: RD_NUM, fontWeight: 700, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontVariationSettings: "'ROND' 100" };
 
   return (
-    <section style={{ padding: "96px 0 0" }}>
+    <section className="rd-hero" style={{ padding: "96px 0 0" }}>
       <div ref={wrapRef} className="rd-fold" style={{ position: "relative", height: "min(74vh, 660px)", minHeight: 420, background: RD_BG, overflow: "hidden" }}>
         <canvas ref={canvasRef} aria-hidden style={{ position: "absolute", inset: 0, display: "block" }} />
 
@@ -878,8 +1008,13 @@ function RadioInstrument() {
             the rail wraps: driven at 390 the rail's three items ran into the
             example-signal line and the mode label ran into the wordmark. Pinning the
             two BLOCKS and letting their contents flow puts the same layout at every
-            width and makes a collision unrepresentable rather than tuned away. */}
-        <div className="rd-top" style={{ position: "absolute", left: 32, right: 32, top: 26, display: "flex", flexDirection: "column", gap: 10 }}>
+            width and makes a collision unrepresentable rather than tuned away.
+            ⚠ AND THAT CLAIM WAS ONLY HALF TRUE UNTIL THE BLOCKS WERE STAGED. It holds
+            WITHIN each block; it did not hold BETWEEN them, because both were pinned to
+            the viewport — measured, the deck and the strip ran 712px apart at 1280 and
+            2872px at 3440, which is not the same layout at every width. RD_STAGE is
+            what makes the sentence true. */}
+        <div className="rd-top" style={{ position: "absolute", left: 0, right: 0, top: 26, maxWidth: RD_STAGE, margin: "0 auto", padding: "0 32px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <img src="/shape-radio-logo.png?v=3" alt="Shape Radio" className="rd-wm" style={{ height: 20, width: "auto", flex: "0 0 auto" }} />
             <div className="rd-mode" style={{ ...eb, color: RD_CREAM30, marginLeft: "auto" }}>{modeLabel}</div>
@@ -917,7 +1052,7 @@ function RadioInstrument() {
           )}
         </div>
 
-        <div className="rd-bottom" style={{ position: "absolute", left: 32, right: 32, bottom: 32, display: "flex", flexDirection: "column", gap: 20 }}>
+        <div className="rd-bottom" style={{ position: "absolute", left: 0, right: 0, bottom: 32, maxWidth: RD_STAGE, margin: "0 auto", padding: "0 32px", display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 20 }}>
             <div className="rd-now" style={{ minWidth: 0 }}>
               <div style={{ ...eb, color: RD_TEAL, marginBottom: 8 }}>Now playing</div>
@@ -950,8 +1085,14 @@ function RadioInstrument() {
                   Stop
                 </button>
               )}
+              {/* ⚠ 24px IS THE FLOOR, AND THESE TWO WERE 13. WCAG 2.5.8 AA, which is
+                  this repo's own documented number rather than Apple's 44pt
+                  suggestion. Both are anchors in the deck and both measured 13px
+                  tall at every viewport — the eyebrow style is 11px type with no
+                  padding, so the box was the line box. The minHeight is on an
+                  inline-flex box so the row's baseline does not move. */}
               {key === "signin" && (
-                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, color: RD_TEAL, textDecoration: "none" }}>Sign in to listen</a>
+                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, display: "inline-flex", alignItems: "center", minHeight: 24, color: RD_TEAL, textDecoration: "none" }}>Sign in to listen</a>
               )}
               {/* ⚠ A REFUSED ATTEMPT HAS TO SAY SO, OR THE FIX FOR THE ONE ABOVE
                   LEAVES A LIVE KEY THAT DOES NOTHING VISIBLE. The 401 line names
@@ -962,7 +1103,7 @@ function RadioInstrument() {
                   sign-in prompt: telling a signed-in member to sign in is #2005,
                   and telling a minor to is #2005 with the wrong remedy. */}
               {st.refusal === "signin" && key !== "signin" && (
-                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, color: RD_TEAL, textDecoration: "none" }}>
+                <a href="/newdesign/Login.html?next=%2Fnewdesign%2FRadio.html" style={{ ...eb, display: "inline-flex", alignItems: "center", minHeight: 24, color: RD_TEAL, textDecoration: "none" }}>
                   Couldn&rsquo;t start &mdash; sign in, or press again
                 </a>
               )}
@@ -990,10 +1131,38 @@ function RadioInstrument() {
       </div>
 
       <style>{`
+        /* ⚠ THE SHARED CHROME PUTS A MOBILE GUTTER ON EVERY <section>, AND THIS ONE IS
+           A FULL-BLEED HERO. pageShell.jsx pads section 22px at <=900 and 18px lower
+           still — deliberate, and right for the marketing sections it was written for
+           ("so content doesn't hug the edge"), which all carry an inline horizontal
+           padding of their own. This section carries a horizontal padding of ZERO precisely
+           because the wall is meant to reach both edges, and the rule overrode it:
+           measured at 900, the fold was 856px inside a 900px body, so the hero was
+           inset 22px while the fixed header — which is not in a <section> — was not,
+           and the wordmark sat 22px right of the header's logo with both gutters
+           already matching at 18. The rule is untouched for every other section on
+           every other page; this one opts out, and its own chrome keeps the gutter. */
+        .rd-hero { padding-left: 0 !important; padding-right: 0 !important; }
+
+        /* ⚠ THE HEADER'S GUTTER STEPS AND THE FOLD'S DID NOT, so staging the chrome
+           bought alignment only above 1100px — which is exactly where the sweep that
+           measured it ran. .shape-header-inner goes 32 -> 24 at <=1100 (pageShell.jsx)
+           and -> 18 at <=900, while these blocks carried a flat inline 32 and stepped
+           only at <=760. Measured on the real page: the fold's wordmark sat 8px right
+           of the header's logo at 1024 and 1100, and 36px right at 900. Mirroring the
+           header's own breakpoints is what makes "0 at every width" true rather than
+           true-where-it-was-looked-at. The <=760 block below owns top/bottom only; its
+           padding would be the same 18 this rule already set. */
+        @media (max-width: 1100px) {
+          .rd-top, .rd-bottom { padding: 0 24px !important; }
+        }
+        @media (max-width: 900px) {
+          .rd-top, .rd-bottom { padding: 0 18px !important; }
+        }
         @media (max-width: 760px) {
           .rd-fold { height: min(74vh, 560px) !important; }
-          .rd-top { left: 18px !important; right: 18px !important; top: 20px !important; }
-          .rd-bottom { left: 18px !important; right: 18px !important; bottom: 20px !important; }
+          .rd-top { top: 20px !important; }
+          .rd-bottom { bottom: 20px !important; }
           .rd-wm { height: 16px !important; }
           .rd-mode { margin-left: 0 !important; }
           .rd-rail { gap: 14px !important; font-size: 10px !important; }
