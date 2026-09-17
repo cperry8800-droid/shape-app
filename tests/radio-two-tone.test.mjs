@@ -82,7 +82,49 @@ function accents() {
   for (const m of block[1].matchAll(/(\w+)\s*:\s*\{\s*light:\s*'(#[0-9a-f]{6})'\s*,\s*dark:\s*'(#[0-9a-f]{6})'/gi)) {
     out[m[1]] = { light: m[2], dark: m[3] };
   }
+  const want = tableKeys(THEME, 'accents');
+  const missed = want.filter((k) => !(k in out));
+  assert.deepEqual(missed, [],
+    `the accent parser read ${Object.keys(out).length} of ${want.length} entries and silently skipped ${missed.join(', ')} — widen it rather than lowering the floor`);
   return out;
+}
+
+/**
+ * Every top-level key of a `const NAME = { ... }` table, found by walking braces
+ * rather than by the same regex that reads the entries.
+ * ⚠ THIS IS THE CONTROL FOR THE TWO PARSERS BELOW, AND IT IS THE POINT. A parser
+ * that reads entries with one narrow pattern goes quietly blind to an entry
+ * formatted any other way — across two lines, in double quotes, with a comment
+ * between the key and the brace — and a floor of `>= 18` still passes on today's
+ * table while the new paper is never exercised. So the entry parsers must
+ * account for EVERY key this finds, not merely for enough of them.
+ */
+function tableKeys(src, name) {
+  const at = src.indexOf('const ' + name + ' = {');
+  assert.ok(at >= 0, `${name} is no longer declared — this sweep is looking at nothing`);
+  const open = src.indexOf('{', at);
+  let depth = 0; let end = -1;
+  for (let i = open; i < src.length; i += 1) {
+    if (src[i] === '{') depth += 1;
+    else if (src[i] === '}') { depth -= 1; if (depth === 0) { end = i; break; } }
+  }
+  assert.ok(end > open, `${name}'s braces do not balance — the walk cannot be trusted`);
+  const body = src.slice(open + 1, end);
+  // top-level keys only: depth 0 within the body, `key:` followed by a value
+  const keys = []; depth = 0; let line = '';
+  for (let i = 0; i < body.length; i += 1) {
+    const c = body[i];
+    if (c === '{' || c === '[') depth += 1;
+    else if (c === '}' || c === ']') depth -= 1;
+    if (c === '\n') { line = ''; continue; }
+    line += c;
+    if (c === ':' && depth === 0) {
+      const m = /(?:^|[,{\s])['"]?([A-Za-z_$][\w$-]*)['"]?\s*:$/.exec(line);
+      if (m) keys.push(m[1]);
+    }
+  }
+  assert.ok(keys.length > 0, `${name} parsed to zero keys — the brace walk stopped matching`);
+  return keys;
 }
 
 /** `makePalette`'s paper table, parsed out of the theme rather than named here. */
@@ -93,6 +135,10 @@ function papers() {
   for (const m of block[1].matchAll(/(\w+)\s*:\s*\{ paper: '(#[0-9a-f]{6})'[^\n]*?light: (true|false)/gi)) {
     out[m[1]] = { paper: m[2], light: m[3] === 'true' };
   }
+  const want = tableKeys(THEME, 'PAPERS');
+  const missed = want.filter((k) => !(k in out));
+  assert.deepEqual(missed, [],
+    `the paper parser read ${Object.keys(out).length} of ${want.length} entries and silently skipped ${missed.join(', ')} — widen it rather than lowering the floor`);
   return out;
 }
 

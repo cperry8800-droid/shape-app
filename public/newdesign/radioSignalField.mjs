@@ -299,6 +299,23 @@ export const HOT_PAPER = '#06090f';
 
 // The floor the hot tone must clear against the paper it is drawn on. 3:1 is
 // WCAG 1.4.11 for a non-text graphical object, which is what these marks are.
+// ⚠ IT IS A FLOOR ON THE TONE, NOT ON EVERY RENDERED MARK, AND THE DIFFERENCE IS
+// WORTH THE LINES. Every draw site composites through `globalAlpha`, so what
+// lands on the paper is always softer than the tone: measured on steel + rose,
+// the peak cap at alpha 0.65 renders #5592ae at 2.02:1 rather than the tone's
+// 3.03:1. That is NOT a hole in this floor, because the alpha reduces BOTH tones
+// together -- the base at that same site renders 2.39:1 -- and the two are drawn
+// from ONE `globalAlpha` at the bar, which is the website's own top-fifth rule
+// and the placement that matters most. Compensating here for a per-site alpha
+// that is also dynamic (0.55 + 0.45 * level on the bar, 0.22 + 0.6 * kick on the
+// baseline) would push the hot tone past the base and INVERT the pair, which is
+// the one thing the cap below exists to prevent. The wall has the same property
+// on its own ground: at alpha 0.55 its approved amber renders 3.32:1 and its
+// teal 3.88:1. And the geometry helps rather than hurts -- the hot tip only
+// exists on a tall bar, a tall bar is a loud band, and the bar's alpha rises
+// with that same level, so the tip is drawn near alpha 1.0 exactly when it is
+// biggest. Raised by review on 2026-09-17; the mechanism is real, the remedy is
+// not, and the claim is what was wrong.
 // ⚠ IT IS CAPPED BY THE BASE'S OWN CONTRAST, AND THAT CAP IS NOT A SOFTENING --
 // IT IS WHAT KEEPS THE WEBSITE'S RELATIONSHIP INTACT. Measured on the wall's own
 // ground, teal reads 10.8:1 and amber 8.8:1, so the approved pair ALREADY draws
