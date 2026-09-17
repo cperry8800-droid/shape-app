@@ -215,10 +215,11 @@ test('every illustrative figure carries an example label', () => {
   // summit and in the journey dial. The other labels mark the captured screens,
   // the demo coach cast and the ON AIR chip as examples.
   //
-  // ⚠ A FOURTH LABEL SAT IN THE FOLD EYEBROW AND IS GONE on the owner's ruling
-  // (2026-09-17). The floor below is the vacuity check, and the four that remain
-  // are the two phone captures, the coach cast and the Radio card — it is not a
-  // claim about the SCORE, which is what the two assertions under it are for.
+  // ⚠ THE PAGE CARRIED FIVE AND NOW CARRIES FOUR: the fold eyebrow's chip is gone
+  // on the owner's ruling (2026-09-17). The floor below is the vacuity check, and
+  // the four that remain are the two phone captures, the coach cast and the Radio
+  // card — it is not a claim about the SCORE, which is what the two assertions
+  // under it are for.
   const labels = SRC.match(/class="exlabel"/g) || [];
   assert.ok(labels.length >= 4, `expected >= 4 example labels, found ${labels.length}`);
 
