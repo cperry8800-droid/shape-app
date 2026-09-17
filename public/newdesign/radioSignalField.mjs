@@ -216,6 +216,101 @@ export function fieldRadius(v, k) {
 }
 
 // ---------------------------------------------------------------------------
+// Colour — one accent in, two tones out.
+// ---------------------------------------------------------------------------
+//
+// ⚠ THE WEBSITE'S RADIO WALL DRAWS ONE INSTRUMENT IN TWO TONES, AND THE APP DREW
+// IT IN ONE. Owner, 2026-09-17, on a screenshot of each: "can you make the look
+// of shape radio on app match the colors on website ... i like the 2 different
+// color schemes", then "make sure when you adjust colors on the settings app in
+// still applies to the app on shape radio, both color sections".
+//
+// The website's rule, read from `public/newdesign/radioInstrument.jsx` rather
+// than remembered: a lit column is teal for its lower four fifths and a hot
+// amber for the top fifth (`col = fromBottom > level * 0.8 ? RD_HOT : RD_TEAL`),
+// the kick flood goes hot, and a cloud dot goes hot when its band passes 0.7.
+// Base tone below, hot tone on the peaks.
+//
+// The app's base tone is already the Settings accent, and it has to stay that —
+// the second half of the ask is that one picker still moves everything. So the
+// hot tone is DERIVED from the accent by the same move that turns the website's
+// teal into its amber: the same hue offset, amber's own saturation, the same
+// lightness step. On the default teal that reproduces the website exactly
+// (#34d6c5 -> #e0a24a, byte for byte — the offsets are derived FROM that pair,
+// so feeding teal back round-trips), and on every other accent it produces that
+// accent's own partner. One picker, two tones, no new preference and no
+// migration.
+export const WEB_TEAL = '#34d6c5';   // radioInstrument.jsx's RD_TEAL
+export const WEB_HOT = '#e0a24a';    // radioInstrument.jsx's RD_HOT
+// ⚠ Both are RE-READ from that file by tests/radio-two-tone.test.mjs rather than
+// compared against these copies, so the day the website repaints its wall this
+// fails instead of quietly drifting.
+
+export function hexToRgb(h) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(h).trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+export function rgbToHsl([r, g, b]) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b); const mn = Math.min(r, g, b);
+  const l = (mx + mn) / 2; const d = mx - mn;
+  if (d === 0) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h;
+  if (mx === r) h = ((g - b) / d) % 6;
+  else if (mx === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h *= 60; if (h < 0) h += 360;
+  return [h, s, l];
+}
+
+export function hslToHex([h, s, l]) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r; let g; let b;
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const to = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+const _T = rgbToHsl(hexToRgb(WEB_TEAL));
+const _A = rgbToHsl(hexToRgb(WEB_HOT));
+export const HOT_DH = _A[0] - _T[0];   // -138.5 degrees: the hue offset teal -> amber
+export const HOT_S = _A[1];            // 0.7075: amber's own saturation
+export const HOT_DL = _A[2] - _T[2];   // +0.0627: amber sits this much lighter
+
+// ⚠ BELOW THIS SATURATION AN ACCENT HAS NO HUE TO ROTATE. The theme offers white
+// and black, and `makePalette` additionally flips any accent to #ffffff or
+// #000000 when it would not clear the paper — for those the two-tone collapses
+// to one tone, which is what a mono theme is asking for. Rotating a grey by 138
+// degrees produces the same grey and would read as the feature being broken.
+export const HOT_ACHROMATIC_S = 0.08;
+
+export function hotFor(accent) {
+  const rgb = hexToRgb(accent);
+  if (!rgb) return accent;
+  const [h, s, l] = rgbToHsl(rgb);
+  if (s < HOT_ACHROMATIC_S) return accent;
+  return hslToHex([h + HOT_DH, HOT_S, Math.min(0.92, Math.max(0.08, l + HOT_DL))]);
+}
+
+// Where the hot tone goes. Every one of these is the website's own number, and
+// the guard re-reads each from the file it came out of.
+export const BAR_HOT_FRAC = 0.2;  // radioInstrument.jsx: `fromBottom > level * 0.8`
+export const FIELD_HOT_V = 0.7;   // radioInstrument.jsx: `v > 0.7 ? RD_HOT : RD_TEAL`
+export const FLOOD_KICK = 0.3;    // radioField.mjs: WALL_FLOOD_KICK
+
+// ---------------------------------------------------------------------------
 // The rows — one pen, two traces, three seconds of history.
 // ---------------------------------------------------------------------------
 

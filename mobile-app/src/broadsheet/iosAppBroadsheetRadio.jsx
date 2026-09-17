@@ -11,6 +11,7 @@ import {
   TIE_TOL_S, ties, bpmGap, inSync, gapText, lockStep,
   advanceHeart, trimBeats,
   previewBins, previewSimOn, PREVIEW_BINS,
+  hotFor, BAR_HOT_FRAC, FIELD_HOT_V, FLOOD_KICK,
 } from '../../../public/newdesign/radioSignalField.mjs';
 import {
   createTempoDetector, tempoEnergyFromBins, tempoBarStep, tempoBeatsBetween,
@@ -1478,7 +1479,7 @@ const SIGNAL_GRACE_S = 6;
 // asks for less motion is asking for less motion, not for a worse reading.
 const REDUCED_FPS = 4;
 
-function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, paper, figureRef, preview, onRead, onSignal, onRail }) {
+function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail }) {
   const wrapRef = useRefBR(null);
   const cvsRef = useRefBR(null);
   // The detector and every per-frame buffer live in refs: this loop runs at
@@ -1493,8 +1494,8 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
   const simBinsRef = useRefBR(null);
   const smRef = useRefBR(null);     // smoothed band values
   const pkRef = useRefBR(null);     // peak caps
-  const liveRef = useRefBR({ paused, matching, heartBpm, teal, heart, ink, paper, figureRef, preview, onRead, onSignal, onRail });
-  liveRef.current = { paused, matching, heartBpm, teal, heart, ink, paper, figureRef, preview, onRead, onSignal, onRail };
+  const liveRef = useRefBR({ paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail });
+  liveRef.current = { paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail };
   // The last tempo handed UP to React, so the loop can tell a change from a
   // repeat. See the guard in the frame body.
   const saidRef = useRefBR(undefined);
@@ -1791,10 +1792,15 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
       const cy = fig ? fig.y + fig.h * 0.5 : H * 0.52;
       const nBins = bins ? Math.min(BAND_BINS, bins.length) : BAND_BINS;
       ctx.save();
-      ctx.fillStyle = cfg.ink;
+      // ⚠ THE GROUND IS THE BASE TONE AND A LOUD BIN IS THE HOT ONE — the
+      // website's own cloud rule (`v > 0.7 ? RD_HOT : RD_TEAL`), on the field
+      // this page draws instead of a cloud. The alpha and the radius are
+      // untouched: the rest is still FIELD_REST_ALPHA, so a field with nothing
+      // on the air reads exactly as it did.
       for (let y = 7; y < H; y += 14) {
         for (let x = 7; x < W; x += 14) {
           const v = live ? Math.max(0, Math.min(1, (bins[fieldBin(Math.hypot(x - cx, y - cy), nBins)] || 0) / 255)) : 0;
+          ctx.fillStyle = v > FIELD_HOT_V ? cfg.hot : cfg.teal;
           ctx.globalAlpha = fieldAlpha(v, k);
           ctx.beginPath();
           ctx.arc(x, y, fieldRadius(v, k), 0, Math.PI * 2);
@@ -1895,10 +1901,13 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
           if (!pkRef.current || pkRef.current.length !== BANDS) pkRef.current = new Array(BANDS).fill(0);
           const sm = smRef.current;
           const pk = pkRef.current;
-          const grad = ctx.createLinearGradient(0, baseY - maxH, 0, baseY);
-          grad.addColorStop(0, cfg.ink);
-          grad.addColorStop(0.32, cfg.teal);
-          grad.addColorStop(1, cfg.teal);
+          // ⚠ TWO TONES, NOT A GRADIENT TO THE INK. The retired stack ran the
+          // bar from cream at its cap down to the accent — one tone with a
+          // highlight. The website's wall paints the top fifth of every lit
+          // column in the hot tone and the rest in the base one, which is the
+          // pair the owner asked for; BAR_HOT_FRAC is the COMPLEMENT of that
+          // rule's own 0.8 (`fromBottom > level * 0.8`), read out of
+          // radioInstrument.jsx rather than typed here.
           // ⚠ THE MIRROR IS IN THE BAND TABLE, NOT IN THE DRAWING, AND DOING IT
           // TWICE PUT THE BASS AT THE QUARTERS. `bandBin` reads
           // `|i − (BANDS/2 − 0.5)|`, so `bandsFromBins` already hands back an
@@ -1916,20 +1925,29 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
             const hCap = capped ? barHeight(pk[i], maxH) : 0;
             const x = band.x + i * bw + BAR_GAP / 2;
             ctx.globalAlpha = (1 - kx) * (0.55 + 0.45 * sm[i]);
-            ctx.fillStyle = grad;
-            ctx.fillRect(x, baseY - h, wBar, h);
-            // a soft reflection under the baseline — an echo, never a reading
+            const hHot = h * BAR_HOT_FRAC;
+            ctx.fillStyle = cfg.teal;
+            ctx.fillRect(x, baseY - (h - hHot), wBar, h - hHot);
+            ctx.fillStyle = cfg.hot;
+            ctx.fillRect(x, baseY - h, wBar, hHot);
+            // a soft reflection under the baseline — an echo, never a reading,
+            // so it takes the base tone rather than repeating the hot tip
             ctx.globalAlpha = (1 - kx) * 0.13;
+            ctx.fillStyle = cfg.teal;
             ctx.fillRect(x, baseY + 1.5, wBar, h * 0.42);
             if (capped) {
+              // the highest this band has been in the last second — a reading,
+              // and the hottest one the bar has, so it takes the hot tone
               ctx.globalAlpha = (1 - kx) * 0.65;
-              ctx.fillStyle = cfg.ink;
+              ctx.fillStyle = cfg.hot;
               ctx.fillRect(x, baseY - hCap - 2, wBar, 1.5);
             }
           }
-          // The station's own line, flashing on the beat it carries.
+          // The station's own line, flashing on the beat it carries — and going
+          // hot on a real kick, which is the website's flood rule
+          // (`kick > WALL_FLOOD_KICK`) on the one line this page has for it.
           ctx.globalAlpha = (1 - kx) * (0.22 + 0.6 * kick);
-          ctx.fillStyle = cfg.teal;
+          ctx.fillStyle = kick > FLOOD_KICK ? cfg.hot : cfg.teal;
           ctx.fillRect(band.x, baseY, band.w, 1);
         } else {
           // ⚠ NO SIGNAL → A DASHED FLAT LINE, NEVER A BAR. The same grammar the
@@ -1954,7 +1972,7 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, heart, ink, pape
         for (let b = 0; b < 4; b += 1) {
           const on = step4 === b;
           ctx.globalAlpha = (1 - kx) * (on ? 0.95 : 0.2);
-          ctx.fillStyle = on ? cfg.teal : cfg.ink;
+          ctx.fillStyle = on ? cfg.hot : cfg.teal;
           ctx.beginPath();
           // ⚠ CLEAR OF THE REFLECTION, WHICH IS WHY THIS IS A FRACTION OF THE
           // BOX AND NOT A CONSTANT. The reflection runs `h * 0.42` below the
@@ -2315,6 +2333,16 @@ function BSRadioScreen({ onBack }) {
   // colored highlights (kicker, italic "Radio.", EQ, beat ring, play button,
   // NEW pills, channel rules) recolor with the rest of the app.
   const TEAL = t.ACCENT;
+  // ⚠ DERIVED FROM THE ACCENT, NOT PICKED, WHICH IS THE SECOND HALF OF THE ASK:
+  // "make sure when you adjust colors on the settings app in still applies to
+  // the app on shape radio, both color sections". One Settings picker moves the
+  // base tone, and the hot tone follows it by the same move that turns the
+  // website's teal into its amber. Memoised because this component re-renders on
+  // every tempo read and the derivation parses a hex; `t.ACCENT` is a LIVE
+  // setting (the Appearance picker recolours a still-mounted tree), and the field
+  // reads its colours off liveRef every frame, so a new pair lands on the next
+  // frame with nothing to rebuild.
+  const HOT = useMemoBR(() => hotFor(TEAL), [TEAL]);
   // The heart's own colour — see the note at BS_HEART. It is deliberately NOT
   // the theme accent: the two rows have to be told apart at a glance.
   const HEART = BS_HEART;
@@ -2408,7 +2436,7 @@ function BSRadioScreen({ onBack }) {
             over a frame that carries no data. */}
         <BSRadioSignalField
           paused={r.paused} matching={matching} heartBpm={liveHr}
-          teal={TEAL} heart={HEART} ink={CREAM} paper={t.PAPER} figureRef={figureRef}
+          teal={TEAL} hot={HOT} heart={HEART} paper={t.PAPER} figureRef={figureRef}
           preview={previewSim}
           onRead={setTempoRead} onSignal={setHasSig} onRail={setRailLit}
         />

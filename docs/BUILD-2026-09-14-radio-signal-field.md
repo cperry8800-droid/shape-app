@@ -92,6 +92,18 @@ attack and a slow release — `sm[i] = raw > sm[i] ? raw : sm[i]·0.88 + raw·0.
 with the music and never jitter. A peak cap per band: `pk[i] = max(pk[i] − 0.011, sm[i])` per frame.
 Bar height `max(3, v·maxH)`; the cap is drawn only when it sits more than 4 px above its bar.
 
+⚠ **CORRECTED 2026-09-17 — THE SPECTRUM IS TWO TONES, NOT ONE.** As built, a bar was one colour
+under a gradient whose top stop was the page's ink, and the cap and the beat counter were ink too. On
+the owner's note (*"make the look of shape radio on app match the colors on website ... i like the 2
+different color schemes"*) the bars carry the website wall's own pair: the body in `t.ACCENT` and the
+**top `BAR_HOT_FRAC` (0.2)** in a hot partner tone, with the peak cap hot, the beat counter hot on its
+lit beat, the field's dots hot past `FIELD_HOT_V` (0.7) and the baseline flooding hot past
+`FLOOD_KICK` (0.3). ⚠ **The hot tone is DERIVED from the accent, never stored** — `hotFor()` in
+`radioSignalField.mjs` carries the hue, saturation and lightness offsets measured off the website's own
+`#34d6c5 → #e0a24a` pair, so the ONE Settings accent picker moves both tones (the owner's second note:
+*"when you adjust colors on the settings app ... both color sections"*). A second stored preference
+would have been a second thing to keep in step. The canvas gradient is gone; two `fillRect`s replace it.
+
 **The field.** A grid of dots (in the board: 16 × 34 on a 23.4 × 24 px pitch, from 12 px). Each dot
 reads the bin at `floor(min(1, dist(dot, centre) / 430) · 63)` — bass at the centre, air at the edges.
 Alpha `(0.07 + 0.6·v) · fieldK`, radius `0.8 + 1.9·v·fieldK`, where
