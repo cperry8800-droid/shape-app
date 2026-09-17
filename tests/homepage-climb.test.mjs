@@ -31,20 +31,21 @@ function radioSection(html) {
   return m ? m[0] : '';
 }
 
-/** The `.air` card itself, matched by walking div depth from its opening tag.
+/** The whole element opened by the first match of `openRe`, found by counting
+ *  nested tags of the SAME name.
  *
- *  ⚠ THE SECTION IS TOO WIDE A SCOPE FOR THIS — CodeRabbit, #2045. The section
- *  holds a text column as well as the card, so asserting "somewhere in #radio
- *  there is an exlabel" is satisfied by a label sitting beside the headline
- *  while `.air` carries an unlabelled ON AIR chip. The label has to be bound to
- *  the thing it labels, which means matching the card, which means counting
- *  nested divs rather than reaching for a lazy `[\s\S]*?</div>`. */
-function airCard(html) {
-  // ⚠ READS THE TAG NAME rather than assuming a div. The card became an <a> when
-  // the whole box was made a link to Radio, and a matcher hard-coded to <div>
-  // returns '' for it — which this file's own assertion would report as "no .air
-  // card found", i.e. the guard failing for a reason that is about the guard.
-  const open = /<(\w+)[^>]*class="[^"]*\bair\b[^"]*"[^>]*>/.exec(html);
+ *  ⚠ A LAZY `[\s\S]*?</div>` CANNOT DO THIS, and both callers below are the
+ *  reason: each holds SIBLING divs, so the first `</div>` closes an inner one and
+ *  the fragment ends BEFORE the label the assertion is about — i.e. the guard
+ *  fails on correct code. The summit block is the sharp case: `.sc` (the figure)
+ *  and `.lb` (its caption) are siblings, in that order.
+ *
+ *  ⚠ READS THE TAG NAME rather than assuming a div. The Radio card became an <a>
+ *  when the whole box was made a link to Radio, and a matcher hard-coded to <div>
+ *  returns '' for it — which this file's own assertion would report as "no .air
+ *  card found", i.e. the guard failing for a reason that is about the guard. */
+function element(html, openRe) {
+  const open = openRe.exec(html);
   if (!open) return '';
   const el = open[1];
   const start = open.index;
@@ -59,6 +60,18 @@ function airCard(html) {
   }
   return '';
 }
+
+/** The `.air` card itself — see `element` for why the depth walk is not optional.
+ *
+ *  ⚠ THE SECTION IS TOO WIDE A SCOPE FOR THIS — CodeRabbit, #2045. The section
+ *  holds a text column as well as the card, so asserting "somewhere in #radio
+ *  there is an exlabel" is satisfied by a label sitting beside the headline
+ *  while `.air` carries an unlabelled ON AIR chip. The label has to be bound to
+ *  the thing it labels, which means matching the card. */
+const airCard = (html) => element(html, /<(\w+)[^>]*class="[^"]*\bair\b[^"]*"[^>]*>/);
+
+/** The fold's summit block: the flag, the counting figure and its caption. */
+const summitBlock = (html) => element(html, /<(\w+)[^>]*id="summit"[^>]*>/);
 
 test('an ON AIR chip on the homepage is labelled as an example', () => {
   // ⚠ THE RULE IS NOT "NEVER SAY ON AIR" — IT IS "NEVER CLAIM IT UNLABELLED".
@@ -198,17 +211,44 @@ test('phones get the homepage — no width redirect', () => {
 });
 
 test('every illustrative figure carries an example label', () => {
-  // The score is a picture of the idea, not a reading. It appears in the fold
-  // eyebrow, at the summit and in the journey dial. The other labels mark the
-  // captured screens and the demo coach cast as examples.
+  // The score is a picture of the idea, not a reading. It is labelled at the
+  // summit and in the journey dial. The other labels mark the captured screens,
+  // the demo coach cast and the ON AIR chip as examples.
+  //
+  // ⚠ THE PAGE CARRIED FIVE AND NOW CARRIES FOUR: the fold eyebrow's chip is gone
+  // on the owner's ruling (2026-09-17). The floor below is the vacuity check, and
+  // the four that remain are the two phone captures, the coach cast and the Radio
+  // card — it is not a claim about the SCORE, which is what the two assertions
+  // under it are for.
   const labels = SRC.match(/class="exlabel"/g) || [];
   assert.ok(labels.length >= 4, `expected >= 4 example labels, found ${labels.length}`);
 
   // the demo coach cast says what it is
   assert.match(visibleText(SRC), /Example profiles until real ones render/);
-  // the summit names itself
-  assert.match(visibleText(SRC), /Shape Score\s*·\s*example/i);
-  // and the canvas figure does too, in the one place a label cannot be markup
+
+  // ⚠ THE SUMMIT CAPTION IS BOUND TO THE SUMMIT BLOCK, NOT TO THE PAGE. With the
+  // eyebrow chip gone this caption is the ONLY label the fold's drawn score has,
+  // so a page-wide `visibleText(SRC)` match is no longer good enough: it would be
+  // satisfied by the words turning up anywhere — a footer line, another
+  // section, a caption moved off the figure — while the counting number itself
+  // sat unlabelled. The label has to be in the same block as the figure, which is
+  // the lesson the ON AIR guard in this file already paid for.
+  const summit = summitBlock(SRC);
+  assert.ok(summit, 'no #summit block found — the scan is broken, not the page');
+  assert.match(
+    summit,
+    /id="summit-score"/,
+    'the summit block no longer holds the counting figure — the walk is broken, so a ' +
+      'caption in it would not be labelling the score at all',
+  );
+  assert.match(
+    visibleText(summit),
+    /Shape Score\s*·\s*example/i,
+    "the fold's drawn score has no example label of its own — it is a figure nobody " +
+      'measured, and the eyebrow chip that used to say so is gone',
+  );
+
+  // and the journey dial does too, in the one place a label cannot be markup
   assert.match(SRC, /SHAPE SCORE · EXAMPLE/);
 });
 

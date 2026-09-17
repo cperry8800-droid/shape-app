@@ -681,7 +681,6 @@
   <div class="hcopy">
     <div class="eyb">
       <span class="eb">Your climb · Shape Score</span>
-      <span class="exlabel">Example</span>
     </div>
     <h1><span class="w">Different</span> <span class="w">goals.</span><br><span class="w">One</span> <span class="w"><em>community.</em></span></h1>
     <p class="sub">Vetted trainers and nutritionists, one app for the whole loop, and a score that climbs as you do.</p>
@@ -691,7 +690,11 @@
     </div>
   </div>
 
-  <!-- the flag is the mark; the figure is labelled an example above -->
+  <!-- The flag is the mark. The figure carries its own "Shape Score · example"
+       caption directly beneath it, and since the eyebrow's Example chip came out
+       (owner, 2026-09-17) that caption is the ONLY label the fold's drawn score
+       has — so it is load-bearing rather than decoration. Guarded, bound to this
+       block, by tests/homepage-climb.test.mjs. -->
   <div class="summit" id="summit" aria-hidden="true">
     <svg class="flag" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="#eef3f0"/></svg>
     <div class="sc" id="summit-score">0</div>
@@ -937,9 +940,13 @@
    counts with it. The terrain is the same drawing every member profile already
    makes — that is the whole reason this direction is Shape's and not anyone's.
 
-   ⚠ THE SCORE IS LABELLED AN EXAMPLE IN THREE PLACES (the fold eyebrow, the
-   summit label, and the score's own caption further down). It is a picture of
-   the idea, not a reading, and nothing on this page may present it as one. */
+   ⚠ THE SCORE IS LABELLED AN EXAMPLE WHERE THE FIGURE IS — the summit caption
+   under the counting number, and the journey dial's own canvas caption. It is a
+   picture of the idea, not a reading, and nothing on this page may present it as
+   one. ⚠ A THIRD label sat in the fold EYEBROW and is gone on the owner's ruling
+   (2026-09-17): the eyebrow names the subject, not a figure, so the chip was
+   labelling a heading rather than a number, and the number it was about is
+   captioned two lines below. The caption is what may NOT be removed. */
 (function(){
   var cv=document.getElementById('terrain'); if(!cv||!cv.getContext) return;
   var hero=document.getElementById('hero'), summit=document.getElementById('summit'),
