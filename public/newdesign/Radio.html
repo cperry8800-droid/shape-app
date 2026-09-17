@@ -38,7 +38,11 @@
 <div id="root"></div>
 <script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
 <script src="/supabase.js"></script>
-<script type="module">import * as NS from "/newdesign/noraSets.mjs?v=20260719"; window.ShapeSetsLib = NS;</script>
+<!-- content-hashed for the reason spelled out on the radio-module tag below: the
+     build versions text/babel tags only, so a dated key on a module import goes
+     stale in silence. RdSetsComingUp in radio.jsx guards BOTH of this module's
+     exports precisely because of that (#1772), which is the hazard, not the fix. -->
+<script type="module">import * as NS from "/newdesign/noraSets.mjs?v=85e91f8da4"; window.ShapeSetsLib = NS;</script>
 <!-- ⚠ THE APP'S OWN MODULES, IMPORTED RATHER THAN PORTED. radioSignalField.mjs and
      radioTempo.mjs are the files iosAppBroadsheetRadio.jsx draws the Signal Field
      from; they are canonical here and the app imports them across the tree, so the
@@ -47,10 +51,26 @@
      pattern one line up. Module scripts and deferred classic scripts run in document
      order, so these are set before the page mounts; radioInstrument.jsx guards for
      their absence anyway and draws the rest state. -->
+<!-- ⚠ THESE THREE CACHE KEYS ARE CONTENT HASHES, AND THAT IS A FIX RATHER THAN A
+     STYLE. `scripts/build-newdesign.mjs` rewrites text/babel tags ONLY — its
+     BABEL_TAG pattern matches that type and no other — so every .jsx on this page
+     ships under a content-hashed `nd/<name>?v=<hash>` URL and is re-fetched the
+     moment it changes, while a module import keeps whatever
+     `?v=` a human last typed. A dated key therefore goes stale silently: edit a module
+     without touching the date and a returning browser pairs the NEW instrument with
+     its OWN CACHED COPY of the OLD module.
+     That is not hypothetical here. `rdLib` requires `F.wallWordFit`, which exists only
+     in the new radioField.mjs; against a cached old one the guard correctly returns
+     null, the field effect bails, and the hero renders its chrome over an empty black
+     canvas. It is the module-cache lesson radio.jsx's own RdSetsComingUp comment cites
+     from #1772, one tag over.
+     The keys are the first 10 hex of each file's sha256, and
+     tests/radio-module-cache-keys.test.mjs recomputes them from the bytes — so a
+     module edited without a re-hash FAILS rather than shipping a stale pairing. -->
 <script type="module">
-  import * as SF from "/newdesign/radioSignalField.mjs?v=20260915";
-  import * as TD from "/newdesign/radioTempo.mjs?v=20260915";
-  import * as RF from "/newdesign/radioField.mjs?v=20260915";
+  import * as SF from "/newdesign/radioSignalField.mjs?v=f82d5f003a";
+  import * as TD from "/newdesign/radioTempo.mjs?v=081af8cfe9";
+  import * as RF from "/newdesign/radioField.mjs?v=bfa4c26e64";
   window.ShapeSignalField = SF; window.ShapeRadioTempo = TD; window.ShapeRadioField = RF;
 </script>
 <script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260714d"></script>

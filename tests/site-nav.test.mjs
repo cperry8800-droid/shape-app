@@ -263,6 +263,53 @@ test('the shared header\'s stylesheet is ONE template literal, not an expression
     'which parses, builds and tests green and throws at render');
 });
 
+// ⚠ AND THE GUARD ABOVE COVERED ONE FILE WHILE THE HAZARD IS EVERY FILE. It read
+// pageShell.jsx alone — the page that paid for it — so a backtick in a CSS comment in
+// any other newdesign module was still free to close its template literal. Measured
+// while writing radioInstrument.jsx's own <style>: TWO comments in one change did it,
+// once quoting a CSS selector and once a property. Both happened to produce INVALID
+// JavaScript, so the JSX parse-check caught them; pageShell's produced VALID JavaScript
+// and reached a browser with ~70 pages' chrome gone. Which of the two you get is a
+// property of the words you were quoting, not of the mistake.
+//
+// So the sweep is derived from the directory rather than from a list of files.
+test('no newdesign stylesheet is an expression around a literal, in any module', async () => {
+  const { parse } = await import('@babel/parser');
+  const { readdirSync } = await import('node:fs');
+  const files = readdirSync(ND).filter((f) => f.endsWith('.jsx'));
+  assert.ok(files.length > 20, `found ${files.length} newdesign .jsx files — this sweep has stopped reading the directory`);
+
+  let seen = 0;
+  const bad = [];
+  for (const f of files) {
+    const src = readFileSync(`${ND}/${f}`, 'utf8');
+    let ast;
+    try { ast = parse(src, { sourceType: 'module', plugins: ['jsx'] }); }
+    catch (e) { bad.push(`${f}: does not parse (${String(e.message).slice(0, 70)})`); continue; }
+    (function walk(node) {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) return node.forEach(walk);
+      if (node.type === 'JSXElement' && node.openingElement.name && node.openingElement.name.name === 'style') {
+        for (const c of node.children) {
+          if (c.type !== 'JSXExpressionContainer') continue;
+          seen += 1;
+          // A plain literal is safe — dashToday.jsx legitimately passes a StringLiteral.
+          // What a stray backtick produces is an EXPRESSION built from one.
+          if (c.expression.type !== 'TemplateLiteral' && c.expression.type !== 'StringLiteral') {
+            bad.push(`${f}: a <style> child is ${c.expression.type}`);
+          }
+        }
+      }
+      for (const k of Object.keys(node)) if (!k.startsWith('loc') && !k.endsWith('Comments')) walk(node[k]);
+    })(ast.program);
+  }
+  // vacuity floor: a walk that stops finding <style> children asserts nothing
+  assert.ok(seen >= 15, `found only ${seen} <style> expression children across ${files.length} modules — this sweep has gone blind`);
+  assert.deepEqual(bad, [],
+    'a newdesign stylesheet is an expression rather than a plain literal — almost certainly a backtick inside one of its ' +
+    'CSS comments, which can parse, build and test green and then throw at render:\n  ' + bad.join('\n  '));
+});
+
 // ── 2 · signed in, the row is the essentials ────────────────────────────────
 // Owner: "for signed in dont say workouts and nutritionists for client. its
 // repetitive… just have coaches", and "all of those tabs on nav are on the

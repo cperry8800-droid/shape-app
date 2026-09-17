@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse } from '@babel/parser';
 import { stripComments } from './helpers/strip-comments.mjs';
+import { wallBand, wallWordFit, WALL_METER_SPAN } from '../public/newdesign/radioField.mjs';
 
 const SRC = readFileSync(new URL('../public/newdesign/radioInstrument.jsx', import.meta.url), 'utf8');
 const BARE = stripComments(SRC);
@@ -77,6 +78,224 @@ const exitsOwnScope = (node) => ownScopeExits(node).length > 0;
 function functionsOf(root) {
   return collect(root, (n) => n.type === 'FunctionDeclaration' || n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression');
 }
+
+
+// ── the fold sits in the site's own measure ────────────────────────────────────
+test('the wordmark mask is re-derived when the display face arrives', () => {
+  // ⚠ THE MASK IS MEMOISED ON THE GRID SIZE ALONE, so without this the font size the
+  // fitting loop chose — and the letterforms baked into the bitmap — are whichever
+  // face was resolved on the FIRST draw, for the life of the page. The fold's height
+  // is fixed and its width is the viewport's, so nothing else ever invalidates it.
+  //
+  // That caching predates the tile-count budget; what the budget does is make it cost
+  // more. A fraction-of-the-grid budget meant a fallback face still filled ~88% of the
+  // fold and merely looked slightly off; against a constant budget a wrong face costs
+  // whole font steps, so the documented 1120x128 silently would not be what renders on
+  // any cold load that beats the webfont.
+  assert.ok(/document\.fonts[\s\S]{0,200}?\.ready[\s\S]{0,200}?mask = null/.test(BARE),
+    'nothing drops the wordmark mask when the display face loads: a cold load bakes the ' +
+    'fallback metrics into the wall for the life of the page');
+
+  // and it must be GUARDED, because document.fonts is not universal and a browser
+  // without it is exactly the one that was never going to swap the face anyway
+  assert.ok(/document\.fonts &&/.test(BARE) || /document\.fonts\s*\?\./.test(BARE),
+    'document.fonts is read without a guard — a browser without it throws at module scope');
+});
+
+test('the fold stages its chrome in the same width the site header uses', () => {
+  // ⚠ THE POINT IS THAT THE TWO CANNOT DRIFT. The fold was the only section on the
+  // page with no width bound: its two chrome blocks were pinned `left: 32, right: 32`
+  // against the VIEWPORT while the header centres its content in 1440, so measured on
+  // the real page the fold's wordmark sat 240px left of the header's logo at 1920,
+  // 560px at 2560 and 1000px at 3440. RD_STAGE is READ FROM the header rather than
+  // restated, so changing one without the other fails here rather than showing up as
+  // a hero that is out of line with the page on a wide monitor.
+  const shell = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  const inner = /className="shape-header-inner"[^>]*?maxWidth:\s*(\d+)/.exec(stripComments(shell));
+  assert.ok(inner, 'could not read .shape-header-inner maxWidth — this guard is not looking at the header any more');
+  const headerMeasure = Number(inner[1]);
+
+  const stage = /\bconst RD_STAGE = (\d+)\b/.exec(BARE);
+  assert.ok(stage, 'RD_STAGE is gone — the fold is full-bleed again');
+  assert.equal(Number(stage[1]), headerMeasure,
+    `the fold stages at ${stage[1]} and the header at ${headerMeasure}: the hero is out of line with the page above it`);
+
+  // ⚠ AND THE STAGE IS THREE PROPERTIES, NOT ONE. `maxWidth` alone caps the width and
+  // leaves the block pinned LEFT; on an absolutely-positioned box with left:0/right:0
+  // it is `margin: 0 auto` that centres it, and `padding` is what puts the content on
+  // the header's gutter. A first version asserted maxWidth only, so deleting the auto
+  // margins would have left every guard green with the chrome hard against the left
+  // edge of a 3440 monitor. All three, on both blocks.
+  for (const block of ['rd-top', 'rd-bottom']) {
+    const tag = new RegExp(`className="${block}"\\s+style=\\{\\{([^}]*)\\}`).exec(BARE);
+    assert.ok(tag, `.${block}'s opening tag is gone or has been rewritten past this guard`);
+    const style = tag[1];
+    assert.ok(/maxWidth:\s*RD_STAGE/.test(style), `.${block} does not stage: it is still pinned to the viewport`);
+    assert.ok(/margin:\s*"0 auto"/.test(style), `.${block} caps its width but never centres: it will sit hard left`);
+    assert.ok(/padding:\s*"0 32px"/.test(style), `.${block} lost the gutter that puts it on the header's measure`);
+  }
+});
+
+test('the cloud is placed in the stage, not as a fraction of the viewport', () => {
+  // ⚠ THE CLOUD WAS THE ONE FIGURE LEFT TRACKING THE SCREEN, and bounding the wordmark
+  // is what made it visible. Its RADIUS was already constant on any desktop fold —
+  // min(W, H) is the 660px height for every W above it — but its CENTRE was `W * 0.62`,
+  // a fraction of the whole viewport. Measured, that put it 154px right of the fold's
+  // middle at 1280 and 413px at 3440: the word stopped moving and the figure beside it
+  // did not, so they drifted apart as the monitor widened. Staged, the offset is a
+  // constant 173px at every width from 1440 up.
+  const cx = /const cx = ([^;]+);/.exec(BARE);
+  assert.ok(cx, 'the cloud centre is gone or has been rewritten past this guard');
+  assert.ok(/RD_STAGE|stageW/.test(cx[1]),
+    `the cloud centre is \`${cx[1].trim()}\` — a fraction of the viewport again, so it drifts away ` +
+    'from the bounded wordmark as the monitor widens');
+
+  // and the fractions themselves are UNCHANGED: this moves the box they are taken of,
+  // not the composition, so at 1440 and below the cloud lands exactly where it always did
+  assert.ok(/stageW \* 0\.62/.test(BARE), 'the cloud composition moved as well as its box');
+  assert.ok(/const cy = H \* 0\.48/.test(BARE), 'the cloud left its vertical placement');
+});
+
+test('the fold gutter steps with the header gutter, not only above 1100px', () => {
+  // ⚠ STAGING THE CHROME BOUGHT ALIGNMENT ONLY WHERE IT WAS MEASURED. The header's own
+  // side padding is not a constant: .shape-header-inner goes 32 -> 24 at <=1100 and
+  // -> 18 at <=900. The fold carried a flat inline 32 and stepped only at <=760, so
+  // measured on the real page its wordmark sat 8px right of the header's logo at 1024
+  // and 1100, and 36px right at 900 — while the sweep that reported "0 at every width"
+  // had run at 1280 and above.
+  //
+  // ⚠ AND IT COMPARES THE EFFECTIVE PADDING, NOT THE RULES. A first version asserted a
+  // matching @media rule at each of the header's own breakpoints, and failed the
+  // CORRECT tree: the header pads 24 at both <=1100 and <=1020, and one <=1100 rule on
+  // the fold already covers 1020 because that is how max-width queries stack. What has
+  // to match is the value a browser computes at a width, not the list of rules that
+  // produce it.
+  const shell = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  const bare = stripComments(shell);
+
+  const headerRules = [
+    { at: Infinity, pad: Number(/className="shape-header-inner"[^>]*?padding:\s*"0\s+(\d+)px"/.exec(bare)[1]) },
+    ...[...bare.matchAll(/@media \(max-width:\s*(\d+)px\)\s*\{[\s\S]*?\.shape-header-inner\s*\{[^}]*padding:\s*0\s+(\d+)px/g)]
+      .map((m) => ({ at: Number(m[1]), pad: Number(m[2]) })),
+  ];
+  const foldRules = [
+    { at: Infinity, pad: Number(/className="rd-top"\s+style=\{\{[^}]*padding:\s*"0\s+(\d+)px"/.exec(BARE)[1]) },
+    ...[...BARE.matchAll(/@media \(max-width:\s*(\d+)px\)\s*\{\s*\.rd-top[^}]*?padding:\s*0\s+(\d+)px/g)]
+      .map((m) => ({ at: Number(m[1]), pad: Number(m[2]) })),
+  ];
+  assert.ok(headerRules.length >= 3, `read ${headerRules.length} header padding rules — this guard has stopped reading pageShell.jsx`);
+  assert.ok(foldRules.length >= 2, `read ${foldRules.length} fold padding rules — this guard has stopped reading the instrument`);
+
+  // last matching rule in source order wins, which is what a browser does at equal specificity
+  const effective = (rules, w) => rules.reduce((acc, r) => (w <= r.at ? r.pad : acc), null);
+
+  // every width where EITHER side changes, plus one pixel above it
+  const edges = [...new Set([...headerRules, ...foldRules].filter((r) => r.at !== Infinity).flatMap((r) => [r.at, r.at + 1]))];
+  assert.ok(edges.length >= 4, 'no breakpoints found at all — this guard is not measuring anything');
+  for (const w of edges.sort((a, b) => a - b)) {
+    if (w <= 760) continue;   // below the mobile collapse the header is a burger and the fold is its own layout
+    assert.equal(effective(foldRules, w), effective(headerRules, w),
+      `at ${w}px the header pads ${effective(headerRules, w)}px and the fold pads ${effective(foldRules, w)}px: ` +
+      'the hero is out of line with the page above it');
+  }
+});
+
+test('the wordmark size is decided by the rules module, not by the renderer', () => {
+  // ⚠ A RULE WITH ONE CALL SITE NOBODY DRIVES IS A RULE NOBODY TESTS. `wallWordFit`
+  // can be correct and tested while buildMask quietly keeps its own literals, which
+  // is exactly how the word came to grow with the monitor: the two bounds were
+  // `mh * 0.42` and `mw * 0.88`, both fractions OF THE GRID. Structural, so an
+  // equivalent rewrite passes and only a bypass fails.
+  assert.ok(/F\.wallWordFit\(/.test(BARE), 'buildMask no longer asks the rules module for the budget');
+
+  // ⚠ ASSERT WHAT THE LOOP IS BOUNDED BY, NOT WHICH SPELLING IT IS NOT. A first version
+  // banned the token `mw` — and buildMask opens `mw = cols; mh = rows`, so
+  // `measureText(word).width > cols * 0.88` reverts the defect verbatim past a ban on
+  // `mw`. The invariant is that the bound comes from the fit object.
+  const loop = /while\s*\([^)]*measureText\([^)]*\)\.width\s*>\s*([^)]+)\)/.exec(BARE);
+  assert.ok(loop, 'the wordmark fitting loop is gone or has been rewritten past this guard');
+  assert.ok(/\bfit\./.test(loop[1]),
+    `the fitting loop is bounded by \`${loop[1].trim()}\` rather than by the rules module's budget`);
+  assert.ok(!/fillText\(\s*word\s*,\s*mw\s*\/\s*2/.test(BARE),
+    'the word is centred on a half column again — that alone is a one-tile jitter');
+
+  // and a browser holding a stale cached copy of the module must DEGRADE rather than
+  // call through to undefined inside a render — the guard this file's header is about
+  assert.ok(/!F\.wallWordFit\b/.test(BARE),
+    'rdLib does not check wallWordFit, so a stale cached module throws in a render');
+});
+
+test('the wordmark lights from the bass at every width, not from its own columns', () => {
+  // ⚠ THE FINDING (Codex, #2113): capping the word's BOUNDING BOX does not make the
+  // word look the same on every monitor. `wallBand` stretches all 32 bands across the
+  // grid, so a word held at a constant ~70 cells covers a different slice of the
+  // spectrum as the grid grows — and a word tile only turns hot when its own column is
+  // near saturation, which the bass reaches on a kick and the treble does not. The
+  // whole word flashed on a wide monitor; only its middle letters flashed on a narrow
+  // one. A bounding-box guard cannot see that, which is why this one drives the rule.
+  //
+  // WORD_CELLS is the measured painted extent on every desktop fold (1120px / 16).
+  const WORD_CELLS = 70;
+  const BANDS = 32;
+  const AT_WORD_ROW = 0.54;             // the word sits at 0.46 down, so fromBottom ~ 0.54
+
+  // A bass-heavy frame: the bands a kick saturates, and quiet everywhere else.
+  const sm = Array.from({ length: BANDS }, (_, b) => (b >= 13 && b <= 18 ? 1 : 0.2));
+
+  const wordCells = (cols) => {
+    const centre = wallWordFit(cols, 41).centreCol;
+    const out = [];
+    for (let c = Math.round(centre - WORD_CELLS / 2); c <= Math.round(centre + WORD_CELLS / 2); c += 1) {
+      if (c >= 0 && c < cols) out.push(c);
+    }
+    return out;
+  };
+  const hotFrac = (cols, level) => {
+    const cells = wordCells(cols);
+    const hot = cells.filter((c) => AT_WORD_ROW < level(cols, c)).length;
+    return hot / cells.length;
+  };
+
+  const perColumn = (cols, c) => sm[wallBand(c, cols, BANDS)] * WALL_METER_SPAN;              // the defect
+  const fromBass  = (cols) => sm[wallBand(Math.round((cols - 1) / 2), cols, BANDS)] * WALL_METER_SPAN;
+
+  // the control: the rule this replaces really is width-dependent, so a green result
+  // below is the fix rather than a spectrum flat enough for any rule to look constant
+  const oldNarrow = hotFrac(80, perColumn);
+  const oldWide = hotFrac(240, perColumn);
+  assert.notEqual(oldNarrow.toFixed(3), oldWide.toFixed(3),
+    `the per-column rule lit the same fraction of the word at 80 and 240 columns (${oldNarrow}), ` +
+    'so this fixture no longer reproduces the finding and the assertion below proves nothing');
+
+  const newNarrow = hotFrac(80, (cols) => fromBass(cols));
+  const newWide = hotFrac(240, (cols) => fromBass(cols));
+  assert.equal(newNarrow, newWide,
+    `the word lights ${newNarrow} of its cells at 80 columns and ${newWide} at 240 — ` +
+    'its appearance is width-dependent again');
+
+  // ⚠ AND THE SHIPPED CODE HAS TO BE THE RULE ABOVE, or this test drives a restatement
+  // of it and passes while the renderer keeps the defect — the class this file's header
+  // is about. The lit branch must not decide its colour from the loop's own column.
+  const lit = /if \(lit\) \{([\s\S]*?)\n\s*\}/.exec(BARE);
+  assert.ok(lit, "the wall's lit-tile branch is gone or has been rewritten past this guard");
+  assert.ok(/wordLevel/.test(lit[1]),
+    `the wordmark's colour is decided by \`${lit[1].trim()}\` rather than by a width-independent level`);
+  assert.ok(!/\bon\b|meters\[\s*c\s*\]|\blevel\b/.test(lit[1]),
+    `the wordmark reads its own column again: \`${lit[1].trim()}\``);
+  // ⚠ AND THE ROW TERM IS ASSERTED, BECAUSE THE COMMENT AT THE SITE CLAIMS IT. Only the
+  // COLUMN dependence was removed — the word still fills from its baseline up, exactly as
+  // it did. A mutation that drops `fromBottom` makes the whole word flash at once, which
+  // is width-independent and therefore SURVIVED every assertion above: a claim in a
+  // comment with no guard behind it is the thing this file exists to stop.
+  assert.ok(/fromBottom/.test(lit[1]),
+    `the wordmark no longer fills from its baseline: \`${lit[1].trim()}\``);
+
+  // and the level itself must not be indexed by the loop column
+  const decl = /const wordLevel = meters\[([^\]]+)\]/.exec(BARE);
+  assert.ok(decl, 'wordLevel is gone or no longer read from the meters');
+  assert.ok(!/\bc\b/.test(decl[1]),
+    `wordLevel is indexed by \`${decl[1]}\`, which tracks the loop column rather than the bass`);
+});
 
 test('the station route never decides the session — only /api/me does', () => {
   // ⚠ THE FINDING: `play()` read `/api/radio/station`'s 401 and 403 as a session

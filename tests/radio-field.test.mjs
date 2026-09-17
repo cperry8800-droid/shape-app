@@ -24,6 +24,7 @@ import {
   LEAD_MODES, leadTarget, LEAD_TAU, easeLead, wallMix, cloudMix, WALL_GROUND_ALPHA,
   TILE_PX, wallCols, wallRows, wallBand, meterNext, METER_FALL, WALL_METER_SPAN, wallMaskText, WALL_MASK_MIN_COLS,
   WALL_FLOOD_KICK, wallFloods,
+  wallWordFit, WALL_WORD_MAX_COLS, WALL_WORD_COL_FRAC, WALL_WORD_ROW_FRAC,
 } from '../public/newdesign/radioField.mjs';
 import { tempoEnergyFromBins, TEMPO_BINS, tempoBarStep, createTempoDetector } from '../public/newdesign/radioTempo.mjs';
 import { bandsFromBins, BANDS } from '../public/newdesign/radioSignalField.mjs';
@@ -482,6 +483,157 @@ test('the tile grid degrades rather than throwing on a zero-sized canvas', () =>
   assert.equal(wallCols(NaN), 0);
   assert.equal(wallCols(1280), Math.floor(1280 / TILE_PX));
   assert.equal(wallRows(640), Math.floor(640 / TILE_PX));
+});
+
+// ── the wordmark is the same size on every monitor ──────────────────────────────
+// ⚠ THESE DRIVE THE SHIPPED RULE RATHER THAN RESTATING IT. The probe that first
+// "verified" this change reimplemented buildMask's old literals and therefore
+// measured the OLD rule against a page running the new one — it reported the fix as
+// not landed. A guard that reimplements the thing it measures is measuring itself.
+
+// ⚠ THE MEASURED METRIC, RECORDED WHERE AN ASSERTION READS IT. Advance widths of the
+// wall's two words in MASK CELLS, Anybody 600, measured in Chromium with the real face
+// served locally (the width axis was proven live first: the same string is 197px at
+// 'wdth' 50 and 1002px at 'wdth' 150, where a fallback measures identically both ways).
+// It lives here rather than in a comment because a measurement no assertion reads is a
+// claim — and the whole change rests on WALL_WORD_MAX_COLS selecting font 11.
+// ⚠ DERIVED FROM THE GRID, NOT TYPED. The narrowest fold this page is designed for is
+// a 1280px window, and how many columns that is depends on TILE_PX — so it is asked
+// rather than remembered. Every guard below that says "the narrowest desktop fold" means
+// this number; a literal would go stale the day the tile size moves and would keep
+// passing while the anchor stopped binding where the module says it binds.
+const NARROWEST_DESKTOP_PX = 1280;
+const NARROWEST_DESKTOP_COLS = wallCols(NARROWEST_DESKTOP_PX);
+
+const WORD_CELLS = {
+  'SHAPE RADIO': { 6: 38.12, 7: 44.47, 8: 50.82, 9: 57.18, 10: 63.53, 11: 69.88, 12: 76.24, 13: 82.59 },
+  SHAPE: { 6: 19.02, 7: 22.19, 8: 25.36, 9: 28.53, 10: 31.70, 11: 34.87, 12: 38.04, 13: 41.21 },
+};
+
+test('the anchor is the value that actually selects the intended font step', () => {
+  // ⚠ WITHOUT THIS THE ANCHOR IS ONLY PINNED TO ITSELF. The three structural guards
+  // below say the budget is ONE number, that the fold binds under it, and that it
+  // binds at 80 columns — and every one of them passes for ANY anchor in
+  // (56.32, 69.88), which resolves to font 10 and shrinks the wordmark a step at
+  // EVERY desktop width. Measured: WALL_WORD_MAX_COLS = 66 leaves all the other
+  // guards green while the word goes 1120x128 -> 992x112 everywhere.
+  const w = WORD_CELLS['SHAPE RADIO'];
+  assert.ok(WALL_WORD_MAX_COLS >= w[11],
+    `the anchor ${WALL_WORD_MAX_COLS} is below 'SHAPE RADIO' at font 11 (${w[11]} cells), ` +
+    'so the fitting loop drops to font 10 and the wordmark is a step smaller on every monitor');
+  assert.ok(WALL_WORD_MAX_COLS < w[12],
+    `the anchor ${WALL_WORD_MAX_COLS} admits font 12 (${w[12]} cells), which no desktop fold's ` +
+    'own share can hold — the word would be one size on a wide fold and another on a narrow one');
+
+  // and the WIDTH condition in the comment is this arithmetic, not a remembered number.
+  // ⚠ THE TWO SIDES ARE DERIVED SEPARATELY AND THE CLAIM IS THAT THEY MEET. The left is
+  // a fact about the FONT (how many cells 'SHAPE RADIO' needs at font 11, divided by the
+  // fold's own share); the right is a fact about the GRID (how many columns a 1280px fold
+  // has at TILE_PX). Writing either as a literal 80 would hide that the module's whole
+  // choice of anchor rests on their coinciding — change TILE_PX and the right side moves
+  // while the left does not, which is exactly when someone needs to be told. Measured:
+  // TILE_PX 16 -> 20 takes the narrowest fold to 64 columns and this guard fails naming
+  // both sides; with NARROWEST_DESKTOP_COLS written as the literal 80 the same tree is
+  // GREEN. The literal is a no-op today and blind the day the grid moves.
+  const floorCols = Math.ceil(w[11] / WALL_WORD_COL_FRAC);
+  assert.equal(floorCols, NARROWEST_DESKTOP_COLS,
+    `the anchor's width floor is ${floorCols} columns and the narrowest desktop fold is ` +
+    `${NARROWEST_DESKTOP_COLS} — they no longer meet, so wallWordFit's comment is stale`);
+});
+
+test('the wordmark budget is a tile count, so it stops growing with the monitor', () => {
+  // The measured fold widths, as column counts (fold px / TILE_PX). The word used to
+  // run 1120px wide at 1280 and 1712px at 3440 because both of its bounds were
+  // fractions OF THE GRID; above the anchor the budget must now be one number.
+  const desktop = [NARROWEST_DESKTOP_COLS, 85, 90, 105, 120, 160, 215, 240];
+  const budgets = new Set(desktop.map((c) => wallWordFit(c, 41).maxCols));
+  assert.equal(budgets.size, 1, `the budget still varies across the desktop range: ${[...budgets]}`);
+  assert.equal([...budgets][0], WALL_WORD_MAX_COLS);
+
+  // ⚠ AND THE ANCHOR MUST BIND AT THE NARROWEST DESKTOP WIDTH, or this passes for the
+  // wrong reason: two different budgets can still paint the same word if the fitting
+  // loop happens to land on the same step, which is a fact about the font metrics
+  // rather than about the design.
+  assert.ok(NARROWEST_DESKTOP_COLS * WALL_WORD_COL_FRAC >= WALL_WORD_MAX_COLS,
+    `the anchor ${WALL_WORD_MAX_COLS} exceeds the narrowest desktop fold's own share ` +
+    `${NARROWEST_DESKTOP_COLS * WALL_WORD_COL_FRAC}`);
+});
+
+test('below the anchor the fold\'s own width still binds, so a phone shrinks the word', () => {
+  // A budget that stayed at the anchor on a 354px fold would run the word off the
+  // screen. The fold's share has to win when it is the smaller of the two.
+  for (const cols of [17, 22, 41, 47, 64]) {
+    const fit = wallWordFit(cols, 35);
+    assert.equal(fit.maxCols, cols * WALL_WORD_COL_FRAC, `cols ${cols} ignored the fold`);
+    assert.ok(fit.maxCols < WALL_WORD_MAX_COLS, `cols ${cols} did not shrink`);
+  }
+  // and the two rules meet at the anchor rather than jumping
+  const meet = Math.ceil(WALL_WORD_MAX_COLS / WALL_WORD_COL_FRAC);
+  assert.ok(wallWordFit(meet, 41).maxCols === WALL_WORD_MAX_COLS);
+  assert.ok(wallWordFit(meet - 1, 41).maxCols < WALL_WORD_MAX_COLS);
+});
+
+test('the width budget binds on a normal fold and the row fraction binds on a short one', () => {
+  // ⚠ THE BOUNDARY IS RECORDED RATHER THAN DISCOVERED. The constant 1120x128 is a
+  // claim about WIDTH and it carries a height condition: the loop only ever shrinks,
+  // so it can reach the width-bound step only from a start at or above it. Measured,
+  // 'SHAPE RADIO' is 69.88 mask cells at font 11 and 63.53 at 10, so a fold that
+  // starts at 11 or higher lands on 11 and one that starts at 10 stays there.
+  // floor(rows * 0.42) >= 11 from 27 rows up; a 420px fold is 26 and starts at 10.
+  for (const rows of [27, 32, 33, 35, 41]) {
+    assert.ok(wallWordFit(90, rows).startCell >= 11,
+      `a ${rows}-row fold starts below the width-bound step, so the word shrinks with the fold`);
+  }
+  // and the floor case is a FACT about the design, not an accident: a 420px fold is
+  // 26 rows and deliberately gets a smaller word, because a 128px word is 30% of it
+  assert.equal(wallWordFit(90, 26).startCell, 10);
+  assert.ok(wallWordFit(90, 26).startCell < 11);
+});
+
+test('the word is centred on a whole column, not a half one', () => {
+  // ⚠ THE MASK IS SAMPLED ON INTEGER COLUMNS. A word centred at cols/2 rounds
+  // differently depending on whether `cols` is odd or even, which measured as a
+  // one-tile jitter — the painted word moved between 1104 and 1120px across the
+  // desktop range while everything else about it was constant.
+  // ⚠ AND "IS AN INTEGER" IS NOT "IS CENTRED". A first version asserted only
+  // `centreCol === Math.round(centreCol)`, which is trivially true of every integer —
+  // measured, `Math.round(c / 2) + 1` passed the whole suite while putting the word a
+  // tile off centre at every width. The snap has to land within half a tile of the
+  // grid's true middle, which is the most any integer column can promise.
+  for (const cols of [79, 80, 85, 90, 119, 215, 240]) {
+    const { centreCol } = wallWordFit(cols, 41);
+    assert.equal(centreCol, Math.round(centreCol), `cols ${cols} centred on a half column`);
+    assert.ok(Math.abs(centreCol - cols / 2) <= 0.5,
+      `cols ${cols} centres the word at column ${centreCol}, ${Math.abs(centreCol - cols / 2)} columns off the middle`);
+  }
+  // ⚠ THE TRADE, RECORDED: on an ODD column count there is no exact middle column, so
+  // the snap sits half a tile (8px) right of the grid's centre — 119 columns centres at
+  // 60, i.e. 960px against a true middle of 952. That is the cost of killing a
+  // one-tile jitter, and it is fixed and symmetric rather than varying with the monitor.
+  assert.equal(wallWordFit(119, 41).centreCol, 60);
+  assert.equal(wallWordFit(120, 41).centreCol, 60);
+});
+
+test('the word fit degrades rather than throwing on a zero-sized canvas', () => {
+  // the same contract wallCols/wallRows carry: a hidden fold is 0x0
+  for (const bad of [0, -100, NaN, undefined, null]) {
+    const fit = wallWordFit(bad, bad);
+    assert.ok(Number.isFinite(fit.maxCols) && fit.maxCols >= 0, `maxCols ${fit.maxCols}`);
+    assert.ok(Number.isFinite(fit.startCell) && fit.startCell >= 1, `startCell ${fit.startCell}`);
+    assert.ok(Number.isFinite(fit.centreCol) && fit.centreCol >= 0, `centreCol ${fit.centreCol}`);
+  }
+});
+
+test('the grid itself is untouched, because four things depend on its derivation', () => {
+  // ⚠ THIS IS THE GUARD AGAINST THE TEMPTING FIX. Making the column count fixed and
+  // the tile size derived would make the word constant too — and would break
+  // `wallCols`/`wallRows` as the renderer's zero-size guard, turn WALL_MASK_MIN_COLS
+  // (a column count standing in for 704 PHYSICAL px) into a compile-time constant,
+  // invalidate WALL_METER_SPAN's measurement against 41 rows, and break TILE_PX as
+  // the drawing PITCH. The word is bounded instead; the grid still tracks the fold.
+  assert.ok(wallCols(3440) > wallCols(1280), 'the grid stopped tracking the fold width');
+  assert.ok(wallRows(660) > wallRows(420), 'the grid stopped tracking the fold height');
+  assert.equal(wallCols(0), 0, 'the zero-size guard stopped being reachable');
 });
 
 test('a meter rises instantly and falls slowly', () => {
