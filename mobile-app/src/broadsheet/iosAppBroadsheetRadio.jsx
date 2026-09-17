@@ -374,9 +374,11 @@ function bsRadioAskedPersist() {
 }
 
 function BSRadioProvider({ children }) {
-  // Persisted radio preference (device-level localStorage) so the "Want music
-  // while you move?" prompt is asked ONCE — after the user answers it (play or
-  // muted), it never auto-shows again on a later launch / re-login. Seed from it.
+  // Persisted radio preference (device-level localStorage) so the radio ask-prompt
+  // (`radio:prompt.title` + `.titleAccent`) is asked ONCE — after the user answers
+  // it (play or muted), it never auto-shows again on a later launch / re-login.
+  // Named by KEY, not by its wording: the copy has already been retired once.
+  // Seed from it.
   const _radioPref = safeReadRadioJSON('shape.radio.pref', null); // { asked, on } | null
   const [radioOn, setRadioOn]       = useStateBR(_radioPref ? !!_radioPref.on : false);
   const [askedPrompt, setAsked]     = useStateBR(() => bsRadioAskedMirrorRead());
@@ -915,7 +917,7 @@ function BSRadioPrompt() {
             <span style={{ width: 6, height: 6, borderRadius: 3, background: t.ACCENT, animation: 'bs-blink 1.2s ease-in-out infinite' }} /> {tr('radio:prompt.liveNow', { defaultValue: 'Live now · Ad-free' })}
           </div>
           <h1 style={{ margin: 0, fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 34, letterSpacing: '-0.035em', lineHeight: 0.96, color: t.INK }}>
-            {tr('radio:prompt.title', { defaultValue: 'Want music' })}<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>{tr('radio:prompt.titleAccent', { defaultValue: 'while you move?' })}</span>
+            {tr('radio:prompt.title', { defaultValue: 'Want music' })}<br/><span style={{ fontStyle: 'italic', fontWeight: 500, color: t.ACCENT }}>{tr('radio:prompt.titleAccent', { defaultValue: 'while the app is open?' })}</span>
           </h1>
           <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70, maxWidth: 340 }}>
             {tr('radio:prompt.body', { defaultValue: 'Radio will stream in the background — on your workouts, meal preps, or whenever the app is open. Always ad-free. You can pause anytime.' })}
@@ -3002,7 +3004,7 @@ function BSShapeSetsScreen({ onBack }) {
                 <span style={{ width: 7, height: 7, borderRadius: 999, background: TEAL, animation: 'bs-blink 1.6s ease-in-out infinite' }} />
                 <span style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em', color: CREAM }}>{tr('radio:sets.liveFrom', { defaultValue: 'Live from' })} <span style={{ fontStyle: 'italic', color: TEAL }}>Club Shape</span></span>
               </div>
-              <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>{tr('radio:sets.introA', { defaultValue: 'A virtual concert series broadcast straight from' })} <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>{tr('radio:sets.introB', { defaultValue: ', our flagship venue. DJs and live acts mixed for movement — captured on the floor and streamed through Shape Radio.' })}</p>
+              <p style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: 'rgba(244,237,224,0.92)', margin: '0 auto', maxWidth: 360, lineHeight: 1.55 }}>{tr('radio:sets.introA', { defaultValue: 'A virtual concert series broadcast straight from' })} <strong style={{ color: CREAM, fontWeight: 700 }}>Club Shape</strong>{tr('radio:sets.introB', { defaultValue: ', our flagship venue. DJs and live acts, captured on the floor and streamed through Shape Radio.' })}</p>
               <div style={{ marginTop: 24, fontFamily: t.MONO, fontSize: 14, letterSpacing: '0.26em', textTransform: 'uppercase', color: TEAL, fontWeight: 700 }}>{tr('radio:sets.comingSoon', { defaultValue: 'Coming soon' })}</div>
             </div>
           </div>

@@ -23,6 +23,7 @@ import {
   KICK_ON, KICK_OFF, KICK_RELEASE_S, kickLow, kickEnvNext, kickPresentNext,
   LEAD_MODES, leadTarget, LEAD_TAU, easeLead, wallMix, cloudMix, WALL_GROUND_ALPHA,
   TILE_PX, wallCols, wallRows, wallBand, meterNext, METER_FALL, WALL_METER_SPAN, wallMaskText, WALL_MASK_MIN_COLS,
+  WALL_MASK_INK,
   WALL_FLOOD_KICK, wallFloods,
   wallWordFit, WALL_WORD_MAX_COLS, WALL_WORD_COL_FRAC, WALL_WORD_ROW_FRAC,
 } from '../public/newdesign/radioField.mjs';
@@ -472,6 +473,80 @@ test('the wall says less when it has fewer tiles to say it with', () => {
   for (const bad of [undefined, null, NaN, -1]) assert.equal(wallMaskText(bad), 'SHAPE');
   // and the short form is always a word the grid can actually hold
   assert.ok(wallCols(320) >= 'SHAPE'.length * 2, 'even the short wordmark has under two columns a letter at 320px');
+});
+
+// THE WORDMARK'S SIZE FALLS OUT OF THE VIEWPORT WIDTH, AND THAT IS WHAT THE OWNER SAW.
+// The wall is a fixed 660px tall, so `rows` never changes; `cols` is floor(W/TILE_PX),
+// and the fit loop shrinks the type until the word fits 88% of the columns. The glyph
+// height is therefore a function of WIDTH ALONE — 6 tiles at 768px, 10 at 1280, 15 at
+// 1920. Owner, 2026-09-16: "the look and clarity of this changes with the monitor size."
+// These two guards are the part of that which is a RULE rather than a rasterisation.
+test('the long wordmark is only offered where it is still letters', () => {
+  const ROWS = wallRows(660);
+  // the fit rule, lifted rather than restated: the widest the word may be drawn, in
+  // tiles, and the tallest — both exactly as buildMask applies them.
+  const capTiles = Math.floor(ROWS * 0.42);
+  // 11 characters need roughly 7 tiles of width each at that height; the point of the
+  // gate is that BELOW it there is no height left worth reading.
+  assert.ok(WALL_MASK_MIN_COLS >= 64,
+    `WALL_MASK_MIN_COLS is ${WALL_MASK_MIN_COLS}: at 44 the long form was allowed at ~704px, where it draws six tiles tall and is noise`);
+  assert.ok(WALL_MASK_MIN_COLS <= wallCols(1440),
+    'the gate has risen past 1440, which is an ordinary desktop — the long form should still be offered there');
+  // ⚠ Same hole, same fix: any value from 65 to 80 satisfies the two bounds above
+  // while moving the gate off the width it was actually chosen at. 80 is 1280px.
+  assert.equal(WALL_MASK_MIN_COLS, 80,
+    `WALL_MASK_MIN_COLS is ${WALL_MASK_MIN_COLS}, not the measured 80 (= 1280px) — re-measure the glyph height across the range before changing it`);
+
+  // ⚠ AND THE GATE MUST SIT AT OR ABOVE THE POINT #2113's WIDTH CAP BEGINS TO BIND,
+  // which is a relationship neither change could state on its own and the merge is what
+  // surfaced. `wallWordFit` caps the word at WALL_WORD_MAX_COLS tiles, and that cap only
+  // binds once `cols * WALL_WORD_COL_FRAC` exceeds it — below that the fold's own share
+  // still decides and the word SHRINKS with the monitor. So if the long form were offered
+  // below the bite point there would be widths drawing "SHAPE RADIO" at whatever size the
+  // fold happened to allow, which is the noise case this gate exists to prevent and the
+  // one the cap does not cover.
+  //
+  // Measured: the bite is 70 / 0.88 = 79.55, so it first binds at 80 columns — exactly
+  // where the gate sits. The two ranges therefore partition cleanly: below 80 the word
+  // shrinks and is the SHORT form, at 80 and above it is the LONG form at a constant
+  // capped size. Derived from the constants rather than restated, so moving either one
+  // fails here instead of quietly opening a band that gets neither rule.
+  const capBite = WALL_WORD_MAX_COLS / WALL_WORD_COL_FRAC;
+  assert.ok(WALL_MASK_MIN_COLS >= capBite,
+    `the long form is offered from ${WALL_MASK_MIN_COLS} columns but the width cap only binds from ${capBite.toFixed(2)} — between them "SHAPE RADIO" is drawn at a size that varies with the fold`);
+  // ⚠ AND BELOW THE BITE THE FIT IS THE PRE-#2113 ONE, BY ARITHMETIC — which is what
+  // lets the 768px and 1024px renders this gate was chosen from still stand unmeasured
+  // against the new fit. `Math.min(MAX, cols * FRAC)` IS `cols * FRAC` whenever the cap
+  // does not bind, so the noise cases were never in the range #2113 changed.
+  for (const W of [768, 1024, 1264]) {
+    const c = wallCols(W);
+    assert.equal(wallWordFit(c, ROWS).maxCols, c * WALL_WORD_COL_FRAC,
+      `at ${W}px the width budget is no longer the fold's own share, so the renders this gate was chosen from no longer describe it`);
+  }
+  // the widths either side of the gate resolve the way the rule says
+  assert.equal(wallMaskText(wallCols(1280)), 'SHAPE RADIO', '1280 is above the gate');
+  assert.equal(wallMaskText(wallCols(1024)), 'SHAPE', '1024 draws eight tiles tall — the short form is the legible one');
+  assert.equal(wallMaskText(wallCols(768)), 'SHAPE', '768 draws six tiles tall, which is the noise case');
+  assert.ok(capTiles >= 14, `the height cap is ${capTiles} tiles — too low for the long form to ever be clean`);
+});
+
+test('a tile lights on coverage, and the threshold leaves the stems standing', () => {
+  // The mask is supersampled and each tile carries 0..255 of COVERAGE. A 600-weight
+  // face at 10-11 tiles tall draws stems about one tile wide, so a half-tile threshold
+  // erases them: the word came out skeletal. This is the measured quarter-tile rule.
+  assert.ok(Number.isFinite(WALL_MASK_INK), 'the ink rule is not a number');
+  assert.ok(WALL_MASK_INK > 0 && WALL_MASK_INK < 128,
+    `WALL_MASK_INK is ${WALL_MASK_INK}: at or above half a tile the one-tile stems of the long wordmark drop out`);
+  assert.ok(WALL_MASK_INK >= 32,
+    `WALL_MASK_INK is ${WALL_MASK_INK}: below an eighth of a tile the counters close up and the word fills in`);
+  // ⚠ AND THE RANGE ABOVE IS NOT THE MEASUREMENT (Codex, on this PR). 32..127 all
+  // satisfy it — including 40, which was RENDERED side by side against 64 and 128 and
+  // rejected. The number was chosen by LOOKING, not derived from an invariant, so the
+  // literal is written HERE rather than read back from the source: reading it back
+  // would make the assertion tautological, and a range that admits the values the
+  // render rejected preserves nothing. Moving it is a decision someone makes here.
+  assert.equal(WALL_MASK_INK, 64,
+    `WALL_MASK_INK is ${WALL_MASK_INK}, not the measured 64 — re-render 128 / 64 / 40 side by side and look at the stems before changing it`);
 });
 
 test('the tile grid degrades rather than throwing on a zero-sized canvas', () => {

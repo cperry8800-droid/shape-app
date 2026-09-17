@@ -40,7 +40,7 @@
       { navigate: go('score'), anchor: q('hero-score'), fallback: q('webtab-score'), eyebrow: 'Score', title: 'Your Shape Score.', body: 'The one number that tells the truth, read every week.' },
       { navigate: go('goal'), anchor: q('webtab-goal'), fallback: q('webtab-goal'), eyebrow: 'Goal', title: 'What you’re shaping toward.', body: 'Targets, milestones and your ETA — the contract you set with yourself.' },
       { navigate: go('profile'), anchor: q('hero-profile'), fallback: q('webtab-profile'), eyebrow: 'You', title: 'Your profile.', body: 'Your living profile — climb, signals and standing.' },
-      { navigate: go('today'), anchor: q('webtab-today'), fallback: q('webtab-today'), final: true, ctaLabel: 'Open Shape Radio →', eyebrow: 'Last stop', title: 'Shape Radio.', body: 'Ad-free workout mixes, curated by BPM. Free with your membership — or tap Done to stay here.', onCta: function () { window.location.href = '/newdesign/Radio.html'; } },
+      { navigate: go('today'), anchor: q('webtab-today'), fallback: q('webtab-today'), final: true, ctaLabel: 'Open Shape Radio →', eyebrow: 'Last stop', title: 'Shape Radio.', body: 'One live channel and your coaches\u2019 playlists, ad-free. Free with your membership \u2014 or tap Done to stay here.', onCta: function () { window.location.href = '/newdesign/Radio.html'; } },
     ];
   }
   function coachSteps(role) {

@@ -22,14 +22,21 @@
 </style>
 <!-- ⚠ FOR NORA'S BOOTH, AND IT MUST PRECEDE EVERY MODULE SCRIPT — a document gets
      one import map and it has to be parsed before the first import it serves.
-     Carried over verbatim from the player this page retires, so the booth resolves
-     the same three.js it was built and verified against. -->
+     ⚠ THESE TWO VERSIONS MUST EQUAL mobile-app/package.json's, AND THE BOOTH WAS DEAD
+     FOR WANT OF THAT. noraStage.mjs is ONE module compiled against TWO dependency
+     pairs: Vite bundles it for the app against mobile-app/node_modules, and this map
+     resolves it for the web. A bump moved the app to three 0.185.1 / three-vrm 3.5.5
+     and left this map on 0.169.0 / 3.1.6 — so `VRMUtils.combineSkeletons`, added to
+     three-vrm AFTER 3.1.6 and called at noraStage.mjs:53, existed on the phone and
+     not here. load() threw a TypeError on every open, RadioNora's catch swallowed it,
+     and the page said "The booth could not start on this device" on every browser.
+     tests/nora-stage-version-parity.test.mjs now fails the build if they drift again. -->
 <script type="importmap">
 {
   "imports": {
-    "three": "https://esm.sh/three@0.169.0",
-    "three/addons/": "https://esm.sh/three@0.169.0/examples/jsm/",
-    "@pixiv/three-vrm": "https://esm.sh/@pixiv/three-vrm@3.1.6?deps=three@0.169.0"
+    "three": "https://esm.sh/three@0.185.1",
+    "three/addons/": "https://esm.sh/three@0.185.1/examples/jsm/",
+    "@pixiv/three-vrm": "https://esm.sh/@pixiv/three-vrm@3.5.5?deps=three@0.185.1"
   }
 }
 </script>
@@ -70,7 +77,7 @@
 <script type="module">
   import * as SF from "/newdesign/radioSignalField.mjs?v=f82d5f003a";
   import * as TD from "/newdesign/radioTempo.mjs?v=081af8cfe9";
-  import * as RF from "/newdesign/radioField.mjs?v=bfa4c26e64";
+  import * as RF from "/newdesign/radioField.mjs?v=bac65f9558";
   window.ShapeSignalField = SF; window.ShapeRadioTempo = TD; window.ShapeRadioField = RF;
 </script>
 <script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260714d"></script>

@@ -1298,3 +1298,60 @@ test('a set schedule we could not read is never published as an empty one', () =
       `a failure door at offset ${call.start} records "could not read" and then carries on`);
   }
 });
+
+// THE PAGE MUST READ THE MASK RULES, NOT ITS OWN COPY OF THEM. This is the failure
+// this whole file was written for, arriving a fourth time: the wordmark's coverage
+// threshold shipped as a bare `> 128` INSIDE the draw loop, where nothing in Node
+// could drive it, and it was wrong — a half-tile threshold erases the one-tile stems
+// of a 600-weight face at the sizes this wall actually renders, which is half of what
+// the owner reported on 2026-09-16 as "the look and clarity of this changes with the
+// monitor size". Moving it to radioField.mjs is only half a fix while the page can
+// still carry a literal, so both halves are asserted here.
+test('the wordmark mask takes its rules from radioField, not from a literal', () => {
+  const src = stripComments(SRC);
+
+  // the coverage threshold is the shared rule
+  assert.match(src, /mask\[r \* mw \+ c\]\s*>\s*F\.WALL_MASK_INK/,
+    'the draw loop no longer thresholds the mask on F.WALL_MASK_INK — a literal here is a third opinion about the same rule');
+  // ⚠ VACUITY: the assertion above passes on a file where the whole draw loop is gone.
+  // The mask must still actually be sampled per tile.
+  assert.match(src, /const lit = mask\[/, 'the draw loop has stopped sampling the mask at all');
+
+  // ⚠ AND A POSITIVE MATCH IS NOT THE ABSENCE IT CLAIMS (Codex, on this PR).
+  // `mask[..] > F.WALL_MASK_INK && mask[..] > 128` satisfies every assertion above —
+  // the shared rule is still referenced, the mask is still sampled — while the
+  // half-tile gate erases the one-tile stems again, which is the exact defect this
+  // test is named for. So the literal is REJECTED rather than the shared rule merely
+  // required: radioField owns this number, and a second opinion here is how it comes back.
+  const LITERAL_CMP = /mask\s*\[[^\]]*\]\s*[<>]=?\s*(\d)/g;
+  const literals = [...src.matchAll(LITERAL_CMP)];
+  assert.equal(literals.length, 0,
+    `the draw loop compares the mask against a literal (${literals.map((m) => m[0].trim()).join(' | ')}) — the coverage threshold is F.WALL_MASK_INK and nothing else`);
+  // ⚠ GUARD-THE-GUARD: a zero above is a fact about the REGEX until the regex is
+  // proven able to see both shapes the defect takes — the bare literal it shipped as,
+  // and the and-ed literal that keeps the shared rule in place beside it.
+  assert.equal([...'const lit = mask[r * mw + c] > 128;'.matchAll(LITERAL_CMP)].length, 1,
+    'the literal-threshold pattern no longer matches the bare `> 128` this shipped as');
+  assert.equal([...'const lit = mask[r*mw+c] > F.WALL_MASK_INK && mask[r*mw+c] > 128;'.matchAll(LITERAL_CMP)].length, 1,
+    'the literal-threshold pattern no longer matches an and-ed literal beside the shared rule');
+  assert.equal([...'const lit = mask[r * mw + c] > F.WALL_MASK_INK;'.matchAll(LITERAL_CMP)].length, 0,
+    'the literal-threshold pattern fires on the CORRECT draw loop — it would fail a clean tree');
+
+  // and the word form is the shared rule too
+  assert.match(src, /F\.wallMaskText\(/, 'buildMask no longer asks radioField which word to draw');
+
+  // THE MASK IS SUPERSAMPLED. At one pixel per tile a tile took its state from a single
+  // sample, so a stem that fell between sample points dropped out and the same letter
+  // came out differently at two widths. The offscreen canvas must be bigger than the
+  // tile grid, and the per-tile value must be an AVERAGE rather than one pixel.
+  const mask = src.slice(src.indexOf('function buildMask'));
+  const body = mask.slice(0, mask.indexOf('\n  }\n'));
+  assert.ok(body.length > 200, 'buildMask was not found — this guard is reading the wrong span');
+  assert.match(body, /m\.width = mw \* MASK_SS/, 'the mask canvas is no longer supersampled in x');
+  assert.match(body, /m\.height = mh \* MASK_SS/, 'the mask canvas is no longer supersampled in y');
+  assert.match(body, /sum \/ \(MASK_SS \* MASK_SS\)/, 'the per-tile value is no longer a coverage average');
+  // ⚠ MASK_SS is declared just ABOVE buildMask, not inside it — the first version of
+  // this guard looked in the body and read null. Ask the file.
+  const ss = src.match(/const MASK_SS = (\d+)/);
+  assert.ok(ss && Number(ss[1]) >= 4, `MASK_SS is ${ss && ss[1]} — below 4 samples a tile there is not enough to decide an edge`);
+});

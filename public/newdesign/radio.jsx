@@ -114,7 +114,7 @@ function RadioShapeSets() {
             Shape <em style={{ fontStyle: "italic", fontWeight: 600, color: RD_TEAL }}>Sets.</em>
           </h2>
           <p style={{ fontFamily: RD_SANS, fontSize: 16, fontWeight: 500, color: "rgba(242,237,228,0.95)", margin: "22px auto 0", maxWidth: 620, lineHeight: 1.55 }}>
-            A virtual concert series broadcast straight from <strong style={{ color: RD_CREAM, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts mixed for movement, captured on the floor and streamed through Shape Radio.
+            A virtual concert series broadcast straight from <strong style={{ color: RD_CREAM, fontWeight: 500 }}>Club Shape</strong>, our flagship venue. DJs and live acts, captured on the floor and streamed through Shape Radio.
           </p>
           <div style={{ marginTop: 36, fontFamily: RD_NUM, fontSize: 24, letterSpacing: "0.28em", textTransform: "uppercase", color: RD_TEAL, fontWeight: 500 }}>
             Coming soon
@@ -138,6 +138,31 @@ function RadioShapeSets() {
 function RadioNora() {
   const canvasRef = React.useRef(null);
   const stageRef = React.useRef(null);
+  // ⚠ THE UNMOUNT CLEANUP COULD NOT REACH A STAGE THAT WAS STILL LOADING, and the app's
+  // own copy of this flow has the guard this one was missing
+  // (iosAppBroadsheetRadio.jsx: `if (disposed) { st.dispose(); return; }` after load()).
+  // `stageRef` is assigned only AFTER load() and start() have both resolved, so between
+  // the click and the end of a ~10.7MB VRM download it is still null — and close(), and
+  // the unmount cleanup, both look at nothing but `stageRef`. Unmount inside that window
+  // and the load finishes anyway, start() installs a requestAnimationFrame loop, and an
+  // unreachable stage renders on holding a live WebGL context. Browsers cap those and
+  // silently EVICT THE OLDEST rather than reporting one, so the symptom would not be a
+  // leak message: it is the booth quietly failing to draw on some later attempt.
+  //
+  // ⚠ THIS IS HARDENING, NOT A REPRODUCED SYMPTOM, AND THE DIFFERENCE IS WORTH THE LINE.
+  // The obvious way in — tap Hide while it loads — IS NOT REACHABLE: the button carries
+  // `disabled={state === "opening"}` for exactly that window, and a disabled button fires
+  // no React onClick. Measured rather than reasoned about: a driver told to click during a
+  // deliberately slowed VRM download waited for the control to become enabled and landed a
+  // NORMAL close after the load had finished (264 booth draw calls, then none) — the path
+  // that already worked. So the only way to abandon a load here is an unmount, and on this
+  // page that is a navigation, which discards the context anyway. The guard stays because
+  // it is free, and because it is the one the app's own copy of this flow already has —
+  // but it is not credited with a fix.
+  //
+  // A counter rather than a boolean, because close() → open() → close() must not let an
+  // older attempt's guard fire against a newer attempt's stage.
+  const genRef = React.useRef(0);
   const [state, setState] = React.useState("closed");   // closed | opening | open | unsupported | failed
   const busy = React.useRef(false);
 
@@ -161,6 +186,11 @@ function RadioNora() {
   const open = async () => {
     if (busy.current) return;
     busy.current = true;
+    const myGen = ++genRef.current;
+    // Abandoned means: closed, or unmounted, while this attempt was awaiting something.
+    // Nothing is painted on that path — the component may be gone, and close() has already
+    // said what the state is.
+    const abandoned = () => genRef.current !== myGen;
     setState("opening");
     // ⚠ THE STAGE IS HELD LOCALLY SO THE FAILURE PATH CAN REACH IT (Codex, round 9).
     // `stageRef` was assigned only after load() AND start() had both succeeded, so a VRM
@@ -176,6 +206,7 @@ function RadioNora() {
       const g = window.__shapeRadioGraph || null;
       if (g && g.context && g.context.state === "suspended") { try { await g.context.resume(); } catch (e) { /* a booth without audio still draws */ } }
       const { NoraStage } = await import("/newdesign/noraStage.mjs");
+      if (abandoned()) return;                 // nothing built yet — nothing to dispose
       const stage = new NoraStage({
         canvas: canvasRef.current,
         // ⚠ THE INSTRUMENT'S OWN ANALYSER, OR NONE. Nora reacts to what the station
@@ -186,6 +217,10 @@ function RadioNora() {
       });
       made = stage;
       await stage.load();
+      // ⚠ THE WINDOW THIS WHOLE GUARD IS ABOUT — the VRM is ~10.7MB, so this await is
+      // where a member navigating away or tapping Hide actually lands. start() is never
+      // called, so no render loop is installed and the context is released here.
+      if (abandoned()) { try { stage.dispose(); } catch (e) {} return; }
       // ⚠ AND THE LOAD IS ASYNC, so a graph that appeared WHILE the VRM was downloading
       // would have been announced to a stage that did not exist yet — the same both-ways
       // problem `setColor` carries for the accent. Re-read before starting.
@@ -195,6 +230,17 @@ function RadioNora() {
       stageRef.current = stage;
       setState("open");
     } catch (e) {
+      // ⚠ SAY WHAT HAPPENED. This catch used to swallow the error entirely, and that is
+      // why the booth could sit broken: on 2026-09-16 it was throwing
+      // `VRMUtils.combineSkeletons is not a function` on EVERY open — the web import map
+      // had drifted off the versions the app installs — and the only thing a member or
+      // anyone reading a console could see was "The booth could not start on this
+      // device", which names no cause. Finding it took reproducing this function's own
+      // sequence by hand with the error made visible. The app's copy of this flow has
+      // always warned (`console.warn('[nora] stage failed', e)`); this one did not.
+      // The member-facing message is deliberately unchanged — it is honest and there is
+      // nothing useful to say to them — but the reason now reaches the console.
+      try { console.warn("[nora] booth failed to start", e); } catch (e2) {}
       // Both, and deduped: `made` is the stage this attempt built and `stageRef.current`
       // is one an earlier open left behind. They are the same object on a retry that got
       // as far as assigning the ref, and different when it did not.
@@ -208,11 +254,15 @@ function RadioNora() {
   };
 
   const close = () => {
+    genRef.current += 1;                        // retires an attempt that is still loading
     if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} stageRef.current = null; }
     setState("closed");
   };
 
-  React.useEffect(() => () => { if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} } }, []);
+  React.useEffect(() => () => {
+    genRef.current += 1;                        // same, for a load still in flight at unmount
+    if (stageRef.current) { try { stageRef.current.dispose(); } catch (e) {} stageRef.current = null; }
+  }, []);
 
   const showing = state === "open" || state === "opening";
   return (

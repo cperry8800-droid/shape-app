@@ -427,7 +427,7 @@ function BSOnboardingTour({ onClose, onNavigate }) {
       { navigate: go('chat'), anchor: q('tab-chat'), fallback: q('tab-chat'), eyebrow: tr('onboarding:tour.chat.eyebrow', { defaultValue: 'Chat' }), title: tr('onboarding:tour.chat.title', { defaultValue: 'Coaches & community.' }), body: tr('onboarding:tour.chat.body', { defaultValue: 'Message your coaches and see the community feed.' }) },
       { navigate: go('me'), anchor: q('hero-score'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.score.eyebrow', { defaultValue: 'Score' }), title: tr('onboarding:tour.score.title', { defaultValue: 'Your Shape Score.' }), body: tr('onboarding:tour.score.body', { defaultValue: 'The one number that tells the truth — earn it, spend it, climb the tiers.' }) },
       { navigate: go('me'), anchor: q('hero-me'), fallback: q('tab-me'), eyebrow: tr('onboarding:tour.you.eyebrow', { defaultValue: 'You' }), title: tr('onboarding:tour.you.title', { defaultValue: 'Your profile.' }), body: tr('onboarding:tour.you.body', { defaultValue: 'Your living profile — climb, signals and everything you’ve earned.' }) },
-      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: tr('onboarding:tour.radio.cta', { defaultValue: 'Open Shape Radio →' }), eyebrow: tr('onboarding:tour.radio.eyebrow', { defaultValue: 'Last stop' }), title: tr('onboarding:tour.radio.title', { defaultValue: 'Shape Radio.' }), body: tr('onboarding:tour.radio.body', { defaultValue: 'Ad-free workout mixes, curated by BPM. Free with your membership.' }), onCta: () => onNavigate && onNavigate('radio') },
+      { navigate: go('home'), anchor: q('tab-home'), fallback: q('tab-home'), final: true, ctaLabel: tr('onboarding:tour.radio.cta', { defaultValue: 'Open Shape Radio →' }), eyebrow: tr('onboarding:tour.radio.eyebrow', { defaultValue: 'Last stop' }), title: tr('onboarding:tour.radio.title', { defaultValue: 'Shape Radio.' }), body: tr('onboarding:tour.radio.body', { defaultValue: 'Ad-free mixes. Free with your membership.' }), onCta: () => onNavigate && onNavigate('radio') },
     ];
     const tour = startTour(steps, { root, accent: t.ACCENT, isLight: t.isLight, onDone: () => { bsMarkTourSeen(); onClose && onClose(); } });
     return () => tour.destroy();
@@ -36436,7 +36436,7 @@ function BSPricingPage({ onBack }) {
     'Full progress tracking & analytics',
     'Nutrition schedule & macro tracking',
     'Community forum access',
-    'Shape Radio — ad-free workout music',
+    'Shape Radio — ad-free, included with membership',
   ];
   const coaches = [
     { role: 'Trainer', name: 'Maya Okafor', meta: 'Brooklyn · Strength · hypertrophy', price: '$120', cadence: '/mo', avg: '$60–150 / session avg' },
@@ -36449,7 +36449,7 @@ function BSPricingPage({ onBack }) {
     { q: 'How much do coaches cost?', a: "Each pro sets their own price. Trainers typically run $60–150 per session or $80–250/mo for full programming. Nutritionists run $120–250 per consult or $120–300/mo for plans + reviews. You see each rate on their profile before you subscribe." },
     { q: 'Can I cancel any time?', a: "Yes — the $5/mo cancels instantly from your settings, and coach subscriptions cancel on the same screen. No penalties, no lock-in. Your data and training history stay with you." },
     { q: 'Do coaches pay to be on Shape?', a: "No monthly dues, no setup fees, and you only pay when you earn. Shape's platform fee depends on where the client came from: 15% on clients the Shape marketplace brought you, and 0% on clients you brought yourself through your invite or referral link. Standard card processing is separate." },
-    { q: 'Is Shape Radio really included?', a: "Yes — ad-free workout mixes, BPM-curated stations, live resident DJ sets. Part of the $5/mo, offline downloads included. No upsell." },
+    { q: 'Is Shape Radio really included?', a: "Yes — one live channel, coach playlists and live resident DJ sets, all ad-free. Part of the $5/mo, offline downloads included. No upsell." },
   ];
   const browseCoaches = () => { try { window.dispatchEvent(new CustomEvent('shape:openMarket')); } catch (e) {} };
   return (

@@ -408,7 +408,38 @@ export function wallFloods(row, rows, floodRows, kick) {
 // rather than as a word, which is worse than a shorter wordmark. Measured on the
 // render at 390 before this existed. The threshold is the point below which the long
 // form stops being letters.
-export const WALL_MASK_MIN_COLS = 44;
+//
+// ⚠ 44 WAS MEASURED AT ONE END OF THE RANGE AND ASSUMED AT THE OTHER, AND THE MIDDLE
+// IS WHERE EVERYONE ACTUALLY IS. The rule above is right; the number was not. The wall
+// is a FIXED 660px tall — 41 rows — while its columns are `floor(W / TILE_PX)`, so the
+// glyph height falls out of the WIDTH: the fit loop shrinks the type until the word
+// fits 88% of the columns, and the height is whatever is left. Measured across the
+// range, the long form renders at 6 tiles tall at 768px, 8 at 1024, 10 at 1280, 11 at
+// 1440 and 15 at 1920, hitting the 17-tile cap only past ~2240. So it was drawn nearly
+// THREE TIMES bigger on a wide monitor than on a small laptop, which is what the owner
+// reported on 2026-09-16: "the look and clarity of this changes with the monitor size."
+// At 44 (≈704px) the long form was allowed at SIX tiles tall — the exact noise this
+// rule exists to prevent, just above the width it was measured at.
+//
+// 80 columns is 1280px, and it is where the long form was legible on the render rather
+// than where the arithmetic says it should be: at 8 tiles (1024px) the letters are
+// cramped, at 10 they are clean. Below it the wall says SHAPE, which then gets the
+// whole width to itself and is drawn large. Every existing assertion about this rule
+// still holds — 1440 is still the long form, 390 and 320 are still the short one.
+export const WALL_MASK_MIN_COLS = 80;
+
+// ⚠ AND HOW MUCH OF A TILE THE GLYPH MUST COVER TO LIGHT IT — the other half of the
+// same report, and the half that was doing the most damage. The mask used to be
+// rasterised at ONE PIXEL PER TILE and thresholded at half of 255, so a tile's state
+// came from a single sample: stems that fell between sample points dropped out and the
+// same letter came out differently at two widths. The mask is supersampled now
+// (radioInstrument.jsx `buildMask`) and this is the COVERAGE a tile needs.
+//
+// 64 rather than 128 is measured, not tuned by feel: a 600-weight face at 10–11 tiles
+// tall draws stems about one tile wide, so demanding half a tile of coverage erases
+// them and the word comes out skeletal. At a quarter the stems survive and the
+// counters stay open. Rendered side by side at 1440 before choosing.
+export const WALL_MASK_INK = 64;
 export function wallMaskText(cols) {
   return (Number.isFinite(cols) && cols >= WALL_MASK_MIN_COLS) ? 'SHAPE RADIO' : 'SHAPE';
 }
