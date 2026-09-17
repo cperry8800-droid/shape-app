@@ -216,6 +216,175 @@ export function fieldRadius(v, k) {
 }
 
 // ---------------------------------------------------------------------------
+// Colour — one accent in, two tones out.
+// ---------------------------------------------------------------------------
+//
+// ⚠ THE WEBSITE'S RADIO WALL DRAWS ONE INSTRUMENT IN TWO TONES, AND THE APP DREW
+// IT IN ONE. Owner, 2026-09-17, on a screenshot of each: "can you make the look
+// of shape radio on app match the colors on website ... i like the 2 different
+// color schemes", then "make sure when you adjust colors on the settings app in
+// still applies to the app on shape radio, both color sections".
+//
+// The website's rule, read from `public/newdesign/radioInstrument.jsx` rather
+// than remembered: a lit column is teal for its lower four fifths and a hot
+// amber for the top fifth (`col = fromBottom > level * 0.8 ? RD_HOT : RD_TEAL`),
+// the kick flood goes hot, and a cloud dot goes hot when its band passes 0.7.
+// Base tone below, hot tone on the peaks.
+//
+// The app's base tone is already the Settings accent, and it has to stay that —
+// the second half of the ask is that one picker still moves everything. So the
+// hot tone is DERIVED from the accent by the same move that turns the website's
+// teal into its amber: the same hue offset, amber's own saturation, the same
+// lightness step. On the default teal that reproduces the website exactly
+// (#34d6c5 -> #e0a24a, byte for byte — the offsets are derived FROM that pair,
+// so feeding teal back round-trips), and on every other accent it produces that
+// accent's own partner. One picker, two tones, no new preference and no
+// migration.
+export const WEB_TEAL = '#34d6c5';   // radioInstrument.jsx's RD_TEAL
+export const WEB_HOT = '#e0a24a';    // radioInstrument.jsx's RD_HOT
+// ⚠ Both are RE-READ from that file by tests/radio-two-tone.test.mjs rather than
+// compared against these copies, so the day the website repaints its wall this
+// fails instead of quietly drifting.
+
+export function hexToRgb(h) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(h).trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+export function rgbToHsl([r, g, b]) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b); const mn = Math.min(r, g, b);
+  const l = (mx + mn) / 2; const d = mx - mn;
+  if (d === 0) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  let h;
+  if (mx === r) h = ((g - b) / d) % 6;
+  else if (mx === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h *= 60; if (h < 0) h += 360;
+  return [h, s, l];
+}
+
+export function hslToHex([h, s, l]) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r; let g; let b;
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const to = (v) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+const _T = rgbToHsl(hexToRgb(WEB_TEAL));
+const _A = rgbToHsl(hexToRgb(WEB_HOT));
+export const HOT_DH = _A[0] - _T[0];   // -138.5 degrees: the hue offset teal -> amber
+export const HOT_S = _A[1];            // 0.7075: amber's own saturation
+export const HOT_DL = _A[2] - _T[2];   // +0.0627: amber sits this much lighter
+                                       // FURTHER FROM THE GROUND than teal. The
+                                       // sign is a fact about the wall's ground,
+                                       // not about amber -- see HOT_PAPER below.
+
+// The wall's own ground (radioInstrument.jsx: RD_BG). `hotFor` defaults to it so
+// a paperless call still reproduces the website pair exactly; the app always
+// passes its own `t.PAPER`, which is a live theme value and is frequently light.
+export const HOT_PAPER = '#06090f';
+
+// The floor the hot tone must clear against the paper it is drawn on. 3:1 is
+// WCAG 1.4.11 for a non-text graphical object, which is what these marks are.
+// ⚠ IT IS A FLOOR ON THE TONE, NOT ON EVERY RENDERED MARK, AND THE DIFFERENCE IS
+// WORTH THE LINES. Every draw site composites through `globalAlpha`, so what
+// lands on the paper is always softer than the tone: measured on steel + rose,
+// the peak cap at alpha 0.65 renders #5592ae at 2.02:1 rather than the tone's
+// 3.03:1. That is NOT a hole in this floor, because the alpha reduces BOTH tones
+// together -- the base at that same site renders 2.39:1 -- and the two are drawn
+// from ONE `globalAlpha` at the bar, which is the website's own top-fifth rule
+// and the placement that matters most. Compensating here for a per-site alpha
+// that is also dynamic (0.55 + 0.45 * level on the bar, 0.22 + 0.6 * kick on the
+// baseline) would push the hot tone past the base and INVERT the pair, which is
+// the one thing the cap below exists to prevent. The wall has the same property
+// on its own ground: at alpha 0.55 its approved amber renders 3.32:1 and its
+// teal 3.88:1. And the geometry softens it rather than sharpening it, though
+// NOT by making the tip conditional: `barHeight` floors a bar at 3px, so even a
+// silent band draws one and the tip is BAR_HOT_FRAC of it -- 0.6px, sub-pixel.
+// What moves together is the tip's SIZE and the bar's ALPHA, both off the same
+// level: the dimmest tips are also the smallest, and a tip only reaches full
+// height as its bar reaches alpha 1.0. Raised by review on 2026-09-17, twice --
+// once for the mechanism, which is real and whose remedy is refused above, and
+// once because this clause first claimed the tip "only exists on a tall bar",
+// which the 3px floor makes false. A because-clause is a claim.
+// ⚠ IT IS CAPPED BY THE BASE'S OWN CONTRAST, AND THAT CAP IS NOT A SOFTENING --
+// IT IS WHAT KEEPS THE WEBSITE'S RELATIONSHIP INTACT. Measured on the wall's own
+// ground, teal reads 10.8:1 and amber 8.8:1, so the approved pair ALREADY draws
+// its hot tone at lower contrast than its base. Demanding that the hot tone beat
+// a base which is itself marginal would invert that relationship and make the
+// loud fifth louder than the instrument. So the hot tone is asked to clear 3:1,
+// or to match the base where even the base cannot -- never more.
+// ⚠ AND THE CAP IS A MEASURED NO-OP ON TODAY'S TABLES, LABELLED RATHER THAN LEFT
+// TO READ AS LIVE. Swept over all 18 papers x 9 accents, the base falls below
+// 3:1 on 11 chromatic pairs (manila/amber is the worst at 1.69:1) -- and on
+// every one of them the partner already clears 5.9:1 at the first step, so
+// capping the floor changes no output. It is kept because it states the rule
+// that stops a future low-contrast accent inverting the pair silently, not
+// because it is doing anything today.
+export const HOT_MIN_CONTRAST = 3;
+
+// ⚠ BELOW THIS SATURATION AN ACCENT HAS NO HUE TO ROTATE. The theme offers white
+// and black, and `makePalette` additionally flips any accent to #ffffff or
+// #000000 when it would not clear the paper — for those the two-tone collapses
+// to one tone, which is what a mono theme is asking for. Rotating a grey by 138
+// degrees produces the same grey and would read as the feature being broken.
+export const HOT_ACHROMATIC_S = 0.08;
+
+function _lin(v) { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+function _lum(hex) { const rgb = hexToRgb(hex); if (!rgb) return 0; const [r, g, b] = rgb.map(_lin); return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
+function _contrast(a, b) { const x = _lum(a); const y = _lum(b); const hi = Math.max(x, y); const lo = Math.min(x, y); return (hi + 0.05) / (lo + 0.05); }
+
+// ⚠ THE LIGHTNESS STEP IS SIGNED BY THE PAPER, NOT FIXED. HOT_DL is positive
+// because the wall's ground is near-black, so "amber sits lighter than teal"
+// and "amber sits FURTHER FROM THE GROUND than teal" are the same sentence
+// there -- and they come apart the moment the paper is light. Carried as a
+// fixed +0.0627 the partner steps TOWARDS a light paper: measured across all
+// 18 papers x 9 accents, that put 14 pairs between 1.00:1 and 1.55:1, every
+// one of them a light paper on Blue or Violet, with manila/violet landing on
+// 1.00:1 -- the loudest fifth of the instrument drawn in the paper's own
+// colour. The hue rotation and the saturation are untouched, so the pair keeps
+// the character the wall gave it; only which way it steps is the paper's call.
+export function hotFor(accent, paper = HOT_PAPER) {
+  const rgb = hexToRgb(accent);
+  if (!rgb) return accent;
+  const [h, s, l] = rgbToHsl(rgb);
+  if (s < HOT_ACHROMATIC_S) return accent;
+  const ground = hexToRgb(paper) ? paper : HOT_PAPER;
+  const away = rgbToHsl(hexToRgb(ground))[2] > 0.5 ? -1 : 1;
+  // Never asked to beat a base that is itself marginal -- see HOT_MIN_CONTRAST.
+  const floor = Math.min(_contrast(accent, ground), HOT_MIN_CONTRAST);
+  // Walk away from the paper and stop at the FIRST tone that clears the floor,
+  // so a pair that already reads is left where the wall's own offsets put it.
+  let out = null;
+  for (let step = 0; step <= 60; step++) {
+    const li = Math.min(0.96, Math.max(0.04, l + away * (HOT_DL + step * 0.015)));
+    out = hslToHex([h + HOT_DH, HOT_S, li]);
+    if (_contrast(out, ground) >= floor) return out;
+    if (li <= 0.04 || li >= 0.96) break;
+  }
+  return out;
+}
+
+// Where the hot tone goes. Every one of these is the website's own number, and
+// the guard re-reads each from the file it came out of.
+export const BAR_HOT_FRAC = 0.2;  // radioInstrument.jsx: `fromBottom > level * 0.8`
+export const FIELD_HOT_V = 0.7;   // radioInstrument.jsx: `v > 0.7 ? RD_HOT : RD_TEAL`
+export const FLOOD_KICK = 0.3;    // radioField.mjs: WALL_FLOOD_KICK
+
+// ---------------------------------------------------------------------------
 // The rows — one pen, two traces, three seconds of history.
 // ---------------------------------------------------------------------------
 

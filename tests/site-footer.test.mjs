@@ -11,12 +11,17 @@
 //   · it put the legal links under Support where the shared one put them under
 //     Company;
 //   · GetApp carried a four-item Product list against the shared seven;
+//     ⚠ 2026-09-17: GetApp no longer hand-writes a footer at all. The App page was
+//     rebuilt as One Day and mounts the shared <Footer /> in its own root, so the
+//     shared table IS its footer and there is nothing left to compare it against.
+//     It is out of COPIES below; the absence check at the foot of this file still
+//     covers it, and tests/getapp-page.test.mjs asserts it mounts the component.
 //   · and all three linked "Press" at `Team.html#press`, which is the CLIENT'S
 //     "My Team" page and has no `id="press"` anywhere on it.
 //
-// The shared component is the source of truth; the two static pages hand-write a
-// copy because they cannot import a React component at build time. This compares
-// all three, by label AND by target, group by group.
+// The shared component is the source of truth; `index.html` hand-writes a copy
+// because a static page cannot import a React component at build time. This
+// compares it, by label AND by target, group by group.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -28,7 +33,6 @@ const PUB = path.join(ND, '..');
 const read = (f) => readFileSync(path.join(ND, f), 'utf8');
 const SHELL = read('pageShell.jsx');
 const INDEX = read('index.html');
-const GETAPP = read('GetApp.html');
 
 // A target's identity for comparison. The three legitimately spell the same
 // destination differently — the static pages write `/newdesign/Marketplace.html`,
@@ -79,9 +83,14 @@ function staticTable(src, footRe, headRe) {
   }
   return out;
 }
+// ⚠ ONE HAND-WRITTEN COPY, NOT TWO. GetApp.html carried the second until
+// 2026-09-17, when the App page was rebuilt as One Day and started mounting the
+// shared <Footer /> like every other page — so there is no second table to
+// reconcile. A guard that went on reading a <footer class="ga-footer"> that no
+// longer exists would have matched nothing and passed vacuously on every
+// assertion below, which is why the entry is removed rather than left.
 const COPIES = [
   ['index.html', staticTable(INDEX, /<footer class="ft">[\s\S]*?<\/footer>/, /<h5>([^<]+)<\/h5>/g)],
-  ['GetApp.html', staticTable(GETAPP, /<footer class="ga-footer">[\s\S]*?<\/footer>/, /class="ga-footer-head">([^<]+)<\/div>/g)],
 ];
 
 test('all three footers carry the same groups, labels and targets', () => {
@@ -248,10 +257,29 @@ test('every page still carries a footer', () => {
 // one runs. A counter like that reports 66 pages broken on a tree where the real
 // number is zero. The number of footers a page RENDERS is a browser question;
 // the assertion below is the source question that actually has an answer.
+// ⚠ IT ASKS FOR THE ELEMENT, NOT THE STRING, AND THAT IS A FIX RATHER THAN A
+// LOOSENING. The first version matched a bare `id="site-footer"` anywhere in the
+// file — so the moment a page explained IN A COMMENT why it must never carry that
+// id, the guard reported the page as carrying it. Measured on 2026-09-17: the
+// rebuilt GetApp.html names the id in a four-line note above its two chrome roots
+// and failed this test while carrying no such element at all. The repo has paid
+// for this shape before (the CfPill ban, 2026-09-15) and the lesson recorded there
+// is to fix the guard rather than reword the comment to appease it, because the
+// comment is where the next reader learns not to re-add the div.
+// The invariant is an OPENING TAG carrying the id; prose cannot be one, because
+// `[^>]*` may not cross the `>` that would have closed a real tag. Both directions
+// are proven below — a guard that only ever reports a pass is not a guard.
+const FOOTER_OPT_IN = /<[a-z][^>]*\bid="site-footer"/i;
 test('no page opts into the retired footer auto-mount', () => {
+  // guard-the-guard: it sees the element, and it does not see prose about it.
+  assert.ok(FOOTER_OPT_IN.test('<div id="site-footer"></div>'), 'the opt-in pattern no longer matches the div it is about');
+  assert.ok(FOOTER_OPT_IN.test('<div\n  class="x"\n  id="site-footer">'), 'the opt-in pattern cannot cross a line break inside one tag');
+  assert.ok(!FOOTER_OPT_IN.test('// NEVER id="site-footer" on either root'), 'the opt-in pattern still fires on prose naming the id');
+  assert.ok(!FOOTER_OPT_IN.test('<main> ... later, in prose: id="site-footer" is retired'), 'the opt-in pattern matches across a closed tag');
+
   const pages = readdirSync(ND).filter((f) => f.endsWith('.html'));
   assert.ok(pages.length >= 70, 'only ' + pages.length + ' pages found');
-  const optIn = pages.filter((p) => /id="site-footer"/.test(readFileSync(path.join(ND, p), 'utf8')));
+  const optIn = pages.filter((p) => FOOTER_OPT_IN.test(readFileSync(path.join(ND, p), 'utf8')));
   assert.deepEqual(optIn, [],
     'these pages carry <div id="site-footer">, which nothing mounts any more: ' + optIn.join(', '));
   assert.ok(!/mountSiteFooter|getElementById\('site-footer'\)/.test(SHELL),
