@@ -374,9 +374,11 @@ function bsRadioAskedPersist() {
 }
 
 function BSRadioProvider({ children }) {
-  // Persisted radio preference (device-level localStorage) so the "Want music
-  // while you move?" prompt is asked ONCE — after the user answers it (play or
-  // muted), it never auto-shows again on a later launch / re-login. Seed from it.
+  // Persisted radio preference (device-level localStorage) so the radio ask-prompt
+  // (`radio:prompt.title` + `.titleAccent`) is asked ONCE — after the user answers
+  // it (play or muted), it never auto-shows again on a later launch / re-login.
+  // Named by KEY, not by its wording: the copy has already been retired once.
+  // Seed from it.
   const _radioPref = safeReadRadioJSON('shape.radio.pref', null); // { asked, on } | null
   const [radioOn, setRadioOn]       = useStateBR(_radioPref ? !!_radioPref.on : false);
   const [askedPrompt, setAsked]     = useStateBR(() => bsRadioAskedMirrorRead());

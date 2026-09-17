@@ -1262,7 +1262,8 @@ function BSPreviewBanner({ t, onJoin }) {
 }
 
 // The preview banner shouldn't sit on top of the full-screen Radio prompt (the
-// "Want music while you move?" overlay) — hold it until that's answered and the
+// `radio:prompt.*` overlay — named by key, not by its wording, which has already
+// been retired once) — hold it until that's answered and the
 // user is actually in the app. Reads the radio context, so it must render inside
 // BSRadioProvider (it does — it's rendered alongside <App>).
 function BSPreviewBannerGated({ t, onJoin }) {

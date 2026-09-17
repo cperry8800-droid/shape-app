@@ -1098,6 +1098,26 @@ test('the wordmark mask takes its rules from radioField, not from a literal', ()
   // The mask must still actually be sampled per tile.
   assert.match(src, /const lit = mask\[/, 'the draw loop has stopped sampling the mask at all');
 
+  // ⚠ AND A POSITIVE MATCH IS NOT THE ABSENCE IT CLAIMS (Codex, on this PR).
+  // `mask[..] > F.WALL_MASK_INK && mask[..] > 128` satisfies every assertion above —
+  // the shared rule is still referenced, the mask is still sampled — while the
+  // half-tile gate erases the one-tile stems again, which is the exact defect this
+  // test is named for. So the literal is REJECTED rather than the shared rule merely
+  // required: radioField owns this number, and a second opinion here is how it comes back.
+  const LITERAL_CMP = /mask\s*\[[^\]]*\]\s*[<>]=?\s*(\d)/g;
+  const literals = [...src.matchAll(LITERAL_CMP)];
+  assert.equal(literals.length, 0,
+    `the draw loop compares the mask against a literal (${literals.map((m) => m[0].trim()).join(' | ')}) — the coverage threshold is F.WALL_MASK_INK and nothing else`);
+  // ⚠ GUARD-THE-GUARD: a zero above is a fact about the REGEX until the regex is
+  // proven able to see both shapes the defect takes — the bare literal it shipped as,
+  // and the and-ed literal that keeps the shared rule in place beside it.
+  assert.equal([...'const lit = mask[r * mw + c] > 128;'.matchAll(LITERAL_CMP)].length, 1,
+    'the literal-threshold pattern no longer matches the bare `> 128` this shipped as');
+  assert.equal([...'const lit = mask[r*mw+c] > F.WALL_MASK_INK && mask[r*mw+c] > 128;'.matchAll(LITERAL_CMP)].length, 1,
+    'the literal-threshold pattern no longer matches an and-ed literal beside the shared rule');
+  assert.equal([...'const lit = mask[r * mw + c] > F.WALL_MASK_INK;'.matchAll(LITERAL_CMP)].length, 0,
+    'the literal-threshold pattern fires on the CORRECT draw loop — it would fail a clean tree');
+
   // and the word form is the shared rule too
   assert.match(src, /F\.wallMaskText\(/, 'buildMask no longer asks radioField which word to draw');
 

@@ -491,6 +491,10 @@ test('the long wordmark is only offered where it is still letters', () => {
     `WALL_MASK_MIN_COLS is ${WALL_MASK_MIN_COLS}: at 44 the long form was allowed at ~704px, where it draws six tiles tall and is noise`);
   assert.ok(WALL_MASK_MIN_COLS <= wallCols(1440),
     'the gate has risen past 1440, which is an ordinary desktop — the long form should still be offered there');
+  // ⚠ Same hole, same fix: any value from 65 to 80 satisfies the two bounds above
+  // while moving the gate off the width it was actually chosen at. 80 is 1280px.
+  assert.equal(WALL_MASK_MIN_COLS, 80,
+    `WALL_MASK_MIN_COLS is ${WALL_MASK_MIN_COLS}, not the measured 80 (= 1280px) — re-measure the glyph height across the range before changing it`);
   // the widths either side of the gate resolve the way the rule says
   assert.equal(wallMaskText(wallCols(1280)), 'SHAPE RADIO', '1280 is above the gate');
   assert.equal(wallMaskText(wallCols(1024)), 'SHAPE', '1024 draws eight tiles tall — the short form is the legible one');
@@ -507,6 +511,14 @@ test('a tile lights on coverage, and the threshold leaves the stems standing', (
     `WALL_MASK_INK is ${WALL_MASK_INK}: at or above half a tile the one-tile stems of the long wordmark drop out`);
   assert.ok(WALL_MASK_INK >= 32,
     `WALL_MASK_INK is ${WALL_MASK_INK}: below an eighth of a tile the counters close up and the word fills in`);
+  // ⚠ AND THE RANGE ABOVE IS NOT THE MEASUREMENT (Codex, on this PR). 32..127 all
+  // satisfy it — including 40, which was RENDERED side by side against 64 and 128 and
+  // rejected. The number was chosen by LOOKING, not derived from an invariant, so the
+  // literal is written HERE rather than read back from the source: reading it back
+  // would make the assertion tautological, and a range that admits the values the
+  // render rejected preserves nothing. Moving it is a decision someone makes here.
+  assert.equal(WALL_MASK_INK, 64,
+    `WALL_MASK_INK is ${WALL_MASK_INK}, not the measured 64 — re-render 128 / 64 / 40 side by side and look at the stems before changing it`);
 });
 
 test('the tile grid degrades rather than throwing on a zero-sized canvas', () => {
