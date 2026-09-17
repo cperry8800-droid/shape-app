@@ -202,6 +202,11 @@ a three-wide step around 1,100px; the preview collapses straight to two columns 
 
 ## 5. The pick
 
+⚠ **SUPERSEDED THE SAME DAY — THE OWNER PICKED B · ONE DAY** (*"lets go with one day"*, 2026-09-17). The
+recommendation below stays as the record of the reasoning; the build brief is
+[`BUILD-2026-09-17-app-page-one-day.md`](BUILD-2026-09-17-app-page-one-day.md), and it defaults the
+rulings in §6 that the pick did not settle so the build can start.
+
 **C · The Panel**, for the page's one job: someone who taps *App* wants to see the app and find the door.
 C shows the whole app in the first two folds, puts the three doors in the first viewport, is the shortest
 of the three, and is the only one that looks like the product it is selling — the same black paper, plates
@@ -221,14 +226,19 @@ waitlist `platform` field, and the shared header on this page.
 
 ## 6. Owner rulings
 
-1. **The pick** — C, A or B (§5).
+⚠ **RULINGS 1 AND 4 ARE SETTLED; 2, 3 AND 5 ARE DEFAULTED IN THE BUILD BRIEF §0, EACH ONE LINE TO
+REVERSE.** 1: B · One Day (owner, 2026-09-17). 4: done — both captures replaced in place and their
+`?v=` bumped to `20260917` on `GetApp.html` and `index.html`. 2 defaults to YES (the `/m/` door), 3 to
+dropped, 5 to the member app only.
+
+1. **The pick** — C, A or B (§5). **→ B.**
 2. **The browser door.** The app runs on the web today and its paywall is built for prospects (*Preview
    the app first →*), but no page on the site links `/m/`. C shows the door; A and B would take the same
    line under the store chips. Yes, no, or later.
 3. **Two copy clauses.** *"Pick friends to be notified when you miss"* has no code path behind it, and
    *"One live channel"* describes a station that is not broadcasting. The concepts drop both; keep them
    dropped, or reword them to a feature that exists.
-4. **The re-shoot.** Replace `getapp-home-v5.png` and `getapp-radio-v3.png` with today's captures (the
+4. **The re-shoot.** **→ Done 2026-09-17, the same day.** Replace `getapp-home-v5.png` and `getapp-radio-v3.png` with today's captures (the
    board already carries them). The Home file is shared with the homepage's price phone, so one swap fixes
    both pages.
 5. **Whether this page carries the coach apps at all.** Every screen here is the member app; the trainer
