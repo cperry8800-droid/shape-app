@@ -13,7 +13,7 @@ thirteen artboards in four rows. **Today · as shipped** (the page rendered in i
 and 390, plus two evidence crops: the step-2 bezel and the step-8 Radio capture), then **A · The Front
 Page**, **B · One Day** and **C · The Panel**, each as a whole desktop page, a whole phone page, and a
 frame you open to scroll. Every phone on every concept is a real capture of the app; the two the shipped
-page shows stale were re-shot from today's build for the board.
+page shows stale were re-shot from today's build for the board. The same previews as a plain page, for a device where the canvas will not load: https://claude.ai/artifact/GAUZQXSvviKwSCepwsRywj — four tabs, a desktop/phone switch, the full-page renders as images.
 
 **Records only.** No code changed, no migration, no PR. The recommendation is §5; §6 lists what the build
 still needs decided.
