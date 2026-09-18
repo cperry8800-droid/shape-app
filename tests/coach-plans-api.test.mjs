@@ -71,6 +71,7 @@ test('future preview excludes logged/overridden days and retains calendar and vi
   assert.equal(response.status,200);const body=await response.json();
   assert.equal(body.assignments.length,1);assert.equal(body.skipped,2);
   assert.equal(body.assignments[0].scheduledDate,'2026-09-24');
+  assert.equal(body.assignments[0].description,'Client-specific cue');
   assert.equal(body.assignments[0].payload.exercises[0].video,'https://example.com/press.mp4');
   assert.deepEqual(body.assignments[0].before,{id:'clean',title:'Old title',description:'Client-specific cue',kind:'template',scheduled_date:'2026-09-24',payload:make('clean').payload,exercises:[]});
   assert.ok(calls.some(c=>c[0]==='gt'&&c[1]==='scheduled_date'&&c[2]==='2026-09-18'));
@@ -79,6 +80,17 @@ test('future preview fails closed when completed-workout verification is truncat
   const {route}=await api([{data:plan},{data:[{id:'trainer'}]},{data:[{id:'row'}],count:1},{data:[],count:1}],{assignments:true});
   assert.equal((await route.GET(new Request(`https://shape.test/api/coach/plans/assignments?id=${plan.id}`))).status,500);
 });
+
+for (const note of ['Leave two reps in reserve', '']) {
+  test(`future preview carries the saved program note, including an explicit clear: ${JSON.stringify(note)}`,async()=>{
+    const saved={...plan,detail:{...plan.detail,note}};
+    const row={id:'future',client_id:'client',scheduled_date:'2026-09-24',description:'Previous program instructions',payload:{template:{id:plan.id,week:1,day:1,dayId:'upper'}}};
+    const {route}=await api([{data:saved},{data:[{id:'trainer'}]},{data:[row],count:1},{data:[],count:0}],{assignments:true});
+    const body=await (await route.GET(new Request(`https://shape.test/api/coach/plans/assignments?id=${plan.id}&today=2026-09-18`))).json();
+    assert.equal(body.assignments[0].description,note);
+    assert.equal(body.assignments[0].before.description,'Previous program instructions');
+  });
+}
 
 for (const [label, capture] of [['minutes', {plannedRpe:7}], ['effort', {plannedMinutes:45}], ['both capture values', {}]]) {
   test(`future preview clears ${label} without retaining stale load or losing client metadata`,async()=>{

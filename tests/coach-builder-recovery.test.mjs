@@ -167,7 +167,7 @@ test('a library account change closes the old account editor without moving its 
 
 test('future updates submit the selected preview snapshot alongside its prescription',async()=>{
   const before={id:template().id,title:'Old lower',description:null,kind:'template',scheduled_date:'2040-06-05',payload:{exercises:[{name:'Squat',reps:'5'}]},exercises:[{name:'Squat',reps:'5'}]};
-  const row={id:before.id,clientId:'client-a',title:'New lower',scheduledDate:before.scheduled_date,before,payload:{exercises:[{name:'Squat',reps:'6'}]}};
+  const row={id:before.id,clientId:'client-a',title:'New lower',description:'Keep each rep controlled',scheduledDate:before.scheduled_date,before,payload:{exercises:[{name:'Squat',reps:'6'}]}};
   let posted;
   globalThis.fetch=async(_url,options)=>{
     if(options.method==='POST'){posted=JSON.parse(options.body);return {ok:true,json:async()=>({ok:true})};}
@@ -179,6 +179,7 @@ test('future updates submit the selected preview snapshot alongside its prescrip
   await React.act(async()=>button('Update 1 workouts').click());
   assert.deepEqual(posted.assignmentPreconditions,[before]);
   assert.equal(posted.sessions[0].title,'New lower');
+  assert.equal(posted.sessions[0].description,row.description);
   await React.act(async()=>root.unmount());
 });
 

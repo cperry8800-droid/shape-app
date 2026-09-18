@@ -33,7 +33,7 @@ export default function BSWorkoutFutureUpdates({ plan, t, tr: inheritedTr, onClo
     try {
       for (const group of groupWorkoutUpdates(selected)) {
         if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== owner.current) throw new Error(txt('accountChanged', 'Your account changed. Reopen the library before saving.'));
-        await window.ShapeCoachPlans.updateAssignments({ clientId: group.clientId, assignmentPreconditions: group.rows.map((row) => row.before), sessions: group.rows.map((row) => ({ title: row.title, description: plan.name, kind: 'template', scheduledDate: row.scheduledDate, payload: row.payload })) });
+        await window.ShapeCoachPlans.updateAssignments({ clientId: group.clientId, assignmentPreconditions: group.rows.map((row) => row.before), sessions: group.rows.map((row) => ({ title: row.title, description: row.description, kind: 'template', scheduledDate: row.scheduledDate, payload: row.payload })) });
         const ids = new Set(group.rows.map((row) => row.id));
         setRows((previous) => previous.filter((row) => !ids.has(row.id)));
         setPicked((previous) => Object.fromEntries(Object.entries(previous).filter(([id]) => !ids.has(id))));

@@ -237,4 +237,127 @@ $$;
 
 revoke execute on function public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb, uuid[]) from public, anon, authenticated;
 grant execute on function public.publish_client_week(uuid, uuid, uuid, date, text, jsonb, jsonb, jsonb, uuid[]) to service_role;
+
+-- Adjust is the other schedule writer. Keep retired assignment rows addressable
+-- so paused sessions, delayed saves, and existing logs retain their ownership
+-- reference. The legacy `deleted` response/audit count means rows retired.
+create or replace function public.regenerate_client_workouts(
+  p_coach_user_id uuid,
+  p_client_id uuid,
+  p_delete_ids uuid[] default '{}',
+  p_inserts jsonb default '[]',
+  p_repeat_patches jsonb default '[]',
+  p_ack jsonb default null
+) returns jsonb
+language plpgsql security definer set search_path = public, pg_temp
+as $$
+declare
+  v_trainer_id bigint;
+  v_expected int;
+  v_found int;
+  v_ins jsonb;
+  v_patch jsonb;
+  v_title text;
+  v_sched date;
+  v_dow jsonb;
+  v_inserted int := 0;
+  v_patched int := 0;
+  v_deleted int := 0;
+  v_audited boolean := false;
+begin
+  if p_coach_user_id is null then
+    raise exception 'coach identity required' using errcode = '42501';
+  end if;
+  select t.id into v_trainer_id
+  from public.subscriptions s join public.trainers t on t.id = s.provider_id
+  where s.client_id = p_client_id and s.provider_role = 'trainer'
+    and s.status in ('active', 'trialing') and t.owner_id = p_coach_user_id limit 1;
+  if v_trainer_id is null then
+    raise exception 'not this client''s training coach' using errcode = '42501';
+  end if;
+  perform pg_advisory_xact_lock(hashtext('shape_client_schedule'), hashtext(p_client_id::text));
+  if coalesce(array_length(p_delete_ids, 1), 0) > 400
+     or jsonb_array_length(coalesce(p_inserts, '[]')) > 200
+     or jsonb_array_length(coalesce(p_repeat_patches, '[]')) > 50 then
+    raise exception 'regeneration set too large' using errcode = '22023';
+  end if;
+
+  -- Lock in the same order as publishing, before any mutation. The atomic
+  -- session saver takes these row locks too; retiring never removes the row.
+  perform w.id from public.client_workouts w
+  where w.client_id = p_client_id and w.trainer_id = v_trainer_id
+    and (w.id = any(p_delete_ids) or w.id in (
+      select (value->>'id')::uuid from jsonb_array_elements(coalesce(p_repeat_patches, '[]'))
+    )) order by w.id for update;
+  v_expected := coalesce(array_length(p_delete_ids, 1), 0);
+  if v_expected > 0 then
+    select count(*) into v_found from public.client_workouts w
+    where w.id = any(p_delete_ids) and w.client_id = p_client_id
+      and w.trainer_id = v_trainer_id and w.status = 'published'
+      and (w.scheduled_date is null or w.scheduled_date > current_date);
+    if v_found <> v_expected then
+      raise exception 'delete set contains rows outside the regeneration scope' using errcode = '42501';
+    end if;
+  end if;
+  perform set_config('shape.adjust_regen', '1', true);
+  for v_ins in select * from jsonb_array_elements(coalesce(p_inserts, '[]')) loop
+    v_title := nullif(btrim(coalesce(v_ins->>'title', '')), '');
+    if v_title is null then raise exception 'insert missing a title' using errcode = '22023'; end if;
+    v_sched := null;
+    if coalesce(v_ins->>'scheduled_date', '') <> '' then
+      v_sched := (v_ins->>'scheduled_date')::date;
+      if v_sched <= current_date then
+        raise exception 'inserts must be strictly future-dated' using errcode = '22023';
+      end if;
+    end if;
+    insert into public.client_workouts
+      (trainer_id, client_id, title, description, kind, payload, playlist_id, scheduled_date, status)
+    values (v_trainer_id, p_client_id, left(v_title, 200), left(coalesce(v_ins->>'description', ''), 2000),
+      case when v_ins->>'kind' = 'template' then 'template' else 'custom' end,
+      coalesce(v_ins->'payload', '{}'::jsonb), nullif(v_ins->>'playlist_id', '')::uuid, v_sched, 'published');
+    v_inserted := v_inserted + 1;
+  end loop;
+  for v_patch in select * from jsonb_array_elements(coalesce(p_repeat_patches, '[]')) loop
+    v_dow := coalesce(v_patch->'repeatDow', '[]'::jsonb);
+    if jsonb_typeof(v_dow) <> 'array' then
+      raise exception 'repeat patch needs a repeatDow array' using errcode = '22023';
+    end if;
+    update public.client_workouts w
+      set payload = jsonb_set(coalesce(w.payload, '{}'::jsonb), '{repeatDow}', v_dow)
+    where w.id = (v_patch->>'id')::uuid and w.client_id = p_client_id
+      and w.trainer_id = v_trainer_id and w.scheduled_date is null and w.status = 'published';
+    if not found then
+      raise exception 'repeat patch targets a row outside the regeneration scope' using errcode = '42501';
+    end if;
+    v_patched := v_patched + 1;
+  end loop;
+  if v_expected > 0 then
+    update public.client_workouts w set status = 'archived'
+    where w.id = any(p_delete_ids) and w.client_id = p_client_id
+      and w.trainer_id = v_trainer_id and w.status = 'published';
+    get diagnostics v_deleted = row_count;
+    if v_deleted <> v_expected then
+      raise exception 'the plan changed since it was read' using errcode = '40001';
+    end if;
+  end if;
+  if p_ack is not null and jsonb_typeof(p_ack) = 'object' then
+    insert into public.ai_audit_log (
+      actor_user_id, actor_role, source, action, target_user_id, target_kind, target_id,
+      suggestion, confirmed_payload, before_state, after_state
+    ) values (
+      p_coach_user_id, 'trainer', 'engine', 'guardrail_red_ack', p_client_id, 'training_regeneration',
+      nullif(btrim(coalesce(p_ack->>'weekStartISO', '')), ''), p_ack -> 'suggestion',
+      jsonb_build_object('acknowledged', true) || coalesce(p_ack -> 'acknowledgment', '{}'::jsonb),
+      jsonb_build_object('weeks', coalesce(p_ack -> 'weeks', '[]'::jsonb),
+        'adjustMode', p_ack ->> 'adjustMode', 'deleteCount', v_expected),
+      jsonb_build_object('inserted', v_inserted, 'patched', v_patched, 'deleted', v_deleted)
+    );
+    v_audited := true;
+  end if;
+  return jsonb_build_object('inserted', v_inserted, 'patched', v_patched,
+    'deleted', v_deleted, 'audited', v_audited);
+end;
+$$;
+revoke execute on function public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.regenerate_client_workouts(uuid, uuid, uuid[], jsonb, jsonb, jsonb) to service_role;
 commit;

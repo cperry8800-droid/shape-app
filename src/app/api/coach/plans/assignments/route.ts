@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     const retainedPayload = { ...row.payload };
     for (const key of ['plannedMinutes', 'plannedRpe', 'loadCapture']) delete retainedPayload[key];
     return [{id:row.id,clientId:row.client_id,before:{id:row.id,title:row.title,description:row.description ?? null,kind:row.kind,scheduled_date:String(row.scheduled_date).slice(0,10),payload:row.payload,exercises:row.payload?.exercises || []},
-      title:mapped.title,scheduledDate:String(row.scheduled_date).slice(0,10),
+      title:mapped.title,description:typeof plan.detail.note === 'string' ? plan.detail.note : row.description ?? null,scheduledDate:String(row.scheduled_date).slice(0,10),
       payload:{...retainedPayload,...mapped.payload,template:{...mapped.payload.template,week:stamp.week,day:stamp.day}}}];
   });
   return NextResponse.json({assignments,skipped:(rows?.length || 0)-assignments.length});

@@ -296,6 +296,18 @@ function withWindow(run) {
   try { return run({ store, listeners }); } finally { globalThis.window = prev; }
 }
 
+test('sign-out removes account-owned coach workout drafts while keeping device preferences', async () => {
+  const { shapeScrubLocalUserContent } = await import('../public/newdesign/localScrub.mjs');
+  withWindow(({ store }) => {
+    store.set('shape.coach.workout-draft.v1:coach-a:new-program', '{"note":"private cue"}');
+    store.set('shape.coach.workout-draft.v1:coach-b:plan-id', '{"video":"private media"}');
+    store.set('shape.locale', 'fr');
+    shapeScrubLocalUserContent({ broadcast: false });
+    assert.equal([...store.keys()].some(key => key.startsWith('shape.coach.workout-draft.')), false);
+    assert.equal(store.get('shape.locale'), 'fr');
+  });
+});
+
 test('the sign-out listener fires only on the stamp key, and unsubscribes', async () => {
   const { shapeInstallSignOutListener, SHAPE_SIGNOUT_STAMP_KEY } =
     await import('../public/newdesign/localScrub.mjs');

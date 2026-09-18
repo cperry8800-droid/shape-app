@@ -353,6 +353,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           'shape.sessions', 'shape.trainerPlaylists', 'shape.workoutSessions'
         ].forEach(function (k) { localStorage.removeItem(k); });
         var prefixes = [
+          'shape.coach.workout-draft.',
           'shape.chat.v2.', 'shape.dashGoals.', 'shape.habits.',
           'shape.dashQueueDone.', 'shape.dashMealLog.', 'shape.dashMealSwap.',
           'shape.dashNutriSwap.',

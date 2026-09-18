@@ -206,7 +206,7 @@ function DbuFutureUpdates({template,clients,onClose}) {
     try{
       for(const clientId of [...new Set(selected.map(r=>r.clientId))]){
         for(const week of DashBuilder.groupAssignmentWeeks(selected.filter(r=>r.clientId===clientId))){
-          const res=await fetch('/api/trainer/workout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientIds:[clientId],assignmentPreconditions:week.rows.map(r=>r.before),sessions:week.rows.map(r=>({title:r.title,description:template.name,kind:'template',scheduledDate:r.scheduledDate,payload:r.payload}))})});
+          const res=await fetch('/api/trainer/workout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientIds:[clientId],assignmentPreconditions:week.rows.map(r=>r.before),sessions:week.rows.map(r=>({title:r.title,description:r.description,kind:'template',scheduledDate:r.scheduledDate,payload:r.payload}))})});
           const data=await res.json();if(!res.ok)throw new Error(data.error||'Update failed.');completed+=week.rows.length;
           setPicked(prev=>{const next={...prev};week.rows.forEach(r=>delete next[r.id]);return next;});
           setRows(prev=>prev.filter(r=>!week.rows.some(x=>x.id===r.id)));

@@ -121,7 +121,7 @@ test('an upload attaches only to its selected row when website-copied weeks reus
 });
 
 test('future updates require explicit selection and retain only failed groups for retry', async () => {
-  const base = { title: 'Lower', before: { title: 'Lower old', exercises: [] }, payload: { exercises: [{ name: 'Squat', reps: '5' }] } };
+  const base = { title: 'Lower', description: 'Keep each rep controlled', before: { title: 'Lower old', exercises: [] }, payload: { exercises: [{ name: 'Squat', reps: '5' }] } };
   const calls = []; let fail = true;
   window.ShapeCoachPlans = {
     assignments: async () => ({ assignments: [{ ...base, id: 'a', clientId: 'one', scheduledDate: '2026-09-21' }, { ...base, id: 'b', clientId: 'two', scheduledDate: '2026-09-21' }] }),
@@ -139,6 +139,7 @@ test('future updates require explicit selection and retain only failed groups fo
   fail = false; await React.act(async () => button('Update 1 selected workouts').click());
   assert.deepEqual(calls.map((row) => row.clientId), ['one', 'two', 'two']);
   assert.deepEqual(calls[0].assignmentPreconditions, [base.before]);
+  assert.equal(calls[0].sessions[0].description,base.description);
   assert.match(document.body.textContent, /2 workouts updated/);
   await React.act(async () => root.unmount());
 });
