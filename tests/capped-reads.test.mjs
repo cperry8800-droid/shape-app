@@ -60,7 +60,7 @@ function capped() {
       // the marker sits with the query, in the comment block above it
       const back = lines.slice(Math.max(0, line - 17), line).join('\n');
       rows.push({
-        where: path.relative(API, file) + ':' + line,
+        where: path.relative(API, file).split(path.sep).join('/') + ':' + line,
         col: m[1], asc: m[2], cap: m[3],
         exempt: back.includes('capped-read-ok:'),
       });

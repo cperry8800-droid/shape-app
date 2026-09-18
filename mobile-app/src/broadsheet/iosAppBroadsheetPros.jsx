@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
 import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, bsDraftMode, bsDraftFromResponse, bsMealPlanTemplate, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
+import { normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows } from '../../../public/newdesign/workoutDocument.mjs';
+import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, knownWorkoutAverage, coachWorkoutVideos, workoutAssignmentsHaveExercises } from '../services/coachWorkoutLibrary.mjs';
+import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsCaseVitals } from '../services/caseVitals.mjs';
@@ -102,6 +105,7 @@ function _bsHydrateProScore() {
 }
 
 function formatReviewSeconds(value) {
+  if (value == null || value === '') return '—';
   const seconds = Math.max(0, Math.round(Number(value) || 0));
   const min = Math.floor(seconds / 60);
   const sec = seconds % 60;
@@ -268,9 +272,8 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const sensorSamples = selected?.workout_sensor_samples || selected?.sensor_samples || [];
   const reviewNotes = selected?.coach_workout_review_notes || selected?.review_notes || [];
   const completedSets = selected?.summary?.completedSets || setLogs.filter((entry) => entry.completed !== false).length;
-  const avgSet = selected?.summary?.avgSetSeconds || (completedSets ? Math.round(setLogs.reduce((sum, entry) => sum + Number(entry.set_duration_seconds || entry.setDurationSeconds || 0), 0) / completedSets) : 0);
-  const restRows = setLogs.filter((entry) => Number.isFinite(Number(entry.rest_before_seconds ?? entry.restBeforeSeconds)));
-  const avgRest = selected?.summary?.avgRestSeconds || (restRows.length ? Math.round(restRows.reduce((sum, entry) => sum + Number(entry.rest_before_seconds ?? entry.restBeforeSeconds ?? 0), 0) / restRows.length) : 0);
+  const avgSet = setLogs.length ? knownWorkoutAverage(setLogs, 'set_duration_seconds', 'setDurationSeconds') : selected?.summary?.avgSetSeconds ?? null;
+  const avgRest = setLogs.length ? knownWorkoutAverage(setLogs, 'rest_before_seconds', 'restBeforeSeconds') : selected?.summary?.avgRestSeconds ?? null;
   // Per-meal rows exist on the demo day only — a live day is totals-only.
   const hasMeals = Array.isArray(selected?.meals) && selected.meals.length > 0;
   // Everything else the day carries, each part dropped when absent so the line
@@ -2975,7 +2978,7 @@ function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections' } 
 }
 // Dot-leader catalogue row: mono index · serif name · leader · mono price ·
 // ASSIGN heat-underlined action; meta subline. Row tap = onOpen.
-function BSProCatRow({ index, name, meta, price, onOpen, onAssign, heat, t }) {
+function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, heat, t }) {
   const tr = useShapeTr();
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 12, alignItems: 'center', minHeight: 52, padding: '13px 0', borderTop: `1px solid ${t.INK}12` }}>
@@ -2988,11 +2991,14 @@ function BSProCatRow({ index, name, meta, price, onOpen, onAssign, heat, t }) {
         </span>
         {meta && <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{meta}</span>}
       </button>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 }}>
+      {onDuplicate && <button type="button" onClick={onDuplicate} aria-label={tr('coach:workoutEditor.copyName', { defaultValue: 'Duplicate {name}', name })} style={{ minWidth: 44, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>{tr('coach:workoutEditor.copy', { defaultValue: 'COPY' })}</button>}
       {onAssign && (
         <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name })} style={{ minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: t.INK, padding: '0 2px' }}>
           <span style={{ borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:plans.assign', { defaultValue: 'ASSIGN' })}</span>
         </button>
       )}
+      </div>
     </div>
   );
 }
@@ -3664,6 +3670,8 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   const uid = fixedClient ? clientUidProp : (picked && picked.userId);
   const targetName = fixedClient ? (clientProp?.n || tr('coach:common.thisClient', { defaultValue: 'this client' })) : (picked ? picked.name : tr('coach:assign.aClient', { defaultValue: 'a client' }));
   const first = String(targetName).split(' ')[0];
+  const workoutDetail = !isNutri && plan ? normalizeWorkoutDetail(plan.detail, { name: plan.name }) : null;
+  const structuredWorkout = workoutDetail?.builder && !workoutDetail.builder.outlineOnly;
 
   // Pickers — load only the half that wasn't handed in.
   useEffectBSP(() => {
@@ -3678,7 +3686,8 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // Default the weekly repeat to the plan's authored length ("6 weeks").
   useEffectBSP(() => {
     const m = String(plan?.detail?.length || plan?.meta || '').match(/(\d+)\s*(?:wk|week)/i);
-    if (m) setWeeks(Math.max(1, Math.min(8, Number(m[1]))));
+    if (plan?.detail?.builder?.weeks?.length) setWeeks(plan.detail.builder.weeks.length);
+    else if (m) setWeeks(Math.max(1, Math.min(8, Number(m[1]))));
   }, [plan]);
 
   const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -3803,7 +3812,16 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         // planned-load pair the editor stamped (§3.2a). Never re-derived here.
         const add = (date, title, description, block, exercises) => rows.push({ date, title, description, block: block || null, exercises: exercises || [] });
 
-        if (isSplit) {
+        if (structuredWorkout) {
+          const assigned = builderToAssignmentRows(workoutDetail.builder, { id: plan.id, name: plan.name, revision: workoutDetail.revision }, bsAssignIso(start));
+          if (!workoutAssignmentsHaveExercises(assigned)) throw new Error(tr('coach:workoutEditor.startSession', { defaultValue: 'Add exercises' }));
+          for (const item of assigned) {
+            const payload = item.payload || {};
+            rows.push({ date: new Date(item.scheduledDate + 'T00:00:00'), title: item.title, description: planNote,
+              payload, exercises: payload.exercises || [],
+              block: payload.loadCapture === 'per_session' ? payload : null });
+          }
+        } else if (isSplit) {
           for (let w = 0; w < weeks; w++) {
             for (let i = 0; i < dayLines.length; i++) {
               const dl = dayLines[i];
@@ -3829,7 +3847,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
           }
         } else {
           // Week labels are never movements — keep them out of the exercise list.
-          const exercises = blocks.filter((_, i) => !weekLines[i]).map(bsAssignExercise).filter(Boolean);
+          const exercises = _rawAll.filter((_, i) => !weekLines[i]).map((entry) => bsAssignExercise(entry.raw)).filter(Boolean);
           for (let w = 0; w < weeks; w++) {
             const d = new Date(start); d.setDate(d.getDate() + w * 7);
             // No planned-load pair, by design: an exercise block has no length
@@ -3870,7 +3888,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
           // Both: the id survives a rename, and the name is published as copy.
           planKey: plan.id || plan.name,
           planName: plan.name,
-          blocks: _rawAll.map((x) => x.raw),
+          blocks: structuredWorkout ? [{ builder: workoutDetail.builder }] : _rawAll.map((x) => x.raw),
           note: planNote,
           startISO: bsAssignIso(start),
           weeks,
@@ -3951,6 +3969,8 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     ? tr('coach:assign.whenArc', { defaultValue: '{weeks, plural, one {# week} other {# weeks}} · a coaching arc, no menu', weeks: bsWeekSpan(weekUnits) })
     : isNutri
     ? tr('coach:assign.whenNutri', { defaultValue: 'This week · replaces their current menu from you' })
+    : structuredWorkout
+      ? tr('coach:assign.whenStructured', { defaultValue: '{sessions} sessions · {weeks} weeks · from {from}', sessions: workoutDetail.builder.weeks.reduce((sum, w) => sum + w.days.length, 0), weeks: workoutDetail.builder.weeks.length, from: fromLabel })
     : isSplit
       ? tr('coach:assign.whenSplit', { defaultValue: '{sessions} sessions/wk · {weeks, plural, one {# week} other {# weeks}} · from {from}', sessions: dayLines.filter(d => d && !d.rest).length, weeks, from: fromLabel })
       // A week block is one session per stated week — accurate under the existing
@@ -4003,7 +4023,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
               {/* A week block states its own length, so there is nothing to
                   choose — showing a Weeks stepper would let the coach pick a
                   number the plan then ignores. */}
-              {!isWeekBlock && (
+              {!isWeekBlock && !structuredWorkout && (
                 <div style={{ marginTop: 12 }}>
                   <BSProStepper label={tr('coach:assign.weeks', { defaultValue: 'WEEKS' })} sub={isSplit ? tr('coach:assign.repeatsSplit', { defaultValue: 'Repeats the weekly split' }) : tr('coach:assign.repeatsSession', { defaultValue: 'Repeats the session weekly' })} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
                 </div>
@@ -6040,7 +6060,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const heat = bsProHeat(t, 'trainer');
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const accountId = typeof window !== 'undefined' ? window.ShapeAuth?.getCachedState?.()?.user?.id || null : null;
+  const signedIn = !!accountId;
   const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   const [desc, setDesc] = useStateBSP('');
@@ -6055,16 +6076,55 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   // note at the commit site in generateOnce.
   const draftRunRef = React.useRef(0);
   const [sort, setSort] = useStateBSP('Popular');
-  const [dupes, setDupes] = useStateBSP([]);
   const [serverPlans, setServerPlans] = useStateBSP(null); // synced coach_plans rows
+  const [libraryError, setLibraryError] = useStateBSP('');
+  const [editingPlan, setEditingPlan] = useStateBSP(null);
+  const duplicateRef = React.useRef(null);
+  const duplicateBusyRef = React.useRef(false);
+  const libraryRead = React.useRef(0);
   const [note, setNote] = useStateBSP('');
   const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
   const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash(tr('coach:plans.shareCopied', { defaultValue: 'Share link copied' })); };
-  useEffectBSP(() => { if (window.ShapeCoachPlans?.list) window.ShapeCoachPlans.list('program').then(rows => { if (Array.isArray(rows)) setServerPlans(rows); }).catch(() => {}); }, []);
+  const refreshLibrary = React.useCallback(async () => {
+    const run = ++libraryRead.current;
+    try {
+      if (!window.ShapeCoachPlans?.list) throw new Error('Library is unavailable.');
+      const rows = await window.ShapeCoachPlans.list('program');
+      if (!Array.isArray(rows)) throw new Error('Could not load your library. Try again.');
+      if (run !== libraryRead.current || (window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== accountId) return;
+      setServerPlans(rows.map(normalizeWorkoutPlan)); setLibraryError('');
+    } catch (e) { if (run === libraryRead.current) setLibraryError(e.message || 'Could not load your library. Try again.'); }
+  }, [accountId]);
+  useEffectBSP(() => {
+    setServerPlans(null); setLibraryError(''); setEditingPlan(null);
+    refreshLibrary();
+    const resume = () => { if (!document.hidden) refreshLibrary(); };
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => { libraryRead.current += 1; window.removeEventListener('focus', resume); document.removeEventListener('visibilitychange', resume); };
+  }, [refreshLibrary]);
+  const rememberPlan = (row) => {
+    libraryRead.current += 1; // a pre-save read must not replace the saved row
+    const normalized = normalizeWorkoutPlan(row);
+    setServerPlans((list) => [normalized, ...(list || []).filter((p) => p.id !== row.id)]);
+  };
+  const saveWorkout = async (plan) => {
+    if (!signedIn || !window.ShapeCoachPlans?.create) throw new Error(tr('coach:workoutEditor.signInSave', { defaultValue: 'Sign in to save to your library. Your draft stays on this device.' }));
+    const row = await persistCoachWorkout(window.ShapeCoachPlans, { ...plan, expectedOwnerId: plan.expectedOwnerId || accountId });
+    if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== accountId) throw new Error(tr('coach:workoutEditor.accountChanged', { defaultValue: 'Your account changed. Reopen the library before saving.' }));
+    rememberPlan(row); setEditingPlan(null);
+    flash(tr('coach:workoutEditor.saved', { defaultValue: 'Saved to your library' }));
+    return row;
+  };
   const duplicate = async (p) => {
-    const copy = { kind: 'program', name: tr('coach:plans.copyName', { defaultValue: '{name} (copy)', name: p.n }), meta: p.meta, price: p.price };
-    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash(tr('coach:plans.programDuplicated', { defaultValue: 'Program duplicated' })); return; } } catch (e) {} }
-    setDupes(d => [{ n: copy.name, meta: p.meta, price: p.price }, ...d]); flash(tr('coach:plans.programDuplicated', { defaultValue: 'Program duplicated' }));
+    if (duplicateBusyRef.current) return;
+    const original = p.id ? (serverPlans || []).find((row) => row.id === p.id) || p : { ...p, name: p.name || p.n };
+    const identity = `${accountId}:${original.id || original.name}`;
+    if (duplicateRef.current?.identity !== identity) duplicateRef.current = { identity, plan: { ...duplicateWorkoutPlan(original, tr('coach:plans.copyName', { defaultValue: '{name} (copy)', name: original.name || p.n })), creationId: crypto.randomUUID(), expectedOwnerId: accountId } };
+    duplicateBusyRef.current = true;
+    try { await saveWorkout(duplicateRef.current.plan); duplicateRef.current = null; flash(tr('coach:plans.programDuplicated', { defaultValue: 'Program duplicated' })); }
+    catch (e) { setLibraryError(e.message || tr('coach:workoutEditor.saveFailed', { defaultValue: 'Could not save. Your draft is still here.' })); }
+    finally { duplicateBusyRef.current = false; }
   };
   const cycleSort = () => setSort(s => s === 'Popular' ? 'Price' : s === 'Price' ? 'Rating' : 'Popular');
 
@@ -6087,27 +6147,27 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     if (!file || !plan || !window.ShapeCoachMedia?.upload || !window.ShapeCoachPlans?.update) { flash(tr('coach:plans.clipFailed', { defaultValue: 'Could not add clip' })); return; }
     setClipUploading(true);
     try {
-      const m = await window.ShapeCoachMedia.upload(file);
-      if (m && m.url) {
-        const nextDetail = { ...(plan.detail || {}), media: [...((plan.detail && plan.detail.media) || []), m] };
-        const row = await window.ShapeCoachPlans.update({ id: plan.id, detail: nextDetail });
-        const merged = (row && row.detail) ? row : { ...plan, detail: nextDetail };
-        setServerPlans(list => (list || []).map(p => (p.id === plan.id ? merged : p)));
-        flash(tr('coach:plans.clipAdded', { defaultValue: 'Clip added to {name}', name: plan.name }));
-      }
-    } catch (err) { flash(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); }
+      const m = await window.ShapeCoachMedia.upload(file, { videoOnly: true });
+      if (!m?.url) throw new Error(tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }));
+      if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== accountId) throw new Error(tr('coach:workoutEditor.accountChanged', { defaultValue: 'Your account changed. Reopen the library before saving.' }));
+      const nextDetail = { ...(plan.detail || {}), media: [...((plan.detail && plan.detail.media) || []), m] };
+      const row = await window.ShapeCoachPlans.update({ id: plan.id, detail: nextDetail, expectedRevision: plan.detail?.revision ?? 0, expectedOwnerId: accountId });
+      if (!row?.id) throw new Error(tr('coach:plans.clipFailed', { defaultValue: 'Could not add clip' }));
+      rememberPlan(row);
+      flash(tr('coach:plans.clipAdded', { defaultValue: 'Clip added to {name}', name: plan.name }));
+    } catch (err) { setLibraryError(String(err?.message || tr('coach:editor.uploadFailed', { defaultValue: 'Upload failed' }))); }
     setClipUploading(false);
     setClipPlanId(null);
     setClipSheet(false);
   };
-  const closeClipSheet = () => { setClipSheet(false); setClipPlanId(null); };
+  const closeClipSheet = () => { if (!clipUploading) { setClipSheet(false); setClipPlanId(null); } };
   // §3 (CodeRabbit a11y) — keyboard close: Escape dismisses the clip sheet while open.
   useEffectBSP(() => {
     if (!clipSheet || typeof window === 'undefined') return undefined;
     const onKey = (e) => { if (e.key === 'Escape') closeClipSheet(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clipSheet]);
+  }, [clipSheet, clipUploading]);
 
   const basePrograms = [
     { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' },
@@ -6118,8 +6178,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   // §4 (CodeRabbit) — the PAID PLANS list only wants paid plans. Filter the
   // server-derived rows to buildType 'plan' (legacy rows w/o detail stay); local
   // dupes (no .id) always pass. Workout/program templates no longer leak in here.
-  const customCards = (serverPlans || dupes)
-    .filter(p => !p.id || !p.detail || p.detail.buildType === 'plan')
+  const library = coachWorkoutLibrary(serverPlans);
+  const customCards = library.plans
     .map(p => p.id ? { n: p.name, meta: p.meta || 'New program', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null } : p);
   const numFrom = (s, re) => { const m = (s || '').match(re); return m ? parseFloat(m[1]) : 0; };
   const programs = (() => {
@@ -6155,12 +6215,12 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   const publishDraft = async ({ name, blocks, note, media, days }) => {
     const typeName = BUILD_LABEL[buildType];
     const payload = { kind: 'program', name: name || `${focus} ${typeName}`, meta: `${typeName} · ${length} · ${exp.toLowerCase()}`, price: buildType === 'plan' ? '$110' : null, detail: { buildType, focus, exp, equip, length, blocks, note, media: media || [], ...(days && days.length ? { days } : {}) } };
-    if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
+    await saveWorkout(payload);
     flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
     setEditDraft(null); setDrafting(false);
   };
   // Single day workouts — demo catalogue (signed-OUT preview only; §5 CodeRabbit).
-  const workouts = signedIn ? [] : [
+  const workouts = signedIn ? library.workouts.map((p) => ({ ...p, n: p.name })) : [
     { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' },
     { n: 'Upper Pull — Volume', meta: '7 lifts · 58 min · RPE 7.5' },
     { n: 'Tempo Run · Zone 2', meta: '45 min · cardio · Z2' },
@@ -6172,7 +6232,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     { n: 'Pull Day', meta: '6 lifts · 50 min · RPE 7.5' },
   ];
   // Reusable weekly routines / templates (the "Programs" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
-  const routines = signedIn ? [] : [
+  const routines = signedIn ? library.programs.map((p) => ({ ...p, n: p.name })) : [
     { n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' },
     { n: '3-day Full Body', meta: '3 days/wk · beginner' },
     { n: 'PPL · 6-day split', meta: '6 days/wk · intermediate' },
@@ -6198,7 +6258,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   // (sRPE = RPE x minutes); a meal plan has no session to carry a length or an
   // effort, so offering the row on the nutritionist editor would collect a
   // figure nothing scores.
-  if (editDraft) return <BSCoachDraftEditor t={t} accent={teal} accentInk="#04201d" typeName={BUILD_LABEL[buildType]} blockLabel={editDraft.blockLabel} initialName={editDraft.name} initialBlocks={editDraft.blocks} initialNote={editDraft.note} initialMedia={editDraft.media} loadCapture onPublish={publishDraft} onCancel={() => { setEditDraft(null); setDrafting(false); }} />;
+  if (editingPlan) return <BSPage><BSWorkoutDocumentEditor key={editingPlan.id || 'new'} plan={editingPlan} plans={library.all} t={t} tr={tr} onSave={saveWorkout} onClose={() => setEditingPlan(null)} /></BSPage>;
+  if (editDraft) return <BSPage><BSWorkoutDocumentEditor key="draft" plan={{ name: editDraft.name, kind: 'program', price: buildType === 'plan' ? '$110' : null, detail: normalizeWorkoutDetail({ buildType, focus, exp, equip, length, blocks: editDraft.blocks, note: editDraft.note || '', media: editDraft.media || [] }, { name: editDraft.name, buildType }) }} plans={library.all} t={t} tr={tr} onSave={async (plan) => { await saveWorkout(plan); setEditDraft(null); setDrafting(false); }} onClose={() => { setEditDraft(null); setDrafting(false); }} /></BSPage>;
 
   // ── AI draft sheet (workout builder) ──
   if (drafting) {
@@ -6240,7 +6301,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           } catch (e) { used = null; }
         }
       }
-      const outline = blankMode ? mk(['', '', '']) : mk((used && used.lines) || template);
+      const outline = blankMode ? [] : mk((used && used.lines) || template);
       const blockLabel = buildType === 'workout' ? tr('coach:plans.blockExercises', { defaultValue: 'Exercises' }) : buildType === 'program' ? tr('coach:plans.blockWeeklySplit', { defaultValue: 'Weekly split' }) : tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' });
       // ⚠ Commit ONLY if this run is still the current one. CANCEL bumps the
       // run id, so a request already in flight resolves into a no-op instead of
@@ -6329,7 +6390,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
   // shows the live PUBLISHED count once loaded, else "—" (no fabricated drafts).
   const catalogueStat = !signedIn
     ? tr('coach:plans.catalogueDemoTrainer', { defaultValue: '· 4 PUBLISHED · 1 DRAFT' })
-    : (serverPlans === null ? '· —' : tr('coach:plans.publishedCount', { defaultValue: '· {count} PUBLISHED', count: serverPlans.length }));
+    : (serverPlans === null ? '· —' : tr('coach:plans.publishedCount', { defaultValue: '· {count} PUBLISHED', count: serverPlans.filter((p) => p.published !== false).length }));
 
   return (
     <BSPage>
@@ -6346,6 +6407,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
       </div>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {note && <div style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: teal, padding: '9px 14px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em' }}>✓ {note}</div>}
+        {signedIn && libraryError && <div role="alert" style={{ marginTop: 14, color: t.RUST, fontFamily: t.BODY, fontSize: 13 }}>{libraryError} <button type="button" onClick={refreshLibrary} style={{ minHeight: 44, border: 0, background: 'transparent', color: teal, cursor: 'pointer' }}>{tr('coach:workoutEditor.retryLibrary', { defaultValue: 'Reload library' })}</button></div>}
+        {signedIn && serverPlans === null && !libraryError && <p role="status" style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>{tr('coach:workoutEditor.loading', { defaultValue: 'Loading your saved workouts and programs…' })}</p>}
 
         <input ref={clipVideoRef} type="file" accept="video/*" onChange={uploadClipToPlan} style={{ display: 'none' }} />
         {clipSheet && createPortal(
@@ -6390,7 +6453,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {libTab === 'plans' && (<>
         {/* §1.5 THE CATALOGUE — paid plans as dot-leader rows */}
         {stationHead(tr('coach:plans.paidPlans', { defaultValue: 'PAID PLANS' }), monoTrail(tr('coach:plans.sortBy', { defaultValue: 'SORT · {mode} →', mode: (sort === 'Price' ? tr('coach:plans.sortPrice', { defaultValue: 'PRICE' }) : sort === 'Rating' ? tr('coach:plans.sortRating', { defaultValue: 'RATING' }) : tr('coach:plans.sortPopular', { defaultValue: 'POPULAR' })) }), cycleSort))}
-        {programs.length === 0 ? (
+        {programs.length === 0 ? (serverPlans === null ? null :
           <div style={{ marginTop: 2 }}>
             {Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' })} /> : null}
             <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft('plan', true)} />
@@ -6399,7 +6462,8 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           <div style={{ marginTop: 2 }}>
             {programs.map((p, i) => (
               <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
-                onOpen={() => openDraft('plan')}
+                onOpen={() => p.id ? setEditingPlan((serverPlans || []).find((row) => row.id === p.id) || { ...p, name: p.n }) : openDraft('plan')}
+                onDuplicate={p.id ? () => duplicate(p) : undefined}
                 onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
             ))}
           </div>
@@ -6424,12 +6488,13 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {/* Single day workouts — demo signed-out, redaction signed-in-with-none. */}
         {stationHead(tr('coach:plans.sessions', { defaultValue: 'SESSIONS' }), monoTrail(tr('coach:plans.newAction', { defaultValue: 'NEW →' }), () => openDraft('workout')))}
         {workouts.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noWorkouts', { defaultValue: 'NO WORKOUTS YET' })} /> : null
+          serverPlans !== null && Redact ? <Redact INK={t.INK} label={tr('coach:plans.noWorkouts', { defaultValue: 'NO WORKOUTS YET' })} /> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {workouts.map((w, i) => (
-            <BSProCatRow key={w.n} index={i} name={w.n} meta={w.meta} heat={heat} t={t}
-              onOpen={() => openDraft('workout')}
+            <BSProCatRow key={w.id || w.n} index={i} name={w.n} meta={w.meta} heat={heat} t={t}
+              onOpen={() => w.id ? setEditingPlan({ ...w, name: w.n }) : openDraft('workout')}
+              onDuplicate={w.id ? () => duplicate(w) : undefined}
               onAssign={() => setAssignPlan({ id: w.id || null, name: w.n, meta: w.meta, detail: w.detail || null })} />
           ))}
         </div>
@@ -6449,23 +6514,10 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
             </div>
           ) : (
             // Signed-in but still loading → redaction line, never fabricated counts.
-            <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label={tr('coach:plans.clipsLoading', { defaultValue: 'CLIPS · LOADING' })} /> : null}</div>
+            <div style={{ marginTop: 2 }}>{!libraryError && Redact ? <Redact INK={t.INK} label={tr('coach:plans.clipsLoading', { defaultValue: 'CLIPS · LOADING' })} /> : null}</div>
           )
         ) : (() => {
-          const clips = [];
-          (serverPlans || []).forEach((p) => {
-            const d = p && p.detail;
-            const from = tr('coach:plans.fromPlan', { defaultValue: 'FROM {name}', name: String((p && p.name) || tr('coach:plans.planFallback', { defaultValue: 'PLAN' })).toUpperCase() });
-            (d && Array.isArray(d.media) ? d.media : []).forEach((m) => {
-              if (m && m.type === 'video' && m.url) clips.push({ url: m.url, name: (m.name && m.name.trim()) || tr('coach:plans.clipFallback', { defaultValue: 'Clip' }), meta: from });
-            });
-            (d && Array.isArray(d.blocks) ? d.blocks : []).forEach((b) => {
-              if (b && b.video) {
-                const words = String((b.text) || '').trim().split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
-                clips.push({ url: b.video, name: words || tr('coach:plans.clipFallback', { defaultValue: 'Clip' }), meta: from });
-              }
-            });
-          });
+          const clips = coachWorkoutVideos(serverPlans);
           if (!clips.length) return <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label={tr('coach:plans.noClips', { defaultValue: 'NO CLIPS YET' })} /> : null}</div>;
           return (
             <div style={{ marginTop: 2 }}>
@@ -6488,12 +6540,13 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
         {/* Reusable weekly routines / templates — demo signed-out, redaction signed-in-with-none. */}
         {stationHead(tr('coach:plans.templates', { defaultValue: 'TEMPLATES' }), monoTrail(tr('coach:plans.newAction', { defaultValue: 'NEW →' }), () => openDraft('program')))}
         {routines.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' })} /> : null
+          serverPlans !== null && Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' })} /> : null
         ) : (
         <div style={{ marginTop: 2 }}>
           {routines.map((r, i) => (
-            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
-              onOpen={() => openDraft('program')}
+            <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => r.id ? setEditingPlan({ ...r, name: r.n }) : openDraft('program')}
+              onDuplicate={r.id ? () => duplicate(r) : undefined}
               onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
@@ -8923,5 +8976,3 @@ window.BSNutritionistApp = BSNutritionistApp;
 
 
 Object.assign(window, { BSTrainerApp, BSNutritionistApp });
-
-

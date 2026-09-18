@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { loadRealModule } from './helpers/load-real-module.mjs';
+const require = createRequire(import.meta.url);
+const { JSDOM } = require('jsdom');
+const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/' });
+globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.localStorage = window.localStorage;
+Object.defineProperty(globalThis, 'navigator', { value: window.navigator, configurable: true });
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+const React = require('react'); globalThis.React = React;
+const { createRoot } = require('react-dom/client'); globalThis.ReactDOM = require('react-dom');
+globalThis.DashBuilder = require('../public/newdesign/dashBuilderCore.js');
+globalThis.ShapeWorkoutDocument = require('../public/newdesign/workoutDocument.js');
+globalThis.DashPill = ({ children }) => React.createElement('span', null, children);
+const { DbuAssignModal } = await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx', import.meta.url)), { appendExports: 'export { DbuAssignModal };' });
+
+test('website assignment refuses empty legacy phase outlines instead of scheduling false workout days', async () => {
+  const detail = ShapeWorkoutDocument.normalizeWorkoutDetail({ blocks: [{ text: 'Week 1 — Base' }, { text: 'Week 4 — Peak' }] });
+  assert.equal(detail.builder.outlineOnly, true);
+  let calls = 0; globalThis.fetch = async () => { calls++; throw new Error('must not assign an empty outline'); };
+  const root = createRoot(document.getElementById('root'));
+  await React.act(async () => root.render(React.createElement(DbuAssignModal, { template: { id: 'saved-plan', name: 'Phase plan' }, doc: detail.builder, clients: [{ profile: { id: 'client-a', name: 'Avery' } }], queue: [], live: true, onClose() {} })));
+  await React.act(async () => document.querySelector('input[type=checkbox]').click());
+  const submit = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Publish to 1 client');
+  await React.act(async () => submit.click());
+  assert.equal(calls, 0);
+  assert.match(document.body.textContent, /Add exercises to each training day before assigning/);
+  await React.act(async () => root.unmount());
+});

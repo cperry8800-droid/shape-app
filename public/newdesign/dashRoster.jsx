@@ -346,7 +346,7 @@ function DashSecNotes({ rec }) {
   // asserting "no notes yet" there tells the coach they wrote nothing when the
   // truth is we could not look.
   if (notes === undefined) return <DashDrawerEmpty>Loading your notes…</DashDrawerEmpty>;
-  if (notes == null) return <DashDrawerEmpty>Couldn't read your notes just now — reopen to retry.</DashDrawerEmpty>;
+  if (notes == null) return <DashDrawerEmpty>Couldn't read your notes just now — use Refresh above to retry.</DashDrawerEmpty>;
   if (!Array.isArray(notes) || !notes.length) return <DashDrawerEmpty>No notes yet — write one on the client's file.</DashDrawerEmpty>;
   return (
     <div>
@@ -557,12 +557,55 @@ function dashDrawerSections(view, hidden) {
   return { all: all, shown: all.filter(([key]) => !off.has(key)), hiddenCount: all.filter(([key]) => off.has(key)).length };
 }
 
+function DashProgressReadout({ row }) {
+  const progress = row.progress || DashSignals.progressStatus(row.client);
+  if (!row.client.progressRead) return null;
+  const checked = progress.checkedAt ? new Date(progress.checkedAt) : null;
+  return <div role="status" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", color: DASH_ROSTER_INK50, fontSize: 12, margin: "0 0 18px", lineHeight: 1.5 }}>
+    <span>{progress.label}{checked && Number.isFinite(checked.getTime()) ? " · Last checked " + checked.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</span>
+    <button type="button" disabled={progress.state === "loading"} onClick={() => window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: row.client.profile.id } }))} style={{ border: "1px solid " + DASH_ROSTER_HAIR, background: "transparent", color: "#f2ede4", borderRadius: 5, padding: "7px 10px", minHeight: 36, cursor: "pointer" }}>{progress.state === "unavailable" ? "Retry progress" : "Refresh"}</button>
+  </div>;
+}
+
 function DashClientDrawer({ row, role, onClose, prefs }) {
+  const dialogRef = React.useRef(null);
+  const overlayRef = React.useRef(null);
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
+  const headingId = React.useId();
   React.useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    if (!row || !dialogRef.current) return undefined;
+    const origin = document.activeElement;
+    const bodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    // The portal is a body child; make all other surfaces unavailable to both
+    // pointer and keyboard users until the client sheet is closed.
+    const siblings = Array.from(document.body.children).filter((el) => el !== overlayRef.current);
+    const previous = siblings.map((el) => [el, el.inert, el.getAttribute("aria-hidden")]);
+    siblings.forEach((el) => { el.inert = true; el.setAttribute("aria-hidden", "true"); });
+    const focusable = () => Array.from(dialogRef.current.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex="0"]')).filter((el) => !el.hidden && !el.closest('[hidden],[aria-hidden="true"]'));
+    const focusFirst = () => (focusable()[0] || dialogRef.current).focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeRef.current(); }
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0], last = items[items.length - 1];
+      if (!first) { e.preventDefault(); dialogRef.current.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    const containFocus = (e) => { if (dialogRef.current && !dialogRef.current.contains(e.target)) focusFirst(); };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("focusin", containFocus);
+    focusFirst();
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("focusin", containFocus);
+      previous.forEach(([el, inert, hidden]) => { el.inert = inert; if (hidden == null) el.removeAttribute("aria-hidden"); else el.setAttribute("aria-hidden", hidden); });
+      document.body.style.overflow = bodyOverflow;
+      if (origin && origin.isConnected && origin.focus) origin.focus();
+    };
+  }, [!!row]);
   // ⚠ THE CONTROL LIVES IN THE DRAWER, NOT ON A CARD'S ⚙, because the drawer opens from
   // FOUR places — the roster table, the pulse, the schedule and the roster page — so any
   // one card's gear would be the wrong home for a preference about the drawer itself.
@@ -594,14 +637,14 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
     ? dashProgramLabel(rec).text
     : rec.goalPhase ? rec.goalPhase + " phase" : null;
 
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 240 }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
-      <div style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: "min(440px, 92vw)", background: "#14110e", borderLeft: "1px solid rgba(242,237,228,0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", padding: "26px 26px 40px", fontFamily: "'Space Grotesk', sans-serif", color: "#f2ede4" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
+  return ReactDOM.createPortal(
+    <div ref={overlayRef} style={{ position: "fixed", inset: 0, zIndex: 240 }}>
+      <div aria-hidden="true" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(440px, 100vw)", background: "#14110e", borderLeft: "1px solid rgba(242,237,228,0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", overscrollBehavior: "contain", padding: "26px 26px 40px", fontFamily: "'Space Grotesk', sans-serif", color: "#f2ede4" }}>
+        <div style={{ position: "sticky", top: -26, zIndex: 2, background: "#14110e", padding: "16px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{view.eyebrow}</div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 28, letterSpacing: "-0.02em", marginTop: 5 }}>{rec.profile.name}</div>
+            <div id={headingId} style={{ fontFamily: "'Fraunces', serif", fontSize: 28, letterSpacing: "-0.02em", marginTop: 5 }}>{rec.profile.name}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
             <button
@@ -612,16 +655,17 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
               onClick={() => setShowSettings((v) => !v)}
               style={{ background: "transparent", border: 0, color: secs.hiddenCount ? "#2ee0c4" : DASH_ROSTER_INK50, fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "4px 6px" }}
             >⚙</button>
-            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: DASH_ROSTER_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>×</button>
+            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: DASH_ROSTER_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1, minWidth: 44, minHeight: 44 }}>×</button>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 22 }}>
           <span style={{ width: 7, height: 7, borderRadius: 2, background: sevColor }} />
           {row.flags.length
             ? row.flags.map((f, i) => <DashPill key={i} c={sevColor}>{f.label}</DashPill>)
-            : <DashPill c={sevColor}>{rec.profile.isNew ? "New" : "On track"}</DashPill>}
+            : <DashPill c={sevColor}>{row.severity === "unknown" ? (row.progress || DashSignals.progressStatus(rec)).label : rec.profile.isNew ? "New" : "On track"}</DashPill>}
           {programLine && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{programLine}</span>}
         </div>
+        <DashProgressReadout row={row} />
         {showSettings && (
           <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(242,237,228,0.03)" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginBottom: 9 }}>
@@ -658,12 +702,12 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
             Every section is hidden. Open ⚙ above to bring one back.
           </div>
         )}
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
-          <button onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
+        <div style={{ position: "sticky", bottom: -40, background: "#14110e", padding: "16px 0", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
+          <button onClick={() => { onClose(); dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
           {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 }
 // Back-compat alias (step 6 name).
@@ -674,7 +718,8 @@ const DashConsultDrawer = DashClientDrawer;
 // that does not offer sorting gets exactly the table it had — and the headers render as
 // plain text rather than as buttons that lead nowhere.
 function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs }) {
-  const [open, setOpen] = React.useState(null);
+  const [selectedId, setSelectedId] = React.useState(null);
+  const open = triage.find((r) => r.client.profile.id === selectedId) || null;
   const ink50 = DASH_ROSTER_INK50;
 
   // Client AGES (never birthdates) — a coach always sees them for their own
@@ -717,7 +762,8 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
   const view = DASH_ROSTER_VIEWS[role] || DASH_ROSTER_VIEWS.nutritionist;
 
   const matchesFilter = (r) => {
-    if (filter === "eyes") return r.severity !== "green";
+    if (filter === "eyes") return r.severity === "red" || r.severity === "amber";
+    if (filter === "unknown") return r.severity === "unknown";
     if (filter === "new") return !!r.client.profile.isNew;
     if (filter === "ontrack") return r.severity === "green" && !r.client.profile.isNew;
     return true;
@@ -769,8 +815,8 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
         return (
           <div
             key={rec.profile.id || i}
-            onClick={() => setOpen(r)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(r); } }}
+            onClick={() => setSelectedId(rec.profile.id)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(rec.profile.id); } }}
             role="button"
             tabIndex={0}
             aria-label={"Open " + rec.profile.name + " drilldown"}
@@ -785,13 +831,14 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: ink50, flexShrink: 0 }}>{ages[rec.profile.id]}</span>
               )}
               {r.flags.length > 0 && <DashPill c={sevColor}>{r.flags[0].label}</DashPill>}
+              {r.severity === "unknown" && <DashPill c={DASH_SEV_COLORS.unknown}>{(r.progress || DashSignals.progressStatus(rec)).label}</DashPill>}
               {rec.profile.isNew && r.severity === "green" && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
             </div>
             {view.cells(rec, role).map((cell, j) => <React.Fragment key={j}>{cell}</React.Fragment>)}
           </div>
         );
       })}
-      {open && <DashClientDrawer row={open} role={role} onClose={() => setOpen(null)} prefs={prefs} />}
+      {open && <DashClientDrawer row={open} role={role} onClose={() => setSelectedId(null)} prefs={prefs} />}
     </div>
     </div>
   );

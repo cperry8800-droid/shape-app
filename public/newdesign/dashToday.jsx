@@ -272,7 +272,7 @@ const DASH_TODAY_ROLES = {
 // contact, and a one-tap Message. Visual language per the prototype: dark
 // panel, squared spine-left pills, mono metas, teal accents.
 
-const DASH_SEV_COLORS = { red: "#e0644b", amber: "#d8a23a", new: "#2ee0c4", green: "#7bbf5a" };
+const DASH_SEV_COLORS = { red: "#e0644b", amber: "#d8a23a", new: "#2ee0c4", green: "#7bbf5a", unknown: "#9b968d" };
 
 function DashPill({ c, children }) {
   return (
@@ -770,9 +770,10 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
   const inkMutedPill = "#9b968d";
   // Rows open the shared client drilldown (step 11) when dashRoster.jsx is
   // loaded on the page; the Message button keeps working either way.
-  const [openRow, setOpenRow] = React.useState(null);
+  const [selectedId, setSelectedId] = React.useState(null);
+  const openRow = feed.find((r) => r.client.profile.id === selectedId) || null;
   const drawerReady = typeof window !== "undefined" && typeof window.DashClientDrawer === "function";
-  const openDrawer = (r) => { if (drawerReady) setOpenRow(r); };
+  const openDrawer = (r) => { if (drawerReady) setSelectedId(r.client.profile.id); };
 
   const renderRow = (r, i) => {
         const c = r.client;
@@ -814,6 +815,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
                   : <DashPill key={"ro" + j} c={inkMutedPill}>{f.label} {f.routeTo === "nutritionist" ? "→ dietitian" : "→ trainer"}</DashPill>)}
                 {isNew && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
                 {r.severity === "green" && !isNew && <DashPill c={DASH_SEV_COLORS.green}>On track</DashPill>}
+                {r.severity === "unknown" && <DashPill c={DASH_SEV_COLORS.unknown}>{(r.progress || DashSignals.progressStatus(c)).label}</DashPill>}
               </div>
               <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.05em", color: ink50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {[
@@ -880,7 +882,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
         </div>
       )}
       {rows.map((r, i) => renderRow(r, i))}
-      {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setOpenRow(null)} prefs={prefs} />}
+      {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setSelectedId(null)} prefs={prefs} />}
     </div>
   );
 }
@@ -1182,15 +1184,15 @@ function CoachDashboardPage({ role }) {
     </div>
   );
   const gridWidgets = [
-    { key: "kpis", title: "Overview", size: "full", render: () => renderKpiStrip(kpis),
-      settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
+    { key: "pulse", title: "Client attention", size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
+    { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
+    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis),
       settings: dashKpiSettings(practiceChosen, role, setPracticeKpis) },
-    { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
-    { key: "pulse", title: "Client pulse", size: "half", render: () => renderPanel("Client pulse", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
-    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "wins", title: "Client wins", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
     ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
+    { key: "kpis", title: "Business overview", size: "full", render: () => renderKpiStrip(kpis),
+      settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
     { key: "business", title: "Business", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
   ];
 

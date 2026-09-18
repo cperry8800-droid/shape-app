@@ -5,6 +5,8 @@
 // and client_meal_plans days (Eat menu). Extracted verbatim so both callers
 // share one implementation.
 
+import { builderToAssignmentRows } from '../../../public/newdesign/workoutDocument.mjs';
+
 export const BS_ASSIGN_DOW = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 export function bsAssignSplitBlock(text) {
@@ -16,7 +18,8 @@ export function bsAssignSplitBlock(text) {
 
 // "Secondary compound · 4×8" / "Back squat — 4 × 6 · RPE 8" → exercise row.
 export function bsAssignExercise(text) {
-  const p = bsAssignSplitBlock(text);
+  const authored = text && typeof text === 'object' ? text : null;
+  const p = bsAssignSplitBlock(authored ? authored.text || authored.name : text);
   if (!p) return null;
   let { head, tail } = p;
   if (!tail) {
@@ -30,6 +33,9 @@ export function bsAssignExercise(text) {
     reps: sx ? sx[2] : '',
     rest: '',
     load: sx ? tail.replace(sx[0], '').replace(/^[\s·,]+|[\s·,]+$/g, '') : tail,
+    // Preserve a structured legacy block's prescription and clip. Text is a
+    // display field, never the authority over separately authored fields.
+    ...(authored ? Object.fromEntries(['id', 'name', 'sets', 'reps', 'rest', 'restSeconds', 'load', 'loadType', 'tempo', 'cue', 'group', 'video'].filter((key) => authored[key] != null).map((key) => [key, authored[key]])) : {}),
   };
 }
 
@@ -750,7 +756,7 @@ export function bsAssignWeeks(rows, basePayload = {}) {
           ...(stamped ? { plannedMinutes: pairs[i].min, plannedRpe: pairs[i].rpe, loadCapture: 'per_session' } : {}),
           // Authored content wins: spread the caller's base FIRST so an
           // `exercises` key in it can never overwrite the coach's own list.
-          payload: { ...basePayload, exercises: r.exercises || [] },
+          payload: { ...basePayload, ...(r.payload || {}), exercises: r.exercises || [] },
         })),
       };
     });
@@ -769,6 +775,13 @@ export function bsMaterializeOutline({ plan, startISO, weeks = 4, runId }) {
   if (!plan) return [];
   const id = `plan:${plan.id}`;
   const name = plan.name || 'Plan';
+  if (plan.detail?.builder && !plan.detail.builder.outlineOnly) {
+    const builder = plan.detail.builder;
+    return builderToAssignmentRows(builder, { id: plan.id, name, revision: plan.detail.revision }, startISO).map((row) => ({
+      ...row, description: plan.detail.note || '',
+      payload: { ...row.payload, program: { id, name, week: row.payload.template.week, day: row.payload.template.day - 1, weeks: builder.weeks.length, runId: runId || '' } },
+    }));
+  }
   const [sy, sm, sd] = String(startISO).split('-').map(Number);
   const start = new Date(sy, (sm || 1) - 1, sd || 1); // local midnight
   const monday = new Date(start); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));

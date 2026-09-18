@@ -18,109 +18,103 @@ const DBU_RUST = "#c0533b";
 function dbuBtn(primary, c) {
   const col = c || "#2ee0c4";
   return primary
-    ? { fontFamily: DBU_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: col, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" }
-    : { fontFamily: DBU_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
+    ? { fontFamily: DBU_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: col, border: 0, borderRadius: 4, padding: "9px 13px", minHeight: 40, cursor: "pointer" }
+    : { fontFamily: DBU_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "9px 13px", minHeight: 40, cursor: "pointer" };
 }
 const dbuField = { boxSizing: "border-box", padding: "7px 9px", borderRadius: 4, border: "1px solid rgba(242,237,228,0.16)", background: "rgba(242,237,228,0.04)", color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, outline: "none" };
-const dbuLabel = { fontFamily: DBU_MONO, fontSize: 7.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DBU_INK50, display: "block", marginBottom: 3 };
+const dbuLabel = { fontFamily: DBU_MONO, fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase", color: DBU_INK50, display: "block", marginBottom: 3 };
 
 function dbuGoalTag(key) {
   return DashBuilder.GOAL_TAGS.find((g) => g.key === key) || DashBuilder.GOAL_TAGS[1];
 }
 
 // ── Template persistence (live API ⇄ localStorage drafts) ───────────────────
-const DBU_DRAFT_KEY = "shape.dashBuilderDrafts";
-function dbuReadDrafts() {
-  try { return JSON.parse(localStorage.getItem(DBU_DRAFT_KEY) || "{}"); } catch (e) { return {}; }
+const dbuDraftKey = ownerId => "shape.dashBuilderDrafts.v2." + (ownerId || "demo");
+function dbuReadDrafts(ownerId) {
+  try { return JSON.parse(localStorage.getItem(dbuDraftKey(ownerId)) || "{}"); } catch (e) { return {}; }
 }
-function dbuWriteDraft(id, name, doc) {
-  try {
-    const all = dbuReadDrafts();
-    all[id] = { name, doc, at: Date.now() };
-    localStorage.setItem(DBU_DRAFT_KEY, JSON.stringify(all));
-  } catch (e) {}
+function dbuWriteDraft(ownerId, id, value) {
+  try { const all = dbuReadDrafts(ownerId); if (value) all[id] = value; else delete all[id]; localStorage.setItem(dbuDraftKey(ownerId), JSON.stringify(all)); return true; } catch (e) { return false; }
+}
+function dbuRecoveredTemplate(id, draft, templates) {
+  const saved = (templates || []).find(t => t.id === id) || {};
+  return { ...saved, draftId:id, id:draft.persisted ? id : undefined, name:draft.name,
+    published:draft.published ?? saved.published ?? false,
+    detail:{...(saved.detail || {}),...(draft.detail || {}),builder:draft.doc,revision:draft.revision || 0}, recovered:draft };
+}
+async function dbuUploadVideo(file) {
+  const client = window.shapeDb && window.shapeDb.client;
+  if (!client) throw new Error("Sign in to upload a demonstration.");
+  const {data, error:authError} = await client.auth.getUser();
+  if (authError || !data?.user) throw new Error("Sign in to upload a demonstration.");
+  const ext = String(file.name || "").split(".").pop().toLowerCase();
+  if (!['mp4','mov','m4v','webm'].includes(ext)) throw new Error("Choose an MP4, MOV, M4V or WebM video.");
+  if (file.size > 200 * 1024 * 1024) throw new Error("Keep the video under 200 MB.");
+  const path = data.user.id + "/exercise/" + crypto.randomUUID() + "." + ext;
+  const {error} = await client.storage.from("coach-media").upload(path,file,{upsert:false,contentType:file.type || ({mov:'video/quicktime',webm:'video/webm'}[ext] || 'video/mp4')});
+  if (error) throw error;
+  const {data:media} = client.storage.from("coach-media").getPublicUrl(path);
+  if (!media?.publicUrl) throw new Error("Upload did not return a playable link. Retry.");
+  return media.publicUrl;
 }
 
 // ── Exercise picker popover ──────────────────────────────────────────────────
 function DbuExercisePicker({ onPick, onClose }) {
   const [q, setQ] = React.useState("");
+  const [selected, setSelected] = React.useState([]);
   const results = DashBuilder.searchExercises(q);
-  return (
-    <div style={{ position: "absolute", zIndex: 60, top: "100%", left: 0, marginTop: 6, width: 340, background: "#14110e", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 8, boxShadow: "0 18px 48px rgba(0,0,0,0.5)", padding: 10 }}>
-      <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") onClose(); }} placeholder="Search exercises, muscles, equipment…" style={{ ...dbuField, width: "100%", marginBottom: 8 }} />
-      <div style={{ maxHeight: 260, overflowY: "auto" }}>
-        {results.map((ex) => (
-          <button key={ex.id} onClick={() => onPick(ex)} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%", textAlign: "left", background: "transparent", border: 0, borderTop: "1px solid rgba(242,237,228,0.05)", padding: "8px 4px", cursor: "pointer", color: "#f2ede4" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 500 }}>{ex.name}</span>
-            <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DBU_INK50 }}>{ex.muscle} · {ex.equipment}</span>
-          </button>
-        ))}
-        {!results.length && <div style={{ fontSize: 12, color: DBU_INK50, padding: 8 }}>No match — try a muscle or equipment name.</div>}
-      </div>
-    </div>
-  );
+  return <DbuDialog title="Add exercises" onClose={onClose} busy={false}>
+    <h2 style={{fontSize:20,margin:'0 0 14px'}}>Add exercises</h2>
+    <input autoFocus aria-label="Search exercises" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>{if(e.key==='Escape')onClose();}} placeholder="Search exercises, muscles, equipment…" style={{...dbuField,width:"100%",marginBottom:8}} />
+    <div style={{maxHeight:'min(360px, 50vh)',overflowY:"auto"}}>{results.map(ex=><label key={ex.id} style={{display:"flex",gap:10,minHeight:44,alignItems:"center",fontSize:13}}><input type="checkbox" checked={selected.some(x=>x.id===ex.id)} onChange={e=>{const checked=e.target.checked;setSelected(prev=>checked?[...prev,ex]:prev.filter(x=>x.id!==ex.id));}}/><span>{ex.name}<small style={{display:"block",color:DBU_INK50}}>{ex.muscle} · {ex.equipment}</small></span></label>)}</div>
+    {!results.length && <button style={dbuBtn(false)} onClick={()=>setSelected(prev=>[...prev,{id:crypto.randomUUID(),name:q.trim(),muscle:"",equipment:""}])} disabled={!q.trim()}>Use “{q}” as custom exercise</button>}
+    <div style={{display:"flex",gap:8,marginTop:10}}><button disabled={!selected.length} style={dbuBtn(true)} onClick={()=>onPick(selected)}>Add {selected.length || ''} exercises</button><button style={dbuBtn(false)} onClick={onClose}>Cancel</button></div>
+  </DbuDialog>;
 }
 
 // ── Exercise row editor ──────────────────────────────────────────────────────
-function DbuRow({ row, label, onChange, onRemove, onMove }) {
-  const set = (k, v) => onChange({ ...row, [k]: v });
-  const cycleGroup = () => {
-    const order = [null, "A", "B", "C"];
-    set("group", order[(order.indexOf(row.group) + 1) % order.length]);
-  };
-  const prog = row.progression;
-  return (
-    <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderLeft: "3px solid " + (row.group ? "#2ee0c4" : "rgba(242,237,228,0.16)"), borderRadius: 4, padding: "9px 11px", marginBottom: 7, background: "rgba(242,237,228,0.02)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-        <button onClick={cycleGroup} title="Superset group — adjacent rows with the same letter pair as A1/A2" style={{ ...dbuBtn(false), padding: "4px 8px", color: row.group ? "#2ee0c4" : DBU_INK50, borderColor: row.group ? "rgba(46,224,196,0.4)" : "rgba(242,237,228,0.18)" }}>{label}</button>
-        <span style={{ flex: 1, fontSize: 13.5, fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.name}<span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50, marginLeft: 8 }}>{row.muscle} · {row.equipment}</span></span>
-        <button onClick={() => onMove(-1)} aria-label="Move up" style={{ ...dbuBtn(false), padding: "4px 7px" }}>▲</button>
-        <button onClick={() => onMove(1)} aria-label="Move down" style={{ ...dbuBtn(false), padding: "4px 7px" }}>▼</button>
-        <button onClick={onRemove} aria-label="Remove exercise" style={{ ...dbuBtn(false), padding: "4px 8px", color: "#e0644b", borderColor: "rgba(224,100,75,0.4)" }}>×</button>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "64px 84px 110px 76px 84px 84px", gap: 8 }}>
-        <div><span style={dbuLabel}>Sets</span><input type="number" min="1" value={row.sets} onChange={(e) => set("sets", Math.max(1, Number(e.target.value) || 1))} style={{ ...dbuField, width: "100%" }} /></div>
-        <div><span style={dbuLabel}>Reps</span><input value={row.reps} onChange={(e) => set("reps", e.target.value)} style={{ ...dbuField, width: "100%" }} /></div>
-        <div>
-          <span style={dbuLabel}>Load · {row.loadType === "pct" ? "%1RM" : row.loadType === "rpe" ? "RPE" : "kg"}</span>
-          <div style={{ display: "flex", gap: 4 }}>
-            <input type="number" value={row.load} onChange={(e) => set("load", Number(e.target.value) || 0)} style={{ ...dbuField, width: 54 }} />
-            <select value={row.loadType} onChange={(e) => set("loadType", e.target.value)} style={{ ...dbuField, width: 52, padding: "7px 4px" }}>
-              <option value="kg">kg</option><option value="pct">%</option><option value="rpe">RPE</option>
-            </select>
-          </div>
-        </div>
-        <div><span style={dbuLabel}>Tempo</span><input value={row.tempo} onChange={(e) => set("tempo", e.target.value)} placeholder="31X1" style={{ ...dbuField, width: "100%" }} /></div>
-        <div><span style={dbuLabel}>Rest</span><input value={row.rest} onChange={(e) => set("rest", e.target.value)} placeholder="90s" style={{ ...dbuField, width: "100%" }} /></div>
-        <div>
-          <span style={dbuLabel}>Progress</span>
-          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: prog ? "#2ee0c4" : DBU_INK50, cursor: "pointer", paddingTop: 6 }}>
-            <input type="checkbox" checked={!!prog} onChange={(e) => set("progression", e.target.checked ? { rule: "all-reps", incKg: row.loadType === "kg" ? 2.5 : undefined, incPct: row.loadType === "pct" ? 2.5 : undefined, incRpe: row.loadType === "rpe" ? 0.5 : undefined } : null)} />
-            auto
-          </label>
-        </div>
-      </div>
-      {prog && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7 }}>
-          <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: "#2ee0c4" }}>IF ALL REPS HIT → +</span>
-          <input type="number" step="0.5" value={prog.incKg ?? prog.incPct ?? prog.incRpe ?? 0}
-            onChange={(e) => {
-              const v = Number(e.target.value) || 0;
-              set("progression", { rule: "all-reps", incKg: row.loadType === "kg" ? v : undefined, incPct: row.loadType === "pct" ? v : undefined, incRpe: row.loadType === "rpe" ? v : undefined });
-            }} style={{ ...dbuField, width: 64 }} />
-          <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>{row.loadType === "pct" ? "% next week" : row.loadType === "rpe" ? "RPE next week" : "kg next week"}</span>
-        </div>
-      )}
-      <div style={{ marginTop: 7 }}>
-        <span style={dbuLabel}>Cue · renders on the client's card exactly as typed</span>
-        <input value={row.cue} onChange={(e) => set("cue", e.target.value)} placeholder='e.g. "brace before the walkout"' style={{ ...dbuField, width: "100%" }} />
-      </div>
+function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [], onUploading }) {
+  const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText; onChange(next);};
+  const [uploading,setUploading] = React.useState(false);
+  const [error,setError] = React.useState('');
+  const fileRef=React.useRef(null), latest=React.useRef({row,onChange}); latest.current={row,onChange};
+  const mounted=React.useRef(true);
+  React.useEffect(()=>()=>{mounted.current=false;},[]);
+  const upload=async(file)=>{if(!file)return; setUploading(true);setError('');onUploading(1);try {const url=await dbuUploadVideo(file);if(mounted.current)latest.current.onChange({...latest.current.row,video:url});}catch(e){if(mounted.current)setError(e.message || 'Upload failed. Choose the file to retry.');}finally{if(mounted.current)setUploading(false);onUploading(-1);}};
+  const video=ShapeWorkoutDocument.videoUrl(row.video);
+  const field=(key,label,type='text')=><label style={{display:'block',minWidth:0}}><span style={dbuLabel}>{label}</span><input aria-label={row.name+' '+label} type={type} min={type==='number'?1:undefined} value={row[key] ?? ''} onChange={e=>set(key,type==='number'?e.target.value:e.target.value)} style={{...dbuField,width:'100%'}}/></label>;
+  return <div style={{border:'1px solid rgba(242,237,228,0.12)',borderLeft:'3px solid '+(row.group?'#2ee0c4':'rgba(242,237,228,0.2)'),borderRadius:4,padding:12,marginBottom:10}}>
+    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}>
+      <span style={{color:DBU_INK50}}>{label}</span><strong style={{flex:1,fontSize:15}}>{row.name}</strong>
+      <button aria-label={'Move '+row.name+' up'} onClick={()=>onMove(-1)} style={dbuBtn(false)}>↑</button><button aria-label={'Move '+row.name+' down'} onClick={()=>onMove(1)} style={dbuBtn(false)}>↓</button>
+      <button onClick={onDuplicate} style={dbuBtn(false)}>Duplicate</button><button disabled={uploading} aria-label={'Remove '+row.name} onClick={onRemove} style={dbuBtn(false)}>×</button>
     </div>
-  );
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(85px,1fr))',gap:10}}>
+      {field('sets','Sets','number')}{field('reps','Reps')}
+      <label><span style={dbuLabel}>Load</span><input aria-label={row.name+' load'} type="number" min="0" value={row.load ?? ''} onChange={e=>set('load',e.target.value===''?'':Number(e.target.value))} style={{...dbuField,width:'100%'}}/></label>
+      <label><span style={dbuLabel}>Unit</span><select aria-label={row.name+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)} style={{...dbuField,width:'100%'}}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option><option value="rpe">Target RPE</option></select></label>
+      {field('rest','Rest')}
+    </div>
+    {row.loadText && <p style={{fontSize:12,color:DBU_INK50}}>Original load instruction: {row.loadText}</p>}
+    <details style={{marginTop:12}}><summary style={{cursor:'pointer',fontSize:13,minHeight:32}}>Cues, tempo, superset & progression</summary>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}}>{field('cue','Coach cue')}{field('tempo','Tempo')}<label><span style={dbuLabel}>Superset</span><select value={row.group || ''} onChange={e=>set('group',e.target.value || null)} style={dbuField}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label></div>
+      <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,marginTop:10}}><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:row.loadType==='rpe'?0.5:undefined}:null)}/> Apply progression when copying a week with progression</label>
+    </details>
+    <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(242,237,228,0.1)'}}>
+      <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.m4v,.webm" hidden onChange={e=>{const f=e.target.files[0];e.target.value='';upload(f);}}/>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}><button disabled={uploading} style={dbuBtn(false)} onClick={()=>fileRef.current.click()}>{uploading?'Uploading…':video?'Replace demo':'Upload demo'}</button>
+        {!!clips.length && <select aria-label={'Choose demo for '+row.name} style={{...dbuField,maxWidth:'100%'}} value="" disabled={uploading} onChange={e=>set('video',e.target.value)}><option value="">Choose from video library</option>{clips.map(c=><option key={c.url} value={c.url}>{c.name}</option>)}</select>}
+        {video && <button disabled={uploading} style={dbuBtn(false)} onClick={()=>set('video','')}>Remove demo</button>}
+      </div>
+      {uploading && <progress aria-label="Uploading exercise demonstration" style={{width:'100%',marginTop:8}}/>}
+      {error && <p role="alert" style={{fontSize:13,color:'#e0644b'}}>{error}</p>}
+      {video && <details style={{marginTop:8}}><summary style={{cursor:'pointer',fontSize:13}}>Preview demonstration</summary><video src={video} controls playsInline preload="metadata" onError={()=>setError('This browser could not play the clip. Upload a compatible MP4 before assigning.')} style={{width:'100%',maxHeight:240,marginTop:8}}/></details>}
+    </div>
+  </div>;
 }
 
 // ── Day editor (right pane) ──────────────────────────────────────────────────
-function DbuDayEditor({ day, onChange, playlists }) {
+function DbuDayEditor({ day, onChange, playlists, clips, onUploading }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
   const labels = DashBuilder.rowLabels(day);
   let labelIdx = 0;
@@ -129,9 +123,10 @@ function DbuDayEditor({ day, onChange, playlists }) {
     <div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 180 }}>
-          <span style={dbuLabel}>Day name</span>
-          <input value={day.name} onChange={(e) => onChange({ ...day, name: e.target.value })} style={{ ...dbuField, width: "100%", fontSize: 14 }} />
+          <label style={dbuLabel} htmlFor="dbu-day-name">Day name</label>
+          <input id="dbu-day-name" value={day.name} onChange={(e) => onChange({ ...day, name: e.target.value })} style={{ ...dbuField, width: "100%", fontSize: 14 }} />
         </div>
+        <label><span style={dbuLabel}>Training day</span><select value={day.weekday ?? ''} onChange={e=>onChange({...day,weekday:e.target.value===''?undefined:Number(e.target.value)})} style={dbuField}><option value="">In sequence from start</option>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((d,i)=><option key={d} value={i}>{d}</option>)}</select></label>
         <div>
           <span style={dbuLabel}>Shape Radio playlist · chips on the client card</span>
           <select value={day.playlist ? day.playlist.name : ""} onChange={(e) => {
@@ -155,7 +150,8 @@ function DbuDayEditor({ day, onChange, playlists }) {
           {block.rows.map((row, ri) => {
             const label = labels[labelIdx]; labelIdx += 1;
             return (
-              <DbuRow key={row.id} row={row} label={label}
+              <DbuRow key={row.id} row={row} label={label} clips={clips} onUploading={onUploading}
+                onDuplicate={() => setBlock(bi, {...block, rows:[...block.rows.slice(0,ri+1),{...JSON.parse(JSON.stringify(row)),id:crypto.randomUUID()},...block.rows.slice(ri+1)]})}
                 onChange={(next) => setBlock(bi, { ...block, rows: block.rows.map((r, i) => (i === ri ? next : r)) })}
                 onRemove={() => setBlock(bi, { ...block, rows: block.rows.filter((_, i) => i !== ri) })}
                 onMove={(dir) => {
@@ -171,7 +167,7 @@ function DbuDayEditor({ day, onChange, playlists }) {
             <button onClick={() => setPickerFor(pickerFor === bi ? null : bi)} style={dbuBtn(false)}>+ Exercise</button>
             {pickerFor === bi && (
               <DbuExercisePicker
-                onPick={(ex) => { setBlock(bi, { ...block, rows: [...block.rows, DashBuilder.newRow(ex)] }); setPickerFor(null); }}
+                onPick={(items) => { setBlock(bi, { ...block, rows: [...block.rows, ...items.map(DashBuilder.newRow)] }); setPickerFor(null); }}
                 onClose={() => setPickerFor(null)} />
             )}
           </div>
@@ -180,6 +176,54 @@ function DbuDayEditor({ day, onChange, playlists }) {
       <button onClick={() => onChange({ ...day, blocks: [...day.blocks, { kind: "accessory", rows: [] }] })} style={{ ...dbuBtn(false), marginTop: 2 }}>+ Block</button>
     </div>
   );
+}
+
+function DbuDialog({title,onClose,busy,children}) {
+  const ref=React.useRef(null), latest=React.useRef({onClose,busy});latest.current={onClose,busy};
+  React.useEffect(()=>{
+    const previous=document.activeElement;
+    const node=ref.current;
+    node?.focus();
+    const key=e=>{if(e.key==='Escape'&&!latest.current.busy){e.preventDefault();latest.current.onClose();}if(e.key==='Tab'){
+      const items=[...node.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex="0"]')].filter(x=>!x.hidden);
+      const first=items[0],last=items[items.length-1];
+      if(!first){e.preventDefault();node.focus();}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===node)){e.preventDefault();last.focus();}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===node)){e.preventDefault();first.focus();}
+    }};
+    node.addEventListener('keydown',key);const old=document.body.style.overflow;document.body.style.overflow='hidden';
+    return()=>{node.removeEventListener('keydown',key);document.body.style.overflow=old;if(previous?.isConnected)previous.focus();};
+  },[]);
+  return ReactDOM.createPortal(<div style={{position:'fixed',inset:0,zIndex:300,display:'grid',placeItems:'center',background:'rgba(10,10,8,.8)',padding:16}} onPointerDown={e=>{if(e.target===e.currentTarget&&!busy)onClose();}}>
+    <div ref={ref} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} style={{width:'min(660px,100%)',maxHeight:'90vh',overflowY:'auto',boxSizing:'border-box',padding:22,background:'#14110e',color:'#f2ede4',border:'1px solid rgba(242,237,228,.2)',borderRadius:8,fontFamily:"'Space Grotesk',sans-serif"}}>{children}</div>
+  </div>,document.body);
+}
+
+function DbuFutureUpdates({template,clients,onClose}) {
+  const [rows,setRows]=React.useState(null),[picked,setPicked]=React.useState({}),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false),[done,setDone]=React.useState(false),[skipped,setSkipped]=React.useState(0);
+  React.useEffect(()=>{let on=true;const date=new Date();const today=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');fetch('/api/coach/plans/assignments?id='+encodeURIComponent(template.id)+'&today='+today,{credentials:'same-origin'}).then(async res=>{const data=await res.json();if(!res.ok)throw new Error(data.error||'Could not load assignments.');if(on){setRows(data.assignments||[]);setSkipped(data.skipped||0);}}).catch(e=>{if(on)setError(e.message);});return()=>{on=false;};},[template.id]);
+  const selected=(rows||[]).filter(r=>picked[r.id]);
+  const apply=async()=>{
+    setBusy(true);setError('');let completed=0;
+    try{
+      for(const clientId of [...new Set(selected.map(r=>r.clientId))]){
+        for(const week of DashBuilder.groupAssignmentWeeks(selected.filter(r=>r.clientId===clientId))){
+          const res=await fetch('/api/trainer/workout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientIds:[clientId],assignmentPreconditions:week.rows.map(r=>r.before),sessions:week.rows.map(r=>({title:r.title,description:template.name,kind:'template',scheduledDate:r.scheduledDate,payload:r.payload}))})});
+          const data=await res.json();if(!res.ok)throw new Error(data.error||'Update failed.');completed+=week.rows.length;
+          setPicked(prev=>{const next={...prev};week.rows.forEach(r=>delete next[r.id]);return next;});
+          setRows(prev=>prev.filter(r=>!week.rows.some(x=>x.id===r.id)));
+        }
+      }
+      setDone(true);
+    }catch(e){setError((completed?completed+' workouts updated. ':'')+e.message);}finally{setBusy(false);}
+  };
+  const summary=e=>[e.sets&&e.reps?e.sets+' × '+e.reps:'',e.load,e.rest,e.tempo&&e.tempo+' tempo',e.cue,e.video?'Demo attached':''].filter(Boolean).join(' · ');
+  return <DbuDialog title="Update future workouts" onClose={onClose} busy={busy}><h2>Update future workouts</h2><p style={{fontSize:13,lineHeight:1.5}}>Choose the upcoming prescriptions to replace with this saved template. Dates stay the same. Today's workouts and logged sessions are excluded. Clients already training keep the prescription with which they started.</p>
+    {skipped>0&&<p style={{fontSize:13}}>{skipped} assignments with logged work, removed days or client overrides need individual review.</p>}
+    {rows===null&&!error&&<p role="status">Loading upcoming workouts…</p>}
+    {rows?.length===0&&<p>{done?'Selected workouts updated.':'No eligible future assignments.'}</p>}
+    {(rows||[]).map(r=><div key={r.id} style={{borderTop:'1px solid rgba(242,237,228,.15)',padding:'12px 0'}}><label style={{display:'flex',gap:10,alignItems:'center'}}><input type="checkbox" disabled={busy} checked={!!picked[r.id]} onChange={e=>setPicked({...picked,[r.id]:e.target.checked})}/><span>{clients.find(c=>c.profile.id===r.clientId)?.profile.name||'Client'} · {r.scheduledDate} · {r.title}</span></label><details style={{margin:'8px 0 0 24px'}}><summary>Review changes</summary><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,fontSize:12}}><div><strong>Current</strong><p>{r.before.title}</p>{r.before.exercises.map((e,i)=><p key={i}><b>{e.name}</b><br/>{summary(e)}</p>)}</div><div><strong>Updated</strong><p>{r.title}</p>{r.payload.exercises.map((e,i)=><p key={i}><b>{e.name}</b><br/>{summary(e)}</p>)}</div></div></details></div>)}
+    {error&&<p role="alert" style={{color:'#e0644b'}}>{error}</p>}
+    <div style={{display:'flex',gap:10,marginTop:16}}><button disabled={busy||!selected.length} onClick={apply} style={dbuBtn(true)}>{busy?'Updating…':'Update '+selected.length+' workouts'}</button><button disabled={busy} onClick={onClose} style={dbuBtn(false)}>Close</button></div>
+  </DbuDialog>;
 }
 
 // ── Assign modal — multi-client + start date; marks the programming queue ───
@@ -203,7 +247,8 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
     if (!ids.length || state === "working" || state === "done") return;
     setState("working");
     setErrMsg("");
-    const rows = DashBuilder.buildAssignmentRows(doc, { id: template.id, name: template.name }, startDate);
+    let rows;
+    try { rows=DashBuilder.buildAssignmentRows(doc, template, startDate); if(!rows.length || rows.some(r=>!r.payload.exercises.length))throw new Error("Add exercises to each training day before assigning."); } catch(e){setErrMsg(e.message);setState("error");return;}
     // Weeks publish one at a time, so a failure partway through leaves the
     // earlier weeks LIVE. Counting them is the difference between "nothing
     // happened" and "three weeks landed and week four was held" — and only the
@@ -268,14 +313,13 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 250 }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(460px, 94vw)", maxHeight: "86vh", overflowY: "auto", background: "#14110e", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10, padding: 22, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif" }}>
+    <DbuDialog title="Assign workout" onClose={onClose} busy={state === "working"}>
         <div style={{ fontFamily: DBU_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Assign · {template.name}</div>
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
         <div style={{ fontSize: 12, color: DBU_INK50, marginBottom: 14 }}>{doc.weeks.length} week{doc.weeks.length === 1 ? "" : "s"} · {dayCount} days · snapshot v{doc.version} — your later template edits won't change what they get.</div>
         <span style={dbuLabel}>Start date</span>
         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ ...dbuField, marginBottom: 12 }} />
+        <details style={{marginBottom:12}}><summary>Preview scheduled workouts</summary>{DashBuilder.buildAssignmentRows(doc,template,startDate || '2000-01-01').map((r,i)=><p key={i} style={{fontSize:12}}>{r.scheduledDate} · {r.title} · {r.payload.exercises.length} exercises</p>)}</details>
         <span style={dbuLabel}>Clients</span>
         <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 6, padding: "2px 10px", marginBottom: 14 }}>
           {clients.map((c) => {
@@ -295,7 +339,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
           <button onClick={assign} disabled={!ids.length || state === "working"} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff", padding: "11px 18px", opacity: !ids.length || state === "working" ? 0.6 : 1 }}>
             {state === "working" ? "Assigning…" : state === "done" ? "Assigned ✓" : "Publish to " + (ids.length || 0) + " client" + (ids.length === 1 ? "" : "s")}
           </button>
-          <button onClick={onClose} style={dbuBtn(false)}>Cancel</button>
+          <button disabled={state === "working"} onClick={onClose} style={dbuBtn(false)}>Cancel</button>
           {!live && <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>DEMO · marks the queue only</span>}
         </div>
         {state === "error" && (
@@ -308,47 +352,84 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
             <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "#f2ede4", marginTop: 3 }}>{errMsg}</div>
           </div>
         )}
-      </div>
-    </div>
+    </DbuDialog>
   );
 }
 
 // ── The builder (tree left · day editor right · always-on client preview) ───
-function DbuBuilder({ template, clients, queue, live, playlists, onBack, onSaved }) {
-  const [name, setName] = React.useState(template.name);
-  const [doc, setDoc] = React.useState(() => JSON.parse(JSON.stringify(template.detail.builder)));
-  const [sel, setSel] = React.useState({ w: 0, d: 0 });
-  const [preview, setPreview] = React.useState(true);
-  const [saveState, setSaveState] = React.useState("saved");
-  const [assigning, setAssigning] = React.useState(false);
-  const idRef = React.useRef(template.id);
-  const dragRef = React.useRef(null);
-
-  // Autosave (debounced): live → /api/coach/plans, else localStorage drafts.
-  React.useEffect(() => {
-    setSaveState("dirty");
-    const t = setTimeout(async () => {
-      setSaveState("saving");
-      try {
-        if (live) {
-          if (idRef.current && !String(idRef.current).startsWith("demo-")) {
-            const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: idRef.current, name, detail: { ...(template.detail || {}), builder: doc } }) });
-            if (!res.ok) throw new Error("save failed");
-          } else {
-            const res = await fetch("/api/coach/plans", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "program", name, meta: doc.weeks.length + " weeks", detail: { builder: doc } }) });
-            const d = await res.json();
-            if (d && d.plan && d.plan.id) idRef.current = d.plan.id;
-            else if (d && d.id) idRef.current = d.id;
-          }
-        } else {
-          dbuWriteDraft(idRef.current || "draft-" + Date.now().toString(36), name, doc);
-        }
-        setSaveState("saved");
-        onSaved && onSaved({ id: idRef.current, name, doc });
-      } catch (e) { setSaveState("error"); }
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [doc, name]);
+function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips, dayTemplates, onBack, onSaved }) {
+  const ownerRef = React.useRef(ownerId);
+  const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
+  const [name, setName] = React.useState(initial.current.name);
+  const [doc, setDoc] = React.useState(() => JSON.parse(JSON.stringify(initial.current.doc)));
+  const [sel, setSel] = React.useState({w:0,d:0});
+  const [preview, setPreview] = React.useState(false);
+  const [saveState, setSaveState] = React.useState(template.recovered ? 'dirty' : 'saved');
+  const [error,setError] = React.useState('');
+  const [saveConflict,setSaveConflict] = React.useState(false);
+  const [assigning,setAssigning] = React.useState(false);
+  const [uploads,setUploads] = React.useState(0);
+  const idRef = React.useRef(template.draftId || (template.id && !String(template.id).startsWith('demo-') ? template.id : crypto.randomUUID()));
+  const persisted = React.useRef(template.recovered ? !!template.recovered.persisted : !!template.id && !String(template.id).startsWith('demo-'));
+  const revision = React.useRef(initial.current.revision);
+  const published = React.useRef(!!template.published);
+  const copiedFrom = React.useRef(null);
+  const dragRef = React.useRef(null), active=React.useRef(true), flight=React.useRef(null);
+  const latest = React.useRef({name,doc}); latest.current={name,doc};
+  const saved = React.useRef(template.recovered ? '' : JSON.stringify({name,doc}));
+  const draft = value => dbuWriteDraft(ownerRef.current,idRef.current,{...value,detail:{...(template.detail || {}),builder:value.doc},published:published.current,revision:revision.current,persisted:persisted.current,at:Date.now()});
+  const flush = async (publish=false) => {
+    if (uploads) {setError('Wait for the demonstration upload to finish.');return false;}
+    if (flight.current) {const ok=await flight.current; if(!ok)return false; if(saved.current!==JSON.stringify(latest.current)||publish)return flush(publish);return true;}
+    const value=latest.current, serial=JSON.stringify(value);
+    if(persisted.current && serial===saved.current && !publish)return true;
+    if(!value.name.trim()){setError('Give this workout a name.');return false;}
+    setError('');setSaveConflict(false);setSaveState('saving');
+    flight.current=(async()=>{
+      try{
+        let plan={id:idRef.current,name:value.name,detail:{...(template.detail||{}),builder:value.doc,revision:revision.current}};
+        if(live){
+          if(!ownerRef.current)throw new Error('Sign in before saving this draft.');
+          const res=await fetch('/api/coach/plans',{method:persisted.current?'PATCH':'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:idRef.current,kind:'program',name:value.name,meta:value.doc.weeks.length+' weeks',published:publish?true:published.current,expectedOwnerId:ownerRef.current,expectedRevision:revision.current,detail:plan.detail})});
+          const data=await res.json();
+          if(!res.ok || !data.plan?.id){const failure=new Error(data.error || 'Save failed. Your draft is still on this device.');failure.saveConflict=res.status===409 || data.code==='revision_conflict';throw failure;}
+          plan=data.plan;revision.current=Number(plan.detail?.revision)||0;persisted.current=true;published.current=!!plan.published;
+        }else if(!draft(value))throw new Error('This browser could not retain your draft. Keep this page open.');
+        saved.current=serial;
+        if(live && copiedFrom.current){dbuWriteDraft(ownerRef.current,copiedFrom.current,null);copiedFrom.current=null;}
+        if(live && serial===JSON.stringify(latest.current))dbuWriteDraft(ownerRef.current,idRef.current,null);
+        else draft(latest.current);
+        if(active.current){setSaveState('saved');onSaved?.({id:plan.id,name:plan.name,doc:plan.detail.builder,plan});}
+        return true;
+      }catch(e){if(active.current){setSaveState('error');setSaveConflict(!!e.saveConflict);setError(e.message || 'Save failed. Retry.');}return false;}
+      finally{flight.current=null;}
+    })();
+    return flight.current;
+  };
+  React.useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
+  React.useEffect(()=>{
+    if(JSON.stringify({name,doc})===saved.current)return;
+    if(!draft({name,doc}))setError('Local recovery is unavailable. Save before leaving.');
+    setSaveState('dirty');
+    const timer=setTimeout(()=>flush(),900);
+    return()=>clearTimeout(timer);
+  },[name,doc,ownerId]);
+  React.useEffect(()=>{
+    const guard=e=>{if(saved.current!==JSON.stringify(latest.current)||uploads){e.preventDefault();e.returnValue='';}};
+    const beforeLink=e=>{if(uploads && e.target.closest?.('a[href]')){e.preventDefault();e.stopPropagation();setError('Wait for the demonstration upload to finish before leaving.');}};
+    window.addEventListener('beforeunload',guard);document.addEventListener('click',beforeLink,true);
+    return()=>{window.removeEventListener('beforeunload',guard);document.removeEventListener('click',beforeLink,true);};
+  },[uploads]);
+  const leave=async()=>{if(await flush())onBack();};
+  const saveAsCopy=async()=>{
+    if(uploads || flight.current)return;
+    copiedFrom.current=idRef.current;
+    idRef.current=crypto.randomUUID();persisted.current=false;revision.current=0;published.current=false;
+    const next={...latest.current,name:latest.current.name+' (copy)'};
+    latest.current=next;setName(next.name);saved.current='';draft(next);
+    await flush();
+  };
+  const uploadCount=delta=>setUploads(n=>Math.max(0,n+delta));
 
   const week = doc.weeks[sel.w];
   const day = week && week.days[sel.d];
@@ -356,7 +437,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, onBack, onSaved
   const setDay = (next) => setWeeks(doc.weeks.map((w, wi) => (wi === sel.w ? { ...w, days: w.days.map((d, di) => (di === sel.d ? next : d)) } : w)));
 
   const duplicateWeek = (wi) => {
-    const next = DashBuilder.applyProgression(doc.weeks[wi]);
+    const next = JSON.parse(JSON.stringify(doc.weeks[wi]));
     setWeeks([...doc.weeks.slice(0, wi + 1), next, ...doc.weeks.slice(wi + 1)]);
   };
   const toggleDeload = (wi) => {
@@ -374,24 +455,28 @@ function DbuBuilder({ template, clients, queue, live, playlists, onBack, onSaved
   };
 
   const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you" }) : null;
-  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved edits…" : saveState === "error" ? "Save failed — retrying on next edit" : live ? "Saved" : "Draft saved locally";
+  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? "Saved" : "Draft saved locally";
 
   return (
-    <div>
+    <fieldset disabled={!!uploads} style={{border:0,padding:0,margin:0,minWidth:0}}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <button onClick={onBack} style={dbuBtn(false)}>← Library</button>
-        <input value={name} onChange={(e) => setName(e.target.value)} style={{ ...dbuField, fontSize: 16, fontWeight: 500, minWidth: 240 }} />
+        <button disabled={!!uploads} onClick={leave} style={dbuBtn(false)}>← Library</button>
+        <input aria-label="Workout or program name" value={name} onChange={(e) => setName(e.target.value)} style={{ ...dbuField, fontSize: 16, fontWeight: 500, minWidth: 240 }} />
         <DashPill c={dbuGoalTag(doc.goalTag).c}>{dbuGoalTag(doc.goalTag).label}</DashPill>
         <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>v{doc.version} · {saveLabel}</span>
         <div style={{ flex: 1 }} />
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: DBU_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: preview ? "#2ee0c4" : DBU_INK50, cursor: "pointer" }}>
           <input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} /> Client preview
         </label>
-        <button onClick={() => { setDoc({ ...doc, version: (doc.version || 1) + 1 }); }} title="Bump the template version — assignments stamp the version they were sent from" style={dbuBtn(false)}>Publish v{(doc.version || 1) + 1}</button>
-        <button onClick={() => setAssigning(true)} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff" }}>Assign to clients →</button>
+        <button disabled={!!uploads || saveState==='saving'} onClick={()=>flush()} style={dbuBtn(false)}>{saveState==='error'?'Retry save':'Save draft'}</button>
+        <button disabled={!!uploads || saveState==='saving'} onClick={()=>flush(true)} style={dbuBtn(false)}>Publish template</button>
+        <button disabled={!!uploads} onClick={async()=>{if(await flush())setAssigning(true);}} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff" }}>Assign to clients →</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: preview ? "230px 1fr 360px" : "230px 1fr", gap: 16, alignItems: "start" }}>
+      {error && <div role="alert" style={{fontSize:13,color:'#e0644b'}}><p>{error}</p><button style={dbuBtn(false)} onClick={()=>{if(draft(latest.current))onBack();else setError('This browser could not retain your draft. Keep this page open and retry saving.');}}>Keep draft & return to library</button>{saveConflict && <button disabled={!!uploads || saveState==='saving'} style={{...dbuBtn(false),marginLeft:8}} onClick={saveAsCopy}>Save as new copy</button>}</div>}
+      {doc.outlineOnly && <p style={{fontSize:13,color:DBU_INK50}}>This imported outline has day or week titles only. Add exercises before assigning it as a structured workout.</p>}
+      <style>{`.dbu-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:16;align-items:start}.dbu-layout>*{min-width:0}.dbu-layout input:focus-visible,.dbu-layout select:focus-visible,.dbu-layout button:focus-visible{outline:2px solid #2ee0c4;outline-offset:2px}@media(max-width:1000px){.dbu-layout{grid-template-columns:minmax(0,1fr)}}`}</style>
+      <div className="dbu-layout">
         {/* Tree */}
         <div className="dash-plate" style={{ "--dac": DBU_RUST, padding: "14px 14px" }}>
           {doc.weeks.map((w, wi) => (
@@ -401,17 +486,18 @@ function DbuBuilder({ template, clients, queue, live, playlists, onBack, onSaved
                 {w.deload && <DashPill c="#7bbf5a">Deload</DashPill>}
               </div>
               <div style={{ display: "flex", gap: 5, margin: "6px 0 7px" }}>
-                <button onClick={() => duplicateWeek(wi)} title="Duplicate — progression rules auto-fill the new week" style={{ ...dbuBtn(false), padding: "3px 7px", fontSize: 8 }}>Duplicate</button>
+                <button onClick={() => duplicateWeek(wi)} title="Copy this week unchanged" style={{ ...dbuBtn(false), padding: "3px 7px", fontSize: 8 }}>Duplicate</button>
+                <button onClick={()=>{const next=DashBuilder.applyProgression(doc.weeks[wi]);setWeeks([...doc.weeks.slice(0,wi+1),next,...doc.weeks.slice(wi+1)]);}} title="Copy week with the configured load increases" style={{...dbuBtn(false),padding:'3px 7px',fontSize:8}}>Progress</button>
                 <button onClick={() => toggleDeload(wi)} title="Deload: −40% volume, then edit freely" style={{ ...dbuBtn(false), padding: "3px 7px", fontSize: 8, color: w.deload ? "#7bbf5a" : undefined }}>Deload</button>
                 {doc.weeks.length > 1 && <button onClick={() => { setWeeks(doc.weeks.filter((_, i) => i !== wi)); setSel({ w: 0, d: 0 }); }} style={{ ...dbuBtn(false), padding: "3px 7px", fontSize: 8, color: "#e0644b" }}>×</button>}
               </div>
               {w.days.map((d, di) => {
                 const on = sel.w === wi && sel.d === di;
                 return (
-                  <div key={di} draggable
-                    onDragStart={() => { dragRef.current = { wi, di }; }}
+                  <div key={di} draggable={!uploads}
+                    onDragStart={(e) => { if(uploads){e.preventDefault();return;} dragRef.current = { wi, di }; }}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => { const f = dragRef.current; if (f && f.wi === wi) moveDay(wi, f.di, di); dragRef.current = null; }}
+                    onDrop={() => { if(uploads)return;const f = dragRef.current; if (f && f.wi === wi) moveDay(wi, f.di, di); dragRef.current = null; }}
                     style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <button onClick={() => setSel({ w: wi, d: di })} style={{ flex: 1, textAlign: "left", cursor: "pointer", border: "1px solid " + (on ? DBU_RUST : "rgba(242,237,228,0.1)"), borderLeft: "3px solid " + (on ? DBU_RUST : "rgba(242,237,228,0.18)"), background: on ? "rgba(192,83,59,0.12)" : "transparent", color: "#f2ede4", borderRadius: 4, padding: "7px 9px", fontSize: 12.5 }}>
                       {d.name}
@@ -419,6 +505,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, onBack, onSaved
                     </button>
                     <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <button onClick={() => moveDay(wi, di, di - 1)} aria-label="Move day up" style={{ ...dbuBtn(false), padding: "1px 5px", fontSize: 8 }}>▲</button>
+                      <button onClick={()=>{const next=JSON.parse(JSON.stringify(d));next.name+=' (copy)';next.id=crypto.randomUUID();setWeeks(doc.weeks.map((x,i)=>i===wi?{...x,days:[...x.days.slice(0,di+1),next,...x.days.slice(di+1)]}:x));}} aria-label={'Duplicate '+d.name} style={{...dbuBtn(false),padding:'1px 5px',fontSize:8}}>Copy</button>
                       <button onClick={() => moveDay(wi, di, di + 1)} aria-label="Move day down" style={{ ...dbuBtn(false), padding: "1px 5px", fontSize: 8 }}>▼</button>
                     </span>
                   </div>
@@ -428,11 +515,12 @@ function DbuBuilder({ template, clients, queue, live, playlists, onBack, onSaved
             </div>
           ))}
           <button onClick={() => setWeeks([...doc.weeks, DashBuilder.newWeek()])} style={dbuBtn(false)}>+ Week</button>
+          {!!dayTemplates?.length && <label style={{display:'block',marginTop:12}}><span style={dbuLabel}>Reuse a saved day</span><select value="" style={{...dbuField,width:'100%'}} onChange={e=>{const savedDay=dayTemplates[Number(e.target.value)];if(!savedDay)return;const next=JSON.parse(JSON.stringify(savedDay.day));next.id=crypto.randomUUID();setWeeks(doc.weeks.map((w,i)=>i===sel.w?{...w,days:[...w.days,next]}:w));}}><option value="">Choose day…</option>{dayTemplates.map((x,i)=><option key={i} value={i}>{x.name}</option>)}</select></label>}
         </div>
 
         {/* Day editor */}
         <div className="dash-plate dash-plate--tick" style={{ "--dac": DBU_RUST, paddingLeft: 24 }}>
-          {day ? <DbuDayEditor day={day} onChange={setDay} playlists={playlists} /> : <div style={{ color: DBU_INK50, fontSize: 13 }}>Pick a day on the left.</div>}
+          {day ? <DbuDayEditor day={day} onChange={setDay} playlists={playlists} clips={clips} onUploading={uploadCount} /> : <div style={{ color: DBU_INK50, fontSize: 13 }}>Pick a day on the left.</div>}
         </div>
 
         {/* Client preview — the EXACT card the client dashboard renders */}
@@ -446,8 +534,8 @@ function DbuBuilder({ template, clients, queue, live, playlists, onBack, onSaved
         )}
       </div>
 
-      {assigning && <DbuAssignModal template={{ id: idRef.current, name }} doc={doc} clients={clients} queue={queue} live={live} onClose={() => setAssigning(false)} />}
-    </div>
+      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} onClose={() => setAssigning(false)} />}
+    </fieldset>
   );
 }
 
@@ -481,122 +569,53 @@ function DbuPerformance({ template, live }) {
 
 // ── The page ─────────────────────────────────────────────────────────────────
 function TrainerProgramsPage() {
-  const { clients, queue, today: live, source } = useDashboard("trainer");
-  const [templates, setTemplates] = React.useState(null);
-  const [view, setView] = React.useState(null); // null = library, else template being edited
-  const [perfId, setPerfId] = React.useState(null);
-  const [tagFilter, setTagFilter] = React.useState("all");
-  const [playlists, setPlaylists] = React.useState([
-    { name: "Lower Push — Peak", meta: "95–138 BPM · 14 tracks" },
-    { name: "Pull Heavy", meta: "92–128 BPM · 12 tracks" },
-    { name: "Tempo 32", meta: "165–172 BPM" },
-  ]);
-  const isLive = !!live;
-
-  React.useEffect(() => {
-    let on = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/coach/plans?kind=program", { credentials: "same-origin" });
-        if (!res.ok) throw new Error();
-        const d = await res.json();
-        const rows = (d.plans || d || []).filter((p) => p && p.detail && p.detail.builder);
-        if (on) setTemplates(rows.length ? rows : DashBuilder.demoTemplates());
-      } catch (e) { if (on) setTemplates(DashBuilder.demoTemplates()); }
-      try {
-        const res = await fetch("/api/coach/soundtracks", { credentials: "same-origin" });
-        if (!res.ok) throw new Error();
-        const d = await res.json();
-        const lists = (d.soundtracks || d.playlists || []).map((s) => ({ name: s.name, meta: [s.track_count ? s.track_count + " tracks" : null].filter(Boolean).join(" · ") }));
-        if (on && lists.length) setPlaylists(lists);
-      } catch (e) {}
+  const {clients,queue,today:live,source}=useDashboard('trainer');
+  const [templates,setTemplates]=React.useState(null),[view,setView]=React.useState(null);
+  const [tagFilter,setTagFilter]=React.useState('all'),[error,setError]=React.useState('');
+  const [ownerId,setOwnerId]=React.useState(null),[refresh,setRefresh]=React.useState(0);
+  const libraryOwner = React.useRef(null);
+  const [playlists,setPlaylists]=React.useState([]),[assignFor,setAssignFor]=React.useState(null),[updateFor,setUpdateFor]=React.useState(null);
+  const [recoveries,setRecoveries]=React.useState([]);
+  const isLive=!!ownerId;
+  React.useEffect(()=>{
+    let on=true;
+    (async()=>{
+      try{
+        const res=await fetch('/api/coach/plans?kind=program',{credentials:'same-origin'});
+        const data=await res.json().catch(()=>null);
+        if(!res.ok || !data)throw new Error(data?.error || 'Could not load your workouts. Check your connection and retry.');
+        if(on){if(libraryOwner.current!==data.ownerId){setView(null);setAssignFor(null);setUpdateFor(null);}libraryOwner.current=data.ownerId;setOwnerId(data.ownerId);setTemplates((data.plans||[]).map(ShapeWorkoutDocument.normalizeWorkoutPlan));setError('');setRecoveries(Object.entries(dbuReadDrafts(data.ownerId)));}
+      }catch(e){if(on){if(source==='demo' && !libraryOwner.current){setTemplates(DashBuilder.demoTemplates());setRecoveries(Object.entries(dbuReadDrafts(null)));setError('');}else{setError(e.message || 'Could not load your workouts. Check your connection and retry.');setTemplates(null);}}}
+      try{const res=await fetch('/api/coach/soundtracks',{credentials:'same-origin'});if(!res.ok)return;const data=await res.json();if(on)setPlaylists((data.soundtracks||data.playlists||[]).map(x=>({name:x.name,meta:x.track_count?x.track_count+' tracks':''})));}catch(e){}
     })();
-    return () => { on = false; };
-  }, []);
-
-  const list = (templates || []).filter((t) => tagFilter === "all" || t.detail.builder.goalTag === tagFilter);
-  const perfTemplate = (templates || []).find((t) => t.id === perfId) || list[0] || null;
-  const [assignFor, setAssignFor] = React.useState(null);
-
-  return (
-    <React.Fragment>
-      {source === "demo" && <DashDemoBand />}
-      <DashPage
-        tourHero="hero-programs"
-        navItems={trainerNavItems("programs")}
-        payoutCard={live
-          ? { label: "MONTHLY · NET", amount: live.kpis.monthlyNetCents != null ? dashMoney(live.kpis.monthlyNetCents) : "—", sub: live.kpis.activeClients + " active subs · payouts connect soon" }
-          : trainerPayoutCard}
-        eyebrow={(templates ? templates.length : 0) + " TEMPLATES · VERSIONED"}
-        title="Programs"
-        subtitle={view ? "Editing — autosaves as you build; Assign publishes a snapshot to the client's today-rail." : "Your template library and how each one performs. Assign pre-fills the programming queue."}
-      >
-        {view ? (
-          <DbuBuilder
-            template={view}
-            clients={clients}
-            queue={queue}
-            live={isLive}
-            playlists={playlists}
-            onBack={() => setView(null)}
-            onSaved={({ id, name, doc }) => {
-              setTemplates((prev) => (prev || []).map((t) => (t === view || t.id === id ? { ...t, id: id || t.id, name, detail: { ...(t.detail || {}), builder: doc } } : t)));
-            }}
-          />
-        ) : (
-          <React.Fragment>
-            {/* Zone 1 — Library */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-              {[["all", "All"]].concat(DashBuilder.GOAL_TAGS.map((g) => [g.key, g.label])).map(([k, l]) => (
-                <button key={k} onClick={() => setTagFilter(k)} style={{ ...dbuBtn(false), color: tagFilter === k ? "#2ee0c4" : "rgba(242,237,228,0.7)", borderColor: tagFilter === k ? "rgba(46,224,196,0.4)" : "rgba(242,237,228,0.18)" }}>{l}</button>
-              ))}
-              <div style={{ flex: 1 }} />
-              <button onClick={() => setView({ id: null, name: "New program", detail: { builder: DashBuilder.newProgram("New program") } })} style={dbuBtn(true)}>+ New program</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14, marginBottom: 22 }}>
-              {templates == null && <div style={{ color: DBU_INK50, fontSize: 13 }}>Loading templates…</div>}
-              {list.map((t) => {
-                const b = t.detail.builder;
-                const tag = dbuGoalTag(b.goalTag);
-                const days = b.weeks.reduce((s, w) => s + w.days.length, 0);
-                return (
-                  <div key={t.id || t.name} className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": tag.c, paddingLeft: 22 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                      <span className="dash-eyebrow" style={{ color: tag.c }}>{tag.label}</span>
-                      <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>v{b.version}</span>
-                    </div>
-                    <div style={{ fontFamily: "'Fraunces', serif", fontSize: 21, letterSpacing: "-0.015em", margin: "7px 0 3px" }}>{t.name}</div>
-                    <div style={{ fontFamily: DBU_MONO, fontSize: 9, color: DBU_INK50 }}>{b.weeks.length} week{b.weeks.length === 1 ? "" : "s"} · {days} day{days === 1 ? "" : "s"}</div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                      <button onClick={() => setAssignFor(t)} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff" }}>Assign to client</button>
-                      <button onClick={() => setView(t)} style={dbuBtn(false)}>Edit</button>
-                      <button onClick={() => setPerfId(t.id)} style={{ ...dbuBtn(false), color: perfTemplate && perfTemplate.id === t.id ? "#2ee0c4" : undefined }}>Performance</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Zone 2 — Performance */}
-            {perfTemplate && (
-              <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#2ee0c4", paddingLeft: 24, maxWidth: 720 }}>
-                <div className="dash-eyebrow">Performance · {perfTemplate.name}</div>
-                <div className="dash-ledger" style={{ marginTop: 9 }} />
-                <DbuPerformance template={perfTemplate} live={isLive} />
-              </div>
-            )}
-          </React.Fragment>
-        )}
-      </DashPage>
-      {assignFor && (
-        <DbuAssignModal
-          template={{ id: assignFor.id, name: assignFor.name }}
-          doc={assignFor.detail.builder}
-          clients={clients} queue={queue} live={isLive}
-          onClose={() => setAssignFor(null)} />
-      )}
-    </React.Fragment>
-  );
+    return()=>{on=false;};
+  },[source,refresh]);
+  React.useEffect(()=>{const update=()=>{if(!document.hidden)setRefresh(n=>n+1);};window.addEventListener('focus',update);document.addEventListener('visibilitychange',update);return()=>{window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);};},[]);
+  const list=(templates||[]).filter(t=>tagFilter==='all'||t.detail.builder.goalTag===tagFilter);
+  const days=(templates||[]).flatMap(t=>t.detail.builder.weeks.flatMap(w=>w.days.map(day=>({name:t.name+' · '+day.name,day}))));
+  const clips=[...new Map((templates||[]).flatMap(t=>[
+    ...(t.detail.media||[]).filter(m=>m.type==='video').map(m=>({name:m.name||t.name,url:ShapeWorkoutDocument.videoUrl(m.url)})),
+    ...t.detail.builder.weeks.flatMap(w=>w.days.flatMap(d=>d.blocks.flatMap(b=>b.rows.filter(r=>r.video).map(r=>({name:r.name,url:ShapeWorkoutDocument.videoUrl(r.video)}))))),
+  ]).filter(c=>c.url).map(c=>[c.url,c])).values()];
+  const create=type=>{const builder=DashBuilder.newProgram();builder.weeks[0].days[0].name=type==='workout'?'Upper':'Day 1';setView({name:type==='workout'?'Upper':'New program',published:false,detail:{buildType:type,builder}});};
+  const saved=({plan})=>{setTemplates(prev=>[plan,...(prev||[]).filter(t=>t.id!==plan.id)]);setRecoveries(Object.entries(dbuReadDrafts(ownerId)));};
+  return <React.Fragment>
+    {source==='demo'&&<DashDemoBand/>}
+    <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={live?{label:'MONTHLY · NET',amount:live.kpis.monthlyNetCents!=null?dashMoney(live.kpis.monthlyNetCents):'—',sub:live.kpis.activeClients+' active clients'}:trainerPayoutCard}
+      eyebrow="WORKOUT LIBRARY" title="Workouts & programs" subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
+      {view?<DbuBuilder key={view.id||view.name} template={view} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}><button style={dbuBtn(true)} onClick={()=>create('workout')}>+ Single workout day</button><button style={dbuBtn(false)} onClick={()=>create('program')}>+ Program</button><button style={dbuBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Refresh</button></div>
+        {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid #d8a23a',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
+        {error&&<p role="alert">{error} <button style={dbuBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}>{[['all','All'],...DashBuilder.GOAL_TAGS.map(g=>[g.key,g.label])].map(([k,l])=><button key={k} aria-pressed={tagFilter===k} onClick={()=>setTagFilter(k)} style={dbuBtn(tagFilter===k)}>{l}</button>)}</div>
+        {templates===null&&!error&&<p role="status">Loading workouts…</p>}
+        {templates?.length===0&&<p>No workouts yet. Create a single day or program to start your library.</p>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(290px,100%),1fr))',gap:14}}>{list.map(t=>{const b=t.detail.builder;return <div key={t.id} className="dash-plate" style={{'--dac':DBU_RUST}}><div style={dbuLabel}>{t.detail.buildType==='workout'?'Single day':'Program'} · {t.published?'Published':'Draft'}</div><h2 style={{fontFamily:"'Fraunces',serif",fontSize:23}}>{t.name}</h2><p style={{fontSize:13,color:DBU_INK50}}>{b.weeks.length} weeks · {b.weeks.reduce((n,w)=>n+w.days.length,0)} days</p><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button style={dbuBtn(true)} onClick={()=>setView(t)}>Edit workout</button><button style={dbuBtn(false)} onClick={()=>setAssignFor(t)}>Assign</button>{isLive&&<button style={dbuBtn(false)} onClick={()=>setUpdateFor(t)}>Update future assignments</button>}<button style={dbuBtn(false)} onClick={()=>setView({...JSON.parse(JSON.stringify(t)),id:undefined,published:false,name:t.name+' (copy)',detail:{...t.detail,revision:0}})}>Duplicate</button></div></div>;})}</div>
+      </>}
+    </DashPage>
+    {updateFor&&<DbuFutureUpdates template={updateFor} clients={clients} onClose={()=>setUpdateFor(null)}/>}
+    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={clients} queue={queue} live={isLive} onClose={()=>setAssignFor(null)}/>}
+  </React.Fragment>;
 }
 
 Object.assign(window, { TrainerProgramsPage, DbuBuilder, DbuAssignModal, DbuPerformance });

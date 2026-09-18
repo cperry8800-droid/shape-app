@@ -54,7 +54,7 @@ async function _dashPool(items, worker, size = DASH_POOL_SIZE) {
 // `notesByClient` is the coach's own `coach_client_notes` doc, read ONCE for
 // the whole roster (a per-client read would be one round trip per row for a
 // document that already holds every row).
-function _dashRecordFromLive(row, ov, notesByClient) {
+function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
   const stats = ov && ov.stats ? ov.stats : null;
   const checkins = ov && Array.isArray(ov.checkins) ? ov.checkins : null;
   const goals = ov && ov.goals ? ov.goals : null;
@@ -102,6 +102,7 @@ function _dashRecordFromLive(row, ov, notesByClient) {
   const note = notesRead && row.id ? notesByClient[row.id] : null;
   const noteText = note && typeof note.text === "string" && note.text.trim() ? note.text.trim() : null;
   return {
+    progressRead: progressRead || { state: ov ? "ready" : notesPending ? "loading" : "unavailable", checkedAt: ov ? new Date().toISOString() : null },
     profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null },
     trainingAdherence: stats && stats.sessionsPlanned
       ? { pct: Math.round((stats.sessionsCompleted / stats.sessionsPlanned) * 100), done: stats.sessionsCompleted, planned: stats.sessionsPlanned }
@@ -389,6 +390,18 @@ function useCoachThresholds(role) {
 
 function useDashboard(role) {
   const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null });
+  const lastProgressRead = React.useRef(new Map());
+  const [refreshKey, setRefreshKey] = React.useState(0);
+  React.useEffect(() => {
+    const refresh = (event) => {
+      const id = event.detail && event.detail.clientId;
+      if (id) _dashCache.delete("/api/clients/" + encodeURIComponent(id) + "/shared-overview");
+      else _dashCache.clear();
+      setRefreshKey((v) => v + 1);
+    };
+    window.addEventListener("shape:coach-progress-refresh", refresh);
+    return () => window.removeEventListener("shape:coach-progress-refresh", refresh);
+  }, []);
 
   React.useEffect(() => {
     let on = true;
@@ -437,7 +450,7 @@ function useDashboard(role) {
         // Roster first (fast paint for callers), then enrich rows with ids.
         // ⚠ The third argument is deliberately absent, not null: undefined is
         // "the notes have not been read yet", null would claim the read failed.
-        const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null));
+        const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null, undefined, { state: "loading", checkedAt: lastProgressRead.current.get(row.id) || null }));
         if (on) setState({ loading: false, clients: base, source: "live", today });
         const rows = roster.clients || [];
         // The per-client overviews and the ONE notes doc resolve together — the
@@ -452,14 +465,18 @@ function useDashboard(role) {
         if (!on) return;
         setState({
           loading: false,
-          clients: rows.map((row, i) => _dashRecordFromLive(row, overviews[i], notes)),
+          clients: rows.map((row, i) => {
+            const cached = _dashCache.get("/api/clients/" + encodeURIComponent(row.id) + "/shared-overview");
+            if (overviews[i] && cached) lastProgressRead.current.set(row.id, new Date(cached.at).toISOString());
+            return _dashRecordFromLive(row, overviews[i], notes, { state: overviews[i] ? "ready" : "unavailable", checkedAt: lastProgressRead.current.get(row.id) || null });
+          }),
           source: "live",
           today,
         });
       } catch (e) { demo(null); }
     })();
     return () => { on = false; };
-  }, [role]);
+  }, [role, refreshKey]);
 
   // ⚠ THE FEED DEPENDS ON THE TUNING, or a coach changes a threshold and their roster
   // goes on showing the flags the old one produced until something unrelated

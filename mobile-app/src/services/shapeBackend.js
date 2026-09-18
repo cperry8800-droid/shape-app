@@ -2603,6 +2603,8 @@ function _setLogNum(v) {
 // ("100 kg" → kg), else 'lb' — the column is NOT NULL default 'lb', so we never
 // write null.
 function _setLogUnit(entry) {
+  const actualUnit = String(entry.actualLoad ?? entry.actual_load ?? '').trim().match(/^\+?[\d,]+(?:\.\d+)?\s*(kg|lbs?)$/i);
+  if (actualUnit) return actualUnit[1].toLowerCase() === 'kg' ? 'kg' : 'lb';
   const explicit = entry.unit || entry.loadUnit || entry.load_unit;
   if (explicit) return String(explicit).toLowerCase().includes('kg') ? 'kg' : 'lb';
   const ls = `${entry.actualLoad ?? entry.targetLoad ?? ''}`.toLowerCase();
@@ -2615,8 +2617,12 @@ function normalizeWorkoutSetLog(entry = {}, fallbackIndex = 0) {
   // Populate the actual_load/actual_reps/rpe/load_unit COLUMNS at write time — not
   // just the payload jsonb — so the train-volume + strength/progress readers that
   // read the columns directly (some without a payload fallback) see real numbers.
-  const actualLoad = _setLogNum(entry.actualLoad ?? entry.actual_load ?? entry.load);
-  const actualReps = _setLogNum(entry.actualReps ?? entry.actual_reps ?? entry.reps);
+  const loadText = String(entry.actualLoad ?? entry.actual_load ?? entry.load ?? '').trim();
+  const loadMatch = /^\+?(\d[\d,]*(?:\.\d+)?)\s*(?:kg|lbs?)?$/i.exec(loadText);
+  const actualLoad = loadMatch ? Number(loadMatch[1].replace(/,/g, '')) : null;
+  const repText = String(entry.actualReps ?? entry.actual_reps ?? entry.reps ?? '').trim();
+  const repMatch = /^(\d+)(?:\s*reps?)?$/i.exec(repText);
+  const actualReps = repMatch ? Number(repMatch[1]) : null;
   const rpe = _setLogNum(entry.rpe);
   return {
     move_index: Number.isFinite(Number(entry.moveIndex)) ? Number(entry.moveIndex) : fallbackIndex,
@@ -2630,8 +2636,8 @@ function normalizeWorkoutSetLog(entry = {}, fallbackIndex = 0) {
     load_unit: _setLogUnit(entry),
     started_at: startedAt,
     finished_at: finishedAt,
-    set_duration_seconds: Math.max(0, Number(entry.setDurationSeconds || entry.durationSeconds || 0)),
-    rest_before_seconds: Number.isFinite(Number(entry.restBeforeSeconds)) ? Math.max(0, Number(entry.restBeforeSeconds)) : null,
+    set_duration_seconds: entry.setDurationSeconds == null && entry.durationSeconds == null ? null : Math.max(0, Number(entry.setDurationSeconds ?? entry.durationSeconds)),
+    rest_before_seconds: entry.restBeforeSeconds != null && Number.isFinite(Number(entry.restBeforeSeconds)) ? Math.max(0, Number(entry.restBeforeSeconds)) : null,
     completed: entry.completed !== false,
     payload: entry,
   };
@@ -2673,6 +2679,7 @@ function normalizeSessionRpe(value) {
 }
 
 async function saveStructuredWorkoutSession({
+  sessionId = null,
   title = 'Workout session',
   workout = 'workout',
   durationSeconds = 0,
@@ -2690,11 +2697,12 @@ async function saveStructuredWorkoutSession({
 
   const normalizedSetLogs = setLogs.map(normalizeWorkoutSetLog);
   const completedSets = normalizedSetLogs.filter((entry) => entry.completed).length;
-  const sessionStartedAt = normalizedSetLogs.find((entry) => entry.started_at)?.started_at || new Date(Date.now() - Number(durationSeconds || 0) * 1000).toISOString();
-  const sessionEndedAt = [...normalizedSetLogs].reverse().find((entry) => entry.finished_at)?.finished_at || new Date().toISOString();
+  const sessionStartedAt = summary.startedAt || normalizedSetLogs.map(entry => entry.started_at).filter(Boolean).sort()[0] || new Date(Date.now() - Number(durationSeconds || 0) * 1000).toISOString();
+  const sessionEndedAt = summary.endedAt || normalizedSetLogs.map(entry => entry.finished_at).filter(Boolean).sort().at(-1) || new Date().toISOString();
   const normalizedProviderRole = providerRole ? normalizeRole(providerRole) : null;
   const normalizedProviderId = Number.isFinite(Number(providerId)) ? Number(providerId) : null;
   const sessionPayload = {
+    id: sessionId || globalThis.crypto.randomUUID(),
     client_id: state.user.id,
     client_workout_id: clientWorkoutId || null,
     provider_id: normalizedProviderId,
@@ -2710,9 +2718,10 @@ async function saveStructuredWorkoutSession({
     session_rpe: normalizeSessionRpe(sessionRpe),
     summary: {
       ...summary,
+      snapshotDate: _localDate(new Date(sessionEndedAt)),
       completedSets,
-      captureMethod: 'in_app_session_timer',
-      sensorAuthored: true,
+      captureMethod: setLogs.every(entry => entry.setDurationSeconds != null) ? 'timed_sets' : 'quick_or_mixed_log',
+      sensorAuthored: false,
       // ⚠ TWO FACTS, NOT A VERDICT. Was the member asked about this duration,
       // and what did they say. Whether the figure is CREDIBLE is derived by the
       // core at read time against the current ceiling — never decided here and
@@ -2751,96 +2760,15 @@ async function saveStructuredWorkoutSession({
     return { stored: 'local', data: local };
   }
 
-  // session_rpe arrives with 2026-07-27-session-rpe.sql. Until that migration is
-  // applied PostgREST rejects the WHOLE insert on the unknown column, which
-  // would cost the member their entire session log over an optional rating.
-  // Retry once without the field: the log is irreplaceable, the rating is not.
-  // Deliberately narrow — the retry fires only for this column, and every other
-  // error still throws untouched.
-  let { data: session, error: sessionError } = await supabase
-    .from('workout_sessions')
-    .insert(sessionPayload)
-    .select()
-    .single();
-  if (sessionError && isMissingColumnError(sessionError, 'session_rpe')) {
-    const { session_rpe: _unsupported, ...payloadWithoutRpe } = sessionPayload;
-    // Make the open window VISIBLE while it is open. Without this the retry is
-    // silent and session_rpe_prompted still reports {rated:true}, so skip-rate
-    // telemetry would read perfectly healthy while the column stayed empty —
-    // discovered weeks later, by which time the missing data is unrecoverable.
-    // Only fires when a rating was actually present: dropping a null costs
-    // nothing and is not worth an alarm.
-    if (sessionPayload.session_rpe != null) {
-      try { window.ShapeAnalytics?.track?.('session_rpe_dropped', { reason: 'column_missing' }); } catch (e) {}
-    }
-    ({ data: session, error: sessionError } = await supabase
-      .from('workout_sessions')
-      .insert(payloadWithoutRpe)
-      .select()
-      .single());
-  }
-  if (sessionError) throw sessionError;
+  // All records commit together. A missing RPC is a deployment dependency,
+  // not permission to fall back to the old partial/non-idempotent insert path.
+  const samples = [{ provider: 'shape_app', sample_type: 'summary', sampled_at: sessionEndedAt,
+    value: completedSets, unit: 'sets', payload: sessionPayload.summary }, ...sensorSamples.map(normalizeWorkoutSensorSample)];
+  const { data, error } = await supabase.rpc('save_workout_session', { p_session: sessionPayload, p_sets: normalizedSetLogs, p_samples: samples });
+  if (error) throw error;
+  if (!data?.session?.id) throw new Error('The workout save was not confirmed. Retry from your saved draft.');
+  return { stored: 'supabase', data: { ...data.session, set_logs: data.set_logs || [], sensor_samples: data.sensor_samples || [] } };
 
-  const setRows = normalizedSetLogs.map((entry) => ({
-    ...entry,
-    session_id: session.id,
-    client_id: state.user.id,
-  }));
-  if (setRows.length) {
-    const { error } = await supabase.from('workout_set_logs').insert(setRows);
-    if (error) throw error;
-  }
-
-  const sampleRows = [
-    {
-      provider: 'shape_app',
-      sample_type: 'summary',
-      sampled_at: session.ended_at || new Date().toISOString(),
-      value: completedSets,
-      unit: 'sets',
-      payload: sessionPayload.summary,
-    },
-    ...sensorSamples.map(normalizeWorkoutSensorSample),
-  ].map((sample) => ({
-    ...sample,
-    session_id: session.id,
-    client_id: state.user.id,
-  }));
-  if (sampleRows.length) {
-    const { error } = await supabase.from('workout_sensor_samples').insert(sampleRows);
-    if (error) throw error;
-  }
-
-  // Roll the session into today's health snapshot so the Progress volume
-  // series counts in-app workouts (integrations write the same column for
-  // device-synced workouts). Accumulates — best-effort, never blocks the save.
-  try {
-    const day = _localDate(sessionEndedAt ? new Date(sessionEndedAt) : new Date());
-    const mins = Math.max(1, Math.round(Number(durationSeconds || 0) / 60));
-    const { data: snap } = await supabase
-      .from('daily_health_snapshot')
-      .select('workout_minutes')
-      .eq('user_id', state.user.id)
-      .eq('snapshot_date', day)
-      .maybeSingle();
-    if (snap) {
-      await supabase.from('daily_health_snapshot')
-        .update({ workout_minutes: Number(snap.workout_minutes || 0) + mins })
-        .eq('user_id', state.user.id).eq('snapshot_date', day);
-    } else {
-      await supabase.from('daily_health_snapshot')
-        .insert({ user_id: state.user.id, snapshot_date: day, workout_minutes: mins });
-    }
-  } catch (e) { /* snapshot rollup is best-effort */ }
-
-  return {
-    stored: 'supabase',
-    data: {
-      ...session,
-      set_logs: setRows,
-      sensor_samples: sampleRows,
-    },
-  };
 }
 
 async function listWorkoutSessions() {
@@ -3089,6 +3017,8 @@ async function addCoachWorkoutReviewNote({
 }
 
 async function saveWorkoutSessionLog({
+  sessionId = null,
+  summary: sessionSummary = {},
   title = 'Workout session',
   workout = 'workout',
   durationSeconds = 0,
@@ -3103,20 +3033,19 @@ async function saveWorkoutSessionLog({
   providerRole = null,
 } = {}) {
   const completedSets = setLogs.filter((entry) => entry.completed).length;
-  const avgSetSeconds = completedSets
-    ? Math.round(setLogs.filter((entry) => entry.completed).reduce((sum, entry) => sum + Number(entry.setDurationSeconds || 0), 0) / completedSets)
-    : 0;
-  const restEntries = setLogs.filter((entry) => Number.isFinite(Number(entry.restBeforeSeconds)));
-  const avgRestSeconds = restEntries.length
-    ? Math.round(restEntries.reduce((sum, entry) => sum + Number(entry.restBeforeSeconds || 0), 0) / restEntries.length)
-    : 0;
+  const timedSets = setLogs.filter(entry => entry.completed && entry.setDurationSeconds != null && Number.isFinite(Number(entry.setDurationSeconds)));
+  const avgSetSeconds = timedSets.length ? Math.round(timedSets.reduce((sum, entry) => sum + Number(entry.setDurationSeconds), 0) / timedSets.length) : null;
+  const restEntries = setLogs.filter(entry => entry.restBeforeSeconds != null && Number.isFinite(Number(entry.restBeforeSeconds)));
+  const avgRestSeconds = restEntries.length ? Math.round(restEntries.reduce((sum, entry) => sum + Number(entry.restBeforeSeconds), 0) / restEntries.length) : null;
   const summary = {
+    ...sessionSummary,
     completedSets,
     avgSetSeconds,
     avgRestSeconds,
     durationSeconds,
   };
   const structured = await saveStructuredWorkoutSession({
+    sessionId,
     title,
     workout,
     durationSeconds,
@@ -3129,7 +3058,8 @@ async function saveWorkoutSessionLog({
     providerId,
     providerRole,
     summary,
-  }).catch((error) => ({ stored: 'error', error }));
+  });
+  if (structured.stored !== 'supabase') return { workoutSession: structured, shareError: null };
 
   // Full stat set for the card (first 3) + detail page (all) — sets, duration,
   // and the worn-monitor heart rate when one was connected during the session.
@@ -3181,16 +3111,17 @@ async function saveWorkoutSessionLog({
     } catch (e) { crossDup = false; }
   }
 
+  let shareError = null;
   const feedPost = crossDup ? null : await createCommunityPost({
     title,
-    status: 'Sensor-authored workout log',
-    note: `${completedSets} sets captured automatically. Avg set ${avgSetSeconds}s. Avg rest ${avgRestSeconds}s.`,
+    status: 'Workout log',
+    note: `${completedSets} sets logged.${avgSetSeconds != null ? ` Avg timed set ${avgSetSeconds}s.` : ''}${avgRestSeconds != null ? ` Avg measured rest ${avgRestSeconds}s.` : ''}`,
     privacy: resolvedPrivacy,
     activityType: workout,
     metrics: {
       provider: 'shape_session',
-      sensorAuthored: true,
-      captureMethod: 'in_app_session_timer',
+      sensorAuthored: false,
+      captureMethod: structured.data?.summary?.captureMethod || 'in_app_workout',
       durationSeconds,
       completedSets,
       avgSetSeconds,
@@ -3223,7 +3154,7 @@ async function saveWorkoutSessionLog({
       statB: avgRestSeconds ? `${avgRestSeconds}s rest` : 'Rest tracked',
       statC: `${Math.round(durationSeconds / 60)} min`,
       labels: ['Sets', 'Avg rest', 'Elapsed'],
-      tags: ['SENSOR', 'SESSION', ...(resolvedPrivacy === 'private' ? ['PRIVATE'] : [])],
+      tags: ['SESSION', ...(resolvedPrivacy === 'private' ? ['PRIVATE'] : [])],
     },
     sourceProvider: 'shape_session',
     // Idempotent by the persisted session id (a retry of the same save can't
@@ -3231,7 +3162,7 @@ async function saveWorkoutSessionLog({
     sourceActivityId: `shape-session-${structured?.data?.id || Date.now()}`,
     createdAt: sessionStart,
     autoShare: true,
-  });
+  }).catch(error => { shareError = error; return null; });
 
   invalidateClientMetrics();
   // Announce any new PRs to the community PR Wall. The server RPC enforces that
@@ -3264,6 +3195,7 @@ async function saveWorkoutSessionLog({
   return {
     ...(feedPost || {}),
     workoutSession: structured,
+    shareError,
   };
 }
 
@@ -5980,6 +5912,25 @@ async function removeCoachPlan(id) {
   });
   return res.ok;
 }
+async function previewCoachPlanAssignments(id) {
+  const res = await fetch(`${apiBaseUrl || ''}/api/coach/plans/assignments?id=${encodeURIComponent(id)}&today=${_localDate()}`, { credentials: 'same-origin', headers: sessionsAuthHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !Array.isArray(data.assignments)) throw new Error(data.error || 'Could not load future workouts.');
+  return data;
+}
+async function updateCoachPlanAssignments({ clientId, sessions, assignmentPreconditions }) {
+  // This endpoint merges the selected prescriptions into the existing week,
+  // then runs the same progression gate. A direct week write would replace
+  // unrelated appointments that were never part of this preview.
+  const res = await fetch(`${apiBaseUrl || ''}/api/trainer/workout`, {
+    method: 'POST', credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ clientIds: [clientId], sessions, assignmentPreconditions }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'That week could not be updated. Review and retry.');
+  return data;
+}
 // Sell-a-plan: a coach's published plans for sale, the buyer's owned plans, and
 // the checkout that buys one (Stripe Connect via /api/stripe/checkout-session).
 async function listSalePlans(providerRole, providerId) {
@@ -6017,7 +5968,7 @@ async function buyCoachPlan({ plan, providerRole, providerId } = {}) {
   if (!res.ok || !d.url) throw new Error(d.error || 'Could not start checkout.');
   return d.url;
 }
-window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, salePlans: listSalePlans, salePlansByUser: listSalePlansByUser, purchased: listPurchasedPlans, buy: buyCoachPlan };
+window.ShapeCoachPlans = { list: listCoachPlans, create: createCoachPlan, update: updateCoachPlan, remove: removeCoachPlan, assignments: previewCoachPlanAssignments, updateAssignments: updateCoachPlanAssignments, salePlans: listSalePlans, salePlansByUser: listSalePlansByUser, purchased: listPurchasedPlans, buy: buyCoachPlan };
 
 // Shared media-upload core: put a photo/video into a public bucket's own <uid>/…
 // folder (gated by storage RLS) and return { url, type, name }. `opts.bucket` +
@@ -6064,7 +6015,7 @@ async function uploadMediaFile(file, opts = {}) {
 // A coach's workout media (photo or video) → the public `coach-media` bucket. The
 // URL rides in coach_plans.detail.media (+ the coach P1 intro film).
 async function uploadCoachMedia(file, opts = {}) {
-  return uploadMediaFile(file, { bucket: 'coach-media', maxVideoBytes: 200 * 1024 * 1024, prefix: opts.prefix });
+  return uploadMediaFile(file, { bucket: 'coach-media', maxVideoBytes: 200 * 1024 * 1024, prefix: opts.prefix, videoOnly: opts.videoOnly === true });
 }
 window.ShapeCoachMedia = { upload: uploadCoachMedia };
 

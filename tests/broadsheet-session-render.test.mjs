@@ -39,7 +39,7 @@ const SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClien
 const THEME_KNOWN = {
   MONO: 'mono', DISPLAY: 'display', PAPER: '#fff', PAPER2: '#eee', INK: '#111',
   INK50: '#777', INK70: '#555', RULE: '#ccc', ACCENT: '#0f766e', GREEN: '#2f7d32',
-  AMBER: '#b26a00', RUST: '#9a3b1b', TEAL: '#0f766e', padX: 18, isLight: true,
+  AMBER: '#b26a00', RUST: '#9a3b1b', TEAL: '#0f766e', padX: 18, isLight: true, isMetric: false, uText: value => value,
 };
 const THEME = new Proxy(THEME_KNOWN, {
   get: (target, key) => (key in target ? target[key] : '#000'),
@@ -99,7 +99,7 @@ async function loadModule(reactImpl = React) {
   // Substitute ALL of `import.meta`, not just `import.meta.env`: this file also
   // probes a bare `typeof import.meta !== 'undefined'`, which is a hard
   // SyntaxError inside a CJS function body. One replacement covers both forms.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSSession };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSSession, BSClientTrain };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -152,9 +152,9 @@ const session = (props) => React.createElement(MOD.BSSession, {
 test('the session player mounts, and the effort prompt is NOT on the first paint', () => {
   const { html, warnings } = render(session({}));
   assert.equal(warnings.length, 0, warnings.join('\n'));
-  // A fresh session has an active set, so the primary CTA is `Start set 1`; the
+  // A fresh session has an active set, so the primary CTA is `Log set 1`; the
   // finish action only appears once the last set is logged (driven below).
-  assert.match(html, /Start set 1/);
+  assert.match(html, /Log set 1/);
   assert.match(html, /End workout early/);
   // ⚠ THE WHOLE POINT OF THE COMPLETION STEP. The rating used to sit inline
   // below the finish button, where a member who followed the primary CTA saved
@@ -172,6 +172,16 @@ test('an open session (no moves handed in) still mounts', () => {
   assert.equal(warnings.length, 0, warnings.join('\n'));
   assert.match(html, /End workout early/);
   assert.doesNotMatch(html, /How hard was that\?/);
+});
+
+test('Begin session mounts the selected live workout directly without another Start screen', () => {
+  globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'client-test' } }) };
+  const { html, warnings } = render(React.createElement(MOD.BSClientTrain, { autoStart: { workout: { id: 'selected-workout', title: 'Selected Thursday session', exercises: [{ name: 'Selected row', sets: 2, reps: '8', load: '55 lb', rest: '90s', cue: 'Keep ribs down' }] } } }));
+  assert.equal(warnings.length, 0, warnings.join('\n'));
+  assert.match(html, /Selected row/);
+  assert.match(html, /Log set 1/);
+  assert.match(html, /Keep ribs down/);
+  assert.doesNotMatch(html, />Start session/);
 });
 
 // ── Driving the component, not just rendering it ────────────────────────────
@@ -239,20 +249,23 @@ const textOf = (node) => {
 
 // Everything the save path touches, captured rather than stubbed away, so the
 // assertions are about the real payload the component hands over.
-function harness({ elapsedMinutes = 0 } = {}) {
+function harness({ elapsedMinutes = 0, failSaves = 0, draft = null, sessionProps = {}, storage = null } = {}) {
   const saved = [];
   const events = [];
   const backs = [];
-  globalThis.ShapeWorkoutLogs = { saveSessionLog: async (payload) => { saved.push(payload); } };
+  globalThis.ShapeWorkoutLogs = { saveSessionLog: async (payload) => { saved.push(payload); if (failSaves-- > 0) throw new Error('Offline — retry'); return { workoutSession: { stored: 'supabase', data: { id: payload.sessionId } } }; } };
   globalThis.ShapeAnalytics = { track: (event, props) => { events.push({ event, props }); } };
   globalThis.__bsToast = () => {};
   globalThis.ShapeLiveProgress = { clear: () => {}, push: () => {} };
-  globalThis.ShapeAuth = { getCachedState: () => ({ user: null }) };
+  globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'client-test' } }) };
+  const draftRows = new Map();
+  globalThis.localStorage = storage || { getItem: key => draftRows.get(key), setItem: (key, value) => draftRows.set(key, value) };
 
   CTX.cells.length = 0;
   const props = {
     moves: [{ m: 'Back squat', s: '5', l: '225 lb', reps: '5', rpe: '8', sets: 3 }],
     onBack: () => { backs.push(true); },
+    ...sessionProps, draft,
   };
   let tree;
   const renderOnce = () => { CTX.idx = 0; tree = SHIM_MOD.BSSession(props); return tree; };
@@ -351,7 +364,7 @@ function harness({ elapsedMinutes = 0 } = {}) {
       return api;
     },
     // Walk the real session to its end: the primary CTA cycles
-    // Start set → Log set per set, and only becomes `Finish workout ✓` once the
+    // Quick Log records one set per tap, and becomes `Finish workout ✓` once the
     // last set of the last move is logged. Driving it this way (rather than
     // forcing state) is what proves the finish button is reachable at all.
     async completeAllSets() {
@@ -366,6 +379,7 @@ function harness({ elapsedMinutes = 0 } = {}) {
     saved,
     events,
     backs,
+    readDraft: () => JSON.parse(globalThis.localStorage.getItem('shapeClientWorkoutDrafts:client-test') || '[]')[0],
   };
   return api;
 }
@@ -403,20 +417,19 @@ test('drive: saving persists BOTH the rating and the duration confirmation', asy
   assert.equal(h.backs.length, 1, 'saving also leaves the player');
 });
 
-test('drive: backing out STILL saves the workout, with a null rating', async () => {
+test('drive: Edit workout returns to editable sets without saving or losing them', async () => {
   const h = harness();
   await h.completeAllSets();
   await h.click('Finish workout ✓');
-  await h.click('← Back');
-
-  // The rating is optional; the workout log is not. Losing an irreplaceable
-  // session over one skipped field is a far worse failure than an unrated
-  // session, which the core already excludes honestly.
-  assert.equal(h.saved.length, 1, 'the workout must persist even when dismissed');
-  assert.equal(h.saved[0].sessionRpe, null);
-  // Backing out is the OPPOSITE of confirming a duration.
-  assert.equal(h.saved[0].durationAnswer, 'declined');
-  assert.equal(h.backs.length, 1);
+  await h.click('← Edit workout');
+  assert.equal(h.saved.length, 0);
+  assert.equal(h.backs.length, 0);
+  assert.equal(h.hasAria('Effort 1 of 10'), false);
+  assert.match(h.html, /Finish workout/);
+  h.type('Set 1 Load', '235');
+  await h.click('Finish workout ✓');
+  await h.click('Save & finish ✓');
+  assert.equal(h.saved[0].setLogs[0].actualLoad, '235');
 });
 
 test('drive: the save runs at most once across every exit path', async () => {
@@ -444,7 +457,7 @@ test('drive: skip-rate telemetry fires exactly once on BOTH exits', async () => 
   const skipped = harness();
   await skipped.completeAllSets();
   await skipped.click('Finish workout ✓');
-  await skipped.click('← Back');
+  await skipped.click('Save & finish ✓');
   const b = skipped.events.filter((e) => e.event === 'session_rpe_prompted');
   // Both exits must land in the denominator, or the skip rate — the only read
   // we have on whether the prompt works — is measuring the wrong population.
@@ -764,4 +777,78 @@ test('drive: ending early routes to the same completion step', async () => {
   await h.click('End workout early');
   assert.match(h.html, /How hard was that\?/);
   assert.equal(h.saved.length, 0, 'ending early asks before it writes');
+});
+
+
+test('drive: Quick Log captures one set per tap without inventing RPE or duration', async () => {
+  const h = harness({ elapsedMinutes: 30 });
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
+  assert.equal(h.saved[0].setLogs.length, 3);
+  assert.ok(h.saved[0].setLogs.every(s => s.rpe === null && s.setDurationSeconds === null && s.startedAt === null));
+});
+test('drive: failed saves keep the screen and retry the same session id', async () => {
+  const h = harness({ elapsedMinutes: 30, failSaves: 1 });
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
+  assert.equal(h.backs.length, 0);
+  assert.match(h.html, /Offline/);
+  await h.click('Retry save');
+  assert.equal(h.backs.length, 1);
+  assert.equal(h.saved.length, 2);
+  assert.equal(h.saved[0].sessionId, h.saved[1].sessionId);
+  assert.deepEqual(h.saved[0].setLogs, h.saved[1].setLogs);
+});
+
+test('drive: Pause and resume keep the open workout identity, prescription and load unit', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { title: 'My workout', clientWorkoutId: null } });
+  await h.click('Log set 1 · 5 reps');
+  await h.click('Pause & exit');
+  assert.equal(h.saved.length, 0);
+  assert.equal(h.backs.length, 1);
+  const draft = h.readDraft();
+  assert.equal(draft.setLogs.length, 1);
+  assert.equal(draft.loadUnit, 'lb');
+  assert.equal(draft.clientWorkoutId, null);
+  THEME_KNOWN.isMetric = true;
+  try {
+    const resumed = harness({ draft, sessionProps: { title: 'New coach assignment', clientWorkoutId: 'different-assignment', moves: [{ m: 'Deadlift', sets: 1 }] } });
+    await resumed.completeAllSets(); await resumed.click('Finish workout ✓'); await resumed.click('Save & finish ✓');
+    const saved = resumed.saved[0];
+    assert.equal(saved.clientWorkoutId, null);
+    assert.equal(saved.title, 'My workout');
+    assert.equal(saved.sessionId, draft.sessionId);
+    assert.equal(saved.summary.prescription.moves[0].m, 'Back squat');
+    assert.ok(saved.setLogs.every(s => s.moveName === 'Back squat' && s.unit === 'lb'));
+  } finally { THEME_KNOWN.isMetric = false; }
+});
+
+test('drive: Pause does not leave and lose a workout when device storage fails', async () => {
+  const h = harness({ storage: { getItem: () => null, setItem() { throw Error('quota'); } } });
+  await h.click('Pause & exit');
+  assert.equal(h.backs.length, 0);
+  assert.match(h.html, /Device storage is unavailable/);
+});
+
+test('drive: a newly started rest timer never exceeds the prescribed duration', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { moves: [{ m: 'Squat', sets: 2, reps: '5', restSeconds: 180 }] } });
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 900;
+    await h.click('Log set 1 · 5 reps');
+  } finally { Date.now = realNow; }
+  assert.match(h.html, /3:00 \/ 3:00/);
+  assert.doesNotMatch(h.html, /3:01/);
+});
+
+test('drive: retry after pause and remount sends the original submitted workout unchanged', async () => {
+  const h = harness({ elapsedMinutes: 30, failSaves: 1 });
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.clickAria('Effort 7 of 10'); await h.click('Save & finish ✓');
+  assert.equal(h.backs.length, 0);
+  await h.click('Pause & exit');
+  const draft = h.readDraft();
+  assert.ok(draft.pendingSubmission);
+  const resumed = harness({ draft });
+  assert.equal(resumed.nodes().find(n => n.type === 'fieldset').props.disabled, true);
+  await resumed.click('Save & finish ✓');
+  assert.deepEqual(resumed.saved[0], h.saved[0]);
+  assert.equal(resumed.readDraft(), undefined);
 });

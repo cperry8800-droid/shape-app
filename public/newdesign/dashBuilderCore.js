@@ -37,6 +37,7 @@
   if (root) root.DashBuilder = api;
 })(typeof window !== "undefined" ? window : null, function () {
   var DAY = 86400000;
+  var WorkoutDoc = typeof module !== "undefined" && module.exports ? require("./workoutDocument.js") : globalThis.ShapeWorkoutDocument;
 
   var GOAL_TAGS = [
     { key: "cut", label: "Cut", c: "#d8a23a" },
@@ -101,7 +102,7 @@
   function newRow(ex) {
     return {
       id: uid(), name: ex ? ex.name : "", muscle: ex ? ex.muscle : "", equipment: ex ? ex.equipment : "",
-      sets: 3, reps: "8", loadType: "kg", load: 0, tempo: "", rest: "90s", cue: "", group: null, progression: null,
+      sets: 3, reps: "8", loadType: "kg", load: 0, tempo: "", rest: "90s", cue: "", video: "", group: null, progression: null,
     };
   }
   function newDay(name) {
@@ -115,6 +116,7 @@
 
   // ── Load + scheme formatting (the client card shows these verbatim) ───────
   function loadLabel(row) {
+    if (WorkoutDoc) return WorkoutDoc.loadLabel(row);
     if (row.load == null || row.load === 0 || row.load === "") return "";
     if (row.loadType === "pct") return row.load + "% 1RM";
     if (row.loadType === "rpe") return "RPE " + row.load;
@@ -163,6 +165,7 @@
           var r = rows[i];
           if (r.progression && r.progression.rule === "all-reps") {
             if (r.loadType === "kg" && r.progression.incKg) r.load = Math.round((Number(r.load) + r.progression.incKg) * 100) / 100;
+            if (r.loadType === "lb" && r.progression.incLb) r.load = Math.round((Number(r.load) + r.progression.incLb) * 100) / 100;
             else if (r.loadType === "pct" && r.progression.incPct) r.load = Math.min(100, Number(r.load) + r.progression.incPct);
             else if (r.loadType === "rpe" && r.progression.incRpe) r.load = Math.min(10, Number(r.load) + r.progression.incRpe);
           }
@@ -205,6 +208,7 @@
           scheme: schemeLabel(r),
           load: loadLabel(r),
           cue: r.cue || "",
+          video: WorkoutDoc.videoUrl(r.video),
         });
         li += 1;
       }
@@ -230,6 +234,7 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
   function buildAssignmentRows(program, templateMeta, startDateISO) {
+    if (WorkoutDoc) return WorkoutDoc.builderToAssignmentRows(program, templateMeta, startDateISO);
     var start = new Date(startDateISO + "T00:00:00");
     var out = [];
     for (var w = 0; w < program.weeks.length; w++) {

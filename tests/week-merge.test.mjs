@@ -62,6 +62,40 @@ test('merge: two DIFFERENT sessions on one day both stand', () => {
   assert.equal(out.sessions.length, 2);
 });
 
+test('merge: a renamed template day wins over an earlier unrelated title match', () => {
+  const stamp = { id: 'plan-a', week: 1, day: 1, dayId: 'upper-a' };
+  const out = bsMergeWeekSessions(
+    [row('2026-08-04', 'Upper revised', { note: 'Keep this custom session' }), row('2026-08-04', 'Upper', { template: stamp, note: 'Old prescription' })],
+    [{ title: 'Upper revised', kind: 'template', scheduledDate: '2026-08-04', payload: { template: stamp, note: 'Updated prescription' } }], opts,
+  );
+  assert.equal(out.sessions.length, 2);
+  assert.deepEqual(out.sessions.map(s => s.payload.note), ['Keep this custom session', 'Updated prescription']);
+});
+
+test('merge: same-title workouts with different known identities are not overwritten', () => {
+  for (const other of [
+    { id: 'plan-b', week: 1, day: 1, dayId: 'upper-a' },
+    { id: 'plan-a', week: 1, day: 2, dayId: 'upper-b' },
+    { id: 'plan-a', week: 2, day: 1, dayId: 'upper-a' },
+  ]) {
+    const out = bsMergeWeekSessions(
+      [row('2026-08-04', 'Upper', { template: { id: 'plan-a', week: 1, day: 1, dayId: 'upper-a' }, note: 'Keep' })],
+      [{ title: 'Upper', kind: 'template', scheduledDate: '2026-08-04', payload: { template: other, note: 'Add' } }], opts,
+    );
+    assert.equal(out.sessions.length, 2);
+    assert.equal(out.sessions[0].payload.note, 'Keep');
+  }
+});
+
+test('merge: an incomplete legacy template retains its same-title retry behavior', () => {
+  const out = bsMergeWeekSessions(
+    [row('2026-08-04', 'Upper', { template: { id: 'plan-a' }, note: 'Old' })],
+    [{ title: 'Upper', kind: 'template', scheduledDate: '2026-08-04', payload: { template: { id: 'plan-a', week: 1, day: 1, dayId: 'upper-a' }, note: 'Updated' } }], opts,
+  );
+  assert.equal(out.sessions.length, 1);
+  assert.equal(out.sessions[0].payload.note, 'Updated');
+});
+
 test('merge: rows OUTSIDE the target week are ignored on both sides', () => {
   // A week publish may only carry its own week; a stray row would fail the
   // whole request rather than be silently rescheduled.

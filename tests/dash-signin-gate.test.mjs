@@ -32,7 +32,8 @@ const SHELLS = [
 // somebody rewords it, and a extractor that silently finds nothing makes every
 // assertion below vacuously true — hence the throw.
 function guardOf(file) {
-  const html = readFileSync(path.join(ND, file), 'utf8');
+  // Normalize checkout line endings before extracting source blocks.
+  const html = readFileSync(path.join(ND, file), 'utf8').replace(/\r\n/g, '\n');
   const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
   const hit = blocks.filter((b) => b.includes("fetch('/api/me'"));
   if (hit.length !== 1) throw new Error(`${file}: expected exactly one /api/me guard, found ${hit.length}`);
@@ -115,7 +116,7 @@ test('what the gate produces is what the login page will accept', async () => {
   // default instead of the page they asked for — silently. So the real inline
   // expression is lifted from login.jsx and driven, alongside the canonical
   // implementation, over the gate's own output.
-  const LOGIN = readFileSync(path.join(ND, 'login.jsx'), 'utf8');
+  const LOGIN = readFileSync(path.join(ND, 'login.jsx'), 'utf8').replace(/\r\n/g, '\n');
   const cond = /if \(next && (next\.startsWith[\s\S]*?)\) nextDashboard = next;/.exec(LOGIN);
   assert.ok(cond, 'login.jsx no longer validates ?next= in the shape this test lifts');
   const accepts = new Function('next', 'return !!(next && ' + cond[1] + ');');
@@ -197,7 +198,7 @@ test('the guard header no longer claims signed-out visitors are unaffected', () 
   // three, which the gate makes false — and a stale comment sits exactly where
   // the next reader goes to decide whether the gate should be there at all.
   for (const { file } of SHELLS) {
-    const html = readFileSync(path.join(ND, file), 'utf8');
+    const html = readFileSync(path.join(ND, file), 'utf8').replace(/\r\n/g, '\n');
     assert.ok(!/Signed-out preview and \w+ are unaffected/.test(html),
       `${file}: the retired "signed-out is unaffected" claim is still in the guard header`);
   }
