@@ -79,3 +79,22 @@ test('future preview fails closed when completed-workout verification is truncat
   const {route}=await api([{data:plan},{data:[{id:'trainer'}]},{data:[{id:'row'}],count:1},{data:[],count:1}],{assignments:true});
   assert.equal((await route.GET(new Request(`https://shape.test/api/coach/plans/assignments?id=${plan.id}`))).status,500);
 });
+
+for (const [label, capture] of [['minutes', {plannedRpe:7}], ['effort', {plannedMinutes:45}], ['both capture values', {}]]) {
+  test(`future preview clears ${label} without retaining stale load or losing client metadata`,async()=>{
+    const updatedPlan=structuredClone(plan);
+    Object.assign(updatedPlan.detail.builder.weeks[0].days[0],capture);
+    const payload={template:{id:plan.id,week:1,day:1,dayId:'upper'},plannedMinutes:45,plannedRpe:7,loadCapture:'per_session',clientNote:'Use the accessible rack'};
+    const row={id:'future',client_id:'client',scheduled_date:'2026-09-24',title:'Upper',kind:'template',payload};
+    const {route}=await api([{data:updatedPlan},{data:[{id:'trainer'}]},{data:[row],count:1},{data:[],count:0}],{assignments:true});
+    const response=await route.GET(new Request(`https://shape.test/api/coach/plans/assignments?id=${plan.id}&today=2026-09-18`));
+    assert.equal(response.status,200);
+    const {assignments:[assignment]}=await response.json();
+    for(const key of ['plannedMinutes','plannedRpe','loadCapture']) {
+      assert.equal(Object.hasOwn(assignment.payload,key),Object.hasOwn(capture,key),`${key} presence follows the saved template`);
+      assert.equal(assignment.payload[key],capture[key]);
+    }
+    assert.equal(assignment.payload.clientNote,payload.clientNote);
+    assert.deepEqual(assignment.before.payload,payload,'the concurrency precondition retains the original assignment');
+  });
+}

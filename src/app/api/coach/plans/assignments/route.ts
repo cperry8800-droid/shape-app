@@ -40,9 +40,13 @@ export async function GET(request: Request) {
     const day = stamp.dayId ? week?.days.find((d: {id?: string}) => d.id === stamp.dayId) : week?.days[Number(stamp.day)-1];
     if (!day) return [];
     const mapped = builderToAssignmentRows({ ...plan.detail.builder, weeks: [{days:[{...day,weekday:undefined}]}] }, {id:plan.id,name:plan.name,revision:plan.detail.revision}, String(row.scheduled_date).slice(0,10))[0];
+    // These optional fields belong to the template. Omission after a coach
+    // clears a value must remove the old prescription, not retain its load.
+    const retainedPayload = { ...row.payload };
+    for (const key of ['plannedMinutes', 'plannedRpe', 'loadCapture']) delete retainedPayload[key];
     return [{id:row.id,clientId:row.client_id,before:{id:row.id,title:row.title,description:row.description ?? null,kind:row.kind,scheduled_date:String(row.scheduled_date).slice(0,10),payload:row.payload,exercises:row.payload?.exercises || []},
       title:mapped.title,scheduledDate:String(row.scheduled_date).slice(0,10),
-      payload:{...row.payload,...mapped.payload,template:{...mapped.payload.template,week:stamp.week,day:stamp.day}}}];
+      payload:{...retainedPayload,...mapped.payload,template:{...mapped.payload.template,week:stamp.week,day:stamp.day}}}];
   });
   return NextResponse.json({assignments,skipped:(rows?.length || 0)-assignments.length});
 }
