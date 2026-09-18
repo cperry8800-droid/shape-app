@@ -4,6 +4,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
+import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsApplyRemainingLoad, bsLoggedSet } from '../services/workoutSession.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
@@ -599,7 +600,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const goIntegrations = () => { navPush(); setSettingsStart('integrations'); setShowSettings(true); };
   const goCycle    = () => { navPush(); setShowSettings(false); setShowCycle(true); };
   const goRadio    = () => { navPush(); setTab('radio'); };
-  const goTrain    = () => { navPush(); setTab('train'); };
+  const goTrain    = (options) => { navPush(); if (options?.workout) setPendingTrainStart({ workout: options.workout }); setTab('train'); };
   const goMarket   = (role) => { navPush(); setMarketRole(typeof role === 'string' ? role : null); setMarketCoach(null); setTab('market'); };
   const goScore    = () => { navPush(); setStoreView('score'); setTab('store'); };
   // Open the chat tab on a specific coach's DM (Team → Coaches).
@@ -795,7 +796,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // "Start session" from the calendar event sheet → close calendar, jump to the
   // Train tab, and auto-launch the live session there.
   React.useEffect(() => {
-    const onStart = () => { navJumpRef.current.navPush(); setShowCalendar(false); setTab('train'); setPendingTrainStart(true); };
+    const onStart = (event) => { navJumpRef.current.navPush(); setShowCalendar(false); setTab('train'); setPendingTrainStart(event.detail?.workout ? { workout: event.detail.workout } : true); };
     window.addEventListener('shape:startWorkout', onStart);
     return () => window.removeEventListener('shape:startWorkout', onStart);
   }, []);
@@ -3975,12 +3976,13 @@ function bsHomeLiveWeek(plan, t, tr) {
     let wk = null;
     if (w) {
       const moves = (w.exercises || []).map((e) => ({
+        ...e,
         name: e.name,
         scheme: [[e.sets, e.reps].filter(Boolean).join(' × '), e.rest].filter(Boolean).join(' · '),
         load: e.load || '',
       }));
       const meta = [w.durationMin ? `${w.durationMin} min` : null, `${moves.length} move${moves.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ');
-      wk = { time: w.time || '—', kind: 'TRN', title: w.title || T('common:fallback.workout', 'Workout'), sub: meta, detail: { moves, meta, note: w.description || '' } };
+      wk = { ...w, time: w.time || '—', kind: 'TRN', title: w.title || T('common:fallback.workout', 'Workout'), sub: meta, detail: { moves, meta, note: w.description || '' } };
     }
     workoutByIdx.push(wk);
     const md = mSlots[i];
@@ -4409,7 +4411,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       onUnfiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => { const n = { ...prev }; delete n[id]; return n; }); }} />;
   }
   if (showWorkoutPreview) {
-    return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.(); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
+    return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: selWorkout }); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
     return <BSLogMealFlow meal={mealToLog} daySoFar={{ cal: liveCal, protein: (ticker && typeof ticker.protein_g === 'number' ? ticker.protein_g : null) }} dayTargets={{ cal: (ticker && typeof ticker.cal_target === 'number') ? ticker.cal_target : null, protein: (ticker && typeof ticker.protein_target === 'number') ? ticker.protein_target : null }} signedIn={bsHomeSignedIn} onClose={() => { setShowLogMeal(false); setMealToLog(null); }} onLogged={() => { if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true })); }} />;
@@ -5366,10 +5368,10 @@ function bsBuildTrainProgram(workouts, t, tr) {
       // trainer's form clip — threaded through so the live session's ▶ How-to
       // chip can reach it (it was dropped here, making the chip unreachable
       // on real coached plans — CodeRabbit P2 on the Cockpit PR).
-      if (e.seg) return { n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '', video: e.video || null };
+      if (e.seg) return { ...e, n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '', video: e.video || null };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
-      return { n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: t.uText(e.load) || '—', video: e.video || null };
+      return { ...e, n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: t.uText(e.load) || '—', video: e.video || null };
     });
     const isSelf = !!w.selfAuthored;
     const prog = w.program && w.program.id ? w.program : null;
@@ -5414,6 +5416,7 @@ function bsBuildTrainProgram(workouts, t, tr) {
       selfAuthored: isSelf,
       program: prog,
       workoutId: w.id || null,
+      template: w.template || null,
       repeatDow: Array.isArray(w.repeatDow) ? w.repeatDow : null,
     };
   });
@@ -6093,12 +6096,22 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const tr = useShapeTr();
   const bsTrainProgram = useBSProgram();
   const [day, setDay] = useStateBSC(bsWeekdayIdx()); // default to today (0=Mon..6=Sun)
-  const [session, setSession] = useStateBSC(false);
+  const [session, setSession] = useStateBSC(!!autoStart?.workout);
+  const [launchWorkout, setLaunchWorkout] = useStateBSC(autoStart?.workout || null);
+  const draftUser = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
+  const [drafts, setDrafts] = useStateBSC(() => bsWorkoutDrafts(window.localStorage, draftUser));
+  const [resumeDraft, setResumeDraft] = useStateBSC(null);
+  const [openSession, setOpenSession] = useStateBSC(false);
+  const leaveSession = () => { setSession(false); setLaunchWorkout(null); setResumeDraft(null); setOpenSession(false); setDrafts(bsWorkoutDrafts(window.localStorage, draftUser)); };
+  const resumeBanner = drafts.length > 0 ? <div style={{ margin: `14px ${t.padX}px`, padding: 14, border: `1px solid ${t.ACCENT}`, borderRadius: 5 }}>
+    <div style={{ fontFamily: t.DISPLAY, color: t.INK, fontSize: 16, fontWeight: 700 }}>{tr('session:player.unfinished')}</div>
+    {drafts.map(d => <button key={d.sessionId} onClick={() => { setResumeDraft(d); setSession(true); }} style={{ display: 'block', minHeight: 44, width: '100%', textAlign: 'left', background: 'transparent', border: 0, color: t.ACCENT, cursor: 'pointer', padding: '10px 0' }}>{tr('session:player.resume')} · {d.title || tr('session:player.liveSession')}</button>)}
+  </div> : null;
   const [previewing, setPreviewing] = useStateBSC(false);
   // Auto-launch the live session ONLY when arriving from the calendar's "Start
   // session" (a one-shot pending flag), then clear it so returning to Train from
   // the calendar overlay — which remounts this screen — never re-launches.
-  React.useEffect(() => { if (autoStart) { setDay(bsWeekdayIdx()); setSession(true); onAutoStartConsumed(); } }, [autoStart]);
+  React.useEffect(() => { if (autoStart) { setLaunchWorkout(autoStart.workout || null); setDay(bsWeekdayIdx()); setSession(true); onAutoStartConsumed(); } }, [autoStart]);
   const [swapIdx, setSwapIdx] = useStateBSC(null);          // move to swap: number | 'pick' | null
   const [moveOverrides, setMoveOverrides] = useStateBSC({}); // `${day}:${i}` → { m, s }
   React.useEffect(() => {
@@ -6188,12 +6201,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // actual session; segment-style cardio (no "× reps") falls back to one set.
   // An empty move list = an OPEN session (log as you go); the player seeds a
   // blank move and shows ＋ Add move.
-  if (session) return <BSSession title={effMoves.length === 0 && isRestDay ? 'Open session' : cur.title} moves={effMoves.map(m => {
-    const mm = String(m.s || '').match(/(\d+)\s*×\s*([\d–-]+)/);
-    // No authored scheme (assigned-plan outline lines / cardio segments):
-    // every move starts at 3 sets. "+ Add set" covers anything beyond.
-    return { ...m, sets: mm ? Number(mm[1]) : 3, reps: mm ? mm[2] : '' };
-  })} onBack={() => setSession(false)} />;
+  if (session && launchWorkout && !resumeDraft) return <BSSession {...bsPreviewSession(launchWorkout, value => t.uText(value))} onBack={leaveSession} />;
+  if (session) return <BSSession draft={resumeDraft} clientWorkoutId={openSession ? null : cur.workoutId} prescriptionMeta={{ template: cur.template, program: cur.program, adjustGen: cur.adjustGen }} title={openSession || (effMoves.length === 0 && isRestDay) ? tr('session:train.openSession', { defaultValue: 'Open session' }) : cur.title} moves={openSession ? [] : bsSessionMoves(effMoves)} onBack={leaveSession} />;
   if (previewing) return <BSWorkoutPreview program={{ ...cur, moves: effMoves }} coach={coachDayName} onBack={() => setPreviewing(false)} onStart={() => { setPreviewing(false); setSession(true); }} />;
 
   // Signed-in member with NO plan (assigned or self) → the Build-your-week door
@@ -6205,10 +6214,11 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     return (
       <BSPage>
         <BSPageHeader kicker={tr('session:train.kickerTrain', { defaultValue: 'Train' })} title={tr('session:train.yourTraining', { defaultValue: 'Your training' })} trailing={<BSHeaderTools onProfile={onProfile} />} />
+        {resumeBanner}
         <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />
         <BSBuildDoor
           onBuild={() => setBuilder({ mode: 'session' })}
-          onOpenSession={() => setSession(true)}
+          onOpenSession={() => { setOpenSession(true); setSession(true); }}
           onStartTemplate={startTemplate}
           onStartProgram={startProgram}
           onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
@@ -6224,6 +6234,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         title={cur.title}
         trailing={<BSHeaderTools onProfile={onProfile} />}
       />
+      {resumeBanner}
 
       {/* Find a trainer — marketplace deep link, pinned to the TOP so it's always
           visible. Zero-box role leader row (shared with the Build-door branch). */}
@@ -6233,7 +6244,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
           empty state). Opens the self-serve builder. */}
       {bsTrainSignedIn && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 14, margin: `8px ${t.padX}px 0` }}>
-          <button onClick={() => setSession(true)} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.openSession', { defaultValue: 'Open session' })}</button>
+          <button onClick={() => { setOpenSession(true); setSession(true); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.openSession', { defaultValue: 'Open session' })}</button>
           <button onClick={() => setBuilder({ mode: 'session' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.buildWorkout', { defaultValue: '＋ Build a workout' })}</button>
         </div>
       )}
@@ -6293,7 +6304,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             </div>
           ) : <div style={{ flex: 1 }} />}
           {!isRestDay ? (
-            <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} aria-label={tr('session:train.startAria', { defaultValue: 'Start session' })} style={{ width: 35, height: 35, flexShrink: 0, borderRadius: 999, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>▶</button>
+            <button onClick={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }} style={{ minHeight: 48, flexShrink: 0, padding: '10px 14px', borderRadius: 5, border: 0, background: t.ACCENT, color: '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{tr('session:train.startAria', { defaultValue: 'Start session' })} →</button>
           ) : (
             <span style={{ flexShrink: 0, padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.restChip', { defaultValue: 'Rest' })}</span>
           )}
@@ -17775,7 +17786,7 @@ function BSUniversalSearch({ onClose }) {
   );
   if (viewWorkout) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSHomeWorkoutPreview workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new Event('shape:startWorkout')); } catch (e) {} }} />
+      <BSHomeWorkoutPreview workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
     </div>
   );
 
@@ -30591,7 +30602,7 @@ function bsPlates(total) {
   return out;
 }
 
-function BSSession({ moves: movesProp, onBack, title = '' }) {
+function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clientWorkoutId: requestedWorkoutId = null, prescriptionMeta = {}, draft = null }) {
   const t = useBS();
   // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter
   // anywhere in this file may be named `tr` either: a callback parameter that
@@ -30601,21 +30612,42 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   // pinned by tests/i18n-key-resolution.test.mjs so it cannot come back.
   const tr = useShapeTr();
   _bsScrollTopOnMount();
+  const [identity] = useStateBSC(() => ({
+    userId: window.ShapeAuth?.getCachedState?.()?.user?.id || null,
+    sessionId: draft?.sessionId || globalThis.crypto.randomUUID(),
+    clientWorkoutId: draft ? draft.clientWorkoutId ?? null : requestedWorkoutId,
+    loadUnit: draft?.loadUnit || (t.isMetric ? 'kg' : 'lb'),
+    title: draft?.title || requestedTitle,
+    startedAt: draft?.startedAt || new Date().toISOString(),
+    // Freeze the actual prescription used at start, even if a coach edits a
+    // future assignment while this session is paused on another screen.
+    prescription: draft?.prescription || { ...prescriptionMeta, title: requestedTitle, clientWorkoutId: requestedWorkoutId, moves: movesProp },
+  }));
+  const title = identity.title;
+  const [timedMode, setTimedMode] = useStateBSC(draft?.timedMode || false);
+  const [saveState, setSaveState] = useStateBSC('idle');
+  const [saveError, setSaveError] = useStateBSC('');
+  const pendingSubmissionRef = React.useRef(draft?.pendingSubmission || null);
+  const [submissionPending, setSubmissionPending] = useStateBSC(!!draft?.pendingSubmission);
+  const [draftWarning, setDraftWarning] = useStateBSC('');
+  const discardedRef = React.useRef(false);
+  const savingRef = React.useRef(false);
+  const draftRef = React.useRef(null);
   // Open session (log as you go): no moves were handed in → seed one blank move
   // and let the athlete name it + add more with ＋ Add move.
-  const openMode = !movesProp.length;
+  const openMode = draft ? !!draft.openMode : !movesProp.length;
   // The move list is state so a client can add a set mid-workout ("+ Add set"
   // under the set table) — the new set extends the CURRENT exercise only —
   // and, in an open session, add whole moves as they go ("+ Add move").
   const [moves, setMoves] = useStateBSC(() =>
-    (movesProp.length ? movesProp : [{ m: '', s: '', l: '', reps: '', rpe: '8', sets: 1 }])
+    (draft?.moves || (movesProp.length ? movesProp : [{ m: '', s: '', l: '', reps: '', sets: 1 }]))
       .map((m) => ({ ...m, sets: Math.max(1, Number(m.sets) || 1) })));
   const buildSetInputs = () => moves.reduce((acc, m, mIdx) => {
     Array.from({ length: m.sets }).forEach((_, setIdx) => {
       acc[`${mIdx}-${setIdx}`] = {
         reps: String(m.reps || ''),
         load: String(m.l || ''),
-        rpe: String(m.rpe || '8'),
+        rpe: '',
       };
     });
     return acc;
@@ -30624,26 +30656,26 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   // dependency array is evaluated during RENDER — a `setInputs` declared below
   // it would be in the temporal dead zone and throw a ReferenceError that no
   // static gate catches (parse, tsc, tests and the Vite build all pass on it).
-  const [setInputs, setSetInputs] = useStateBSC(buildSetInputs);
-  const [moveIdx, setMoveIdx] = useStateBSC(0);
-  const [completed, setCompleted] = useStateBSC({}); // key `${moveIdx}-${setIdx}` → true
+  const [setInputs, setSetInputs] = useStateBSC(() => draft?.setInputs || buildSetInputs());
+  const [moveIdx, setMoveIdx] = useStateBSC(() => Math.min(draft?.moveIdx || 0, moves.length - 1));
+  const [completed, setCompleted] = useStateBSC(draft?.completed || {});
   const [restEnd, setRestEnd] = useStateBSC(null);   // timestamp ms
   const [restTotal, setRestTotal] = useStateBSC(120); // seconds of the current rest
   const [restAfterSet, setRestAfterSet] = useStateBSC(0); // which set number just finished
-  const [reviewFeel, setReviewFeel] = useStateBSC(null);   // post-workout rating
+  const [reviewFeel, setReviewFeel] = useStateBSC(draft?.reviewFeel ?? null);
   // Session RPE 1-10 — a GENUINE post-session rating, the primary input to
   // session RPE load (SPEC-guardrails.md §3.1). This replaced a three-way
   // easy/moderate/hard control: three qualitative buckets are a different
   // construct from a 1-10 rating, and mapping one onto the other would fabricate
   // precision the member never gave. null = skipped, and skipped stays NULL all
   // the way to the column — never 0, which would read as "effortless".
-  const [sessionRpe, setSessionRpe] = useStateBSC(null);
+  const [sessionRpe, setSessionRpe] = useStateBSC(draft?.sessionRpe ?? null);
   // Duration override. null = the member has not touched the field, so the
   // timer's own value stands; '' = they cleared it deliberately. Shown at BOTH
   // ends of implausibility (see the render) — sRPE is a PRODUCT, so a duration
   // that is wrong is not a small error.
-  const [manualMinutes, setManualMinutes] = useStateBSC(null);
-  const [shareToFeed, setShareToFeed] = useStateBSC(false); // also post to the community feed (with the per-set breakdown)
+  const [manualMinutes, setManualMinutes] = useStateBSC(draft?.manualMinutes ?? null);
+  const [shareToFeed, setShareToFeed] = useStateBSC(draft?.shareToFeed ?? false);
   // Seed the share toggle from the member's own share rule (Settings → Share
   // workout data × profile visibility) — auto-share is the DEFAULT for a
   // sharing member; the toggle stays their per-workout override. Signed-out
@@ -30651,62 +30683,26 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   React.useEffect(() => {
     let on = true;
     try {
-      if (!window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule) return undefined;
+      if (draft?.shareToFeed != null || !window.ShapeAuth?.getCachedState?.()?.user?.id || !window.ShapeWorkoutShare?.rule) return undefined;
       window.shapeDb?.getUserGoals?.('client_settings').then((s) => {
         if (on) setShareToFeed(window.ShapeWorkoutShare.rule(s || null) !== 'private');
       }).catch(() => {});
     } catch (e) {}
     return () => { on = false; };
   }, []);
-  // ═══ THE COMPLETION STEP ═══
-  // `Finish workout ✓` opens a dedicated screen instead of saving and leaving.
-  //
-  // ⚠ WHY A SCREEN AND NOT A ROW FURTHER DOWN THE PAGE. The rating shipped
-  // inline BELOW the finish button, so a member who followed the primary CTA
-  // saved and navigated away without ever seeing it. Nearly every session would
-  // have stored a NULL rating — and a week only counts as MEASURED when more
-  // than half its sessions are rated, so no client would ever have left the
-  // cold-start regime and the ramp curve would never have executed. The spec
-  // called for exactly this ("the completion prompt owns the gap", one screen)
-  // and the placement, not the content, was wrong.
-  //
-  // A scroll-to was rejected: if the scroll lands badly the member never sees
-  // the row, nothing errors, and data quality degrades invisibly.
-  const [completing, setCompleting] = useStateBSC(false);
+  // Completion freezes the clock while the member reviews and rates the log.
+  const [completing, setCompleting] = useStateBSC(draft?.completing || false);
   // Latch the clock, THEN show the screen — so every derivation on it reads the
   // same instant no matter how long the member stands there.
   const openCompletion = () => {
+    if (endedAtRef.current == null) endedAtRef.current = new Date().toISOString();
     if (completedAtRef.current == null) completedAtRef.current = Math.floor((Date.now() - elapsedStart) / 1000);
     setCompleting(true);
   };
-  // ⚠ THE RATING IS OPTIONAL. THE WORKOUT LOG IS NOT.
-  // Backing out of the completion screen still saves the session, with a NULL
-  // rating — losing a member's irreplaceable workout log over one optional
-  // field is a far worse failure than an unrated session, which the core
-  // already handles honestly by excluding it. There is deliberately no
-  // "Skip rating" affordance: skipping is allowed, never invited.
-  // ⚠ THIS MEANS "ATTEMPTED", AND IT MUST NOT BE RESET ON FAILURE.
-  // Review suggested clearing it when the save throws so the unmount net could
-  // retry. That would corrupt the very data this feature feeds:
-  // `saveStructuredWorkoutSession` is `.catch()`-ed inside `saveWorkoutSessionLog`
-  // and never throws — it even falls back to a local record when there is no
-  // backend. What CAN throw is the community post, which runs AFTER the session
-  // row is written. So a throw reaching us means the log is already saved, and
-  // a retry would insert a SECOND `workout_sessions` row: one workout counted
-  // twice in every load figure the guardrail reads. The failure is surfaced to
-  // the member as a toast instead.
-  // The elapsed reading frozen when the completion screen opened — see the note
-  // on `elapsedSec`. Null until then.
-  const completedAtRef = React.useRef(null);
-  const savedRef = React.useRef(false);      // the save runs AT MOST once
-  const completingRef = React.useRef(false); // read by the unmount cleanup
-  completingRef.current = completing;
-  // ⚠ The unmount cleanup runs with `[]` deps, so it would capture the FIRST
-  // render's `finishSession` — whose closure holds sessionRpe = null, an empty
-  // setLogs and an elapsed time of ~0. That saves a junk zero-duration session
-  // with no sets instead of the workout that was actually done. Re-pointed
-  // every render so the cleanup always calls the CURRENT one.
-  const finishRef = React.useRef(null);
+  // Ratings remain optional. Navigation preserves a draft; only Save writes.
+  const completedAtRef = React.useRef(draft?.completing ? draft.elapsedSeconds : null);
+  const endedAtRef = React.useRef(draft?.endedAt || null);
+  const savedRef = React.useRef(false); // confirmed cloud persistence, not an attempted save
   // Live heart rate from a worn Bluetooth monitor (window.ShapeHRM). Samples are
   // collected through the whole session → avg + max land on the workout's stats.
   const [hrNow, setHrNow] = useStateBSC(null);             // current bpm (live chip)
@@ -30732,14 +30728,12 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
     catch (err) { window.__bsToast?.(tr('session:player.hrFailed'), 'warn'); }
   };
   const [now, setNow] = useStateBSC(Date.now());
-  const [elapsedStart] = useStateBSC(Date.now());
+  const [elapsedStart, setElapsedStart] = useStateBSC(() => Date.now() - Math.max(0, Number(draft?.elapsedSeconds) || 0) * 1000);
   const [activeSetKey, setActiveSetKey] = useStateBSC(null);
   const [setStartedAt, setSetStartedAt] = useStateBSC(null);
   const [lastSetEndedAt, setLastSetEndedAt] = useStateBSC(null);
   // Broadcast "workout" presence while a live session is open (teal dot).
-  // Mark "in a workout" when the session starts. Do NOT clear on unmount — the
-  // workout persists across screen changes / app backgrounding (DB-backed) and is
-  // only cleared when she actually ends it (✕ End or Finish below).
+  // Presence follows the active player. A paused workout remains a local draft.
   React.useEffect(() => { bsSetMyActivity('workout'); }, []);
   // ── Live progress broadcast (spec 2026-07-18) ──────────────────────────────
   // Push names + set counts (NEVER loads/RPE) through the throttle whenever the
@@ -30796,14 +30790,20 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
     const lr = liveRef.current;
     if (lr.timer) clearTimeout(lr.timer);
     if (lr.restTimer) clearTimeout(lr.restTimer);
+    bsSetMyActivity(null);
     try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
   }, []);
   const endWorkout = () => {
+    if (draftRef.current?.() === false) {
+      setDraftWarning(tr('session:player.storageFailed'));
+      setSaveError(tr('session:player.storageFailed'));
+      return;
+    }
     bsSetMyActivity(null);
     try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
     onBack();
   };
-  const [setLogs, setSetLogs] = useStateBSC([]);
+  const [setLogs, setSetLogs] = useStateBSC(draft?.setLogs || []);
   const [logStatus, setLogStatus] = useStateBSC('');
   // "The Meter" — the page's heat tracks live effort (HR zone → last-set RPE →
   // neutral). Damped: re-evaluated at most every 5s; color rides a 1.2s CSS
@@ -30837,10 +30837,8 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
       ? _bsStrength.lifts.find((l) => l.key === String(move.m).trim().toLowerCase())
       : null;
     const s = suggestNextLoad(lift, move);
-    // Only surface progression-adding suggestions ('repeat' just echoes the "Last ·"
-    // line). The set inputs are lb-only (placeholder 'lb', load_unit defaults to lb),
-    // so suppress a kg suggestion — filling it as lb would corrupt the logged load.
-    return s && s.basis !== 'repeat' && s.unit === 'lb' ? s : null;
+    // Suggested numbers must have the same unit as this session's inputs.
+    return s && s.basis !== 'repeat' && s.unit === identity.loadUnit ? s : null;
   })();
   const _bsFillSuggestion = () => {
     if (!_bsSug) return;
@@ -30955,17 +30953,29 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   // core decide credibility against whatever the ceiling is when it reads.
   const durationAnswered = askDuration && (manualValid || (prefillOffered && manualMinutes == null));
   const fmt = (s) => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
-  const restLeft = restEnd ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0;
+  const restLeft = restEnd ? Math.min(restTotal, Math.max(0, Math.ceil((restEnd - now) / 1000))) : 0;
 
   const activeSetSeconds = activeSetKey && setStartedAt ? Math.max(0, Math.floor((now - setStartedAt) / 1000)) : 0;
-  const avg = (values) => values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
-  const completedLogRows = setLogs.filter((entry) => entry.completed);
-  const avgSetSeconds = avg(completedLogRows.map((entry) => entry.setDurationSeconds || 0));
-  const avgRestSeconds = avg(completedLogRows.map((entry) => entry.restBeforeSeconds).filter((value) => Number.isFinite(value)));
   const logByKey = setLogs.reduce((acc, entry) => {
     acc[entry.key] = entry;
     return acc;
   }, {});
+
+  draftRef.current = () => {
+    if (savedRef.current || discardedRef.current || !identity.userId || window.ShapeAuth?.getCachedState?.()?.user?.id !== identity.userId) return true;
+    return bsStoreWorkoutDraft(window.localStorage, identity.userId, { ...identity, moves, openMode, setInputs, completed, setLogs, moveIdx,
+      timedMode, elapsedSeconds: completing && completedAtRef.current != null ? completedAtRef.current : Math.max(0, Math.floor((Date.now() - elapsedStart) / 1000)),
+      completing, endedAt: endedAtRef.current, sessionRpe, reviewFeel, manualMinutes, shareToFeed, pendingSubmission: pendingSubmissionRef.current });
+  };
+  React.useEffect(() => {
+    const ok = draftRef.current?.();
+    setDraftWarning(ok === false ? tr('session:player.storageFailed') : '');
+  }, [now, moves, setInputs, completed, setLogs, moveIdx, timedMode, completing, sessionRpe, reviewFeel, manualMinutes, shareToFeed]);
+  React.useEffect(() => {
+    const persist = () => draftRef.current?.();
+    window.addEventListener('pagehide', persist);
+    return () => { persist(); window.removeEventListener('pagehide', persist); };
+  }, []);
 
   const updateSetInput = (setIdx, field, value) => {
     const k = `${moveIdx}-${setIdx}`;
@@ -30993,7 +31003,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   const addSet = () => {
     const k = `${moveIdx}-${move.sets}`;
     setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: m.sets + 1 } : m)));
-    setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: String(move.l || ''), rpe: String(move.rpe || '8') } }));
+    setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: String(move.l || ''), rpe: '' } }));
   };
   // Remove a set from the CURRENT exercise (Cockpit/Split spec — full set
   // editing). Pending sets remove instantly; a LOGGED set goes through the
@@ -31044,7 +31054,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   // Open session: append a fresh blank move and jump to it.
   const addMove = () => {
     setMoves((ms) => {
-      const next = [...ms, { m: '', s: '', l: '', reps: '', rpe: '8', sets: 1 }];
+      const next = [...ms, { m: '', s: '', l: '', reps: '', sets: 1 }];
       setMoveIdx(next.length - 1);
       return next;
     });
@@ -31056,123 +31066,75 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   const startSet = (setIdx) => {
     const k = `${moveIdx}-${setIdx}`;
     if (completed[k]) return;
-    setActiveSetKey(k);
-    setSetStartedAt(Date.now());
-    setRestEnd(null);
-    setLogStatus(`Capturing set ${setIdx + 1} - tap Finish when the set ends.`);
+    setActiveSetKey(k); setSetStartedAt(Date.now()); setRestEnd(null);
   };
-
-  const finishSet = (setIdx) => {
+  const finishSet = (setIdx, quick = false) => {
     const k = `${moveIdx}-${setIdx}`;
-    if (activeSetKey !== k || !setStartedAt) {
-      startSet(setIdx);
-      return;
-    }
-    const endedAt = Date.now();
-    const duration = Math.max(1, Math.round((endedAt - setStartedAt) / 1000));
-    const restBefore = lastSetEndedAt ? Math.max(0, Math.round((setStartedAt - lastSetEndedAt) / 1000)) : null;
-    const actual = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
-    const nextLog = {
-      key: k,
-      moveIndex: moveIdx,
-      moveName: move.m,
-      setNumber: setIdx + 1,
-      targetReps: move.reps,
-      targetLoad: move.l,
-      actualReps: actual.reps,
-      actualLoad: actual.load,
-      // RPE was captured into setInputs but dropped here, so the rpe column never
-      // got a value; carry it (+ the lifter's unit) through to the set log.
-      rpe: actual.rpe,
-      unit: t.isMetric ? 'kg' : 'lb',
-      startedAt: new Date(setStartedAt).toISOString(),
-      finishedAt: new Date(endedAt).toISOString(),
-      setDurationSeconds: duration,
-      restBeforeSeconds: restBefore,
-      completed: true,
-      capturedAt: new Date(endedAt).toISOString(),
-    };
-    setSetLogs([...setLogs.filter((entry) => entry.key !== k), nextLog].sort((a, b) => {
-      if (a.moveIndex !== b.moveIndex) return a.moveIndex - b.moveIndex;
-      return a.setNumber - b.setNumber;
-    }));
-    setCompleted({ ...completed, [k]: true });
-    setActiveSetKey(null);
-    setSetStartedAt(null);
-    setLastSetEndedAt(endedAt);
-    setRestTotal(120);
-    setRestAfterSet(setIdx + 1);
-    setRestEnd(endedAt + 120 * 1000);
-    setLogStatus(`Captured ${move.m} set ${setIdx + 1}: ${actual.reps || '--'} reps at ${actual.load || '--'}, ${duration}s set${restBefore !== null ? `, ${restBefore}s rest before` : ''}.`);
+    if (completed[k]) return;
+    if (!move.m.trim()) { setLogStatus(tr('session:player.nameFirst')); return; }
+    const nowMs = Date.now();
+    const actual = setInputs[k] || { reps: '', load: '', rpe: '' };
+    const nextLog = bsLoggedSet({ move, moveIndex: moveIdx, setIndex: setIdx, input: actual,
+      startedAt: quick ? null : setStartedAt, lastEndedAt: lastSetEndedAt, now: nowMs, unit: identity.loadUnit });
+    setSetLogs(prev => [...prev.filter(entry => entry.key !== k), nextLog].sort((a, b) => a.moveIndex - b.moveIndex || a.setNumber - b.setNumber));
+    const nextCompleted = { ...completed, [k]: true };
+    setCompleted(nextCompleted); setActiveSetKey(null); setSetStartedAt(null); setLastSetEndedAt(nowMs);
+    const nextMove = bsNextSessionMove(moves, nextCompleted, moveIdx);
+    const sameGroup = nextMove != null && nextMove !== moveIdx && move.group && move.group === moves[nextMove].group;
+    const rest = sameGroup && nextMove > moveIdx ? 0 : move.restSeconds;
+    setRestTotal(rest || 0); setRestAfterSet(setIdx + 1);
+    setRestEnd(rest > 0 ? nowMs + rest * 1000 : null);
+    if (nextMove != null) setMoveIdx(nextMove);
+    setLogStatus(tr('session:player.setLogged'));
   };
-
   const logSet = (setIdx) => {
-    const k = `${moveIdx}-${setIdx}`;
-    if (activeSetKey === k) finishSet(setIdx);
+    if (!timedMode) finishSet(setIdx, true);
+    else if (activeSetKey === `${moveIdx}-${setIdx}`) finishSet(setIdx);
     else startSet(setIdx);
   };
-
-  // Saves and does NOT navigate — every exit path calls this, so it must be
-  // idempotent: `Save & finish`, backing out, and the unmount cleanup can all
-  // fire for one session (a save in flight when the screen unmounts is exactly
-  // the case the flag is set BEFORE the first await for).
-  //
-  // `confirmed` = the member affirmatively accepted the logged duration by
-  // completing the save on the screen that shows it. Backing out is the
-  // opposite of confirming, so it stays false and the core excludes an
-  // unconfirmed overrun — the safe direction (SPEC-guardrails.md §3.1).
+  // Only confirmed persistence clears a draft. The stable session UUID makes
+  // retrying a failed or interrupted save the same write, never a new workout.
   const finishSession = async ({ answered = false } = {}) => {
-    if (savedRef.current) return;
-    savedRef.current = true;
+    if (savedRef.current) return true;
+    if (savingRef.current) return false;
+    if (!identity.userId) { setSaveError(tr('session:player.previewNoSave')); return false; }
+    if (window.ShapeAuth?.getCachedState?.()?.user?.id !== identity.userId) { setSaveError(tr('session:player.accountChanged')); return false; }
+    savingRef.current = true; setSaveState('saving'); setSaveError('');
     try {
-      // The structured log + coach review always save privately. When "Share to
-      // community" is on, the feed post goes public — carrying the real set logs,
-      // so the activity card's detail page shows the per-set breakdown.
       const hrSamples = hrSamplesRef.current;
-      const hr = hrSamples.length
-        ? { avg: Math.round(hrSamples.reduce((s, x) => s + x.bpm, 0) / hrSamples.length), max: hrMaxRef.current || null, samples: hrSamples.length }
-        : null;
-      // Skip rate is the ONLY read we have on whether the prompt is working —
-      // the derived estimator that would have papered over a high skip rate was
-      // deliberately cut (SPEC-guardrails.md §3.1), so this must fire on EVERY
-      // completion, rated or not, or the denominator is meaningless. Fired
-      // before the save so a save failure cannot silently drop the sample.
-      try { window.ShapeAnalytics?.track?.('session_rpe_prompted', { rated: sessionRpe != null }); } catch (e) {}
-      await window.ShapeWorkoutLogs?.saveSessionLog?.({
-        title: `${moves[0]?.m || 'Workout'} session`,
-        workout: moves[0]?.m || 'workout',
-        durationSeconds: loggedDurationSec,
-        sessionRpe,
-        // ONE input; `bsDurationFacts` derives the coherent pair from it, so the
-        // writer cannot emit a self-contradiction. A FACT, never a verdict —
-        // whether the figure is credible is the core's to decide against
-        // whatever the ceiling is when it reads, so a retune re-judges this row
-        // instead of inheriting a judgement made today.
+      const hr = hrSamples.length ? { avg: Math.round(hrSamples.reduce((sum, h) => sum + h.bpm, 0) / hrSamples.length), max: hrMaxRef.current || null, samples: hrSamples.length } : null;
+      // A lost response may mean the server committed. Freeze the first
+      // submission in the durable draft so a retry can never send new values
+      // under an id which already names a completed workout.
+      if (!pendingSubmissionRef.current) pendingSubmissionRef.current = {
+        sessionId: identity.sessionId, clientWorkoutId: identity.clientWorkoutId,
+        title: title || tr('session:player.liveSession'), workout: 'workout',
+        durationSeconds: loggedDurationSec, sessionRpe,
         durationAnswer: !askDuration ? 'not_prompted' : (answered ? 'confirmed' : 'declined'),
-        setLogs,
-        hr,
-        review: { feel: reviewFeel, rpe: sessionRpe },
-        // Checked → null = the member's share rule decides the audience
-        // (public / followers / private-if-Off). Unchecked → force private.
+        setLogs, hr, summary: { prescription: identity.prescription, reviewFeel, startedAt: identity.startedAt, endedAt: endedAtRef.current },
         privacy: shareToFeed ? null : 'private',
-      });
-      window.__bsToast?.(shareToFeed ? tr('session:player.toastShared') : tr('session:player.toastPrivate'), 'ok');
+      };
+      setSubmissionPending(true);
+      draftRef.current?.();
+      const result = await window.ShapeWorkoutLogs.saveSessionLog(pendingSubmissionRef.current);
+      if (result?.workoutSession?.stored !== 'supabase') throw new Error(tr('session:player.pendingSave'));
+      savedRef.current = true; bsRemoveWorkoutDraft(window.localStorage, identity.userId, identity.sessionId); setSaveState('saved');
+      window.__bsToast?.(result.shareError ? tr('session:player.savedShareFailed') : tr('session:player.saved'), result.shareError ? 'warn' : 'ok');
+      try { window.ShapeAnalytics?.track?.('session_rpe_prompted', { rated: sessionRpe != null }); } catch {}
+      bsSetMyActivity(null); try { window.ShapeLiveProgress?.clear?.(); } catch {} return true;
     } catch (error) {
-      window.__bsToast?.(error?.message || tr('session:player.toastLocal'), 'warn');
-    }
-    bsSetMyActivity(null);
-    try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
+      setSaveError(error?.message || tr('session:player.pendingSave'));
+      setSaveState('error'); draftRef.current?.(); return false;
+    } finally { savingRef.current = false; }
   };
-  finishRef.current = finishSession;
-  const finishAndExit = async (opts) => { await finishSession(opts); onBack(); };
-  // The safety net for every exit we do NOT control: hardware back, a parent
-  // route change, the shell unmounting us. Fires only once the member has
-  // REACHED the completion screen — an unmount mid-workout is an abandon, and
-  // `✕ End` discards on purpose. No navigation here: the component is already
-  // going away.
-  React.useEffect(() => () => {
-    if (completingRef.current && !savedRef.current) finishRef.current?.({ answered: false });
-  }, []);
+  const finishAndExit = async (opts) => { if (await finishSession(opts)) onBack(); };
+  const discardWorkout = async () => {
+    const message = tr('session:player.discardQuestion');
+    const ok = window.bsAskConfirm ? await window.bsAskConfirm({ title: tr('session:player.discard'), message, confirmLabel: tr('session:player.discard') }) : window.confirm?.(message);
+    if (!ok) return;
+    discardedRef.current = true; bsRemoveWorkoutDraft(window.localStorage, identity.userId, identity.sessionId);
+    bsSetMyActivity(null); try { window.ShapeLiveProgress?.clear?.(); } catch {} onBack();
+  };
 
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const pct = totalSets ? doneSets / totalSets : 0;
@@ -31216,9 +31178,8 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
   // ═══ THE COMPLETION SCREEN ═══
   // Fixed-dark like the band — the same machine on every paper. Effort leads;
   // the duration question appears ONLY when the wall-clock timer is not
-  // credible on its own; ← BACK saves with a NULL rating rather than stranding
-  // the log. `session_rpe_prompted` fires from finishSession, so BOTH exits
-  // land in the skip-rate denominator exactly once.
+  // credible on its own. Edit returns to the workout; Save is the only write.
+  // `session_rpe_prompted` fires once after a confirmed save.
   if (completing) {
     const rpeColor = (n) => (n <= 4 ? '#4fd18b' : n <= 7 ? '#e8a33c' : '#e8674c');
     const sectionHead = { ...bandEyebrow, fontSize: 9, color: BAND.dim };
@@ -31227,9 +31188,9 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
         <div style={{ minHeight: '100%', background: BAND.bg, padding: `46px ${t.padX}px 40px` }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <button
-              onClick={() => finishAndExit({ answered: false })}
+              onClick={() => { if (submissionPending) { endWorkout(); return; } setElapsedStart(Date.now() - (completedAtRef.current || 0) * 1000); setCompleting(false); completedAtRef.current = null; endedAtRef.current = null; setSaveError(''); }}
               style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}
-            >{tr('session:player.back')}</button>
+            >{submissionPending ? tr('session:player.pause') : tr('session:player.editWorkout')}</button>
             <span style={{ ...bandEyebrow, color: BAND.dim35 }}>{tr('session:player.completeEyebrow')}</span>
           </div>
 
@@ -31241,6 +31202,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             {tr('session:player.completeMeta', { done: doneSets, total: totalSets, clock: fmt(elapsedSec) })}
           </div>
 
+          <fieldset disabled={submissionPending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           {/* THE EFFORT — the primary action. One tap, and skippable: a skipped
               rating is NULL, not a guess, and the session simply drops out of
               load maths rather than being scored as easy. */}
@@ -31346,11 +31308,14 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             </button>
           </div>
 
+          </fieldset>
           <div style={{ marginTop: 30 }}>
             <button
-              onClick={() => finishAndExit({ answered: durationAnswered })}
+              disabled={saveState === 'saving'} onClick={() => finishAndExit({ answered: durationAnswered })}
               style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: bandHeat, color: '#04211c', cursor: 'pointer', padding: '17px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 }}
-            >{tr('session:player.saveFinish')}</button>
+            >{saveState === 'saving' ? tr('session:player.saving') : saveState === 'error' ? tr('session:player.retrySave') : tr('session:player.saveFinish')}</button>
+            {saveError && <p role="alert" style={{ color: '#e8a33c', fontSize: 14, lineHeight: 1.4 }}>{saveError}</p>}
+            {saveError && submissionPending && <p style={{ color: BAND.dim, fontSize: 13 }}>{tr('session:player.retrySame')}</p>}
           </div>
         </div>
       </BSPage>
@@ -31365,7 +31330,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
         <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
         {/* End · overall workout time (owner add — wall clock since start) */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>{tr('session:player.end')}</button>
+          <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>{tr('session:player.pause')}</button>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: bandHeat, ...heatTrans }}>
             <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: bandHeat, display: 'inline-block', ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(bandHeat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
             {tr('session:player.elapsed')} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
@@ -31394,6 +31359,11 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             <button onClick={() => setClipOpen(true)} style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${bsTHexA(bandHeat, 0.4)}`, borderRadius: 5, padding: '8px 11px', cursor: 'pointer', ...bandEyebrow, fontSize: 8, color: bandHeat, ...heatTrans }}>▶ {tr('session:player.formClip')}</button>
           )}
         </div>
+        <div style={{ position: 'relative', marginTop: 12, display: 'flex', gap: 8 }}>
+          {[false, true].map(timed => <button key={String(timed)} aria-pressed={timedMode === timed} onClick={() => { setTimedMode(timed); setActiveSetKey(null); setSetStartedAt(null); }} style={{ minHeight: 44, flex: 1, background: timedMode === timed ? BAND.hair : 'transparent', color: BAND.cream, border: `1px solid ${BAND.hair}`, borderRadius: 5, cursor: 'pointer' }}>{timed ? tr('session:player.timedSets') : tr('session:player.quickLog')}</button>)}
+        </div>
+        {draftWarning && <p role="alert" style={{ position: 'relative', fontSize: 13, color: '#e8a33c' }}>{draftWarning}</p>}
+        {logStatus && <p role="status" style={{ position: 'relative', fontSize: 13, color: BAND.cream }}>{logStatus}</p>}
         {/* Current-set readout — the big figures ARE the inputs */}
         {activeIdx != null ? (
           <div style={{ position: 'relative', marginTop: 14 }}>
@@ -31409,7 +31379,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
                   <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{fieldLabel(field)}</div>
                 </div>
               ))}
-              <button onClick={() => logSet(activeIdx)} aria-label={tr(activeRunning ? 'session:player.logSetAria' : 'session:player.startSetAria', { n: activeIdx + 1 })} style={{ flexShrink: 0, width: 34, height: 34, marginBottom: 14, padding: 0, borderRadius: 6, border: `1.5px solid ${bandHeat}`, background: activeRunning ? bandHeat : 'transparent', color: activeRunning ? '#04211c' : bandHeat, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, cursor: 'pointer', ...heatTrans }}>✓</button>
+              <button onClick={() => logSet(activeIdx)} aria-label={tr(!timedMode || activeRunning ? 'session:player.logSetAria' : 'session:player.startSetAria', { n: activeIdx + 1 })} style={{ flexShrink: 0, width: 48, height: 48, marginBottom: 14, padding: 0, borderRadius: 6, border: `1.5px solid ${bandHeat}`, background: activeRunning ? bandHeat : 'transparent', color: activeRunning ? '#04211c' : bandHeat, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, cursor: 'pointer', ...heatTrans }}>✓</button>
             </div>
           </div>
         ) : (
@@ -31458,7 +31428,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
       {/* ═══ THE LEDGER (paper) — cue · last · suggestion · plates · sets */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         {!openMode && !!cue && <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
-        {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('session:player.last', { load: move.l })}</div>}
+        {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('session:player.targetLoad', { load: move.l })}</div>}
       </div>
 
       {/* Suggested next load (e1RM progression nudge) — dot-leader row */}
@@ -31468,7 +31438,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
             <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
               <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{tr('session:player.suggested')}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{t.uText(`${_bsSug.load} ${_bsSug.unit}`)}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
+              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${_bsSug.load} ${_bsSug.unit}`}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
               <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>{tr('session:player.use')}</span>
             </span>
@@ -31478,7 +31448,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
       )}
 
       {/* Plate math — unboxed line (gym plate colors are semantic, kept) */}
-      {perSide && (
+      {identity.loadUnit === 'lb' && perSide && (
         <div style={{ padding: `8px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:player.perSide', { load: activeLoad })}</span>
           {plates.length ? plates.map((p, i) => (
@@ -31486,6 +31456,12 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
           )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{tr('session:player.barOnly')}</span>}
         </div>
       )}
+
+      <div style={{ padding: `8px ${t.padX}px 0` }}>
+        {move.tempo && <p style={{ color: t.INK70 }}>{tr('session:player.tempo')} · {move.tempo}</p>}
+        {move.group && <p style={{ color: t.INK70 }}>{tr('session:player.superset')} · {move.group}</p>}
+        {activeIdx != null && <button onClick={() => setSetInputs(prev => bsApplyRemainingLoad(prev, completed, moves, moveIdx, activeIdx, prev[activeKey]?.load || ''))} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', textAlign: 'left' }}>{tr('session:player.applyRemaining')}</button>}
+      </div>
 
       {/* Set table */}
       <div style={{ padding: `18px ${t.padX}px 0` }}>
@@ -31524,10 +31500,10 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
           return (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, alignItems: 'center', padding: '5px 0', borderLeft: isActive ? `3px solid ${heat}` : '3px solid transparent', marginLeft: -9, paddingLeft: 6, ...heatTrans }}>
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? heat : t.INK50, fontVariantNumeric: 'tabular-nums', ...heatTrans }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              {cell('load', 'lb')}
+              {cell('load', identity.loadUnit)}
               {cell('reps', '—')}
               {cell('rpe', '—')}
-              <button onClick={() => { if (!done) logSet(i); }} aria-label={tr(done ? 'session:player.setDoneAria' : 'session:player.markSetDoneAria', { n: i + 1 })} style={{ justifySelf: 'end', width: 26, height: 26, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>✓</button>
+              <button onClick={() => { if (!done) logSet(i); }} aria-label={tr(done ? 'session:player.setDoneAria' : 'session:player.markSetDoneAria', { n: i + 1 })} style={{ justifySelf: 'end', width: 44, height: 44, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>✓</button>
             </div>
           );
         })}
@@ -31542,12 +31518,10 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
         {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
       </div>
 
-      {/* Primary log CTA — C-1 INK press block (owner pick "do black");
-          t.INK/t.PAPER inverts cleanly on dark papers. */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
+      {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
         {activeIdx != null ? (
           <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {activeRunning
+            {!timedMode || activeRunning
               ? (move.reps
                   ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: move.reps })
                   : tr('session:player.logSetCta', { n: activeIdx + 1 }))
@@ -31558,7 +31532,7 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
             {tr(moveIdx < moves.length - 1 ? 'session:player.nextExercise' : 'session:player.finishWorkout')}
           </button>
         )}
-      </div>
+      </div>); const surface = typeof document !== 'undefined' && document.getElementById('bs-phone-surface'); return surface ? createPortal(action, surface) : action; })()}
 
       {/* Prev / next — text-actions (the bordered boxes died with the spec) */}
       <div style={{ padding: `6px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -31611,8 +31585,9 @@ function BSSession({ moves: movesProp, onBack, title = '' }) {
 
       {/* End workout early — routes to the SAME completion step, so finishing
           early is still asked for an effort rating rather than saving blind. */}
-      <div style={{ padding: `18px ${t.padX}px 90px` }}>
+      <div style={{ padding: `18px ${t.padX}px 150px` }}>
         <button onClick={() => openCompletion()} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{tr('session:player.endEarly')}</button>
+        <button onClick={discardWorkout} style={{ minHeight: 44, width: '100%', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', marginTop: 12 }}>{tr('session:player.discard')}</button>
       </div>
 
       {/* Trainer form-clip player — a dark portal sheet over the session (the

@@ -10,7 +10,7 @@
 // (`week-publish.mjs`, `guardrail-gate.mjs`, the core). What is here is the
 // order of operations: read history, judge, gate, write atomically, record.
 
-import { weekRequestHash, toProposedWeek, toWorkoutRows, normalizeWeekRequest } from '@/lib/week-publish.mjs';
+import { weekRequestHash, toProposedWeek, toWorkoutRows, normalizeWeekRequest, assignmentSnapshotMatches } from '@/lib/week-publish.mjs';
 import type { PublishWeek } from '@/lib/week-publish.mjs';
 import { bsMergeWeekSessions } from '@/lib/week-merge.mjs';
 import { bsGateDecision, bsExcludedSessionRate, bsTelemetryProps } from '@/lib/guardrail-gate.mjs';
@@ -42,9 +42,11 @@ export type PublishWeekArgs = {
   todayISO: string;
   /**
    * The ids of the coach's own published rows in this client-week AT THE MOMENT
-   * THE CALLER READ THEM — the optimistic-concurrency precondition.
+   * THE CALLER READ THEM — the membership precondition. assignmentContext also
+   * supplies their content snapshot, because preserving IDs makes IDs alone
+   * insufficient to detect another coach edit.
    *
-   * ⚠ REQUIRED BY ANY CALLER THAT READ-MERGES. The boundary REPLACES a week, so
+   * ⚠ REQUIRED BY ANY CALLER THAT READ-MERGES. The boundary reconciles a week, so
    * a caller that reads the week, folds a session in, and publishes the result
    * has a lost-update race with another caller doing the same: both read the
    * same week, both publish a different merge, and the later replace deletes the
@@ -55,10 +57,15 @@ export type PublishWeekArgs = {
    * an explicitly authored week replaces by design and read nothing to merge.
    */
   expectedRowIds?: readonly string[] | null;
+  /** Internal scoped read/merge bindings; never taken from request JSON. */
+  assignmentContext?: {
+    existingRows: Array<Record<string, any>>;
+    bindings: Array<Record<string, any>>;
+  };
 };
 
 export async function publishWeekForClient(args: PublishWeekArgs): Promise<PublishResult> {
-  const { supabase, admin, coachUserId, clientId, week, todayISO, expectedRowIds } = args;
+  const { supabase, admin, coachUserId, clientId, week, todayISO, expectedRowIds, assignmentContext } = args;
   const hash = weekRequestHash(clientId, week);
   // ⚠ A NULL HASH WOULD DEFEAT THE LEDGER'S REUSE CHECK. The RPC compares
   // `v_existing.request_hash <> p_request_hash`, and in SQL that yields NULL —
@@ -146,7 +153,7 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
     p_week_start: week.weekStartISO,
     p_request_hash: hash,
     p_outcome: outcome,
-    p_rows: toWorkoutRows(week),
+    p_rows: toWorkoutRows(week, assignmentContext),
     p_ack: ack,
     p_expected_row_ids: expectedRowIds ?? null,
   });
@@ -176,6 +183,8 @@ export async function publishWeekForClient(args: PublishWeekArgs): Promise<Publi
       status: conflict ? 'key_reused' : 'error',
       error: conflict
         ? 'That publish key was already used for a different week.'
+        : code === '55000'
+          ? 'A workout in this week has already been logged. Refresh the assignments before updating it.'
         : denied
           ? 'That week could not be published under your coach account.'
           : 'Could not publish the week. Please retry.',
@@ -262,6 +271,8 @@ export type MergePublishArgs = {
   mintKey: (mergedSessions: unknown[]) => string;
   acknowledgment?: unknown;
   adjustMode?: unknown;
+  /** Optional preview snapshots. Only compared with scoped rows; never authority. */
+  assignmentPreconditions?: Array<Record<string, any>>;
 };
 
 /**
@@ -286,7 +297,7 @@ export type MergePublishArgs = {
 export async function publishMergedWeekForClient(args: MergePublishArgs): Promise<PublishResult> {
   const {
     supabase, admin, coachUserId, trainerId, clientId,
-    weekStartISO, incoming, todayISO, mintKey, acknowledgment, adjustMode,
+    weekStartISO, incoming, todayISO, mintKey, acknowledgment, adjustMode, assignmentPreconditions,
   } = args;
   const weekEndISO = addDays(weekStartISO, 6);
   const MAX_ATTEMPTS = 3;
@@ -324,6 +335,17 @@ export async function publishMergedWeekForClient(args: MergePublishArgs): Promis
     }
 
     const rows = (existing ?? []) as Array<Record<string, unknown>>;
+    if (assignmentPreconditions && (assignmentPreconditions.length !== incoming.length
+        || assignmentPreconditions.some((expected, index) => {
+          const row = rows.find(r => String(r.id) === expected.id);
+          const next = incoming[index] as Record<string, unknown>;
+          return !row || (row.payload as Record<string, unknown> | null)?.overrides
+            || !assignmentSnapshotMatches(row, expected)
+            || expected.scheduled_date <= todayISO
+            || expected.scheduled_date !== next.scheduledDate;
+        }))) {
+      return { clientId, status: 'stale_assignment', error: 'A selected workout changed after this preview. Reopen the preview and review its latest changes.' };
+    }
     // The precondition covers the WHOLE week the read returned, not just the
     // rows the merge keeps — the RPC compares against the same unfiltered set,
     // so a past-dated row the merge drops still counts as part of "the week I
@@ -331,13 +353,17 @@ export async function publishMergedWeekForClient(args: MergePublishArgs): Promis
     const expectedRowIds = rows.map((r) => String(r.id));
     // Copied because the merge's declared signature takes a mutable array; the
     // argument stays readonly here so a caller's own list can never be mutated.
-    merged = bsMergeWeekSessions(rows, [...incoming], { weekStartISO, todayISO });
+    merged = bsMergeWeekSessions(rows, [...incoming], { weekStartISO, todayISO,
+      ...(assignmentPreconditions ? { assignmentIds: assignmentPreconditions.map(r => String(r.id)) } : {}) });
 
     const norm = normalizeWeekRequest(
       {
         clientId,
         weekStartISO,
-        idempotencyKey: mintKey(merged.sessions),
+        idempotencyKey: mintKey(merged.sessions.map(session => {
+          const content = { ...session }; delete content._assignmentId; delete content._carryUnchanged;
+          return content;
+        })),
         // ⚠ THE MERGE OWNS THE CAPTURE STAMP, not the caller. A carried session
         // with no captured pair makes the whole week honestly `incomplete_week`;
         // letting a caller's "per_session" claim ride over the merged week would
@@ -356,6 +382,7 @@ export async function publishMergedWeekForClient(args: MergePublishArgs): Promis
 
     const out = await publishWeekForClient({
       supabase, admin, coachUserId, clientId, week: norm.week, todayISO, expectedRowIds,
+      assignmentContext: { existingRows: rows, bindings: merged.sessions },
     });
     if (out.status !== 'week_changed') {
       // Report what the merge carried, so a caller can tell "your one session"

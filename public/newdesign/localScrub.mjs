@@ -103,6 +103,7 @@ export const SHAPE_SCRUB_KEYS = [
 // The KEEP-list keys (shapeGrocery*, shapeRecipes_v1, shape-pwa-*) do not
 // match these prefixes.
 export const SHAPE_SCRUB_PREFIXES = [
+  'shape.coach.workout-draft.', // account-owned coach plans, cues and media
   'shape.chat.v2.',       // per-user chat threads
   'shape.dashGoals.',     // per-client goal drafts
   'shape.habits.',        // same-day habit completion (health behavior)

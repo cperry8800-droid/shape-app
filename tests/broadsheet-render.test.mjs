@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const require_ = createRequire(import.meta.url);
 const babel = require_('next/dist/compiled/babel/core');
@@ -76,7 +77,9 @@ async function loadModule(reactImpl = React) {
   ]);
   for (const spec of specs) {
     if (registry.has(spec)) continue;
-    const mod = await import(pathToFileURL(join(dir, spec)).href);
+    const mod = /\.[jt]sx$/.test(spec)
+      ? await loadRealModule(join(dir, spec), { registry: new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]) })
+      : await import(pathToFileURL(join(dir, spec)).href);
     registry.set(spec, mod);
   }
 
@@ -393,7 +396,10 @@ test('wiring: perDayAuthoring is passed ONLY on the nutrition menu build types',
   // Each usage is a single line in this file; JSX arrow props contain `>`, so a
   // tag-shaped regex cannot be used.
   const usages = SOURCE.split(/\r?\n/).filter((l) => l.includes('<BSCoachDraftEditor'));
-  assert.equal(usages.length, 2, 'trainer + nutritionist call sites');
+  assert.equal(usages.length, 1, 'nutrition retains the outline editor; training uses the structured workout editor');
+  const training = SOURCE.split(/\r?\n/).filter((l) => l.includes('<BSWorkoutDocumentEditor'));
+  assert.equal(training.length, 2, 'training uses structured documents for existing plans and generated drafts');
+  assert.ok(training.every((line) => !line.includes('perDayAuthoring')), 'nutrition day menus must never enter the training document editor');
   const gated = usages.filter((u) => u.includes('perDayAuthoring'));
   assert.equal(gated.length, 1, 'the trainer call site must not pass it at all');
   // Never unconditional: `program` drafts are week ARCS and must never offer day

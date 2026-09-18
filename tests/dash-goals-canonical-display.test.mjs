@@ -8,7 +8,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const SRC = fs.readFileSync(new URL('../public/newdesign/dashGoals.jsx', import.meta.url), 'utf8');
+// Normalize checkout line endings before extracting source blocks.
+const SRC = fs.readFileSync(new URL('../public/newdesign/dashGoals.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 const grab = (re, name) => {
   const m = SRC.match(re);
@@ -56,7 +57,7 @@ test('history is converted in the shape goalsFromDoc actually emits', () => {
   // earlier version of this test using `{ on, v }` tested a shape production never
   // produces, and the conversion of `v` alone converted nothing. Derived from the
   // engine rather than assumed: the field precedence is read out of dashSignals.js.
-  const ENGINE = fs.readFileSync(new URL('../public/newdesign/dashSignals.js', import.meta.url), 'utf8');
+  const ENGINE = fs.readFileSync(new URL('../public/newdesign/dashSignals.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.match(ENGINE, /pts\.map\(function \(p\) \{ return \{ on: iso\(p\.on\), value: p\.value \}; \}\)/,
     'weightSeriesIn must still normalise to {on, value} — if this changed, the converter below must change with it');
 

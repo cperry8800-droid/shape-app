@@ -34,7 +34,11 @@ export async function loadRealModule(srcPath, { registry = new Map(), appendExpo
   for (const spec of specs) {
     if (registry.has(spec)) continue;
     if (spec.startsWith('.') || spec.startsWith('/')) {
-      registry.set(spec, await import(pathToFileURL(join(dir, spec)).href));
+      // Shipping components may compose other JSX modules. Compile those too;
+      // share bare dependency overrides (not relative paths, whose base moved).
+      registry.set(spec, /\.[jt]sx$/.test(spec)
+        ? await loadRealModule(join(dir, spec), { registry: new Map([...registry].filter(([name]) => !name.startsWith('.') && !name.startsWith('/'))), typescript: /\.tsx$/.test(spec) })
+        : await import(pathToFileURL(join(dir, spec)).href));
     } else {
       // Bare specifier: resolve as CJS from the source file's node_modules.
       registry.set(spec, srcRequire(spec));

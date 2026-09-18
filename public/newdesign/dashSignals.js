@@ -717,11 +717,31 @@
       if ((f = ruleProteinUnder(c))) flags.push(f);
     }
 
-    var severity = "green";
+    var severity = progressStatus(c, now).state === "ready" ? "green" : "unknown";
     if (flags.length >= 2) severity = "red";
     else if (ciFlag && ciFlag.missedWeeks >= THRESHOLDS.CHECKIN_RED_WEEKS) severity = "red";
     else if (flags.length === 1) severity = "amber";
     return { flags: flags, severity: severity };
+  }
+
+  // Availability is separate from attention. An empty/failed overview is never
+  // evidence that a client is on track. Older callers without fetch metadata
+  // retain their existing policy; live dashboard records always supply it.
+  function progressStatus(c, now) {
+    var meta = c && c.progressRead;
+    if (!meta) return { state: "ready", label: "Up to date", checkedAt: null };
+    if (meta.state !== "ready") return { state: meta.state, label: meta.state === "loading" ? "Loading progress" : "Progress unavailable", checkedAt: meta.checkedAt || null };
+    var dates = [];
+    if (c.streaks) dates.push(c.streaks.lastActiveOn);
+    if (c.foodLogs) dates.push(c.foodLogs.lastLoggedOn);
+    if (c.checkIn) dates.push(c.checkIn.lastWeekOf);
+    (c.shapeScoreHistory || []).forEach(function (w) { dates.push(w.weekOf); });
+    var stamp = (now || new Date()).getTime();
+    var recent = dates.some(function (d) {
+      var n = d ? Date.parse(d) : NaN;
+      return Number.isFinite(n) && n <= stamp + 86400000 && stamp - n <= 14 * 86400000;
+    });
+    return { state: recent ? "ready" : "insufficient", label: recent ? "Up to date" : "Insufficient recent data", checkedAt: meta.checkedAt || null };
   }
 
   // ── Discipline classification + routing (coach triage) ──────────────────────
@@ -803,13 +823,14 @@
   function getTriageFeed(role, clients, now, thresholds) {
     if (thresholds) return withThresholds(thresholds, function () { return getTriageFeed(role, clients, now); });
     now = now || new Date();
-    var rank = { red: 2, amber: 1, green: 0 };
+    var rank = { red: 3, amber: 2, unknown: 1, green: 0 };
     return (clients || [])
       .map(function (c) {
         var r = evaluateClient(c, now, role);
         return {
           client: c,
           severity: r.severity,
+          progress: progressStatus(c, now),
           flags: r.flags.map(function (f) { return tagFlag(f, role, c); }),
           readOnly: readOnlyFlags(c, now, role),
           reasons: r.flags.map(function (x) { return x.reason; }),
@@ -1713,7 +1734,7 @@
       resolve: function (ctx) {
         var feed = (ctx && Array.isArray(ctx.triage)) ? ctx.triage : null;
         if (!feed) return { value: null, unit: "count", why: "the pulse could not be read" };
-        var flagged = feed.filter(function (r) { return r && r.severity !== "green"; }).length;
+        var flagged = feed.filter(function (r) { return r && (r.severity === "red" || r.severity === "amber"); }).length;
         return { value: flagged, unit: "count", sub: "of " + feed.length + " on the pulse" };
       },
     },
@@ -1919,6 +1940,7 @@
     buildMilestones: buildMilestones,
     findJointAttention: findJointAttention,
     getTriageFeed: getTriageFeed,
+    progressStatus: progressStatus,
     buildProgrammingQueue: buildProgrammingQueue,
     buildMockClients: buildMockClients,
     visibleGoals: visibleGoals,

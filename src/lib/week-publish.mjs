@@ -214,6 +214,16 @@ function canon(v) {
   return 'z';
 }
 
+/** A scoped database row's prescription, excluding mutable bookkeeping. */
+export function assignmentSnapshot(row) {
+  return { id: String(row.id), title: row.title, description: row.description ?? null,
+    kind: row.kind, scheduled_date: String(row.scheduled_date).slice(0, 10), payload: row.payload };
+}
+
+export function assignmentSnapshotMatches(row, expected) {
+  return canon(assignmentSnapshot(row)) === canon(assignmentSnapshot(expected));
+}
+
 /**
  * A deterministic digest of what was submitted, PER CLIENT.
  *
@@ -306,7 +316,7 @@ export function toProposedWeek(week) {
 }
 
 /**
- * `client_workouts` insert rows for the RPC.
+ * `client_workouts` prescription rows for the RPC.
  *
  * ⚠ THE PAIR AND THE STAMP GO INTO THE STORED PAYLOAD. That is the second copy
  * described in the capture design §4 — a row re-read later still describes
@@ -319,20 +329,40 @@ export function toProposedWeek(week) {
  * on an unstamped week would make an honest blank indistinguishable from a
  * value that was dropped in transit.
  * @param {PublishWeek} week
+ * @param {{existingRows: Array<Record<string, any>>, bindings: Array<{_assignmentId?: string, _carryUnchanged?: boolean}>}} [assignmentContext]
  */
-export function toWorkoutRows(week) {
-  return week.sessions.map((s) => {
+export function toWorkoutRows(week, assignmentContext) {
+  const expected = assignmentContext?.existingRows?.map(assignmentSnapshot);
+  return week.sessions.map((s, index) => {
     const payload = { ...s.payload };
     if (s.plannedMinutes !== undefined) payload.plannedMinutes = s.plannedMinutes;
     if (s.plannedRpe !== undefined) payload.plannedRpe = s.plannedRpe;
     if (s.loadCapture !== undefined) payload.loadCapture = s.loadCapture;
     if (week.adjustMode) payload.adjustMode = week.adjustMode;
-    return {
+    let row = {
       title: s.title,
       description: s.description,
       kind: s.kind,
       scheduled_date: s.scheduledDate,
       payload,
     };
+    // These bindings come only from the server's scoped week read and merge.
+    // Request normalization deliberately never accepts them from a client.
+    const binding = assignmentContext?.bindings?.[index];
+    if (binding?._assignmentId) {
+      const original = expected?.find(r => r.id === binding._assignmentId);
+      if (!original) throw new Error('An assignment binding has no scoped source row.');
+      // Carry-forward means no write, including no stamp/payload normalization.
+      // A completed session may still reference exactly this prescription.
+      if (binding._carryUnchanged) {
+        const { id, ...fields } = original;
+        row = fields;
+      }
+      row.assignmentId = original.id;
+    }
+    // Keep the deployed RPC signature and its array contract. The first row
+    // carries the whole read snapshot, including past rows, for content CAS.
+    if (index === 0 && expected) row.expectedAssignments = expected;
+    return row;
   });
 }

@@ -86,6 +86,23 @@ export async function POST(request: Request) {
     });
   }
 
+  // Preview data is a comparison token only. Ownership still comes from the
+  // active subscription and scoped read below, and every retry checks it anew.
+  let assignmentPreconditions: Array<Record<string, unknown>> | undefined;
+  if (body.assignmentPreconditions !== undefined) {
+    const expected = body.assignmentPreconditions;
+    if (clientIds.length !== 1 || !Array.isArray(expected) || expected.length !== incoming.length
+        || expected.some((row) => !row || typeof row !== 'object' || Array.isArray(row)
+          || typeof row.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id)
+          || typeof row.title !== 'string' || (row.description !== null && typeof row.description !== 'string')
+          || !['template', 'custom'].includes(row.kind) || typeof row.scheduled_date !== 'string'
+          || !row.payload || typeof row.payload !== 'object' || Array.isArray(row.payload))
+        || new Set(expected.map(row => row.id)).size !== expected.length) {
+      return NextResponse.json({ error: 'Reopen the future workout preview before applying changes.' }, { status: 400 });
+    }
+    assignmentPreconditions = expected;
+  }
+
   // ⚠ A DATE IS NOW REQUIRED, and this is a deliberate behaviour change. An
   // undated row has no week, so there is no load for the guardrail to judge and
   // no week to publish it into — it is the one shape that cannot pass through
@@ -180,6 +197,7 @@ export async function POST(request: Request) {
       weekStartISO,
       incoming,
       todayISO,
+      assignmentPreconditions,
       // Content-derived, so a retry of the same assignment REPLAYS rather than
       // publishing twice: the first call merges [] + A into [A]; the retry merges
       // the now-stored [A] + A back into [A] (same day, same title replaces), so
@@ -192,8 +210,9 @@ export async function POST(request: Request) {
   }
 
   const errored = results.some((r) => r.status === 'error' || r.status === 'key_reused');
+  const staleResults = results.filter((r) => r.status === 'stale_assignment');
   const rejectedResults = results.filter((r) => r.status === 'rejected');
-  const status = errored ? 500 : rejectedResults.length ? 409 : 200;
+  const status = errored ? 500 : rejectedResults.length || staleResults.length ? 409 : 200;
 
   // `count` is kept for the existing callers, which read it to say "assigned to
   // N clients". It counts clients whose week landed, not rows written.
@@ -209,12 +228,13 @@ export async function POST(request: Request) {
     : null;
   const error = errored
     ? 'Could not assign the workout. Please retry.'
+    : staleResults.length ? String(staleResults[0].error)
     : firstCopy
       ? [firstCopy.line, firstCopy.detail].filter(Boolean).join(' ')
       : rejectedResults.length ? 'That week was held for review.' : undefined;
 
   return NextResponse.json(
-    { ok: !errored && !rejectedResults.length, count, results, ...(error ? { error } : {}) },
+    { ok: !errored && !rejectedResults.length && !staleResults.length, count, results, ...(error ? { error } : {}) },
     { status },
   );
 }

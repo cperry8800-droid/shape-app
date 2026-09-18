@@ -19,9 +19,10 @@ import { stripComments } from './helpers/strip-comments.mjs';
 
 const require = createRequire(import.meta.url);
 const S = require('../public/newdesign/dashSignals.js');
-const TODAY = stripComments(readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8'));
-const GRID = stripComments(readFileSync(new URL('../public/newdesign/dashGrid.jsx', import.meta.url), 'utf8'));
-const DATA = stripComments(readFileSync(new URL('../public/newdesign/dashData.jsx', import.meta.url), 'utf8'));
+// Normalize checkout line endings before extracting source blocks.
+const TODAY = stripComments(readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
+const GRID = stripComments(readFileSync(new URL('../public/newdesign/dashGrid.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
+const DATA = stripComments(readFileSync(new URL('../public/newdesign/dashData.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
 
 const KEYS = { week: 'sessionsThisWeek', upcoming: 'upcomingSessions', total: 'totalSessions' };
 const ctx = (over) => Object.assign(
@@ -160,7 +161,7 @@ test('the OVERVIEW picker is offered only with a live payload; PRACTICE always',
 });
 
 test('the strip formats from the RAW value — the pure module never formats money', () => {
-  const src = readFileSync(new URL('../public/newdesign/dashSignals.js', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../public/newdesign/dashSignals.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const at = src.indexOf('var DASH_KPI_METRICS');
   const end = src.indexOf('var DASH_KPI_KEYS');
   assert.ok(at > 0 && end > at, 'the catalog moved');
@@ -204,7 +205,7 @@ test('nothing around the strip still calls it four hooks', () => {
   // whether it contained a comment, which is a question it can never answer yes to. It
   // would have passed on the contradictory file it was written to catch. Only the
   // positive control below failed, which is the whole reason to carry one.
-  const raw = readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8');
+  const raw = readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const at = raw.indexOf('function useDashKpiStrip(');
   assert.ok(at > 0, 'useDashKpiStrip moved');
   // The window is the comment block above the hook plus its body: a claim about this

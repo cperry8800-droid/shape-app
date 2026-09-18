@@ -357,74 +357,166 @@ async function ckBridge() {
 async function ckUid() {
   try { const u = await window.shapeDb.getUser(); return u && u.id ? u.id : null; } catch (e) { return null; }
 }
+function ckNoteDraftKey(uid, clientId) {
+  return uid && clientId ? "shape:coach-note-draft:v1:" + encodeURIComponent(uid) + ":" + encodeURIComponent(clientId) : null;
+}
+function ckReadNoteDraft(uid, clientId) {
+  try {
+    const key = ckNoteDraftKey(uid, clientId);
+    const value = key ? JSON.parse(window.localStorage.getItem(key)) : null;
+    return value && typeof value.text === "string" && typeof value.baseText === "string" ? value : null;
+  } catch (e) { return null; }
+}
+function ckWriteNoteDraft(uid, clientId, value) {
+  try {
+    const key = ckNoteDraftKey(uid, clientId);
+    if (!key) return false;
+    if (value == null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) { return false; }
+}
+async function ckSaveNoteDocument(db, uid, base, next) {
+  // Bind the write itself to the account that authored it. The general writer
+  // resolves the current account again; a switch during its await could put A's
+  // text into B's document. JSON equality also protects other clients' notes
+  // when another tab saves between our read and write. Existing RLS applies.
+  if (!uid || !db || !db.client || !db.client.from) return { error: true };
+  const result = await db.client.from("user_goals").update({ data: next })
+    .eq("user_id", uid).eq("kind", "coach_client_notes").eq("data", JSON.stringify(base)).select("user_id");
+  if (result.error) return { error: result.error };
+  if (Array.isArray(result.data) && result.data.length === 1) return { ok: true };
+  // getUserGoals returns {} for both an absent row and an existing empty one.
+  // Try an INSERT only for that case; a concurrent row is a conflict, not an upsert.
+  if (Object.keys(base).length) return { conflict: true };
+  const inserted = await db.client.from("user_goals").insert({ user_id: uid, kind: "coach_client_notes", data: next });
+  if (inserted.error && inserted.error.code === "23505") return { conflict: true };
+  return inserted.error ? { error: inserted.error } : { ok: true };
+}
 function CKCoachNote({ clientId, accent }) {
   const [state, setState] = React.useState({ kind: "loading", text: "", savedAt: null });
   const [draft, setDraft] = React.useState("");
+  const [deviceReady, setDeviceReady] = React.useState(true);
+  const [reload, setReload] = React.useState(0);
   const uidRef = React.useRef(null);
+  const generation = React.useRef(0);
   React.useEffect(() => {
     let on = true;
-    setState({ kind: "loading", text: "", savedAt: null }); setDraft("");   // reset FIRST: A's note must never sit under B
-    (async () => {
+    const load = async () => {
+      const gen = ++generation.current;
+      uidRef.current = null;
+      setState({ kind: "loading", text: "", savedAt: null }); setDraft("");
+      const current = () => on && gen === generation.current;
       const db = window.shapeDb;
-      if (!db || !db.getUserGoals) { if (on) setState({ kind: "unavailable", text: "", savedAt: null }); return; }
+      if (!db || !db.getUserGoals) { if (current()) setState({ kind: "unavailable", text: "", savedAt: null }); return; }
       await ckBridge();
-      if (!on) return;
-      uidRef.current = await ckUid();
+      const uid = await ckUid();
+      if (!current()) return;
+      if (!uid) { setState({ kind: "signedout", text: "", savedAt: null }); return; }
+      uidRef.current = uid;
+      const local = ckReadNoteDraft(uid, clientId);
       let doc = null;
       try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
-      if (!on) return;
-      if (doc == null) { setState({ kind: "signedout", text: "", savedAt: null }); return; }
+      const confirmedUid = await ckUid();
+      if (!current() || confirmedUid !== uid) return;
+      if (doc == null) {
+        setState({ kind: local ? "error" : "unavailable", text: local ? local.baseText : "", savedAt: null, message: "Couldn't load the saved note. Retry when connected." });
+        if (local) setDraft(local.text);
+        return;
+      }
       const n = doc[clientId];
       const text = n && typeof n.text === "string" ? n.text : "";
-      setState({ kind: "ready", text, savedAt: n && n.updatedAt ? n.updatedAt : null });
-      setDraft(text);
-    })();
-    return () => { on = false; };
-  }, [clientId]);
-  const dirty = (state.kind === "ready" || state.kind === "error") && draft !== state.text;
-  const save = () => ckNotesSerial(async () => {
-    const db = window.shapeDb;
-    // ⚠ BOUND TO THE ACCOUNT THAT TYPED IT. getUserGoals and saveUserGoals each
-    // resolve the user at their own call time, so an account switch between the
-    // two would upsert coach A's whole notes blob into B's row.
-    const startUid = uidRef.current;
-    let doc = null;
-    try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
-    if (doc == null) { setState((s) => ({ ...s, kind: "error" })); return; }
-    const nowUid = await ckUid();
-    if (!nowUid || (startUid && nowUid !== startUid)) { setState((s) => ({ ...s, kind: "error" })); return; }
-    const now = new Date().toISOString();
-    const next = { ...doc };
-    if (draft.trim()) next[clientId] = { text: draft, updatedAt: now }; else delete next[clientId];
-    let res = null;
-    try { res = await db.saveUserGoals("coach_client_notes", next); } catch (e) { res = null; }
-    if (!res || res.error) { setState((s) => ({ ...s, kind: "error" })); return; }
-    setState({ kind: "ready", text: draft, savedAt: draft.trim() ? now : null });
-  });
-  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
-  const status = state.kind === "error" ? "Couldn't save — try again"
-    : dirty ? "Unsaved changes"
+      const conflict = local && local.baseText !== text && local.text !== text;
+      setState({ kind: conflict ? "conflict" : "ready", text, savedAt: n && n.updatedAt ? n.updatedAt : null, recovered: !!local, ...(conflict ? { message: "Your recovered draft differs from a note saved elsewhere. Review both before replacing it.", latestText: text } : {}) });
+      setDraft(local ? local.text : text);
+      if (local && local.text === text) ckWriteNoteDraft(uid, clientId, null);
+    };
+    load();
+    let subscription = null;
+    try {
+      const auth = window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth;
+      if (auth && auth.onAuthStateChange) subscription = auth.onAuthStateChange((_event, session) => {
+        const next = session && session.user ? session.user.id : null;
+        if (next !== uidRef.current) load();
+      });
+    } catch (e) { /* write-time identity is checked too */ }
+    return () => { on = false; generation.current++; try { subscription && subscription.data.subscription.unsubscribe(); } catch (e) {} };
+  }, [clientId, reload]);
+  const editable = state.kind === "ready" || state.kind === "error" || state.kind === "conflict" || state.kind === "saving";
+  const dirty = editable && draft !== state.text;
+  React.useEffect(() => {
+    if (!dirty) return undefined;
+    const beforeUnload = (e) => { e.preventDefault(); e.returnValue = ""; };
+    const beforeLink = (e) => {
+      const link = e.target.closest && e.target.closest("a[href]");
+      if (!link || link.href === window.location.href || link.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      if (!window.confirm(deviceReady ? "This note has not been saved to your account. Leave and keep the draft on this device?" : "This note has not been saved. Leave and lose these edits?")) { e.preventDefault(); e.stopPropagation(); }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    document.addEventListener("click", beforeLink, true);
+    return () => { window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", beforeLink, true); };
+  }, [dirty, deviceReady]);
+  const changeDraft = (text) => {
+    setDraft(text);
+    setDeviceReady(ckWriteNoteDraft(uidRef.current, clientId, text === state.text ? null : { text, baseText: state.text, updatedAt: new Date().toISOString() }));
+  };
+  const save = (replaceLatest = false) => {
+    if (state.kind === "saving" || !dirty) return;
+    const startUid = uidRef.current, gen = generation.current, text = draft;
+    const current = () => gen === generation.current && uidRef.current === startUid;
+    const fail = (message, extra) => { if (current()) setState((s) => ({ ...s, kind: "error", message, ...extra })); };
+    setState((s) => ({ ...s, kind: "saving", message: null }));
+    return ckNotesSerial(async () => {
+      const db = window.shapeDb;
+      if (!startUid || !current() || await ckUid() !== startUid) { fail("Your account changed. Reload before saving."); return; }
+      let doc = null;
+      try { doc = await db.getUserGoals("coach_client_notes"); } catch (e) { doc = null; }
+      if (doc == null) { fail("Couldn't read your saved notes." + (deviceReady ? " Your draft is still on this device." : " Device recovery is unavailable; keep this page open.")); return; }
+      const nowUid = await ckUid();
+      if (!current() || nowUid !== startUid) { fail("Your account changed. Reload before saving."); return; }
+      const latest = doc[clientId] && typeof doc[clientId].text === "string" ? doc[clientId].text : "";
+      const expected = replaceLatest && state.latestText != null ? state.latestText : state.text;
+      if (latest !== expected && latest !== text) {
+        fail("This note changed elsewhere. Review the saved version before replacing it.", { kind: "conflict", latestText: latest }); return;
+      }
+      const now = new Date().toISOString();
+      const next = { ...doc };
+      if (text.trim()) next[clientId] = { ...(doc[clientId] || {}), text, updatedAt: now }; else delete next[clientId];
+      let res = null;
+      try { res = await ckSaveNoteDocument(db, startUid, doc, next); } catch (e) { res = null; }
+      if (res && res.conflict) { fail("Your notes changed while saving. Retry to review the latest version; your draft is retained."); return; }
+      if (!res || res.error) { fail("Couldn't save to your account — retry." + (deviceReady ? " Your draft is kept on this device." : " Device recovery is unavailable; keep this page open.")); return; }
+      const savedUid = await ckUid();
+      if (!current() || savedUid !== startUid) return;
+      ckWriteNoteDraft(startUid, clientId, null);
+      setState({ kind: "ready", text, savedAt: text.trim() ? now : null });
+      window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId } }));
+    });
+  };
+  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", color: "rgba(242,237,228,0.65)" };
+  const secondaryButton = { ...mono, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: "#f2ede4", borderRadius: 5, padding: "10px 14px", minHeight: 44, cursor: "pointer" };
+  const status = state.kind === "saving" ? "Saving to your account…"
+    : state.message ? state.message
+    : dirty ? deviceReady ? (state.recovered ? "Draft recovered · not yet saved to your account" : "Draft kept on this device · not yet saved to your account") : "Unsaved · device recovery unavailable"
     : state.savedAt ? "Saved · " + ckNoteDate(state.savedAt)
     : state.kind === "ready" ? "Nothing written yet" : "";
   return (
     <Card style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 10 }}>
-        <CKSecHead>COACH NOTE · ONLY YOU SEE THIS</CKSecHead>
-        <span style={{ ...mono, color: state.kind === "error" ? "#e0644b" : mono.color }}>{status}</span>
-      </div>
+      <CKSecHead>COACH NOTE · ONLY YOU SEE THIS</CKSecHead>
+      <div role="status" style={{ ...mono, marginBottom: 12, lineHeight: 1.5, color: state.kind === "error" || state.kind === "conflict" ? "#e0644b" : mono.color }}>{status}</div>
       {state.kind === "loading" ? <CKEmpty>Loading your note…</CKEmpty>
-        : (state.kind === "unavailable" || state.kind === "signedout") ? <CKEmpty>Sign in to keep a private note on this client — it lives with your account, not on this device.</CKEmpty>
-        : (
-          <React.Fragment>
-            <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4}
+        : state.kind === "signedout" ? <CKEmpty>Sign in to keep a private note on this client.</CKEmpty>
+        : state.kind === "unavailable" ? <div><CKEmpty>Couldn't load your saved note.</CKEmpty><button style={secondaryButton} onClick={() => setReload((v) => v + 1)}>Retry note</button></div>
+        : <React.Fragment>
+            <textarea aria-label="Private coach note" value={draft} disabled={state.kind === "saving"} onChange={(e) => changeDraft(e.target.value)} rows={4}
               placeholder="What you're watching, what you told them, what to check next week."
               style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: 12, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, lineHeight: 1.5 }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
-              <button onClick={save} disabled={!dirty} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: accent, border: 0, borderRadius: 4, padding: "10px 16px", cursor: dirty ? "pointer" : "default", opacity: dirty ? 1 : 0.5 }}>Save note</button>
+            {state.kind === "conflict" && <div style={{ marginTop: 12 }}><CKEmpty>Saved version: {state.latestText || "Empty note"}</CKEmpty><button style={secondaryButton} onClick={() => save(true)}>Replace saved note with my draft</button></div>}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+              <button onClick={() => save()} disabled={!dirty || state.kind === "saving" || state.kind === "conflict"} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#06231f", background: accent, border: 0, borderRadius: 4, padding: "12px 16px", minHeight: 44, cursor: dirty ? "pointer" : "default", opacity: dirty && state.kind !== "saving" ? 1 : 0.5 }}>{state.kind === "saving" ? "Saving…" : "Save note"}</button>
               <span style={mono}>Private to you — never shown to the client or a co-coach.</span>
             </div>
-          </React.Fragment>
-        )}
+          </React.Fragment>}
     </Card>
   );
 }

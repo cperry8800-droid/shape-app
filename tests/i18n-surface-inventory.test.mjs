@@ -759,7 +759,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // rows, one wide key and a channel strip, twelve new keys × 13 locales — and
   // every string on it resolves. Had the rewrite hardcoded so much as one word
   // the deltas would not have come to exactly the five the deletion accounts for.
-  assert.equal(partStrings, 220, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // BSClientTrain's "Open session" is now localized: partial copy falls by one.
+  // New editor/player labels are catalogued in all 13 locales (parity checked).
+  assert.equal(partStrings, 219, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

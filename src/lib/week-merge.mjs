@@ -61,7 +61,7 @@ function dayDelta(a, b) {
  *   window rule lives in one place.
  * @param {Array} incoming sessions to add, in publish shape
  *   (`{title, description, kind, scheduledDate, payload}`)
- * @param {{weekStartISO: string, todayISO: string}} opts
+ * @param {{weekStartISO: string, todayISO: string, assignmentIds?: string[]}} opts
  * @returns {{sessions: Array, capture: 'per_session'|undefined, carried: number,
  *            skippedPast: number}}
  */
@@ -94,6 +94,7 @@ export function bsMergeWeekSessions(existingRows, incoming, opts) {
     // kind/scheduled_date/payload), so this resolves through the payload.
     const { plannedMinutes, plannedRpe } = pairFrom(r);
     kept.push({
+      ...(r.id ? { _assignmentId: String(r.id), _carryUnchanged: true } : {}),
       title: String(r.title == null ? '' : r.title).trim() || 'Workout',
       description: typeof r.description === 'string' ? r.description : '',
       kind: r.kind === 'template' ? 'template' : 'custom',
@@ -110,7 +111,7 @@ export function bsMergeWeekSessions(existingRows, incoming, opts) {
   // workout dragged onto the same day twice) is one session, not two. Anything
   // else is a genuine addition — two different sessions on one day is real.
   const merged = [...kept];
-  for (const s of (Array.isArray(incoming) ? incoming : [])) {
+  for (const [incomingIndex, s] of (Array.isArray(incoming) ? incoming : []).entries()) {
     if (!s || typeof s !== 'object') continue;
     const iso = String(s.scheduledDate == null ? '' : s.scheduledDate).slice(0, 10);
     if (!inWeek(iso)) continue;
@@ -128,8 +129,31 @@ export function bsMergeWeekSessions(existingRows, incoming, opts) {
       plannedRpe,
       payload: s.payload && typeof s.payload === 'object' && !Array.isArray(s.payload) ? s.payload : {},
     };
-    const at = merged.findIndex((m) => m.scheduledDate === next.scheduledDate && m.title === next.title);
-    if (at >= 0) merged[at] = next; else merged.push(next);
+    const hasIdentity = (stamp) => !!(stamp?.id && (stamp.dayId || (stamp.week != null && stamp.day != null)));
+    // Resolve canonical identity before a title fallback. A renamed template
+    // day may have the same new title as a different workout on this date.
+    const targetId = opts.assignmentIds?.[incomingIndex];
+    let at = targetId ? merged.findIndex(m => m._assignmentId === targetId) : -1;
+    if (targetId && at < 0) throw new Error('The selected assignment is no longer in this week.');
+    if (at < 0) at = merged.findIndex((m) => {
+      if (m.scheduledDate !== next.scheduledDate) return false;
+      const a = m.payload?.template, b = next.payload?.template;
+      return a?.id && b?.id && a.id === b.id && (a.dayId && b.dayId
+        ? a.dayId === b.dayId && a.week === b.week
+        : a.week != null && a.day != null && a.week === b.week && a.day === b.day);
+    });
+    if (at < 0) at = merged.findIndex((m) => {
+      if (m.scheduledDate !== next.scheduledDate || m.title !== next.title) return false;
+      const a = m.payload?.template, b = next.payload?.template;
+      if (a?.id && b?.id && a.id !== b.id) return false;
+      // Two different known template days both stand even if their names match.
+      // Untagged and incomplete legacy assignments keep same-day/title retries.
+      return !(hasIdentity(a) && hasIdentity(b));
+    });
+    if (at >= 0) merged[at] = {
+      ...next,
+      ...(merged[at]._assignmentId ? { _assignmentId: merged[at]._assignmentId } : {}),
+    }; else merged.push(next);
   }
 
   merged.sort((a, b) => (a.scheduledDate < b.scheduledDate ? -1 : a.scheduledDate > b.scheduledDate ? 1 : 0));
@@ -145,7 +169,8 @@ export function bsMergeWeekSessions(existingRows, incoming, opts) {
   return {
     sessions: merged.map((s) => (stamped
       ? { ...s, loadCapture: 'per_session' }
-      : { title: s.title, description: s.description, kind: s.kind, scheduledDate: s.scheduledDate, payload: s.payload })),
+      : { title: s.title, description: s.description, kind: s.kind, scheduledDate: s.scheduledDate, payload: s.payload,
+        ...(s._assignmentId ? { _assignmentId: s._assignmentId, _carryUnchanged: !!s._carryUnchanged } : {}) })),
     capture: stamped ? 'per_session' : undefined,
     carried,
     skippedPast,

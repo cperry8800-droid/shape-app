@@ -26,13 +26,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = readFileSync(path.join(ROOT, 'public/newdesign/recipesPage.jsx'), 'utf8');
 const APP = readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
 const EN = JSON.parse(readFileSync(path.join(ROOT, 'mobile-app/src/i18n/catalogs/en/nutrition.json'), 'utf8'));
-const DATA = await import(path.join(ROOT, 'mobile-app/src/broadsheet/shapeKitchenData.js'));
+const DATA = await import(pathToFileURL(path.join(ROOT, 'mobile-app/src/broadsheet/shapeKitchenData.js')).href);
 const { SHAPE_KITCHEN_RECIPES, bsRecipeAttribution } = DATA;
 
 // Lift a top-level declaration by name, brace-matched from its own opening brace.
