@@ -1060,5 +1060,20 @@
   "roster.loading": "Kunden werden geladen…",
   "roster.unavailable": "Deine Kunden konnten nicht geladen werden. Prüfe die Verbindung und versuche es erneut.",
   "roster.retry": "Erneut versuchen",
-  "today.calendarUnavailable": "Dein Zeitplan konnte nicht geladen werden. Prüfe die Verbindung und versuche es erneut."
+  "today.calendarUnavailable": "Dein Zeitplan konnte nicht geladen werden. Prüfe die Verbindung und versuche es erneut.",
+  "live.connecting": "Verbindung wird hergestellt…",
+  "live.reconnecting": "Verbindung wird wiederhergestellt…",
+  "live.stale": "Warten auf neue Daten des Klienten",
+  "live.idle": "Kein aktives Training geteilt",
+  "live.preview": "Vorschau",
+  "live.session": "Training",
+  "live.watchTitle": "Trainingsmonitor",
+  "live.resting": "Pause",
+  "live.working": "Training läuft",
+  "live.checkedAt": "Zuletzt geprüft: {time}",
+  "live.readOnly": "Aufgezeichnete Sätze · nur lesen",
+  "live.sending": "Wird gesendet…",
+  "live.sendFailed": "Senden fehlgeschlagen. Dein Hinweis bleibt erhalten—versuche es erneut.",
+  "live.previewCue": "Nur Vorschau—kein Hinweis gesendet.",
+  "live.cueFocusNote": "Dein letzter Hinweis aktualisiert auch deine Trainingsfokus-Notiz."
 }

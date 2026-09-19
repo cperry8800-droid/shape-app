@@ -125,7 +125,7 @@ export function bsValidLiveCoachPayload(raw) {
     }
     exercises.push({ ...base.exercises[i], sets: clean });
   }
-  return { ...base, exercises };
+  return { ...base, exercises, ...(raw.loadUnit === 'lb' || raw.loadUnit === 'kg' ? { loadUnit: raw.loadUnit } : {}) };
 }
 
 export function bsShouldPushProgress(prevPayload, nextPayload, lastPushAt, now) {

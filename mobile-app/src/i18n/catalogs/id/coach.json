@@ -1060,5 +1060,20 @@
   "roster.loading": "Memuat klien…",
   "roster.unavailable": "Klien Anda tidak dapat dimuat. Periksa koneksi dan coba lagi.",
   "roster.retry": "Coba lagi",
-  "today.calendarUnavailable": "Jadwal Anda tidak dapat dimuat. Periksa koneksi dan coba lagi."
+  "today.calendarUnavailable": "Jadwal Anda tidak dapat dimuat. Periksa koneksi dan coba lagi.",
+  "live.connecting": "Menghubungkan…",
+  "live.reconnecting": "Menghubungkan kembali…",
+  "live.stale": "Menunggu pembaruan klien",
+  "live.idle": "Tidak ada latihan aktif yang dibagikan",
+  "live.preview": "Pratinjau",
+  "live.session": "Latihan",
+  "live.watchTitle": "Pemantau latihan",
+  "live.resting": "Istirahat",
+  "live.working": "Berlatih",
+  "live.checkedAt": "Terakhir diperiksa {time}",
+  "live.readOnly": "Set yang dicatat klien · hanya baca",
+  "live.sending": "Mengirim…",
+  "live.sendFailed": "Gagal mengirim. Instruksi Anda tersimpan—coba lagi.",
+  "live.previewCue": "Hanya pratinjau—tidak ada instruksi yang dikirim.",
+  "live.cueFocusNote": "Instruksi terbaru Anda juga memperbarui catatan fokus pelatihan."
 }

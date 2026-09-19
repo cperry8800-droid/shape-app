@@ -311,5 +311,7 @@
   "player.targetLoad": "Target · {load}",
   "player.tempo": "Tempo",
   "player.superset": "Superset",
-  "player.applyRemaining": "Terapkan beban ke set tersisa pada gerakan ini"
+  "player.applyRemaining": "Terapkan beban ke set tersisa pada gerakan ini",
+  "player.coachCue": "Arahan pelatih",
+  "player.dismissCoachCue": "Tutup arahan pelatih"
 }

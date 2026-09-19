@@ -311,5 +311,7 @@
   "player.targetLoad": "Target · {load}",
   "player.tempo": "Tempo",
   "player.timedSets": "Timed sets",
-  "player.unfinished": "Unfinished workouts"
+  "player.unfinished": "Unfinished workouts",
+  "player.coachCue": "Coach cue",
+  "player.dismissCoachCue": "Dismiss coach cue"
 }

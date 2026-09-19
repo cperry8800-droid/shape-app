@@ -10,7 +10,8 @@ import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
-import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsShouldPushProgress, bsValidLivePayload } from '../services/liveProgress.mjs';
+import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
+import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs';
 import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // The ONE ceiling. The prompt must ask at exactly the load the core refuses to
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
@@ -30626,6 +30627,28 @@ function bsPlates(total) {
   return out;
 }
 
+function BSWorkoutCoachCue({ identity }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [cue, setCue] = useStateBSC(null);
+  React.useEffect(() => {
+    setCue(null);
+    return window.ShapeCoachFeed?.subscribeWorkoutCues?.({
+      userId: identity.userId, startedAt: identity.startedAt, onCue: setCue,
+    });
+  }, [identity.userId, identity.sessionId, identity.startedAt]);
+  if (!cue) return null;
+  return (
+    <div style={{ position: 'relative', marginTop: 14, border: '1px solid #26d8c4', borderRadius: 5, padding: '10px 12px', background: '#082b29', color: '#f6f0e4', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <div role="status" aria-live="polite" aria-atomic="true" style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#26d8c4' }}>{tr('session:player.coachCue')}</div>
+        <div style={{ marginTop: 5, fontSize: 16, lineHeight: 1.4, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{cue.text}</div>
+      </div>
+      <button type="button" onClick={() => setCue(null)} aria-label={tr('session:player.dismissCoachCue')} style={{ flexShrink: 0, minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: '#f6f0e4', fontSize: 22, cursor: 'pointer' }}>×</button>
+    </div>
+  );
+}
+
 function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clientWorkoutId: requestedWorkoutId = null, prescriptionMeta = {}, draft = null }) {
   const t = useBS();
   // ⚠ NEVER NAME THIS `t` — that is the theme token above. And no parameter
@@ -30756,75 +30779,41 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const [activeSetKey, setActiveSetKey] = useStateBSC(null);
   const [setStartedAt, setSetStartedAt] = useStateBSC(null);
   const [lastSetEndedAt, setLastSetEndedAt] = useStateBSC(null);
-  // Broadcast "workout" presence while a live session is open (teal dot).
-  // Presence follows the active player. A paused workout remains a local draft.
-  React.useEffect(() => { bsSetMyActivity('workout'); }, []);
-  // ── Live progress broadcast (spec 2026-07-18) ──────────────────────────────
-  // Push names + set counts (NEVER loads/RPE) through the throttle whenever the
-  // watched state changes; trailing retry so a change inside the 4s floor still
-  // lands. Clear on end/unmount so live detail can never outlive the dot.
-  const liveRef = React.useRef({ prev: null, lastAt: 0, timer: null, restTimer: null });
-  React.useEffect(() => {
-    const resting = !!restEnd && restEnd > Date.now();
-    const base = bsLiveProgressPayload(moves, completed, moveIdx, resting);
-    const next = base ? { ...base, title: String(title || '').slice(0, 80) } : null;
-    // The COACH payload carries the same shape plus per-set load/reps/rpe. It
-    // rides the SAME enqueued job as the public push (one write per turn), and
-    // is gated at the DB by the coach link — not by the member's share rule.
-    //
-    // `setInputs` is deliberately NOT in this effect's deps. Adding it would
-    // re-run on every keystroke, but the throttle compares the PUBLIC payload —
-    // which a load edit does not change — so no push would fire anyway: pure
-    // overhead. The effect already re-runs on `completed`, so the coach payload
-    // is rebuilt from the CURRENT inputs at the moment a set is toggled done,
-    // which is when a load becomes a fact worth sending.
-    const coachBase = bsLiveCoachPayload(moves, completed, moveIdx, resting, setInputs);
-    const coachNext = coachBase ? { ...coachBase, title: String(title || '').slice(0, 80) } : null;
-    const lr = liveRef.current;
-    const fire = () => {
-      const fresh = lr.prev == null;   // first push of this session → stamp started_at
-      lr.prev = next; lr.lastAt = Date.now();
-      try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(next, fresh, { coachPayload: coachNext }); } catch (e) {}
-    };
-    if (lr.timer) { clearTimeout(lr.timer); lr.timer = null; }
-    if (lr.restTimer) { clearTimeout(lr.restTimer); lr.restTimer = null; }
-    if (!next) return;
-    if (bsShouldPushProgress(lr.prev, next, lr.lastAt, Date.now())) fire();
-    else if (JSON.stringify(lr.prev) !== JSON.stringify(next)) {
-      lr.timer = setTimeout(fire, Math.max(250, 4000 - (Date.now() - lr.lastAt)));   // trailing push
-    }
-    // Rest-expiry re-push (spec review, Codex P2): a rest that counts down to
-    // zero changes NO dependency — restEnd stays set, Date.now() just passes it
-    // — so viewers would hold `resting: true` until the next tap. While resting,
-    // schedule a push of the resting:false payload at expiry (same floor rules).
-    if (resting) {
-      lr.restTimer = setTimeout(() => {
-        const after = { ...next, resting: false };
-        if (bsShouldPushProgress(lr.prev, after, lr.lastAt, Date.now())) {
-          lr.prev = after; lr.lastAt = Date.now();
-          // Carry the coach payload here too — otherwise the rest-expiry push
-          // would DELETE the coach row mid-session (no coachPayload = delete).
-          const coachAfter = coachNext ? { ...coachNext, resting: false } : null;
-          try { window.ShapeLiveProgress && window.ShapeLiveProgress.push(after, false, { coachPayload: coachAfter }); } catch (e) {}
-        }
-      }, Math.max(250, restEnd - Date.now() + 4050));   // past the floor by construction
-    }
-  }, [moves, completed, moveIdx, restEnd, title]);
-  React.useEffect(() => () => {
-    const lr = liveRef.current;
-    if (lr.timer) clearTimeout(lr.timer);
-    if (lr.restTimer) clearTimeout(lr.restTimer);
+  // The publisher retains the newest public + coach snapshot, retries failures,
+  // and refreshes its heartbeat while this player is active. Completed input
+  // corrections matter even when the public set counts remain unchanged.
+  const clearLiveWorkout = () => {
+    if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== identity.userId) return;
     bsSetMyActivity(null);
-    try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
+    try { window.ShapeLiveProgress?.clear?.(identity.userId); } catch {}
+  };
+  const liveRef = React.useRef(null);
+  React.useEffect(() => {
+    const publisher = createLiveWorkoutPublisher({
+      push: (...args) => (window.ShapeAuth?.getCachedState?.()?.user?.id || null) === identity.userId
+        ? (window.ShapeLiveProgress?.push?.(...args) ?? false) : false,
+      clear: clearLiveWorkout,
+      startedAt: identity.startedAt,
+    });
+    liveRef.current = publisher;
+    return () => { publisher.stop(); liveRef.current = null; };
   }, []);
+  const liveResting = !!restEnd && restEnd > now;
+  React.useEffect(() => {
+    const base = bsLiveProgressPayload(moves, completed, moveIdx, liveResting);
+    const next = base ? { ...base, title: String(title || '').slice(0, 80) } : null;
+    const coachBase = bsLiveCoachPayload(moves, completed, moveIdx, liveResting, setInputs);
+    const coachNext = coachBase ? { ...coachBase, title: String(title || '').slice(0, 80), loadUnit: identity.loadUnit } : null;
+    liveRef.current?.update(next, coachNext, !completing);
+    if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) === identity.userId) bsSetMyActivity(completing ? null : 'workout');
+  }, [moves, completed, moveIdx, liveResting, title, setInputs, completing]);
   const endWorkout = () => {
     if (draftRef.current?.() === false) {
       setDraftWarning(tr('session:player.storageFailed'));
       setSaveError(tr('session:player.storageFailed'));
       return;
     }
-    bsSetMyActivity(null);
-    try { window.ShapeLiveProgress && window.ShapeLiveProgress.clear(); } catch (e) {}
+    clearLiveWorkout();
     onBack();
   };
   const [setLogs, setSetLogs] = useStateBSC(draft?.setLogs || []);
@@ -31145,7 +31134,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
       savedRef.current = true; bsRemoveWorkoutDraft(window.localStorage, identity.userId, identity.sessionId); setSaveState('saved');
       window.__bsToast?.(result.shareError ? tr('session:player.savedShareFailed') : tr('session:player.saved'), result.shareError ? 'warn' : 'ok');
       try { window.ShapeAnalytics?.track?.('session_rpe_prompted', { rated: sessionRpe != null }); } catch {}
-      bsSetMyActivity(null); try { window.ShapeLiveProgress?.clear?.(); } catch {} return true;
+      clearLiveWorkout(); return true;
     } catch (error) {
       setSaveError(error?.message || tr('session:player.pendingSave'));
       setSaveState('error'); draftRef.current?.(); return false;
@@ -31157,7 +31146,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     const ok = window.bsAskConfirm ? await window.bsAskConfirm({ title: tr('session:player.discard'), message, confirmLabel: tr('session:player.discard') }) : window.confirm?.(message);
     if (!ok) return;
     discardedRef.current = true; bsRemoveWorkoutDraft(window.localStorage, identity.userId, identity.sessionId);
-    bsSetMyActivity(null); try { window.ShapeLiveProgress?.clear?.(); } catch {} onBack();
+    clearLiveWorkout(); onBack();
   };
 
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -31360,6 +31349,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
             {tr('session:player.elapsed')} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
           </span>
         </div>
+        <BSWorkoutCoachCue identity={identity} />
         {/* Session line — real figures only */}
         <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
           <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || tr('session:player.liveSession')}</span>

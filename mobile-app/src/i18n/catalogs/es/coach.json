@@ -1060,5 +1060,20 @@
   "roster.loading": "Cargando clientes…",
   "roster.unavailable": "No se pudieron cargar tus clientes. Revisa la conexión y reintenta.",
   "roster.retry": "Reintentar",
-  "today.calendarUnavailable": "No se pudo cargar tu agenda. Revisa la conexión y reintenta."
+  "today.calendarUnavailable": "No se pudo cargar tu agenda. Revisa la conexión y reintenta.",
+  "live.connecting": "Conectando…",
+  "live.reconnecting": "Reconectando…",
+  "live.stale": "Esperando novedades del cliente",
+  "live.idle": "No hay un entrenamiento activo compartido",
+  "live.preview": "Vista previa",
+  "live.session": "Entrenamiento",
+  "live.watchTitle": "Monitor del entrenamiento",
+  "live.resting": "Descansando",
+  "live.working": "Entrenando",
+  "live.checkedAt": "Última comprobación: {time}",
+  "live.readOnly": "Series registradas del cliente · solo lectura",
+  "live.sending": "Enviando…",
+  "live.sendFailed": "No se pudo enviar. Tu indicación se conserva; vuelve a intentarlo.",
+  "live.previewCue": "Solo vista previa; no se envió ninguna indicación.",
+  "live.cueFocusNote": "Tu última indicación también actualiza tu nota de enfoque del entrenamiento."
 }

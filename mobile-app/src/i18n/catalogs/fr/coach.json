@@ -1060,5 +1060,20 @@
   "roster.loading": "Chargement des clients…",
   "roster.unavailable": "Impossible de charger vos clients. Vérifiez la connexion et réessayez.",
   "roster.retry": "Réessayer",
-  "today.calendarUnavailable": "Impossible de charger votre planning. Vérifiez la connexion et réessayez."
+  "today.calendarUnavailable": "Impossible de charger votre planning. Vérifiez la connexion et réessayez.",
+  "live.connecting": "Connexion…",
+  "live.reconnecting": "Reconnexion…",
+  "live.stale": "En attente des nouvelles données du client",
+  "live.idle": "Aucun entraînement actif partagé",
+  "live.preview": "Aperçu",
+  "live.session": "Entraînement",
+  "live.watchTitle": "Suivi de l’entraînement",
+  "live.resting": "Repos",
+  "live.working": "En activité",
+  "live.checkedAt": "Dernière vérification : {time}",
+  "live.readOnly": "Séries enregistrées du client · lecture seule",
+  "live.sending": "Envoi…",
+  "live.sendFailed": "Échec de l’envoi. Votre consigne est conservée ; réessayez.",
+  "live.previewCue": "Aperçu uniquement ; aucune consigne envoyée.",
+  "live.cueFocusNote": "Votre dernière consigne met aussi à jour votre note d’objectif de coaching."
 }

@@ -311,5 +311,7 @@
   "player.targetLoad": "Objetivo · {load}",
   "player.tempo": "Ritmo",
   "player.timedSets": "Series cronometradas",
-  "player.unfinished": "Entrenamientos sin terminar"
+  "player.unfinished": "Entrenamientos sin terminar",
+  "player.coachCue": "Indicación del entrenador",
+  "player.dismissCoachCue": "Descartar indicación del entrenador"
 }

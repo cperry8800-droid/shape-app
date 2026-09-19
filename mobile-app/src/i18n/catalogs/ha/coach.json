@@ -1060,5 +1060,20 @@
   "roster.loading": "Ana loda abokan ciniki…",
   "roster.unavailable": "An kasa loda abokan cinikinka. Duba haɗinka ka sake gwadawa.",
   "roster.retry": "Sake gwadawa",
-  "today.calendarUnavailable": "An kasa loda jadawalin ka. Duba haɗinka ka sake gwadawa."
+  "today.calendarUnavailable": "An kasa loda jadawalin ka. Duba haɗinka ka sake gwadawa.",
+  "live.connecting": "Ana haɗawa…",
+  "live.reconnecting": "Ana sake haɗawa…",
+  "live.stale": "Ana jiran sabbin bayanan abokin ciniki",
+  "live.idle": "Babu atisayen da ake yi da aka raba",
+  "live.preview": "Dubawa",
+  "live.session": "Atisaye",
+  "live.watchTitle": "Duba atisaye",
+  "live.resting": "Hutu",
+  "live.working": "Ana atisaye",
+  "live.checkedAt": "An duba ƙarshe {time}",
+  "live.readOnly": "Zagaye da abokin ciniki ya rubuta · karantawa kawai",
+  "live.sending": "Ana aikawa…",
+  "live.sendFailed": "Ba a iya aikawa ba. An riƙe umarninka—sake gwadawa.",
+  "live.previewCue": "Dubawa kawai—ba a aika umarni ba.",
+  "live.cueFocusNote": "Sabon umarninka yana sabunta bayanin abin da horonka ya fi mayar da hankali a kai."
 }

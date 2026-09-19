@@ -311,5 +311,7 @@
   "player.targetLoad": "Mục tiêu · {load}",
   "player.tempo": "Nhịp độ",
   "player.superset": "Superset",
-  "player.applyRemaining": "Áp dụng mức tạ cho các hiệp còn lại của bài tập này"
+  "player.applyRemaining": "Áp dụng mức tạ cho các hiệp còn lại của bài tập này",
+  "player.coachCue": "Chỉ dẫn của huấn luyện viên",
+  "player.dismissCoachCue": "Đóng chỉ dẫn của huấn luyện viên"
 }

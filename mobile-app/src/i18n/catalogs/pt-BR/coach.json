@@ -1060,5 +1060,20 @@
   "roster.loading": "Carregando clientes…",
   "roster.unavailable": "Não foi possível carregar seus clientes. Confira a conexão e tente novamente.",
   "roster.retry": "Tentar novamente",
-  "today.calendarUnavailable": "Não foi possível carregar sua agenda. Confira a conexão e tente novamente."
+  "today.calendarUnavailable": "Não foi possível carregar sua agenda. Confira a conexão e tente novamente.",
+  "live.connecting": "Conectando…",
+  "live.reconnecting": "Reconectando…",
+  "live.stale": "Aguardando atualizações do cliente",
+  "live.idle": "Nenhum treino ativo compartilhado",
+  "live.preview": "Prévia",
+  "live.session": "Treino",
+  "live.watchTitle": "Monitor do treino",
+  "live.resting": "Descansando",
+  "live.working": "Treinando",
+  "live.checkedAt": "Última verificação: {time}",
+  "live.readOnly": "Séries registradas pelo cliente · somente leitura",
+  "live.sending": "Enviando…",
+  "live.sendFailed": "Não foi possível enviar. Sua orientação foi mantida; tente novamente.",
+  "live.previewCue": "Apenas prévia; nenhuma orientação foi enviada.",
+  "live.cueFocusNote": "Sua orientação mais recente também atualiza sua nota de foco do treino."
 }

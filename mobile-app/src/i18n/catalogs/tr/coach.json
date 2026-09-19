@@ -1060,5 +1060,20 @@
   "roster.loading": "Danışanlar yükleniyor…",
   "roster.unavailable": "Danışanlarınız yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.",
   "roster.retry": "Tekrar dene",
-  "today.calendarUnavailable": "Programınız yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin."
+  "today.calendarUnavailable": "Programınız yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.",
+  "live.connecting": "Bağlanıyor…",
+  "live.reconnecting": "Yeniden bağlanıyor…",
+  "live.stale": "Danışan güncellemeleri bekleniyor",
+  "live.idle": "Paylaşılan aktif antrenman yok",
+  "live.preview": "Önizleme",
+  "live.session": "Antrenman",
+  "live.watchTitle": "Antrenman takibi",
+  "live.resting": "Dinleniyor",
+  "live.working": "Çalışıyor",
+  "live.checkedAt": "Son kontrol: {time}",
+  "live.readOnly": "Danışanın kaydettiği setler · salt okunur",
+  "live.sending": "Gönderiliyor…",
+  "live.sendFailed": "Gönderilemedi. İpucunuz korundu; yeniden deneyin.",
+  "live.previewCue": "Yalnızca önizleme; ipucu gönderilmedi.",
+  "live.cueFocusNote": "Son ipucunuz antrenman odak notunuzu da günceller."
 }

@@ -50,6 +50,7 @@ const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MOBILE_SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetPros.jsx');
 const WEB_SRC = join(ROOT, 'public', 'newdesign', 'coachClientDetail.jsx');
+const WEB_LIVE_SRC = join(ROOT, 'public', 'newdesign', 'coachLiveWorkout.jsx');
 
 const CLIENT_UID = '11111111-2222-3333-4444-555555555555';
 
@@ -111,15 +112,16 @@ const MOBILE = await loadRealModule(MOBILE_SRC, {
 
 // ── web: the real coach client-detail page ──────────────────────────────────
 // coachClientDetail.jsx ships as a CLASSIC script (TrainerClient.html loads it
-// with <script type="text/babel">) — no imports, no exports, and its four
-// externals come from sibling scripts in the same global scope. So it is
+// with <script type="text/babel">) — no imports, no exports, and its
+// externals come from sibling scripts in the same global scope. Load the real
+// shared workout panel first, in the same order as TrainerClient.html. It is
 // compiled the way the browser compiles it (JSX only, no module transform) and
 // evaluated inside a function whose parameters supply exactly those externals.
 // The page component is handed back by a single appended `return`; the shipping
 // source above it is byte-for-byte untouched.
 const babel = require_('next/dist/compiled/babel/core');
 const presetReact = require_('next/dist/compiled/babel/preset-react');
-const webCompiled = babel.transformSync(readFileSync(WEB_SRC, 'utf8'), {
+const webCompiled = babel.transformSync(`${readFileSync(WEB_LIVE_SRC, 'utf8')}\n${readFileSync(WEB_SRC, 'utf8')}`, {
   presets: [presetReact], babelrc: false, configFile: false, filename: WEB_SRC, sourceType: 'script',
 }).code;
 const Card = ({ children, style }) => React.createElement('div', { 'data-card': true, style }, children);

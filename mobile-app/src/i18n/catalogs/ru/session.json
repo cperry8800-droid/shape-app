@@ -311,5 +311,7 @@
   "player.targetLoad": "Цель · {load}",
   "player.tempo": "Темп",
   "player.superset": "Суперсет",
-  "player.applyRemaining": "Применить вес к оставшимся подходам этого упражнения"
+  "player.applyRemaining": "Применить вес к оставшимся подходам этого упражнения",
+  "player.coachCue": "Подсказка тренера",
+  "player.dismissCoachCue": "Закрыть подсказку тренера"
 }

@@ -311,5 +311,7 @@
   "player.targetLoad": "Hedef · {load}",
   "player.tempo": "Hareket temposu",
   "player.timedSets": "Süreli setler",
-  "player.unfinished": "Tamamlanmamış antrenmanlar"
+  "player.unfinished": "Tamamlanmamış antrenmanlar",
+  "player.coachCue": "Antrenör yönlendirmesi",
+  "player.dismissCoachCue": "Antrenör yönlendirmesini kapat"
 }

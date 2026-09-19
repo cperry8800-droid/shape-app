@@ -1060,5 +1060,20 @@
   "roster.loading": "Clients dey load…",
   "roster.unavailable": "We no fit load your clients. Check network and try again.",
   "roster.retry": "Try again",
-  "today.calendarUnavailable": "We no fit load your schedule. Check network and try again."
+  "today.calendarUnavailable": "We no fit load your schedule. Check network and try again.",
+  "live.connecting": "Dey connect…",
+  "live.reconnecting": "Dey connect again…",
+  "live.stale": "Dey wait for client update",
+  "live.idle": "No active workout wey dem share",
+  "live.preview": "Preview",
+  "live.session": "Workout",
+  "live.watchTitle": "Workout monitor",
+  "live.resting": "Dey rest",
+  "live.working": "Dey work out",
+  "live.checkedAt": "Last check {time}",
+  "live.readOnly": "Sets wey client record · read only",
+  "live.sending": "Dey send…",
+  "live.sendFailed": "E no send. Your cue still dey—try again.",
+  "live.previewCue": "Na preview only—no cue send.",
+  "live.cueFocusNote": "Your latest cue go also update your coaching focus note."
 }

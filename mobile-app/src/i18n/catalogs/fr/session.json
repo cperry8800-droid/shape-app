@@ -311,5 +311,7 @@
   "player.targetLoad": "Cible · {load}",
   "player.tempo": "Cadence",
   "player.timedSets": "Séries chronométrées",
-  "player.unfinished": "Entraînements inachevés"
+  "player.unfinished": "Entraînements inachevés",
+  "player.coachCue": "Consigne du coach",
+  "player.dismissCoachCue": "Fermer la consigne du coach"
 }
