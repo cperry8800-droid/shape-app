@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Añadir algo por evitar",
   "list.cleanCount": "{done}/{total} sin fallar",
   "list.deleteConfirm": "Eliminar hábito",
-  "list.deleteMessage": "Esto elimina el hábito y todo su historial de rachas.",
+  "list.deleteMessage": "Esto quita el hábito de tu lista diaria. Se conservan los registros anteriores.",
   "list.deleteTitle": "¿Eliminar este hábito?",
   "list.doneCount": "{done}/{total} hechos",
   "list.removeHabit": "Quitar hábito",
@@ -69,5 +69,6 @@
   "toast.removed": "Hábito eliminado",
   "toast.setPrivate": "Ahora es privado",
   "toast.sharedFriends": "Compartido con amigos",
-  "toast.updateError": "No se pudo actualizar el hábito"
+  "toast.updateError": "No se pudo actualizar el hábito",
+  "page.loading": "Cargando…"
 }

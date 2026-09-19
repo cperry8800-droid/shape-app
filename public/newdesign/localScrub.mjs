@@ -71,6 +71,7 @@ export const SHAPE_SCRUB_KEYS = [
   'shape.recipeGroceryLists',   // cloud-synced via user_goals
   'shape.deletedGroceryIds',    // account-scoped sync tombstones
   'shape.cookResume',
+  'shape.cookBatchResume',
   'shape.radio.musicLibraries',
   'shape.stepGoal',       // account-scoped step target (cloud copy in user_goals) —
                           // inherited indefinitely by a next user with no cloud goal

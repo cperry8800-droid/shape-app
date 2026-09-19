@@ -312,6 +312,8 @@ function RecipeDetailPage() {
 
         {/* CTAs */}
         <div className="rd-ctas">
+          <a className="rd-btn p" href={'/newdesign/Cook.html?r=' + encodeURIComponent(recipeSlug(recipe))}>Cook step by step →</a>
+          <a className="rd-btn" href={'/newdesign/Cook.html?mode=together&r=' + encodeURIComponent(recipeSlug(recipe))}>Cook with other dishes</a>
           {added > 0 ? (
             <>
               <a href="ClientGrocery.html" className="rd-btn p">Open grocery list →</a>

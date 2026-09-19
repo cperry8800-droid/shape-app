@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Добавить запрет",
   "list.cleanCount": "{done}/{total} без срывов",
   "list.deleteConfirm": "Удалить привычку",
-  "list.deleteMessage": "Это удалит привычку и всю историю её серий.",
+  "list.deleteMessage": "Привычка исчезнет из ежедневного списка. Прошлые отметки сохранятся.",
   "list.deleteTitle": "Удалить эту привычку?",
   "list.doneCount": "{done}/{total} выполнено",
   "list.removeHabit": "Убрать привычку",
@@ -69,5 +69,6 @@
   "toast.removed": "Привычка удалена",
   "toast.setPrivate": "Теперь только для вас",
   "toast.sharedFriends": "Доступно друзьям",
-  "toast.updateError": "Не удалось обновить привычку"
+  "toast.updateError": "Не удалось обновить привычку",
+  "page.loading": "Загрузка…"
 }

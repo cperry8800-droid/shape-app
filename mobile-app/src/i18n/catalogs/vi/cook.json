@@ -130,5 +130,10 @@
   "prep.timingComing": "Cách tính giờ — cùng lúc, riêng từng món, hoặc cùng lên bàn một lượt.",
   "recovery.exit": "Đã lưu các bước và bộ hẹn giờ. Mở lại công thức để tiếp tục. Cảnh báo hẹn giờ cần ứng dụng đang mở.",
   "recovery.failedExit": "Không thể lưu tiến trình trên thiết bị này. Thoát sẽ mất bước đang làm và bộ hẹn giờ.",
-  "recovery.unavailable": "Không thể khôi phục tiến trình trên thiết bị này. Giữ màn hình này mở."
+  "recovery.unavailable": "Không thể khôi phục tiến trình trên thiết bị này. Giữ màn hình này mở.",
+  "prep.updatedFinish": "Giờ hoàn tất mới: {time} · các món còn lại xong cách nhau tối đa {n} phút",
+  "prep.timersStillRunning": "Các bộ hẹn giờ cuối vẫn đang chạy",
+  "prep.resumeBatch": "Tiếp tục nấu các món này",
+  "prep.searchRecipes": "Tìm công thức",
+  "prep.catalog": "Shape Kitchen"
 }

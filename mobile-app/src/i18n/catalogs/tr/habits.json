@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Kaçınılacak bir şey ekle",
   "list.cleanCount": "{done}/{total} temiz",
   "list.deleteConfirm": "Alışkanlığı sil",
-  "list.deleteMessage": "Bu, alışkanlığı ve tüm seri geçmişini kaldırır.",
+  "list.deleteMessage": "Bu işlem alışkanlığı günlük listenizden kaldırır. Geçmiş kayıtlar korunur.",
   "list.deleteTitle": "Bu alışkanlık silinsin mi?",
   "list.doneCount": "{done}/{total} yapıldı",
   "list.removeHabit": "Alışkanlığı kaldır",
@@ -69,5 +69,6 @@
   "toast.removed": "Alışkanlık kaldırıldı",
   "toast.setPrivate": "Gizli yapıldı",
   "toast.sharedFriends": "Arkadaşlarla paylaşıldı",
-  "toast.updateError": "Alışkanlık güncellenemedi"
+  "toast.updateError": "Alışkanlık güncellenemedi",
+  "page.loading": "Yükleniyor…"
 }

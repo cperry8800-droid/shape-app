@@ -726,6 +726,14 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-19 — Live habits and shared website cooking with adaptive batch timing
+
+- **Merged [#2123](https://github.com/cperry8800-droid/shape-app/pull/2123)** as `94ca45eaf`, final implementation head `7e2847796`. App habits use local dates, native request authentication, confirmed saves, retryable errors, duplicate-tap/account guards and the backend's three-point reward. Future Home dates are non-actionable. Midnight reminders remain midnight and save failures are visible. Website habits use the same live records and real history, without sample advice or misleading trends.
+- **The website now runs the app's real cooking player and scheduler.** Kitchen and recipe pages link to [Cook together](https://www.theshapecommunity.com/newdesign/Cook.html?mode=together) and solo step-by-step cooking. Batch picking includes a searchable catalog, merged prep, kitchen capacity and serving time. Progress replans unfinished work around actual holds; resource gates prevent overlapping occupied stations. The finish estimate and unavoidable gap are visible. Final timers continue counting.
+- **Interleaved batch recovery now preserves dishes, steps and timer deadlines for 24 hours**, account-scoped and sign-out scrubbed, including overnight cooks. Reload recovered the correct step and a three-minute timer at 2:44; timer controls fit at 390px. Sequential per-recipe recovery, native background cooking alarms and confirmed/retry-safe meal logging remain follow-ups.
+- **Final-head CI passed 4,097 tests**, website typecheck/precompile/build, mobile build/assets, Android and secret scans. Codex's one finding (future Home habit points) was fixed and resolved. Final focused checks passed 44 tests; five mutation cases caught removed guards/replanning. No second external review was requested. App messages cover all 13 locales.
+- **Production verified:** the live website loaded the catalog, accepted two dishes, showed merged ingredients/capacity and generated a serving timeline with an explicit three-minute spread. No migrations. Native source is updated, but no store release was performed; authenticated live habits and native notification/voice/background behavior still need account/device checks. See [HANDOFF-2026-09-19b.md](HANDOFF-2026-09-19b.md).
+
 ### 2026-09-19 — App coach notes and triage, cooking recovery, and full-width Radio
 
 - **Merged [#2121](https://github.com/cperry8800-droid/shape-app/pull/2121)** at `fde5fea2d`; final implementation head `ed4128acd`. The app now edits the website's private coach-note document with account/client draft recovery, concurrency protection and explicit conflict replacement. Notes remain mounted across Profile/Manage. Roster reads distinguish loading/error/empty, retry failures and isolate account caches; new clients consistently appear in Needs You, profile status/phase reflect available data, and calendar failures no longer imply zero sessions.
@@ -9297,4 +9305,3 @@ Append new entries at the top, under this note.
   (`SKIP_VERIFY=1`) also disables `npm test` — trading a one-command fix for a disarmed
   gate. *Resync, don't bypass* — and "environmental, so leave it" is worth one check
   before it becomes the standing advice.
-

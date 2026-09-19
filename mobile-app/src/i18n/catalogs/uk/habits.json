@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Додати заборону",
   "list.cleanCount": "{done}/{total} без зривів",
   "list.deleteConfirm": "Видалити звичку",
-  "list.deleteMessage": "Це видалить звичку та всю історію її серій.",
+  "list.deleteMessage": "Звичку буде прибрано зі щоденного списку. Попередні відмітки збережуться.",
   "list.deleteTitle": "Видалити цю звичку?",
   "list.doneCount": "{done}/{total} виконано",
   "list.removeHabit": "Прибрати звичку",
@@ -69,5 +69,6 @@
   "toast.removed": "Звичку видалено",
   "toast.setPrivate": "Тепер лише для вас",
   "toast.sharedFriends": "Доступно друзям",
-  "toast.updateError": "Не вдалося оновити звичку"
+  "toast.updateError": "Не вдалося оновити звичку",
+  "page.loading": "Завантаження…"
 }

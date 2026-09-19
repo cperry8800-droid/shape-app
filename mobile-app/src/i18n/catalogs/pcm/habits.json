@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Add one to-don’t",
   "list.cleanCount": "{done}/{total} stay clean",
   "list.deleteConfirm": "Delete habit",
-  "list.deleteMessage": "Dis go comot di habit and all im streak history.",
+  "list.deleteMessage": "Dis go remove di habit from your daily list. Di old records go remain.",
   "list.deleteTitle": "You wan delete dis habit?",
   "list.doneCount": "{done}/{total} done",
   "list.removeHabit": "Comot habit",
@@ -69,5 +69,6 @@
   "toast.removed": "Habit don comot",
   "toast.setPrivate": "Don turn private",
   "toast.sharedFriends": "Don share with friends",
-  "toast.updateError": "We no fit update di habit"
+  "toast.updateError": "We no fit update di habit",
+  "page.loading": "E dey load…"
 }

@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Aggiungi qualcosa da evitare",
   "list.cleanCount": "{done}/{total} senza cedere",
   "list.deleteConfirm": "Elimina abitudine",
-  "list.deleteMessage": "Rimuove l’abitudine e tutta la cronologia della serie.",
+  "list.deleteMessage": "L’abitudine viene rimossa dalla lista quotidiana. I completamenti precedenti vengono conservati.",
   "list.deleteTitle": "Eliminare questa abitudine?",
   "list.doneCount": "{done}/{total} fatti",
   "list.removeHabit": "Rimuovi abitudine",
@@ -69,5 +69,6 @@
   "toast.removed": "Abitudine rimossa",
   "toast.setPrivate": "Reso privato",
   "toast.sharedFriends": "Condiviso con gli amici",
-  "toast.updateError": "Impossibile aggiornare l’abitudine"
+  "toast.updateError": "Impossibile aggiornare l’abitudine",
+  "page.loading": "Caricamento…"
 }

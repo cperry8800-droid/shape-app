@@ -6528,7 +6528,25 @@ window.ShapeCareerAward = { claim: claimCareerAward, catchUp: careerAwardCatchUp
 // consumers must not raw-fetch the same-origin path, which targets the
 // WebView origin on a native build (Codex P2, #1698). Used by the crossover
 // card; returns the route's { habits } payload or null.
-window.ShapeHabitsData = { list: () => getJsonOrDefault('/api/client/habits', null) };
+async function habitsRequest(body) {
+  const uid = state.user?.id;
+  if (!uid) throw new Error('Sign in to manage habits.');
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const res = await fetch(`${apiBaseUrl}/api/client/habits`, {
+    method: body ? 'POST' : 'GET', credentials: 'include', cache: 'no-store', headers,
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await res.json();
+  if (state.user?.id !== uid) throw new Error('Account changed.');
+  if (!res.ok || data.error || (!body && !Array.isArray(data.habits))) throw new Error(data.error || 'Could not load habits.');
+  if (body) { invalidateClientMetrics(); window.dispatchEvent(new CustomEvent('shape:habits')); }
+  return data;
+}
+window.ShapeHabitsData = {
+  list: () => getJsonOrDefault('/api/client/habits', null),
+  listStrict: () => habitsRequest(), action: habitsRequest,
+};
 
 // Shape Steps points: the RPC credits +1 per 5,000 steps (capped at +4/day) plus a
 // +3 goal-hit bonus, once per COMPLETED day, from the device-synced step count
@@ -8071,7 +8089,7 @@ async function cancelAllLocalHabits() {
 }
 async function scheduleLocalHabit(r) {
   const LN = _localNotifs(); if (!LN || !LN.schedule) return;
-  // setHabitReminder calls this UNAWAITED, so a save can still be parked on the
+  // A save can still be parked on the
   // cancel below when the member signs out. cancelAllLocalHabits() would then
   // sweep, this coroutine would resume, and LN.schedule() would re-arm account
   // A's recurring, label-bearing notification behind the sweep — in the OS,
@@ -8080,7 +8098,8 @@ async function scheduleLocalHabit(r) {
   await cancelLocalHabit(r.habit_id);
   if (r.enabled === false) return;
   const parts = String(r.at_time || '09:00').split(':');
-  const hour = parseInt(parts[0], 10) || 9, minute = parseInt(parts[1], 10) || 0;
+  const hour = Number(parts[0]), minute = Number(parts[1]);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) throw new Error('Invalid reminder time.');
   const notifications = (r.days || []).map((dow) => ({
     id: _habitNotifBase(r.habit_id) + dow,
     title: `Time for: ${r.label || 'your habit'}`,
@@ -8091,21 +8110,26 @@ async function scheduleLocalHabit(r) {
   // Re-checked immediately before the write, not just at entry: the await above
   // is exactly where this coroutine parks, so the sweep can land between them.
   if (signOutGen() !== gen) return;
-  try { if (notifications.length) await LN.schedule({ notifications }); } catch (e) {}
+  if (notifications.length) await LN.schedule({ notifications });
 }
 async function listHabitReminders() {
   if (!supabase || !state.user?.id) return [];
   try { const { data } = await supabase.from('habit_reminders').select('*').eq('user_id', state.user.id); return data || []; } catch (e) { return []; }
 }
 async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
-  if (!supabase || !state.user?.id || !habitId) return null;
+  if (!supabase || !state.user?.id || !habitId) throw new Error('Sign in to save reminders.');
+  const uid = state.user.id;
+  if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Invalid reminder time.');
+  if (days && (!Array.isArray(days) || days.some(d => !Number.isInteger(d) || d < 0 || d > 6))) throw new Error('Invalid reminder days.');
   const row = {
     habit_id: habitId, user_id: state.user.id, label: label || '',
     at_time: time || '09:00', days: Array.isArray(days) ? days : [1, 2, 3, 4, 5],
     tz: _deviceTz(), enabled: enabled !== false, snooze_until: null, updated_at: new Date().toISOString(),
   };
-  try { await supabase.from('habit_reminders').upsert(row, { onConflict: 'habit_id' }); } catch (e) {}
-  scheduleLocalHabit(row);
+  const { error } = await supabase.from('habit_reminders').upsert(row, { onConflict: 'habit_id' });
+  if (error) throw error;
+  if (state.user?.id !== uid) throw new Error('Account changed.');
+  await scheduleLocalHabit(row);
   return row;
 }
 // habit_id is the global PK (→ user_habits.id), so it identifies one user's row;
@@ -8113,8 +8137,9 @@ async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
 // can never touch another account's reminder.
 async function removeHabitReminder(habitId) {
   if (!supabase || !state.user?.id || !habitId) return;
-  try { await supabase.from('habit_reminders').delete().eq('habit_id', habitId).eq('user_id', state.user.id); } catch (e) {}
-  cancelLocalHabit(habitId);
+  const { error } = await supabase.from('habit_reminders').delete().eq('habit_id', habitId).eq('user_id', state.user.id);
+  if (error) throw error;
+  await cancelLocalHabit(habitId);
 }
 async function snoozeHabitReminder(habitId, minutes) {
   if (!supabase || !state.user?.id || !habitId) return;

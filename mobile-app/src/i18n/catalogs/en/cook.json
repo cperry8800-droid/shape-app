@@ -130,5 +130,10 @@
   "prep.timingComing": "How these are timed — at the same time, separately, or all on the table at once.",
   "recovery.exit": "Your steps and timers are saved. Reopen this recipe to resume. Timer alerts require the app to be open.",
   "recovery.failedExit": "Your progress could not be saved on this device. Leaving will lose your place and timers.",
-  "recovery.unavailable": "Progress recovery is unavailable on this device. Keep this screen open."
+  "recovery.unavailable": "Progress recovery is unavailable on this device. Keep this screen open.",
+  "prep.updatedFinish": "Updated finish: {time} · remaining dishes finish within {n} min",
+  "prep.timersStillRunning": "Final timers are still running",
+  "prep.resumeBatch": "Resume cooking these dishes",
+  "prep.searchRecipes": "Search recipes",
+  "prep.catalog": "Shape Kitchen"
 }

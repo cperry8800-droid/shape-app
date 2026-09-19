@@ -339,6 +339,8 @@ function RecipesPage() {
           </p>
         </div>
 
+        <a href="/newdesign/Cook.html?mode=together" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: 20, padding: '10px 16px', border: '1px solid currentColor', borderRadius: 4 }}>Cook several dishes · plan a serving time →</a>
+
         {/* Tools: search + the filters as toggles. Diet and Protein share one
             single-select axis; Free From and Goals stack. */}
         <div className="km-tools">
