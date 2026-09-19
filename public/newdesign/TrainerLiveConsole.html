@@ -12,10 +12,13 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="/vendor/supabase-js-2.108.2.umd.js" integrity="sha384-nD3dwv4+ZqdYnmZKe/249ImlV04om7xTCcsoSeQYI+RO+XlKPoqAWaJR1M5SJH9p" crossorigin="anonymous"></script>
+<script src="/supabase.js"></script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script src="dashSignals.js?v=20260817"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
+<script type="text/babel" src="coachLiveWorkout.jsx?v=20260919"></script>
 <script type="text/babel">
 // Demo data — replace with /api/trainer/console when the live telemetry
 // backend exists. Right now the console is fully interactive locally:
@@ -187,7 +190,7 @@ const METRICS = [
 ];
 
 function TrainerLiveConsolePage() {
-  const [clientId, setClientId] = React.useState(CONSOLE_CLIENTS[0].id);
+  const [clientId, setClientId] = React.useState("");
   const [clientMenuOpen, setClientMenuOpen] = React.useState(false);
   const [range, setRange] = React.useState("12w");
   const [metric, setMetric] = React.useState("score");
@@ -195,9 +198,13 @@ function TrainerLiveConsolePage() {
   const [customEnd, setCustomEnd] = React.useState(TODAY_ISO);
   const [live, setLive] = React.useState(false);
   const [serverClients, setServerClients] = React.useState(null);
+  const [loadError, setLoadError] = React.useState("");
+  const [loadAttempt, setLoadAttempt] = React.useState(0);
+  const [focusSending, setFocusSending] = React.useState(false);
+  const focusRequest = React.useRef(false);
   // Per-client editable state (focus banner + today's session list)
-  const [focusById, setFocusById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.focusBanner])));
-  const [sessionsById, setSessionsById] = React.useState(() => Object.fromEntries(CONSOLE_CLIENTS.map(c => [c.id, c.session])));
+  const [focusById, setFocusById] = React.useState({});
+  const [sessionsById, setSessionsById] = React.useState({});
   // Add-exercise form
   const [ex, setEx] = React.useState({ name: "", sets: "", reps: "", tempo: "", cue: "" });
   // Transient toast
@@ -214,12 +221,15 @@ function TrainerLiveConsolePage() {
   // focus + items, and flip live=true so send/add/remove POST through.
   React.useEffect(() => {
     let cancelled = false;
+    setServerClients(null); setLoadError("");
     fetch('/api/trainer/console', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
+      .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(r.status === 401 ? 'Sign in as a trainer to open your console.' : (d.error || 'Could not load your clients.')); return d; })
       .then(d => {
-        if (cancelled || !d || !d.isTrainer) return;
+        if (cancelled) return;
+        if (!d || !d.isTrainer) throw new Error('A trainer account is required to open this console.');
         setLive(true);
-        if (Array.isArray(d.clients) && d.clients.length) {
+        if (!Array.isArray(d.clients)) throw new Error("Could not load your clients.");
+        if (Array.isArray(d.clients)) {
           const snapByClient = d.snapshotByClient || {};
           const profByClient = d.profileByClient || {};
           const seriesByClient = d.seriesByClient || {};
@@ -274,27 +284,34 @@ function TrainerLiveConsolePage() {
           });
         }
       })
-      .catch(() => {});
+      .catch(error => { if (!cancelled) setLoadError(error.message || "Could not load your clients."); });
     return () => { cancelled = true; };
-  }, []);
+  }, [loadAttempt]);
 
-  const effectiveClients = (serverClients && serverClients.length) ? serverClients : CONSOLE_CLIENTS;
+  const effectiveClients = serverClients || [];
+  if (loadError || serverClients === null || !effectiveClients.length) {
+    return <DashPage navItems={trainerNavItems("console")} payoutCard={trainerPayoutCard} eyebrow="COACHING CONSOLE" title="Clients · Console" subtitle="Watch an active workout and send coaching cues.">
+      <Card><p role={loadError ? "alert" : "status"}>{loadError || (serverClients === null ? "Loading your clients…" : "No clients yet. Your clients will appear here when you are linked.")}</p>
+      {loadError && <button onClick={() => setLoadAttempt(n => n + 1)} style={{ minHeight: 44, padding: "10px 18px", cursor: "pointer" }}>Retry</button>}
+      <a href="TrainerClients.html" style={{ color: "#2ee0c4", display: "inline-block", padding: "12px 0" }}>Back to clients</a></Card>
+    </DashPage>;
+  }
   const client = effectiveClients.find(c => c.id === clientId) || effectiveClients[0];
   const session = sessionsById[clientId] || [];
   const focus = focusById[clientId] || "";
 
   const setFocus = (v) => setFocusById({ ...focusById, [clientId]: v });
-  const sendFocus = () => {
-    if (!focus.trim()) { flash("Add a focus first"); return; }
-    flash("Sent to " + firstName(client.name) + "'s phone");
-    if (live) {
-      fetch('/api/trainer/console', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, action: 'focus', text: focus }),
-      }).catch(() => {});
-    }
+  const sendFocus = async () => {
+    const text = focus.trim();
+    if (!text || focusRequest.current) return;
+    focusRequest.current = true; setFocusSending(true);
+    try {
+      const res = await fetch('/api/trainer/console', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId, action: 'focus', text }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok !== true) throw new Error(data.error || 'Could not save focus. Try again.');
+      flash("Focus saved for " + firstName(client.name));
+    } catch (error) { flash(error.message || "Could not save focus. Your draft is still here."); }
+    finally { focusRequest.current = false; setFocusSending(false); }
   };
   const addExercise = () => {
     if (!ex.name.trim()) { flash("Add an exercise name first"); return; }
@@ -383,7 +400,7 @@ function TrainerLiveConsolePage() {
     <DashPage
       navItems={trainerNavItems("console")}
       payoutCard={trainerPayoutCard}
-      eyebrow={<span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><LiveDot /> LIVE COACHING</span>}
+      eyebrow="COACHING CONSOLE"
       title="Clients · Console"
       subtitle="See what a client is doing right now — and coach them in the moment."
     >
@@ -399,8 +416,10 @@ function TrainerLiveConsolePage() {
         ))}
       </div>
       {/* Client picker — dropdown grouped by Current / Past */}
-      <div style={{ position: "relative", display: "inline-block", marginBottom: 20 }}>
+      <div style={{ position: "relative", display: "inline-block", marginBottom: 20, width: "min(100%, 340px)" }}>
         <button
+          aria-expanded={clientMenuOpen}
+          aria-label="Choose client"
           onClick={() => setClientMenuOpen(o => !o)}
           style={{
             display: "flex", alignItems: "center", gap: 12,
@@ -409,7 +428,7 @@ function TrainerLiveConsolePage() {
             color: INK,
             border: "1px solid rgba(242,237,228,0.16)",
             fontFamily: sans, fontSize: 14, fontWeight: 500,
-            minWidth: 260,
+            width: "100%", minHeight: 44,
           }}
         >
           <span style={{ flex: 1, textAlign: "left" }}>{client.name}</span>
@@ -420,11 +439,11 @@ function TrainerLiveConsolePage() {
         </button>
         {clientMenuOpen && (
           <React.Fragment>
-            <div onClick={() => setClientMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+            <button type="button" aria-label="Close client selector" onClick={() => setClientMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40, border: 0, background: "transparent" }} />
             <div style={{
               position: "absolute", top: "calc(100% + 6px)", left: 0,
               background: "#14110e", border: "1px solid rgba(242,237,228,0.12)",
-              borderRadius: 12, minWidth: 280, maxWidth: 340,
+              borderRadius: 12, width: "100%", maxWidth: 340,
               boxShadow: "0 18px 48px rgba(0,0,0,0.55)",
               zIndex: 50, padding: "6px 0", overflow: "hidden",
             }}>
@@ -462,11 +481,12 @@ function TrainerLiveConsolePage() {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <CoachLiveWorkoutPanel key={clientId} clientId={clientId} clientName={client.name} role="trainer" accent="#2ee0c4" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 20 }}>
         {/* LEFT — client snapshot + recovery */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Card>
-            <SectionTitle right="LIVE">Client right now</SectionTitle>
+            <SectionTitle>Latest available metrics</SectionTitle>
             <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", lineHeight: 1, marginTop: 4 }}>{client.name}</div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
               {client.age} YRS · {client.weight} · {client.height}
@@ -476,11 +496,7 @@ function TrainerLiveConsolePage() {
             </div>
 
             <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <InsetBox label="Workout today">
-                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.workout.done} / {client.workout.total} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>done</span></div>
-                <ProgressBar pct={progressPct} />
-                <div style={{ fontSize: 12, color: TEAL_BRIGHT, marginTop: 8 }}>{client.workout.note}</div>
-              </InsetBox>
+              <InsetBox label="Workout progress"><div style={{ fontSize: 14, lineHeight: 1.6 }}>See the workout monitor above for current exercises and logged sets.</div></InsetBox>
               <InsetBox label="Logged today">
                 <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1 }}>{client.nutrition.kcal.toLocaleString()} <span style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", fontFamily: sans }}>kcal</span></div>
                 <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 10 }}>Protein logged: <span style={{ color: INK, fontWeight: 500 }}>{client.nutrition.protein}g</span></div>
@@ -516,13 +532,13 @@ function TrainerLiveConsolePage() {
             />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 12 }}>
               <div style={{ fontSize: 12, color: "rgba(242,237,228,0.5)", lineHeight: 1.45 }}>Shows as a banner at the top of {firstName(client.name)}'s app.</div>
-              <button onClick={sendFocus} style={{
+              <button onClick={sendFocus} disabled={focusSending || !focus.trim()} style={{
                 background: TEAL,
                 color: PAPER,
                 border: 0, padding: "10px 20px", borderRadius: 999,
                 fontFamily: sans, fontSize: 13, fontWeight: 500,
                 cursor: "pointer", flex: "none",
-              }}>Send</button>
+              }}>{focusSending ? "Saving…" : "Save focus"}</button>
             </div>
 
             <div style={{ height: 1, background: "rgba(242,237,228,0.08)", margin: "22px 0" }} />
@@ -619,7 +635,7 @@ function TrainerLiveConsolePage() {
 
       {/* Toast */}
       {toast && (
-        <div style={{
+        <div role="status" style={{
           position: "fixed", right: 28, bottom: 28, zIndex: 80,
           background: TEAL, color: PAPER, padding: "12px 18px",
           borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500,

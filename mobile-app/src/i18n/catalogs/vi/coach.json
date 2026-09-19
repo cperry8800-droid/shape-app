@@ -1060,5 +1060,20 @@
   "roster.loading": "Đang tải khách hàng…",
   "roster.unavailable": "Không thể tải khách hàng. Kiểm tra kết nối rồi thử lại.",
   "roster.retry": "Thử lại",
-  "today.calendarUnavailable": "Không thể tải lịch. Kiểm tra kết nối rồi thử lại."
+  "today.calendarUnavailable": "Không thể tải lịch. Kiểm tra kết nối rồi thử lại.",
+  "live.connecting": "Đang kết nối…",
+  "live.reconnecting": "Đang kết nối lại…",
+  "live.stale": "Đang chờ cập nhật từ khách hàng",
+  "live.idle": "Không có buổi tập đang diễn ra được chia sẻ",
+  "live.preview": "Xem trước",
+  "live.session": "Buổi tập",
+  "live.watchTitle": "Theo dõi buổi tập",
+  "live.resting": "Đang nghỉ",
+  "live.working": "Đang tập",
+  "live.checkedAt": "Kiểm tra lần cuối {time}",
+  "live.readOnly": "Các hiệp khách hàng đã ghi · chỉ đọc",
+  "live.sending": "Đang gửi…",
+  "live.sendFailed": "Không thể gửi. Hướng dẫn được giữ lại; hãy thử lại.",
+  "live.previewCue": "Chỉ xem trước; chưa gửi hướng dẫn.",
+  "live.cueFocusNote": "Hướng dẫn mới nhất cũng cập nhật ghi chú trọng tâm huấn luyện của bạn."
 }

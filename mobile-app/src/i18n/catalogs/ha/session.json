@@ -311,5 +311,7 @@
   "player.targetLoad": "Buri · {load}",
   "player.tempo": "Saurin motsi",
   "player.superset": "Superset",
-  "player.applyRemaining": "Yi amfani da nauyin ga sauran saitunan wannan motsa jiki"
+  "player.applyRemaining": "Yi amfani da nauyin ga sauran saitunan wannan motsa jiki",
+  "player.coachCue": "Shawarar mai horo",
+  "player.dismissCoachCue": "Rufe shawarar mai horo"
 }

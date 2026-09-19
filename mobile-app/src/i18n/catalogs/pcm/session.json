@@ -311,5 +311,7 @@
   "player.targetLoad": "Target · {load}",
   "player.tempo": "Tempo",
   "player.superset": "Superset",
-  "player.applyRemaining": "Use dis weight for di remaining sets of dis exercise"
+  "player.applyRemaining": "Use dis weight for di remaining sets of dis exercise",
+  "player.coachCue": "Coach instruction",
+  "player.dismissCoachCue": "Close coach instruction"
 }

@@ -1060,5 +1060,20 @@
   "roster.loading": "Caricamento clienti…",
   "roster.unavailable": "Impossibile caricare i tuoi clienti. Controlla la connessione e riprova.",
   "roster.retry": "Riprova",
-  "today.calendarUnavailable": "Impossibile caricare il programma. Controlla la connessione e riprova."
+  "today.calendarUnavailable": "Impossibile caricare il programma. Controlla la connessione e riprova.",
+  "live.connecting": "Connessione…",
+  "live.reconnecting": "Riconnessione…",
+  "live.stale": "In attesa di aggiornamenti dal cliente",
+  "live.idle": "Nessun allenamento attivo condiviso",
+  "live.preview": "Anteprima",
+  "live.session": "Allenamento",
+  "live.watchTitle": "Monitor allenamento",
+  "live.resting": "Riposo",
+  "live.working": "In allenamento",
+  "live.checkedAt": "Ultimo controllo: {time}",
+  "live.readOnly": "Serie registrate dal cliente · sola lettura",
+  "live.sending": "Invio…",
+  "live.sendFailed": "Invio non riuscito. L’indicazione è conservata; riprova.",
+  "live.previewCue": "Solo anteprima; nessuna indicazione inviata.",
+  "live.cueFocusNote": "L’ultima indicazione aggiorna anche la nota sull’obiettivo del coaching."
 }

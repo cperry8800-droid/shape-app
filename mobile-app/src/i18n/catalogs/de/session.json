@@ -311,5 +311,7 @@
   "player.targetLoad": "Ziel · {load}",
   "player.tempo": "Bewegungstempo",
   "player.timedSets": "Sätze mit Zeitmessung",
-  "player.unfinished": "Unbeendete Trainings"
+  "player.unfinished": "Unbeendete Trainings",
+  "player.coachCue": "Trainerhinweis",
+  "player.dismissCoachCue": "Trainerhinweis schließen"
 }

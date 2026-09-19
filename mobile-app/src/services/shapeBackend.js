@@ -16,6 +16,7 @@ import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
+import { watchLiveWorkout } from '../../../public/newdesign/liveWatch.mjs';
 import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
 import { bsMaterializeOutline } from './planOutline.mjs';
 import { bsPrunePrep } from './mealPrep.mjs';
@@ -7547,16 +7548,27 @@ let _liveGen = 0;
 let _liveCoachGen = 0;
 const _okUuid = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 let _liveQueue = Promise.resolve();
+let _liveRequestController = null;
+async function _liveRequest(query) {
+  const controller = new AbortController();
+  _liveRequestController = controller;
+  const deadline = setTimeout(() => controller.abort(), 15000);
+  try { return await query.abortSignal(controller.signal); }
+  finally {
+    clearTimeout(deadline);
+    if (_liveRequestController === controller) _liveRequestController = null;
+  }
+}
 function _liveEnqueue(fn) {
-  const run = () => fn().catch(() => {});
+  const run = () => fn().catch(() => false);
   _liveQueue = _liveQueue.then(run, run);
   return _liveQueue;
 }
-async function _liveAudience() {
+async function _liveAudience(uid) {
   let doc = null; let failed = false;
   try {
-    const { data, error } = await supabase.from('user_goals').select('data')
-      .eq('user_id', state.user.id).eq('kind', 'client_settings').maybeSingle();
+    const { data, error } = await _liveRequest(supabase.from('user_goals').select('data')
+      .eq('user_id', uid).eq('kind', 'client_settings').maybeSingle());
     if (error) failed = true; else doc = (data && data.data) || null;
   } catch (e) { failed = true; }
   return bsLiveAudience(doc, failed);
@@ -7584,7 +7596,10 @@ async function _liveAudience() {
 //     absent/null → DELETE it, so a stale set of loads can never outlive the
 //     state that produced them.
 async function livePush(payload, fresh, opts) {
-  if (!supabase || !state.user || !payload) return;
+  if (!supabase || !state.user || !payload) return false;
+  const uid = state.user.id;
+  const authGen = signOutGen();
+  const sameOwner = () => state.user?.id === uid && authGen === signOutGen();
   const visOverride = opts && Object.prototype.hasOwnProperty.call(opts, 'visOverride') ? opts.visOverride : undefined;
   const coachPayload = opts ? opts.coachPayload : null;
   const gen = _liveGen;
@@ -7592,27 +7607,30 @@ async function livePush(payload, fresh, opts) {
   return _liveEnqueue(async () => {
     // Each leg is checked against its OWN generation: a superseded public write
     // must not carry the coach write down with it, or vice versa.
-    const pubLive = () => gen === _liveGen;
-    const coachLive = () => cgen === _liveCoachGen;
-    if (!pubLive() && !coachLive()) return;    // fully superseded before we ran
+    const pubLive = () => sameOwner() && gen === _liveGen;
+    const coachLive = () => sameOwner() && cgen === _liveCoachGen;
+    if (!pubLive() && !coachLive()) return false;
     // Only the public leg needs the audience — skip the read when it is dead.
-    const vis = pubLive() ? (visOverride !== undefined ? visOverride : await _liveAudience()) : null;
-    if (!pubLive() && !coachLive()) return;
+    const vis = pubLive() ? (visOverride !== undefined ? visOverride : await _liveAudience(uid)) : null;
+    if (!pubLive() && !coachLive()) return false;
     const now = new Date();
+    const start = opts?.startedAt && Number.isFinite(Date.parse(opts.startedAt)) ? opts.startedAt : now.toISOString();
+    let ok = true;
     // PUBLIC row — the member's OWN share rule decides.
     if (!pubLive()) {
       /* superseded — the coach leg below still runs */
     } else if (!vis) {
       _liveGen++;                              // private/read-failed → absence
-      await _livePublicDelete();
+      ok = await _livePublicDelete(uid);
     } else {
       const row = {
-        user_id: state.user.id, visibility: vis, payload,
+        user_id: uid, visibility: vis, payload,
         updated_at: now.toISOString(),
         expires_at: new Date(now.getTime() + 6 * 3600 * 1000).toISOString(),
       };
-      if (fresh) row.started_at = now.toISOString();
-      await supabase.from('user_activity_live').upsert(row, { onConflict: 'user_id' });
+      if (fresh) row.started_at = start;
+      const result = await _liveRequest(supabase.from('user_activity_live').upsert(row, { onConflict: 'user_id' }));
+      ok = !result.error;
     }
     // COACH row — gated on the COACH LINK at the DB (RLS), never on the
     // member's share rule. This runs EVEN WHEN vis is null: a private member
@@ -7624,43 +7642,54 @@ async function livePush(payload, fresh, opts) {
         /* a session-end clear landed while we waited — leave the row deleted */
       } else if (coachPayload) {
         const crow = {
-          user_id: state.user.id, payload: coachPayload,
+          user_id: uid, payload: coachPayload,
           updated_at: now.toISOString(),
           expires_at: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
         };
-        if (fresh) crow.started_at = now.toISOString();
-        await supabase.from('user_activity_live_coach').upsert(crow, { onConflict: 'user_id' });
+        if (fresh) crow.started_at = start;
+        const result = await _liveRequest(supabase.from('user_activity_live_coach').upsert(crow, { onConflict: 'user_id' }));
+        ok = ok && !result.error;
       } else {
         // No coach payload (malformed state, or a non-workout push) must not
         // leave the old loads readable until expiry.
-        await supabase.from('user_activity_live_coach').delete().eq('user_id', state.user.id);
+        const result = await _liveRequest(supabase.from('user_activity_live_coach').delete().eq('user_id', uid));
+        ok = ok && !result.error;
       }
-    } catch (e) { /* pre-migration: the table doesn't exist yet — degrade silently */ }
+    } catch (e) { ok = false; }
+    return ok && sameOwner() && coachLive();
   });
 }
 // Public row only — used by the private-audience branch, which must NOT take
 // the coach row down with it.
-async function _livePublicDelete() {
-  try { if (supabase && state.user) await supabase.from('user_activity_live').delete().eq('user_id', state.user.id); } catch (e) {}
+async function _livePublicDelete(uid = state.user?.id) {
+  try { if (supabase && uid) { const result = await _liveRequest(supabase.from('user_activity_live').delete().eq('user_id', uid)); return !result.error; } } catch (e) {}
+  return false;
 }
 // Session end: BOTH rows, transactionally, so a coach row can never be
 // stranded behind a deleted public one.
-async function _liveDelete() {
-  if (!supabase || !state.user) return;
+async function _liveDelete(uid, authGen) {
+  if (!supabase || state.user?.id !== uid || signOutGen() !== authGen) return;
   try {
-    const { error } = await supabase.rpc('live_clear');
+    const { error } = await _liveRequest(supabase.rpc('live_clear'));
     if (!error) return;
   } catch (e) {}
   // pre-migration fallback: two best-effort deletes
-  await _livePublicDelete();
-  try { await supabase.from('user_activity_live_coach').delete().eq('user_id', state.user.id); } catch (e) {}
+  if (state.user?.id !== uid || signOutGen() !== authGen) return;
+  await _livePublicDelete(uid);
+  if (state.user?.id !== uid || signOutGen() !== authGen) return;
+  try { await _liveRequest(supabase.from('user_activity_live_coach').delete().eq('user_id', uid)); } catch (e) {}
 }
-function liveClear() {
+function liveClear(expectedOwner = state.user?.id) {
+  const uid = state.user?.id;
+  if (!uid || expectedOwner !== uid) return Promise.resolve(false);
+  const authGen = signOutGen();
   _liveGen++;                                   // obsolete any queued push
   _liveCoachGen++;                              // session end DOES obsolete the coach leg
-  return _liveEnqueue(_liveDelete);             // runs AFTER any in-flight upsert
+  _liveRequestController?.abort();               // release a stalled write before the queued delete
+  return _liveEnqueue(() => _liveDelete(uid, authGen));
 }
 window.ShapeLiveProgress = {
+  watch: (uid, cb) => watchLiveWorkout({ db: supabase, clientId: uid, onChange: cb }),
   push: livePush,
   clear: liveClear,
   get: async (uid) => {
@@ -7673,11 +7702,15 @@ window.ShapeLiveProgress = {
     } catch (e) { return null; }
   },
   subscribe: (uid, cb) => {
-    if (!supabase || !uid) return () => {};
+    if (!supabase || !_okUuid(uid)) return () => {};
+    const mine = (row) => typeof row?.user_id === 'string' && row.user_id.toLowerCase() === uid.toLowerCase();
     try {
       const channel = supabase.channel(`live-progress-${uid}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'user_activity_live', filter: `user_id=eq.${uid}` },
-          (payload) => { try { cb(payload.eventType === 'DELETE' ? null : (payload.new || null)); } catch (e) {} })
+          (payload) => { try {
+            const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+            if (mine(row)) cb(payload.eventType === 'DELETE' ? null : row);
+          } catch (e) {} })
         .subscribe();
       return () => { try { supabase.removeChannel(channel); } catch (e) {} };
     } catch (e) { return () => {}; }
@@ -8401,9 +8434,119 @@ function subscribeCoachConsoleFeed(onChange) {
   };
 }
 
+// The same authenticated, actively-linked coach write used by the desktop
+// console. Success means the cue was saved, not that a device read it.
+async function sendWorkoutCoachCue({ clientId, text, role = 'trainer' } = {}) {
+  const owner = state.user?.id;
+  if (!owner || !state.session?.access_token) throw new Error('Sign in to send a cue.');
+  const discipline = providerDiscipline(role);
+  if (!['trainer', 'nutritionist'].includes(discipline)) throw new Error('Invalid coach role.');
+  const recipient = String(clientId || '').trim();
+  const cue = String(text || '').trim();
+  if (!recipient || !cue) throw new Error('Choose a client and enter a cue.');
+  if (cue.length > 500) throw new Error('Keep cues to 500 characters or fewer.');
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(`${apiBaseUrl || ''}/api/${discipline}/console`, {
+      method: 'POST', credentials: 'same-origin', headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ action: 'focus', clientId: recipient, text: cue }), signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (state.user?.id !== owner) throw new Error('Account changed. Reopen the client before sending another cue.');
+    if (!response.ok || result?.ok !== true) throw new Error(result?.error || 'Could not send the cue. Try again.');
+    return { ok: true };
+  } finally { clearTimeout(deadline); }
+}
+
+let workoutCueSubscriptionId = 0;
+// Focus banners retain only the latest cue per coach. Read the client's own
+// RLS-scoped rows and ignore anything sent before this workout began. Polling
+// and foreground refresh recover missed websocket events; neither is a receipt.
+function subscribeWorkoutCoachCues({ userId, startedAt, onCue, onStatus = () => {} } = {}) {
+  const owner = state.user?.id;
+  const since = Date.parse(startedAt);
+  if (!owner || owner !== userId || !supabase || !Number.isFinite(since) || typeof onCue !== 'function') return () => {};
+  let stopped = false;
+  let inFlight = false;
+  let refreshAgain = false;
+  let channel = null;
+  let poll = null;
+  let readAbort = null;
+  const seen = new Set();
+  const isCurrent = () => !stopped && state.user?.id === owner;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(poll);
+    readAbort?.abort();
+    window.removeEventListener('shape:identity', identityChanged);
+    window.removeEventListener('online', refresh);
+    document.removeEventListener('visibilitychange', foreground);
+    if (channel) { try { supabase.removeChannel(channel); } catch {} }
+  };
+  const identityChanged = () => {
+    if (state.user?.id === owner) return;
+    onCue(null);
+    onStatus('closed');
+    stop();
+  };
+  const refresh = async () => {
+    if (!isCurrent()) return;
+    if (inFlight) { refreshAgain = true; return; }
+    inFlight = true;
+    readAbort = new AbortController();
+    const deadline = setTimeout(() => readAbort?.abort(), 15000);
+    try {
+      const result = await supabase.from('coach_focus_banners')
+        .select('id, client_id, provider_role, provider_id, text, sent_at')
+        .eq('client_id', owner).gte('sent_at', new Date(since).toISOString())
+        .abortSignal(readAbort.signal)
+        .order('sent_at', { ascending: false });
+      if (!isCurrent()) return;
+      if (result.error) throw result.error;
+      const eligible = (result.data || []).filter(row => row.client_id === owner
+        && typeof row.text === 'string' && row.text.trim()
+        && Number.isFinite(Date.parse(row.sent_at)) && Date.parse(row.sent_at) >= since)
+        .sort((a, b) => Date.parse(b.sent_at) - Date.parse(a.sent_at));
+      const key = row => JSON.stringify([row.id, row.provider_role, row.provider_id, row.sent_at, row.text]);
+      const latest = eligible.find(row => !seen.has(key(row)));
+      eligible.forEach(row => seen.add(key(row)));
+      if (latest) onCue(latest);
+      onStatus('ready');
+    } catch {
+      if (isCurrent()) onStatus('error');
+    } finally {
+      clearTimeout(deadline);
+      readAbort = null;
+      inFlight = false;
+      if (refreshAgain && isCurrent()) { refreshAgain = false; void refresh(); }
+    }
+  };
+  const foreground = () => { if (document.visibilityState !== 'hidden') void refresh(); };
+  window.addEventListener('shape:identity', identityChanged);
+  window.addEventListener('online', refresh);
+  document.addEventListener('visibilitychange', foreground);
+  poll = setInterval(foreground, 8000);
+  onStatus('connecting');
+  try {
+    channel = supabase.channel(`workout-cues:${owner}:${++workoutCueSubscriptionId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_focus_banners', filter: `client_id=eq.${owner}` }, refresh)
+      .subscribe(status => {
+        if (!isCurrent()) return;
+        if (status === 'SUBSCRIBED') void refresh();
+        else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) onStatus('error');
+      });
+  } catch { onStatus('error'); }
+  void refresh();
+  return stop;
+}
+
 window.ShapeCoachFeed = {
   fetch: fetchCoachConsoleFeed,
   subscribe: subscribeCoachConsoleFeed,
+  sendCue: sendWorkoutCoachCue,
+  subscribeWorkoutCues: subscribeWorkoutCoachCues,
 };
 
 // ─── Pro Console API (trainer / nutritionist side) ───────────────────────────

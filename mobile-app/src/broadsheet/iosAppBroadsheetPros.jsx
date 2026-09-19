@@ -7,10 +7,10 @@ import { normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows }
 import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, knownWorkoutAverage, coachWorkoutVideos, workoutAssignmentsHaveExercises } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSCoachNote from './BSCoachNote.jsx';
+import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsCaseVitals } from '../services/caseVitals.mjs';
-import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
 import { bsVarianceCopy } from '../../../public/newdesign/varianceBand.mjs';
 import { bsDeriveCycle } from '../services/cyclePhase.mjs';
 import { BS_LISTING_GALLERY_MAX, BS_LISTING_CAPTION_MAX } from '../services/listingMedia.mjs';
@@ -636,265 +636,10 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
 
 // Coach "live now" — read-only mirror of the client's live session: running
 // timer, sets as they land, current move, plus a quick-cue sender.
-function BSProLiveWatch({ client = 'Alex Rivera', clientId = null, workout = 'Upper Pull — Peak', onBack = () => {} }) {
+function BSProLiveWatch(props) {
   const t = useBS();
   const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [now, setNow] = useStateBSP(Date.now());
-  const [startedAt] = useStateBSP(Date.now() - (30 * 60 + 55) * 1000); // ~30:55 in (DEMO only)
-  const [cueDraft, setCueDraft] = useStateBSP('');
-  const [sentCue, setSentCue] = useStateBSP(null);
-  useEffectBSP(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
-  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  // Real mode (spec 2026-07-18): a real clientId + a readable row → render the
-  // PAYLOAD (names + set counts; loads render '—' — v1 broadcasts none, and the
-  // demo figures must NEVER show for a real client). No readable row → the demo
-  // grid is NOT shown either: the console keeps elapsed/kind and reads an honest
-  // neutral line. The hardcoded demo survives ONLY for demo roster entries.
-  const [liveRow, setLiveRow] = useStateBSP(null);
-  useEffectBSP(() => {
-    if (!clientId || !window.ShapeLiveProgress) return undefined;
-    let on = true; let expTimer = null; let evented = false;
-    // TOCTOU guard (review: CodeRabbit) — see the boost sheet: a late initial
-    // get() must not overwrite a newer realtime event or a DELETE.
-    const take = (r, fromEvent) => {
-      if (!on) return;
-      if (fromEvent) evented = true; else if (evented) return;
-      setLiveRow(r);
-      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
-      if (expMs > 0) expTimer = setTimeout(() => { if (on) setLiveRow(null); }, expMs);   // subscription-side expiry
-    };
-    window.ShapeLiveProgress.get(clientId).then((r) => take(r, false)).catch(() => {});
-    const off = window.ShapeLiveProgress.subscribe(clientId, (r) => take(r, true));
-    return () => { on = false; if (expTimer) clearTimeout(expTimer); off(); };
-  }, [clientId]);
-  // malformed → honest-absent. bsValidLivePayload now returns a DISCRIMINATED
-  // UNION (workout | cooking, spec 2026-07-19), and this console renders
-  // workout scaffolding — a cooking row must fall through to the neutral
-  // no-detail line, never an exercise grid built from fields it doesn't carry.
-  // Coach channel (spec 2026-07-19, owner-ratified): real loads/reps/RPE for
-  // the client's OWN coach, from a separate coach-only row. RLS decides — a
-  // non-coach, and a SINCE-REVOKED coach, simply reads nothing. NO persistent
-  // cache anywhere: component state only. That alone is not the revocation
-  // bound though — revocation is SILENT to an open page (RLS just stops
-  // delivering events), so the bound is the periodic protected re-read below.
-  const [coachRow, setCoachRow] = useStateBSP(null);
-  const COACH_RECHECK_MS = 60000;            // how often an on-screen row re-proves access
-  useEffectBSP(() => {
-    setCoachRow(null);                       // reset on client change
-    if (!clientId || !window.ShapeLiveProgress?.getCoach) return undefined;
-    let on = true; let expTimer = null; let evented = false;
-    const refetch = () => {
-      // On expiry, RE-FETCH rather than merely nulling (spec round 3): a
-      // revoked link's protected re-read returns nothing under RLS, so held
-      // coach state actively clears at the first re-check — and a failed or
-      // empty re-read clears it too.
-      window.ShapeLiveProgress.getCoach(clientId)
-        .then((r) => { if (on) take(r, 'refetch'); })
-        .catch(() => { if (on) setCoachRow(null); });
-    };
-    // `src`: 'init' | 'event' | 'refetch'. The evented guard exists ONLY to stop
-    // a slow initial read from clobbering a realtime event that landed first.
-    // A 'refetch' is the expiry/revocation re-check and is AUTHORITATIVE — the
-    // old boolean form swallowed it once any event had arrived, so a revoked
-    // coach's loads could never clear. Same defect as the web station carried;
-    // it was reported there and is fixed here for parity.
-    const take = (r, src) => {
-      if (!on) return;
-      if (src === 'event') evented = true;
-      else if (src === 'init' && evented) return;
-      const expMs = r && r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : 0;
-      if (r && !(expMs > 0)) r = null;        // expired / NaN expiry = absence
-      setCoachRow(r);
-      if (expTimer) { clearTimeout(expTimer); expTimer = null; }
-      // Bounded re-check, not the row's full remaining life: revocation is
-      // silent (RLS just stops delivering events) and the writer refreshes
-      // expires_at to 30 MINUTES on every push, so an unbounded timer left the
-      // last snapshot on screen for up to half an hour.
-      if (r && expMs > 0) expTimer = setTimeout(() => { if (on) refetch(); }, Math.min(expMs, COACH_RECHECK_MS));
-    };
-    window.ShapeLiveProgress.getCoach(clientId).then((r) => take(r, 'init')).catch(() => {});
-    const offC = window.ShapeLiveProgress.subscribeCoach
-      ? window.ShapeLiveProgress.subscribeCoach(clientId, (r) => take(r, 'event'))
-      : () => {};
-    return () => { on = false; if (expTimer) clearTimeout(expTimer); offC(); };
-  }, [clientId]);
-  // malformed → honest-absent. bsValidLivePayload now returns a DISCRIMINATED
-  // UNION (workout | cooking, spec 2026-07-19), and this console renders
-  // workout scaffolding — a cooking row must fall through to the neutral
-  // no-detail line, never an exercise grid built from fields it doesn't carry.
-  // Preference: an unexpired, VALID coach row wins; else the public row; else
-  // neutral. A malformed coach payload falls back rather than blanking.
-  const cp = coachRow && coachRow.expires_at && new Date(coachRow.expires_at).getTime() > Date.now()
-    ? bsValidLiveCoachPayload(coachRow.payload) : null;
-  const lpAny = cp || (liveRow ? bsValidLivePayload(liveRow.payload) : null);
-  const lp = lpAny && (!lpAny.kind || lpAny.kind === 'workout') ? lpAny : null;
-  const liveMode = !!clientId;   // real client → NEVER the demo data, row or not
-
-  const demoMoves = [
-    { name: 'Pull-up', scheme: '4 × 6-8', rest: '180s', load: '42 lb', sets: 4, done: 4 },
-    { name: 'Barbell row', scheme: '4 × 8', rest: '2:00', load: '155 lb', sets: 4, done: 2, active: true, cue: 'Hinge 45°, pull to sternum.' },
-    { name: 'Chest-sup. row', scheme: '3 × 10', rest: '90s', load: '60 lb', sets: 3, done: 0 },
-    { name: 'Face pull', scheme: '3 × 15', rest: '60s', load: '35 lb', sets: 3, done: 0 },
-    { name: 'Incline curl', scheme: '3 × 12', rest: '60s', load: '27.5 lb', sets: 3, done: 0 },
-    { name: 'Farmer carry', scheme: '3 × 40m', rest: '60s', load: '80 lb', sets: 3, done: 0 },
-  ];
-  // Live payload → the same row shape the demo grid renders. `setRows` carries
-  // the per-set figures ONLY when the coach payload drives (cp); on the public
-  // payload it is null and every cell stays an honest '—'. Note `sets` is the
-  // COUNT (pre-existing); `setRows` is the array — deliberately different keys.
-  const shownMoves = liveMode
-    ? (lp ? lp.exercises.map((e, i) => ({ name: e.n, scheme: `${e.done}/${e.total}`, rest: '—', load: '—', sets: e.total, setRows: (cp && Array.isArray(e.sets)) ? e.sets : null, done: e.done, active: i === lp.curIdx })) : [])
-    : demoMoves;
-  // Prefer the coach row's start when it drives — otherwise a coach-only stream
-  // (private member: no public row at all) would have no clock to read.
-  const shownStartedAt = liveMode
-    ? ((cp && coachRow && coachRow.started_at) ? new Date(coachRow.started_at).getTime()
-      : (liveRow && liveRow.started_at ? new Date(liveRow.started_at).getTime() : null))
-    : startedAt;
-  // ⚠ Crash guard (spec review, Codex P1): with shownMoves = [] every `cur.*`
-  // read below would throw. `noDetail` short-circuits the header counter, the
-  // exercise section and the set grid; `cur` is null-safe regardless.
-  const noDetail = liveMode && !lp;
-  // curIdx === -1 is a REAL state the validator preserves ("no current
-  // exercise" — nothing started yet). Math.max(0, …) would fabricate exercise 1
-  // and a NOW marker (review: CodeRabbit), so -1 is honoured and `cur` stays null.
-  const curIdx = shownMoves.findIndex(m => m.active);
-  const cur = curIdx >= 0 ? shownMoves[curIdx] : null;
-  const totalSets = shownMoves.reduce((s, m) => s + m.sets, 0);
-  const doneSets = shownMoves.reduce((s, m) => s + m.done, 0);
-  const pct = totalSets ? doneSets / totalSets : 0;
-  const elapsed = shownStartedAt != null ? Math.max(0, Math.floor((now - shownStartedAt) / 1000)) : null;
-  const quickCues = [
-    tr('coach:live.cueEccentric', { defaultValue: 'Slow the eccentric' }),
-    tr('coach:live.cueHold', { defaultValue: 'Hold this weight' }),
-    tr('coach:live.cueOneMore', { defaultValue: 'One more set' }),
-    tr('coach:live.cueRest', { defaultValue: 'Lengthen your rest' }),
-  ];
-  const sendCue = (text) => { const m = String(text || cueDraft).trim(); if (!m) return; setSentCue(m); setCueDraft(''); };
-
-  return (
-    <BSPage>
-      {/* ⚠ corners: false — this is the ONE page in the app that no navigation
-          can survive, by an earlier deliberate decision: `navLoc()` has no
-          liveWatch branch and `navResolve` calls setLiveWatch(null), because
-          replaying a live session that may have ended would fabricate it. So a
-          round trip through EITHER corner (search, or the avatar's Settings hop)
-          returns through navBack to a location without liveWatch and closes the
-          monitor, taking any typed cue with it. Not a stacking or routing bug
-          this time — the page is intentionally ephemeral, so the row carries no
-          way to leave it but ✕ Close. */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
-      <div style={{ padding: `12px ${t.padX}px 6px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <button onClick={onBack} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:live.close', { defaultValue: '✕ Close' })}</button>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: teal, display: 'inline-block', boxShadow: '0 0 8px currentColor' }} /> {tr('coach:live.liveClock', { defaultValue: 'Live · {time}', time: elapsed != null ? fmt(elapsed) : '—:—' })}
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{noDetail ? '' : tr('coach:live.setsCount', { defaultValue: 'Sets {done}/{total}', done: doneSets, total: totalSets })}</span>
-      </div>
-
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('coach:live.watchingLive', { defaultValue: 'Watching live' })}</div>
-        <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 29, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{client}</div>
-        {noDetail ? (
-          // Neutral by design (spec review): RLS makes 'private', 'not visible
-          // to this viewer' and 'pre-migration' indistinguishable — naming any
-          // one would fabricate a state we cannot know.
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
-            {tr('coach:live.detailUnavailable', { defaultValue: "Live detail unavailable — set-by-set isn't shared here" })}
-          </div>
-        ) : (
-          <React.Fragment>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('coach:live.workoutProgress', { defaultValue: '{workout} · {pct}% · set {cur} of {total}', workout, pct: Math.round(pct * 100), cur: (cur ? cur.done : 0) + 1, total: cur ? cur.sets : 0 })}</div>
-            <div style={{ marginTop: 12, height: 4, borderRadius: 999, background: t.HAIR, overflow: 'hidden' }}>
-              <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: teal, borderRadius: 999 }} />
-            </div>
-          </React.Fragment>
-        )}
-      </div>
-
-      {cur && <div style={{ padding: `20px ${t.padX}px 0`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 800 }}>{tr('coach:live.exerciseOf', { defaultValue: 'Exercise {cur} of {total}', cur: curIdx + 1, total: shownMoves.length })}</span>
-        <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 700 }}>{cur.scheme}</span>
-      </div>}
-      {cur && <div style={{ padding: `4px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{cur.name}<span style={{ color: teal }}>.</span></div>
-        {cur.cue && <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, color: t.INK50 }}>“{cur.cue}”</div>}
-      </div>}
-
-      {/* ⚠ FIRST COLUMN WIDENED 26px → 48px, SIZED TO THE REAL TRANSLATIONS. Mono 9px
-          at 0.16em tracking costs ~6.84px/char, so 26px held 3.8 characters — enough
-          for "Set" and nothing else. `live.colSet` already ships «Подход»/«Підхід» (6
-          ch, 41.0px) and "Série"/"Serie" (5, 34.2), so this row has been clipping in
-          six locales. The last column is an empty spacer and stays 30px; the client's
-          twin of this grid widens it instead, because there it carries a header. */}
-      {cur && <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 30px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          <span>{tr('coach:live.colSet', { defaultValue: 'Set' })}</span><span>{tr('coach:live.colWeight', { defaultValue: 'Weight' })}</span><span>{tr('coach:live.colReps', { defaultValue: 'Reps' })}</span><span>{tr('coach:common.rpe', { defaultValue: 'RPE' })}</span><span />
-        </div>
-        {/* Read-only set ledger — this is a MIRROR of the client's live inputs, so no
-            box-fields: bare tabular figures; the live set carries a teal underline. */}
-        {Array.from({ length: cur.sets }).map((_, i) => {
-          const done = i < cur.done;
-          const active = i === cur.done;
-          const cell = (val) => <div style={{ color: val === '—' ? t.INK50 : t.INK, padding: '10px 8px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderBottom: `2px solid ${active ? teal : 'transparent'}`, opacity: done ? 0.6 : 1 }}>{val}</div>;
-          return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 30px', gap: 8, alignItems: 'center', padding: '3px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || active) ? teal : t.INK50 }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              {/* Real figures when the COACH payload drives; '—' per set when a
-                  field wasn't entered, and '—' throughout on the public payload.
-                  Honest-absent per cell — never a fabricated load. */}
-              {cell(liveMode ? ((cur.setRows && cur.setRows[i] && cur.setRows[i].load) || '—') : String(cur.load || '').replace(/\s*lb/i, '') + ' lb')}
-              {cell(liveMode ? ((cur.setRows && cur.setRows[i] && cur.setRows[i].reps) || '—') : (done ? '8' : '—'))}
-              {cell(liveMode ? ((cur.setRows && cur.setRows[i] && cur.setRows[i].rpe) || '—') : (done ? '8.0' : '—'))}
-              <span style={{ justifySelf: 'end', width: 24, height: 24, borderRadius: 999, border: `1.5px solid ${(done || active) ? teal : t.RULE}`, background: done ? teal : 'transparent', color: done ? '#04201d' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800 }}>✓</span>
-            </div>
-          );
-        })}
-      </div>}
-
-      <div style={{ padding: `18px ${t.padX}px 0` }}>
-        {/* Rust retired from chrome — station-head eyebrow (accent tick + ink), teal action. */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> {tr('coach:live.sendCue', { defaultValue: 'Send a cue' })}</div>
-        {sentCue && <div style={{ marginTop: 8, borderLeft: `3px solid ${teal}`, padding: '2px 0 2px 11px', fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, color: t.INK70 }}>{tr('coach:live.sentTo', { defaultValue: 'Sent to {name}: “{cue}”', name: client, cue: sentCue })}</div>}
-        <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-          <input value={cueDraft} onChange={e => setCueDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendCue(); }} placeholder={tr('coach:live.cuePlaceholder', { defaultValue: 'Type a quick cue…' })} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', borderRadius: 8, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '11px 14px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-          <button onClick={() => sendCue()} style={{ borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', padding: '0 18px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('coach:common.send', { defaultValue: 'Send' })}</button>
-        </div>
-        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {quickCues.map(q => <button key={q} onClick={() => sendCue(q)} style={{ borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', padding: '8px 12px', minHeight: 32, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{q}</button>)}
-        </div>
-      </div>
-
-      <div style={{ padding: `24px ${t.padX}px 4px` }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK }}><span aria-hidden style={{ width: 10, height: 2, background: teal, display: 'inline-block' }} /> {tr('coach:common.upNext', { defaultValue: 'Up next' })}</div>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('coach:live.queue', { defaultValue: 'Queue' })}<span style={{ color: teal }}>.</span></div>
-      </div>
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        {/* NOW spine on the current move — no fill/box (the client session queue grammar). */}
-        {shownMoves.map((m, i) => {
-          const mDone = m.done >= m.sets;
-          const isCur = i === curIdx;
-          return (
-            <div key={i} style={{ borderLeft: `3px solid ${isCur ? teal : 'transparent'}`, display: 'grid', gridTemplateColumns: '26px 1fr auto', gap: 10, alignItems: 'center', padding: '12px 0 12px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? teal : (isCur ? teal : t.INK50) }}>{mDone ? '✓' : isCur ? tr('coach:common.now', { defaultValue: 'NOW' }) : String(i + 1).padStart(2, '0')}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', textDecoration: mDone ? 'line-through' : 'none' }}>{m.name}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{tr('coach:live.moveMeta', { defaultValue: '{scheme} · {rest} rest · {done}/{total} sets', scheme: m.scheme, rest: m.rest, done: m.done, total: m.sets })}</div>
-              </div>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{t.uText(m.load)}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ padding: `16px ${t.padX}px 24px` }}>
-        <button onClick={onBack} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{tr('coach:live.stopWatching', { defaultValue: 'Stop watching' })}</button>
-      </div>
-      <BSFooter right={tr('coach:common.live', { defaultValue: 'Live' })} />
-    </BSPage>
-  );
+  return <BSLiveWorkoutWatch {...props} t={t} tr={tr} masthead={bsProMastRow({ corners: false })} mastTop={BS_MAST_TOP_CSS} />;
 }
 
 // Coach Grocery Lists — real, owner-scoped lists (coach_grocery_lists). A coach
@@ -1896,6 +1641,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                 }} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : '#34d6c5' }}>{actionLabel}</button>
               </div>
             </div>
+            {!isNutri && liveClients.length > 1 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+              {liveClients.slice(1).map(other => <button type="button" key={other.userId} onClick={() => openLiveMessage(other)} style={{ minHeight: 44, padding: '8px 12px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11 }}>{other.n} · {actionLabel}</button>)}
+            </div>}
             <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
           </div>
         );

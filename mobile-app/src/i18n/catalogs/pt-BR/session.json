@@ -311,5 +311,7 @@
   "player.targetLoad": "Meta · {load}",
   "player.tempo": "Cadência",
   "player.timedSets": "Séries cronometradas",
-  "player.unfinished": "Treinos não concluídos"
+  "player.unfinished": "Treinos não concluídos",
+  "player.coachCue": "Orientação do treinador",
+  "player.dismissCoachCue": "Dispensar orientação do treinador"
 }
