@@ -4326,8 +4326,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // the card) and persists via the same /api/client/habits toggle the habits
   // page uses. Demo habits (no live set yet) route to the habits page.
   const homeHabitBusy = React.useRef(false);
+  const homeHabitIsFuture = new Date(`${_homeHabitsDateKey}T00:00:00`).getTime() > new Date().setHours(0, 0, 0, 0);
   const toggleHomeHabit = async (h) => {
     if (!h.live) { setHabitsPage(true); return; }
+    if (homeHabitIsFuture) return;
     if (window.bsRequireAccount && !window.bsRequireAccount('track habits')) return;
     if (homeHabitBusy.current) return;
     homeHabitBusy.current = true;
@@ -4921,8 +4923,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
             right: (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleHomeHabit(h); }}
+                disabled={h.live && homeHabitIsFuture}
                 aria-label={h.live ? tr('home:habit.markDone', { defaultValue: 'Mark {name} done', name: h.name }) : tr('home:habit.demoAria', { defaultValue: 'Demo habits — open the habits page' })}
-                style={{ width: 24, height: 24, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 10, lineHeight: 1 }}
+                style={{ width: 44, height: 44, borderRadius: 5, flexShrink: 0, border: `1.5px solid ${h.live ? pillC : t.RULE}`, background: `${pillC}12`, opacity: h.live && homeHabitIsFuture ? .45 : 1, cursor: h.live && homeHabitIsFuture ? 'default' : 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontSize: 10, lineHeight: 1 }}
               >{h.live ? '' : '🔒'}</button>
             ),
             onOpen: () => setHabitsPage(true),
@@ -9097,7 +9100,9 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     const nxt = timeline[cursor + 1];
     const effective = queued ? [...timers, queued] : timers;
     const blocked = !!bsCookBlockingHold(nxt, effective, at, kitchen);
-    if (!blocked) advance(effective);
+    // Serve mode rebuilds the remaining order around this real deadline. Staying
+    // on the old order's blocked continuation would miss another dish's start.
+    if (!blocked || serve) advance(effective);
   };
   // Soft convenience timer on an ACTIVE step ("sear 3 min per side") — a plain
   // countdown the cook can start; it NEVER gates (no wait, no block, no
@@ -9248,7 +9253,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
                   </>)
                 : isWindow && !evStarted
                 ? <button onClick={startAndGo} style={{ ...primaryBtn, flex: 1 }}>{tr('cook:prep.startTimerGo', { defaultValue: 'Start timer · keep cooking →' })}</button>
-                : waitingOn
+                : waitingOn && !serve
                   ? <div style={{ ...primaryBtn, flex: 1, background: 'transparent', color: BAND.dim, border: `1px solid ${BAND.hair}`, cursor: 'default', clipPath: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: waitingOn.title, t: fmt(Math.max(0, Math.ceil((waitingOn.endsAt - now) / 1000))) })}</div>
                   : <button onClick={() => advance()} style={{ ...primaryBtn, flex: 1 }}>{cursor + 1 >= timeline.length ? tr('cook:prep.finish', { defaultValue: 'Finish →' }) : tr('cook:prep.next', { defaultValue: 'Next →' })}</button>}
             </div>

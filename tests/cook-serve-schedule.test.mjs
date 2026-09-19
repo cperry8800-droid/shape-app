@@ -79,6 +79,18 @@ const SHORT = {
 const OPTS = { activeStepMin: 3, minPassive: 4, kitchen: { stove: 2, oven: 1 } };
 const MIN = 60000;
 
+test('a late serve-mode hold replans immediately instead of waiting on the old dish order', () => {
+  const timeline = [
+    { recipe:'a', iid:0, title:'Braise', stepIndex:0, text:'Simmer for 20 minutes.', at:0, min:20, passive:true, station:'stove' },
+    { recipe:'a', iid:0, title:'Braise', stepIndex:1, text:'Plate the braise.', at:20, min:2, passive:false, station:'board' },
+    { recipe:'b', iid:1, title:'Salad', stepIndex:0, text:'Toss the salad now.', at:22, min:3, passive:false, station:'board' },
+  ];
+  const s = drive(MOD.BSPrepCook, { items:[], timeline, anchor:Date.now()-30*MIN, serve:true, kitchen:{stove:1,board:1}, onClose(){}, onRecipePrepped(){}, onDone(){} });
+  s.click('Start timer');
+  assert.ok(s.text.includes('Toss the salad now.'), 'the next actionable dish must replace the obsolete wait');
+  assert.ok(s.text.includes('Updated finish:'), 'the revised finish must be visible');
+});
+
 const servePlan = (extraDelay) => {
   const soonest = bsOrchestrate([LONG, SHORT], { ...OPTS, mode: BS_COOK_MODE.SERVE });
   return bsOrchestrate([LONG, SHORT], { ...OPTS, mode: BS_COOK_MODE.SERVE, serveAt: (soonest.earliestServe || 0) + extraDelay });

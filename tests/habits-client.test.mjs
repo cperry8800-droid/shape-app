@@ -6,6 +6,22 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 const require = createRequire(import.meta.url);
+test('Home rejects future habit dates while keeping today and historical check-offs', async () => {
+  const source = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  const start = source.indexOf('  const homeHabitIsFuture =');
+  const section = source.slice(start, source.indexOf('  // Per-day calorie balance', start));
+  const now = new Date(2026, 8, 19, 23, 30);
+  class LocalDate extends Date { constructor(...args) { super(...(args.length ? args : [now.getTime()])); } }
+  for (const [day, expected] of [['2026-09-20', 0], ['2026-09-19', 1], ['2026-09-18', 1]]) {
+    const calls = [];
+    const context = vm.createContext({ Date: LocalDate, _homeHabitsDateKey: day, homeHabitBusy: { current: false },
+      window: { ShapeHabitsData: { action: async body => { calls.push(body); return { done: false }; }, listStrict: async () => ({ habits: [] }) } },
+    });
+    await vm.runInContext(`${section}\ntoggleHomeHabit({ id: 'h', live: true, done: false });`, context);
+    assert.equal(calls.length, expected, day);
+    if (expected) assert.equal(calls[0].date, day);
+  }
+});
 const { JSDOM } = require('jsdom');
 const dom = new JSDOM('<div id="root"></div>', { url:'https://shape.test' });
 globalThis.window = dom.window; globalThis.document = window.document;
