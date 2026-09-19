@@ -37,4 +37,8 @@ if (Capacitor.isNativePlatform()) {
   document.documentElement.dataset.platform = Capacitor.getPlatform();
 }
 
-await import('./broadsheet/index.jsx');
+if (!Capacitor.isNativePlatform() && new URLSearchParams(location.search).get('cooking') === '1') {
+  await import('./broadsheet/cookingWeb.jsx');
+} else {
+  await import('./broadsheet/index.jsx');
+}

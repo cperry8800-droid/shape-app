@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Ein To-don’t hinzufügen",
   "list.cleanCount": "{done}/{total} sauber",
   "list.deleteConfirm": "Gewohnheit löschen",
-  "list.deleteMessage": "Das entfernt die Gewohnheit und ihren gesamten Serienverlauf.",
+  "list.deleteMessage": "Die Gewohnheit wird aus deiner täglichen Liste entfernt. Frühere Einträge bleiben erhalten.",
   "list.deleteTitle": "Diese Gewohnheit löschen?",
   "list.doneCount": "{done}/{total} erledigt",
   "list.removeHabit": "Gewohnheit entfernen",
@@ -69,5 +69,6 @@
   "toast.removed": "Gewohnheit entfernt",
   "toast.setPrivate": "Auf privat gestellt",
   "toast.sharedFriends": "Mit Freunden geteilt",
-  "toast.updateError": "Gewohnheit konnte nicht aktualisiert werden"
+  "toast.updateError": "Gewohnheit konnte nicht aktualisiert werden",
+  "page.loading": "Wird geladen…"
 }

@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Thêm việc cần tránh",
   "list.cleanCount": "{done}/{total} vẫn sạch",
   "list.deleteConfirm": "Xóa thói quen",
-  "list.deleteMessage": "Thao tác này xóa thói quen và toàn bộ lịch sử chuỗi của nó.",
+  "list.deleteMessage": "Thói quen sẽ được bỏ khỏi danh sách hằng ngày. Các lần hoàn thành trước vẫn được giữ lại.",
   "list.deleteTitle": "Xóa thói quen này?",
   "list.doneCount": "{done}/{total} đã xong",
   "list.removeHabit": "Gỡ thói quen",
@@ -69,5 +69,6 @@
   "toast.removed": "Đã xóa thói quen",
   "toast.setPrivate": "Đã đặt riêng tư",
   "toast.sharedFriends": "Đã chia sẻ với bạn bè",
-  "toast.updateError": "Không thể cập nhật thói quen"
+  "toast.updateError": "Không thể cập nhật thói quen",
+  "page.loading": "Đang tải…"
 }

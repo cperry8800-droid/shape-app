@@ -1,5 +1,5 @@
 // Seven days, oldest -> newest. Today is the rightmost slot.
-const DAY_LABELS = ["THU", "FRI", "SAT", "SUN", "MON", "TUE", "WED"];
+
 
 const SEED_HABITS = DEFAULT_HABITS;
 
@@ -9,7 +9,7 @@ function HabitRow({ h, onToggle, onRemove }) {
   const done = h.today;
   return (
     <div style={{
-      display: "grid", gridTemplateColumns: "32px 1fr auto auto auto", gap: 12, alignItems: "center",
+      display: "grid", gridTemplateColumns: "44px 1fr auto auto auto", gap: 12, alignItems: "center",
       padding: "14px 4px", borderTop: "1px solid rgba(242,237,228,0.06)",
     }}>
       <HabitCheckbox checked={done} onClick={() => onToggle(h.id)} type={h.type}
@@ -30,7 +30,7 @@ function HabitRow({ h, onToggle, onRemove }) {
         {streakFor(h)}d
       </span>
       <button onClick={() => onRemove(h.id)} aria-label="Remove habit" title="Remove"
-        style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.35)", fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>
+        style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.35)", fontSize: 16, cursor: "pointer", padding: "0 4px", minWidth: 44, minHeight: 44, lineHeight: 1 }}>
         &times;
       </button>
     </div>
@@ -38,100 +38,21 @@ function HabitRow({ h, onToggle, onRemove }) {
 }
 
 function ClientHabitsPage() {
-  const [habits, setHabits] = React.useState(() => loadHabitToday(SEED_HABITS));
-  const [visibility, setVisibility] = React.useState("friends");
-  const [synced, setSynced] = React.useState(false);
-
-  // Persist today's checked state per-day (shared with the dashboard widget).
-  React.useEffect(() => { saveHabitToday(habits); }, [habits]);
-
-  // On mount, try to hydrate from the signed-in user's server-side habits.
-  // If the user isn't signed in (or the API returns nothing), we silently
-  // fall back to localStorage behavior.
-  React.useEffect(() => {
-    let alive = true;
-    fetch('/api/client/habits', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (!alive || !d || !Array.isArray(d.habits)) return;
-        const today = new Date().toISOString().slice(0, 10);
-        const mapped = d.habits.map(h => {
-          const hist = Array.isArray(h.history) ? h.history : [];
-          // Build a 6-cell history strip ending yesterday.
-          const strip = [];
-          for (let i = 6; i >= 1; i--) {
-            const d = new Date(); d.setUTCHours(0,0,0,0); d.setUTCDate(d.getUTCDate() - i);
-            strip.push(hist.includes(d.toISOString().slice(0,10)));
-          }
-          return {
-            id: h.id,
-            type: h.type === 'avoid' ? 'dont' : 'do',
-            label: h.name,
-            sub: h.type === 'avoid' ? "Tap when you've avoided it today" : 'Keep the streak alive',
-            points: 3,
-            visibility: h.visibility || 'private',
-            domain: h.domain === 'work' ? 'work' : undefined,
-            history: strip,
-            today: hist.includes(today),
-            _server: true,
-          };
-        });
-        setHabits(mapped);
-        setSynced(true);
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  const apiPost = (body) => fetch('/api/client/habits', {
-    method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }).then(r => (r.ok ? r.json() : null)).catch(() => null);
-
-  const toggleToday = (id) => {
-    setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
-    if (synced) {
-      // The user's LOCAL calendar day (en-CA → YYYY-MM-DD), never UTC, so an
-      // evening check-off lands on today and not tomorrow.
-      const today = new Date().toLocaleDateString('en-CA');
-      apiPost({ action: 'toggle', id, date: today });
-    }
+  const DAY_LABELS = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); return d.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(); });
+  const { habits, status, error, reload, mutate, toggle: toggleToday } = useLiveHabits();
+  const [visibility, setVisibility] = React.useState('private');
+  const draft = React.useRef('');
+  const addHabit = async type => {
+    if (status !== 'ready') return;
+    const label = window.prompt(type === 'dont' ? 'What do you want to avoid?' : 'New habit to do', draft.current);
+    if (!label?.trim()) return;
+    draft.current = label.trim();
+    const domain = window.confirm('Tag this as a WORK habit?') ? 'work' : undefined;
+    if (await mutate({ action: 'create', name: label.trim(), type: type === 'dont' ? 'avoid' : 'do', visibility, domain })) draft.current = '';
   };
-
-  const addHabit = (type) => {
-    const promptLabel = type === "dont"
-      ? "What do you want to avoid? (e.g. “No phone in bed”)"
-      : "New habit to do (e.g. “Meditate 10 min”)";
-    const label = window.prompt(promptLabel);
-    if (!label || !label.trim()) return;
-    // The work domain (spec 2026-07-13, mobile parity) — an explicit choice,
-    // never inferred from the name. Rides this page's prompt-based add flow.
-    const domain = window.confirm("Tag this as a WORK habit? (Work habits feed your work-domain insights — same +3 points either way.)") ? "work" : undefined;
-    const localId = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32) + "-" + Math.random().toString(36).slice(2, 6);
-    const draft = {
-      id: localId, type, label: label.trim(),
-      sub: type === "dont" ? "Tap when you've avoided it today" : "Just added — start your streak today",
-      points: 3,
-      visibility,
-      domain,
-      history: [false, false, false, false, false, false], today: false,
-    };
-    setHabits(hs => [...hs, draft]);
-    if (synced) {
-      apiPost({ action: 'create', name: label.trim(), type: type === 'dont' ? 'avoid' : 'do', visibility, domain })
-        .then(d => {
-          if (!d || !d.habit) return;
-          setHabits(hs => hs.map(h => h.id === localId ? { ...h, id: d.habit.id, domain: d.habit.domain === 'work' ? 'work' : domain, _server: true } : h));
-        });
-    }
-  };
-
-  const removeHabit = async (id) => {
+  const removeHabit = async id => {
     const target = habits.find(h => h.id === id);
-    if (!(await window.ShapeConfirm.open({ title: "Delete this habit?", name: target && (target.label || target.name), message: "This removes the habit and its full streak history.", confirmLabel: "Delete habit" }))) return;
-    setHabits(hs => hs.filter(h => h.id !== id));
-    if (synced) apiPost({ action: 'delete', id });
+    if (await window.ShapeConfirm.open({ title: 'Archive this habit?', name: target?.label, message: 'This removes it from your daily list. Past check-offs are kept.', confirmLabel: 'Archive habit' })) await mutate({ action: 'delete', id });
   };
 
   const dos = habits.filter(h => h.type === "do");
@@ -155,14 +76,14 @@ function ClientHabitsPage() {
   const widgets = [
     { key: "kpis", title: "Habit KPIs", size: "full", render: () => (
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(4,1fr)",
+        display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))",
         background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
         borderRadius: 10, overflow: "hidden",
       }}>
         {[
           { l: "Today",          k: `${todayDone}/${habits.length}`, sub: `${todayPct}% complete` },
           { l: "This week",      k: `${weekTotal}/${weekMax}`,        sub: `${weekPct}% adherence` },
-          { l: "Longest streak", k: `${longest}d`,                     sub: longest >= 7 ? "you're in the zone" : "build it up" },
+          { l: "Current streak", k: `${longest}d`,                     sub: longest >= 7 ? "you're in the zone" : "build it up" },
           { l: "Score today",    k: `+${todayPoints}`,                 sub: `+${weekPoints} this week` },
         ].map((k, i) => (
           <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
@@ -175,14 +96,14 @@ function ClientHabitsPage() {
     ) },
 
     { key: "sharing", title: "Sharing", size: "full", render: () => (
-      <Card style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 18, alignItems: "center" }}>
+      <Card style={{ display: "grid", gridTemplateColumns: "1fr", gap: 18, alignItems: "center" }}>
         <div>
-          <SectionTitle right="ACCOUNTABILITY">Sharing</SectionTitle>
+          <SectionTitle right="NEW HABITS">Sharing default</SectionTitle>
           <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.68)", lineHeight: 1.5 }}>
-            Choose who can see completed habits and streak updates. Missed habits stay private unless you opt into sharing them.
+            Choose the default visibility for new habits. Existing habits keep their saved visibility.
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(110px, 1fr))", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
           {[
             ["public", "Public"],
             ["friends", "Friends only"],
@@ -292,7 +213,7 @@ function ClientHabitsPage() {
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHAPE SCORE · FROM HABITS</div>
         <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, color: TEAL_BRIGHT }}>+{weekPoints}</div>
         <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 8, lineHeight: 1.5 }}>
-          Earned from habits this week. Each row's <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace" }}>+pts</span> rolls into your Shape Score nightly.
+          Earned from habits this week. Each row's <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace" }}>+pts</span> contributes to your Shape Score.
         </div>
         <a href={dashShellHref("ClientScore.html")} style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none" }}>
           SEE FULL BREAKDOWN <span>→</span>
@@ -301,29 +222,21 @@ function ClientHabitsPage() {
       </div>
     ) },
 
-    { key: "trend", title: "Two-week trend", size: "half", render: () => (
+    { key: "trend", title: "Last seven days", size: "half", render: () => (
       <Card>
-        <SectionTitle>Two-week trend</SectionTitle>
+        <SectionTitle>Last seven days</SectionTitle>
         <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{weekPct}%</div>
-        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Adherence · vs — last week</div>
+        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Daily adherence</div>
       </Card>
     ) },
 
-    { key: "coachnote", title: "From Maya", size: "full", render: () => (
-      <Card>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>FROM MAYA · MON</div>
-        <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>
-          Sleep is the one I want you to defend. If you're under 7 hours twice in a row, deload the next squat session.
-        </div>
-      </Card>
-    ) },
   ];
 
   return (
     <DashPage
       navItems={clientNavItems("habits")}
       payoutCard={clientPayoutCard}
-      eyebrow="DAILY · WEEK 16 OF 52"
+      eyebrow={"DAILY · " + habitDay()}
       title="Habits"
       subtitle="Do's earn Shape Score when you complete them. Don'ts earn the same when you successfully avoid them. Tap a circle (do) or square (don't) to log today."
       actions={<>
@@ -331,7 +244,9 @@ function ClientHabitsPage() {
         <button onClick={() => addHabit("do")} title="Add habit" style={{ width: 42, height: 42, borderRadius: 999, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 22, fontWeight: 500, cursor: "pointer", lineHeight: 1 }}>+</button>
       </>}
     >
-      <DashGrid role="client" tab="habits" widgets={widgets} />
+      {status !== 'ready' && <p role="status">{status === 'loading' ? 'Loading habits…' : error} {status === 'error' && <button onClick={reload}>Retry</button>}</p>}
+      {status === 'ready' && error && <p role="alert">{error}</p>}
+      {status === 'ready' && <DashGrid role="client" tab="habits" widgets={widgets} />}
     </DashPage>
   );
 }

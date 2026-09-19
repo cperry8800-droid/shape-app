@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Add a to-don’t",
   "list.cleanCount": "{done}/{total} Stayed clean",
   "list.deleteConfirm": "Delete habit",
-  "list.deleteMessage": "This removes the habit and its full streak history.",
+  "list.deleteMessage": "This removes the habit from your daily list. Past check-offs are kept.",
   "list.deleteTitle": "Delete this habit?",
   "list.doneCount": "{done}/{total} Done",
   "list.removeHabit": "Remove habit",
@@ -69,5 +69,6 @@
   "toast.removed": "Habit removed",
   "toast.setPrivate": "Set to private",
   "toast.sharedFriends": "Shared with friends",
-  "toast.updateError": "Could not update habit"
+  "toast.updateError": "Could not update habit",
+  "page.loading": "Loading…"
 }

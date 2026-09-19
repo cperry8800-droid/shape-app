@@ -21,6 +21,7 @@ import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionTo
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
+import { BS_BATCH_KEY, bsReadBatch, bsWriteBatch } from '../services/cookBatchResume.mjs';
 import { bsCookResumeStamp, bsCookResumeValid, bsCookSessionState } from '../services/cookResume.mjs';
 // Canonical copies live in public/newdesign (web-parity spec 2026-07-13 —
 // the dashSignals pattern: website module + mobile import + Node tests).
@@ -32,7 +33,7 @@ import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSpl
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
-import { bsOrchestrate, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, bsProgressPct } from '../services/cookOrchestrator.mjs';
+import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -4324,24 +4325,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // habit's history, mirrors into tweaks (instant re-render — the row leaves
   // the card) and persists via the same /api/client/habits toggle the habits
   // page uses. Demo habits (no live set yet) route to the habits page.
-  const toggleHomeHabit = (h) => {
+  const homeHabitBusy = React.useRef(false);
+  const toggleHomeHabit = async (h) => {
     if (!h.live) { setHabitsPage(true); return; }
     if (window.bsRequireAccount && !window.bsRequireAccount('track habits')) return;
-    const next = _homeHabitsDec.map(x => {
-      if (x.id !== h.id) return x;
-      const hist = new Set(x.history || []);
-      if (hist.has(_homeHabitsDateKey)) hist.delete(_homeHabitsDateKey); else hist.add(_homeHabitsDateKey);
-      return { ...x, history: [...hist].sort() };
-    });
-    if (window._bsEncodeHabits) setTweak('habits', window._bsEncodeHabits(next));
-    if (window.ShapeAuth?.getCachedState?.().user) {
-      fetch('/api/client/habits', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'toggle', id: h.id, date: _homeHabitsDateKey }) }).catch(() => {});
-    }
-    if (!h.done) {
-      setHabitFlash({ name: h.name, pts: Math.round(h.pts) });
-      clearTimeout(habitFlashTimer.current);
-      habitFlashTimer.current = setTimeout(() => setHabitFlash(null), 2200);
-    }
+    if (homeHabitBusy.current) return;
+    homeHabitBusy.current = true;
+    try {
+      const data = await window.ShapeHabitsData.action({ action: 'set', id: h.id, date: _homeHabitsDateKey, done: !h.done });
+      // Read back all habits so an edit on another surface is not overwritten.
+      const fresh = await window.ShapeHabitsData.listStrict();
+      if (window._bsEncodeHabits) setTweak('habits', window._bsEncodeHabits(fresh.habits));
+      if (data.done) {
+        setHabitFlash({ name: h.name, pts: 3 });
+        clearTimeout(habitFlashTimer.current);
+        habitFlashTimer.current = setTimeout(() => setHabitFlash(null), 2200);
+      }
+    } catch (e) {
+      window.__bsToast?.(tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }), 'err');
+    } finally { homeHabitBusy.current = false; }
   };
   // Per-day calorie balance for the LEAD block (target = 2100 burned).
   // Sums kcal from MEAL items in DAY_LOGS, computes deficit/surplus.
@@ -8908,7 +8910,9 @@ const BS_PREP_SEED_KEY = 'seed-dish';
 // LIVE timers — a countdown exists only because the cook started a real-duration
 // step, never fabricated.
 const BS_PREP_STATION_LABELS = { oven: 'in the oven', stove: 'on the stove', board: 'on the board', off: 'resting' };
-function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone }) {
+function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, serve = false, initial = null, onClose, onRecipePrepped, onDone }) {
+  const [livePlan, setLivePlan] = React.useState(initial?.livePlan || null);
+  const timeline = livePlan?.timeline || initial?.timeline || plannedTimeline;
   const t = useBS();
   const tr = useShapeTr();
   _bsScrollTopOnMount();
@@ -8920,15 +8924,24 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   const quietBtn = { background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 6px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: BAND.dim };
   const stationLabel = (st) => tr(`cook:prep.station.${st}`, { defaultValue: BS_PREP_STATION_LABELS[st] || '' });
 
-  const [cursor, setCursor] = useStateBSC(0);
-  const [jumpedAt, setJumpedAt] = useStateBSC(-1);  // the one step the cook chose to start early
-  const [timers, setTimers] = useStateBSC([]); // HOLDING lanes: [{id, iid, recipeKey, title, station, label, endsAt, total}]
-  const timerIdRef = React.useRef(0);
+  const [cursor, setCursor] = useStateBSC(initial?.cursor || 0);
+  const [jumpedAt, setJumpedAt] = useStateBSC(initial?.jumpedAt ?? -1);  // the one step the cook chose to start early
+  const [timers, setTimers] = useStateBSC(initial?.timers || []); // HOLDING lanes: [{id, iid, recipeKey, title, station, label, endsAt, total}]
+  const timerIdRef = React.useRef(Math.max(0, ...(initial?.timers || []).map(t => t.id)));
   // "This step's timer was STARTED" must survive the timer's removal (✓ Done /
   // rung dismissal) — if it lived only in `timers`, dismissing your own step's
   // hold early would flip the CTA back to "Start timer", which re-queues a fresh
   // full-length hold and soft-locks the board (Codex, round 6). Keys `iid:step`.
-  const startedRef = React.useRef(new Set());
+  const startedRef = React.useRef(new Set(initial?.started || []));
+  const recordedRef = React.useRef(new Set(initial?.recorded || []));
+  const owner = React.useRef(window.ShapeAuth?.getCachedState?.().user?.id || null);
+  const [saveError, setSaveError] = React.useState(false);
+  const snapshot = (phase = 'cook', liveTimers = timers) => ({ phase, items, timeline, anchor, kitchen, serve, cursor, jumpedAt, timers: liveTimers, started: [...startedRef.current], recorded: [...recordedRef.current], livePlan });
+  const persist = value => {
+    if ((window.ShapeAuth?.getCachedState?.().user?.id || null) !== owner.current) return;
+    setSaveError(!bsWriteBatch(window.localStorage, value, owner.current));
+  };
+  React.useEffect(() => { persist(snapshot()); }, [cursor, jumpedAt, timers, livePlan]);
   const [, setTick] = useStateBSC(0);
   React.useEffect(() => { const iv = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(iv); }, []);
   // Presence + wake lock — the meal logger's exact rails, same as BSCookMode.
@@ -9021,7 +9034,9 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   const advance = (liveTimers) => {
     const cur = timeline[cursor];
     const lastForRecipe = !timeline.some((x, k) => k > cursor && x.recipe === cur.recipe);
-    if (lastForRecipe && itemByKey[cur.recipe]) onRecipePrepped(itemByKey[cur.recipe]);
+    if (lastForRecipe && itemByKey[cur.recipe] && !recordedRef.current.has(cur.recipe)) {
+      recordedRef.current.add(cur.recipe); onRecipePrepped(itemByKey[cur.recipe]);
+    }
     // Finish hands the still-running REAL holds up (terminal 'off' chills — the
     // only holds that can be live here) so the wrap can note them; soft
     // convenience timers die with the board. `liveTimers` lets startAndGo pass
@@ -9030,7 +9045,12 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
     // reference would pass the SyntheticEvent here (Codex P1 — the Finish tap
     // crashed on event.filter); the CTA also wraps its call.
     const src = Array.isArray(liveTimers) ? liveTimers : timers;
-    if (cursor + 1 >= timeline.length) { const at = Date.now(); onDone(src.filter((x) => !x.soft && x.endsAt > at)); return; }
+    if (cursor + 1 >= timeline.length) { const at = Date.now(); const holds = src.filter(x => !x.soft && x.endsAt > at); persist(snapshot('wrap', holds)); onDone(holds); return; }
+    if (serve && typeof anchor === 'number') {
+      const plan = bsReplanCook(timeline, cursor + 1, src, anchor, Date.now(), kitchen, livePlan?.serveAt);
+      setLivePlan(plan);
+      setJumpedAt(-1);
+    }
     setCursor(cursor + 1);
   };
   // Passive-window step → start its real timer (a HOLDING lane) and move straight
@@ -9047,7 +9067,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
     // so two selected instances of one recipe never cross-clear; `recipeKey`
     // rides only for display. The synchronous ref add also kills the double-tap.
     let queued = null;
-    const startKey = `${cur.iid}:${cursor}`;
+    const startKey = `${cur.iid}:${cur.stepIndex}`;
     if (tms[0] && !startedRef.current.has(startKey)) {
       startedRef.current.add(startKey);
       timerIdRef.current += 1;
@@ -9060,7 +9080,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
       // with no window at all.
       const holdMin = (cur.passive === true && cur.min > 0) ? cur.min : null;
       const secs = holdMin ? holdMin * 60 : tms[0].seconds;
-      queued = { id, stepIndex: cursor, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: holdMin ? `${holdMin} min` : tms[0].label, endsAt: at + secs * 1000, total: secs };
+      queued = { id, stepIndex: cursor, recipeStep: cur.stepIndex, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: holdMin ? `${holdMin} min` : tms[0].label, endsAt: at + secs * 1000, total: secs };
       setTimers((arr) => (arr.some((x) => x.iid === cur.iid && x.stepIndex === cursor)
         ? arr
         : [...arr, queued]));
@@ -9076,7 +9096,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
     // sets/chills unattended), so it records here by design.
     const nxt = timeline[cursor + 1];
     const effective = queued ? [...timers, queued] : timers;
-    const blocked = !!(nxt && effective.some((x) => !x.soft && x.iid === nxt.iid && x.endsAt > at));
+    const blocked = !!bsCookBlockingHold(nxt, effective, at, kitchen);
     if (!blocked) advance(effective);
   };
   // Soft convenience timer on an ACTIVE step ("sear 3 min per side") — a plain
@@ -9104,7 +9124,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   // behind a fresh full-length timer. Read from the durable startedRef, NOT the
   // live `timers` (✓ Done removes the lane; the started fact must survive it).
   // Identity gates compare `iid` (per-instance), never the display `recipeKey`.
-  const evStarted = !!(ev && startedRef.current.has(`${ev.iid}:${cursor}`));
+  const evStarted = !!(ev && startedRef.current.has(`${ev.iid}:${ev.stepIndex}`));
   const running = timers.filter((x) => x.endsAt > now);
   const rung = timers.filter((x) => x.endsAt <= now);
   // The "while the {title} {holds}" eyebrow reads REAL holds only — a soft
@@ -9116,7 +9136,8 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   // ready early. A rung (finished) hold never blocks. Guards the "out-run the
   // window" case where the interleaved active steps finish before the timer.
   const nextEv = timeline[cursor + 1];
-  const waitingOn = nextEv ? running.find((x) => !x.soft && x.iid === nextEv.iid) : null;
+  const waitingOn = bsCookBlockingHold(nextEv, running, now, kitchen);
+  const occupied = bsCookBlockingHold(ev, running, now, kitchen);
   // Active-step convenience timers (never on a window step — that has the real
   // hold); a chip hides while its own countdown runs.
   const evTms = ev && !isWindow && !bsFractionalDuration(ev.text) ? bsStepTimers(ev.text) : [];
@@ -9125,6 +9146,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
   return (
     <BSPage noSwipe mast={false}>
       <div role="dialog" aria-modal="true" aria-label={tr('cook:prep.cookAria', { defaultValue: 'Prep · the board' })}>
+        {saveError && <div role="alert" style={{ padding: 14 }}>{tr('cook:recovery.unavailable', { defaultValue: 'Progress recovery is unavailable on this device. Keep this screen open.' })}</div>}
         <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px`, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <button onClick={onClose} style={{ ...quietBtn, color: BAND.cream, padding: 0, fontSize: 10 }}>✕ {tr('cook:prep.close', { defaultValue: 'Close' })}</button>
@@ -9175,12 +9197,12 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
             )}
 
             {(running.length > 0 || rung.length > 0) && (
-              <div style={{ marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11, display: 'grid', gap: 9 }}>
+              <div style={{ marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 9 }}>
                 <div style={{ ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{tr('cook:prep.holding', { defaultValue: 'Holding' })}</div>
                 {running.map((x) => {
                   const left = Math.max(0, Math.ceil((x.endsAt - now) / 1000));
                   return (
-                    <div key={x.id}>
+                    <div key={x.id} style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
                         <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.title}{x.station ? ` · ${stationLabel(x.station)}` : (x.soft && x.label ? ` · ${x.label}` : '')}</span>
                         <span style={{ fontFamily: t.MONO, fontSize: 17, fontWeight: 800, color: heat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.4)}`, lineHeight: 1, flexShrink: 0 }}>{fmt(left)}</span>
@@ -9204,9 +9226,12 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
               </div>
             )}
 
+            {serve && livePlan && <div style={{ ...bandEyebrow, marginTop: 16, color: BAND.dim }}>{tr('cook:prep.updatedFinish', { defaultValue: 'Updated finish: {time} · remaining dishes finish within {n} min', time: new Date(livePlan.serveAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), n: Math.ceil(livePlan.spread) })}</div>}
             <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
-              {notDue
+              {occupied
+                ? <div role="status" style={{ ...quietBtn, flex: 1 }}>{tr('cook:prep.waiting', { defaultValue: '{title} · {t} left', title: occupied.title, t: fmt(Math.max(0, Math.ceil((occupied.endsAt - now) / 1000))) })}</div>
+                : notDue
                 ? (<>
 {/* A READOUT, not an alert. Round 1 of review: `aria-live` on a DISABLED
                         button is commonly skipped, so it stopped being a button. Round 2: the
@@ -9246,7 +9271,7 @@ function BSPrepCook({ items, timeline, anchor, onClose, onRecipePrepped, onDone 
 // dishes tonight, and a screen that answered "The week is set." would be
 // describing something the member did not do. Same engine, two framings, chosen
 // by the door — never a default that is wrong for one of them.
-function BSPrepSession({ program, onClose, seed = null }) {
+function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const t = useBS();
   const tr = useShapeTr();
   _bsScrollTopOnMount();
@@ -9261,6 +9286,10 @@ function BSPrepSession({ program, onClose, seed = null }) {
   // unresolved document simply contributes no candidates — never a catalog dish
   // wearing the member's title.
   const { doc: myDoc } = useBSMyRecipes();
+  const [resumeCandidate, setResumeCandidate] = useStateBSC(() => bsReadBatch(window.localStorage, window.ShapeAuth?.getCachedState?.().user?.id || null));
+  const [resuming, setResuming] = useStateBSC(null);
+  const [catalogOpen, setCatalogOpen] = useStateBSC(catalog);
+  const [recipeQuery, setRecipeQuery] = useStateBSC('');
   const [stage, setStage] = useStateBSC('picker'); // picker | mise | transition | cook | wrap
   // key -> servings (number). A seeded dish starts ticked — the member already
   // said they were cooking it by tapping its door, so making them tick it again
@@ -9290,7 +9319,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
   // second on top of the one it already runs, and a hold that has rung has nothing left
   // to count.
   const [, setWrapTick] = useStateBSC(0);
-  const wrapCounting = stage === 'wrap' && carried.some((h) => h.endsAt > sessionNow);
+  const wrapCounting = stage === 'wrap' && [...carried, ...wrapHolds].some((h) => h.endsAt > sessionNow);
   React.useEffect(() => {
     if (!wrapCounting) return undefined;
     const iv = setInterval(() => setWrapTick((n) => n + 1), 1000);
@@ -9347,8 +9376,13 @@ function BSPrepSession({ program, onClose, seed = null }) {
         out.push({ key: 'lib-' + bsCookSlug(title), cookable: c, group: libGroup });
       });
     } catch (e) {}
+    if (catalogOpen) SHAPE_KITCHEN_RECIPES.forEach(r => {
+      if (seen.has(String(r.title).toLowerCase())) return;
+      const c = bsCookableFromRecipe(r);
+      if (c?.steps?.length) out.push({ key: 'catalog-' + bsCookSlug(r.title), cookable: c, group: 'Shape Kitchen' });
+    });
     return out;
-  }, [program, myDoc]);
+  }, [program, myDoc, catalogOpen]);
 
   // The dish the member arrived with. Held to the SAME bar as every other
   // candidate — a real written method — because the whole session is built on
@@ -9409,7 +9443,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
       const mult = Number.isFinite(base) && base > 0 ? servings / base : 1;
       return { ...x, servings, mult };
     }), [candidates, sel]);
-  const ordered = React.useMemo(() => bsPrepOrder(selected), [selected]);
+  const ordered = React.useMemo(() => resuming?.items || bsPrepOrder(selected), [selected, resuming]);
   // Minutes per dish in cooking order, so a dish-by-dish walk can still report where the
   // WHOLE session stands. Same weighting as everywhere else: a 30-minute braise is not
   // one sixth of an evening just because it is one of six steps.
@@ -9594,7 +9628,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
   // kitchen gives the identical 2.2%. It is the one cook, who cannot finish two hands-on
   // dishes at the same instant. So the number is disclosed rather than promised away.
   const serveSpread = orch.spread || 0;
-  const interleaved = !orch.serial && orch.timeline.length > 0;
+  const interleaved = !!resuming || (!orch.serial && orch.timeline.length > 0);
   const multi = ordered.length >= 2;
   // Minutes still available at THIS instant. `chosenServe` counts from the mount
   // anchor, so every minute spent reading the plan is a minute the schedule has
@@ -9675,15 +9709,18 @@ function BSPrepSession({ program, onClose, seed = null }) {
     if (interleaved) {
       return <BSPrepCook
         items={ordered}
-        timeline={orch.timeline}
+        timeline={resuming?.timeline || orch.timeline}
+        initial={resuming}
         anchor={sessionAnchor}
+        kitchen={kitchen}
+        serve={choice === BS_COOK_CHOICE.SERVE}
         onClose={onClose}
         onRecipePrepped={recordItem}
         onDone={(holds) => {
           // Terminal 'off' holds (a chill/set finishing unattended — the ONLY
           // holds that can outlive the board, round-7 invariant) surface on the
-          // wrap screen as a static remaining-at-finish note.
-          setWrapHolds(Array.isArray(holds) ? holds.map((h) => ({ title: h.title, leftS: Math.max(0, Math.ceil((h.endsAt - Date.now()) / 1000)) })) : []);
+          // wrap screen as live countdowns.
+          setWrapHolds(Array.isArray(holds) ? holds : []);
           setStage('wrap');
         }}
       />;
@@ -9709,7 +9746,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
   // cook "Cook together" and ask "What else is cooking?" about a dish that is
   // not going to be cooked. Dropping the arrived-with dish drops the claim with
   // it, and the session is the ordinary prep it has become. (Codex, this PR.)
-  const cookNow = !!seedCookable && sel[BS_PREP_SEED_KEY] != null;
+  const cookNow = catalog || !!seedCookable && sel[BS_PREP_SEED_KEY] != null;
   const sessionEyebrow = cookNow
     ? tr('cook:prep.cookEyebrow', { defaultValue: 'Cook together' })
     : tr('cook:prep.eyebrow', { defaultValue: 'Prep the week' });
@@ -9738,12 +9775,24 @@ function BSPrepSession({ program, onClose, seed = null }) {
           {head(sessionEyebrow, sessionPickTitle)}
           {seam}
           <div style={{ padding: `16px ${t.padX}px 24px` }}>
+            {resumeCandidate && <div style={{ paddingBottom: 16 }}>
+              <button style={primaryBtn} onClick={() => {
+                setResuming(resumeCandidate); setSessionAnchor(resumeCandidate.anchor); setKitchen(resumeCandidate.kitchen || {});
+                setCookMode(resumeCandidate.serve ? BS_COOK_CHOICE.SERVE : BS_COOK_CHOICE.SOONEST);
+                if (resumeCandidate.phase === 'wrap') { setWrapHolds(resumeCandidate.timers); setDoneEntries(resumeCandidate.items); setStage('wrap'); }
+                else { setDoneEntries(resumeCandidate.items.filter(it => resumeCandidate.recorded.includes(it.key))); setStage('cook'); }
+              }}>{tr('cook:prep.resumeBatch', { defaultValue: 'Resume cooking these dishes' })}</button>
+              <div style={{ marginTop: 8 }}>{resumeCandidate.items.map(it => it.cookable.title).join(' · ')}</div>
+            </div>}
+            <input aria-label={tr('cook:prep.searchRecipes', { defaultValue: 'Search recipes' })} placeholder={tr('cook:prep.searchRecipes', { defaultValue: 'Search recipes' })} value={recipeQuery} onChange={e => setRecipeQuery(e.target.value)} style={{ width: '100%', minHeight: 44, marginBottom: 12, padding: '8px 12px', border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, fontFamily: t.BODY }} />
+            {!catalogOpen && <button style={quietBtn} onClick={() => setCatalogOpen(true)}>＋ {tr('cook:prep.catalog', { defaultValue: 'Shape Kitchen' })}</button>}
+            <div style={{ maxHeight: '45vh', overflowY: 'auto' }}>
             {candidates.length === 0 && (
               <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontStyle: 'italic', color: t.INK50, lineHeight: 1.5 }}>
                 {tr('cook:prep.none', { defaultValue: 'Nothing prep-able yet — meals with a written method (or saved recipes) show up here.' })}
               </div>
             )}
-            {candidates.map((x, i) => {
+            {candidates.filter(x => !recipeQuery.trim() || x.cookable.title.toLowerCase().includes(recipeQuery.trim().toLowerCase())).map((x, i) => {
               const on = sel[x.key] != null;
               const grpHead = i === 0 || candidates[i - 1].group !== x.group;
               return (
@@ -9772,6 +9821,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
                 </React.Fragment>
               );
             })}
+            </div>
             {/* ⚠ THE TIMING CHOICE IS NAMED HERE, WHERE THE DECISION IT DEPENDS ON
                 IS BEING MADE. It is asked on the mise, one screen later, and that is
                 where it stays — the three options can only be COSTED once the kitchen
@@ -10135,7 +10185,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
         </>)}
 
         {stage === 'wrap' && (<>
-          {head(sessionEyebrow, sessionWrapTitle)}
+          {head(sessionEyebrow, wrapCounting ? tr('cook:prep.timersStillRunning', { defaultValue: 'Final timers are still running' }) : sessionWrapTitle)}
           {seam}
           <div style={{ padding: `18px ${t.padX}px 24px` }}>
             <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, lineHeight: 1.4 }}>
@@ -10146,7 +10196,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
               })()}
             </div>
             {/* Chills/sets still running at Finish (terminal 'off' holds — they
-                finish unattended by design). Static remaining-at-finish figure:
+                finish unattended by design). Live deadlines continue counting after the board closes:
                 glyph + title + numerals, no prose — no catalog key needed. */}
             {/* A hold inherited from an earlier dish is still running at the wrap and the
                 cook still has to go back for it. `wrapHolds` only ever held the interleaved
@@ -10173,7 +10223,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
               <div style={{ marginTop: 12 }}>
                 {wrapHolds.map((h, i) => (
                   <div key={i} style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
-                    ◷ {h.title} · {Math.floor(h.leftS / 60)}:{String(h.leftS % 60).padStart(2, '0')}
+                    {h.endsAt <= sessionNow ? tr('cook:timer.up', { defaultValue: "Time's up" }) : '◷'} {h.title} · {Math.floor(Math.max(0, Math.ceil((h.endsAt - sessionNow) / 1000)) / 60)}:{String(Math.max(0, Math.ceil((h.endsAt - sessionNow) / 1000)) % 60).padStart(2, '0')}
                   </div>
                 ))}
               </div>
@@ -10194,7 +10244,7 @@ function BSPrepSession({ program, onClose, seed = null }) {
                 {tr('cook:prep.notSaved', { defaultValue: "Sign in to keep your prep — these stamps won't survive this session." })}
               </div>
             )}
-            <button onClick={onClose} style={{ ...primaryBtn, width: '100%', marginTop: 18 }}>{tr('cook:prep.done', { defaultValue: 'Done' })}</button>
+            <button onClick={() => { if (!wrapCounting) { try { window.localStorage.removeItem(BS_BATCH_KEY); } catch (e) {} } onClose(); }} style={{ ...primaryBtn, width: '100%', marginTop: 18 }}>{tr('cook:prep.done', { defaultValue: 'Done' })}</button>
           </div>
         </>)}
       </div>
@@ -36909,5 +36959,5 @@ function BSHelpPage({ onBack, onContact }) {
   );
 }
 
-Object.assign(window, { BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+Object.assign(window, { BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
 try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}
