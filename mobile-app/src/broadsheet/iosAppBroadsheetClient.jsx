@@ -9189,7 +9189,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
             {softChips.length > 0 && (
               <div style={{ marginTop: 9, display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                 {softChips.map((tm, i) => (
-                  <button key={i} onClick={() => startSoftTimer(tm)} style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${BAND.hair}`, borderRadius: 5, background: 'transparent', color: BAND.cream, cursor: 'pointer', padding: '7px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  <button key={i} onClick={() => startSoftTimer(tm)} disabled={notDue || !!occupied} style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${BAND.hair}`, borderRadius: 5, background: 'transparent', color: BAND.cream, cursor: 'pointer', padding: '7px 11px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
                     ◷ {tm.label}
                   </button>
                 ))}

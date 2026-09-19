@@ -25,11 +25,19 @@ const params = new URLSearchParams(location.search);
 const slug = params.get('r');
 const recipe = SHAPE_KITCHEN_RECIPES.find(r => bsCookSlug(r.title) === slug);
 const cookable = recipe ? bsCookableFromRecipe(recipe) : null;
-const exit = () => { location.href = '/recipes'; };
+const navigateWebsite = path => {
+  try {
+    if (window.parent !== window && window.parent.location.origin === location.origin) {
+      window.parent.location.assign(path); return;
+    }
+  } catch { /* A third-party embed cannot control its parent's navigation. */ }
+  location.assign(path);
+};
+const exit = () => navigateWebsite('/recipes');
 // Catalog instructions are public; account writes retain their normal auth checks.
 window.bsRequireAccount = () => {
   if (window.ShapeAuth?.getCachedState?.().user) return true;
-  location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
+  navigateWebsite('/login?next=' + encodeURIComponent(location.pathname + location.search));
   return false;
 };
 function bsBoundaryT(key, fallback) { try { return window.ShapeI18n?.t?.(key) || fallback; } catch { return fallback; } }
