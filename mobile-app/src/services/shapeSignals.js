@@ -89,17 +89,18 @@ async function selfRecord() {
 }
 
 // ── The coach's roster as unified records (coach triage surfaces). ────────────
-async function coachClients(role) {
+async function coachClients(role, { strict = false } = {}) {
   try {
     if (window.ShapeAssign && window.ShapeAssign.clients) {
-      const list = await window.ShapeAssign.clients(role);
+      const list = await window.ShapeAssign.clients(role, { strict });
       return (Array.isArray(list) ? list : []).map((c) => ({ id: c.userId || c.id || c.user_id || null, name: c.name || c.full_name || 'Client' })).filter((c) => c.id);
     }
-  } catch (e) { /* fall through */ }
+  } catch (e) { if (strict) throw e; }
+  if (strict) throw new Error('Client roster unavailable');
   return [];
 }
-async function coachRecords(role) {
-  const clients = await coachClients(role);
+async function coachRecords(role, options) {
+  const clients = await coachClients(role, options);
   if (!clients.length) return [];
   // Batch the roster's recent sleep + check-in vitals in ONE call (RLS-scoped to
   // this coach's clients) so the engine's sleep-recovery + energy/hunger rules can
@@ -137,18 +138,21 @@ async function coachRecords(role) {
 // no live roster, so the UI can fall back to its own rich demo roster and keep
 // the two surfaces in agreement.
 const _triageCache = {}; // role → { at, promise }
-async function triageLive(role) {
+async function triageLive(role, { force = false } = {}) {
   const now = Date.now();
-  const hit = _triageCache[role];
-  if (hit && now - hit.at < 30000) return hit.promise;
+  const uid = window.ShapeAuth?.getCachedState?.().user?.id;
+  if (!uid) return [];
+  const key = `${uid}:${role}`;
+  const hit = _triageCache[key];
+  if (!force && hit && now - hit.at < 30000) return hit.promise;
   const promise = (async () => {
-    const e = engine(); if (!e) return [];
-    const records = await coachRecords(role);
+    const e = engine(); if (!e) throw new Error('Client signals unavailable');
+    const records = await coachRecords(role, { strict: true });
     if (!records.length) return [];
     return call(e.getTriageFeed, role, records) || [];
   })();
-  _triageCache[role] = { at: now, promise };
-  promise.catch(() => { if (_triageCache[role] && _triageCache[role].promise === promise) delete _triageCache[role]; });
+  _triageCache[key] = { at: now, promise };
+  promise.catch(() => { if (_triageCache[key]?.promise === promise) delete _triageCache[key]; });
   return promise;
 }
 

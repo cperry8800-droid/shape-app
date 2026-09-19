@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "C'est tout.",
   "prep.nextUp": "Suivant",
   "prep.addAnother": "Cochez un autre plat et Shape gère le timing — en même temps, l'un après l'autre, ou tout à table en même temps.",
-  "prep.timingComing": "Comment ils sont synchronisés — en même temps, séparément, ou tout à table en même temps."
+  "prep.timingComing": "Comment ils sont synchronisés — en même temps, séparément, ou tout à table en même temps.",
+  "recovery.exit": "Vos étapes et minuteries sont enregistrées. Rouvrez la recette pour reprendre. Les alertes nécessitent que l’app reste ouverte.",
+  "recovery.failedExit": "Impossible de sauvegarder la progression sur cet appareil. Quitter fera perdre votre étape et vos minuteries.",
+  "recovery.unavailable": "Récupération indisponible sur cet appareil. Gardez cet écran ouvert."
 }

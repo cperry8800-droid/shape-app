@@ -21,7 +21,7 @@ import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionTo
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
-import { bsCookResumeStamp, bsCookResumeValid } from '../services/cookResume.mjs';
+import { bsCookResumeStamp, bsCookResumeValid, bsCookSessionState } from '../services/cookResume.mjs';
 // Canonical copies live in public/newdesign (web-parity spec 2026-07-13 —
 // the dashSignals pattern: website module + mobile import + Node tests).
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
@@ -7921,19 +7921,23 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
 // ═══════════════════════════════════════════════════════════════════════════
 
 const BS_COOK_RESUME_KEY = 'shape.cookResume';
+const bsCookOwner = () => window.ShapeAuth?.getCachedState?.().user?.id || 'preview';
 // Thin storage wrappers — the resume DECISION (is this stamp still describing
 // this recipe's current step list?) is the pure, tested cookResume.mjs.
 function bsCookResumeRead(key, steps) {
   try {
     const st = JSON.parse(localStorage.getItem(BS_COOK_RESUME_KEY) || 'null');
+    if (st?.owner !== bsCookOwner()) return null;
     return bsCookResumeValid(st, key, steps, new Date().toLocaleDateString('en-CA'));
   } catch (e) { return null; }
 }
-function bsCookResumeWrite(key, stepIdx, steps) {
+function bsCookResumeWrite(key, stepIdx, steps, session = {}, owner = bsCookOwner()) {
   try {
     const stamp = bsCookResumeStamp(key, stepIdx, steps, new Date().toLocaleDateString('en-CA'));
-    localStorage.setItem(BS_COOK_RESUME_KEY, JSON.stringify(stamp));
-  } catch (e) {}
+    if (owner !== bsCookOwner()) return false;
+    localStorage.setItem(BS_COOK_RESUME_KEY, JSON.stringify({ ...stamp, ...bsCookSessionState(session, steps.length), owner }));
+    return true;
+  } catch (e) { return false; }
 }
 function bsCookResumeClear() { try { localStorage.removeItem(BS_COOK_RESUME_KEY); } catch (e) {} }
 
@@ -7997,6 +8001,22 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const [timers, setTimers] = useStateBSC([]);     // [{id, label, endsAt, total, done}]
   const timerIdRef = React.useRef(0);
   const startRef = React.useRef(Date.now());
+  const ownerRef = React.useRef(bsCookOwner());
+  const [resumeSaved, setResumeSaved] = useStateBSC(true);
+  const savePlace = () => bsCookResumeWrite(resumeKey, stepIdx, steps, { phase, visited, skippedSteps, checked, timers, startedAt: startRef.current }, ownerRef.current);
+  // Save each interaction, including timer creation/dismissal; a crash or phone
+  // interruption must not require the member to have pressed Back first.
+  React.useEffect(() => {
+    if (!inPrep && hasMethod && !loggedState && phase !== 'mise') setResumeSaved(savePlace());
+  }, [phase, stepIdx, visited, skippedSteps, checked, timers, loggedState]);
+  const resumeCook = () => {
+    if (!resumeAt) return;
+    const saved = bsCookSessionState(resumeAt, steps.length);
+    setVisited(saved.visited); setSkippedSteps(saved.skippedSteps); setChecked(saved.checked);
+    setTimers(saved.timers); timerIdRef.current = Math.max(0, ...saved.timers.map(t => t.id));
+    startRef.current = saved.startedAt;
+    setStepIdx(resumeAt.stepIdx); setPhase(saved.phase);
+  };
   const [, setTick] = useStateBSC(0);              // 1s heartbeat (elapsed + timers)
   React.useEffect(() => { const iv = setInterval(() => setTick((n) => n + 1), 1000); return () => clearInterval(iv); }, []);
   const now = Date.now();
@@ -8072,6 +8092,8 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 
   const exitCook = async () => {
     if (phase === 'method' && !loggedState) {
+      const saved = inPrep || savePlace();
+      setResumeSaved(saved);
       const ok = await (window.bsAskConfirm
         ? window.bsAskConfirm({
             title: tr('cook:exit.title', { defaultValue: 'Leave the cook?' }),
@@ -8080,12 +8102,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             // (never-shaming: abandoning writes nothing MORE).
             message: inPrep
               ? tr('cook:exit.prepMessage', { defaultValue: "This recipe isn't finished — meals already prepped stay prepped." })
-              : tr('cook:exit.message', { defaultValue: 'Your place is saved — reopening this recipe offers to resume where you left off.' }),
+              : saved ? tr('cook:recovery.exit', { defaultValue: 'Your steps and timers are saved. Reopen this recipe to resume. Timer alerts require the app to be open.' })
+              : tr('cook:recovery.failedExit', { defaultValue: 'Your progress could not be saved on this device. Leaving will lose your place and timers.' }),
             confirmLabel: tr('cook:exit.confirm', { defaultValue: 'Leave' }),
           })
         : Promise.resolve(true));
       if (!ok) return;
-      if (!inPrep) bsCookResumeWrite(resumeKey, stepIdx, steps);
+      // The snapshot above includes the current timer deadlines.
     }
     onClose();
   };
@@ -8123,7 +8146,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     else setVisited((m) => ({ ...m, [stepIdx]: true }));
     // The resume key is one GLOBAL slot — a prep-session recipe must never
     // clear a solo cook's saved place (guarded, PR C).
-    if (stepIdx >= steps.length - 1) { if (!inPrep) bsCookResumeClear(); setPhase('plated'); }
+    if (stepIdx >= steps.length - 1) { setPhase('plated'); }
     else goStep(stepIdx + 1);
   };
 
@@ -8674,6 +8697,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       <div role="dialog" aria-modal="true" aria-label={tr('cook:aria', { defaultValue: 'Cook mode — {title}', title: cookable.title })} style={(phase === 'method' && hasMethod) ? { minHeight: '100%', display: 'flex', flexDirection: 'column' } : undefined}>
         {band}
         {seam}
+        {!resumeSaved && <p role="status" style={{ margin: `12px ${t.padX}px`, color: t.RUST, fontFamily: t.DISPLAY }}>{tr('cook:recovery.unavailable', { defaultValue: 'Progress recovery is unavailable on this device. Keep this screen open.' })}</p>}
 
         {phase === 'mise' && (
           <div style={{ padding: `18px ${t.padX}px 24px` }}>
@@ -8693,7 +8717,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             )}
             {allergenNoteBlock}
             {resumeAt && hasMethod && (
-              <button onClick={() => { setPhase('method'); goStep(Math.min(resumeAt.stepIdx, steps.length - 1)); }} style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left', background: bsTHexA(heat, t.isLight ? 0.08 : 0.12), border: `1px solid ${bsTHexA(heat, 0.4)}`, borderLeft: `3px solid ${heat}`, borderRadius: 5, padding: '11px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat }}>
+              <button onClick={resumeCook} style={{ marginTop: 12, display: 'block', width: '100%', textAlign: 'left', background: bsTHexA(heat, t.isLight ? 0.08 : 0.12), border: `1px solid ${bsTHexA(heat, 0.4)}`, borderLeft: `3px solid ${heat}`, borderRadius: 5, padding: '11px 12px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : heat }}>
                 {tr('cook:resume', { defaultValue: 'Resume at step {n} →', n: resumeAt.stepIdx + 1 })}
               </button>
             )}
@@ -8718,7 +8742,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             )}
             <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={exitCook} style={quietBtn}>{tr('cook:back', { defaultValue: '← Back' })}</button>
-              <button onClick={() => (hasMethod ? setPhase('method') : setPhase('plated'))} style={{ ...primaryBtn, flex: 1 }}>
+              <button onClick={() => { startRef.current = Date.now(); hasMethod ? setPhase('method') : setPhase('plated'); }} style={{ ...primaryBtn, flex: 1 }}>
                 {hasMethod ? tr('cook:mise.start', { defaultValue: 'Start cooking →' }) : tr('cook:mise.toPlate', { defaultValue: 'To the plate →' })}
               </button>
             </div>

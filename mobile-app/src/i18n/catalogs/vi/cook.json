@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "Vậy là xong.",
   "prep.nextUp": "Tiếp",
   "prep.addAnother": "Chọn thêm một món và Shape sẽ tính giờ giúp bạn — nấu cùng lúc, lần lượt từng món, hoặc cùng lên bàn một lượt.",
-  "prep.timingComing": "Cách tính giờ — cùng lúc, riêng từng món, hoặc cùng lên bàn một lượt."
+  "prep.timingComing": "Cách tính giờ — cùng lúc, riêng từng món, hoặc cùng lên bàn một lượt.",
+  "recovery.exit": "Đã lưu các bước và bộ hẹn giờ. Mở lại công thức để tiếp tục. Cảnh báo hẹn giờ cần ứng dụng đang mở.",
+  "recovery.failedExit": "Không thể lưu tiến trình trên thiết bị này. Thoát sẽ mất bước đang làm và bộ hẹn giờ.",
+  "recovery.unavailable": "Không thể khôi phục tiến trình trên thiết bị này. Giữ màn hình này mở."
 }

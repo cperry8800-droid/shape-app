@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "È tutto.",
   "prep.nextUp": "Avanti",
   "prep.addAnother": "Seleziona un altro piatto e Shape si occupa dei tempi: insieme, uno dopo l'altro, o tutto in tavola allo stesso momento.",
-  "prep.timingComing": "Come vengono sincronizzati: allo stesso tempo, separatamente, o tutto in tavola insieme."
+  "prep.timingComing": "Come vengono sincronizzati: allo stesso tempo, separatamente, o tutto in tavola insieme.",
+  "recovery.exit": "Passaggi e timer salvati. Riapri la ricetta per riprendere. Gli avvisi richiedono che l’app sia aperta.",
+  "recovery.failedExit": "Impossibile salvare i progressi su questo dispositivo. Uscendo perderai la posizione e i timer.",
+  "recovery.unavailable": "Recupero non disponibile su questo dispositivo. Tieni aperta questa schermata."
 }

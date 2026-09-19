@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsCookStepsSig, bsCookResumeStamp, bsCookResumeValid } from '../mobile-app/src/services/cookResume.mjs';
+import { bsCookStepsSig, bsCookResumeStamp, bsCookResumeValid, bsCookSessionState } from '../mobile-app/src/services/cookResume.mjs';
 
 const STEPS = ['Heat the pan.', 'Sear 4 minutes a side.', 'Rest 5 minutes.', 'Plate it.'];
 const DAY = '2026-07-25';
@@ -111,4 +111,25 @@ test('step normalisation: whitespace collapses, authored objects read, nullish i
   assert.equal(bsCookStepsSig([{ t: 'Roast 30 minutes.', station: 'oven' }]), bsCookStepsSig(['Roast 30 minutes.']));
   assert.equal(bsCookStepsSig([null]), bsCookStepsSig(['']));
   assert.equal(bsCookStepsSig([]), bsCookStepsSig(null)); // no method at all
+});
+
+
+test('recovery preserves real timer deadlines, completed steps and elapsed start across time away', () => {
+  const now = 200000;
+  const saved = { phase: 'method', startedAt: 100000, visited: { 0: true }, skippedSteps: { 1: true }, checked: { 'ing-0': true }, timers: [
+    { id: 1, label: '2 min', stepIdx: 1, total: 120, endsAt: 250000 },
+    { id: 2, label: '1 min', stepIdx: 0, total: 60, endsAt: 180000 },
+  ] };
+  const recovered = bsCookSessionState(saved, 3, now);
+  assert.equal(recovered.timers[0].endsAt, 250000, 'time away is not added back');
+  assert.equal(recovered.timers[1].endsAt, 180000, 'expired timers remain visible for acknowledgement');
+  assert.equal(recovered.startedAt, 100000);
+  assert.deepEqual(recovered.visited, { 0: true });
+  assert.deepEqual(recovered.skippedSteps, { 1: true });
+  assert.deepEqual(recovered.checked, { 'ing-0': true });
+});
+test('recovery drops invalid timers and out-of-range progress instead of drawing invented countdowns', () => {
+  const state = bsCookSessionState({ timers: [null, { id: 1, total: -10, endsAt: 100, stepIdx: 0 }, { id: 2, total: 60, endsAt: 200000, stepIdx: 99 }], visited: { 999: true, 0: 'yes', 1: true }, checked: { arbitrary: true }, startedAt: Infinity }, 2, 100000);
+  assert.deepEqual(state.timers, []); assert.deepEqual(state.visited, { 1: true });
+  assert.deepEqual(state.checked, {}); assert.equal(state.startedAt, 100000);
 });

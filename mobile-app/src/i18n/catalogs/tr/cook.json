@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "Hepsi bu.",
   "prep.nextUp": "İleri",
   "prep.addAnother": "Başka bir yemek seç, zamanlamayı Shape ayarlasın — aynı anda, birbiri ardına ya da hepsi birden sofrada.",
-  "prep.timingComing": "Zamanlama nasıl olsun — aynı anda, ayrı ayrı ya da hepsi birden sofrada."
+  "prep.timingComing": "Zamanlama nasıl olsun — aynı anda, ayrı ayrı ya da hepsi birden sofrada.",
+  "recovery.exit": "Adımlar ve zamanlayıcılar kaydedildi. Sürdürmek için tarifi yeniden açın. Zamanlayıcı uyarıları için uygulama açık olmalıdır.",
+  "recovery.failedExit": "İlerleme bu cihaza kaydedilemedi. Çıkarsanız kaldığınız yer ve zamanlayıcılar kaybolur.",
+  "recovery.unavailable": "Bu cihazda ilerleme kurtarılamıyor. Bu ekranı açık tutun."
 }

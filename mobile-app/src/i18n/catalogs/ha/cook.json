@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "Shi ke nan.",
   "prep.nextUp": "Gaba",
   "prep.addAnother": "Zaɓi wani abinci, Shape kuma zai tsara lokacin — a lokaci guda, ɗaya bayan ɗaya, ko duka a kan tebur lokaci guda.",
-  "prep.timingComing": "Yadda za a tsara lokacin — a lokaci guda, daban-daban, ko duka a kan tebur lokaci guda."
+  "prep.timingComing": "Yadda za a tsara lokacin — a lokaci guda, daban-daban, ko duka a kan tebur lokaci guda.",
+  "recovery.exit": "An adana matakai da agogunan ƙidaya. Sake buɗe girkin don ci gaba. Faɗakarwar agogo na buƙatar manhajar ta kasance a buɗe.",
+  "recovery.failedExit": "An kasa adana ci gaba a wannan na’ura. Fita zai sa a rasa inda ka tsaya da agogunan ƙidaya.",
+  "recovery.unavailable": "Ba a iya dawo da ci gaba a wannan na’ura. Bar wannan allo a buɗe."
 }
