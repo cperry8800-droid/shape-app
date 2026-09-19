@@ -23,6 +23,7 @@ import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveE
 import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
 import { BS_BATCH_KEY, bsReadBatch, bsWriteBatch } from '../services/cookBatchResume.mjs';
+import { bsSoloRoadmap, bsBoardRoadmap, bsRoadmapPercent, bsVisibleCookPercent } from '../services/cookRoadmap.mjs';
 import { bsCookResumeStamp, bsCookResumeValid, bsCookSessionState } from '../services/cookResume.mjs';
 // Canonical copies live in public/newdesign (web-parity spec 2026-07-13 —
 // the dashSignals pattern: website module + mobile import + Node tests).
@@ -7967,6 +7968,59 @@ function useBSPrepEntries() {
   return entries;
 }
 
+function BSCookProgress({ percent, rows, colors, accent, anchor, children }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const [open, setOpen] = React.useState(false);
+  const toggle = React.useRef(null);
+  const panelId = React.useId();
+  const done = rows.filter(r => r.state === 'done').length;
+  const labels = {
+    done: tr('cook:roadmap.done', { defaultValue: 'Completed' }),
+    current: tr('cook:roadmap.current', { defaultValue: 'Current' }),
+    upcoming: tr('cook:roadmap.upcoming', { defaultValue: 'Upcoming' }),
+    holding: tr('cook:roadmap.holding', { defaultValue: 'Timer running' }),
+    skipped: tr('cook:roadmap.skipped', { defaultValue: 'Skipped' }),
+  };
+  const title = tr('cook:roadmap.title', { defaultValue: 'Cooking roadmap' });
+  const progressLabel = tr('cook:roadmap.progress', { defaultValue: 'Estimated cooking progress' });
+  const small = { fontFamily: t.MONO, fontSize: 10, lineHeight: 1.5, color: colors.dim };
+  const control = { ...small, color: colors.cream, background: 'transparent', border: `1px solid ${colors.hair}`, borderRadius: 5, minHeight: 44, padding: '8px 12px', cursor: 'pointer' };
+  return <section aria-label={progressLabel} style={{ position: 'relative', marginTop: 14, minWidth: 0 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '4px 12px' }}>
+      <span style={small}>{progressLabel}</span>
+      <strong style={{ fontFamily: t.MONO, fontSize: 24, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums', color: accent }}>{children}</strong>
+    </div>
+    <div role="progressbar" aria-label={progressLabel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
+      style={{ marginTop: 8, height: 8, borderRadius: 4, background: colors.hair, overflow: 'hidden' }}>
+      <div style={{ width: `${percent}%`, height: '100%', background: accent }} />
+    </div>
+    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <span style={small}>{tr('cook:roadmap.steps', { defaultValue: '{done} of {total} steps complete', done, total: rows.length })}</span>
+      <button ref={toggle} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(v => !v)} style={control}>
+        {open ? tr('cook:roadmap.hide', { defaultValue: 'Hide roadmap' }) : tr('cook:roadmap.open', { defaultValue: 'View roadmap' })} {open ? '▴' : '▾'}
+      </button>
+    </div>
+    {open && <div id={panelId} role="region" aria-label={title} style={{ marginTop: 12, borderTop: `1px solid ${colors.hair}`, paddingTop: 12 }}>
+      <ol tabIndex={0} aria-label={title} style={{ maxHeight: '42vh', overflowY: 'auto', overscrollBehavior: 'contain', margin: 0, padding: 0, listStyle: 'none' }}>
+        {rows.map((row, i) => <li key={row.id} aria-current={row.current ? 'step' : undefined}
+          style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr)', gap: 10, padding: '10px 4px', borderBottom: `1px solid ${colors.hair}`, borderLeft: row.current ? `3px solid ${accent}` : '3px solid transparent' }}>
+          <span aria-hidden="true" style={{ ...small, color: row.state === 'done' || row.current ? accent : colors.dim }}>{row.state === 'done' ? '✓' : row.state === 'holding' ? '◷' : i + 1}</span>
+          <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+            <div style={{ ...small, color: row.current ? accent : colors.cream }}>{row.dish} · {tr('cook:timer.step', { defaultValue: 'Step {n}', n: row.step })}</div>
+            <div style={{ ...small, marginTop: 3 }}>{row.current && row.state !== 'current' ? `${labels.current} · ` : ''}{labels[row.state]}
+              {row.timed && ` · ${tr('cook:roadmap.duration', { defaultValue: 'About {n} min', n: row.min })}`}
+              {Number.isFinite(anchor) && Number.isFinite(row.at) && ` · ${tr('cook:roadmap.planned', { defaultValue: 'Planned {time}', time: new Date(anchor + row.at * 60000).toLocaleTimeString(window.ShapeI18n?.intlLocale?.(), { hour: 'numeric', minute: '2-digit' }) })}`}
+            </div>
+            <p style={{ margin: '6px 0 0', fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: colors.cream }}>{row.text}</p>
+          </div>
+        </li>)}
+      </ol>
+      <button onClick={() => { setOpen(false); toggle.current?.focus(); }} style={{ ...control, width: '100%', marginTop: 10 }}>{tr('cook:roadmap.back', { defaultValue: 'Back to cooking' })}</button>
+    </div>}
+  </section>;
+}
+
 // `prep` (PR C): non-null inside a Prep Session — { index, count, onPrepped }.
 // In prep mode the per-recipe mise is SKIPPED (the session's merged mise already
 // covered it), PLATED stamps PREPPED ✓ + advances instead of offering the log
@@ -8498,6 +8552,8 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const sessionPct = (prep && typeof prep.totalMins === 'number' && prep.totalMins > 0)
     ? Math.max(0, Math.min(100, Math.round(((Math.max(0, (prep.priorMins || 0) - carriedDebit) + doneMins) / prep.totalMins) * 100)))
     : null;
+  const roadmap = bsSoloRoadmap(cookable, { phase, stepIdx, visited, skippedSteps, timers, now }, prep);
+  const visiblePct = bsVisibleCookPercent(sessionPct == null ? overallPct : sessionPct, roadmap);
   // Allergen claim notes — ONE definition, rendered on EVERY phase a member can
   // reach the food from. It used to live only in the mise, below the `Resume at
   // step N` shortcut: a member with a resume stamp (including one persisted by the
@@ -8538,17 +8594,6 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: heat }}>
           <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: heat, display: 'inline-block', ...(reduced ? null : { '--sd-glow': bsTHexA(heat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
           {tr('cook:elapsed', { defaultValue: 'Cooking' })} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(heat, 0.45)}` }}>{fmt(elapsedSec)}</span>
-          {/* OVERALL completion, in the live header so it is on screen the whole cook.
-              Several dishes → the whole session, because a cook walking dish by dish
-              otherwise cannot tell whether the evening is nearly over. One dish → that
-              dish. Both are the same question: how much of this is behind me.
-              ⚠ This does NOT replace the step-by-step line below — "Step 3 of 6" stays,
-              and carries the CURRENT recipe's own figure beside it. */}
-          {(sessionPct == null ? overallPct : sessionPct) != null && (
-            <span style={{ marginLeft: 8, fontVariantNumeric: 'tabular-nums', color: BAND.dim }}>
-              {`${sessionPct == null ? overallPct : sessionPct}% ${tr('cook:doneLabel', { defaultValue: 'done' })}`}
-            </span>
-          )}
         </span>
       </div>
       <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -8559,17 +8604,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
             {/* Weighted by MINUTES, not by step count: with a 30-minute roast still
                 ahead, "3 of 6" is halfway through the list and nowhere near halfway
                 through the cooking. This is the answer to "how far am I". */}
-            {` · ${bsProgressPct(stepMins, visited, unearnedSolo)}%`}
+            {inPrep ? ` · ${bsProgressPct(stepMins, visited, unearnedSolo)}%` : ''}
           </span>
         )}
       </div>
-      {hasMethod && (
-        <div aria-hidden style={{ position: 'relative', marginTop: 9, display: 'flex', gap: 4 }}>
-          {steps.map((_, i) => (
-            <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: visited[i] ? heat : skippedSteps[i] ? bsTHexA(heat, 0.18) : BAND.hair, boxShadow: visited[i] ? `0 0 8px ${bsTHexA(heat, 0.55)}` : 'none', outline: phase === 'method' && i === stepIdx ? `1px solid ${bsTHexA(heat, 0.7)}` : 'none', outlineOffset: 1 }} />
-          ))}
-        </div>
-      )}
+      {hasMethod && <BSCookProgress percent={visiblePct} rows={roadmap} colors={BAND} accent={heat}>
+        {`${visiblePct}% ${tr('cook:doneLabel', { defaultValue: 'done' })}`}
+      </BSCookProgress>}
       {(running.length > 0 || rung.length > 0 || (prep?.carried || []).length > 0) && (
         <div style={{ position: 'relative', marginTop: 12, borderTop: `1px solid ${BAND.hair}`, paddingTop: 10, display: 'grid', gap: 8 }}>
           {running.map((x) => {
@@ -8867,7 +8908,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
                     contributes is max(0, endsAt - now), already zero once expired, so carrying
                     a finished one costs the arithmetic nothing. Only the credited-step rule
                     still filters. */}
-                <button onClick={() => prep.onPrepped(timers.filter((x) => x.stepIdx != null && visited[x.stepIdx]).map((x) => ({ id: x.id, label: x.label, gist: x.gist, total: x.total, endsAt: x.endsAt, dish: cookable.title })))} style={{ ...primaryBtn, width: '100%' }}>
+                <button onClick={() => prep.onPrepped(timers.filter((x) => x.stepIdx != null && visited[x.stepIdx]).map((x) => ({ id: x.id, stepIdx: x.stepIdx, label: x.label, gist: x.gist, total: x.total, endsAt: x.endsAt, dish: cookable.title })), { visited, skippedSteps })} style={{ ...primaryBtn, width: '100%' }}>
                   {prep.index + 1 >= prep.count
                     ? tr('cook:prep.wrapCta', { defaultValue: 'Wrap the session →' })
                     : tr('cook:prep.nextRecipe', { defaultValue: 'Next recipe →' })}
@@ -9049,7 +9090,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     // reference would pass the SyntheticEvent here (Codex P1 — the Finish tap
     // crashed on event.filter); the CTA also wraps its call.
     const src = Array.isArray(liveTimers) ? liveTimers : timers;
-    if (cursor + 1 >= timeline.length) { const at = Date.now(); const holds = src.filter(x => !x.soft && x.endsAt > at); persist(snapshot('wrap', holds)); onDone(holds); return; }
+    if (cursor + 1 >= timeline.length) { const at = Date.now(); const holds = src.filter(x => !x.soft && x.endsAt > at); const finished = snapshot('wrap', holds); persist(finished); onDone(holds, finished); return; }
     if (serve && typeof anchor === 'number') {
       const plan = bsReplanCook(timeline, cursor + 1, src, anchor, Date.now(), kitchen, livePlan?.serveAt);
       setLivePlan(plan);
@@ -9148,6 +9189,8 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   // hold); a chip hides while its own countdown runs.
   const evTms = ev && !isWindow && !bsFractionalDuration(ev.text) ? bsStepTimers(ev.text) : [];
   const softChips = evTms.slice(0, 2).filter((tm) => !running.some((x) => x.soft && x.iid === ev.iid && x.stepIndex === cursor && x.label === tm.label));
+  const roadmap = bsBoardRoadmap(timeline, cursor, timers, now);
+  const visiblePct = bsVisibleCookPercent(boardPct, roadmap);
 
   return (
     <BSPage noSwipe mast={false}>
@@ -9157,10 +9200,10 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <button onClick={onClose} style={{ ...quietBtn, color: BAND.cream, padding: 0, fontSize: 10 }}>✕ {tr('cook:prep.close', { defaultValue: 'Close' })}</button>
             <span style={{ ...bandEyebrow, fontSize: 10, color: heat }}>{tr('cook:prep.board', { defaultValue: 'The board' })}</span>
-            {/* The whole session at a glance, in minutes of cooking rather than steps
-                ticked — the one number that answers "how much longer is this". */}
-            <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: BAND.dim, fontVariantNumeric: 'tabular-nums' }}>{boardPct}%</span>
           </div>
+          <BSCookProgress percent={visiblePct} rows={roadmap} colors={BAND} accent={heat} anchor={anchor}>
+            {`${visiblePct}% ${tr('cook:doneLabel', { defaultValue: 'done' })}`}
+          </BSCookProgress>
           {/* multi-track recipes strip: each recipe's progress, its live timer when holding */}
           <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {recStats.order.map((rk) => {
@@ -9310,6 +9353,8 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const [doneEntries, setDoneEntries] = useStateBSC([]);
   const [saveFailed, setSaveFailed] = useStateBSC(false);
   const [wrapHolds, setWrapHolds] = useStateBSC([]);   // still-running terminal holds at Finish (board → wrap)
+  const [dishProgress, setDishProgress] = useStateBSC({});
+  const [finishedBoard, setFinishedBoard] = useStateBSC(null);
   // Holds still running when a SEQUENTIAL dish was handed off. Kept as raw {endsAt} so the
   // debit shrinks with the clock and expires by itself; a stored minute figure would not.
   const [carried, setCarried] = useStateBSC([]);
@@ -9320,12 +9365,12 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // countdown becomes a still photograph, never reaches "Time's up", and never offers the
   // acknowledgement — the one thing the carry exists to deliver, missing from the last
   // screen that can deliver it.
-  // Scoped to the wrap AND to holds that are still running: this component RETURNS the
+  // Scoped to wrap/transition and holds still running: this component RETURNS the
   // board during the cook stage, so a session-wide heartbeat would re-render it every
   // second on top of the one it already runs, and a hold that has rung has nothing left
   // to count.
   const [, setWrapTick] = useStateBSC(0);
-  const wrapCounting = stage === 'wrap' && [...carried, ...wrapHolds].some((h) => h.endsAt > sessionNow);
+  const wrapCounting = (stage === 'wrap' || stage === 'transition') && [...carried, ...wrapHolds].some((h) => h.endsAt > sessionNow);
   React.useEffect(() => {
     if (!wrapCounting) return undefined;
     const iv = setInterval(() => setWrapTick((n) => n + 1), 1000);
@@ -9464,7 +9509,10 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // ⚠ RAW, UNDEBITED — the carried debit is applied by BSCookMode, which owns a
   // second-hand. Subtracting it here computed it against a clock that stops the moment this
   // component hands over the screen, freezing the figure for the whole of the next dish.
-  const sessionPriorMins = dishMins.slice(0, cookIdx).reduce((a, b) => a + b, 0);
+  const sessionPriorMins = ordered.slice(0, cookIdx).reduce((n, it, i) => {
+    const saved = dishProgress[it.key];
+    return n + (saved ? it.cookable.steps.reduce((sum, _step, k) => sum + (saved.visited[k] ? ((it.cookable.stepMeta?.[k]?.min > 0 ? it.cookable.stepMeta[k].min : BS_ORCH.activeStepMin)) : 0), 0) : dishMins[i]);
+  }, 0);
   const mise = React.useMemo(() => bsMergeMise(selected), [selected]);
   // The board's allergen claim notes. BSCookMode's own mise block CANNOT carry
   // them here: a prep-session candidate is filtered on `c.steps.length`, so
@@ -9682,14 +9730,15 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // stage re-render unmounts the button) would otherwise write the SAME recipe's
   // PREPPED record twice, inflating the count. Each index writes exactly once.
   const prepWroteRef = React.useRef(-1);
-  const onPrepped = (outstanding) => {
+  const onPrepped = (outstanding, progress) => {
     if (prepWroteRef.current === cookIdx) return;
     prepWroteRef.current = cookIdx;
+    if (progress) setDishProgress(p => ({ ...p, [ordered[cookIdx].key]: progress }));
     // ⚠ `cid` is stamped HERE because only the session knows which dish this was.
     // `timerIdRef` restarts at 0 in every newly mounted BSCookMode, so ids collide across
     // dishes; `cookIdx` makes them unique for the whole session.
     if (Array.isArray(outstanding) && outstanding.length) {
-      setCarried((arr) => [...arr, ...outstanding.map((x) => ({ ...x, cid: `${cookIdx}-${x.id}` }))]);
+      setCarried((arr) => [...arr, ...outstanding.map((x) => ({ ...x, dishIndex: cookIdx, cid: `${cookIdx}-${x.id}` }))]);
     }
     writeEntry(ordered[cookIdx]);
     if (cookIdx + 1 >= ordered.length) setStage('wrap');
@@ -9722,18 +9771,19 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
         serve={choice === BS_COOK_CHOICE.SERVE}
         onClose={onClose}
         onRecipePrepped={recordItem}
-        onDone={(holds) => {
+        onDone={(holds, board) => {
           // Terminal 'off' holds (a chill/set finishing unattended — the ONLY
           // holds that can outlive the board, round-7 invariant) surface on the
           // wrap screen as live countdowns.
           setWrapHolds(Array.isArray(holds) ? holds : []);
+          setFinishedBoard(board || null);
           setStage('wrap');
         }}
       />;
     }
     if (ordered[cookIdx]) return <BSCookMode
       cookable={ordered[cookIdx].cookable}
-      prep={{ index: cookIdx, count: ordered.length, onPrepped, priorMins: sessionPriorMins, totalMins: sessionTotalMins, carried, onCarriedDone }}
+      prep={{ index: cookIdx, count: ordered.length, items: ordered, progress: dishProgress, onPrepped, priorMins: sessionPriorMins, totalMins: sessionTotalMins, carried, onCarriedDone }}
       onClose={onClose}
     />;
   }
@@ -9762,6 +9812,12 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const sessionWrapTitle = cookNow
     ? tr('cook:prep.cookWrapTitle', { defaultValue: "That's everything." })
     : tr('cook:prep.wrapTitle', { defaultValue: 'The week is set.' });
+  const sessionRoadmap = (stage === 'wrap' || stage === 'transition') && ordered.length
+    ? finishedBoard
+      ? bsBoardRoadmap(finishedBoard.timeline, finishedBoard.timeline.length, wrapHolds, sessionNow)
+      : bsSoloRoadmap(ordered[0].cookable, { phase: 'mise', now: sessionNow }, { items: ordered, index: -1, progress: dishProgress, carried })
+    : [];
+  const wrapPct = bsRoadmapPercent(sessionRoadmap);
 
   const head = (eyebrow, title) => (
     <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px` }}>
@@ -9770,6 +9826,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
         <span style={{ ...bandEyebrow, fontSize: 10, color: heat }}>{eyebrow}</span>
       </div>
       <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, color: BAND.cream, letterSpacing: '-0.02em', lineHeight: 1.08 }}>{title}</div>
+      {sessionRoadmap.length > 0 && <BSCookProgress percent={wrapPct} rows={sessionRoadmap} colors={BAND} accent={heat} anchor={finishedBoard?.anchor}>
+        {`${wrapPct}% ${tr('cook:doneLabel', { defaultValue: 'done' })}`}
+      </BSCookProgress>}
     </div>
   );
   const seam = <div aria-hidden style={{ height: 3, background: heat, boxShadow: `0 0 14px ${bsTHexA(heat, 0.55)}` }} />;
@@ -9785,7 +9844,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
               <button style={primaryBtn} onClick={() => {
                 setResuming(resumeCandidate); setSessionAnchor(resumeCandidate.anchor); setKitchen(resumeCandidate.kitchen || {});
                 setCookMode(resumeCandidate.serve ? BS_COOK_CHOICE.SERVE : BS_COOK_CHOICE.SOONEST);
-                if (resumeCandidate.phase === 'wrap') { setWrapHolds(resumeCandidate.timers); setDoneEntries(resumeCandidate.items); setStage('wrap'); }
+                if (resumeCandidate.phase === 'wrap') { setWrapHolds(resumeCandidate.timers); setFinishedBoard(resumeCandidate); setDoneEntries(resumeCandidate.items); setStage('wrap'); }
                 else { setDoneEntries(resumeCandidate.items.filter(it => resumeCandidate.recorded.includes(it.key))); setStage('cook'); }
               }}>{tr('cook:prep.resumeBatch', { defaultValue: 'Resume cooking these dishes' })}</button>
               <div style={{ marginTop: 8 }}>{resumeCandidate.items.map(it => it.cookable.title).join(' · ')}</div>

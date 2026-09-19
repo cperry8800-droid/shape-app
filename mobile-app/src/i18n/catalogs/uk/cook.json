@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Останні таймери ще працюють",
   "prep.resumeBatch": "Продовжити готувати ці страви",
   "prep.searchRecipes": "Пошук рецептів",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "План приготування",
+  "roadmap.progress": "Орієнтовний прогрес приготування",
+  "roadmap.done": "Завершено",
+  "roadmap.current": "Поточний крок",
+  "roadmap.upcoming": "Попереду",
+  "roadmap.holding": "Таймер працює",
+  "roadmap.skipped": "Пропущено",
+  "roadmap.steps": "Завершено кроків: {done} із {total}",
+  "roadmap.open": "Показати план",
+  "roadmap.hide": "Сховати план",
+  "roadmap.duration": "Близько {n} хв",
+  "roadmap.planned": "За планом: {time}",
+  "roadmap.back": "Повернутися до приготування"
 }
