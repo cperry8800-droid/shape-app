@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Tambah hal untuk dihindari",
   "list.cleanCount": "{done}/{total} tetap bersih",
   "list.deleteConfirm": "Hapus kebiasaan",
-  "list.deleteMessage": "Ini menghapus kebiasaan dan seluruh riwayat rentetannya.",
+  "list.deleteMessage": "Kebiasaan ini dihapus dari daftar harian. Catatan sebelumnya tetap disimpan.",
   "list.deleteTitle": "Hapus kebiasaan ini?",
   "list.doneCount": "{done}/{total} selesai",
   "list.removeHabit": "Singkirkan kebiasaan",
@@ -69,5 +69,6 @@
   "toast.removed": "Kebiasaan dihapus",
   "toast.setPrivate": "Dijadikan privat",
   "toast.sharedFriends": "Dibagikan ke teman",
-  "toast.updateError": "Tidak bisa memperbarui kebiasaan"
+  "toast.updateError": "Tidak bisa memperbarui kebiasaan",
+  "page.loading": "Memuat…"
 }

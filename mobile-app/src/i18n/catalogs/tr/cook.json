@@ -130,5 +130,10 @@
   "prep.timingComing": "Zamanlama nasıl olsun — aynı anda, ayrı ayrı ya da hepsi birden sofrada.",
   "recovery.exit": "Adımlar ve zamanlayıcılar kaydedildi. Sürdürmek için tarifi yeniden açın. Zamanlayıcı uyarıları için uygulama açık olmalıdır.",
   "recovery.failedExit": "İlerleme bu cihaza kaydedilemedi. Çıkarsanız kaldığınız yer ve zamanlayıcılar kaybolur.",
-  "recovery.unavailable": "Bu cihazda ilerleme kurtarılamıyor. Bu ekranı açık tutun."
+  "recovery.unavailable": "Bu cihazda ilerleme kurtarılamıyor. Bu ekranı açık tutun.",
+  "prep.updatedFinish": "Güncel bitiş: {time} · kalan yemekler en fazla {n} dk arayla hazır olur",
+  "prep.timersStillRunning": "Son zamanlayıcılar hâlâ çalışıyor",
+  "prep.resumeBatch": "Bu yemekleri pişirmeye devam et",
+  "prep.searchRecipes": "Tarif ara",
+  "prep.catalog": "Shape Kitchen"
 }

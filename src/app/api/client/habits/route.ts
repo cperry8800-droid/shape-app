@@ -7,7 +7,7 @@
 //       { action: 'delete', id } → soft-deletes (archives; completion history kept)
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
 
@@ -18,8 +18,8 @@ type CompletionRow = { habit_id: string; done_on: string };
 export async function GET(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(request);
+  const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   // select('*') keeps the read migration-safe — the optional `domain` column
@@ -67,8 +67,8 @@ export async function GET(request: Request) {
 export async function POST(req: Request) {
   const denied = await requireMembership(req);
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await clientForRequest(req);
+  const user = await currentUser(req);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
   const bodyResult = await readJson<Record<string, unknown>>(req, { allowEmpty: true });
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
 
   if (action === 'create') {
     const name = String((body as { name?: unknown }).name || '').trim();
-    if (!name) return NextResponse.json({ error: 'Name required.' }, { status: 400 });
+    if (!name || name.length > 60) return NextResponse.json({ error: 'Name must be between 1 and 60 characters.' }, { status: 400 });
     const type = (body as { type?: string }).type === 'avoid' ? 'avoid' : 'do';
     const cadence = String((body as { cadence?: unknown }).cadence || 'daily');
     const visibility = ['private', 'friends', 'public'].includes(String((body as { visibility?: unknown }).visibility || ''))
@@ -108,7 +108,10 @@ export async function POST(req: Request) {
     if (!id) return NextResponse.json({ error: 'id required.' }, { status: 400 });
     const patch: Record<string, unknown> = {};
     const b = body as Record<string, unknown>;
-    if (typeof b.name === 'string') patch.name = b.name.trim();
+    if (typeof b.name === 'string') {
+      if (!b.name.trim() || b.name.trim().length > 60) return NextResponse.json({ error: 'Name must be between 1 and 60 characters.' }, { status: 400 });
+      patch.name = b.name.trim();
+    }
     if (b.type === 'do' || b.type === 'avoid') patch.type = b.type;
     if (typeof b.cadence === 'string') patch.cadence = b.cadence;
     if (b.visibility === 'private' || b.visibility === 'friends' || b.visibility === 'public') patch.visibility = b.visibility;
@@ -126,10 +129,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ habit: data });
   }
 
-  if (action === 'toggle') {
+  if (action === 'toggle' || action === 'set') {
     const id = String((body as { id?: unknown }).id || '');
     const date = String((body as { date?: unknown }).date || '');
-    if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    if (!id || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date || (action === 'set' && typeof body.done !== 'boolean')) {
       return NextResponse.json({ error: 'id and YYYY-MM-DD date required.' }, { status: 400 });
     }
     // Confirm the habit belongs to the user (RLS would block anyway, but
@@ -147,7 +150,7 @@ export async function POST(req: Request) {
     // points for a habit that was removed from the UI.
     if (!owned) return NextResponse.json({ error: 'Habit not found.' }, { status: 404 });
 
-    const { data: existing } = await supabase
+    const { data: existing, error: readErr } = await supabase
       .from('user_habit_completions')
       .select('id')
       .eq('user_id', user.id)
@@ -155,32 +158,34 @@ export async function POST(req: Request) {
       .eq('done_on', date)
       .maybeSingle();
 
-    if (existing) {
+    if (readErr) return dbError(readErr, 'habit completion read', 500);
+    const done = action === 'set' ? body.done === true : !existing;
+    if (!done && !existing) return NextResponse.json({ done: false });
+    if (!done && existing) {
+      // Keep the completion identity until its score credit is revoked, so a
+      // failed RPC can be retried instead of leaving an orphaned award.
+      const { error: ledgerErr } = await supabase.rpc('revoke_habit', { p_completion_id: existing.id });
+      if (ledgerErr) return dbError(ledgerErr, 'habit score revoke', 500);
       const { error } = await supabase
         .from('user_habit_completions')
         .delete()
         .eq('id', existing.id);
       if (error) return dbError(error, 'habits write', 500);
-      // Roll back the score credit tied to this completion row, via the DEFINER
-      // RPC (clients can no longer write score_ledger directly). It deletes only
-      // the caller's own habit-completion award row. Log a failure for visibility.
-      const { error: ledgerErr } = await supabase.rpc('revoke_habit', { p_completion_id: existing.id });
-      if (ledgerErr) console.error('[habits] score_ledger rollback failed:', ledgerErr.message);
       return NextResponse.json({ done: false });
     }
-    const { data: ins, error } = await supabase
-      .from('user_habit_completions')
-      .insert({ habit_id: id, user_id: user.id, done_on: date })
-      .select('id')
-      .single();
+    // Replaying an explicit desired state must never undo a check-off.
+    const { error: insertErr } = await supabase.from('user_habit_completions')
+      .upsert({ habit_id: id, user_id: user.id, done_on: date }, { onConflict: 'habit_id,done_on', ignoreDuplicates: true });
+    if (insertErr) return dbError(insertErr, 'habits write', 500);
+    const { data: ins, error } = await supabase.from('user_habit_completions')
+      .select('id').eq('user_id', user.id).eq('habit_id', id).eq('done_on', date).single();
     if (error) return dbError(error, 'habits write', 500);
     // Award 3 points to Shape Score under category 'habits' via the DEFINER RPC
     // (hard-codes +3, verifies the completion is caller-owned; the dedupe index
-    // prevents double-credit on retry). Surface a failed award in logs rather
-    // than returning done:true while points silently never post.
+    // prevents double-credit on retry). A failed award remains retryable.
     if (ins) {
       const { error: ledgerErr } = await supabase.rpc('award_habit', { p_completion_id: ins.id });
-      if (ledgerErr) console.error('[habits] score_ledger award failed:', ledgerErr.message);
+      if (ledgerErr) return dbError(ledgerErr, 'habit score award', 500);
     }
     return NextResponse.json({ done: true });
   }
@@ -192,6 +197,8 @@ export async function POST(req: Request) {
     // a hard cascade delete, so an accidental removal stays recoverable. The GET
     // filters on archived_at IS NULL, so an archived habit disappears from the
     // list exactly like a deleted one.
+    const { error: reminderError } = await supabase.from('habit_reminders').delete().eq('habit_id', id).eq('user_id', user.id);
+    if (reminderError) return dbError(reminderError, 'habit reminders remove', 500);
     const { data, error } = await supabase
       .from('user_habits')
       .update({ archived_at: new Date().toISOString() })

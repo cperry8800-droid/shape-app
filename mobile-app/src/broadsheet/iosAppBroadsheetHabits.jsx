@@ -40,7 +40,7 @@ function _bsDowNarrow(dow) {
   return new Date(Date.UTC(2023, 0, 1 + dow)).toLocaleDateString(habitsLocale(), { weekday: 'narrow', timeZone: 'UTC' });
 }
 
-const _bsHabitsToday = '2026-05-14';
+function _bsHabitsToday() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
 // ── Date helpers (anchored at "today") ────────────────────
 function _bsDateAdd(yyyymmdd, deltaDays) {
@@ -55,7 +55,7 @@ function _bsDateAdd(yyyymmdd, deltaDays) {
 // Last 7 days ending on today (oldest first)
 function _bsLast7() {
   const out = [];
-  for (let i = 6; i >= 0; i--) out.push(_bsDateAdd(_bsHabitsToday, -i));
+  for (let i = 6; i >= 0; i--) out.push(_bsDateAdd(_bsHabitsToday(), -i));
   return out;
 }
 // Letter for the day of week — anchored to May 14, 2026.
@@ -78,9 +78,9 @@ function _bsDow3(yyyymmdd) {
 function _bsStreakFromHistory(history) {
   if (!history || history.length === 0) return 0;
   const set = new Set(history);
-  let cursor = set.has(_bsHabitsToday)
-    ? _bsHabitsToday
-    : (set.has(_bsDateAdd(_bsHabitsToday, -1)) ? _bsDateAdd(_bsHabitsToday, -1) : null);
+  let cursor = set.has(_bsHabitsToday())
+    ? _bsHabitsToday()
+    : (set.has(_bsDateAdd(_bsHabitsToday(), -1)) ? _bsDateAdd(_bsHabitsToday(), -1) : null);
   if (!cursor) return 0;
   let n = 0;
   while (set.has(cursor)) {
@@ -126,7 +126,7 @@ function _bsDecodeHabits(v) {
         remindAt: typeof h.remindAt === 'string' ? h.remindAt : '',
         visibility,
         public: visibility === 'public',
-        pts: Number.isFinite(h.pts) ? h.pts : undefined,
+        pts: 3,
         domain: h.domain === 'work' ? 'work' : undefined,
         history,
       };
@@ -139,7 +139,7 @@ function _bsEncodeHabits(arr) {
     remindAt: h.remindAt || '',
     visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : (h.public ? 'public' : 'private'),
     public: h.visibility === 'public' || !!h.public,
-    pts: Number.isFinite(h.pts) ? h.pts : undefined,
+    pts: 3,
     domain: h.domain === 'work' ? 'work' : undefined,
     history: h.history || [],
   })));
@@ -178,7 +178,7 @@ function _bsHabitGridModel(habits) {
   const days = dates.map(d => _bsDowLetter(d));
   const rows = habits.map((h, i) => {
     const set = new Set(h.history || []);
-    const pattern = dates.map(d => set.has(d) ? (d === _bsHabitsToday ? 2 : 1) : 0);
+    const pattern = dates.map(d => set.has(d) ? (d === _bsHabitsToday() ? 2 : 1) : 0);
     const basePts = h.type === 'avoid' ? 16 : 18;
     return {
       id: h.id || `habit_${i}`,
@@ -226,7 +226,6 @@ function _bsHabitPts(h) {
   // Every habit completion awards a flat +3 to the Shape Score ledger
   // (2026-06-18-score-ledger-lockdown.sql). The old per-habit 4–8 fallback was a
   // fabricated display value that didn't match the award — reconciled to +3.
-  if (h && Number.isFinite(h.pts)) return h.pts;
   return 3;
 }
 
@@ -251,11 +250,16 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
   const [time, setTime] = React.useState(r.at_time || '09:00');
   const [days, setDays] = React.useState(Array.isArray(r.days) ? r.days.slice() : [1, 2, 3, 4, 5]);
   const toggleDay = (d) => setDays(ds => ds.includes(d) ? ds.filter(x => x !== d) : [...ds, d].sort((a, b) => a - b));
+  const saving = React.useRef(false);
+  const [pending, setPending] = React.useState(false);
   const save = async () => {
+    if (saving.current) return;
+    saving.current = true; setPending(true);
     try {
       if (!on || !days.length) await window.ShapeHabitReminders?.remove?.(habit.id);
       else await window.ShapeHabitReminders?.set?.({ habitId: habit.id, label: habit.name, time, days, enabled: true });
-    } catch (e) { window.__bsToast?.(tr('habits:reminder.saveError', { defaultValue: 'Could not save reminder' }), 'err'); }
+    } catch (e) { window.__bsToast?.(tr('habits:reminder.saveError', { defaultValue: 'Could not save reminder' }), 'err'); return; }
+    finally { saving.current = false; setPending(false); }
     onSaved && onSaved();
     onClose();
   };
@@ -276,13 +280,13 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
           <React.Fragment>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', borderBottom: `1px solid ${t.HAIR}` }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK }}>{tr('habits:reminder.time', { defaultValue: 'Time' })}</div>
-              <input type="time" value={time} onChange={e => setTime(e.target.value)} style={{ background: 'transparent', color: c, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 10px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, cursor: 'pointer' }} />
+              <input aria-label={tr('habits:reminder.time', { defaultValue: 'Time' })} type="time" value={time} onChange={e => setTime(e.target.value)} style={{ background: 'transparent', color: c, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 10px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, cursor: 'pointer' }} />
             </div>
             <div style={{ padding: '14px 0' }}>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, marginBottom: 10 }}>{tr('habits:reminder.days', { defaultValue: 'Days' })}</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {_BS_REM_DAYS.map(([, d], i) => { const dn = days.includes(d); return (
-                  <button key={i} onClick={() => toggleDay(d)} style={{ flex: 1, height: 36, borderRadius: 8, border: `1px solid ${dn ? c : t.RULE}`, background: dn ? `${c}22` : 'transparent', color: dn ? c : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>{_bsDowNarrow(d)}</button>
+                  <button key={i} aria-pressed={dn} aria-label={new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(new Date(2026, 0, 4 + d))} onClick={() => toggleDay(d)} style={{ flex: 1, minHeight: 44, borderRadius: 8, border: `1px solid ${dn ? c : t.RULE}`, background: dn ? `${c}22` : 'transparent', color: dn ? c : t.INK50, fontFamily: t.MONO, fontSize: 11, fontWeight: 800, cursor: 'pointer' }}>{_bsDowNarrow(d)}</button>
                 ); })}
               </div>
               <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
@@ -294,7 +298,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
         )}
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button onClick={onClose} style={{ flex: '0 0 auto', padding: '12px 18px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK70, fontFamily: t.BODY, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{tr('habits:common.cancel', { defaultValue: 'Cancel' })}</button>
-          <button onClick={save} style={{ flex: 1, padding: '12px', borderRadius: 999, background: c, color: '#04201d', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: 'pointer' }}>{on && days.length ? tr('habits:reminder.save', { defaultValue: 'Save reminder' }) : tr('habits:reminder.turnOff', { defaultValue: 'Turn off' })}</button>
+          <button onClick={save} disabled={pending} style={{ flex: 1, padding: '12px', borderRadius: 999, background: c, color: '#04201d', border: 0, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 760, cursor: 'pointer' }}>{on && days.length ? tr('habits:reminder.save', { defaultValue: 'Save reminder' }) : tr('habits:reminder.turnOff', { defaultValue: 'Turn off' })}</button>
         </div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('habits:reminder.footnote', { defaultValue: 'Off by default · skipped once you check it off · never nagging' })}</div>
       </div>
@@ -305,7 +309,7 @@ function BSHabitReminderSheet({ habit, reminder, accent, onClose, onSaved }) {
 function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange, first = false }) {
   const t = useBS();
   const tr = useShapeTr();
-  const done = (habit.history || []).includes(_bsHabitsToday);
+  const done = (habit.history || []).includes(_bsHabitsToday());
   const isAvoid = habit.type === 'avoid';
   const pts = _bsHabitPts(habit);
   const c = accent;
@@ -316,8 +320,8 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
       display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', alignItems: 'center', gap: 10,
       padding: '11px 0', minHeight: 44, borderTop: first ? 0 : `1px solid ${t.HAIR}`,
     }}>
-      <button onClick={() => onToggle(habit.id)} aria-label={done ? tr('habits:row.markNotDone', { defaultValue: 'Mark not done' }) : tr('habits:row.markDone', { defaultValue: 'Mark done' })} style={{
-        width: 24, height: 24, borderRadius: 3, cursor: 'pointer', flexShrink: 0,
+      <button onClick={() => onToggle(habit.id)} aria-pressed={done} aria-label={done ? tr('habits:row.markNotDone', { defaultValue: 'Mark not done' }) : tr('habits:row.markDone', { defaultValue: 'Mark done' })} style={{
+        width: 44, height: 44, borderRadius: 3, cursor: 'pointer', flexShrink: 0,
         border: `1.5px solid ${done ? c : `${c}55`}`, background: done ? c : 'transparent',
         color: '#04201d', display: 'grid', placeItems: 'center',
         fontFamily: t.MONO, fontSize: 12, fontWeight: 900, padding: 0,
@@ -331,8 +335,8 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
             : `${isAvoid ? tr('habits:row.avoid', { defaultValue: 'Avoid' }) : tr('habits:row.do', { defaultValue: 'Do' })} · ${tr('habits:row.pts', { defaultValue: '{count, plural, one {+# pt} other {+# pts}}', count: pts })}`}
         </div>
       </button>
-      <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label={tr('habits:reminder.title', { defaultValue: 'Habit reminder' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>
-      <button onClick={async () => { if (await window.bsAskConfirm({ title: tr('habits:list.deleteTitle', { defaultValue: 'Delete this habit?' }), name: habit.name, message: tr('habits:list.deleteMessage', { defaultValue: 'This removes the habit and its full streak history.' }), confirmLabel: tr('habits:list.deleteConfirm', { defaultValue: 'Delete habit' }) })) onRemove(habit.id); }} aria-label={tr('habits:list.removeHabit', { defaultValue: 'Remove habit' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</button>
+      <button onClick={(e) => { e.stopPropagation(); setRemOpen(true); }} aria-label={tr('habits:reminder.title', { defaultValue: 'Habit reminder' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: hasRem ? c : t.INK50, padding: '0 1px', minWidth: 44, minHeight: 44, display: 'grid', placeItems: 'center', lineHeight: 0 }}>{_bsBellIcon(hasRem, hasRem ? c : t.INK50)}</button>
+      <button onClick={async () => { if (await window.bsAskConfirm({ title: tr('habits:list.deleteTitle', { defaultValue: 'Delete this habit?' }), name: habit.name, message: tr('habits:list.deleteMessage', { defaultValue: 'This removes the habit from your daily list. Past check-offs are kept.' }), confirmLabel: tr('habits:list.deleteConfirm', { defaultValue: 'Delete habit' }) })) onRemove(habit.id); }} aria-label={tr('habits:list.removeHabit', { defaultValue: 'Remove habit' })} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: t.INK50, fontSize: 15, lineHeight: 1, minWidth: 44, minHeight: 44, padding: '0 2px' }}>×</button>
       {remOpen && <BSHabitReminderSheet habit={habit} reminder={reminder} accent={c} onClose={() => setRemOpen(false)} onSaved={onReminderChange} />}
     </div>
   );
@@ -343,7 +347,7 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
 function BSHabitSection({ title, type, accent, habits, onToggle, onRemove, onAdd, reminders, onReminderChange }) {
   const t = useBS();
   const tr = useShapeTr();
-  const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).length;
+  const done = habits.filter(h => (h.history || []).includes(_bsHabitsToday())).length;
   const countMsg = type === 'avoid'
     ? tr('habits:list.cleanCount', { defaultValue: '{done}/{total} Stayed clean', done, total: habits.length })
     : tr('habits:list.doneCount', { defaultValue: '{done}/{total} Done', done, total: habits.length });
@@ -373,10 +377,10 @@ function BSHabitScoreCard({ habits, onOpenScore }) {
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const week = _bsHabitInsightStats(habits); // this week's Shape Score from habits + adherence
-  const earned = habits.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
+  const earned = habits.filter(h => (h.history || []).includes(_bsHabitsToday())).reduce((s, h) => s + _bsHabitPts(h), 0);
   const possible = habits.reduce((s, h) => s + _bsHabitPts(h), 0);
   const remaining = possible - earned;
-  const sumE = (list) => list.filter(h => (h.history || []).includes(_bsHabitsToday)).reduce((s, h) => s + _bsHabitPts(h), 0);
+  const sumE = (list) => list.filter(h => (h.history || []).includes(_bsHabitsToday())).reduce((s, h) => s + _bsHabitPts(h), 0);
   const sumP = (list) => list.reduce((s, h) => s + _bsHabitPts(h), 0);
   const dos = habits.filter(h => h.type !== 'avoid');
   const donts = habits.filter(h => h.type === 'avoid');
@@ -489,7 +493,9 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
   const isAvoid = type === 'avoid';
   const onAccentInk = isAvoid ? '#2b0d07' : '#04201d';
   const [name, setName] = useStateBSH('');
-  const [pts, setPts] = useStateBSH(5);
+  const pts = 3;
+  const saving = React.useRef(false);
+  const [pending, setPending] = React.useState(false);
   // domain:'work' — set by the work chips or the WORK toggle; a plain chip or
   // hand-typed habit stays domain-less (honest-absent, never name-inferred).
   const [domain, setDomain] = useStateBSH('');
@@ -498,7 +504,7 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
   const suggestions = _BS_HABIT_SUGGEST[isAvoid ? 'avoid' : 'do'];
   const workSuggestions = _BS_HABIT_SUGGEST[isAvoid ? 'workAvoid' : 'workDo'];
   const canAdd = name.trim().length > 0;
-  const add = () => { if (!canAdd) return; onCreate({ name: name.trim(), type: isAvoid ? 'avoid' : 'do', pts, domain: domain || undefined }); };
+  const add = async () => { if (!canAdd || saving.current) return; saving.current = true; setPending(true); try { await onCreate({ name: name.trim(), type: isAvoid ? 'avoid' : 'do', pts, domain: domain || undefined }); } finally { saving.current = false; setPending(false); } };
   const sheet = (
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `10px ${t.padX}px 18px`, boxShadow: '0 -20px 50px rgba(0,0,0,0.4)' }}>
@@ -535,14 +541,12 @@ function BSHabitAddSheet({ type, accent, onClose, onCreate }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('habits:add.points', { defaultValue: 'Points' })}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <button onClick={() => setPts(p => Math.max(1, p - 1))} aria-label={tr('habits:add.fewerPoints', { defaultValue: 'Fewer points' })} style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>−</button>
             <span style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: accent, letterSpacing: '-0.03em', minWidth: 44, textAlign: 'center' }}>+{pts}</span>
-            <button onClick={() => setPts(p => Math.min(20, p + 1))} aria-label={tr('habits:add.morePoints', { defaultValue: 'More points' })} style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: 0 }}>+</button>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
           <button onClick={onClose} style={{ flex: '0 0 auto', padding: '14px 22px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('habits:common.cancel', { defaultValue: 'Cancel' })}</button>
-          <button onClick={add} disabled={!canAdd} style={{ flex: 1, padding: '14px', borderRadius: 999, border: 0, background: canAdd ? accent : t.RULE, color: canAdd ? onAccentInk : t.INK50, cursor: canAdd ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('habits:add.addHabit', { defaultValue: 'Add habit' })}</button>
+          <button onClick={add} disabled={!canAdd || pending} style={{ flex: 1, padding: '14px', borderRadius: 999, border: 0, background: canAdd ? accent : t.RULE, color: canAdd ? onAccentInk : t.INK50, cursor: canAdd ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('habits:add.addHabit', { defaultValue: 'Add habit' })}</button>
         </div>
       </div>
     </div>
@@ -559,7 +563,7 @@ function _bsMapServerHabits(rows) {
     cadence: h.cadence || 'daily',
     visibility: ['private', 'friends', 'public'].includes(h.visibility) ? h.visibility : 'private',
     public: h.visibility === 'public',
-    pts: Number.isFinite(h.pts) ? h.pts : undefined,
+    pts: 3,
     domain: h.domain === 'work' ? 'work' : undefined,
     history: Array.isArray(h.history) ? h.history : [],
   }));
@@ -574,118 +578,79 @@ function _bsMapServerHabits(rows) {
 // also mirror into tweaks so the home summary reflects them without a refetch.
 function _bsUseServerHabits(tweaks, setTweak) {
   const tr = useShapeTr();
-  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
-  const [serverHabits, setServerHabits] = useStateBSH(null);
-
+  const uid = window.ShapeAuth?.getCachedState?.().user?.id || null;
+  const [snapshot, setSnapshot] = React.useState({ uid: null, habits: [], status: 'loading' });
+  const [revision, refresh] = React.useReducer(n => n + 1, 0);
+  const busy = React.useRef(false);
+  const current = React.useRef(snapshot); current.current = snapshot;
+  const liveUid = () => window.ShapeAuth?.getCachedState?.().user?.id || null;
   React.useEffect(() => {
-    if (!loggedIn) return undefined;
-    let cancelled = false;
-    fetch('/api/client/habits', { credentials: 'same-origin' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        if (cancelled || !d || !Array.isArray(d.habits)) return;
-        const mapped = _bsMapServerHabits(d.habits);
-        setServerHabits(mapped);
-        try { setTweak('habits', _bsEncodeHabits(mapped)); } catch (e) { /* mirror best-effort */ }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [loggedIn]);
-
+    let alive = true;
+    if (!uid) return;
+    setSnapshot({ uid, habits: [], status: 'loading' });
+    window.ShapeHabitsData.listStrict().then(d => {
+      if (!alive || liveUid() !== uid) return;
+      const habits = _bsMapServerHabits(d.habits);
+      setSnapshot({ uid, habits, status: 'ready' });
+      setTweak('habits', _bsEncodeHabits(habits));
+    }).catch(() => { if (alive && liveUid() === uid) setSnapshot({ uid, habits: [], status: 'error' }); });
+    return () => { alive = false; };
+  }, [uid, revision]);
+  // Refresh at the local midnight boundary, including after a suspended tab wakes.
+  React.useEffect(() => {
+    let day = _bsHabitsToday();
+    const tick = () => { const next = _bsHabitsToday(); if (next !== day) { day = next; refresh(); } };
+    const timer = setInterval(tick, 15000);
+    window.addEventListener('focus', tick);
+    return () => { clearInterval(timer); window.removeEventListener('focus', tick); };
+  }, []);
   const local = _bsDecodeHabits(tweaks.habits);
-  const useServer = loggedIn && serverHabits != null;
-  const habits = useServer ? serverHabits : local;
-  const saveLocal = (next) => setTweak('habits', _bsEncodeHabits(next));
-  const apiAction = (body) => fetch('/api/client/habits', {
-    method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  }).then(r => (r.ok ? r.json() : r.json().then(e => Promise.reject(e))));
-  // Apply a server-state update and mirror the result into tweaks so the home
-  // summary card (which reads tweaks.habits) stays in sync.
-  const setServer = (updater) => setServerHabits(prev => {
-    const next = updater(prev || []);
-    try { setTweak('habits', _bsEncodeHabits(next)); } catch (e) { /* best-effort mirror */ }
-    return next;
-  });
-
-  const create = ({ name, type = 'do', cadence = 'daily', visibility = 'private', pts, domain }) => {
+  const status = uid ? (snapshot.uid === uid ? snapshot.status : 'loading') : 'ready';
+  const habits = uid ? (snapshot.uid === uid ? snapshot.habits : []) : local;
+  const mutate = async (body, apply) => {
+    if (busy.current || (uid && status !== 'ready')) return false;
+    busy.current = true;
+    try {
+      const data = uid ? await window.ShapeHabitsData.action(body) : {};
+      if (liveUid() !== uid) return false;
+      const next = apply(uid ? current.current.habits : local, data);
+      if (uid) { const value = { uid, habits: next, status: 'ready' }; current.current = value; setSnapshot(value); }
+      setTweak('habits', _bsEncodeHabits(next));
+      return true;
+    } catch (e) {
+      if (liveUid() === uid) window.__bsToast?.(tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }), 'err');
+      return false;
+    } finally { busy.current = false; }
+  };
+  const create = ({ name, type = 'do', cadence = 'daily', visibility = 'private', domain }) => {
     const cleanName = String(name || '').trim();
-    if (!cleanName) return;
-    const ptsVal = Number.isFinite(pts) ? pts : undefined;
-    const dom = domain === 'work' ? 'work' : undefined;
-    if (useServer) {
-      apiAction({ action: 'create', name: cleanName, type, cadence, visibility, pts: ptsVal, domain: dom })
-        .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, pts: ptsVal, domain: (d.habit.domain === 'work' ? 'work' : dom), history: [] }])]); })
-        .catch(() => window.__bsToast?.(tr('habits:toast.addError', { defaultValue: 'Could not add habit' }), 'err'));
-      return;
-    }
-    saveLocal([...local, { id: 'h_' + Math.random().toString(36).slice(2, 9), name: cleanName, type, cadence, visibility, public: visibility === 'public', pts: ptsVal, domain: dom, history: [] }]);
+    if (!cleanName) return Promise.resolve(false);
+    const body = { action: 'create', name: cleanName, type, cadence, visibility, domain };
+    return mutate(body, (list, data) => [...list, ..._bsMapServerHabits([{ ...(data.habit || { ...body, id: 'h_' + Math.random().toString(36).slice(2, 9) }), history: [] }])]);
   };
-
-  const upsert = (h) => {
-    if (useServer) {
-      const exists = (serverHabits || []).some(x => x.id === h.id);
-      if (exists) {
-        setServer(prev => prev.map(x => x.id === h.id ? { ...x, ...h } : x));
-        apiAction({ action: 'update', id: h.id, name: h.name, type: h.type, cadence: h.cadence, visibility: h.visibility }).catch(() => {});
-      } else {
-        apiAction({ action: 'create', name: h.name, type: h.type, cadence: h.cadence || 'daily', visibility: h.visibility || 'private' })
-          .then(d => { if (d && d.habit) setServer(prev => [...prev, ..._bsMapServerHabits([{ ...d.habit, history: h.history || [] }])]); })
-          .catch(() => window.__bsToast?.(tr('habits:toast.addError', { defaultValue: 'Could not add habit' }), 'err'));
-      }
-      return;
+  const remove = async id => {
+    const saved = await mutate({ action: 'delete', id }, list => list.filter(h => h.id !== id));
+    if (saved) {
+      window.__bsToast?.(tr('habits:toast.removed', { defaultValue: 'Habit removed' }), 'ok');
+      // An archived habit must not keep nudging this device.
+      window.ShapeHabitReminders?.remove?.(id).catch(() => {});
     }
-    const exists = local.find(x => x.id === h.id);
-    saveLocal(exists ? local.map(x => x.id === h.id ? h : x) : [...local, h]);
+    return saved;
   };
-
-  const remove = (id) => {
-    if (useServer) {
-      setServer(prev => prev.filter(h => h.id !== id));
-      apiAction({ action: 'delete', id }).catch(() => {});
-    } else {
-      saveLocal(local.filter(h => h.id !== id));
-    }
-    window.__bsToast?.(tr('habits:toast.removed', { defaultValue: 'Habit removed' }), 'ok');
-  };
-
-  const setVisibility = (id, visibility) => {
-    if (useServer) {
-      setServer(prev => prev.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
-      apiAction({ action: 'update', id, visibility }).catch(() => {});
-    } else {
-      saveLocal(local.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
-    }
-    window.__bsToast?.(
-      visibility === 'public' ? tr('habits:toast.madePublic', { defaultValue: 'Made public' })
-        : visibility === 'friends' ? tr('habits:toast.sharedFriends', { defaultValue: 'Shared with friends' })
-        : tr('habits:toast.setPrivate', { defaultValue: 'Set to private' }),
-      'ok',
-    );
-  };
-
-  const toggle = (id) => {
+  const setVisibility = (id, visibility) => mutate({ action: 'update', id, visibility }, list => list.map(h => h.id === id ? { ...h, visibility, public: visibility === 'public' } : h));
+  const toggle = id => {
     if (window.bsRequireAccount && !window.bsRequireAccount(tr('habits:gate.trackHabits', { defaultValue: 'track habits' }))) return;
-    const applyToggle = (list) => list.map(h => {
+    const date = _bsHabitsToday();
+    const done = !(habits.find(h => h.id === id)?.history || []).includes(date);
+    return mutate({ action: 'set', id, date, done }, (list, data) => list.map(h => {
       if (h.id !== id) return h;
-      const hist = new Set(h.history || []);
-      if (hist.has(_bsHabitsToday)) hist.delete(_bsHabitsToday);
-      else hist.add(_bsHabitsToday);
-      return { ...h, history: [...hist].sort() };
-    });
-    if (useServer) {
-      setServer(applyToggle);
-      apiAction({ action: 'toggle', id, date: _bsHabitsToday }).catch(() => {
-        setServer(applyToggle); // revert the optimistic flip on failure
-        window.__bsToast?.(tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }), 'err');
-      });
-    } else {
-      saveLocal(applyToggle(local));
-    }
+      const history = new Set(h.history || []);
+      if (data.done ?? done) history.add(date); else history.delete(date);
+      return { ...h, history: [...history].sort() };
+    }));
   };
-
-  return { loggedIn, useServer, habits, create, upsert, remove, setVisibility, toggle };
+  return { loggedIn: !!uid, useServer: !!uid, habits, status, retry: refresh, create, remove, setVisibility, toggle };
 }
-
 
 function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   const t = useBS();
@@ -695,7 +660,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
 
   // Live (Supabase) when signed in, ephemeral tweaks otherwise — shared with
   // the home tracker so completions and edits stay in sync across surfaces.
-  const { habits, create, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
+  const { habits, status, retry, create, remove: removeHabit, toggle } = _bsUseServerHabits(tweaks, setTweak);
   const [adding, setAdding] = useStateBSH(null); // 'do' | 'avoid' | null
   // Per-habit reminders (opt-in). Map habit_id → row; refreshed after each edit.
   const [reminders, setReminders] = React.useState({});
@@ -706,7 +671,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   React.useEffect(() => { loadReminders(); }, [loadReminders]);
   const dos = habits.filter(h => h.type !== 'avoid');
   const donts = habits.filter(h => h.type === 'avoid');
-  const onCreate = ({ name, type, pts, domain }) => { create({ name, type, pts, domain, visibility: 'private' }); setAdding(null); };
+  const onCreate = async ({ name, type, domain }) => { if (await create({ name, type, domain, visibility: 'private' })) setAdding(null); };
   return (
     <BSPage>
       <BSDetailHeader
@@ -715,6 +680,7 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
         title={<>{tr('habits:page.titleLead', { defaultValue: 'Daily' })} <span style={{ color: teal }}>{tr('habits:page.titleAccent', { defaultValue: 'habits' })}</span></>}
       />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
+        {status !== 'ready' && <div role="status" style={{ padding: '16px 0', color: t.INK }}><button onClick={retry} style={{ minHeight: 44 }}>{status === 'loading' ? tr('habits:page.loading', { defaultValue: 'Loading…' }) : tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }) + ' ↻'}</button></div>}
         <BSHabitScoreCard habits={habits} onOpenScore={onOpenScore} />
       </div>
       <div style={{ padding: `12px ${t.padX}px 0` }}>

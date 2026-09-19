@@ -130,5 +130,10 @@
   "prep.timingComing": "Cómo se coordinan los tiempos: al mismo tiempo, por separado o todo junto en la mesa.",
   "recovery.exit": "Tus pasos y temporizadores están guardados. Abre esta receta para continuar. Las alertas requieren la app abierta.",
   "recovery.failedExit": "No se pudo guardar el progreso en este dispositivo. Al salir perderás tu lugar y temporizadores.",
-  "recovery.unavailable": "No se puede recuperar el progreso en este dispositivo. Mantén esta pantalla abierta."
+  "recovery.unavailable": "No se puede recuperar el progreso en este dispositivo. Mantén esta pantalla abierta.",
+  "prep.updatedFinish": "Final previsto: {time} · los platos restantes terminan con {n} min de diferencia",
+  "prep.timersStillRunning": "Los últimos temporizadores siguen activos",
+  "prep.resumeBatch": "Reanudar la preparación de estos platos",
+  "prep.searchRecipes": "Buscar recetas",
+  "prep.catalog": "Shape Kitchen"
 }

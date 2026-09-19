@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Ƙara abin gujewa",
   "list.cleanCount": "{done}/{total} an guje",
   "list.deleteConfirm": "Share al'ada",
-  "list.deleteMessage": "Wannan yana cire al'ada da tarihin jerinta gaba ɗaya.",
+  "list.deleteMessage": "Wannan zai cire al’adar daga jerin yau da kullum. Za a kiyaye bayanan da aka kammala a baya.",
   "list.deleteTitle": "A share wannan al'ada?",
   "list.doneCount": "{done}/{total} an yi",
   "list.removeHabit": "Cire al'ada",
@@ -69,5 +69,6 @@
   "toast.removed": "An cire al'ada",
   "toast.setPrivate": "An mai da shi na sirri",
   "toast.sharedFriends": "An raba da abokai",
-  "toast.updateError": "An kasa sabunta al'ada"
+  "toast.updateError": "An kasa sabunta al'ada",
+  "page.loading": "Ana lodawa…"
 }

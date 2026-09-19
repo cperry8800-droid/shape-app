@@ -229,7 +229,7 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
   const order = orderIdx
     ? orderIdx.map((k) => ({ r: rs[k], dur: durationOf(rs[k], activeMin), i: k }))
     : rs.map((r, i) => ({ r, dur: durationOf(r, activeMin), i })).sort((a, b) => b.dur - a.dur || a.i - b.i);
-  const holds = [];
+  const holds = [...(kitchen?.liveHolds || [])];
   const hands = [];
   const placed = [];
   let pulled = false;
@@ -244,6 +244,8 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
 
   for (const { r, dur } of order) {
     let start = T - dur;
+    const release = r.readyAt || 0;
+    if (start < release) return { feasible: false, deficit: release - start };
     let clash = 0;
     for (let guard = 0; guard <= rs.length * (r.steps.length + 1) + 8; guard++) {
       let at = start;
@@ -267,14 +269,14 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
         at += len;
       }
       if (!clash) break;
-      if (start - clash < 0) break;   // cannot pull further — T itself is too early
+      if (start - clash < release) break;   // cannot pull further — T itself is too early
       start -= clash;
       pulled = true;
     }
     if (clash) {
       // Infeasible at this T. The shortfall is how much later T must be for this dish
       // to clear the station it is blocked on.
-      deficit = Math.max(deficit, clash - start);
+      deficit = Math.max(deficit, clash - start + release);
       return { feasible: false, deficit: Math.max(1, deficit) };
     }
     let at = start;
@@ -403,7 +405,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   let serialFallback = false;
   if (!feas.feasible) {
     serialFallback = true;
-    earliest = durs.reduce((sum, d) => sum + d, 0);
+    earliest = durs.reduce((sum, d) => sum + d, 0) + Math.max(0, ...rs.map(r => r.readyAt || 0), ...(kitchen?.liveHolds || []).map(h => h.to));
     feas = bestPlacement(rs, activeMin, earliest, kitchen);
   }
 
@@ -614,4 +616,35 @@ export function bsHoldingAt(timeline, cursorIndex) {
     holds.push({ recipe: e.recipe, title: e.title, text: e.text, station: e.station, min: e.min, startedAt: e.at, endsAt: e.at + e.min });
   }
   return holds;
+}
+
+// Reconcile unfinished steps with actual wall-clock holds. Completed work is never
+// replayed; each remaining recipe retains its original instance and step identity.
+export function bsReplanCook(timeline, cursor, timers, anchor, now, kitchen = {}, targetAt) {
+  const rest = timeline.slice(cursor);
+  if (!rest.length) return { timeline, serveAt: now, spread: 0 };
+  const live = (timers || []).filter(t => !t.soft && t.endsAt > now);
+  const groups = new Map();
+  rest.forEach(e => { if (!groups.has(e.iid)) groups.set(e.iid, []); groups.get(e.iid).push(e); });
+  const rs = [...groups].map(([iid, events]) => ({
+    iid, key: events[0].recipe, title: events[0].title, events,
+    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station })),
+    readyAt: Math.max(0, ...live.filter(t => t.iid === iid).map(t => (t.endsAt - now) / 60000)),
+  }));
+  const originalEnd = Math.max(...timeline.map(e => anchor + (e.at + (e.min || BS_ORCH.activeStepMin)) * 60000));
+  const requested = Math.max(0, ((targetAt || originalEnd) - now) / 60000, ...live.map(t => (t.endsAt - now) / 60000));
+  const plan = serveTimeline(rs, BS_ORCH.activeStepMin, requested, { ...kitchen, liveHolds: live.map(t => ({ station: t.station, from: 0, to: (t.endsAt - now) / 60000 })) });
+  const byId = new Map(rs.map(r => [r.iid, r]));
+  const next = plan.timeline.map(e => ({ ...byId.get(e.iid).events[e.stepIndex], at: (now - anchor) / 60000 + e.at }));
+  return { timeline: [...timeline.slice(0, cursor), ...next], serveAt: now + plan.serveAt * 60000, spread: plan.spread };
+}
+
+export function bsCookBlockingHold(event, timers, now, kitchen = {}) {
+  if (!event) return null;
+  const live = (timers || []).filter(t => !t.soft && t.endsAt > now);
+  const own = live.find(t => t.iid === event.iid && t.recipeStep !== event.stepIndex);
+  if (own) return own;
+  if (!STATIONS_EXCLUSIVE.includes(event.station)) return null;
+  const others = live.filter(t => t.iid !== event.iid && t.station === event.station);
+  return others.length >= capacityOf(event.station, kitchen) ? others.sort((a,b) => a.endsAt-b.endsAt)[0] : null;
 }

@@ -130,5 +130,10 @@
   "prep.timingComing": "Come vengono sincronizzati: allo stesso tempo, separatamente, o tutto in tavola insieme.",
   "recovery.exit": "Passaggi e timer salvati. Riapri la ricetta per riprendere. Gli avvisi richiedono che l’app sia aperta.",
   "recovery.failedExit": "Impossibile salvare i progressi su questo dispositivo. Uscendo perderai la posizione e i timer.",
-  "recovery.unavailable": "Recupero non disponibile su questo dispositivo. Tieni aperta questa schermata."
+  "recovery.unavailable": "Recupero non disponibile su questo dispositivo. Tieni aperta questa schermata.",
+  "prep.updatedFinish": "Fine aggiornata: {time} · i piatti rimanenti finiscono entro {n} min l’uno dall’altro",
+  "prep.timersStillRunning": "Gli ultimi timer sono ancora attivi",
+  "prep.resumeBatch": "Riprendi la preparazione di questi piatti",
+  "prep.searchRecipes": "Cerca ricette",
+  "prep.catalog": "Shape Kitchen"
 }

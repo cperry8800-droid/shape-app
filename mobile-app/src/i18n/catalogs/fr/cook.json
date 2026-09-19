@@ -130,5 +130,10 @@
   "prep.timingComing": "Comment ils sont synchronisés — en même temps, séparément, ou tout à table en même temps.",
   "recovery.exit": "Vos étapes et minuteries sont enregistrées. Rouvrez la recette pour reprendre. Les alertes nécessitent que l’app reste ouverte.",
   "recovery.failedExit": "Impossible de sauvegarder la progression sur cet appareil. Quitter fera perdre votre étape et vos minuteries.",
-  "recovery.unavailable": "Récupération indisponible sur cet appareil. Gardez cet écran ouvert."
+  "recovery.unavailable": "Récupération indisponible sur cet appareil. Gardez cet écran ouvert.",
+  "prep.updatedFinish": "Fin prévue : {time} · les plats restants terminent à {n} min d’intervalle",
+  "prep.timersStillRunning": "Les derniers minuteurs sont encore actifs",
+  "prep.resumeBatch": "Reprendre la préparation de ces plats",
+  "prep.searchRecipes": "Rechercher des recettes",
+  "prep.catalog": "Shape Kitchen"
 }

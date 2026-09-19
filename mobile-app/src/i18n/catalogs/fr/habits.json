@@ -24,7 +24,7 @@
   "list.addToDont": "＋ Ajouter un à-éviter",
   "list.cleanCount": "{done}/{total} sans faute",
   "list.deleteConfirm": "Supprimer l’habitude",
-  "list.deleteMessage": "Cela supprime l’habitude et tout son historique de séries.",
+  "list.deleteMessage": "Cette action retire l’habitude de votre liste quotidienne. Les validations passées sont conservées.",
   "list.deleteTitle": "Supprimer cette habitude ?",
   "list.doneCount": "{done}/{total} faits",
   "list.removeHabit": "Retirer l’habitude",
@@ -69,5 +69,6 @@
   "toast.removed": "Habitude supprimée",
   "toast.setPrivate": "Rendu privé",
   "toast.sharedFriends": "Partagé avec les amis",
-  "toast.updateError": "Impossible de mettre à jour l’habitude"
+  "toast.updateError": "Impossible de mettre à jour l’habitude",
+  "page.loading": "Chargement…"
 }

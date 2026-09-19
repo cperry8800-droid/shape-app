@@ -130,5 +130,10 @@
   "prep.timingComing": "Cara mengatur waktunya — bersamaan, terpisah, atau semua siap disajikan sekaligus.",
   "recovery.exit": "Langkah dan timer tersimpan. Buka resep ini lagi untuk melanjutkan. Peringatan timer memerlukan aplikasi terbuka.",
   "recovery.failedExit": "Progres tidak dapat disimpan di perangkat ini. Keluar akan menghilangkan posisi dan timer Anda.",
-  "recovery.unavailable": "Pemulihan progres tidak tersedia di perangkat ini. Biarkan layar ini terbuka."
+  "recovery.unavailable": "Pemulihan progres tidak tersedia di perangkat ini. Biarkan layar ini terbuka.",
+  "prep.updatedFinish": "Perkiraan selesai: {time} · hidangan tersisa selesai dengan selisih {n} menit",
+  "prep.timersStillRunning": "Pengatur waktu terakhir masih berjalan",
+  "prep.resumeBatch": "Lanjutkan memasak hidangan ini",
+  "prep.searchRecipes": "Cari resep",
+  "prep.catalog": "Shape Kitchen"
 }

@@ -130,5 +130,10 @@
   "prep.timingComing": "Yadda za a tsara lokacin — a lokaci guda, daban-daban, ko duka a kan tebur lokaci guda.",
   "recovery.exit": "An adana matakai da agogunan ƙidaya. Sake buɗe girkin don ci gaba. Faɗakarwar agogo na buƙatar manhajar ta kasance a buɗe.",
   "recovery.failedExit": "An kasa adana ci gaba a wannan na’ura. Fita zai sa a rasa inda ka tsaya da agogunan ƙidaya.",
-  "recovery.unavailable": "Ba a iya dawo da ci gaba a wannan na’ura. Bar wannan allo a buɗe."
+  "recovery.unavailable": "Ba a iya dawo da ci gaba a wannan na’ura. Bar wannan allo a buɗe.",
+  "prep.updatedFinish": "Sabon lokacin ƙarewa: {time} · sauran abinci za su gama cikin tazarar minti {n}",
+  "prep.timersStillRunning": "Agogon ƙarshe suna ci gaba da aiki",
+  "prep.resumeBatch": "Ci gaba da dafa waɗannan abinci",
+  "prep.searchRecipes": "Nemo girke-girke",
+  "prep.catalog": "Shape Kitchen"
 }

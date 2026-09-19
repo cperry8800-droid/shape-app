@@ -10,7 +10,7 @@ function HabitCheckbox({ checked, onClick, type = "do", size = 26, ariaLabel }) 
   return (
     <button onClick={onClick} aria-label={ariaLabel} aria-pressed={checked}
       style={{
-        width: size, height: size, borderRadius: square ? 6 : 999, padding: 0, cursor: "pointer",
+        width: Math.max(44, size), height: Math.max(44, size), borderRadius: square ? 6 : 999, padding: 0, cursor: "pointer",
         background: checked ? TEAL : "transparent",
         border: checked ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.25)",
         color: PAPER, fontSize: Math.round(size * 0.55), lineHeight: 1,
@@ -20,6 +20,61 @@ function HabitCheckbox({ checked, onClick, type = "do", size = 26, ariaLabel }) 
       {checked ? "✓" : ""}
     </button>
   );
+}
+
+// Shared live store for the website dashboard and dedicated page.
+function habitDay(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function habitFromServer(h) {
+  const dates = Array.isArray(h.history) ? h.history : [];
+  const history = [];
+  for (let i = 6; i >= 1; i--) { const d = new Date(); d.setDate(d.getDate() - i); history.push(dates.includes(habitDay(d))); }
+  return { ...h, label: h.name, type: h.type === 'avoid' ? 'dont' : 'do', sub: h.type === 'avoid' ? "Tap when you've avoided it today" : 'Keep the streak alive', points: 3, history, dates, today: dates.includes(habitDay()) };
+}
+function useLiveHabits() {
+  const [habits, setHabits] = React.useState([]);
+  const [status, setStatus] = React.useState('loading');
+  const [error, setError] = React.useState('');
+  const [version, reload] = React.useReducer(n => n + 1, 0);
+  const busy = React.useRef(false);
+  const alive = React.useRef(true);
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  React.useEffect(() => {
+    let valid = true;
+    setStatus('loading');
+    fetch('/api/client/habits', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async r => { const d = await r.json(); if (!r.ok || !Array.isArray(d.habits)) throw new Error(); return d; })
+      .then(d => { if (valid) { setHabits(d.habits.map(habitFromServer)); setStatus('ready'); setError(''); } })
+      .catch(() => { if (valid) { setStatus('error'); setError('Could not load habits. Please retry.'); } });
+    return () => { valid = false; };
+  }, [version]);
+  React.useEffect(() => {
+    let day = habitDay();
+    const tick = () => { const next = habitDay(); if (next !== day) { day = next; reload(); } };
+    const timer = setInterval(tick, 15000);
+    window.addEventListener('focus', tick);
+    return () => { clearInterval(timer); window.removeEventListener('focus', tick); };
+  }, []);
+  const mutate = async body => {
+    if (busy.current || status !== 'ready') return null;
+    busy.current = true; setError('');
+    try {
+      const r = await fetch('/api/client/habits', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (!r.ok || d.error) throw new Error(d.error || 'Could not save habit.');
+      if (!alive.current) return null;
+      setHabits(list => {
+        if (body.action === 'create') return [...list, habitFromServer(d.habit)];
+        if (body.action === 'delete') return list.filter(h => h.id !== body.id);
+        if (body.action === 'set') return list.map(h => { if (h.id !== body.id) return h; const dates = new Set(h.dates); if (d.done) dates.add(body.date); else dates.delete(body.date); return habitFromServer({ ...h, name: h.label, type: h.type === 'dont' ? 'avoid' : 'do', history: [...dates] }); });
+        return list.map(h => h.id === body.id ? { ...h, ...d.habit, label: d.habit.name || h.label, type: d.habit.type === 'avoid' ? 'dont' : 'do' } : h);
+      });
+      return d;
+    } catch (e) { if (alive.current) setError('Could not save habit. Your change was not confirmed; please retry.'); return null; }
+    finally { busy.current = false; }
+  };
+  return { habits, status, error, reload, mutate, toggle: id => { const h = habits.find(h => h.id === id); return h && mutate({ action: 'set', id, date: habitDay(), done: !h.today }); } };
 }
 
 // Seed list shared between the dashboard widget and the full Habits page.
@@ -38,8 +93,13 @@ const DEFAULT_HABITS = [
 ];
 
 function habitStreak(h) {
-  if (!h.today) return 0;
-  let s = 1;
+  if (Array.isArray(h.dates)) {
+    const dates = new Set(h.dates); const d = new Date(); let count = 0;
+    if (!dates.has(habitDay(d))) d.setDate(d.getDate() - 1);
+    while (dates.has(habitDay(d))) { count++; d.setDate(d.getDate() - 1); }
+    return count;
+  }
+  let s = h.today ? 1 : 0;
   for (let i = h.history.length - 1; i >= 0; i--) {
     if (h.history[i]) s++;
     else break;
@@ -82,10 +142,8 @@ function saveHabitToday(habits) {
 // to the full Habits page. Today's checked state persists per-day in
 // localStorage (shared with the full Habits page).
 function HabitsWidget({ max = 5, items }) {
-  const seed = (items || DEFAULT_HABITS).slice(0, max);
-  const [habits, setHabits] = React.useState(() => loadHabitToday(seed));
-  React.useEffect(() => { saveHabitToday(habits); }, [habits]);
-  const toggle = (id) => setHabits(hs => hs.map(h => h.id === id ? { ...h, today: !h.today } : h));
+  const { habits: allHabits, status, error, reload, toggle } = useLiveHabits();
+  const habits = allHabits.slice(0, max);
 
   const doneCount = habits.filter(h => h.today).length;
   const todayPoints = habits.reduce((acc, h) => acc + (h.today ? h.points : 0), 0);
@@ -93,6 +151,8 @@ function HabitsWidget({ max = 5, items }) {
 
   return (
     <div>
+      {status !== 'ready' && <p role="status">{status === 'loading' ? 'Loading habits…' : error} {status === 'error' && <button onClick={reload}>Retry</button>}</p>}
+      {status === 'ready' && error && <p role="alert">{error}</p>}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>

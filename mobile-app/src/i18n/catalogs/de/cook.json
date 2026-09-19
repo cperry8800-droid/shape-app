@@ -130,5 +130,10 @@
   "prep.timingComing": "Wie das Timing läuft — gleichzeitig, getrennt oder alles zusammen auf dem Tisch.",
   "recovery.exit": "Schritte und Timer sind gespeichert. Öffne das Rezept erneut zum Fortsetzen. Für Timer-Hinweise muss die App geöffnet sein.",
   "recovery.failedExit": "Der Fortschritt konnte auf diesem Gerät nicht gespeichert werden. Beim Verlassen gehen Schritt und Timer verloren.",
-  "recovery.unavailable": "Wiederherstellung auf diesem Gerät nicht verfügbar. Lass diesen Bildschirm offen."
+  "recovery.unavailable": "Wiederherstellung auf diesem Gerät nicht verfügbar. Lass diesen Bildschirm offen.",
+  "prep.updatedFinish": "Aktualisiertes Ende: {time} · verbleibende Gerichte werden innerhalb von {n} Min. fertig",
+  "prep.timersStillRunning": "Die letzten Timer laufen noch",
+  "prep.resumeBatch": "Diese Gerichte weiterkochen",
+  "prep.searchRecipes": "Rezepte suchen",
+  "prep.catalog": "Shape Kitchen"
 }
