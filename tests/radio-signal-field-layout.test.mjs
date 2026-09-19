@@ -68,6 +68,28 @@ for (const w of [280, 320, 331, 386, 420, 560]) {
 // later brings its own screen.
 const screenW = (fig) => fig.x * 2 + fig.w;
 
+test('canvas and figure stay aligned at Small, Medium and Large app text sizes', () => {
+  // Run the actual DOM measurement code: viewport rects include CSS zoom,
+  // while client dimensions and canvas drawing coordinates do not.
+  const body = fieldBody();
+  const measure = new Function('wrap', 'cvs', 'ctx', 'window', 'liveRef',
+    `${body.slice(body.indexOf('let W ='), body.indexOf('let ro ='))}\nmeasureFigure(); return { W, H, fig };`);
+  for (const zoom of [0.9, 1, 1.12]) for (const width of [280, 366, 407]) {
+    const rect = { left: 24, top: 90, width: width * zoom, height: 600 * zoom };
+    const figure = { left: rect.left + 18 * zoom, top: rect.top + 74 * zoom, width: (width - 36) * zoom, height: 268 * zoom };
+    const cvs = { style: {} };
+    const { W, H, fig } = measure({ clientWidth: width, clientHeight: 600, getBoundingClientRect: () => rect }, cvs,
+      { setTransform() {} }, { devicePixelRatio: 3 }, { current: { figureRef: { current: { getBoundingClientRect: () => figure } } } });
+    const displayedWidth = cvs.style.width === '100%' ? rect.width : parseFloat(cvs.style.width) * zoom;
+    assert.equal(displayedWidth, rect.width, `visualizer leaves a gap at zoom ${zoom}`);
+    assert.equal(cvs.width, W * 2); assert.equal(cvs.height, H * 2);
+    assert.ok(Math.abs(rect.top + fig.y / H * rect.height - figure.top) < 0.001);
+    assert.ok(Math.abs(fig.h / H * rect.height - figure.height) < 0.001);
+    assert.ok(Math.abs(rect.left + fig.x / W * rect.width - figure.left) < 0.001);
+    assert.ok(Math.abs(fig.w / W * rect.width - figure.width) < 0.001);
+  }
+});
+
 function geometry() {
   const body = fieldBody();
   // ⚠ VERTICAL FROM THE FIGURE, HORIZONTAL FROM THE BAND — AND CONFLATING THE

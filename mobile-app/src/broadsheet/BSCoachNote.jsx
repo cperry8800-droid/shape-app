@@ -26,6 +26,7 @@ export default function BSCoachNote({ clientId, t, tr, sample = '' }) {
         const doc = await readCoachNotes(window.ShapeAuth?.client, uid);
         if (!valid()) return;
         const text = coachNoteText(doc, clientId);
+        if (local?.text === text) writeCoachNoteDraft(window.localStorage, uid, clientId, null);
         const conflict = local && local.baseText !== text && local.text !== text;
         setState({ kind: conflict ? 'conflict' : 'ready', text, latestText: conflict ? text : undefined });
         setDraft(local ? local.text : text);

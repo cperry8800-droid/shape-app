@@ -1540,14 +1540,15 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
     // full-bleed dot field for a difference nobody can see at this dot size.
     let W = 0; let H = 0;
     const size = () => {
-      const r = wrap.getBoundingClientRect();
       const dpr = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1);
-      W = Math.max(1, Math.round(r.width));
-      H = Math.max(1, Math.round(r.height));
+      // The app's text-size setting zooms the entire surface. Rects are already
+      // zoomed; using them as CSS pixels applies that scale a second time.
+      W = Math.max(1, wrap.clientWidth);
+      H = Math.max(1, wrap.clientHeight);
       cvs.width = Math.round(W * dpr);
       cvs.height = Math.round(H * dpr);
-      cvs.style.width = `${W}px`;
-      cvs.style.height = `${H}px`;
+      cvs.style.width = '100%';
+      cvs.style.height = '100%';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     size();
@@ -1573,8 +1574,10 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
       if (!el) { fig = null; return prev != null; }
       const fr = el.getBoundingClientRect();
       const wr = wrap.getBoundingClientRect();
-      if (!(fr.width > 0) || !(fr.height > 0)) { fig = null; return prev != null; }
-      fig = { x: fr.left - wr.left, y: fr.top - wr.top, w: fr.width, h: fr.height };
+      if (!(fr.width > 0) || !(fr.height > 0) || !(wr.width > 0) || !(wr.height > 0)) { fig = null; return prev != null; }
+      // Convert viewport measurements into the canvas's local drawing space.
+      const sx = W / wr.width, sy = H / wr.height;
+      fig = { x: (fr.left - wr.left) * sx, y: (fr.top - wr.top) * sy, w: fr.width * sx, h: fr.height * sy };
       return !prev || prev.x !== fig.x || prev.y !== fig.y || prev.w !== fig.w || prev.h !== fig.h;
     };
 

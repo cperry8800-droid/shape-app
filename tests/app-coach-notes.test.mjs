@@ -91,3 +91,18 @@ test('a recovered conflict shows both versions and requires an explicit replacem
   assert.equal(b.doc['client-a'].text, 'My draft');
   await React.act(async () => root.unmount());
 });
+
+test('a draft already saved remotely is cleared and cannot shadow a later website edit', async () => {
+  window.localStorage.clear(); const b = backend({ 'client-a': { text: 'Saved despite lost response' } });
+  const key = coachNoteDraftKey('coach-a', 'client-a');
+  window.localStorage.setItem(key, JSON.stringify({ text: 'Saved despite lost response', baseText: 'Earlier' }));
+  let root = await mount(b);
+  assert.equal(window.localStorage.getItem(key), null);
+  assert.equal(button('Save note').disabled, true);
+  await React.act(async () => root.unmount());
+  b.doc['client-a'].text = 'Later website edit';
+  root = await mount(b);
+  assert.equal(document.querySelector('textarea').value, 'Later website edit');
+  assert.doesNotMatch(document.body.textContent, /changed elsewhere/);
+  await React.act(async () => root.unmount());
+});
