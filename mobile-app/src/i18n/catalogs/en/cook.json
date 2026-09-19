@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "That's everything.",
   "prep.nextUp": "Next",
   "prep.addAnother": "Tick another dish and Shape will time them for you — cooked together, one after the other, or landing on the table at once.",
-  "prep.timingComing": "How these are timed — at the same time, separately, or all on the table at once."
+  "prep.timingComing": "How these are timed — at the same time, separately, or all on the table at once.",
+  "recovery.exit": "Your steps and timers are saved. Reopen this recipe to resume. Timer alerts require the app to be open.",
+  "recovery.failedExit": "Your progress could not be saved on this device. Leaving will lose your place and timers.",
+  "recovery.unavailable": "Progress recovery is unavailable on this device. Keep this screen open."
 }

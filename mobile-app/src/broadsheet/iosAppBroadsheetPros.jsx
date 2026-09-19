@@ -6,6 +6,7 @@ import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWee
 import { normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows } from '../../../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, knownWorkoutAverage, coachWorkoutVideos, workoutAssignmentsHaveExercises } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
+import BSCoachNote from './BSCoachNote.jsx';
 import { bsAuthorStep, BS_STATIONS } from '../services/cookable.mjs';
 import { bsSelfPlansSummary } from '../services/selfPlansSummary.mjs';
 import { bsCaseVitals } from '../services/caseVitals.mjs';
@@ -1210,7 +1211,7 @@ function BSProWeekStrip({ goCalendar, dots, heat, label, selDay: selDayProp, onS
       <BSSection
         title={labelText}
         kicker={`${range} · ${_BS_MON[selDate.getMonth()]} ${selDate.getDate()}`}
-        meta={<span onClick={goCalendar} style={{ cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>{tr('coach:rail.monthView', { defaultValue: 'Month view →' })}</span>}
+        meta={<button type="button" onClick={goCalendar} style={{ minHeight: 44, border: 0, background: 'transparent', font: 'inherit', cursor: 'pointer', fontWeight: 800, color: t.INK, marginLeft: 'auto' }}>{tr('coach:rail.monthView', { defaultValue: 'Month view →' })}</button>}
       />
       <div style={{ padding: `0 ${t.padX}px 14px` }}>
         {/* Day boxes — mono day letters, ink-alpha ticks (not colored dots); the
@@ -1608,8 +1609,14 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const _pad2 = (n) => String(n).padStart(2, '0');
   const _ds = (d) => `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
   const [realByDate, setRealByDate] = useStateBSP(null);
+  const [calendarStatus, setCalendarStatus] = useStateBSP('loading');
+  const [calendarReload, setCalendarReload] = useStateBSP(0);
+  const calendarOwner = window.ShapeAuth?.getCachedState?.().user?.id || null;
   React.useEffect(() => {
-    if (!window.ShapeCalendar?.list) return undefined;
+    setRealByDate(null);
+    if (!calendarOwner) { setCalendarStatus('ready'); return undefined; }
+    setCalendarStatus('loading');
+    if (!window.ShapeCalendar?.list) { setCalendarStatus('error'); return undefined; }
     let on = true;
     const wk = bsProWeek().dates;
     const tagFor = (kind) => {
@@ -1628,9 +1635,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       if (k === 'ADMIN' || k === 'ADM') return ['ADM', t.INK50];
       return ['LIVE', t.RUST];
     };
-    window.ShapeCalendar.list({ from: _ds(wk[0]), to: _ds(wk[6]) }).then((r) => {
+    window.ShapeCalendar.list({ from: _ds(wk[0]), to: _ds(wk[6]), strict: true }).then((r) => {
       if (!on) return;
-      const evs = (r && Array.isArray(r.events)) ? r.events : [];
+      if (!Array.isArray(r?.events)) throw new Error('Calendar unavailable');
+      const evs = r.events;
       const byDate = {};
       evs.slice().sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''))).forEach((ev) => {
         if (!ev.date) return;
@@ -1644,10 +1652,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         });
       });
       Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });
-      setRealByDate(byDate);
-    }).catch(() => {});
+      setRealByDate(byDate); setCalendarStatus('ready');
+    }).catch(() => { if (on) setCalendarStatus('error'); });
     return () => { on = false; };
-  }, [isNutri]);
+  }, [isNutri, calendarReload, calendarOwner]);
   // Per-day bookings dataset (demo). "Today" (offset 0) is always the busy
   // roster regardless of the real weekday. Trainer keys off 21; nutritionist off 22.
   const TRAINER_BOOKINGS = {
@@ -1754,7 +1762,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   // currently in a matching activity surfaces the banner; signed-out keeps the
   // demo banner as a preview. Re-renders on presence change.
   useProPresenceTick();
-  const roster = useBSProRoster(role);
+  const { clients: roster, status: rosterStatus, retry: retryRoster } = useBSProRoster(role);
   const coachSignedIn = bsProSignedIn();
   // Day-shape hero lead. Signed-out keeps the rich demo narrative; signed-in is
   // honest off the day's real bookings (no demo session counts/copy).
@@ -1786,7 +1794,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       (normName(dt.name) && (normName(b.client) === normName(dt.name) || normName(b.title) === normName(dt.name)))
     )) || null;
   };
-  const leadVerdict = coachSignedIn
+  const calendarMessage = calendarStatus === 'error' ? tr('coach:today.calendarUnavailable', { defaultValue: 'Could not load your schedule. Check your connection and retry.' }) : tr('coach:common.loading', { defaultValue: 'Loading…' });
+  const leadVerdict = coachSignedIn && calendarStatus !== 'ready' ? calendarMessage : coachSignedIn && rosterStatus === 'error' ? tr('coach:roster.unavailable', { defaultValue: 'Could not load your clients. Check your connection and retry.' }) : coachSignedIn && rosterStatus === 'loading' ? tr('coach:roster.loading', { defaultValue: 'Loading clients…' }) : coachSignedIn
     ? bsProLeadVerdict({ signedIn: true, sessions: bookings.length, firstLabel: bsProHourLabel(first && first.time), top: budget.lead })
     : demoLead.copy;
   const flaggedTotal = roster.filter((c) => c.active !== false && FLAG_WORDS[(bsRowSeverity(c, role) || {}).sev]).length;
@@ -1902,6 +1911,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         </div>
       )}
 
+      <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={rosterStatus} onRetry={retryRoster} /></div>
       {/* §A.4 THE LEAD — verdict lead (data-tour anchor for the coach onboarding tour). */}
       <div ref={leadRef} data-tour="hero-today" style={{ padding: `14px ${t.padX}px 16px`, borderBottom: `1px solid ${t.RULE}` }}>
         {StationHead && <StationHead heat={heat} INK={t.INK} label={tr('coach:today.theLead', { defaultValue: 'THE LEAD' })} />}
@@ -1909,9 +1919,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           {leadVerdict}<span style={{ color: heat }}>.</span>
         </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 22 }}>
-          {LedgerStat && <LedgerStat INK={t.INK} label={isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} value={String(bookings.length)} seen={leadSeen} figSize={26} />}
-          {LedgerStat && <LedgerStat INK={t.INK} label={tr('coach:today.needYou', { defaultValue: 'NEED YOU' })} value={String(flaggedTotal)} seen={leadSeen} figSize={26} delay={60} />}
-          {openHoursKnown && LedgerStat && <LedgerStat INK={t.INK} label={tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' })} value={String(dayShape.openHours)} seen={leadSeen} figSize={26} delay={120} />}
+          {LedgerStat && <LedgerStat INK={t.INK} label={isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} value={calendarStatus === 'ready' ? String(bookings.length) : '—'} seen={leadSeen} figSize={26} />}
+          {LedgerStat && <LedgerStat INK={t.INK} label={tr('coach:today.needYou', { defaultValue: 'NEED YOU' })} value={rosterStatus === 'ready' ? String(flaggedTotal) : '—'} seen={leadSeen} figSize={26} delay={60} />}
+          {calendarStatus === 'ready' && openHoursKnown && LedgerStat && <LedgerStat INK={t.INK} label={tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' })} value={String(dayShape.openHours)} seen={leadSeen} figSize={26} delay={120} />}
         </div>
       </div>
 
@@ -2005,7 +2015,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
               every booking today; the loop above only matches a numeric rawIdx, so
               this end-of-day tick renders after the last rail entry. */}
           {dayShape.nowSlot === 'end' && isToday && nowTick}
-          {bookings.length === 0 && coachSignedIn && (
+          {coachSignedIn && calendarStatus !== 'ready' && <div role="status" style={{ color: t.INK70, fontFamily: t.DISPLAY }}>{calendarMessage}{calendarStatus === 'error' && <button onClick={() => setCalendarReload(n => n + 1)} style={{ display: 'block', minHeight: 44, color: t.INK, background: 'transparent', border: 0 }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>}</div>}
+          {bookings.length === 0 && coachSignedIn && calendarStatus === 'ready' && (
             Redact ? <Redact INK={t.INK} label={tr('coach:rail.nothingBooked', { defaultValue: 'NOTHING BOOKED — OPEN HOURS' })} /> : (
               <div style={{ borderTop: `1px dashed ${t.INK}1f`, borderBottom: `1px dashed ${t.INK}1f`, padding: '10px 0' }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: `${t.INK}4d` }}>{tr('coach:rail.nothingBooked', { defaultValue: 'NOTHING BOOKED — OPEN HOURS' })}</span>
@@ -2022,7 +2033,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       <div ref={wireRef} style={{ marginTop: 10, ...(sdReduced ? null : wireSeen ? { animation: 'bsSdFadeUp 420ms cubic-bezier(.4,0,.2,1) both' } : { opacity: 0 }) }}>
         {budget.wires.length > 0 && (
           <>
-            {StationHead && <div style={{ padding: `0 ${t.padX}px` }}><StationHead heat="#c0533b" INK={t.INK} label={`${tr('coach:wire.theWire', { defaultValue: 'THE WIRE' })} · ${bookings.length === 0 ? tr('coach:wire.noSessionBooked', { defaultValue: 'NO SESSION BOOKED' }) : tr('coach:today.needsYou', { defaultValue: 'NEEDS YOU' })}`} /></div>}
+            {StationHead && <div style={{ padding: `0 ${t.padX}px` }}><StationHead heat="#c0533b" INK={t.INK} label={`${tr('coach:wire.theWire', { defaultValue: 'THE WIRE' })} · ${bookings.length === 0 && calendarStatus === 'ready' ? tr('coach:wire.noSessionBooked', { defaultValue: 'NO SESSION BOOKED' }) : tr('coach:today.needsYou', { defaultValue: 'NEEDS YOU' })}`} /></div>}
             <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gap: 10 }}>
               {budget.wires.map((w, i) => {
                 const sevColor = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' }[w.severity] || t.AMBER;
@@ -2238,16 +2249,29 @@ function bsRowSeverity(c, role) {
 // the REAL coach roster (ShapeSignals.triageLive, scored by the engine) once it
 // resolves. The coach Today card + both Clients pages all read this, so they're
 // always in agreement. triageLive is cached per-role so they share one fetch.
+function bsProNeedsAttention(sig) { return ['red', 'amber', 'new'].includes(sig?.sev); }
+
 function useBSProRoster(role) {
   const t = useBS();
-  const [live, setLive] = useStateBSP(null); // null = not loaded; array = live rows
+  const [live, setLive] = useStateBSP(null);
+  const [status, setStatus] = useStateBSP('loading');
+  const [loadedFor, setLoadedFor] = useStateBSP(null);
+  const [reload, setReload] = useStateBSP(0);
+  const uid = window.ShapeAuth?.getCachedState?.().user?.id || null;
+  useEffectBSP(() => {
+    const sub = window.ShapeAuth?.client?.auth?.onAuthStateChange?.(() => setReload(n => n + 1));
+    return () => sub?.data?.subscription?.unsubscribe();
+  }, []);
   useEffectBSP(() => {
     let on = true;
     const S = (typeof window !== 'undefined' && window.ShapeSignals) || null;
-    if (!S || !S.triageLive) return undefined;
-    S.triageLive(role).then((feed) => {
+    setLive(null); setLoadedFor(`${uid}:${role}`); setStatus(uid ? 'loading' : 'ready');
+    if (!uid) return undefined;
+    if (!S || !S.triageLive) { setStatus('error'); return undefined; }
+    S.triageLive(role, { force: reload > 0 }).then((feed) => {
       if (!on) return;
-      if (!Array.isArray(feed) || !feed.length) return;
+      if (!Array.isArray(feed)) throw new Error('Roster unavailable');
+      setStatus('ready');
       const rows = feed.map((r) => bsRowFromTriage(r, role, t));
       setLive(rows);
       // Two batch enrichments off the SAME `rows` closure: the weekend split
@@ -2281,13 +2305,14 @@ function useBSProRoster(role) {
           return Object.keys(extra).length ? { ...r, ...extra } : r;
         }));
       }).catch(() => {});
-    }).catch(() => {});
+    }).catch(() => { if (on) setStatus('error'); });
     return () => { on = false; };
-  }, [role]);
+  }, [role, uid, reload]);
   // Signed-in with no live clients → empty roster (not the demo cast). The demo
   // roster is preview-only; signed-out shows it as the example coach book.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
-  return live || (signedIn ? [] : bsDemoRoster(role, t));
+  const matches = loadedFor === `${uid}:${role}`;
+  return { clients: signedIn ? (matches ? live || [] : []) : bsDemoRoster(role, t), status: signedIn ? (matches ? status : 'loading') : 'ready', retry: () => setReload(n => n + 1) };
 }
 // Card-based coach roster — header, search, scrollable filter pills (scrollbar
 // hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
@@ -2319,7 +2344,16 @@ function BSProAvatarButton({ size = 38 }) {
 // UNCONDITIONALLY (rules of hooks) even if the client-bundle kit isn't present.
 function bsUseSdInViewFallback() { return [null, true]; }
 
-function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
+function BSProRosterStatus({ status, onRetry }) {
+  const t = useBS(); const tr = useShapeTr();
+  if (status === 'ready') return null;
+  return <div role="status" style={{ padding: '12px 0', color: t.INK70, fontFamily: t.DISPLAY, fontSize: 14 }}>
+    {status === 'loading' ? tr('coach:roster.loading', { defaultValue: 'Loading clients…' }) : tr('coach:roster.unavailable', { defaultValue: 'Could not load your clients. Check your connection and retry.' })}
+    {status === 'error' && <button type="button" onClick={onRetry} style={{ display: 'block', minHeight: 44, border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button>}
+  </div>;
+}
+
+function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
   const t = useBS();
   const tr = useShapeTr();
   const heat = bsProHeat(t, role);
@@ -2359,8 +2393,8 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
   // both the needs (rank<=1) and on-track (excludes 'past') filters, so route them to
   // their own station instead of leaving the PAST view empty.
   const pastMode = roster === 'past';
-  const needsRows = pastMode ? [] : rows.filter((r) => r.sig.rank <= 1);
-  const onTrackRows = pastMode ? [] : rows.filter((r) => r.sig.rank > 1 && r.sig.sev !== 'past');
+  const needsRows = pastMode ? [] : rows.filter((r) => bsProNeedsAttention(r.sig));
+  const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && r.sig.sev !== 'past');
   const pastRows = pastMode ? rows : [];
   const k = needsRows.length;
   const m = onTrackRows.length;
@@ -2387,12 +2421,14 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         <button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, minWidth: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>{tr('coach:roster.add', { defaultValue: '＋ ADD' })}</button>
       </div>
 
+      <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={status} onRetry={onRetry} /></div>
       {/* §B.2 Underline search */}
       <div style={{ margin: `14px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, borderBottom: `1.5px solid ${t.INK}4d`, paddingBottom: 8 }}>
         <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.INK50 }}>⌕</span>
         <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label={tr('coach:roster.searchAria', { defaultValue: 'Search clients' })} placeholder={tr('coach:roster.searchPlaceholder', { defaultValue: 'Search {count} clients', count: totalCount })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14 }} />
       </div>
 
+      {(query || filter !== 'all' || needsYou) && <button type="button" onClick={() => { setQuery(''); setFilter('all'); setNeedsYou(false); }} style={{ margin: `0 ${t.padX}px`, minHeight: 44, border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO }}>{tr('coach:roster.clearFilters', { defaultValue: 'Clear filters' })}</button>}
       {/* §B.3 Typographic filter index — role phase filters + ⚑ NEEDS YOU last;
           active = ink + 2px TEAL underline (page chrome, per §B item 3 — heat
           stays reserved for identity, not the active-filter indicator). */}
@@ -2400,10 +2436,10 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         {filters.map((f) => {
           const on = filter === f.k;
           return (
-            <button key={f.k} type="button" onClick={() => setFilter(f.k)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: on ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap' }}>{f.label}</button>
+            <button key={f.k} type="button" aria-pressed={on} onClick={() => setFilter(f.k)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: on ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: on ? t.INK : t.INK50, whiteSpace: 'nowrap' }}>{f.label}</button>
           );
         })}
-        <button type="button" onClick={() => setNeedsYou(!needsYou)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: needsYou ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: needsYou ? t.INK : '#c0533b', whiteSpace: 'nowrap' }}>{tr('coach:roster.needsYouFilter', { defaultValue: '⚑ NEEDS YOU' })}</button>
+        <button type="button" aria-pressed={needsYou} onClick={() => setNeedsYou(!needsYou)} style={{ flexShrink: 0, minHeight: 44, background: 'transparent', border: 0, borderBottom: needsYou ? `2px solid ${teal}` : '2px solid transparent', cursor: 'pointer', padding: '0 1px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', color: needsYou ? t.INK : '#c0533b', whiteSpace: 'nowrap' }}>{tr('coach:roster.needsYouFilter', { defaultValue: '⚑ NEEDS YOU' })}</button>
       </div>
 
       <div style={{ padding: `0 ${t.padX}px 24px` }}>
@@ -2501,7 +2537,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
 
         {/* PAST station — compact rows of the coach's past clients (rendered only in
             PAST mode, where the active NEEDS YOU / ON TRACK stations are empty). */}
-        {pastMode && (
+        {pastMode && status === 'ready' && (
           <div style={{ marginTop: 20 }}>
             {StationHead && <StationHead heat={`${t.INK}30`} INK={t.INK} label={`${tr('coach:roster.pastClients', { defaultValue: 'PAST CLIENTS' })} · ${pastRows.length}`} />}
             {pastRows.length > 0 ? (
@@ -2544,7 +2580,7 @@ function BSProRosterView({ role = 'trainer', clients, activeCount, pastCount, to
         </div>
 
         {/* §B.8 Signed-in empty roster — redaction line + Grow your roster →. */}
-        {totalCount === 0 && (
+        {status === 'ready' && totalCount === 0 && (
           <div style={{ marginTop: 20 }}>
             {Redact ? <Redact INK={t.INK} label={tr('coach:roster.noClients', { defaultValue: 'NO CLIENTS YET' })} /> : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2867,11 +2903,11 @@ function BSTrainerClients() {
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
   const [needsYou, setNeedsYou] = useStateBSP(false);
-  const COACH_CLIENTS = useBSProRoster('trainer'); // demo → live roster when signed in
+  const { clients: COACH_CLIENTS, status: rosterStatus, retry: retryRoster } = useBSProRoster('trainer'); // demo → live roster when signed in
   const shownClients = COACH_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'trainer'))
-    .filter(c => !needsYou || bsRowSeverity(c, 'trainer').rank <= 1)
+    .filter(c => !needsYou || bsProNeedsAttention(bsRowSeverity(c, 'trainer')))
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = COACH_CLIENTS.filter(c => c.active).length;
   const pastCount = COACH_CLIENTS.length - activeCount;
@@ -2895,6 +2931,8 @@ function BSTrainerClients() {
     <BSProRosterView
       role="trainer"
       clients={shownClients}
+      status={rosterStatus}
+      onRetry={retryRoster}
       activeCount={activeCount}
       pastCount={pastCount}
       totalCount={COACH_CLIENTS.length}
@@ -4352,10 +4390,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const isNutri = role === 'nutritionist';
-  const [phase, setPhase] = useStateBSP({ trainingPhase: 'Build', nutritionPhase: 'Cut' });
   // Real per-client store when the row carries a user id (uuid); otherwise the
   // selector is local (demo roster has mock clients).
   const clientUid = client && (client.userId || client.user_id || (typeof client.id === 'string' && client.id.includes('-') ? client.id : null));
+  const [phase, setPhase] = useStateBSP(() => clientUid ? {} : { trainingPhase: 'Build', nutritionPhase: 'Cut' });
   // Case File heat = the CLIENT's member tier (spec §C) — resolved from their
   // all-time points; role heat until known / for demo rows (no clientUid).
   const [clientTier, setClientTier] = useStateBSP(null);
@@ -4393,9 +4431,12 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     return () => { on = false; };
   }, [clientUid]);
   useEffectBSP(() => {
+    setPhase(clientUid ? {} : { trainingPhase: 'Build', nutritionPhase: 'Cut' });
+    let on = true;
     if (clientUid && window.ShapeProgramApi?.get) {
-      window.ShapeProgramApi.get(clientUid).then(p => { if (p && (p.trainingPhase || p.nutritionPhase)) setPhase(prev => ({ ...prev, ...p })); }).catch(() => {});
+      window.ShapeProgramApi.get(clientUid).then(p => { if (on && p) setPhase(p); }).catch(() => {});
     }
+    return () => { on = false; };
   }, [clientUid]);
   // The client's shared goals (read-only here) — server-gated on the share flag.
   const [cGoals, setCGoals] = useStateBSP(null);
@@ -4642,8 +4683,8 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const first = nm[0] || client.n || tr('coach:common.clientFallback', { defaultValue: 'Client' });
   const last = nm.slice(1).join(' ');
   const isPast = client.s === 'past' || client.active === false;
-  const statusLabel = isPast ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : client.warn ? tr('coach:sev.watch', { defaultValue: 'WATCH' }) : isNutri ? tr('coach:case.statusStrong', { defaultValue: 'STRONG' }) : tr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' });
-  const phaseUp = (isNutri ? (phase.nutritionPhase || 'Cut') : (phase.trainingPhase || 'Build')).toUpperCase();
+  const statusLabel = isPast ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : bsRowSeverity(client, role).label;
+  const phaseUp = String((isNutri ? phase.nutritionPhase : phase.trainingPhase) || '—').toLocaleUpperCase(coachLocale());
   // Eyebrow: CASE FILE · {PHASE}[ · WK N REMAINING | · {KCAL} KCAL] — the week/
   // kcal fragment only when the live program `detail` actually carries it
   // (no fabricated "week X of Y" numerator — the store only tracks weeks
@@ -5343,15 +5384,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {recent.length ? recent.map((r, i) => dotLeaderRow(r.n, r.d, i)) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={isNutri ? tr('coach:case.logsRedact', { defaultValue: 'LOGS · NOT ON RECORD' }) : tr('coach:case.sessionsRedact', { defaultValue: 'SESSIONS · NOT ON RECORD' })} /> : emptyNote(isNutri ? tr('coach:case.noLogs', { defaultValue: 'No logs yet' }) : tr('coach:case.noSessions', { defaultValue: 'No sessions yet' })))}
       </div>
 
-      {/* COACH NOTE — ink-spined quiet block (private, only-you). */}
-      <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.coachNoteHead', { defaultValue: 'COACH NOTE · ONLY YOU SEE THIS' })} />}
-        {note ? (
-          <div style={{ borderLeft: `3px solid ${t.INK}33`, padding: '2px 0 2px 11px' }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', fontWeight: 600, color: t.INK, lineHeight: 1.5 }}>{note}</div>
-          </div>
-        ) : (window.BSTRedact ? <window.BSTRedact INK={t.INK} label={tr('coach:case.noNote', { defaultValue: 'NO NOTE ON FILE' })} /> : null)}
-      </div>
     </div>
   );
 
@@ -5630,13 +5662,6 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         </div>
       )}
 
-      {/* PRIVATE — coach notes (quiet form, unchanged — two-tier rule). */}
-      <div style={{ marginTop: 22 }}>
-        {window.BSTStationHead && <window.BSTStationHead heat={heat} INK={t.INK} label={tr('coach:case.privateNotes', { defaultValue: 'PRIVATE · COACH NOTES' })} />}
-        <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>
-          {isNutri ? tr('coach:case.notesBodyNutri', { defaultValue: 'Clinical notes for {name} — history, compliance, habits, and messaging context live here.', name: client.n }) : tr('coach:case.notesBodyTrainer', { defaultValue: 'Training notes for {name} — history, compliance, habits, and messaging context live here.', name: client.n })}
-        </div>
-      </div>
     </div>
   );
 
@@ -5644,6 +5669,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
     <BSPage>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {headerBlock}
+        <BSCoachNote key={clientUid || client.n} clientId={clientUid} sample={note} t={t} tr={tr} />
         {view === 'manage' ? manageView : profileView}
       </div>
       <BSFooter left={isNutri ? tr('coach:case.footerNutri', { defaultValue: 'Client plan' }) : tr('coach:case.footerTrainer', { defaultValue: 'Full profile' })} right={client.n} />
@@ -7044,11 +7070,11 @@ function BSNutriClients() {
   const [cQuery, setCQuery] = useStateBSP('');
   const [cFilter, setCFilter] = useStateBSP('all');
   const [needsYou, setNeedsYou] = useStateBSP(false);
-  const NUTRI_CLIENTS = useBSProRoster('nutritionist'); // demo → live roster when signed in
+  const { clients: NUTRI_CLIENTS, status: rosterStatus, retry: retryRoster } = useBSProRoster('nutritionist'); // demo → live roster when signed in
   const shownClients = NUTRI_CLIENTS
     .filter(c => roster === 'active' ? c.active : !c.active)
     .filter(c => bsClientMatchesFilter(c, cFilter, 'nutritionist'))
-    .filter(c => !needsYou || bsRowSeverity(c, 'nutritionist').rank <= 1)
+    .filter(c => !needsYou || bsProNeedsAttention(bsRowSeverity(c, 'nutritionist')))
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
   const pastCount = NUTRI_CLIENTS.length - activeCount;
@@ -7072,6 +7098,8 @@ function BSNutriClients() {
     <BSProRosterView
       role="nutritionist"
       clients={shownClients}
+      status={rosterStatus}
+      onRetry={retryRoster}
       activeCount={activeCount}
       pastCount={pastCount}
       totalCount={NUTRI_CLIENTS.length}

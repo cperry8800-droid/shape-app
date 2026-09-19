@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "Eso es todo.",
   "prep.nextUp": "Siguiente",
   "prep.addAnother": "Marca otro plato y Shape se encarga de los tiempos: al mismo tiempo, uno tras otro o todo junto en la mesa.",
-  "prep.timingComing": "Cómo se coordinan los tiempos: al mismo tiempo, por separado o todo junto en la mesa."
+  "prep.timingComing": "Cómo se coordinan los tiempos: al mismo tiempo, por separado o todo junto en la mesa.",
+  "recovery.exit": "Tus pasos y temporizadores están guardados. Abre esta receta para continuar. Las alertas requieren la app abierta.",
+  "recovery.failedExit": "No se pudo guardar el progreso en este dispositivo. Al salir perderás tu lugar y temporizadores.",
+  "recovery.unavailable": "No se puede recuperar el progreso en este dispositivo. Mantén esta pantalla abierta."
 }

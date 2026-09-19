@@ -39,7 +39,7 @@ function extractKeys(src, startMarker) {
   assert.ok(endIdx > start, 'sessionStorage block not found after marker');
   const slice = src.slice(start, endIdx);
   const found = new Set();
-  for (const m of slice.matchAll(/["']([A-Za-z0-9._-]+)["']/g)) {
+  for (const m of slice.matchAll(/["']([A-Za-z0-9:._-]+)["']/g)) {
     const s = m[1];
     if (/^(shape|bs_|trainer|nutritionist)/i.test(s)) found.add(s);
   }

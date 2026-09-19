@@ -2335,7 +2335,7 @@ window.shapeClearLocalUserContent = function (opts) {
     ].forEach(function (k) { localStorage.removeItem(k); });
     // Prefixed families — all account-scoped state a next user would inherit.
     var prefixes = [
-      "shape.coach.workout-draft.", // account-owned coach workout drafts
+      "shape:coach-note-draft:", "shape.coach.workout-draft.", // account-owned coach workout drafts
       "shape.chat.v2.",       // per-user chat threads
       "shape.dashGoals.",     // per-client goal drafts
       "shape.habits.",        // same-day habit completion (health behavior — habits.jsx)

@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "Das war alles.",
   "prep.nextUp": "Weiter",
   "prep.addAnother": "Wähle ein weiteres Gericht, und Shape übernimmt das Timing — gleichzeitig, eins nach dem anderen oder alles zusammen auf dem Tisch.",
-  "prep.timingComing": "Wie das Timing läuft — gleichzeitig, getrennt oder alles zusammen auf dem Tisch."
+  "prep.timingComing": "Wie das Timing läuft — gleichzeitig, getrennt oder alles zusammen auf dem Tisch.",
+  "recovery.exit": "Schritte und Timer sind gespeichert. Öffne das Rezept erneut zum Fortsetzen. Für Timer-Hinweise muss die App geöffnet sein.",
+  "recovery.failedExit": "Der Fortschritt konnte auf diesem Gerät nicht gespeichert werden. Beim Verlassen gehen Schritt und Timer verloren.",
+  "recovery.unavailable": "Wiederherstellung auf diesem Gerät nicht verfügbar. Lass diesen Bildschirm offen."
 }

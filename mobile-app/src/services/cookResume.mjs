@@ -75,3 +75,22 @@ export function bsCookResumeValid(stamp, key, steps, day) {
   if (stamp.sig !== bsCookStepsSig(list)) return null;     // the method changed
   return stamp;
 }
+
+// Persist actual deadlines, never seconds remaining: time away must still count.
+// Only plain, bounded data enters the UI when recovering browser storage.
+export function bsCookSessionState(value, stepCount, now = Date.now()) {
+  const flags = (obj, limit) => Object.fromEntries(Object.entries(obj || {}).filter(([k, v]) => v === true && /^\d+$/.test(k) && Number(k) < limit));
+  const timers = (Array.isArray(value?.timers) ? value.timers : []).filter(t =>
+    Number.isSafeInteger(t?.id) && t.id > 0 && Number.isFinite(t.endsAt) &&
+    Number.isFinite(t.total) && t.total > 0 && t.total <= 86400 &&
+    t.endsAt <= now + t.total * 1000 && Number.isInteger(t.stepIdx) && t.stepIdx >= 0 && t.stepIdx < stepCount
+  ).slice(0, 50).map(t => ({ id: t.id, endsAt: t.endsAt, total: t.total, stepIdx: t.stepIdx,
+    label: String(t.label || '').slice(0, 120), gist: String(t.gist || '').slice(0, 240), multi: t.multi === true }));
+  return {
+    phase: value?.phase === 'plated' ? 'plated' : 'method',
+    startedAt: Number.isFinite(value?.startedAt) && value.startedAt > 0 && value.startedAt <= now ? value.startedAt : now,
+    visited: flags(value?.visited, stepCount), skippedSteps: flags(value?.skippedSteps, stepCount),
+    checked: Object.fromEntries(Object.entries(value?.checked || {}).filter(([k, v]) => v === true && /^(prep|ing-\d+)$/.test(k)).slice(0, 200)),
+    timers,
+  };
+}

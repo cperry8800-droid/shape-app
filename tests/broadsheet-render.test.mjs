@@ -59,7 +59,7 @@ async function loadModule(reactImpl = React) {
   // `import.meta.env` is Vite's, injected at build; substitute it the same way
   // the bundler does so asset URLs resolve instead of being a syntax error in a
   // CJS function body.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage, BSProAdjustProgram, bsProMastRow };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\nexport { BSCoachDraftEditor, BSProAssignPage, BSProAdjustProgram, bsProMastRow, BSProRosterView };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -964,4 +964,18 @@ test('bsProMastRow honors corners:false — the flag is not decorative', () => {
   } finally {
     globalThis.BSMastRow = prev;
   }
+});
+
+
+test('app roster keeps new clients in Needs You and errors distinct from an empty roster', () => {
+  const props = { role: 'trainer', clients: [{ n: 'New client', s: 'onboard', active: true }], activeCount: 1, totalCount: 1, pastCount: 0, roster: 'active', query: '', filter: 'all' };
+  const { html, warnings } = render(React.createElement(MOD.BSProRosterView, props));
+  assert.deepEqual(warnings, []);
+  assert.match(html, /New client/);
+  assert.match(html, /NEEDS YOU/);
+  assert.doesNotMatch(html, /ON TRACK/);
+  const failed = render(React.createElement(MOD.BSProRosterView, { ...props, clients: [], totalCount: 0, status: 'error' })).html;
+  assert.match(failed, /Could not load your clients/);
+  assert.match(failed, /Retry/);
+  assert.doesNotMatch(failed, /NO CLIENTS YET/);
 });

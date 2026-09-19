@@ -5064,13 +5064,14 @@ async function logActivity({ activityType, durationMin, distanceKm, calories, st
 }
 
 // ─── Calendar (shared with website via /api/calendar) ────────────────────────
-async function listCalendar({ from, to, clientId } = {}) {
+async function listCalendar({ from, to, clientId, strict = false } = {}) {
   const qs = new URLSearchParams();
   if (from) qs.set('from', from);
   if (to) qs.set('to', to);
   if (clientId) qs.set('clientId', clientId);
-  return getJsonOrDefault(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, { events: [] },
-    (d) => ({ events: Array.isArray(d.events) ? d.events : [] }));
+  const d = await getJsonOrDefault(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, null);
+  if (strict && !Array.isArray(d?.events)) throw new Error('Calendar unavailable');
+  return { events: Array.isArray(d?.events) ? d.events : [] };
 }
 async function createCalendarEvent(body = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/calendar`, {
@@ -5158,10 +5159,11 @@ window.ShapePlan = { get: getPlan };
 // client_workouts (the gated week-shaped boundary), nutritionist →
 // client_meal_plans (POST /api/nutritionist/meal-plan). The roster is the
 // coach's real linked clients (subscriptions + sessions); uuid-backed only.
-async function listAssignableClients(role) {
+async function listAssignableClients(role, { strict = false } = {}) {
   // dietitian → the nutritionist roster endpoint (not the trainer default).
   const path = providerDiscipline(role) === 'nutritionist' ? '/api/nutritionist/clients' : '/api/trainer/clients';
   const d = await getJsonOrDefault(`${apiBaseUrl || ''}${path}`, null);
+  if (strict && !Array.isArray(d?.clients)) throw new Error('Client roster unavailable');
   const list = Array.isArray(d?.clients) ? d.clients : [];
   return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0 }));
 }

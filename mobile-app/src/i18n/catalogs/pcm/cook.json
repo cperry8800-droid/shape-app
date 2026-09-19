@@ -127,5 +127,8 @@
   "prep.cookWrapTitle": "Na everytin be dat.",
   "prep.nextUp": "Next",
   "prep.addAnother": "Tick anoda food and Shape go arrange di time — together, one afta di oda, or everytin go reach table one time.",
-  "prep.timingComing": "How di time go work — same time, separate, or everytin reach table one time."
+  "prep.timingComing": "How di time go work — same time, separate, or everytin reach table one time.",
+  "recovery.exit": "Your steps and timers don save. Open this recipe again to continue. App must dey open for timer alerts.",
+  "recovery.failedExit": "We no fit save your progress for this device. If you leave, your place and timers go lost.",
+  "recovery.unavailable": "Progress recovery no dey for this device. Keep this screen open."
 }
