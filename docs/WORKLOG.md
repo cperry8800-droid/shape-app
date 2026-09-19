@@ -726,6 +726,14 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-19 — Live workout watching and cues on mobile and desktop
+
+- **Merged [#2124](https://github.com/cperry8800-droid/shape-app/pull/2124)** as `a1b0f28fb`, after final tested head `07432b025`. Mobile and desktop coaches share a live observer with reconnect/poll recovery, explicit stale/ended states, real per-set load/repetitions/RPE/completion and units. Desktop consoles and client pages use the same panel; every live mobile roster client has a Watch action.
+- **Cues now reach the existing authorized coach endpoint and display in the client's active workout.** Success requires a confirmed server save; failures retain the draft, pending sends are guarded, and account changes invalidate results. Cues update the latest coaching focus note; there is no history or read receipt, and background/locked-phone delivery is not promised.
+- **Live publishing includes completed-set corrections and retryable heartbeats.** Reads/writes have abort deadlines; queued operations and session cleanup retain their originating identity. Unrelated realtime DELETE events cannot clear the watched client's session. Existing detail limits preserve up to 10 sets per exercise while retaining full completion counts.
+- **Final-head CI passed 4,139 tests**, website typecheck/build, mobile build/assets, Android debug build and secret scanning. Seventy-four focused tests passed after synchronizing main; four isolated mutations proved guards fail for unrelated deletes, omitted set corrections, false cue success and account-switch confirmations. Local cross-review completed; no external review was requested. Browser fixtures covered 390px/850px layouts, send failure/success, reconnecting and workout end.
+- **Production deployment `DyF4hJy1Ao5fRKD1LCEXfdtq1Urr` succeeded**, the live desktop console shows the new sign-in state, and `/m` boots to the membership/sign-in screen. No migrations or app-store release. Signed-in coach/client verification on separate devices remains pending because no linked test-account sessions were available. See [HANDOFF-2026-09-19c.md](HANDOFF-2026-09-19c.md).
+
 ### 2026-09-19 — Live habits and shared website cooking with adaptive batch timing
 
 - **Merged [#2123](https://github.com/cperry8800-droid/shape-app/pull/2123)** as `94ca45eaf`, final implementation head `7e2847796`. App habits use local dates, native request authentication, confirmed saves, retryable errors, duplicate-tap/account guards and the backend's three-point reward. Future Home dates are non-actionable. Midnight reminders remain midnight and save failures are visible. Website habits use the same live records and real history, without sample advice or misleading trends.
