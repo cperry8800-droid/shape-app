@@ -370,9 +370,19 @@ function DbzOriginZone({ live, byOrigin }) {
 }
 
 // ── Roster outcomes — the migrated Analytics content (what the business sells)
+// ⚠ THE WIDGET DECLARES `empty: !cp` AND THIS IS STILL NULL-SAFE, ON PURPOSE.
+// `cp` is the analytics rollup, absent until the fetch lands — and a bare
+// `cp.roster` is a TypeError with NO error boundary anywhere in public/newdesign,
+// so the whole Business page goes blank. The `empty` contract is the honest
+// PRESENTATION (a card with nothing measured is not drawn); this is the floor
+// under it, so a future caller that forgets cannot take the page down. A
+// mutation removing the declaration is what found this. ⚠ It is UNREACHABLE today
+// — dgVisibleWidgets skips an `empty` widget before render() is ever called, and
+// two guards pin that declaration — so it is labelled belt-and-braces rather than
+// tested around, which is what a proven no-op earns.
 function DbzOutcomesZone({ role, cp }) {
   const cfg = DBZ_ROLES[role];
-  const roster = cp.roster || [];
+  const roster = (cp && cp.roster) || [];
   const fmtWeight = (lb) => {
     if (lb == null) return "—";
     const r = Math.round(lb * 10) / 10;
@@ -790,6 +800,124 @@ function CoachBusinessPage({ role }) {
       ? { label: "BALANCE · AVAILABLE", amount: dashMoney(stripe.balanceCents), sub: dbzScheduleLine(stripe.schedule) || "Stripe connected" }
       : { label: "PAYOUTS", amount: "—", sub: "connects when payouts go live" };
 
+  // ── Business as a draggable DashGrid (role-scoped, tab="business"). Each plate
+  // below was a fixed cell in a hand-rolled `dash-cols` grid; they are widgets now,
+  // so a coach can hide the ones their practice does not use, reorder the rest and
+  // resize them — the same board every other coach tab already has.
+  //
+  // ⚠ EVERY WIDGET IS A DEFAULT (none `optional: true`), and that is the honest
+  // conversion: these eight plates ARE the Business page a coach already has, so
+  // making any of them opt-in would silently take a card off the board of someone
+  // who never asked. What the catalogue adds here is the ability to turn one OFF.
+  //
+  // ⚠ AND THE 1.4fr/1fr PAIRS BECOME EQUAL HALVES, because the grid's only
+  // granularity is 12 or 6 columns (dgWidgetW). A coach who wants the old ratio
+  // drags the edge once and it is remembered.
+  const plate = (accent, children, extraStyle) => (
+    <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": accent, paddingLeft: 24, ...(extraStyle || {}) }}>{children}</div>
+  );
+  const head = (label, accent, right) => (
+    <React.Fragment>
+      {right
+        ? <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <span className="dash-eyebrow" style={accent ? { color: accent } : undefined}>{label}</span>
+            {right}
+          </div>
+        : <span className="dash-eyebrow" style={accent ? { color: accent } : undefined}>{label}</span>}
+      <div className="dash-ledger" style={{ ...(accent ? { "--dac": accent } : {}), marginTop: 9, marginBottom: 12 }} />
+    </React.Fragment>
+  );
+
+  const gridWidgets = [
+    { key: "trajectory", title: "Practice trajectory", size: "full",
+      blurb: "Active clients, joined vs left, and revenue over time — the growth question, answered first.",
+      render: () => plate(DBZ_TEAL, <React.Fragment>
+        {head("Practice · trajectory", null, (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+            <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>active clients · joined vs left · revenue over time</span>
+            {/* ⚠ EXPORTED BY MONTH, WHILE THE PLATE IS DRAWN BY WEEK, and that is a
+                deliberate re-bucketing rather than a mismatch: a coach's accountant
+                works in months. `revenueRows` assigns a week to the month its MONDAY
+                falls in and carries the headcount as the LAST week of the month rather
+                than a sum — summing a headcount across four weeks would report four
+                times the practice. Joins and departures are events and do sum.
+                ⚠ AND THE BUTTON IS OFF WHEN THE TRAJECTORY COULD NOT BE READ, not just
+                when the viewer is a preview: an export built from a null series would
+                be a header row and nothing under it, which reads as "the practice
+                earned nothing" rather than as "we could not read it". */}
+            {/* ⚠ THE EXPORT STILL RUNS WITH A FAILED PURCHASES READ, and that is
+                deliberate: the subscription half is real and a coach doing their books
+                should not lose it because one leg was unreadable. What must not happen
+                is the one-time columns reporting 0.00 — `revenueRows` leaves them and
+                Total net EMPTY when the route says the leg is unknown. */}
+            <DashExportButton kind="revenue" label="monthly revenue"
+              live={isLive && !!(extra && extra.trajectory)}
+              build={() => window.DashExport.revenueCsv(extra.trajectory)} />
+          </span>
+        ))}
+        <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra} />
+      </React.Fragment>) },
+
+    { key: "revenue", title: "Revenue · 90-day trend", size: "half",
+      blurb: "Subscription revenue over the last 90 days, with MRR net and gross.",
+      render: () => plate(DBZ_TEAL, <React.Fragment>
+        {head("Revenue · 90-day trend", null, (
+          <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>
+            {mrr ? <React.Fragment>MRR <span style={{ fontFamily: serif, fontSize: 17, color: "#f2ede4" }}>{dashMoney(mrr.mrrNetCents)}</span> net · {dashMoney(mrr.mrrGrossCents)} gross</React.Fragment>
+              : isLive ? "MRR — · no active subscriptions" : "MRR from active subscriptions"}
+          </span>
+        ))}
+        <DashGrowthPanel live={live} role={role} />
+      </React.Fragment>) },
+
+    { key: "payouts", title: "Payouts · schedule & history", size: "half",
+      blurb: "When Stripe pays you and what it has paid so far.",
+      render: () => plate(DBZ_GREEN, <React.Fragment>
+        {head("Payouts · schedule & history", DBZ_GREEN)}
+        <DbzPayoutsZone live={isLive} stripe={stripe} providerId={extra && extra.providerId} role={role} />
+      </React.Fragment>) },
+
+    { key: "funnel", title: "Marketplace funnel", size: "half",
+      blurb: "Views → consults → signed, against the marketplace benchmark.",
+      render: () => plate(DBZ_TEAL, <React.Fragment>
+        {head("Marketplace funnel · views → consults → signed")}
+        <DashFunnelPanel live={live} />
+      </React.Fragment>) },
+
+    { key: "churn", title: "Churn · who left & why", size: "half",
+      blurb: "Who cancelled, when, and the reason on record.",
+      render: () => plate(DBZ_RED, <React.Fragment>
+        {head("Churn · who left & why", DBZ_RED)}
+        <DbzChurnZone live={isLive} churn={extra && extra.churn} />
+      </React.Fragment>) },
+
+    { key: "byo", title: "Bring your clients", size: "half",
+      blurb: "Your 0%-commission referral link for clients you brought yourself.",
+      render: () => plate(DBZ_TEAL, <React.Fragment>
+        {head("Bring your clients · 0% commission")}
+        <DbzBringClientsZone live={isLive} role={role} providerId={extra && extra.providerId} />
+      </React.Fragment>) },
+
+    { key: "origin", title: "Your roster · who found whom", size: "half",
+      blurb: "Marketplace vs brought-yourself, from each subscription's STORED fee.",
+      render: () => plate(cfg.accent, <React.Fragment>
+        {head("Your roster · who found whom", cfg.accent)}
+        <DbzOriginZone live={isLive} byOrigin={extra && extra.byOrigin} />
+      </React.Fragment>) },
+
+    { key: "outcomes", title: "Roster outcomes", size: "full",
+      blurb: "What your coaching did for the roster over the last 30 days.",
+      // ⚠ `empty`, NEVER a conditional entry. DashGrid's boot effect resolves its
+      // layout from the FIRST render, where `extra` is still null — a widget omitted
+      // then would never get a portal host and would never mount at all.
+      empty: !cp,
+      emptyWhy: isLive ? "loads with the analytics rollup" : "appears once you are live",
+      render: () => plate(cfg.accent, <React.Fragment>
+        {head("The product · roster outcomes, last 30 days", cfg.accent)}
+        <DbzOutcomesZone role={role} cp={cp} />
+      </React.Fragment>) },
+  ];
+
   return (
     <React.Fragment>
       {source === "demo" && !extra && <DashDemoBand />}
@@ -801,98 +929,7 @@ function CoachBusinessPage({ role }) {
         title="Business"
         subtitle="The money side, told straight — real subscription revenue, real Stripe payouts, the marketplace funnel, and who left. Nothing here is invented."
       >
-        {/* Practice trajectory — the growth question, answered first */}
-        <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24, marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-            <span className="dash-eyebrow">Practice · trajectory</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
-              <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>active clients · joined vs left · revenue over time</span>
-              {/* ⚠ EXPORTED BY MONTH, WHILE THE PLATE IS DRAWN BY WEEK, and that is a
-                  deliberate re-bucketing rather than a mismatch: a coach's accountant
-                  works in months. `revenueRows` assigns a week to the month its MONDAY
-                  falls in and carries the headcount as the LAST week of the month rather
-                  than a sum — summing a headcount across four weeks would report four
-                  times the practice. Joins and departures are events and do sum.
-                  ⚠ AND THE BUTTON IS OFF WHEN THE TRAJECTORY COULD NOT BE READ, not just
-                  when the viewer is a preview: an export built from a null series would
-                  be a header row and nothing under it, which reads as "the practice
-                  earned nothing" rather than as "we could not read it". */}
-              {/* ⚠ THE EXPORT STILL RUNS WITH A FAILED PURCHASES READ, and that is
-                  deliberate: the subscription half is real and a coach doing their books
-                  should not lose it because one leg was unreadable. What must not happen
-                  is the one-time columns reporting 0.00 — `revenueRows` leaves them and
-                  Total net EMPTY when the route says the leg is unknown. */}
-              <DashExportButton kind="revenue" label="monthly revenue"
-                live={isLive && !!(extra && extra.trajectory)}
-                build={() => window.DashExport.revenueCsv(extra.trajectory)} />
-            </span>
-          </div>
-          <div className="dash-ledger" style={{ marginTop: 9, marginBottom: 12 }} />
-          <DbzTrajectoryZone live={isLive} trajectory={extra && extra.trajectory} role={role} loading={isLive && !extra} />
-        </div>
-
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "start", marginBottom: 16 }}>
-          {/* Revenue trend — 90 days */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <span className="dash-eyebrow">Revenue · 90-day trend</span>
-              <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>
-                {mrr ? <React.Fragment>MRR <span style={{ fontFamily: serif, fontSize: 17, color: "#f2ede4" }}>{dashMoney(mrr.mrrNetCents)}</span> net · {dashMoney(mrr.mrrGrossCents)} gross</React.Fragment>
-                  : isLive ? "MRR — · no active subscriptions" : "MRR from active subscriptions"}
-              </span>
-            </div>
-            <div className="dash-ledger" style={{ marginTop: 9, marginBottom: 12 }} />
-            <DashGrowthPanel live={live} role={role} />
-          </div>
-
-          {/* Payouts — schedule + history */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_GREEN, paddingLeft: 24 }}>
-            <span className="dash-eyebrow" style={{ color: DBZ_GREEN }}>Payouts · schedule &amp; history</span>
-            <div className="dash-ledger" style={{ "--dac": DBZ_GREEN, marginTop: 9, marginBottom: 12 }} />
-            <DbzPayoutsZone live={isLive} stripe={stripe} providerId={extra && extra.providerId} role={role} />
-          </div>
-        </div>
-
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16, alignItems: "start", marginBottom: 16 }}>
-          {/* Marketplace funnel with benchmark */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24 }}>
-            <span className="dash-eyebrow">Marketplace funnel · views → consults → signed</span>
-            <div className="dash-ledger" style={{ marginTop: 9, marginBottom: 12 }} />
-            <DashFunnelPanel live={live} />
-          </div>
-
-          {/* Churn */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_RED, paddingLeft: 24 }}>
-            <span className="dash-eyebrow" style={{ color: DBZ_RED }}>Churn · who left &amp; why</span>
-            <div className="dash-ledger" style={{ "--dac": DBZ_RED, marginTop: 9, marginBottom: 12 }} />
-            <DbzChurnZone live={isLive} churn={extra && extra.churn} />
-          </div>
-        </div>
-
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start", marginBottom: 16 }}>
-          {/* Bring your clients — the BYO ref link (0% commission) */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBZ_TEAL, paddingLeft: 24 }}>
-            <span className="dash-eyebrow">Bring your clients · 0% commission</span>
-            <div className="dash-ledger" style={{ marginTop: 9, marginBottom: 12 }} />
-            <DbzBringClientsZone live={isLive} role={role} providerId={extra && extra.providerId} />
-          </div>
-
-          {/* Origin labels — who found whom, from the STORED fee_bps */}
-          <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": cfg.accent, paddingLeft: 24 }}>
-            <span className="dash-eyebrow" style={{ color: cfg.accent }}>Your roster · who found whom</span>
-            <div className="dash-ledger" style={{ "--dac": cfg.accent, marginTop: 9, marginBottom: 12 }} />
-            <DbzOriginZone live={isLive} byOrigin={extra && extra.byOrigin} />
-          </div>
-        </div>
-
-        {/* Roster outcomes — migrated from the old Analytics page */}
-        <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": cfg.accent, paddingLeft: 24 }}>
-          <span className="dash-eyebrow" style={{ color: cfg.accent }}>The product · roster outcomes, last 30 days</span>
-          <div className="dash-ledger" style={{ "--dac": cfg.accent, marginTop: 9, marginBottom: 14 }} />
-          {cp
-            ? <DbzOutcomesZone role={role} cp={cp} />
-            : <div style={{ fontSize: 12.5, color: DBZ_INK50 }}>Roster outcomes load with the analytics rollup…</div>}
-        </div>
+        <DashGrid role={role} tab="business" widgets={gridWidgets} />
       </DashPage>
     </React.Fragment>
   );
