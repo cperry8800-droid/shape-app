@@ -496,7 +496,7 @@ async function generateWithOpenAI(body: GenerateBody): Promise<GeneratedDraft | 
         },
       },
     },
-    { promptId: 'ai.generate-plan' },
+    { promptId: 'ai.generate-plan', effort: 'medium' },
   );
 
   if (!result.ok) return null;

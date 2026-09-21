@@ -12,10 +12,23 @@
 // The AI call uses the same OPENAI_API_KEY / OPENAI_MODEL as the rest of the
 // app. If the key is unset or the model errors we fall back to a rule-based
 // responder that still surfaces coach actions for coach-related questions.
+//
+// READ tools (2026-09-21): a verified member's Nora can LOOK THINGS UP —
+// today's and this week's plan, recent workouts, the week in numbers, habits,
+// coaching sessions, reminders, points — through src/lib/ai/memberReads.mjs,
+// every read on the caller's own RLS client. A coach additionally gets
+// find_client (a name → the id every coach action needs) and
+// get_client_snapshot (the gated definer RPCs the coach surfaces already use).
+// A read that fails says so; it never comes back as "you have nothing".
+//
+// MODEL TIERING: this route has no membership gate (Cook Mode and the website
+// widget answer signed-out visitors), and GPT-6 Astra bills five times the
+// economy model. So a verified member gets the pinned model (aiModel) and an
+// anonymous caller gets aiPublicModel() — the economy model by default.
 
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
-import { callAI, hasOpenAIKey } from '@/lib/ai';
+import { callAI, hasOpenAIKey, aiPublicModel } from '@/lib/ai';
 import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
 import { proposeChange } from '@/lib/ai/proposals.mjs';
 import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoals, auditSink, type Actor } from '@/lib/ai/server';
@@ -25,6 +38,11 @@ import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs
 import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { searchFoodsServer } from '@/lib/food-search-server';
+import { plainText } from '@/lib/ai/replyText.mjs';
+import {
+  readTrainingPlan, readRecentTraining, readWeekSummary, readHabits, readCoaching, readReminders, readPoints,
+  readCoachRoster, findClient, readClientSnapshot,
+} from '@/lib/ai/memberReads.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,7 +76,11 @@ type OpenAIResponsePayload = { output_text?: string; output?: OpenAIOutputItem[]
 const SYSTEM_PROMPT = [
   "You are Nora, Shape's in-app support assistant. Introduce yourself as Nora if asked your name.",
   'Shape is a fitness and nutrition coaching app where members train, log meals/habits, track a Shape Score, and work with a real human coach.',
-  'Be warm, concise (1-4 sentences), specific, and action-oriented — actually help, do not just describe where to look.',
+  'Be warm, concise (1-4 sentences; up to 8 short ones only when they ask for detail), specific, and action-oriented — actually help, do not just describe where to look.',
+  'FORMAT: plain conversational prose only. No markdown — no headings, no bullet or numbered lists, no bold or asterisks, no tables, no code, no emoji. Your reply is shown in a plain chat bubble exactly as written.',
+  '',
+  "LOOKUPS: For a signed-in member you can LOOK THINGS UP with the read tools before you answer: get_training_plan (what is on today and this week, plus today's meals off their menu), get_recent_workouts (the last sessions and the top sets in each), get_week_summary (the last 7 days in numbers: nutrition, training, sleep and recovery, weigh-in trend, habit completion), get_habits (their habits with today's state and streaks), get_coaching (their coaches and booked sessions), get_reminders, get_points (recent Shape Score entries). Use the matching tool BEFORE answering any question about the member's own plan, schedule, progress, or numbers — never answer those from memory or by guessing. Quote only what a tool returned, in their own units. If a tool answers unavailable, say you can't see that right now; if it answers empty, say there is nothing there yet. If the tools are not offered, you are talking to someone who is not signed in as a member — say that lookups need a signed-in membership.",
+  "COACH LOOKUPS: For a COACH, find_client turns the name they said into the client id every coach action needs — call it first whenever you do not already have the id, and NEVER invent an id. If it returns several candidates, ask which one; if none, say who is on their roster. get_client_snapshot gives that client's recent training, nutrition, weight and lifts (only for a client they actively coach).",
   '',
   'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns.',
   '',
@@ -347,10 +369,44 @@ const MEMBER_TOOLS = [
     strict: true,
   },
 ];
+// ── Member-only READ tools ────────────────────────────────────────────────────
+// No parameters: each answers for the SIGNED-IN member on the caller's own RLS
+// client, so there is nothing a member could pass to read someone else. Strict
+// schemas with an empty property set, so the model cannot smuggle an argument.
+const NO_ARGS = { type: 'object', properties: {}, required: [] as string[], additionalProperties: false };
+const MEMBER_READ_TOOLS = [
+  { type: 'function', name: 'get_training_plan', description: "The member's training plan for this week — which sessions are on today (dated or a weekly repeat), everything scheduled this week with exercises, how many later weeks exist — and today's meals off their active menu with the day's targets. Call before answering 'what's on today', 'what do I eat', or anything about their plan.", parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_recent_workouts', description: 'The last few sessions the member completed, with the top sets per move exactly as logged (units as stated in the log). Call for questions about what they lifted or trained recently.', parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_week_summary', description: 'The last 7 days in numbers: days logged and average intake, days trained and workout minutes, sleep and recovery averages where a wearable reports them, the latest weigh-in and the change from the one before, habit completion. Call for "how was my week", "am I on track", trend questions.', parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_habits', description: "The member's habits with today's done state, the last-7-days count and the current streak. Call before check_habit when you need the exact habit name, and for any habit question.", parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_coaching', description: "The member's coaches (their team), their next booked coaching sessions with coach names, and the last sessions held. Call for 'when is my next session', 'who is my coach'.", parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_reminders', description: "The member's scheduled reminders (kind, time, days, timezone, on/off). Call before set_reminder to avoid duplicates and for any reminder question.", parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_points', description: 'The most recent Shape Score ledger entries and the points earned in the last 7 days. Call for "how did I earn points", "what did I get for that".', parameters: NO_ARGS, strict: true },
+];
+// ── Coach-only READ tools (a verified coach: trainer / nutritionist) ─────────
+const COACH_TOOLS = [
+  { type: 'function', name: 'find_client', description: "Resolve a client the coach named to the client's id from the COACH'S OWN active roster. Exactly one match returns the client; several return candidates to ask about; none returns the roster names. Call this before any client action when you do not already have the id.", parameters: { type: 'object', properties: { name: { type: 'string', description: 'The name as the coach said it.' } }, required: ['name'], additionalProperties: false }, strict: true },
+  { type: 'function', name: 'get_client_snapshot', description: "A coached client's recent numbers: sessions kept, workout minutes, days logged and average macros, latest and starting weight, key lifts. Only for a client this coach actively coaches; otherwise it answers allowed:false.", parameters: { type: 'object', properties: { clientId: { type: 'string', description: 'The client id from find_client or context.' } }, required: ['clientId'], additionalProperties: false }, strict: true },
+];
+const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name)]);
+const COACH_ROLES = new Set(['trainer', 'nutritionist', 'dietitian', 'admin']);
+// Up to this many model turns per request: a lookup, an action drafted from
+// it, and a reply is three; Astra "continues through more steps", so the cap
+// is a budget, and the reply is taken on the last round whatever is pending.
+const MAX_MODEL_ROUNDS = 5;
+const MAX_TOOL_CALLS = 10;
+const MAX_OUTPUT_TOKENS = 6000;
+
 const MEMORY_TOOLS = new Set(['remember', 'forget']);
 const MEMBER_PROMPT_NOTE =
   "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.\n" +
-  "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), log water (log_water), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.";
+  "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), log water (log_water), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.\n" +
+  'THE READ TOOLS ARE AVAILABLE on this turn — use them (see LOOKUPS) before answering anything about this member\'s own plan, schedule, progress or numbers.';
+
+// The per-request context the READ tools run with: the caller's own RLS client
+// and id (member-verified), the clock, and whether the caller is a coach — null
+// for anyone else, so a fabricated call fails closed exactly like memory.
+type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean };
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
@@ -384,6 +440,10 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
     // fact renderer already shows "X of Y target" but nothing populated Y
     // (Codex P2 #1805).
     sb.from('client_programs').select('detail').eq('user_id', uid).maybeSingle(),
+    // Habits today — memberContext has rendered "Habits today: X of Y done"
+    // since it was written and nothing ever populated it (Nora map, 2026-09-21).
+    sb.from('user_habits').select('id').eq('user_id', uid).is('archived_at', null),
+    sb.from('user_habit_completions').select('habit_id').eq('user_id', uid).eq('done_on', today),
   ]);
   const val = <T,>(i: number): T | null => {
     const l = legs[i];
@@ -418,6 +478,13 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
   }
   if (kcalTarget != null) todayFacts.kcalTarget = kcalTarget;
   if (proteinTarget != null) todayFacts.proteinTarget = proteinTarget;
+  const habitRows = val<Array<{ id?: string }>>(7);
+  const doneRows = val<Array<{ habit_id?: string }>>(8);
+  if (Array.isArray(habitRows) && habitRows.length && Array.isArray(doneRows)) {
+    const ids = new Set(habitRows.map((h) => String(h.id)));
+    todayFacts.habitsTotal = ids.size;
+    todayFacts.habitsDone = new Set(doneRows.map((d) => String(d.habit_id)).filter((id) => ids.has(id))).size;
+  }
   if (Object.keys(todayFacts).length) facts.today = todayFacts;
   const mv = val<number>(1);
   if (mv != null) facts.momentum = { value: Number(mv) };
@@ -467,7 +534,14 @@ type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOu
 // MEMORY tools (members only — the schemas are never exposed otherwise) run
 // DIRECTLY with audit; memoryCtx is null for non-members, so even a fabricated
 // call fails closed.
-async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null): Promise<ToolOut> {
+async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null, reads: ReadCtx | null = null): Promise<ToolOut> {
+  if (READ_TOOLS.has(name)) {
+    // Member-only READS. The schemas exist only in a member's tool list, and a
+    // call with no context fails closed rather than reading anything.
+    if (!reads) return { result: { error: 'members_only' }, actions: [] };
+    const result = await runRead(name, args, reads);
+    return { result, actions: [] };
+  }
   if (name === 'find_food') {
     // Member-only READ (the schema only exists in a member's tool list;
     // memoryCtx doubles as the verified-member marker). Real macros for a
@@ -536,6 +610,41 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
   return { result: { error: `Unknown tool ${name}` }, actions: [] };
 }
 
+// A read that could not be performed says so in a shape the prompt teaches the
+// model to relay ("I can't see that right now") — distinct from an empty
+// result, which is "nothing there yet". Never a thrown error into the loop.
+async function runRead(name: string, args: Record<string, unknown>, reads: ReadCtx): Promise<unknown> {
+  const { sb, uid, now } = reads;
+  try {
+    switch (name) {
+      case 'get_training_plan': return await readTrainingPlan(sb, uid, { now });
+      case 'get_recent_workouts': return await readRecentTraining(sb, uid, { now });
+      case 'get_week_summary': return await readWeekSummary(sb, uid, { now });
+      case 'get_habits': return await readHabits(sb, uid, { now });
+      case 'get_coaching': return await readCoaching(sb, uid, { now });
+      case 'get_reminders': return await readReminders(sb, uid);
+      case 'get_points': return await readPoints(sb, uid, { now });
+      case 'find_client': {
+        if (!reads.isCoach) return { error: 'not_a_coach', message: 'Only a coach can look up a client.' };
+        const roster = (await readCoachRoster(sb, uid)) as { ok: boolean; isCoach?: boolean; clients?: Array<{ id: string; name: string | null; roles: string[] }> };
+        if (!roster.ok) return { ok: false, error: 'unavailable', message: 'The roster could not be read right now.' };
+        if (!roster.isCoach) return { error: 'not_a_coach', message: 'No coach profile is linked to this account.' };
+        const q = String(args.name || '').trim().slice(0, 80);
+        return { ok: true, ...findClient(roster.clients, q) };
+      }
+      case 'get_client_snapshot': {
+        if (!reads.isCoach) return { error: 'not_a_coach', message: 'Only a coach can read a client snapshot.' };
+        const id = String(args.clientId || '').trim();
+        if (!/^[0-9a-f-]{20,64}$/i.test(id)) return { error: 'bad_client_id', message: 'Pass the client id from find_client.' };
+        return await readClientSnapshot(sb, id);
+      }
+      default: return { error: `Unknown tool ${name}` };
+    }
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
+}
+
 function extractOutputText(payload: OpenAIResponsePayload): string {
   if (typeof payload?.output_text === 'string' && payload.output_text.trim()) return payload.output_text;
   const parts = Array.isArray(payload?.output) ? payload.output : [];
@@ -587,9 +696,9 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; isMember: boolean },
   signal?: AbortSignal,
-): Promise<{ reply: string; actions: SupportAction[] } | null> {
+): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
   const recent = messages.slice(-12).map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -627,26 +736,52 @@ async function askOpenAI(
     ...recent,
   ];
   const actions: SupportAction[] = [];
-  const tools = member.cookMsg ? [] : (member.memberTools.length ? [...TOOLS, ...member.memberTools] : TOOLS);
+  // Cook Mode: no tools at all. A member: the base tools, the member action +
+  // memory tools, the READ tools, and — for a coach — the two coach lookups.
+  const tools = member.cookMsg
+    ? []
+    : (member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools] : TOOLS);
+  // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
+  // anyone else rides the public model. `model` is set explicitly for the
+  // public path only — an explicit model also disables callAI's access
+  // fallback, which is right: the economy model needs no fallback.
+  // ⚠ AND A REFUSED PIN IS REFUSED FOR THE WHOLE REQUEST: once a round has
+  // fallen back, the later rounds name the fallback model directly instead of
+  // paying a refused Astra call each — and every reasoning item echoed back
+  // through the transcript then comes from the one model that is answering.
+  let pinnedModel: string | null = member.isMember ? null : aiPublicModel();
 
-  // Allow up to 2 tool rounds, then take the text. When cooking, tools is
-  // empty (read-only kitchen) — omit it so the model runs pure-conversational.
-  // Built per round because `input` is reassigned as tool outputs accumulate.
-  for (let round = 0; round < 3; round++) {
+  // Up to MAX_MODEL_ROUNDS model turns, MAX_TOOL_CALLS tool calls, then take
+  // the text. When cooking, tools is empty (read-only kitchen) — omit it so the
+  // model runs pure-conversational. Built per round because `input` is
+  // reassigned as tool outputs accumulate.
+  let toolCalls = 0;
+  let answeredBy: string | null = null;
+  for (let round = 0; round < MAX_MODEL_ROUNDS; round++) {
     // Thread the request's abort signal so a client disconnect (e.g. the member
     // closes Cook Mode mid-reply) cancels the in-flight OpenAI request instead
     // of letting the recipe/member context keep traveling + accruing cost
     // (Codex P2 #1805; callAI already wires opts.signal into its fetch).
-    const result = await callAI(tools.length ? { input, tools } : { input }, { promptId: 'support.chat', signal });
+    const body: Record<string, unknown> = { input, max_output_tokens: MAX_OUTPUT_TOKENS, ...(pinnedModel ? { model: pinnedModel } : {}) };
+    if (tools.length) body.tools = tools;
+    // `low` effort + `low` verbosity: a chat bubble wants the answer in a
+    // second and in a sentence; the lookups, not the reasoning budget, are
+    // what make it right.
+    const result = await callAI(body, { promptId: 'support.chat', signal, effort: 'low', verbosity: 'low' });
     if (!result.ok) return null;
+    answeredBy = result.model;
+    if (result.fellBack) pinnedModel = result.model;
     const payload = result.data as OpenAIResponsePayload;
     const output = Array.isArray(payload.output) ? payload.output : [];
     const calls = output.filter((o) => o.type === 'function_call');
-    if (calls.length === 0 || round === 2) {
-      const reply = extractOutputText(payload).trim();
-      return reply ? { reply, actions } : null;
+    const budgetLeft = toolCalls < MAX_TOOL_CALLS;
+    if (calls.length === 0 || round === MAX_MODEL_ROUNDS - 1 || !budgetLeft) {
+      const reply = plainText(extractOutputText(payload));
+      return reply ? { reply, actions, model: answeredBy } : null;
     }
-    // Echo the model's function_call items back, then append our outputs.
+    // Echo the model's output items back (function calls AND the reasoning
+    // items that precede them — a reasoning model refuses a call without its
+    // reasoning), then append our outputs.
     input = input.concat(output as unknown[]);
     for (const call of calls) {
       let parsed: Record<string, unknown> = {};
@@ -655,7 +790,10 @@ async function askOpenAI(
       } catch {
         parsed = {};
       }
-      const { result, actions: a } = await runTool(String(call.name), parsed, propose, member.memoryCtx);
+      toolCalls += 1;
+      const { result, actions: a } = toolCalls <= MAX_TOOL_CALLS
+        ? await runTool(String(call.name), parsed, propose, member.memoryCtx, member.reads)
+        : { result: { error: 'tool_budget_exhausted', message: 'Answer with what you have.' }, actions: [] as SupportAction[] };
       for (const act of a) actions.push(act);
       input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
     }
@@ -721,12 +859,17 @@ export async function POST(request: Request) {
   let contextMsg: string | null = null;
   let memberTools: typeof MEMBER_TOOLS = [];
   let memoryCtx: MemoryCtx | null = null;
+  let reads: ReadCtx | null = null;
+  let coachTools: typeof COACH_TOOLS = [];
   let isMember = false;
   if (actor) {
     const membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
     if (membership && membership.isMember) {
       isMember = true;
       memberTools = MEMBER_TOOLS;
+      const isCoach = COACH_ROLES.has(String(actor.role || ''));
+      reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach };
+      if (isCoach) coachTools = COACH_TOOLS;
       memoryCtx = {
         actor: { id: actor.user.id, role: actor.role },
         supabase: actor.supabase,
@@ -740,8 +883,8 @@ export async function POST(request: Request) {
   }
   const propose = makePropose(actor, request, isMember);
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg }, request.signal).catch(() => null);
-  if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions });
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, isMember }, request.signal).catch(() => null);
+  if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
   // "I've passed this to the Shape team" or return coach/screen actions, which
