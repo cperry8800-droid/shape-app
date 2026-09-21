@@ -21,8 +21,11 @@
 #   the whole run, so a typo never half-applies. Globbing is off, so a `*`
 #   in the input can never expand.
 # - dry_run lists what would be deleted and deletes nothing.
-# - A name that no longer exists is reported and is not a failure; any
-#   other refusal from the API fails the run.
+# - A name that no longer exists is reported and is not a failure — but that
+#   is MEASURED, not read off the error: 422 is this endpoint's generic
+#   validation failure (missing ref, refused deletion, spam protection all
+#   share it), so a 422 is followed by a matching-refs probe and only a ref
+#   proven absent passes. Any other refusal from the API fails the run.
 #
 # The token is the run's own GITHUB_TOKEN with contents: write, the least
 # privilege that can delete a ref. No third-party action is used, so there
@@ -99,8 +102,29 @@ jobs:
               "https://api.github.com/repos/$REPO/git/refs/heads/$name")
             case "$code" in
               204) echo "deleted $name"; echo "- deleted \`$name\`" >> "$summary" ;;
-              422) echo "::warning::$name was not on the remote (422): $(cat /tmp/delete-branch-response.json)"
-                   echo "- \`$name\` was already gone" >> "$summary" ;;
+              422) # 422 is this endpoint's GENERIC validation failure: a missing ref,
+                   # a refusal to delete, and spam protection all arrive under the one
+                   # code, and the only thing telling them apart in the body is an
+                   # English message — a match on that is a spelling pin. So ask the
+                   # STATE instead, through matching-refs, which answers 200 whether or
+                   # not the ref is there: a wrong URL is a 404 and can never read as
+                   # "gone". Proven absent is the outcome the dispatcher asked for and
+                   # is not a failure; still present, or an answer we cannot read, is.
+                   probe=$(curl -sS -o /tmp/delete-branch-probe.json -w '%{http_code}' \
+                     -H "Authorization: Bearer $GH_TOKEN" \
+                     -H "Accept: application/vnd.github+json" \
+                     -H "X-GitHub-Api-Version: 2022-11-28" \
+                     "https://api.github.com/repos/$REPO/git/matching-refs/heads/$name")
+                   jq_rc=0
+                   jq -e --arg r "refs/heads/$name" 'any(.[]; .ref == $r)' \
+                     /tmp/delete-branch-probe.json >/dev/null 2>&1 || jq_rc=$?
+                   if [ "$probe" = "200" ] && [ "$jq_rc" = "1" ]; then
+                     echo "::warning::$name was not on the remote: $(cat /tmp/delete-branch-response.json)"
+                     echo "- \`$name\` was already gone" >> "$summary"
+                   else
+                     echo "::error::$name: HTTP 422 and the branch is not proven gone (probe HTTP $probe, match $jq_rc): $(cat /tmp/delete-branch-response.json)"
+                     echo "- FAILED \`$name\` (422, not proven gone)" >> "$summary"; fail=1
+                   fi ;;
               *)   echo "::error::$name: HTTP $code: $(cat /tmp/delete-branch-response.json)"
                    echo "- FAILED \`$name\` (HTTP $code)" >> "$summary"; fail=1 ;;
             esac
