@@ -112,6 +112,14 @@ test('an optional key in `hidden`, and a default or unknown key in `added`, say 
   assert.deepEqual(r.visible.map((v) => v.key), ['a', 'b']);
 });
 
+test('a stale optional key in `hidden` cannot veto `added` — only `added` decides an optional widget', () => {
+  // splitHidden never writes an optional key into `hidden`, but an older build or a hand
+  // edit might; the ON state of an optional widget is decided by `added` alone.
+  const r = resolveGridLayout({ items: [], hidden: ['o1'], added: ['o1'] }, OWIDGETS);
+  assert.ok(r.visible.some((v) => v.key === 'o1'), 'o1 was added and is not on the board');
+  assert.deepEqual(r.hidden, ['o2']);
+});
+
 test('splitHidden writes the two lists the document holds from the one effective list', () => {
   assert.deepEqual(splitHidden(['b', 'o1', 'o1', 'zzz'], OWIDGETS), { hidden: ['b'], added: ['o2'] });
   // a fresh board: no hidden defaults, nothing added

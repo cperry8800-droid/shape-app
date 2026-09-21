@@ -148,6 +148,20 @@ test('keyboard: focus enters the catalogue panel on open and returns to the butt
   assert.match(cat, /\}, \[open, box\]\);/);
 });
 
+test("every control the Today page draws clears the repo's 24px floor", () => {
+  // ⚠ MEASURED IN CHROMIUM, NOT READ: at 1440 the pulse's pin flag came back 20x27 and the
+  // business summary's link 233x12 — both pre-existing, both on the page this change asserts
+  // a floor for. A guard covering only the widgets added here would be a claim about seven
+  // elements on a page with two that fail. WCAG 2.5.8 AA is 24px, never Apple's 44pt.
+  assert.match(fn(TODAY, 'TriagePulsePanel'), /padding: "7px 4px", minWidth: 24,/, "the pulse's pin flag is under the floor again");
+  assert.match(fn(TODAY, 'DashBusinessSummary'), /\.\.\.DASH_MONO_LINK, marginTop: 12/, 'the business link is under the floor again');
+  // ⚠ AND THE TOKEN IS DECLARED ABOVE EVERY CONSUMER. A module-scope `const` is not hoisted,
+  // so a consumer above it is safe only while nothing calls that function during evaluation —
+  // a fact about the call graph, not about the line. (The same fix LB_TO_KG_BACKEND needed.)
+  assert.ok(TODAY.indexOf('const DASH_MONO_LINK') < TODAY.indexOf('function DashBusinessSummary'), 'DASH_MONO_LINK is declared below a consumer');
+  assert.ok(TODAY.indexOf('const DASH_INK50') < TODAY.indexOf('const DASH_MONO_EYEBROW'), 'DASH_INK50 is declared below the token that reads it');
+});
+
 test('in-card text links carry the 24px hit area the chrome has', () => {
   assert.match(TODAY, /const DASH_MONO_LINK = \{ \.\.\.DASH_MONO_EYEBROW, display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0"/);
   assert.match(fn(TODAY, 'DashProgramsEndingPanel'), /style=\{\{ \.\.\.DASH_MONO_LINK, color: "#2ee0c4" \}\}>Write the next \{noun\} →<\/a>/);
@@ -169,9 +183,9 @@ test('dgCatalogRows: a hidden default is addable, an un-added optional is addabl
 });
 
 // ── the Today wiring ─────────────────────────────────────────────────────────
-const OPTIONAL = ['week', 'status', 'movers', 'anniversaries', 'revenue', 'ending', 'actions', 'notes'];
+const OPTIONAL = ['week', 'status', 'movers', 'anniversaries', 'revenue', 'ending', 'notes'];
 
-test('the eight optional Today widgets are declared optional, with a blurb, and stay in the array', () => {
+test('the seven optional Today widgets are declared optional, with a blurb, and stay in the array', () => {
   const page = fn(TODAY, 'CoachDashboardPage');
   const arr = page.slice(page.indexOf('const gridWidgets = ['), page.indexOf('\n  ];', page.indexOf('const gridWidgets = [')));
   for (const key of OPTIONAL) {
@@ -222,15 +236,18 @@ test('the two shells ask for the signals module under a key newer than the deriv
   }
 });
 
-test('quick actions route inside the shell, and the notes write through the account store', () => {
+test('in-card links route inside the shell, and the notes write through the account store', () => {
   const href = new Function(fn(TODAY, 'dashTabHref') + '\nreturn dashTabHref;')();
   // no shell on this window → the shell document, never a bare hash into nowhere
   assert.equal(href('week', 'trainer'), 'TrainerApp.html#week');
   assert.equal(href('plans', 'nutritionist'), 'NutritionistApp.html#plans');
-  const actions = fn(TODAY, 'DashQuickActionsPanel');
-  assert.match(actions, /dashTabHref\("week", role\)/);
-  assert.match(actions, /dashTabHref\("schedule", role\)/);
-  assert.match(actions, /dashMessageClient\(null, role\)/);
+  // the two panels that link out of a card go through it — a raw legacy href would cost
+  // two page loads from inside the shell (the R19 sweep)
+  assert.match(fn(TODAY, 'DashRosterStatusPanel'), /href=\{dashTabHref\("clients", role\)\}/);
+  assert.match(fn(TODAY, 'DashProgramsEndingPanel'), /href=\{dashTabHref\(plans, role\)\}/);
+  // ⚠ QUICK ACTIONS IS GONE BY RULING (owner, 2026-09-21: "drop the ones you said drop") —
+  // five of its six links were the sidebar. It must not come back as a widget.
+  assert.ok(!/DashQuickActionsPanel|key: "actions"/.test(TODAY), 'the Quick actions widget is back');
   // the notes panel: one attempt per draft, debounced, through the store's apply — and an
   // emptied note DELETES the key rather than storing ""
   const notes = fn(TODAY, 'DashNotesPanel');

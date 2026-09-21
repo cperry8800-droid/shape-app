@@ -272,6 +272,12 @@ const DASH_TODAY_ROLES = {
 // contact, and a one-tap Message. Visual language per the prototype: dark
 // panel, squared spine-left pills, mono metas, teal accents.
 
+const DASH_INK50 = "rgba(242,237,228,0.55)";
+const DASH_MONO_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_INK50 };
+// An in-card text link is a control, so it gets the 24px hit area the chrome has —
+// the glyph does not move (the vertical padding is cancelled by a negative margin).
+const DASH_MONO_LINK = { ...DASH_MONO_EYEBROW, display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0", textDecoration: "none", whiteSpace: "nowrap" };
+
 const DASH_SEV_COLORS = { red: "#e0644b", amber: "#d8a23a", new: "#2ee0c4", green: "#7bbf5a", unknown: "#9b968d" };
 
 function DashPill({ c, children }) {
@@ -839,7 +845,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
                   aria-pressed={pinSet.has(c.profile.id)}
                   title={pinSet.has(c.profile.id) ? "Unpin " + c.profile.name : "Pin " + c.profile.name + " to the top"}
                   onClick={(e) => { e.stopPropagation(); onTogglePin(c.profile.id); }}
-                  style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "#2ee0c4" : "rgba(242,237,228,0.3)" }}
+                  style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", minWidth: 24, lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "#2ee0c4" : "rgba(242,237,228,0.3)" }}
                 >{pinSet.has(c.profile.id) ? "\u2691" : "\u2690"}</button>
               )}
               <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
@@ -1032,7 +1038,7 @@ function DashBusinessSummary({ live, role, clients }) {
           </div>
         )}
       </div>
-      <a href={href} style={{ display: "inline-block", marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textDecoration: "none" }}>
+      <a href={href} style={{ ...DASH_MONO_LINK, marginTop: 12, fontSize: 9, fontWeight: 700, color: "#2ee0c4" }}>
         Revenue · payouts · funnel · churn →
       </a>
     </div>
@@ -1108,11 +1114,6 @@ function useDashKpiStrip(prefs, strip, role, defaults) {
 // pool, for the same reason the pool does: a widget that needed a request would be
 // a figure nobody on this screen had measured. Each card says how many rows it
 // could NOT read rather than publishing a total over the ones that answered.
-const DASH_INK50 = "rgba(242,237,228,0.55)";
-const DASH_MONO_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_INK50 };
-// An in-card text link is a control, so it gets the 24px hit area the chrome has —
-// the glyph does not move (the vertical padding is cancelled by a negative margin).
-const DASH_MONO_LINK = { ...DASH_MONO_EYEBROW, display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0", textDecoration: "none", whiteSpace: "nowrap" };
 
 // A hash route inside the shell this page renders in; the shell document otherwise.
 // `dashShellRole()` is null outside TrainerApp / NutritionistApp — the legacy tab
@@ -1282,25 +1283,6 @@ function DashProgramsEndingPanel({ ending, role }) {
         <span style={{ fontSize: 11, color: DASH_INK50 }}>{rest}</span>
         {ending.soon.length > 0 && <a href={dashTabHref(plans, role)} style={{ ...DASH_MONO_LINK, color: "#2ee0c4" }}>Write the next {noun} →</a>}
       </div>
-    </div>
-  );
-}
-
-function DashQuickActionsPanel({ role, cfg }) {
-  const plans = role === "nutritionist" ? "plans" : "programs";
-  const acts = [
-    [cfg.primaryCta[0], dashTabHref(plans, role)],
-    [cfg.secondaryCta[0], dashTabHref("clients", role)],
-    ["Review the week", dashTabHref("week", role)],
-    ["Open the calendar", dashTabHref("schedule", role)],
-    ["Business", dashTabHref("business", role)],
-  ];
-  const pill = { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", padding: "10px 14px", borderRadius: 999,
-    border: "1px solid rgba(242,237,228,0.2)", color: "#f2ede4", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", cursor: "pointer", fontWeight: 400 };
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {acts.map(([label, href]) => <a key={label} href={href} style={pill}>{label} <span style={{ color: "#2ee0c4" }}>→</span></a>)}
-      <button type="button" onClick={() => dashMessageClient(null, role)} style={pill}>Message a client <span style={{ color: "#2ee0c4" }}>→</span></button>
     </div>
   );
 }
@@ -1490,8 +1472,6 @@ function CoachDashboardPage({ role }) {
     { key: "ending", title: role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, size: "half",
       empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? (role === "nutritionist" ? "appears once a client is on one of your plans" : "appears once a client is on one of your programs") : staleWhy,
       render: () => renderPanel(role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", <DashProgramsEndingPanel ending={ending} role={role} />) },
-    { key: "actions", title: "Quick actions", blurb: "One tap to the things you do every day.", optional: true, size: "half",
-      render: () => renderPanel("Quick actions", <DashQuickActionsPanel role={role} cfg={cfg} />) },
     { key: "notes", title: "Notes to self", blurb: "A private scratchpad, kept with your account.", optional: true, size: "half",
       render: () => renderPanel("Notes to self", <DashNotesPanel prefs={prefs} role={role} />) },
   ];
@@ -1546,4 +1526,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashQuickActionsPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
