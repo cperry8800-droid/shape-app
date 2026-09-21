@@ -18,8 +18,27 @@ export function visibleWidgets(widgets) {
   return (widgets || []).filter((w) => w && !w.empty);
 }
 
-// saved: { items:[{id,x,y,w,h}], hidden:[id] } | null. widgets: [{ key, size, empty? }].
-// Returns { visible:[{ key, x?, y?, w, h?, autoPosition? }], hidden:[key] }.
+// The keys of the widgets a tab OFFERS but does not show by default — `optional: true`
+// on the declaration. In declaration order, because that is the order the catalogue
+// lists them and the order an all-off set is written into `hidden`.
+//
+// ⚠ AN OPTIONAL WIDGET IS OFF THE BOARD UNTIL THE MEMBER ADDS IT, AND THAT IS STORED
+// AS A POSITIVE CHOICE. The default board is the one every coach has had; a widget
+// added to the catalogue must not appear on anyone's dashboard unasked, and a stored
+// `hidden` list cannot express "off unless chosen" — a member who never touched the
+// board has no document at all. So an optional widget's ON state lives in `added`,
+// while a default widget's OFF state lives in `hidden`, and the two never mix: the
+// engine's own state is ONE effective hidden list (see resolveGridLayout), and
+// `splitHidden` is what turns it back into the two lists the document holds.
+export function optionalKeys(widgets) {
+  return (widgets || []).filter((w) => w && w.optional && w.key != null).map((w) => w.key);
+}
+
+// saved: { items:[{id,x,y,w,h}], hidden:[id], added:[id] } | null.
+// widgets: [{ key, size, empty?, optional? }].
+// Returns { visible:[{ key, x?, y?, w, h?, autoPosition? }], hidden:[key] } — where
+// `hidden` is the EFFECTIVE hidden list: the default widgets the member hid, followed by
+// every optional widget they have not added.
 // Saved items keep their geometry; widgets with no saved entry are appended with
 // autoPosition (GridStack packs them); a hidden key never appears in visible.
 // ⚠ THE TWO FILTERS ARE DELIBERATELY DIFFERENT SETS. `hidden` is a member preference
@@ -32,10 +51,19 @@ export function resolveGridLayout(saved, allWidgets) {
   const bySize = {};
   widgets.forEach((w) => { bySize[w.key] = w.size; });
   const declared = new Set((allWidgets || []).filter(Boolean).map((w) => w.key));
+  const optional = optionalKeys(allWidgets);
+  const optionalSet = new Set(optional);
   const existing = new Set(widgets.map((w) => w.key));
-  // hidden: keep only declared keys, deduped (first occurrence wins).
+  // hidden: a DEFAULT widget the member hid — declared keys only, deduped (first
+  // occurrence wins). An optional key in here is ignored: its state is `added`'s.
   const hiddenSet = new Set(); const hidden = [];
-  if (saved && Array.isArray(saved.hidden)) for (const k of saved.hidden) if (declared.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
+  if (saved && Array.isArray(saved.hidden)) for (const k of saved.hidden) if (declared.has(k) && !optionalSet.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
+  // added: an OPTIONAL widget the member put on the board — optional keys only. A key
+  // this build does not declare is dropped here and re-derived by the build that does.
+  const addedSet = new Set();
+  if (saved && Array.isArray(saved.added)) for (const k of saved.added) if (optionalSet.has(k)) addedSet.add(k);
+  // …and every optional widget NOT added is hidden, after the member's own hides.
+  for (const k of optional) if (!addedSet.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
   // saved items: keep only existing ids, deduped (first occurrence wins).
   const placed = new Set(); const savedItems = [];
   if (saved && Array.isArray(saved.items)) for (const i of saved.items) if (i && existing.has(i.id) && !placed.has(i.id)) { savedItems.push(i); placed.add(i.id); }
@@ -49,6 +77,48 @@ export function resolveGridLayout(saved, allWidgets) {
     visible.push({ key: w.key, w: widgetW(w.size), autoPosition: true });
   }
   return { visible, hidden };
+}
+
+// The inverse of the merge above: what the document's `hidden` and `added` lists must
+// say for the engine's ONE effective hidden list. `hidden` on disk holds only default
+// widgets (declared, deduped); `added` holds the optional widgets NOT in the effective
+// list. Written from here and nowhere else, so the two lists cannot disagree about a key.
+export function splitHidden(hidden, allWidgets) {
+  const declared = new Set((allWidgets || []).filter(Boolean).map((w) => w.key));
+  const optional = optionalKeys(allWidgets);
+  const optionalSet = new Set(optional);
+  const hiddenSet = new Set(hidden || []);
+  const out = [];
+  for (const k of (hidden || [])) if (declared.has(k) && !optionalSet.has(k) && out.indexOf(k) < 0) out.push(k);
+  return { hidden: out, added: optional.filter((k) => !hiddenSet.has(k)) };
+}
+
+// One row per declared widget for the catalogue, in declaration order.
+//   on:     it has a grid item right now (not hidden, not empty)
+//   canAdd: it is hidden and would render something if added
+//   why:    for an EMPTY widget, the reason nothing can be added or shown yet
+// ⚠ AN EMPTY WIDGET CAN NEITHER BE ADDED NOR REMOVED FROM HERE. Adding one would
+// re-create exactly the empty 18px item the `empty` contract exists to remove
+// (restore() refuses it for the same reason); removing one flips a preference about a
+// card nobody can see. It is listed, with its reason, so the catalogue is honest about
+// what exists — never as a control that does nothing.
+export function catalogRows(widgets, hidden) {
+  const hiddenSet = new Set(hidden || []);
+  return (widgets || []).filter((w) => w && w.key != null).map((w) => {
+    const empty = !!w.empty;
+    const off = hiddenSet.has(w.key);
+    return {
+      key: w.key,
+      title: w.title || String(w.key),
+      blurb: typeof w.blurb === 'string' && w.blurb ? w.blurb : null,
+      optional: !!w.optional,
+      empty,
+      off,
+      on: !off && !empty,
+      canAdd: off && !empty,
+      why: empty ? (typeof w.emptyWhy === 'string' && w.emptyWhy ? w.emptyWhy : 'nothing to show yet') : null,
+    };
+  });
 }
 
 // What to WRITE back to user_goals('dashboard_layout') after a layout change.

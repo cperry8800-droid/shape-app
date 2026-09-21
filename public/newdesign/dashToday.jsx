@@ -1101,6 +1101,260 @@ function useDashKpiStrip(prefs, strip, role, defaults) {
   return useRememberedSlots(prefs, [base + "0", base + "1", base + "2", base + "3"], DashSignals.DASH_KPI_KEYS, defaults);
 }
 
+// ── Optional Today widgets (review 2026-09-21) ──────────────────────────────
+// Off the board until a coach adds them from the widget catalogue (DashGrid's
+// "＋ Add widget"), so nobody's Today changes unasked. Every one derives from state
+// the page already holds — the derivations live in dashSignals.js beside the KPI
+// pool, for the same reason the pool does: a widget that needed a request would be
+// a figure nobody on this screen had measured. Each card says how many rows it
+// could NOT read rather than publishing a total over the ones that answered.
+const DASH_INK50 = "rgba(242,237,228,0.55)";
+const DASH_MONO_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_INK50 };
+// An in-card text link is a control, so it gets the 24px hit area the chrome has —
+// the glyph does not move (the vertical padding is cancelled by a negative margin).
+const DASH_MONO_LINK = { ...DASH_MONO_EYEBROW, display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0", textDecoration: "none", whiteSpace: "nowrap" };
+
+// A hash route inside the shell this page renders in; the shell document otherwise.
+// `dashShellRole()` is null outside TrainerApp / NutritionistApp — the legacy tab
+// pages are redirect stubs and never render Today — so the fallback is for a host
+// this file cannot foresee, never the ordinary path.
+function dashTabHref(slug, role) {
+  try { if (typeof dashShellRole === "function" && dashShellRole()) return "#" + slug; } catch (e) {}
+  return (role === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html") + "#" + slug;
+}
+
+function DashWeekAheadPanel({ week }) {
+  if (!week) return null;
+  const max = week.days.reduce((m, d) => Math.max(m, d.count), 0);
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
+        {week.days.map((d) => (
+          <div key={d.date} title={d.date} style={{ textAlign: "center", padding: "10px 4px 8px", borderRadius: 8, minWidth: 0,
+            background: d.today ? "rgba(46,224,196,0.08)" : "rgba(242,237,228,0.03)",
+            border: "1px solid " + (d.today ? "rgba(46,224,196,0.3)" : "rgba(242,237,228,0.06)") }}>
+            <div style={{ ...DASH_MONO_EYEBROW, color: d.today ? "#2ee0c4" : DASH_INK50 }}>{d.dow}</div>
+            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: d.count ? "#f2ede4" : "rgba(242,237,228,0.35)" }}>{d.count}</div>
+            <div style={{ height: 3, margin: "8px auto 0", width: "70%", borderRadius: 999, background: "rgba(242,237,228,0.08)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: max ? (d.count / max) * 100 + "%" : 0, background: "#2ee0c4", opacity: 0.85 }} />
+            </div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: DASH_INK50, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{d.first || (d.count ? " " : "—")}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
+        {week.total} on your calendar in the next 7 days
+        {week.busiest ? " · busiest " + week.busiest.dow + " " + week.busiest.day : ""}
+        {week.skipped ? " · " + week.skipped + " with no readable date" : ""}
+      </div>
+    </div>
+  );
+}
+
+function DashRosterStatusPanel({ status, role }) {
+  if (!status) return null;
+  const segs = [["red", "Needs you"], ["amber", "Watch"], ["green", "On track"], ["unknown", "Not enough data"]];
+  if (!status.total) return <div style={{ fontSize: 13, color: DASH_INK50 }}>No clients on the pulse yet.</div>;
+  return (
+    <div>
+      <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(242,237,228,0.06)" }}>
+        {segs.map(([k]) => status[k].length ? <div key={k} style={{ width: (status[k].length / status.total) * 100 + "%", background: DASH_SEV_COLORS[k] }} /> : null)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
+        {segs.map(([k, label]) => (
+          <div key={k} style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 2, background: DASH_SEV_COLORS[k], display: "inline-block", flexShrink: 0 }} />
+              <span style={{ fontFamily: serif, fontSize: 24, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{status[k].length}</span>
+            </div>
+            <div style={{ ...DASH_MONO_EYEBROW, marginTop: 6 }}>{label}</div>
+            {k !== "green" && status[k].length > 0 && (
+              <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 4, lineHeight: 1.4 }}>
+                {status[k].slice(0, 3).join(" · ")}{status[k].length > 3 ? " +" + (status[k].length - 3) : ""}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
+        {status.total} on the pulse{status.fresh ? " · " + status.fresh + " new in the last 14 days" : ""} · <a href={dashTabHref("clients", role)} style={{ color: "#2ee0c4", textDecoration: "none", display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0" }}>Open the roster →</a>
+      </div>
+    </div>
+  );
+}
+
+function DashTopMoversPanel({ movers }) {
+  if (!movers) return null;
+  const row = (m, up) => (
+    <div key={(up ? "u:" : "d:") + m.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+      <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: up ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, flexShrink: 0, whiteSpace: "nowrap" }}>
+        {up ? "▲ +" : "▼ "}{Math.abs(m.delta)} <span style={{ color: DASH_INK50 }}>· {m.points}{m.partial ? "*" : ""} pts</span>
+      </span>
+    </div>
+  );
+  const none = (t) => <div style={{ fontSize: 12, color: DASH_INK50, paddingTop: 8 }}>{t}</div>;
+  const anyPartial = movers.up.concat(movers.down).some((m) => m.partial);
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+        <div><div style={DASH_MONO_EYEBROW}>Up · last full week</div>{movers.up.length ? movers.up.map((m) => row(m, true)) : none("Nobody up this week")}</div>
+        <div><div style={DASH_MONO_EYEBROW}>Down · last full week</div>{movers.down.length ? movers.down.map((m) => row(m, false)) : none("Nobody down this week")}</div>
+      </div>
+      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
+        Week over week, on two complete weeks · {movers.known} of {movers.total} with a shared score{anyPartial ? " · * this week so far" : ""}
+      </div>
+    </div>
+  );
+}
+
+function DashAnniversariesPanel({ marks }) {
+  if (!marks) return null;
+  const when = (h) => h.inDays === 0 ? "today" : h.inDays === 1 ? "tomorrow" : "in " + h.inDays + " days";
+  return (
+    <div>
+      {marks.soon.length ? marks.soon.slice(0, 6).map((h) => (
+        <div key={h.name + "|" + h.label} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: h.inDays === 0 ? "#2ee0c4" : "rgba(242,237,228,0.35)" }} />
+          <div style={{ minWidth: 0 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 500 }}>{h.name}</span>
+            <span style={{ fontSize: 13, color: "rgba(242,237,228,0.8)" }}> — {h.label} on Shape</span>
+          </div>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", color: h.inDays === 0 ? "#2ee0c4" : DASH_INK50 }}>{when(h)}</span>
+        </div>
+      )) : (
+        <div style={{ fontSize: 13, color: DASH_INK50 }}>
+          Nothing in the next 30 days{marks.later ? " · next: " + marks.later.name + ", " + marks.later.label + " " + when(marks.later) : ""}.
+        </div>
+      )}
+      {marks.unknown > 0 && <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 10 }}>{marks.unknown} of {marks.total} without a shared start date</div>}
+    </div>
+  );
+}
+
+function DashRevenueByClientPanel({ rev }) {
+  if (!rev) return null;
+  if (!rev.total) return <div style={{ fontSize: 13, color: DASH_INK50 }}>No clients yet.</div>;
+  if (!rev.known) return <div style={{ fontSize: 13, color: DASH_INK50 }}>Not shared — none of your {rev.total} clients' subscriptions could be read just now.</div>;
+  const top = rev.rows.length ? rev.rows[0].cents : 0;
+  return (
+    <div>
+      {rev.rows.map((r) => (
+        <div key={r.name + "|" + r.cents} style={{ padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+            <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, flexShrink: 0, whiteSpace: "nowrap" }}>{dashMoney(r.cents)}<span style={{ color: DASH_INK50 }}>/mo · {Math.round(r.share * 100)}%</span></span>
+          </div>
+          <div style={{ height: 3, marginTop: 6, borderRadius: 999, background: "rgba(242,237,228,0.06)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: top ? (r.cents / top) * 100 + "%" : 0, background: "#2ee0c4", opacity: 0.8 }} />
+          </div>
+        </div>
+      ))}
+      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
+        {dashMoney(rev.sumCents)}/mo across {rev.known === rev.total ? rev.total + " client" + (rev.total === 1 ? "" : "s") : rev.known + " of " + rev.total + " shared"}{rev.rows.length < rev.known ? " · top " + rev.rows.length : ""}
+      </div>
+    </div>
+  );
+}
+
+function DashProgramsEndingPanel({ ending, role }) {
+  if (!ending) return null;
+  const plans = role === "nutritionist" ? "plans" : "programs";
+  const noun = role === "nutritionist" ? "plan" : "block";
+  const left = (r) => r.left === 0 ? "last week" : r.left === 1 ? "1 week left" : r.left + " weeks left";
+  const rest = [ending.later ? ending.later + " mid-" + noun : null, ending.paused ? ending.paused + " paused" : null, ending.unknown ? ending.unknown + " without a " + noun : null].filter(Boolean).join(" · ");
+  return (
+    <div>
+      {ending.soon.length ? ending.soon.slice(0, 6).map((r) => (
+        <div key={r.id || r.name} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: r.left === 0 ? "#e0a24a" : "rgba(242,237,228,0.35)" }} />
+          <div style={{ minWidth: 0 }}>
+            <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</span>
+            <span style={{ fontSize: 13, color: "rgba(242,237,228,0.8)" }}>{r.program ? " — " + r.program : ""}</span>
+            <span style={{ fontSize: 12, color: DASH_INK50 }}> · wk {r.week}/{r.weeks}</span>
+          </div>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", color: r.left === 0 ? "#e0a24a" : DASH_INK50 }}>{left(r)}</span>
+        </div>
+      )) : (
+        <div style={{ fontSize: 13, color: DASH_INK50 }}>Nothing ends in the next {ending.weeks} weeks.</div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 10 }}>
+        <span style={{ fontSize: 11, color: DASH_INK50 }}>{rest}</span>
+        {ending.soon.length > 0 && <a href={dashTabHref(plans, role)} style={{ ...DASH_MONO_LINK, color: "#2ee0c4" }}>Write the next {noun} →</a>}
+      </div>
+    </div>
+  );
+}
+
+function DashQuickActionsPanel({ role, cfg }) {
+  const plans = role === "nutritionist" ? "plans" : "programs";
+  const acts = [
+    [cfg.primaryCta[0], dashTabHref(plans, role)],
+    [cfg.secondaryCta[0], dashTabHref("clients", role)],
+    ["Review the week", dashTabHref("week", role)],
+    ["Open the calendar", dashTabHref("schedule", role)],
+    ["Business", dashTabHref("business", role)],
+  ];
+  const pill = { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", padding: "10px 14px", borderRadius: 999,
+    border: "1px solid rgba(242,237,228,0.2)", color: "#f2ede4", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", cursor: "pointer", fontWeight: 400 };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {acts.map(([label, href]) => <a key={label} href={href} style={pill}>{label} <span style={{ color: "#2ee0c4" }}>→</span></a>)}
+      <button type="button" onClick={() => dashMessageClient(null, role)} style={pill}>Message a client <span style={{ color: "#2ee0c4" }}>→</span></button>
+    </div>
+  );
+}
+
+// A private scratchpad, kept in the same per-account `dashboard_prefs` document the
+// roster filter and the KPI picker use — so it follows the coach between devices with
+// no second mechanism, and the store's account binding, serial lane and rollback are
+// inherited rather than re-implemented.
+//
+// ⚠ THE DRAFT OUTRANKS THE DOCUMENT FOR THE SESSION, AND THE WRITE IS A DEBOUNCED
+// RECONCILIATION — the same shape as `useRememberedChoice`. A keystroke made while the
+// store is still loading has nowhere to go; a handler would drop it, and the effect
+// simply retries the moment the store opens. One attempt per draft (`askedRef`), so a
+// failed write cannot loop against the rollback.
+function DashNotesPanel({ prefs, role }) {
+  const key = "todayNote:" + role;
+  const kind = prefs && prefs.kind ? prefs.kind : "demo";
+  const doc = (prefs && prefs.doc) || {};
+  const stored = typeof doc[key] === "string" ? doc[key] : "";
+  const acct = prefs && prefs.accountId != null ? prefs.accountId : null;
+  const [draft, setDraft] = React.useState(null);
+  const askedRef = React.useRef(null);
+  const knownRef = React.useRef(null);
+  // A different account gets a clean slate — adjusted during render, as the remembered
+  // controls do, so B never sees the frame that still carries A's draft.
+  if (acct != null && knownRef.current != null && acct !== knownRef.current) { setDraft(null); askedRef.current = null; }
+  if (acct != null) knownRef.current = acct;
+  const value = draft != null ? draft : stored;
+  const writable = kind === "ready" || kind === "error";
+  React.useEffect(() => {
+    if (draft == null || !writable || !prefs || typeof prefs.apply !== "function") return undefined;
+    if (stored === draft || askedRef.current === draft) return undefined;
+    const t = setTimeout(() => {
+      askedRef.current = draft;
+      prefs.apply((d) => { const out = { ...d }; if (draft.trim() === "") delete out[key]; else out[key] = draft; return out; });
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [draft, writable, stored, key]);
+  // "Saved" is the store's optimistic paint, as every remembered control's is; a write
+  // that fails moves the store to `error`, which is the line above the others.
+  const status = kind === "error" ? "Couldn't save just now — your note is still here and saves on your next edit"
+    : !writable ? (kind === "loading" ? "Loading your notes…" : "Preview — notes save on your live dashboard")
+    : draft != null && draft !== stored ? "Unsaved…" : "Saved with your account";
+  return (
+    <div>
+      <textarea value={value} onChange={(e) => setDraft(e.target.value)} rows={5} aria-label="Notes to self"
+        placeholder="Anything to remember — a client to call, a block to tweak, a note for Friday."
+        style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 96, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, color: "#f2ede4", fontFamily: sans, fontSize: 13.5, lineHeight: 1.5, padding: "10px 12px" }} />
+      <div style={{ fontSize: 11, color: kind === "error" ? DASH_SEV_COLORS.amber : DASH_INK50, marginTop: 8 }}>{status}</div>
+    </div>
+  );
+}
+
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
@@ -1163,6 +1417,25 @@ function CoachDashboardPage({ role }) {
       ? pulseRows.map(c => ({ who: c.name, sub: c.sessions + (c.sessions === 1 ? " " + cfg.unit : " " + cfg.unit + "s"), trend: DASH_FLAT_TREND }))
       : [cfg.emptyPulse];
 
+  // ── The optional widgets' derivations (review 2026-09-21), computed once per render
+  // from state this page already holds, so `empty` and the panel read the same value.
+  //
+  // ⚠ `dashSignals.js` IS A PLAIN <script> WITH A HAND-TYPED `?v=`, so unlike this file
+  // it is not content-hashed at deploy — a browser holding a cached copy from before these
+  // derivations existed would pair it with a fresh dashToday.jsx and throw at render,
+  // and there is no error boundary anywhere in public/newdesign to catch that. The two
+  // shells bump the key; this is the belt for the browser that did not fetch it anyway:
+  // the optional widgets declare themselves empty, with the reason, and nothing throws.
+  const sigOk = ["dashWeekAhead", "dashRosterStatus", "dashTopMovers", "dashTenureMilestones", "dashRevenueByClient", "dashProgramsEnding"]
+    .every((fn) => typeof DashSignals[fn] === "function");
+  const staleWhy = "reload the page to enable this widget";
+  const weekAhead = sigOk ? DashSignals.dashWeekAhead(calendarEvents) : null;
+  const rosterStatus = sigOk ? DashSignals.dashRosterStatus(triage) : null;
+  const movers = sigOk ? DashSignals.dashTopMovers(clients) : null;
+  const tenureMarks = sigOk ? DashSignals.dashTenureMilestones(clients) : null;
+  const revenue = sigOk ? DashSignals.dashRevenueByClient(clients) : null;
+  const ending = sigOk ? DashSignals.dashProgramsEnding(clients) : null;
+
   // ── Coach Today as a draggable DashGrid (role-scoped, tab="today"). Each section below
   // becomes a widget; the date/greeting/CTAs stay as the page header (DashShell topbar).
   const dashPanelStyle = { background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 };
@@ -1183,17 +1456,44 @@ function CoachDashboardPage({ role }) {
       ))}
     </div>
   );
+  // `blurb` is the catalogue's one-line description; `optional: true` keeps a widget off
+  // the board until the coach adds it (dashGrid.jsx, dgOptionalKeys); `empty` + `emptyWhy`
+  // are the honest-absence contract — the entry stays in the array, and the catalogue
+  // says why the card cannot be added yet.
   const gridWidgets = [
-    { key: "pulse", title: "Client attention", size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
-    { key: "schedule", title: cfg.scheduleTitle, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
-    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
-    { key: "practice", title: "Practice", size: "full", render: () => renderKpiStrip(practiceKpis),
+    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
+    { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
+    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
+    { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", size: "full", render: () => renderKpiStrip(practiceKpis),
       settings: dashKpiSettings(practiceChosen, role, setPracticeKpis) },
-    { key: "wins", title: "Client wins", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
-    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
-    { key: "kpis", title: "Business overview", size: "full", render: () => renderKpiStrip(kpis),
+    { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
+    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", blurb: "Logging and protein across the whole roster.", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
+    { key: "kpis", title: "Business overview", blurb: "Four figures about the business — pick them with ⚙ once you're live.", size: "full", render: () => renderKpiStrip(kpis),
       settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
-    { key: "business", title: "Business", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
+    { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
+    // ── Optional (off until added) ──
+    { key: "week", title: "Week ahead", blurb: "The next seven days of your calendar, one column per day.", optional: true, size: "half",
+      empty: !weekAhead, emptyWhy: staleWhy,
+      render: () => renderPanel("Week ahead", <DashWeekAheadPanel week={weekAhead} />) },
+    { key: "status", title: "Roster by status", blurb: "How many clients need you, need watching, and are on track.", optional: true, size: "half",
+      empty: !rosterStatus, emptyWhy: sigOk ? "the pulse could not be read" : staleWhy,
+      render: () => renderPanel("Roster by status", <DashRosterStatusPanel status={rosterStatus} role={role} />) },
+    { key: "movers", title: "Top movers", blurb: "The biggest Shape Score moves, week over week.", optional: true, size: "half",
+      empty: !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : staleWhy,
+      render: () => renderPanel("Top movers", <DashTopMoversPanel movers={movers} />) },
+    { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a tenure mark on Shape in the next 30 days.", optional: true, size: "half",
+      empty: !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : staleWhy,
+      render: () => renderPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} />) },
+    { key: "revenue", title: "Revenue by client", blurb: "Who pays what per month, from their subscriptions.", optional: true, size: "half",
+      empty: !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : staleWhy,
+      render: () => renderPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} />) },
+    { key: "ending", title: role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, size: "half",
+      empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? (role === "nutritionist" ? "appears once a client is on one of your plans" : "appears once a client is on one of your programs") : staleWhy,
+      render: () => renderPanel(role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", <DashProgramsEndingPanel ending={ending} role={role} />) },
+    { key: "actions", title: "Quick actions", blurb: "One tap to the things you do every day.", optional: true, size: "half",
+      render: () => renderPanel("Quick actions", <DashQuickActionsPanel role={role} cfg={cfg} />) },
+    { key: "notes", title: "Notes to self", blurb: "A private scratchpad, kept with your account.", optional: true, size: "half",
+      render: () => renderPanel("Notes to self", <DashNotesPanel prefs={prefs} role={role} />) },
   ];
 
   return (
@@ -1246,4 +1546,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, DashGrowthPanel, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashQuickActionsPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime });
