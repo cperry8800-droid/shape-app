@@ -15,9 +15,11 @@ builder look and design"*. The findings (§1–§3) and the client-preview measu
 the three concepts (§4) and the recommendation (§5) are a **first round the owner did not take**
 — every artboard kept the shipped dashboard's visual language (chamfered plates, hairlines,
 mono eyebrows, the tree-and-editor layout), so they answered *dates* and not *look*. A second
-round in a different visual language is owed before anything is built. ⚠ The first draft of
-this review also changed the page title to the word and called it *shipped*; that change was
-withdrawn before it left the branch — the owner had not agreed to it.
+round in a different visual language is owed before anything is built — **delivered the same
+evening as §10 and a second board: https://claude.ai/artifact/TWHg2SbPj6VNeoeTXxtYpC.**
+⚠ The first draft of this review also changed the page title to the word and called it
+*shipped*; that change was withdrawn before it left the branch — the owner had not agreed to
+it. The owner then picked the plain "&" (§8), which is the one code change on this branch.
 
 Surfaces read: `public/newdesign/dashBuilder.jsx` (621 lines) · `dashBuilderCore.js` (419) ·
 `workoutDocument.js` (115) · `dashMealBuilder.jsx` (788) · `dashMealCore.js` (385) · the two
@@ -255,7 +257,7 @@ agreed:**
 | 3 | A start date lives in the builder (the anchor), not only in the Assign step. | Yes, optional; the Schedule step still sets each client's Monday |
 | 4 | The preview renders the app's screens (phone), not the website's Today card. | The app's |
 | 5 | Collapse *Save draft · Publish template · autosave* into autosave + one *Publish* (library visibility). | Yes |
-| 6 | The header: the ornate & kept, a plain "&" set in Space Grotesk, or the word — three forms rendered (`ampersand-candidates.png`, the board's *Pick* tab). **Nothing shipped.** | Owner's pick |
+| 6 | The header: the ornate & kept, a plain "&" set in Space Grotesk, or the word — three forms rendered (`ampersand-candidates.png`, the board's *Pick* tab). **Owner's pick, 2026-09-21: the plain "&" in Space Grotesk** — on this branch. | Picked: B |
 
 ---
 
@@ -299,8 +301,13 @@ second typeface inside the headline (rendered on the board's *Pick* tab; it read
 mismatched glyph). Three forms were rendered — the ornate & as shipped, the plain & in Space
 Grotesk, the word — and **nothing shipped**: the first draft of this review changed the title
 to the word and called it shipped, without the owner's say; it was withdrawn before it left the
-branch (*"i didn't agree to anything"*). The pick is the owner's. No test names the title; the
-SSR harness's `lib.includes("Programs")` is unaffected by any of the three. The nutritionist page is *Plans* and the client page
+branch (*"i didn't agree to anything"*). **The owner then picked B**, and it is the one code
+change on this branch: `title={<>Workouts <span style={{ fontFamily: "'Space Grotesk',
+sans-serif", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>}`
+— `DashPage` renders `{title}` as a node, nothing reads it as a string, and a Chromium render
+of the real page confirms the h1 in Fraunces with the ampersand in Space Grotesk at 44.7px,
+weight 500, zero page errors. No test names the title; the SSR harness's
+`lib.includes("Programs")` is unaffected. The nutritionist page is *Plans* and the client page
 *Workouts*; renaming the trainer page to match is a product call, not this change.
 
 ## 9. Registered, not fixed
@@ -310,3 +317,79 @@ SSR harness's `lib.includes("Programs")` is unaffected by any of the three. The 
 - Two "Assign" paths on the library cards (Assign · Update future assignments) with different
   modals — the Schedule step above folds them.
 - The mobile coach editor has no calendar; the phone layouts on the board are its brief.
+
+## 10. Round two — three builders that do not look like the old one
+
+**Owner, same day, on the round-one board:** *"i dont like the builder look and design"*;
+asked what they disliked most: **"All of it"** (the dark newspaper chrome · the
+tree-beside-editor layout · too small and too dense); asked which direction to render:
+**"Show me all three."** The second board is
+**https://claude.ai/artifact/TWHg2SbPj6VNeoeTXxtYpC** — six tabs: *Today · as shipped*,
+*D · Week grid*, *E · Sheet*, *F · Wizard*, *Client's calendar*, *Compare*. **Not a build.**
+
+**What every round-two concept changes**, before the structures differ: a white page on a
+pale ground (`#f4f6f5`), white cards with 1px `#e1e6e3` borders and 10px radii; Schibsted
+Grotesk at 14–15px for everything read or typed, Anybody (wdth 112, weight 600) for the
+program name — the site's newer type system, not Space Grotesk; no uppercase mono label under
+12px anywhere; 40px controls; one primary button (*Assign to clients*, teal); *Saved · just
+now* in the header, one *Publish*; the start date as a control in the header; rust for a
+training session, gold for nutrition, teal only for the selection and the primary action; the
+client preview is **the client's phone** (the app as it is today, dark, unchanged), never a
+website card. ⚠ **The light chrome — top bar and rail — is part of the proposal**: a white
+builder inside the dark dashboard would read as a mistake, so the pick is a call about the
+coach dashboard's chrome, not the builder alone (§10.4).
+
+### 10.1 D · The week grid — *the calendar is the builder*
+Monday–Sunday across, weeks down (`Week 2 · 5 Oct – 11 Oct`), every session on the date the
+client will see it; rest days are pale cells, an empty cell offers *＋ Add session* on hover,
+week 4 is chipped *Deload −20%* in its gutter. A session opens as a **side panel** over the
+right-hand columns (name, *Thu 8 Oct · Week 2 · 7 days after the last Upper Pull*, time,
+Shape Radio, exercise rows as `4 × 6–8 @ RPE 8 · rest 150 s`, *＋ Add exercise*, *Copy to weeks
+3–4 · Delete · Done*). *Preview as client* opens Jordan's phone the same way (Today · Week ·
+Month). The nutritionist's grid is the rotation on a real week with **Training / Rest as
+switches in the weekday header**; Day A's panel says it applies to *Mon · Wed · Fri*. The
+**Assign to clients** panel (shared by all three) lists clients with a start Monday each, a
+landing strip for week 1, and the guardrail sentence naming the client. Best at seeing the
+timeline and moving a session; costs a long page for a long program; the largest build.
+
+### 10.2 E · The sheet — *exercises down, weeks across*
+One table: a band per day (*Lower Push · Mondays ▾ · 6 moves · ~52 min · 28 Sep · 5 · 12 · 19
+Oct*), an exercise per row, a week per column with its dates in the header, `4 × 5 / 110 kg`
+in the cells so **progression reads left to right** (`110 → 112.5 → 115 → 92 kg · −20%`, the
+deload a shaded column); one row expanded to its cue, tempo, rest and video. The phone docks
+on the right. The nutritionist's sheet is meal slots down, **Day A / Day B / Travel** across,
+a totals row with bars against the targets, and a week strip on top writing the rotation onto
+next week's dates. Best for writing progression fast and coaches who think in sheets; the
+calendar is implied rather than drawn; the smallest port — the current document already is
+this table, turned sideways.
+
+### 10.3 F · The wizard — *five steps, one at a time*
+One centred column, a stepper (*Basics · Your week · Sessions · Clients · Review*). Step 2
+picks the days and writes the timeline as a sentence and a landing strip (*8 sessions · Mon 28
+Sep → Thu 22 Oct*); step 3 is one session full width with big rows and the four dates it lands
+on; step 5 is **October as the client sees it**, the three clients with their start Mondays,
+the guardrail, and one button (*Publish and assign to 3 clients*). The nutritionist's step 2
+is Day A / Day B with the training days and the rotation on next week's dates. Best for a
+first program and never being lost; slowest to re-edit; medium build (a stepper over the
+current document; the review step is D's grid at month scale).
+
+### 10.4 Owner calls after round two
+| # | Ruling | Default if unruled |
+|---|---|---|
+| 1 | Which concept — D, E or F (they combine: E's table as D's panel; F's review as D's month view). | — |
+| 2 | The light chrome for the whole coach dashboard, or the builder pages only. | Whole dashboard |
+| 3 | The type — Anybody + Schibsted Grotesk (the site's newer system) or keep Space Grotesk for the UI. | Anybody + Schibsted |
+| 4 | Retire *"In sequence from start"* for weekday defaults (2 → Mon · Thu, 3 → Mon · Wed · Fri). | Yes |
+
+### 10.5 Verification
+The board is one HTML page, artboards rendered by JS from one data model (the demo program at
+four weeks, the demo meal plan), scaled into frames. Driven in Chromium at **1280 and 400px**
+with the four faces served from local woff2 (fontsource `anybody-latin-standard`,
+`schibsted-grotesk-latin-wght`): **zero page errors, zero horizontal overflow on every tab at
+both widths**, every artboard 1146px inside its 1146px frame, and every artboard looked at
+rather than only measured. ⚠ **The one look found two panels clipped** — the D side panels
+ran past their stage's fixed `min-height` and lost their footers; each stage now sizes itself
+to its panel before the frame is scaled. It also found the E preview's name line wrapping
+beside the face switcher (stacked now) and the board's own sticky tab bar baked into element
+screenshots (the bar is made static for the capture pass). The header change is rendered on
+the real page (§8). `npm test` on the tree: the pre-commit gate at commit time.
