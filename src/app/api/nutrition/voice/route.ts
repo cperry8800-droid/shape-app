@@ -1,7 +1,13 @@
 // Voice note dictation for the meal logger: a spoken meal note/review →
-// transcript, which the client drops into the "note to your coach" field.
+// transcript, which the client drops into the "note to your coach" field. The
+// grocery list's "add by voice" rides the same route with context=grocery.
 //
-// POST /api/nutrition/voice  (multipart/form-data, field "audio")  → { transcript }
+// POST /api/nutrition/voice  (multipart/form-data)  → { transcript, model, language }
+//   audio     — the recording (required)
+//   language  — the app's locale code ('de', 'pt-BR'); mapped to the ISO-639-1
+//               hint the transcription takes, or left out so the model detects
+//   context   — 'meal' (default) | 'grocery' | 'nora': which vocabulary primes
+//               the transcription (src/lib/ai/voiceLang.mjs)
 //
 // Transcribes with OpenAI audio transcription via the shared AI helper (same
 // OPENAI_API_KEY used elsewhere). Gated behind a signed-in session so anonymous
@@ -12,6 +18,7 @@ import { NextResponse } from 'next/server';
 import { currentUser } from '@/lib/request-auth';
 import { transcribeAudio, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
+import { transcriptionHints } from '@/lib/ai/voiceLang.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,7 +37,8 @@ export async function POST(request: Request) {
   const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // OpenAI transcription hard limit
   if (file.size > MAX_AUDIO_BYTES) return NextResponse.json({ error: 'Audio file too large.' }, { status: 413 });
 
-  const result = await transcribeAudio(file, { promptId: 'nutrition.voice' });
+  const hints = transcriptionHints(form, 'meal');
+  const result = await transcribeAudio(file, { promptId: 'nutrition.voice', language: hints.language, prompt: hints.prompt, keywords: hints.keywords });
   if (!result.ok) return NextResponse.json({ error: 'Could not transcribe the audio. Try again.' }, { status: 502 });
-  return NextResponse.json({ transcript: result.text });
+  return NextResponse.json({ transcript: result.text, model: result.model, language: hints.language });
 }

@@ -25,11 +25,30 @@
 // widget answer signed-out visitors), and GPT-6 Astra bills five times the
 // economy model. So a verified member gets the pinned model (aiModel) and an
 // anonymous caller gets aiPublicModel() — the economy model by default.
+//
+// VOICE (2026-09-21): the body may carry { voice: true } — the message was
+// spoken and the reply will be read aloud — which adds the spoken-reply rules
+// to the prompt; { locale } — the app's language, which the prompt names so a
+// short spoken question in German is answered in German; and { surface: 'app' }
+// — the mobile app, where a coach chip opens the Listing by provider id and the
+// example directory is not on the marketplace at all. None of the three is
+// read for access. Three more things Nora can look up: get_account (the
+// member's own profile, plan, coach subscriptions and preferences), shape_help
+// (a sourced knowledge base for how Shape works — every caller, nothing in it
+// is private), and recommend_coaches over the LIVE trainers / nutritionists
+// rows (public-read tables), merged with the example directory on the website
+// only, the way the website's marketplace lists them.
 
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey, aiPublicModel } from '@/lib/ai';
-import { rankCoaches, coachUrl, type Coach, type CoachRole } from '@/lib/coach-catalog';
+import {
+  rankCoaches, coachSlug, coachProfileUrl, mergeCoachPools, liveCoachFromRow, COACH_CATALOG, LIVE_COACH_COLUMNS, LIVE_COACH_CAP, livePriceColumn,
+  type Coach, type CoachRole, type LiveCoachRow,
+} from '@/lib/coach-catalog';
+import { clientForRequest } from '@/lib/request-auth';
+import { searchKnowledge } from '@/lib/ai/shapeKnowledge.mjs';
+import { languageNameFor, normalizeLocale } from '@/lib/ai/voiceLang.mjs';
 import { proposeChange } from '@/lib/ai/proposals.mjs';
 import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoals, auditSink, type Actor } from '@/lib/ai/server';
 import { toneInstruction } from '@/lib/ai/tone.mjs';
@@ -41,7 +60,7 @@ import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
 import {
   readTrainingPlan, readRecentTraining, readWeekSummary, readHabits, readCoaching, readReminders, readPoints,
-  readCoachRoster, findClient, readClientSnapshot,
+  readCoachRoster, findClient, readClientSnapshot, readAccount,
 } from '@/lib/ai/memberReads.mjs';
 
 export const runtime = 'nodejs';
@@ -50,11 +69,13 @@ export const dynamic = 'force-dynamic';
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
 // Structured, tappable follow-ups the client renders under Nora's reply.
-//   - 'coach'       → a specific coach detail page (web url) / marketplace (mobile)
+//   - 'coach'       → a specific coach detail page (web url) / marketplace (mobile);
+//                     a LIVE listing also carries providerId (what the app opens a
+//                     Listing by), an EXAMPLE listing is marked example
 //   - 'marketplace' → open the marketplace, optionally filtered to a role
 //   - 'screen'      → an in-app destination (settings/integrations/billing/pricing)
 type SupportAction =
-  | { type: 'coach'; label: string; role: CoachRole; slug: string; url: string; meta?: string }
+  | { type: 'coach'; label: string; role: CoachRole; slug: string; url: string; meta?: string; providerId?: number; example?: boolean }
   | { type: 'marketplace'; label: string; role?: CoachRole; url: string }
   | { type: 'screen'; label: string; screen: string; url?: string }
   // A previewed, NOT-yet-applied change: the client renders the diff + a Confirm
@@ -79,10 +100,12 @@ const SYSTEM_PROMPT = [
   'Be warm, concise (1-4 sentences; up to 8 short ones only when they ask for detail), specific, and action-oriented — actually help, do not just describe where to look.',
   'FORMAT: plain conversational prose only. No markdown — no headings, no bullet or numbered lists, no bold or asterisks, no tables, no code, no emoji. Your reply is shown in a plain chat bubble exactly as written.',
   '',
-  "LOOKUPS: For a signed-in member you can LOOK THINGS UP with the read tools before you answer: get_training_plan (what is on today and this week, plus today's meals off their menu), get_recent_workouts (the last sessions and the top sets in each), get_week_summary (the last 7 days in numbers: nutrition, training, sleep and recovery, weigh-in trend, habit completion), get_habits (their habits with today's state and streaks), get_coaching (their coaches and booked sessions), get_reminders, get_points (recent Shape Score entries). Use the matching tool BEFORE answering any question about the member's own plan, schedule, progress, or numbers — never answer those from memory or by guessing. Quote only what a tool returned, in their own units. If a tool answers unavailable, say you can't see that right now; if it answers empty, say there is nothing there yet. If the tools are not offered, you are talking to someone who is not signed in as a member — say that lookups need a signed-in membership.",
+  "LOOKUPS: For a signed-in member you can LOOK THINGS UP with the read tools before you answer: get_training_plan (what is on today and this week, plus today's meals off their menu), get_recent_workouts (the last sessions and the top sets in each), get_week_summary (the last 7 days in numbers: nutrition, training, sleep and recovery, weigh-in trend, habit completion), get_habits (their habits with today's state and streaks), get_coaching (their coaches and booked sessions), get_reminders, get_points (recent Shape Score entries), get_account (their own profile, membership and billing status, coach subscriptions, units, language, timezone, notification and privacy preferences, Nora's voice). Use the matching tool BEFORE answering any question about the member's own plan, schedule, progress, numbers, or account — never answer those from memory or by guessing. Quote only what a tool returned, in their own units. If a tool answers unavailable, say you can't see that right now; if it answers empty, say there is nothing there yet. If the tools are not offered, you are talking to someone who is not signed in as a member — say that lookups need a signed-in membership.",
   "COACH LOOKUPS: For a COACH, find_client turns the name they said into the client id every coach action needs — call it first whenever you do not already have the id, and NEVER invent an id. If it returns several candidates, ask which one; if none, say who is on their roster. get_client_snapshot gives that client's recent training, nutrition, weight and lifts (only for a client they actively coach).",
   '',
-  'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns.',
+  'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns. The tool lists the live marketplace first; a result marked example is a demonstration listing rather than a real coach — prefer the real ones, and if you mention an example say it is an example listing. Quote a price, rating or credential only when the listing states one; a coach marked atCapacity is not taking new clients right now.',
+  '',
+  "HOW SHAPE WORKS: For a question about Shape itself — what it costs and includes, whether a coach is required, coach prices and what coaches pay, cancelling or billing, Shape Radio, coach credentials and the Verified badge, switching coaches, the Shape Score and its tiers and rewards, habits, units, Cook Mode and recipes, privacy and data, the account, or what you can do — call shape_help and answer from what it returns (each entry names its source). If it returns no entry, say you don't have that written down and offer to pass the question to the Shape team. Never invent a policy, a price or a date.",
   '',
   "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers), assign_meal_plan (nutritionists), set_program_detail (program phase/note — a trainer's training block or a nutritionist's nutrition phase), add_review_note (feedback on a logged session), reschedule_session (move one of their coaching sessions). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
   '',
@@ -111,6 +134,19 @@ const TOOLS = [
         limit: { type: 'integer', description: 'How many to return (1-5). Default 3.' },
       },
       required: ['role', 'focus', 'limit'],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: 'function',
+    name: 'shape_help',
+    description:
+      "How Shape works — a small, sourced knowledge base: what a membership costs and includes, whether a coach is required, coach prices and what coaches pay, cancelling and billing, Shape Radio, coach credentials and the Verified badge, switching coaches, the Shape Score and its tiers, habits, units, Cook Mode and recipes, what Nora can do, privacy and data, account and eligibility. Call it for any question about Shape itself (not about this member's own data) and answer from the entries it returns.",
+    parameters: {
+      type: 'object',
+      properties: { question: { type: 'string', description: "The question in the member's own words." } },
+      required: ['question'],
       additionalProperties: false,
     },
     strict: true,
@@ -382,6 +418,7 @@ const MEMBER_READ_TOOLS = [
   { type: 'function', name: 'get_coaching', description: "The member's coaches (their team), their next booked coaching sessions with coach names, and the last sessions held. Call for 'when is my next session', 'who is my coach'.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_reminders', description: "The member's scheduled reminders (kind, time, days, timezone, on/off). Call before set_reminder to avoid duplicates and for any reminder question.", parameters: NO_ARGS, strict: true },
   { type: 'function', name: 'get_points', description: 'The most recent Shape Score ledger entries and the points earned in the last 7 days. Call for "how did I earn points", "what did I get for that".', parameters: NO_ARGS, strict: true },
+  { type: 'function', name: 'get_account', description: "The member's OWN account: name, email, username, location, member-since date, profile visibility and roles; the platform plan (on record or not, status, price, period end); coach subscriptions with coach, status, price and period end; Settings preferences (units, week start, timezone, language, check-in, online visibility, workout-data sharing, notification settings), Nora's voice, the app language and the timezone. Call for 'what plan am I on', 'when do I renew', 'what email is on my account', 'what units am I in', 'who am I subscribed to'.", parameters: NO_ARGS, strict: true },
 ];
 // ── Coach-only READ tools (a verified coach: trainer / nutritionist) ─────────
 const COACH_TOOLS = [
@@ -401,6 +438,10 @@ const MEMBER_PROMPT_NOTE =
   "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.\n" +
   "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), log water (log_water), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.\n" +
   'THE READ TOOLS ARE AVAILABLE on this turn — use them (see LOOKUPS) before answering anything about this member\'s own plan, schedule, progress or numbers.';
+// A spoken turn: the reply is read aloud by text-to-speech, so it is written
+// for the ear. Rides only when the client says the message was spoken.
+const VOICE_PROMPT_NOTE =
+  "VOICE: The member is SPEAKING to you and your reply will be read aloud by text-to-speech, so write for the ear: one to three short sentences, the answer first, no lists, no URLs, no ids, no symbols or abbreviations that do not read aloud (say 'pounds' not 'lb', 'per month' not '/mo', 'four point nine stars' not '★4.9'). If you recommend coaches, name at most two with one short reason each and say they can tap a name below to open the profile — the tappable cards come back with your reply. When you have drafted a change, say so and that the confirm button is below. If you cannot see something, say that in one sentence.";
 
 // The per-request context the READ tools run with: the caller's own RLS client
 // and id (member-verified), the clock, and whether the caller is a coach — null
@@ -509,19 +550,56 @@ async function fetchMemberFacts(actor: Actor): Promise<{ facts: Record<string, u
   return { facts: Object.keys(facts).length ? facts : null, failed: false };
 }
 
+// One line per coach for the model, built from what the listing STATES: a live
+// row with no rating, rate or credential simply has none of them in its line
+// (the example directory carries all of them), and nothing is defaulted in.
 function coachLine(c: Coach): string {
-  return `${c.name} — ${c.role}, ${c.city}. ${c.specialties.join(', ')}. ${c.cert}, ${c.years}y, ${c.format}. $${c.rate}/session, ★${c.rating}.`;
+  const where = [c.role, c.city].filter(Boolean).join(', ');
+  const creds = [c.cert, c.years != null ? `${c.years}y` : '', c.format].filter(Boolean).join(', ');
+  const terms = [c.rate != null ? `$${c.rate}/session` : '', c.rating != null ? `★${c.rating}` : ''].filter(Boolean).join(', ');
+  const flags = [c.verified ? 'Verified' : '', c.atCapacity ? 'at capacity' : '', c.example ? 'example listing' : ''].filter(Boolean).join(', ');
+  return [`${c.name} — ${where}`, c.specialties.join(', '), creds, terms, flags].filter(Boolean).join('. ') + '.';
 }
 
 function actionForCoach(c: Coach): SupportAction {
+  const meta = [c.role, c.rating != null ? `★${c.rating}` : '', c.example ? 'example listing' : ''].filter(Boolean).join(' · ');
   return {
     type: 'coach',
     label: `${c.name} →`,
     role: c.tag === 'Nutritionist' ? 'nutritionist' : 'trainer',
-    slug: coachUrl(c).split('coach=')[1] || '',
-    url: coachUrl(c),
-    meta: `${c.role} · ★${c.rating}`,
+    slug: coachSlug(c.name),
+    url: coachProfileUrl(c),
+    ...(meta ? { meta } : {}),
+    // The app opens a live Listing by provider id (shape:openMarket's coachId);
+    // an example listing is marked so a client can say what it is showing.
+    ...(c.providerId != null ? { providerId: c.providerId } : {}),
+    ...(c.example ? { example: true } : {}),
   };
+}
+
+// The per-request context the coach lookup runs with: a Supabase client that
+// can read the public marketplace tables (the caller's own, or the request's
+// anonymous client for a signed-out visitor) and which surface is asking.
+type CoachCtx = { sb: Actor['supabase'] | null; surface: 'app' | 'web' };
+
+// The live marketplace — the trainers / nutritionists rows both surfaces list.
+// Newest listings first under the cap (a recently joined real coach beats a
+// stale seeded row if the cap ever bites); rankCoaches orders the pool. A
+// table that could not be read is null, and ok:false only when none could.
+async function liveCoaches(sb: NonNullable<CoachCtx['sb']>, role: CoachRole | 'any'): Promise<{ ok: boolean; coaches: Coach[] }> {
+  const wanted: CoachRole[] = role === 'any' ? ['trainer', 'nutritionist'] : [role];
+  const legs = await Promise.all(wanted.map(async (r) => {
+    try {
+      const table = r === 'nutritionist' ? 'nutritionists' : 'trainers';
+      const res = await sb.from(table).select(`${LIVE_COACH_COLUMNS}, ${livePriceColumn(r)}`).order('id', { ascending: false }).limit(LIVE_COACH_CAP);
+      if (res.error || !Array.isArray(res.data)) return null;
+      return (res.data as LiveCoachRow[]).map((row) => liveCoachFromRow(row, r)).filter((c): c is Coach => !!c);
+    } catch {
+      return null;
+    }
+  }));
+  if (legs.every((l) => l === null)) return { ok: false, coaches: [] };
+  return { ok: true, coaches: legs.flatMap((l) => l ?? []) };
 }
 
 type ToolOut = { result: unknown; actions: SupportAction[] };
@@ -533,7 +611,7 @@ type ProposeFn = (name: string, args: Record<string, unknown>) => Promise<ToolOu
 // MEMORY tools (members only — the schemas are never exposed otherwise) run
 // DIRECTLY with audit; memoryCtx is null for non-members, so even a fabricated
 // call fails closed.
-async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null, reads: ReadCtx | null = null): Promise<ToolOut> {
+async function runTool(name: string, args: Record<string, unknown>, propose: ProposeFn, memoryCtx: MemoryCtx | null, reads: ReadCtx | null = null, coach: CoachCtx = { sb: null, surface: 'web' }): Promise<ToolOut> {
   if (READ_TOOLS.has(name)) {
     // Member-only READS. The schemas exist only in a member's tool list, and a
     // call with no context fails closed rather than reading anything.
@@ -573,11 +651,24 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
   if (WRITE_TOOLS.has(name)) {
     return propose(name, args);
   }
+  if (name === 'shape_help') {
+    // Every caller, signed in or not: nothing in the knowledge base is private,
+    // and a visitor asking what Shape costs is the case it exists for.
+    const question = String(args.question || '').trim().slice(0, 240);
+    return { result: searchKnowledge(question, { limit: 3 }), actions: [] };
+  }
   if (name === 'recommend_coaches') {
     const role = (['trainer', 'nutritionist', 'any'].includes(String(args.role)) ? String(args.role) : 'any') as CoachRole | 'any';
     const focus = typeof args.focus === 'string' ? args.focus : '';
     const limit = typeof args.limit === 'number' ? args.limit : 3;
-    const coaches = rankCoaches({ role, focus, limit });
+    // The live marketplace first. On the APP the example directory is not on
+    // the marketplace at all, so a failed live read is "unavailable" rather
+    // than a list of people the app cannot open; the website lists the
+    // examples after the real coaches, as its own marketplace does.
+    const live = coach.sb ? await liveCoaches(coach.sb, role) : { ok: false, coaches: [] as Coach[] };
+    if (!live.ok && coach.surface === 'app') return { result: { ok: false, error: 'unavailable', message: 'The marketplace could not be read right now.' }, actions: [] };
+    const pool = mergeCoachPools(live.coaches, coach.surface === 'app' ? [] : COACH_CATALOG);
+    const coaches = rankCoaches({ role, focus, limit, pool });
     const actions: SupportAction[] = coaches.map(actionForCoach);
     // A "browse all" action so they can keep exploring.
     const browseRole = role !== 'any' ? role : undefined;
@@ -589,17 +680,21 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
     });
     return {
       result: {
+        ...(live.ok ? {} : { liveUnavailable: true }),
         coaches: coaches.map((c) => ({
           name: c.name,
           role: c.role,
           kind: c.tag,
-          city: c.city,
+          listing: c.example ? 'example' : 'live',
+          ...(c.city ? { city: c.city } : {}),
           specialties: c.specialties,
-          cert: c.cert,
-          years: c.years,
-          format: c.format,
-          rate: c.rate,
-          rating: c.rating,
+          ...(c.cert ? { cert: c.cert } : {}),
+          ...(c.years != null ? { years: c.years } : {}),
+          ...(c.format ? { format: c.format } : {}),
+          ...(c.rate != null ? { rate: c.rate } : {}),
+          ...(c.rating != null ? { rating: c.rating } : {}),
+          ...(c.verified ? { verified: true } : {}),
+          ...(c.atCapacity ? { atCapacity: true } : {}),
           summary: coachLine(c),
         })),
       },
@@ -623,6 +718,7 @@ async function runRead(name: string, args: Record<string, unknown>, reads: ReadC
       case 'get_coaching': return await readCoaching(sb, uid, { now });
       case 'get_reminders': return await readReminders(sb, uid);
       case 'get_points': return await readPoints(sb, uid, { now });
+      case 'get_account': return await readAccount(sb, uid);
       case 'find_client': {
         if (!reads.isCoach) return { error: 'not_a_coach', message: 'Only a coach can look up a client.' };
         const roster = (await readCoachRoster(sb, uid)) as { ok: boolean; isCoach?: boolean; clients?: Array<{ id: string; name: string | null; roles: string[] }> };
@@ -695,7 +791,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; isMember: boolean },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -714,7 +810,11 @@ async function askOpenAI(
   const cookOverride = member.cookMsg
     ? "\n\nCOOK MODE: No tools are available on this turn — you are answering a cooking question only. Never say you logged, saved, drafted, assigned, remembered, or changed anything; if asked to, say you can't do that mid-cook and that it's one tap in the app once they're done cooking."
     : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${cookOverride}\n\n${toneInstruction(tone)}`;
+  // A spoken turn gets the for-the-ear rules; a non-English app language is
+  // named so a short spoken question is answered in the member's language.
+  const langName = member.locale && member.locale !== 'en' ? languageNameFor(member.locale) : null;
+  const langNote = langName ? `\n\nLANGUAGE: The member's app is set to ${langName} (${member.locale}). Answer in ${langName} unless they write to you in another language; keep coach names, product names and figures as they are.` : '';
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // The server-built member-context block (or the honest unavailable note on
@@ -791,7 +891,7 @@ async function askOpenAI(
       }
       toolCalls += 1;
       const { result, actions: a } = toolCalls <= MAX_TOOL_CALLS
-        ? await runTool(String(call.name), parsed, propose, member.memoryCtx, member.reads)
+        ? await runTool(String(call.name), parsed, propose, member.memoryCtx, member.reads, member.coach)
         : { result: { error: 'tool_budget_exhausted', message: 'Answer with what you have.' }, actions: [] as SupportAction[] };
       for (const act of a) actions.push(act);
       input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(result) });
@@ -832,11 +932,16 @@ function fallbackReply(text: string): { reply: string; actions: SupportAction[] 
     actions.push({ type: 'marketplace', label: 'Browse all coaches', url: '/newdesign/Marketplace.html' });
     return { reply: `A few coaches who match what you're after: ${coaches.map((c) => c.name).join(', ')}. Tap a name for their profile, or browse the whole marketplace.`, actions };
   }
+  // How Shape works, from the same sourced knowledge base the model reads — a
+  // static answer that stays honest with the key unset; a tag or a title hit
+  // is required (minScore 4), never a stray body word.
+  const known = searchKnowledge(text, { limit: 1, minScore: 4 });
+  if (known.entries.length) return { reply: known.entries[0].body, actions: [] };
   return { reply: "Thanks for reaching out — I've passed this to the Shape team and they'll follow up right here. In the meantime, is there anything else I can help with?", actions: [] };
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
@@ -848,6 +953,13 @@ export async function POST(request: Request) {
   // Available to signed-out cooks too (recipe grounding needs no membership);
   // member facts, when present, still ride alongside for "does this fit my day?".
   const cookMsg = formatCookContext(body.cookContext);
+
+  // Voice, surface and language are the client's claims about HOW the member
+  // is talking, never about WHO they are: they shape the prompt and the chips,
+  // and nothing reads them for access. Each is reduced to a known value.
+  const voice = body.voice === true;
+  const surface: CoachCtx['surface'] = body.surface === 'app' ? 'app' : 'web';
+  const locale = normalizeLocale(body.locale);
 
   // Resolve the actor ONCE; membership (fail-closed) decides whether the
   // member-only layer exists AT ALL for this request: the context block, the
@@ -885,8 +997,15 @@ export async function POST(request: Request) {
     }
   }
   const propose = makePropose(actor, request, isMember);
+  // The coach lookup reads the PUBLIC marketplace tables: the member's own
+  // client when there is one, else the request's anonymous client (a signed-out
+  // visitor asking for a coach is the website widget's oldest use). A client
+  // that cannot be built leaves the lookup on the example directory (web) or
+  // honestly unavailable (app).
+  const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
+  const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, isMember }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, isMember, voice, locale, coach }, request.signal).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim

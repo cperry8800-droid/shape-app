@@ -12,7 +12,7 @@ import { fakeSupabase } from './helpers/fake-supabase.mjs';
 import {
   READ_CAPS, isoDay, addDaysISO, dowMon0, weekStartISO, mealDayFor, movesForSession, habitStreak,
   readTrainingPlan, readRecentTraining, readWeekSummary, readHabits, readCoaching, readReminders, readPoints,
-  readCoachRoster, findClient, readClientSnapshot,
+  readCoachRoster, findClient, readClientSnapshot, readAccount, unitsSystemOf, PLATFORM_ACTIVE, ACCOUNT_PREF_KEYS,
 } from '../src/lib/ai/memberReads.mjs';
 import { matchNamed, matchHabit } from '../src/lib/ai/memberTools.mjs';
 
@@ -369,4 +369,78 @@ test('matchNamed is the one policy, and matchHabit still answers under its own k
   assert.deepEqual(matchHabit(list, 'plants'), { habit: list[1] });
   assert.deepEqual(matchHabit(list, 'zzz'), { error: 'not_found', names: ['Water', 'Water the plants'] });
   assert.deepEqual(matchHabit(list, ''), { error: 'not_found', names: ['Water', 'Water the plants'] });
+});
+
+// ─── account ─────────────────────────────────────────────────────────────────
+
+const ACCOUNT_TABLES = () => ({
+  profiles: [{ id: U, full_name: 'Quinn Harper', email: 'quinn@example.com', username: 'quinnh', location: 'Brooklyn, NY', profile_visibility: 'community', shape_radio_enabled: true, age_public: false, role: 'client', roles: ['client'], created_at: '2026-01-05T10:00:00Z' }, { id: 'someone-else', full_name: 'Not Me', email: 'x@y' }],
+  platform_subscriptions: [{ client_id: U, status: 'active', price_cents: 500, current_period_end: '2026-10-01T00:00:00Z' }, { client_id: U, status: 'canceled', price_cents: 500, current_period_end: '2025-10-01T00:00:00Z' }],
+  subscriptions: [{ client_id: U, provider_id: 7, provider_role: 'trainer', status: 'active', price_cents: 12000, current_period_end: '2026-10-03T00:00:00Z' }, { client_id: U, provider_id: 3, provider_role: 'nutritionist', status: 'canceled', price_cents: 9000 }, { client_id: 'someone-else', provider_id: 7, provider_role: 'trainer', status: 'active' }],
+  trainers: [{ id: 7, name: 'Maya Okafor' }], nutritionists: [{ id: 3, name: 'Leah Kim' }],
+  user_goals: [
+    { user_id: U, kind: 'client_settings', data: { units: 'Metric · kg / km', profileVisibility: 'Just friends', dailyCheckin: 'Off', workoutReminders: 'On · 1h before', secret: 'not-a-pref' } },
+    { user_id: U, kind: 'nora_voice', data: { tone: 'direct', voice: 'sage' } },
+    { user_id: U, kind: 'app_locale', data: { locale: 'de' } },
+  ],
+  client_profiles: [{ user_id: U, timezone: 'Europe/Berlin', locale: 'de' }],
+});
+
+test('readAccount: the member\'s own profile, the newest platform plan, active coach subscriptions by name, and the preferences Settings stores', async () => {
+  const sb = fakeSupabase({ tables: ACCOUNT_TABLES() });
+  const r = await readAccount(sb, U);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.profile, { name: 'Quinn Harper', email: 'quinn@example.com', username: 'quinnh', location: 'Brooklyn, NY', visibility: 'community', memberSince: '2026-01-05', roles: ['client'], shapeRadio: true, agePublic: false });
+  assert.deepEqual(r.platformSubscription, { onRecord: true, status: 'active', active: true, pricePerMonthUsd: 5, periodEnd: '2026-10-01' });
+  assert.deepEqual(r.coachSubscriptions, [{ coach: 'Maya Okafor', role: 'trainer', status: 'active', pricePerMonthUsd: 120, periodEnd: '2026-10-03' }], 'a canceled coach subscription is not listed');
+  assert.deepEqual(r.preferences, { units: 'Metric · kg / km', profileVisibility: 'Just friends', dailyCheckin: 'Off', workoutReminders: 'On · 1h before', unitsSystem: 'metric' });
+  assert.ok(!('secret' in r.preferences), 'only the Settings keys are read off the document');
+  assert.deepEqual(r.noraVoice, { tone: 'direct', voice: 'sage' });
+  assert.equal(r.appLanguage, 'de');
+  assert.equal(r.timezone, 'Europe/Berlin');
+  // Scoped: the other member's rows never appear.
+  assert.ok(!JSON.stringify(r).includes('Not Me'));
+  assert.ok(!JSON.stringify(r).includes('x@y'));
+});
+
+test('readAccount: a member with no plan row is "not on record", a lapsed one is on record and inactive, and nothing is invented', async () => {
+  const t = ACCOUNT_TABLES();
+  t.platform_subscriptions = [];
+  t.subscriptions = [];
+  t.user_goals = [];
+  t.client_profiles = [];
+  t.profiles = [{ id: U, role: 'trainer', created_at: 'not a date' }];
+  const r = await readAccount(fakeSupabase({ tables: t }), U);
+  assert.deepEqual(r.profile, { roles: ['trainer'] }, 'a malformed date is absent, never thrown; no name is not a name');
+  assert.deepEqual(r.platformSubscription, { onRecord: false });
+  assert.deepEqual(r.coachSubscriptions, []);
+  assert.deepEqual(r.preferences, {});
+  for (const k of ['noraVoice', 'appLanguage', 'timezone']) assert.ok(!(k in r), `${k} absent when unset`);
+  t.platform_subscriptions = [{ client_id: U, status: 'canceled', price_cents: 500, current_period_end: '2025-10-01T00:00:00Z' }];
+  const lapsed = await readAccount(fakeSupabase({ tables: t }), U);
+  assert.deepEqual(lapsed.platformSubscription, { onRecord: true, status: 'canceled', active: false, pricePerMonthUsd: 5, periodEnd: '2025-10-01' });
+});
+
+test('readAccount: the profile is the primary read; every other leg that fails says so instead of reading as empty', async () => {
+  assert.deepEqual(await readAccount(fakeSupabase({ tables: ACCOUNT_TABLES(), fail: ['profiles'] }), U), { ok: false });
+  const r = await readAccount(fakeSupabase({ tables: ACCOUNT_TABLES(), fail: ['platform_subscriptions', 'subscriptions', 'user_goals'] }), U);
+  assert.equal(r.ok, true);
+  assert.equal(r.platformSubscriptionUnavailable, true);
+  assert.ok(!('platformSubscription' in r), 'an unreadable plan is not "no plan"');
+  assert.equal(r.coachSubscriptionsUnavailable, true);
+  assert.ok(!('coachSubscriptions' in r));
+  assert.equal(r.preferencesUnavailable, true);
+  assert.ok(!('preferences' in r));
+  assert.equal(r.timezone, 'Europe/Berlin', 'the legs are independent');
+});
+
+test('unitsSystemOf reads the stored label; the active set and the preference keys are the app\'s own', () => {
+  assert.equal(unitsSystemOf('Metric · kg / km'), 'metric');
+  assert.equal(unitsSystemOf('Imperial · lb / mi'), 'imperial');
+  assert.equal(unitsSystemOf('metric'), 'metric');
+  assert.equal(unitsSystemOf('lb'), 'imperial');
+  assert.equal(unitsSystemOf(''), null);
+  assert.equal(unitsSystemOf(undefined), null);
+  assert.deepEqual([...PLATFORM_ACTIVE], ['active', 'trialing', 'past_due']);
+  for (const k of ['units', 'profileVisibility', 'dailyCheckin', 'onlineRail', 'weekStarts']) assert.ok(ACCOUNT_PREF_KEYS.includes(k));
 });

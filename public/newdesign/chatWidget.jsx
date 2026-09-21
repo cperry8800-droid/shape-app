@@ -809,7 +809,9 @@ function ChatWidget(props) {
 
   const isSupport = !!tabs[tabIdx]?.support;
 
-  const send = (forceText) => {
+  // `opts.voice` marks a SPOKEN message (a released hold-to-talk transcript):
+  // the server then writes Nora's reply for the ear, since it is read aloud.
+  const send = (forceText, opts = {}) => {
     const text = (typeof forceText === "string" ? forceText : draft).trim();
     if (!text) return;
     dirtyRef.current = true;
@@ -869,7 +871,11 @@ function ChatWidget(props) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             credentials: "same-origin",
-            body: JSON.stringify({ messages: history, tone: noraVoice.tone }),
+            // voice / surface / locale shape the reply and the chips, never
+            // access: the website is 'web' (its coach chips are page links; the
+            // example directory is on its marketplace), and the page's own
+            // language is the locale — the site has no locale store.
+            body: JSON.stringify({ messages: history, tone: noraVoice.tone, voice: !!(opts && opts.voice), surface: "web", locale: cwLocale() }),
           });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data && data.reply) { reply = data.reply; actions = data.actions; }
@@ -895,6 +901,29 @@ function ChatWidget(props) {
   };
 
   // ── Voice input for Nora (push-to-talk) ───────────────────────────────────
+  // The dictation language comes from the page (<html lang>) or, failing that,
+  // the browser — the website has no locale store. CW_SPEECH_LANG is a hand
+  // copy of src/lib/ai/voiceLang.mjs SPEECH_LANG (a classic script cannot
+  // import it); tests/voice-lang.test.mjs holds the two tables to each other.
+  const CW_SPEECH_LANG = {
+    en: "en-US", es: "es-ES", "pt-BR": "pt-BR", fr: "fr-FR", de: "de-DE", it: "it-IT", id: "id-ID", vi: "vi-VN",
+    tr: "tr-TR", ha: "ha-NG", pcm: "en-NG", ru: "ru-RU", uk: "uk-UA", hi: "hi-IN", bn: "bn-BD", te: "te-IN",
+    ar: "ar-SA", arz: "ar-EG", ur: "ur-PK", "zh-Hans": "zh-CN", ja: "ja-JP", ko: "ko-KR",
+  };
+  const cwLocale = () => {
+    try {
+      const page = typeof document !== "undefined" && document.documentElement ? String(document.documentElement.lang || "").trim() : "";
+      const nav = typeof navigator !== "undefined" ? String(navigator.language || "").trim() : "";
+      return page || nav || "en";
+    } catch (e) { return "en"; }
+  };
+  const cwSpeechLang = () => {
+    const l = cwLocale();
+    if (CW_SPEECH_LANG[l]) return CW_SPEECH_LANG[l];
+    const base = l.split("-")[0];
+    const hit = Object.keys(CW_SPEECH_LANG).find((k) => k.split("-")[0] === base);
+    return hit ? CW_SPEECH_LANG[hit] : "en-US";
+  };
   // Voice is just an input METHOD: it produces text that lands in the SAME
   // composer (`draft`) and goes through the SAME send() — so speaking a question
   // yields the same answer as typing it. Web Speech API is the fast path; a
@@ -949,10 +978,11 @@ function ChatWidget(props) {
         try {
           const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
           const fd = new FormData(); fd.append("audio", blob, "nora.webm");
+          fd.append("language", cwLocale()); fd.append("context", "nora"); // the page's language + Shape's vocabulary
           const res = await fetch("/api/ai/transcribe", { method: "POST", credentials: "same-origin", body: fd });
           const data = await res.json().catch(() => ({}));
           const transcript = res.ok && data && typeof data.transcript === "string" ? data.transcript.trim() : "";
-          if (transcript) { setVoiceErr(null); send(transcript); } // SENDS — not drafted
+          if (transcript) { setVoiceErr(null); send(transcript, { voice: true }); } // SENDS — not drafted; spoken, so the reply is written for the ear
           else if (res.status === 401 || res.status === 402) setVoiceErr("Sign in to use voice — or type your question.");
           else setVoiceErr("Didn't catch that — hold to talk, or type.");
         } catch (e) { setVoiceErr("Couldn't transcribe that — type instead."); }
@@ -978,7 +1008,7 @@ function ChatWidget(props) {
   const startWebSpeech = () => {
     try {
       const rec = new SpeechRec();
-      rec.lang = "en-US"; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+      rec.lang = cwSpeechLang(); rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
       let finalText = "";
       rec.onresult = (e) => {
         let interim = "";
@@ -1018,6 +1048,7 @@ function ChatWidget(props) {
         try {
           const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
           const fd = new FormData(); fd.append("audio", blob, "nora.webm");
+          fd.append("language", cwLocale()); fd.append("context", "nora");
           const res = await fetch("/api/ai/transcribe", { method: "POST", credentials: "same-origin", body: fd });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data && data.transcript) { setDraft(data.transcript); setVoiceErr(null); }

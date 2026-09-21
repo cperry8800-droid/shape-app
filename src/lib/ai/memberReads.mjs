@@ -534,3 +534,101 @@ export async function readClientSnapshot(sb, clientId) {
   }
   return out;
 }
+
+// ─── account ─────────────────────────────────────────────────────────────────
+
+// The platform plan's own active set — /api/stripe/subscription reads the same
+// three, so Nora and the Settings plan card cannot disagree about "active".
+export const PLATFORM_ACTIVE = Object.freeze(['active', 'trialing', 'past_due']);
+// The Settings → Preferences keys a member can ask about, read off the
+// client_settings document as the LABEL strings the app stores ('Metric · kg /
+// km', 'Just friends', 'On · 30m before'): member-visible copy, clipped, never
+// interpreted beyond the units system below.
+export const ACCOUNT_PREF_KEYS = Object.freeze(['units', 'weekStarts', 'timeZone', 'language', 'dailyCheckin', 'onlineVisible', 'onlineRail', 'shareWorkoutData', 'profileVisibility', 'workoutReminders', 'coachReplies', 'weeklyDigest', 'community']);
+
+/** 'metric' | 'imperial' off the stored units label, or null when it names neither. */
+export function unitsSystemOf(label) {
+  const s = String(label || '').toLowerCase();
+  return /metric|\bkg\b/.test(s) ? 'metric' : /imperial|\blb\b/.test(s) ? 'imperial' : null;
+}
+// Cents → dollars, or null; a date → its UTC day, or null (never a thrown
+// "Invalid time value" from a malformed column into the tool loop).
+const dollars = (v) => (num(v) != null ? Math.round(num(v)) / 100 : null);
+const day = (v) => { if (v == null || v === '') return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : isoDay(d); };
+const docOf = (r) => (r.ok && r.data && typeof r.data === 'object' && r.data.data && typeof r.data.data === 'object' ? r.data.data : null);
+
+/**
+ * The member's OWN account, for "what plan am I on", "when do I renew", "what
+ * email is on my account", "what units am I in": the profile, the platform
+ * plan, coach subscriptions, and the preferences Settings stores. The profile
+ * is the primary read (ok:false without it); every other leg says when it
+ * could not be read, so an unreadable plan is never reported as "no plan".
+ */
+export async function readAccount(sb, uid) {
+  const [prof, plan, subs, settings, voice, appLocale, cp] = await Promise.all([
+    leg(sb.from('profiles').select('full_name, email, username, location, profile_visibility, shape_radio_enabled, age_public, role, roles, created_at').eq('id', uid).maybeSingle()),
+    leg(sb.from('platform_subscriptions').select('status, price_cents, current_period_end').eq('client_id', uid).order('current_period_end', { ascending: false, nullsFirst: false }).limit(1).maybeSingle()),
+    leg(sb.from('subscriptions').select('provider_id, provider_role, status, price_cents, current_period_end').eq('client_id', uid).in('status', [...PLATFORM_ACTIVE]).limit(READ_CAPS.coaching)),
+    leg(sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'client_settings').maybeSingle()),
+    leg(sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_voice').maybeSingle()),
+    leg(sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'app_locale').maybeSingle()),
+    leg(sb.from('client_profiles').select('timezone, locale').eq('user_id', uid).maybeSingle()),
+  ]);
+  if (!prof.ok) return { ok: false };
+  const p = prof.data && typeof prof.data === 'object' ? prof.data : {};
+  const roles = Array.isArray(p.roles) && p.roles.length ? p.roles.map((r) => str(r, 20)).filter(Boolean) : [];
+  const profile = {
+    ...(str(p.full_name, 80) ? { name: str(p.full_name, 80) } : {}),
+    ...(str(p.email, 120) ? { email: str(p.email, 120) } : {}),
+    ...(str(p.username, 40) ? { username: str(p.username, 40) } : {}),
+    ...(str(p.location, 80) ? { location: str(p.location, 80) } : {}),
+    ...(str(p.profile_visibility, 20) ? { visibility: str(p.profile_visibility, 20) } : {}),
+    ...(day(p.created_at) ? { memberSince: day(p.created_at) } : {}),
+    roles: roles.length ? roles : (str(p.role, 20) ? [str(p.role, 20)] : ['client']),
+    ...(typeof p.shape_radio_enabled === 'boolean' ? { shapeRadio: p.shape_radio_enabled } : {}),
+    ...(typeof p.age_public === 'boolean' ? { agePublic: p.age_public } : {}),
+  };
+  const out = { ok: true, profile };
+  // The platform plan: on record or not, and if so whether it is active — a
+  // coach or an admin is a member with no plan row, which is not a lapse.
+  if (plan.ok) {
+    const r = plan.data && typeof plan.data === 'object' ? plan.data : null;
+    const status = r ? str(r.status, 24) : null;
+    out.platformSubscription = !status ? { onRecord: false } : {
+      onRecord: true, status, active: PLATFORM_ACTIVE.includes(status),
+      ...(dollars(r.price_cents) != null ? { pricePerMonthUsd: dollars(r.price_cents) } : {}),
+      ...(day(r.current_period_end) ? { periodEnd: day(r.current_period_end) } : {}),
+    };
+  } else out.platformSubscriptionUnavailable = true;
+  if (subs.ok) {
+    const rows = (Array.isArray(subs.data) ? subs.data : []).filter((s) => s && s.provider_id != null && (s.provider_role === 'trainer' || s.provider_role === 'nutritionist'));
+    const nameOf = rows.length ? await providerNames(sb, rows) : () => null;
+    out.coachSubscriptions = rows.map((s) => ({
+      ...(nameOf(s.provider_role, s.provider_id) ? { coach: nameOf(s.provider_role, s.provider_id) } : {}),
+      role: s.provider_role,
+      ...(str(s.status, 24) ? { status: str(s.status, 24) } : {}),
+      ...(dollars(s.price_cents) != null ? { pricePerMonthUsd: dollars(s.price_cents) } : {}),
+      ...(day(s.current_period_end) ? { periodEnd: day(s.current_period_end) } : {}),
+    }));
+  } else out.coachSubscriptionsUnavailable = true;
+  if (settings.ok) {
+    const doc = docOf(settings);
+    const prefs = {};
+    for (const k of ACCOUNT_PREF_KEYS) { const v = doc ? txt(doc[k], 40) : null; if (v) prefs[k] = v; }
+    const units = unitsSystemOf(prefs.units);
+    if (units) prefs.unitsSystem = units;
+    out.preferences = prefs;
+  } else out.preferencesUnavailable = true;
+  // Nora's voice, the app language and the timezone live in their own rows;
+  // each is simply absent when unset or unreadable.
+  const vdoc = docOf(voice);
+  const tone = vdoc ? str(vdoc.tone, 20) : null, voiceName = vdoc ? str(vdoc.voice, 20) : null;
+  if (tone || voiceName) out.noraVoice = { ...(tone ? { tone } : {}), ...(voiceName ? { voice: voiceName } : {}) };
+  const ldoc = docOf(appLocale);
+  const cprof = cp.ok && cp.data && typeof cp.data === 'object' ? cp.data : null;
+  const locale = (ldoc ? str(ldoc.locale, 12) : null) || (cprof ? str(cprof.locale, 12) : null);
+  if (locale) out.appLanguage = locale;
+  const tz = cprof ? str(cprof.timezone, 40) : null;
+  if (tz) out.timezone = tz;
+  return out;
+}

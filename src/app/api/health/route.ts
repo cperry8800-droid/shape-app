@@ -24,7 +24,7 @@
 
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/admin-access';
-import { aiModel, aiFallbackModel, aiPublicModel, aiReasoningEffort, aiStoreResponses } from '@/lib/ai';
+import { aiModel, aiFallbackModel, aiPublicModel, aiReasoningEffort, aiStoreResponses, aiTranscribeModel } from '@/lib/ai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -74,6 +74,9 @@ export async function GET() {
         publicModel: aiPublicModel(),
         reasoningEffort: aiReasoningEffort(),
         storeResponses: aiStoreResponses(),
+        // Speech-to-text: the pin, else gpt-4o-transcribe; a refused pin falls
+        // back once to whisper-1 (src/lib/ai.ts transcribeAudio).
+        transcribeModel: aiTranscribeModel(),
       },
       email: {
         RESEND_API_KEY: !!env.RESEND_API_KEY,
