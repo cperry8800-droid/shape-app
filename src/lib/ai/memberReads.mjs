@@ -401,6 +401,9 @@ export async function readCoaching(sb, uid, { now = new Date() } = {}) {
     upcoming: up.ok ? upRows.map(session) : undefined,
     ...(up.ok ? {} : { upcomingUnavailable: true }),
     recent: past.ok ? pastRows.map(session) : undefined,
+    // A failed read of the past sessions says so, like the other two legs — an
+    // absent `recent` alone reads as "nothing held yet" (CodeRabbit, #2128).
+    ...(past.ok ? {} : { recentUnavailable: true }),
   };
 }
 

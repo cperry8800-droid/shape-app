@@ -44,7 +44,10 @@ function say(text) { return { output_text: text, output: [{ type: 'message', con
 function call(name, args, id = `call_${name}`) { return { type: 'function_call', call_id: id, name, arguments: JSON.stringify(args) }; }
 function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', summary: [] }, ...items] }; }
 
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMember = true, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [] } = {}) {
+// `isCoach`/`isAdmin` default the way membership-core derives them (from the
+// role), so a test can also model a DUAL-ROLE account: primary role 'client',
+// coach by roles[] — which is what the route must read membership for.
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [] } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
   const calls_ = { ai: [], proposals: [] };
   let i = 0;
@@ -61,7 +64,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMe
     // The REAL readers run against the fake — a stubbed reader would prove
     // only that the route calls a function, not that a member's rows come back.
     ['@/lib/ai/memberReads.mjs', memberReads],
-    ['@/lib/membership-core', { computeMembership: async () => ({ isMember }) }],
+    ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
@@ -207,6 +210,19 @@ test('coach lookups: find_client resolves a name on the coach\'s OWN roster; a c
   const fco = client.calls.ai[1].body.input.find((it) => it.type === 'function_call_output');
   assert.equal(JSON.parse(fco.output).error, 'not_a_coach');
   assert.ok(!client.sb._calls.some((x) => x.table === 'trainers' || x.table === 'nutritionists' || x.table === 'subscriptions'), 'a client is refused BEFORE any roster read');
+
+  // ⚠ COACH ACCESS IS MEMBERSHIP'S VERDICT, NOT THE PRIMARY ROLE: a dual-role
+  // account (profile.role 'client', a coach by roles[]) gets the lookups too.
+  const dual = await loadRoute({ role: 'client', isCoach: true, tables, rpcs, answers: [calls(call('find_client', { name: 'priya' }, 'd1')), say('x')] });
+  await dual.mod.POST(post(ask('priya?')));
+  assert.ok(toolNames(dual.calls.ai[0].body).includes('find_client'), 'a dual-role member is offered the coach lookups');
+  const dfco = dual.calls.ai[1].body.input.find((it) => it.type === 'function_call_output');
+  assert.deepEqual(JSON.parse(dfco.output), { ok: true, client: { id: C1, name: 'Priya Shah', roles: ['trainer'] } });
+  // …and an admin is included explicitly (no coach profile → the roster says so).
+  const admin = await loadRoute({ role: 'client', isAdmin: true, tables: { trainers: [], nutritionists: [] }, answers: [calls(call('find_client', { name: 'priya' }, 'a1')), say('x')] });
+  await admin.mod.POST(post(ask('priya?')));
+  assert.ok(toolNames(admin.calls.ai[0].body).includes('find_client'));
+  assert.equal(JSON.parse(admin.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output).error, 'not_a_coach');
 });
 
 test('⚠ THE REPLY REACHES THE BUBBLE AS PLAIN TEXT: markdown the model emits anyway is stripped, words intact', async () => {

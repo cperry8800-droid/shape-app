@@ -262,6 +262,18 @@ test('readCoaching: the team, the next booked sessions with coach names, the las
   const unnamed = await readCoaching(fakeSupabase({ tables: { sessions: [{ client_id: U, scheduled_at: '2026-09-24T14:00:00Z', status: 'confirmed', provider_id: 99, provider_role: 'trainer' }], subscriptions: [] } }), U, { now: NOW });
   assert.equal(unnamed.upcoming[0].coach, 'your trainer', 'an unresolvable coach is described by role, never invented');
   assert.deepEqual(await readCoaching(fakeSupabase({ fail: ['sessions', 'subscriptions'] }), U, { now: NOW }), { ok: false });
+  // A failed sessions read beside a readable team: BOTH session legs say so —
+  // an absent `recent` alone would read as "no sessions held yet" (CodeRabbit, #2128).
+  const partial = await readCoaching(fakeSupabase({ tables: { subscriptions: [{ client_id: U, provider_id: 7, provider_role: 'trainer', status: 'active' }], trainers: [{ id: 7, name: 'Maya Okafor' }] }, fail: ['sessions'] }), U, { now: NOW });
+  assert.equal(partial.ok, true);
+  assert.deepEqual(partial.team, [{ name: 'Maya Okafor', role: 'trainer' }]);
+  assert.equal(partial.upcomingUnavailable, true);
+  assert.equal(partial.recentUnavailable, true);
+  assert.equal(partial.recent, undefined);
+  // …and a readable-but-empty past is an empty list with NO flag: distinguishable from a failure.
+  const empty = await readCoaching(fakeSupabase({ tables: { sessions: [], subscriptions: [] } }), U, { now: NOW });
+  assert.deepEqual(empty.recent, []);
+  assert.ok(!('recentUnavailable' in empty));
 });
 
 test('readReminders and readPoints', async () => {

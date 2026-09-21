@@ -389,7 +389,6 @@ const COACH_TOOLS = [
   { type: 'function', name: 'get_client_snapshot', description: "A coached client's recent numbers: sessions kept, workout minutes, days logged and average macros, latest and starting weight, key lifts. Only for a client this coach actively coaches; otherwise it answers allowed:false.", parameters: { type: 'object', properties: { clientId: { type: 'string', description: 'The client id from find_client or context.' } }, required: ['clientId'], additionalProperties: false }, strict: true },
 ];
 const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name)]);
-const COACH_ROLES = new Set(['trainer', 'nutritionist', 'dietitian', 'admin']);
 // Up to this many model turns per request: a lookup, an action drafted from
 // it, and a reply is three; Astra "continues through more steps", so the cap
 // is a budget, and the reply is taken on the last round whatever is pending.
@@ -867,7 +866,11 @@ export async function POST(request: Request) {
     if (membership && membership.isMember) {
       isMember = true;
       memberTools = MEMBER_TOOLS;
-      const isCoach = COACH_ROLES.has(String(actor.role || ''));
+      // Coach access is MEMBERSHIP's verdict, not the profile's primary role:
+      // computeMembership reads `roles[]` as well as `role`, so a dual-role
+      // account whose primary role is 'client' still gets the coach lookups,
+      // and an admin is included explicitly (CodeRabbit, #2128).
+      const isCoach = !!(membership.isCoach || membership.isAdmin);
       reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach };
       if (isCoach) coachTools = COACH_TOOLS;
       memoryCtx = {
