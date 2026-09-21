@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Các bộ hẹn giờ cuối vẫn đang chạy",
   "prep.resumeBatch": "Tiếp tục nấu các món này",
   "prep.searchRecipes": "Tìm công thức",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Lộ trình nấu ăn",
+  "roadmap.progress": "Tiến độ nấu ăn ước tính",
+  "roadmap.done": "Đã hoàn thành",
+  "roadmap.current": "Hiện tại",
+  "roadmap.upcoming": "Sắp tới",
+  "roadmap.holding": "Đang đếm giờ",
+  "roadmap.skipped": "Đã bỏ qua",
+  "roadmap.steps": "Đã hoàn thành {done}/{total} bước",
+  "roadmap.open": "Xem lộ trình",
+  "roadmap.hide": "Ẩn lộ trình",
+  "roadmap.duration": "Khoảng {n} phút",
+  "roadmap.planned": "Dự kiến {time}",
+  "roadmap.back": "Quay lại nấu ăn"
 }

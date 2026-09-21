@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Agogon ƙarshe suna ci gaba da aiki",
   "prep.resumeBatch": "Ci gaba da dafa waɗannan abinci",
   "prep.searchRecipes": "Nemo girke-girke",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Tsarin girki",
+  "roadmap.progress": "Kiyasin ci gaban girki",
+  "roadmap.done": "An kammala",
+  "roadmap.current": "Na yanzu",
+  "roadmap.upcoming": "Na gaba",
+  "roadmap.holding": "Agogon ƙidaya yana aiki",
+  "roadmap.skipped": "An tsallake",
+  "roadmap.steps": "An kammala matakai {done} cikin {total}",
+  "roadmap.open": "Duba tsarin girki",
+  "roadmap.hide": "Ɓoye tsarin girki",
+  "roadmap.duration": "Kimanin minti {n}",
+  "roadmap.planned": "An shirya: {time}",
+  "roadmap.back": "Koma zuwa girki"
 }

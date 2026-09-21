@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Son zamanlayıcılar hâlâ çalışıyor",
   "prep.resumeBatch": "Bu yemekleri pişirmeye devam et",
   "prep.searchRecipes": "Tarif ara",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Pişirme planı",
+  "roadmap.progress": "Tahmini pişirme ilerlemesi",
+  "roadmap.done": "Tamamlandı",
+  "roadmap.current": "Geçerli adım",
+  "roadmap.upcoming": "Sıradaki",
+  "roadmap.holding": "Zamanlayıcı çalışıyor",
+  "roadmap.skipped": "Atlandı",
+  "roadmap.steps": "{total} adımdan {done} adım tamamlandı",
+  "roadmap.open": "Planı görüntüle",
+  "roadmap.hide": "Planı gizle",
+  "roadmap.duration": "Yaklaşık {n} dk",
+  "roadmap.planned": "Planlanan saat: {time}",
+  "roadmap.back": "Pişirmeye dön"
 }

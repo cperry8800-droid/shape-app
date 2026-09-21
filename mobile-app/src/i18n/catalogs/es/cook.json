@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Los últimos temporizadores siguen activos",
   "prep.resumeBatch": "Reanudar la preparación de estos platos",
   "prep.searchRecipes": "Buscar recetas",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Plan de cocina",
+  "roadmap.progress": "Progreso estimado de la preparación",
+  "roadmap.done": "Completado",
+  "roadmap.current": "Actual",
+  "roadmap.upcoming": "Próximo",
+  "roadmap.holding": "Temporizador en marcha",
+  "roadmap.skipped": "Omitido",
+  "roadmap.steps": "{done} de {total} pasos completados",
+  "roadmap.open": "Ver plan",
+  "roadmap.hide": "Ocultar plan",
+  "roadmap.duration": "Unos {n} min",
+  "roadmap.planned": "Previsto a las {time}",
+  "roadmap.back": "Volver a cocinar"
 }
