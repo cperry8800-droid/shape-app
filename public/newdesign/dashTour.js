@@ -49,6 +49,7 @@
     return [
       { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Welcome', title: 'Your coaching tools.', body: 'A quick tour of your dashboard — about 30 seconds.' },
       { navigate: go('today'), anchor: q('hero-today'), fallback: q('webtab-today'), eyebrow: 'Today', title: 'Who needs you.', body: 'Your day leads with the clients who need attention.' },
+      { navigate: go('today'), anchor: q('dash-widgets'), fallback: q('hero-today'), eyebrow: 'Widgets', title: 'Make it yours.', body: 'Add or remove widgets on any tab, and drag them where you want them.' },
       { navigate: go('schedule'), anchor: q('webtab-schedule'), fallback: q('webtab-schedule'), eyebrow: 'Schedule', title: 'Your week.', body: 'Sessions, consults and availability — the calendar runs your day.' },
       { navigate: go('clients'), anchor: q('hero-clients'), fallback: q('webtab-clients'), eyebrow: 'Clients', title: 'Your roster.', body: 'Every client, sorted by who’s on track and who’s slipping.' },
       { navigate: go(plans), anchor: q('hero-' + plans), fallback: q('webtab-' + plans), eyebrow: plansLabel, title: 'Build & sell.', body: 'Create ' + plansLabel.toLowerCase() + ', assign them, and sell them in the marketplace.' },

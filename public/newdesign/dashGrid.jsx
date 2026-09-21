@@ -36,19 +36,46 @@ function dgSettingGroups(w) {
   return gs.filter((g) => g && g.key && Array.isArray(g.options) && g.options.length > 1 && typeof g.onPick === "function");
 }
 
+// The keys of the widgets a tab OFFERS but does not show by default — `optional: true`
+// on the declaration. In declaration order, because that is the order the catalogue
+// lists them and the order an all-off set is written into `hidden`.
+//
+// ⚠ AN OPTIONAL WIDGET IS OFF THE BOARD UNTIL THE MEMBER ADDS IT, AND THAT IS STORED
+// AS A POSITIVE CHOICE. The default board is the one every coach has had; a widget
+// added to the catalogue must not appear on anyone's dashboard unasked, and a stored
+// `hidden` list cannot express "off unless chosen" — a member who never touched the
+// board has no document at all. So an optional widget's ON state lives in `added`,
+// while a default widget's OFF state lives in `hidden`, and the two never mix: the
+// engine's own state is ONE effective hidden list (see dgResolveGridLayout), and
+// `dgSplitHidden` is what turns it back into the two lists the document holds.
+function dgOptionalKeys(widgets) {
+  return (widgets || []).filter((w) => w && w.optional && w.key != null).map((w) => w.key);
+}
+
 // ⚠ THE TWO FILTERS BELOW ARE DELIBERATELY DIFFERENT SETS. `hidden` is a member
 // preference about a widget in this tab's catalogue, so it is filtered against every
 // DECLARED key — an empty spell must not silently forget that they hid the card.
 // Placement is filtered against the VISIBLE keys, because only a widget with
-// something to show gets an item.
+// something to show gets an item. The `hidden` it returns is the EFFECTIVE list: the
+// default widgets the member hid, then every optional widget they have not added.
 function dgResolveGridLayout(saved, allWidgets) {
   const widgets = dgVisibleWidgets(allWidgets);
   const bySize = {}; widgets.forEach((w) => { bySize[w.key] = w.size; });
   const declared = new Set((allWidgets || []).filter(Boolean).map((w) => w.key));
+  const optional = dgOptionalKeys(allWidgets);
+  const optionalSet = new Set(optional);
   const existing = new Set(widgets.map((w) => w.key));
-  // hidden: keep only declared keys, deduped (first occurrence wins).
+  // hidden: a DEFAULT widget the member hid — declared keys only, deduped (first
+  // occurrence wins). An optional key in here is ignored: its state is `added`'s.
   const hiddenSet = new Set(); const hidden = [];
-  if (saved && Array.isArray(saved.hidden)) for (const k of saved.hidden) if (declared.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
+  if (saved && Array.isArray(saved.hidden)) for (const k of saved.hidden) if (declared.has(k) && !optionalSet.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
+  // added: an OPTIONAL widget the member put on the board — optional keys only. A key this
+  // build does not declare renders nothing, so it goes on no board here — but it is CARRIED
+  // THROUGH the write (see splitHidden), so the build that does declare it still finds it.
+  const addedSet = new Set();
+  if (saved && Array.isArray(saved.added)) for (const k of saved.added) if (optionalSet.has(k)) addedSet.add(k);
+  // …and every optional widget NOT added is hidden, after the member's own hides.
+  for (const k of optional) if (!addedSet.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
   // saved items: keep only existing ids, deduped (first occurrence wins).
   const placed = new Set(); const savedItems = [];
   if (saved && Array.isArray(saved.items)) for (const i of saved.items) if (i && existing.has(i.id) && !placed.has(i.id)) { savedItems.push(i); placed.add(i.id); }
@@ -56,6 +83,57 @@ function dgResolveGridLayout(saved, allWidgets) {
   for (const i of savedItems) { if (hiddenSet.has(i.id)) continue; visible.push({ key: i.id, x: i.x, y: i.y, w: i.w || dgWidgetW(bySize[i.id]), h: i.h }); }
   for (const w of widgets) { if (placed.has(w.key) || hiddenSet.has(w.key)) continue; visible.push({ key: w.key, w: dgWidgetW(w.size), autoPosition: true }); }
   return { visible, hidden };
+}
+
+// The inverse of the merge above: what the document's `hidden` and `added` lists must
+// say for the engine's ONE effective hidden list. `hidden` on disk holds only default
+// widgets (declared, deduped); `added` holds the optional widgets NOT in the effective
+// list. Written from here and nowhere else, so the two lists cannot disagree about a key.
+function dgSplitHidden(hidden, allWidgets, prevAdded) {
+  const declared = new Set((allWidgets || []).filter(Boolean).map((w) => w.key));
+  const optional = dgOptionalKeys(allWidgets);
+  const optionalSet = new Set(optional);
+  const hiddenSet = new Set(hidden || []);
+  const out = [];
+  for (const k of (hidden || [])) if (declared.has(k) && !optionalSet.has(k) && out.indexOf(k) < 0) out.push(k);
+  const added = optional.filter((k) => !hiddenSet.has(k));
+  // ⚠ AN `added` KEY THIS BUILD DOES NOT DECLARE IS CARRIED FORWARD, NEVER REBUILT AWAY.
+  // `added` is derived from the CURRENT catalogue, so a page running an older build — a
+  // dashboard left open across a deploy, a cached shell — would otherwise drop a widget the
+  // member turned on somewhere newer on its next whole-document save, with nothing on screen
+  // saying so. Only a key this build does not declare AT ALL is kept: one it declares as a
+  // default belongs in `hidden`, and one it declares as optional is already decided above.
+  const keep = new Set(added);
+  for (const k of (prevAdded || [])) if (typeof k === "string" && k && !declared.has(k) && !keep.has(k)) { added.push(k); keep.add(k); }
+  return { hidden: out, added };
+}
+
+// One row per declared widget for the catalogue, in declaration order.
+//   on:     it has a grid item right now (not hidden, not empty)
+//   canAdd: it is hidden and would render something if added
+//   why:    for an EMPTY widget, the reason nothing can be added or shown yet
+// ⚠ AN EMPTY WIDGET CAN NEITHER BE ADDED NOR REMOVED FROM HERE. Adding one would
+// re-create exactly the empty 18px item the `empty` contract exists to remove
+// (restore() refuses it for the same reason); removing one flips a preference about a
+// card nobody can see. It is listed, with its reason, so the catalogue is honest about
+// what exists — never as a control that does nothing.
+function dgCatalogRows(widgets, hidden) {
+  const hiddenSet = new Set(hidden || []);
+  return (widgets || []).filter((w) => w && w.key != null).map((w) => {
+    const empty = !!w.empty;
+    const off = hiddenSet.has(w.key);
+    return {
+      key: w.key,
+      title: w.title || String(w.key),
+      blurb: typeof w.blurb === "string" && w.blurb ? w.blurb : null,
+      optional: !!w.optional,
+      empty,
+      off,
+      on: !off && !empty,
+      canAdd: off && !empty,
+      why: empty ? (typeof w.emptyWhy === "string" && w.emptyWhy ? w.emptyWhy : "nothing to show yet") : null,
+    };
+  });
 }
 
 // What the grid must ADD and REMOVE to be in step with the current widget array.
@@ -115,7 +193,12 @@ function dgInjectStyle() {
 .dash-gridstack .ui-resizable-se{background:transparent!important;background-image:none!important;box-sizing:border-box!important;min-width:0!important;min-height:0!important;width:28px!important;height:28px!important;right:0!important;bottom:0!important;z-index:20;border:0!important;clip-path:none!important;border-radius:0!important;cursor:se-resize;opacity:1!important}
 .dash-rs{position:absolute;right:7px;bottom:7px;width:12px;height:12px;background:rgba(46,224,196,0.5);clip-path:polygon(100% 0,0 100%,100% 100%);border-bottom-right-radius:2px;pointer-events:none;transition:background .12s;z-index:4}
 .dash-gridstack .grid-stack-item:hover .dash-rs{background:rgba(46,224,196,0.95)}
-.dash-wchrome{opacity:0;transition:opacity .12s}
+/* ⚠ FADED, NOT INVISIBLE. At opacity 0 the drag handle, the ⚙ and the × existed only
+   for a member who happened to hover the card — measured on the coach Today: seven
+   cards, seven chromes at opacity 0, and nothing else on the page saying the board
+   could be rearranged (review 2026-09-21). A control that is discoverable only by
+   accident is, to most people, one that does not exist. */
+.dash-wchrome{opacity:.4;transition:opacity .12s}
 .dash-gridstack .grid-stack-item:hover .dash-wchrome,.dash-gridstack .grid-stack-item:focus-within .dash-wchrome{opacity:1}
 @media (hover:none){.dash-wchrome{opacity:1}}
 .dash-drag-handle{cursor:move}
@@ -123,8 +206,13 @@ function dgInjectStyle() {
    that is worse here than the usual nuisance: this panel is position:fixed and portaled to
    <body>, positioned from the gear's measured rect, so a zoom moves the viewport out from
    under a panel that has already been placed. The desktop keeps its 11px; the override is
-   scoped to coarse pointers so it costs the mouse nothing. (CodeRabbit, #2046.) */
-@media (pointer:coarse){.dash-setpick-sel{font-size:16px!important}}
+   scoped to coarse pointers so it costs the mouse nothing. (CodeRabbit, #2046.)
+   ⚠ THE NOTES TEXTAREA JOINS IT, AND ITS COST IS A GRID FIT RATHER THAN A PANEL. That
+   control is a card inside a GridStack item whose height is measured by sizeToContent, so a
+   focus zoom reflows the board under the hand that is typing in it. The rule is a LIST for
+   the same reason it was scoped: one place that says what the coarse-pointer font floor
+   applies to, rather than the next 13.5px control re-deriving it. (CodeRabbit, #2137.) */
+@media (pointer:coarse){.dash-setpick-sel,.dash-notes-ta{font-size:16px!important}}
 `;
   document.head.appendChild(s);
 }
@@ -177,7 +265,9 @@ const DG_PANEL_MIN_H = 160;
 // right of where it is" and spills past the other gutter on a narrow screen — the
 // notification panel shipped that sentence as a because-clause and its own guard
 // refuted it the same hour.
-function dgPanelBox(gear, vw, vh) {
+// `pw` is the panel's natural width; the ⚙ popover takes the default and the widget
+// catalogue asks for a wider one. Both are capped at the gutters the same way.
+function dgPanelBox(gear, vw, vh, pw) {
   // ⚠ THE GUTTER CAP WINS OVER ANY PREFERRED MINIMUM WIDTH, and the first cut had that
   // backwards: `Math.max(120, …)` held a 120px floor, which makes the interval below
   // EMPTY — at vw 128 (a 640px phone at 500% zoom, i.e. an accessibility path rather
@@ -192,7 +282,7 @@ function dgPanelBox(gear, vw, vh) {
   // never enter the viewport at all. Measured at vh 100: the box runs 64..144, only 36px of
   // it is visible, and the fourth selector is unreachable. A floor that outruns the viewport
   // recreates exactly the unreachability it was excused for. (Codex, #2046.)
-  const w = Math.max(1, Math.min(DG_PANEL_W, vw - DG_GUT * 2));
+  const w = Math.max(1, Math.min(pw > 0 ? pw : DG_PANEL_W, vw - DG_GUT * 2));
   const left = Math.max(DG_GUT, Math.min(gear.right - w, vw - DG_GUT - w));
   const below = vh - gear.bottom - 6 - DG_GUT;
   const above = gear.top - 6 - DG_GUT;
@@ -218,31 +308,34 @@ function dgPanelBox(gear, vw, vh) {
   return { left: left, width: w, up: up, offset: offset, maxHeight: Math.max(1, vh - offset - DG_GUT) };
 }
 
-function DgCardSettings({ groups }) {
-  const [open, setOpen] = React.useState(false);
-  const boxRef = React.useRef(null);
-  // ⚠ THE PANEL IS PORTALED OUT OF THE CARD, AND THAT IS NOT A STYLE CALL — MEASURED.
-  // `.dash-gridstack .grid-stack-item-content` is `overflow:hidden!important` (it has to
-  // be: the card's own height measurement below only reports the true content height
-  // because of it), and an absolutely-positioned child does not grow the box it hangs
-  // in. On the KPI strip — a 110px card carrying a four-group panel — the slot pickers
-  // measured at y 59–86 / 112–139 / 165–192 / 218–245, so THREE OF FOUR fell outside the
-  // clip box: a coach could change the first slot and nothing else. The elements were
-  // all in the DOM the whole time, which is exactly why counting them passed and only
-  // reading their geometry against the card failed. (Codex, #2046.)
-  const panelRef = React.useRef(null);
+// Shared by the ⚙ popover and the widget catalogue: place a fixed panel from its
+// button's viewport rect, follow scroll and resize while it is open, close it on an
+// outside click or Escape. `boxRef` is the button's wrapper, `panelRef` the portaled
+// panel; returns the box to render it at, or null until it has been measured.
+//
+// ⚠ THE PANEL IS PORTALED OUT OF THE CARD, AND THAT IS NOT A STYLE CALL — MEASURED.
+// `.dash-gridstack .grid-stack-item-content` is `overflow:hidden!important` (it has to
+// be: the card's own height measurement below only reports the true content height
+// because of it), and an absolutely-positioned child does not grow the box it hangs
+// in. On the KPI strip — a 110px card carrying a four-group panel — the slot pickers
+// measured at y 59–86 / 112–139 / 165–192 / 218–245, so THREE OF FOUR fell outside the
+// clip box: a coach could change the first slot and nothing else. The elements were
+// all in the DOM the whole time, which is exactly why counting them passed and only
+// reading their geometry against the card failed. (Codex, #2046.)
+function useDgPanel(open, setOpen, boxRef, panelRef, width) {
   const [box, setBox] = React.useState(null);
   const place = React.useCallback(() => {
     const el = boxRef.current;
     if (!el || !el.getBoundingClientRect) return;
     const d = document.documentElement;
-    setBox(dgPanelBox(el.getBoundingClientRect(), d.clientWidth, d.clientHeight));
-  }, []);
+    setBox(dgPanelBox(el.getBoundingClientRect(), d.clientWidth, d.clientHeight, width));
+    // eslint-disable-next-line
+  }, [width]);
   React.useLayoutEffect(() => { if (open) place(); }, [open, place]);
   React.useEffect(() => {
     if (!open) return undefined;
     // `capture` because the dashboard scrolls in its own containers as well as the
-    // window, and a fixed panel that does not follow its gear points at nothing.
+    // window, and a fixed panel that does not follow its button points at nothing.
     const on = () => place();
     window.addEventListener("scroll", on, true);
     window.addEventListener("resize", on);
@@ -251,20 +344,40 @@ function DgCardSettings({ groups }) {
   React.useEffect(() => {
     if (!open) return undefined;
     // ⚠ THE PORTAL BREAKS `contains`, so the away test asks BOTH nodes. With only the
-    // gear's wrapper tested, the first click inside the panel reads as a click outside
+    // button's wrapper tested, the first click inside the panel reads as a click outside
     // it and closes the thing you are using.
     const away = (e) => {
-      const inGear = boxRef.current && boxRef.current.contains(e.target);
+      const inBox = boxRef.current && boxRef.current.contains(e.target);
       const inPanel = panelRef.current && panelRef.current.contains(e.target);
-      if (!inGear && !inPanel) setOpen(false);
+      if (!inBox && !inPanel) setOpen(false);
     };
     const esc = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", away);
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+    // eslint-disable-next-line
   }, [open]);
+  return box;
+}
+
+// ⚠ FIXED AND RIGHT-ALIGNED ON ITS BUTTON, clamped into both gutters by `dgPanelBox`.
+// The ⚙ sits at the card's top right, so a left-anchored panel would hang off the page
+// on the rightmost column of a two-up grid; and a panel is taller than most cards, so
+// it scrolls rather than running off the bottom of the screen.
+function dgPanelStyle(box) {
+  return Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
+    maxHeight: box.maxHeight, overflowY: "auto", background: "rgba(26,22,18,0.98)",
+    border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" },
+    box.up ? { bottom: box.offset } : { top: box.offset });
+}
+
+function DgCardSettings({ groups }) {
+  const [open, setOpen] = React.useState(false);
+  const boxRef = React.useRef(null);
+  const panelRef = React.useRef(null);
+  const box = useDgPanel(open, setOpen, boxRef, panelRef, DG_PANEL_W);
   // ⚠ AN OPEN PANEL MUST NOT FADE OUT FROM UNDER THE POINTER. The whole chrome is
-  // `.dash-wchrome { opacity: 0 }` until the grid item is `:hover` or `:focus-within`,
+  // `.dash-wchrome { opacity: .4 }` until the grid item is `:hover` or `:focus-within`,
   // and this popover lives INSIDE it — so a member who opens the gear and then moves
   // toward the panel (which hangs below the gear, often past the item's own box) leaves
   // the hover area, and the panel they are reaching for disappears. `:focus-within`
@@ -280,7 +393,10 @@ function DgCardSettings({ groups }) {
     return () => { el.style.opacity = prev; };
   }, [open]);
 
-  const btn = { width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 11, cursor: "pointer", lineHeight: 1, padding: 0 };
+  // ⚠ 24×24, NOT 18×18: the glyph stays 11px, the hit area grows to this repo's documented
+  // floor (WCAG 2.5.8 AA is 24px). Measured on the shipped chrome before the widget
+  // catalogue: ⚙ 18×18, × 18×18, the ⠿ span 13×12 — every control on every card under it.
+  const btn = { width: 24, height: 24, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 11, cursor: "pointer", lineHeight: 1, padding: 0 };
   return (
     <span ref={boxRef} style={{ position: "relative", display: "inline-flex" }}>
       <button type="button" title="Card settings" aria-label="Card settings" aria-expanded={open}
@@ -288,16 +404,7 @@ function DgCardSettings({ groups }) {
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         style={{ ...btn, color: open ? "#2ee0c4" : DG_MUTE }}>⚙</button>
       {open && box && ReactDOM.createPortal(
-        // ⚠ FIXED AND RIGHT-ALIGNED ON THE GEAR, clamped into both gutters by
-        // `dgPanelBox`. The gear sits at the card's top right, so a left-anchored panel
-        // would hang off the page on the rightmost column of a two-up grid; and the
-        // panel is taller than most cards, so it scrolls rather than running off the
-        // bottom of the screen.
-        <div ref={panelRef} onMouseDown={(e) => e.stopPropagation()}
-             style={Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
-                     maxHeight: box.maxHeight, overflowY: "auto", background: "rgba(26,22,18,0.98)",
-                     border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" },
-                     box.up ? { bottom: box.offset } : { top: box.offset })}>
+        <div ref={panelRef} onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
           {groups.map((g) => (
             <div key={g.key} style={{ padding: "2px 6px 6px" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
@@ -366,6 +473,128 @@ function DgCardSettings({ groups }) {
   );
 }
 
+// ── THE WIDGET CATALOGUE (review 2026-09-21) ─────────────────────────────────
+// One always-visible control per grid tab that lists every widget the tab offers —
+// the ones on the board (Remove) and the ones off it (Add) — and carries the reset.
+// Before this the only way to learn that a card could be removed was to hover it
+// (the chrome was invisible until then), and the only way to bring one back was a
+// chip bar that exists only AFTER something has been hidden: a member who never
+// hovered never learned the board was theirs to arrange. A dashboard that can be
+// customized but does not say so is, to most of its users, one that cannot.
+//
+// ⚠ IT IS NOT INSIDE `.dash-wchrome`, and that is the whole point: the card chrome
+// fades until hover, and a control that exists to make the board's arrangeability
+// DISCOVERABLE cannot itself depend on being discovered. It is rendered by DashGrid
+// above the grid, so every grid tab — Today, Goal, Score, the client tabs — gets it
+// with no per-page wiring, and a page that declares no optional widgets still gets
+// the list of what it has.
+const DG_CATALOG_W = 320;
+const DG_SAVE_DEBOUNCE_MS = 400;
+// ⚠ A FAILED LAYOUT WRITE IS RETRIED, BECAUSE THE DEBOUNCE TOOK THE ACCIDENTAL ONES AWAY.
+// On main every GridStack event wrote, so one failure was covered by the next of twenty-two;
+// coalesced to a single settled write, one failure leaves the arrangement unsaved until the
+// member happens to touch the grid again. Two backoff attempts, each re-reading the CURRENT
+// document rather than replaying a stale snapshot, superseded by a newer change and stopped
+// at teardown.
+const DG_SAVE_RETRY_MS = [1500, 6000];
+function DgCatalog({ rows, onAdd, onRemove, onReset }) {
+  const [open, setOpen] = React.useState(false);
+  const boxRef = React.useRef(null);
+  const panelRef = React.useRef(null);
+  const box = useDgPanel(open, setOpen, boxRef, panelRef, DG_CATALOG_W);
+  // ⚠ FOCUS FOLLOWS THE DIALOG, OR A KEYBOARD USER NEVER REACHES IT. The panel is
+  // portaled to the end of <body>, so Tab from the button lands on the first card's
+  // chrome, not on the panel — measured. On open the first control in the panel takes
+  // focus; on close focus returns to the button that opened it.
+  const wasOpenRef = React.useRef(false);
+  React.useEffect(() => {
+    if (open && box && panelRef.current) {
+      const first = panelRef.current.querySelector("button, a[href], select, input, textarea");
+      if (first && typeof first.focus === "function") first.focus();
+    } else if (!open && wasOpenRef.current && boxRef.current) {
+      const b = boxRef.current.querySelector("button");
+      if (b && typeof b.focus === "function") b.focus();
+    }
+    wasOpenRef.current = !!(open && box);
+  }, [open, box]);
+  // ⚠ AND FOCUS FOLLOWS THE ROW THAT WAS JUST ACTED ON, OR IT FALLS TO <body>. Add and
+  // Remove move a row between the two lists, which are separate arrays in separate positions
+  // — so the button that was clicked is UNMOUNTED and its replacement is a different element.
+  // A keyboard user was left with focus on the document body while a role="dialog" was still
+  // open, i.e. tabbing resumed at the top of the page, outside the panel. Closing the dialog
+  // would also fix it (the effect above returns focus to the button) and costs the thing the
+  // catalogue is for: adding three widgets would mean opening it three times. So focus moves
+  // to the SAME widget's new control — same row, same place on screen, and the action is
+  // immediately reversible. (CodeRabbit, #2137.)
+  const actedRef = React.useRef(null);
+  const act = (fn, key) => { actedRef.current = key; fn(key); };
+  React.useEffect(() => {
+    const key = actedRef.current;
+    if (key == null) return;
+    actedRef.current = null;
+    const panel = panelRef.current;
+    if (!open || !panel) return;
+    let target = null;
+    // Matched by reading the attribute rather than by building a selector: a widget key is a
+    // source identifier, but a querySelector built from one is an escaping question nobody
+    // needs to have.
+    const rows = panel.querySelectorAll("[data-dg-row]");
+    for (const el of rows) if (el.getAttribute("data-dg-row") === String(key)) { target = el.querySelector("button"); break; }
+    // A row that has no control any more (a widget that went empty between the click and this
+    // frame) leaves focus inside the dialog rather than on the body.
+    if (!target) target = panel.querySelector("button, a[href], select, input, textarea");
+    if (target && typeof target.focus === "function") target.focus();
+  });
+  const onBoard = rows.filter((r) => r.on);
+  const addable = rows.filter((r) => r.canAdd);
+  const waiting = rows.filter((r) => r.empty);
+  // The button names the thing most members want from it. When every widget is on the
+  // board there is nothing to add, and it says so by dropping the plus.
+  const label = addable.length ? "＋ Add widget" : "Widgets";
+  const mono = { fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", textTransform: "uppercase" };
+  const rowStyle = { display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 6px", borderTop: "1px solid rgba(242,237,228,0.06)" };
+  const pill = (teal) => ({ ...mono, fontSize: 9.5, padding: "5px 9px", borderRadius: 999, cursor: "pointer", flexShrink: 0,
+    border: "1px solid " + (teal ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.18)"),
+    background: teal ? "rgba(46,224,196,0.12)" : "transparent", color: teal ? "#2ee0c4" : "rgba(242,237,228,0.7)" });
+  const head = (text) => <div style={{ ...mono, fontSize: 9, color: "rgba(242,237,228,0.42)", padding: "10px 6px 2px" }}>{text}</div>;
+  const item = (r, control) => (
+    <div key={r.key} data-dg-row={r.key} style={rowStyle}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 13, color: r.empty ? "rgba(242,237,228,0.5)" : "#f2ede4" }}>{r.title}</div>
+        {(r.blurb || r.why) && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2, lineHeight: 1.4 }}>{r.empty ? r.why : r.blurb}</div>}
+      </div>
+      {control}
+    </div>
+  );
+  return (
+    <span ref={boxRef} style={{ position: "relative", display: "inline-flex" }}>
+      <button type="button" className="dash-catalog-btn" data-tour="dash-widgets" aria-haspopup="dialog" aria-expanded={open} aria-label="Add or remove widgets"
+        onClick={() => setOpen((v) => !v)}
+        style={{ ...mono, fontSize: 10.5, padding: "7px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
+                 border: "1px solid " + (open ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.2)"),
+                 background: open ? "rgba(46,224,196,0.12)" : "transparent", color: open ? "#2ee0c4" : "rgba(242,237,228,0.75)" }}>
+        <span>{label}</span>
+        {addable.length > 0 && <span style={{ color: "#2ee0c4", fontVariantNumeric: "tabular-nums" }}>{addable.length}</span>}
+      </button>
+      {open && box && ReactDOM.createPortal(
+        <div ref={panelRef} role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
+          <div style={{ ...mono, fontSize: 9, color: "rgba(242,237,228,0.42)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
+          {onBoard.map((r) => item(r, <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
+          {addable.length > 0 && head("Available")}
+          {addable.map((r) => item(r, <button type="button" onClick={() => act(onAdd, r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>))}
+          {waiting.length > 0 && head("Nothing to show yet")}
+          {waiting.map((r) => item(r, null))}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(242,237,228,0.08)", marginTop: 4 }}>
+            <span style={{ fontSize: 10.5, color: "rgba(242,237,228,0.45)" }}>Drag ⠿ to move · corner to resize</span>
+            <a href="#" onClick={(e) => { e.preventDefault(); setOpen(false); onReset(); }} style={{ ...mono, fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(242,237,228,0.25)", whiteSpace: "nowrap" }}>Reset layout</a>
+          </div>
+        </div>,
+        document.body
+      )}
+    </span>
+  );
+}
+
 function DashGrid({ role, tab = "today", widgets }) {
   const byKey = {}; widgets.forEach((w) => { if (w && w.key != null) byKey[w.key] = w; });
   const elRef = React.useRef(null);
@@ -383,6 +612,10 @@ function DashGrid({ role, tab = "today", widgets }) {
   hostsRef.current = hosts;
   const declaredKeysRef = React.useRef([]);
   declaredKeysRef.current = widgets.map((w) => w && w.key).filter((k) => k != null);
+  // The current catalogue itself, for the split at write time: which of the effective
+  // hidden keys are default widgets (→ `hidden`) and which are optional (→ `added`).
+  const widgetsRef = React.useRef([]);
+  widgetsRef.current = widgets;
   // Where each item last sat, so a card that empties and comes back lands where the
   // member left it even before anything has been persisted.
   const lastPosRef = React.useRef({});
@@ -398,11 +631,78 @@ function DashGrid({ role, tab = "today", widgets }) {
 
   // saved layout for THIS role+tab from the merged doc.
   const savedFor = () => { try { return ((docRef.current[role] || {})[tab]) || null; } catch (e) { return null; } };
+  // ⚠ ONE UPSERT PER SETTLED CHANGE, NOT ONE PER GRIDSTACK EVENT. Measured on main
+  // with a stubbed store: a page load fired 24 whole-document upserts before anyone
+  // touched anything (the fit effect's resizeToContent fires `change` per item, per
+  // pass), and a single hide fired 22 more. The document is updated synchronously
+  // (savedFor() must read the current state), only the WRITE is coalesced: a trailing
+  // debounce, and a document byte-identical to the last one written is not re-sent.
+  // A rejected save clears that memory so the same change is sent again, and schedules a
+  // bounded retry rather than waiting for an interaction that may never come.
+  const saveTimerRef = React.useRef(null);
+  const lastSavedRef = React.useRef(null);
+  const retryRef = React.useRef(0);
+  const goneRef = React.useRef(false);
+  // ⚠ ONE WRITE IN FLIGHT AT A TIME, OR AN OLDER LAYOUT CAN LAND LAST. `saveUserGoals`
+  // is a whole-document upsert and serializes nothing, so a second change settling while the
+  // first request is still open sends two independent writes for the same row — and on a slow
+  // connection the earlier one can arrive second and restore the arrangement the member just
+  // replaced. The debounce does not cover it: once a write is DISPATCHED the timer is clear,
+  // and a change 400ms later goes out beside it. A newer document supersedes an older one
+  // outright, so this coalesces rather than queues: while a write is open the flush records
+  // that something newer exists and returns, and the settling write re-reads `docRef.current`
+  // — the CURRENT document, not the one that was pending. (CodeRabbit, #2137.)
+  const inFlightRef = React.useRef(false);
+  const queuedRef = React.useRef(false);
+  const flushSave = () => {
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    try {
+      const json = JSON.stringify(docRef.current);
+      if (json === lastSavedRef.current) return;
+      // Deferred, so `lastSavedRef` is deliberately NOT moved: nothing has been sent, and
+      // claiming otherwise would let the drain dedupe away a document that never went out.
+      if (inFlightRef.current) { queuedRef.current = true; return; }
+      lastSavedRef.current = json;
+      if (window.shapeDb && window.shapeDb.saveUserGoals) {
+        // A newer change already armed the timer — that write supersedes this one, so a
+        // retry here would only send the same document twice.
+        const failed = () => {
+          if (lastSavedRef.current === json) lastSavedRef.current = null;
+          const wait = DG_SAVE_RETRY_MS[retryRef.current];
+          if (goneRef.current || wait == null || saveTimerRef.current) return;
+          retryRef.current += 1;
+          saveTimerRef.current = setTimeout(flushSave, wait);
+        };
+        // The queued document supersedes both the write that just settled and any retry it
+        // armed, so it cancels the retry and goes out now. It runs even after teardown:
+        // `goneRef` exists to stop RETRIES, and this is the write the cleanup's own final
+        // flush asked for — a failure of it will still find `goneRef` set and stop.
+        const drain = () => {
+          inFlightRef.current = false;
+          if (!queuedRef.current) return;
+          queuedRef.current = false;
+          if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+          flushSave();
+        };
+        inFlightRef.current = true;
+        // The dispatch is guarded on its own: a SYNCHRONOUS throw from the store would
+        // otherwise leave the flag latched and block every later write for the life of the
+        // page — a worse failure than the race it is here to close.
+        try {
+          Promise.resolve(window.shapeDb.saveUserGoals("dashboard_layout", docRef.current))
+            .then((res) => { if (res && res.error) failed(); else retryRef.current = 0; drain(); })
+            .catch(() => { failed(); drain(); });
+        } catch (e) { inFlightRef.current = false; failed(); }
+      }
+    } catch (e) {}
+  };
   const persist = (next) => {
     try {
       const r = { ...(docRef.current[role] || {}), [tab]: next };
       docRef.current = { ...docRef.current, [role]: r };
-      if (window.shapeDb && window.shapeDb.saveUserGoals) Promise.resolve(window.shapeDb.saveUserGoals("dashboard_layout", docRef.current)).catch(() => {});
+      retryRef.current = 0;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(flushSave, DG_SAVE_DEBOUNCE_MS);
     } catch (e) {}
   };
   const persistFromGrid = () => {
@@ -418,7 +718,29 @@ function DashGrid({ role, tab = "today", widgets }) {
     try { if (typeof grid.getColumn === "function" && grid.getColumn() !== 12) return; } catch (e) { return; }
     let live = [];
     try { live = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) {}
-    persist({ items: dgMergeLayoutItems(live, savedFor(), declaredKeysRef.current), hidden: hiddenRef.current });
+    const saved = savedFor();
+    persist({ items: dgMergeLayoutItems(live, saved, declaredKeysRef.current), ...dgSplitHidden(hiddenRef.current, widgetsRef.current, saved && saved.added) });
+  };
+  // Persist a VISIBILITY change (hide / restore). The items half is read from the live
+  // grid only while it is in its 12-column layout; collapsed to one column (a phone) the
+  // grid holds a projection that must never be written (see persistFromGrid), so the
+  // saved items are carried forward untouched and only the hidden/added split moves.
+  // ⚠ WITHOUT THIS, BOTH DOORS WERE WRONG ON A PHONE, IN OPPOSITE DIRECTIONS. `hide`
+  // wrote `grid.save()` unguarded, so hiding a card from a phone upserted the one-column
+  // projection over the member's desktop arrangement — the exact write persistFromGrid
+  // exists to refuse. `restore` went THROUGH persistFromGrid, which refused the collapsed
+  // items and took the `added` write down with it — so a widget added from a phone
+  // rendered, and was gone on the next load, with nothing saying so. A visibility change
+  // is a fact about WHICH cards, and is written whatever the column count.
+  const persistVisibility = (nextHidden) => {
+    const grid = gridRef.current; if (!grid) return;
+    let wide = true;
+    try { wide = typeof grid.getColumn !== "function" || grid.getColumn() === 12; } catch (e) { wide = false; }
+    let live = null;
+    if (wide) { try { live = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) { live = null; } }
+    const saved = savedFor();
+    const items = live ? dgMergeLayoutItems(live, saved, declaredKeysRef.current) : ((saved && Array.isArray(saved.items)) ? saved.items : []);
+    persist({ items, ...dgSplitHidden(nextHidden, widgetsRef.current, saved && saved.added) });
   };
 
   // Add one widget to the grid; return its content host element for the portal.
@@ -439,6 +761,9 @@ function DashGrid({ role, tab = "today", widgets }) {
     dgInjectStyle();
     dgPatchGridStack();
     let destroyed = false;
+    // The cleanup sets this on a tab change too, so it is re-armed here rather than left
+    // true — otherwise the first tab switch disables every retry for the life of the page.
+    goneRef.current = false;
     const boot = () => {
       if (destroyed || !elRef.current) return;
       const grid = window.GridStack.init({
@@ -470,8 +795,17 @@ function DashGrid({ role, tab = "today", widgets }) {
     if (window.shapeDb && window.shapeDb.getUserGoals) {
       window.shapeDb.getUserGoals("dashboard_layout").then((doc) => { docRef.current = (doc && typeof doc === "object") ? doc : {}; boot(); }).catch(boot);
     } else { boot(); }
+    // A write still pending when the tab changes or the page hides is sent now: the
+    // debounce must never cost a member the drag they made a moment before leaving.
+    const onHide = () => { if (saveTimerRef.current) flushSave(); };
+    window.addEventListener("pagehide", onHide);
     return () => {
       destroyed = true;
+      // Set BEFORE the final flush: that write is still worth attempting, a retry for it is
+      // not — nothing is left to re-read the document or to cancel the timer.
+      goneRef.current = true;
+      window.removeEventListener("pagehide", onHide);
+      if (saveTimerRef.current) flushSave();
       try { if (gridRef.current) gridRef.current.destroy(false); } catch (e) {}
       gridRef.current = null; itemRef.current = {};
     };
@@ -621,6 +955,15 @@ function DashGrid({ role, tab = "today", widgets }) {
     };
   }, [hosts, ready]);
 
+  // ⚠ A VISIBILITY CHANGE IS STAGED IN THE SAME TICK IT IS MADE, NEVER ON A TIMER.
+  // All three of these used to defer (`setTimeout` 0 / 60 / 0), and `persistVisibility`
+  // opens with `if (!gridRef.current) return` — which the cleanup sets to null on unmount
+  // and on a role/tab change. So a card added and then a tab switched inside 60ms lost the
+  // add outright, with nothing on screen saying so; on a phone that timer is the ONLY write,
+  // because persistFromGrid refuses a collapsed grid. `persist` only ARMS the 400ms debounce,
+  // so staging immediately costs nothing and still lets sizeToContent's own `change` land the
+  // settled geometry before the write goes out — and the cleanup's flush now has a document
+  // that includes the change. (CodeRabbit, #2137.)
   const hide = (key) => {
     const grid = gridRef.current; const el = itemRef.current[key];
     const nextHidden = hidden.includes(key) ? hidden : [...hidden, key];
@@ -634,7 +977,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     delete itemRef.current[key];
     setHosts((h) => { const n = { ...h }; delete n[key]; return n; });
     setHidden(nextHidden);
-    setTimeout(() => { let live = []; try { live = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) {} persist({ items: dgMergeLayoutItems(live, savedFor(), declaredKeysRef.current), hidden: nextHidden }); }, 0);
+    persistVisibility(nextHidden);
   };
   const restore = (key) => {
     const w = byKey[key];
@@ -652,21 +995,26 @@ function DashGrid({ role, tab = "today", widgets }) {
     const host = addOne(spec || { key, w: dgWidgetW(w.size), autoPosition: true });
     setHosts((h) => ({ ...h, [key]: host }));
     setHidden(nextHidden);
-    setTimeout(() => { persistFromGrid(); }, 60);
+    persistVisibility(nextHidden);
   };
   const reset = () => {
     const grid = gridRef.current; if (!grid) return;
     lastPosRef.current = {};
-    hiddenRef.current = [];   // before removeAll/commit, both of which fire `change`
+    // ⚠ THE DEFAULT BOARD IS NOT AN EMPTY HIDDEN LIST. Every optional widget is off it,
+    // so the effective list after a reset is the optional set — which is exactly what
+    // resolving a null document yields, and what `dgSplitHidden` then writes back as
+    // `hidden: [], added: []`. Assigning `[]` here would put every optional widget ON
+    // the board for one render before the sync effect took it off again.
+    const layout = dgResolveGridLayout(null, widgets);
+    hiddenRef.current = layout.hidden;   // before removeAll/commit, both of which fire `change`
     try { grid.removeAll(true); } catch (e) {}
     itemRef.current = {};
-    const layout = dgResolveGridLayout(null, widgets);
     const nextHosts = {};
     grid.batchUpdate();
     for (const spec of layout.visible) { const host = addOne(spec); if (host) nextHosts[spec.key] = host; }
     grid.commit();
-    setHosts(nextHosts); setHidden([]);
-    setTimeout(() => persist({ items: [], hidden: [] }), 0);
+    setHosts(nextHosts); setHidden(layout.hidden);
+    persist({ items: [], hidden: [], added: [] });
   };
 
   // ⚠ A HIDDEN KEY MAY BE EMPTY RIGHT NOW, AND THAT IS THE POINT OF KEEPING IT. The
@@ -675,7 +1023,14 @@ function DashGrid({ role, tab = "today", widgets }) {
   // would render as an empty 18px slot is the bug, wearing a button. Named ONCE
   // because the bar's visibility and its contents must never disagree: a guard that
   // matched the expression found the copy the regression had not touched.
-  const hiddenChips = hidden.filter((k) => byKey[k] && !byKey[k].empty);
+  // ⚠ AND THE CHIPS ARE FOR DEFAULT CARDS ONLY. An optional widget that is off the
+  // board is where the catalogue says it is — "Available", one tap from ＋ Add — not
+  // "hidden": a bar reading "Hidden · + Week ahead · + Top movers" on a dashboard nobody
+  // has touched would be announcing a preference the member never expressed.
+  const hiddenChips = hidden.filter((k) => byKey[k] && !byKey[k].empty && !byKey[k].optional);
+  // The bar itself is keyed on the default cards the member hid, empty ones included —
+  // see the note at the render for why that is not the chip list.
+  const hiddenDefaults = hidden.filter((k) => byKey[k] && !byKey[k].optional);
 
   const chrome = (key) => {
     // ⚠ `w.empty` IS CHECKED HERE, NOT ONLY IN THE EFFECT, AND WITHOUT IT THE `empty`
@@ -693,10 +1048,13 @@ function DashGrid({ role, tab = "today", widgets }) {
     if (content == null || content === false) return null;
     return (
       <div style={{ position: "relative" }}>
-        <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", background: "rgba(11,14,12,0.72)", borderRadius: 7, padding: "1px 2px" }}>
-          <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, padding: "0 2px", lineHeight: 1 }}>⠿</span>
+        {/* Every control in this cluster is a 24px box (the repo's documented floor, WCAG
+            2.5.8 AA) with the glyph unchanged inside it — the cluster is the drag handle,
+            so ⠿ is an affordance rather than a control, but it is sized like one. */}
+        <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", minHeight: 24, background: "rgba(11,14,12,0.72)", borderRadius: 7, padding: "0 2px" }}>
+          <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, minWidth: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>⠿</span>
           {dgSettingGroups(w).length > 0 && <DgCardSettings groups={dgSettingGroups(w)} />}
-          <button type="button" title="Hide" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 18, height: 18, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+          <button type="button" title="Hide" aria-label="Hide card" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 24, height: 24, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
         </div>
         {content}
         <div className="dash-rs" aria-hidden="true" />
@@ -706,16 +1064,21 @@ function DashGrid({ role, tab = "today", widgets }) {
 
   return (
     <div>
+      {/* The catalogue: always visible, above the grid, on every tab — see DgCatalog. */}
+      <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <DgCatalog rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />
+      </div>
       {/* min-height reserves space so the page doesn't collapse to 0 then jump down
           when GridStack measures + positions the cards in JS after mount (CLS guard) */}
       <div ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
       {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key]) : null))}
-      {/* ⚠ THE BAR IS KEYED ON `hidden`, THE CHIPS ON `hiddenChips`, AND THE DIFFERENCE
-          IS THE RESET LINK. Gating the whole bar on the chips took `Reset layout` away
-          with them — so a member whose only hidden card happened to be empty (a failed
-          fetch is enough) had a dashboard they could not reset and nothing on screen
-          explaining why. */}
-      {hidden.length > 0 && (
+      {/* ⚠ THE BAR IS KEYED ON `hiddenDefaults`, THE CHIPS ON `hiddenChips`, AND THE
+          DIFFERENCE IS THE RESET LINK. Gating the whole bar on the chips took `Reset
+          layout` away with them — so a member whose only hidden card happened to be
+          empty (a failed fetch is enough) had a dashboard they could not reset and
+          nothing on screen explaining why. (The catalogue carries a second reset now,
+          so the bar is the quick way back for a card just hidden, not the only one.) */}
+      {hiddenDefaults.length > 0 && (
         <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {hiddenChips.length > 0 && (
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: DG_MUTE }}>Hidden ·</span>

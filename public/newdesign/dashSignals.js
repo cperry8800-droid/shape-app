@@ -1924,6 +1924,193 @@
     return { label: "PAYOUT " + p.payoutLabel, amount: amount, sub: "Month to date · " + days };
   }
 
+  // ── Optional Today widgets (review 2026-09-21) ────────────────────────────
+  // Everything a coach can ADD to Today from the widget catalogue derives from state
+  // the page already holds — the calendar, the triage feed and the roster records.
+  // Nothing here is fetched, which is the same constraint that decides what may be in
+  // the KPI pool above: a widget that needed a request would be a figure nobody on
+  // that screen had measured. Each derivation counts what it could NOT read, so a
+  // card can say "3 of 8 shared" instead of publishing a total over the rows that
+  // happened to answer.
+
+  var DASH_DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Whole calendar days between two instants, on the LOCAL calendar.
+  // ⚠ NOT `(b − a) / DAY`: a local day is 23 or 25 hours twice a year, so a millisecond
+  // quotient over a span that crosses a spring-forward and NOT its matching fall-back
+  // (a one-month or three-month mark straddling March) comes up an hour short, floors
+  // a day low, and the anniversary lands a day late. A whole year contains both
+  // transitions and is exact by accident — which is why a year-old join date is the
+  // WRONG fixture to prove this with. Mapping each local Y/M/D onto Date.UTC gives an
+  // ordinal in which every day is 24 hours by construction — the same fix the progress
+  // page's calendar window and the Kitchen's day seed already carry.
+  function calDays(a, b) {
+    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / DAY);
+  }
+  function localMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  // `setDate` rather than `+ n * DAY`, for the same reason as calDays.
+  function plusDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
+  function recName(c) { return c && c.profile && c.profile.name ? String(c.profile.name) : "Client"; }
+  function recId(c) { return c && c.profile && c.profile.id != null ? c.profile.id : null; }
+
+  // The next `days` local days of a calendar, one bucket each, starting today.
+  // events: [{ date: 'YYYY-MM-DD', time: 'HH:MM', kind, title }] — the shape both the
+  // live calendar (dashCalDate / dashCalTime) and the demo calendar already carry.
+  // An entry outside the window is simply not in it; one with no readable date is
+  // COUNTED as skipped rather than silently dropped, so the card can say so.
+  function dashWeekAhead(events, now, days) {
+    now = now || new Date();
+    days = days > 0 ? days : 7;
+    var start = localMidnight(now);
+    var buckets = [], byDate = {};
+    for (var i = 0; i < days; i++) {
+      var d = plusDays(start, i);
+      var b = { date: iso(d), dow: DASH_DOW[d.getDay()], day: d.getDate(), count: 0, first: null, today: i === 0 };
+      buckets.push(b); byDate[b.date] = b;
+    }
+    var total = 0, skipped = 0;
+    (Array.isArray(events) ? events : []).forEach(function (e) {
+      if (!e || typeof e.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(e.date)) { skipped += 1; return; }
+      var bucket = byDate[e.date];
+      if (!bucket) return;
+      bucket.count += 1; total += 1;
+      var t = typeof e.time === "string" && /^\d{2}:\d{2}$/.test(e.time) ? e.time : null;
+      if (t && (bucket.first == null || t < bucket.first)) bucket.first = t;
+    });
+    var busiest = null;
+    buckets.forEach(function (b2) { if (b2.count > 0 && (!busiest || b2.count > busiest.count)) busiest = b2; });
+    return { days: buckets, total: total, skipped: skipped, busiest: busiest };
+  }
+
+  // The roster by triage state — the counts behind the pulse's own ordering, so the
+  // card and the pulse can never disagree about who is red. feed: getTriageFeed()'s
+  // rows. A feed that could not be built is null, and so is the answer.
+  var DASH_STATUS_BUCKETS = ["red", "amber", "green", "unknown"];
+  function dashRosterStatus(feed) {
+    if (!Array.isArray(feed)) return null;
+    var out = { red: [], amber: [], green: [], unknown: [], fresh: 0, total: feed.length };
+    feed.forEach(function (r) {
+      var sev = r && r.severity;
+      var bucket = DASH_STATUS_BUCKETS.indexOf(sev) >= 0 ? sev : "unknown";
+      out[bucket].push(recName(r && r.client));
+      if (r && r.client && r.client.profile && r.client.profile.isNew) out.fresh += 1;
+    });
+    return out;
+  }
+
+  // The biggest week-over-week Shape Score moves, from the ONE reading the roster cell,
+  // the drawer and ruleScoreDrop already share — so the mover this names is the delta
+  // the roster shows. `known` counts the clients with two complete weeks; the rest are
+  // not "no movement", they are unread, and the card says so.
+  function dashTopMovers(clients, n) {
+    n = n > 0 ? n : 3;
+    var rows = Array.isArray(clients) ? clients : [];
+    var known = [];
+    rows.forEach(function (c) {
+      var r = c ? scoreWeekReading(c.shapeScoreHistory) : null;
+      if (!r || r.delta == null) return;
+      known.push({ id: recId(c), name: recName(c), delta: r.delta, points: r.points, partial: r.partial });
+    });
+    var byGain = function (a, b) { return b.delta - a.delta || a.name.localeCompare(b.name); };
+    var byLoss = function (a, b) { return a.delta - b.delta || a.name.localeCompare(b.name); };
+    return {
+      up: known.filter(function (k) { return k.delta > 0; }).sort(byGain).slice(0, n),
+      down: known.filter(function (k) { return k.delta < 0; }).sort(byLoss).slice(0, n),
+      known: known.length,
+      total: rows.length,
+    };
+  }
+
+  // Tenure marks worth a word, in days on Shape.
+  var DASH_TENURE_MARKS = [
+    { days: 30, label: "1 month" }, { days: 90, label: "3 months" }, { days: 180, label: "6 months" },
+    { days: 365, label: "1 year" }, { days: 730, label: "2 years" }, { days: 1095, label: "3 years" },
+    { days: 1460, label: "4 years" }, { days: 1825, label: "5 years" },
+  ];
+  // Clients reaching their NEXT tenure mark within `horizon` days (today included),
+  // from the earliest subscription the roster route already reports
+  // (`payments.joinedAt`, R10). `unknown` counts rows whose start date could not be
+  // read — a start date in the future is one of them, because a negative tenure is not
+  // a tenure. `later` is the nearest mark past the horizon, so an empty list can still
+  // say when the next one is.
+  function dashTenureMilestones(clients, now, horizon) {
+    now = now || new Date();
+    horizon = horizon >= 0 ? horizon : 30;
+    var today = localMidnight(now);
+    var rows = Array.isArray(clients) ? clients : [];
+    var soon = [], later = null, unknown = 0, beyond = 0;
+    rows.forEach(function (c) {
+      var at = c && c.payments ? c.payments.joinedAt : null;
+      // ⚠ A FALSY START DATE IS NOT A DATE, and `toDate` alone cannot see that: `0` is
+      // falsy AND parseable — `new Date(0)` is 1970, a valid instant fifty-six years
+      // ago — so a zero join date read as a client past every mark rather than as one
+      // whose start we do not know. The same trap the demo payout history walked into
+      // with `joinedAt: 0`, closed here by the test that found it.
+      var joined = at ? toDate(at) : null;
+      if (!joined) { unknown += 1; return; }
+      var tenure = calDays(joined, today);
+      if (tenure < 0) { unknown += 1; return; }
+      var next = null;
+      for (var i = 0; i < DASH_TENURE_MARKS.length; i++) {
+        if (DASH_TENURE_MARKS[i].days >= tenure) { next = DASH_TENURE_MARKS[i]; break; }
+      }
+      if (!next) { beyond += 1; return; }   // past the last mark — nothing left to announce
+      var inDays = next.days - tenure;
+      var hit = { id: recId(c), name: recName(c), label: next.label, inDays: inDays, on: iso(plusDays(today, inDays)) };
+      if (inDays <= horizon) soon.push(hit);
+      else if (!later || inDays < later.inDays) later = hit;
+    });
+    soon.sort(function (a, b) { return a.inDays - b.inDays || a.name.localeCompare(b.name); });
+    return { soon: soon, later: later, unknown: unknown, beyond: beyond, total: rows.length };
+  }
+
+  // Whose current block ends within `weeks` weeks — the cue to write the next one
+  // BEFORE the last session, not after it. Reads the caller's own assignment
+  // (record.program: { name, week, weeks, paused }, capped at the template length by
+  // the legs). `left` is the number of whole weeks after this one: week 12 of 12 is the
+  // last week (0 left). A client with no block, or a block with no length, is COUNTED
+  // as unknown rather than dropped, and a paused block is neither ending nor mid-way.
+  function dashProgramsEnding(clients, weeks) {
+    weeks = weeks >= 0 ? weeks : 3;
+    var rows = Array.isArray(clients) ? clients : [];
+    var soon = [], later = 0, paused = 0, unknown = 0;
+    rows.forEach(function (c) {
+      var p = c && c.program ? c.program : null;
+      var wk = p ? kpiNum(p.week) : null, total = p ? kpiNum(p.weeks) : null;
+      if (!p || wk == null || total == null || total <= 0 || wk <= 0) { unknown += 1; return; }
+      if (p.paused) { paused += 1; return; }
+      var left = Math.max(0, total - wk);
+      if (left <= weeks) soon.push({ id: recId(c), name: recName(c), program: p.name ? String(p.name) : null, week: wk, weeks: total, left: left });
+      else later += 1;
+    });
+    soon.sort(function (a, b) { return a.left - b.left || a.name.localeCompare(b.name); });
+    return { soon: soon, later: later, paused: paused, unknown: unknown, total: rows.length, weeks: weeks };
+  }
+
+  // Who pays what per month, from the subscription rows the roster route sums per
+  // client. An unreadable row (`mrrCents` null — that client's read FAILED) is COUNTED,
+  // never coerced to $0: "3 of 8 shared" is a true sentence and "$0" is not. A measured
+  // 0 is a real answer and sorts last among the known.
+  function dashRevenueByClient(clients, n) {
+    n = n > 0 ? n : 5;
+    var rows = Array.isArray(clients) ? clients : [];
+    var known = [], unknown = 0, sum = 0;
+    rows.forEach(function (c) {
+      var v = c && c.payments ? kpiNum(c.payments.mrrCents) : null;
+      if (v == null || v < 0) { unknown += 1; return; }
+      known.push({ id: recId(c), name: recName(c), cents: v });
+      sum += v;
+    });
+    known.sort(function (a, b) { return b.cents - a.cents || a.name.localeCompare(b.name); });
+    return {
+      rows: known.slice(0, n).map(function (k) { return { id: k.id, name: k.name, cents: k.cents, share: sum > 0 ? k.cents / sum : 0 }; }),
+      known: known.length,
+      unknown: unknown,
+      total: rows.length,
+      sumCents: sum,
+    };
+  }
+
   return {
     THRESHOLDS: THRESHOLDS,
     DEFAULT_THRESHOLDS: DEFAULT_THRESHOLDS,
@@ -1962,6 +2149,13 @@
     demoPayouts: demoPayouts,
     demoPayoutHistory: demoPayoutHistory,
     demoPayoutCard: demoPayoutCard,
-    _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate },
+    dashWeekAhead: dashWeekAhead,
+    dashRosterStatus: dashRosterStatus,
+    dashTopMovers: dashTopMovers,
+    dashTenureMilestones: dashTenureMilestones,
+    dashRevenueByClient: dashRevenueByClient,
+    dashProgramsEnding: dashProgramsEnding,
+    DASH_TENURE_MARKS: DASH_TENURE_MARKS,
+    _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate, calDays: calDays },
   };
 });

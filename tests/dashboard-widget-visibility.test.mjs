@@ -19,6 +19,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
   visibleWidgets, resolveGridLayout, mergeLayoutItems, planGridSync, widgetW,
+  optionalKeys, splitHidden, catalogRows,
 } from '../public/newdesign/dashboardLayout.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
@@ -175,10 +176,30 @@ test('dashGrid.jsx behaves identically to dashboardLayout.mjs', () => {
   // DRIVES both over the same fixtures rather than diffing their text, so an
   // equivalent rewrite passes and a behavioural drift fails.
   const dg = new Function(
-    ['dgWidgetW', 'dgVisibleWidgets', 'dgResolveGridLayout', 'dgMergeLayoutItems', 'dgPlanGridSync']
+    ['dgWidgetW', 'dgVisibleWidgets', 'dgOptionalKeys', 'dgResolveGridLayout', 'dgSplitHidden', 'dgCatalogRows', 'dgMergeLayoutItems', 'dgPlanGridSync']
       .map((n) => fn(GRID, n)).join('\n') +
-    '\nreturn { dgWidgetW, dgVisibleWidgets, dgResolveGridLayout, dgMergeLayoutItems, dgPlanGridSync };',
+    '\nreturn { dgWidgetW, dgVisibleWidgets, dgOptionalKeys, dgResolveGridLayout, dgSplitHidden, dgCatalogRows, dgMergeLayoutItems, dgPlanGridSync };',
   )();
+  // ⚠ THE OPTIONAL HALF OF THE CONTRACT IS DRIVEN THE SAME WAY (review 2026-09-21): a
+  // widget off the board until added, an `added` list that only optional keys may join,
+  // the split back into the two lists the document holds, and the catalogue rows.
+  const ows = [
+    { key: 'a', size: 'full', title: 'A' },
+    { key: 'o1', size: 'half', optional: true, title: 'O1', blurb: 'one' },
+    { key: 'o2', size: 'half', optional: true, empty: true, emptyWhy: 'later', title: 'O2' },
+  ];
+  const osaved = { items: [{ id: 'o1', x: 6, y: 0, w: 6, h: 3 }], hidden: ['a', 'o1'], added: ['o1', 'zzz'] };
+  assert.deepEqual(dg.dgOptionalKeys(ows), optionalKeys(ows));
+  assert.deepEqual(dg.dgResolveGridLayout(osaved, ows), resolveGridLayout(osaved, ows));
+  assert.deepEqual(dg.dgResolveGridLayout(null, ows), resolveGridLayout(null, ows));
+  assert.deepEqual(dg.dgSplitHidden(['a', 'o2', 'nope', 'a'], ows), splitHidden(['a', 'o2', 'nope', 'a'], ows));
+  // …including the carry-forward of an `added` key neither build declares: the mirror has
+  // to drop a widget choice in exactly the same cases the shared helper does, or one of the
+  // two erases what the other keeps.
+  assert.deepEqual(dg.dgSplitHidden([], ows, ['zzz', 'o1']), splitHidden([], ows, ['zzz', 'o1']));
+  assert.deepEqual(dg.dgSplitHidden(['o1'], ows, ['o1', 'zzz']), splitHidden(['o1'], ows, ['o1', 'zzz']));
+  assert.deepEqual(dg.dgCatalogRows(ows, ['o2']), catalogRows(ows, ['o2']));
+  assert.deepEqual(dg.dgCatalogRows(ows, []), catalogRows(ows, []));
   const ws = [
     { key: 'a', size: 'full' },
     { key: 'b', size: 'half', empty: true },
@@ -227,15 +248,21 @@ test('restoring a hidden card that has nothing to show is refused', () => {
   // there were two copies — so a regression that unfiltered the `.length` check while
   // leaving the `.map` alone SURVIVED the mutation round: the bar rendered its
   // "Hidden ·" label over no chips at all. Pinned on the single name instead.
-  assert.match(body, /const hiddenChips = hidden\.filter\(\(k\) => byKey\[k\] && !byKey\[k\]\.empty\)/,
-    'the chip list is not derived from the widgets that have something to show');
+  // ⚠ AND NOT FROM THE OPTIONAL WIDGETS EITHER (review 2026-09-21): an optional widget
+  // that is off the board is "Available" in the catalogue, not "hidden" — a bar reading
+  // "Hidden · + Week ahead · + Top movers" on a board nobody has touched would announce
+  // a preference the member never expressed.
+  assert.match(body, /const hiddenChips = hidden\.filter\(\(k\) => byKey\[k\] && !byKey\[k\]\.empty && !byKey\[k\]\.optional\)/,
+    'the chip list is not derived from the DEFAULT widgets that have something to show');
   assert.match(body, /\{hiddenChips\.map\(/, 'the chips come from a different list than the filter');
-  // ⚠ AND THE BAR ITSELF STAYS ON `hidden`, BECAUSE IT CARRIES THE RESET LINK.
-  // Gating the whole bar on the chips took `Reset layout` away with them: a member
-  // whose only hidden card happened to be empty — a failed fetch is enough — had a
-  // dashboard they could not reset and nothing on screen explaining why.
-  assert.match(body, /\{hidden\.length > 0 && \(/, 'the bar no longer renders for an all-empty hidden list');
-  const bar = body.slice(body.indexOf('{hidden.length > 0 && ('));
+  // ⚠ AND THE BAR ITSELF STAYS ON THE HIDDEN DEFAULTS, EMPTY ONES INCLUDED, BECAUSE IT
+  // CARRIES THE RESET LINK. Gating the whole bar on the chips took `Reset layout` away
+  // with them: a member whose only hidden card happened to be empty — a failed fetch is
+  // enough — had a dashboard they could not reset and nothing on screen explaining why.
+  assert.match(body, /const hiddenDefaults = hidden\.filter\(\(k\) => byKey\[k\] && !byKey\[k\]\.optional\)/,
+    'the bar is no longer keyed on the hidden defaults (empty ones included)');
+  assert.match(body, /\{hiddenDefaults\.length > 0 && \(/, 'the bar no longer renders for an all-empty hidden list');
+  const bar = body.slice(body.indexOf('{hiddenDefaults.length > 0 && ('));
   assert.match(bar.slice(0, 600), /\{hiddenChips\.length > 0 && \(/, 'the "Hidden ·" label renders over no chips');
   assert.match(bar, /Reset layout/, 'the reset link left the bar');
 });

@@ -323,21 +323,40 @@ const gearAt = (right, top, h = 18) => ({ right, left: right - 18, top, bottom: 
 test('the panel is portaled out of the card, not positioned inside it', () => {
   assert.match(GRID, /ReactDOM\.createPortal\(/, 'the panel is back inside the clipped card');
   const at = GRID.indexOf('function DgCardSettings(');
-  const body = GRID.slice(at, GRID.indexOf('\nfunction DashGrid(', at));
+  const body = GRID.slice(at, GRID.indexOf('\nconst DG_CATALOG_W', at));
+  assert.ok(body.length > 200, 'DgCardSettings moved');
   assert.match(body, /ReactDOM\.createPortal\(/);
   assert.match(body, /document\.body\s*\n?\s*\)\}/, 'the portal target is no longer document.body');
-  assert.match(body, /position: "fixed"/, 'a portaled panel positioned `absolute` lands relative to <body>, not the gear');
-  assert.doesNotMatch(body, /position: "absolute", top: "100%"/, 'the old in-card placement is back');
+  // ⚠ THE PLACEMENT STYLE IS SHARED WITH THE WIDGET CATALOGUE (review 2026-09-21), so the
+  // invariant is asserted where it lives: the one style helper both panels render with
+  // is `position: fixed`, and DgCardSettings renders through it rather than a copy.
+  assert.match(body, /style=\{dgPanelStyle\(box\)\}/, 'the ⚙ panel no longer renders through the shared placement style');
+  const style = body_(GRID, 'dgPanelStyle');
+  assert.match(style, /position: "fixed"/, 'a portaled panel positioned `absolute` lands relative to <body>, not the gear');
+  assert.doesNotMatch(GRID, /position: "absolute", top: "100%"/, 'the old in-card placement is back');
 });
 
 test('the away test asks the PANEL as well as the gear — a portal breaks `contains`', () => {
   // With only the gear's wrapper tested, the first click inside the portaled panel reads
-  // as a click outside it and closes the thing you are using.
+  // as a click outside it and closes the thing you are using. The test lives in the hook
+  // both panels share; DgCardSettings must hand that hook its OWN panel ref, or the hook
+  // is asking about somebody else's panel.
   const at = GRID.indexOf('function DgCardSettings(');
-  const body = GRID.slice(at, GRID.indexOf('\nfunction DashGrid(', at));
-  assert.match(body, /panelRef\.current && panelRef\.current\.contains\(e\.target\)/);
-  assert.match(body, /if \(!inGear && !inPanel\) setOpen\(false\);/);
+  const body = GRID.slice(at, GRID.indexOf('\nconst DG_CATALOG_W', at));
+  assert.match(body, /useDgPanel\(open, setOpen, boxRef, panelRef, DG_PANEL_W\)/, 'DgCardSettings does not place through the shared hook with its own refs');
+  const hook = body_(GRID, 'useDgPanel');
+  assert.match(hook, /panelRef\.current && panelRef\.current\.contains\(e\.target\)/);
+  assert.match(hook, /if \(!inBox && !inPanel\) setOpen\(false\);/);
 });
+
+// Brace-match a plain (non-destructured) function body out of the grid source.
+function body_(src, name) {
+  const at = src.indexOf('function ' + name + '(');
+  assert.ok(at > 0, name + ' moved');
+  let d = 0, seen = false, k = src.indexOf('{', src.indexOf(')', at));
+  for (; k < src.length; k++) { const c = src[k]; if (c === '{') { d++; seen = true; } else if (c === '}') { d--; if (seen && !d) { k++; break; } } }
+  return src.slice(at, k);
+}
 
 test('the panel is inside both gutters at every width, including narrower than itself', () => {
   // ⚠ THE SWEEP HAS TO REACH BELOW EVERY CONSTANT'S BITE POINT, and it has now been
@@ -461,7 +480,15 @@ test('the settings select clears the 16px focus-zoom floor on a touch pointer', 
   // ⚠ iOS Safari zooms the VIEWPORT when a focused control computes under 16px, and this
   // panel is position:fixed and placed from the gear's measured rect — so a zoom moves the
   // viewport out from under a panel that has already been positioned.
-  assert.match(GRID, /@media \(pointer:coarse\)\{\.dash-setpick-sel\{font-size:16px!important\}\}/);
+  // ⚠ ANCHORED ON THE RULE, NOT ON ITS SELECTOR LIST. This pinned the whole
+  // declaration verbatim, so giving the same rule a SECOND control — the notes textarea, a
+  // 13.5px form field with the identical hazard — failed a test about the settings select.
+  // What it cares about is that a coarse pointer gets 16px on this class, which is what it
+  // asks now. (CodeRabbit, #2137.)
+  const coarse = GRID.match(/@media \(pointer:coarse\)\{([^}]*)\{font-size:16px!important\}\}/);
+  assert.ok(coarse, 'no coarse-pointer 16px rule at all');
+  assert.ok(coarse[1].split(',').map((x) => x.trim()).includes('.dash-setpick-sel'),
+    'the coarse-pointer 16px rule no longer covers the settings select: ' + coarse[1]);
   const at = GRID.indexOf('function DgCardSettings(');
   const body = GRID.slice(at, GRID.indexOf('\nfunction DashGrid(', at));
   assert.match(body, /className="dash-setpick-sel"/, 'the rule cannot reach the select');

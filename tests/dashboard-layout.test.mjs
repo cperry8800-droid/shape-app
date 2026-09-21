@@ -2,7 +2,7 @@
 // widgets (auto-positioned), drop stale ones, filter hidden. Run: node --test
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveGridLayout, widgetW } from '../public/newdesign/dashboardLayout.mjs';
+import { resolveGridLayout, widgetW, optionalKeys, splitHidden, catalogRows } from '../public/newdesign/dashboardLayout.mjs';
 
 const WIDGETS = [
   { key: 'a', size: 'full' },
@@ -65,4 +65,123 @@ test('duplicate keys in saved data are deduplicated (canonical arrays)', () => {
   assert.equal(r.hidden.length, new Set(r.hidden).size, 'hidden has duplicate keys');
   assert.deepEqual(r.hidden, ['b', 'c']);                 // deduped, order preserved
   assert.deepEqual(r.visible.find((v) => v.key === 'a'), { key: 'a', x: 0, y: 0, w: 12, h: 4 }); // first 'a' kept
+});
+
+// ── Optional widgets (review 2026-09-21) ─────────────────────────────────────
+// A tab may OFFER a widget it does not show by default. Its ON state is a positive
+// choice stored in `added`; a default widget's OFF state stays in `hidden`. The engine
+// works on ONE effective hidden list, and `splitHidden` writes the two lists back.
+const OWIDGETS = [
+  { key: 'a', size: 'full' },
+  { key: 'b', size: 'half' },
+  { key: 'o1', size: 'half', optional: true },
+  { key: 'o2', size: 'half', optional: true },
+];
+
+test('an optional widget is OFF a board nobody has arranged — the default board is unchanged', () => {
+  const r = resolveGridLayout(null, OWIDGETS);
+  assert.deepEqual(r.visible.map((v) => v.key), ['a', 'b']);
+  assert.deepEqual(r.hidden, ['o1', 'o2']);
+  // ⚠ …AND FOR A DOCUMENT WRITTEN BEFORE THE CATALOGUE EXISTED. A member's saved
+  // layout has no `added` at all; that must read as "nothing added", never as "show
+  // everything" — a widget added to the catalogue must not appear on anyone's
+  // dashboard unasked.
+  const old = { items: [{ id: 'a', x: 0, y: 0, w: 12, h: 4 }], hidden: ['b'] };
+  const r2 = resolveGridLayout(old, OWIDGETS);
+  assert.deepEqual(r2.visible.map((v) => v.key), ['a']);
+  assert.deepEqual(r2.hidden, ['b', 'o1', 'o2']);
+});
+
+test('`added` puts an optional widget on the board, and keeps its saved place', () => {
+  const saved = { items: [{ id: 'o2', x: 6, y: 0, w: 6, h: 5 }], hidden: [], added: ['o2'] };
+  const r = resolveGridLayout(saved, OWIDGETS);
+  assert.deepEqual(r.hidden, ['o1']);
+  assert.deepEqual(r.visible.find((v) => v.key === 'o2'), { key: 'o2', x: 6, y: 0, w: 6, h: 5 });
+  assert.ok(!r.visible.some((v) => v.key === 'o1'));
+  // an added widget with no saved place is appended auto-positioned, like a new default
+  assert.deepEqual(resolveGridLayout({ items: [], hidden: [], added: ['o1'] }, OWIDGETS).visible.find((v) => v.key === 'o1'),
+    { key: 'o1', w: 6, autoPosition: true });
+});
+
+test('an optional key in `hidden`, and a default or unknown key in `added`, say nothing', () => {
+  const saved = { items: [], hidden: ['o1'], added: ['a', 'zzz'] };
+  const r = resolveGridLayout(saved, OWIDGETS);
+  // o1 is off because it was never ADDED, not because it was "hidden"; a is on
+  // because a default widget cannot be "added"; zzz belongs to no build
+  assert.deepEqual(r.hidden, ['o1', 'o2']);
+  assert.deepEqual(r.visible.map((v) => v.key), ['a', 'b']);
+});
+
+test('a stale optional key in `hidden` cannot veto `added` — only `added` decides an optional widget', () => {
+  // splitHidden never writes an optional key into `hidden`, but an older build or a hand
+  // edit might; the ON state of an optional widget is decided by `added` alone.
+  const r = resolveGridLayout({ items: [], hidden: ['o1'], added: ['o1'] }, OWIDGETS);
+  assert.ok(r.visible.some((v) => v.key === 'o1'), 'o1 was added and is not on the board');
+  assert.deepEqual(r.hidden, ['o2']);
+});
+
+test('splitHidden writes the two lists the document holds from the one effective list', () => {
+  assert.deepEqual(splitHidden(['b', 'o1', 'o1', 'zzz'], OWIDGETS), { hidden: ['b'], added: ['o2'] });
+  // a fresh board: no hidden defaults, nothing added
+  assert.deepEqual(splitHidden(resolveGridLayout(null, OWIDGETS).hidden, OWIDGETS), { hidden: [], added: [] });
+  // ⚠ AND THE TWO ARE INVERSES: resolve(split(h)) is h for every effective list, or a
+  // reload would silently change the board the member just arranged.
+  for (const h of [[], ['a'], ['o1'], ['a', 'o2'], ['b', 'o1', 'o2'], ['a', 'b', 'o1', 'o2']]) {
+    const doc = { items: [], ...splitHidden(h, OWIDGETS) };
+    assert.deepEqual(new Set(resolveGridLayout(doc, OWIDGETS).hidden), new Set(h), JSON.stringify(h));
+  }
+});
+
+test('an `added` key this build does not declare survives the write — an older page cannot erase a newer widget', () => {
+  // ⚠ THE SCENARIO IS A DASHBOARD LEFT OPEN ACROSS A DEPLOY. `added` is rebuilt from the
+  // CURRENT catalogue on every whole-document write, so without the carry-forward a page
+  // still running the build that predates `o3` drops it the moment the member drags a card
+  // — silently, and on the device they added it from it simply stops being there.
+  const older = OWIDGETS;                                   // knows a, b, o1, o2
+  const newer = OWIDGETS.concat([{ key: 'o3', size: 'half', optional: true }]);
+
+  // the newer build turns o3 on
+  const onNewer = splitHidden(resolveGridLayout(null, newer).hidden.filter((k) => k !== 'o3'), newer);
+  assert.deepEqual(onNewer.added, ['o3']);
+
+  // the older page now writes: it must not take o3 out of the document
+  const effective = resolveGridLayout({ items: [], ...onNewer }, older).hidden;
+  const afterOlder = splitHidden(effective, older, onNewer.added);
+  assert.ok(afterOlder.added.indexOf('o3') >= 0, 'the older build erased a widget it does not know about');
+
+  // …and the newer build still reads it as ON
+  assert.ok(resolveGridLayout({ items: [], ...afterOlder }, newer).visible.some((v) => v.key === 'o3'));
+  // …while the older build renders nothing for it, which is the whole reason it is safe
+  assert.ok(!resolveGridLayout({ items: [], ...afterOlder }, older).visible.some((v) => v.key === 'o3'));
+
+  // a key this build DOES declare is decided here, never carried: o1 is off, and a stale
+  // `added` naming it must not switch it back on.
+  assert.deepEqual(splitHidden(['o1', 'o2'], OWIDGETS, ['o1', 'o2']).added, []);
+  // and the carry-forward cannot duplicate, or admit a non-key
+  assert.deepEqual(splitHidden([], OWIDGETS, ['o3', 'o3', '', null, 7]).added, ['o1', 'o2', 'o3']);
+});
+
+test('catalogRows: on, addable and empty are three different states', () => {
+  const ws = [
+    { key: 'a', size: 'full', title: 'A', blurb: 'about a' },
+    { key: 'o1', size: 'half', optional: true, title: 'O1' },
+    { key: 'e', size: 'half', optional: true, empty: true, emptyWhy: 'later' },
+  ];
+  const rows = catalogRows(ws, ['o1', 'e']);
+  assert.deepEqual(rows.map((r) => [r.key, r.on, r.canAdd, r.empty, r.why]),
+    [['a', true, false, false, null], ['o1', false, true, false, null], ['e', false, false, true, 'later']]);
+  assert.equal(rows[0].blurb, 'about a');
+  assert.equal(rows[1].optional, true);
+  assert.equal(rows[1].title, 'O1');
+  // ⚠ AN EMPTY WIDGET THAT IS NOT HIDDEN IS STILL NEITHER ON NOR ADDABLE — adding it
+  // would re-create the empty item the `empty` contract exists to remove.
+  assert.deepEqual(catalogRows(ws, []).map((r) => [r.key, r.on, r.canAdd]), [['a', true, false], ['o1', true, false], ['e', false, false]]);
+  // a widget with no title falls back to its key; no emptyWhy falls back to a reason
+  assert.deepEqual(catalogRows([{ key: 'k', empty: true }], []).map((r) => [r.title, r.why]), [['k', 'nothing to show yet']]);
+});
+
+test('optionalKeys keeps declaration order and ignores everything else', () => {
+  assert.deepEqual(optionalKeys(OWIDGETS), ['o1', 'o2']);
+  assert.deepEqual(optionalKeys([null, { key: 'x', optional: false }, { optional: true }]), []);
+  assert.deepEqual(optionalKeys(null), []);
 });
