@@ -36,7 +36,13 @@ const DEFAULT_MODEL = 'gpt-6-astra';
 // Where a request lands when the pinned model itself is refused. `none` in
 // OPENAI_FALLBACK_MODEL disables the retry entirely.
 const DEFAULT_FALLBACK_MODEL = 'gpt-5.4-mini';
-const DEFAULT_TRANSCRIBE_MODEL = 'whisper-1';
+// Transcription: gpt-4o-transcribe over whisper-1 (the same key, a better
+// word error rate, and it takes a `prompt` that primes Shape's own vocabulary).
+// A refused transcription MODEL falls back once to whisper-1, the same way a
+// refused text model falls back — so OPENAI_TRANSCRIBE_MODEL=gpt-transcribe
+// (the newest, which also takes `keywords`) is safe to pin ahead of access.
+const DEFAULT_TRANSCRIBE_MODEL = 'gpt-4o-transcribe';
+const DEFAULT_TRANSCRIBE_FALLBACK = 'whisper-1';
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts';
 const DEFAULT_TIMEOUT_MS = 60_000;
 
@@ -354,23 +360,60 @@ export async function callAI(
 }
 
 export type TranscribeResult =
-  | { ok: true; text: string; latencyMs: number; promptId: string }
+  | { ok: true; text: string; latencyMs: number; promptId: string; model: string; fellBack: boolean }
   | {
       ok: false;
       reason: 'no_key' | 'timeout' | 'http_error' | 'network';
       status?: number;
       latencyMs: number;
       promptId: string;
+      model?: string;
     };
 
+export type TranscribeOptions = {
+  promptId: string;
+  timeoutMs?: number;
+  /** ISO-639-1 hint (`en`, `de`); anything else is dropped and the model detects. */
+  language?: string | null;
+  /** Vocabulary / style priming, in the recording's language. */
+  prompt?: string | null;
+  /** Words to bias toward — sent only to a model that takes them (gpt-transcribe). */
+  keywords?: readonly string[];
+};
+
+export function aiTranscribeModel(): string {
+  return process.env.OPENAI_TRANSCRIBE_MODEL || DEFAULT_TRANSCRIBE_MODEL;
+}
+
 /**
- * Transcribe audio with the OpenAI audio-transcription API (Whisper), using the
- * same key + timeout + logging discipline as callAI. Separate from callAI
- * because it targets the multipart transcription endpoint, not /v1/responses.
+ * The multipart fields a transcription request carries for `model` — PURE, so
+ * a test can read them. `language` rides only as a valid ISO-639-1 code (a
+ * bad hint is worse than none), `prompt` is clipped, and `keywords[]` go
+ * only to gpt-transcribe, the model whose API takes them (every other model
+ * 400s on an unknown field, which would read as "transcription is broken").
+ */
+export function prepareTranscription(model: string, opts: TranscribeOptions): Record<string, string | string[]> {
+  const fields: Record<string, string | string[]> = { model };
+  const lang = typeof opts.language === 'string' ? opts.language.trim().toLowerCase() : '';
+  if (/^[a-z]{2}$/.test(lang)) fields.language = lang;
+  const prompt = typeof opts.prompt === 'string' ? opts.prompt.trim().slice(0, 800) : '';
+  if (prompt) fields.prompt = prompt;
+  const keywords = Array.isArray(opts.keywords) ? opts.keywords.map((k) => String(k).trim()).filter(Boolean).slice(0, 100) : [];
+  if (keywords.length && /^gpt-transcribe/i.test(model)) fields['keywords[]'] = keywords;
+  return fields;
+}
+
+/**
+ * Transcribe audio with the OpenAI audio-transcription API, using the same
+ * key + timeout + logging discipline as callAI. Separate from callAI because
+ * it targets the multipart transcription endpoint, not /v1/responses.
+ *
+ * ⚠ ONE retry, on ONE failure: the transcription model being unavailable to
+ * this account (isModelAccessError) — onto whisper-1, which every key has.
  */
 export async function transcribeAudio(
   file: File,
-  opts: { promptId: string; timeoutMs?: number },
+  opts: TranscribeOptions,
 ): Promise<TranscribeResult> {
   const { promptId } = opts;
   const key = process.env.OPENAI_API_KEY;
@@ -379,30 +422,43 @@ export async function transcribeAudio(
     return { ok: false, reason: 'no_key', latencyMs: 0, promptId };
   }
 
-  const form = new FormData();
-  form.append('file', file, file.name || 'note.webm');
-  form.append('model', process.env.OPENAI_TRANSCRIBE_MODEL || DEFAULT_TRANSCRIBE_MODEL);
+  const pinned = aiTranscribeModel();
+  const models = pinned === DEFAULT_TRANSCRIBE_FALLBACK ? [pinned] : [pinned, DEFAULT_TRANSCRIBE_FALLBACK];
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const started = Date.now();
   try {
-    const res = await fetch(OPENAI_TRANSCRIBE_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}` },
-      body: form,
-      signal: controller.signal,
-    });
-    const latencyMs = Date.now() - started;
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      logAI({ promptId, ok: false, reason: 'http_error', status: res.status, latencyMs });
-      console.warn(`[shape-ai] ${promptId} transcription ${res.status}:`, detail.slice(0, 300));
-      return { ok: false, reason: 'http_error', status: res.status, latencyMs, promptId };
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      const fellBack = i > 0;
+      const form = new FormData();
+      form.append('file', file, file.name || 'note.webm');
+      for (const [k, v] of Object.entries(prepareTranscription(model, opts))) {
+        if (Array.isArray(v)) for (const item of v) form.append(k, item);
+        else form.append(k, v);
+      }
+      const res = await fetch(OPENAI_TRANSCRIBE_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}` },
+        body: form,
+        signal: controller.signal,
+      });
+      const latencyMs = Date.now() - started;
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        const canFallBack = i + 1 < models.length && isModelAccessError(res.status, detail);
+        logAI({ promptId, ok: false, reason: canFallBack ? 'model_fallback' : 'http_error', status: res.status, latencyMs, model, ...(canFallBack ? { fallbackModel: models[i + 1] } : {}) });
+        console.warn(`[shape-ai] ${promptId} transcription ${res.status} (${model}):`, detail.slice(0, 300));
+        if (canFallBack) continue;
+        return { ok: false, reason: 'http_error', status: res.status, latencyMs, promptId, model };
+      }
+      const data = (await res.json()) as { text?: string };
+      logAI({ promptId, ok: true, latencyMs, model, fellBack });
+      return { ok: true, text: String(data?.text || '').trim(), latencyMs, promptId, model, fellBack };
     }
-    const data = (await res.json()) as { text?: string };
-    logAI({ promptId, ok: true, latencyMs });
-    return { ok: true, text: String(data?.text || '').trim(), latencyMs, promptId };
+    // Unreachable: the loop returns on success and on its last failure.
+    return { ok: false, reason: 'http_error', latencyMs: Date.now() - started, promptId };
   } catch (err) {
     const latencyMs = Date.now() - started;
     const reason = (err as Error)?.name === 'AbortError' ? 'timeout' : 'network';

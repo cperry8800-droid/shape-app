@@ -34,6 +34,8 @@ const cookContext = await import(join(ROOT, 'src/lib/ai/cookContext.mjs'));
 const actions = await import(join(ROOT, 'src/lib/ai/actions.mjs'));
 const replyText = await import(join(ROOT, 'src/lib/ai/replyText.mjs'));
 const memberReads = await import(join(ROOT, 'src/lib/ai/memberReads.mjs'));
+const shapeKnowledge = await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'));
+const voiceLang = await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'));
 
 const ROUTE = 'src/app/api/support/chat/route.ts';
 const U = 'member-1';
@@ -64,6 +66,11 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMe
     // The REAL readers run against the fake — a stubbed reader would prove
     // only that the route calls a function, not that a member's rows come back.
     ['@/lib/ai/memberReads.mjs', memberReads],
+    ['@/lib/ai/shapeKnowledge.mjs', shapeKnowledge],
+    ['@/lib/ai/voiceLang.mjs', voiceLang],
+    // The anonymous client a signed-out caller's coach lookup reads the public
+    // marketplace tables with — the same fake, so the test reads what it read.
+    ['@/lib/request-auth', { clientForRequest: async () => sb }],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
@@ -285,4 +292,154 @@ test('no key → the rule-based fallback, and the model is never called', async 
   const out = await (await mod.POST(post(ask('help me find a trainer')))).json();
   assert.equal(out.source, 'fallback');
   assert.equal(c.ai.length, 0);
+});
+
+// ─── voice, how-Shape-works, the account, the live marketplace ───────────────
+
+test('⚠ VOICE: a spoken message adds the for-the-ear rules; a typed one does not; the app language is named only when it is not English', async () => {
+  const typed = await loadRoute({});
+  await typed.mod.POST(post(ask('hi')));
+  assert.ok(!/VOICE:/.test(typed.calls.ai[0].body.input[0].content));
+  assert.ok(!/LANGUAGE:/.test(typed.calls.ai[0].body.input[0].content));
+  const spoken = await loadRoute({});
+  await spoken.mod.POST(post({ ...ask('hi'), voice: true, locale: 'de-AT' }));
+  const sys = spoken.calls.ai[0].body.input[0].content;
+  assert.match(sys, /VOICE: The member is SPEAKING to you and your reply will be read aloud/);
+  assert.match(sys, /LANGUAGE: The member's app is set to German \(de\)\. Answer in German/);
+  // The claims shape the prompt and nothing else: same tools, same model.
+  assert.deepEqual(toolNames(spoken.calls.ai[0].body), toolNames(typed.calls.ai[0].body));
+  assert.equal(spoken.calls.ai[0].body.model, typed.calls.ai[0].body.model);
+  // English, an unknown locale, a hostile string, and a non-boolean voice: nothing rides.
+  for (const body of [{ voice: 'yes', locale: 'en' }, { locale: 'xx' }, { locale: 'de; DROP TABLE' }, { voice: 1 }]) {
+    const r = await loadRoute({});
+    await r.mod.POST(post({ ...ask('hi'), ...body }));
+    const s = r.calls.ai[0].body.input[0].content;
+    assert.ok(!/VOICE:/.test(s), JSON.stringify(body));
+    assert.ok(!/LANGUAGE:/.test(s), JSON.stringify(body));
+  }
+});
+
+test('shape_help is offered to everyone and answers from the knowledge base; with no key the fallback answers a how-it-works question from the same base', async () => {
+  const anon = await loadRoute({ user: null, answers: [calls(call('shape_help', { question: 'how much does shape cost' })), say('Five dollars a month.')] });
+  const out = await (await anon.mod.POST(post(ask('how much is it?')))).json();
+  const tool = anon.calls.ai[0].body.tools.find((x) => x.name === 'shape_help');
+  assert.ok(tool, 'shape_help is in the base tool list');
+  assert.equal(tool.strict, true);
+  assert.deepEqual(tool.parameters.required, ['question']);
+  const fco = anon.calls.ai[1].body.input.find((it) => it.type === 'function_call_output');
+  const result = JSON.parse(fco.output);
+  assert.equal(result.entries[0].id, 'membership');
+  assert.match(result.entries[0].source, /Pricing page/);
+  assert.equal(out.reply, 'Five dollars a month.');
+  // A member gets it too, and it needs no member context.
+  const member = await loadRoute({});
+  await member.mod.POST(post(ask('hi')));
+  assert.ok(toolNames(member.calls.ai[0].body).includes('shape_help'));
+  // No key: the rule-based path answers the same question from the base — and
+  // still says nothing for a question the base does not cover.
+  const fb = await loadRoute({ hasKey: false });
+  const priced = await (await fb.mod.POST(post(ask('how much does shape cost')))).json();
+  assert.equal(priced.source, 'fallback');
+  assert.match(priced.reply, /\$5 a month/);
+  // "free" is a body word of two entries and a tag of none: a stray body
+  // word must not make the rule-based path answer with the wrong entry.
+  const shrug = await (await fb.mod.POST(post(ask('is it free')))).json();
+  assert.match(shrug.reply, /passed this to the Shape team/);
+});
+
+test('get_account: strict with no arguments, the member\'s OWN rows come back, and a non-member never reads', async () => {
+  const tables = {
+    profiles: [{ id: U, full_name: 'Quinn Harper', email: 'm@x', username: 'quinnh', role: 'client', roles: ['client'], created_at: '2026-01-05T00:00:00Z' }],
+    platform_subscriptions: [{ client_id: U, status: 'active', price_cents: 500, current_period_end: '2026-10-01T00:00:00Z' }],
+    subscriptions: [{ client_id: U, provider_id: 7, provider_role: 'trainer', status: 'active', price_cents: 12000 }],
+    trainers: [{ id: 7, name: 'Maya Okafor' }], nutritionists: [],
+    user_goals: [{ user_id: U, kind: 'client_settings', data: { units: 'Imperial · lb / mi' } }],
+    client_profiles: [{ user_id: U, timezone: 'America/New_York' }],
+  };
+  const m = await loadRoute({ tables, answers: [calls(call('get_account', {})), say('You are on the five-dollar plan, renewing October first.')] });
+  await m.mod.POST(post(ask('what plan am I on?')));
+  const tool = m.calls.ai[0].body.tools.find((x) => x.name === 'get_account');
+  assert.ok(tool && tool.strict === true);
+  assert.deepEqual(tool.parameters.properties, {});
+  const r = JSON.parse(m.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(r.ok, true);
+  assert.equal(r.profile.name, 'Quinn Harper');
+  assert.equal(r.profile.email, 'm@x');
+  assert.deepEqual(r.platformSubscription, { onRecord: true, status: 'active', active: true, pricePerMonthUsd: 5, periodEnd: '2026-10-01' });
+  assert.deepEqual(r.coachSubscriptions, [{ coach: 'Maya Okafor', role: 'trainer', status: 'active', pricePerMonthUsd: 120 }]);
+  assert.equal(r.preferences.unitsSystem, 'imperial');
+  assert.equal(r.timezone, 'America/New_York');
+  // An unreadable plan is flagged, never reported as no plan.
+  const f = await loadRoute({ tables, fail: ['platform_subscriptions'], answers: [calls(call('get_account', {})), say('x')] });
+  await f.mod.POST(post(ask('plan?')));
+  const fr = JSON.parse(f.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(fr.platformSubscriptionUnavailable, true);
+  assert.ok(!('platformSubscription' in fr));
+  // A non-member: refused before any read.
+  const p = await loadRoute({ isMember: false, tables, answers: [calls(call('get_account', {})), say('x')] });
+  await p.mod.POST(post(ask('plan?')));
+  assert.deepEqual(JSON.parse(p.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output), { error: 'members_only' });
+  assert.ok(!p.sb._calls.some((x) => x.table === 'profiles' || x.table === 'platform_subscriptions'), 'nothing was read');
+});
+
+test('⚠ COACH LOOKUP READS THE LIVE MARKETPLACE: the app gets live listings only with the provider id on the chip; the website lists the example directory after them', async () => {
+  const tables = {
+    trainers: [{ id: 2, name: 'Aisha Patel', specialty: 'HIIT & Fat Loss', category: 'HIIT', credential: 'ACE-CPT', experience: '6 years', price: '39.99', session_price: null, rating: null, subscribers: 0, tags: ['HIIT', 'Fat loss'], services: null, verified: false, at_capacity: false, owner_id: null }],
+    nutritionists: [{ id: 101, name: 'Dr. Sarah Mitchell', specialty: 'Sports Nutrition', price: '59.99', meal_plan_price: null, tags: ['Performance'], services: ['Plans'] }],
+  };
+  const answers = [calls(call('recommend_coaches', { role: 'trainer', focus: 'fat loss', limit: 3 })), say('Aisha Patel could be a strong fit.')];
+  const app = await loadRoute({ tables, answers });
+  const appOut = await (await app.mod.POST(post({ ...ask('find me a fat loss trainer'), surface: 'app' }))).json();
+  const r = JSON.parse(app.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.ok(r.coaches.length >= 1);
+  assert.ok(r.coaches.every((c) => c.listing === 'live'), 'the app is never handed an example listing');
+  assert.equal(r.coaches[0].name, 'Aisha Patel');
+  assert.equal(r.coaches[0].rate, 40);
+  assert.ok(!('rating' in r.coaches[0]), 'a listing with no rating quotes none');
+  assert.ok(!('liveUnavailable' in r));
+  const chip = appOut.actions.find((a) => a.type === 'coach');
+  assert.equal(chip.providerId, 2, 'the chip carries the id the app opens a Listing by');
+  assert.equal(chip.url, '/newdesign/MemberProfile.html?name=Aisha%20Patel&role=trainer');
+  assert.ok(!chip.example);
+  assert.ok(appOut.actions.some((a) => a.type === 'marketplace' && a.role === 'trainer'));
+  assert.ok(app.sb._calls.some((x) => x.table === 'trainers'), 'the live table was read');
+  assert.ok(!app.sb._calls.some((x) => x.table === 'nutritionists'), 'role trainer reads only the trainers');
+
+  // The website: the example directory follows the live rows, marked.
+  const web = await loadRoute({ tables, answers });
+  const webOut = await (await web.mod.POST(post(ask('find me a fat loss trainer')))).json();
+  const w = JSON.parse(web.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(w.coaches[0].name, 'Aisha Patel');
+  assert.ok(w.coaches.some((c) => c.listing === 'example'), 'the website pool includes the examples');
+  const ex = webOut.actions.find((a) => a.type === 'coach' && a.example);
+  assert.ok(ex, 'an example chip says it is one');
+  assert.match(ex.meta, /example listing/);
+  assert.match(ex.url, /Public\.html\?coach=/);
+  assert.ok(!('providerId' in ex));
+
+  // A live read that fails: unavailable on the app, the examples with a flag on the web.
+  const appDown = await loadRoute({ tables, fail: ['trainers', 'nutritionists'], answers });
+  await appDown.mod.POST(post({ ...ask('trainer?'), surface: 'app' }));
+  assert.deepEqual(JSON.parse(appDown.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output), { ok: false, error: 'unavailable', message: 'The marketplace could not be read right now.' });
+  const webDown = await loadRoute({ tables, fail: ['trainers', 'nutritionists'], answers });
+  await webDown.mod.POST(post(ask('trainer?')));
+  const wd = JSON.parse(webDown.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.equal(wd.liveUnavailable, true);
+  assert.ok(wd.coaches.length > 0 && wd.coaches.every((c) => c.listing === 'example'));
+
+  // An anonymous visitor: the lookup runs on the request's anonymous client.
+  const anon = await loadRoute({ user: null, tables, answers });
+  await anon.mod.POST(post(ask('find me a trainer')));
+  assert.ok(anon.sb._calls.some((x) => x.table === 'trainers'), 'a signed-out visitor still gets the live marketplace');
+  assert.equal(JSON.parse(anon.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output).coaches[0].name, 'Aisha Patel');
+});
+
+test('the coach lines and chips are built from what a listing states — a live row with no rating, rate or city has none of them', async () => {
+  const tables = { trainers: [{ id: 5, name: 'Bare Row', price: null, session_price: null, rating: null, tags: null }], nutritionists: [] };
+  const r = await loadRoute({ tables, answers: [calls(call('recommend_coaches', { role: 'trainer', focus: '', limit: 1 })), say('x')] });
+  const out = await (await r.mod.POST(post({ ...ask('a trainer'), surface: 'app' }))).json();
+  const res = JSON.parse(r.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.deepEqual(res.coaches[0], { name: 'Bare Row', role: 'Personal training', kind: 'Trainer', listing: 'live', specialties: [], summary: 'Bare Row — Personal training.' });
+  const chip = out.actions.find((a) => a.type === 'coach');
+  assert.deepEqual(chip, { type: 'coach', label: 'Bare Row →', role: 'trainer', slug: 'bare-row', url: '/newdesign/MemberProfile.html?name=Bare%20Row&role=trainer', meta: 'Personal training', providerId: 5 });
 });

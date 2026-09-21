@@ -17,16 +17,90 @@ export type Coach = {
   name: string;
   tag: 'Trainer' | 'Nutritionist';
   role: string; // headline / specialty line
-  city: string;
-  rate: number; // $/session
-  rating: number;
-  sessions: number;
+  city: string; // '' when the listing states none
+  rate: number | null; // $/session (nutritionists: per plan); null when the listing states none
+  rating: number | null; // null = no rating on record — never a default
+  sessions: number | null;
   specialties: string[];
-  cert: string;
-  years: number;
-  format: 'In-person' | 'Hybrid' | 'Remote';
+  cert: string; // '' when the listing states none
+  years: number | null;
+  format: 'In-person' | 'Hybrid' | 'Remote' | '';
   category: string;
+  // A LIVE marketplace row (the trainers / nutritionists table) carries the
+  // provider id the app opens its Listing by, plus the two flags a member
+  // would want to hear. A catalog entry below is an EXAMPLE listing — the
+  // demo directory the website's marketplace shows after the real coaches.
+  providerId?: number;
+  verified?: boolean;
+  atCapacity?: boolean;
+  example?: boolean;
 };
+
+// The columns of a trainers / nutritionists row this module reads (public-read
+// tables; a row is untrusted data and every field is normalized).
+export type LiveCoachRow = {
+  id?: unknown; name?: unknown; specialty?: unknown; specialty_type?: unknown; category?: unknown;
+  credential?: unknown; experience?: unknown; price?: unknown; session_price?: unknown; meal_plan_price?: unknown;
+  rating?: unknown; subscribers?: unknown; tags?: unknown; services?: unknown; verified?: unknown; at_capacity?: unknown;
+  location?: unknown; format?: unknown; owner_id?: unknown;
+};
+
+const text = (v: unknown, max = 80): string => (typeof v === 'string' && v.trim() ? v.trim().replace(/\s+/g, ' ').slice(0, max) : '');
+const numOrNull = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+const strList = (v: unknown, max = 6): string[] => (Array.isArray(v) ? v.map((x) => text(x, 40)).filter(Boolean).slice(0, max) : []);
+
+/**
+ * A live marketplace row as a Coach — the same reading the website's
+ * marketplace makes of the row (mapLiveCoach), minus its cosmetic defaults: a
+ * missing rating is null, not 4.8; a missing rate is null, not $100; unknown
+ * years are null, not 5. Nora quotes only what the listing states. Returns
+ * null for a row with no usable id or name.
+ */
+export function liveCoachFromRow(row: LiveCoachRow, role: CoachRole): Coach | null {
+  if (!row || typeof row !== 'object') return null;
+  const id = Number(row.id);
+  const name = text(row.name, 80);
+  if (!Number.isInteger(id) || id <= 0 || !name) return null;
+  const nutri = role === 'nutritionist';
+  const rate = numOrNull(nutri ? (row.meal_plan_price ?? row.price) : (row.session_price ?? row.price));
+  const yearsMatch = text(row.experience, 20).match(/\d+/);
+  const subs = numOrNull(row.subscribers);
+  const fmtRaw = text(row.format, 40).toLowerCase();
+  const format: Coach['format'] = /hybrid/.test(fmtRaw) ? 'Hybrid' : /remote|online|virtual/.test(fmtRaw) ? 'Remote' : /person|studio|gym/.test(fmtRaw) ? 'In-person' : '';
+  const specialties = [...strList(row.tags), ...(nutri ? strList(row.services) : [])].slice(0, 4);
+  return {
+    name,
+    tag: nutri ? 'Nutritionist' : 'Trainer',
+    role: text(row.specialty, 80) || text(row.specialty_type, 80) || (nutri ? 'Nutrition coaching' : 'Personal training'),
+    city: text(row.location, 60),
+    rate: rate != null && rate > 0 ? Math.round(rate) : null,
+    rating: (() => { const r = numOrNull(row.rating); return r != null && r > 0 ? r : null; })(),
+    sessions: subs != null && subs > 0 ? Math.round(subs) : null,
+    specialties,
+    cert: text(row.credential, 60),
+    years: yearsMatch ? Number(yearsMatch[0]) : null,
+    format,
+    category: text(row.category, 60),
+    providerId: id,
+    verified: row.verified === true,
+    atCapacity: row.at_capacity === true,
+  };
+}
+
+/**
+ * The pool Nora ranks over: the live coaches first, then the example
+ * directory minus any name a real listing already covers — the website
+ * marketplace's own merge (Grid's `merged`). Each example is marked, so a
+ * reply can say what it is recommending.
+ */
+export function mergeCoachPools(live: Coach[], examples: readonly Coach[] = COACH_CATALOG): Coach[] {
+  const liveNames = new Set(live.map((c) => c.name.toLowerCase()));
+  return [...live, ...examples.filter((c) => !liveNames.has(c.name.toLowerCase())).map((c) => ({ ...c, example: true }))];
+}
 
 export const COACH_CATALOG: Coach[] = [
   // Trainers
@@ -86,6 +160,29 @@ export function coachUrl(c: Coach): string {
   return `/newdesign/${page}?coach=${coachSlug(c.name)}`;
 }
 
+// Where a coach's page is on the website. A LIVE listing renders the
+// marketplace's own derived profile by name — the page every marketplace card
+// links to (marketplace.jsx `coachUrl`); an EXAMPLE listing has a full static
+// page resolved by slug over coachDirectory.js, which knows nothing of a live
+// row, so pointing a live coach there lands on nobody.
+export function coachProfileUrl(c: Coach): string {
+  if (c.providerId != null) return `/newdesign/MemberProfile.html?name=${encodeURIComponent(c.name)}&role=${c.tag === 'Nutritionist' ? 'nutritionist' : 'trainer'}`;
+  return coachUrl(c);
+}
+
+// The live-listing read Nora makes. ⚠ Every column named here exists on BOTH
+// tables (checked against the live catalog, 2026-09-21 — neither table has a
+// location or a format column, so liveCoachFromRow reads those as absent); a
+// named column that does not exist errors the WHOLE query, which is why the
+// role's own price column is added by livePriceColumn rather than listed.
+export const LIVE_COACH_COLUMNS = 'id, name, specialty, specialty_type, category, credential, experience, price, rating, subscribers, tags, services, verified, at_capacity, owner_id';
+export function livePriceColumn(role: CoachRole): 'session_price' | 'meal_plan_price' {
+  return role === 'nutritionist' ? 'meal_plan_price' : 'session_price';
+}
+// Listings read per table — above today's whole directory (21 + 22 rows), so
+// the cap bounds the prompt rather than the marketplace.
+export const LIVE_COACH_CAP = 80;
+
 // Light keyword scorer: matches the free-text focus against the coach's
 // specialties, headline, category, city, and format. Returns the top `limit`
 // ranked, optionally filtered to a single role. With no focus it falls back to
@@ -94,16 +191,24 @@ export function rankCoaches(opts: {
   focus?: string;
   role?: CoachRole | 'any';
   limit?: number;
+  // The listings to rank — the live marketplace rows merged with the examples
+  // (mergeCoachPools) — defaulting to the example directory alone.
+  pool?: readonly Coach[];
 }): Coach[] {
   const limit = Math.max(1, Math.min(6, opts.limit || 3));
   const role = opts.role && opts.role !== 'any' ? opts.role : null;
-  const pool = COACH_CATALOG.filter((c) =>
+  const pool = (opts.pool || COACH_CATALOG).filter((c) =>
     !role ? true : role === 'trainer' ? c.tag === 'Trainer' : c.tag === 'Nutritionist'
   );
+  // Standing, independent of the question: a real listing before an example
+  // one, a verified coach a touch ahead, a coach at capacity behind — still
+  // listed (they may reopen) but never first. A rating counts only where the
+  // listing HAS one; an unknown rating is neither a bonus nor a penalty.
+  const standing = (c: Coach) => (c.example ? 0 : 1.5) + (c.verified ? 0.5 : 0) - (c.atCapacity ? 3 : 0) + (c.rating != null ? (c.rating - 4.8) * 2 : 0);
 
   const focus = String(opts.focus || '').toLowerCase().trim();
   if (!focus) {
-    return [...pool].sort((a, b) => b.rating - a.rating).slice(0, limit);
+    return [...pool].sort((a, b) => standing(b) - standing(a)).slice(0, limit);
   }
 
   // Tokenize the focus into words (drop trivial stopwords).
@@ -117,8 +222,10 @@ export function rankCoaches(opts: {
       c.category,
       c.city,
       c.format,
+      c.cert,
       ...c.specialties,
     ]
+      .filter(Boolean)
       .join(' ')
       .toLowerCase();
     let score = 0;
@@ -131,12 +238,14 @@ export function rankCoaches(opts: {
       if (c.category.toLowerCase().includes(tok)) score += 1;
       if (c.city.toLowerCase().includes(tok)) score += 1;
     }
-    // Quality tie-breaker baked in lightly.
-    score += (c.rating - 4.8) * 2;
+    // The standing tie-breaker: real before example, verified ahead, at capacity behind.
+    score += standing(c);
     return { c, score };
   });
 
-  const hits = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score);
+  // A hit is a keyword match over and above the standing — the standing alone
+  // must not turn an unrelated live coach into an answer to "marathon coach".
+  const hits = scored.filter((s) => s.score - standing(s.c) > 0).sort((a, b) => b.score - a.score);
   const chosen = (hits.length ? hits : scored.sort((a, b) => b.score - a.score)).slice(0, limit);
   return chosen.map((s) => s.c);
 }

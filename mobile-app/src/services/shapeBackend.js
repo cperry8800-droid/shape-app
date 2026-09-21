@@ -4228,15 +4228,24 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 
 // Ask the in-app support assistant. Works signed-out (server returns a
 // rule-based reply); signed-in users get the AI assistant. `extra` (optional):
-// { cookContext } rides Cook Mode's sous-chef grounding on the same rail, and
+// { cookContext } rides Cook Mode's sous-chef grounding on the same rail,
 // { signal } lets the caller bound a stalled request with an AbortController —
-// Cook Mode must never leave its mic stuck on a hung fetch (CodeRabbit #1805).
+// Cook Mode must never leave its mic stuck on a hung fetch (CodeRabbit #1805) —
+// and { voice: true } says the message was SPOKEN, so the server writes the
+// reply for the ear (it is read aloud). Every request also names the surface
+// ('app': a coach chip opens the Listing by provider id, and the website's
+// example directory is left out) and the app's locale, so a short spoken
+// question in German is answered in German. None of the three is read for
+// access on the server.
 async function askSupportBot(messages, tone, extra = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
-  const body = { messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive' };
+  const body = { messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive', surface: 'app' };
   if (extra.cookContext) body.cookContext = extra.cookContext;
+  if (extra.voice === true) body.voice = true;
+  const locale = appLocaleCode();
+  if (locale) body.locale = locale;
   const res = await fetch(`${apiBaseUrl}/api/support/chat`, {
     method: 'POST',
     headers,
@@ -4248,19 +4257,46 @@ async function askSupportBot(messages, tone, extra = {}) {
   return payload;
 }
 
-// Server STT (Whisper) for hold-to-talk callers (Cook Mode's mic). Routes
-// through apiBaseUrl + the Bearer session — a root-relative fetch never reaches
-// the backend on the NATIVE build, whose WebView has no same origin and no
-// cookie (Codex, PR #1805). On the /m/ web build apiBaseUrl is the page origin,
-// so the cookie session still rides via same-origin credentials.
-async function transcribeVoice(blob, { filename = 'nora.webm', signal } = {}) {
+// The app's locale code for the server ('de', 'pt-BR'), or null when the
+// locale store has not loaded — never a guess.
+function appLocaleCode() {
+  try { const l = window.ShapeLocale && window.ShapeLocale.get && window.ShapeLocale.get(); return typeof l === 'string' && l ? l : null; } catch (e) { return null; }
+}
+
+// Server STT for hold-to-talk callers (Nora's composer, Cook Mode's mic).
+// Routes through apiBaseUrl + the Bearer session — a root-relative fetch never
+// reaches the backend on the NATIVE build, whose WebView has no same origin and
+// no cookie (Codex, PR #1805). On the /m/ web build apiBaseUrl is the page
+// origin, so the cookie session still rides via same-origin credentials.
+// `language` (default: the app's locale) and `context` ('nora' | 'meal' |
+// 'grocery') ride as form fields: the server maps the locale to the hint the
+// transcription takes and primes it with Shape's own vocabulary.
+async function transcribeVoice(blob, { filename = 'nora.webm', signal, language, context = 'nora' } = {}) {
+  return transcribeTo('/api/ai/transcribe', blob, { filename, signal, language, context });
+}
+
+// The meal logger's note and the grocery list's "add by voice" — the same
+// hints, the nutrition route (context 'meal' | 'grocery').
+async function transcribeNote(blob, { filename = 'note.webm', signal, language, context = 'meal' } = {}) {
+  return transcribeTo('/api/nutrition/voice', blob, { filename, signal, language, context });
+}
+
+async function transcribeTo(path, blob, { filename, signal, language, context }) {
   const fd = new FormData();
   fd.append('audio', blob, filename);
+  const lang = typeof language === 'string' && language ? language : appLocaleCode();
+  if (lang) fd.append('language', lang);
+  if (context) fd.append('context', String(context));
   const headers = {};
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
-  const res = await fetch(`${apiBaseUrl || ''}/api/ai/transcribe`, { method: 'POST', headers, body: fd, credentials: 'same-origin', signal });
+  const res = await fetch(`${apiBaseUrl || ''}${path}`, { method: 'POST', headers, body: fd, credentials: 'same-origin', signal });
   const payload = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, transcript: payload && payload.transcript ? String(payload.transcript).trim() : '' };
+  return {
+    ok: res.ok,
+    status: res.status,
+    transcript: payload && payload.transcript ? String(payload.transcript).trim() : '',
+    error: payload && typeof payload.error === 'string' ? payload.error : '',
+  };
 }
 
 // List the signed-in user's own Spotify playlists (coach Soundtracks importer).
@@ -7820,6 +7856,7 @@ async function undoNoraProposal(auditId) {
 window.ShapeSupport = {
   ask: askSupportBot,
   transcribe: transcribeVoice,
+  transcribeNote,
   confirm: confirmNoraProposal,
   undo: undoNoraProposal,
 };
