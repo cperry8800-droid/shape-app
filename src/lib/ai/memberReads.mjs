@@ -620,9 +620,10 @@ export async function readAccount(sb, uid) {
     out.preferences = prefs;
   } else out.preferencesUnavailable = true;
   // Nora's voice, the app language and the timezone live in their own rows;
-  // each is absent when UNSET and says so when its read FAILED — the same rule
-  // as the plan, the subscriptions and the preferences, or a row we could not
-  // read is reported as "no voice set" (CodeRabbit, the review of #2130).
+  // each is absent when UNSET and carries an ...Unavailable flag when its read
+  // FAILED — the same rule as the plan, the subscriptions and the preferences.
+  // (Before #2135 an unreadable row was reported exactly like an unset one,
+  // "no voice set" — CodeRabbit, the review of #2130.)
   if (voice.ok) {
     const vdoc = docOf(voice);
     const tone = vdoc ? str(vdoc.tone, 20) : null, voiceName = vdoc ? str(vdoc.voice, 20) : null;

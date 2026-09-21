@@ -586,7 +586,7 @@ type CoachCtx = { sb: Actor['supabase'] | null; surface: 'app' | 'web' };
 // Newest listings first under the cap (a recently joined real coach beats a
 // stale seeded row if the cap ever bites); rankCoaches orders the pool. A
 // table that could not be read is null, and ok:false only when none could.
-async function liveCoaches(sb: NonNullable<CoachCtx['sb']>, role: CoachRole | 'any'): Promise<{ ok: boolean; coaches: Coach[] }> {
+async function liveCoaches(sb: NonNullable<CoachCtx['sb']>, role: CoachRole | 'any'): Promise<{ ok: boolean; complete: boolean; coaches: Coach[] }> {
   const wanted: CoachRole[] = role === 'any' ? ['trainer', 'nutritionist'] : [role];
   const legs = await Promise.all(wanted.map(async (r) => {
     try {
@@ -598,8 +598,11 @@ async function liveCoaches(sb: NonNullable<CoachCtx['sb']>, role: CoachRole | 'a
       return null;
     }
   }));
-  if (legs.every((l) => l === null)) return { ok: false, coaches: [] };
-  return { ok: true, coaches: legs.flatMap((l) => l ?? []) };
+  // `complete` is every leg read: with role 'any' one table can fail while the
+  // other answers, and that half pool must never read as the whole marketplace
+  // (CodeRabbit, the review of #2135).
+  if (legs.every((l) => l === null)) return { ok: false, complete: false, coaches: [] };
+  return { ok: true, complete: legs.every((l) => l !== null), coaches: legs.flatMap((l) => l ?? []) };
 }
 
 type ToolOut = { result: unknown; actions: SupportAction[] };
@@ -665,14 +668,15 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
     // the marketplace at all, so a failed live read is "unavailable" rather
     // than a list of people the app cannot open; the website lists the
     // examples after the real coaches, as its own marketplace does.
-    const live = coach.sb ? await liveCoaches(coach.sb, role) : { ok: false, coaches: [] as Coach[] };
+    const live = coach.sb ? await liveCoaches(coach.sb, role) : { ok: false, complete: false, coaches: [] as Coach[] };
     if (!live.ok && coach.surface === 'app') return { result: { ok: false, error: 'unavailable', message: 'The marketplace could not be read right now.' }, actions: [] };
     const pool = mergeCoachPools(live.coaches, coach.surface === 'app' ? [] : COACH_CATALOG);
     const coaches = rankCoaches({ role, focus, limit, pool });
     // A focus that matched no listing is an empty answer WITH its reason, so
     // the model says nobody lists it (and offers the marketplace or a broader
     // focus) rather than reading an empty marketplace.
-    const noMatch = coaches.length === 0 && pool.length > 0 && focus.trim().length > 0;
+    // …and only over a COMPLETE read: half a marketplace cannot say nobody lists it.
+    const noMatch = live.complete && coaches.length === 0 && pool.length > 0 && focus.trim().length > 0;
     const actions: SupportAction[] = coaches.map(actionForCoach);
     // A "browse all" action so they can keep exploring.
     const browseRole = role !== 'any' ? role : undefined;
@@ -685,6 +689,7 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
     return {
       result: {
         ...(live.ok ? {} : { liveUnavailable: true }),
+        ...(live.ok && !live.complete ? { livePartial: true, message: 'Part of the marketplace could not be read — these listings are incomplete, so say so rather than calling anything a no-match.' } : {}),
         ...(noMatch ? { noMatch: true, message: 'No listing matches that focus — say so plainly, then offer the marketplace or ask what else would fit.' } : {}),
         coaches: coaches.map((c) => ({
           name: c.name,
@@ -925,9 +930,22 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
   // The listings to rank, and whether the app's live read failed (the website
   // always has the example directory to fall back on).
   const coachPool = async (role: CoachRole): Promise<{ pool: Coach[]; unavailable: boolean }> => {
-    const live = coach.sb ? await liveCoaches(coach.sb, role) : { ok: false, coaches: [] as Coach[] };
+    const live = coach.sb ? await liveCoaches(coach.sb, role) : { ok: false, complete: false, coaches: [] as Coach[] };
     if (!live.ok && coach.surface === 'app') return { pool: [], unavailable: true };
     return { pool: mergeCoachPools(live.coaches, coach.surface === 'app' ? [] : COACH_CATALOG), unavailable: false };
+  };
+  // The fallback's focus is the member's WHOLE sentence, so a token that matched
+  // nobody is as often an incidental word ("wedding", "june", "mom") as a
+  // specialty nobody lists — measured against the live directory, 9 of 20
+  // ordinary trainer asks carry one. A miss here is "I could not match that",
+  // never "nobody lists that": the answer is the highest-standing coaches of the
+  // role, SAID to be a starting point and never presented as a fit (the #2130
+  // finding is about the presentation, and the reply's wording carries it). Only
+  // an EMPTY role is an empty answer.
+  const fallbackCoaches = (role: CoachRole, pool: Coach[]): { coaches: Coach[]; matched: boolean } => {
+    const hits = rankCoaches({ role, focus: q, limit: 3, pool });
+    if (hits.length) return { coaches: hits, matched: true };
+    return { coaches: rankCoaches({ role, limit: 3, pool }), matched: false };
   };
   if (has('spotify'))
     return { reply: "For Spotify: open Settings → Manage integrations → Connect Spotify. Once connected you can save a coach's playlist straight to your own profile.", actions: [{ type: 'screen', label: 'Open integrations', screen: 'integrations' }] };
@@ -943,20 +961,23 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
     const browse: SupportAction = { type: 'marketplace', label: 'Browse all nutritionists', role: 'nutritionist', url: '/newdesign/Marketplace.html?role=Nutritionist' };
     const { pool, unavailable } = await coachPool('nutritionist');
     if (unavailable) return { reply: "The marketplace couldn't be read just now — try again in a moment, or open it directly to see the nutritionists listed.", actions: [browse] };
-    const coaches = rankCoaches({ role: 'nutritionist', focus: q, limit: 3, pool });
-    // A focus nobody lists is an empty answer, never a stranger's name.
-    if (!coaches.length) return { reply: "No nutritionist on the marketplace lists that yet — browse them all, or tell me more about what you're after.", actions: [browse] };
+    const { coaches, matched } = fallbackCoaches('nutritionist', pool);
+    if (!coaches.length) return { reply: "No nutritionists are listed on the marketplace yet — check back soon.", actions: [browse] };
+    const names = coaches.map((c) => c.name).join(', ');
     const actions: SupportAction[] = [...coaches.map(actionForCoach), browse];
-    return { reply: `Here are a few nutritionists who could be a strong fit: ${coaches.map((c) => c.name).join(', ')}. Tap one to see their full profile, or browse them all.`, actions };
+    if (!matched) return { reply: `I couldn't match that to a listed specialty, so here are a few nutritionists to start with: ${names}. Tap one to see their full profile, or browse them all and tell me more about what you're after.`, actions };
+    return { reply: `Here are a few nutritionists who could be a strong fit: ${names}. Tap one to see their full profile, or browse them all.`, actions };
   }
   if (has('coach', 'trainer', 'find', 'match', 'strength', 'run', 'fat loss', 'lose weight', 'muscle', 'hyrox')) {
     const browse: SupportAction = { type: 'marketplace', label: 'Browse all coaches', url: '/newdesign/Marketplace.html' };
     const { pool, unavailable } = await coachPool('trainer');
     if (unavailable) return { reply: "The marketplace couldn't be read just now — try again in a moment, or open it directly to see who's listed.", actions: [browse] };
-    const coaches = rankCoaches({ role: 'trainer', focus: q, limit: 3, pool });
-    if (!coaches.length) return { reply: "No coach on the marketplace lists that yet — browse them all, or tell me more about what you're after.", actions: [browse] };
+    const { coaches, matched } = fallbackCoaches('trainer', pool);
+    if (!coaches.length) return { reply: "No coaches are listed on the marketplace yet — check back soon.", actions: [browse] };
+    const names = coaches.map((c) => c.name).join(', ');
     const actions: SupportAction[] = [...coaches.map(actionForCoach), browse];
-    return { reply: `A few coaches who match what you're after: ${coaches.map((c) => c.name).join(', ')}. Tap a name for their profile, or browse the whole marketplace.`, actions };
+    if (!matched) return { reply: `I couldn't match that to a listed specialty, so here are a few coaches to start with: ${names}. Tap a name for their profile, or browse the whole marketplace and tell me more about what you're after.`, actions };
+    return { reply: `A few coaches who match what you're after: ${names}. Tap a name for their profile, or browse the whole marketplace.`, actions };
   }
   // How Shape works, from the same sourced knowledge base the model reads — a
   // static answer that stays honest with the key unset; a tag or a title hit

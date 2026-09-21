@@ -97,4 +97,7 @@ test('the roadmap toggle names its panel ONLY while the panel is mounted (CodeRa
   assert.ok(panel && panel.props.role === 'region', 'open: the named panel is the mounted region');
   s.click('Hide roadmap');
   assert.equal(toggle().props['aria-controls'], undefined, 'closed again: the IDREF goes with the panel');
+  // The unmount itself, not only the name: a panel left mounted after closing would pass the
+  // line above (CodeRabbit, the review of #2135).
+  assert.ok(!s.nodes().some((n) => n.props && n.props.role === 'region'), 'closed again: the panel is unmounted, not merely unnamed');
 });
