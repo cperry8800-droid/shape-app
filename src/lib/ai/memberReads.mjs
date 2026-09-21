@@ -620,15 +620,30 @@ export async function readAccount(sb, uid) {
     out.preferences = prefs;
   } else out.preferencesUnavailable = true;
   // Nora's voice, the app language and the timezone live in their own rows;
-  // each is simply absent when unset or unreadable.
-  const vdoc = docOf(voice);
-  const tone = vdoc ? str(vdoc.tone, 20) : null, voiceName = vdoc ? str(vdoc.voice, 20) : null;
-  if (tone || voiceName) out.noraVoice = { ...(tone ? { tone } : {}), ...(voiceName ? { voice: voiceName } : {}) };
-  const ldoc = docOf(appLocale);
+  // each is absent when UNSET and carries an ...Unavailable flag when its read
+  // FAILED — the same rule as the plan, the subscriptions and the preferences.
+  // (Before #2135 an unreadable row was reported exactly like an unset one,
+  // "no voice set" — CodeRabbit, the review of #2130.)
+  if (voice.ok) {
+    const vdoc = docOf(voice);
+    const tone = vdoc ? str(vdoc.tone, 20) : null, voiceName = vdoc ? str(vdoc.voice, 20) : null;
+    if (tone || voiceName) out.noraVoice = { ...(tone ? { tone } : {}), ...(voiceName ? { voice: voiceName } : {}) };
+  } else out.noraVoiceUnavailable = true;
+  // The app language: the app's own stored choice first, the profile's locale
+  // as the fallback. A failed primary read is not papered over by the
+  // fallback (the member may have chosen differently), and a failed fallback
+  // read leaves an unset primary undecided — both are unavailable.
   const cprof = cp.ok && cp.data && typeof cp.data === 'object' ? cp.data : null;
-  const locale = (ldoc ? str(ldoc.locale, 12) : null) || (cprof ? str(cprof.locale, 12) : null);
-  if (locale) out.appLanguage = locale;
-  const tz = cprof ? str(cprof.timezone, 40) : null;
-  if (tz) out.timezone = tz;
+  const ldoc = docOf(appLocale);
+  const chosen = ldoc ? str(ldoc.locale, 12) : null;
+  const fallbackLocale = cprof ? str(cprof.locale, 12) : null;
+  if (!appLocale.ok) out.appLanguageUnavailable = true;
+  else if (chosen) out.appLanguage = chosen;
+  else if (!cp.ok) out.appLanguageUnavailable = true;
+  else if (fallbackLocale) out.appLanguage = fallbackLocale;
+  if (cp.ok) {
+    const tz = cprof ? str(cprof.timezone, 40) : null;
+    if (tz) out.timezone = tz;
+  } else out.timezoneUnavailable = true;
   return out;
 }

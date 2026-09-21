@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Gli ultimi timer sono ancora attivi",
   "prep.resumeBatch": "Riprendi la preparazione di questi piatti",
   "prep.searchRecipes": "Cerca ricette",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Percorso di preparazione",
+  "roadmap.progress": "Avanzamento stimato della preparazione",
+  "roadmap.done": "Completato",
+  "roadmap.current": "Attuale",
+  "roadmap.upcoming": "Prossimo",
+  "roadmap.holding": "Timer in corso",
+  "roadmap.skipped": "Saltato",
+  "roadmap.steps": "{done} passaggi completati su {total}",
+  "roadmap.open": "Mostra il percorso",
+  "roadmap.hide": "Nascondi il percorso",
+  "roadmap.duration": "Circa {n} min",
+  "roadmap.planned": "Previsto alle {time}",
+  "roadmap.back": "Torna a cucinare"
 }

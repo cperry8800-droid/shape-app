@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Pengatur waktu terakhir masih berjalan",
   "prep.resumeBatch": "Lanjutkan memasak hidangan ini",
   "prep.searchRecipes": "Cari resep",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Alur memasak",
+  "roadmap.progress": "Perkiraan progres memasak",
+  "roadmap.done": "Selesai",
+  "roadmap.current": "Saat ini",
+  "roadmap.upcoming": "Berikutnya",
+  "roadmap.holding": "Timer berjalan",
+  "roadmap.skipped": "Dilewati",
+  "roadmap.steps": "{done} dari {total} langkah selesai",
+  "roadmap.open": "Lihat alur",
+  "roadmap.hide": "Sembunyikan alur",
+  "roadmap.duration": "Sekitar {n} menit",
+  "roadmap.planned": "Direncanakan {time}",
+  "roadmap.back": "Kembali memasak"
 }

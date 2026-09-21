@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Di last timers still dey run",
   "prep.resumeBatch": "Continue to cook dis food",
   "prep.searchRecipes": "Find recipes",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Cooking plan",
+  "roadmap.progress": "How far cooking don go, by estimate",
+  "roadmap.done": "Don finish",
+  "roadmap.current": "This step",
+  "roadmap.upcoming": "Wetin dey next",
+  "roadmap.holding": "Timer still dey run",
+  "roadmap.skipped": "Skip am",
+  "roadmap.steps": "{done} out of {total} steps don finish",
+  "roadmap.open": "See cooking plan",
+  "roadmap.hide": "Hide cooking plan",
+  "roadmap.duration": "About {n} min",
+  "roadmap.planned": "Plan na {time}",
+  "roadmap.back": "Go back to cooking"
 }

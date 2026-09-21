@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Les derniers minuteurs sont encore actifs",
   "prep.resumeBatch": "Reprendre la préparation de ces plats",
   "prep.searchRecipes": "Rechercher des recettes",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Parcours de cuisson",
+  "roadmap.progress": "Progression estimée de la préparation",
+  "roadmap.done": "Terminé",
+  "roadmap.current": "En cours",
+  "roadmap.upcoming": "À venir",
+  "roadmap.holding": "Minuteur en cours",
+  "roadmap.skipped": "Ignoré",
+  "roadmap.steps": "{done} étapes terminées sur {total}",
+  "roadmap.open": "Voir le parcours",
+  "roadmap.hide": "Masquer le parcours",
+  "roadmap.duration": "Environ {n} min",
+  "roadmap.planned": "Prévu à {time}",
+  "roadmap.back": "Revenir à la préparation"
 }

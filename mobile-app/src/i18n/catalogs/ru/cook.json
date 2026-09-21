@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Последние таймеры ещё работают",
   "prep.resumeBatch": "Продолжить приготовление этих блюд",
   "prep.searchRecipes": "Поиск рецептов",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "План приготовления",
+  "roadmap.progress": "Примерный прогресс приготовления",
+  "roadmap.done": "Завершено",
+  "roadmap.current": "Текущий шаг",
+  "roadmap.upcoming": "Впереди",
+  "roadmap.holding": "Таймер работает",
+  "roadmap.skipped": "Пропущено",
+  "roadmap.steps": "Завершено шагов: {done} из {total}",
+  "roadmap.open": "Показать план",
+  "roadmap.hide": "Скрыть план",
+  "roadmap.duration": "Около {n} мин",
+  "roadmap.planned": "По плану: {time}",
+  "roadmap.back": "Вернуться к приготовлению"
 }

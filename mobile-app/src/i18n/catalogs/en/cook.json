@@ -135,5 +135,18 @@
   "prep.timersStillRunning": "Final timers are still running",
   "prep.resumeBatch": "Resume cooking these dishes",
   "prep.searchRecipes": "Search recipes",
-  "prep.catalog": "Shape Kitchen"
+  "prep.catalog": "Shape Kitchen",
+  "roadmap.title": "Cooking roadmap",
+  "roadmap.progress": "Estimated cooking progress",
+  "roadmap.done": "Completed",
+  "roadmap.current": "Current",
+  "roadmap.upcoming": "Upcoming",
+  "roadmap.holding": "Timer running",
+  "roadmap.skipped": "Skipped",
+  "roadmap.steps": "{done} of {total} steps complete",
+  "roadmap.open": "View roadmap",
+  "roadmap.hide": "Hide roadmap",
+  "roadmap.duration": "About {n} min",
+  "roadmap.planned": "Planned {time}",
+  "roadmap.back": "Back to cooking"
 }
