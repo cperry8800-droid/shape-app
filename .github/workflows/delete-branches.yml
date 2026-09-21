@@ -1,0 +1,132 @@
+# Delete branches — manual only.
+#
+# WHY THIS EXISTS: the Claude Code web environment's git proxy answers
+# HTTP 403 on `git-receive-pack` for a REF DELETION while creating and
+# force-updating refs goes through (measured 2026-09-21: the CONNECT tunnel
+# and the `info/refs?service=git-receive-pack` GET both return 200, and the
+# POST carrying the delete returns 403). So a branch that environment
+# creates — the review-only reproductions #2133 and #2134 needed four —
+# can only be removed from the GitHub UI or from here, with the run's own
+# token. Dispatch it from the Actions tab or the Actions API with the
+# names to delete.
+#
+# GUARDS (each refused however the name is spelled):
+# - workflow_dispatch only; nothing runs on push, pull request or schedule.
+# - The repository's default branch, main, staging, master and the branch
+#   the run was dispatched from are never deleted.
+# - Every name must be a plain branch name — [A-Za-z0-9._/-] only, no `..`,
+#   no leading, trailing or doubled slash — and must start with review/,
+#   claude/ or dependabot/, so a typo cannot reach a long-lived branch.
+#   EVERY name is validated before ANYTHING is sent: one bad name refuses
+#   the whole run, so a typo never half-applies. Globbing is off, so a `*`
+#   in the input can never expand.
+# - dry_run lists what would be deleted and deletes nothing.
+# - A name that no longer exists is reported and is not a failure — but that
+#   is MEASURED, not read off the error: 422 is this endpoint's generic
+#   validation failure (missing ref, refused deletion, spam protection all
+#   share it), so a 422 is followed by a matching-refs probe and only a ref
+#   proven absent passes. Any other refusal from the API fails the run.
+#
+# The token is the run's own GITHUB_TOKEN with contents: write, the least
+# privilege that can delete a ref. No third-party action is used, so there
+# is nothing to pin.
+
+name: Delete branches
+
+on:
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: "Space-separated branch names to delete (review/*, claude/* or dependabot/* only)"
+        required: true
+        type: string
+      dry_run:
+        description: "List what would be deleted without deleting anything"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  delete:
+    name: Delete the named branches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate the names and delete each branch
+        env:
+          BRANCHES: ${{ inputs.branches }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DISPATCH_REF: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          set -f   # a `*` in the input must never glob the runner's cwd
+          summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+          echo "## Delete branches" >> "$summary"
+          # Pass 1 — validate every name. Nothing is sent until all of them pass.
+          bad=0
+          for name in $BRANCHES; do
+            case "$name" in
+              ""|*[!A-Za-z0-9._/-]*|*..*|/*|*/|*//*)
+                echo "::error::'$name' is not a plain branch name"; bad=1; continue ;;
+            esac
+            case "$name" in
+              "$DEFAULT_BRANCH"|main|staging|master|"$DISPATCH_REF")
+                echo "::error::refusing to delete protected branch '$name'"; bad=1; continue ;;
+            esac
+            case "$name" in
+              review/?*|claude/?*|dependabot/?*) ;;
+              *)
+                echo "::error::'$name' is outside the allowed prefixes (review/, claude/, dependabot/)"; bad=1 ;;
+            esac
+          done
+          if [ "$bad" != 0 ]; then
+            echo "::error::nothing was deleted — fix the names above and dispatch again"
+            echo "- nothing deleted: a name was refused" >> "$summary"
+            exit 1
+          fi
+          # Pass 2 — delete, or list under dry_run.
+          fail=0
+          for name in $BRANCHES; do
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "would delete $name"; echo "- would delete \`$name\`" >> "$summary"; continue
+            fi
+            code=$(curl -sS -o /tmp/delete-branch-response.json -w '%{http_code}' -X DELETE \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$REPO/git/refs/heads/$name")
+            case "$code" in
+              204) echo "deleted $name"; echo "- deleted \`$name\`" >> "$summary" ;;
+              422) # 422 is this endpoint's GENERIC validation failure: a missing ref,
+                   # a refusal to delete, and spam protection all arrive under the one
+                   # code, and the only thing telling them apart in the body is an
+                   # English message — a match on that is a spelling pin. So ask the
+                   # STATE instead, through matching-refs, which answers 200 whether or
+                   # not the ref is there: a wrong URL is a 404 and can never read as
+                   # "gone". Proven absent is the outcome the dispatcher asked for and
+                   # is not a failure; still present, or an answer we cannot read, is.
+                   probe=$(curl -sS -o /tmp/delete-branch-probe.json -w '%{http_code}' \
+                     -H "Authorization: Bearer $GH_TOKEN" \
+                     -H "Accept: application/vnd.github+json" \
+                     -H "X-GitHub-Api-Version: 2022-11-28" \
+                     "https://api.github.com/repos/$REPO/git/matching-refs/heads/$name")
+                   jq_rc=0
+                   jq -e --arg r "refs/heads/$name" 'any(.[]; .ref == $r)' \
+                     /tmp/delete-branch-probe.json >/dev/null 2>&1 || jq_rc=$?
+                   if [ "$probe" = "200" ] && [ "$jq_rc" = "1" ]; then
+                     echo "::warning::$name was not on the remote: $(cat /tmp/delete-branch-response.json)"
+                     echo "- \`$name\` was already gone" >> "$summary"
+                   else
+                     echo "::error::$name: HTTP 422 and the branch is not proven gone (probe HTTP $probe, match $jq_rc): $(cat /tmp/delete-branch-response.json)"
+                     echo "- FAILED \`$name\` (422, not proven gone)" >> "$summary"; fail=1
+                   fi ;;
+              *)   echo "::error::$name: HTTP $code: $(cat /tmp/delete-branch-response.json)"
+                   echo "- FAILED \`$name\` (HTTP $code)" >> "$summary"; fail=1 ;;
+            esac
+          done
+          exit "$fail"
