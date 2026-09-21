@@ -337,18 +337,26 @@ test('cook mode: a note-LESS cookable renders every phase without throwing', () 
 // bsProgressPct is unit-tested in tests/cook-orchestrator.test.mjs. This asserts the
 // number actually reaches a cook: a percentage computed and never rendered, or rendered
 // from the wrong variable, is invisible to a pure-function test.
-test('cook mode: the step line carries a percentage, weighted by minutes', () => {
+test('cook mode: the readout carries a percentage, weighted by minutes, and the step line survives', () => {
   const r = pickRecipe((x, c) => c.steps.length >= 3, 'has at least 3 steps');
   const c = bsCookableFromRecipe(r);
   const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   s.click('Start cooking');
-  // ⚠ The harness tr shim returns `defaultValue` WITHOUT interpolating, so the label
+  // ⚠ The harness tr shim returns `defaultValue` WITHOUT interpolating, so the step line
   // reads literally "Step {n} of {m}". The PERCENTAGE is the component's own template
-  // literal, not a tr() call, so it is real — and it is the thing under test.
-  assert.match(s.text, /Step .* \u00b7 \d+%/,
-    `no percentage beside the step line - got: ${(s.text.match(/Step[^A-Z]{0,40}/) || ['(no step line)'])[0]}`);
+  // literal (the readout's children), not a tr() call, so it is real — and it is the
+  // thing under test.
+  // ⚠ IT LIVES IN THE READOUT, NOT BESIDE THE STEP LINE (#2126). For a solo cook the dish
+  // figure and the overall figure are ONE number, and the old header printed it twice a
+  // few lines apart; the readout carries it once and the step line keeps its "Step n of
+  // m". Several dishes are the other case — the SESSION guard below.
+  assert.match(s.text, /Step \{n\} of \{m\}/, 'the step-by-step line must survive the readout');
+  const pct = Number((s.text.match(/(\d+)% done/) || [])[1]);
+  assert.ok(Number.isFinite(pct), `no percentage in the readout - got: ${s.text.slice(0, 120)}`);
   // On the FIRST step nothing is done yet, so the honest figure is 0 — not "1 of 6".
-  assert.match(s.text, /\u00b7 0%/, 'nothing is cooked yet, so the first step must read 0%');
+  assert.equal(pct, 0, 'nothing is cooked yet, so the first step must read 0%');
+  assert.doesNotMatch(s.text, /Step \{n\} of \{m\} · \d+%/,
+    'a solo cook is shown the dish figure ONCE, in the readout — not again beside the step line');
 });
 
 test('cook mode: the percentage is minutes done, not steps ticked', () => {
@@ -360,7 +368,7 @@ test('cook mode: the percentage is minutes done, not steps ticked', () => {
   const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   s.click('Start cooking');
   s.click('✓ Done');
-  const shown = Number((s.text.match(/\u00b7 (\d+)%/) || [])[1]);
+  const shown = Number((s.text.match(/(\d+)% done/) || [])[1]);
   const stepPct = Math.round((1 / c.steps.length) * 100);
   assert.ok(Number.isFinite(shown), 'no percentage on step 2');
   assert.notEqual(shown, stepPct,
@@ -375,20 +383,22 @@ test('cook mode: overall % is the SESSION for several dishes, the dish for one -
 
   const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   solo.click('Start cooking');
-  assert.match(solo.text, /Step .* \u00b7 \d+%/, 'the step-by-step line and its own % must both survive');
+  assert.match(solo.text, /Step \{n\} of \{m\}/, 'the step-by-step line must survive');
   const soloOverall = Number((solo.text.match(/(\d+)% done/) || [])[1]);
-  assert.ok(Number.isFinite(soloOverall), `no overall % in the header - got: ${solo.text.slice(0, 90)}`);
+  assert.ok(Number.isFinite(soloOverall), `no overall % in the readout - got: ${solo.text.slice(0, 90)}`);
   assert.equal(soloOverall, 0, 'nothing is cooked yet');
 
   // Several dishes: half the evening is already behind us and none of THIS dish is
-  // done, so the header must read the session, not this dish's 0%.
+  // done, so the readout must read the session, not this dish's 0% — and because the
+  // two figures now DIFFER, the step line carries the dish's own figure beside it.
   // No 'Start cooking' click - prep mode opens directly on the method phase.
   const multi = drive(MOD.BSCookMode, {
     cookable: c, onClose() {},
     prep: { index: 1, count: 3, onPrepped() {}, priorMins: 50, totalMins: 100 },
   });
   const pct = Number((multi.text.match(/(\d+)% done/) || [])[1]);
-  assert.ok(Number.isFinite(pct), `no overall % in the header - got: ${multi.text.slice(0, 90)}`);
+  assert.ok(Number.isFinite(pct), `no overall % in the readout - got: ${multi.text.slice(0, 90)}`);
   assert.equal(pct, 50, `50 of 100 minutes are behind us, so the session must read 50%, not ${pct}%`);
-  assert.match(multi.text, /Step .* \u00b7 \d+%/, 'the step-by-step line must survive alongside the session figure');
+  assert.match(multi.text, /Step \{n\} of \{m\} · \d+%/,
+    'the step-by-step line must carry the dish figure alongside the session figure');
 });
