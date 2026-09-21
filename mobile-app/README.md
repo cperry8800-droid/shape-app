@@ -145,7 +145,7 @@ write code; they're paperwork inside Apple Developer + App Store Connect.
       that owns "Shape" — App Store Connect uses this name on the listing.
       https://developer.apple.com/programs/
 - [ ] In *Certificates, Identifiers & Profiles* → *Identifiers* → register
-      a new **App ID** with bundle `com.theshapecommunity.shape`
+      a new **App ID** with bundle `com.theshapecommunity.app`
       (must match `capacitor.config.ts` exactly). Enable capabilities
       you'll use: Push Notifications, Sign in with Apple, HealthKit,
       Associated Domains.
