@@ -80,6 +80,16 @@ test('⚠ RANKING: a real listing before an example, verified ahead, at capacity
   assert.ok(!s.includes(example.name));
   // The default pool is still the example directory alone (the no-key fallback path).
   assert.ok(cc.rankCoaches({ role: 'trainer', focus: 'strength', limit: 2 }).every((c) => cc.COACH_CATALOG.includes(c)));
+  // ⚠ A focus that names something NOBODY lists is an EMPTY answer — never the top of the
+  // directory handed back as if it fit (CodeRabbit, the review of #2130). The fixture control
+  // first: the directory really lists no fencing, so an empty answer is the only honest one.
+  assert.ok(!cc.COACH_CATALOG.some((c) => /fencing/i.test(JSON.stringify(c))), 'fixture control: no example coach mentions fencing');
+  assert.deepEqual(cc.rankCoaches({ role: 'any', focus: 'fencing coach', limit: 3, pool }), [], 'the highest-standing live coach must not come back for a focus they do not fit');
+  assert.deepEqual(cc.rankCoaches({ role: 'trainer', focus: 'fencing', limit: 3 }), [], 'the example directory alone answers the same way');
+  // A focus with no SEARCHABLE word in it — how a member ASKS, not what they want — is
+  // non-specific and still ranks by standing, exactly like no focus at all.
+  assert.deepEqual(cc.rankCoaches({ role: 'any', focus: 'find me a good trainer near me', limit: 4, pool }).map((c) => c.name), ['Live Verified', 'Live A', example.name, 'Live Full']);
+  assert.deepEqual(cc.rankCoaches({ role: 'any', focus: 'I need help with my nutrition', limit: 4, pool }).map((c) => c.name), ['Live Verified', 'Live A', example.name, 'Live Full'], 'the kind of coach is not a specialty');
 });
 
 test('coachProfileUrl: a live listing opens the marketplace\'s derived profile by name; an example opens its static page by slug', () => {

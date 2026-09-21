@@ -443,3 +443,64 @@ test('the coach lines and chips are built from what a listing states — a live 
   const chip = out.actions.find((a) => a.type === 'coach');
   assert.deepEqual(chip, { type: 'coach', label: 'Bare Row →', role: 'trainer', slug: 'bare-row', url: '/newdesign/MemberProfile.html?name=Bare%20Row&role=trainer', meta: 'Personal training', providerId: 5 });
 });
+
+const LIVE_TABLES = () => ({
+  trainers: [{ id: 2, name: 'Aisha Patel', specialty: 'HIIT & Fat Loss', category: 'HIIT', credential: 'ACE-CPT', experience: '6 years', price: '39.99', session_price: null, rating: null, subscribers: 0, tags: ['HIIT', 'Fat loss'], services: null, verified: false, at_capacity: false, owner_id: null }],
+  nutritionists: [{ id: 101, name: 'Dr. Sarah Mitchell', specialty: 'Sports Nutrition', price: '59.99', meal_plan_price: null, tags: ['Performance'], services: ['Plans'] }],
+});
+
+test('⚠ NO KEY, ON THE APP: the rule-based fallback hands the app live listings — or only the door to the marketplace — never an example chip (CodeRabbit, the review of #2130)', async () => {
+  // The live row is offered, with the id the app opens a Listing by, and no example beside it.
+  const app = await loadRoute({ hasKey: false, tables: LIVE_TABLES() });
+  const out = await (await app.mod.POST(post({ ...ask('help me find a fat loss trainer'), surface: 'app' }))).json();
+  assert.equal(out.source, 'fallback');
+  const chips = out.actions.filter((a) => a.type === 'coach');
+  assert.ok(chips.length >= 1, 'the live listing is offered');
+  assert.ok(chips.every((a) => a.providerId != null && !a.example), 'every chip opens a live Listing');
+  assert.match(out.reply, /Aisha Patel/);
+  assert.ok(app.sb._calls.some((x) => x.table === 'trainers'), 'the live table was read');
+  // The nutrition branch too.
+  const nut = await loadRoute({ hasKey: false, tables: LIVE_TABLES() });
+  const n = await (await nut.mod.POST(post({ ...ask('i need help with my nutrition'), surface: 'app' }))).json();
+  const nchips = n.actions.filter((a) => a.type === 'coach');
+  assert.ok(nchips.length >= 1 && nchips.every((a) => a.providerId != null && !a.example));
+  assert.match(n.reply, /Dr\. Sarah Mitchell/);
+  // The live read fails: no coach chip at all, the marketplace door, and a reply that says so.
+  const down = await loadRoute({ hasKey: false, tables: LIVE_TABLES(), fail: ['trainers', 'nutritionists'] });
+  const d = await (await down.mod.POST(post({ ...ask('help me find a trainer'), surface: 'app' }))).json();
+  assert.equal(d.source, 'fallback');
+  assert.equal(d.actions.filter((a) => a.type === 'coach').length, 0, 'the app is never handed an example when the marketplace is down');
+  assert.ok(d.actions.some((a) => a.type === 'marketplace'));
+  assert.match(d.reply, /couldn't be read/);
+  assert.ok(!/Aisha|Okafor|Patel/.test(d.reply), 'no name is invented');
+  // A focus nobody lists: an honest empty, not a stranger's name.
+  const none = await loadRoute({ hasKey: false, tables: LIVE_TABLES() });
+  const z = await (await none.mod.POST(post({ ...ask('help me find a fencing coach'), surface: 'app' }))).json();
+  assert.equal(z.actions.filter((a) => a.type === 'coach').length, 0);
+  assert.match(z.reply, /lists that yet/);
+  // The website keeps the example directory AFTER the live rows, marked.
+  const web = await loadRoute({ hasKey: false, tables: LIVE_TABLES() });
+  const w = await (await web.mod.POST(post(ask('help me find a fat loss trainer')))).json();
+  const wc = w.actions.filter((a) => a.type === 'coach');
+  assert.equal(wc[0].providerId, 2, 'the live row leads on the web too');
+  assert.ok(wc.some((a) => a.example), 'the examples follow on the web');
+});
+
+test('recommend_coaches with a focus nobody lists answers EMPTY with its reason — never the top of the directory — and an empty marketplace is simply empty', async () => {
+  const askFencing = [calls(call('recommend_coaches', { role: 'trainer', focus: 'fencing', limit: 3 })), say('Nobody lists fencing yet.')];
+  const r = await loadRoute({ tables: LIVE_TABLES(), answers: askFencing });
+  const out = await (await r.mod.POST(post({ ...ask('a fencing coach?'), surface: 'app' }))).json();
+  const res = JSON.parse(r.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.deepEqual(res.coaches, []);
+  assert.equal(res.noMatch, true);
+  assert.match(res.message, /No listing matches/);
+  assert.equal(out.actions.filter((a) => a.type === 'coach').length, 0, 'no chip for a coach who does not fit');
+  assert.ok(out.actions.some((a) => a.type === 'marketplace'), 'the door to the marketplace stays');
+  assert.match(r.calls.ai[0].body.input[0].content, /noMatch/, 'the prompt teaches the model what to do with it');
+  // Control: an EMPTY marketplace is empty without the reason — there was nothing to match against.
+  const empty = await loadRoute({ tables: { trainers: [], nutritionists: [] }, answers: askFencing });
+  await empty.mod.POST(post({ ...ask('a fencing coach?'), surface: 'app' }));
+  const e = JSON.parse(empty.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
+  assert.deepEqual(e.coaches, []);
+  assert.ok(!('noMatch' in e));
+});

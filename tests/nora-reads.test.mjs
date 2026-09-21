@@ -416,6 +416,7 @@ test('readAccount: a member with no plan row is "not on record", a lapsed one is
   assert.deepEqual(r.coachSubscriptions, []);
   assert.deepEqual(r.preferences, {});
   for (const k of ['noraVoice', 'appLanguage', 'timezone']) assert.ok(!(k in r), `${k} absent when unset`);
+  for (const k of ['noraVoiceUnavailable', 'appLanguageUnavailable', 'timezoneUnavailable']) assert.ok(!(k in r), `${k} is not claimed on a clean read`);
   t.platform_subscriptions = [{ client_id: U, status: 'canceled', price_cents: 500, current_period_end: '2025-10-01T00:00:00Z' }];
   const lapsed = await readAccount(fakeSupabase({ tables: t }), U);
   assert.deepEqual(lapsed.platformSubscription, { onRecord: true, status: 'canceled', active: false, pricePerMonthUsd: 5, periodEnd: '2025-10-01' });
@@ -432,6 +433,32 @@ test('readAccount: the profile is the primary read; every other leg that fails s
   assert.equal(r.preferencesUnavailable, true);
   assert.ok(!('preferences' in r));
   assert.equal(r.timezone, 'Europe/Berlin', 'the legs are independent');
+  // ⚠ The voice, the app language and the timezone say so too (CodeRabbit, the review of
+  // #2130): an unreadable row was reported exactly like an unset one, so the model could
+  // tell a member no voice or language was configured when the read had simply failed.
+  assert.equal(r.noraVoiceUnavailable, true, 'the voice row could not be read');
+  assert.ok(!('noraVoice' in r));
+  assert.equal(r.appLanguageUnavailable, true, 'the app_locale row could not be read — the profile locale must not stand in for a choice it may differ from');
+  assert.ok(!('appLanguage' in r));
+  assert.ok(!('timezoneUnavailable' in r), 'the profile row was readable');
+  // The profile row fails: the timezone says so; the app language still comes from the app's own row.
+  const noProfile = await readAccount(fakeSupabase({ tables: ACCOUNT_TABLES(), fail: ['client_profiles'] }), U);
+  assert.equal(noProfile.timezoneUnavailable, true);
+  assert.ok(!('timezone' in noProfile));
+  assert.equal(noProfile.appLanguage, 'de');
+  assert.ok(!('appLanguageUnavailable' in noProfile));
+  assert.deepEqual(noProfile.noraVoice, { tone: 'direct', voice: 'sage' });
+  // No app_locale row AND the profile row fails: the fallback source is unreadable, so the
+  // language is unavailable — not "unset", which would be a claim about a row nobody read.
+  const t = ACCOUNT_TABLES();
+  t.user_goals = t.user_goals.filter((g) => g.kind !== 'app_locale');
+  const undecided = await readAccount(fakeSupabase({ tables: t, fail: ['client_profiles'] }), U);
+  assert.equal(undecided.appLanguageUnavailable, true);
+  assert.ok(!('appLanguage' in undecided));
+  // …and with the profile row readable, the fallback locale answers.
+  const fromProfile = await readAccount(fakeSupabase({ tables: t }), U);
+  assert.equal(fromProfile.appLanguage, 'de');
+  assert.ok(!('appLanguageUnavailable' in fromProfile));
 });
 
 test('unitsSystemOf reads the stored label; the active set and the preference keys are the app\'s own', () => {

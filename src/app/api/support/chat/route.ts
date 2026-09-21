@@ -103,7 +103,7 @@ const SYSTEM_PROMPT = [
   "LOOKUPS: For a signed-in member you can LOOK THINGS UP with the read tools before you answer: get_training_plan (what is on today and this week, plus today's meals off their menu), get_recent_workouts (the last sessions and the top sets in each), get_week_summary (the last 7 days in numbers: nutrition, training, sleep and recovery, weigh-in trend, habit completion), get_habits (their habits with today's state and streaks), get_coaching (their coaches and booked sessions), get_reminders, get_points (recent Shape Score entries), get_account (their own profile, membership and billing status, coach subscriptions, units, language, timezone, notification and privacy preferences, Nora's voice). Use the matching tool BEFORE answering any question about the member's own plan, schedule, progress, numbers, or account — never answer those from memory or by guessing. Quote only what a tool returned, in their own units. If a tool answers unavailable, say you can't see that right now; if it answers empty, say there is nothing there yet. If the tools are not offered, you are talking to someone who is not signed in as a member — say that lookups need a signed-in membership.",
   "COACH LOOKUPS: For a COACH, find_client turns the name they said into the client id every coach action needs — call it first whenever you do not already have the id, and NEVER invent an id. If it returns several candidates, ask which one; if none, say who is on their roster. get_client_snapshot gives that client's recent training, nutrition, weight and lifts (only for a client they actively coach).",
   '',
-  'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns. The tool lists the live marketplace first; a result marked example is a demonstration listing rather than a real coach — prefer the real ones, and if you mention an example say it is an example listing. Quote a price, rating or credential only when the listing states one; a coach marked atCapacity is not taking new clients right now.',
+  'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns. The tool lists the live marketplace first; a result marked example is a demonstration listing rather than a real coach — prefer the real ones, and if you mention an example say it is an example listing. Quote a price, rating or credential only when the listing states one; a coach marked atCapacity is not taking new clients right now. If the tool answers noMatch, say plainly that no listing matches that yet, then offer the marketplace or a broader focus.',
   '',
   "HOW SHAPE WORKS: For a question about Shape itself — what it costs and includes, whether a coach is required, coach prices and what coaches pay, cancelling or billing, Shape Radio, coach credentials and the Verified badge, switching coaches, the Shape Score and its tiers and rewards, habits, units, Cook Mode and recipes, privacy and data, the account, or what you can do — call shape_help and answer from what it returns (each entry names its source). If it returns no entry, say you don't have that written down and offer to pass the question to the Shape team. Never invent a policy, a price or a date.",
   '',
@@ -669,6 +669,10 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
     if (!live.ok && coach.surface === 'app') return { result: { ok: false, error: 'unavailable', message: 'The marketplace could not be read right now.' }, actions: [] };
     const pool = mergeCoachPools(live.coaches, coach.surface === 'app' ? [] : COACH_CATALOG);
     const coaches = rankCoaches({ role, focus, limit, pool });
+    // A focus that matched no listing is an empty answer WITH its reason, so
+    // the model says nobody lists it (and offers the marketplace or a broader
+    // focus) rather than reading an empty marketplace.
+    const noMatch = coaches.length === 0 && pool.length > 0 && focus.trim().length > 0;
     const actions: SupportAction[] = coaches.map(actionForCoach);
     // A "browse all" action so they can keep exploring.
     const browseRole = role !== 'any' ? role : undefined;
@@ -681,6 +685,7 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
     return {
       result: {
         ...(live.ok ? {} : { liveUnavailable: true }),
+        ...(noMatch ? { noMatch: true, message: 'No listing matches that focus — say so plainly, then offer the marketplace or ask what else would fit.' } : {}),
         coaches: coaches.map((c) => ({
           name: c.name,
           role: c.role,
@@ -902,14 +907,28 @@ async function askOpenAI(
 
 // Rule-based first responder for when the model is unset/down. Still returns
 // coach actions for coach questions so the experience degrades gracefully.
-// INVARIANT (spec #1652): this takes ONLY the user's text — no member context
-// ever reaches it, and its templates are static strings (coach names come from
-// the PUBLIC catalog), so a failed-context member can never receive fabricated
+// INVARIANT (spec #1652): this takes the user's text and the PUBLIC marketplace
+// context (which surface is asking, and a client for the public trainers /
+// nutritionists tables) — no member context ever reaches it, and its templates
+// are static strings (coach names come from the marketplace or the PUBLIC
+// example directory), so a failed-context member can never receive fabricated
 // personal metrics through this path. tests/member-context.test.mjs pins the
 // context sentinel this function must never emit.
-function fallbackReply(text: string): { reply: string; actions: SupportAction[] } {
+// ⚠ The coach pool follows the recommend_coaches rule (CodeRabbit, the review
+// of #2130): on the APP the example directory is not on the marketplace at
+// all, so the app gets live listings — or, when they cannot be read, only the
+// door to the marketplace — never an example chip with no listing behind it.
+// The website lists the examples after the live rows, as its marketplace does.
+async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: string; actions: SupportAction[] }> {
   const q = text.toLowerCase();
   const has = (...words: string[]) => words.some((w) => q.includes(w));
+  // The listings to rank, and whether the app's live read failed (the website
+  // always has the example directory to fall back on).
+  const coachPool = async (role: CoachRole): Promise<{ pool: Coach[]; unavailable: boolean }> => {
+    const live = coach.sb ? await liveCoaches(coach.sb, role) : { ok: false, coaches: [] as Coach[] };
+    if (!live.ok && coach.surface === 'app') return { pool: [], unavailable: true };
+    return { pool: mergeCoachPools(live.coaches, coach.surface === 'app' ? [] : COACH_CATALOG), unavailable: false };
+  };
   if (has('spotify'))
     return { reply: "For Spotify: open Settings → Manage integrations → Connect Spotify. Once connected you can save a coach's playlist straight to your own profile.", actions: [{ type: 'screen', label: 'Open integrations', screen: 'integrations' }] };
   if (has('instacart', 'grocery'))
@@ -921,15 +940,22 @@ function fallbackReply(text: string): { reply: string; actions: SupportAction[] 
   if (has('cancel', 'refund', 'billing', 'charge', 'subscription', 'payment'))
     return { reply: "I can't make billing changes from here, but I've flagged this for the Shape team — they'll follow up in this thread. If you can, add the date and amount you're asking about.", actions: [{ type: 'screen', label: 'See pricing', screen: 'pricing', url: '/newdesign/Pricing.html' }] };
   if (has('nutrition', 'diet', 'meal', 'macro', 'eat', 'vegan', 'plant')) {
-    const coaches = rankCoaches({ role: 'nutritionist', focus: q, limit: 3 });
-    const actions: SupportAction[] = coaches.map(actionForCoach);
-    actions.push({ type: 'marketplace', label: 'Browse all nutritionists', role: 'nutritionist', url: '/newdesign/Marketplace.html?role=Nutritionist' });
+    const browse: SupportAction = { type: 'marketplace', label: 'Browse all nutritionists', role: 'nutritionist', url: '/newdesign/Marketplace.html?role=Nutritionist' };
+    const { pool, unavailable } = await coachPool('nutritionist');
+    if (unavailable) return { reply: "The marketplace couldn't be read just now — try again in a moment, or open it directly to see the nutritionists listed.", actions: [browse] };
+    const coaches = rankCoaches({ role: 'nutritionist', focus: q, limit: 3, pool });
+    // A focus nobody lists is an empty answer, never a stranger's name.
+    if (!coaches.length) return { reply: "No nutritionist on the marketplace lists that yet — browse them all, or tell me more about what you're after.", actions: [browse] };
+    const actions: SupportAction[] = [...coaches.map(actionForCoach), browse];
     return { reply: `Here are a few nutritionists who could be a strong fit: ${coaches.map((c) => c.name).join(', ')}. Tap one to see their full profile, or browse them all.`, actions };
   }
   if (has('coach', 'trainer', 'find', 'match', 'strength', 'run', 'fat loss', 'lose weight', 'muscle', 'hyrox')) {
-    const coaches = rankCoaches({ role: 'trainer', focus: q, limit: 3 });
-    const actions: SupportAction[] = coaches.map(actionForCoach);
-    actions.push({ type: 'marketplace', label: 'Browse all coaches', url: '/newdesign/Marketplace.html' });
+    const browse: SupportAction = { type: 'marketplace', label: 'Browse all coaches', url: '/newdesign/Marketplace.html' };
+    const { pool, unavailable } = await coachPool('trainer');
+    if (unavailable) return { reply: "The marketplace couldn't be read just now — try again in a moment, or open it directly to see who's listed.", actions: [browse] };
+    const coaches = rankCoaches({ role: 'trainer', focus: q, limit: 3, pool });
+    if (!coaches.length) return { reply: "No coach on the marketplace lists that yet — browse them all, or tell me more about what you're after.", actions: [browse] };
+    const actions: SupportAction[] = [...coaches.map(actionForCoach), browse];
     return { reply: `A few coaches who match what you're after: ${coaches.map((c) => c.name).join(', ')}. Tap a name for their profile, or browse the whole marketplace.`, actions };
   }
   // How Shape works, from the same sourced knowledge base the model reads — a
@@ -1019,6 +1045,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply: '', source: 'cook_unavailable', actions: [] });
   }
 
-  const fb = fallbackReply(String(lastUser.content || ''));
+  const fb = await fallbackReply(String(lastUser.content || ''), coach);
   return NextResponse.json({ reply: fb.reply, source: 'fallback', actions: fb.actions });
 }

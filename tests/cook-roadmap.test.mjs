@@ -79,3 +79,22 @@ test('sequential handoff retains step outcomes and timer identity for the whole-
   assert.equal(rows[0].state,'holding'); assert.equal(rows[1].state,'skipped');
   assert.ok(rows.some(r=>r.dish===second.props.cookable.title && r.current));
 });
+
+test('the roadmap toggle names its panel ONLY while the panel is mounted (CodeRabbit, the review of #2126)', () => {
+  // aria-controls is an IDREF: pointing it at an id that is not in the DOM is not a control
+  // relationship, and the region below the toggle renders only while it is open.
+  const rows = bsSoloRoadmap(recipe, { phase: 'method', stepIdx: 0, visited: {}, skippedSteps: {}, timers: [], now: 0 });
+  const s = drive(MOD.BSCookProgress, { percent: 0, rows, colors: { dim: '#888', cream: '#fff', hair: '#333' }, accent: '#0f0', anchor: NaN, children: '0% done' });
+  const toggle = () => s.nodes().find((n) => n.type === 'button' && n.props['aria-expanded'] !== undefined);
+  assert.equal(toggle().props['aria-expanded'], false);
+  assert.equal(toggle().props['aria-controls'], undefined, 'closed: no IDREF to a panel that is not in the DOM');
+  assert.ok(!s.nodes().some((n) => n.props && n.props.role === 'region'), 'closed: the panel is not mounted');
+  s.click('View roadmap');
+  const id = toggle().props['aria-controls'];
+  assert.ok(id, 'open: the toggle names its panel');
+  assert.equal(toggle().props['aria-expanded'], true);
+  const panel = s.nodes().find((n) => n.props && n.props.id === id);
+  assert.ok(panel && panel.props.role === 'region', 'open: the named panel is the mounted region');
+  s.click('Hide roadmap');
+  assert.equal(toggle().props['aria-controls'], undefined, 'closed again: the IDREF goes with the panel');
+});

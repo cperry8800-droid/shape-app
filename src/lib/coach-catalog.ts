@@ -185,8 +185,9 @@ export const LIVE_COACH_CAP = 80;
 
 // Light keyword scorer: matches the free-text focus against the coach's
 // specialties, headline, category, city, and format. Returns the top `limit`
-// ranked, optionally filtered to a single role. With no focus it falls back to
-// the highest-rated coaches in that role.
+// ranked, optionally filtered to a single role. With no focus — or a focus with
+// no searchable word left in it — it falls back to the highest-standing coaches
+// in that role; a focus that names something nobody lists returns [].
 export function rankCoaches(opts: {
   focus?: string;
   role?: CoachRole | 'any';
@@ -211,8 +212,18 @@ export function rankCoaches(opts: {
     return [...pool].sort((a, b) => standing(b) - standing(a)).slice(0, limit);
   }
 
-  // Tokenize the focus into words (drop trivial stopwords).
-  const stop = new Set(['a', 'an', 'the', 'for', 'and', 'with', 'in', 'to', 'my', 'me', 'i', 'want', 'need', 'looking', 'help', 'coach', 'trainer', 'nutritionist', 'find', 'someone', 'who', 'can']);
+  // Tokenize the focus into words, dropping the words a member uses to ASK for
+  // a coach rather than to describe one — "find me a good trainer near me"
+  // names no specialty, so it is a NON-specific focus, ranked by standing.
+  const stop = new Set([
+    'a', 'an', 'the', 'for', 'and', 'with', 'in', 'to', 'my', 'me', 'i', 'want', 'need', 'looking', 'help', 'coach', 'trainer', 'nutritionist', 'find', 'someone', 'who', 'can',
+    // the kind of coach, not a specialty
+    'coaches', 'trainers', 'nutritionists', 'dietitian', 'dietician', 'nutrition', 'diet', 'fitness', 'gym', 'personal', 'general', 'training', 'train', 'workout', 'workouts', 'exercise', 'exercises', 'program', 'programs', 'plan', 'plans',
+    // the asking
+    'near', 'nearby', 'around', 'local', 'best', 'good', 'great', 'top', 'some', 'any', 'new', 'get', 'got', 'please', 'recommend', 'recommended', 'recommendation', 'recommendations', 'suggest', 'suggestion', 'suggestions',
+    'match', 'matched', 'matching', 'switch', 'change', 'compare', 'like', 'would', 'could', 'should', 'you', 'your', 'have', 'has', 'are', 'that', 'this', 'there', 'here', 'what', 'which', 'about', 'from', 'one',
+    'really', 'just', 'also', 'maybe', 'somebody', 'people', 'pro', 'pros', 'expert', 'experts', 'specialist', 'specialists',
+  ]);
   const tokens = focus.split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stop.has(w));
 
   const scored = pool.map((c) => {
@@ -246,6 +257,11 @@ export function rankCoaches(opts: {
   // A hit is a keyword match over and above the standing — the standing alone
   // must not turn an unrelated live coach into an answer to "marathon coach".
   const hits = scored.filter((s) => s.score - standing(s.c) > 0).sort((a, b) => b.score - a.score);
-  const chosen = (hits.length ? hits : scored.sort((a, b) => b.score - a.score)).slice(0, limit);
+  // A focus that named something and matched nobody is an EMPTY answer, never
+  // the top of the directory: "sprint coach" with no sprint coach listed must
+  // not hand back the highest-standing strangers as if they fit (CodeRabbit,
+  // the review of #2130). Only a focus with no searchable word left in it —
+  // "find me a good trainer near me" — ranks by standing alone.
+  const chosen = tokens.length ? hits.slice(0, limit) : scored.sort((a, b) => b.score - a.score).slice(0, limit);
   return chosen.map((s) => s.c);
 }
