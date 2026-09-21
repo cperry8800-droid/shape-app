@@ -8003,7 +8003,8 @@ function BSCookProgress({ percent, rows, colors, accent, anchor, children }) {
     </div>
     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
       <span style={small}>{tr('cook:roadmap.steps', { defaultValue: '{done} of {total} steps complete', done, total: rows.length })}</span>
-      <button ref={toggle} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(v => !v)} style={control}>
+      {/* aria-controls only while the panel is MOUNTED: the region below renders only when open, and an IDREF to an element that is not in the DOM is not a control relationship (CodeRabbit, the review of #2126). */}
+      <button ref={toggle} aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={() => setOpen(v => !v)} style={control}>
         {open ? tr('cook:roadmap.hide', { defaultValue: 'Hide roadmap' }) : tr('cook:roadmap.open', { defaultValue: 'View roadmap' })} {open ? '▴' : '▾'}
       </button>
     </div>
