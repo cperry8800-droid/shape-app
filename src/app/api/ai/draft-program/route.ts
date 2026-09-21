@@ -158,7 +158,7 @@ async function draftWithOpenAI(body: Required<Body>): Promise<Program | null> {
       ],
       text: { format: { type: 'json_schema', name: 'shape_training_program', strict: true, schema: programSchema } },
     },
-    { promptId: 'ai.draft-program' },
+    { promptId: 'ai.draft-program', effort: 'medium' },
   );
   if (!result.ok) return null;
   const text = extractOutputText(result.data as OpenAIResponsePayload);

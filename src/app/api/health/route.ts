@@ -24,6 +24,7 @@
 
 import { NextResponse } from 'next/server';
 import { requireAdminUser } from '@/lib/admin-access';
+import { aiModel, aiFallbackModel, aiPublicModel, aiReasoningEffort, aiStoreResponses } from '@/lib/ai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,6 +66,14 @@ export async function GET() {
       ai: {
         OPENAI_API_KEY: !!env.OPENAI_API_KEY,
         OPENAI_MODEL: env.OPENAI_MODEL ?? null,
+        // What actually runs: the pin, else the shipped default — and where a
+        // refused pin lands, so an operator reading "Astra" here also reads
+        // what answers when Astra will not.
+        model: aiModel(),
+        fallbackModel: aiFallbackModel(),
+        publicModel: aiPublicModel(),
+        reasoningEffort: aiReasoningEffort(),
+        storeResponses: aiStoreResponses(),
       },
       email: {
         RESEND_API_KEY: !!env.RESEND_API_KEY,

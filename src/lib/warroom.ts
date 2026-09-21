@@ -531,7 +531,7 @@ function buildConfig(): ConfigGroup[] {
 
     mk([
       { key: 'OPENAI_API_KEY', label: 'OpenAI key', present: present(env.OPENAI_API_KEY) },
-      { key: 'OPENAI_MODEL', label: 'Model', present: present(env.OPENAI_MODEL), note: env.OPENAI_MODEL ?? undefined },
+      { key: 'OPENAI_MODEL', label: 'Model', present: present(env.OPENAI_MODEL), note: env.OPENAI_MODEL ?? 'gpt-6-astra (default) · falls back to gpt-5.4-mini if refused' },
       { key: 'OPENAI_TRANSCRIBE_MODEL', label: 'Transcribe model', present: present(env.OPENAI_TRANSCRIBE_MODEL), note: env.OPENAI_TRANSCRIBE_MODEL ?? 'whisper-1' },
     ], false, 'ai', 'AI (plans / readouts / voice)'),
 
