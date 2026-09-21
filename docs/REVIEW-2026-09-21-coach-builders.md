@@ -376,10 +376,14 @@ current document; the review step is D's grid at month scale).
 ### 10.4 Owner calls after round two
 | # | Ruling | Default if unruled |
 |---|---|---|
-| 1 | Which concept — D, E or F (they combine: E's table as D's panel; F's review as D's month view). | — |
+| 1 | Which concept — D, E, F, or **G, the D ⇄ E switch** (§10.6; the stacked reading of "a combo" is rendered there too). | G, E built first |
 | 2 | The light chrome for the whole coach dashboard, or the builder pages only. | Whole dashboard |
 | 3 | The type — Anybody + Schibsted Grotesk (the site's newer system) or keep Space Grotesk for the UI. | Anybody + Schibsted |
 | 4 | Retire *"In sequence from start"* for weekday defaults (2 → Mon · Thu, 3 → Mon · Wed · Fri). | Yes |
+| 5 | G's opening view for a coach who has never switched — Grid (the calendar was the original ask) or Sheet. | Grid |
+| 6 | Website colour (§11): scope — the signed-in dashboards and builders, or the marketing pages too. | Dashboards only |
+| 7 | Website colour (§11): the control set — paper · accent · ink · text size, with the app's textures and light effects left in the app. | That set |
+| 8 | Website colour (§11): one choice shared with the app (read `app_tweaks`), or a separate website setting. | Shared |
 
 ### 10.5 Verification
 The board is one HTML page, artboards rendered by JS from one data model (the demo program at
@@ -393,3 +397,85 @@ to its panel before the frame is scaled. It also found the E preview's name line
 beside the face switcher (stacked now) and the board's own sticky tab bar baked into element
 screenshots (the bar is made static for the capture pass). The header change is rendered on
 the real page (§8). `npm test` on the tree: the pre-commit gate at commit time.
+
+### 10.6 Second pass — G · Grid ⇄ Sheet, and the stacked reading
+Owner, same day: *"can you do a combo of D and E? see what that would look like"* → *"lets create
+the option maybe to toggle between both views or designs. What do you think would be better and
+make more sense to build?"* Both are on the board's **G** tab.
+
+**G is one builder, one document, two views.** A segmented control in the toolbar — **▦ Grid ·
+▤ Sheet** for a trainer, **Week · Day types** for a nutritionist — switches the canvas; the header
+(name, start date, the preview toggle, Publish, Assign) never moves. Grid answers *when* (the
+calendar, the dates, moving a session); Sheet answers *how much* (every exercise across the four
+weeks, the progression read left to right). The switch is remembered per coach through the
+dashboard's existing remembered-choice store (`dashboard_prefs`, per role — the mechanism the
+roster filter and the Progress chart window already use), so it costs no migration and no route.
+The grid's session panel carries the one bridge worth drawing: *"Edit all 4 weeks in the sheet"*,
+for the thing a calendar is bad at. Artboards: `G-grid` (Grid, the Thu 8 Oct panel open),
+`G-sheet` (Sheet, preview on), `G-nutri` (Week, Day A open).
+
+**The stacked reading** — the grid shrunk to a navigator with the selected day's sheet underneath
+— is rendered as `G-stacked` so the trade-off is measured rather than argued. Artboard heights at
+1440: **Grid 1,115px · Sheet 1,330px · Stacked 1,439px** with only one of the two days opened as
+a sheet (the other is another band underneath). The stacked page is 29% taller than the grid,
+shows the selected session twice (four cells above, one band below), and shrinks the grid to
+72px cells with the playlist line dropped. ⚠ The caption's first draft said *"1.7× the height"*
+— a figure nobody had measured; corrected to the measured 29% before publishing.
+
+**Recommendation: build the switch, not the stacked page.** The two views are best read in
+opposite directions (rows are days in one, columns are weeks in the other), so a page that shows
+both at once does the calendar at reduced fidelity and the sheet one day at a time, and puts the
+same session on screen twice. Build order: **E first** — the smallest port, since the document
+already is that table turned sideways — then D as the second view, then the switch (one
+remembered choice). Cost of G over either alone: two canvases to maintain. The client preview
+stays as each view has it (popover phone in Grid, docked phone in Sheet).
+
+## 11. Website colour customization — scoped, not built
+Owner, same message: *"Also create ability to change the website color, similar customizations
+that we have for app, apply to website."* Nothing is built; the scope below is measured and the
+preview is on the G tab under **Under the app's papers**.
+
+**What the app has** (measured in the source): one appearance document — `paperMode` (18 papers,
+`PAPERS` in `mobile-app/src/broadsheet/iosAppBroadsheet.jsx:64`), `accentKey` (9,
+`BS_ACCENT_OPTS`), an ink override with a 3:1 contrast guard, `textScaleKey` (small · medium ·
+large), `weightKey`, `borderKey`, `textureKey` (25) with `textureColor`, and six light-effect
+flags — persisted to localStorage `shape.tweaks` **and** to `user_goals('app_tweaks')`
+(debounced 600 ms, the cloud copy winning on login; `iosAppBroadsheetMain.jsx:1961–1975`). It
+already follows the account across devices.
+
+**What the website has:** no colour system. `dash.css` declares **0** CSS custom properties,
+`pageShell.jsx` declares **1** (`--shape-logo-h`), and the dashboard modules plus the shell
+carry **1,073 colour literals** (hex and rgba) — `pageShell.jsx` 68 hex, `dashProgress` 38,
+`dashToday` 37, `dashClient` 29, `dashSchedule` 24, `dashBuilder` 24, `dashMealBuilder` 20,
+`dashBusiness` 19, `dashRoster` 17, `dashGoals` 17, the rest under 12. So "change the website
+colour" is first a token layer that does not exist, then a sweep of every literal onto it.
+
+**The proposal.** (a) A token set on each dashboard shell — the board's own `.ab2` set is the
+shape: ground · card · ink at three strengths · two rule weights · rest · accent · accent tint ·
+the two role colours — derived from a paper exactly as the board's `paperVars` derives it (cards
+lighter than the ground on a light paper, darker on a dark one; rules and tints as alpha over
+the paper's ink; the accent from the app's own light/dark pair). (b) On dashboard boot, read the
+member's `app_tweaks` and apply paper · accent · ink · text size — the choice they already made
+on their phone, with no second setting. (c) The same picker in the website's Settings, writing
+the same document — one preference, two surfaces, no migration, no new route. (d) The textures
+and the light effects stay in the app: they are the broadsheet's costume, and the round-two
+builder is a light productivity page in a browser. (e) Scope: the signed-in dashboards (coach and
+client) and the builders. The marketing pages serve visitors with no account and no saved choice.
+
+**Order matters.** The round-two builder should be written on those tokens from its first line;
+built on literals it becomes the 32nd module to sweep. So the token layer is a decision to take
+**before** the builder build, not after it.
+
+**Cost, stated rather than estimated:** the sweep *is* the job — 1,073 sites across 31 files. It
+stages cleanly (shell + nav + the builders first, then the tabs by module group), and it should
+be staged, because a review round bills by file count.
+
+**Not started.** Rulings 6–8 in §10.4 decide it.
+
+### 10.5 (addendum) Second-pass verification
+Re-driven at **1280 and 400px** after the G tab was added: zero page errors, zero horizontal
+overflow on every tab; the eight G artboards looked at. The E and F artboards' rendered markup is
+**byte-identical** to before the patch (fingerprinted before and after); D's markup is identical
+too — the only difference was `fit()` measuring a hidden tab's panel as 0px once the board's
+opening tab changed, so `fit()` now skips hidden frames and the tab click re-fits. The four paper
+renders use the app's own paper and accent values, copied from the source rather than approximated.
