@@ -376,14 +376,14 @@ current document; the review step is D's grid at month scale).
 ### 10.4 Owner calls after round two
 | # | Ruling | Default if unruled |
 |---|---|---|
-| 1 | Which concept — D, E, F, or **G, the D ⇄ E switch** (§10.6; the stacked reading of "a combo" is rendered there too). | G, E built first |
-| 2 | The light chrome for the whole coach dashboard, or the builder pages only. | Whole dashboard |
+| 1 | Which concept — D, E, F, or **G, the D ⇄ E switch** (§10.6; the stacked reading of "a combo" is rendered there too). | **Picked: G**, 2026-09-21 — *"i like the toggle for both options. looks god"* |
+| 2 | The light chrome for the whole coach dashboard, or the builder pages only. | **Ruled, 2026-09-21:** *"use the designs but keep the same colors currently on website"* → *"but i like the look of the white and what you already built"* → *"so maybe use that for now, but create the option to change back to the dark tones"*. **Light is the default; today's dark colours stay as a switch, exactly as they are.** Whole dashboard (the switch is a paper, not a page). |
 | 3 | The type — Anybody + Schibsted Grotesk (the site's newer system) or keep Space Grotesk for the UI. | Anybody + Schibsted |
 | 4 | Retire *"In sequence from start"* for weekday defaults (2 → Mon · Thu, 3 → Mon · Wed · Fri). | Yes |
 | 5 | G's opening view for a coach who has never switched — Grid (the calendar was the original ask) or Sheet. | Grid |
-| 6 | Website colour (§11): scope — the signed-in dashboards and builders, or the marketing pages too. | Dashboards only |
-| 7 | Website colour (§11): the control set — paper · accent · ink · text size, with the app's textures and light effects left in the app. | That set |
-| 8 | Website colour (§11): one choice shared with the app (read `app_tweaks`), or a separate website setting. | Shared |
+| 6 | Website colour (§11): scope — the signed-in dashboards and builders, or the marketing pages too. | Dashboards only — and **for now two papers**: the light one and today's dark one (ruling 2). |
+| 7 | Website colour (§11): the control set — paper · accent · ink · text size, with the app's textures and light effects left in the app. | **Deferred** by ruling 2's *"for now"*: Light · Dark first; the app's papers and accents on the same token layer later. |
+| 8 | Website colour (§11): one choice shared with the app (read `app_tweaks`), or a separate website setting. | A website setting first (`dashboard_prefs.paper`); reading the app's choice is the later step. |
 
 ### 10.5 Verification
 The board is one HTML page, artboards rendered by JS from one data model (the demo program at
@@ -479,3 +479,11 @@ overflow on every tab; the eight G artboards looked at. The E and F artboards' r
 too — the only difference was `fit()` measuring a hidden tab's panel as 0px once the board's
 opening tab changed, so `fit()` now skips hidden frames and the tab click re-fits. The four paper
 renders use the app's own paper and accent values, copied from the source rather than approximated.
+
+## 12. The build brief
+The rulings above are turned into a code-level brief with every line reference printed from
+`main` = `0e63de1`: [`BUILD-2026-09-21-builder-grid-sheet.md`](BUILD-2026-09-21-builder-grid-sheet.md)
+— nine PRs, the token layer and the two papers first (four visual no-op sweeps proven by pixel
+diff, then the light default and the switch), then the Sheet, the Grid and the view switch, the
+nutritionist's Week ⇄ Day types, and the shared Assign panel with the client preview. **Nothing
+in it is built.**
