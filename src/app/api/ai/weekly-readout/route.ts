@@ -324,7 +324,7 @@ async function generateReadout(
     // while a generation cannot still be running when its claim's lease expires
     // — see GENERATE_TIMEOUT_MS. Leaving this to callAI's default would make the
     // bound depend on a number in another file that nothing here reads.
-    { promptId: 'ai.weekly-readout', timeoutMs: GENERATE_TIMEOUT_MS },
+    { promptId: 'ai.weekly-readout', effort: 'medium', timeoutMs: GENERATE_TIMEOUT_MS },
   );
 
   if (!result.ok) return null;
