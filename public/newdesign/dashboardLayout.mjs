@@ -58,8 +58,9 @@ export function resolveGridLayout(saved, allWidgets) {
   // occurrence wins). An optional key in here is ignored: its state is `added`'s.
   const hiddenSet = new Set(); const hidden = [];
   if (saved && Array.isArray(saved.hidden)) for (const k of saved.hidden) if (declared.has(k) && !optionalSet.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
-  // added: an OPTIONAL widget the member put on the board — optional keys only. A key
-  // this build does not declare is dropped here and re-derived by the build that does.
+  // added: an OPTIONAL widget the member put on the board — optional keys only. A key this
+  // build does not declare renders nothing, so it goes on no board here — but it is CARRIED
+  // THROUGH the write (see splitHidden), so the build that does declare it still finds it.
   const addedSet = new Set();
   if (saved && Array.isArray(saved.added)) for (const k of saved.added) if (optionalSet.has(k)) addedSet.add(k);
   // …and every optional widget NOT added is hidden, after the member's own hides.
@@ -83,14 +84,23 @@ export function resolveGridLayout(saved, allWidgets) {
 // say for the engine's ONE effective hidden list. `hidden` on disk holds only default
 // widgets (declared, deduped); `added` holds the optional widgets NOT in the effective
 // list. Written from here and nowhere else, so the two lists cannot disagree about a key.
-export function splitHidden(hidden, allWidgets) {
+export function splitHidden(hidden, allWidgets, prevAdded) {
   const declared = new Set((allWidgets || []).filter(Boolean).map((w) => w.key));
   const optional = optionalKeys(allWidgets);
   const optionalSet = new Set(optional);
   const hiddenSet = new Set(hidden || []);
   const out = [];
   for (const k of (hidden || [])) if (declared.has(k) && !optionalSet.has(k) && out.indexOf(k) < 0) out.push(k);
-  return { hidden: out, added: optional.filter((k) => !hiddenSet.has(k)) };
+  const added = optional.filter((k) => !hiddenSet.has(k));
+  // ⚠ AN `added` KEY THIS BUILD DOES NOT DECLARE IS CARRIED FORWARD, NEVER REBUILT AWAY.
+  // `added` is derived from the CURRENT catalogue, so a page running an older build — a
+  // dashboard left open across a deploy, a cached shell — would otherwise drop a widget the
+  // member turned on somewhere newer on its next whole-document save, with nothing on screen
+  // saying so. Only a key this build does not declare AT ALL is kept: one it declares as a
+  // default belongs in `hidden`, and one it declares as optional is already decided above.
+  const keep = new Set(added);
+  for (const k of (prevAdded || [])) if (typeof k === "string" && k && !declared.has(k) && !keep.has(k)) { added.push(k); keep.add(k); }
+  return { hidden: out, added };
 }
 
 // One row per declared widget for the catalogue, in declaration order.

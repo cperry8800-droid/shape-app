@@ -193,6 +193,11 @@ test('dashGrid.jsx behaves identically to dashboardLayout.mjs', () => {
   assert.deepEqual(dg.dgResolveGridLayout(osaved, ows), resolveGridLayout(osaved, ows));
   assert.deepEqual(dg.dgResolveGridLayout(null, ows), resolveGridLayout(null, ows));
   assert.deepEqual(dg.dgSplitHidden(['a', 'o2', 'nope', 'a'], ows), splitHidden(['a', 'o2', 'nope', 'a'], ows));
+  // …including the carry-forward of an `added` key neither build declares: the mirror has
+  // to drop a widget choice in exactly the same cases the shared helper does, or one of the
+  // two erases what the other keeps.
+  assert.deepEqual(dg.dgSplitHidden([], ows, ['zzz', 'o1']), splitHidden([], ows, ['zzz', 'o1']));
+  assert.deepEqual(dg.dgSplitHidden(['o1'], ows, ['o1', 'zzz']), splitHidden(['o1'], ows, ['o1', 'zzz']));
   assert.deepEqual(dg.dgCatalogRows(ows, ['o2']), catalogRows(ows, ['o2']));
   assert.deepEqual(dg.dgCatalogRows(ows, []), catalogRows(ows, []));
   const ws = [

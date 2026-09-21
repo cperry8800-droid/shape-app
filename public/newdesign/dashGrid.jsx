@@ -69,8 +69,9 @@ function dgResolveGridLayout(saved, allWidgets) {
   // occurrence wins). An optional key in here is ignored: its state is `added`'s.
   const hiddenSet = new Set(); const hidden = [];
   if (saved && Array.isArray(saved.hidden)) for (const k of saved.hidden) if (declared.has(k) && !optionalSet.has(k) && !hiddenSet.has(k)) { hidden.push(k); hiddenSet.add(k); }
-  // added: an OPTIONAL widget the member put on the board — optional keys only. A key
-  // this build does not declare is dropped here and re-derived by the build that does.
+  // added: an OPTIONAL widget the member put on the board — optional keys only. A key this
+  // build does not declare renders nothing, so it goes on no board here — but it is CARRIED
+  // THROUGH the write (see splitHidden), so the build that does declare it still finds it.
   const addedSet = new Set();
   if (saved && Array.isArray(saved.added)) for (const k of saved.added) if (optionalSet.has(k)) addedSet.add(k);
   // …and every optional widget NOT added is hidden, after the member's own hides.
@@ -88,14 +89,23 @@ function dgResolveGridLayout(saved, allWidgets) {
 // say for the engine's ONE effective hidden list. `hidden` on disk holds only default
 // widgets (declared, deduped); `added` holds the optional widgets NOT in the effective
 // list. Written from here and nowhere else, so the two lists cannot disagree about a key.
-function dgSplitHidden(hidden, allWidgets) {
+function dgSplitHidden(hidden, allWidgets, prevAdded) {
   const declared = new Set((allWidgets || []).filter(Boolean).map((w) => w.key));
   const optional = dgOptionalKeys(allWidgets);
   const optionalSet = new Set(optional);
   const hiddenSet = new Set(hidden || []);
   const out = [];
   for (const k of (hidden || [])) if (declared.has(k) && !optionalSet.has(k) && out.indexOf(k) < 0) out.push(k);
-  return { hidden: out, added: optional.filter((k) => !hiddenSet.has(k)) };
+  const added = optional.filter((k) => !hiddenSet.has(k));
+  // ⚠ AN `added` KEY THIS BUILD DOES NOT DECLARE IS CARRIED FORWARD, NEVER REBUILT AWAY.
+  // `added` is derived from the CURRENT catalogue, so a page running an older build — a
+  // dashboard left open across a deploy, a cached shell — would otherwise drop a widget the
+  // member turned on somewhere newer on its next whole-document save, with nothing on screen
+  // saying so. Only a key this build does not declare AT ALL is kept: one it declares as a
+  // default belongs in `hidden`, and one it declares as optional is already decided above.
+  const keep = new Set(added);
+  for (const k of (prevAdded || [])) if (typeof k === "string" && k && !declared.has(k) && !keep.has(k)) { added.push(k); keep.add(k); }
+  return { hidden: out, added };
 }
 
 // One row per declared widget for the catalogue, in declaration order.
@@ -475,6 +485,13 @@ function DgCardSettings({ groups }) {
 // the list of what it has.
 const DG_CATALOG_W = 320;
 const DG_SAVE_DEBOUNCE_MS = 400;
+// ⚠ A FAILED LAYOUT WRITE IS RETRIED, BECAUSE THE DEBOUNCE TOOK THE ACCIDENTAL ONES AWAY.
+// On main every GridStack event wrote, so one failure was covered by the next of twenty-two;
+// coalesced to a single settled write, one failure leaves the arrangement unsaved until the
+// member happens to touch the grid again. Two backoff attempts, each re-reading the CURRENT
+// document rather than replaying a stale snapshot, superseded by a newer change and stopped
+// at teardown.
+const DG_SAVE_RETRY_MS = [1500, 6000];
 function DgCatalog({ rows, onAdd, onRemove, onReset }) {
   const [open, setOpen] = React.useState(false);
   const boxRef = React.useRef(null);
@@ -587,9 +604,12 @@ function DashGrid({ role, tab = "today", widgets }) {
   // pass), and a single hide fired 22 more. The document is updated synchronously
   // (savedFor() must read the current state), only the WRITE is coalesced: a trailing
   // debounce, and a document byte-identical to the last one written is not re-sent.
-  // A rejected save clears that memory so the next identical change is sent again.
+  // A rejected save clears that memory so the same change is sent again, and schedules a
+  // bounded retry rather than waiting for an interaction that may never come.
   const saveTimerRef = React.useRef(null);
   const lastSavedRef = React.useRef(null);
+  const retryRef = React.useRef(0);
+  const goneRef = React.useRef(false);
   const flushSave = () => {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     try {
@@ -597,9 +617,18 @@ function DashGrid({ role, tab = "today", widgets }) {
       if (json === lastSavedRef.current) return;
       lastSavedRef.current = json;
       if (window.shapeDb && window.shapeDb.saveUserGoals) {
+        // A newer change already armed the timer — that write supersedes this one, so a
+        // retry here would only send the same document twice.
+        const failed = () => {
+          if (lastSavedRef.current === json) lastSavedRef.current = null;
+          const wait = DG_SAVE_RETRY_MS[retryRef.current];
+          if (goneRef.current || wait == null || saveTimerRef.current) return;
+          retryRef.current += 1;
+          saveTimerRef.current = setTimeout(flushSave, wait);
+        };
         Promise.resolve(window.shapeDb.saveUserGoals("dashboard_layout", docRef.current))
-          .then((res) => { if (res && res.error && lastSavedRef.current === json) lastSavedRef.current = null; })
-          .catch(() => { if (lastSavedRef.current === json) lastSavedRef.current = null; });
+          .then((res) => { if (res && res.error) failed(); else retryRef.current = 0; })
+          .catch(failed);
       }
     } catch (e) {}
   };
@@ -607,6 +636,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     try {
       const r = { ...(docRef.current[role] || {}), [tab]: next };
       docRef.current = { ...docRef.current, [role]: r };
+      retryRef.current = 0;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(flushSave, DG_SAVE_DEBOUNCE_MS);
     } catch (e) {}
@@ -624,7 +654,8 @@ function DashGrid({ role, tab = "today", widgets }) {
     try { if (typeof grid.getColumn === "function" && grid.getColumn() !== 12) return; } catch (e) { return; }
     let live = [];
     try { live = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) {}
-    persist({ items: dgMergeLayoutItems(live, savedFor(), declaredKeysRef.current), ...dgSplitHidden(hiddenRef.current, widgetsRef.current) });
+    const saved = savedFor();
+    persist({ items: dgMergeLayoutItems(live, saved, declaredKeysRef.current), ...dgSplitHidden(hiddenRef.current, widgetsRef.current, saved && saved.added) });
   };
   // Persist a VISIBILITY change (hide / restore). The items half is read from the live
   // grid only while it is in its 12-column layout; collapsed to one column (a phone) the
@@ -645,7 +676,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     if (wide) { try { live = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) { live = null; } }
     const saved = savedFor();
     const items = live ? dgMergeLayoutItems(live, saved, declaredKeysRef.current) : ((saved && Array.isArray(saved.items)) ? saved.items : []);
-    persist({ items, ...dgSplitHidden(nextHidden, widgetsRef.current) });
+    persist({ items, ...dgSplitHidden(nextHidden, widgetsRef.current, saved && saved.added) });
   };
 
   // Add one widget to the grid; return its content host element for the portal.
@@ -666,6 +697,9 @@ function DashGrid({ role, tab = "today", widgets }) {
     dgInjectStyle();
     dgPatchGridStack();
     let destroyed = false;
+    // The cleanup sets this on a tab change too, so it is re-armed here rather than left
+    // true — otherwise the first tab switch disables every retry for the life of the page.
+    goneRef.current = false;
     const boot = () => {
       if (destroyed || !elRef.current) return;
       const grid = window.GridStack.init({
@@ -703,6 +737,9 @@ function DashGrid({ role, tab = "today", widgets }) {
     window.addEventListener("pagehide", onHide);
     return () => {
       destroyed = true;
+      // Set BEFORE the final flush: that write is still worth attempting, a retry for it is
+      // not — nothing is left to re-read the document or to cancel the timer.
+      goneRef.current = true;
       window.removeEventListener("pagehide", onHide);
       if (saveTimerRef.current) flushSave();
       try { if (gridRef.current) gridRef.current.destroy(false); } catch (e) {}

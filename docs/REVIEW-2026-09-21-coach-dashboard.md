@@ -172,20 +172,22 @@ not that it is thin — it is that **two of its controls do nothing**:
 
 R18's rule applies to both: a control that leads nowhere costs more trust than an absent one.
 
-## 6. Your activity feed (`cperry8800@gmail.com`)
+## 6. The owner's activity feed
 
-Queried live. The account has **seven** posts, and all three of the things the screenshot showed have a
-cause in the code:
+Queried live against the owner's own account, at their request. ⚠ **The causes are recorded here and
+the account is not** — no address, no post text, no workout dates. A review doc is committed, pushed
+and read by people the account holder never chose, and not one of those details is needed to state a
+cause or to fix it. All three of the things the screenshot showed have one in the code:
 
-1. **Four hand-posted workouts where the title repeats the body** — "hii", "hi", "hi", "hi", posted
-   2026-06-04/07. The composer writes the note into both fields when no title is given.
-2. **Three WHOOP imports titled literally "activity"**, dated **2021-09-27, 2021-07-07 and 2021-04-24**.
-   The cause is `src/app/api/integrations/whoop/sync/route.ts:132` — `created_at: workout.start ?? …`,
-   so an imported post is dated by the **workout**, not the import. A backfill therefore lands posts
-   that sort to the bottom of a `created_at`-ordered feed forever and read as five years old. The title
-   is `sport` verbatim (`:107`), and WHOOP returned `activity` for these.
-3. **No stat plate on any of them.** The three WHOOP rows carry `labels` and `values` and **no
-   `workoutStats`** — queried, key by key — so they predate the field the card reads. The route builds
+1. **Hand-posted workouts whose title repeats the body.** The composer writes the note into both
+   fields when no title is given, so a one-word note becomes a one-word headline over itself.
+2. **WHOOP imports titled with the bare sport, and dated years in the past.** The cause is
+   `src/app/api/integrations/whoop/sync/route.ts:132` — `created_at: workout.start ?? …`, so an
+   imported post is dated by the **workout**, not the import. A backfill therefore lands posts that
+   sort to the bottom of a `created_at`-ordered feed forever and read as years old. The title is
+   `sport` verbatim (`:107`), whatever the provider happens to return for it.
+3. **No stat plate on any of them.** The imported rows carry `labels` and `values` and **no
+   `workoutStats`** — checked key by key — so they predate the field the card reads. The route builds
    it today (`:91`, `:120`) and upserts on `source_activity_id`, so **a re-sync would rewrite them**.
 
 ⚠ **All three are registered, not fixed.** Changing how an imported post is dated is a decision about

@@ -94,7 +94,16 @@ test('every write goes through the split, so `hidden` and `added` cannot disagre
   const grid = fn(GRID, 'DashGrid');
   // persistFromGrid and hide() both write through dgSplitHidden against the CURRENT catalogue
   const persistFrom = grid.slice(grid.indexOf('const persistFromGrid'), grid.indexOf('\n  };', grid.indexOf('const persistFromGrid')));
-  assert.match(persistFrom, /\.\.\.dgSplitHidden\(hiddenRef\.current, widgetsRef\.current\)/, 'persistFromGrid writes a bare hidden list');
+  assert.match(persistFrom, /\.\.\.dgSplitHidden\(hiddenRef\.current, /, 'persistFromGrid does not write through the split');
+  // ⚠ EVERY CALL CARRIES THE SAVED `added` FORWARD, asserted as the ARITY rather than as
+  // one spelling of the arguments — an equivalent rewrite passes, and dropping the third
+  // argument fails. Without it the split rebuilds `added` from the CURRENT catalogue, so a
+  // page on an older build erases an optional widget the member turned on somewhere newer.
+  const splitCalls = grid.match(/\.\.\.dgSplitHidden\(([^)]*)\)/g) || [];
+  assert.ok(splitCalls.length >= 2, 'the split call sites moved — this guard is reading nothing');
+  for (const c of splitCalls) {
+    assert.equal(c.split(',').length, 3, 'a dgSplitHidden call drops the saved `added`: ' + c);
+  }
   // hide() and restore() both write through persistVisibility — the ONE place a visibility
   // change is persisted — and neither reads the live grid itself.
   const hide = grid.slice(grid.indexOf('const hide ='), grid.indexOf('\n  };', grid.indexOf('const hide =')));
@@ -107,7 +116,7 @@ test('every write goes through the split, so `hidden` and `added` cannot disagre
   // column: a phone must be able to add and remove widgets (the split moves) without ever
   // writing the projection GridStack is showing it (the items must not).
   const pv = grid.slice(grid.indexOf('const persistVisibility ='), grid.indexOf('\n  };', grid.indexOf('const persistVisibility =')));
-  assert.match(pv, /\.\.\.dgSplitHidden\(nextHidden, widgetsRef\.current\)/, 'persistVisibility writes a bare hidden list');
+  assert.match(pv, /\.\.\.dgSplitHidden\(nextHidden, /, 'persistVisibility does not write through the split');
   assert.match(pv, /grid\.getColumn\(\) === 12/, 'persistVisibility never asks the column count');
   assert.match(pv, /live \? dgMergeLayoutItems\(live, saved, declaredKeysRef\.current\) : \(\(saved && Array\.isArray\(saved\.items\)\) \? saved\.items : \[\]\)/, 'a collapsed grid must carry the SAVED items forward, never its own projection');
   // no write anywhere still spells `hidden: <list>` — that shape would drop `added`
@@ -133,8 +142,28 @@ test('the layout write is debounced and a document identical to the last one wri
   assert.match(persist, /docRef\.current = \{ \.\.\.docRef\.current, \[role\]: r \};/, 'the document is no longer updated synchronously');
   const flush = grid.slice(grid.indexOf('const flushSave = '), grid.indexOf('\n  };', grid.indexOf('const flushSave = ')));
   assert.match(flush, /if \(json === lastSavedRef\.current\) return;/, 'an identical document is re-sent');
-  assert.match(flush, /lastSavedRef\.current = null/, 'a rejected save is never retried');
+  assert.match(flush, /lastSavedRef\.current = null/, 'a failed save does not clear the memory, so the same change can never be re-sent');
   assert.match(GRID, /const DG_SAVE_DEBOUNCE_MS = \d+;/);
+  // ⚠ AND A FAILED WRITE IS RETRIED, because the debounce took away the accidental ones.
+  // On main a failure was covered by the next of twenty-two writes; coalesced to a single
+  // settled write, one failure leaves the arrangement unsaved until the member happens to
+  // touch the grid again. Bounded, re-reading the CURRENT document rather than replaying a
+  // snapshot, superseded by a newer change, and stopped at teardown.
+  assert.match(GRID, /const DG_SAVE_RETRY_MS = \[[^\]]+\];/, 'the retry budget is gone');
+  const budget = new Function('return ' + (GRID.match(/const DG_SAVE_RETRY_MS = (\[[^\]]+\]);/) || [])[1])();
+  assert.ok(Array.isArray(budget) && budget.length >= 1 && budget.every((n) => typeof n === 'number' && n > 0),
+    'the retry budget must be a non-empty list of positive delays');
+  assert.match(flush, /setTimeout\(flushSave, wait\)/, 'a failed save schedules no retry');
+  assert.match(flush, /if \(goneRef\.current \|\| wait == null \|\| saveTimerRef\.current\) return;/,
+    'the retry runs after teardown, past its budget, or on top of a newer write');
+  assert.match(flush, /else retryRef\.current = 0;/, 'a successful save does not restore the budget');
+  assert.match(persist, /retryRef\.current = 0;/, 'a new change does not get a fresh retry budget');
+  // the retry re-reads the document rather than replaying the snapshot it failed on
+  assert.ok(!/setTimeout\(\(\) => [^)]*json/.test(flush), 'the retry replays a stale snapshot');
+  // teardown stops it — set BEFORE the final flush, and re-armed on the next tab
+  assert.match(grid, /goneRef\.current = true;[\s\S]{0,200}if \(saveTimerRef\.current\) flushSave\(\);/,
+    'teardown does not stop the retry before its own final flush');
+  assert.match(grid, /goneRef\.current = false;/, 'goneRef is never re-armed — the first tab change disables every retry');
   // a pending write is flushed when the grid is torn down (tab change) and when the page hides
   assert.match(grid, /window\.addEventListener\("pagehide", onHide\)/);
   assert.match(grid, /if \(saveTimerRef\.current\) flushSave\(\);\s*try \{ if \(gridRef\.current\) gridRef\.current\.destroy/);
@@ -251,11 +280,27 @@ test('in-card links route inside the shell, and the notes write through the acco
   // the notes panel: one attempt per draft, debounced, through the store's apply — and an
   // emptied note DELETES the key rather than storing ""
   const notes = fn(TODAY, 'DashNotesPanel');
-  assert.match(notes, /askedRef\.current = draft;/);
-  assert.match(notes, /prefs\.apply\(\(d\) => \{ const out = \{ \.\.\.d \}; if \(draft\.trim\(\) === ""\) delete out\[key\]; else out\[key\] = draft; return out; \}\)/);
+  assert.match(notes, /askedRef\.current = \{ acct: acct, text: text \};/, 'the attempt is not recorded against the account that made it');
+  assert.match(notes, /if \(\w+\.trim\(\) === ""\) delete out\[key\]; else out\[key\] = \w+;/, 'an emptied note must DELETE the key, not store ""');
   assert.match(notes, /const writable = kind === "ready" \|\| kind === "error";/);
-  // a different account gets a clean slate
-  assert.match(notes, /acct !== knownRef\.current\) \{ setDraft\(null\); askedRef\.current = null; \}/);
+  assert.match(notes, /setTimeout\(\(\) => writeNote\(mine\), 700\)/, 'the 700ms typing debounce moved');
+  // ⚠ THE PENDING WRITE IS CLEARED BEFORE THE EFFECT DECIDES, or a draft the member typed
+  // and then typed BACK to its stored value stays pending and is flushed over the note on
+  // unmount — the flush below would undo an edit rather than save one.
+  assert.match(notes, /pendingRef\.current = null;[\s\S]{0,120}if \(mine == null \|\| !writable\)/,
+    'the pending write is not cleared before the effect decides what is pending');
+  // ⚠ A DIFFERENT ACCOUNT — INCLUDING SIGNED OUT — GETS A CLEAN SLATE, and the draft carries
+  // the account it was typed under rather than being cleared by a ref compared during render.
+  // The retired shape failed twice: it only fired on a non-null change, so a sign-out left the
+  // previous coach's note in the box, and a render-phase ref leaks from work React discards
+  // (#2046). Both are asserted as ABSENCES, because re-introducing either is the regression.
+  assert.match(notes, /draft\.acct == null \|\| draft\.acct === acct/, 'the draft no longer carries its account');
+  assert.ok(!/knownRef/.test(notes), 'the render-phase account ref is back');
+  assert.ok(!/setDraft\(null\)/.test(notes), 'the draft is cleared by a render-phase setState again');
+  // ⚠ AND THE PENDING WRITE SURVIVES LEAVING THE SCREEN. Hiding the widget unmounts this
+  // panel and so does switching tab; the draft lives nowhere else.
+  assert.match(notes, /window\.addEventListener\("pagehide", flush\)/, 'a note edited inside the debounce is lost on pagehide');
+  assert.match(notes, /removeEventListener\("pagehide", flush\); flush\(\);/, 'the unmount flush is gone — hiding the widget loses the last 700ms of typing');
 });
 
 // ── the derivations ──────────────────────────────────────────────────────────

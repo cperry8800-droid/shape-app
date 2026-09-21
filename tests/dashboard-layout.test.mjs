@@ -132,6 +132,35 @@ test('splitHidden writes the two lists the document holds from the one effective
   }
 });
 
+test('an `added` key this build does not declare survives the write — an older page cannot erase a newer widget', () => {
+  // ⚠ THE SCENARIO IS A DASHBOARD LEFT OPEN ACROSS A DEPLOY. `added` is rebuilt from the
+  // CURRENT catalogue on every whole-document write, so without the carry-forward a page
+  // still running the build that predates `o3` drops it the moment the member drags a card
+  // — silently, and on the device they added it from it simply stops being there.
+  const older = OWIDGETS;                                   // knows a, b, o1, o2
+  const newer = OWIDGETS.concat([{ key: 'o3', size: 'half', optional: true }]);
+
+  // the newer build turns o3 on
+  const onNewer = splitHidden(resolveGridLayout(null, newer).hidden.filter((k) => k !== 'o3'), newer);
+  assert.deepEqual(onNewer.added, ['o3']);
+
+  // the older page now writes: it must not take o3 out of the document
+  const effective = resolveGridLayout({ items: [], ...onNewer }, older).hidden;
+  const afterOlder = splitHidden(effective, older, onNewer.added);
+  assert.ok(afterOlder.added.indexOf('o3') >= 0, 'the older build erased a widget it does not know about');
+
+  // …and the newer build still reads it as ON
+  assert.ok(resolveGridLayout({ items: [], ...afterOlder }, newer).visible.some((v) => v.key === 'o3'));
+  // …while the older build renders nothing for it, which is the whole reason it is safe
+  assert.ok(!resolveGridLayout({ items: [], ...afterOlder }, older).visible.some((v) => v.key === 'o3'));
+
+  // a key this build DOES declare is decided here, never carried: o1 is off, and a stale
+  // `added` naming it must not switch it back on.
+  assert.deepEqual(splitHidden(['o1', 'o2'], OWIDGETS, ['o1', 'o2']).added, []);
+  // and the carry-forward cannot duplicate, or admit a non-key
+  assert.deepEqual(splitHidden([], OWIDGETS, ['o3', 'o3', '', null, 7]).added, ['o1', 'o2', 'o3']);
+});
+
 test('catalogRows: on, addable and empty are three different states', () => {
   const ws = [
     { key: 'a', size: 'full', title: 'A', blurb: 'about a' },

@@ -1303,33 +1303,72 @@ function DashNotesPanel({ prefs, role }) {
   const doc = (prefs && prefs.doc) || {};
   const stored = typeof doc[key] === "string" ? doc[key] : "";
   const acct = prefs && prefs.accountId != null ? prefs.accountId : null;
+  // ⚠ THE DRAFT CARRIES THE ACCOUNT IT WAS TYPED UNDER, rather than being cleared by a ref
+  // compared during render. That shape was wrong twice. `useSignedIn` publishes null on
+  // sign-out while this page is still mounted and the redirect has not run, so a guard that
+  // only fired on a non-null change left the previous coach's private note sitting in the
+  // box over a signed-out document — on a shared machine, for whoever is handed it next.
+  // And a ref written during render leaks from work React is free to discard: #2046 is this
+  // exact shape writing one account's arrangement into another's row. A draft that does not
+  // belong to the account on screen is simply not read, which is self-correcting and leaves
+  // no render-phase mutation to tear.
+  // A draft typed BEFORE the account resolved carries null and is adopted by the first
+  // account that does resolve — nobody else's data is on screen in that window, and it is
+  // the keystroke-while-loading the debounced reconciliation below exists to keep.
   const [draft, setDraft] = React.useState(null);
   const askedRef = React.useRef(null);
-  const knownRef = React.useRef(null);
-  // A different account gets a clean slate — adjusted during render, as the remembered
-  // controls do, so B never sees the frame that still carries A's draft.
-  if (acct != null && knownRef.current != null && acct !== knownRef.current) { setDraft(null); askedRef.current = null; }
-  if (acct != null) knownRef.current = acct;
-  const value = draft != null ? draft : stored;
+  const mine = draft && (draft.acct == null || draft.acct === acct) ? draft.text : null;
+  const value = mine != null ? mine : stored;
   const writable = kind === "ready" || kind === "error";
+  // The write the debounce is holding, so the flushes below send the CURRENT draft rather
+  // than the one their own effect closed over.
+  const pendingRef = React.useRef(null);
+  const writeRef = React.useRef(null);
+  const writeNote = (text) => {
+    if (!prefs || typeof prefs.apply !== "function") return;
+    askedRef.current = { acct: acct, text: text };
+    pendingRef.current = null;
+    prefs.apply((d) => { const out = { ...d }; if (text.trim() === "") delete out[key]; else out[key] = text; return out; });
+  };
+  // Committed-only, so the unmount flush calls the latest write rather than the first
+  // render's — and so nothing is assigned during render.
+  React.useEffect(() => { writeRef.current = writeNote; });
   React.useEffect(() => {
-    if (draft == null || !writable || !prefs || typeof prefs.apply !== "function") return undefined;
-    if (stored === draft || askedRef.current === draft) return undefined;
-    const t = setTimeout(() => {
-      askedRef.current = draft;
-      prefs.apply((d) => { const out = { ...d }; if (draft.trim() === "") delete out[key]; else out[key] = draft; return out; });
-    }, 700);
+    // Cleared first: whatever is pending is what THIS evaluation decides, or a draft the
+    // member has since typed back to its stored value would still be flushed on unmount.
+    pendingRef.current = null;
+    if (mine == null || !writable) return undefined;
+    if (stored === mine) return undefined;
+    const asked = askedRef.current;
+    if (asked && asked.acct === acct && asked.text === mine) return undefined;
+    pendingRef.current = mine;
+    const t = setTimeout(() => writeNote(mine), 700);
     return () => clearTimeout(t);
     // eslint-disable-next-line
-  }, [draft, writable, stored, key]);
+  }, [mine, acct, writable, stored, key]);
+  // ⚠ AN EDIT MADE INSIDE THE DEBOUNCE SURVIVES LEAVING THE SCREEN. Hiding this widget from
+  // the catalogue unmounts the panel, and so does switching tab; the draft lives nowhere
+  // else, so a cleanup that only cleared the timer lost the last 700ms of typing with
+  // nothing saying so. This effect runs on UNMOUNT alone — empty deps — never on the
+  // per-keystroke cleanup above, which would defeat the debounce it is protecting.
+  // ⚠ The pagehide leg is BEST-EFFORT AND SAYS SO RATHER THAN CLAIMING OTHERWISE: the write
+  // ends in an ordinary async request and a browser tearing the page down need not finish
+  // it. There is no unload-safe path to reach for here — `sendBeacon` cannot carry the auth
+  // header this write needs — so trying is the honest option, not a guarantee.
+  React.useEffect(() => {
+    const flush = () => { const t = pendingRef.current; if (t != null && writeRef.current) writeRef.current(t); };
+    window.addEventListener("pagehide", flush);
+    return () => { window.removeEventListener("pagehide", flush); flush(); };
+    // eslint-disable-next-line
+  }, []);
   // "Saved" is the store's optimistic paint, as every remembered control's is; a write
   // that fails moves the store to `error`, which is the line above the others.
   const status = kind === "error" ? "Couldn't save just now — your note is still here and saves on your next edit"
     : !writable ? (kind === "loading" ? "Loading your notes…" : "Preview — notes save on your live dashboard")
-    : draft != null && draft !== stored ? "Unsaved…" : "Saved with your account";
+    : mine != null && mine !== stored ? "Unsaved…" : "Saved with your account";
   return (
     <div>
-      <textarea value={value} onChange={(e) => setDraft(e.target.value)} rows={5} aria-label="Notes to self"
+      <textarea value={value} onChange={(e) => setDraft({ acct: acct, text: e.target.value })} rows={5} aria-label="Notes to self"
         placeholder="Anything to remember — a client to call, a block to tweak, a note for Friday."
         style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 96, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, color: "#f2ede4", fontFamily: sans, fontSize: 13.5, lineHeight: 1.5, padding: "10px 12px" }} />
       <div style={{ fontSize: 11, color: kind === "error" ? DASH_SEV_COLORS.amber : DASH_INK50, marginTop: 8 }}>{status}</div>
