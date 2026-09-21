@@ -206,8 +206,13 @@ function dgInjectStyle() {
    that is worse here than the usual nuisance: this panel is position:fixed and portaled to
    <body>, positioned from the gear's measured rect, so a zoom moves the viewport out from
    under a panel that has already been placed. The desktop keeps its 11px; the override is
-   scoped to coarse pointers so it costs the mouse nothing. (CodeRabbit, #2046.) */
-@media (pointer:coarse){.dash-setpick-sel{font-size:16px!important}}
+   scoped to coarse pointers so it costs the mouse nothing. (CodeRabbit, #2046.)
+   ⚠ THE NOTES TEXTAREA JOINS IT, AND ITS COST IS A GRID FIT RATHER THAN A PANEL. That
+   control is a card inside a GridStack item whose height is measured by sizeToContent, so a
+   focus zoom reflows the board under the hand that is typing in it. The rule is a LIST for
+   the same reason it was scoped: one place that says what the coarse-pointer font floor
+   applies to, rather than the next 13.5px control re-deriving it. (CodeRabbit, #2137.) */
+@media (pointer:coarse){.dash-setpick-sel,.dash-notes-ta{font-size:16px!important}}
 `;
   document.head.appendChild(s);
 }
@@ -512,6 +517,34 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
     }
     wasOpenRef.current = !!(open && box);
   }, [open, box]);
+  // ⚠ AND FOCUS FOLLOWS THE ROW THAT WAS JUST ACTED ON, OR IT FALLS TO <body>. Add and
+  // Remove move a row between the two lists, which are separate arrays in separate positions
+  // — so the button that was clicked is UNMOUNTED and its replacement is a different element.
+  // A keyboard user was left with focus on the document body while a role="dialog" was still
+  // open, i.e. tabbing resumed at the top of the page, outside the panel. Closing the dialog
+  // would also fix it (the effect above returns focus to the button) and costs the thing the
+  // catalogue is for: adding three widgets would mean opening it three times. So focus moves
+  // to the SAME widget's new control — same row, same place on screen, and the action is
+  // immediately reversible. (CodeRabbit, #2137.)
+  const actedRef = React.useRef(null);
+  const act = (fn, key) => { actedRef.current = key; fn(key); };
+  React.useEffect(() => {
+    const key = actedRef.current;
+    if (key == null) return;
+    actedRef.current = null;
+    const panel = panelRef.current;
+    if (!open || !panel) return;
+    let target = null;
+    // Matched by reading the attribute rather than by building a selector: a widget key is a
+    // source identifier, but a querySelector built from one is an escaping question nobody
+    // needs to have.
+    const rows = panel.querySelectorAll("[data-dg-row]");
+    for (const el of rows) if (el.getAttribute("data-dg-row") === String(key)) { target = el.querySelector("button"); break; }
+    // A row that has no control any more (a widget that went empty between the click and this
+    // frame) leaves focus inside the dialog rather than on the body.
+    if (!target) target = panel.querySelector("button, a[href], select, input, textarea");
+    if (target && typeof target.focus === "function") target.focus();
+  });
   const onBoard = rows.filter((r) => r.on);
   const addable = rows.filter((r) => r.canAdd);
   const waiting = rows.filter((r) => r.empty);
@@ -525,7 +558,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
     background: teal ? "rgba(46,224,196,0.12)" : "transparent", color: teal ? "#2ee0c4" : "rgba(242,237,228,0.7)" });
   const head = (text) => <div style={{ ...mono, fontSize: 9, color: "rgba(242,237,228,0.42)", padding: "10px 6px 2px" }}>{text}</div>;
   const item = (r, control) => (
-    <div key={r.key} style={rowStyle}>
+    <div key={r.key} data-dg-row={r.key} style={rowStyle}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 13, color: r.empty ? "rgba(242,237,228,0.5)" : "#f2ede4" }}>{r.title}</div>
         {(r.blurb || r.why) && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2, lineHeight: 1.4 }}>{r.empty ? r.why : r.blurb}</div>}
@@ -546,9 +579,9 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
       {open && box && ReactDOM.createPortal(
         <div ref={panelRef} role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
           <div style={{ ...mono, fontSize: 9, color: "rgba(242,237,228,0.42)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
-          {onBoard.map((r) => item(r, <button type="button" onClick={() => onRemove(r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
+          {onBoard.map((r) => item(r, <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
           {addable.length > 0 && head("Available")}
-          {addable.map((r) => item(r, <button type="button" onClick={() => onAdd(r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>))}
+          {addable.map((r) => item(r, <button type="button" onClick={() => act(onAdd, r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>))}
           {waiting.length > 0 && head("Nothing to show yet")}
           {waiting.map((r) => item(r, null))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(242,237,228,0.08)", marginTop: 4 }}>
@@ -610,11 +643,25 @@ function DashGrid({ role, tab = "today", widgets }) {
   const lastSavedRef = React.useRef(null);
   const retryRef = React.useRef(0);
   const goneRef = React.useRef(false);
+  // ⚠ ONE WRITE IN FLIGHT AT A TIME, OR AN OLDER LAYOUT CAN LAND LAST. `saveUserGoals`
+  // is a whole-document upsert and serializes nothing, so a second change settling while the
+  // first request is still open sends two independent writes for the same row — and on a slow
+  // connection the earlier one can arrive second and restore the arrangement the member just
+  // replaced. The debounce does not cover it: once a write is DISPATCHED the timer is clear,
+  // and a change 400ms later goes out beside it. A newer document supersedes an older one
+  // outright, so this coalesces rather than queues: while a write is open the flush records
+  // that something newer exists and returns, and the settling write re-reads `docRef.current`
+  // — the CURRENT document, not the one that was pending. (CodeRabbit, #2137.)
+  const inFlightRef = React.useRef(false);
+  const queuedRef = React.useRef(false);
   const flushSave = () => {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     try {
       const json = JSON.stringify(docRef.current);
       if (json === lastSavedRef.current) return;
+      // Deferred, so `lastSavedRef` is deliberately NOT moved: nothing has been sent, and
+      // claiming otherwise would let the drain dedupe away a document that never went out.
+      if (inFlightRef.current) { queuedRef.current = true; return; }
       lastSavedRef.current = json;
       if (window.shapeDb && window.shapeDb.saveUserGoals) {
         // A newer change already armed the timer — that write supersedes this one, so a
@@ -626,9 +673,26 @@ function DashGrid({ role, tab = "today", widgets }) {
           retryRef.current += 1;
           saveTimerRef.current = setTimeout(flushSave, wait);
         };
-        Promise.resolve(window.shapeDb.saveUserGoals("dashboard_layout", docRef.current))
-          .then((res) => { if (res && res.error) failed(); else retryRef.current = 0; })
-          .catch(failed);
+        // The queued document supersedes both the write that just settled and any retry it
+        // armed, so it cancels the retry and goes out now. It runs even after teardown:
+        // `goneRef` exists to stop RETRIES, and this is the write the cleanup's own final
+        // flush asked for — a failure of it will still find `goneRef` set and stop.
+        const drain = () => {
+          inFlightRef.current = false;
+          if (!queuedRef.current) return;
+          queuedRef.current = false;
+          if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+          flushSave();
+        };
+        inFlightRef.current = true;
+        // The dispatch is guarded on its own: a SYNCHRONOUS throw from the store would
+        // otherwise leave the flag latched and block every later write for the life of the
+        // page — a worse failure than the race it is here to close.
+        try {
+          Promise.resolve(window.shapeDb.saveUserGoals("dashboard_layout", docRef.current))
+            .then((res) => { if (res && res.error) failed(); else retryRef.current = 0; drain(); })
+            .catch(() => { failed(); drain(); });
+        } catch (e) { inFlightRef.current = false; failed(); }
       }
     } catch (e) {}
   };
@@ -891,6 +955,15 @@ function DashGrid({ role, tab = "today", widgets }) {
     };
   }, [hosts, ready]);
 
+  // ⚠ A VISIBILITY CHANGE IS STAGED IN THE SAME TICK IT IS MADE, NEVER ON A TIMER.
+  // All three of these used to defer (`setTimeout` 0 / 60 / 0), and `persistVisibility`
+  // opens with `if (!gridRef.current) return` — which the cleanup sets to null on unmount
+  // and on a role/tab change. So a card added and then a tab switched inside 60ms lost the
+  // add outright, with nothing on screen saying so; on a phone that timer is the ONLY write,
+  // because persistFromGrid refuses a collapsed grid. `persist` only ARMS the 400ms debounce,
+  // so staging immediately costs nothing and still lets sizeToContent's own `change` land the
+  // settled geometry before the write goes out — and the cleanup's flush now has a document
+  // that includes the change. (CodeRabbit, #2137.)
   const hide = (key) => {
     const grid = gridRef.current; const el = itemRef.current[key];
     const nextHidden = hidden.includes(key) ? hidden : [...hidden, key];
@@ -904,7 +977,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     delete itemRef.current[key];
     setHosts((h) => { const n = { ...h }; delete n[key]; return n; });
     setHidden(nextHidden);
-    setTimeout(() => persistVisibility(nextHidden), 0);
+    persistVisibility(nextHidden);
   };
   const restore = (key) => {
     const w = byKey[key];
@@ -922,7 +995,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     const host = addOne(spec || { key, w: dgWidgetW(w.size), autoPosition: true });
     setHosts((h) => ({ ...h, [key]: host }));
     setHidden(nextHidden);
-    setTimeout(() => persistVisibility(nextHidden), 60);
+    persistVisibility(nextHidden);
   };
   const reset = () => {
     const grid = gridRef.current; if (!grid) return;
@@ -941,7 +1014,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     for (const spec of layout.visible) { const host = addOne(spec); if (host) nextHosts[spec.key] = host; }
     grid.commit();
     setHosts(nextHosts); setHidden(layout.hidden);
-    setTimeout(() => persist({ items: [], hidden: [], added: [] }), 0);
+    persist({ items: [], hidden: [], added: [] });
   };
 
   // ⚠ A HIDDEN KEY MAY BE EMPTY RIGHT NOW, AND THAT IS THE POINT OF KEEPING IT. The

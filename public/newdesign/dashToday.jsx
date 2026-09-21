@@ -1184,10 +1184,17 @@ function DashRosterStatusPanel({ status, role }) {
   );
 }
 
+// ⚠ A ROW IS KEYED ON THE CLIENT'S ID, NOT ON THEIR NAME. All three of these panels
+// (movers, anniversaries, revenue) SORT their rows, so a name-derived key mis-reconciles two
+// same-named clients the moment the order moves — and `dashTopMovers` / `dashTenureMilestones`
+// / `dashRevenueByClient` all carry `id: recId(c)` already. The composite survives as the
+// FALLBACK because `recId` is null for a demo record and for a client with no linked account;
+// an index fallback is not available here for the same reason the id is wanted. The renewals
+// panel below has always keyed this way. (CodeRabbit, #2137.)
 function DashTopMoversPanel({ movers }) {
   if (!movers) return null;
   const row = (m, up) => (
-    <div key={(up ? "u:" : "d:") + m.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+    <div key={(up ? "u:" : "d:") + (m.id || m.name)} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
       <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: up ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, flexShrink: 0, whiteSpace: "nowrap" }}>
         {up ? "▲ +" : "▼ "}{Math.abs(m.delta)} <span style={{ color: DASH_INK50 }}>· {m.points}{m.partial ? "*" : ""} pts</span>
@@ -1215,7 +1222,7 @@ function DashAnniversariesPanel({ marks }) {
   return (
     <div>
       {marks.soon.length ? marks.soon.slice(0, 6).map((h) => (
-        <div key={h.name + "|" + h.label} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+        <div key={h.id || (h.name + "|" + h.label)} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
           <span style={{ width: 7, height: 7, borderRadius: 2, background: h.inDays === 0 ? "#2ee0c4" : "rgba(242,237,228,0.35)" }} />
           <div style={{ minWidth: 0 }}>
             <span style={{ fontSize: 13.5, fontWeight: 500 }}>{h.name}</span>
@@ -1241,7 +1248,7 @@ function DashRevenueByClientPanel({ rev }) {
   return (
     <div>
       {rev.rows.map((r) => (
-        <div key={r.name + "|" + r.cents} style={{ padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+        <div key={r.id || (r.name + "|" + r.cents)} style={{ padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
             <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, flexShrink: 0, whiteSpace: "nowrap" }}>{dashMoney(r.cents)}<span style={{ color: DASH_INK50 }}>/mo · {Math.round(r.share * 100)}%</span></span>
@@ -1368,7 +1375,7 @@ function DashNotesPanel({ prefs, role }) {
     : mine != null && mine !== stored ? "Unsaved…" : "Saved with your account";
   return (
     <div>
-      <textarea value={value} onChange={(e) => setDraft({ acct: acct, text: e.target.value })} rows={5} aria-label="Notes to self"
+      <textarea className="dash-notes-ta" value={value} onChange={(e) => setDraft({ acct: acct, text: e.target.value })} rows={5} aria-label="Notes to self"
         placeholder="Anything to remember — a client to call, a block to tweak, a note for Friday."
         style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 96, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, color: "#f2ede4", fontFamily: sans, fontSize: 13.5, lineHeight: 1.5, padding: "10px 12px" }} />
       <div style={{ fontSize: 11, color: kind === "error" ? DASH_SEV_COLORS.amber : DASH_INK50, marginTop: 8 }}>{status}</div>

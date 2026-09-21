@@ -42,7 +42,15 @@ const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 // An artifact link legitimately carries a UUID and is not an account identifier; every one
 // of the 11 UUIDs in this corpus today is one. Removed before the UUID sweep runs.
-const ARTIFACT_LINK = /claude\.ai[^\s)>`"']*/gi;
+// ⚠ ONLY THE ARTIFACT ROUTES, NEVER EVERY `claude.ai` URL. The first version of this
+// exemption matched the HOST, so `claude.ai/account/<uuid>` — or a chat link, or anything
+// else that host can carry — was stripped before the sweep ran and its identifier shipped
+// with the suite green: an exemption wider than its own justification. (CodeRabbit, #2137.)
+// ⚠ AND THE SCHEME IS OPTIONAL BECAUSE THE CORPUS IS. Measured rather than assumed:
+// four artifact links in `docs/` today are written bare (`claude.ai/code/artifact/...`), so
+// requiring `https://` — the obvious tightening — fails four correct documents, which is
+// the exact defect the phone-number paragraph above refuses to ship.
+const ARTIFACT_LINK = /(?:https?:\/\/)?claude\.ai\/(?:code\/)?artifact\/[^\s)>`"']*/gi;
 const ALLOWED = new Set([
   'noreply@anthropic.com',          // the commit/PR attribution footer
   'noreply@github.com',             // GitHub's own commit author for a web edit
@@ -79,4 +87,12 @@ test('the allowlist is service addresses only, and both sweeps can actually fire
   // …and an artifact link, which every UUID in this corpus is, must survive it
   const link = 'board: https://claude.ai/code/artifact/adc4c3d3-2922-4735-b379-f3640e12c016';
   assert.equal(link.replace(ARTIFACT_LINK, '').match(UUID), null, 'the uuid pattern fires on an artifact link');
+  // …in either of the two forms this corpus actually uses, scheme and no scheme.
+  const bareLink = 'Board: claude.ai/code/artifact/18fe47d3-7cd7-46b2-b25e-aa83bbda8f9e';
+  assert.equal(bareLink.replace(ARTIFACT_LINK, '').match(UUID), null, 'a scheme-less artifact link is not exempt');
+  // …and a claude.ai URL that is NOT an artifact is not exempt at all.
+  const acct = 'https://claude.ai/account/7bea5f11-0693-4099-9cb5-272e21cf0712';
+  assert.ok(acct.replace(ARTIFACT_LINK, '').match(UUID), 'a non-artifact claude.ai link bypasses the uuid sweep');
+  const chat = 'claude.ai/chat/7bea5f11-0693-4099-9cb5-272e21cf0712';
+  assert.ok(chat.replace(ARTIFACT_LINK, '').match(UUID), 'a scheme-less non-artifact claude.ai link bypasses the uuid sweep');
 });

@@ -177,6 +177,117 @@ test('keyboard: focus enters the catalogue panel on open and returns to the butt
   assert.match(cat, /\}, \[open, box\]\);/);
 });
 
+test('keyboard: focus lands on the acted row after Add and after Remove, never on <body>', () => {
+  // ⚠ MEASURED IN CHROMIUM, BOTH WAYS. Add and Remove move a row between two separate
+  // arrays, so the clicked button is UNMOUNTED and focus falls to document.body while a
+  // role="dialog" is still open — driven on the pre-fix tree, activeElement came back BODY
+  // after Add and again after Remove; on this tree it is the same widget's replacement
+  // control, inside the panel. Closing the dialog also fixes it and costs the multi-add the
+  // catalogue exists for. (CodeRabbit, #2137.)
+  const cat = fn(GRID, 'DgCatalog');
+  // every action goes through the wrapper that records which row it was
+  assert.match(cat, /const act = \(fn, key\) => \{ actedRef\.current = key; fn\(key\); \};/);
+  assert.match(cat, /onClick=\{\(\) => act\(onRemove, r\.key\)\}/, 'Remove bypasses the focus wrapper');
+  assert.match(cat, /onClick=\{\(\) => act\(onAdd, r\.key\)\}/, 'Add bypasses the focus wrapper');
+  // the row is findable by the key that was acted on…
+  assert.match(cat, /data-dg-row=\{r\.key\}/, 'the row carries no handle for the focus effect');
+  assert.match(cat, /panel\.querySelectorAll\("\[data-dg-row\]"\)/);
+  // …and the fallback keeps focus inside the dialog when that row has no control any more
+  assert.match(cat, /if \(!target\) target = panel\.querySelector\("button, a\[href\], select, input, textarea"\);/);
+  assert.match(cat, /target\.focus\(\)/);
+  // the effect must run after EVERY render, or the row it is chasing has not moved yet
+  const at = cat.indexOf('const actedRef');
+  assert.ok(at > 0);
+  assert.match(cat.slice(at), /\n  \}\);\n/, 'the acted-row effect is keyed on deps and cannot see the re-render');
+});
+
+test('a visibility change is staged in the same tick, never on a timer', () => {
+  // ⚠ MEASURED IN CHROMIUM ON A COLLAPSED GRID. `persistVisibility` opens with
+  // `if (!gridRef.current) return`, and the cleanup nulls that ref on unmount and on a
+  // role/tab change — so a card added and the tab switched in the same tick lost the add
+  // with no write at all: driven on the pre-fix tree at 390px, writes 0 and `added` null;
+  // on this tree, one write carrying it. On a phone that timer is the ONLY writer, because
+  // persistFromGrid refuses a collapsed grid. (CodeRabbit, #2137.)
+  assert.doesNotMatch(GRID, /setTimeout\(\(\) => persistVisibility/, 'a visibility write is back on a timer');
+  assert.doesNotMatch(GRID, /setTimeout\(\(\) => persist\(/, 'a layout write is back on a timer');
+  for (const name of ['hide', 'restore', 'reset']) {
+    const at = GRID.indexOf('const ' + name + ' = (');
+    assert.ok(at > 0, 'no ' + name);
+    const body = GRID.slice(at, GRID.indexOf('\n  const ', at + 10));
+    assert.match(body, /persist(Visibility)?\(/, name + ' no longer persists at all');
+  }
+});
+
+test('one layout write is in flight at a time, and a newer document supersedes an older one', () => {
+  // ⚠ MEASURED IN CHROMIUM WITH A SLOW WRITE FOLLOWED BY A FAST ONE. `saveUserGoals` is
+  // a whole-document upsert and serializes nothing, so two settled changes 400ms apart go out
+  // side by side — driven on the pre-fix tree the older document LANDED LAST and erased the
+  // second widget (final `["week"]` against the wanted `["week","status"]`); on this tree the
+  // second write waits and the final document carries both. A constant delay cannot reorder
+  // anything, so the first version of that scenario passed on the broken code and proved
+  // nothing. (CodeRabbit, #2137.)
+  const at = GRID.indexOf('const flushSave = () => {');
+  assert.ok(at > 0);
+  const body = GRID.slice(at, GRID.indexOf('\n  const persist = ', at));
+  assert.match(body, /if \(inFlightRef\.current\) \{ queuedRef\.current = true; return; \}/, 'a second write can go out beside the first');
+  // the deferred document is NOT recorded as sent, or the drain dedupes away a write that never went
+  assert.ok(body.indexOf('if (inFlightRef.current)') < body.indexOf('lastSavedRef.current = json;'),
+    'the deferred branch sits below the sent-marker and would claim a write that never happened');
+  // the drain re-reads the CURRENT document rather than replaying the one that was pending
+  assert.match(body, /const drain = \(\) => \{[\s\S]*?flushSave\(\);\n        \};/);
+  assert.match(body, /\.then\(\(res\) => \{ if \(res && res\.error\) failed\(\); else retryRef\.current = 0; drain\(\); \}\)/);
+  assert.match(body, /\.catch\(\(\) => \{ failed\(\); drain\(\); \}\)/);
+  // a synchronous throw must not latch the flag and block every later write
+  assert.match(body, /catch \(e\) \{ inFlightRef\.current = false; failed\(\); \}/);
+});
+
+test('the notes textarea joins the coarse-pointer 16px floor', () => {
+  // ⚠ iOS Safari zooms the viewport when a focused control computes under 16px, and this
+  // one is a 13.5px field inside a GridStack item whose height is measured — so the zoom
+  // reflows the board under the hand typing in it. The rule is shared with the settings
+  // select rather than restated. (CodeRabbit, #2137.)
+  const coarse = GRID.match(/@media \(pointer:coarse\)\{([^}]*)\{font-size:16px!important\}\}/);
+  assert.ok(coarse, 'no coarse-pointer 16px rule at all');
+  const sel = coarse[1].split(',').map((x) => x.trim());
+  assert.ok(sel.includes('.dash-notes-ta'), 'the notes textarea is not in the coarse-pointer rule: ' + coarse[1]);
+  assert.ok(sel.includes('.dash-setpick-sel'), 'the settings select fell out of the coarse-pointer rule: ' + coarse[1]);
+  // …and the class reaches the control, or the rule guards nothing
+  assert.match(fn(TODAY, 'DashNotesPanel'), /<textarea className="dash-notes-ta"/, 'the rule cannot reach the textarea');
+  // the desktop size is unchanged — the override is scoped, not a global bump
+  assert.match(fn(TODAY, 'DashNotesPanel'), /fontSize: 13\.5,/);
+});
+
+test('the three sorted client panels key their rows on the client id', () => {
+  // ⚠ A NAME IS NOT AN IDENTITY, AND ALL THREE OF THESE SORT. Two same-named clients
+  // produce one key and are mis-reconciled the moment the order moves; `dashTopMovers`,
+  // `dashTenureMilestones` and `dashRevenueByClient` all carry `id: recId(c)` already. The
+  // composite stays as the FALLBACK because recId is null for a demo record and for a client
+  // with no linked account. (CodeRabbit, #2137.)
+  assert.match(fn(TODAY, 'DashTopMoversPanel'), /key=\{\(up \? "u:" : "d:"\) \+ \(m\.id \|\| m\.name\)\}/);
+  assert.match(fn(TODAY, 'DashAnniversariesPanel'), /key=\{h\.id \|\| \(h\.name \+ "\|" \+ h\.label\)\}/);
+  assert.match(fn(TODAY, 'DashRevenueByClientPanel'), /key=\{r\.id \|\| \(r\.name \+ "\|" \+ r\.cents\)\}/);
+  // …and the producers really do carry one, or the fallback is the only branch that ever runs.
+  // ⚠ THE FIXTURE IS ASSERTED NON-EMPTY, BECAUSE THE FIRST ONE WAS NOT. It invented a
+  // `score.weekly` shape `dashTopMovers` does not read, so both lists came back empty, the
+  // loop body never ran, and the mutation that drops `id` from the producer SURVIVED a green
+  // suite. A guard over a corpus of nothing reports on nothing.
+  const hist = (pts) => pts.map((q, i) => ({ weekOf: 'w' + i, points: q, partial: false }));
+  const roster = [
+    { profile: { id: 'a1', name: 'Up' }, shapeScoreHistory: hist([50, 70]) },
+    { profile: { id: 'a2', name: 'Down' }, shapeScoreHistory: hist([80, 60]) },
+    { profile: { id: 'a3', name: 'Joined' }, payments: { joinedAt: new Date(Date.now() - 29 * 864e5).toISOString(), mrrCents: 9900 } },
+  ];
+  const mov = DashSignals.dashTopMovers(roster, 3);
+  assert.ok(mov.up.length && mov.down.length, 'the movers fixture produced no rows — this assertion reads nothing');
+  for (const r of [...mov.up, ...mov.down]) assert.match(String(r.id), /^a[12]$/, 'dashTopMovers stopped carrying an id');
+  const mk = DashSignals.dashTenureMilestones(roster, new Date(), 14);
+  assert.ok(mk.soon.length, 'the tenure fixture produced no rows — this assertion reads nothing');
+  for (const h of mk.soon) assert.equal(h.id, 'a3', 'dashTenureMilestones stopped carrying an id');
+  const rev = DashSignals.dashRevenueByClient(roster, 5);
+  assert.ok(rev.rows.length, 'the revenue fixture produced no rows — this assertion reads nothing');
+  for (const r of rev.rows) assert.equal(r.id, 'a3', 'dashRevenueByClient stopped carrying an id');
+});
+
 test("every control the Today page draws clears the repo's 24px floor", () => {
   // ⚠ MEASURED IN CHROMIUM, NOT READ: at 1440 the pulse's pin flag came back 20x27 and the
   // business summary's link 233x12 — both pre-existing, both on the page this change asserts

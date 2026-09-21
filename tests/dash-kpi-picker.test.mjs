@@ -480,7 +480,15 @@ test('the settings select clears the 16px focus-zoom floor on a touch pointer', 
   // ⚠ iOS Safari zooms the VIEWPORT when a focused control computes under 16px, and this
   // panel is position:fixed and placed from the gear's measured rect — so a zoom moves the
   // viewport out from under a panel that has already been positioned.
-  assert.match(GRID, /@media \(pointer:coarse\)\{\.dash-setpick-sel\{font-size:16px!important\}\}/);
+  // ⚠ ANCHORED ON THE RULE, NOT ON ITS SELECTOR LIST. This pinned the whole
+  // declaration verbatim, so giving the same rule a SECOND control — the notes textarea, a
+  // 13.5px form field with the identical hazard — failed a test about the settings select.
+  // What it cares about is that a coarse pointer gets 16px on this class, which is what it
+  // asks now. (CodeRabbit, #2137.)
+  const coarse = GRID.match(/@media \(pointer:coarse\)\{([^}]*)\{font-size:16px!important\}\}/);
+  assert.ok(coarse, 'no coarse-pointer 16px rule at all');
+  assert.ok(coarse[1].split(',').map((x) => x.trim()).includes('.dash-setpick-sel'),
+    'the coarse-pointer 16px rule no longer covers the settings select: ' + coarse[1]);
   const at = GRID.indexOf('function DgCardSettings(');
   const body = GRID.slice(at, GRID.indexOf('\nfunction DashGrid(', at));
   assert.match(body, /className="dash-setpick-sel"/, 'the rule cannot reach the select');
