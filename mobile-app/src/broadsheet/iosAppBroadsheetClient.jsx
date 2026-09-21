@@ -17,6 +17,10 @@ import { bsScoreRecord, RANGE_KEYS } from '../services/scoreHistory.mjs';
 // admit unconsidered — a local copy of 150 that drifted would leave the screen
 // asking at one threshold while the guardrail excluded at another, silently.
 import { BS_SESSION_MINUTES_CEILING, BS_SESSION_MINUTES_MAX } from '../../../public/newdesign/progressionGuardrail.mjs';
+// Dictation in the member's own language: the Web Speech tag for the app's
+// locale (it was 'en-US' for all thirteen). The server side of the same table
+// maps the locale to the transcription hint.
+import { speechLangFor } from '../../../src/lib/ai/voiceLang.mjs';
 import { bsGoalVerdict } from '../services/goalContract.mjs';
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
@@ -3156,12 +3160,14 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
   const dictate = async (blob) => {
     setVoiceState('processing');
     try {
-      const fd = new FormData();
-      fd.append('audio', blob, 'note.webm');
-      const res = await fetch('/api/nutrition/voice', { method: 'POST', body: fd, credentials: 'same-origin' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setVoiceError(data && data.error ? data.error : tr('nutrition:log.errTranscribe', { defaultValue: 'Could not transcribe' })); return; }
-      const text = String(data.transcript || '').trim();
+      // Through the backend client (apiBaseUrl + Bearer): a root-relative
+      // fetch never reaches the backend on the NATIVE build (no same origin,
+      // no cookie). The app's locale and the meal vocabulary ride along.
+      const stt = window.ShapeSupport && window.ShapeSupport.transcribeNote;
+      if (!stt) { setVoiceError(tr('nutrition:log.errVoiceUnavailable', { defaultValue: 'Voice notes unavailable' })); return; }
+      const r = await stt(blob, { filename: 'note.webm', context: 'meal', language: window.ShapeLocale?.get?.() });
+      if (!r.ok) { setVoiceError(r.error || tr('nutrition:log.errTranscribe', { defaultValue: 'Could not transcribe' })); return; }
+      const text = String(r.transcript || '').trim();
       if (text) { setNote(n => (n && n.trim() ? `${n.trim()} ${text}` : text)); window.__bsToast?.(tr('nutrition:log.toastAddedToNote', { defaultValue: 'Added to your note' }), 'ok'); }
       else setVoiceError(tr('nutrition:log.errNoCatch', { defaultValue: 'Didn’t catch that — try again' }));
     } catch (e) {
@@ -21349,7 +21355,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
   // The body is a parameter so the voice hand-off (a released hold-to-talk
   // transcript) and the typed path share ONE sender — no setState race.
-  const sendSupportText = async (body) => {
+  // `opts.voice` marks a SPOKEN message (a released hold-to-talk transcript):
+  // the server then writes the reply for the ear, since it is read aloud.
+  const sendSupportText = async (body, opts = {}) => {
     const clean = String(body || '').trim();
     if (!clean || supportBusy) return;
     setSupportDraft('');
@@ -21358,7 +21366,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     setSupportBusy(true);
     try {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
-      const res = await window.ShapeSupport?.ask?.(hist);
+      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true });
       const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
@@ -21379,7 +21387,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     if (!a) return;
     try {
       if (a.type === 'coach' || a.type === 'marketplace') {
-        window.dispatchEvent(new CustomEvent('shape:openMarket', { detail: { role: a.role || null, coach: a.slug || null } }));
+        // A LIVE listing carries providerId → the Listing opens directly (the
+        // market listener reads detail.coachId); an example listing or a
+        // browse action opens the marketplace filtered to the role.
+        const detail = { role: a.role || null, coach: a.slug || null };
+        if (a.type === 'coach' && a.providerId != null) detail.coachId = a.providerId;
+        window.dispatchEvent(new CustomEvent('shape:openMarket', { detail }));
       } else if (a.type === 'screen' && a.screen === 'integrations') {
         window.dispatchEvent(new CustomEvent('shape:openIntegrations'));
       } else if (a.url) {
@@ -22736,7 +22749,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? sendSupportText : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Message the Shape team…' })} />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? (text) => sendSupportText(text, { voice: true }) : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Message the Shape team…' })} />
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
@@ -22933,7 +22946,8 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
   const startWebSpeech = () => {
     try {
       const rec = new SpeechRec();
-      rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+      // The app's locale, not American English for everyone.
+      rec.lang = speechLangFor(window.ShapeLocale?.get?.()); rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
       let finalText = '';
       rec.onresult = (e) => {
         let interim = '';
@@ -22968,16 +22982,23 @@ function BSMessageComposer({ value, onChange, onSend, onPhoto, photoBusy = false
         setVoiceState('transcribing');
         try {
           const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
-          const fd = new FormData(); fd.append('audio', blob, 'nora.webm');
-          const res = await fetch('/api/ai/transcribe', { method: 'POST', credentials: 'same-origin', body: fd });
-          const data = await res.json().catch(() => ({}));
-          if (res.ok && data && data.transcript) {
-            setVoiceErr(null);
-            if (onVoiceComplete) onVoiceComplete(String(data.transcript).trim());
-            else onChange(data.transcript);
+          // Through the backend client (apiBaseUrl + Bearer): a root-relative
+          // fetch never reaches the backend on the NATIVE build, whose WebView
+          // has no same origin and no cookie — the Cook Mode lesson (#1805)
+          // this composer never got, so voice was dead on every phone. The
+          // app's locale and Shape's own vocabulary ride along (context 'nora').
+          const stt = window.ShapeSupport && window.ShapeSupport.transcribe;
+          if (!stt) { setVoiceErr("Voice isn't supported here — type instead."); }
+          else {
+            const r = await stt(blob, { filename: 'nora.webm', context: 'nora', language: window.ShapeLocale?.get?.() });
+            if (r.ok && r.transcript) {
+              setVoiceErr(null);
+              if (onVoiceComplete) onVoiceComplete(r.transcript);
+              else onChange(r.transcript);
+            }
+            else if (r.status === 401 || r.status === 402) setVoiceErr('Sign in to use voice — or type your question.');
+            else setVoiceErr("Couldn't transcribe — type instead.");
           }
-          else if (res.status === 401 || res.status === 402) setVoiceErr('Sign in to use voice — or type your question.');
-          else setVoiceErr("Couldn't transcribe — type instead.");
         } catch (e) { setVoiceErr("Couldn't transcribe — type instead."); }
         setVoiceState('idle');
       };
@@ -32111,12 +32132,13 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         if (!(blob.size > 0)) { setVState('idle'); return; }
         setVState('busy');
         try {
-          const fd = new FormData();
-          fd.append('audio', blob, 'list.webm');
-          const res = await fetch('/api/nutrition/voice', { method: 'POST', body: fd, credentials: 'same-origin' });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error((data && data.error) || TG('nutrition:log.errTranscribe', 'Could not transcribe'));
-          addSpokenItems(bsParseSpokenItems(data.transcript));
+          // The backend client (apiBaseUrl + Bearer), with the app's locale and
+          // the grocery vocabulary — see the meal logger's dictate().
+          const stt = window.ShapeSupport && window.ShapeSupport.transcribeNote;
+          if (!stt) throw new Error(TG('nutrition:log.errVoiceUnsupported', 'Voice input isn’t supported here yet'));
+          const r = await stt(blob, { filename: 'list.webm', context: 'grocery', language: window.ShapeLocale?.get?.() });
+          if (!r.ok) throw new Error(r.error || TG('nutrition:log.errTranscribe', 'Could not transcribe'));
+          addSpokenItems(bsParseSpokenItems(r.transcript));
         } catch (e) { window.__bsToast?.(e?.message || TG('nutrition:grocery.shop.voiceFail', 'Voice add failed'), 'err'); }
         finally { setVState('idle'); }
       };

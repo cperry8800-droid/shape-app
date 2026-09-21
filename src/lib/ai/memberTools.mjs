@@ -20,19 +20,29 @@ export function waterLiters(amount, unit) {
   return null;
 }
 
-// Fuzzy-match ONE of the member's own active habits. Exactly one hit proceeds;
-// everything else fails closed (spec #1652) — never guess-toggles. Exact
-// name match wins alone even when it substring-matches siblings.
-export function matchHabit(habits, query) {
-  const list = (Array.isArray(habits) ? habits : []).filter((h) => h && h.id && typeof h.name === 'string');
+// Resolve ONE named item from a list the member (or coach) actually owns.
+// Exactly one hit proceeds; everything else fails closed with what WAS found
+// (spec #1652) — never a guess. An exact name match wins alone even when it
+// substring-matches siblings ("water" beats "water the plants"). Shared by the
+// habit toggle and by the coach's client lookup, so the two cannot disagree
+// about what "one match" means.
+export function matchNamed(items, query) {
+  const list = (Array.isArray(items) ? items : []).filter((h) => h && h.id && typeof h.name === 'string');
   const q = String(query || '').replace(/\s+/g, ' ').trim().toLowerCase();
   const names = list.map((h) => h.name).slice(0, 12);
   if (!q) return { error: 'not_found', names };
   const exact = list.filter((h) => h.name.toLowerCase() === q);
-  if (exact.length === 1) return { habit: exact[0] };
+  if (exact.length === 1) return { item: exact[0] };
   if (exact.length > 1) return { error: 'ambiguous', candidates: exact.map((h) => ({ id: h.id, name: h.name })) };
   const loose = list.filter((h) => h.name.toLowerCase().includes(q));
-  if (loose.length === 1) return { habit: loose[0] };
+  if (loose.length === 1) return { item: loose[0] };
   if (loose.length > 1) return { error: 'ambiguous', candidates: loose.map((h) => ({ id: h.id, name: h.name })) };
   return { error: 'not_found', names };
+}
+
+// Fuzzy-match ONE of the member's own active habits — matchNamed's policy,
+// with the hit under the key the habit tool has always read.
+export function matchHabit(habits, query) {
+  const r = matchNamed(habits, query);
+  return r.item ? { habit: r.item } : r;
 }
