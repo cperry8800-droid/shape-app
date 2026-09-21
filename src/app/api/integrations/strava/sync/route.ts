@@ -4,7 +4,7 @@ import { dbError } from '@/lib/request-utils';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeStravaSnapshots } from '@/lib/health-snapshot';
-import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -242,6 +242,7 @@ function activityPostPayload(
     ].filter(Boolean).join(' - ') || 'Imported from Strava.',
     metrics: {
       provider: 'strava',
+      startedAt: activityStartISO(activity.start_date),
       distanceMeter: activity.distance ?? null,
       movingTimeSeconds: activity.moving_time ?? null,
       elapsedTimeSeconds: activity.elapsed_time ?? null,
@@ -275,7 +276,11 @@ function activityPostPayload(
     },
     source_provider: 'strava',
     source_activity_id: activity.id ? String(activity.id) : null,
-    created_at: activity.start_date ?? new Date().toISOString(),
+    // ⚠ NO `created_at` — the DB default (now) is when the POST was made, which
+    // is what the feed sorts and dates by. The workout's own start is
+    // `metrics.startedAt`, normalised to UTC ISO so the dedup's text range
+    // compares like with like. Stamping created_at at the activity start filed
+    // a backfill below 50 newer rows, where nobody ever saw it.
   };
 }
 
@@ -494,7 +499,7 @@ async function importStravaActivities(
       // Cross-source guard: another provider (or the in-app logger) already
       // posted this workout within ±20 min → keep the activities row, skip the
       // social post (first-writer-wins, silent).
-      const dup = await findCrossSourceDuplicate(client, userId, payload.created_at, 'strava');
+      const dup = await findCrossSourceDuplicate(client, userId, activityStartISO(activity.start_date) ?? '', 'strava');
       if (dup) continue;
     }
 

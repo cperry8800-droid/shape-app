@@ -9,12 +9,13 @@ import { createNotification } from '@/lib/notify';
 import {
   bsWorkoutSharePrivacy as workoutSharePrivacy,
   bsIsDuplicateWorkoutPost as isDuplicateWorkoutPost,
+  bsFetchDuplicateCandidates as fetchDuplicateCandidates,
+  bsActivityStartISO as activityStartISO,
+  bsPostActivityStart as postActivityStart,
 } from '../../mobile-app/src/services/workoutShare.mjs';
 
 export type SharePrivacy = 'public' | 'followers' | 'private';
-export { workoutSharePrivacy, isDuplicateWorkoutPost };
-
-const WINDOW_MS = 20 * 60 * 1000;
+export { workoutSharePrivacy, isDuplicateWorkoutPost, activityStartISO, postActivityStart };
 
 // Fail CLOSED on a read error — a transient settings failure must degrade to
 // the old behavior (private), never accidentally publish someone's workout.
@@ -33,25 +34,31 @@ export async function resolveWorkoutSharePrivacy(client: SupabaseClient, userId:
   }
 }
 
-// ±20-min different-provider window (device posts stamp created_at = activity
-// start). Best-effort: any error → not a duplicate (never block the sync).
+// ±20-min different-provider window around the ACTIVITY START. Best-effort:
+// any error → not a duplicate (never block the sync).
+//
+// ⚠ `startISO` IS THE ACTIVITY'S OWN START, NEVER `payload.created_at`. Those
+// were the same value until auto-posters stopped dating a post by the workout
+// it describes; `created_at` now means when the post was made, so passing it
+// here would compare a backfilled year-old workout against posts made in the
+// last twenty minutes and match nothing. The candidate rows are pre-filtered by
+// the shared two-leg query (see bsFetchDuplicateCandidates) and judged by the
+// shared predicate, which reads metrics.startedAt with a created_at fallback.
 export async function findCrossSourceDuplicate(
   client: SupabaseClient, userId: string, startISO: string, provider: string,
 ): Promise<boolean> {
-  const start = Date.parse(startISO || '');
-  if (!Number.isFinite(start)) return false;
+  if (!Number.isFinite(Date.parse(startISO || ''))) return false;
   try {
-    const { data, error } = await client
-      .from('community_posts')
-      .select('source_provider, created_at')
-      .eq('author_id', userId)
-      .not('source_provider', 'is', null)
-      .neq('source_provider', provider)
-      .gte('created_at', new Date(start - WINDOW_MS).toISOString())
-      .lte('created_at', new Date(start + WINDOW_MS).toISOString())
-      .limit(5);
-    if (error) return false;
-    return isDuplicateWorkoutPost(data ?? [], startISO, provider);
+    const rows = await fetchDuplicateCandidates(
+      () => client
+        .from('community_posts')
+        .select('source_provider, created_at, metrics')
+        .eq('author_id', userId)
+        .not('source_provider', 'is', null)
+        .neq('source_provider', provider),
+      startISO,
+    );
+    return isDuplicateWorkoutPost(rows, startISO, provider);
   } catch {
     return false;
   }
