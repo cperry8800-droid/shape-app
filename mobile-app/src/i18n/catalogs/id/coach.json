@@ -999,6 +999,8 @@
   "workoutEditor.tempo": "Tempo",
   "workoutEditor.group": "Grup superset",
   "workoutEditor.loadUnit": "Satuan beban",
+  "workoutEditor.targetRpe": "Target · RPE",
+  "workoutEditor.rpeNone": "Tidak ada",
   "workoutEditor.percentMax": "% 1RM",
   "workoutEditor.existingLoad": "Resep latihan saat ini",
   "workoutEditor.cue": "Arahan pelatih",

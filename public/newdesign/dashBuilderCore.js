@@ -16,10 +16,11 @@
 //           rows: [ {
 //             id, name, muscle, equipment,
 //             sets: n, reps: '5' | '8-10',
-//             loadType: 'kg'|'pct'|'rpe', load: n,
+//             loadType: 'kg'|'lb'|'pct', load: n,   // a stored 'rpe' is legacy — splitLegacyRpe moves it
+//             rpe: 1–10 in half points | '',       // its own axis: '100 kg · RPE 8' is one row
 //             tempo: '31X1' | '', rest: '90s' | '',
 //             cue: 'brace before the walkout',     // renders VERBATIM on the client card
-//             group: 'A' | null,                   // adjacent same letters = superset (A1/A2)
+//             group: 'A' | null,                   // same letter = superset (A1/A2, in list order — not only adjacent)
 //             progression: { rule: 'all-reps', incKg: 2.5 } | null,
 //           } ]
 //         } ]
@@ -38,6 +39,7 @@
 })(typeof window !== "undefined" ? window : null, function () {
   var DAY = 86400000;
   var WorkoutDoc = typeof module !== "undefined" && module.exports ? require("./workoutDocument.js") : globalThis.ShapeWorkoutDocument;
+  var Signals = typeof module !== "undefined" && module.exports ? require("./dashSignals.js") : globalThis.DashSignals;
 
   var GOAL_TAGS = [
     { key: "cut", label: "Cut", c: "#d8a23a" },
@@ -210,7 +212,7 @@
   function newRow(ex) {
     return {
       id: uid(), name: ex ? ex.name : "", muscle: ex ? ex.muscle : "", equipment: ex ? ex.equipment : "",
-      sets: 3, reps: "8", loadType: "kg", load: 0, tempo: "", rest: "90s", cue: "", video: "", group: null, progression: null,
+      sets: 3, reps: "8", loadType: "kg", load: 0, rpe: "", tempo: "", rest: "90s", cue: "", video: "", group: null, progression: null,
     };
   }
   function newDay(name) {
@@ -223,12 +225,24 @@
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
   // ── Load + scheme formatting (the client card shows these verbatim) ───────
+  // ⚠ THE FALLBACK IS A FALLBACK, and it has to compose the same two axes or a
+  // browser that somehow loaded this without `workoutDocument.js` would silently
+  // drop every coach's RPE. `WorkoutDoc.loadLabel` is the rule; this mirrors it.
   function loadLabel(row) {
     if (WorkoutDoc) return WorkoutDoc.loadLabel(row);
-    if (row.load == null || row.load === 0 || row.load === "") return "";
-    if (row.loadType === "pct") return row.load + "% 1RM";
-    if (row.loadType === "rpe") return "RPE " + row.load;
-    return row.load + " kg";
+    var parts = [];
+    // An imported free-text load stands in for the weight, never for the RPE —
+    // the same rule as ShapeWorkoutDocument.loadLabel, which this must agree with.
+    if (row.loadText != null) {
+      if (String(row.loadText)) parts.push(String(row.loadText));
+    } else if (!(row.load == null || row.load === "" || Number(row.load) === 0)) {
+      if (row.loadType === "pct") parts.push(row.load + "% 1RM");
+      else if (row.loadType === "rpe") parts.push("RPE " + row.load);
+      else parts.push(row.load + " " + (row.loadType === "lb" ? "lb" : "kg"));
+    }
+    var n = Number(row.rpe);
+    if (row.loadType !== "rpe" && isFinite(n) && n > 0 && n <= 10) parts.push("RPE " + n);
+    return parts.join(" \u00b7 ");
   }
   function schemeLabel(row) {
     var parts = [];
@@ -238,26 +252,19 @@
     return parts.join(" · ");
   }
 
-  // Superset labels: adjacent rows sharing a group letter get A1/A2/…;
+  // Superset labels: rows sharing a group letter get A1/A2/… in list order;
   // ungrouped rows get plain numbering.
+  // ⚠ ONE RULE, NOT A SECOND COPY OF IT. `DashSignals.groupLabels` is what the
+  // member's own card derives its A1/A2 from, and a builder that numbered rows
+  // its own way would put the coach's editor and the client's screen back into
+  // disagreement — which is the defect this delegation exists to close.
   function rowLabels(day) {
-    var out = [];
-    var counters = {};
-    var plain = 0;
+    var flat = [];
     for (var b = 0; b < day.blocks.length; b++) {
       var rows = day.blocks[b].rows;
-      for (var i = 0; i < rows.length; i++) {
-        var g = rows[i].group;
-        if (g) {
-          counters[g] = (counters[g] || 0) + 1;
-          out.push(g + counters[g]);
-        } else {
-          plain += 1;
-          out.push(String(plain).padStart(2, "0"));
-        }
-      }
+      for (var i = 0; i < rows.length; i++) flat.push(rows[i]);
     }
-    return out;
+    return Signals.groupLabels(flat);
   }
 
   // ── Week tools ─────────────────────────────────────────────────────────────
@@ -275,7 +282,11 @@
             if (r.loadType === "kg" && r.progression.incKg) r.load = Math.round((Number(r.load) + r.progression.incKg) * 100) / 100;
             if (r.loadType === "lb" && r.progression.incLb) r.load = Math.round((Number(r.load) + r.progression.incLb) * 100) / 100;
             else if (r.loadType === "pct" && r.progression.incPct) r.load = Math.min(100, Number(r.load) + r.progression.incPct);
-            else if (r.loadType === "rpe" && r.progression.incRpe) r.load = Math.min(10, Number(r.load) + r.progression.incRpe);
+            // ⚠ RPE PROGRESSES ON ITS OWN AXIS NOW, independently of the load's
+            //   unit — a week that adds 2.5 kg AND a half point of RPE is an
+            //   ordinary block, and keying this on `loadType` made the two
+            //   mutually exclusive.
+            if (r.progression.incRpe && Number(r.rpe) > 0) r.rpe = Math.min(10, Math.round((Number(r.rpe) + r.progression.incRpe) * 100) / 100);
           }
           r.id = uid(); // duplicated rows are their own rows
         }
@@ -311,7 +322,11 @@
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
         exercises.push({
-          prefix: r.group ? labels[li] : null,
+          // ⚠ EVERY ROW, NOT ONLY THE GROUPED ONES. `DashWorkoutCard` numbers a
+          //   prefix-less row by its ABSOLUTE index, so this preview read
+          //   "01 / A1 / A2 / 04" beside an editor reading "01 / A1 / A2 / 02" —
+          //   the coach's own two views of one day disagreeing about its numbering.
+          prefix: labels[li],
           name: r.name || "Exercise",
           scheme: schemeLabel(r),
           load: loadLabel(r),
@@ -350,8 +365,6 @@
       for (var d = 0; d < days.length; d++) {
         var day = clone(days[d]);
         var date = new Date(start.getTime() + (w * 7 + d) * DAY);
-        var labels = rowLabels(day);
-        var li = 0;
         var exercises = [];
         for (var b = 0; b < day.blocks.length; b++) {
           for (var i = 0; i < day.blocks[b].rows.length; i++) {
@@ -359,10 +372,14 @@
             exercises.push({
               name: r.name, sets: String(r.sets), reps: String(r.reps),
               rest: r.rest || "", load: loadLabel(r), tempo: r.tempo || "",
-              cue: r.cue || "", group: r.group ? labels[li] : "",
+              // ⚠ THE KEY, NEVER THE LABEL. This fallback wrote `labels[li]`
+              // ("A1"/"A2") into the one field the player pairs on, so the two
+              // halves of a superset stopped matching and full rest came back
+              // between them. Unreachable on today's two hosts (both load
+              // workoutDocument.js first), which is why nothing caught it.
+              cue: r.cue || "", group: Signals.groupKey(r.group),
               block: day.blocks[b].kind,
             });
-            li += 1;
           }
         }
         out.push({
@@ -385,7 +402,14 @@
       return { id: "demo-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: name, published: true, detail: { builder: { version: 3, goalTag: goalTag, weeks: weeks } } };
     };
     var row = function (name, muscle, equipment, sets, reps, loadType, load, tempo, rest, cue, group, prog) {
-      return { id: uid(), name: name, muscle: muscle, equipment: equipment, sets: sets, reps: reps, loadType: loadType, load: load, tempo: tempo, rest: rest, cue: cue, group: group || null, progression: prog || null };
+      // ⚠ THROUGH THE SAME MIGRATION THE STORED DOCUMENTS TAKE. These demo rows
+      //   never pass through `normalizeWorkoutDetail`, so a hand-written
+      //   `loadType:'rpe'` here would be the one place in the app still carrying
+      //   the retired shape — visible, in the demo a coach is shown first.
+      var made = { id: uid(), name: name, muscle: muscle, equipment: equipment, sets: sets, reps: reps, loadType: loadType, load: load, rpe: "", tempo: tempo, rest: rest, cue: cue, group: group || null, progression: prog || null };
+      // The METHOD is tested, not only the module: a stale cached copy of the
+      // document module has the object and not this function.
+      return WorkoutDoc && typeof WorkoutDoc.splitLegacyRpe === "function" ? WorkoutDoc.splitLegacyRpe(made) : made;
     };
     var strengthW1 = {
       deload: false,

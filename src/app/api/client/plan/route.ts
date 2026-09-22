@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
+import { supersetKey } from '../../../../../public/newdesign/workoutDocument.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,9 +25,14 @@ function weekStartISO(d = new Date()): string {
   return x.toISOString().slice(0, 10);
 }
 
-type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown; video?: unknown };
+type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; rpe?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown; video?: unknown };
 
-function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; tempo: string; cue: string; group: string; seg: string; video: unknown }> {
+const rpeOf = (v: unknown): number | null => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 && n <= 10 ? n : null;
+};
+
+function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; rpe: number | null; tempo: string; cue: string; group: string; seg: string; video: unknown }> {
   const list = Array.isArray(payload?.exercises) ? (payload!.exercises as ExerciseRow[]) : [];
   return list
     .filter((e) => e && (e.name != null))
@@ -36,11 +42,24 @@ function mapExercises(payload: Record<string, unknown> | null): Array<{ name: st
       reps: e.reps != null ? String(e.reps) : '',
       rest: e.rest != null ? String(e.rest) : '',
       load: e.load != null ? String(e.load) : (e.notes != null ? String(e.notes) : ''),
-      // Builder fields — the trainer's tempo / verbatim cue / superset label
-      // ride through untouched so the client card shows exactly what was typed.
+      // The target RPE, as a number, beside the display label that already
+      // carries it ("100 kg · RPE 8"). ⚠ An explicit whitelist drops every field
+      // it does not name, so a structured prescription that is not listed here
+      // never reaches the member — the assignment snapshot has carried `rpe`
+      // since RPE became its own axis. The scale is 1–10; anything else is none.
+      rpe: rpeOf(e.rpe),
+      // Builder fields — the trainer's tempo and verbatim cue ride through
+      // untouched so the client card shows exactly what was typed.
       tempo: e.tempo != null ? String(e.tempo) : '',
       cue: e.cue != null ? String(e.cue) : '',
-      group: e.group != null ? String(e.group) : '',
+      // ⚠ THE SUPERSET KEY IS DELIVERED UNDER THE DOCUMENT'S OWN KEY RULE, NOT
+      // COPIED. `String(e.group)` turned a stray boolean or object into a truthy
+      // key ("false", "[object Object]") that every reader then paired on, and
+      // passed a legacy "a " through for the player to print as its superset
+      // badge. Delivery is one of the places the one rule has to hold, with
+      // storage, the labels and the player (the A1/A2 label is derived from
+      // this key at render, never stored).
+      group: supersetKey(e.group),
       // Self-authored segment row (a run/ride/swim leg or a Hyrox station) — the
       // free descriptor the deck renders in place of a load ("10 mi · Z2").
       seg: e.seg != null ? String(e.seg) : '',

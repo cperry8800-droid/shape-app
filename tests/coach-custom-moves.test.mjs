@@ -141,6 +141,26 @@ test("a nutritionist's own foods come from meals, swaps and per-day extras", () 
     'swaps and variant extras count, and the listed "Overnight oats" does not');
 });
 
+// ⚠ A REST-DAY DISH WAS NEVER OFFERED BACK. An override is a whole meal the coach
+// wrote for a rest or travel day — "Override" clones the base meal into an editable
+// row with a free-text name — and the walk read base slots, their swaps and variant
+// extras, never `variants[k].overrides`. It also took an extra without the swaps
+// written under it, while it took a base meal's: two rules for one kind of place.
+test("a nutritionist's own foods include rest-day overrides and the alternates under an extra", () => {
+  const own = DashMeals.customFoodsFromTemplates(withMeals([{
+    slots: [{ id: 'm1', name: "Mum's dhal", kcal: 520 }, { id: 'm2', name: 'Overnight oats' }],
+    variants: {
+      rest: {
+        overrides: { m1: { id: 'm1', name: "Nan's soup", kcal: 300, swaps: [{ name: 'Bone broth', kcal: 90 }] }, m2: null },
+        extras: [{ name: 'Late snack', kcal: 120, swaps: [{ name: 'Quark pot', kcal: 110 }] }],
+      },
+    },
+  }]));
+  assert.deepEqual(own.map((f) => f.name), ['Bone broth', 'Late snack', "Mum's dhal", "Nan's soup", 'Quark pot'],
+    'a rest-day dish, its alternate, and an extra\'s alternate are all the coach\'s own foods');
+  assert.ok(!own.some((f) => f.name === 'null'), 'a meal dropped for the day (a null override) is no dish');
+});
+
 // ⚠ AN EXCLUSION IS A FACT ABOUT THE CLIENT, so it applies to the coach's own
 // dishes exactly as it applies to Shape's. `searchFoods` matches an exclusion
 // against the NAME as well as the tags; this keeps that rule rather than
@@ -623,4 +643,128 @@ test('both builders resolve their own moves and foods through the shared rule', 
     assert.deepEqual(body.arguments.map((a) => a.name), ['doc', name === 'ownFoods' ? 'customFoods' : 'customMoves'],
       `${member} is not being handed the open document and the saved list`);
   }
+});
+
+// ── The grip is the handle, so the grip must start a drag ───────────────────
+// ⚠ IT DID NOT, AND THIS SHIPPED IN #2144. The header's own rule is "a press on a
+// control is that control's, never a drag" — and the grip is a `<button>`, so the
+// ONE element drawn to look like the handle was the one element excluded from
+// starting a drag. A coach who grabbed the dots got nothing; a coach who grabbed
+// the empty header beside them got the feature.
+test('the drag grip itself starts a drag', async () => {
+  const root = await mountBuilder();
+  const gh = document.querySelector('.drawer.float .dh .gh');
+  assert.ok(gh, 'no grip rendered — without one this test asserts nothing');
+  await React.act(async () => gh.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, pointerId: 7, clientX: 500, clientY: 200 })));
+  assert.ok(grabbing(), 'pressing the handle is a drag, not a dead button');
+  await ptr('pointerup', { pointerId: 7, clientX: 500, clientY: 200 });
+  // ⚠ AND THE EXCLUSION IT WAS CARVED OUT OF STILL HOLDS: a real control in the
+  // header is that control's. Without this the fix is "let anything start a drag",
+  // which takes Done and Duplicate away from the pointer.
+  const done = [...document.querySelectorAll('.drawer.float .dh button')].find((b) => !b.classList.contains('gh'));
+  assert.ok(done, 'no ordinary control in the header — the control half is untested');
+  await React.act(async () => done.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, pointerId: 8, clientX: 500, clientY: 200 })));
+  assert.ok(!grabbing(), 'a press on a control is still that control’s');
+  await React.act(async () => root.unmount());
+});
+
+// ⚠ ONE POINTER DRIVES A DRAG. A second finger landing on the header mid-drag used to
+// REPLACE the drag, so the panel stopped following the hand moving it and waited on
+// the finger that was only resting there.
+const panelBox = () => {
+  const st = document.querySelector('.drawer.float').getAttribute('style') || '';
+  const x = /left:\s*(-?[\d.]+)px/.exec(st), y = /top:\s*(-?[\d.]+)px/.exec(st);
+  return x && y ? [Number(x[1]), Number(y[1])] : null;
+};
+test('a second finger cannot take over a drag already under way', async () => {
+  const root = await mountBuilder();
+  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
+  await ptr('pointermove', { pointerId: 1, clientX: 420, clientY: 260 });
+  const moved = panelBox();
+  assert.ok(moved, 'the first finger moved the panel — without this the rest proves nothing');
+  await ptr('pointerdown', { pointerId: 2, clientX: 700, clientY: 400 });
+  await ptr('pointermove', { pointerId: 2, clientX: 100, clientY: 100 });
+  assert.deepEqual(panelBox(), moved, 'the resting finger does not move the panel');
+  await ptr('pointermove', { pointerId: 1, clientX: 380, clientY: 300 });
+  assert.notDeepEqual(panelBox(), moved, 'the finger that started the drag still drives it');
+  await ptr('pointerup', { pointerId: 1, clientX: 380, clientY: 300 });
+  assert.ok(!grabbing(), 'and lifting it ends the drag');
+  await React.act(async () => root.unmount());
+});
+
+// ⚠ PLACED BEFORE THE FIRST PAINT. The panel mounts already open and its height budget
+// lives only in the inline style, so a PASSIVE placement effect showed one frame of
+// panel at the stylesheet's fallback corner with no height cap, then jumped — on
+// every builder open. jsdom has no paint to observe, so the invariant is pinned where
+// it lives: the effect that places the panel is a layout effect.
+test('the drag hook places its panel in the commit, before the browser paints', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { parse } = await import('@babel/parser');
+  const ast = parse(readFileSync(SRC, 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
+  const hook = ast.program.body.find((n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === 'useDbuDrag');
+  assert.ok(hook, 'useDbuDrag is gone — this guard is reading nothing');
+  const placing = [];
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (n.type === 'CallExpression' && n.callee && n.callee.type === 'MemberExpression' && /^use(Layout)?Effect$/.test(n.callee.property.name)) {
+      const body = JSON.stringify(n.arguments[0], (k, v) => (k === 'loc' || k === 'start' || k === 'end' ? undefined : v));
+      // the effect that computes a default position is the one that places the panel
+      if (body.includes('"defRef"')) placing.push(n.callee.property.name);
+    }
+    for (const k of Object.keys(n)) if (k !== 'loc' && !/Comments$/.test(k)) walk(n[k]);
+  };
+  walk(hook.body);
+  assert.deepEqual(placing, ['useLayoutEffect'], 'the placement effect runs after paint again — every open will flash the unplaced panel');
+});
+
+// ── The client preview moves too, on the owner's ruling ─────────────────────
+const openPreview = async () => {
+  const tog = [...document.querySelectorAll('button.tog')].find((b) => /Preview as client/.test(b.textContent));
+  assert.ok(tog, 'no preview toggle — without one this test asserts nothing');
+  await React.act(async () => tog.click());
+  const pop = document.querySelector('.pop');
+  assert.ok(pop, 'the preview did not open');
+  return pop;
+};
+
+test('the client preview can be dragged, and moving it releases the anchor it was pinned by', async () => {
+  const root = await mountBuilder();
+  const pop = await openPreview();
+  assert.ok(!pop.getAttribute('style'), 'at rest it carries no inline position — the stylesheet’s bottom-right anchor still holds, and survives a resize');
+  const head = pop.querySelector('.ph2.grab');
+  assert.ok(head, 'the preview header is not a drag surface');
+  const gh = head.querySelector('.gh');
+  assert.ok(gh, 'the preview has no grip');
+  const fire = (type, init) => React.act(async () => head.dispatchEvent(new window.PointerEvent(type, { bubbles: true, ...init })));
+  await fire('pointerdown', { pointerId: 3, clientX: 900, clientY: 600 });
+  await fire('pointermove', { pointerId: 3, clientX: 700, clientY: 300 });
+  const style = document.querySelector('.pop').getAttribute('style') || '';
+  assert.match(style, /left:/, 'a dragged preview is positioned by its own left');
+  assert.match(style, /top:/, 'and its own top');
+  // ⚠ THE RELEASED ANCHORS ARE THE LOAD-BEARING PART. `.pop` is anchored
+  // `right:20px;bottom:20px`, and a `height:auto` box given BOTH `top` and
+  // `bottom` is over-constrained: CSS stretches it to span them, so handing it a
+  // `top` alone would silently resize the panel as well as move it.
+  assert.match(style, /bottom:\s*auto/, 'the bottom anchor is released, or the box stretches instead of moving');
+  assert.match(style, /right:\s*auto/, 'and the right anchor with it');
+  await fire('pointerup', { pointerId: 3, clientX: 700, clientY: 300 });
+  await React.act(async () => root.unmount());
+});
+
+// ⚠ ONE HOOK, TWO PANELS — asserted structurally, because the alternative this
+// repo already records is three line-for-line copies of `useCoachDoc` that had
+// drifted. Both panels must take their pointer handlers from `useDbuDrag`, and the
+// pointer-capture dance must exist exactly once in the file.
+test('both floating panels share one drag rule', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { stripComments } = await import('./helpers/strip-comments.mjs');
+  const code = stripComments(readFileSync(SRC, 'utf8'));
+  assert.equal((code.match(/= useDbuDrag\(\{/g) || []).length, 2, 'exactly two panels are draggable, and both go through the hook');
+  assert.equal((code.match(/setPointerCapture/g) || []).length, 1, 'the capture dance is written once, not once per panel');
+  assert.equal((code.match(/function useDbuDrag\b/g) || []).length, 1);
+  // Each panel spreads the hook's own handler bundle rather than re-wiring five
+  // pointer props by hand — a second hand-wiring is how one of them loses
+  // `onLostPointerCapture` and strands a grabbing cursor.
+  assert.equal((code.match(/\{\.\.\.(panel|previewPanel)\.headerProps\}/g) || []).length, 2);
 });

@@ -95,13 +95,11 @@ function dtrToCard(w, coach) {
     time: w.time ? (() => { const [h, m] = w.time.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return (h % 12 === 0 ? 12 : h % 12) + ":" + String(m || 0).padStart(2, "0") + " " + ap; })() : null,
     coach: coach || "your coach",
     meta: [w.durationMin ? w.durationMin + " min" : null, (w.exercises || []).length + " moves"].filter(Boolean).join(" · "),
-    exercises: (w.exercises || []).map((e) => ({
-      prefix: e.group || null,
-      name: e.name,
-      scheme: [[e.sets, e.reps].filter(Boolean).join(" × "), e.tempo ? e.tempo + " tempo" : null, e.rest].filter(Boolean).join(" · "),
-      load: e.load || "",
-      cue: e.cue || "",
-    })),
+    // ⚠ ONE RULE FOR BOTH SURFACES, and it lives in `dashSignals.js` because the
+    //   member's pages that render this card never load `dashBuilderCore.js`, and
+    //   this directory has no error boundary — a bare global that is not there is
+    //   a blank page, not a missing label.
+    exercises: DashSignals.workoutCardExercises(w.exercises),
     playlist: w.playlist || null,
   };
 }

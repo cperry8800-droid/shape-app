@@ -24,14 +24,29 @@ test("progression auto-fills the duplicated week (+2.5 kg on all-reps)", () => {
   assert.equal(w1.days[0].blocks[0].rows[0].load, 100, "source week untouched");
   assert.notEqual(w2.days[0].blocks[0].rows[0].id, "t1", "duplicated rows get fresh ids");
 });
+// ⚠ RE-ANCHORED: this pinned `loadType:'rpe'` with the effort stored in `load`,
+// which is the shape the RPE split retired — RPE was a fourth load UNIT, so it
+// was exclusive with a weight and a coach could never write "100 kg @ RPE 8".
+// The caps are the invariant; which field holds the effort was never it.
 test("progression caps pct at 100 and rpe at 10", () => {
   const w = week([
     kgRow({ loadType: "pct", load: 99, progression: { rule: "all-reps", incPct: 2.5 } }),
-    kgRow({ id: "t2", loadType: "rpe", load: 9.5, progression: { rule: "all-reps", incRpe: 1 } }),
+    kgRow({ id: "t2", loadType: "kg", load: 0, rpe: 9.5, progression: { rule: "all-reps", incRpe: 1 } }),
   ]);
   const next = DB.applyProgression(w);
   assert.equal(next.days[0].blocks[0].rows[0].load, 100);
-  assert.equal(next.days[0].blocks[0].rows[1].load, 10);
+  assert.equal(next.days[0].blocks[0].rows[1].rpe, 10);
+});
+
+// The case the old model could not express at all: a week that adds weight AND a
+// half point of effort. Keying the RPE bump on `loadType` made the two mutually
+// exclusive, so only one of them could ever move.
+test("a row carrying both a load and an RPE progresses both", () => {
+  const w = week([kgRow({ loadType: "kg", load: 100, rpe: 8, progression: { rule: "all-reps", incKg: 2.5, incRpe: 0.5 } })]);
+  const row = DB.applyProgression(w).days[0].blocks[0].rows[0];
+  assert.equal(row.load, 102.5);
+  assert.equal(row.rpe, 8.5);
+  assert.equal(DB.loadLabel(row), "102.5 kg · RPE 8.5", "and the client card states both");
 });
 
 test("deload cuts volume ~40% (sets ×0.6, floor 1) and flags the week", () => {
@@ -54,7 +69,13 @@ test("superset labels: adjacent grouped rows get A1/A2, ungrouped get numbers", 
 test("load labels per type render the trainer's choice", () => {
   assert.equal(DB.loadLabel(kgRow()), "100 kg");
   assert.equal(DB.loadLabel(kgRow({ loadType: "pct", load: 75 })), "75% 1RM");
+  // ⚠ THE RETIRED SHAPE STILL READS. A stored document is migrated by
+  // `splitLegacyRpe` on the first read, and until then this arm is what stops
+  // `loadLabel` printing nothing for an effort-only row.
   assert.equal(DB.loadLabel(kgRow({ loadType: "rpe", load: 8 })), "RPE 8");
+  assert.equal(DB.loadLabel(kgRow({ loadType: "kg", load: 0, rpe: 8 })), "RPE 8", "and so does the new one");
+  assert.equal(DB.loadLabel(kgRow({ loadType: "kg", load: 100, rpe: 8 })), "100 kg · RPE 8", "which the old one could not say at all");
+  assert.equal(DB.loadLabel(kgRow({ loadType: "rpe", load: 8, rpe: 8 })), "RPE 8", "a half-migrated row states it once, not twice");
   assert.equal(DB.loadLabel(kgRow({ load: 0 })), "", "bodyweight rows show no load");
 });
 

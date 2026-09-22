@@ -135,6 +135,14 @@
       seen[key] = rec;
       out.push(rec);
     }
+    // A meal and every alternate written under it. ⚠ ONE RULE FOR EVERY PLACE A
+    // DISH CAN BE WRITTEN: the base walk took swaps and the variant walk did not,
+    // so an alternate counted as a food on a base meal and not on a rest-day extra.
+    function takeWithSwaps(m) {
+      take(m);
+      var sw = (m && m.swaps) || [];
+      for (var s3 = 0; s3 < sw.length; s3++) take(sw[s3]);
+    }
     for (var t = 0; t < list.length; t++) {
       var doc = list[t] && list[t].detail && list[t].detail.mealBuilder;
       var days = (doc && doc.days) || [];
@@ -151,15 +159,25 @@
         for (var i2 = 0; i2 < slots.length; i2++) {
           var slot = slots[i2];
           if (!slot) continue;
-          take(slot);
-          var sw = slot.swaps || [];
-          for (var s2 = 0; s2 < sw.length; s2++) take(sw[s2]);
+          takeWithSwaps(slot);
         }
         var variants = day.variants || {};
         for (var vk in variants) {
           if (!Object.prototype.hasOwnProperty.call(variants, vk)) continue;
-          var extras = (variants[vk] && variants[vk].extras) || [];
-          for (var e2 = 0; e2 < extras.length; e2++) take(extras[e2]);
+          var variant = variants[vk];
+          if (!variant) continue;
+          var extras = variant.extras || [];
+          for (var e2 = 0; e2 < extras.length; e2++) takeWithSwaps(extras[e2]);
+          // ⚠ AN OVERRIDE IS A WHOLE MEAL THE COACH WROTE for a rest or travel day —
+          // the "Override" button clones the base meal into an editable row with a
+          // free-text name. Left out of this walk, a dish written only on a rest day
+          // was never offered back. A null override means the meal is DROPPED that
+          // day, which is no dish; `take` already ignores it.
+          var overrides = variant.overrides || {};
+          for (var ok in overrides) {
+            if (!Object.prototype.hasOwnProperty.call(overrides, ok)) continue;
+            takeWithSwaps(overrides[ok]);
+          }
         }
       }
     }

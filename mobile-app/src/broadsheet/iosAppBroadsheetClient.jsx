@@ -4,7 +4,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsApplyRemainingLoad, bsLoggedSet } from '../services/workoutSession.mjs';
+import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey } from '../services/workoutSession.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
@@ -30833,7 +30833,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     Array.from({ length: m.sets }).forEach((_, setIdx) => {
       acc[`${mIdx}-${setIdx}`] = {
         reps: String(m.reps || ''),
-        load: String(m.l || ''),
+        load: bsLoadPrefill(m),
         rpe: '',
       };
     });
@@ -31000,8 +31000,8 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     if (i >= move.sets) i = move.sets - 1;
     const cur = setInputs[`${moveIdx}-${i}`] || {};
     // Don't clobber a load the athlete typed: only fill when the field is still the
-    // pre-filled default (move.l) or empty. Reps only when blank.
-    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === String(move.l || '');
+    // pre-filled default (the prescribed weight) or empty. Reps only when blank.
+    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === bsLoadPrefill(move);
     if (loadIsDefault) updateSetInput(i, 'load', String(_bsSug.load));
     if (_bsSug.reps != null && (cur.reps == null || String(cur.reps) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
   };
@@ -31134,9 +31134,9 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     const k = `${moveIdx}-${setIdx}`;
     // Functional updaters so two updates in one handler (e.g. the suggestion chip
     // filling load AND reps) compose instead of clobbering a stale-closure snapshot.
-    const other = setInputs[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+    const other = setInputs[k] || { reps: String(move.reps || ''), load: bsLoadPrefill(move) };
     setSetInputs((prev) => {
-      const current = prev[k] || { reps: String(move.reps || ''), load: String(move.l || '') };
+      const current = prev[k] || { reps: String(move.reps || ''), load: bsLoadPrefill(move) };
       return { ...prev, [k]: { ...current, [field]: value } };
     });
     setSetLogs((prev) => prev.map((entry) => (
@@ -31156,7 +31156,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const addSet = () => {
     const k = `${moveIdx}-${move.sets}`;
     setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: m.sets + 1 } : m)));
-    setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: String(move.l || ''), rpe: '' } }));
+    setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: bsLoadPrefill(move), rpe: '' } }));
   };
   // Remove a set from the CURRENT exercise (Cockpit/Split spec — full set
   // editing). Pending sets remove instantly; a LOGGED set goes through the
@@ -31233,7 +31233,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     const nextCompleted = { ...completed, [k]: true };
     setCompleted(nextCompleted); setActiveSetKey(null); setSetStartedAt(null); setLastSetEndedAt(nowMs);
     const nextMove = bsNextSessionMove(moves, nextCompleted, moveIdx);
-    const sameGroup = nextMove != null && nextMove !== moveIdx && move.group && move.group === moves[nextMove].group;
+    const sameGroup = nextMove != null && nextMove !== moveIdx && bsSameGroup(move, moves[nextMove]);
     const rest = sameGroup && nextMove > moveIdx ? 0 : move.restSeconds;
     setRestTotal(rest || 0); setRestAfterSet(setIdx + 1);
     setRestEnd(rest > 0 ? nowMs + rest * 1000 : null);
@@ -31314,7 +31314,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const activeIdx = (() => { for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
   const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
   const activeRunning = !!(activeKey && activeSetKey === activeKey);
-  const activeLoad = (activeKey && setInputs[activeKey] && setInputs[activeKey].load) || move.l;
+  const activeLoad = (activeKey && setInputs[activeKey] && setInputs[activeKey].load) || bsLoadPrefill(move);
   const plates = bsPlates(activeLoad);
   const perSide = (() => { const v = (Number(activeLoad) - 45) / 2; return Number.isFinite(v) && v > 0 ? v : null; })();
   const plateColor = { 45: t.RUST, 35: t.AMBER, 25: t.BLUE, 10: teal, 5: t.GREEN, 2.5: t.INK50 };
@@ -31613,7 +31613,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         {move.tempo && <p style={{ color: t.INK70 }}>{tr('session:player.tempo')} · {move.tempo}</p>}
-        {move.group && <p style={{ color: t.INK70 }}>{tr('session:player.superset')} · {move.group}</p>}
+        {bsGroupKey(move) && <p style={{ color: t.INK70 }}>{tr('session:player.superset')} · {bsGroupKey(move)}</p>}
         {activeIdx != null && <button onClick={() => setSetInputs(prev => bsApplyRemainingLoad(prev, completed, moves, moveIdx, activeIdx, prev[activeKey]?.load || ''))} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', textAlign: 'left' }}>{tr('session:player.applyRemaining')}</button>}
       </div>
 
@@ -31639,7 +31639,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
           const k = `${moveIdx}-${i}`;
           const done = completed[k];
           const isActive = i === activeIdx;
-          const ri = setInputs[k] || { reps: '', load: String(move.l || ''), rpe: '' };
+          const ri = setInputs[k] || { reps: '', load: bsLoadPrefill(move), rpe: '' };
           // Every row stays tap-to-edit in place (Cockpit/Split spec: full set
           // editing — done, active, pending alike share state with the band's
           // readout). The dotted underlines died with the redesign: pending =

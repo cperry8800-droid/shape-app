@@ -989,6 +989,8 @@
   "workoutEditor.load": "Ağırlık",
   "workoutEditor.loading": "Kayıtlı antrenmanlarınız ve programlarınız yükleniyor…",
   "workoutEditor.loadUnit": "Ağırlık birimi",
+  "workoutEditor.targetRpe": "Hedef · RPE",
+  "workoutEditor.rpeNone": "Yok",
   "workoutEditor.localDraft": "Taslak bu cihazda saklandı",
   "workoutEditor.minutes": "Planlanan dakika (isteğe bağlı)",
   "workoutEditor.moveDown": "Aşağı taşı",

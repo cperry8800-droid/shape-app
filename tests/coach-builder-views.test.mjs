@@ -38,8 +38,8 @@ globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{
 };
 
 const SRC=fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url));
-const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday, dbuWeekSound };'});
-const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday,dbuWeekSound}=mod;
+const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, DbuRow, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday, dbuWeekSound };'});
+const {DbuBuilder,DbuRow,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday,dbuWeekSound}=mod;
 
 const buttons=()=>[...document.querySelectorAll('button')];
 const byText=t=>buttons().find(b=>b.textContent===t);
@@ -192,9 +192,13 @@ test('both panels float over a full-width canvas, and neither hides the other vi
   // `100vh - <constant>` is the same defect in a different position: it fits only
   // while it happens to start at that constant.
   // ⚠ SCOPED TO THE DRAWER'S OWN RULE, because the blanket version FAILS CORRECT
-  // CODE. `.dbu2 .pop` carries `max-height:calc(100vh - 120px)` and is right to:
-  // it is pinned to the viewport BOTTOM, so a viewport-relative budget is exact
-  // there. The drawer's top is wherever it was dropped, so its budget cannot be.
+  // CODE. `.dbu2 .pop` still carries `max-height:calc(100vh - 120px)` as its
+  // RESTING budget, which is exact while the stylesheet's bottom anchor holds.
+  // ⚠ THAT PREMISE USED TO READ "it is pinned to the viewport BOTTOM, so a
+  // viewport-relative budget is exact there" AND IT IS NO LONGER TRUE: the
+  // preview is draggable, so once moved it is positioned by its own top like the
+  // drawer — which is why the drag hook overrides `maxHeight` inline for both
+  // panels from the same expression. The CSS budget is the untouched-panel case.
   // Comments are stripped first — this file's own prose quotes the retired rule.
   // ⚠ THE INTERPOLATIONS ARE BLANKED BEFORE THE RULE IS CUT OUT. This block is a
   // template literal, so `width:${DBU_PANEL_W}px` puts a `}` INSIDE the rule — and
@@ -206,8 +210,16 @@ test('both panels float over a full-width canvas, and neither hides the other vi
   assert.ok(floatRule, 'the .dbu2 .drawer.float rule is gone — this guard is reading nothing');
   assert.ok(!/max-height/.test(floatRule[1]),
     'the panel must not carry a CSS height budget; it is computed from its own top in JS');
-  assert.match(code, /maxHeight: [^\n]*panelPos\.y/,
-    'the panel sizes itself from its own top, so the budget is correct by construction');
+  // ⚠ RE-ANCHORED ON THE INVARIANT, NOT THE SPELLING. This pinned `panelPos.y` —
+  // the name the day panel's own machinery happened to use before both panels
+  // moved onto one `useDbuDrag` hook, where the same expression reads `pos.y`. A
+  // correct refactor failed a test about height budgets. What the guard is for is
+  // that the budget is measured DOWN FROM THE PANEL'S OWN TOP rather than from a
+  // constant, and that is what it asks now.
+  const budget = /maxHeight: Math\.max\([^\n]*window\.innerHeight - ([A-Za-z.]*\by)\b/.exec(code);
+  assert.ok(budget, 'a floating panel must size itself from its own top, so the budget is correct by construction');
+  assert.ok(!/maxHeight: Math\.max\([^\n]*window\.innerHeight - \d/.test(code),
+    'the budget must not be a constant offset from the viewport — that fits only while the panel starts at that constant');
   assert.match(src, /\.dbu2 \.pop\{position:fixed/, 'the client preview floats too');
   assert.match(src, /@media\(max-width:1100px\)\{\.dbu2 \.drawer\.float\{position:static/,
     'and drops back into the flow on a narrow screen rather than covering the page');
@@ -621,4 +633,29 @@ test('a sound document is returned unchanged, so opening a program cannot mark i
   // caller leans on.
   const sound = { weeks: [wk(1, 0, 2, 4), wk(2, 1, 3)] };
   assert.equal(dbuWithWeekdays(sound), sound, 'a sound document was rebuilt rather than passed through');
+});
+
+// ⚠ A TARGET RPE SITS BESIDE AN IMPORTED LOAD; IT DOES NOT REPLACE IT. The row editor
+// cleared `loadText` whenever RPE changed, to make room in a label that returned the
+// text alone, so "RPE 8" on an imported "bodyweight" row threw the coach's own
+// instruction away. Only a new weight or unit replaces the text now — in both editors.
+test('setting a target RPE keeps an imported load; a new unit still replaces it',async()=>{
+  const seen=[];
+  const row={...DashBuilder.newRow({name:'Push-up'}),load:0,loadText:'bodyweight'};
+  const root=createRoot(document.getElementById('root'));OPEN.push(root);
+  await React.act(async()=>root.render(React.createElement(DbuRow,{row,label:'01',onChange:n=>seen.push(n),onRemove(){},onMove(){},onDuplicate(){},onUploading(){}})));
+  const pick=async(aria,value)=>{
+    const el=document.querySelector('select[aria-label="'+aria+'"]');
+    assert.ok(el,aria+' is not rendered — this test is driving nothing');
+    await React.act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+    return seen.at(-1);
+  };
+  const withRpe=await pick('Push-up target RPE','8');
+  assert.equal(withRpe.rpe,8);
+  assert.equal(withRpe.loadText,'bodyweight','the imported instruction survives an RPE change');
+  assert.equal(DashBuilder.loadLabel(withRpe),'bodyweight · RPE 8','and the prescription states both');
+  // ⚠ THE CONTROL: a new unit still replaces the imported text, or the assertion above
+  // passes on an editor that never clears it at all.
+  const withUnit=await pick('Push-up load unit','lb');
+  assert.equal('loadText' in withUnit,false,'a new unit replaces the imported text');
 });

@@ -143,3 +143,27 @@ test('future updates require explicit selection and retain only failed groups fo
   assert.match(document.body.textContent, /2 workouts updated/);
   await React.act(async () => root.unmount());
 });
+
+// ⚠ THE SAME RULE IN THE MOBILE EDITOR, which writes the same document the website does:
+// a target RPE sits beside an imported free-text load; a new unit replaces it.
+test('setting a target RPE keeps an imported load; a new unit still replaces it', async () => {
+  localStorage.clear(); const saved = [];
+  const imported = plan(); Object.assign(imported.detail.builder.weeks[0].days[0].blocks[0].rows[0], { load: 0, loadText: 'bodyweight' });
+  const root = await mount(Editor, { plan: imported, onSave: async (row) => { saved.push(row); } });
+  const pick = async (text, value) => {
+    const label = [...document.querySelectorAll('label')].find((node) => node.firstChild?.textContent === text);
+    const select = label && label.querySelector('select');
+    assert.ok(select, text + ' is not rendered — this test is driving nothing');
+    await React.act(async () => { Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(select, value); select.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  };
+  const rowOf = (n) => saved[n].detail.builder.weeks[0].days[0].blocks[0].rows[0];
+  await pick('Target · RPE', '8');
+  await React.act(async () => button('Save draft').click());
+  assert.equal(rowOf(0).rpe, 8);
+  assert.equal(rowOf(0).loadText, 'bodyweight', 'the imported instruction survives an RPE change');
+  // ⚠ THE CONTROL: a new unit still replaces it.
+  await pick('Load unit', 'lb');
+  await React.act(async () => button('Save draft').click());
+  assert.equal('loadText' in rowOf(1), false, 'a new unit replaces the imported text');
+  await React.act(async () => root.unmount());
+});

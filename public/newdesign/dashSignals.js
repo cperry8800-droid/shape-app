@@ -2111,6 +2111,80 @@
     };
   }
 
+  // ── Superset labels ────────────────────────────────────────────────────────
+  // The superset KEY, under the same rule as ShapeWorkoutDocument.supersetKey:
+  // a string is trimmed and upper-cased (a key is a letter label — whitespace
+  // and case carry no meaning), a finite number is its digits, anything else is
+  // no key. ⚠ RESTATED RATHER THAN SHARED, because the member's pages load this
+  // module without that one; tests/coach-superset-labels.test.mjs drives both
+  // over one vector set and holds them equal, so a divergence fails there.
+  function groupKey(value) {
+    if (typeof value === "string") return value.trim().toUpperCase();
+    return typeof value === "number" && isFinite(value) ? String(value) : "";
+  }
+
+  // Rows sharing a group key read A1/A2/… in list order; everything else is
+  // numbered. ⚠ NOT "ADJACENT" — the header comment this replaced said so and no
+  // code ever checked it. `[A, plain, A]` labels `A1 / 01 / A2`, and that is
+  // CORRECT rather than lax: the session player finds a move's partner by a
+  // circular search over the whole list (`bsNextSessionMove`), so a coach who
+  // splits a pair around a plain move still gets them alternated. Enforcing
+  // adjacency here would label a pair the player does run as two groups.
+  //
+  // Takes a FLAT ordered list of `{ group }` — a builder day's rows, or an
+  // assigned workout's `exercises` — so the coach's editor, the coach's preview
+  // and the member's own card all answer from one rule.
+  //
+  // ⚠ A GROUP KEY AND A DISPLAY LABEL ARE TWO DIFFERENT THINGS, and carrying
+  // them in one field is what was wrong. The mobile session player decides a
+  // superset by comparing the stored KEYS (`bsSameGroup`, workoutSession.mjs),
+  // and only then is rest 0 and the pair alternated — so storing "A1"/"A2"
+  // would make the two unequal and restore full rest between them. The key
+  // stays the raw letter; the label is DERIVED here, at render.
+  //
+  // ⚠ AND IT IS DERIVED RATHER THAN STORED for a second reason: a stored label
+  // is wrong the moment a row is reordered, and it would have to survive
+  // `normalizeWorkoutDetail` and the assignment snapshot. Position is the only
+  // thing a label depends on, and the ordered list already carries it.
+  //
+  // ⚠ THIS LIVES HERE, NOT IN `dashBuilderCore.js`, because the member surfaces
+  // need it and the Client* pages that render a workout card do not load that
+  // module at all. `public/newdesign` has no error boundary, so a bare global
+  // that is not there is a blank page, not a missing label.
+  function groupLabels(items) {
+    // ⚠ A PROTOTYPE-FREE MAP, because the key is typed by a coach. With `{}`,
+    // a group named `__proto__` read `counters.__proto__` (an object) and both
+    // halves of the pair came out as `"__proto__[object Object]"` — identical, so
+    // the pair lost its ordinal too; `constructor` rendered the native function
+    // source. This now reaches a member's card, not just the builder.
+    var counters = Object.create(null), plain = 0, out = [];
+    for (var i = 0; i < (items || []).length; i++) {
+      var g = groupKey(items[i] && items[i].group);
+      if (g) { counters[g] = (counters[g] || 0) + 1; out.push(g + counters[g]); }
+      else { plain += 1; out.push(String(plain).length < 2 ? "0" + plain : String(plain)); }
+    }
+    return out;
+  }
+
+  // The exercise list a workout card renders, from an assigned workout's own
+  // `exercises`. ⚠ THIS WAS WRITTEN TWICE — byte-identical in `dashTrain.jsx` and
+  // `dashClient.jsx` — which is how one of them could have kept the raw group as
+  // its prefix while the other derived a label, and a member would have seen a
+  // different numbering on Today than on Train. One rule, driven by its own test.
+  function workoutCardExercises(exercises) {
+    var list = exercises || [];
+    var labels = groupLabels(list);
+    return list.map(function (e, i) {
+      e = e || {};
+      return {
+        prefix: labels[i],
+        name: e.name,
+        scheme: [[e.sets, e.reps].filter(Boolean).join(" × "), e.tempo ? e.tempo + " tempo" : null, e.rest].filter(Boolean).join(" · "),
+        load: e.load || "",
+        cue: e.cue || "",
+      };
+    });
+  }
   return {
     THRESHOLDS: THRESHOLDS,
     DEFAULT_THRESHOLDS: DEFAULT_THRESHOLDS,
@@ -2156,6 +2230,9 @@
     dashRevenueByClient: dashRevenueByClient,
     dashProgramsEnding: dashProgramsEnding,
     DASH_TENURE_MARKS: DASH_TENURE_MARKS,
+    groupKey: groupKey,
+    groupLabels: groupLabels,
+    workoutCardExercises: workoutCardExercises,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate, calDays: calDays },
   };
 });

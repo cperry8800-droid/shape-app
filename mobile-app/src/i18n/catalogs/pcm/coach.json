@@ -999,6 +999,8 @@
   "workoutEditor.tempo": "Tempo",
   "workoutEditor.group": "Superset group",
   "workoutEditor.loadUnit": "Weight unit",
+  "workoutEditor.targetRpe": "Target · RPE",
+  "workoutEditor.rpeNone": "None",
   "workoutEditor.percentMax": "% 1RM",
   "workoutEditor.existingLoad": "Workout instructions wey dey already",
   "workoutEditor.cue": "Coach instruction",

@@ -35,7 +35,7 @@ export function bsAssignExercise(text) {
     load: sx ? tail.replace(sx[0], '').replace(/^[\s·,]+|[\s·,]+$/g, '') : tail,
     // Preserve a structured legacy block's prescription and clip. Text is a
     // display field, never the authority over separately authored fields.
-    ...(authored ? Object.fromEntries(['id', 'name', 'sets', 'reps', 'rest', 'restSeconds', 'load', 'loadType', 'tempo', 'cue', 'group', 'video'].filter((key) => authored[key] != null).map((key) => [key, authored[key]])) : {}),
+    ...(authored ? Object.fromEntries(['id', 'name', 'sets', 'reps', 'rest', 'restSeconds', 'load', 'loadType', 'rpe', 'tempo', 'cue', 'group', 'video'].filter((key) => authored[key] != null).map((key) => [key, authored[key]])) : {}),
   };
 }
 

@@ -11,12 +11,60 @@
     const url = typeof value === 'string' ? value : value && value.url;
     return /^https?:\/\//i.test(text(url).trim()) ? text(url).trim() : '';
   };
+  // The superset key. ⚠ ONE RULE FOR EVERY COMPARISON, because there were two
+  // and they disagreed: the session player's navigation (`bsNextSessionMove`)
+  // TRIMMED the key while its rest decision compared it RAW — so 'A' and 'A '
+  // (reachable from the mobile editor's free-text field) jumped the member to
+  // the partner AND made them sit a full rest, the one combination no coach
+  // authors. Case was significant everywhere, so 'A' and 'a' were two groups
+  // to the labels and to the player while reading as one pair to the coach.
+  // A superset key is a letter label; whitespace and case carry no meaning. A
+  // finite number keeps its digits; anything else (a boolean, an object) is NO
+  // key — `text()` would have turned `false` into a group called "FALSE".
+  // ⚠ DashSignals.groupKey restates this for pages that load only that module;
+  // tests/coach-superset-labels.test.mjs holds the two equal over one vector set.
+  const supersetKey = value => typeof value === 'string' ? value.trim().toUpperCase()
+    : typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+  // ⚠ RPE IS ITS OWN AXIS, NOT A UNIT OF LOAD. It was the fourth `loadType`, which
+  // made it EXCLUSIVE with a weight: a coach could prescribe 100 kg or RPE 8 and
+  // never "100 kg @ RPE 8" — the ordinary thing a strength coach writes. Owner:
+  // "if i want RPE, that should be a seperate drop down from KG or IBS".
+  // The scale is 1–10, so 0, '' and null all mean "not prescribed", and anything
+  // unparseable is not a reading. A row may now carry both, one, or neither.
+  const rpeValue = row => {
+    const n = Number(row && row.rpe);
+    return Number.isFinite(n) && n > 0 && n <= 10 ? n : null;
+  };
+  // Legacy rows stored RPE as the load. ⚠ THE MIGRATION IS ON READ, not in the
+  // database: `normalizeWorkoutPlan` runs on every GET, POST and PATCH of a coach
+  // plan and on every mobile library read, so a stored document is converted the
+  // first time it is looked at and persisted the next time it is saved.
+  function splitLegacyRpe(row) {
+    if (!row || row.loadType !== 'rpe') return row;
+    const n = Number(row.load);
+    return {...row, loadType:'kg', load:'', rpe:Number.isFinite(n) && n > 0 ? n : (row.rpe == null ? '' : row.rpe)};
+  }
   function loadLabel(row) {
-    if (row.loadText != null) return text(row.loadText);
-    if (row.load == null || row.load === '' || Number(row.load) === 0) return '';
-    if (row.loadType === 'pct') return row.load + '% 1RM';
-    if (row.loadType === 'rpe') return 'RPE ' + row.load;
-    return row.load + ' ' + (row.loadType === 'lb' ? 'lb' : 'kg');
+    const parts = [];
+    // ⚠ AN IMPORTED FREE-TEXT LOAD ("bodyweight", "heavy") STANDS IN FOR THE WEIGHT,
+    // NOT FOR THE WHOLE PRESCRIPTION. It returned early, so a target RPE on an
+    // imported row never reached the label — and the editors then cleared the text
+    // whenever RPE changed, to make room, which threw away the coach's own
+    // instruction. The text and the RPE are separate axes, like a weight and RPE.
+    if (row.loadText != null) {
+      const own = text(row.loadText);
+      if (own) parts.push(own);
+    } else if (!(row.load == null || row.load === '' || Number(row.load) === 0)) {
+      if (row.loadType === 'pct') parts.push(row.load + '% 1RM');
+      // ⚠ THE LEGACY ARM STAYS, and is what stops "RPE 8 · RPE 8" on a row that
+      // has not passed through `splitLegacyRpe` yet — a demo template, or a
+      // document read by an older build. Belt and braces beside the migration.
+      else if (row.loadType === 'rpe') parts.push('RPE ' + row.load);
+      else parts.push(row.load + ' ' + (row.loadType === 'lb' ? 'lb' : 'kg'));
+    }
+    const rpe = rpeValue(row);
+    if (rpe != null && row.loadType !== 'rpe') parts.push('RPE ' + rpe);
+    return parts.join(' · ');
   }
   function rowFromBlock(block, id) {
     const b = typeof block === 'object' && block ? block : {text:block};
@@ -72,7 +120,7 @@
     builder.version = Math.max(1, Number(builder.version) || 1);
     builder.weeks = builder.weeks.map((week, wi) => ({...week, days:(week.days || []).map((day, di) => ({
       ...day, id:day.id || `day-${wi}-${di}`, name:day.name || `Day ${di + 1}`,
-      blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => ({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video)}))})),
+      blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => splitLegacyRpe({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video), group:supersetKey(row.group) || null}))})),
     }))}));
     if (!builder.weeks.length) builder.weeks = [{deload:false,days:[{id:'day-0',name:options.name || 'Workout',blocks:[{kind:'main',rows:[]}]}]}];
     const dayCount = builder.weeks.reduce((n,w) => n + w.days.length, 0);
@@ -84,7 +132,8 @@
   function exerciseFromRow(row) {
     return {id:row.id, name:text(row.name), sets:text(row.sets), reps:text(row.reps), rest:text(row.rest),
       ...(row.restSeconds != null ? {restSeconds:row.restSeconds} : {}), load:loadLabel(row),
-      loadType:row.loadType, tempo:text(row.tempo), cue:text(row.cue), group:text(row.group),
+      loadType:row.loadType, ...(rpeValue(row) != null ? {rpe:rpeValue(row)} : {}),
+      tempo:text(row.tempo), cue:text(row.cue), group:supersetKey(row.group),
       video:videoUrl(row.video), ...(row.seg ? {seg:row.seg} : {})};
   }
   function builderToAssignmentRows(builder, meta, startDateISO) {
@@ -111,5 +160,5 @@
       text:`${row.name} — ${row.sets} × ${row.reps}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, videoUrl};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, rpeValue, splitLegacyRpe, supersetKey, videoUrl};
 });

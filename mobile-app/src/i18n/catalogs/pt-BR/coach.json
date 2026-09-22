@@ -989,6 +989,8 @@
   "workoutEditor.load": "Carga",
   "workoutEditor.loading": "Carregando seus treinos e programas salvos…",
   "workoutEditor.loadUnit": "Unidade de carga",
+  "workoutEditor.targetRpe": "Meta · RPE",
+  "workoutEditor.rpeNone": "Nenhum",
   "workoutEditor.localDraft": "Rascunho mantido neste dispositivo",
   "workoutEditor.minutes": "Minutos planejados (opcional)",
   "workoutEditor.moveDown": "Mover para baixo",

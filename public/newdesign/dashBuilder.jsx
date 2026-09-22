@@ -329,6 +329,21 @@ async function dbuUploadVideo(file) {
 // 990→1367: covered entirely, on the one view whose whole purpose is reading weeks
 // left to right. A coach now moves it off whatever they are reading instead of
 // choosing between the panel and the column.
+// The RPE scale, 1–10 in half points. ⚠ IT RUNS FROM 1, NOT 5: a lifting block
+// lives at 7–9, but the same field carries an easy run at RPE 3 — the 5k demo
+// template has exactly that — and a scale that started at 5 could not express it.
+const DBU_RPE_STEPS = Array.from({ length: 19 }, (_, i) => Math.round((1 + i * 0.5) * 10) / 10);
+// ⚠ A STORED VALUE OFF THE LIST IS SHOWN, NOT HIDDEN. A legacy "RPE 8.3" reaches the
+// row through `splitLegacyRpe`; a select whose value matches no option DISPLAYS its
+// first option — "None" — while the card still prints RPE 8.3, so the coach could
+// neither see what is stored nor tell that it is there. The stored reading joins
+// the list; anything off the 1–10 scale is not a reading and stays out.
+function dbuRpeOptions(current) {
+  const n = Number(current);
+  const stored = current !== '' && current != null && Number.isFinite(n) && n > 0 && n <= 10 && !DBU_RPE_STEPS.includes(n);
+  return stored ? [...DBU_RPE_STEPS, n].sort((a, b) => a - b) : DBU_RPE_STEPS;
+}
+
 const DBU_PANEL_W = 400;   // matches `.drawer.float`'s width
 const DBU_PANEL_GAP = 12;  // the margin it keeps to every screen edge
 const DBU_PANEL_MIN_H = 160; // enough of it to stay grabbable
@@ -373,6 +388,124 @@ function useDbuFloating() {
     return () => { mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on); };
   }, []);
   return floating;
+}
+
+// ── One drag rule, two floating panels ───────────────────────────────────────
+// ⚠ THE DAY EDITOR AND THE CLIENT PREVIEW SHARE THIS rather than each carrying
+// its own pointer-capture dance. They open in different corners at different
+// widths — but "grab the header, stay on screen, and move by keyboard too" is
+// ONE rule, and this repo already records what the other bet costs: `useCoachDoc`
+// was the third line-for-line copy of one store and the copies had drifted.
+function useDbuDrag({ enabled, open, defaultPos }) {
+  const ref = React.useRef(null);
+  const [pos, setPos] = React.useState(null);
+  const [dragging, setDragging] = React.useState(false);
+  const dragRef = React.useRef(null);
+  // Held on a ref so the open effect can read today's closure without listing a
+  // fresh function identity as a dependency (which would re-place the panel on
+  // every render).
+  const defRef = React.useRef(defaultPos); defRef.current = defaultPos;
+  // ⚠ THE WIDTH IS MEASURED, NEVER DECLARED. `.pop` carries
+  // `max-width:calc(100vw - 40px)`, so below ~384px it is genuinely narrower
+  // than the 344 it asks for — and a clamp against the constant bounds a box
+  // that is not the one on screen.
+  const rect = () => (ref.current && ref.current.getBoundingClientRect ? ref.current.getBoundingClientRect() : null);
+  // ⚠ POINTER EVENTS, NOT MOUSE — one code path covers mouse, trackpad, pen and
+  // touch, and `setPointerCapture` keeps the drag alive when the pointer outruns
+  // the header (which it does: the header is ~40px tall and the gesture crosses
+  // a 1440px screen).
+  const onGrab = (e) => {
+    if (!enabled || !ref.current) return;
+    // A press on a control is that control's, never a drag — EXCEPT the grip.
+    // ⚠ THE GRIP IS A `<button>`, SO IT MATCHED THIS EXCLUSION: the one element
+    // that LOOKS like the handle was the one element that could not start a
+    // drag. Shipped in #2144, found by reading rather than by a report.
+    const hit = e.target.closest && e.target.closest('button,a,input,select,textarea');
+    if (hit && !(e.target.closest && e.target.closest('.gh'))) return;
+    // ⚠ ONE POINTER DRIVES A DRAG. A second finger landing on the header while the
+    // first is still dragging used to REPLACE the drag — so the panel stopped
+    // following the hand moving it and waited on the finger that was only
+    // resting. The same pointer pressing again (a mouse whose last `pointerup`
+    // landed off the page) is allowed through, so a missed release cannot strand
+    // the drag for good.
+    if (dragRef.current && dragRef.current.id !== e.pointerId) return;
+    const r = ref.current.getBoundingClientRect();
+    dragRef.current = { dx: e.clientX - r.x, dy: e.clientY - r.y, id: e.pointerId, w: r.width };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+    setDragging(true);
+    e.preventDefault();
+  };
+  const onMove = (e) => {
+    const d = dragRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    setPos(dbuClampPanel(e.clientX - d.dx, e.clientY - d.dy, d.w));
+  };
+  const end = () => { dragRef.current = null; setDragging(false); };
+  const onDrop = (e) => {
+    const d = dragRef.current;
+    // ⚠ POINTER-ID MATCHED, exactly like `onMove`. A second finger landing on the
+    // header and lifting would otherwise release the FIRST finger's capture and
+    // end a drag that is still under way — the panel would simply stop following
+    // the hand moving it.
+    if (!d || (e && e.pointerId != null && d.id !== e.pointerId)) return;
+    try { e.currentTarget.releasePointerCapture(d.id); } catch (err) {}
+    end();
+  };
+  // ⚠ CAPTURE CAN END WITHOUT A POINTERUP — the capturing element removed, the
+  // browser taking the pointer back. `lostpointercapture` is the one event that
+  // fires however the gesture ends, so the grabbing cursor and the unselectable
+  // text cannot outlive it.
+  const onLostCapture = () => end();
+  // ⚠ ARROW KEYS MOVE IT TOO. A drag-only affordance is unreachable by keyboard,
+  // and either panel can cover the thing it is about — so the way out of that
+  // has to exist without a pointer.
+  const onKey = (e) => {
+    const step = e.shiftKey ? 48 : 12;
+    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+    const r = rect();
+    if (!d || !r) return;
+    setPos(dbuClampPanel(r.x + d[0], r.y + d[1], r.width));
+    e.preventDefault();
+  };
+  // ⚠ `dragging` LIVES ABOVE THE PANEL, WHICH IT OUTLIVES. A drag interrupted by
+  // the panel closing, or by the window narrowing out of floating mode, would
+  // otherwise leave the NEXT open stuck in `grabbing` with its text
+  // unselectable — including down paths no handler can be attached to.
+  React.useEffect(() => { if (!(open && enabled)) end(); }, [open, enabled]);
+  // ⚠ WHERE THEY PUT IT IS WHERE IT STAYS. Resetting on close would make a coach
+  // re-drag the panel for every day they open, which is most of the work this
+  // editor is for — so the position outlives the close and only the first open
+  // computes a default. It is re-clamped on the way back in, because the window
+  // may have been resized while the panel was shut.
+  //
+  // ⚠ A LAYOUT EFFECT, NOT A PASSIVE ONE. The panel mounts already open, and a
+  // passive effect runs AFTER the browser paints — so every builder open showed
+  // one frame of the panel at the stylesheet's fallback corner with no height
+  // cap (the budget lives only in the inline style), then jumped. Placing it in
+  // the commit means the first frame on screen is the placed one.
+  React.useLayoutEffect(() => {
+    if (!enabled || !open) return;
+    const r = rect();
+    setPos((prev) => (prev ? dbuClampPanel(prev.x, prev.y, r ? r.width : 0) : (defRef.current ? defRef.current() : null)));
+  }, [enabled, open]);
+  React.useEffect(() => {
+    if (!enabled) return;
+    const on = () => { const r = rect(); setPos((prev) => (prev ? dbuClampPanel(prev.x, prev.y, r ? r.width : 0) : prev)); };
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, [enabled]);
+  return {
+    ref, pos, dragging, onKey,
+    // Spread onto the panel's header — the header IS the drag surface.
+    headerProps: { onPointerDown: onGrab, onPointerMove: onMove, onPointerUp: onDrop, onPointerCancel: onDrop, onLostPointerCapture: onLostCapture },
+    // What a positioned panel writes inline. ⚠ `bottom`/`right` are RELEASED, not
+    // merely left alone: `.pop` is anchored `right:20px;bottom:20px`, and a
+    // `height:auto` box given BOTH `top` and `bottom` is over-constrained — CSS
+    // stretches it to span them, so handing it a `top` alone would silently
+    // resize the panel as well as move it.
+    style: pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto", maxHeight: Math.max(DBU_PANEL_MIN_H, window.innerHeight - pos.y - DBU_PANEL_GAP) } : undefined,
+    grabStyle: dragging ? { cursor: "grabbing", userSelect: "none" } : undefined,
+  };
 }
 
 // ── Exercise picker popover ──────────────────────────────────────────────────
@@ -475,13 +608,21 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(85px,1fr))',gap:10}}>
       {field('sets','Sets','number')}{field('reps','Reps')}
       <label><span style={dbuLabel}>Load</span><input aria-label={row.name+' load'} type="number" min="0" value={row.load ?? ''} onChange={e=>set('load',e.target.value===''?'':Number(e.target.value))} style={{...dbuField,width:'100%'}}/></label>
-      <label><span style={dbuLabel}>Unit</span><select aria-label={row.name+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)} style={{...dbuField,width:'100%'}}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option><option value="rpe">Target RPE</option></select></label>
+      {/* ⚠ RPE LEFT THIS LIST AND GOT ITS OWN. As a fourth `loadType` it was
+             EXCLUSIVE with a weight — a coach could say 100 kg or RPE 8 and never
+             "100 kg @ RPE 8", which is what most strength programming looks like.
+             Owner: "if i want RPE, that should be a seperate drop down from KG or
+             IBS". A stored row still carrying `loadType:'rpe'` is converted on
+             read by `splitLegacyRpe`, so this select can never show a blank value
+             for an option it no longer offers. */}
+      <label><span style={dbuLabel}>Unit</span><select aria-label={row.name+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)} style={{...dbuField,width:'100%'}}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option></select></label>
+      <label><span style={dbuLabel}>RPE</span><select aria-label={row.name+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))} style={{...dbuField,width:'100%'}}><option value="">None</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></label>
       {field('rest','Rest')}
     </div>
     {row.loadText && <p style={{fontSize:12,color:DBU_INK50}}>Original load instruction: {row.loadText}</p>}
     <details style={{marginTop:12}}><summary style={{cursor:'pointer',fontSize:13,minHeight:32}}>Cues, tempo, superset & progression</summary>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}}>{field('cue','Coach cue')}{field('tempo','Tempo')}<label><span style={dbuLabel}>Superset</span><select value={row.group || ''} onChange={e=>set('group',e.target.value || null)} style={dbuField}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label></div>
-      <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,marginTop:10}}><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:row.loadType==='rpe'?0.5:undefined}:null)}/> Apply progression when copying a week with progression</label>
+      <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,marginTop:10}}><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:Number(row.rpe)>0?0.5:undefined}:null)}/> Apply progression when copying a week with progression</label>
     </details>
     <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)'}}>
       <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.m4v,.webm" hidden onChange={e=>{const f=e.target.files[0];e.target.value='';upload(f);}}/>
@@ -1015,83 +1156,18 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   // nothing; it is the library walk's own rule, not a second one written here.
   const ownMoves = React.useMemo(() => DashBuilder.ownMovesFor(doc, customMoves), [customMoves, doc]);
   const [preview, setPreview] = React.useState(false);
-  // The floating day panel's position (viewport px) and its drag machinery.
+  // The two floating panels, on one drag rule (`useDbuDrag`).
   const floating = useDbuFloating();
-  const stageRef = React.useRef(null), panelRef = React.useRef(null);
-  const [panelPos, setPanelPos] = React.useState(null);
-  const [dragging, setDragging] = React.useState(false);
-  const dragRef = React.useRef(null);
-  // ⚠ POINTER EVENTS, NOT MOUSE — one code path covers mouse, trackpad, pen and
-  // touch, and `setPointerCapture` keeps the drag alive when the pointer outruns
-  // the header (which it does, because the header is 40px tall and the gesture is
-  // across a 1440px screen).
-  const onPanelGrab = (e) => {
-    if (!floating || !panelRef.current) return;
-    // The header carries Done, Duplicate and the sheet link; a press on a control
-    // is that control's, never a drag.
-    if (e.target.closest && e.target.closest('button,a,input,select,textarea')) return;
-    const r = panelRef.current.getBoundingClientRect();
-    dragRef.current = { dx: e.clientX - r.x, dy: e.clientY - r.y, id: e.pointerId };
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
-    setDragging(true);
-    e.preventDefault();
-  };
-  const onPanelMove = (e) => {
-    const d = dragRef.current;
-    if (!d || d.id !== e.pointerId) return;
-    setPanelPos(dbuClampPanel(e.clientX - d.dx, e.clientY - d.dy, DBU_PANEL_W));
-  };
-  const endPanelDrag = () => { dragRef.current = null; setDragging(false); };
-  const onPanelDrop = (e) => {
-    const d = dragRef.current;
-    // ⚠ POINTER-ID MATCHED, exactly like `onPanelMove`. A second finger landing on the
-    // header and lifting would otherwise release the FIRST finger's capture and end a drag
-    // that is still under way — the panel would simply stop following the hand moving it.
-    if (!d || (e && e.pointerId != null && d.id !== e.pointerId)) return;
-    try { e.currentTarget.releasePointerCapture(d.id); } catch (err) {}
-    endPanelDrag();
-  };
-  // ⚠ CAPTURE CAN END WITHOUT A POINTERUP — the capturing element removed, the browser
-  // taking the pointer back. `lostpointercapture` is the one event that fires however the
-  // gesture ends, so the grabbing cursor and the unselectable text cannot outlive it.
-  const onPanelLostCapture = () => endPanelDrag();
-  // ⚠ ARROW KEYS MOVE IT TOO. A drag-only affordance is unreachable by keyboard,
-  // and this panel can cover the table it is editing — so the way out of that has
-  // to exist without a pointer.
-  const onPanelKey = (e) => {
-    const step = e.shiftKey ? 48 : 12;
-    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
-    if (!d || !panelRef.current) return;
-    const r = panelRef.current.getBoundingClientRect();
-    setPanelPos(dbuClampPanel(r.x + d[0], r.y + d[1], DBU_PANEL_W));
-    e.preventDefault();
-  };
-  // Opening a day places the panel; a resize re-clamps whatever position it holds,
-  // so shrinking the window can never strand it off-screen.
+  const stageRef = React.useRef(null);
   const panelOpen = sel.w >= 0 && sel.d >= 0;
-  // ⚠ `dragging` LIVES IN THIS COMPONENT, WHICH OUTLIVES THE PANEL. A drag interrupted by
-  // the panel closing, or by the window narrowing out of floating mode, would otherwise
-  // leave the NEXT open stuck in `grabbing` with its text unselectable. This covers every
-  // such path at once, including ones no handler can be attached to.
-  React.useEffect(() => {
-    if (panelOpen && floating) return;
-    endPanelDrag();
-  }, [panelOpen, floating]);
-  // ⚠ WHERE THEY PUT IT IS WHERE IT STAYS. Resetting on close would make a coach
-  // re-drag the panel for every day they open, which is most of the work this
-  // editor is for — so the position outlives the close and only the first open
-  // computes a default. It is re-clamped on the way back in, because the window
-  // may have been resized while the panel was shut.
-  React.useEffect(() => {
-    if (!floating || !panelOpen) return;
-    setPanelPos((prev) => (prev ? dbuClampPanel(prev.x, prev.y, DBU_PANEL_W) : dbuDefaultPanelPos(stageRef.current)));
-  }, [floating, panelOpen]);
-  React.useEffect(() => {
-    if (!floating) return;
-    const on = () => setPanelPos((prev) => (prev ? dbuClampPanel(prev.x, prev.y, DBU_PANEL_W) : prev));
-    window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
-  }, [floating]);
+  const panel = useDbuDrag({ enabled: floating, open: panelOpen, defaultPos: () => dbuDefaultPanelPos(stageRef.current) });
+  // ⚠ THE PREVIEW IS DRAGGABLE AT EVERY WIDTH, unlike the day editor. `.pop` is
+  // `position:fixed` in every media query — nothing drops it back into the flow —
+  // so there is no width at which an inline position would fight the stylesheet.
+  // It also needs no default: the stylesheet already anchors it bottom-right, and
+  // leaving the position null until a coach moves it keeps that anchor live
+  // across a resize instead of freezing today's pixels.
+  const previewPanel = useDbuDrag({ enabled: true, open: preview, defaultPos: null });
   const [saveState, setSaveState] = React.useState(template.recovered ? 'dirty' : 'saved');
   const [error,setError] = React.useState('');
   const [saveConflict,setSaveConflict] = React.useState(false);
@@ -1290,21 +1366,21 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
 .dbu2 .stage{position:relative}
 .dbu2 .drawer{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:20px 22px 18px}
 .dbu2 .drawer.float{position:fixed;left:auto;right:16px;top:96px;width:${DBU_PANEL_W}px;overflow-y:auto;overscroll-behavior:contain;z-index:40}
-.dbu2 .drawer .dh.grab{cursor:grab;touch-action:none}
+.dbu2 .drawer .dh.grab,.dbu2 .pop .ph2.grab{cursor:grab;touch-action:none}
 .dbu2 .dayhead{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 12px;margin-bottom:14px;align-items:end}
 .dbu2 .dayhead>*{min-width:0}
 .dbu2 .dayhead .hint{display:block;margin-top:4px;font-size:11.5px;color:${DBU_INK3}}
-.dbu2 .drawer .dh .gh{flex:0 0 auto;order:-1;height:28px;width:22px;padding:0;border:0;cursor:grab;border-radius:6px;background-image:radial-gradient(currentColor 1.1px, transparent 1.2px);background-size:6px 6px;background-position:center;background-repeat:repeat;background-clip:content-box;padding:5px 7px;color:${DBU_LINE2}}
-.dbu2 .drawer .dh .gh:hover{color:${DBU_INK2}}
-.dbu2 .drawer .dh .gh:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:1px}
+.dbu2 .gh{flex:0 0 auto;order:-1;height:28px;width:22px;padding:0;border:0;cursor:grab;border-radius:6px;background-image:radial-gradient(currentColor 1.1px, transparent 1.2px);background-size:6px 6px;background-position:center;background-repeat:repeat;background-clip:content-box;padding:5px 7px;color:${DBU_LINE2}}
+.dbu2 .gh:hover{color:${DBU_INK2}}
+.dbu2 .gh:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:1px}
 @media(max-width:1100px){.dbu2 .drawer.float{position:static!important;left:auto!important;top:auto!important;right:auto!important;width:auto!important;max-height:none!important;margin-top:16px}}
 .dbu2 .drawer .dh{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
 .dbu2 .drawer .dh b{font-size:19px;font-weight:700;letter-spacing:-.01em}
 .dbu2 .drawer .when{font-size:13.5px;color:${DBU_INK2};margin-bottom:14px}
 .dbu2 .drawer .when b{color:${DBU_RUST};font-weight:700}
 .dbu2 .pop{position:fixed;right:20px;bottom:20px;width:344px;max-width:calc(100vw - 40px);max-height:calc(100vh - 120px);overflow-y:auto;z-index:60;background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:16px 18px 18px}
-.dbu2 .pop .ph2{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.dbu2 .pop .ph2 b{font-size:15px;font-weight:700}
+.dbu2 .pop .ph2{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.dbu2 .pop .ph2 b{font-size:15px;font-weight:700;margin-right:auto}
 .dbu2 .x{height:32px;padding:0 11px;border-radius:8px;border:1px solid ${DBU_LINE};background:${DBU_WH};color:${DBU_INK2};font-size:13px;font-weight:600;cursor:pointer}
 .dbu2 .scroll{overflow-x:auto}
 /* NOTE: these rules carry NO .dbu2 prefix on purpose. DbuDialog portals into
@@ -1430,11 +1506,10 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
             /* ⚠ role="group", NOT "dialog": this panel is not modal, traps no focus and
                sits beside a canvas that stays live. Calling it a dialog tells a
                screen-reader user the rest of the page is inert when it is not. */
-            <div className="drawer float dash-thin-scroll" ref={panelRef} role="group" aria-label={"Day editor \u00b7 " + day.name}
-              style={floating && panelPos ? { left: panelPos.x, top: panelPos.y, maxHeight: Math.max(DBU_PANEL_MIN_H, window.innerHeight - panelPos.y - DBU_PANEL_GAP) } : undefined}>
-              <div className={"dh" + (floating ? " grab" : "")} onPointerDown={onPanelGrab} onPointerMove={onPanelMove} onPointerUp={onPanelDrop} onPointerCancel={onPanelDrop} onLostPointerCapture={onPanelLostCapture}
-                style={dragging ? { cursor: "grabbing", userSelect: "none" } : undefined}>
-                {floating && <button type="button" className="gh" aria-label="Move the day editor — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={onPanelKey} title="Drag to move" />}
+            <div className="drawer float dash-thin-scroll" ref={panel.ref} role="group" aria-label={"Day editor \u00b7 " + day.name}
+              style={floating ? panel.style : undefined}>
+              <div className={"dh" + (floating ? " grab" : "")} {...panel.headerProps} style={panel.grabStyle}>
+                {floating && <button type="button" className="gh" aria-label="Move the day editor — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={panel.onKey} title="Drag to move" />}
                 <b>{day.name}</b>
                 {view === "grid" && <button type="button" className="x" onClick={() => setView("sheet")} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
                 {/* ⚠ The tree carried a per-day Copy button; the grid moves a day by dragging it
@@ -1466,10 +1541,15 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
 
         </div>
 
-        {/* Client preview — the EXACT card the client dashboard renders, as the board's `.pop`. */}
+        {/* Client preview — the EXACT card the client dashboard renders, as the board's `.pop`.
+            ⚠ IT IS DRAGGABLE, on the owner's ruling. Anchored bottom-right it lands on top of
+            the site-wide chat button and, at the widths a coach actually builds at, over the
+            sidebar it is meant to be read beside. Same header-grab, same clamp and the same
+            arrow keys as the day editor, because it is the same hook. */}
         {preview && (
-          <div className="pop" role="dialog" aria-label="Client preview">
-            <div className="ph2">
+          <div className="pop" ref={previewPanel.ref} role="dialog" aria-label="Client preview" style={previewPanel.style}>
+            <div className="ph2 grab" {...previewPanel.headerProps} style={previewPanel.grabStyle}>
+              <button type="button" className="gh" aria-label="Move the client preview — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={previewPanel.onKey} title="Drag to move" />
               <b>Client preview</b>
               <button type="button" className="x" onClick={() => setPreview(false)} aria-label="Close the client preview">Close</button>
             </div>
