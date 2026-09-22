@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, SHIM, THEME, SRC, textOf } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
+import { bsPostActivityStart } from '../mobile-app/src/services/workoutShare.mjs';
 // The app's ONE share rule, imported rather than restated: a local copy would
 // make these tests agree with themselves instead of with what ships.
 import { bsWorkoutSharePrivacy as WORKOUT_SHARE_RULE } from '../mobile-app/src/services/workoutShare.mjs';
@@ -1208,8 +1209,12 @@ const backendMapper = (() => {
     extractFn('function communityPostFromRow(row)'),
     'return communityPostFromRow;',
   ].join('\n');
+  // ⚠ THE REAL bsPostActivityStart IS INJECTED, NEVER STUBBED. The mapper reads
+  // it for `activity_at` (when the WORKOUT happened, which is not when the post
+  // was made). A local stand-in would make every assertion below about a rule
+  // nobody ships — the `_liftToLb` lesson, one file over.
   // eslint-disable-next-line no-new-func
-  return new Function(body)();
+  return new Function('bsPostActivityStart', body)(bsPostActivityStart);
 })();
 
 // One stored row → the activity the feed actually renders.

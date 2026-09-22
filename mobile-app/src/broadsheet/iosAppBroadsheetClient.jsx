@@ -14299,7 +14299,7 @@ function bsMapActivityPosts(data) {
     const rawTitle = String(p.status || '').trim();
     const t = (rawTitle && !GENERIC[rawTitle]) ? rawTitle : '';
     return {
-      k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.created_at), hot: false,
+      k: KMAP[kind] || 'Note', kind, t, b: p.note || '', photo: p.photo || null, video: p.video || null, link: p.link || null, stats: p.workoutStats || null, time: bsAgoShort(p.activity_at || p.created_at), hot: false,
       // Engagement plumbing — real posts carry their id + live like/comment
       // state so the action row under each card works (demo cards have none).
       id: p.id || null, privacy: p.privacy || null, who: p.name || '', likes: typeof p.likes === 'number' ? p.likes : 0, liked: !!p.liked,
@@ -14544,7 +14544,8 @@ function bsActivityFromPost(p) {
     title,
     body: p.note || '',
     created_at: p.created_at || null,
-    ago: bsAgoShort(p.created_at) || p.time || '',
+    // Dated by the WORKOUT, not by the sync that posted it (see activity_at).
+    ago: bsAgoShort(p.activity_at || p.created_at) || p.time || '',
     city: p.sourceProviderLabel ? `via ${p.sourceProviderLabel}` : '',
     statsRow,
     fullStats: fullStats || statsRow,
@@ -14646,7 +14647,10 @@ function bsProfileCardFromPost(p, ownerRole) {
     editKind: p.kind || null,
     privacy: p.privacy || null,
     created_at: p.created_at || null,
-    ago: bsAgoShort(p.created_at) || p.time || '',
+    // Dated by the WORKOUT, not by the sync that posted it (see activity_at). A
+    // media/note post carries no metrics.startedAt, so this IS created_at —
+    // what it buys is that all three card models answer the same question.
+    ago: bsAgoShort(p.activity_at || p.created_at) || p.time || '',
     city: '',
     statsRow: [], fullStats: [],
     breakdown: null, zones: null, trace: null, cadenceTrace: null, elevTrace: null, paceTrace: null, powerTrace: null,

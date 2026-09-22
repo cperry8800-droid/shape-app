@@ -940,6 +940,14 @@ function CommunityFeed() {
       if (t === 'meal' || t === 'nutrition') return 'NUTRITION';
       return 'GENERAL';
     };
+    const cfActivityAt = (row) => {
+      const r = row && typeof row === "object" ? row : {};
+      const m = r.metrics && typeof r.metrics === "object" ? r.metrics : {};
+      const st = typeof m.startedAt === "string" ? m.startedAt.trim() : "";
+      if (st && Number.isFinite(Date.parse(st))) return st;
+      const c = typeof r.created_at === "string" ? r.created_at.trim() : "";
+      return c && Number.isFinite(Date.parse(c)) ? c : null;
+    };
     const since = (iso) => {
       const ms = Date.now() - new Date(iso).getTime();
       if (ms < 60_000) return 'now';
@@ -1042,7 +1050,16 @@ function CommunityFeed() {
         id: p.id || null,
         who: p.author_name || 'Shape member',
         role: p.author_role ? p.author_role[0].toUpperCase() + p.author_role.slice(1) : 'Member',
-        time: since(p.created_at),
+        // ⚠ DATED BY THE WORKOUT, NOT BY THE SYNC THAT POSTED IT. Auto-posters
+        // stamp the activity's own start into metrics.startedAt; created_at is
+        // when the post was made. A backfilled run would otherwise read "2h
+        // ago" about a workout from March. Falls back to created_at, which is
+        // right for a manual post (no startedAt) AND for a legacy auto post
+        // (where created_at IS the activity start). Mirrors bsPostActivityStart
+        // in mobile-app/src/services/workoutShare.mjs — these pages are classic
+        // scripts and cannot import it; tests/workout-share.test.mjs pins the
+        // two together.
+        time: since(cfActivityAt(p)),
         title: p.title,
         body: p.photo_url ? (p.note || (p.title && p.title !== 'Photo' ? p.title : '')) : (p.note || p.title),
         photo: p.photo_url || null,
