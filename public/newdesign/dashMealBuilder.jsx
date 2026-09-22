@@ -40,33 +40,97 @@ function dmbWriteDraft(id, name, doc) {
 }
 
 // ── Food picker popover — search is FILTERED by the plan's constraints ──────
-function DmbFoodPicker({ constraints, onPick, onClose }) {
+function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
   const [q, setQ] = React.useState("");
-  const results = DashMeals.searchFoods(q, constraints);
+  const term = q.trim();
+  const mine = DashMeals.searchCustomFoods(customFoods, term, constraints);
+  const shape = DashMeals.searchFoods(term, constraints);
+  // ⚠ THE PLAN'S CONSTRAINTS GATE THE CREATE OFFER TOO, and the gate is the SHIPPED
+  // predicate run over the CANDIDATE — so the object that is tested is the object that
+  // gets inserted, and there is no second copy of the rule to drift. Without it the picker
+  // refused "Dairy bowl" from every list under a no-dairy plan and then offered to add it
+  // on the next line: one screen contradicting itself, and an excluded food on a client's
+  // plan. Only an exclusion can bite here — a new dish carries `prepMin: null`, which the
+  // prep-time rule passes rather than guessing a time nobody measured.
+  const candidate = term ? DashMeals.newCustomFood(term) : null;
+  const nameFree = DashMeals.canCreateFood(term, customFoods);
+  const canCreate = !!candidate && nameFree && DashMeals.searchCustomFoods([candidate], "", constraints).length === 1;
+  // ⚠ AND A REFUSAL SAYS WHICH RULE REFUSED IT. A name that simply vanishes reads as the
+  // feature being broken — the dead end this picker exists to remove, in a new coat.
+  // ⚠ THE REFUSAL RENDERS WHETHER OR NOT IT CAN NAME THE RULE. Today only an exclusion
+  // can reach here — a new dish carries `tags: []` and `prepMin: null`, so neither the tag
+  // rule nor the prep rule can bite it — but keying the message on having FOUND the word
+  // would go silent the day `newCustomFood` grows a default, which is the dead end again.
+  const blocked = !!term && nameFree && !canCreate;
+  const blockedBy = blocked
+    ? ((constraints && constraints.exclusions) || []).find((t) => term.toLowerCase().indexOf(String(t).toLowerCase()) >= 0) || null
+    : null;
   const excluded = (constraints && constraints.exclusions || []).length;
+  const row = (f) => (
+    <button key={f.id} onClick={() => onPick(f)} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%", textAlign: "left", background: "transparent", border: 0, borderTop: "1px solid rgba(242,237,228,0.05)", padding: "8px 4px", cursor: "pointer", color: "#f2ede4" }}>
+      <span style={{ fontSize: 12.5, fontWeight: 500 }}>{f.name}</span>
+      {/* ⚠ A DISH THE COACH HAS NAMED BUT NOT COSTED READS "Macros not set", never
+          "0 kcal · 0P". Those two are different claims and only one of them is
+          true: the zeros are the row editor's starting values, not a measurement,
+          and printing them here states a figure nobody has taken. */}
+      <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, letterSpacing: "0.04em", color: DMB_INK50 }}>
+        {!DashMeals.foodHasMacros(f)
+          ? "Macros not set"
+          : <>{f.kcal} kcal · {f.p}P{f.prepMin != null ? " · " + f.prepMin + "m" : ""}</>}
+      </span>
+    </button>
+  );
+  const head = (t) => <div style={{ fontFamily: DMB_MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)", margin: "9px 0 2px", padding: "0 4px" }}>{t}</div>;
   return (
     <div style={{ position: "absolute", zIndex: 60, top: "100%", left: 0, marginTop: 6, width: 360, background: "#14110e", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 8, boxShadow: "0 18px 48px rgba(0,0,0,0.5)", padding: 10 }}>
-      <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") onClose(); }} placeholder="Search foods & recipes…" style={{ ...dmbField, width: "100%", marginBottom: 6 }} />
+      <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          // ⚠ WHILE AN IME IS COMPOSING, THE KEYSTROKES BELONG TO THE IME. The Enter that
+          // confirms a candidate would otherwise also create a half-composed name, and the
+          // Escape that cancels one would close the picker — which on the workout side
+          // throws away every move ticked so far. Both are handed back to the IME.
+          if (e.nativeEvent && e.nativeEvent.isComposing) return;
+          if (e.key === "Escape") onClose();
+          if (e.key === "Enter" && canCreate) { e.preventDefault(); onPick(candidate); }
+        }}
+        placeholder="Search foods & recipes…" style={{ ...dmbField, width: "100%", marginBottom: 6 }} />
       {(excluded > 0 || (constraints && constraints.maxPrep != null)) && (
         <div style={{ fontFamily: DMB_MONO, fontSize: 8, letterSpacing: "0.08em", color: DMB_GOLD, marginBottom: 6 }}>
           FILTERED · {[excluded ? "no " + constraints.exclusions.join(", ") : null, constraints.maxPrep != null ? "≤" + constraints.maxPrep + " min prep" : null].filter(Boolean).join(" · ")}
         </div>
       )}
-      <div style={{ maxHeight: 260, overflowY: "auto" }}>
-        {results.map((f) => (
-          <button key={f.id} onClick={() => onPick(f)} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%", textAlign: "left", background: "transparent", border: 0, borderTop: "1px solid rgba(242,237,228,0.05)", padding: "8px 4px", cursor: "pointer", color: "#f2ede4" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 500 }}>{f.name}</span>
-            <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, letterSpacing: "0.04em", color: DMB_INK50 }}>{f.kcal} kcal · {f.p}P{f.prepMin != null ? " · " + f.prepMin + "m" : ""}</span>
-          </button>
-        ))}
-        {!results.length && <div style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>No match inside the plan's constraints.</div>}
+      {/* ⚠ THE WAY OUT OF AN EMPTY SEARCH. This picker was the only route to a meal
+          at all, so a dish Shape has never heard of could not be put on a plan
+          except by picking something else and retyping it. The macros are left for
+          the row editor rather than guessed here: nothing on this page may state a
+          figure nobody measured. */}
+      {blocked && (
+        <div style={{ fontFamily: DMB_MONO, fontSize: 8.5, lineHeight: 1.5, letterSpacing: "0.05em", color: DMB_INK50, marginBottom: 6, padding: "6px 8px", borderRadius: 5, border: "1px dashed rgba(242,237,228,0.16)" }}>
+          {blockedBy
+            ? <>“{term}” carries “{blockedBy}”, which this plan excludes — it can’t go on this client’s plan.</>
+            : <>“{term}” is outside this plan’s constraints, so it can’t go on this client’s plan.</>}
+        </div>
+      )}
+      {canCreate && (
+        <button onClick={() => onPick(candidate)}
+          style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", minHeight: 34, marginBottom: 4, padding: "0 9px", borderRadius: 6, cursor: "pointer", textAlign: "left",
+            fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px dashed rgba(46,224,196,0.45)" }}>
+          <span aria-hidden>＋</span> Add “{term}” — you set the macros
+        </button>
+      )}
+      <div className="dash-thin-scroll" style={{ maxHeight: 260, overflowY: "auto" }}>
+        {!!mine.length && head("Your foods")}
+        {mine.map(row)}
+        {!!shape.length && head("Shape library")}
+        {shape.map(row)}
+        {!mine.length && !shape.length && <div style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>No match inside the plan's constraints.</div>}
       </div>
     </div>
   );
 }
 
 // ── Meal row editor — macros, slot, and the swap group (≤3 alternates) ──────
-function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge }) {
+function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge, customFoods }) {
   const [swapPicker, setSwapPicker] = React.useState(false);
   const set = (k, v) => onChange({ ...meal, [k]: v });
   const num = (k) => (e) => set(k, Math.max(0, Number(e.target.value) || 0));
@@ -101,7 +165,7 @@ function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge })
           <span style={{ position: "relative", display: "inline-block" }}>
             <button onClick={() => setSwapPicker(!swapPicker)} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>+ Alternate</button>
             {swapPicker && (
-              <DmbFoodPicker constraints={constraints}
+              <DmbFoodPicker constraints={constraints} customFoods={customFoods}
                 onPick={(f) => { set("swaps", [...(meal.swaps || []), { name: f.name, kcal: f.kcal, p: f.p, c: f.c, f: f.f }]); setSwapPicker(false); }}
                 onClose={() => setSwapPicker(false)} />
             )}
@@ -139,7 +203,7 @@ function DmbTotalsBar({ meals, targets, warnings }) {
 // ── Day editor with first-class variant tabs ────────────────────────────────
 // Controlled: the builder owns the variant selection so the running macro bar
 // and the client preview always show the SAME resolved day as the editor.
-function DmbDayEditor({ day, onChange, plan, variant, setVariant }) {
+function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods }) {
   const [picker, setPicker] = React.useState(false);
   const applyDecisions = React.useRef({}); // mealId → true once "apply to variants" accepted
   const hasVariant = (k) => !!(day.variants && day.variants[k]);
@@ -188,7 +252,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant }) {
       {cur === "training" ? (
         <React.Fragment>
           {day.slots.map((m) => (
-            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints}
+            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods}
               followers={DashMeals.hasVariantFollowers(day, m.id)}
               onChange={(next) => editBase(m.id, next)}
               onRemove={() => onChange({ ...day, slots: day.slots.filter((x) => x.id !== m.id) })} />
@@ -196,7 +260,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant }) {
           <div style={{ position: "relative", display: "inline-block" }}>
             <button onClick={() => setPicker(!picker)} style={dmbBtn(false)}>+ Meal</button>
             {picker && (
-              <DmbFoodPicker constraints={plan.constraints}
+              <DmbFoodPicker constraints={plan.constraints} customFoods={customFoods}
                 onPick={(f) => { onChange({ ...day, slots: [...day.slots, DashMeals.newMeal(f, day.slots.length === 0 ? "Breakfast" : "Lunch")] }); setPicker(false); }}
                 onClose={() => setPicker(false)} />
             )}
@@ -222,7 +286,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant }) {
             }
             if (hasOv) {
               return (
-                <DmbMealRow key={m.id} meal={ov} constraints={plan.constraints} badge={{ label: "Overridden", c: DMB_GOLD }}
+                <DmbMealRow key={m.id} meal={ov} constraints={plan.constraints} customFoods={customFoods} badge={{ label: "Overridden", c: DMB_GOLD }}
                   onChange={(next) => setVariantData(cur, { ...vdata, overrides: { ...vdata.overrides, [m.id]: { ...next, id: m.id } } })}
                   onRemove={() => setVariantData(cur, { ...vdata, overrides: { ...vdata.overrides, [m.id]: null } })} />
               );
@@ -240,14 +304,14 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant }) {
             );
           })}
           {(vdata.extras || []).map((m, i) => (
-            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} badge={{ label: "This day only", c: "#2ee0c4" }}
+            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods} badge={{ label: "This day only", c: "#2ee0c4" }}
               onChange={(next) => setVariantData(cur, { ...vdata, extras: vdata.extras.map((x, j) => (j === i ? next : x)) })}
               onRemove={() => setVariantData(cur, { ...vdata, extras: vdata.extras.filter((_, j) => j !== i) })} />
           ))}
           <div style={{ position: "relative", display: "inline-block" }}>
             <button onClick={() => setPicker(!picker)} style={dmbBtn(false)}>+ Meal on this day</button>
             {picker && (
-              <DmbFoodPicker constraints={plan.constraints}
+              <DmbFoodPicker constraints={plan.constraints} customFoods={customFoods}
                 onPick={(f) => { setVariantData(cur, { ...vdata, extras: [...(vdata.extras || []), DashMeals.newMeal(f, "Snack")] }); setPicker(false); }}
                 onClose={() => setPicker(false)} />
             )}
@@ -452,9 +516,18 @@ function DmbClientPreview({ doc, day, variant }) {
 }
 
 // ── The builder ─────────────────────────────────────────────────────────────
-function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved, assignClientId }) {
+function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods }) {
   const [name, setName] = React.useState(template.name);
   const [doc, setDoc] = React.useState(() => JSON.parse(JSON.stringify(template.detail.mealBuilder)));
+  // ⚠ THE OPEN PLAN COUNTS TOO — `customFoods` comes from SAVED plans, so a dish
+  // named a minute ago would not be offered for the next day until this one had
+  // been saved and re-fetched, which reads as the feature not working.
+  // ⚠ THE OPEN DOCUMENT GOES FIRST. What the coach typed a moment ago is the current truth
+  // about that dish; the saved copy is last week's, and first-wins on the saved side handed
+  // the next meal stale macros. `mergeFoodInto` then fills whatever the open copy is
+  // missing — including taking MEASURED macros over a placeholder, so reordering cannot
+  // trade a stale figure for a fabricated zero. One rule, shared with the library walk.
+  const ownFoods = React.useMemo(() => DashMeals.ownFoodsFor(doc, customFoods), [customFoods, doc]);
   const [sel, setSel] = React.useState(0);
   const [previewVariant, setPreviewVariant] = React.useState("training");
   const [preview, setPreview] = React.useState(true);
@@ -614,7 +687,7 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
           <div className="dash-ledger" style={{ "--dac": DMB_GOLD, margin: "9px 0 10px" }} />
           <DmbTotalsBar meals={resolved} targets={doc.targets} warnings={warnings} />
           {day
-            ? <DmbDayEditor day={day} onChange={setDay} plan={doc} variant={curVariant} setVariant={setPreviewVariant} />
+            ? <DmbDayEditor day={day} onChange={setDay} plan={doc} variant={curVariant} setVariant={setPreviewVariant} customFoods={ownFoods} />
             : <div style={{ color: DMB_INK50, fontSize: 13 }}>Pick a day on the left.</div>}
         </div>
 
@@ -703,6 +776,8 @@ function NutritionistPlansPage() {
   }, []);
 
   const list = (templates || []).filter((t) => phaseFilter === "all" || t.detail.mealBuilder.goalPhase === phaseFilter);
+  // Every dish this nutritionist has written that Shape does not list.
+  const customFoods = DashMeals.customFoodsFromTemplates(templates || []);
   // "Write plan" from the lifecycle: pre-fill the assign modal with that
   // client on the matching-phase template (else the first one).
   const writePlanFor = (clientId) => {
@@ -729,6 +804,7 @@ function NutritionistPlansPage() {
             template={view.template}
             clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
             assignClientId={view.assignClientId}
+            customFoods={customFoods}
             onBack={() => setView(null)}
             onSaved={({ id, name, doc }) => {
               setTemplates((prev) => (prev || []).map((t) => (t === view.template || t.id === id ? { ...t, id: id || t.id, name, detail: { ...(t.detail || {}), mealBuilder: doc } } : t)));

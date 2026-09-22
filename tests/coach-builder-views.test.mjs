@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 import {loadRealModule} from './helpers/load-real-module.mjs';
+import {stripComments} from './helpers/strip-comments.mjs';
 const require=createRequire(import.meta.url);
 const {JSDOM}=require('jsdom');
 const dom=new JSDOM('<div id="root"></div>',{url:'https://shape.test/'});
@@ -178,7 +179,35 @@ test('both panels float over a full-width canvas, and neither hides the other vi
   const src = await import('node:fs').then(fs => fs.readFileSync(SRC, 'utf8'));
   assert.ok(!/\.dbu-c3\{|\.dbu-layout\{/.test(src),
     'the old multi-column layout must not come back — a child of it wrapped below the fold');
-  assert.match(src, /\.dbu2 \.drawer\.float\{position:absolute/, 'the day editor floats over the canvas');
+  // ⚠ THIS PINNED `position:absolute` AND THE PANEL IS NOW `fixed` — the fix, not a
+  // drift. Absolute anchored it to the PAGE while `max-height:calc(100vh - 140px)`
+  // sized it against the SCREEN, and those two cannot both be true: measured at
+  // 1440x940 in Sheet the box ran y 496 → bottom 1296, so 556px of it (and 2,933px
+  // of scrollable content inside it) sat below the fold, and reaching its lower half
+  // scrolled its own Done button off the top. What this test is NAMED for is that
+  // the panel floats over a full-width canvas instead of taking a column, and both
+  // out-of-flow positions satisfy that; the literal was never the invariant.
+  assert.match(src, /\.dbu2 \.drawer\.float\{position:fixed/, 'the day editor floats over the canvas');
+  // ⚠ AND ITS HEIGHT IS DERIVED FROM WHERE IT ACTUALLY SITS. A fixed box budgeted as
+  // `100vh - <constant>` is the same defect in a different position: it fits only
+  // while it happens to start at that constant.
+  // ⚠ SCOPED TO THE DRAWER'S OWN RULE, because the blanket version FAILS CORRECT
+  // CODE. `.dbu2 .pop` carries `max-height:calc(100vh - 120px)` and is right to:
+  // it is pinned to the viewport BOTTOM, so a viewport-relative budget is exact
+  // there. The drawer's top is wherever it was dropped, so its budget cannot be.
+  // Comments are stripped first — this file's own prose quotes the retired rule.
+  // ⚠ THE INTERPOLATIONS ARE BLANKED BEFORE THE RULE IS CUT OUT. This block is a
+  // template literal, so `width:${DBU_PANEL_W}px` puts a `}` INSIDE the rule — and
+  // a `[^}]*` body match stops dead at it, reading only the front of the
+  // declaration. Mutation-proven: re-adding `max-height:calc(100vh - 140px)` AFTER
+  // that point SURVIVED the first version of this guard.
+  const code = stripComments(src).replace(/\$\{[^}]*\}/g, 'X');
+  const floatRule = /\.dbu2 \.drawer\.float\{([^}]*)\}/.exec(code);
+  assert.ok(floatRule, 'the .dbu2 .drawer.float rule is gone — this guard is reading nothing');
+  assert.ok(!/max-height/.test(floatRule[1]),
+    'the panel must not carry a CSS height budget; it is computed from its own top in JS');
+  assert.match(code, /maxHeight: [^\n]*panelPos\.y/,
+    'the panel sizes itself from its own top, so the budget is correct by construction');
   assert.match(src, /\.dbu2 \.pop\{position:fixed/, 'the client preview floats too');
   assert.match(src, /@media\(max-width:1100px\)\{\.dbu2 \.drawer\.float\{position:static/,
     'and drops back into the flow on a narrow screen rather than covering the page');

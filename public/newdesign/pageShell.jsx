@@ -1244,16 +1244,27 @@ function HeroBg() {
   );
 }
 
-function Footer({ logoHeight = 64 } = {}) {
+// ⚠ TRIMMED ON AN OWNER NOTE — "this bottom bookmark section doesn't need to be
+// so large". Measured on the shipped footer at 1440x940 before the change: the
+// whole block ran **558px** — a 64px mark, a 137px call-to-action, 261px of link
+// columns and a 32px base, inside 56/36 of padding — so on most pages it was two
+// thirds of a screen of site furniture under the content.
+//
+// ⚠ WHAT CHANGED IS RHYTHM AND THE MARK, NEVER THE TABLE. Every group, label and
+// target below is untouched: `tests/site-footer.test.mjs` compares this table
+// against the homepage's hand-written copy by label AND by target, and a footer
+// that quietly dropped a link would take a page with it (six of them are linked
+// from nowhere else). Only spacing and the logo size move.
+function Footer({ logoHeight = 44 } = {}) {
   return (
-    <footer className="shape-footer" style={{ position: "relative", padding: "56px 72px 36px", background: INK_DEEP, color: INK }}>
+    <footer className="shape-footer" style={{ position: "relative", padding: "36px 72px 22px", background: INK_DEEP, color: INK }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.55 }} />
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, paddingBottom: 36, textAlign: "center" }}>
+        <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingBottom: 20, textAlign: "center" }}>
           <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "block", margin: "0 auto", objectFit: "contain" }} />
-          <div style={{ fontFamily: serif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
+          <div style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
-        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>
+        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>
           {[
             /* ── THE CANONICAL FOOTER TABLE ────────────────────────────────
                ⚠ THREE FOOTERS RENDERED THIS SITE, AND THEY HAD DRIFTED INTO
@@ -1323,12 +1334,12 @@ function Footer({ logoHeight = 64 } = {}) {
             ["Support",     [["Help", "/help.html"], ["Contact", "/contact.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
           ].map(([h, items]) => (
             <div key={h}>
-              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{h}</div>
-              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 8 }}><a href={href} className="shape-foot-link" style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)", textDecoration: "none", transition: "color .15s ease" }}>{label}</a></div>)}
+              <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 9 }}>{h}</div>
+              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 3 }}><a href={href} className="shape-foot-link" style={{ fontFamily: sans, fontSize: 12.5, lineHeight: 1.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)", textDecoration: "none", transition: "color .15s ease" }}>{label}</a></div>)}
             </div>
           ))}
         </div>
-        <div className="shape-footer-base" style={{ marginTop: 36, paddingTop: 18, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)" }}>
+        <div className="shape-footer-base" style={{ marginTop: 20, paddingTop: 13, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)" }}>
           <span>© 2026 SHAPE</span>
         </div>
       </div>
@@ -1470,8 +1481,8 @@ function ShapeMobileStyles() {
         main { padding-left: 18px !important; padding-right: 18px !important; }
 
         /* Footer */
-        .shape-footer { padding: 32px 22px 24px !important; }
-        .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 28px !important; padding-top: 28px !important; }
+        .shape-footer { padding: 24px 20px 18px !important; }
+        .shape-footer-grid { grid-template-columns: 1fr 1fr !important; gap: 22px !important; padding-top: 18px !important; }
         .shape-footer-base { flex-direction: column; gap: 10px; align-items: flex-start !important; }
 
         /* Typography — scale down the huge serif headlines used across the marketing pages.

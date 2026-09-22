@@ -86,6 +86,152 @@
     }).slice(0, 12);
   }
 
+  // ── The nutritionist's own foods ───────────────────────────────────────────
+  // ⚠ THE PICKER WAS THE ONLY WAY TO ADD A MEAL AT ALL, and it could only offer
+  // what Shape ships: a search with no match ended at "No match inside the plan's
+  // constraints" and there was no way forward. A nutritionist could rename a meal
+  // and retype its macros AFTER picking something else, but they could not put a
+  // dish Shape has never heard of on the plan without first pretending it was
+  // another one.
+  // ⚠ AND THE FOODS THEY HAVE ALREADY WRITTEN ARE IN THEIR OWN SAVED PLANS, so
+  // offering them back needs no table and no route — the same derivation the
+  // workout builder uses for custom moves. Swap alternates count: a coach who
+  // added "Mum's dhal" as a swap meant it as a food.
+  var _BUILTIN_FOOD = (function () { var m = Object.create(null); for (var i = 0; i < FOODS.length; i++) m[FOODS[i].name.toLowerCase()] = true; return m; })();
+  // ⚠ ZEROS ARE NOT A MEASUREMENT — they are `newCustomFood`'s starting values, which
+  // is exactly why the picker prints "Macros not set" rather than "0 kcal · 0P". So one
+  // dish written twice must not resolve first-wins: a placeholder copy would hand the
+  // NEXT meal a costed dish's zeros, and nothing on screen would say it had happened.
+  function foodHasMacros(f) {
+    return ((Number(f && f.kcal) || 0) + (Number(f && f.p) || 0) + (Number(f && f.c) || 0) + (Number(f && f.f) || 0)) > 0;
+  }
+  // ⚠ MACROS MOVE AS A SET, never field by field. kcal, protein, carbs and fat are four
+  // readings OF ONE DISH; taking kcal from one copy and protein from another composes a
+  // dish nobody costed. Prep time and ingredients are separate measurements, so those do
+  // fill in one at a time — the rule `customMovesFromTemplates` already uses for a move's
+  // muscle and equipment, and `mergeMoveInto` is its twin.
+  function mergeFoodInto(prev, next) {
+    if (!prev || !next) return prev;
+    if (!foodHasMacros(prev) && foodHasMacros(next)) {
+      prev.kcal = next.kcal; prev.p = next.p; prev.c = next.c; prev.f = next.f;
+    }
+    if (prev.prepMin == null && next.prepMin != null) prev.prepMin = next.prepMin;
+    if (!(prev.ingredients || []).length && (next.ingredients || []).length) prev.ingredients = next.ingredients;
+    return prev;
+  }
+  function customFoodsFromTemplates(templates) {
+    // Null-prototype for the same reason as customMovesFromTemplates: a dish name
+    // is a string the coach types, and a plain object answers for Object.prototype.
+    var seen = Object.create(null), out = [];
+    var list = templates || [];
+    function take(m) {
+      var name = String((m && m.name) || "").trim();
+      if (!name) return;
+      var key = name.toLowerCase();
+      if (_BUILTIN_FOOD[key]) return;
+      var rec = { id: "own-" + key, name: name, kcal: Number(m.kcal) || 0, p: Number(m.p) || 0, c: Number(m.c) || 0, f: Number(m.f) || 0,
+        prepMin: m.prepMin != null ? m.prepMin : null, tags: [], ingredients: clone(m.ingredients || []), own: true };
+      if (seen[key]) { mergeFoodInto(seen[key], rec); return; }
+      seen[key] = rec;
+      out.push(rec);
+    }
+    for (var t = 0; t < list.length; t++) {
+      var doc = list[t] && list[t].detail && list[t].detail.mealBuilder;
+      var days = (doc && doc.days) || [];
+      // ⚠ EVERY LEVEL IS GUARDED, because a meal document is stored VERBATIM: the plans
+      // route normalizes a workout detail and passes `body.detail` straight through for a
+      // meal plan, on POST and on PATCH alike. So the shape here is whatever is in the
+      // jsonb column, and this helper runs inside the library render — where
+      // `public/newdesign` has no error boundary, so one property read on a null day is a
+      // blank page rather than a missing row.
+      for (var d = 0; d < days.length; d++) {
+        var day = days[d];
+        if (!day) continue;
+        var slots = day.slots || [];
+        for (var i2 = 0; i2 < slots.length; i2++) {
+          var slot = slots[i2];
+          if (!slot) continue;
+          take(slot);
+          var sw = slot.swaps || [];
+          for (var s2 = 0; s2 < sw.length; s2++) take(sw[s2]);
+        }
+        var variants = day.variants || {};
+        for (var vk in variants) {
+          if (!Object.prototype.hasOwnProperty.call(variants, vk)) continue;
+          var extras = (variants[vk] && variants[vk].extras) || [];
+          for (var e2 = 0; e2 < extras.length; e2++) take(extras[e2]);
+        }
+      }
+    }
+    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+
+  // ⚠ ONE RULE FOR WHICH COPY OF A DISH WINS, wherever two lists of the coach's own
+  // foods meet: the EARLIER list keeps identity, and `mergeFoodInto` fills whatever it
+  // is missing from the later ones. Written twice it would drift, and the drift is
+  // silent — both answers are a plausible dish.
+  function mergeOwnFoods(lists) {
+    var out = [], seen = Object.create(null), i, j, k, list, f, rec;
+    for (i = 0; i < (lists || []).length; i++) {
+      list = lists[i] || [];
+      for (j = 0; j < list.length; j++) {
+        f = list[j];
+        k = String((f && f.name) || "").trim().toLowerCase();
+        if (!k) continue;
+        if (seen[k]) { mergeFoodInto(seen[k], f); continue; }
+        rec = {};
+        for (var key in f) if (Object.prototype.hasOwnProperty.call(f, key)) rec[key] = f[key];
+        seen[k] = rec; out.push(rec);
+      }
+    }
+    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+  // ⚠ THE OPEN DOCUMENT GOES FIRST, AND THAT DECISION LIVES HERE RATHER THAN IN THE
+  // COMPONENT. What the nutritionist typed a moment ago is the current truth about that
+  // dish; the saved copy is last week's, and saved-first handed the next meal stale
+  // macros. The merge above then takes MEASURED macros over a placeholder, so putting
+  // the open plan first cannot trade a stale figure for a fabricated zero. In a memo the
+  // order is one array literal nobody can drive; out here it is a test.
+  function ownFoodsFor(doc, savedFoods) {
+    return mergeOwnFoods([customFoodsFromTemplates([{ detail: { mealBuilder: doc } }]), savedFoods || []]);
+  }
+
+  // ⚠ THE PLAN'S CONSTRAINTS APPLY TO THE COACH'S OWN FOODS TOO. An exclusion is a
+  // fact about the CLIENT — "no dairy" — so a custom dish whose name carries the
+  // excluded word is filtered exactly as a listed one is. `searchFoods` matches an
+  // exclusion against the name as well as the tags; this keeps that rule.
+  function searchCustomFoods(list, q, constraints) {
+    var s = String(q || "").trim().toLowerCase();
+    var ex = (constraints && constraints.exclusions) || [];
+    var maxPrep = constraints && constraints.maxPrep;
+    return (list || []).filter(function (f) {
+      for (var i = 0; i < ex.length; i++) {
+        var tag = String(ex[i]).toLowerCase();
+        if ((f.tags || []).indexOf(tag) >= 0 || f.name.toLowerCase().indexOf(tag) >= 0) return false;
+      }
+      if (maxPrep != null && f.prepMin != null && f.prepMin > maxPrep) return false;
+      if (!s) return true;
+      return f.name.toLowerCase().indexOf(s) >= 0;
+    }).slice(0, 8);
+  }
+
+  function canCreateFood(name, customFoods) {
+    var s = String(name || "").trim();
+    if (!s) return false;
+    var key = s.toLowerCase();
+    if (_BUILTIN_FOOD[key]) return false;
+    var own = customFoods || [];
+    for (var i = 0; i < own.length; i++) if (String(own[i].name || "").toLowerCase() === key) return false;
+    return true;
+  }
+
+  // A dish the coach is about to describe: named, with the macros left at zero for
+  // them to fill in the row editor. Nothing here claims a number nobody measured —
+  // the row's kcal/protein/carb/fat inputs are where those come from.
+  function newCustomFood(name) {
+    return { id: "new-" + String(name).trim().toLowerCase(), name: String(name).trim(), kcal: 0, p: 0, c: 0, f: 0, prepMin: null, tags: [], ingredients: [], own: true, blank: true };
+  }
+
   var _uid = 0;
   function uid() { _uid += 1; return "m" + Date.now().toString(36) + "-" + _uid; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -376,6 +522,10 @@
   return {
     GOAL_PHASES: GOAL_PHASES, SLOTS: SLOTS, VARIANT_KEYS: VARIANT_KEYS, FOODS: FOODS,
     searchFoods: searchFoods, newMeal: newMeal, newDay: newDay, newPlan: newPlan,
+    customFoodsFromTemplates: customFoodsFromTemplates, searchCustomFoods: searchCustomFoods,
+    canCreateFood: canCreateFood, newCustomFood: newCustomFood,
+    foodHasMacros: foodHasMacros, mergeFoodInto: mergeFoodInto,
+    mergeOwnFoods: mergeOwnFoods, ownFoodsFor: ownFoodsFor,
     resolveDay: resolveDay, editBaseMeal: editBaseMeal, hasVariantFollowers: hasVariantFollowers,
     mealsTotals: mealsTotals, scaleMeal: scaleMeal, phaseShift: phaseShift,
     checkConstraints: checkConstraints, buildGrocery: buildGrocery,
