@@ -854,3 +854,143 @@ test("A's strip does not follow them to B", async () => {
   assert.deepEqual(host.out.values, ['a', 'b', 'c', 'd'], "B must not inherit A's arrangement");
   assert.deepEqual(state.docB, {}, "A's arrangement was written into B's row");
 });
+
+// ── A write that outlived its account settles nothing ───────────────────────────────────
+// ⚠ THE UID COMPARISON REFUSED THE WRITE AND NOTHING REFUSED THE STATE. (CodeRabbit, #2143.)
+// `apply` captures the initiating uid, and on a mismatch it correctly declined to save — but
+// it still published the document it had read into `state`, and by then `state` belongs to B.
+// `useRememberedChoice` reads `store.doc`, so B saw A's saved preference as their own
+// `remembered` value until the next hydrate.
+
+// Hold ONLY the read issued while the account is `uid`, and snapshot the document at CALL
+// time. Releasing it later must hand back A's document rather than whatever B now holds, or
+// the harness cannot reproduce the leak it is named for.
+function holdReadFor(db, state, uid) {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const inner = db.getUserGoals;
+  db.getUserGoals = async () => {
+    const mine = state.uid === uid;
+    const snap = await inner();
+    if (mine) await gate;
+    return snap;
+  };
+  return release;
+}
+
+// Hold ONLY the save issued while the account is `uid`. The read and the uid comparison have
+// already passed by then, so this reaches a leak the read-gated test structurally cannot: the
+// account moves during `saveUserGoals`, after every earlier guard is behind us.
+function holdSaveFor(db, state, uid) {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const inner = db.saveUserGoals;
+  db.saveUserGoals = async (kind, val) => {
+    const mine = state.uid === uid;
+    const res = await inner(kind, val);
+    if (mine) await gate;
+    return res;
+  };
+  return release;
+}
+
+test("a write still in flight when the account switches cannot put A's document on B's screen", async () => {
+  const db = makeDb({ rosterFilter: 'eyes' });
+  db.state.docB = { rosterFilter: 'new' };
+  const { host } = drivePage(db);
+  await host.flush();
+  assert.equal(host.out.values.rosterFilter, 'eyes', "setup: A is not seeing A's document");
+
+  // A writes, with its own read held open so the write is genuinely in flight.
+  const release = holdReadFor(db.db, db.state, 'coach-a');
+  host.out.choose.rosterFilter('ontrack');
+  await host.flush();
+
+  // B signs in and hydrates while A's write is still parked on that read.
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  assert.equal(host.out.values.rosterFilter, 'new', "setup: B is not seeing B's document");
+
+  release();
+  await host.flush();
+
+  assert.equal(host.out.values.rosterFilter, 'new',
+    "B is being shown A's remembered filter — an in-flight write published A's document into B's state");
+  assert.equal(host.out.doc.rosterFilter, 'new', "B's document was replaced by A's");
+  assert.deepEqual(db.state.written.map((w) => w.uid), [],
+    'a write from the old account reached the backend');
+});
+
+test("and B's own writes still reconcile afterwards — the stale lane did not go negative", async () => {
+  // ⚠ A STALE DECREMENT IS NOT MERELY A NO-OP. The hydrate resets `pendingRef` to 0 for the
+  // new account, so a decrement from the old lane drives it NEGATIVE — after which
+  // `pendingRef.current === 0` is never true again and B's successful writes stop
+  // reconciling their document. Observable because the reconcile publishes the SERVER
+  // document, which here carries a key B's optimistic paint has never seen.
+  // ⚠ THE SAVE IS GATED, NOT THE READ, and that is what makes this test about the last
+  // guard rather than the first. Held at the READ, A's write exits at the guard after it and
+  // never reaches a decrement at all, so the counter cannot go negative and the test would
+  // pass with the last guard deleted — which is exactly what the first version of it did.
+  // ⚠ AND THE NEGATIVE COUNTER MASKS THE DOC LEAK ON THIS PATH rather than adding to it:
+  // with the lane at -1 the success branch publishes `kind` WITHOUT `doc`, so the visible
+  // damage is B's next write silently failing to reconcile, not A's document on screen.
+  const db = makeDb({ rosterFilter: 'eyes' });
+  db.state.docB = { rosterFilter: 'new' };
+  const { host } = drivePage(db);
+  await host.flush();
+
+  const release = holdSaveFor(db.db, db.state, 'coach-a');
+  host.out.choose.rosterFilter('ontrack');
+  await host.flush();
+  assert.equal(db.state.saves, 1, "setup: A's write never reached the save");
+
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  release();
+  await host.flush();
+
+  // Another device adds a key to B's row AFTER B hydrated, so it exists only on the server.
+  db.state.docB = { ...db.state.docB, fromAnotherDevice: 'yes' };
+  host.out.choose.rosterFilter('eyes');
+  await host.flush();
+
+  assert.equal(db.state.written.filter((w) => w.uid === 'coach-b').length, 1,
+    "B's own write did not reach the backend");
+  assert.equal(host.out.doc.fromAnotherDevice, 'yes',
+    "B's write did not reconcile onto the server document — the lane counter was left negative by the stale write");
+});
+
+
+test("an account that switches DURING the save cannot publish A's written document to B", async () => {
+  // ⚠ THE LAST await IS ITS OWN LEAK, and the earlier guards cannot see it — by this point
+  // the read has returned and the uid comparison has passed. Without a check here the
+  // success path publishes `written` (A's merged document) into B's state and drives
+  // `pendingRef` negative on a lane the hydrate had already reset to 0.
+  const db = makeDb({ rosterFilter: 'eyes' });
+  db.state.docB = { rosterFilter: 'new' };
+  const { host } = drivePage(db);
+  await host.flush();
+  assert.equal(host.out.values.rosterFilter, 'eyes', "setup: A is not seeing A's document");
+
+  const release = holdSaveFor(db.db, db.state, 'coach-a');
+  host.out.choose.rosterFilter('ontrack');
+  await host.flush();
+  assert.equal(db.state.saves, 1, 'setup: A\'s write never reached the save');
+
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  assert.equal(host.out.values.rosterFilter, 'new', "setup: B is not seeing B's document");
+
+  release();
+  await host.flush();
+
+  assert.equal(host.out.values.rosterFilter, 'new',
+    "A's write settled into B's state after the account moved during the save");
+  assert.equal(host.out.doc.rosterFilter, 'new', "B's document was replaced by A's written one");
+});

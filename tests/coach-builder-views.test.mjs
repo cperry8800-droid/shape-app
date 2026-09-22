@@ -37,8 +37,8 @@ globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{
 };
 
 const SRC=fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url));
-const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday };'});
-const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday}=mod;
+const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday, dbuWeekSound };'});
+const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday,dbuWeekSound}=mod;
 
 const buttons=()=>[...document.querySelectorAll('button')];
 const byText=t=>buttons().find(b=>b.textContent===t);
@@ -541,4 +541,55 @@ test('every site that sets a day weekday is one of eight, each safe for a stated
     // Load-time fill, and only for days that have no weekday, from the unused set.
     'dbuWithWeekdays :: weekday: wd',
   ], 'a new site sets a day weekday — route it through dbuAssignWeekday, or add it here with why it cannot collide');
+});
+
+// ── Already-duplicated data, which the swap cannot repair ───────────────────────────────
+// Before the select was routed through `dbuAssignWeekday` it could PERSIST a duplicate, and
+// `dbuWithWeekdays` passed such a week straight through because every value in it is
+// individually valid. (CodeRabbit, #2143.)
+
+test('a week is sound only when every day has a weekday AND no two share one', () => {
+  assert.equal(dbuWeekSound(wk(1, 0, 2, 4)), true, 'a week with three distinct weekdays is sound');
+  assert.equal(dbuWeekSound(wk(1, 0, 0, 2)), false, 'a duplicate weekday was accepted as sound');
+  assert.equal(dbuWeekSound(wk(1, 0, undefined)), false, 'a day with no weekday was accepted as sound');
+  assert.equal(dbuWeekSound({ days: [] }), true, 'an empty week has nothing to collide');
+  assert.equal(dbuWeekSound(null), true, 'a missing week must not throw');
+});
+
+test('the SWAP cannot repair a week that already holds a duplicate — which is why the loader does', () => {
+  // This is the finding's own example, pinned so the repair is not mistaken for belt-and-braces:
+  // exchanging two values preserves the multiset, so the duplicate survives and simply moves.
+  const out = dbuAssignWeekday(wk(1, 0, 0, 2), 0, 2);
+  assert.deepEqual(out.days.map((d) => d.weekday), [2, 0, 0],
+    'the swap no longer preserves the multiset, so this case is not the one it was written for');
+  assert.equal(dbuWeekSound(out), false, 'setup: the swap was expected to leave the week unsound');
+});
+
+test('a stored week holding two days on one weekday is repaired when the builder opens', async () => {
+  const broken = { weeks: [{ name: 'W1', days: [
+    { name: 'Squat day', weekday: 0, blocks: [] },
+    { name: 'Hidden day', weekday: 0, blocks: [] },
+    { name: 'Pull day', weekday: 2, blocks: [] },
+  ] }] };
+  assert.equal(dbuWeekSound(broken.weeks[0]), false, 'setup: the fixture is not actually broken');
+
+  const fixed = dbuWithWeekdays(broken);
+  const wds = fixed.weeks[0].days.map((d) => d.weekday);
+  assert.equal(new Set(wds).size, 3, 'two days still share a weekday after the repair: ' + JSON.stringify(wds));
+  // ⚠ THE FIRST HOLDER KEEPS ITS WEEKDAY. That is the day the Grid is already drawing, so the
+  // repair brings the HIDDEN session back rather than moving the visible one out from under
+  // the coach — and a day that was never in conflict must not move at all.
+  assert.equal(wds[0], 0, 'the visible session was moved instead of the hidden one');
+  assert.equal(wds[2], 2, 'a day that was not in conflict was moved');
+
+  await mount(template(fixed));
+  assert.equal(populated(0).length, 3, 'a session is still hidden from the grid after the repair');
+});
+
+test('a sound document is returned unchanged, so opening a program cannot mark it dirty', () => {
+  // The repair runs in the useState initializer and joins the saved baseline; returning a new
+  // object for a document that needed nothing would be churn, and the identity is what the
+  // caller leans on.
+  const sound = { weeks: [wk(1, 0, 2, 4), wk(2, 1, 3)] };
+  assert.equal(dbuWithWeekdays(sound), sound, 'a sound document was rebuilt rather than passed through');
 });

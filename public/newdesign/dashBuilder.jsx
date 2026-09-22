@@ -118,6 +118,17 @@ function dbuDefaultWeekdays(n) {
   return Array.from({ length: Math.max(0, n) }, (_, i) => i % 7);
 }
 const dbuHasWeekday = (d) => !!d && Number.isInteger(d.weekday) && d.weekday >= 0 && d.weekday <= 6;
+// A week is SOUND when every day has a weekday and no two share one — the property the
+// Grid needs, since it resolves a cell by weekday and can render only the first match.
+const dbuWeekSound = (w) => {
+  const seen = new Set();
+  for (const d of (w && w.days) || []) {
+    if (!dbuHasWeekday(d)) return false;
+    if (seen.has(d.weekday)) return false;
+    seen.add(d.weekday);
+  }
+  return true;
+};
 // Give a legacy document weekdays ON LOAD, per week, in order, leaving any the coach has
 // already set alone.
 // ⚠ APPLIED IN THE BUILDER RATHER THAN IN THE SHARED NORMALISER (`workoutDocument.js`),
@@ -128,19 +139,35 @@ const dbuHasWeekday = (d) => !!d && Number.isInteger(d.weekday) && d.weekday >= 
 // branch of `builderToAssignmentRows` stays as the guard it was written to be.
 function dbuWithWeekdays(doc) {
   if (!doc || !Array.isArray(doc.weeks)) return doc;
-  if (doc.weeks.every((w) => (w.days || []).every(dbuHasWeekday))) return doc;
+  if (doc.weeks.every(dbuWeekSound)) return doc;
   return {
     ...doc,
     weeks: doc.weeks.map((w) => {
       const days = w.days || [];
-      if (days.every(dbuHasWeekday)) return w;
-      const taken = new Set(days.filter(dbuHasWeekday).map((d) => d.weekday));
-      const free = dbuDefaultWeekdays(days.length).filter((x) => !taken.has(x));
+      if (dbuWeekSound(w)) return w;
+      // ⚠ A DUPLICATE IS REPAIRED, NOT ONLY A MISSING WEEKDAY. Before #2143 the day editor's
+      // Training-day select wrote a weekday with no collision check, so a STORED document can
+      // hold two days on one weekday — and each value is individually valid, which is why the
+      // old `every(dbuHasWeekday)` test passed it straight through. The Grid then rendered
+      // only the first and the second was unreachable. (CodeRabbit, #2143.)
+      // The FIRST day holding a weekday keeps it: that is the one the Grid is already drawing,
+      // so the repair brings the HIDDEN session back rather than moving the visible one out
+      // from under the coach.
+      // ⚠ PAST SEVEN DAYS A WEEK THE SURPLUS STILL CYCLES, deliberately — uniqueness is
+      // arithmetically impossible there and this file already states that position above
+      // `DBU_WEEKDAYS`. This repair does not quietly reverse it.
+      const keep = new Set();
+      const holds = days.map((d) => {
+        if (!dbuHasWeekday(d) || keep.has(d.weekday)) return false;
+        keep.add(d.weekday);
+        return true;
+      });
+      const free = dbuDefaultWeekdays(days.length).filter((x) => !keep.has(x));
       let k = 0;
       return {
         ...w,
-        days: days.map((d) => {
-          if (dbuHasWeekday(d)) return d;
+        days: days.map((d, i) => {
+          if (holds[i]) return d;
           const wd = free[k] != null ? free[k] : k % 7;
           k += 1;
           return { ...d, weekday: wd };
@@ -171,6 +198,11 @@ function dbuNextFreeWeekday(week) {
 // select wrote through a blind positional replace until #2143 — picking a weekday another
 // day already held produced exactly the collision the drag had just been fixed to prevent,
 // through the ORDINARY control rather than a deliberate drop onto an occupied cell.
+// ⚠ ITS PERMUTATION PROPERTY ASSUMES A SOUND WEEK, and `dbuWithWeekdays` is what guarantees
+// one: on a week that ALREADY holds a duplicate, exchanging two values preserves the multiset
+// and therefore preserves the duplicate — `[0, 0, 2]` assigned to weekday 2 gives `[2, 0, 0]`,
+// one session still hidden. (CodeRabbit, #2143.) The repair belongs at load rather than here
+// because only the loader can make the hidden session REAPPEAR; a single assignment cannot.
 // A source with no weekday ("In sequence from start") is legitimate here and is NOT refused:
 // the displaced day takes its absent weekday, which is still a permutation and still leaves
 // no two days sharing one. Passing `undefined` therefore clears a day's weekday and, because

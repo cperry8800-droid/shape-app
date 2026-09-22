@@ -660,8 +660,19 @@ function useCoachDoc(goalKind, live, accountId) {
   // what it wrote only when this reaches 0 — otherwise it would erase the paint
   // of a write queued behind it that has not run yet.
   const pendingRef = React.useRef(0);
+  // ⚠ EVERY `setState` IN `apply`'s ASYNC BODY CAN LAND IN A DIFFERENT ACCOUNT'S STATE.
+  // The hydrate re-runs on an account change and replaces `state` with B's document, but a
+  // write that began under A is still in flight and every one of its exits then writes into
+  // B. The mismatch exit was the worst, because it carried A's `doc` through:
+  // `useRememberedChoice` reads `store.doc`, so B saw A's saved preference as their own
+  // `remembered` value until the next hydrate. The uid comparison refuses the WRITE; nothing
+  // refused the STATE. (CodeRabbit, #2143.) This generation is the write lane's version of
+  // the `on` flag the hydrate below already uses, and it is checked after EVERY await for
+  // the same reason: an account can change during any one of them.
+  const genRef = React.useRef(0);
   React.useEffect(() => {
     let on = true;
+    genRef.current += 1;
     kindRef.current = "loading";
     pendingRef.current = 0;
     if (!live) { setState({ kind: "demo", doc: {} }); return undefined; }
@@ -689,6 +700,12 @@ function useCoachDoc(goalKind, live, accountId) {
   // a write it knows failed is worse than one that never accepted it.
   const apply = (merge) => {
     if (kindRef.current !== "ready" && kindRef.current !== "error") return Promise.resolve(false);
+    const gen = genRef.current;
+    // ⚠ A STALE WRITE MUST NOT DECREMENT `pendingRef` EITHER, not just skip its `setState`.
+    // The hydrate resets the counter to 0 for the new account, so a decrement from the old
+    // lane drives it NEGATIVE — after which `pendingRef.current === 0` is never true again
+    // and B's own writes stop reconciling their document on success, silently.
+    const stale = () => genRef.current !== gen;
     setState((s) => ({ ...s, doc: merge(s.doc) }));
     pendingRef.current += 1;
     return dashDocSerial(async () => {
@@ -704,19 +721,28 @@ function useCoachDoc(goalKind, live, accountId) {
       // comparison is unconditional; an id that still will not resolve refuses
       // the write rather than guessing whose row it belongs in.
       let startUid = uidRef.current;
-      if (!startUid) { startUid = await dashDocUid(); uidRef.current = startUid; }
+      if (!startUid) { const u = await dashDocUid(); if (stale()) return false; startUid = u; uidRef.current = u; }
       if (!startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
       let doc = null;
       try { doc = await db.getUserGoals(goalKind); } catch (e) { doc = null; }
+      if (stale()) return false;
       // The read is the last known truth. When it succeeds, a failed save can be
       // rolled back onto it exactly; when it fails there is nothing to roll back
       // TO, so the paint is left standing and the caller is told it is unsaved.
       if (doc == null) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
       const nowUid = await dashDocUid();
-      if (!nowUid || nowUid !== startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, doc, kind: "error" })); return false; }
+      if (stale()) return false;
+      // ⚠ `doc` IS DELIBERATELY NOT CARRIED THROUGH THIS EXIT, and that is a SECOND guard
+      // rather than a duplicate of `stale()`. The hydrate bumps the generation only once
+      // React has committed the render carrying the new `accountId`, while `dashDocUid()`
+      // resolves on its own clock — so there is a window where the uid has already moved
+      // and the generation has not. A document read inside that window belongs to an
+      // account in doubt, which is never a reading worth publishing.
+      if (!nowUid || nowUid !== startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
       const written = merge(doc);
       let res = null;
       try { res = await db.saveUserGoals(goalKind, written); } catch (e) { res = null; }
+      if (stale()) return false;
       pendingRef.current -= 1;
       if (!res || res.error) { setState((s) => ({ ...s, doc, kind: "error" })); return false; }
       // ⚠ A SUCCESS RECONCILES; IT DOES NOT SIMPLY CLEAR THE ERROR. An earlier
