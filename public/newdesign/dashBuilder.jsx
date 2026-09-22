@@ -61,6 +61,9 @@ function dbuGoalTag(key) {
 // `scheduledDate` onto every row; deriving the sheet from any other arithmetic would let
 // the preview and the assignment disagree, which is worse than showing no date at all.
 const DBU_DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Same order and same indices as DBU_DOW — the day editor's Training-day select spells
+// them out where the Grid's column heads abbreviate.
+const DBU_DOW_FULL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const DBU_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function dbuISO(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -154,6 +157,46 @@ function dbuNextFreeWeekday(week) {
   if (free != null) return free;
   for (let i = 0; i < 7; i += 1) if (!taken.has(i)) return i;
   return 0;
+}
+
+// ⚠ ASSIGNING A WEEKDAY IS A SWAP, NOT AN OVERWRITE, AND THIS IS ITS ONLY IMPLEMENTATION.
+// The Grid finds a day BY WEEKDAY (`findIndex(d => d.weekday === wd)`), so two days in one
+// week sharing a weekday leaves the second UNREACHABLE: it cannot be rendered, selected or
+// edited, while the document still holds it and Sheet still lists it. Exchanging the two
+// days' values keeps the week a permutation, so that state is unrepresentable rather than
+// merely avoided at each call site.
+// ⚠ BOTH WRITERS ROUTE THROUGH HERE, and the second is why this is a module helper rather
+// than a closure: the Grid's drag lives in `DbuGrid` and the day editor's Training-day
+// select lives in `DbuBuilder`, so a shared rule cannot be a local function of either. The
+// select wrote through a blind positional replace until #2143 — picking a weekday another
+// day already held produced exactly the collision the drag had just been fixed to prevent,
+// through the ORDINARY control rather than a deliberate drop onto an occupied cell.
+// A source with no weekday ("In sequence from start") is legitimate here and is NOT refused:
+// the displaced day takes its absent weekday, which is still a permutation and still leaves
+// no two days sharing one. Passing `undefined` therefore clears a day's weekday and, because
+// no day can equal it, disturbs nothing else — so clearing needs no separate path.
+// Which OTHER day in this week holds each weekday, for the select's option labels. Read
+// per render rather than memoised: it is at most seven entries, and a hook here would sit
+// below `week`/`day` in `DbuBuilder` where a later early return could change the hook order.
+function dbuTakenByWeekday(week, di) {
+  const out = {};
+  ((week && week.days) || []).forEach((d, j) => {
+    if (j !== di && dbuHasWeekday(d)) out[d.weekday] = d.name || ("Day " + (j + 1));
+  });
+  return out;
+}
+function dbuAssignWeekday(week, di, weekday) {
+  const days = (week && week.days) || [];
+  const from = days[di];
+  if (!from) return week;
+  return {
+    ...week,
+    days: days.map((d, j) => {
+      if (j === di) return { ...d, weekday };
+      if (dbuHasWeekday(d) && d.weekday === weekday) return { ...d, weekday: from.weekday };
+      return d;
+    }),
+  };
 }
 
 // Every date the assignment would write, keyed "week:day" — one call, one source of truth.
@@ -273,7 +316,7 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
 }
 
 // ── Day editor (right pane) ──────────────────────────────────────────────────
-function DbuDayEditor({ day, onChange, playlists, clips, onUploading }) {
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
   const labels = DashBuilder.rowLabels(day);
   let labelIdx = 0;
@@ -285,7 +328,21 @@ function DbuDayEditor({ day, onChange, playlists, clips, onUploading }) {
           <label style={dbuLabel} htmlFor="dbu-day-name">Day name</label>
           <input id="dbu-day-name" value={day.name} onChange={(e) => onChange({ ...day, name: e.target.value })} style={{ ...dbuField, width: "100%", fontSize: 14 }} />
         </div>
-        <label><span style={dbuLabel}>Training day</span><select value={day.weekday ?? ''} onChange={e=>onChange({...day,weekday:e.target.value===''?undefined:Number(e.target.value)})} style={dbuField}><option value="">In sequence from start</option>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((d,i)=><option key={d} value={i}>{d}</option>)}</select></label>
+        <label>
+          <span style={dbuLabel}>Training day</span>
+          {/* ⚠ ROUTED THROUGH `onWeekday`, NEVER `onChange`. This select and the Grid's drag
+              are the two writers of a day's weekday; both go through `dbuAssignWeekday`, so a
+              weekday another day already holds is EXCHANGED rather than duplicated. Writing it
+              through `onChange` — a blind positional replace — is how two days came to sit on
+              one weekday, and the Grid can render only the first of those, so the second was
+              unreachable while the document still held it. Fixed in #2143.
+              The option names the day it would swap with, so the outcome is legible before the
+              click rather than a session quietly changing day. */}
+          <select value={day.weekday ?? ''} onChange={(e) => onWeekday(e.target.value === '' ? undefined : Number(e.target.value))} style={dbuField}>
+            <option value="">In sequence from start</option>
+            {DBU_DOW_FULL.map((d, i) => <option key={d} value={i}>{d}{takenBy && takenBy[i] ? " · swaps with " + takenBy[i] : ""}</option>)}
+          </select>
+        </label>
         <div>
           <span style={dbuLabel}>Shape Radio playlist · chips on the client card</span>
           <select value={day.playlist ? day.playlist.name : ""} onChange={(e) => {
@@ -553,29 +610,14 @@ function DbuViewSwitch({ view, setView }) {
 function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
   const dragRef = React.useRef(null);
   const weekStart = (wi) => ((doc.weeks[wi].days || []).map((_, di) => dates[wi + ":" + di]).filter(Boolean).sort()[0] || "");
-  // ⚠ A DROP SWAPS, IT DOES NOT OVERWRITE — because the Grid finds a day BY WEEKDAY
-  // (`findIndex(d => d.weekday === wd)`), so two days sharing one means the second is
-  // unreachable: it cannot be rendered, selected or edited, while the document still holds
-  // it and Sheet still lists it. Measured on a Mon/Wed/Fri week, dragging Mon onto the
-  // POPULATED Wed cell: 3 of 3 sessions visible becomes 2 of 3, silently. That drop is the
-  // ordinary same-week case and it passes the `f.wi === wi` guard, so the guard is not what
-  // protects it. The retired builder could not hit this — its `moveDay` REORDERED within a
-  // week (a permutation, so no collision existed); assigning a weekday is new here, and so
-  // is the collision. Giving the displaced day the dragged day's old weekday keeps it a
-  // permutation, which is the property that matters.
-  const moveTo = (wi, di, weekday) => setWeeks(doc.weeks.map((w, i) => {
-    if (i !== wi) return w;
-    const from = (w.days || [])[di];
-    // Unreachable from the Grid — a day with no weekday is not drawn, so it cannot be
-    // dragged — but a move with nothing to give the displaced day would hide one, so it
-    // is refused rather than half-applied.
-    if (!dbuHasWeekday(from)) return w;
-    return { ...w, days: w.days.map((d, j) => {
-      if (j === di) return { ...d, weekday };
-      if (dbuHasWeekday(d) && d.weekday === weekday) return { ...d, weekday: from.weekday };
-      return d;
-    }) };
-  }));
+  // ⚠ A DROP SWAPS, IT DOES NOT OVERWRITE. Measured on a Mon/Wed/Fri week, dragging Mon onto
+  // the POPULATED Wed cell: 3 of 3 sessions visible becomes 2 of 3, silently. That drop is
+  // the ordinary same-week case and it passes the `f.wi === wi` guard, so the guard is not
+  // what protects it. The retired builder could not hit this — its `moveDay` REORDERED
+  // within a week (a permutation, so no collision existed); assigning a weekday is new here,
+  // and so is the collision. The rule itself is `dbuAssignWeekday`, shared with the day
+  // editor's Training-day select, so the two controls cannot drift into two answers.
+  const moveTo = (wi, di, weekday) => setWeeks(doc.weeks.map((w, i) => (i === wi ? dbuAssignWeekday(w, di, weekday) : w)));
   const addAt = (wi, weekday) => {
     const w = doc.weeks[wi];
     setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, days: [...x.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday }] } : x)));
@@ -841,6 +883,14 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   const day = week && week.days[sel.d];
   const setWeeks = (weeks) => setDoc({ ...doc, weeks });
   const setDay = (next) => setWeeks(doc.weeks.map((w, wi) => (wi === sel.w ? { ...w, days: w.days.map((d, di) => (di === sel.d ? next : d)) } : w)));
+  // ⚠ THE DAY EDITOR'S TRAINING-DAY SELECT DOES NOT GO THROUGH `setDay`, which is a blind
+  // positional replace with no collision check — picking a weekday another day in the week
+  // already held put two days on one weekday, and the Grid finds a day BY weekday, so the
+  // second became unreachable while the document still held it. `dbuAssignWeekday` is the
+  // same rule the Grid's drag uses, so the two controls cannot answer differently.
+  // Clearing a weekday needs no separate branch: no day can equal `undefined`, so it moves
+  // this day and displaces nothing.
+  const setDayWeekday = (n) => setWeeks(doc.weeks.map((w, wi) => (wi === sel.w ? dbuAssignWeekday(w, sel.d, n) : w)));
 
   const duplicateWeek = (wi) => {
     const next = JSON.parse(JSON.stringify(doc.weeks[wi]));
@@ -1087,7 +1137,15 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
                 <button type="button" className="x" aria-label="Close the day editor" onClick={() => setSel({ w: -1, d: -1 })}>Done</button>
               </div>
               <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
-              <DbuDayEditor day={day} onChange={setDay} playlists={playlists} clips={clips} onUploading={uploadCount} />
+              <DbuDayEditor
+                day={day}
+                onChange={setDay}
+                onWeekday={setDayWeekday}
+                takenBy={dbuTakenByWeekday(week, sel.d)}
+                playlists={playlists}
+                clips={clips}
+                onUploading={uploadCount}
+              />
             </div>
           )}
 

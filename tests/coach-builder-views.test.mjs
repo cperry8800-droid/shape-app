@@ -37,8 +37,8 @@ globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{
 };
 
 const SRC=fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url));
-const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf };'});
-const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf}=mod;
+const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday };'});
+const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday}=mod;
 
 const buttons=()=>[...document.querySelectorAll('button')];
 const byText=t=>buttons().find(b=>b.textContent===t);
@@ -376,4 +376,169 @@ test('the date field itself snaps — the rule is not one the page can bypass', 
   });
   assert.equal(document.querySelector('input[type="date"]').value, '2026-09-21',
     'clearing the field threw away the reference start the coach had chosen');
+});
+
+// ── The weekday invariant, and its SECOND writer ────────────────────────────────────────
+// The Grid finds a day BY weekday, so "no two days in a week share one" is what keeps every
+// session reachable. `moveTo` was fixed for the drag; the day editor's Training-day select is
+// the other writer and wrote through a blind positional replace, so it could still produce
+// exactly the state the drag had just been stopped from producing.
+const daySelect = () => [...document.querySelectorAll('select')]
+  .find((s) => [...s.options].some((o) => o.textContent === 'In sequence from start'));
+const setValue = (el, v) => {
+  Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, v);
+};
+const pick = async (el, v) => {
+  await React.act(async () => {
+    setValue(el, v);
+    el.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+};
+const wk = (n, ...wds) => ({ name: 'W' + n, days: wds.map((w, i) => ({ name: 'D' + (i + 1), weekday: w, blocks: [] })) });
+const shares = (week) => {
+  const seen = new Set();
+  for (const d of week.days) {
+    if (!Number.isInteger(d.weekday)) continue;
+    if (seen.has(d.weekday)) return true;
+    seen.add(d.weekday);
+  }
+  return false;
+};
+
+test('assigning a weekday another day holds SWAPS, so no week can ever hold a collision', () => {
+  const week = wk(1, 0, 2, 4);                                   // Mon / Wed / Fri
+  const out = dbuAssignWeekday(week, 0, 2);                      // Mon takes the occupied Wed
+  assert.deepEqual(out.days.map((d) => d.weekday), [2, 0, 4], 'the two days did not exchange weekdays');
+  assert.equal(shares(out), false, 'two days ended up on one weekday, so the Grid can render only one');
+  assert.equal(week.days.map((d) => d.weekday).join(), '0,2,4', 'the input week was mutated');
+});
+
+test('assigning a FREE weekday moves the day and displaces nobody', () => {
+  const out = dbuAssignWeekday(wk(1, 0, 2, 4), 0, 1);            // Mon -> the free Tue
+  assert.deepEqual(out.days.map((d) => d.weekday), [1, 2, 4], 'a free weekday should be a plain move');
+  assert.equal(shares(out), false, 'a plain move created a collision');
+});
+
+test('a day with NO weekday is a legitimate source — the displaced day takes its absence', () => {
+  // ⚠ NOT REACHABLE FROM THE GRID (a weekday-less day is not drawn, so it cannot be dragged)
+  // but it IS reachable from the select, whose day may be "In sequence from start". Refusing
+  // would leave the coach's pick doing nothing; swapping keeps the week a permutation.
+  const out = dbuAssignWeekday(wk(1, undefined, 2), 0, 2);
+  assert.deepEqual(out.days.map((d) => d.weekday), [2, undefined], 'the absence was not exchanged');
+  assert.equal(shares(out), false, 'a weekday-less source produced a collision');
+});
+
+test('clearing a weekday needs no separate path — nothing can equal undefined', () => {
+  const out = dbuAssignWeekday(wk(1, 0, 2, 4), 1, undefined);
+  assert.deepEqual(out.days.map((d) => d.weekday), [0, undefined, 4], 'clearing disturbed another day');
+  assert.equal(shares(out), false, 'clearing produced a collision');
+});
+
+test('a day index that does not exist is refused rather than half-applied', () => {
+  const week = wk(1, 0, 2);
+  assert.equal(dbuAssignWeekday(week, 9, 3), week, 'a missing day returned a rewritten week');
+  assert.equal(dbuAssignWeekday(null, 0, 3), null, 'a missing week was not passed through');
+});
+
+test('the Training-day select swaps too — the ordinary control cannot hide a session', async () => {
+  // ⚠ THIS IS THE DEFECT THE DRAG FIX DID NOT REACH. `setDay` is a blind positional replace,
+  // so picking a weekday another day already held put two days on one weekday — and the Grid
+  // renders a day only if some cell resolves to it, so the second became unreachable: it
+  // could not be rendered, selected or edited while the document still held it and Sheet
+  // still listed it. The select predates the rebuild; the Grid's weekday-keyed lookup does
+  // not, which is what turned a harmless duplicate into a hidden session. Found by reading
+  // the fix's own blast radius after CodeRabbit's rest-cell finding.
+  await mount(template(dbuWithWeekdays(legacyDoc())));           // week 1: Mon + Thu
+  assert.equal(populated(0).length, 2, 'setup: week 1 does not have two sessions');
+  const names = () => populated(0).map((c) => (c.querySelector('b') || {}).textContent);
+  assert.deepEqual(names(), ['Squat day', 'Pull day'], 'setup: the sessions are not where expected');
+
+  await React.act(async () => { populated(0)[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+  const sel = daySelect();
+  assert.ok(sel, 'clicking a session did not open the day editor');
+  assert.equal(sel.value, '0', 'setup: the open day is not the Monday one');
+
+  await pick(sel, '3');                                          // Thursday, held by Pull day
+
+  assert.equal(populated(0).length, 2, 'a session vanished from the grid — two days share a weekday');
+  assert.deepEqual(names(), ['Pull day', 'Squat day'], 'the select overwrote instead of swapping');
+});
+
+test('the select names the day it would swap with, so the outcome is legible first', async () => {
+  await mount(template(dbuWithWeekdays(legacyDoc())));
+  await React.act(async () => { populated(0)[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+  const opts = [...daySelect().options].map((o) => o.textContent);
+  assert.ok(opts.some((o) => /^Thursday \u00b7 swaps with Pull day$/.test(o)),
+    'a weekday another day holds is offered with no hint that picking it exchanges them: ' + JSON.stringify(opts));
+  assert.ok(opts.includes('Tuesday'), 'a FREE weekday must stay a plain label, or every option reads as a swap');
+  assert.ok(!opts.some((o) => /^Monday \u00b7/.test(o)),
+    "the open day's OWN weekday was labelled as a swap with itself");
+});
+
+test('both weekday writers go through one implementation, and there is no third', async () => {
+  // The tests above prove the BEHAVIOUR of each writer; this proves there are only two to
+  // prove, and it is why the rule is a module helper rather than a closure — the drag lives
+  // in `DbuGrid` and the select in `DbuBuilder`, so neither could have called the other's.
+  const src = await import('node:fs').then((fs) => fs.readFileSync(SRC, 'utf8'));
+  const writers = [...src.matchAll(/const (moveTo|setDayWeekday) = [^\n]*/g)].map((m) => m[0]);
+  assert.equal(writers.length, 2, 'the grid drag and the day-editor select are no longer the two writers');
+  for (const w of writers) {
+    assert.ok(/dbuAssignWeekday\(/.test(w), 'a weekday writer stopped going through the shared rule: ' + w);
+  }
+});
+
+test('every site that sets a day weekday is one of eight, each safe for a stated reason', async () => {
+  // ⚠ DERIVED FROM THE AST, NOT GREPPED, because a weekday is written in three spellings and
+  // a sweep blind to any one of them reports a clean tree: `weekday: x`, the SHORTHAND
+  // `{ ...d, weekday }` (how `addAt` and the move itself are written), and the ASSIGNMENT
+  // `next.weekday = …` (how duplicate-day and reuse-a-saved-day are written). A regex over
+  // `weekday:\s*` sees only the first and misses half the sites — measured while writing this.
+  // ⚠ KEYED BY ENCLOSING FUNCTION AND SOURCE TEXT, never file:line — a line number pins a
+  // layout, so an unrelated edit above one of these would fail a test about collisions.
+  const src = await import('node:fs').then((fs) => fs.readFileSync(SRC, 'utf8'));
+  const ast = require('@babel/parser').parse(src, { sourceType: 'module', plugins: ['jsx'] });
+  const sites = [];
+  const stack = [];
+  (function walk(n) {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    let pushed = false;
+    if (n.type === 'FunctionDeclaration' && n.id) { stack.push(n.id.name); pushed = true; }
+    if (n.type === 'VariableDeclarator' && n.id && n.id.name && n.init &&
+        (n.init.type === 'ArrowFunctionExpression' || n.init.type === 'FunctionExpression')) {
+      stack.push(n.id.name); pushed = true;
+    }
+    const isWeekdayProp = n.type === 'ObjectProperty' && n.key &&
+      (n.key.name === 'weekday' || n.key.value === 'weekday');
+    const isWeekdayAssign = n.type === 'AssignmentExpression' && n.left &&
+      n.left.type === 'MemberExpression' && n.left.property &&
+      (n.left.property.name === 'weekday' || n.left.property.value === 'weekday');
+    if (isWeekdayProp || isWeekdayAssign) {
+      sites.push((stack[stack.length - 1] || '<top>') + ' :: ' + src.slice(n.start, n.end).replace(/\s+/g, ' ').trim());
+    }
+    for (const k in n) { if (k !== 'loc' && k !== 'leadingComments' && k !== 'trailingComments') walk(n[k]); }
+    if (pushed) stack.pop();
+  })(ast);
+
+  // Vacuity floor: a walker that stopped matching would report a clean tree, so it must be
+  // proven to see BOTH the spellings a regex would miss before its answer is worth anything.
+  assert.ok(sites.some((x) => /:: weekday$/.test(x)), 'the walk no longer sees the shorthand form');
+  assert.ok(sites.some((x) => /:: next\.weekday =/.test(x)), 'the walk no longer sees the assignment form');
+
+  assert.deepEqual(sites.sort(), [
+    // Duplicate a day / reuse a saved day — both take the next FREE weekday in the target week.
+    'DbuBuilder :: next.weekday = dbuNextFreeWeekday(doc.weeks[sel.w])',
+    'DbuBuilder :: next.weekday = dbuNextFreeWeekday(doc.weeks[target])',
+    // ＋ Week: a fresh week whose only day can collide with nothing.
+    'DbuBuilder :: weekday: 0',
+    // ＋ Add session in Sheet: next free.
+    'DbuSheet :: weekday: dbuNextFreeWeekday(w)',
+    // addAt is reached from a REST cell, so that weekday is free by construction.
+    'addAt :: weekday',
+    // The rule itself: the move, and the swap that keeps the week a permutation.
+    'dbuAssignWeekday :: weekday',
+    'dbuAssignWeekday :: weekday: from.weekday',
+    // Load-time fill, and only for days that have no weekday, from the unused set.
+    'dbuWithWeekdays :: weekday: wd',
+  ], 'a new site sets a day weekday — route it through dbuAssignWeekday, or add it here with why it cannot collide');
 });
