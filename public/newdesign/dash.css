@@ -4,9 +4,9 @@
 
 /* ── The paper tokens ──────────────────────────────────────────────────────
    Every colour on a dashboard reads one of these, so the whole surface can be
-   re-papered from one place. The values here ARE the colours the dashboard has
-   always shipped, so defining them changes nothing; `html[data-paper="light"]`
-   (a later PR) is what moves them.
+   re-papered from one place. :root is the LIGHT paper (the default, since
+   2026-09-22); the dark switch below carries the values the dashboard shipped
+   with before it, verbatim.
 
    ⚠ EVERY CONSUMER WRITES ITS OWN VALUE AS THE var() FALLBACK —
    `var(--sh-accent, #2ee0c4)`, `rgba(var(--sh-ink-rgb, 242,237,228), .5)` — and
@@ -27,7 +27,13 @@
    `#0a0f0d`, `#04110f` — dark-on-teal reads on either paper, and folding four
    values into one token would change pixels rather than rename them); chart and
    tier series colours; and brand marks (Spotify green, Apple red). None of them
-   move with the paper.
+   move with the paper. ⚠ The exception is a mark drawn ON a surface that does move:
+   the trajectory chart and the cycle plate each take a token (--sh-chart-*,
+   --sh-cycle-heat), because a series colour validated against the dark ground falls
+   under the 3:1 non-text floor once the ground turns light. And the same reasoning
+   is why text on a FIXED fill (a playlist's own accent, the chat button's #1ec0a8)
+   is a near-black literal and never --sh-ground: the fill does not move, so ground
+   text on it turns light-on-teal on the light paper (2.0:1).
 
    ⚠ AND THE COOKIE-CONSENT BANNER IS OUTSIDE THIS SYSTEM BY RULE, not by
    oversight. `pageShell.jsx` injects it on ~69 pages with inline styles and its
@@ -37,34 +43,165 @@
    pattern however it was arrived at, so the banner reads literals and a page that
    wants a themed banner says so with `--consent-*`. See
    tests/consent-banner-contrast.test.mjs, which is what caught this sweep. */
+/* ── TWO PAPERS, ONE TOKEN SET ─────────────────────────────────────────────
+   :root carries the LIGHT paper — the workout builder's own palette (owner,
+   2026-09-21: "i like the look of the white … use that for now"), lifted from
+   dashBuilder.jsx's DBU_* constants rather than re-invented — and it is the
+   default. `html[data-paper="dark"]` carries the dashboard's previous dark
+   values VERBATIM, one switch away ("create the option to change back to the
+   dark tones"). A token declared in one block is declared in the other, or the
+   switch would leave a colour behind; tests/newdesign-paper-tokens.test.mjs
+   asserts the two blocks agree on the set.
+
+   ⚠ EVERY var() FALLBACK IN THE TREE IS THE DARK VALUE, NOT THE :root VALUE.
+   The fallback is the colour on a page that never loads this stylesheet — the
+   35 marketing pages that render pageShell.jsx's header — and those stay on
+   the dark paper. So `var(--sh-ink, #f2ede4)` reads #15211e on a dashboard,
+   #f2ede4 under the dark switch, and #f2ede4 on index.html. The guard compares
+   fallbacks against the DARK block for that reason; do not "fix" a fallback to
+   the light value, it would turn the marketing header light.
+
+   ⚠ THE FONT TOKENS ARE NOT PAPER-DEPENDENT. Anybody + Schibsted Grotesk are the
+   builder's faces on both papers; their fallbacks are the marketing faces
+   (Fraunces · Space Grotesk), which is what the shared header keeps off the
+   dashboards. */
 :root {
-  /* Ink - the dashboard's foreground family, as one triplet plus its opaque forms. */
-  --sh-ink-rgb: 242,237,228;
+  /* Ink — the builder's #15211e; ink2/ink3 are its secondary and tertiary text. */
+  --sh-ink: #15211e;
+  --sh-ink-rgb: 21,33,30;
+  --sh-ink-soft: #dfe5e2;
+  --sh-ink-soft-rgb: 223,229,226;
+  --sh-ink2: #5a6763;
+  --sh-ink2-rgb: 90,103,99;
+  /* ink3 is the builder's tertiary DARKENED to AA: #8a9490 read 3.13:1 on the card and
+     2.88:1 on the ground, under the 4.5:1 floor for the 8–11px labels it sets.
+     #697370 keeps the hue and reads 4.90 / 4.51. */
+  --sh-ink3: #697370;
+  --sh-ink3-rgb: 105,115,112;
+
+  /* Nav ink — the shared header and footer, dark on the light bar. */
+  --sh-nav-ink: #15211e;
+  --sh-nav-ink-rgb: 21,33,30;
+
+  /* Grounds — the page, a white panel (drawers, modals), and the text on an accent fill. */
+  --sh-ground: #f4f6f5;
+  --sh-ground-rgb: 244,246,245;
+  --sh-ground2: #ffffff;
+  --sh-ground2-rgb: 255,255,255;
+  --sh-deep: #ffffff;
+  --sh-deep-rgb: 255,255,255;
+
+  /* Cards, rules, tints and the rest cell — the builder's own vocabulary. */
+  --sh-card: #ffffff;
+  --sh-card-rgb: 255,255,255;
+  --sh-line: #e1e6e3;
+  --sh-line-rgb: 225,230,227;
+  --sh-line2: #c9d2ce;
+  --sh-line2-rgb: 201,210,206;
+  --sh-rest: #edf0ee;
+  --sh-rest-rgb: 237,240,238;
+  --sh-accent-tint: #e2f2f0;
+  --sh-accent-tint-rgb: 226,242,240;
+  --sh-rust-tint: #fbeae5;
+  --sh-rust-tint-rgb: 251,234,229;
+  --sh-gold-tint: #f7eed8;
+  --sh-gold-tint-rgb: 247,238,216;
+
+  /* Accent — the three dark teals collapse onto the builder's one. */
+  --sh-accent: #0a8f87;
+  --sh-accent-rgb: 10,143,135;
+  --sh-accent2: #0a8f87;
+  --sh-accent2-rgb: 10,143,135;
+  --sh-accent3: #0a8f87;
+  --sh-accent3-rgb: 10,143,135;
+
+  /* Roles — nutritionist gold, trainer rust, and the positive green, each at AA on the ground. */
+  --sh-gold: #a07a2e;
+  --sh-gold-rgb: 160,122,46;
+  --sh-rust: #c0533b;
+  --sh-rust-rgb: 192,83,59;
+  --sh-rust2: #c0533b;
+  --sh-rust2-rgb: 192,83,59;
+  --sh-green: #3a7d2c;
+  --sh-green-rgb: 58,125,44;
+  /* The wall plate's nutritionist heat: the APP's own pair (a shade off the gold
+     token on the dark paper), so a coach's record reads the same on both surfaces. */
+  --sh-heat-nutri: #a07a2e;
+  --sh-heat-nutri-rgb: 160,122,46;
+  /* The cycle plate's heat, and the ink ON its fill. The dark paper's #34d6c5 reads
+     1.81:1 on the light card, so the light paper takes a darker teal (5.20:1 on the
+     card, 4.79 on the ground) — and a fill that dark needs WHITE text, because no
+     teal clears 4.5:1 both as text on white and under #0b0f0f text. */
+  --sh-cycle-heat: #0a7a72;
+  --sh-cycle-heat-rgb: 10,122,114;
+  --sh-cycle-heat-ink: #ffffff;
+  --sh-cycle-heat-ink-rgb: 255,255,255;
+  /* The practice trajectory's teal and amber marks. They draw on --sh-ground, which
+     moves, so they have to move with it: the dark pair reads 2.73 / 2.91:1 on the
+     light ground, under the 3:1 floor for a non-text mark. The builder's own accent
+     and gold clear it (3.66 / 3.64). */
+  --sh-chart-teal: #0a8f87;
+  --sh-chart-teal-rgb: 10,143,135;
+  --sh-chart-amber: #a07a2e;
+  --sh-chart-amber-rgb: 160,122,46;
+
+  /* The shared chrome: the header bar, the footer, and which logo lockup shows. */
+  --sh-header-bg: rgba(255,255,255,0.86);
+  --sh-menu-bg: rgba(255,255,255,0.98);
+  --sh-footer-bg: #e9eeec;
+  --sh-footer-bg-rgb: 233,238,236;
+  --sh-logo-light: block;
+  --sh-logo-dark: none;
+
+  /* Type — the builder's faces. Fallbacks are the marketing faces, which the
+     shared header keeps on the pages that do not load this file. */
+  --sh-font-body: 'Schibsted Grotesk', system-ui, sans-serif;
+  --sh-font-display: 'Anybody', system-ui, sans-serif;
+  --sh-font-mono: 'JetBrains Mono', 'JetBrains Mono Fallback', monospace;
+
+}
+
+/* The dark switch — today's values, verbatim. The nine builder tokens take the
+   colour today's surface already composes for them (ink over the ground at the
+   alpha the dashboard uses: card = 5%, line = 10%, line2 = 18%, ink2 = 62%,
+   ink3 = 42%, rest = 3.5%; the tints = the accent/rust/gold at 12–13%). */
+html[data-paper="dark"] {
   --sh-ink: #f2ede4;
+  --sh-ink-rgb: 242,237,228;
   --sh-ink-soft: #efece6;
   --sh-ink-soft-rgb: 239,236,230;
-
-  /* Nav ink - the shared header and footer run a slightly different cream. */
-  --sh-nav-ink-rgb: 245,239,225;
+  --sh-ink2: #a09b94;
+  --sh-ink2-rgb: 160,155,148;
+  --sh-ink3: #75706a;
+  --sh-ink3-rgb: 117,112,106;
   --sh-nav-ink: #f5efe1;
-
-  /* Grounds - the page, a deeper panel, and the teal-black the coach uses. */
+  --sh-nav-ink-rgb: 245,239,225;
   --sh-ground: #1a1612;
   --sh-ground-rgb: 26,22,18;
   --sh-ground2: #14110e;
   --sh-ground2-rgb: 20,17,14;
   --sh-deep: #06231f;
   --sh-deep-rgb: 6,35,31;
-
-  /* Accent - three teals the surface genuinely distinguishes today. */
+  --sh-card: #25211d;
+  --sh-card-rgb: 37,33,29;
+  --sh-line: #302c27;
+  --sh-line-rgb: 48,44,39;
+  --sh-line2: #413d38;
+  --sh-line2-rgb: 65,61,56;
+  --sh-rest: #221e19;
+  --sh-rest-rgb: 34,30,25;
+  --sh-accent-tint: #182d26;
+  --sh-accent-tint-rgb: 24,45,38;
+  --sh-rust-tint: #321f19;
+  --sh-rust-tint-rgb: 50,31,25;
+  --sh-gold-tint: #312717;
+  --sh-gold-tint-rgb: 49,39,23;
   --sh-accent: #2ee0c4;
   --sh-accent-rgb: 46,224,196;
   --sh-accent2: #0ac5a8;
   --sh-accent2-rgb: 10,197,168;
   --sh-accent3: #34d6c5;
   --sh-accent3-rgb: 52,214,197;
-
-  /* Roles - nutritionist gold, trainer rust, and the positive green. */
   --sh-gold: #d8a23a;
   --sh-gold-rgb: 216,162,58;
   --sh-rust: #e0644b;
@@ -73,19 +210,40 @@
   --sh-rust2-rgb: 192,83,59;
   --sh-green: #7bbf5a;
   --sh-green-rgb: 123,191,90;
+  --sh-heat-nutri: #d8b25a;
+  --sh-heat-nutri-rgb: 216,178,90;
+  --sh-cycle-heat: #34d6c5;
+  --sh-cycle-heat-rgb: 52,214,197;
+  --sh-cycle-heat-ink: #0b0f0f;
+  --sh-cycle-heat-ink-rgb: 11,15,15;
+  --sh-chart-teal: #12a899;
+  --sh-chart-teal-rgb: 18,168,153;
+  --sh-chart-amber: #b8892f;
+  --sh-chart-amber-rgb: 184,137,47;
+  --sh-header-bg: rgba(11,14,12,0.55);
+  --sh-menu-bg: rgba(6,9,15,0.98);
+  --sh-footer-bg: #0b0e0c;
+  --sh-footer-bg-rgb: 11,14,12;
+  --sh-logo-light: none;
+  --sh-logo-dark: block;
 }
 
 html, body { margin: 0; padding: 0; background: var(--sh-ground, #1a1612); }
 * { box-sizing: border-box; }
 a { text-decoration: none; color: inherit; }
 
-/* ── Instrument plates (dashboard-v2 step 7 — prototype language) ─────────── */
-@keyframes dashTick { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
-.dash-plate { position:relative; background:linear-gradient(170deg, rgba(var(--sh-ink-rgb, 242,237,228),.05), rgba(var(--sh-ink-rgb, 242,237,228),.02) 70%), rgba(var(--sh-ink-rgb, 242,237,228),.02); border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.1); border-left:3px solid var(--dac, var(--sh-accent, #2ee0c4)); clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); padding:18px 20px; }
-.dash-plate--tick::before { content:""; position:absolute; top:10px; left:8px; width:5px; height:5px; border-radius:1px; background:var(--dac, var(--sh-accent, #2ee0c4)); animation:dashTick 1.6s ease-in-out infinite; }
-.dash-plate--bracket::after { content:""; position:absolute; right:6px; bottom:6px; width:10px; height:10px; border-right:1.5px solid var(--dac, var(--sh-accent, #2ee0c4)); border-bottom:1.5px solid var(--dac, var(--sh-accent, #2ee0c4)); opacity:.55; }
-.dash-eyebrow { font-family:'JetBrains Mono', monospace; font-size:9px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dac, var(--sh-accent, #2ee0c4)); }
-.dash-ledger { height:2px; background:linear-gradient(90deg, var(--dac, var(--sh-accent, #2ee0c4)), rgba(var(--sh-accent-rgb, 46,224,196),.18) 45%, transparent 85%); margin:7px 0 14px; }
+/* ── Cards (the workout builder's vocabulary, owner 2026-09-21) ────────────
+   The "instrument plate" — a chamfered, spined, ticking, bracketed panel — was the
+   dashboard-v2 prototype language. Every page now draws the builder's card instead:
+   a white box, one hairline, a 12px radius, a whisper of shadow. The class names and
+   the --dac role colour stay (12 modules set them; the eyebrow still takes the role
+   colour), so the restyle is this block and nothing per page. The tick and the
+   bracket are retired rather than restyled — the builder has neither. */
+.dash-plate { position:relative; background:var(--sh-card, #25211d); border:1px solid var(--sh-line, #302c27); border-radius:12px; padding:18px 20px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.dash-plate--tick::before { content:none; }
+.dash-plate--bracket::after { content:none; }
+.dash-eyebrow { font-family:var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size:9.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--dac, var(--sh-accent, #2ee0c4)); }
+.dash-ledger { height:1px; background:var(--sh-line, #302c27); margin:8px 0 14px; }
 
 /* ── Thin scrollbars ──────────────────────────────────────────────────────────
    Owner, on the exercise picker: "remove this scroll bar". The chunky native bar
@@ -97,8 +255,12 @@ a { text-decoration: none; color: inherit; }
    nothing on screen saying so (V2, the 2026-09-09 review). A list that scrolls
    has to say it scrolls.
 
-   ⚠ TWO VARIANTS BECAUSE THE SURFACES ARE TWO PAPERS. The picker dialog is dark
-   and the workout builder is light; one thumb colour would vanish on one of them.
+   ⚠ ONE VARIANT, BECAUSE BOTH SURFACES FOLLOW THE PAPER. This shipped as two — an
+   ink-alpha thumb for the dark picker dialog and a fixed light grey for the light
+   builder panel — while the dialog and the panel sat on different papers. Both read
+   the paper tokens now, and a thumb drawn as ink at an alpha reads on either paper
+   (a light grey on white, a warm grey on the dark card), so the fixed-literal
+   variant would have been a bright bar on the dark switch and was retired.
    Declared here rather than in either module because both need it and neither
    owns the other — and dashMealBuilder.jsx has no <style> host at all. */
 .dash-thin-scroll { scrollbar-width: thin; scrollbar-color: rgba(var(--sh-ink-rgb, 242,237,228),.24) transparent; }
@@ -106,11 +268,6 @@ a { text-decoration: none; color: inherit; }
 .dash-thin-scroll::-webkit-scrollbar-track { background: transparent; }
 .dash-thin-scroll::-webkit-scrollbar-thumb { background-color: rgba(var(--sh-ink-rgb, 242,237,228),.2); border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
 .dash-thin-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(var(--sh-ink-rgb, 242,237,228),.34); }
-.dash-thin-scroll--ink { scrollbar-width: thin; scrollbar-color: #c9d2ce transparent; }
-.dash-thin-scroll--ink::-webkit-scrollbar { width: 8px; height: 8px; }
-.dash-thin-scroll--ink::-webkit-scrollbar-track { background: transparent; }
-.dash-thin-scroll--ink::-webkit-scrollbar-thumb { background-color: #c9d2ce; border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
-.dash-thin-scroll--ink::-webkit-scrollbar-thumb:hover { background-color: #a9b5b0; }
 
 /* ── Responsive (dashboard-v2 step 10) ────────────────────────────────────── */
 .dash-roster-scroll { overflow-x: auto; }

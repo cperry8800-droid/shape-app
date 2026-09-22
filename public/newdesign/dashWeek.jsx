@@ -20,7 +20,7 @@
 // dashMessageDraft · dashClientHref · DashDemoBand) → this.
 
 const DWK_MONO = "'JetBrains Mono', monospace";
-const DWK_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+const DWK_INK50 = "var(--sh-ink2, #a09b94)";
 const DWK_INK = "var(--sh-ink, #f2ede4)";
 const DWK_TEAL = "var(--sh-accent, #2ee0c4)";
 const DWK_AMBER = "var(--sh-gold, #d8a23a)";
@@ -295,7 +295,7 @@ function DwkStat({ label, value, sub, tone }) {
   return (
     <div style={{ minWidth: 92 }}>
       <div style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DWK_INK50 }}>{label}</div>
-      <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginTop: 3, color: tone || DWK_INK, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 18, marginTop: 3, color: tone || DWK_INK, lineHeight: 1.1 }}>{value}</div>
       {sub ? <div style={{ fontFamily: DWK_MONO, fontSize: 8.5, color: DWK_INK50, marginTop: 2 }}>{sub}</div> : null}
     </div>
   );
@@ -346,7 +346,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ width: 7, height: 7, borderRadius: 2, background: sevColor, flexShrink: 0 }} />
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: 19, letterSpacing: "-0.01em" }}>{rec.profile.name}</span>
+            <span style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 19, letterSpacing: "-0.01em" }}>{rec.profile.name}</span>
             {row.flags.map((f, i) => <DashPill key={i} c={sevColor}>{f.label}</DashPill>)}
             {reviewed && <span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_SEV_COLORS.green }}>Reviewed ✓</span>}
           </div>
@@ -398,7 +398,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
           {(noteOpen || (review && review.note)) && (
             <div style={{ marginTop: 12 }}>
               <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="What you saw this week, what you'll change, what to ask next week."
-                style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 6, padding: 10, color: DWK_INK, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, lineHeight: 1.5 }} />
+                style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 6, padding: 10, color: DWK_INK, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, lineHeight: 1.5 }} />
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 6 }}>
                 {(() => {
                   const unchanged = draft === ((review && review.note) || "");

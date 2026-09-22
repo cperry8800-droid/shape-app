@@ -10,27 +10,27 @@ function HabitRow({ h, onToggle, onRemove }) {
   return (
     <div style={{
       display: "grid", gridTemplateColumns: "44px 1fr auto auto auto", gap: 12, alignItems: "center",
-      padding: "14px 4px", borderTop: "1px solid rgba(242,237,228,0.06)",
+      padding: "14px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)",
     }}>
       <HabitCheckbox checked={done} onClick={() => onToggle(h.id)} type={h.type}
         ariaLabel={done ? "Mark not done" : "Mark done"} />
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: done ? "rgba(242,237,228,0.6)" : INK, textDecoration: done ? "line-through" : "none" }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: done ? "rgba(var(--sh-ink-rgb, 242,237,228),0.6)" : INK, textDecoration: done ? "line-through" : "none" }}>
           {h.label}
           {/* WORK domain tag (spec 2026-07-13) — slate, mobile parity */}
           {h.domain === "work" && <span style={{ marginLeft: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", color: "#7aa7dc", border: "1px solid rgba(122,167,220,0.4)", borderRadius: 3, padding: "1px 5px", verticalAlign: "2px" }}>WORK</span>}
         </div>
-        <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{h.sub}</div>
+        <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{h.sub}</div>
       </div>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", color: TEAL_BRIGHT, whiteSpace: "nowrap" }}>
         +{h.points}
       </span>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em",
-        color: streakFor(h) > 0 ? "rgba(242,237,228,0.7)" : "rgba(242,237,228,0.3)", whiteSpace: "nowrap" }}>
+        color: streakFor(h) > 0 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.3)", whiteSpace: "nowrap" }}>
         {streakFor(h)}d
       </span>
       <button onClick={() => onRemove(h.id)} aria-label="Remove habit" title="Remove"
-        style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.35)", fontSize: 16, cursor: "pointer", padding: "0 4px", minWidth: 44, minHeight: 44, lineHeight: 1 }}>
+        style={{ background: "transparent", border: 0, color: "var(--sh-ink3, #75706a)", fontSize: 16, cursor: "pointer", padding: "0 4px", minWidth: 44, minHeight: 44, lineHeight: 1 }}>
         &times;
       </button>
     </div>
@@ -77,7 +77,7 @@ function ClientHabitsPage() {
     { key: "kpis", title: "Habit KPIs", size: "full", render: () => (
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))",
-        background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
+        background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)",
         borderRadius: 10, overflow: "hidden",
       }}>
         {[
@@ -86,10 +86,10 @@ function ClientHabitsPage() {
           { l: "Current streak", k: `${longest}d`,                     sub: longest >= 7 ? "you're in the zone" : "build it up" },
           { l: "Score today",    k: `+${todayPoints}`,                 sub: `+${weekPoints} this week` },
         ].map((k, i) => (
-          <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
+          <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "none" }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
             <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{k.k}</div>
-            <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{k.sub}</div>
+            <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 6 }}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -99,7 +99,7 @@ function ClientHabitsPage() {
       <Card style={{ display: "grid", gridTemplateColumns: "1fr", gap: 18, alignItems: "center" }}>
         <div>
           <SectionTitle right="NEW HABITS">Sharing default</SectionTitle>
-          <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.68)", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>
             Choose the default visibility for new habits. Existing habits keep their saved visibility.
           </div>
         </div>
@@ -112,9 +112,9 @@ function ClientHabitsPage() {
             <button key={key} onClick={() => setVisibility(key)} style={{
               padding: "10px 12px",
               borderRadius: 999,
-              border: visibility === key ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(242,237,228,0.16)",
-              background: visibility === key ? "rgba(10,197,168,0.12)" : "transparent",
-              color: visibility === key ? TEAL_BRIGHT : "rgba(242,237,228,0.72)",
+              border: visibility === key ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)",
+              background: visibility === key ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent",
+              color: visibility === key ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.72)",
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10.5,
               letterSpacing: "0.12em",
@@ -140,11 +140,11 @@ function ClientHabitsPage() {
             + Add a do
           </button>
         </div>
-        <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 4 }}>
+        <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginBottom: 4 }}>
           Check the circle when you've done it today.
         </div>
         {dos.length === 0
-          ? <div style={{ padding: "24px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No do's yet.</div>
+          ? <div style={{ padding: "24px 4px", color: "var(--sh-ink2, #a09b94)", fontSize: 13 }}>No do's yet.</div>
           : dos.map((h) => <HabitRow key={h.id} h={h} onToggle={toggleToday} onRemove={removeHabit} />)}
       </Card>
     ) },
@@ -163,11 +163,11 @@ function ClientHabitsPage() {
             + Add a don't
           </button>
         </div>
-        <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 4 }}>
+        <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginBottom: 4 }}>
           Check the square when you've successfully avoided it today.
         </div>
         {donts.length === 0
-          ? <div style={{ padding: "24px 4px", color: "rgba(242,237,228,0.5)", fontSize: 13 }}>No don'ts yet.</div>
+          ? <div style={{ padding: "24px 4px", color: "var(--sh-ink2, #a09b94)", fontSize: 13 }}>No don'ts yet.</div>
           : donts.map((h) => <HabitRow key={h.id} h={h} onToggle={toggleToday} onRemove={removeHabit} />)}
       </Card>
     ) },
@@ -178,14 +178,14 @@ function ClientHabitsPage() {
         <div style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", marginBottom: 6 }}>
           <div />
           {DAY_LABELS.map((d, i) => (
-            <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.4)", textAlign: "center" }}>{d}</div>
+            <div key={i} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink3, #75706a)", textAlign: "center" }}>{d}</div>
           ))}
         </div>
         {habits.map((h, i) => {
           const cells = [...h.history, h.today];
           return (
-            <div key={h.id} style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-              <div style={{ fontSize: 12, color: "rgba(242,237,228,0.85)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 6 }}>
+            <div key={h.id} style={{ display: "grid", gridTemplateColumns: `1.4fr repeat(7, 1fr)`, gap: 8, alignItems: "center", padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+              <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.1em", color: h.type === "dont" ? "#ff8a6d" : TEAL_BRIGHT, textTransform: "uppercase" }}>
                   {h.type === "dont" ? "DON'T" : "DO"}
                 </span>
@@ -196,8 +196,8 @@ function ClientHabitsPage() {
                 const square = h.type === "dont";
                 return (
                   <div key={j} style={{ height: 22, borderRadius: square ? 4 : 11,
-                    background: on ? (isToday ? TEAL : "rgba(10,197,168,0.45)") : "rgba(242,237,228,0.06)",
-                    border: isToday ? `1px solid ${on ? "transparent" : "rgba(46,224,196,0.4)"}` : "none",
+                    background: on ? (isToday ? TEAL : "rgba(var(--sh-accent2-rgb, 10,197,168),0.45)") : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)",
+                    border: isToday ? `1px solid ${on ? "transparent" : "rgba(var(--sh-accent-rgb, 46,224,196),0.4)"}` : "none",
                   }} />
                 );
               })}
@@ -209,10 +209,10 @@ function ClientHabitsPage() {
 
     { key: "scorecard", title: "Shape Score · from habits", size: "half", render: () => (
       <div data-tour="hero-habits">
-      <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
+      <Card style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHAPE SCORE · FROM HABITS</div>
         <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1, color: TEAL_BRIGHT }}>+{weekPoints}</div>
-        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)", marginTop: 8, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", marginTop: 8, lineHeight: 1.5 }}>
           Earned from habits this week. Each row's <span style={{ color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace" }}>+pts</span> contributes to your Shape Score.
         </div>
         <a href={dashShellHref("ClientScore.html")} style={{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: TEAL_BRIGHT, textDecoration: "none" }}>
@@ -226,7 +226,7 @@ function ClientHabitsPage() {
       <Card>
         <SectionTitle>Last seven days</SectionTitle>
         <div style={{ fontFamily: serif, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1 }}>{weekPct}%</div>
-        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>Daily adherence</div>
+        <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", marginTop: 8 }}>Daily adherence</div>
       </Card>
     ) },
 
@@ -240,7 +240,7 @@ function ClientHabitsPage() {
       title="Habits"
       subtitle="Do's earn Shape Score when you complete them. Don'ts earn the same when you successfully avoid them. Tap a circle (do) or square (don't) to log today."
       actions={<>
-        <a href={dashShellHref("ClientScore.html")} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
+        <a href={dashShellHref("ClientScore.html")} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>How streaks work</a>
         <button onClick={() => addHabit("do")} title="Add habit" style={{ width: 42, height: 42, borderRadius: 999, background: INK, color: PAPER, border: 0, fontFamily: sans, fontSize: 22, fontWeight: 500, cursor: "pointer", lineHeight: 1 }}>+</button>
       </>}
     >

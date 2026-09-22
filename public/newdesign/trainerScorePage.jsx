@@ -44,10 +44,10 @@ function TrainerScorePage() {
         <SectionTitle right="MASTER · TOP 4%">Tiers</SectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", marginTop: 8 }}>
           {tiers.map(([t,r,d,cur],i)=>(
-            <div key={t} style={{ padding: "18px 16px", borderLeft: i === 0 ? "none" : "1px solid rgba(242,237,228,0.08)", background: cur ? "rgba(10,197,168,0.08)" : "transparent" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: cur ? TEAL_BRIGHT : "rgba(242,237,228,0.45)", marginBottom: 6 }}>{r}</div>
-              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", color: cur ? INK : "rgba(242,237,228,0.6)" }}>{t}</div>
-              <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{d}</div>
+            <div key={t} style={{ padding: "18px 16px", borderLeft: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: cur ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)" : "transparent" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: cur ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", marginBottom: 6 }}>{r}</div>
+              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", color: cur ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)" }}>{t}</div>
+              <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{d}</div>
             </div>
           ))}
         </div>
@@ -60,13 +60,13 @@ function TrainerScorePage() {
         {(() => { const maxV = Math.max(...breakdown.map(b=>b[1])); return breakdown.map(([l,v,sub],i)=>{
           const w = maxV > 0 ? (v / maxV) * 100 : 0;
           return (
-            <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+            <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{l}</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT }}>+{v}</div>
               </div>
-              <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 8 }}>{sub}</div>
-              <div style={{ height: 3, background: "rgba(242,237,228,0.06)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginBottom: 8 }}>{sub}</div>
+              <div style={{ height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", borderRadius: 999, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${w}%`, background: TEAL }} />
               </div>
             </div>
@@ -78,7 +78,7 @@ function TrainerScorePage() {
     { key: "unlocks", title: "What Master unlocks", size: "half", render: () => (
       <Card>
         <SectionTitle>What Master unlocks</SectionTitle>
-        <div style={{ display: "grid", gap: 12, fontSize: 13, color: "rgba(242,237,228,0.75)" }}>
+        <div style={{ display: "grid", gap: 12, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" }}>
           <div>• Verified badge on marketplace</div>
           <div>• Top-3 rank in Strength category</div>
           <div>• Higher payout tier</div>
@@ -89,9 +89,9 @@ function TrainerScorePage() {
     ) },
 
     { key: "path", title: "Path to Icon", size: "half", render: () => (
-      <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
+      <Card style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>PATH TO ICON</div>
-        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>8,580 more points. Top levers: add 10 clients (+450), hit 95% adherence (+220), publish 2 programs (+450).</div>
+        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>8,580 more points. Top levers: add 10 clients (+450), hit 95% adherence (+220), publish 2 programs (+450).</div>
       </Card>
     ) },
 
@@ -113,10 +113,10 @@ function TrainerScorePage() {
             ["Plan sold", "Per sale · marketplace program purchase", "+30"],
             ["New client onboarded", "Per intake · completed intake and first plan", "+40"],
           ].map(([name, sub, pts], i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "13px 0", borderTop: i > 1 ? "1px solid rgba(242,237,228,0.06)" : "none", alignItems: "baseline" }}>
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, padding: "13px 0", borderTop: i > 1 ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none", alignItems: "baseline" }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{name}</div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 3, letterSpacing: "0.03em" }}>{sub}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 3, letterSpacing: "0.03em" }}>{sub}</div>
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700, color: TEAL_BRIGHT, alignSelf: "center" }}>{pts}</div>
             </div>
@@ -134,7 +134,7 @@ function TrainerScorePage() {
       title={headline.title}
       subtitle="Top 4% of trainers on Shape. Scores drive marketplace ranking, verified badge, and payout tier."
       actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>How it works</button>
         <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Leaderboard</button>
       </>}
     >

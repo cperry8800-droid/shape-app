@@ -84,16 +84,16 @@ function WebAreaChart({ vals, color, invert, fmt, distanceMi, height }) {
   return (
     <div style={{ paddingLeft: 36 }}>
       <div style={{ position: "relative" }}>
-        {yT.map((tk, i) => <span key={i} style={{ position: "absolute", left: -36, width: 32, textAlign: "right", top: "calc(" + tk.y + "% - 6px)", fontFamily: mono, fontSize: 9, fontWeight: 600, color: "rgba(242,237,228,0.5)" }}>{fmtv(tk.v)}</span>)}
+        {yT.map((tk, i) => <span key={i} style={{ position: "absolute", left: -36, width: 32, textAlign: "right", top: "calc(" + tk.y + "% - 6px)", fontFamily: mono, fontSize: 9, fontWeight: 600, color: "var(--sh-ink2, #a09b94)" }}>{fmtv(tk.v)}</span>)}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: H, display: "block" }} aria-hidden>
           <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.34" /><stop offset="100%" stopColor={color} stopOpacity="0.03" /></linearGradient></defs>
-          {yT.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke="rgba(242,237,228,0.08)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
-          {xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke="rgba(242,237,228,0.05)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
+          {yT.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.08)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
+          {xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.05)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
           <path d={line + " L" + W + " 100 L0 100 Z"} fill={"url(#" + gid + ")"} />
           <path d={line} fill="none" stroke={color} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
         </svg>
       </div>
-      {xT.length > 0 && <div style={{ position: "relative", height: 14, marginTop: 4 }}>{xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <span key={i} style={{ position: "absolute", left: xp + "%", top: 0, transform: "translateX(-50%)", fontFamily: mono, fontSize: 8.5, fontWeight: 600, color: "rgba(242,237,228,0.5)" }}>{mm} mi</span>; })}</div>}
+      {xT.length > 0 && <div style={{ position: "relative", height: 14, marginTop: 4 }}>{xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <span key={i} style={{ position: "absolute", left: xp + "%", top: 0, transform: "translateX(-50%)", fontFamily: mono, fontSize: 8.5, fontWeight: 600, color: "var(--sh-ink2, #a09b94)" }}>{mm} mi</span>; })}</div>}
     </div>
   );
 }
@@ -132,7 +132,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
   const sumCols = summaryStats.length <= 3 ? (summaryStats.length || 1) : 2;
   const distStat = (heroStat && /dist/i.test(heroStat[0])) ? heroStat : allStats.find((st) => /dist/i.test(st[0]));
   const distanceMi = (distStat && /mi/i.test(String(distStat[1]))) ? (parseFloat(String(distStat[1]).replace(/[^\d.]/g, "")) || null) : null;
-  const ZC = ["#5b8def", "#34d6c5", "#d8b25a", "#e8843c", "#e0463c"];
+  const ZC = ["#5b8def", "var(--sh-accent3, #34d6c5)", "#d8b25a", "#e8843c", "#e0463c"];
   const Eyebrow = ({ children, chip }) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "24px 0 12px" }}>
       <span style={{ width: 15, height: 1.5, background: TEAL_BRIGHT, borderRadius: 2 }} />
@@ -140,29 +140,29 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
       {chip && <span style={{ marginLeft: "auto" }}>{chip}</span>}
     </div>
   );
-  const accentChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: TEAL_BRIGHT, background: "rgba(46,224,196,0.1)", border: "1px solid rgba(46,224,196,0.34)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
-  const greyChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", color: "rgba(242,237,228,0.6)", background: "rgba(242,237,228,0.06)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
+  const accentChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: TEAL_BRIGHT, background: "rgba(var(--sh-accent-rgb, 46,224,196),0.1)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.34)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
+  const greyChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", color: "var(--sh-ink2, #a09b94)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(0,0,0,0.66)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px", overflowY: "auto" }}>
-      <div style={{ width: "100%", maxWidth: 560, background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: "20px 24px 30px" }}>
+      <div style={{ width: "100%", maxWidth: 560, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, padding: "20px 24px 30px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Session details</span>
+          <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Session details</span>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {/* Share (own posts only — the caller gates): the Session details
                 surface is a named share entry point, twinning the mobile
                 detail page (web-parity spec 2026-07-13). */}
             {onShareImage && (
-              <button type="button" onClick={onShareImage} aria-label="Share" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.55)", cursor: "pointer", fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", lineHeight: 1, padding: 2 }}>Share ↗</button>
+              <button type="button" onClick={onShareImage} aria-label="Share" style={{ background: "transparent", border: 0, color: "var(--sh-ink2, #a09b94)", cursor: "pointer", fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", lineHeight: 1, padding: 2 }}>Share ↗</button>
             )}
-            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: 2 }}>✕</button>
+            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "var(--sh-ink2, #a09b94)", cursor: "pointer", fontSize: 15, lineHeight: 1, padding: 2 }}>✕</button>
           </div>
         </div>
         <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", color: INK, marginTop: 10 }}>{s.title || "Activity"}</div>
-        <div style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.55)", marginTop: 5 }}>{p.who} · {typeLabel}</div>
+        <div style={{ fontFamily: mono, fontSize: 10.5, color: "var(--sh-ink2, #a09b94)", marginTop: 5 }}>{p.who} · {typeLabel}</div>
         {heroStat && (
           <div style={{ marginTop: 14 }}>
             <div style={{ fontFamily: serif, fontSize: 42, fontWeight: 600, color: INK, lineHeight: 1, letterSpacing: "-0.02em" }}>{heroStat[1]}</div>
-            <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{heroStat[0]}</div>
+            <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", marginTop: 6 }}>{heroStat[0]}</div>
           </div>
         )}
         {summaryStats.length > 0 && (<>
@@ -170,7 +170,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(" + sumCols + ", 1fr)", columnGap: 16, rowGap: 16 }}>
             {summaryStats.map((st, i) => (
               <div key={i}>
-                <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>{st[0]}</div>
+                <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{st[0]}</div>
                 <div style={{ fontFamily: serif, fontSize: 23, fontWeight: 600, color: INK, marginTop: 4 }}>{st[1]}</div>
               </div>
             ))}
@@ -193,8 +193,8 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: ZC[i % 5] }} />
                   <span style={{ width: 18, fontFamily: mono, fontSize: 9, fontWeight: 700, color: INK }}>{z[0]}</span>
-                  <div style={{ flex: 1, height: 9, borderRadius: 999, background: "rgba(242,237,228,0.07)", overflow: "hidden" }}><div style={{ width: Math.max(z[1], 1.5) + "%", height: "100%", borderRadius: 999, background: ZC[i % 5] }} /></div>
-                  <span style={{ width: 32, textAlign: "right", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: z[1] >= 30 ? INK : "rgba(242,237,228,0.55)" }}>{z[1]}%</span>
+                  <div style={{ flex: 1, height: 9, borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.07)", overflow: "hidden" }}><div style={{ width: Math.max(z[1], 1.5) + "%", height: "100%", borderRadius: 999, background: ZC[i % 5] }} /></div>
+                  <span style={{ width: 32, textAlign: "right", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: z[1] >= 30 ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{z[1]}%</span>
                 </div>
               ))}
             </div>
@@ -238,14 +238,14 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
               {rows.map((r, i) => { const barH = 24 + (perf[i] / pmax) * 88; const best = i === bestIdx && rows.length > 1; return (
                 <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
                   <span style={{ fontFamily: serif, fontSize: 15, fontWeight: 600, color: best ? TEAL_BRIGHT : INK, marginBottom: 6, whiteSpace: "nowrap" }}>{barLabel(r[1])}</span>
-                  <div style={{ width: "100%", maxWidth: 52, height: barH, borderRadius: "7px 7px 2px 2px", background: best ? TEAL : "rgba(46,224,196,0.24)", boxShadow: best ? "0 0 0 1px " + TEAL : "none" }} />
+                  <div style={{ width: "100%", maxWidth: 52, height: barH, borderRadius: "7px 7px 2px 2px", background: best ? TEAL : "rgba(var(--sh-accent-rgb, 46,224,196),0.24)", boxShadow: best ? "0 0 0 1px " + TEAL : "none" }} />
                 </div>); })}
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 9, minWidth: DC_SPLIT_MIN_COL * rows.length + 10 * (rows.length - 1) }}>
               {rows.map((r, i) => (
                 <div key={i} style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
-                  <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r[0]}</div>
-                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "rgba(242,237,228,0.4)", marginTop: 3, whiteSpace: "nowrap" }}>{r[2]}</div>}
+                  <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r[0]}</div>
+                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", marginTop: 3, whiteSpace: "nowrap" }}>{r[2]}</div>}
                 </div>
               ))}
             </div>
@@ -264,8 +264,8 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
           <Eyebrow>Output</Eyebrow>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", columnGap: 16 }}>
             {outputStats.map((st, i) => (
-              <div key={i} style={{ padding: "12px 0", borderTop: i >= 3 ? "1px solid rgba(242,237,228,0.08)" : 0 }}>
-                <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)" }}>{st[0]}</div>
+              <div key={i} style={{ padding: "12px 0", borderTop: i >= 3 ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : 0 }}>
+                <div style={{ fontFamily: mono, fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{st[0]}</div>
                 <div style={{ fontFamily: serif, fontSize: 18, fontWeight: 600, color: INK, marginTop: 4 }}>{st[1]}</div>
               </div>
             ))}
@@ -292,8 +292,8 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
 // loaded, so the cards render exactly as they shipped.
 function CfCard({ children, style }) {
   return <div style={{
-    background: "linear-gradient(180deg, rgba(242,237,228,0.062), rgba(242,237,228,0.035))",
-    border: "1px solid rgba(242,237,228,0.12)",
+    background: "linear-gradient(180deg, rgba(var(--sh-ink-rgb, 242,237,228),0.062), rgba(var(--sh-ink-rgb, 242,237,228),0.035))",
+    border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)",
     borderRadius: 22,
     padding: 24,
     boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
@@ -311,9 +311,9 @@ function CfCard({ children, style }) {
 // local one here is what a future pill should reach for; delete it only
 // together with that guard.
 function CfPill({ children, tone = "mute" }) {
-  const bg = tone === "teal" ? TEAL : "rgba(242,237,228,0.08)";
-  const col = tone === "teal" ? PAPER : "rgba(242,237,228,0.7)";
-  const bd = tone === "teal" ? "none" : "1px solid rgba(242,237,228,0.12)";
+  const bg = tone === "teal" ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
+  const col = tone === "teal" ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)";
+  const bd = tone === "teal" ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)";
   return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, background: bg, color: col, border: bd }}>{children}</span>;
 }
 
@@ -468,7 +468,7 @@ function cfHexA(hex, a) {
 // at a glance. The bubble is always dark, so these are the app's dark values
 // verbatim; its light-mode pair is deliberately not carried, because there is no
 // light bubble to carry it for.
-const CF_HEAT = { TRAINER: "#c0533b", NUTRI: "#d8b25a", CLIENT: "#34d6c5", SHAPE: "#34d6c5" };
+const CF_HEAT = { TRAINER: "var(--sh-rust2, #c0533b)", NUTRI: "var(--sh-heat-nutri, #d8b25a)", CLIENT: "var(--sh-accent3, #34d6c5)", SHAPE: "var(--sh-accent3, #34d6c5)" };
 function cfHeat(p) { return CF_HEAT[cfKindOfRole(p && p.role)] || CF_HEAT.CLIENT; }
 
 // The app's `bsSdSplitUnit` (services/sessionLedger.mjs:9), verbatim — only a
@@ -1127,15 +1127,15 @@ function CommunityFeed() {
   function MilestoneStamp({ m }) {
     const label = String(DC_MILESTONE_STAMPS.includes(m.stamp) ? m.stamp : "milestone").replace("_", " ").toUpperCase();
     return (
-      <div style={{ margin: "10px 0 12px", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 12, padding: "11px 14px" }}>
+      <div style={{ margin: "10px 0 12px", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 12, padding: "11px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }} aria-hidden="true">
-          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.14)" }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>The appointments</span>
-          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.14)" }} />
+          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)" }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>The appointments</span>
+          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)" }} />
         </div>
         <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#7aa7dc", border: "1px solid rgba(122,167,220,0.45)", borderRadius: 3, padding: "3px 8px" }}>{label}</span>
-          {m.detail && <span style={{ fontFamily: serif, fontStyle: "italic", fontSize: 13.5, lineHeight: 1.45, color: "rgba(242,237,228,0.85)", minWidth: 0 }}>{m.detail}</span>}
+          {m.detail && <span style={{ fontFamily: serif, fontStyle: "italic", fontSize: 13.5, lineHeight: 1.45, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", minWidth: 0 }}>{m.detail}</span>}
         </div>
       </div>
     );
@@ -1152,31 +1152,31 @@ function CommunityFeed() {
     const stampLine = [stamp, meal.portion ? `${meal.portion}×` : null].filter(Boolean).join(" · ");
     const attribution = meal.coach ? `From ${meal.coach}'s plan` : meal.recipeId ? "Kitchen Card recipe" : null;
     return (
-      <div style={{ marginBottom: 12, padding: "13px 16px 9px", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10 }}>
+      <div style={{ marginBottom: 12, padding: "13px 16px 9px", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }} aria-hidden="true">
-          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.16)" }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: "rgba(242,237,228,0.55)", fontWeight: 600 }}>THE PLATE</span>
-          <span style={{ flex: 1, borderTop: "1px solid rgba(242,237,228,0.16)" }} />
+          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)" }} />
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", color: "var(--sh-ink2, #a09b94)", fontWeight: 600 }}>THE PLATE</span>
+          <span style={{ flex: 1, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)" }} />
         </div>
         {meal.kcal != null && (
           <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 10 }}>
             <span style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", color: INK, lineHeight: 1 }}>{meal.kcal}</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)" }}>KCAL</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "var(--sh-ink2, #a09b94)" }}>KCAL</span>
           </div>
         )}
         {rows.length > 0 && (
           <div style={{ marginTop: 6 }}>
             {rows.map(([l, v]) => (
               <div key={l} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "4px 0" }}>
-                <span style={{ fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>{l}</span>
-                <span aria-hidden="true" style={{ flex: 1, borderBottom: "1px dotted rgba(242,237,228,0.3)", transform: "translateY(-3px)" }} />
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.85)", letterSpacing: "0.04em" }}>{v}</span>
+                <span style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{l}</span>
+                <span aria-hidden="true" style={{ flex: 1, borderBottom: "1px dotted rgba(var(--sh-ink-rgb, 242,237,228),0.3)", transform: "translateY(-3px)" }} />
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", letterSpacing: "0.04em" }}>{v}</span>
               </div>
             ))}
           </div>
         )}
         {(stampLine || attribution) && (
-          <div style={{ marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(242,237,228,0.14)", display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>
+          <div style={{ marginTop: 7, paddingTop: 7, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>
           <span style={{ flexShrink: 0 }}>{stampLine}</span>
             {attribution && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attribution}</span>}
           </div>
@@ -1264,13 +1264,13 @@ function CommunityFeed() {
     ];
     return (
       <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 130, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "18vh 18px" }}>
-        <div style={{ width: "100%", maxWidth: 360, background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: "14px 18px 8px" }}>
+        <div style={{ width: "100%", maxWidth: 360, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14, padding: "14px 18px 8px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Share</span>
-            <button type="button" onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Share</span>
+            <button type="button" onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "var(--sh-ink2, #a09b94)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
           </div>
           {rows.map(([label, fn], i) => (
-            <button type="button" key={label} onClick={fn} style={{ display: "flex", alignItems: "center", width: "100%", minHeight: 48, background: "transparent", border: 0, borderTop: i ? "1px solid rgba(242,237,228,0.08)" : "0", color: INK, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "left", padding: "0 2px" }}>{label}</button>
+            <button type="button" key={label} onClick={fn} style={{ display: "flex", alignItems: "center", width: "100%", minHeight: 48, background: "transparent", border: 0, borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "0", color: INK, cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "left", padding: "0 2px" }}>{label}</button>
           ))}
         </div>
       </div>
@@ -1329,25 +1329,25 @@ function CommunityFeed() {
     };
     return (
       <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12vh 18px" }}>
-        <div style={{ width: "100%", maxWidth: 440, background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: 18 }}>
+        <div style={{ width: "100%", maxWidth: 440, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14, padding: 18 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Send to</span>
-            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Send to</span>
+            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "var(--sh-ink2, #a09b94)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
           </div>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search members…" autoFocus
-            style={{ width: "100%", boxSizing: "border-box", padding: "10px 2px", border: 0, borderBottom: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: INK, fontSize: 14.5, outline: "none" }} />
+            style={{ width: "100%", boxSizing: "border-box", padding: "10px 2px", border: 0, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", background: "transparent", color: INK, fontSize: 14.5, outline: "none" }} />
           <div style={{ maxHeight: 300, overflowY: "auto", marginTop: 6 }}>
             {/* Value gates, not positions: each branch names the state it answers
                 for, so a reorder cannot make one state wear another's copy, and
                 "pending" falls through to the (empty) row list — i.e. nothing. */}
             {state === "limited" || state === "failed" ? (
-              <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
+              <div style={{ padding: "14px 2px", fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
             ) : state === "ok" && people.length === 0 ? (
-              <div style={{ padding: "14px 2px", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>{q ? "No one found." : "Search for someone to send this to."}</div>
+              <div style={{ padding: "14px 2px", fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>{q ? "No one found." : "Search for someone to send this to."}</div>
             ) : people.map((m, i) => (
-              <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: "100%", textAlign: "left", cursor: "pointer", background: "transparent", border: 0, borderTop: i ? "1px solid rgba(242,237,228,0.07)" : 0, padding: "10px 2px", display: "flex", alignItems: "center", gap: 10, color: INK, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
+              <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: "100%", textAlign: "left", cursor: "pointer", background: "transparent", border: 0, borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.07)" : 0, padding: "10px 2px", display: "flex", alignItems: "center", gap: 10, color: INK, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
                 <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.full_name || "Member"}</span>
-                <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy === m.id ? "rgba(242,237,228,0.4)" : TEAL_BRIGHT }}>{busy === m.id ? "Sending…" : "Send →"}</span>
+                <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy === m.id ? "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" : TEAL_BRIGHT }}>{busy === m.id ? "Sending…" : "Send →"}</span>
               </button>
             ))}
           </div>
@@ -1445,7 +1445,7 @@ function CommunityFeed() {
     return (
       <CfCard style={{ padding: 22 }}>
         <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
-          <div style={{ width: 40, height: 40, borderRadius: 999, background: "#efece6", flexShrink: 0 }} />
+          <div style={{ width: 40, height: 40, borderRadius: 999, background: "var(--sh-ink-soft, #efece6)", flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{p.who}</div>
@@ -1469,10 +1469,10 @@ function CommunityFeed() {
         {p.meal && <MealPlate meal={p.meal} />}
         {p.milestone && <MilestoneStamp m={p.milestone} />}
         {p.body && p.body !== wallTitle && <div style={{ fontFamily: sans, fontSize: 13, lineHeight: 1.45, color: cfHexA(INK, 0.75), marginTop: 7 }}>{p.body}</div>}
-        {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(242,237,228,0.08)", background: "rgba(242,237,228,0.05)" }} />}
-        {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(242,237,228,0.08)" }} />}
+        {p.photo && <img src={p.photo} alt={p.title || p.body || `Photo shared by ${p.who || "a member"}`} loading="lazy" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }} />}
+        {p.video && <video src={p.video} controls playsInline preload="metadata" style={{ display: "block", width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 12, marginTop: p.body ? 12 : 2, background: "#000", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }} />}
         {Array.isArray(p.mentions) && p.mentions.length > 0 && (
-          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.6)" }}>
+          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)" }}>
             with {p.mentions.map((mn, mi) => (
               <React.Fragment key={mi}>
                 {mn.userId ? <a href={`MemberProfile.html?u=${mn.userId}`} style={{ color: TEAL_BRIGHT, textDecoration: "none", fontWeight: 600 }}>@{mn.name}</a> : <span style={{ color: TEAL_BRIGHT, fontWeight: 600 }}>@{mn.name}</span>}
@@ -1482,36 +1482,36 @@ function CommunityFeed() {
           </div>
         )}
         <CfWallEvidence model={wall} onOpen={p.session ? () => setSessionOpen(true) : null} />
-        {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "rgba(242,237,228,0.55)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
+        {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
           <button onClick={toggleLike} aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: liked ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: liked ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill={liked ? "currentColor" : "none"}>
               <path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
             </svg>
             {likeCount}
           </button>
           <button onClick={() => setShowReplies(v => !v)} aria-expanded={showReplies} aria-label={showReplies ? "Hide replies" : "Show replies"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: showReplies ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: showReplies ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
             {totalReplies} replies
           </button>
           <button onClick={() => { if (!p.isLive || !p.id) { try { window.alert("Sample post — sending works on real posts."); } catch (e) {} return; } setSendOpen(true); }} aria-label="Send privately"
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             ✉ SEND
           </button>
           <button onClick={() => { if (canShareImage) setShareOpen(true); else onShare(); }} aria-label="Share"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M9 4.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V7.5M6.5 4.5H10m0 0L8 2.5M10 4.5 8 6.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
             SHARE
           </button>
           <button onClick={onRepost} aria-label="Repost"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             ⇄ REPOST
           </button>
           {p.isMe && p.isLive && p.id && onEdit && (
             <button onClick={() => onEdit(p)} aria-label="Edit post"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "rgba(242,237,228,0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
               ✎ EDIT
             </button>
           )}
@@ -1524,7 +1524,7 @@ function CommunityFeed() {
                 if (typeof onDeleted === "function") onDeleted(p.id);
               } catch (e) { try { window.alert("Could not delete."); } catch (e2) {} }
             }} aria-label="Delete post"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "#c0533b", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-rust2, #c0533b)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
               × DELETE
             </button>
           )}
@@ -1534,13 +1534,13 @@ function CommunityFeed() {
         {shareOpen && <ShareChooserModal p={p} onShareLink={onShare} onClose={() => setShareOpen(false)} />}
 
         {showReplies && (
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
             {replies.length > 0 && (
               <div style={{ marginBottom: 12 }}>
                 {replies.map((r, i) => (
-                  <div key={i} style={{ padding: "10px 12px", background: "rgba(10,197,168,0.06)", borderRadius: 8, marginBottom: 6 }}>
+                  <div key={i} style={{ padding: "10px 12px", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", borderRadius: 8, marginBottom: 6 }}>
                     <div style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em", marginBottom: 4 }}>{r.who} · {r.time}</div>
-                    <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.9)", lineHeight: 1.5 }}>{r.t}</div>
+                    <div style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.9)", lineHeight: 1.5 }}>{r.t}</div>
                   </div>
                 ))}
               </div>
@@ -1552,10 +1552,10 @@ function CommunityFeed() {
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") submitReply(); }}
                 placeholder="Reply…"
-                style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 13.5, outline: "none" }}
+                style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", color: INK, fontFamily: sans, fontSize: 13.5, outline: "none" }}
               />
               <button onClick={submitReply} disabled={!draft.trim()}
-                style={{ padding: "10px 18px", borderRadius: 8, background: draft.trim() ? TEAL : "rgba(242,237,228,0.08)", color: draft.trim() ? PAPER : "rgba(242,237,228,0.4)", border: 0, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: draft.trim() ? "pointer" : "default" }}>
+                style={{ padding: "10px 18px", borderRadius: 8, background: draft.trim() ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", color: draft.trim() ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", border: 0, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: draft.trim() ? "pointer" : "default" }}>
                 Send
               </button>
             </div>
@@ -1571,8 +1571,8 @@ function CommunityFeed() {
   // rule. A count we cannot take is not shown at all.
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
-      <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-        <button onClick={() => setMyPostsOnly(v => !v)} style={{ background: myPostsOnly ? "rgba(10,197,168,0.16)" : "transparent", color: myPostsOnly ? TEAL_BRIGHT : INK, border: `1px solid ${myPostsOnly ? "rgba(10,197,168,0.4)" : "rgba(242,237,228,0.25)"}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{myPostsOnly ? "All posts" : "My posts"}</button>
+      <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+        <button onClick={() => setMyPostsOnly(v => !v)} style={{ background: myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "transparent", color: myPostsOnly ? TEAL_BRIGHT : INK, border: `1px solid ${myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)"}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{myPostsOnly ? "All posts" : "My posts"}</button>
         {/* ⚠ GATED, AND IT DID NOT USED TO NEED TO BE. As a dashboard page this
             composer was already behind a signed-in shell. The feed now renders in
             the site-wide chat bubble, which mounts on Landing and Login too — so a
@@ -1585,9 +1585,9 @@ function CommunityFeed() {
             that leads nowhere costs more trust than one that explains itself. */}
         <button onClick={() => setComposerOpen(true)} disabled={signedIn !== true}
           title={signedIn === false ? "Sign in to post" : signedIn === null ? "Checking your account…" : ""}
-          style={{ background: signedIn === true ? INK : "rgba(242,237,228,0.06)", color: signedIn === true ? PAPER : "rgba(242,237,228,0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: signedIn === true ? "pointer" : "default", whiteSpace: "nowrap" }}>New post</button>
+          style={{ background: signedIn === true ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: signedIn === true ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: signedIn === true ? "pointer" : "default", whiteSpace: "nowrap" }}>New post</button>
         {signedIn === false && (
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Sign in to post</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>Sign in to post</span>
         )}
       </div>
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 18px 22px" }}>
@@ -1609,12 +1609,12 @@ function CommunityFeed() {
                   <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
                     {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
                       const on = feedMode === m;
-                      return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(242,237,228,0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
+                      return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
                     })}
                   </div>
                   <div style={{ padding: "26px 4px" }}>
                     <div style={{ fontFamily: serif, fontSize: 19, fontWeight: 600, color: INK }}>Nothing from your people yet.</div>
-                    <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>FOLLOW MEMBERS TO BUILD THIS FEED</div>
+                    <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)" }}>FOLLOW MEMBERS TO BUILD THIS FEED</div>
                     <button onClick={() => switchFeedMode("universal")} style={{ marginTop: 12, background: "transparent", border: 0, cursor: "pointer", padding: "8px 0", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>SEE EVERYONE — UNIVERSAL →</button>
                   </div>
                 </>
@@ -1625,21 +1625,21 @@ function CommunityFeed() {
                 <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
                   {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
                     const on = feedMode === m;
-                    return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(242,237,228,0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
+                    return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
                   })}
                 </div>
                 {/* The MY POSTS ONLY badge kept its own row when the chips went:
                     it is a state readout, not one of them. */}
                 {myPostsOnly && (
                   <div style={{ display: "flex", alignItems: "center" }}>
-                    <span style={{ marginLeft: "auto", padding: "5px 10px", borderRadius: 999, background: "rgba(10,197,168,0.12)", color: TEAL_BRIGHT, border: "1px solid rgba(10,197,168,0.3)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em" }}>
+                    <span style={{ marginLeft: "auto", padding: "5px 10px", borderRadius: 999, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", color: TEAL_BRIGHT, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em" }}>
                       MY POSTS ONLY · {feed.filter(p => p.isMe).length}
                     </span>
                   </div>
                 )}
                 {visible.length === 0
                   ? (
-                    <div style={{ padding: "32px 4px", color: "rgba(242,237,228,0.55)", fontSize: 13, textAlign: "center" }}>
+                    <div style={{ padding: "32px 4px", color: "var(--sh-ink2, #a09b94)", fontSize: 13, textAlign: "center" }}>
                       {myPostsOnly ? "You haven't posted yet. Tap New post to share something." : "Nothing posted yet."}
                     </div>
                   )
@@ -1653,7 +1653,7 @@ function CommunityFeed() {
         </div>
       </div>
       {careerToast && (
-        <div role="status" style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "#14110e", border: "1px solid rgba(122,167,220,0.4)", borderRadius: 8, padding: "10px 18px", color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em" }}>+25 · CAREER · SHAPE SCORE</div>
+        <div role="status" style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(122,167,220,0.4)", borderRadius: 8, padding: "10px 18px", color: "var(--sh-ink, #f2ede4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em" }}>+25 · CAREER · SHAPE SCORE</div>
       )}
       {composerOpen && (
         <PostComposer
@@ -1907,14 +1907,14 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
       role="dialog" aria-modal="true"
       style={{ position: "fixed", inset: 0, zIndex: 220, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width: "min(560px, 100%)", background: "#1f1a16", color: INK, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, padding: 28, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
+        style={{ width: "min(560px, 100%)", background: "var(--sh-card, #25211d)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, padding: 28, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{ed ? "EDIT POST" : "NEW POST"}</div>
             <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", marginTop: 4 }}>{me.who}</div>
-            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{me.role}</div>
+            <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{me.role}</div>
           </div>
-          <button onClick={onCancel} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 24, padding: "0 6px", cursor: "pointer", lineHeight: 1 }}>×</button>
+          <button onClick={onCancel} aria-label="Close" style={{ background: "transparent", color: "var(--sh-ink2, #a09b94)", border: 0, fontSize: 24, padding: "0 6px", cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>
 
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
@@ -1924,9 +1924,9 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
               <button key={k.value} onClick={() => setKind(k.value)} style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em",
                 padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-                background: on ? "rgba(10,197,168,0.16)" : "rgba(242,237,228,0.04)",
-                color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.7)",
-                border: "1px solid " + (on ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.08)"),
+                background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)",
+                color: on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)",
+                border: "1px solid " + (on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"),
               }}>{k.label.toUpperCase()}</button>
             );
           })}
@@ -1939,17 +1939,17 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
               onChange={e => setMsHeadline(e.target.value)}
               maxLength={80}
               placeholder="Headline — e.g. Promoted to Senior Engineer"
-              style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 14, outline: "none" }}
+              style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", color: INK, fontFamily: sans, fontSize: 14, outline: "none" }}
             />
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
               {DC_MILESTONE_STAMPS.map(s => {
                 const on = msStamp === s;
                 return (
-                  <button key={s} onClick={() => setMsStamp(s)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", padding: "5px 10px", borderRadius: 999, cursor: "pointer", background: on ? "rgba(122,167,220,0.16)" : "rgba(242,237,228,0.04)", color: on ? "#7aa7dc" : "rgba(242,237,228,0.7)", border: "1px solid " + (on ? "rgba(122,167,220,0.4)" : "rgba(242,237,228,0.08)") }}>{s.replace("_", " ").toUpperCase()}</button>
+                  <button key={s} onClick={() => setMsStamp(s)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", padding: "5px 10px", borderRadius: 999, cursor: "pointer", background: on ? "rgba(122,167,220,0.16)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: on ? "#7aa7dc" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: "1px solid " + (on ? "rgba(122,167,220,0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)") }}>{s.replace("_", " ").toUpperCase()}</button>
                 );
               })}
             </div>
-            <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)" }}>+25 Shape Score — once a month, whatever the visibility. No pay figures, ever.</div>
+            <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)" }}>+25 Shape Score — once a month, whatever the visibility. No pay figures, ever.</div>
           </div>
         )}
         <textarea
@@ -1959,7 +1959,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
           rows={kind === "milestone" ? 2 : 5}
           maxLength={kind === "milestone" ? 140 : undefined}
           placeholder={kind === "milestone" ? "One line on what it took (optional)…" : "What's on your mind? Share a PR, a workout, a meal, or a thought."}
-          style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: sans, fontSize: 14, lineHeight: 1.5, outline: "none", resize: "vertical" }}
+          style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", color: INK, fontFamily: sans, fontSize: 14, lineHeight: 1.5, outline: "none", resize: "vertical" }}
         />
 
         <div style={{ marginTop: 10 }}>
@@ -1968,7 +1968,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
             value={tag}
             onChange={e => setTag(e.target.value)}
             placeholder="Tag (optional) e.g. STRENGTH, RUNNING, NUTRITION"
-            style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 8, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", color: INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em", outline: "none" }}
+            style={{ width: "100%", boxSizing: "border-box", padding: "10px 14px", borderRadius: 8, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", color: INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em", outline: "none" }}
           />
         </div>
 
@@ -2025,19 +2025,19 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
                   that left rows behind could hide it; belt and braces, since the wrong
                   answer here is a wrongly-tagged member. */}
               {tagState === "limited" || tagState === "failed" ? (
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagState === "limited" ? "Searching a little fast — give it a moment." : "Couldn’t search just now — try again."}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink3, #75706a)", padding: "6px 2px" }}>{tagState === "limited" ? "Searching a little fast — give it a moment." : "Couldn’t search just now — try again."}</div>
               ) : tagState === "ok" && tagResults.length === 0 ? (
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)", padding: "6px 2px" }}>{tagQuery.trim() ? "No matches." : "Type a name to find someone."}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink3, #75706a)", padding: "6px 2px" }}>{tagQuery.trim() ? "No matches." : "Type a name to find someone."}</div>
               ) : null}
             </div>
           </div>
         )}
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 18 }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>{body.length} CHARS</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "var(--sh-ink2, #a09b94)", letterSpacing: "0.08em" }}>{body.length} CHARS</span>
           <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={onCancel} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.18)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-            <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? TEAL : "rgba(242,237,228,0.06)", color: canSubmit ? PAPER : "rgba(242,237,228,0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: canSubmit ? "pointer" : "default" }}>{ed ? "Save" : "Post"}</button>
+            <button onClick={onCancel} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: canSubmit ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: canSubmit ? "pointer" : "default" }}>{ed ? "Save" : "Post"}</button>
           </div>
         </div>
       </div>

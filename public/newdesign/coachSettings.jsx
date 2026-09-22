@@ -17,10 +17,10 @@
 // A settings panel whose toggles control nothing is worse than a missing panel: it
 // tells a coach their practice is tuned when it is not.
 const CST_MONO = "'JetBrains Mono', monospace";
-const CST_INK = "#f2ede4";
-const CST_INK50 = "rgba(242,237,228,0.55)";
-const CST_TEAL = "#2ee0c4";
-const CST_AMBER = "#d8a23a";
+const CST_INK = "var(--sh-ink, #f2ede4)";
+const CST_INK50 = "var(--sh-ink2, #a09b94)";
+const CST_TEAL = "var(--sh-accent, #2ee0c4)";
+const CST_AMBER = "var(--sh-gold, #d8a23a)";
 
 const CST_CHANNELS = [["inapp", "App"], ["push", "Push"], ["email", "Email"]];
 // ⚠ THE GATE'S OWN DEFAULTS, AND EMAIL IS OFF. `defaultChannels()` in
@@ -76,7 +76,7 @@ function cstCard(children, extra) {
   );
 }
 function cstChip(on) {
-  return { fontFamily: CST_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? CST_TEAL : "rgba(242,237,228,0.18)"), background: on ? "rgba(46,224,196,0.10)" : "transparent", color: on ? CST_TEAL : "rgba(242,237,228,0.75)", cursor: "pointer" };
+  return { fontFamily: CST_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer" };
 }
 // ⚠ A NUMBER FIELD THAT COMMITS ON BLUR, NOT ON EVERY KEYSTROKE, AND THAT REFUSES AN
 // EMPTY VALUE. Two measured problems with the naive form:
@@ -104,7 +104,7 @@ function CstNumber({ value, min, max, step, label, disabled, onCommit }) {
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }}
-      style={{ width: 74, minHeight: 30, padding: "5px 8px", borderRadius: 4, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", color: CST_INK, fontFamily: CST_MONO, fontSize: 12.5, opacity: disabled ? 0.45 : 1 }}
+      style={{ width: 74, minHeight: 30, padding: "5px 8px", borderRadius: 4, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent", color: CST_INK, fontFamily: CST_MONO, fontSize: 12.5, opacity: disabled ? 0.45 : 1 }}
     />
   );
 }
@@ -180,6 +180,10 @@ function CoachSettingsPage({ role }) {
   // from a role still moved what that role saw.
   const tunables = DashSignals.TUNABLES || [];
   const landing = cstLandingOptions(role);
+  // The paper (light by default, the previous dark tones one tap away) is the
+  // account's, kept in dashboard_prefs beside the layout — dashData.jsx's own hook.
+  // It loads after this module on every host, so the read is a page-life constant.
+  const paperCtl = typeof useDashPaper === "function" ? useDashPaper() : ["light", null, { kind: "none" }];
   const [localDemo, setLocalDemo] = React.useState(null); // preview edits — this tab only
   // ⚠ "READY OR ERROR" IS NOT THE SAME QUESTION AS "MAY I EDIT". An edit made while
   // the document is still loading used to land in `localDemo`, paint, count as tuned,
@@ -273,7 +277,7 @@ function CoachSettingsPage({ role }) {
                 const isTuned = val != null && !wasRefused;
                 const shown = isTuned ? val : DashSignals.DEFAULT_THRESHOLDS[t.key];
                 return (
-                  <div key={t.key} style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap", paddingTop: 12, marginTop: 12, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+                  <div key={t.key} style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap", paddingTop: 12, marginTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
                     <div style={{ flex: "1 1 240px", minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, color: CST_INK }}>{t.label}</div>
                       <div style={{ fontSize: 11.5, color: CST_INK50, lineHeight: 1.45, marginTop: 3 }}>{t.help}</div>
@@ -324,6 +328,33 @@ function CoachSettingsPage({ role }) {
                 Applies when you open the dashboard without a tab in the address — a link
                 straight to a tab still goes there.
               </div>
+            </React.Fragment>
+          )}
+        </div>
+
+        {/* ── appearance ──────────────────────────────────────────────────── */}
+        <div style={{ marginTop: 16 }}>
+          {cstCard(
+            <React.Fragment>
+              <div className="dash-eyebrow">Appearance</div>
+              <div className="dash-ledger" />
+              <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Paper</div>
+              <div style={{ fontSize: 12, color: CST_INK50, lineHeight: 1.5, marginBottom: 12 }}>
+                Light is the dashboard's paper. Dark brings back the previous tones; both follow
+                your account across devices.
+              </div>
+              <div role="radiogroup" aria-label="Paper" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[["light", "Light"], ["dark", "Dark"]].map(([key, label]) => (
+                  <button key={key} type="button" role="radio" aria-checked={paperCtl[0] === key} disabled={!paperCtl[1]}
+                    onClick={() => paperCtl[1] && paperCtl[1](key)}
+                    style={{ ...cstChip(paperCtl[0] === key), minHeight: 30, opacity: paperCtl[1] ? 1 : 0.45 }}>{label}</button>
+                ))}
+              </div>
+              {live === false && (
+                <div style={{ marginTop: 10, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
+                  Signed out the choice stays on this browser; sign in to keep it on your account.
+                </div>
+              )}
             </React.Fragment>
           )}
         </div>
@@ -599,7 +630,7 @@ function CoachNotificationCard({ signedIn, acct }) {
           </thead>
           <tbody>
             {CST_COACH_TYPES.map(([type, label, help]) => (
-              <tr key={type} style={{ borderTop: "1px solid rgba(242,237,228,0.08)" }}>
+              <tr key={type} style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
                 <td style={{ padding: "10px 8px 10px 0" }}>
                   <div style={{ fontSize: 13, color: CST_INK }}>{label}</div>
                   <div style={{ fontSize: 11, color: CST_INK50, lineHeight: 1.4, marginTop: 2 }}>{help}</div>
@@ -608,7 +639,7 @@ function CoachNotificationCard({ signedIn, acct }) {
                   <td key={ch} style={{ padding: "10px 8px", textAlign: "center" }}>
                     <button type="button" role="switch" aria-checked={isOn(type, ch)} aria-label={label + " · " + ch}
                       onClick={() => toggle(type, ch, !isOn(type, ch))}
-                      style={{ width: 34, minHeight: 24, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isOn(type, ch) ? CST_TEAL : "rgba(242,237,228,0.18)"), background: isOn(type, ch) ? "rgba(46,224,196,0.14)" : "transparent", color: isOn(type, ch) ? CST_TEAL : CST_INK50, fontFamily: CST_MONO, fontSize: 11 }}>
+                      style={{ width: 34, minHeight: 24, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isOn(type, ch) ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: isOn(type, ch) ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: isOn(type, ch) ? CST_TEAL : CST_INK50, fontFamily: CST_MONO, fontSize: 11 }}>
                       {isOn(type, ch) ? "✓" : "×"}
                     </button>
                   </td>

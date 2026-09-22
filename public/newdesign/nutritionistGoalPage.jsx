@@ -21,7 +21,7 @@ function Chip({ children, onClick, danger }) {
   return (
     <button onClick={onClick}
       onMouseOver={()=>setHover(true)} onMouseOut={()=>setHover(false)}
-      style={{ background: hover ? "rgba(46,224,196,0.08)" : "transparent", border: 0, padding: "4px 8px", borderRadius: 6, color, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", cursor: "pointer" }}>
+      style={{ background: hover ? "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" : "transparent", border: 0, padding: "4px 8px", borderRadius: 6, color, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", cursor: "pointer" }}>
       {children}
     </button>
   );
@@ -30,7 +30,7 @@ function Chip({ children, onClick, danger }) {
 function ModalShell({ title, eyebrow, onClose, children, footer }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{eyebrow}</div>
         <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{title}</div>
         {children}
@@ -43,9 +43,9 @@ function ModalShell({ title, eyebrow, onClose, children, footer }) {
 function Field({ label, value, onChange, type }) {
   return (
     <label style={{ display: "grid", gap: 4, marginBottom: 12 }}>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>{label}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)" }}>{label}</span>
       <input type={type || "text"} value={value == null ? "" : value} onChange={e => onChange(type === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
-        style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5 }}
+        style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13.5 }}
       />
     </label>
   );
@@ -61,7 +61,7 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
       onClose={onClose}
       footer={<>
         {onDelete && <button onClick={async () => { if (await window.ShapeConfirm.open({ title: "Delete this goal?", name: g.t || g.title, message: "This removes the goal from your saved goals.", confirmLabel: "Delete goal" })) onDelete(); }} style={{ background: "transparent", color: "#ff8a6d", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
-        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
         <button onClick={() => onSave(g)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
       </>}
     >
@@ -74,7 +74,7 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
         <Field label="TARGET" type="number" value={g.tgt} onChange={v => setG({ ...g, tgt: v })} />
       </div>
       <div style={{ marginTop: 2 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 6 }}>CURRENT READS FROM</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: "var(--sh-ink2, #a09b94)", marginBottom: 6 }}>CURRENT READS FROM</div>
         {/* ⚠ THE UNIT COMES WITH THE METRIC. The card formats through `g.money`
             and `g.pct`, so changing only `metric` rendered MRR as a bare 12000,
             adherence as a bare 88, or an active-client count as `$12` on a goal
@@ -83,8 +83,8 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
           const metric = e.target.value || undefined;
           setG({ ...g, metric, ...(metric ? goalMetricUnit(metric) : {}) });
         }}
-          style={{ width: "100%", background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "9px 11px", fontFamily: sans, fontSize: 13 }}>
-          {METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612" }}>{label}</option>)}
+          style={{ width: "100%", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 8, padding: "9px 11px", fontFamily: sans, fontSize: 13 }}>
+          {METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612", background: "#ffffff" }}>{label}</option>)}
         </select>
       </div>
       <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />
@@ -95,7 +95,7 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
         <label style={{ display: "flex", gap: 8, cursor: g.metric ? "default" : "pointer" }}><input type="checkbox" disabled={!!g.metric} checked={!!g.money} onChange={e => setG({ ...g, money: e.target.checked, pct: e.target.checked ? false : g.pct })} /> Money ($)</label>
         <label style={{ display: "flex", gap: 8, cursor: g.metric ? "default" : "pointer" }}><input type="checkbox" disabled={!!g.metric} checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked, money: e.target.checked ? false : g.money })} /> Percent (%)</label>
       </div>
-      {g.metric && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Unit set by the metric</div>}
+      {g.metric && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>Unit set by the metric</div>}
     </ModalShell>
   );
 }
@@ -108,7 +108,7 @@ function CalcEditModal({ calc, labels, onClose, onSave }) {
       title="Calculator inputs."
       onClose={onClose}
       footer={<>
-        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
         <button onClick={() => onSave(c)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
       </>}
     >
@@ -127,7 +127,7 @@ function MomentumEditModal({ momentum, onClose, onSave }) {
       title="This quarter."
       onClose={onClose}
       footer={<>
-        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+        <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
         <button onClick={() => onSave(m)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
       </>}
     >
@@ -255,15 +255,15 @@ function NutritionistGoalPage() {
           <Chip onClick={() => setEditGoalId(g.id)}>EDIT</Chip>
         </div>
         <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
           <span>{curF}</span><span>{tgtF}</span>
         </div>
-        <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
+        <div style={{ height: 8, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden", marginBottom: 14 }}>
           <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
         </div>
-        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", lineHeight: 1.5 }}>{g.sub}</div>
+        <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>{g.sub}</div>
         {g.metric && (
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", marginTop: 10 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)", marginTop: 10 }}>
             {pending ? "Reading…" : unreadable ? "Couldn't read " + (metricLabel || "this figure").toLowerCase() : "Live · " + (metricLabel || g.metric)}
           </div>
         )}
@@ -287,17 +287,17 @@ function NutritionistGoalPage() {
             ].map(([label, key, val, min, max, step, fmtV], i) => (
               <div key={i}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                  <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.7)" }}>{label}</span>
+                  <span style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>{label}</span>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12.5, color: INK }}>{fmtV(val)}</span>
                 </div>
                 <input type="range" min={min} max={max} step={step} value={val}
                   onChange={e => setState({ ...state, calc: { ...calc, [key]: +e.target.value } })}
                   onMouseUp={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
                   onTouchEnd={e => persist({ ...state, calc: { ...calc, [key]: +e.target.value } })}
-                  style={{ width: "100%", accentColor: "#0ac5a8", cursor: "pointer" }} />
+                  style={{ width: "100%", accentColor: "var(--sh-accent2, #0ac5a8)", cursor: "pointer" }} />
               </div>
             ))}
-            <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, marginTop: 4 }}>
+            <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5, marginTop: 4 }}>
               Based on consult bookings, meal plan subscriptions, and one-time plan sales. Numbers shown are <strong style={{ color: INK }}>take-home</strong> after Shape's 15% platform fee. Gross this week: <span style={{ color: INK }}>{fmt(grossWeekly)}</span>.
             </div>
           </div>
@@ -316,10 +316,10 @@ function NutritionistGoalPage() {
               ["QUARTERLY TAKE-HOME", fmt(quarterly), `${fmt(grossWeekly * 4.33 * 3)} gross · 3 months`, null],
               ["ANNUAL TAKE-HOME", fmt(annual), `${fmt(grossWeekly * 4.33 * 12)} gross · 12 months`, null],
             ].map(([lab, val, sub, delta], i) => (
-              <div key={i} style={{ padding: 20, background: i === 0 ? "rgba(10,197,168,0.1)" : "rgba(242,237,228,0.04)", border: `1px solid ${i === 0 ? "rgba(10,197,168,0.25)" : "rgba(242,237,228,0.08)"}`, borderRadius: 10 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: i === 0 ? TEAL_BRIGHT : "rgba(242,237,228,0.55)", marginBottom: 10 }}>{lab}</div>
+              <div key={i} style={{ padding: 20, background: i === 0 ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: `1px solid ${i === 0 ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"}`, borderRadius: 10 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: i === 0 ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginBottom: 10 }}>{lab}</div>
                 <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1 }}>{val}</div>
-                <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 6 }}>
+                <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 6 }}>
                   {delta != null ? (
                     <span style={{ color: delta >= 0 ? TEAL_BRIGHT : "#ff8a6d" }}>{delta >= 0 ? "+" : ""}{fmt(delta)} </span>
                   ) : null}
@@ -351,12 +351,12 @@ function NutritionistGoalPage() {
             <div key={i}>
               <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{m[0]}</div>
               <div style={{ fontSize: 12.5, marginTop: 8 }}>{m[1]}</div>
-              <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2 }}>{m[2]}</div>
+              <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{m[2]}</div>
             </div>
           ))}
         </div>
         {isComputed && (
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>
             From your own subscriptions · edit to write your own
           </div>
         )}
@@ -373,7 +373,7 @@ function NutritionistGoalPage() {
       title="Goal"
       subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
       actions={<>
-        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
         <button onClick={() => setEditGoalId("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
       </>}
     >

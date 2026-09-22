@@ -6,6 +6,8 @@
 <title>Goals · Shape</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- The paper switch, first paint: a member who chose the dark paper has it stamped before the stylesheet resolves, so there is no light flash. dashData.jsx keeps the mirror in step with the account's document. -->
+<script>try{if(localStorage.getItem("shape.web.paper")==="dark")document.documentElement.setAttribute("data-paper","dark")}catch(e){}</script>
 <link rel="stylesheet" href="dash.css?v=20260613">
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body><div id="root"></div>

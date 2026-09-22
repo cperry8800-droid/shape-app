@@ -132,15 +132,25 @@ test('heat is the author\'s role, in the app\'s own values', () => {
   // The app colours the plate by WHO WROTE IT, not by the site accent — a
   // coach's record reads as a coach's at a glance. Read the app's expression
   // rather than restating it, so a change there fails here.
-  const line = /const heat = a\.role === 'Trainer' \? '(#[0-9a-f]{6})' : a\.role === 'Nutritionist' \? \(t\.isLight \? '#[0-9a-f]{6}' : '(#[0-9a-f]{6})'\) : \(t\.isLight \? '#[0-9a-f]{6}' : '(#[0-9a-f]{6})'\)/.exec(APP);
+  // The app carries a LIGHT and a DARK value per role; the web table reads one paper
+  // token per role, so the check is on both papers: the token's dark fallback must be
+  // the app's dark value and its :root (light) value in dash.css the app's light one.
+  const line = /const heat = a\.role === 'Trainer' \? '(#[0-9a-f]{6})' : a\.role === 'Nutritionist' \? \(t\.isLight \? '(#[0-9a-f]{6})' : '(#[0-9a-f]{6})'\) : \(t\.isLight \? '(#[0-9a-f]{6})' : '(#[0-9a-f]{6})'\)/.exec(APP);
   assert.ok(line, "the app's heat expression moved — re-derive CF_HEAT");
-  const [, trainer, nutri, client] = line;
+  const [, trainer, nutriLight, nutriDark, clientLight, clientDark] = line;
   const web = /const CF_HEAT = \{([^}]*)\}/.exec(stripComments(FEED));
   assert.ok(web, 'CF_HEAT is gone');
-  const table = Object.fromEntries([...web[1].matchAll(/(\w+):\s*"(#[0-9a-f]{6})"/g)].map((m) => [m[1], m[2]]));
-  assert.equal(table.TRAINER, trainer, 'the trainer accent drifted from the app');
-  assert.equal(table.NUTRI, nutri, 'the nutritionist accent drifted from the app');
-  assert.equal(table.CLIENT, client, 'the client accent drifted from the app');
+  const css = readFileSync(new URL('../public/newdesign/dash.css', import.meta.url), 'utf8');
+  const root = /:root \{([\s\S]*?)\n\}/.exec(css);
+  assert.ok(root, 'dash.css lost its :root block');
+  const light = (tok) => { const m = new RegExp('\\s' + tok + ':\\s*(#[0-9a-f]{6});').exec(root[1]); return m && m[1]; };
+  const table = Object.fromEntries([...web[1].matchAll(/(\w+):\s*"var\((--sh-[\w-]+), (#[0-9a-f]{6})\)"/g)].map((m) => [m[1], { token: m[2], dark: m[3], light: light(m[2]) }]));
+  assert.equal(table.TRAINER && table.TRAINER.dark, trainer, 'the trainer accent drifted from the app');
+  assert.equal(table.TRAINER && table.TRAINER.light, trainer, 'the trainer accent drifted from the app on the light paper');
+  assert.equal(table.NUTRI && table.NUTRI.dark, nutriDark, 'the nutritionist accent drifted from the app');
+  assert.equal(table.NUTRI && table.NUTRI.light, nutriLight, 'the nutritionist accent drifted from the app on the light paper');
+  assert.equal(table.CLIENT && table.CLIENT.dark, clientDark, 'the client accent drifted from the app');
+  assert.equal(table.CLIENT && table.CLIENT.light, clientLight, 'the client accent drifted from the app on the light paper');
 });
 
 test('the plate never hands a hex alpha to an rgba() colour', () => {

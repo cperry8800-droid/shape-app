@@ -40,7 +40,7 @@ function ClientLibraryPage() {
       title="Library"
       subtitle="Videos, protocols, recipes and checklists your coaches have shared. New additions appear at the top."
       actions={<>
-        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Search</button>
+        <button style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Search</button>
         <button style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Saved ({signedIn ? 0 : 14})</button>
       </>}
     >
@@ -54,9 +54,9 @@ function ClientLibraryPage() {
               onClick={() => setActive(t)}
               style={{
                 padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-                background: isActive ? "rgba(10,197,168,0.16)" : "rgba(242,237,228,0.04)",
-                color: isActive ? TEAL_BRIGHT : "rgba(242,237,228,0.6)",
-                border: "1px solid " + (isActive ? "rgba(10,197,168,0.3)" : "rgba(242,237,228,0.08)"),
+                background: isActive ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)",
+                color: isActive ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)",
+                border: "1px solid " + (isActive ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"),
                 fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit",
               }}
             >
@@ -68,16 +68,16 @@ function ClientLibraryPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 20 }}>
         {visibleCollections.length === 0 ? (
-          <div style={{ gridColumn: "1 / -1", padding: 24, color: "rgba(242,237,228,0.45)", fontSize: 13, textAlign: "center" }}>
+          <div style={{ gridColumn: "1 / -1", padding: 24, color: "var(--sh-ink3, #75706a)", fontSize: 13, textAlign: "center" }}>
             No collections in {active.toLowerCase()} yet.
           </div>
         ) : visibleCollections.map((c, i) => (
           <Card key={i} style={{ padding: 22, cursor: "pointer" }}>
-            <div style={{ height: 120, borderRadius: 6, background: `linear-gradient(135deg, rgba(10,197,168,0.15), rgba(242,237,228,0.06))`, marginBottom: 14, display: "flex", alignItems: "flex-end", padding: 12 }}>
+            <div style={{ height: 120, borderRadius: 6, background: `linear-gradient(135deg, rgba(var(--sh-accent2-rgb, 10,197,168),0.15), rgba(var(--sh-ink-rgb, 242,237,228),0.06))`, marginBottom: 14, display: "flex", alignItems: "flex-end", padding: 12 }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>{c.tag}</div>
             </div>
             <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", marginBottom: 4 }}>{c.title}</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{c.sub}</div>
+            <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{c.sub}</div>
           </Card>
         ))}
       </div>
@@ -85,15 +85,15 @@ function ClientLibraryPage() {
       <Card>
         <SectionTitle right="LAST 30 DAYS">Recently added</SectionTitle>
         {visibleRecent.length === 0 ? (
-          <div style={{ padding: "20px 4px", color: "rgba(242,237,228,0.45)", fontSize: 13 }}>
+          <div style={{ padding: "20px 4px", color: "var(--sh-ink3, #75706a)", fontSize: 13 }}>
             Nothing recent in {active.toLowerCase()}.
           </div>
         ) : visibleRecent.map((r, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 140px 80px", gap: 14, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 140px 80px", gap: 14, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
             <Pill>{r.kind}</Pill>
             <div style={{ fontSize: 14, fontWeight: 500 }}>{r.title}</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)" }}>{r.meta}</div>
-            <div style={{ fontSize: 12, color: "rgba(242,237,228,0.45)", textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>{r.date}</div>
+            <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{r.meta}</div>
+            <div style={{ fontSize: 12, color: "var(--sh-ink3, #75706a)", textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>{r.date}</div>
           </div>
         ))}
       </Card>

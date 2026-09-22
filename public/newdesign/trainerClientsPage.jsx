@@ -27,8 +27,8 @@ function TrainerClientsPage() {
   const eyesCount = triage.filter((r) => r.severity === "red" || r.severity === "amber").length;
   const unknownCount = triage.filter((r) => r.severity === "unknown").length;
 
-  const tabStyle = (on) => ({ background: on ? "rgba(46,224,196,0.14)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.65)", border: on ? "1px solid rgba(46,224,196,0.35)" : "1px solid rgba(242,237,228,0.12)", padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, fontWeight: 500, cursor: "pointer", letterSpacing: "0.02em" });
-  const fltStyle = (on, warn) => ({ background: on ? (warn ? "rgba(216,162,58,0.16)" : "rgba(46,224,196,0.14)") : "transparent", color: on ? (warn ? "#d8a23a" : "#2ee0c4") : warn ? "rgba(216,162,58,0.85)" : "rgba(242,237,228,0.7)", border: on ? (warn ? "1px solid rgba(216,162,58,0.4)" : "1px solid rgba(46,224,196,0.35)") : "1px solid rgba(242,237,228,0.12)", padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" });
+  const tabStyle = (on) => ({ background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: on ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.65)", border: on ? "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", padding: "8px 16px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, fontWeight: 500, cursor: "pointer", letterSpacing: "0.02em" });
+  const fltStyle = (on, warn) => ({ background: on ? (warn ? "rgba(var(--sh-gold-rgb, 216,162,58),0.16)" : "rgba(var(--sh-accent-rgb, 46,224,196),0.14)") : "transparent", color: on ? (warn ? "var(--sh-gold, #d8a23a)" : "var(--sh-accent, #2ee0c4)") : warn ? "rgba(var(--sh-gold-rgb, 216,162,58),0.85)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: on ? (warn ? "1px solid rgba(var(--sh-gold-rgb, 216,162,58),0.4)" : "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)") : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" });
   // Needs Eyes leads — it's the signal-engine severity now, not a stale-sessions guess.
   const FILTERS = TCP_FILTERS(eyesCount);
 
@@ -59,7 +59,7 @@ function TrainerClientsPage() {
   const ending = sigOk ? DashSignals.dashProgramsEnding(clients) : null;
   // The Today board's own panel frame, so a card looks the same on both tabs.
   const rosterPanel = (title, children) => (
-    <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 }}>
+    <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, padding: 24 }}>
       <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{title}</div>
       {children}
     </div>
@@ -81,7 +81,7 @@ function TrainerClientsPage() {
         <a href="MemberProfile.html" title="Share your public page - how clients find and subscribe to you" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", display: "inline-block" }}>Invite client</a>
       }
     >
-      <div role="status" style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 16, fontSize: 13, color: "rgba(242,237,228,0.7)" }}>
+      <div role="status" style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 16, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>
         <span>{activeCount} active clients</span>
         <span>{eyesCount} need attention</span>
         {unknownCount > 0 && <span>{unknownCount} awaiting progress data</span>}
@@ -110,8 +110,8 @@ function TrainerClientsPage() {
             <SharedClientsTab role="trainer" onCountChange={setSharedBadge} />
           ) : (
             <>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 12, background: "rgba(242,237,228,0.04)", padding: "11px 14px" }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(242,237,228,0.5)" strokeWidth="2" style={{ flex: "none" }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 12, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", padding: "11px 14px" }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" strokeWidth="2" style={{ flex: "none" }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
                 <input aria-label="Search clients" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${clients.length} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", color: INK, fontFamily: sans, fontSize: 14 }} />
               </div>
               <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
@@ -121,13 +121,13 @@ function TrainerClientsPage() {
                     coach hands their accountant three of their clients — the CSV carries a
                     Status column, so filtering belongs in the spreadsheet. */}
                 <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                  {source === "live" && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.4)" }}>ALL {clients.length}</span>}
+                  {source === "live" && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink3, #75706a)" }}>ALL {clients.length}</span>}
                   <DashExportButton kind="roster" label="your roster" live={source === "live"}
                     build={() => window.DashExport.rosterCsv(clients, new Date())} />
                 </span>
               </div>
               {loading
-                ? <div style={{ padding: "34px 4px", textAlign: "center", color: "rgba(242,237,228,0.55)", fontSize: 13.5 }}>Loading roster…</div>
+                ? <div style={{ padding: "34px 4px", textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5 }}>Loading roster…</div>
                 : <DashRosterTable triage={triage} role="trainer" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} />}
             </>
           )}

@@ -249,6 +249,19 @@ if (!DOB_GATE_V) {
 // is never served stale from a cache entry that outlives it.
 const DOB_GATE_TAG = `<script defer src="/newdesign/dobGate.js?v=${DOB_GATE_V}"></script>`;
 
+// ⚠ THE DASHBOARD STYLESHEET JOINS THE CONTENT-HASHING. dash.css is linked by hand
+// with a `?v=` on the 34 dashboard pages and this script rewrote SCRIPT tags only, so
+// an edit to it — the paper tokens live there, and a token block is the one file a
+// whole re-papering rides on — was served from whatever a returning browser had
+// cached until that entry expired, unless someone bumped 34 files by hand. The
+// hand-written `?v=` stays in the source as the raw-babel dev path's key; at deploy
+// the link carries the file's own hash, exactly like the compiled scripts.
+const DASH_CSS_SRC = path.join(ND, 'dash.css');
+const DASH_CSS_V = fs.existsSync(DASH_CSS_SRC) ? hash8(fs.readFileSync(DASH_CSS_SRC, 'utf8')) : '';
+if (!DASH_CSS_V) throw new Error('build-newdesign: public/newdesign/dash.css is missing — every dashboard page links it.');
+const DASH_CSS_LINK = /href="dash\.css(?:\?v=[^"]*)?"/g;
+let dashCssPages = 0;
+
 // Pass 2: rewrite the pages.
 for (const page of pages) {
   const abs = path.join(ND, page);
@@ -277,6 +290,13 @@ for (const page of pages) {
   });
   // No text/babel left on the page — the standalone compiler can go.
   next = next.replace(STANDALONE_TAG, '');
+  // The stylesheet link takes dash.css's own content hash (see DASH_CSS_V).
+  if (DASH_CSS_LINK.test(next)) {
+    DASH_CSS_LINK.lastIndex = 0;
+    next = next.replace(DASH_CSS_LINK, `href="dash.css?v=${DASH_CSS_V}"`);
+    dashCssPages++;
+  }
+  DASH_CSS_LINK.lastIndex = 0;
   // Manifest: before the first compiled script, or into <head> on pages that
   // carry only the chat button (GetApp, consultation) so the rich-chat boot
   // can find the compiled bundles there too.
