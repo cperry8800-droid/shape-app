@@ -114,21 +114,53 @@ test('every var(--sh-*) reference carries a fallback', () => {
 // page that loads dash.css renders one colour and the page that does not renders
 // another, with nothing failing anywhere. Measured on this tree: 676 sites over 20
 // tokens, 0 mismatches.
-test("every var(--sh-*) fallback is its own token's declared value", () => {
+// ⚠ TWO PAPERS, AND THE FALLBACK IS THE DARK ONE. `:root` carries the light paper
+// (the default) and `html[data-paper="dark"]` carries the values the dashboard
+// shipped with. A use site's fallback is the colour on a page that never loads
+// dash.css — the marketing pages, which stay dark — so it must equal the DARK
+// block's declaration, never the :root one. Comparing against :root would demand
+// `var(--sh-ink, #15211e)` everywhere and turn the marketing header light.
+function paperBlocks() {
   const css = src.get('dash.css');
   assert.ok(css, 'dash.css missing');
-  const declared = new Map([...css.matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map(m => [m[1], m[2].trim()]));
-  assert.ok(declared.size >= 15,
-    `expected the paper token block in dash.css, found ${declared.size} declarations`);
+  const block = (open) => {
+    const a = css.indexOf(open);
+    assert.ok(a >= 0, `dash.css has no ${open.trim()} block`);
+    const b = css.indexOf('\n}', a);
+    return css.slice(a, b);
+  };
+  const parse = (s) => new Map([...s.matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map(m => [m[1], m[2].trim()]));
+  return { light: parse(block(':root {')), dark: parse(block('html[data-paper="dark"] {')) };
+}
+// The font tokens are not paper-dependent: they are declared once, on :root, and
+// their fallback is the face the shared header keeps on the pages that do not load
+// dash.css. Pinned here because no block declares that legacy value.
+const LEGACY_FALLBACK = {
+  '--sh-font-display': "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif",
+  '--sh-font-body': "'Space Grotesk', 'Space Grotesk Fallback', sans-serif",
+  '--sh-font-mono': "'JetBrains Mono', 'JetBrains Mono Fallback', monospace",
+};
+
+test("every var(--sh-*) fallback is its own token's DARK-paper value", () => {
+  const { light, dark } = paperBlocks();
+  assert.ok(dark.size >= 15,
+    `expected the dark paper block in dash.css, found ${dark.size} declarations`);
+  const declared = new Map(dark);
+  for (const [k, v] of Object.entries(LEGACY_FALLBACK)) {
+    assert.ok(light.has(k), `${k} is not declared on :root`);
+    assert.ok(!dark.has(k), `${k} is declared in the dark block — the fonts are not paper-dependent`);
+    declared.set(k, v);
+  }
 
   const norm = (x) => String(x).toLowerCase().replace(/\s+/g, '');
   let sites = 0;
   const drift = [];
   for (const [f, s] of code) {
-    // The fallback may not itself contain parentheses — every one in this tree is a
-    // hex literal or an rgb triplet, and refusing a nested var() here is deliberate:
-    // a fallback that is itself a token is a second thing that can fail to resolve.
-    for (const m of s.matchAll(/var\(\s*(--sh-[\w-]+)\s*,\s*([^()]*?)\s*\)/g)) {
+    // The fallback may carry ONE level of parentheses (an rgba() value — the header
+    // bar's translucent ground) and never a nested var(): a fallback that is itself a
+    // token is a second thing that can fail to resolve.
+    for (const m of s.matchAll(/var\(\s*(--sh-[\w-]+)\s*,\s*((?:[^()]|\([^()]*\))*?)\s*\)/g)) {
+      if (/var\(/.test(m[2])) { drift.push(`${f}: var(${m[1]}, ${m[2]}) — a fallback may not be a token`); continue; }
       sites++;
       const want = declared.get(m[1]);
       if (want === undefined) continue;   // the sibling test owns undeclared tokens
@@ -208,8 +240,12 @@ test('every --sh-* token referenced is declared in dash.css', () => {
   // which is the one thing the layer exists to do. Reachable today: SS_TIERS' 750-point
   // rung is var(--sh-gold, #d8a23a), which arrives at ssAlpha via ssTierColor → SsFacet.
   // Rather than chase which tokens reach which helper, every colour token declares a
-  // twin — then synthesis is sound whatever it is handed.
-  const colour = [...declared].filter(t => !t.endsWith('-rgb'));
+  // twin — then synthesis is sound whatever it is handed. A COLOUR token is one whose
+  // value is a hex literal: the header's rgba() ground, the logo display switches and
+  // the font stacks are tokens too, and none of them can reach an alpha helper.
+  const { light, dark } = paperBlocks();
+  const isHex = (v) => /^#[0-9a-fA-F]{6}$/.test(String(v || '').trim());
+  const colour = [...declared].filter(t => !t.endsWith('-rgb') && (isHex(light.get(t)) || isHex(dark.get(t))));
   assert.ok(colour.length >= 10,
     `expected the paper colour tokens, found ${colour.length} — this sweep has stopped matching`);
   const noTwin = colour.filter(t => !declared.has(`${t}-rgb`)).sort();
@@ -219,19 +255,32 @@ test('every --sh-* token referenced is declared in dash.css', () => {
     'following the paper. Declare the twin beside the token:\n  ' + noTwin.join('\n  '));
 
   // And a twin that disagrees with its own token is worse than a missing one — the
-  // colour would then depend on whether dash.css happened to load.
+  // colour would then depend on whether dash.css happened to load. Checked on BOTH
+  // papers: a twin right on the dark block and wrong on :root is a light-paper alpha
+  // that follows a different hue than its solid.
   const drift = [];
-  for (const t of colour) {
-    const hex = (css.match(new RegExp(`^\\s*${t}\\s*:\\s*(#[0-9a-fA-F]{6})\\s*;`, 'm')) || [])[1];
-    const twin = (css.match(new RegExp(`^\\s*${t}-rgb\\s*:\\s*([0-9, ]+);`, 'm')) || [])[1];
-    if (!hex || !twin) continue;
-    const n = parseInt(hex.slice(1), 16);
-    const want = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
-    if (twin.replace(/\s/g, '') !== want) drift.push(`${t}: ${hex} but ${t}-rgb is ${twin} (expected ${want})`);
+  for (const [paper, decl] of [['light', light], ['dark', dark]]) {
+    for (const t of colour) {
+      const hex = decl.get(t), twin = decl.get(`${t}-rgb`);
+      if (!isHex(hex) || !twin) continue;
+      const n = parseInt(hex.slice(1), 16);
+      const want = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+      if (twin.replace(/\s/g, '') !== want) drift.push(`${paper}: ${t}: ${hex} but ${t}-rgb is ${twin} (expected ${want})`);
+    }
   }
   assert.deepEqual(drift, [],
     'a -rgb twin must be its own token\'s channels, or the alpha and the solid render ' +
     'different colours:\n  ' + drift.join('\n  '));
+
+  // ⚠ AND THE TWO PAPERS DECLARE THE SAME SET. A token on :root with no dark twin is a
+  // colour the dark switch leaves on the light paper — a white card on the dark ground
+  // — and one only in the dark block is a colour the default paper never gets. The
+  // fonts are the one deliberate exception (declared once, not paper-dependent).
+  const notPaper = new Set(Object.keys(LEGACY_FALLBACK));
+  const onlyLight = [...light.keys()].filter(t => !dark.has(t) && !notPaper.has(t)).sort();
+  const onlyDark = [...dark.keys()].filter(t => !light.has(t)).sort();
+  assert.deepEqual({ onlyLight, onlyDark }, { onlyLight: [], onlyDark: [] },
+    'every paper token is declared on BOTH :root (light) and html[data-paper="dark"], or the switch leaves it behind');
 
   const undeclared = [...referenced].filter(t => !declared.has(t)).sort();
   assert.deepEqual(undeclared, [],
@@ -350,7 +399,7 @@ const sameColour = (a, b) => {
 // ⚠ hexA (livingShared) and rdRgba (radioInstrument) ARE alphas and do NOT preserve.
 // That is a gap rather than a rule, registered rather than fixed here: both are
 // outside what this PR swept, and widening it is PR 3–5's business.
-const TOKEN_PRESERVING = ['cfHexA', 'cwHexA', 'ssAlpha'];
+const TOKEN_PRESERVING = ['cfHexA', 'clwAlpha', 'cwHexA', 'ssAlpha', 'stAlpha'];
 
 test('every hex-parsing helper in newdesign accepts a paper token', () => {
   let driven = 0;
@@ -443,27 +492,19 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
 // collector could stop matching a whole file and stay green — which is exactly how a
 // tokenised colour would reach an unswept append. Per-file counts localise the drop.
 const SINK_CENSUS = {
-  'chatWidget.jsx': { concat: 1, template: 0 },
   'client.jsx': { concat: 0, template: 2 },
-  'clientMeSettings.jsx': { concat: 2, template: 0 },
   'clientPlaylist.jsx': { concat: 0, template: 1 },
-  'clientTeam.jsx': { concat: 2, template: 0 },
   'coachClientDetail.jsx': { concat: 1, template: 1 },
-  'coachLiveWorkout.jsx': { concat: 0, template: 1 },
   'dashClient.jsx': { concat: 1, template: 0 },
   'dashProfileExtras.jsx': { concat: 0, template: 1 },
-  'dashProgress.jsx': { concat: 4, template: 1 },
   'dashSchedule.jsx': { concat: 1, template: 0 },
-  'dashToday.jsx': { concat: 2, template: 0 },
   'landing.jsx': { concat: 0, template: 2 },
   'marketplace.jsx': { concat: 0, template: 10 },
   'memberProfile.jsx': { concat: 0, template: 4 },
   'pricing.jsx': { concat: 0, template: 2 },
   'publicProfile.jsx': { concat: 1, template: 0 },
   'score.jsx': { concat: 0, template: 8 },
-  'spotlightTour.js': { concat: 1, template: 4 },
   'trainerDashboard.jsx': { concat: 0, template: 2 },
-  'trainerPlaylistsPage.jsx': { concat: 0, template: 1 },
 };
 
 test('no hex-alpha append resolves to a paper token', () => {

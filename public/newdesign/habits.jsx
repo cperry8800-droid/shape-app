@@ -12,7 +12,7 @@ function HabitCheckbox({ checked, onClick, type = "do", size = 26, ariaLabel }) 
       style={{
         width: Math.max(44, size), height: Math.max(44, size), borderRadius: square ? 6 : 999, padding: 0, cursor: "pointer",
         background: checked ? TEAL : "transparent",
-        border: checked ? `1px solid ${TEAL}` : "1px solid rgba(242,237,228,0.25)",
+        border: checked ? `1px solid ${TEAL}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)",
         color: PAPER, fontSize: Math.round(size * 0.55), lineHeight: 1,
         display: "flex", alignItems: "center", justifyContent: "center",
         transition: "background 0.15s, border-color 0.15s", flex: "none",
@@ -158,7 +158,7 @@ function HabitsWidget({ max = 5, items }) {
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: TEAL_BRIGHT }}>
             {doneCount}/{habits.length} TODAY
           </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)" }}>
             +{todayPoints} / +{maxPoints} PTS
           </span>
         </div>
@@ -170,20 +170,20 @@ function HabitsWidget({ max = 5, items }) {
         {habits.map((h) => (
           <div key={h.id} style={{
             display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "center",
-            padding: "12px 14px", background: h.today ? "rgba(10,197,168,0.06)" : "rgba(242,237,228,0.04)",
-            border: `1px solid ${h.today ? "rgba(10,197,168,0.2)" : "rgba(242,237,228,0.08)"}`,
+            padding: "12px 14px", background: h.today ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)",
+            border: `1px solid ${h.today ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.2)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"}`,
             borderRadius: 8,
           }}>
             <HabitCheckbox checked={h.today} onClick={() => toggle(h.id)} type={h.type} size={22}
               ariaLabel={h.today ? "Mark not done" : "Mark done"} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: h.today ? "rgba(242,237,228,0.6)" : INK, textDecoration: h.today ? "line-through" : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: h.today ? "rgba(var(--sh-ink-rgb, 242,237,228),0.6)" : INK, textDecoration: h.today ? "line-through" : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.1em", color: h.type === "dont" ? "#ff8a6d" : TEAL_BRIGHT, marginRight: 6 }}>
                   {h.type === "dont" ? "DON'T" : "DO"}
                 </span>
                 {h.label}
               </div>
-              <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {h.sub}
               </div>
             </div>

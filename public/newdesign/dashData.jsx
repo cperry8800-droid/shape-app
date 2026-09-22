@@ -1262,4 +1262,64 @@ function useRememberedSet(store, key, max) {
 // rendered on pages that load NEITHER this file nor `dashToday.jsx` — so keeping the
 // derivation here made the card's own getters throw on ten of them and report the failure
 // as an em-dash. A pure derivation belongs with the data it derives from.
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });
+// ── The paper switch ─────────────────────────────────────────────────────────
+// Two papers in dash.css: `:root` is the light one (the default — the workout
+// builder's own palette) and `html[data-paper="dark"]` is the dashboard's previous
+// dark values. The choice is a remembered per-account preference like every other
+// control on the board, with one addition: a DEVICE mirror in localStorage that the
+// shells' inline <head> script reads before the stylesheet applies, so a member who
+// chose dark never sees a light frame on reload. The document is the truth; the
+// mirror is a cache of it that the cloud read corrects.
+const DASH_PAPERS = ["light", "dark"];
+const DASH_PAPER_MIRROR = "shape.web.paper";
+const DASH_PAPER_EVENT = "shape:paper";
+function dashReadPaperMirror() { try { return localStorage.getItem(DASH_PAPER_MIRROR) === "dark" ? "dark" : "light"; } catch (e) { return "light"; } }
+function dashApplyPaper(paper) {
+  const p = paper === "dark" ? "dark" : "light";
+  try { const el = document.documentElement; if (p === "dark") el.setAttribute("data-paper", "dark"); else el.removeAttribute("data-paper"); } catch (e) {}
+  try { if (p === "dark") localStorage.setItem(DASH_PAPER_MIRROR, "dark"); else localStorage.removeItem(DASH_PAPER_MIRROR); } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent(DASH_PAPER_EVENT, { detail: p })); } catch (e) {}
+  return p;
+}
+// ⚠ A CHOICE MADE THIS SESSION OUTRANKS EVERY LATER DOCUMENT READ, ACROSS MOUNTS.
+// `useRememberedChoice` keeps that rule per hook instance — but the shell re-mounts
+// on every hash route and each mount opens a fresh store, so a route change inside
+// the window a write is still in flight would read the OLD document and stamp the
+// paper back to what the member had just left. The session's choice therefore lives
+// at module scope, where every later mount can defer to it — bound to the ACCOUNT
+// that made it, so a sign-out and sign-in as someone else in the same tab reads
+// that account's own document rather than inheriting the previous member's tap.
+let dashPaperSession = null; // { acct, paper } | null
+function useDashPaper() {
+  const store = useRememberedChoices(true);
+  const [remembered, choose] = useRememberedChoice(store, "paper", DASH_PAPERS, "light");
+  const [paper, setPaper] = React.useState(() => dashReadPaperMirror());
+  const kind = store && store.kind;
+  const acct = store && store.accountId;
+  const sessionChose = !!dashPaperSession && dashPaperSession.acct === acct;
+  // The document, once read, corrects the device mirror — unless this session chose.
+  // Only a READ document is trusted: "signedout", "demo" and "unavailable" all leave
+  // the mirror standing, because an absent read is not a preference for light.
+  React.useEffect(() => {
+    if (kind !== "ready" || sessionChose) return;
+    const next = remembered === "dark" ? "dark" : "light";
+    if (next !== paper || next !== dashReadPaperMirror()) { dashApplyPaper(next); setPaper(next); }
+  }, [kind, remembered, sessionChose]);
+  // Every instance on the page follows a choice made in any one of them (the shell
+  // and the Settings card are two mounts of this hook).
+  React.useEffect(() => {
+    const on = (e) => setPaper(e && e.detail === "dark" ? "dark" : "light");
+    window.addEventListener(DASH_PAPER_EVENT, on);
+    return () => window.removeEventListener(DASH_PAPER_EVENT, on);
+  }, []);
+  const setPaperChoice = React.useCallback((next) => {
+    const p = next === "dark" ? "dark" : "light";
+    dashPaperSession = { acct, paper: p };
+    choose(p);           // → the document, through the reconciliation effect
+    dashApplyPaper(p);   // → the page and the device, now
+    setPaper(p);
+  }, [choose, acct]);
+  return [paper, setPaperChoice, { kind }];
+}
+
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });

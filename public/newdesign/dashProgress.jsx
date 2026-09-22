@@ -20,11 +20,11 @@
 // Load order: pageShell → trainerDashboard → clientNav → dashSignals.js →
 // dashToday.jsx (DashDemoBand) → this file.
 
-const DPR_INK50 = "rgba(242,237,228,0.55)";
+const DPR_INK50 = "var(--sh-ink2, #a09b94)";
 const DPR_MONO = "'JetBrains Mono', monospace";
-const DPR_TEAL = "#2ee0c4";
-const DPR_GREEN = "#7bbf5a";
-const DPR_AMBER = "#d8a23a";
+const DPR_TEAL = "var(--sh-accent, #2ee0c4)";
+const DPR_GREEN = "var(--sh-green, #7bbf5a)";
+const DPR_AMBER = "var(--sh-gold, #d8a23a)";
 const DPR_DAY = 86400000;
 
 function dprIso(d) {
@@ -108,7 +108,7 @@ const DPR_DEMO = (() => {
 })();
 
 const DPR_TREND_TABS = [
-  { k: "weight", label: "Weight", unit: "lb", color: "#0ac5a8", fmt: (v) => Math.round(v) },
+  { k: "weight", label: "Weight", unit: "lb", color: "var(--sh-accent2, #0ac5a8)", fmt: (v) => Math.round(v) },
   { k: "bodyFat", label: "Body fat", unit: "%", color: "#7ed4ff", fmt: (v) => v.toFixed(1) },
   { k: "strength", label: "Strength", unit: "lb", color: "#e8b14a", fmt: (v) => Math.round(v) },
   { k: "restingHr", label: "Resting HR", unit: "bpm", color: "#d2693f", fmt: (v) => Math.round(v) },
@@ -221,7 +221,7 @@ function DprChart({ points, height = 180, color = DPR_TEAL, gradId = "g" }) {
         </linearGradient>
       </defs>
       {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-        <line key={t} x1={pad} x2={W - pad} y1={pad + t * (H - pad * 2)} y2={pad + t * (H - pad * 2)} stroke="rgba(242,237,228,0.06)" />
+        <line key={t} x1={pad} x2={W - pad} y1={pad + t * (H - pad * 2)} y2={pad + t * (H - pad * 2)} stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.06)" />
       ))}
       <path d={area} fill={`url(#${gradId})`} />
       <path d={path} fill="none" stroke={color} strokeWidth="2" />
@@ -257,7 +257,7 @@ function DprThenNow({ then, now, unit, fmt }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
       <div>
-        <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", color: "rgba(242,237,228,0.6)" }}>{f(then.value)}<span style={{ fontSize: 12, color: DPR_INK50 }}> {unit}</span></div>
+        <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", color: "var(--sh-ink2, #a09b94)" }}>{f(then.value)}<span style={{ fontSize: 12, color: DPR_INK50 }}> {unit}</span></div>
         <div style={{ fontFamily: DPR_MONO, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_INK50, marginTop: 3 }}>{dprDate(then.on)}</div>
       </div>
       <span style={{ color: DPR_INK50, fontSize: 16 }}>→</span>
@@ -272,7 +272,7 @@ function DprDeltaChip({ delta, unit }) {
   if (delta == null) return null;
   const c = delta === 0 ? DPR_INK50 : delta < 0 ? DPR_TEAL : DPR_AMBER;
   return (
-    <span style={{ fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", color: c, background: c + "1a", border: "1px solid " + c + "55", borderLeft: "3px solid " + c, borderRadius: 4, padding: "4px 9px", whiteSpace: "nowrap" }}>
+    <span style={{ fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", color: c, background: ssAlpha(c, 0.1), border: "1px solid " + ssAlpha(c, 0.33), borderLeft: "3px solid " + c, borderRadius: 4, padding: "4px 9px", whiteSpace: "nowrap" }}>
       {delta === 0 ? "held steady" : (delta > 0 ? "+" : "−") + Math.abs(delta) + " " + unit}
     </span>
   );
@@ -286,10 +286,10 @@ function DprPhotoTile({ url, label, demo }) {
     <div style={{ flex: 1, minWidth: 0 }}>
       {url ? (
         <a href={url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
-          <div style={{ height: 150, borderRadius: 6, border: "1px solid rgba(242,237,228,0.1)", background: `url(${url}) center/cover` }} />
+          <div style={{ height: 150, borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${url}) center/cover` }} />
         </a>
       ) : (
-        <div style={{ height: 150, borderRadius: 6, border: "1px dashed rgba(242,237,228,0.18)", background: demo ? "repeating-linear-gradient(45deg, rgba(242,237,228,0.05), rgba(242,237,228,0.05) 6px, transparent 6px, transparent 12px)" : "rgba(242,237,228,0.03)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DPR_INK50 }}>{demo ? "demo" : "—"}</div>
+        <div style={{ height: 150, borderRadius: 6, border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: demo ? "repeating-linear-gradient(45deg, rgba(var(--sh-ink-rgb, 242,237,228),0.05), rgba(var(--sh-ink-rgb, 242,237,228),0.05) 6px, transparent 6px, transparent 12px)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DPR_INK50 }}>{demo ? "demo" : "—"}</div>
       )}
       <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_INK50 }}>{label}</div>
     </div>
@@ -303,11 +303,11 @@ function DprMilestoneTimeline({ rec }) {
     return <DprCompareEmpty>Milestones land here as you log — streak landmarks, workout counts, PRs, and goal targets.</DprCompareEmpty>;
   }
   const node = (filled, color) => (
-    <span style={{ position: "relative", zIndex: 1, width: 13, height: 13, borderRadius: "50%", flexShrink: 0, background: filled ? color : "#14110e", border: "2px solid " + color, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#14110e", fontWeight: 700 }}>{filled ? "✓" : ""}</span>
+    <span style={{ position: "relative", zIndex: 1, width: 13, height: 13, borderRadius: "50%", flexShrink: 0, background: filled ? color : "var(--sh-ground2, #14110e)", border: "2px solid " + color, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "var(--sh-ground2, #14110e)", fontWeight: 700 }}>{filled ? "✓" : ""}</span>
   );
   return (
     <div style={{ position: "relative", paddingLeft: 2 }}>
-      <div style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 1, background: "rgba(242,237,228,0.12)" }} />
+      <div style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 1, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.12)" }} />
       {ms.recent.map((m, i) => (
         <div key={"r" + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0" }}>
           {node(true, DPR_GREEN)}
@@ -319,18 +319,18 @@ function DprMilestoneTimeline({ rec }) {
       ))}
       {ms.next.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0 4px" }}>
-          <span style={{ position: "relative", zIndex: 1, width: 13, textAlign: "center", fontFamily: DPR_MONO, fontSize: 9, color: DPR_INK50, background: "#14110e" }}>↓</span>
+          <span style={{ position: "relative", zIndex: 1, width: 13, textAlign: "center", fontFamily: DPR_MONO, fontSize: 9, color: DPR_INK50, background: "var(--sh-ground2, #14110e)" }}>↓</span>
           <span style={{ fontFamily: DPR_MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: DPR_INK50 }}>Next up</span>
         </div>
       )}
       {ms.next.map((m, i) => (
         <div key={"n" + i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0" }}>
-          {node(false, "rgba(242,237,228,0.4)")}
+          {node(false, "rgba(var(--sh-ink-rgb, 242,237,228),0.4)")}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: 13, color: "rgba(242,237,228,0.85)" }}>{m.label}</span>
+            <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{m.label}</span>
             <div style={{ fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.04em", color: DPR_INK50, marginTop: 2 }}>{m.detail}</div>
             {m.progress != null && (
-              <div style={{ position: "relative", height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 2, marginTop: 5, maxWidth: 220 }}>
+              <div style={{ position: "relative", height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2, marginTop: 5, maxWidth: 220 }}>
                 <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.round(Math.min(1, m.progress) * 100) + "%", background: DPR_TEAL, borderRadius: 2 }} />
               </div>
             )}
@@ -346,7 +346,7 @@ const CK_RATINGS = [
   ["trainingAdherence", "Training adherence", "#d2693f"],
   ["nutritionAdherence", "Nutrition adherence", "#d8b25a"],
   ["sleep", "Sleep quality", "#a86bc4"],
-  ["energy", "Energy", "#0ac5a8"],
+  ["energy", "Energy", "var(--sh-accent2, #0ac5a8)"],
   ["stress", "Stress · 10 = calm", "#7ed4ff"],
   ["hunger", "Hunger control", "#e8b14a"],
 ];
@@ -373,8 +373,8 @@ function DprCheckinRating({ label, value, tone }) {
   if (!Number.isFinite(v)) return null;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(90px, 150px) 1fr 28px", gap: 10, alignItems: "center", padding: "4px 0" }}>
-      <span style={{ fontSize: 12, color: "rgba(242,237,228,0.72)" }}>{label}</span>
-      <span style={{ height: 5, borderRadius: 3, background: "rgba(242,237,228,0.07)", overflow: "hidden", display: "block" }}>
+      <span style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)" }}>{label}</span>
+      <span style={{ height: 5, borderRadius: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.07)", overflow: "hidden", display: "block" }}>
         <span style={{ display: "block", width: Math.max(4, Math.min(100, v * 10)) + "%", height: "100%", background: tone }} />
       </span>
       <span style={{ fontFamily: DPR_MONO, fontSize: 11.5, color: tone, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{v}</span>
@@ -407,7 +407,7 @@ function DprCheckinHistory({ kit }) {
     const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
     return isNaN(d.getTime()) ? String(iso || "") : d.toLocaleDateString([], { month: "short", day: "numeric" });
   };
-  const lbl = { fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
+  const lbl = { fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase", marginBottom: 6 };
   return (
     <Card style={{ marginTop: 14 }}>
       <SectionTitle right={rows.length + (rows.length === 1 ? " WEEK" : " WEEKS") + " ON FILE"}>What you've sent before</SectionTitle>
@@ -417,12 +417,12 @@ function DprCheckinHistory({ kit }) {
           const isOpen = open === key;
           const said = [c.wins, c.struggles, c.question].filter(Boolean).length;
           return (
-            <div key={key} style={{ borderTop: "1px solid rgba(242,237,228,0.07)" }}>
+            <div key={key} style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.07)" }}>
               <button type="button" onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}
                 style={{ width: "100%", display: "flex", alignItems: "baseline", gap: 12, justifyContent: "space-between",
                   background: "transparent", border: 0, padding: "11px 2px", minHeight: 24, cursor: "pointer", textAlign: "left", color: INK }}>
-                <span style={{ fontFamily: DPR_MONO, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)" }}>Week of {wk(c.week_of)}</span>
-                <span style={{ fontFamily: DPR_MONO, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>
+                <span style={{ fontFamily: DPR_MONO, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Week of {wk(c.week_of)}</span>
+                <span style={{ fontFamily: DPR_MONO, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>
                   {c.weight != null ? Number(c.weight).toLocaleString() + " " + (c.unit || "kg") + " · " : ""}
                   {said ? said + (said === 1 ? " note" : " notes") : "ratings only"} {isOpen ? "×" : "→"}
                 </span>
@@ -435,7 +435,7 @@ function DprCheckinHistory({ kit }) {
                     text ? (
                       <div key={label} style={{ marginTop: 12 }}>
                         <div style={lbl}>{label}</div>
-                        <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(242,237,228,0.82)", whiteSpace: "pre-wrap" }}>{text}</div>
+                        <div style={{ fontSize: 13, lineHeight: 1.55, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.82)", whiteSpace: "pre-wrap" }}>{text}</div>
                       </div>
                     ) : null
                   ))}
@@ -485,9 +485,9 @@ function DprCheckinForm({ kit, onSaved }) {
     } finally { setBusy(false); }
   };
 
-  const taStyle = { width: "100%", boxSizing: "border-box", minHeight: 56, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", resize: "vertical" };
-  const inStyle = { width: "100%", boxSizing: "border-box", padding: "9px 10px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: serif, fontSize: 16, outline: "none", textAlign: "center" };
-  const lbl = { fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 8 };
+  const taStyle = { width: "100%", boxSizing: "border-box", minHeight: 56, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", resize: "vertical" };
+  const inStyle = { width: "100%", boxSizing: "border-box", padding: "9px 10px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: INK, fontFamily: serif, fontSize: 16, outline: "none", textAlign: "center" };
+  const lbl = { fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase", marginBottom: 8 };
 
   return (
     <Card>
@@ -502,7 +502,7 @@ function DprCheckinForm({ kit, onSaved }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4 }}>
               {Array.from({ length: 10 }).map((_, i) => {
                 const v = i + 1; const on = Number(ratings[k]) >= v; const sel = Number(ratings[k]) === v;
-                return <button key={v} onClick={() => setRatings((r) => ({ ...r, [k]: v }))} aria-label={label + " " + v} style={{ height: 18, borderRadius: 3, border: `1px solid ${sel ? c : "rgba(242,237,228,0.14)"}`, background: on ? (sel ? c : c + "66") : "transparent", cursor: "pointer", padding: 0 }} />;
+                return <button key={v} onClick={() => setRatings((r) => ({ ...r, [k]: v }))} aria-label={label + " " + v} style={{ height: 18, borderRadius: 3, border: `1px solid ${sel ? c : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: on ? (sel ? c : ssAlpha(c, 0.4)) : "transparent", cursor: "pointer", padding: 0 }} />;
               })}
             </div>
           </div>
@@ -727,7 +727,7 @@ function DprCycleCard() {
       <div style={{ marginTop: 12, fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.015em", lineHeight: 1.25 }}>{head}</div>
       {meta ? <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DPR_INK50 }}>{meta}</div> : null}
       {pred ? <div style={{ marginTop: 6, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.06em", color: DPR_INK50 }}>Next period window · {dprCycleShortDate(pred.from)} – {dprCycleShortDate(pred.to)}</div> : null}
-      {cycle && cycle.phase === "luteal" && pred ? <div style={{ marginTop: 7, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(242,237,228,0.7)" }}>Week of the {dprCycleShortDate(pred.from)} is a natural deload window.</div> : null}
+      {cycle && cycle.phase === "luteal" && pred ? <div style={{ marginTop: 7, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>Week of the {dprCycleShortDate(pred.from)} is a natural deload window.</div> : null}
 
       <button type="button" onClick={() => setCalOpen((o) => !o)}
         style={{ marginTop: 14, background: "transparent", border: 0, padding: "6px 0", fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_CYCLE_HEAT, cursor: "pointer" }}>
@@ -742,7 +742,7 @@ function DprCycleCard() {
             <button type="button" onClick={() => step(1)} style={{ background: "transparent", border: 0, color: DPR_INK50, cursor: "pointer", fontSize: 14, padding: "4px 8px" }}>›</button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
-            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontFamily: DPR_MONO, fontSize: 8, color: "rgba(242,237,228,0.4)" }}>{d}</div>)}
+            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontFamily: DPR_MONO, fontSize: 8, color: "var(--sh-ink3, #75706a)" }}>{d}</div>)}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
             {cells.map((d, i) => {
@@ -754,8 +754,8 @@ function DprCycleCard() {
               return (
                 <button key={i} type="button" onClick={() => tapDay(d)} disabled={busy}
                   style={{ aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DPR_MONO, fontSize: 11, fontVariantNumeric: "tabular-nums",
-                    background: isStart ? DPR_CYCLE_HEAT : "transparent", color: isStart ? "#0b0f0f" : (isToday ? DPR_CYCLE_HEAT : "rgba(242,237,228,0.75)"),
-                    border: isPred ? `1px dotted ${DPR_CYCLE_HEAT}` : (isToday ? `1px solid ${DPR_CYCLE_HEAT}66` : "1px solid transparent"),
+                    background: isStart ? DPR_CYCLE_HEAT : "transparent", color: isStart ? "#0b0f0f" : (isToday ? DPR_CYCLE_HEAT : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)"),
+                    border: isPred ? `1px dotted ${DPR_CYCLE_HEAT}` : (isToday ? `1px solid ${ssAlpha(DPR_CYCLE_HEAT, 0.4)}` : "1px solid transparent"),
                     borderRadius: 7, cursor: busy ? "default" : "pointer" }}>{d}</button>
               );
             })}
@@ -771,13 +771,13 @@ function DprCycleCard() {
       {msg ? <div style={{ marginTop: 10, fontSize: 12, color: DPR_AMBER }}>{msg}</div> : null}
 
       {/* Settings footer — share with coaches + stop & delete (the web opt-out entry). */}
-      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <button type="button" onClick={toggleShare} disabled={busy}
-          style={{ background: "transparent", border: `1px solid ${settings.share ? DPR_CYCLE_HEAT : "rgba(242,237,228,0.25)"}`, color: settings.share ? DPR_CYCLE_HEAT : DPR_INK50, borderRadius: 999, padding: "5px 12px", fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: busy ? "default" : "pointer" }}>
+          style={{ background: "transparent", border: `1px solid ${settings.share ? DPR_CYCLE_HEAT : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)"}`, color: settings.share ? DPR_CYCLE_HEAT : DPR_INK50, borderRadius: 999, padding: "5px 12px", fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: busy ? "default" : "pointer" }}>
           {settings.share ? "Shared with coaches ✓" : "Share with coaches"}
         </button>
         <button type="button" onClick={stopDelete} disabled={busy}
-          style={{ background: "transparent", border: 0, color: "#c0533b", fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: busy ? "default" : "pointer" }}>Stop &amp; delete</button>
+          style={{ background: "transparent", border: 0, color: "var(--sh-rust2, #c0533b)", fontFamily: DPR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: busy ? "default" : "pointer" }}>Stop &amp; delete</button>
       </div>
     </div>
   );
@@ -975,18 +975,18 @@ function DprWeeklyReadout({ shown, held }) {
               dedupe — so two insights citing the same pair carry the same key,
               and React would reconcile the two rows as one. */}
           {insights.map((ins, i) => (
-            <div key={(ins.correlation_key || "i") + "@" + i} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(242,237,228,0.08)" : 0 }}>
-              <div style={{ fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.8)" }}>{ins.headline}</div>
-              <div style={{ marginTop: 4, fontSize: 12.5, lineHeight: 1.45, color: "rgba(242,237,228,0.72)" }}>{ins.detail}</div>
+            <div key={(ins.correlation_key || "i") + "@" + i} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : 0 }}>
+              <div style={{ fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}>{ins.headline}</div>
+              <div style={{ marginTop: 4, fontSize: 12.5, lineHeight: 1.45, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)" }}>{ins.detail}</div>
               {ins.recommendation ? (
-                <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9, lineHeight: 1.5, letterSpacing: "0.03em", color: "rgba(242,237,228,0.5)" }}>{ins.recommendation}</div>
+                <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9, lineHeight: 1.5, letterSpacing: "0.03em", color: "var(--sh-ink2, #a09b94)" }}>{ins.recommendation}</div>
               ) : null}
             </div>
           ))}
         </div>
       )}
       {stamp ? (
-        <div style={{ marginTop: 11, paddingTop: 9, borderTop: "1px solid rgba(242,237,228,0.08)", fontFamily: DPR_MONO, fontSize: 8, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", fontVariantNumeric: "tabular-nums" }}>{stamp}</div>
+        <div style={{ marginTop: 11, paddingTop: 9, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", fontFamily: DPR_MONO, fontSize: 8, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)", fontVariantNumeric: "tabular-nums" }}>{stamp}</div>
       ) : null}
     </div>
   );
@@ -1197,7 +1197,7 @@ function ClientProgressPage() {
           {/* Words + numbers both from the shared engine (crossoverCopy) —
               the mobile card renders the identical rows, no wording drift. */}
           {(window.DashSignals.crossoverCopy(crossover) || []).map((r, i) => (
-            <div key={r.k} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(242,237,228,0.08)" : 0 }}>
+            <div key={r.k} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : 0 }}>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 16.5, letterSpacing: "-0.01em", lineHeight: 1.35 }}>{r.text}</div>
               <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{r.sub}</div>
             </div>
@@ -1229,7 +1229,7 @@ function ClientProgressPage() {
         <span className="dash-eyebrow" style={{ color: DPR_AMBER }}>Measurements · then vs today</span>
         <div style={{ marginTop: 12 }}>
           {measCmps.length ? measCmps.map((m) => (
-            <div key={m.site} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+            <div key={m.site} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
               <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_INK50 }}>{m.site}</span>
               <span style={{ fontFamily: DPR_MONO, fontSize: 11.5 }}>
                 <span style={{ color: DPR_INK50 }}>{m.cmp.then.value}</span> → {m.cmp.now.value} <span style={{ color: DPR_INK50 }}>{m.unit}</span>
@@ -1242,7 +1242,7 @@ function ClientProgressPage() {
     ) },
 
     { key: "photos", title: "Photos · then vs today", size: "half", render: () => (
-      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", paddingLeft: 24 }}>
         <span className="dash-eyebrow">Photos · {photoPair ? photoPair.pose + " · then vs today" : "side by side"}</span>
         <div style={{ marginTop: 12 }}>
           {photoPair ? (
@@ -1310,7 +1310,7 @@ function ClientProgressPage() {
           {(availableTabs.length ? availableTabs : [DPR_TREND_TABS[0]]).map((t) => {
             const on = activeTab.k === t.k;   // the RESOLVED tab, not the raw state — or the fallback chart and the lit button disagree
             return (
-              <button key={t.k} onClick={() => setTrend(t.k)} style={{ fontFamily: DPR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "transparent", color: on ? t.color : "rgba(242,237,228,0.6)", border: "1px solid " + (on ? t.color + "77" : "rgba(242,237,228,0.14)"), borderLeft: "3px solid " + (on ? t.color : "rgba(242,237,228,0.18)") }}>{t.label}</button>
+              <button key={t.k} onClick={() => setTrend(t.k)} style={{ fontFamily: DPR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "transparent", color: on ? t.color : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", border: "1px solid " + (on ? ssAlpha(t.color, 0.47) : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"), borderLeft: "3px solid " + (on ? t.color : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)") }}>{t.label}</button>
             );
           })}
         </div>
@@ -1318,14 +1318,14 @@ function ClientProgressPage() {
     ) },
 
     { key: "prs", title: "PR history", size: "half", render: () => (
-      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#c0533b", paddingLeft: 24 }}>
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-rust2, #c0533b)", paddingLeft: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-          <span className="dash-eyebrow" style={{ color: "#c0533b" }}>PR history · from your logged sets</span>
+          <span className="dash-eyebrow" style={{ color: "var(--sh-rust2, #c0533b)" }}>PR history · from your logged sets</span>
           <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{prs.length ? prs.length + " lifts" : ""}</span>
         </div>
-        <div className="dash-ledger" style={{ "--dac": "#c0533b", marginTop: 9 }} />
+        <div className="dash-ledger" style={{ "--dac": "var(--sh-rust2, #c0533b)", marginTop: 9 }} />
         {prs.length ? prs.map((p, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
             <span style={{ color: DPR_GREEN, fontSize: 11 }}>▲</span>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 500 }}>{p.move}</div>
@@ -1354,7 +1354,7 @@ function ClientProgressPage() {
           const trend = (l.series || []).map((s) => Number(s.e1rm));
           const top = l.topSet;
           return (
-            <div key={l.name || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+            <div key={l.name || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 500 }}>{l.name}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4, flexWrap: "wrap" }}>
@@ -1400,7 +1400,7 @@ function ClientProgressPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
           {(photos || []).slice(0, 12).map((p) => (
             <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block", textDecoration: "none" }}>
-              <div style={{ height: 120, borderRadius: 10, border: "1px solid rgba(242,237,228,0.1)", background: `url(${p.url}) center/cover` }} />
+              <div style={{ height: 120, borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${p.url}) center/cover` }} />
               <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DPR_INK50, textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
             </a>
           ))}

@@ -10,9 +10,9 @@ const TEAL_BRIGHT = "var(--sh-accent, #2ee0c4)";
 // the two above, which is a wider sweep than a nav change.
 const TEAL_APP = "var(--sh-accent3, #34d6c5)";
 const RUST = "#d2693f";         // warm secondary accent
-const serif = "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif";
-const sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif";
-const mono = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
+const serif = "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)";
+const sans = "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)";
+const mono = "var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace)";
 
 // ── THE NAV BAR (2026-09-14) ────────────────────────────────────────────────
 // ⚠ ONE BAR ON EVERY PAGE, AND THESE ARE ITS NUMBERS. The site had TWO nav bars
@@ -166,7 +166,7 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
       {open && <div onMouseEnter={cancelClose} style={{ position: "absolute", top: "100%", left: 0, right: 0, height: 20 }} />}
       {open && (
         <div onMouseEnter={cancelClose} onMouseLeave={scheduleClose} style={{ position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", minWidth: 200, zIndex: 70 }}>
-          <div style={{ background: "rgba(6,9,15,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.12)", borderRadius: 8, padding: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "var(--sh-menu-bg, rgba(6,9,15,0.98))", backdropFilter: "blur(14px)", border: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.12)", borderRadius: 8, padding: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           {items.map(([n, itemHref, sub]) => (
             <a key={n} href={itemHref} style={{ display: "block", padding: "10px 14px", fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", borderRadius: 5, whiteSpace: "nowrap", lineHeight: 1.2 }}
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(var(--sh-accent3-rgb, 52,214,197),0.12)"; e.currentTarget.style.color = INK; }}
@@ -1122,7 +1122,7 @@ function Header({ active }) {
   const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "#04110f", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
-    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
+    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       {/* ⚠ FLEX, NOT A 3-COLUMN GRID, and the two outer columns are equal-BASIS
@@ -1136,7 +1136,7 @@ function Header({ active }) {
           lines at 1180px. */}
       <div className="shape-header-inner" style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", height: NAV_H, padding: "0 32px", gap: 26 }}>
         <a href="index.html" style={{ flex: "1 1 0", minWidth: "max-content", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <img src="/shape-logo-nav-teal-white.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "block", objectFit: "contain" }} />
+          <img src="/shape-logo-nav-teal-white.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", flex: "0 1 auto", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
@@ -1257,11 +1257,14 @@ function HeroBg() {
 // from nowhere else). Only spacing and the logo size move.
 function Footer({ logoHeight = 44 } = {}) {
   return (
-    <footer className="shape-footer" style={{ position: "relative", padding: "36px 72px 22px", background: INK_DEEP, color: INK }}>
+    <footer className="shape-footer" style={{ position: "relative", padding: "36px 72px 22px", background: "var(--sh-footer-bg, #0b0e0c)", color: INK }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.55 }} />
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingBottom: 20, textAlign: "center" }}>
-          <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "block", margin: "0 auto", objectFit: "contain" }} />
+          {/* Two lockups, one visible per paper: the dashboards' light footer shows the
+              black mark, the dark paper and every marketing page the white one. */}
+          <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-dark, block)", margin: "0 auto", objectFit: "contain" }} />
+          <img src="/shape-logo-nav-black.png" alt="" aria-hidden="true" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>

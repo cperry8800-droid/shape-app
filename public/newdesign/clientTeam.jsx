@@ -6,7 +6,7 @@
 // a real error state on a failed load; the demo team shows ONLY as a labelled
 // signed-out (401) preview — never on a server error.
 
-const CT_RUST = "#c0533b";      // trainer
+const CT_RUST = "var(--sh-rust2, #c0533b)";      // trainer
 const CT_GOLD = "#d8b25a";      // nutritionist (bright variant reads on dark paper)
 const CT_INK55 = "rgba(var(--sh-ink-rgb, 242,237,228), 0.549)";  // 0x8c/255 — the ink at 55%
 const CT_INK40 = "rgba(var(--sh-ink-rgb, 242,237,228), 0.4)";    // 0x66/255 — the ink at 40%
@@ -162,7 +162,7 @@ function CtBookSheet({ coach, onClose, onBooked }) {
     fontFamily: CT_MONO, fontSize: 11.5, letterSpacing: "0.04em", padding: "9px 12px", minHeight: 24,
     borderRadius: 4, cursor: "pointer", fontVariantNumeric: "tabular-nums",
     border: "1px solid " + (active ? accent : CT_HAIR),
-    background: active ? accent + "24" : "transparent",
+    background: active ? ssAlpha(accent, 0.14) : "transparent",
     color: active ? INK : CT_INK55,
   });
 
@@ -248,7 +248,7 @@ function CtStation({ c, onBook, canBook }) {
     <div style={{ position: "relative", paddingLeft: 24 }}>
       <div aria-hidden style={{ position: "absolute", left: 0, top: 3, bottom: 3, width: 3, background: accent, borderRadius: 2 }} />
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-        <div aria-hidden style={{ width: 48, height: 48, flex: "0 0 auto", borderRadius: 8, background: accent + "1f", border: `1px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 18, color: accent }}>{ctInitials(c.name)}</div>
+        <div aria-hidden style={{ width: 48, height: 48, flex: "0 0 auto", borderRadius: 8, background: ssAlpha(accent, 0.12), border: `1px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 18, color: accent }}>{ctInitials(c.name)}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: CT_MONO, fontSize: 10, letterSpacing: "0.16em", color: accent, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{String(c.role).toUpperCase()} · SINCE {String(c.since).toUpperCase()}</div>
           <div style={{ fontFamily: serif, fontSize: 25, letterSpacing: "-0.015em", lineHeight: 1.12, marginTop: 3 }}>{c.name}</div>

@@ -69,7 +69,8 @@ test('the note column is a reading, not an adjective', () => {
     assert.match(pace, /^\d+:\d{2}\/mi$/, `${label} carries "${pace}"`);
   }
   // …and it must not wrap, or a two-line note would push the row out of step.
-  assert.match(s, /color: i === bestIdx \? TEAL_BRIGHT : "rgba\(242,237,228,0\.4\)", marginTop: 3, whiteSpace: "nowrap"/,
+  // (The muted colour reads a paper token now; the guard pins the nowrap, not the colour.)
+  assert.match(s, /color: i === bestIdx \? TEAL_BRIGHT : "[^"]+", marginTop: 3, whiteSpace: "nowrap"/,
     'the note must be nowrap inside its column');
 });
 

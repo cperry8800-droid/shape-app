@@ -15,11 +15,11 @@
 // Load order: pageShell → trainerDashboard → clientNav → dashSignals →
 // dashToday (DashDemoBand/DashPill) → dashClient (DashWorkoutCard) → this.
 
-const DTR_INK50 = "rgba(242,237,228,0.55)";
+const DTR_INK50 = "var(--sh-ink2, #a09b94)";
 const DTR_MONO = "'JetBrains Mono', monospace";
-const DTR_TEAL = "#2ee0c4";
-const DTR_GREEN = "#7bbf5a";
-const DTR_RUST = "#c0533b";
+const DTR_TEAL = "var(--sh-accent, #2ee0c4)";
+const DTR_GREEN = "var(--sh-green, #7bbf5a)";
+const DTR_RUST = "var(--sh-rust2, #c0533b)";
 const DTR_DAY = 86400000;
 
 function dtrIso(d) {
@@ -166,7 +166,7 @@ const DTR_DEMO = (() => {
 // ── Pieces ──────────────────────────────────────────────────────────────────
 function DtrDayRow({ d, coach }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "20px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "20px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
       <span style={{ color: d.done ? DTR_GREEN : DTR_INK50, fontSize: 12 }}>{d.done ? "✓" : "○"}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13.5, fontWeight: 500, opacity: d.done ? 0.75 : 1 }}>{d.workout.title}{d.isToday && <DashPill c={DTR_TEAL}>Tonight</DashPill>}</div>
@@ -182,7 +182,7 @@ function DtrDayRow({ d, coach }) {
 function DtrWeekPlate({ w, coach, defaultOpen }) {
   const [open, setOpen] = React.useState(!!defaultOpen);
   const locked = w.status === "upcoming";
-  const accent = w.status === "current" ? DTR_RUST : w.status === "past" ? "rgba(242,237,228,0.35)" : DTR_INK50;
+  const accent = w.status === "current" ? DTR_RUST : w.status === "past" ? "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" : DTR_INK50;
   return (
     <div className={"dash-plate" + (w.status === "current" ? " dash-plate--tick dash-plate--bracket" : "")} style={{ "--dac": accent, paddingLeft: 24, opacity: locked ? 0.82 : 1 }}>
       <div
@@ -202,7 +202,7 @@ function DtrWeekPlate({ w, coach, defaultOpen }) {
         {/* Per-day completion marks */}
         <span style={{ display: "inline-flex", gap: 4 }}>
           {w.days.map((d, i) => (
-            <span key={i} title={d.workout.title + (d.done ? " · done" : "")} style={{ width: 9, height: 9, borderRadius: 2, background: d.done ? DTR_GREEN : "transparent", border: "1px solid " + (d.done ? DTR_GREEN : d.isToday ? DTR_TEAL : "rgba(242,237,228,0.3)") }} />
+            <span key={i} title={d.workout.title + (d.done ? " · done" : "")} style={{ width: 9, height: 9, borderRadius: 2, background: d.done ? DTR_GREEN : "transparent", border: "1px solid " + (d.done ? DTR_GREEN : d.isToday ? DTR_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.3)") }} />
           ))}
         </span>
         <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: w.doneCount === w.days.length && w.days.length ? DTR_GREEN : DTR_INK50 }}>{w.doneCount}/{w.days.length}</span>
@@ -226,13 +226,13 @@ function DtrWeekPlate({ w, coach, defaultOpen }) {
 // The unwritten week — the human loop, sold honestly.
 function DtrNextWeekLocked({ coach, weekN }) {
   return (
-    <div className="dash-plate" style={{ "--dac": "#d8a23a", paddingLeft: 24, border: "1px dashed rgba(216,162,58,0.35)" }}>
-      <div className="dash-eyebrow" style={{ color: "#d8a23a" }}>🔒︎ {weekN != null ? "Week " + weekN : "Next week"} · not written yet</div>
+    <div className="dash-plate" style={{ "--dac": "var(--sh-gold, #d8a23a)", paddingLeft: 24, border: "1px dashed rgba(var(--sh-gold-rgb, 216,162,58),0.35)" }}>
+      <div className="dash-eyebrow" style={{ color: "var(--sh-gold, #d8a23a)" }}>🔒︎ {weekN != null ? "Week " + weekN : "Next week"} · not written yet</div>
       <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", margin: "8px 0 4px" }}>{coach} writes this after your check-in.</div>
       <div style={{ fontSize: 12.5, color: DTR_INK50, lineHeight: 1.55, maxWidth: 520 }}>
         Your next block isn't generated — it's built from what this week's check-in says. Send it and the plan lands here.
       </div>
-      <a href={dashShellHref("ClientProgress.html")} style={{ display: "inline-block", marginTop: 11, fontFamily: DTR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#231803", background: "#d8a23a", borderRadius: 4, padding: "10px 16px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Check in →</a>
+      <a href={dashShellHref("ClientProgress.html")} style={{ display: "inline-block", marginTop: 11, fontFamily: DTR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#231803", background: "var(--sh-gold, #d8a23a)", borderRadius: 4, padding: "10px 16px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Check in →</a>
     </div>
   );
 }
@@ -247,7 +247,7 @@ function DtrHistory({ sessions, prDates }) {
         const on = open === i;
         const hasMoves = Array.isArray(s.moves) && s.moves.length > 0;
         return (
-          <div key={i} style={{ borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+          <div key={i} style={{ borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
             <div
               onClick={() => hasMoves && setOpen(on ? -1 : i)}
               onKeyDown={(e) => { if (hasMoves && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpen(on ? -1 : i); } }}
@@ -270,10 +270,10 @@ function DtrHistory({ sessions, prDates }) {
                 {s.moves.map((m, j) => {
                   const short = m.setsLogged < m.setsPrescribed;
                   return (
-                    <div key={j} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "5px 0", borderTop: "1px solid rgba(242,237,228,0.04)" }}>
+                    <div key={j} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "5px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.04)" }}>
                       <span style={{ fontSize: 12.5 }}>{m.name}</span>
                       <span style={{ fontFamily: DTR_MONO, fontSize: 9.5, color: DTR_INK50 }}>{m.setsPrescribed} × {m.target || "—"}</span>
-                      <span style={{ fontFamily: DTR_MONO, fontSize: 9.5, color: short ? "#d8a23a" : "rgba(242,237,228,0.85)" }}>{m.setsLogged}/{m.setsPrescribed} sets{m.best ? " · " + m.best : ""}</span>
+                      <span style={{ fontFamily: DTR_MONO, fontSize: 9.5, color: short ? "var(--sh-gold, #d8a23a)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{m.setsLogged}/{m.setsPrescribed} sets{m.best ? " · " + m.best : ""}</span>
                     </div>
                   );
                 })}
@@ -296,7 +296,7 @@ function DtrHistory({ sessions, prDates }) {
 // app uses — one implementation, no drift. Self-serve is the floor; coaching
 // stays the pitch (the marketplace leader keeps its pinned spot).
 const DTR_DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; // index 0 = Monday (the builder convention)
-const DTR_AMBER = "#d8a23a";
+const DTR_AMBER = "var(--sh-gold, #d8a23a)";
 const DTR_BUILDER_CAP = 182;
 
 function dtrDayLetters(dows) {
@@ -307,10 +307,10 @@ function dtrDayLetters(dows) {
     .join(" ");
 }
 
-const DTR_BTN = { fontFamily: DTR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", background: "transparent", color: DTR_INK50, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" };
+const DTR_BTN = { fontFamily: DTR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", background: "transparent", color: DTR_INK50, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" };
 const DTR_BTN_ON = { ...DTR_BTN, color: DTR_TEAL, borderColor: DTR_TEAL };
 const DTR_CTA = { ...DTR_BTN, background: DTR_TEAL, color: "#08221f", border: 0, padding: "10px 16px", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" };
-const DTR_FIELD = { background: "rgba(242,237,228,0.04)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 6, padding: "9px 11px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, outline: "none" };
+const DTR_FIELD = { background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 6, padding: "9px 11px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, outline: "none" };
 
 let dtrMoveSeq = 0;
 function dtrMoveKey() { dtrMoveSeq += 1; return "mv" + dtrMoveSeq; }
@@ -487,14 +487,14 @@ function DtrBuilder({ self, onChanged }) {
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DTR_INK50, marginBottom: 6 }}>Yours · programmed by you</div>
           {yours.programs.map((p) => (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
               <span style={{ fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0 }}>{p.name}</span>
               <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{p.count} sessions{p.weeks ? " · " + p.weeks + " wks" : ""}</span>
-              <button type="button" onClick={() => removeProgram(p)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(192,83,59,0.4)" }}>Remove</button>
+              <button type="button" onClick={() => removeProgram(p)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(var(--sh-rust2-rgb, 192,83,59),0.4)" }}>Remove</button>
             </div>
           ))}
           {yours.repeats.map((r) => (
-            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
               <span style={{ fontSize: 13, fontWeight: 500, flex: 1, minWidth: 0 }}>{r.title}</span>
               <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{dtrDayLetters(r.repeatDow)} · weekly</span>
               <button type="button" onClick={() => {
@@ -505,10 +505,10 @@ function DtrBuilder({ self, onChanged }) {
                 setMoves(((r.moves && r.moves.length) ? r.moves : [dtrEmptyMove()]).map((m) => ({ _k: dtrMoveKey(), name: m.name || "", sets: m.sets != null ? String(m.sets) : "", reps: m.reps != null ? String(m.reps) : "", load: m.load != null ? String(m.load) : "", seg: m.seg || "", isSeg: !!(m.seg && String(m.seg).length) })));
                 setErr(null); setNotice("Editing " + r.title + " — save to replace it.");
               }} style={DTR_BTN}>Edit</button>
-              <button type="button" onClick={() => removeOne(r)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(192,83,59,0.4)" }}>Remove</button>
+              <button type="button" onClick={() => removeOne(r)} disabled={busy} style={{ ...DTR_BTN, color: DTR_RUST, borderColor: "rgba(var(--sh-rust2-rgb, 192,83,59),0.4)" }}>Remove</button>
             </div>
           ))}
-          {yours.oneOffs > 0 && <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DTR_INK50, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>+ {yours.oneOffs} dated one-off{yours.oneOffs === 1 ? "" : "s"}</div>}
+          {yours.oneOffs > 0 && <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DTR_INK50, padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>+ {yours.oneOffs} dated one-off{yours.oneOffs === 1 ? "" : "s"}</div>}
         </div>
       )}
 
@@ -596,7 +596,7 @@ function DtrBuilder({ self, onChanged }) {
           </div>
           {draftState === "unavailable" && <div style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_AMBER, letterSpacing: "0.06em" }}>The draft assistant is unavailable right now — build it by hand, or try again.</div>}
           {draft && (
-            <div style={{ border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: "12px 14px" }}>
+            <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 13.5, fontWeight: 600 }}>{draft.name || "Your program"}</div>
               <div style={{ fontFamily: DTR_MONO, fontSize: 8.5, color: DTR_INK50, letterSpacing: "0.08em", textTransform: "uppercase", margin: "4px 0 8px" }}>
                 {draft.weeks.length} weeks · {draft.weeks.reduce((a, w) => a + ((w.days && w.days.length) || 0), 0)} sessions — nothing is saved until you approve
@@ -746,7 +746,7 @@ function ClientWorkoutsPage() {
             <div className="dash-eyebrow" style={{ color: DTR_TEAL }}>Weekly · programmed by you</div>
             <div style={{ marginTop: 6 }}>
               {repeatRows.map((w, i) => (
-                <div key={w.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)", alignItems: "center" }}>
+                <div key={w.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", alignItems: "center" }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
                   <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_TEAL, letterSpacing: "0.08em" }}>{dtrDayLetters(w.repeatDow)}</span>
                   <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves · repeats weekly</span>
@@ -756,11 +756,11 @@ function ClientWorkoutsPage() {
           </div>
         )}
         {anytime.length > 0 && (
-          <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", paddingLeft: 24 }}>
+          <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", paddingLeft: 24 }}>
             <div className="dash-eyebrow">Anytime · unscheduled assignments</div>
             <div style={{ marginTop: 6 }}>
               {anytime.map((w, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)", alignItems: "center" }}>
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", alignItems: "center" }}>
                   <span style={{ fontSize: 13.5, fontWeight: 500 }}>{w.title}</span>
                   <span style={{ fontFamily: DTR_MONO, fontSize: 9, color: DTR_INK50 }}>{(w.exercises || []).length} moves</span>
                 </div>

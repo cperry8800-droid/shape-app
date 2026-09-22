@@ -87,7 +87,7 @@ function SharedClientsTab({ role, onCountChange }) {
 
   if (rows === null) {
     return (
-      <div style={{ padding: 28, color: "rgba(242,237,228,0.55)", fontSize: 13.5, textAlign: "center" }}>
+      <div style={{ padding: 28, color: "var(--sh-ink2, #a09b94)", fontSize: 13.5, textAlign: "center" }}>
         Loading shared clients…
       </div>
     );
@@ -96,7 +96,7 @@ function SharedClientsTab({ role, onCountChange }) {
   // about the roster, and a request that never answered cannot support it.
   if (rows === false) {
     return (
-      <div style={{ padding: 36, textAlign: "center", color: "rgba(242,237,228,0.6)", fontSize: 13.5, lineHeight: 1.6 }}>
+      <div style={{ padding: 36, textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5, lineHeight: 1.6 }}>
         Couldn't load your shared clients. This is a loading problem, not an empty roster —
         refresh to try again.
       </div>
@@ -105,7 +105,7 @@ function SharedClientsTab({ role, onCountChange }) {
   if (rows.length === 0) {
     const other = role === 'trainer' ? 'nutritionists' : 'trainers';
     return (
-      <div style={{ padding: 36, textAlign: "center", color: "rgba(242,237,228,0.6)", fontSize: 13.5, lineHeight: 1.6 }}>
+      <div style={{ padding: 36, textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5, lineHeight: 1.6 }}>
         No shared clients yet. When one of your clients also subscribes to a {role === 'trainer' ? 'nutritionist' : 'trainer'},
         you'll see them here along with their other coach. From here you can message {other} directly to coordinate.
       </div>
@@ -116,7 +116,7 @@ function SharedClientsTab({ role, onCountChange }) {
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
         <span>CLIENT</span>
         <span>{role === 'trainer' ? 'NUTRITIONIST' : 'TRAINER'}</span>
         <span>STATUS</span>
@@ -128,32 +128,32 @@ function SharedClientsTab({ role, onCountChange }) {
         const isMsgBusy = busy[k] === 'msg';
         const isAckBusy = busy[k] === 'ack';
         return (
-          <div key={k} style={{ display: "grid", gridTemplateColumns: COLS, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)" }}>
+          <div key={k} style={{ display: "grid", gridTemplateColumns: COLS, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
             <a href={typeof dashClientPageHref === 'function' ? dashClientPageHref(r.clientId, role) : `${role === 'nutritionist' ? 'NutritionistClient' : 'TrainerClient'}.html?id=${encodeURIComponent(r.clientId)}`}
                style={{ display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
-              <div style={{ width: 28, height: 28, borderRadius: 999, background: "#efece6" }} />
+              <div style={{ width: 28, height: 28, borderRadius: 999, background: "var(--sh-ink-soft, #efece6)" }} />
               <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.clientName}</span>
             </a>
             <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-              <div style={{ width: 24, height: 24, borderRadius: 999, background: "rgba(46,224,196,0.18)", border: "1px solid rgba(46,224,196,0.35)", flex: "none", overflow: "hidden" }}>
+              <div style={{ width: 24, height: 24, borderRadius: 999, background: "rgba(var(--sh-accent-rgb, 46,224,196),0.18)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", flex: "none", overflow: "hidden" }}>
                 {r.counterpart.avatarUrl ? <img src={r.counterpart.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.counterpart.name}</div>
-                <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{r.counterpart.role}</div>
+                <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{r.counterpart.role}</div>
               </div>
             </div>
             <span>
               {r.acknowledged ? (
-                <span style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", color: "rgba(242,237,228,0.45)", textTransform: "uppercase" }}>Seen</span>
+                <span style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", color: "var(--sh-ink3, #75706a)", textTransform: "uppercase" }}>Seen</span>
               ) : (
-                <span style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", color: "#2ee0c4", textTransform: "uppercase" }}>New</span>
+                <span style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", color: "var(--sh-accent, #2ee0c4)", textTransform: "uppercase" }}>New</span>
               )}
             </span>
             <button
               onClick={() => openMessage(r)}
               disabled={isMsgBusy}
-              style={{ background: "#0ac5a8", color: "#1a1612", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 500, cursor: isMsgBusy ? "wait" : "pointer", whiteSpace: "nowrap", opacity: isMsgBusy ? 0.6 : 1 }}
+              style={{ background: "var(--sh-accent2, #0ac5a8)", color: "var(--sh-ground, #1a1612)", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12, fontWeight: 500, cursor: isMsgBusy ? "wait" : "pointer", whiteSpace: "nowrap", opacity: isMsgBusy ? 0.6 : 1 }}
             >
               {isMsgBusy ? "Opening…" : `Message ${r.counterpart.name.split(/\s+/)[0]}`}
             </button>
@@ -161,7 +161,7 @@ function SharedClientsTab({ role, onCountChange }) {
               <button
                 onClick={() => dismiss(r)}
                 disabled={isAckBusy}
-                style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: "1px solid rgba(242,237,228,0.15)", padding: "7px 12px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5, cursor: isAckBusy ? "wait" : "pointer", whiteSpace: "nowrap" }}
+                style={{ background: "transparent", color: "var(--sh-ink2, #a09b94)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", padding: "7px 12px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 11.5, cursor: isAckBusy ? "wait" : "pointer", whiteSpace: "nowrap" }}
               >
                 {isAckBusy ? "…" : "Dismiss"}
               </button>

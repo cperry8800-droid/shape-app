@@ -16,7 +16,7 @@
 // dashData → dashToday (DashDemoBand/helpers) → dashGoals → dashRoster
 // (DashClientDrawer) → this.
 
-const DSC_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+const DSC_INK50 = "var(--sh-ink2, #a09b94)";
 const DSC_MONO = "'JetBrains Mono', monospace";
 const DSC_TEAL = "var(--sh-accent, #2ee0c4)";
 const DSC_DAY = 86400000;
@@ -323,9 +323,9 @@ function DscEventSheet({ ev, onClose, colorOf }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(380px, 92vw)", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "4px solid " + color, borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(380px, 92vw)", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "4px solid " + color, borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
         <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: color }}>{ev.kind}{ev.with ? " · " + ev.with : ""}</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 23, margin: "6px 0 4px" }}>{ev.title}</div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>{ev.title}</div>
         <div style={{ fontSize: 12.5, color: DSC_INK50 }}>{[ev.date, ev.time ? dscFmt12(ev.time) : null, ev.durationMin ? ev.durationMin + " min" : null, ev.sub].filter(Boolean).join(" · ")}</div>
         {!(ev.reschedulable || ev.editable) && <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, marginTop: 10 }}>🔒︎ READ-ONLY — PUSHED FROM THE {ev.kind === "WORKOUT" ? "PROGRAM" : "MEAL PLAN"}; RESCHEDULE THERE</div>}
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
@@ -488,7 +488,7 @@ function CoachSchedulePage({ role }) {
       {drawerRow && typeof window.DashClientDrawer === "function" && <DashClientDrawer row={drawerRow} role={role} onClose={() => setDrawerRow(null)} prefs={prefs} />}
       {sheetEv && <DscEventSheet ev={sheetEv} colorOf={colorOf} onClose={() => setSheetEv(null)} />}
       {toast && (
-        <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 8, padding: "10px 18px", color: "var(--sh-ink, #f2ede4)", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, maxWidth: "90vw" }}>{toast}</div>
+        <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 8, padding: "10px 18px", color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, maxWidth: "90vw" }}>{toast}</div>
       )}
     </React.Fragment>
   );

@@ -17,12 +17,12 @@
 // dashSignals.js → dashToday.jsx (DashPill/DashDemoBand) → this file.
 // dashRoster.jsx picks up DashGoalsSection lazily for the drawer.
 
-const DGO_INK50 = "rgba(242,237,228,0.55)";
+const DGO_INK50 = "var(--sh-ink2, #a09b94)";
 const DGO_MONO = "'JetBrains Mono', monospace";
-const DGO_TEAL = "#2ee0c4";
-const DGO_GREEN = "#7bbf5a";
-const DGO_AMBER = "#d8a23a";
-const DGO_RED = "#e0644b";
+const DGO_TEAL = "var(--sh-accent, #2ee0c4)";
+const DGO_GREEN = "var(--sh-green, #7bbf5a)";
+const DGO_AMBER = "var(--sh-gold, #d8a23a)";
+const DGO_RED = "var(--sh-rust, #e0644b)";
 
 function dgoIso(d) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -77,14 +77,14 @@ function DgoSpark({ goal, color = DGO_TEAL, w = 120, h = 38 }) {
 
 // State → accent + projection copy. The projection block is the card's hero.
 function dgoStateView(p) {
-  if (!p) return { c: DGO_INK50, head: "—", sub: "No usable data yet" };
+  if (!p) return { c: DGO_INK50, muted: true, head: "—", sub: "No usable data yet" };
   switch (p.state) {
     case "achieved": return { c: DGO_GREEN, head: "✓ Hit" + (p.achievedOn ? " " + DashSignals.goalDateLabel(p.achievedOn) : ""), sub: "Banked — time for the next one" };
     case "on-pace": return { c: DGO_TEAL, head: p.projectedLabel, sub: p.toGo + (p.unit ? " " + p.unit : "") + " to go · " + p.daysOut + " days at the current pace" };
-    case "stalled": return { c: DGO_INK50, head: "No ETA", sub: "The pace has flattened — the next check-ins move this" };
-    case "far": return { c: DGO_INK50, head: "1y+ out", sub: "At the current pace — a small weekly change moves this a lot" };
+    case "stalled": return { c: DGO_INK50, muted: true, head: "No ETA", sub: "The pace has flattened — the next check-ins move this" };
+    case "far": return { c: DGO_INK50, muted: true, head: "1y+ out", sub: "At the current pace — a small weekly change moves this a lot" };
     case "stale": return { c: DGO_AMBER, head: "Pace outdated", sub: "Last entry " + (p.lastOn || "a while back") + " — log to re-project" };
-    default: return { c: DGO_INK50, head: "Needs history", sub: "Projects after 2+ entries at least a week apart" };
+    default: return { c: DGO_INK50, muted: true, head: "Needs history", sub: "Projects after 2+ entries at least a week apart" };
   }
 }
 
@@ -111,7 +111,7 @@ function DashGoalCard({ goal, now, editable, onEdit, compact }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
         <span className="dash-eyebrow" style={{ color: accent }}>{(goal.metric || "goal")} · {setBy}</span>
         {editable
-          ? <button onClick={onEdit} style={{ fontFamily: DGO_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "4px 9px", cursor: "pointer" }}>Edit</button>
+          ? <button onClick={onEdit} style={{ fontFamily: DGO_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "4px 9px", cursor: "pointer" }}>Edit</button>
           : goal.startedOn && <span style={{ fontFamily: DGO_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DGO_INK50 }}>since {DashSignals.goalDateLabel(goal.startedOn)}</span>}
       </div>
       <div style={{ fontFamily: serif, fontSize: compact ? 17 : 21, letterSpacing: "-0.015em", margin: "7px 0 2px" }}>{goal.label}</div>
@@ -120,25 +120,25 @@ function DashGoalCard({ goal, now, editable, onEdit, compact }) {
           {lastValue != null ? lastValue : "—"}<span style={{ fontSize: 13, color: DGO_INK50 }}>{unit}</span>
           <span style={{ fontSize: 14, color: DGO_INK50 }}> → {goal.target}{unit}</span>
         </div>
-        <DgoSpark goal={goal} color={accent === DGO_INK50 ? "rgba(242,237,228,0.45)" : accent} w={compact ? 96 : 130} h={compact ? 30 : 40} />
+        <DgoSpark goal={goal} color={(!slipped && view.muted) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" : accent} w={compact ? 96 : 130} h={compact ? 30 : 40} />
       </div>
       {p && p.pct != null && (
         <div style={{ margin: "9px 0 0" }}>
-          <div style={{ position: "relative", height: 5, background: "rgba(242,237,228,0.08)", borderRadius: 2 }}>
-            <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.round(p.pct * 100) + "%", background: accent === DGO_INK50 ? "rgba(242,237,228,0.35)" : accent, borderRadius: 2 }} />
+          <div style={{ position: "relative", height: 5, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2 }}>
+            <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.round(p.pct * 100) + "%", background: (!slipped && view.muted) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" : accent, borderRadius: 2 }} />
           </div>
           <div style={{ fontFamily: DGO_MONO, fontSize: 8.5, letterSpacing: "0.1em", color: DGO_INK50, marginTop: 4, textTransform: "uppercase" }}>{Math.round(p.pct * 100)}% there</div>
         </div>
       )}
       {/* The projection — the hero of the card */}
-      <div style={{ marginTop: compact ? 9 : 12, paddingTop: compact ? 9 : 11, borderTop: "1px solid rgba(242,237,228,0.07)" }}>
+      <div style={{ marginTop: compact ? 9 : 12, paddingTop: compact ? 9 : 11, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.07)" }}>
         <div style={{ fontFamily: DGO_MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: DGO_INK50 }}>
           Projected{p && p.ratePerWeek != null && p.state !== "achieved" ? " · at " + (p.ratePerWeek > 0 ? "+" : "") + p.ratePerWeek + unit + "/wk" : ""}
         </div>
         <div style={{ fontFamily: serif, fontSize: compact ? 19 : 24, letterSpacing: "-0.02em", color: view.c, marginTop: 4 }}>{view.head}</div>
         <div style={{ fontSize: compact ? 11 : 12, color: DGO_INK50, lineHeight: 1.45, marginTop: 3 }}>{view.sub}</div>
         {slipped && p && p.state !== "achieved" && (
-          <div style={{ marginTop: 8, padding: "7px 10px", background: "rgba(216,162,58,0.07)", border: "1px solid rgba(216,162,58,0.3)", borderLeft: "3px solid " + DGO_AMBER, borderRadius: 4, fontFamily: DGO_MONO, fontSize: 9, letterSpacing: "0.04em", color: DGO_AMBER }}>
+          <div style={{ marginTop: 8, padding: "7px 10px", background: "rgba(var(--sh-gold-rgb, 216,162,58),0.07)", border: "1px solid rgba(var(--sh-gold-rgb, 216,162,58),0.3)", borderLeft: "3px solid " + DGO_AMBER, borderRadius: 4, fontFamily: DGO_MONO, fontSize: 9, letterSpacing: "0.04em", color: DGO_AMBER }}>
             {isFinite(slip) ? "ETA slipped +" + slip + " days this week" : "ETA lost this week — the pace flattened"}
           </div>
         )}
@@ -148,7 +148,7 @@ function DashGoalCard({ goal, now, editable, onEdit, compact }) {
 }
 
 // ── Pro editor (modal) ───────────────────────────────────────────────────────
-const dgoField = { boxSizing: "border-box", padding: "7px 9px", borderRadius: 4, border: "1px solid rgba(242,237,228,0.16)", background: "rgba(242,237,228,0.04)", color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, outline: "none", width: "100%" };
+const dgoField = { boxSizing: "border-box", padding: "7px 9px", borderRadius: 4, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, outline: "none", width: "100%" };
 const dgoLabel = { fontFamily: DGO_MONO, fontSize: 7.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DGO_INK50, display: "block", margin: "10px 0 3px" };
 const DGO_METRICS = ["weight", "strength", "endurance", "habit", "custom"];
 
@@ -187,9 +187,9 @@ function DashGoalEditor({ goal, role, onSave, onRemove, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 260 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(420px, 94vw)", maxHeight: "86vh", overflowY: "auto", background: "#14110e", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10, padding: 22, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(420px, 94vw)", maxHeight: "86vh", overflowY: "auto", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
         <div style={{ fontFamily: DGO_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DGO_TEAL }}>{isNew ? "New goal" : "Edit goal"}</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: "6px 0 2px" }}>{isNew ? "Point them somewhere." : form.label || "Goal"}</div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 22, margin: "6px 0 2px" }}>{isNew ? "Point them somewhere." : form.label || "Goal"}</div>
         <span style={dgoLabel}>Goal</span>
         <input value={form.label} onChange={set("label")} placeholder='e.g. "Goal weight" or "Back squat 1RM"' style={dgoField} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 90px", gap: 10 }}>
@@ -210,8 +210,8 @@ function DashGoalEditor({ goal, role, onSave, onRemove, onClose }) {
           The projection fits the last 8 weeks of logged values — update "current" at each check-in and the ETA stays honest. A weight goal also reads their live weigh-ins automatically.
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 16 }}>
-          <button onClick={save} disabled={!form.label.trim() || form.target === ""} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: !form.label.trim() || form.target === "" ? 0.6 : 1 }}>{isNew ? "Set goal" : "Save"}</button>
-          <button onClick={onClose} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 14px", cursor: "pointer" }}>Cancel</button>
+          <button onClick={save} disabled={!form.label.trim() || form.target === ""} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: !form.label.trim() || form.target === "" ? 0.6 : 1 }}>{isNew ? "Set goal" : "Save"}</button>
+          <button onClick={onClose} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "10px 14px", cursor: "pointer" }}>Cancel</button>
           {!isNew && <button onClick={onRemove} style={{ fontFamily: DGO_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DGO_RED, background: "transparent", border: 0, cursor: "pointer", marginLeft: "auto" }}>Remove</button>}
         </div>
       </div>
@@ -275,7 +275,7 @@ function DashGoalsSection({ rec, role }) {
   return (
     <div>
       {visible.map((g, i) => (
-        <div key={g.id || i} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "12px 14px", marginBottom: 10, background: "rgba(242,237,228,0.02)" }}>
+        <div key={g.id || i} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "12px 14px", marginBottom: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" }}>
           <DashGoalCard goal={g} compact editable onEdit={() => setEditing(i)} />
         </div>
       ))}
@@ -288,7 +288,7 @@ function DashGoalsSection({ rec, role }) {
       )}
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
         <button onClick={() => !atCap && setEditing("new")} disabled={atCap}
-          style={{ fontFamily: DGO_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: atCap ? DGO_INK50 : "#06231f", background: atCap ? "transparent" : DGO_TEAL, border: atCap ? "1px solid rgba(242,237,228,0.18)" : 0, borderRadius: 4, padding: "8px 13px", cursor: atCap ? "default" : "pointer" }}>
+          style={{ fontFamily: DGO_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: atCap ? DGO_INK50 : "var(--sh-deep, #06231f)", background: atCap ? "transparent" : DGO_TEAL, border: atCap ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : 0, borderRadius: 4, padding: "8px 13px", cursor: atCap ? "default" : "pointer" }}>
           + Add goal
         </button>
         {atCap && <span style={{ fontFamily: DGO_MONO, fontSize: 8.5, color: DGO_INK50 }}>3 max — one focus per front</span>}
@@ -532,7 +532,7 @@ function ClientGoalsPage() {
     const p = DashSignals.projectGoal(g, new Date());
     const slip = DashSignals.goalSlipDays(g, new Date());
     if (slip != null && slip >= DashSignals.THRESHOLDS.GOAL_SLIP_DAYS && p && p.state !== "achieved") return DGO_AMBER;
-    return dgoStateView(p).c === DGO_INK50 ? "rgba(242,237,228,0.35)" : dgoStateView(p).c;
+    const v = dgoStateView(p); return v.muted ? "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" : v.c;
   };
 
   // Each card below becomes a draggable/resizable DashGrid widget (role=client, tab=goal),
@@ -552,26 +552,26 @@ function ClientGoalsPage() {
           <div style={{ fontSize: 13, color: DGO_INK50, lineHeight: 1.55, maxWidth: 520 }}>
             Goals are set with your coach so the target, the pace, and the plan all agree. Ask in your next session — or message them now.
           </div>
-          <button onClick={() => dashMessageClient("", "client", "Could we set up my goals? I want a target with a date on it.")} style={{ marginTop: 12, fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer" }}>Message your coach</button>
+          <button onClick={() => dashMessageClient("", "client", "Could we set up my goals? I want a target with a date on it.")} style={{ marginTop: 12, fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer" }}>Message your coach</button>
         </div>
       ) }];
 
   const widgets = goalWidgets.concat([
     { key: "projection", title: "How the projection works", size: "half", render: () => (
-      <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "18px 20px" }}>
+      <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "18px 20px" }}>
         <div className="dash-eyebrow">How the projection works</div>
-        <div style={{ fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.6, marginTop: 9 }}>
+        <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.6, marginTop: 9 }}>
           Each date is your pace over the last 8 weeks of entries, run forward from your latest one — not a promise, a trajectory.
           It firms up with every weigh-in and check-in, and your coaches see the same number. If a projection slips week-over-week, they get nudged before it becomes a month.
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 13, flexWrap: "wrap" }}>
-          <button onClick={() => setLogOpen(true)} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Log weigh-in</button>
-          <a href={dashShellHref("ClientProgress.html")} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 16px", textDecoration: "none" }}>Weekly check-in →</a>
+          <button onClick={() => setLogOpen(true)} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Log weigh-in</button>
+          <a href={dashShellHref("ClientProgress.html")} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "10px 16px", textDecoration: "none" }}>Weekly check-in →</a>
         </div>
       </div>
     ) },
     { key: "share", title: "Share with your coaches", size: "half", render: () => (
-      <div className="dash-plate" style={{ "--dac": share ? DGO_TEAL : "rgba(242,237,228,0.35)", padding: "16px 18px" }}>
+      <div className="dash-plate" style={{ "--dac": share ? DGO_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "16px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 500 }}>Share with your coaches</div>
@@ -580,8 +580,8 @@ function ClientGoalsPage() {
             </div>
           </div>
           <button onClick={toggleShare} role="switch" aria-checked={share} aria-label="Share goals with coaches"
-            style={{ flexShrink: 0, width: 46, height: 26, borderRadius: 999, border: 0, cursor: "pointer", padding: 3, background: share ? DGO_TEAL : "rgba(242,237,228,0.18)", display: "flex", justifyContent: share ? "flex-end" : "flex-start", alignItems: "center" }}>
-            <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#14110e", display: "block" }} />
+            style={{ flexShrink: 0, width: 46, height: 26, borderRadius: 999, border: 0, cursor: "pointer", padding: 3, background: share ? DGO_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)", display: "flex", justifyContent: share ? "flex-end" : "flex-start", alignItems: "center" }}>
+            <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--sh-ground2, #14110e)", display: "block" }} />
           </button>
         </div>
       </div>
@@ -590,9 +590,9 @@ function ClientGoalsPage() {
     // and DashGrid's boot effect resolved its layout from the FIRST render — so an
     // omitted entry got no portal host and this card never mounted for anyone.
     { key: "why", title: "Your why", size: "half", empty: !why, render: () => (
-      <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "16px 18px" }}>
+      <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "16px 18px" }}>
         <div className="dash-eyebrow">Your why</div>
-        <div style={{ fontSize: 12.5, fontStyle: "italic", color: "rgba(242,237,228,0.75)", lineHeight: 1.6, marginTop: 8 }}>“{why}”</div>
+        <div style={{ fontSize: 12.5, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.6, marginTop: 8 }}>“{why}”</div>
       </div>
     ) },
   ]).filter(Boolean);
@@ -612,7 +612,7 @@ function ClientGoalsPage() {
 
       {logOpen && <DgoWeighInModal unit={unit} onLog={logWeighIn} onClose={() => setLogOpen(false)} />}
       {toast && (
-        <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "#14110e", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "10px 18px", color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13 }}>{toast}</div>
+        <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 8, padding: "10px 18px", color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13 }}>{toast}</div>
       )}
     </React.Fragment>
   );
@@ -624,9 +624,9 @@ function DgoWeighInModal({ unit, onLog, onClose }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 260 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(340px, 92vw)", background: "#14110e", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10, padding: 22, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(340px, 92vw)", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
         <div style={{ fontFamily: DGO_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DGO_TEAL }}>Log weigh-in</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, margin: "6px 0 12px" }}>This morning's number.</div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 22, margin: "6px 0 12px" }}>This morning's number.</div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input autoFocus type="number" step="0.1" value={val} onChange={(e) => setVal(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && ok) onLog(Number(val), unit); }}
@@ -635,8 +635,8 @@ function DgoWeighInModal({ unit, onLog, onClose }) {
         </div>
         <div style={{ fontSize: 11, color: DGO_INK50, marginTop: 9 }}>One a day — today's replaces today's. Each one sharpens the projection.</div>
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          <button onClick={() => ok && onLog(Number(val), unit)} disabled={!ok} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: ok ? 1 : 0.6 }}>Log it</button>
-          <button onClick={onClose} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 14px", cursor: "pointer" }}>Cancel</button>
+          <button onClick={() => ok && onLog(Number(val), unit)} disabled={!ok} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DGO_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: ok ? 1 : 0.6 }}>Log it</button>
+          <button onClick={onClose} style={{ fontFamily: DGO_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "10px 14px", cursor: "pointer" }}>Cancel</button>
         </div>
       </div>
     </div>

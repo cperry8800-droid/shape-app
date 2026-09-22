@@ -480,6 +480,11 @@ function DashTodayCard({ live }) {
 
 // ── The page ────────────────────────────────────────────────────────────────
 function ClientDashboardPage() {
+  // The paper switch follows the account on every shell page. dashData.jsx loads
+  // AFTER this file on every dashboard page and not at all on the print page, so
+  // the read is a constant for the life of the page — never a hook called
+  // conditionally between renders.
+  if (typeof useDashPaper === "function") useDashPaper();
   const { today: dash, clients, client: extras, source } = useDashboard("client");
   const live = !!dash;
   const plan = extras && extras.plan;

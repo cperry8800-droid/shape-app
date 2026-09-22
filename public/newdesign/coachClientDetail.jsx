@@ -10,8 +10,8 @@ function CKStat({ label, value, small, sub, color }) {
   return (
     <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 12, padding: "14px 16px", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" }}>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color, textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, letterSpacing: "-0.01em", marginTop: 6 }}>{value}{small ? <span style={{ fontSize: 15, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>{small}</span> : null}</div>
-      {sub ? <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{sub}</div> : null}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, letterSpacing: "-0.01em", marginTop: 6 }}>{value}{small ? <span style={{ fontSize: 15, color: "var(--sh-ink2, #a09b94)" }}>{small}</span> : null}</div>
+      {sub ? <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{sub}</div> : null}
     </div>
   );
 }
@@ -34,7 +34,7 @@ function CKTrend({ vals, color, h }) {
 }
 
 function CKSecHead({ children }) {
-  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 14 }}>{children}</div>;
+  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", marginBottom: 14 }}>{children}</div>;
 }
 
 // THE CYCLE — coach station (spec 2026-07-19, web parity of the mobile Case File
@@ -88,7 +88,7 @@ function CKCycleStation({ cycle, accent }) {
       <CKSecHead>CYCLE · SHARED BY THE MEMBER</CKSecHead>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 6 }}>{timing}</div>
       {c.predictedStart && (
-        <div style={{ marginTop: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
+        <div style={{ marginTop: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)" }}>
           Next period window · {ckCycleShortDate(c.predictedStart.from)} – {ckCycleShortDate(c.predictedStart.to)}
         </div>
       )}
@@ -108,7 +108,7 @@ function CKLiveStation(props) { return <CoachLiveWorkoutPanel {...props} />; }
 // An honest empty for a station whose source is absent — the redaction the
 // roster drawer and the mobile Case File already use. Never a demo number.
 function CKEmpty({ children }) {
-  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.04em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", fontStyle: "italic", lineHeight: 1.6, padding: "6px 0" }}>{children}</div>;
+  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.04em", color: "var(--sh-ink2, #a09b94)", fontStyle: "italic", lineHeight: 1.6, padding: "6px 0" }}>{children}</div>;
 }
 
 // The coach's private note on a client — one whole-doc store per coach
@@ -266,7 +266,7 @@ function CKCoachNote({ clientId, accent }) {
       window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId } }));
     });
   };
-  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)" };
+  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", color: "var(--sh-ink2, #a09b94)" };
   const secondaryButton = { ...mono, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: "var(--sh-ink, #f2ede4)", borderRadius: 5, padding: "10px 14px", minHeight: 44, cursor: "pointer" };
   const status = state.kind === "saving" ? "Saving to your account…"
     : state.message ? state.message
@@ -283,7 +283,7 @@ function CKCoachNote({ clientId, accent }) {
         : <React.Fragment>
             <textarea aria-label="Private coach note" value={draft} disabled={state.kind === "saving"} onChange={(e) => changeDraft(e.target.value)} rows={4}
               placeholder="What you're watching, what you told them, what to check next week."
-              style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 8, padding: 12, color: "var(--sh-ink, #f2ede4)", fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, lineHeight: 1.5 }} />
+              style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 8, padding: 12, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 14, lineHeight: 1.5 }} />
             {state.kind === "conflict" && <div style={{ marginTop: 12 }}><CKEmpty>Saved version: {state.latestText || "Empty note"}</CKEmpty><button style={secondaryButton} onClick={() => save(true)}>Replace saved note with my draft</button></div>}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
               <button onClick={() => save()} disabled={!dirty || state.kind === "saving" || state.kind === "conflict"} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: accent, border: 0, borderRadius: 4, padding: "12px 16px", minHeight: 44, cursor: dirty ? "pointer" : "default", opacity: dirty && state.kind !== "saving" ? 1 : 0.5 }}>{state.kind === "saving" ? "Saving…" : "Save note"}</button>
@@ -403,14 +403,14 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   if (err) {
     return (
       <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Couldn't load" subtitle={err}>
-        <Card><div style={{ padding: 24, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)", display: "flex", gap: 18, alignItems: "baseline", flexWrap: "wrap" }}><span>Try refreshing or go back to the clients list.</span>{backLink(roleProp)}</div></Card>
+        <Card><div style={{ padding: 24, color: "var(--sh-ink2, #a09b94)", display: "flex", gap: 18, alignItems: "baseline", flexWrap: "wrap" }}><span>Try refreshing or go back to the clients list.</span>{backLink(roleProp)}</div></Card>
       </DashPage>
     );
   }
   if (!data) {
     return (
       <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Loading…" subtitle="">
-        <Card><div style={{ padding: 24, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>Loading client overview…</div></Card>
+        <Card><div style={{ padding: 24, color: "var(--sh-ink2, #a09b94)" }}>Loading client overview…</div></Card>
       </DashPage>
     );
   }
@@ -439,7 +439,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
     const b = document.getElementById("shape-global-chat-button");
     if (b) { window.__openChatRequest = opts; b.click(); }
   };
-  const actGhost = { background: "transparent", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 18px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: "pointer", whiteSpace: "nowrap" };
+  const actGhost = { background: "transparent", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 18px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: "pointer", whiteSpace: "nowrap" };
   const actPrimary = { ...actGhost, background: "var(--sh-ink, #f2ede4)", color: "var(--sh-ground, #1a1612)", border: 0, fontWeight: 500 };
   const actions = (
     <React.Fragment>
@@ -608,11 +608,11 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", textTransform: "uppercase" }}>{c.role}</div>
+                      <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{c.role}</div>
                     </div>
                     {c.userId ? (
                       <button onClick={() => openMessage(c)} disabled={busy}
-                        style={{ background: "var(--sh-accent2, #0ac5a8)", color: "var(--sh-ground, #1a1612)", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 500, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+                        style={{ background: "var(--sh-accent2, #0ac5a8)", color: "var(--sh-ground, #1a1612)", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12, fontWeight: 500, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap" }}>
                         {busy ? "Opening…" : `Message ${c.name.split(/\s+/)[0]}`}
                       </button>
                     ) : <span />}
@@ -633,14 +633,14 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                     <div key={p.assignmentId} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 16 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                         <span style={{ width: 6, height: 18, borderRadius: 3, background: tone }} />
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", textTransform: "uppercase" }}>{p.providerRole} · {p.coachName}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{p.providerRole} · {p.coachName}</span>
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: tone, marginLeft: "auto", textTransform: "uppercase" }}>{p.status}</span>
                       </div>
                       <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>{tpl ? tpl.title : "Custom plan"}</div>
-                      <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)", lineHeight: 1.6 }}>
+                      <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6 }}>
                         {tpl ? [tpl.goal, tpl.level, tpl.durationWeeks ? `${tpl.durationWeeks} wks` : null, tpl.daysPerWeek ? `${tpl.daysPerWeek}×/wk` : null].filter(Boolean).join(" · ") : "Details visible to the assigning coach."}
                       </div>
-                      {p.notes && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontStyle: "italic" }}>"{p.notes}"</div>}
+                      {p.notes && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", fontSize: 12, color: "var(--sh-ink2, #a09b94)", fontStyle: "italic" }}>"{p.notes}"</div>}
                     </div>
                   );
                 })}
@@ -663,7 +663,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
                   {items.map(([k, l]) => (
                     <div key={k} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{l}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{l}</div>
                       <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{R[k] != null ? `${R[k]}/10` : "—"}</div>
                     </div>
                   ))}
@@ -789,16 +789,16 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 </div>
                 {s && s.readiness != null && (
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>READINESS</span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>READINESS</span>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 30, color: rc, lineHeight: 1 }}>{s.readiness}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>/100</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>/100</span>
                     {s.readinessLabel && <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: rc }}>{s.readinessLabel}</span>}
                   </div>
                 )}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
                   {cells.map(([l, v]) => (
                     <div key={l} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{l}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{l}</div>
                       <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{v}</div>
                     </div>
                   ))}
@@ -810,7 +810,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 )}
                 {s && Array.isArray(s.series7) && s.series7.filter((p) => p && p.value != null).length >= 2 && (
                   <div style={{ marginTop: 14 }}>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 6 }}>7-DAY TREND</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", marginBottom: 6 }}>7-DAY TREND</div>
                     <CKTrend vals={s.series7.map((p) => p.value)} color={accent} h={56} />
                   </div>
                 )}
@@ -844,12 +844,12 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                   {rows.map(([l, v]) => (
                     <div key={l}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>{l}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)" }}>{l}</div>
                       <div style={{ marginTop: 4, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.55 }}>{v || "— none noted"}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", textTransform: "uppercase" }}>Shared with linked coaches for safety & liability{h.consentAt ? ` · completed ${new Date(h.consentAt).toLocaleDateString()}` : ""}</div>
+                <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink3, #75706a)", textTransform: "uppercase" }}>Shared with linked coaches for safety & liability{h.consentAt ? ` · completed ${new Date(h.consentAt).toLocaleDateString()}` : ""}</div>
               </Card>
             );
           })()}
@@ -861,9 +861,9 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: data.progressPhotos.length ? 14 : 0 }}>
                   {data.measurements.map((m) => (
                     <div key={m.site} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{m.site}</div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{Number(m.value)} <span style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>{m.unit}</span></div>
-                      <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>{String(m.measured_on)}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{m.site}</div>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{Number(m.value)} <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{m.unit}</span></div>
+                      <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: "var(--sh-ink3, #75706a)" }}>{String(m.measured_on)}</div>
                     </div>
                   ))}
                 </div>
@@ -873,7 +873,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   {data.progressPhotos.slice(0, 6).map((p) => (
                     <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
                       <div style={{ height: 110, borderRadius: 8, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${p.url}) center/cover` }} />
-                      <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.06em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
+                      <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
                     </a>
                   ))}
                 </div>
@@ -885,13 +885,13 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             <Card>
               <CKSecHead>UPCOMING</CKSecHead>
               {upcoming.length === 0 ? (
-                <div style={{ padding: "18px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontSize: 13 }}>Nothing on the books.</div>
+                <div style={{ padding: "18px 0", color: "var(--sh-ink2, #a09b94)", fontSize: 13 }}>Nothing on the books.</div>
               ) : upcoming.slice(0, 12).map((s, i) => <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />)}
             </Card>
             <Card>
               <CKSecHead>RECENT</CKSecHead>
               {past.length === 0 ? (
-                <div style={{ padding: "18px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontSize: 13 }}>No history yet.</div>
+                <div style={{ padding: "18px 0", color: "var(--sh-ink2, #a09b94)", fontSize: 13 }}>No history yet.</div>
               ) : past.map((s, i) => <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />)}
             </Card>
           </div>
@@ -904,13 +904,13 @@ function GoalsCard({ data, teal, rust, gold }) {
   const G = data.goals;
   // Work-domain headline (spec 2026-07-13) — shared goals include THE WORK station.
   const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta, wkM = G.workMeta;
-  const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 16 }}>{txt}</div>;
+  const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", marginTop: 16 }}>{txt}</div>;
   const metaRow = (title, subtitle, c) => (
     <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
       <span style={{ width: 5, height: 18, borderRadius: 3, background: c, flexShrink: 0 }} />
       <div>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, letterSpacing: "-0.01em" }}>{title}</div>
-        {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", lineHeight: 1.4 }}>{subtitle}</div>}
+        {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "var(--sh-ink2, #a09b94)", lineHeight: 1.4 }}>{subtitle}</div>}
       </div>
     </div>
   );
@@ -919,9 +919,9 @@ function GoalsCard({ data, teal, rust, gold }) {
     <Card style={{ marginBottom: 16 }}>
       <CKSecHead>GOALS</CKSecHead>
       {G.share === false ? (
-        <div style={{ padding: "12px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontSize: 13 }}>{data.client.name.split(/\s+/)[0]} keeps their goals private.</div>
+        <div style={{ padding: "12px 0", color: "var(--sh-ink2, #a09b94)", fontSize: 13 }}>{data.client.name.split(/\s+/)[0]} keeps their goals private.</div>
       ) : !hasAny ? (
-        <div style={{ padding: "12px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontSize: 13 }}>No goals shared yet.</div>
+        <div style={{ padding: "12px 0", color: "var(--sh-ink2, #a09b94)", fontSize: 13 }}>No goals shared yet.</div>
       ) : (
         <div>
           {ov && (() => {
@@ -935,11 +935,11 @@ function GoalsCard({ data, teal, rust, gold }) {
               <div style={{ border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", borderRadius: 10, padding: 14, marginTop: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-accent, #2ee0c4)" }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ""}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{Math.round(pct * 100)}% there</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)" }}>{Math.round(pct * 100)}% there</span>
                 </div>
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
                 <div style={{ height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "var(--sh-accent2, #0ac5a8)" }} /></div>
-                <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+                <div style={{ marginTop: 7, fontSize: 11.5, color: "var(--sh-ink2, #a09b94)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
               </div>
             );
           })()}
@@ -968,11 +968,11 @@ function SessionRow({ s, first, mine }) {
       <div style={{ width: 6, height: 36, borderRadius: 3, background: tone, opacity: mine ? 1 : 0.45 }} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500 }}>{dateLabel} · {timeLabel}</div>
-        <div style={{ fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", marginTop: 2 }}>
+        <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>
           {s.coachName} · {s.providerRole} · {s.durationMin}min · {s.type}{s.topic ? ` · ${s.topic}` : ""}
         </div>
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", textTransform: "uppercase" }}>{s.status}</div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{s.status}</div>
     </div>
   );
 }

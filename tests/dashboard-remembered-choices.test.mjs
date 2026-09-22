@@ -592,10 +592,17 @@ test('every host page loads dashData.jsx before any module that reads it', () =>
   assert.ok(exported.length >= 10, 'the dashData export list looks truncated: ' + exported.length);
 
   // Which sibling modules actually reference one of those names.
+  // ⚠ A call guarded by `typeof NAME === "function"` ON THE SAME LINE is a render-time
+  // read, not a load-time one: the paper hook (`useDashPaper`) is called that way from the
+  // shell modules, which by design load BEFORE dashData.jsx (and the print page never
+  // loads it at all) — the guard is what makes that order safe, so it is not a reader.
   const readers = files.filter((f) => /\.jsx$/.test(f) && f !== 'dashData.jsx')
     .filter((f) => {
       const src = stripComments(read(f));
-      return exported.some((n) => new RegExp('(^|[^\\w.$])' + n + '\\s*\\(').test(src));
+      return exported.some((n) => {
+        const bare = src.split('\n').filter((l) => !l.includes('typeof ' + n + ' ===')).join('\n');
+        return new RegExp('(^|[^\\w.$])' + n + '\\s*\\(').test(bare);
+      });
     });
   assert.ok(readers.length >= 3, 'no module reads dashData — the derivation broke: ' + readers.length);
 

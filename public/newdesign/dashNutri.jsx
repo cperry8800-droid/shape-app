@@ -13,12 +13,12 @@
 // Load order: pageShell → trainerDashboard → clientNav → dashSignals →
 // dashToday (DashDemoBand) → dashClient (DashMealLedgerCard) → this.
 
-const DNU_INK50 = "rgba(242,237,228,0.55)";
+const DNU_INK50 = "var(--sh-ink2, #a09b94)";
 const DNU_MONO = "'JetBrains Mono', monospace";
-const DNU_TEAL = "#2ee0c4";
-const DNU_GREEN = "#7bbf5a";
-const DNU_GOLD = "#d8a23a";
-const DNU_RED = "#e0644b";
+const DNU_TEAL = "var(--sh-accent, #2ee0c4)";
+const DNU_GREEN = "var(--sh-green, #7bbf5a)";
+const DNU_GOLD = "var(--sh-gold, #d8a23a)";
+const DNU_RED = "var(--sh-rust, #e0644b)";
 const DNU_DAY = 86400000;
 
 const DNU_DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -134,14 +134,14 @@ function DnuWeekStrip({ days, week, todayDow, onPick, picked }) {
         const tgt = day && day.targets ? day.targets.cal : null;
         return (
           <button key={dow} onClick={() => onPick(dow)} style={{
-            background: on ? "rgba(46,224,196,0.12)" : "transparent",
-            border: "1px solid " + (on ? DNU_TEAL : isToday ? "rgba(46,224,196,0.4)" : "rgba(242,237,228,0.12)"),
-            borderRadius: 6, padding: "8px 4px", cursor: "pointer", textAlign: "center", color: "#f2ede4",
+            background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent",
+            border: "1px solid " + (on ? DNU_TEAL : isToday ? "rgba(var(--sh-accent-rgb, 46,224,196),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)"),
+            borderRadius: 6, padding: "8px 4px", cursor: "pointer", textAlign: "center", color: "var(--sh-ink, #f2ede4)",
           }}>
             <div style={{ fontFamily: DNU_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: isToday ? DNU_TEAL : DNU_INK50 }}>{lbl}</div>
             <div style={{ fontFamily: serif, fontSize: 15, margin: "4px 0 3px" }}>{tgt ? Math.round(tgt / 100) / 10 + "k" : "—"}</div>
             <div style={{ display: "flex", justifyContent: "center" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: logged ? DNU_GREEN : "transparent", border: "1px solid " + (logged ? DNU_GREEN : "rgba(242,237,228,0.25)") }} />
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: logged ? DNU_GREEN : "transparent", border: "1px solid " + (logged ? DNU_GREEN : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)") }} />
             </div>
           </button>
         );
@@ -161,7 +161,7 @@ function DnuLogHistory({ week, currentStreak, longestStreak, loggedDays7 }) {
           [loggedDays7 != null ? loggedDays7 + "/7" : "—", "Days this week", "logged"],
           [(week || []).filter((d) => d.logged).length, "Recent wins", "days tracked"]].map(([k, l, s], i) => (
           <div key={i}>
-            <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1, color: i === 0 ? DNU_GREEN : "#f2ede4" }}>{k}</div>
+            <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1, color: i === 0 ? DNU_GREEN : "var(--sh-ink, #f2ede4)" }}>{k}</div>
             <div style={{ fontFamily: DNU_MONO, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: DNU_INK50, marginTop: 5 }}>{l}</div>
             {s && <div style={{ fontSize: 10, color: DNU_INK50, marginTop: 2 }}>{s}</div>}
           </div>
@@ -170,7 +170,7 @@ function DnuLogHistory({ week, currentStreak, longestStreak, loggedDays7 }) {
       <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 50 }}>
         {(week || []).map((d, i) => (
           <div key={i} title={d.logged ? d.calories + " kcal" : "not logged"} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%", justifyContent: "flex-end" }}>
-            <div style={{ width: "100%", height: d.logged ? Math.max(8, Math.round((d.calories / max) * 100)) + "%" : "4px", background: d.logged ? DNU_GREEN : "rgba(242,237,228,0.12)", borderRadius: 2, opacity: d.logged ? 0.85 : 1 }} />
+            <div style={{ width: "100%", height: d.logged ? Math.max(8, Math.round((d.calories / max) * 100)) + "%" : "4px", background: d.logged ? DNU_GREEN : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 2, opacity: d.logged ? 0.85 : 1 }} />
             <span style={{ fontFamily: DNU_MONO, fontSize: 7, color: DNU_INK50 }}>{(new Date(d.date + "T00:00:00").toLocaleDateString([], { weekday: "short" }) || "").slice(0, 1)}</span>
           </div>
         ))}
@@ -317,7 +317,7 @@ function ClientNutritionPage() {
             </div>
             <div className="dash-ledger" style={{ "--dac": "#8a5cf6", marginTop: 9 }} />
             {grocery.length ? grocery.slice(0, 10).map((g, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</div>
                   <div style={{ fontFamily: DNU_MONO, fontSize: 8, color: DNU_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.meals.join(" · ")}</div>
@@ -353,7 +353,7 @@ function ClientNutritionPage() {
             </div>
             <div className="dash-ledger" style={{ "--dac": DNU_GOLD, marginTop: 9 }} />
             {favorites.length ? favorites.map((r, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{r.name}</div>
                   <div style={{ fontFamily: DNU_MONO, fontSize: 8, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, marginTop: 2 }}>{r.tag} · {r.kcal} kcal · {r.p}P</div>

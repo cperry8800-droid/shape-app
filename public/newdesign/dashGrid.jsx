@@ -4,7 +4,7 @@
 // GridStack-managed item node so live data keeps rendering. Layout persists per
 // role + tab to user_goals('dashboard_layout'). Pure helpers are inlined here as a
 // mirror of public/newdesign/dashboardLayout.mjs — keep identical. Website only.
-const DG_MUTE = "rgba(var(--sh-ink-rgb, 242,237,228),0.5)";
+const DG_MUTE = "var(--sh-ink2, #a09b94)";
 
 function dgWidgetW(size) { return size === "full" ? 12 : 6; }
 
@@ -366,8 +366,8 @@ function useDgPanel(open, setOpen, boxRef, panelRef, width) {
 // it scrolls rather than running off the bottom of the screen.
 function dgPanelStyle(box) {
   return Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
-    maxHeight: box.maxHeight, overflowY: "auto", background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)",
-    border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" },
+    maxHeight: box.maxHeight, overflowY: "auto", background: "var(--sh-card, #25211d)",
+    border: "1px solid var(--sh-line2, #413d38)", borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.18)", padding: "8px 6px", textAlign: "left" },
     box.up ? { bottom: box.offset } : { top: box.offset });
 }
 
@@ -407,7 +407,7 @@ function DgCardSettings({ groups }) {
         <div ref={panelRef} onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
           {groups.map((g) => (
             <div key={g.key} style={{ padding: "2px 6px 6px" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)", padding: "2px 4px 6px" }}>{g.label}</div>
               {/* ⚠ CHIPS UNTIL THE LIST IS LONG, THEN A SELECT — and the threshold is the
                   panel, not a preference. This popover is 176–240px wide, so a group of
                   eleven options wraps to five rows of chips and four such groups fill the
@@ -556,12 +556,12 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
   const pill = (teal) => ({ ...mono, fontSize: 9.5, padding: "5px 9px", borderRadius: 999, cursor: "pointer", flexShrink: 0,
     border: "1px solid " + (teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
     background: teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: teal ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" });
-  const head = (text) => <div style={{ ...mono, fontSize: 9, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)", padding: "10px 6px 2px" }}>{text}</div>;
+  const head = (text) => <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "10px 6px 2px" }}>{text}</div>;
   const item = (r, control) => (
     <div key={r.key} data-dg-row={r.key} style={rowStyle}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 13, color: r.empty ? "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" : "var(--sh-ink, #f2ede4)" }}>{r.title}</div>
-        {(r.blurb || r.why) && <div style={{ fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 2, lineHeight: 1.4 }}>{r.empty ? r.why : r.blurb}</div>}
+        {(r.blurb || r.why) && <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 2, lineHeight: 1.4 }}>{r.empty ? r.why : r.blurb}</div>}
       </div>
       {control}
     </div>
@@ -578,14 +578,14 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
       </button>
       {open && box && ReactDOM.createPortal(
         <div ref={panelRef} role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
-          <div style={{ ...mono, fontSize: 9, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
+          <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
           {onBoard.map((r) => item(r, <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
           {addable.length > 0 && head("Available")}
           {addable.map((r) => item(r, <button type="button" onClick={() => act(onAdd, r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>))}
           {waiting.length > 0 && head("Nothing to show yet")}
           {waiting.map((r) => item(r, null))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", marginTop: 4 }}>
-            <span style={{ fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>Drag ⠿ to move · corner to resize</span>
+            <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Drag ⠿ to move · corner to resize</span>
             <a href="#" onClick={(e) => { e.preventDefault(); setOpen(false); onReset(); }} style={{ ...mono, fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</a>
           </div>
         </div>,
@@ -1051,7 +1051,7 @@ function DashGrid({ role, tab = "today", widgets }) {
         {/* Every control in this cluster is a 24px box (the repo's documented floor, WCAG
             2.5.8 AA) with the glyph unchanged inside it — the cluster is the drag handle,
             so ⠿ is an affordance rather than a control, but it is sized like one. */}
-        <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", minHeight: 24, background: "rgba(11,14,12,0.72)", borderRadius: 7, padding: "0 2px" }}>
+        <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", minHeight: 24, background: "rgba(var(--sh-card-rgb, 37,33,29),0.92)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 7, padding: "0 2px" }}>
           <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, minWidth: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>⠿</span>
           {dgSettingGroups(w).length > 0 && <DgCardSettings groups={dgSettingGroups(w)} />}
           <button type="button" title="Hide" aria-label="Hide card" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 24, height: 24, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>

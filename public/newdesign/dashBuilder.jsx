@@ -18,20 +18,18 @@
 // lifted from the approved artboards (`.ab2` in the G · Grid ⇄ Sheet board) rather than
 // re-invented: 14px body text where this file used 8.5px mono, 40px controls, 9–10px radii,
 // white cards on #f4f6f5.
-// ⚠ SCOPED TO THE BUILDER, because the global paper switch is PR 5 and PRs 3–4 have not yet
-// swept Business · Goals · Progress · Train · Nutri · Settings · Playlists. Flipping
-// `dash.css`'s tokens now would make the swept surfaces light and the unswept ones dark. The
-// surrounding shell turns light with PR 5; this is the surface the redesign is about.
-const DBU_PG = "#f4f6f5", DBU_WH = "#ffffff";
-const DBU_INK = "#15211e", DBU_INK2 = "#5a6763", DBU_INK3 = "#8a9490";
-const DBU_LINE = "#e1e6e3", DBU_LINE2 = "#c9d2ce";
-const DBU_TEAL = "#0a8f87", DBU_TEALBG = "#e2f2f0";
-// The dialog is dark paper, where the builder's ink-on-cream teal reads at 2.4:1.
-// This is the dashboard's own accent, the one every dark plate already uses.
-const DBU_ACCENT = "#2ee0c4";
-const DBU_RUST = "#c0533b", DBU_RUSTBG = "#fbeae5";
-const DBU_GOLD = "#a07a2e", DBU_GOLDBG = "#f7eed8";
-const DBU_REST = "#edf0ee";
+// ⚠ THESE READ THE PAPER TOKENS NOW. The palette that was scoped to the builder became
+// `dash.css`'s :root (light, the default) with the previous dark values one switch away
+// (`html[data-paper="dark"]`), so the whole dashboard shares this vocabulary and the builder
+// follows the switch like every other page. Each fallback is the DARK value, per the rule
+// in dash.css — a page that never loads the stylesheet is a marketing page on dark paper.
+const DBU_PG = "var(--sh-ground, #1a1612)", DBU_WH = "var(--sh-card, #25211d)";
+const DBU_INK = "var(--sh-ink, #f2ede4)", DBU_INK2 = "var(--sh-ink2, #a09b94)", DBU_INK3 = "var(--sh-ink3, #75706a)";
+const DBU_LINE = "var(--sh-line, #302c27)", DBU_LINE2 = "var(--sh-line2, #413d38)";
+const DBU_TEAL = "var(--sh-accent, #2ee0c4)", DBU_TEALBG = "var(--sh-accent-tint, #182d26)";
+const DBU_RUST = "var(--sh-rust2, #c0533b)", DBU_RUSTBG = "var(--sh-rust-tint, #321f19)";
+const DBU_GOLD = "var(--sh-gold, #d8a23a)", DBU_GOLDBG = "var(--sh-gold-tint, #312717)";
+const DBU_REST = "var(--sh-rest, #221e19)";
 const DBU_INK50 = DBU_INK2;
 const DBU_MONO = "'JetBrains Mono', monospace";
 const DBU_DISPLAY = "'Anybody', system-ui, sans-serif";
@@ -42,7 +40,7 @@ function dbuBtn(primary, c) {
   const col = c || DBU_TEAL;
   const base = { display: "inline-flex", alignItems: "center", gap: 7, height: 40, padding: "0 16px", borderRadius: 9, fontFamily: DBU_BODY, fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
   return primary
-    ? { ...base, background: col, border: "1px solid " + col, color: "#fff" }
+    ? { ...base, background: col, border: "1px solid " + col, color: "var(--sh-deep, #06231f)" }
     : { ...base, background: DBU_WH, border: "1px solid " + DBU_LINE2, color: DBU_INK };
 }
 // `.fld` and `.lbl`.
@@ -52,38 +50,20 @@ const dbuRowBtn = { display: "inline-flex", alignItems: "center", justifyContent
 const dbuLabel = { fontFamily: DBU_BODY, fontSize: 12.5, color: DBU_INK2, fontWeight: 600, marginBottom: 5, display: "block" };
 
 // ── The library page's controls ─────────────────────────────────────────────
-// ⚠ THE LIBRARY LIST IS THE DARK DASHBOARD; ONLY THE BUILDER IS LIGHT PAPER. The
-// builder redesign scoped its cream tokens to `.dbu2` — correctly, since the
-// global paper switch is a later PR — and then the library page went on drawing
-// its cards with those same light-paper values. Measured on the shipped page at
-// 1440: the card's kind line and its "N weeks · N days" meta compute to
-// rgb(90,103,99) on an rgb(26,22,18) ground = **3.05:1**, under AA for 13px text,
-// and every secondary action was a WHITE pill on a dark plate. That is what the
-// owner is looking at when they say these boxes are not clean or organised.
-//
-// So the library page reads the dashboard's own ink instead: ink at an alpha, the
-// house accent for the primary, and the near-black this stylesheet already uses
-// for text ON an accent fill. Every value carries its own var() fallback, which is
-// the rule dash.css states in as many words — this page is one of the 34 that load
-// the tokens, but the fallback is what makes the component portable.
-const DBU_D_INK = "rgba(var(--sh-ink-rgb, 242,237,228),0.92)";
-const DBU_D_INK2 = "rgba(var(--sh-ink-rgb, 242,237,228),0.62)";
-// ⚠ 0.55 IS MEASURED AGAINST THE PLATE'S LIGHTEST STOP, NOT ITS BASE FILL.
-// `.dash-plate` paints an ink gradient (.05 → .02) over an ink .02 fill, so the
-// top of a card is lighter than `getComputedStyle().backgroundColor` reports and
-// cream-on-it has LESS contrast there, not more. Composited against that lightest
-// point this alpha reads 4.99:1; 0.50 reads 4.38 and fails AA for 9.5px text.
-const DBU_D_INK3 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
-const DBU_D_LINE = "rgba(var(--sh-ink-rgb, 242,237,228),0.16)";
-const DBU_D_FILL = "rgba(var(--sh-ink-rgb, 242,237,228),0.06)";
-const DBU_D_ACCENT = "var(--sh-accent, #2ee0c4)";
+// ⚠ THE LIBRARY LIST SITS ON THE PAGE GROUND, NOT ON THE BUILDER'S CARD. Before the paper
+// switch it drew the builder's cream tokens on the DARK dashboard ground — measured at 1440,
+// the card's kind line computed to 3.05:1 and every secondary action was a WHITE pill on a
+// dark plate. Both grounds read the same tokens now (`dash.css`'s :root is the light paper,
+// `html[data-paper="dark"]` brings the old values back), so the library takes the builder's
+// own ink, line and rest and follows the switch with it: ink2 reads 5.44:1 on the light
+// paper and 6.5:1 on the dark one, where a 0.55 ink alpha reads 3.9:1 on white. What
+// survives from the dark-ground fix is the SIZE — a compact 36px control, a step quieter
+// than the builder's 40px, still past the 24px WCAG 2.5.8 floor.
 // Named once: the eyebrow/figure voice the whole dashboard already speaks.
-const dbuDarkMeta = { fontFamily: DBU_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" };
-function dbuDarkBtn(primary) {
-  const base = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, height: 36, padding: "0 13px", borderRadius: 8, fontFamily: DBU_BODY, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
-  return primary
-    ? { ...base, background: DBU_D_ACCENT, border: "1px solid " + DBU_D_ACCENT, color: "#04110f" }
-    : { ...base, background: DBU_D_FILL, border: "1px solid " + DBU_D_LINE, color: DBU_D_INK };
+const dbuLibMeta = { fontFamily: DBU_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" };
+// The builder's own button, compact. The colours come from dbuBtn so the two cannot drift.
+function dbuLibBtn(primary) {
+  return { ...dbuBtn(primary), gap: 6, height: 36, padding: "0 13px", borderRadius: 8, fontSize: 13 };
 }
 
 function dbuGoalTag(key) {
@@ -474,7 +454,7 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
   const upload=async(file)=>{if(!file)return; setUploading(true);setError('');onUploading(1);try {const url=await dbuUploadVideo(file);if(mounted.current)latest.current.onChange({...latest.current.row,video:url});}catch(e){if(mounted.current)setError(e.message || 'Upload failed. Choose the file to retry.');}finally{if(mounted.current)setUploading(false);onUploading(-1);}};
   const video=ShapeWorkoutDocument.videoUrl(row.video);
   const field=(key,label,type='text')=><label style={{display:'block',minWidth:0}}><span style={dbuLabel}>{label}</span><input aria-label={row.name+' '+label} type={type} min={type==='number'?1:undefined} value={row[key] ?? ''} onChange={e=>set(key,type==='number'?e.target.value:e.target.value)} style={{...dbuField,width:'100%'}}/></label>;
-  return <div style={{border:'1px solid rgba(242,237,228,0.12)',borderLeft:'3px solid '+(row.group?'#2ee0c4':'rgba(242,237,228,0.2)'),borderRadius:4,padding:12,marginBottom:10}}>
+  return <div style={{border:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)',borderLeft:'3px solid '+(row.group?'var(--sh-accent, #2ee0c4)':'rgba(var(--sh-ink-rgb, 242,237,228),0.2)'),borderRadius:4,padding:12,marginBottom:10}}>
     {/* ⚠ THE NAME GETS A ROW WHEN THE CONTROLS WOULD CROWD IT. Inside the 400px
         floating panel these four 40px buttons take ~254px, which left "Hip 90/90
         flow" about 60px and wrapped it onto three lines — most of what reads as
@@ -503,14 +483,14 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}}>{field('cue','Coach cue')}{field('tempo','Tempo')}<label><span style={dbuLabel}>Superset</span><select value={row.group || ''} onChange={e=>set('group',e.target.value || null)} style={dbuField}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label></div>
       <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,marginTop:10}}><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:row.loadType==='rpe'?0.5:undefined}:null)}/> Apply progression when copying a week with progression</label>
     </details>
-    <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(242,237,228,0.1)'}}>
+    <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)'}}>
       <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.m4v,.webm" hidden onChange={e=>{const f=e.target.files[0];e.target.value='';upload(f);}}/>
       <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}><button disabled={uploading} style={dbuBtn(false)} onClick={()=>fileRef.current.click()}>{uploading?'Uploading…':video?'Replace demo':'Upload demo'}</button>
         {!!clips.length && <select aria-label={'Choose demo for '+row.name} style={{...dbuField,maxWidth:'100%'}} value="" disabled={uploading} onChange={e=>set('video',e.target.value)}><option value="">Choose from video library</option>{clips.map(c=><option key={c.url} value={c.url}>{c.name}</option>)}</select>}
         {video && <button disabled={uploading} style={dbuBtn(false)} onClick={()=>set('video','')}>Remove demo</button>}
       </div>
       {uploading && <progress aria-label="Uploading exercise demonstration" style={{width:'100%',marginTop:8}}/>}
-      {error && <p role="alert" style={{fontSize:13,color:'#e0644b'}}>{error}</p>}
+      {error && <p role="alert" style={{fontSize:13,color:'var(--sh-rust, #e0644b)'}}>{error}</p>}
       {video && <details style={{marginTop:8}}><summary style={{cursor:'pointer',fontSize:13}}>Preview demonstration</summary><video src={video} controls playsInline preload="metadata" onError={()=>setError('This browser could not play the clip. Upload a compatible MP4 before assigning.')} style={{width:'100%',maxHeight:240,marginTop:8}}/></details>}
     </div>
   </div>;
@@ -568,8 +548,8 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
             <select value={block.kind} onChange={(e) => setBlock(bi, { ...block, kind: e.target.value })} style={{ ...dbuField, fontFamily: DBU_MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.1em", color: DBU_RUST, padding: "5px 7px" }}>
               {DashBuilder.BLOCK_KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
             </select>
-            <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg, " + DBU_RUST + ", rgba(192,83,59,0.2) 45%, transparent 85%)" }} />
-            {day.blocks.length > 1 && <button onClick={() => onChange({ ...day, blocks: day.blocks.filter((_, i) => i !== bi) })} style={{ ...dbuBtn(false), padding: "4px 8px", color: "#e0644b", borderColor: "rgba(224,100,75,0.4)" }}>Remove block</button>}
+            <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg, " + DBU_RUST + ", rgba(var(--sh-rust2-rgb, 192,83,59),0.2) 45%, transparent 85%)" }} />
+            {day.blocks.length > 1 && <button onClick={() => onChange({ ...day, blocks: day.blocks.filter((_, i) => i !== bi) })} style={{ ...dbuBtn(false), padding: "4px 8px", color: "var(--sh-rust, #e0644b)", borderColor: "rgba(var(--sh-rust-rgb, 224,100,75),0.4)" }}>Remove block</button>}
           </div>
           {block.rows.map((row, ri) => {
             const label = labels[labelIdx]; labelIdx += 1;
@@ -623,7 +603,7 @@ function DbuDialog({title,onClose,busy,children}) {
     return()=>{node.removeEventListener('keydown',key);document.body.style.overflow=old;if(previous?.isConnected)previous.focus();};
   },[]);
   return ReactDOM.createPortal(<div style={{position:'fixed',inset:0,zIndex:300,display:'grid',placeItems:'center',background:'rgba(10,10,8,.8)',padding:16}} onPointerDown={e=>{if(e.target===e.currentTarget&&!busy)onClose();}}>
-    <div ref={ref} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} style={{width:'min(660px,100%)',maxHeight:'90vh',overflowY:'auto',boxSizing:'border-box',padding:22,background:'#14110e',color:'#f2ede4',border:'1px solid rgba(242,237,228,.2)',borderRadius:8,fontFamily:"'Space Grotesk',sans-serif"}}>{children}</div>
+    <div ref={ref} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} style={{width:'min(660px,100%)',maxHeight:'90vh',overflowY:'auto',boxSizing:'border-box',padding:22,background:'var(--sh-ground2, #14110e)',color:'var(--sh-ink, #f2ede4)',border:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),.2)',borderRadius:8,fontFamily:"var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)"}}>{children}</div>
   </div>,document.body);
 }
 
@@ -650,8 +630,8 @@ function DbuFutureUpdates({template,clients,onClose}) {
     {skipped>0&&<p style={{fontSize:13}}>{skipped} assignments with logged work, removed days or client overrides need individual review.</p>}
     {rows===null&&!error&&<p role="status">Loading upcoming workouts…</p>}
     {rows?.length===0&&<p>{done?'Selected workouts updated.':'No eligible future assignments.'}</p>}
-    {(rows||[]).map(r=><div key={r.id} style={{borderTop:'1px solid rgba(242,237,228,.15)',padding:'12px 0'}}><label style={{display:'flex',gap:10,alignItems:'center'}}><input type="checkbox" disabled={busy} checked={!!picked[r.id]} onChange={e=>setPicked({...picked,[r.id]:e.target.checked})}/><span>{clients.find(c=>c.profile.id===r.clientId)?.profile.name||'Client'} · {r.scheduledDate} · {r.title}</span></label><details style={{margin:'8px 0 0 24px'}}><summary>Review changes</summary><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,fontSize:12}}><div><strong>Current</strong><p>{r.before.title}</p>{r.before.exercises.map((e,i)=><p key={i}><b>{e.name}</b><br/>{summary(e)}</p>)}</div><div><strong>Updated</strong><p>{r.title}</p>{r.payload.exercises.map((e,i)=><p key={i}><b>{e.name}</b><br/>{summary(e)}</p>)}</div></div></details></div>)}
-    {error&&<p role="alert" style={{color:'#e0644b'}}>{error}</p>}
+    {(rows||[]).map(r=><div key={r.id} style={{borderTop:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),.15)',padding:'12px 0'}}><label style={{display:'flex',gap:10,alignItems:'center'}}><input type="checkbox" disabled={busy} checked={!!picked[r.id]} onChange={e=>setPicked({...picked,[r.id]:e.target.checked})}/><span>{clients.find(c=>c.profile.id===r.clientId)?.profile.name||'Client'} · {r.scheduledDate} · {r.title}</span></label><details style={{margin:'8px 0 0 24px'}}><summary>Review changes</summary><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,fontSize:12}}><div><strong>Current</strong><p>{r.before.title}</p>{r.before.exercises.map((e,i)=><p key={i}><b>{e.name}</b><br/>{summary(e)}</p>)}</div><div><strong>Updated</strong><p>{r.title}</p>{r.payload.exercises.map((e,i)=><p key={i}><b>{e.name}</b><br/>{summary(e)}</p>)}</div></div></details></div>)}
+    {error&&<p role="alert" style={{color:'var(--sh-rust, #e0644b)'}}>{error}</p>}
     <div style={{display:'flex',gap:10,marginTop:16}}><button disabled={busy||!selected.length} onClick={apply} style={dbuBtn(true)}>{busy?'Updating…':'Update '+selected.length+' workouts'}</button><button disabled={busy} onClick={onClose} style={dbuBtn(false)}>Close</button></div>
   </DbuDialog>;
 }
@@ -745,21 +725,21 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
   return (
     <DbuDialog title="Assign workout" onClose={onClose} busy={state === "working"}>
         <div style={{ fontFamily: DBU_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Assign · {template.name}</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
         <div style={{ fontSize: 12, color: DBU_INK50, marginBottom: 14 }}>{doc.weeks.length} week{doc.weeks.length === 1 ? "" : "s"} · {dayCount} days · snapshot v{doc.version} — your later template edits won't change what they get.</div>
         <span style={dbuLabel}>Start date</span>
         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ ...dbuField, marginBottom: 12 }} />
         <details style={{marginBottom:12}}><summary>Preview scheduled workouts</summary>{DashBuilder.buildAssignmentRows(doc,template,startDate || '2000-01-01').map((r,i)=><p key={i} style={{fontSize:12}}>{r.scheduledDate} · {r.title} · {r.payload.exercises.length} exercises</p>)}</details>
         <span style={dbuLabel}>Clients</span>
-        <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 6, padding: "2px 10px", marginBottom: 14 }}>
+        <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 6, padding: "2px 10px", marginBottom: 14 }}>
           {clients.map((c) => {
             const id = c.profile.id;
             const qs = queueState(id);
             return (
-              <label key={id} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(242,237,228,0.05)", cursor: "pointer" }}>
+              <label key={id} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", cursor: "pointer" }}>
                 <input type="checkbox" checked={!!picked[id]} onChange={(e) => setPicked({ ...picked, [id]: e.target.checked })} />
                 <span style={{ fontSize: 13 }}>{c.profile.name}</span>
-                {qs && <DashPill c={qs === "ready" ? "#2ee0c4" : "#d8a23a"}>{qs === "ready" ? "Ready" : "Awaiting check-in"}</DashPill>}
+                {qs && <DashPill c={qs === "ready" ? "var(--sh-accent, #2ee0c4)" : "var(--sh-gold, #d8a23a)"}>{qs === "ready" ? "Ready" : "Awaiting check-in"}</DashPill>}
               </label>
             );
           })}
@@ -779,7 +759,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
           // not miss.
           <div role="alert" style={{ marginTop: 12, borderLeft: "3px solid " + DBU_RUST, paddingLeft: 11 }}>
             <div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Publish stopped</div>
-            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "#f2ede4", marginTop: 3 }}>{errMsg}</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--sh-ink, #f2ede4)", marginTop: 3 }}>{errMsg}</div>
           </div>
         )}
     </DbuDialog>
@@ -1334,18 +1314,18 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
    page to 24px. (No backticks in here: this block is a template literal, and a
    backtick in a comment ends it — see the 2026-09-15 pageShell post-mortem.) */
 .pk-list{max-height:min(48vh,380px);overflow-y:auto;margin-top:4px;padding-right:4px}
-.pk-head{font-family:${DBU_MONO};font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(242,237,228,.45);margin:13px 0 3px;padding:0 6px}
+.pk-head{font-family:${DBU_MONO};font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${DBU_INK2};margin:13px 0 3px;padding:0 6px}
 .pk-list>.pk-head:first-child{margin-top:2px}
 .pk-row{display:flex;gap:11px;align-items:center;min-height:44px;padding:4px 6px;border-radius:6px;cursor:pointer}
-.pk-row:hover{background:rgba(242,237,228,.06)}
+.pk-row:hover{background:rgba(var(--sh-ink-rgb, 242,237,228),.06)}
 .pk-row input[type="checkbox"]{flex:0 0 auto;width:20px;height:20px;accent-color:${DBU_TEAL};cursor:pointer}
 .pk-row b{display:block;font-size:13.5px;font-weight:500}
-.pk-row small{display:block;font-size:11.5px;color:rgba(242,237,228,.5);margin-top:1px}
-.pk-none{font-size:12.5px;color:rgba(242,237,228,.5);padding:12px 6px}
+.pk-row small{display:block;font-size:11.5px;color:${DBU_INK2};margin-top:1px}
+.pk-none{font-size:12.5px;color:${DBU_INK2};padding:12px 6px}
 .pk-new{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;margin-top:8px;padding:0 12px;border-radius:9px;cursor:pointer;
   font-family:${DBU_BODY};font-size:13.5px;font-weight:600;text-align:left;
-  color:${DBU_ACCENT};background:rgba(46,224,196,.08);border:1px dashed rgba(46,224,196,.45)}
-.pk-new:hover{background:rgba(46,224,196,.14)}
+  color:${DBU_TEAL};background:rgba(var(--sh-accent-rgb, 46,224,196),.08);border:1px dashed rgba(var(--sh-accent-rgb, 46,224,196),.45)}
+.pk-new:hover{background:rgba(var(--sh-accent-rgb, 46,224,196),.14)}
 /* The thin-scrollbar rules live in dash.css (.dash-thin-scroll) because the meal
    builder needs the same ones and has no style host of its own. */
 `}</style>
@@ -1450,7 +1430,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
             /* ⚠ role="group", NOT "dialog": this panel is not modal, traps no focus and
                sits beside a canvas that stays live. Calling it a dialog tells a
                screen-reader user the rest of the page is inert when it is not. */
-            <div className="drawer float dash-thin-scroll--ink" ref={panelRef} role="group" aria-label={"Day editor \u00b7 " + day.name}
+            <div className="drawer float dash-thin-scroll" ref={panelRef} role="group" aria-label={"Day editor \u00b7 " + day.name}
               style={floating && panelPos ? { left: panelPos.x, top: panelPos.y, maxHeight: Math.max(DBU_PANEL_MIN_H, window.innerHeight - panelPos.y - DBU_PANEL_GAP) } : undefined}>
               <div className={"dh" + (floating ? " grab" : "")} onPointerDown={onPanelGrab} onPointerMove={onPanelMove} onPointerUp={onPanelDrop} onPointerCancel={onPanelDrop} onLostPointerCapture={onPanelLostCapture}
                 style={dragging ? { cursor: "grabbing", userSelect: "none" } : undefined}>
@@ -1515,13 +1495,13 @@ function DbuPerformance({ template, live }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 22, marginBottom: 12 }}>
-        <div><div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, lineHeight: 1 }}>{perf.subscribers}</div><div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBU_INK50, marginTop: 4 }}>Active subscribers</div></div>
-        <div><div style={{ fontFamily: "'Fraunces', serif", fontSize: 24, lineHeight: 1 }}>{perf.completion}%</div><div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBU_INK50, marginTop: 4 }}>Completion rate</div></div>
+        <div><div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 24, lineHeight: 1 }}>{perf.subscribers}</div><div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBU_INK50, marginTop: 4 }}>Active subscribers</div></div>
+        <div><div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 24, lineHeight: 1 }}>{perf.completion}%</div><div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DBU_INK50, marginTop: 4 }}>Completion rate</div></div>
       </div>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 64 }}>
         {perf.retention.map((v, i) => (
           <div key={i} title={"Week " + (i + 1) + " · " + v + "% retained"} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, height: "100%", justifyContent: "flex-end" }}>
-            <div style={{ width: "100%", height: Math.round((v / max) * 100) + "%", background: v >= 70 ? "#2ee0c4" : v >= 50 ? "#d8a23a" : "#e0644b", borderRadius: 1, opacity: 0.85 }} />
+            <div style={{ width: "100%", height: Math.round((v / max) * 100) + "%", background: v >= 70 ? "var(--sh-accent, #2ee0c4)" : v >= 50 ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust, #e0644b)", borderRadius: 1, opacity: 0.85 }} />
             <span style={{ fontFamily: DBU_MONO, fontSize: 7, color: DBU_INK50 }}>W{i + 1}</span>
           </div>
         ))}
@@ -1571,15 +1551,15 @@ function TrainerProgramsPage() {
   return <React.Fragment>
     {source==='demo'&&<DashDemoBand/>}
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={live?{label:'MONTHLY · NET',amount:live.kpis.monthlyNetCents!=null?dashMoney(live.kpis.monthlyNetCents):'—',sub:live.kpis.activeClients+' active clients'}:trainerPayoutCard}
-      eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
+      eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
       {view?<DbuBuilder key={view.id||view.name} template={view} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}><button style={dbuDarkBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button><button style={dbuDarkBtn(false)} onClick={()=>create('program')}>＋ Program</button><button style={dbuDarkBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Refresh</button></div>
-        {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid #d8a23a',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuDarkBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
-        {error&&<p role="alert">{error} <button style={dbuDarkBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}><button style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button><button style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button><button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Refresh</button></div>
+        {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
+        {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
         {/* Filters are a quieter register than the actions above them: a row of six
             solid buttons read as six things to do. The chosen one is the only one
             that fills. */}
-        <div style={{display:'flex',gap:7,flexWrap:'wrap',marginBottom:16}}>{[['all','All'],...DashBuilder.GOAL_TAGS.map(g=>[g.key,g.label])].map(([k,l])=><button key={k} aria-pressed={tagFilter===k} onClick={()=>setTagFilter(k)} style={{...dbuDarkBtn(false),height:32,padding:'0 12px',fontSize:12.5,borderRadius:99,...(tagFilter===k?{background:'rgba(var(--sh-accent-rgb, 46,224,196),0.13)',borderColor:'rgba(var(--sh-accent-rgb, 46,224,196),0.5)',color:DBU_D_ACCENT}:{color:DBU_D_INK2})}}>{l}</button>)}</div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap',marginBottom:16}}>{[['all','All'],...DashBuilder.GOAL_TAGS.map(g=>[g.key,g.label])].map(([k,l])=><button key={k} aria-pressed={tagFilter===k} onClick={()=>setTagFilter(k)} style={{...dbuLibBtn(false),height:32,padding:'0 12px',fontSize:12.5,borderRadius:99,...(tagFilter===k?{background:'rgba(var(--sh-accent-rgb, 46,224,196),0.13)',borderColor:'rgba(var(--sh-accent-rgb, 46,224,196),0.5)',color:DBU_TEAL}:{color:DBU_INK2})}}>{l}</button>)}</div>
         {templates===null&&!error&&<p role="status">Loading workouts…</p>}
         {templates?.length===0&&<p>No workouts yet. Create a single day or program to start your library.</p>}
         {/* ⚠ ONE HIERARCHY PER CARD, AND ONE ACTION ROW. The four buttons were all the
@@ -1593,21 +1573,21 @@ function TrainerProgramsPage() {
             const weeks=b.weeks.length, days=b.weeks.reduce((n,w)=>n+w.days.length,0);
             return <div key={t.id} className="dash-plate" style={{'--dac':DBU_RUST,display:'flex',flexDirection:'column',gap:0}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9}}>
-                <span style={{...dbuDarkMeta,color:DBU_D_INK3}}>{t.detail.buildType==='workout'?'Single day':'Program'}</span>
-                <span style={{marginLeft:'auto',...dbuDarkMeta,fontSize:9,letterSpacing:'0.12em',padding:'3px 8px',borderRadius:99,
+                <span style={{...dbuLibMeta,color:DBU_INK2}}>{t.detail.buildType==='workout'?'Single day':'Program'}</span>
+                <span style={{marginLeft:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',padding:'3px 8px',borderRadius:99,
                   ...(t.published
-                    ? {color:DBU_D_ACCENT,background:'rgba(var(--sh-accent-rgb, 46,224,196),0.12)',border:'1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)'}
-                    : {color:DBU_D_INK2,background:DBU_D_FILL,border:'1px solid '+DBU_D_LINE})}}>{t.published?'Published':'Draft'}</span>
+                    ? {color:DBU_TEAL,background:'rgba(var(--sh-accent-rgb, 46,224,196),0.12)',border:'1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)'}
+                    : {color:DBU_INK2,background:DBU_REST,border:'1px solid '+DBU_LINE})}}>{t.published?'Published':'Draft'}</span>
               </div>
-              <h2 style={{fontFamily:"'Fraunces',serif",fontSize:23,fontWeight:600,lineHeight:1.15,margin:'0 0 6px',color:'var(--sh-ink, #f2ede4)'}}>{t.name}</h2>
+              <h2 style={{fontFamily:"var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)",fontSize:23,fontWeight:600,lineHeight:1.15,margin:'0 0 6px',color:'var(--sh-ink, #f2ede4)'}}>{t.name}</h2>
               {/* It read "1 weeks · 1 days" on every single-week workout. */}
-              <p style={{...dbuDarkMeta,fontSize:10,color:DBU_D_INK2,margin:'0 0 14px'}}>{weeks} {weeks===1?'week':'weeks'} · {days} {days===1?'day':'days'}</p>
+              <p style={{...dbuLibMeta,fontSize:10,color:DBU_INK2,margin:'0 0 14px'}}>{weeks} {weeks===1?'week':'weeks'} · {days} {days===1?'day':'days'}</p>
               <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:'auto'}}>
-                <button style={dbuDarkBtn(true)} onClick={()=>setView(t)}>Edit workout</button>
-                <button style={dbuDarkBtn(false)} onClick={()=>setAssignFor(t)}>Assign</button>
-                <button style={dbuDarkBtn(false)} onClick={()=>setView({...JSON.parse(JSON.stringify(t)),id:undefined,published:false,name:t.name+' (copy)',detail:{...t.detail,revision:0}})}>Duplicate</button>
+                <button style={dbuLibBtn(true)} onClick={()=>setView(t)}>Edit workout</button>
+                <button style={dbuLibBtn(false)} onClick={()=>setAssignFor(t)}>Assign</button>
+                <button style={dbuLibBtn(false)} onClick={()=>setView({...JSON.parse(JSON.stringify(t)),id:undefined,published:false,name:t.name+' (copy)',detail:{...t.detail,revision:0}})}>Duplicate</button>
               </div>
-              {isLive&&<button onClick={()=>setUpdateFor(t)} style={{marginTop:10,padding:'6px 0',minHeight:24,background:'transparent',border:0,cursor:'pointer',textAlign:'left',fontFamily:DBU_BODY,fontSize:12.5,fontWeight:600,color:DBU_D_ACCENT}}>Update future assignments →</button>}
+              {isLive&&<button onClick={()=>setUpdateFor(t)} style={{marginTop:10,padding:'6px 0',minHeight:24,background:'transparent',border:0,cursor:'pointer',textAlign:'left',fontFamily:DBU_BODY,fontSize:12.5,fontWeight:600,color:DBU_TEAL}}>Update future assignments →</button>}
             </div>;})}</div>
       </>}
     </DashPage>
