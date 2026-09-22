@@ -20,10 +20,10 @@
 // dashMessageDraft · dashClientHref · DashDemoBand) → this.
 
 const DWK_MONO = "'JetBrains Mono', monospace";
-const DWK_INK50 = "rgba(242,237,228,0.55)";
-const DWK_INK = "#f2ede4";
-const DWK_TEAL = "#2ee0c4";
-const DWK_AMBER = "#d8a23a";
+const DWK_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+const DWK_INK = "var(--sh-ink, #f2ede4)";
+const DWK_TEAL = "var(--sh-accent, #2ee0c4)";
+const DWK_AMBER = "var(--sh-gold, #d8a23a)";
 const DWK_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // What /api/clients/[id]/shared-overview asks get_client_checkins for. Keep in
 // step with that route: it decides how far back this page can claim an absence.
@@ -339,9 +339,9 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
   const wLast = w.length ? w[w.length - 1] : null, wPrev = w.length > 1 ? w[w.length - 2] : null;
   const wDelta = wLast && wPrev ? Math.round((wLast.weight - wPrev.weight) * 10) / 10 : null;
   const href = typeof dashClientHref === "function" ? dashClientHref(rec, role) : null;
-  const btn = { fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", color: "rgba(242,237,228,0.75)", cursor: "pointer", textDecoration: "none", display: "inline-block" };
+  const btn = { fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer", textDecoration: "none", display: "inline-block" };
   return (
-    <div style={{ borderTop: "1px solid rgba(242,237,228,0.07)", padding: "16px 0 14px", opacity: reviewed ? 0.72 : 1 }}>
+    <div style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.07)", padding: "16px 0 14px", opacity: reviewed ? 0.72 : 1 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -355,9 +355,9 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
             {ck ? (
               <div style={{ display: "grid", gap: 6 }}>
                 <DwkRatings ratings={ck.ratings} />
-                {ck.wins && <div style={{ fontSize: 13, color: "rgba(242,237,228,0.85)" }}><span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_SEV_COLORS.green, marginRight: 8 }}>Win</span>{ck.wins}</div>}
-                {ck.struggles && <div style={{ fontSize: 13, color: "rgba(242,237,228,0.85)" }}><span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DWK_AMBER, marginRight: 8 }}>Struggle</span>{ck.struggles}</div>}
-                {ck.question && <div style={{ fontSize: 13.5, color: DWK_INK, padding: "8px 12px", borderLeft: "2px solid " + DWK_TEAL, background: "rgba(46,224,196,0.06)" }}><span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DWK_TEAL, marginRight: 8 }}>Asked you</span>{ck.question}</div>}
+                {ck.wins && <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}><span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_SEV_COLORS.green, marginRight: 8 }}>Win</span>{ck.wins}</div>}
+                {ck.struggles && <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}><span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DWK_AMBER, marginRight: 8 }}>Struggle</span>{ck.struggles}</div>}
+                {ck.question && <div style={{ fontSize: 13.5, color: DWK_INK, padding: "8px 12px", borderLeft: "2px solid " + DWK_TEAL, background: "rgba(var(--sh-accent-rgb, 46,224,196),0.06)" }}><span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DWK_TEAL, marginRight: 8 }}>Asked you</span>{ck.question}</div>}
               </div>
             ) : (
               <div style={{ fontFamily: DWK_MONO, fontSize: 10, letterSpacing: "0.04em", color: DWK_INK50, fontStyle: "italic" }}>
@@ -381,11 +381,11 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
               their own Progress page. The mobile card's rule, for the same reason:
               there is no readout, so there is nothing. */}
           {live && readout && readout.summary && (
-            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
               <div style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DWK_INK50, marginBottom: 5 }}>
                 {"The read" + (readoutStamp(readout, true) ? " · " + readoutStamp(readout, true) : "")}
               </div>
-              <div style={{ fontSize: 13, lineHeight: 1.45, color: "rgba(242,237,228,0.85)" }}>{readout.summary}</div>
+              <div style={{ fontSize: 13, lineHeight: 1.45, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{readout.summary}</div>
             </div>
           )}
           {/* The numbers */}
@@ -398,12 +398,12 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
           {(noteOpen || (review && review.note)) && (
             <div style={{ marginTop: 12 }}>
               <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} placeholder="What you saw this week, what you'll change, what to ask next week."
-                style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 6, padding: 10, color: DWK_INK, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, lineHeight: 1.5 }} />
+                style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 6, padding: 10, color: DWK_INK, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, lineHeight: 1.5 }} />
               <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 6 }}>
                 {(() => {
                   const unchanged = draft === ((review && review.note) || "");
                   const off = unchanged || !editable;
-                  return <button type="button" onClick={() => { onNote(draft); setNoteOpen(false); }} disabled={off} style={{ ...btn, color: "#06231f", background: DWK_TEAL, border: 0, opacity: off ? 0.5 : 1, cursor: off ? "default" : "pointer" }}>Save note</button>;
+                  return <button type="button" onClick={() => { onNote(draft); setNoteOpen(false); }} disabled={off} style={{ ...btn, color: "var(--sh-deep, #06231f)", background: DWK_TEAL, border: 0, opacity: off ? 0.5 : 1, cursor: off ? "default" : "pointer" }}>Save note</button>;
                 })()}
                 <span style={{ fontFamily: DWK_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DWK_INK50 }}>{!editable ? "Loading your notes…" : canPersist ? "Private to you" : "Sign in to keep notes"}</span>
               </div>
@@ -411,7 +411,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
           )}
           {/* Actions */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-            <button type="button" onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ ...btn, color: DWK_TEAL, borderColor: "rgba(46,224,196,0.35)", background: "rgba(46,224,196,0.08)" }}>Message</button>
+            <button type="button" onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ ...btn, color: DWK_TEAL, borderColor: "rgba(var(--sh-accent-rgb, 46,224,196),0.35)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" }}>Message</button>
             {!(noteOpen || (review && review.note)) && <button type="button" onClick={() => setNoteOpen(true)} style={btn}>＋ Note</button>}
             {href && <a href={href} style={btn}>Client file →</a>}
           </div>
@@ -419,8 +419,8 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
         {/* Disabled until the reviews doc has resolved: a tick taken while the
             read is in flight would paint, never write, and then be erased when
             the read lands — the UI would have promised a save that never was. */}
-        <label title={editable ? undefined : "Loading your reviews…"} style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: editable ? "pointer" : "default", opacity: editable ? 1 : 0.5, fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: reviewed ? DASH_SEV_COLORS.green : DWK_INK50, padding: "6px 10px", border: "1px solid " + (reviewed ? "rgba(123,191,90,0.4)" : "rgba(242,237,228,0.18)"), borderRadius: 4, whiteSpace: "nowrap" }}>
-          <input type="checkbox" checked={reviewed} disabled={!editable} onChange={(e) => onReview(e.target.checked)} style={{ accentColor: "#7bbf5a", margin: 0 }} />
+        <label title={editable ? undefined : "Loading your reviews…"} style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: editable ? "pointer" : "default", opacity: editable ? 1 : 0.5, fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: reviewed ? DASH_SEV_COLORS.green : DWK_INK50, padding: "6px 10px", border: "1px solid " + (reviewed ? "rgba(123,191,90,0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), borderRadius: 4, whiteSpace: "nowrap" }}>
+          <input type="checkbox" checked={reviewed} disabled={!editable} onChange={(e) => onReview(e.target.checked)} style={{ accentColor: "var(--sh-green, #7bbf5a)", margin: 0 }} />
           {reviewed ? "Reviewed" : "Mark reviewed"}
         </label>
       </div>
@@ -463,7 +463,7 @@ function CoachWeekPage({ role }) {
     return Promise.resolve(false);
   };
   const rel = weekOf === thisMonday ? "this week" : weekOf === dwkAddDays(thisMonday, -7) ? "last week" : weekOf > thisMonday ? "ahead" : Math.round((new Date(thisMonday + "T00:00:00") - new Date(weekOf + "T00:00:00")) / (7 * 86400000)) + " weeks ago";
-  const chip = (on) => ({ fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? DWK_TEAL : "rgba(242,237,228,0.18)"), background: on ? "rgba(46,224,196,0.10)" : "transparent", color: on ? DWK_TEAL : "rgba(242,237,228,0.75)", cursor: "pointer" });
+  const chip = (on) => ({ fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? DWK_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? DWK_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer" });
   const actions = (
     <React.Fragment>
       <button type="button" onClick={() => setWeekOf(dwkAddDays(weekOf, -7))} style={chip(false)} aria-label="Previous week">‹ Prev</button>
@@ -499,7 +499,7 @@ function CoachWeekPage({ role }) {
               <button type="button" onClick={() => setOnlyOpen(!onlyOpen)} style={chip(onlyOpen)}>{onlyOpen ? "Showing unreviewed" : "Unreviewed only"}</button>
               {(() => {
                 const off = !rows.length || reviewedCount === rows.length || !editable;
-                return <button type="button" disabled={off} onClick={() => { const now = new Date().toISOString(); patch(rows.filter((r) => !(weekDoc[r.client.profile.id] && weekDoc[r.client.profile.id].reviewedAt)).map((r) => ({ weekOf, clientId: r.client.profile.id, patch: { reviewedAt: now } }))); }} style={{ ...chip(false), color: "#06231f", background: DWK_TEAL, border: 0, opacity: off ? 0.5 : 1, cursor: off ? "default" : "pointer" }}>Mark all reviewed</button>;
+                return <button type="button" disabled={off} onClick={() => { const now = new Date().toISOString(); patch(rows.filter((r) => !(weekDoc[r.client.profile.id] && weekDoc[r.client.profile.id].reviewedAt)).map((r) => ({ weekOf, clientId: r.client.profile.id, patch: { reviewedAt: now } }))); }} style={{ ...chip(false), color: "var(--sh-deep, #06231f)", background: DWK_TEAL, border: 0, opacity: off ? 0.5 : 1, cursor: off ? "default" : "pointer" }}>Mark all reviewed</button>;
               })()}
             </div>
           </div>

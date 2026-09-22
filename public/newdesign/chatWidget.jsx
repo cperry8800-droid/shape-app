@@ -17,8 +17,17 @@ function cwTierColor(tier) { return CW_TIER_COLORS[String(tier || "").toLowerCas
 function cwInitials(name) {
   return String(name || "").replace(/^#\s*/, "").split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 }
-function cwHexA(hex, a) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
-function cwShade(hex, f) { const h = String(hex || "#888888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Pull the literal digits out of a colour that may be a paper token (`TEAL`,
+// `TEAL_BRIGHT` and `INK` are pageShell's module-scope constants and are
+// `var(--sh-…, #hex)` now). See the note on ssShade in pageShell.jsx: a token
+// reaching parseInt yields NaN, and `NaN >> 16 & 255` is 0 — valid CSS, black.
+function cwHexDigits(hex, dflt) {
+  const s = String(hex || dflt);
+  const m = s.match(/#([0-9a-fA-F]{3,6})/);
+  return (m ? m[1] : s.replace("#", ""));
+}
+function cwHexA(hex, a) { const h = cwHexDigits(hex, "#888888"); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+function cwShade(hex, f) { const h = cwHexDigits(hex, "#888888"); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
 // Presence-tier activity line (spec 2026-07-19): what the member is DOING now
 // ('workout' | 'cooking') + minutes in, from the existing authenticated-read
 // user_activity table. Presence info only — never set detail (that is the
@@ -1600,7 +1609,7 @@ function ChatWidget(props) {
                       style={{ marginLeft: "auto", flex: "none", padding: "7px 14px", borderRadius: 999, background: TEAL, color: PAPER, textDecoration: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", boxShadow: "0 2px 10px rgba(10,197,168,0.35)" }}>Full profile →</a>}
                   </div>
                   <div style={{ padding: 18 }}>
-                    <div style={{ borderRadius: 18, border: `1px solid ${tc}55`, background: `radial-gradient(130% 120% at 78% 14%, ${tc}26, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
+                    <div style={{ borderRadius: 18, border: `1px solid ${cwHexA(tc, 0.3333)}`, background: `radial-gradient(130% 120% at 78% 14%, ${cwHexA(tc, 0.1490)}, transparent 55%), rgba(242,237,228,0.03)`, padding: 18, display: "flex", alignItems: "center", gap: 16 }}>
                       <CwFacetAvatar size={64} c={tc} initial={cwInitials(profileFor.who)} photo={(profLive && profLive.avatar) || (profileFor && !profileFor.userId ? cwDemoFace(profileFor.who) : undefined)} live={isNora || !!((profileFor && profileFor.online) || (window.ShapeWebPresence && profileFor && window.ShapeWebPresence.isOnline(profileFor.userId)))} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>

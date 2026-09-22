@@ -272,12 +272,22 @@ const DASH_TODAY_ROLES = {
 // contact, and a one-tap Message. Visual language per the prototype: dark
 // panel, squared spine-left pills, mono metas, teal accents.
 
-const DASH_INK50 = "rgba(242,237,228,0.55)";
+const DASH_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
 const DASH_MONO_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_INK50 };
 // An in-card text link is a control, so it gets the 24px hit area the chrome has —
 // the glyph does not move (the vertical padding is cancelled by a negative margin).
 const DASH_MONO_LINK = { ...DASH_MONO_EYEBROW, display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0", textDecoration: "none", whiteSpace: "nowrap" };
 
+// ⚠ THESE STAY LITERAL, BY RULE RATHER THAN BY OVERSIGHT. Each colour below is
+// handed to DashPill, which composes its tint and its two borders by APPENDING a
+// hex-alpha suffix to it (`c + "1c"`, `c + "55"`), so a var() here is not a colour
+// and CSS drops the whole declaration — measured, every severity pill on both coach
+// Today tabs lost its tint, its border and its padding, and the page got 16px
+// shorter. Tokenising them means teaching DashPill to take a triplet, which is a
+// change of behaviour rather than a rename, and it belongs with the light-paper
+// values where the tint actually has to move. They are also SEMANTIC rather than
+// paper colours (severity, not ground), so they do not follow the paper anyway.
+// tests/newdesign-paper-tokens.test.mjs holds the rule.
 const DASH_SEV_COLORS = { red: "#e0644b", amber: "#d8a23a", new: "#2ee0c4", green: "#7bbf5a", unknown: "#9b968d" };
 
 function DashPill({ c, children }) {
@@ -402,7 +412,7 @@ function dashClientHref(rec, role) {
 // context line + inline actions: Message · Last notes · Start log.
 function ExpandableSchedule({ schedule, clients, role }) {
   const [openIdx, setOpenIdx] = React.useState(null);
-  const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
+  const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
   return (
     <div>
       {schedule.map((s, i) => {
@@ -411,33 +421,33 @@ function ExpandableSchedule({ schedule, clients, role }) {
         const context = dashContextLine(rec);
         const expandable = s.time !== "—"; // skip the "No sessions today" placeholder
         return (
-          <div key={i} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+          <div key={i} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
             <div onClick={() => expandable && setOpenIdx(open ? null : i)} onKeyDown={(e) => { if (expandable && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpenIdx(open ? null : i); } }} role={expandable ? "button" : undefined} tabIndex={expandable ? 0 : undefined} aria-expanded={expandable ? open : undefined} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", cursor: expandable ? "pointer" : "default" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{s.time}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{s.time}</div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>
-                  {expandable && <span style={{ display: "inline-block", width: 14, color: "rgba(242,237,228,0.45)", fontSize: 10 }}>{open ? "▾" : "▸"}</span>}
+                  {expandable && <span style={{ display: "inline-block", width: 14, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", fontSize: 10 }}>{open ? "▾" : "▸"}</span>}
                   {s.who}
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2, paddingLeft: expandable ? 14 : 0 }}>{s.sub}</div>
+                <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 2, paddingLeft: expandable ? 14 : 0 }}>{s.sub}</div>
               </div>
               {s.status && (
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4,
-                  background: s.status === "DONE" ? "rgba(242,237,228,0.08)" : s.status === "NEXT" ? TEAL : "rgba(242,237,228,0.08)",
-                  color: s.status === "NEXT" ? PAPER : "rgba(242,237,228,0.65)",
-                  border: s.status === "DONE" ? "1px solid rgba(242,237,228,0.12)" : "none",
+                  background: s.status === "DONE" ? "rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : s.status === "NEXT" ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
+                  color: s.status === "NEXT" ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.65)",
+                  border: s.status === "DONE" ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : "none",
                 }}>{s.status}</span>
               )}
             </div>
             {open && (
               <div style={{ padding: "0 4px 14px 80px" }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", color: "#2ee0c4", marginBottom: 9 }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", color: "var(--sh-accent, #2ee0c4)", marginBottom: 9 }}>
                   {context || "No shared history yet"}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={() => dashMessageClient(s.who, role)} style={actionStyle}>Message</button>
-                  {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ ...actionStyle, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)" }}>Client file</a>}
-                  <a href={role === "nutritionist" ? "NutritionistLiveConsole.html" : "TrainerLiveConsole.html"} style={{ ...actionStyle, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)" }}>Start log</a>
+                  {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ ...actionStyle, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>Client file</a>}
+                  <a href={role === "nutritionist" ? "NutritionistLiveConsole.html" : "TrainerLiveConsole.html"} style={{ ...actionStyle, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>Start log</a>
                 </div>
               </div>
             )}
@@ -660,7 +670,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
       .catch(() => {});
   };
 
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   const notices = dashQueueNotices(ledger.kind, storeKind);
   const settling = ledger.kind === "loading" || storeKind === "loading";
   const noticeBlock = notices.length ? (
@@ -698,10 +708,10 @@ function ProgrammingQueuePanel({ queue, role, live }) {
         const id = r.client.profile.id;
         const st = rowState(id);
         const blocked = r.state === "blocked";
-        const c = st.done ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : "#2ee0c4";
+        const c = st.done ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : "#2ee0c4";  // literal: goes to DashPill, which hex-appends — see the note above DASH_SEV_COLORS
         const pillText = st.pill || (blocked ? "Waiting on check-in" : "Ready");
         return (
-          <div key={id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", opacity: st.done ? 0.6 : 1 }}>
+          <div key={id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", opacity: st.done ? 0.6 : 1 }}>
             <span style={{ width: 7, height: 7, borderRadius: 2, background: c }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
@@ -713,9 +723,9 @@ function ProgrammingQueuePanel({ queue, role, live }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-              <a href={dashShellHref(role === "nutritionist" ? "NutritionistPlans.html" : "TrainerPrograms.html")} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 11px", textDecoration: "none" }}>Template</a>
+              <a href={dashShellHref(role === "nutritionist" ? "NutritionistPlans.html" : "TrainerPrograms.html")} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "7px 11px", textDecoration: "none" }}>Template</a>
               {st.canToggle && (
-                <button onClick={() => toggle(id)} disabled={settling} style={{ opacity: settling ? 0.45 : 1, cursor: settling ? "default" : "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: st.done ? "rgba(242,237,228,0.55)" : "#06231f", background: st.done ? "transparent" : "#2ee0c4", border: st.done ? "1px solid rgba(242,237,228,0.18)" : "0", borderRadius: 4, padding: "7px 11px" }}>
+                <button onClick={() => toggle(id)} disabled={settling} style={{ opacity: settling ? 0.45 : 1, cursor: settling ? "default" : "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: st.done ? "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" : "var(--sh-deep, #06231f)", background: st.done ? "transparent" : "var(--sh-accent, #2ee0c4)", border: st.done ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : "0", borderRadius: 4, padding: "7px 11px" }}>
                   {Object.prototype.hasOwnProperty.call(intentRef.current, id) ? "Retry" : st.done ? "Undo" : "Mark written"}
                 </button>
               )}
@@ -731,7 +741,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
 // one-tap congratulate. Live coach-side milestone data is sparse today, so
 // the empty state explains itself instead of inventing wins.
 function DashWinsPanel({ clients, role }) {
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   const rows = [];
   for (const c of clients) {
     const ms = DashSignals.buildMilestones(c);
@@ -743,14 +753,14 @@ function DashWinsPanel({ clients, role }) {
   return (
     <div>
       {rows.slice(0, 4).map((r, i) => (
-        <div key={r.client.profile.id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: "#7bbf5a" }} />
+        <div key={r.client.profile.id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: "var(--sh-green, #7bbf5a)" }} />
           <div style={{ minWidth: 0 }}>
             <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.client.profile.name}</span>
-            <span style={{ fontSize: 13, color: "rgba(242,237,228,0.8)" }}> — {r.hit.label}</span>
+            <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}> — {r.hit.label}</span>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, marginTop: 2 }}>{dashRelDay(r.hit.hitAt)}</div>
           </div>
-          <button onClick={() => dashMessageClient(r.client.profile.name, role, dashCongratsDraft(r.client, r.hit))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#7bbf5a", background: "rgba(123,191,90,0.08)", border: "1px solid rgba(123,191,90,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>Congratulate</button>
+          <button onClick={() => dashMessageClient(r.client.profile.name, role, dashCongratsDraft(r.client, r.hit))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-green, #7bbf5a)", background: "rgba(123,191,90,0.08)", border: "1px solid rgba(123,191,90,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>Congratulate</button>
         </div>
       ))}
     </div>
@@ -770,7 +780,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
   const rows = order.rest;
   const canPin = typeof onTogglePin === "function";
   const pinSet = new Set(Array.isArray(pinned) ? pinned : []);
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   // A HEX muted ink for DashPill: the pill composes its bg/border by appending hex
   // suffixes (c + "1c" / "55"), so an rgba() value would produce invalid CSS.
   const inkMutedPill = "#9b968d";
@@ -809,7 +819,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
             role={drawerReady ? "button" : undefined}
             tabIndex={drawerReady ? 0 : undefined}
             aria-label={drawerReady ? "Open " + c.profile.name + " drilldown" : undefined}
-            style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)", cursor: drawerReady ? "pointer" : "default" }}>
+            style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", cursor: drawerReady ? "pointer" : "default" }}>
             <span title={r.severity} style={{ width: 7, height: 7, borderRadius: 2, background: sevColor, animation: r.severity === "red" ? "dashTick 1.6s ease-in-out infinite" : "none" }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
@@ -845,10 +855,10 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
                   aria-pressed={pinSet.has(c.profile.id)}
                   title={pinSet.has(c.profile.id) ? "Unpin " + c.profile.name : "Pin " + c.profile.name + " to the top"}
                   onClick={(e) => { e.stopPropagation(); onTogglePin(c.profile.id); }}
-                  style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", minWidth: 24, lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "#2ee0c4" : "rgba(242,237,228,0.3)" }}
+                  style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", minWidth: 24, lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.3)" }}
                 >{pinSet.has(c.profile.id) ? "\u2691" : "\u2690"}</button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px solid rgba(46,224,196,0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
                 Message
               </button>
             </div>
@@ -863,14 +873,14 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
       {/* Joint attention (step 9.2): the same client is slipping on BOTH the
           training and nutrition side — one coordinated message, not two nudges. */}
       {joint.slice(0, 2).map((j, i) => (
-        <div key={"joint-" + i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10, padding: "10px 13px", background: "rgba(224,100,75,0.07)", border: "1px solid rgba(224,100,75,0.3)", borderLeft: "3px solid #e0644b", borderRadius: 4 }}>
+        <div key={"joint-" + i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10, padding: "10px 13px", background: "rgba(224,100,75,0.07)", border: "1px solid rgba(224,100,75,0.3)", borderLeft: "3px solid var(--sh-rust, #e0644b)", borderRadius: 4 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#e0644b" }}>Joint attention · with their {role === "nutritionist" ? "trainer" : "nutritionist"}</div>
-            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.85)", marginTop: 4, lineHeight: 1.45 }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-rust, #e0644b)" }}>Joint attention · with their {role === "nutritionist" ? "trainer" : "nutritionist"}</div>
+            <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", marginTop: 4, lineHeight: 1.45 }}>
               <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
             </div>
           </div>
-          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "#e0644b", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
+          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role))} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "var(--sh-rust, #e0644b)", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
         </div>
       ))}
       {pinnedRows.length > 0 && (
@@ -884,7 +894,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
             Pinned · {pinnedRows.length}
           </div>
           {pinnedRows.map((r, i) => renderRow(r, i))}
-          <div aria-hidden style={{ height: 1, background: "rgba(242,237,228,0.1)", margin: "10px 4px 2px" }} />
+          <div aria-hidden style={{ height: 1, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.1)", margin: "10px 4px 2px" }} />
         </div>
       )}
       {rows.map((r, i) => renderRow(r, i))}
@@ -904,7 +914,7 @@ function DashDemoBand() {
   // Pinning it to the bottom (like the mobile preview banner) keeps the demo
   // notice visible while letting content sit flush under the header.
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(16,20,18,0.92)", borderTop: "1px solid rgba(30,192,168,0.3)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(16,20,18,0.92)", borderTop: "1px solid rgba(30,192,168,0.3)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent, #2ee0c4)", textAlign: "center" }}>
       <span>Preview · demo data — an example of a live account</span>
       <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "4px 12px", textDecoration: "none" }}>Sign in →</a>
     </div>
@@ -922,7 +932,7 @@ const DASH_DEMO_GROWTH = {
 };
 function DashGrowthPanel({ live, role }) {
   const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   if (!g || !Array.isArray(g.weeklyAdds) || !g.weeklyAdds.length) {
     return <div style={{ fontSize: 13, color: ink50 }}>Growth history connects when payouts go live — current numbers are in the stat bar.</div>;
   }
@@ -935,7 +945,7 @@ function DashGrowthPanel({ live, role }) {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 56, flex: 1, minWidth: 200 }}>
           {counts.map((c, i) => (
-            <div key={i} title={c + " new"} style={{ flex: 1, height: Math.max(6, Math.round((c / max) * 100)) + "%", background: c ? "#2ee0c4" : "rgba(242,237,228,0.1)", opacity: c ? 0.4 + 0.6 * (i / counts.length) : 1, borderRadius: 1 }} />
+            <div key={i} title={c + " new"} style={{ flex: 1, height: Math.max(6, Math.round((c / max) * 100)) + "%", background: c ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.1)", opacity: c ? 0.4 + 0.6 * (i / counts.length) : 1, borderRadius: 1 }} />
           ))}
         </div>
         <div style={{ display: "flex", gap: 22, flexShrink: 0 }}>
@@ -948,7 +958,7 @@ function DashGrowthPanel({ live, role }) {
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>MRR added · gross</div>
           </div>
           <div>
-            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1, color: g.momPct == null ? ink50 : g.momPct >= 0 ? "#7bbf5a" : "#e0644b" }}>{g.momPct == null ? "—" : (g.momPct >= 0 ? "+" : "") + g.momPct + "%"}</div>
+            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1, color: g.momPct == null ? ink50 : g.momPct >= 0 ? "var(--sh-green, #7bbf5a)" : "var(--sh-rust, #e0644b)" }}>{g.momPct == null ? "—" : (g.momPct >= 0 ? "+" : "") + g.momPct + "%"}</div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>Adds · MoM</div>
           </div>
         </div>
@@ -966,7 +976,7 @@ const DASH_DEMO_FUNNEL = { views: 1240, consults90: 86, signed90: 34 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
 function DashFunnelPanel({ live }) {
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   if (!f) return <div style={{ fontSize: 13, color: ink50 }}>Funnel data connects soon.</div>;
   const stages = [
     { l: "Profile views", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
@@ -985,17 +995,17 @@ function DashFunnelPanel({ live }) {
       {stages.map((s, i) => (
         <div key={i} style={{ display: "grid", gridTemplateColumns: "150px 1fr auto", gap: 12, alignItems: "center", padding: "7px 0" }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50 }}>{s.l}</span>
-          <div style={{ position: "relative", height: 9, background: "rgba(242,237,228,0.07)", borderRadius: 2 }}>
-            {s.v != null && <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.max(3, Math.round((s.v / maxV) * 100)) + "%", background: "#2ee0c4", opacity: 0.45 + i * 0.27, borderRadius: 2 }} />}
+          <div style={{ position: "relative", height: 9, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.07)", borderRadius: 2 }}>
+            {s.v != null && <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.max(3, Math.round((s.v / maxV) * 100)) + "%", background: "var(--sh-accent, #2ee0c4)", opacity: 0.45 + i * 0.27, borderRadius: 2 }} />}
           </div>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: s.v == null ? ink50 : "#f2ede4", fontStyle: s.v == null ? "italic" : "normal" }}>{s.v == null ? s.note : s.v.toLocaleString()}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: s.v == null ? ink50 : "var(--sh-ink, #f2ede4)", fontStyle: s.v == null ? "italic" : "normal" }}>{s.v == null ? s.note : s.v.toLocaleString()}</span>
         </div>
       ))}
-      <div style={{ borderTop: "1px dashed rgba(242,237,228,0.16)", marginTop: 8, paddingTop: 9, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ borderTop: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.16)", marginTop: 8, paddingTop: 9, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", color: ink50 }}>BENCHMARK · ~{DASH_FUNNEL_BENCHMARK}% CONSULT→SIGNED</span>
-        {close != null && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", color: close >= DASH_FUNNEL_BENCHMARK ? "#7bbf5a" : "#d8a23a" }}>YOU · {close}%</span>}
+        {close != null && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", color: close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)" }}>YOU · {close}%</span>}
       </div>
-      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.75)", lineHeight: 1.55, marginTop: 9 }}>{insight}</div>
+      <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.55, marginTop: 9 }}>{insight}</div>
     </div>
   );
 }
@@ -1006,7 +1016,7 @@ function DashFunnelPanel({ live }) {
 // honesty: monthly net derives from real subscriptions; payout-flavored
 // numbers never appear here — the Business page owns those (real or "—").
 function DashBusinessSummary({ live, role, clients }) {
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
   const counts = g && Array.isArray(g.weeklyAdds) ? g.weeklyAdds.map((w) => w.count) : null;
@@ -1019,7 +1029,7 @@ function DashBusinessSummary({ live, role, clients }) {
   const max = counts ? Math.max(...counts, 1) : 1;
   const stat = (k, l, sub, color) => (
     <div>
-      <div style={{ fontFamily: serif, fontSize: 23, lineHeight: 1, color: color || (k === "—" ? ink50 : "#f2ede4") }}>{k}</div>
+      <div style={{ fontFamily: serif, fontSize: 23, lineHeight: 1, color: color || (k === "—" ? ink50 : "var(--sh-ink, #f2ede4)") }}>{k}</div>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 4 }}>{l}</div>
       {sub && <div style={{ fontSize: 10, color: ink50, marginTop: 2 }}>{sub}</div>}
     </div>
@@ -1029,16 +1039,16 @@ function DashBusinessSummary({ live, role, clients }) {
       <div style={{ display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap" }}>
         {stat(netCents != null ? dashMoney(netCents) : "—", "Monthly · net", netCents != null ? "from active subs · after 15%" : "no subscription data")}
         {stat(adds90 != null ? "+" + adds90 : "—", "New subs · 90d", g && g.momPct != null ? (g.momPct >= 0 ? "+" : "") + g.momPct + "% MoM" : "MoM needs 2 months")}
-        {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "#7bbf5a" : "#d8a23a")}
+        {stat(close != null ? close + "%" : "—", "Consult → signed", "benchmark ~" + DASH_FUNNEL_BENCHMARK + "%", close == null ? null : close >= DASH_FUNNEL_BENCHMARK ? "var(--sh-green, #7bbf5a)" : "var(--sh-gold, #d8a23a)")}
         {counts && (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 34, flex: 1, minWidth: 120 }}>
             {counts.map((c, i) => (
-              <div key={i} style={{ flex: 1, height: Math.max(5, Math.round((c / max) * 100)) + "%", background: c ? "#2ee0c4" : "rgba(242,237,228,0.1)", opacity: c ? 0.4 + 0.6 * (i / counts.length) : 1, borderRadius: 1 }} />
+              <div key={i} style={{ flex: 1, height: Math.max(5, Math.round((c / max) * 100)) + "%", background: c ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.1)", opacity: c ? 0.4 + 0.6 * (i / counts.length) : 1, borderRadius: 1 }} />
             ))}
           </div>
         )}
       </div>
-      <a href={href} style={{ ...DASH_MONO_LINK, marginTop: 12, fontSize: 9, fontWeight: 700, color: "#2ee0c4" }}>
+      <a href={href} style={{ ...DASH_MONO_LINK, marginTop: 12, fontSize: 9, fontWeight: 700, color: "var(--sh-accent, #2ee0c4)" }}>
         Revenue · payouts · funnel · churn →
       </a>
     </div>
@@ -1047,7 +1057,7 @@ function DashBusinessSummary({ live, role, clients }) {
 
 // Nutritionist roster aggregates + the recipe-publishing insight.
 function DashNutriAggPanel({ clients, live }) {
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   const withLogs = clients.filter((c) => c.foodLogs && c.foodLogs.daysLogged7d != null);
   const avgCompliance = withLogs.length
     ? Math.round((withLogs.reduce((s, c) => s + Math.min(7, c.foodLogs.daysLogged7d), 0) / (withLogs.length * 7)) * 100)
@@ -1056,10 +1066,10 @@ function DashNutriAggPanel({ clients, live }) {
     ? Math.round((withLogs.filter((c) => c.foodLogs.daysLogged7d > 0).length / withLogs.length) * 100)
     : null;
   const renewals = live ? null : 4; // billing dates aren't exposed yet
-  const cellStyle = { background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "13px 15px" };
+  const cellStyle = { background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "13px 15px" };
   const stat = (k, l, sub) => (
     <div style={cellStyle}>
-      <div style={{ fontFamily: serif, fontSize: 23, lineHeight: 1, color: k === "—" ? ink50 : "#f2ede4" }}>{k}</div>
+      <div style={{ fontFamily: serif, fontSize: 23, lineHeight: 1, color: k === "—" ? ink50 : "var(--sh-ink, #f2ede4)" }}>{k}</div>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50, marginTop: 5 }}>{l}</div>
       {sub && <div style={{ fontSize: 10, color: ink50, marginTop: 3 }}>{sub}</div>}
     </div>
@@ -1071,12 +1081,12 @@ function DashNutriAggPanel({ clients, live }) {
         {stat(pctLogged != null ? pctLogged + "%" : "—", "Logged this week", pctLogged == null ? "no shared logs yet" : null)}
         {stat(renewals != null ? String(renewals) : "—", "Renewals due · 30d", renewals == null ? "connects when billing dates go live" : null)}
       </div>
-      <div style={{ marginTop: 12, padding: "12px 15px", background: "rgba(216,162,58,0.07)", border: "1px solid rgba(216,162,58,0.25)", borderLeft: "3px solid #d8a23a", borderRadius: 4 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d8a23a" }}>Insight · recipes</div>
-        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.8)", lineHeight: 1.55, marginTop: 6 }}>
+      <div style={{ marginTop: 12, padding: "12px 15px", background: "rgba(216,162,58,0.07)", border: "1px solid rgba(216,162,58,0.25)", borderLeft: "3px solid var(--sh-gold, #d8a23a)", borderRadius: 4 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-gold, #d8a23a)" }}>Insight · recipes</div>
+        <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", lineHeight: 1.55, marginTop: 6 }}>
           Clients with fresh recipes in their plan log meals more consistently — your lowest-compliance clients are the first place a new recipe drop pays off.
         </div>
-        <a href={dashShellHref("NutritionistPlans.html")} style={{ display: "inline-block", marginTop: 9, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#d8a23a", textDecoration: "none" }}>Publish a recipe →</a>
+        <a href={dashShellHref("NutritionistPlans.html")} style={{ display: "inline-block", marginTop: 9, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-gold, #d8a23a)", textDecoration: "none" }}>Publish a recipe →</a>
       </div>
     </div>
   );
@@ -1132,12 +1142,12 @@ function DashWeekAheadPanel({ week }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
         {week.days.map((d) => (
           <div key={d.date} title={d.date} style={{ textAlign: "center", padding: "10px 4px 8px", borderRadius: 8, minWidth: 0,
-            background: d.today ? "rgba(46,224,196,0.08)" : "rgba(242,237,228,0.03)",
-            border: "1px solid " + (d.today ? "rgba(46,224,196,0.3)" : "rgba(242,237,228,0.06)") }}>
-            <div style={{ ...DASH_MONO_EYEBROW, color: d.today ? "#2ee0c4" : DASH_INK50 }}>{d.dow}</div>
-            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: d.count ? "#f2ede4" : "rgba(242,237,228,0.35)" }}>{d.count}</div>
-            <div style={{ height: 3, margin: "8px auto 0", width: "70%", borderRadius: 999, background: "rgba(242,237,228,0.08)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: max ? (d.count / max) * 100 + "%" : 0, background: "#2ee0c4", opacity: 0.85 }} />
+            background: d.today ? "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.03)",
+            border: "1px solid " + (d.today ? "rgba(var(--sh-accent-rgb, 46,224,196),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)") }}>
+            <div style={{ ...DASH_MONO_EYEBROW, color: d.today ? "var(--sh-accent, #2ee0c4)" : DASH_INK50 }}>{d.dow}</div>
+            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: d.count ? "var(--sh-ink, #f2ede4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" }}>{d.count}</div>
+            <div style={{ height: 3, margin: "8px auto 0", width: "70%", borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: max ? (d.count / max) * 100 + "%" : 0, background: "var(--sh-accent, #2ee0c4)", opacity: 0.85 }} />
             </div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: DASH_INK50, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{d.first || (d.count ? " " : "—")}</div>
           </div>
@@ -1158,7 +1168,7 @@ function DashRosterStatusPanel({ status, role }) {
   if (!status.total) return <div style={{ fontSize: 13, color: DASH_INK50 }}>No clients on the pulse yet.</div>;
   return (
     <div>
-      <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(242,237,228,0.06)" }}>
+      <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
         {segs.map(([k]) => status[k].length ? <div key={k} style={{ width: (status[k].length / status.total) * 100 + "%", background: DASH_SEV_COLORS[k] }} /> : null)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
@@ -1178,7 +1188,7 @@ function DashRosterStatusPanel({ status, role }) {
         ))}
       </div>
       <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
-        {status.total} on the pulse{status.fresh ? " · " + status.fresh + " new in the last 14 days" : ""} · <a href={dashTabHref("clients", role)} style={{ color: "#2ee0c4", textDecoration: "none", display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0" }}>Open the roster →</a>
+        {status.total} on the pulse{status.fresh ? " · " + status.fresh + " new in the last 14 days" : ""} · <a href={dashTabHref("clients", role)} style={{ color: "var(--sh-accent, #2ee0c4)", textDecoration: "none", display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0" }}>Open the roster →</a>
       </div>
     </div>
   );
@@ -1194,7 +1204,7 @@ function DashRosterStatusPanel({ status, role }) {
 function DashTopMoversPanel({ movers }) {
   if (!movers) return null;
   const row = (m, up) => (
-    <div key={(up ? "u:" : "d:") + (m.id || m.name)} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+    <div key={(up ? "u:" : "d:") + (m.id || m.name)} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
       <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: up ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, flexShrink: 0, whiteSpace: "nowrap" }}>
         {up ? "▲ +" : "▼ "}{Math.abs(m.delta)} <span style={{ color: DASH_INK50 }}>· {m.points}{m.partial ? "*" : ""} pts</span>
@@ -1222,13 +1232,13 @@ function DashAnniversariesPanel({ marks }) {
   return (
     <div>
       {marks.soon.length ? marks.soon.slice(0, 6).map((h) => (
-        <div key={h.id || (h.name + "|" + h.label)} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: h.inDays === 0 ? "#2ee0c4" : "rgba(242,237,228,0.35)" }} />
+        <div key={h.id || (h.name + "|" + h.label)} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: h.inDays === 0 ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" }} />
           <div style={{ minWidth: 0 }}>
             <span style={{ fontSize: 13.5, fontWeight: 500 }}>{h.name}</span>
-            <span style={{ fontSize: 13, color: "rgba(242,237,228,0.8)" }}> — {h.label} on Shape</span>
+            <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}> — {h.label} on Shape</span>
           </div>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", color: h.inDays === 0 ? "#2ee0c4" : DASH_INK50 }}>{when(h)}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", color: h.inDays === 0 ? "var(--sh-accent, #2ee0c4)" : DASH_INK50 }}>{when(h)}</span>
         </div>
       )) : (
         <div style={{ fontSize: 13, color: DASH_INK50 }}>
@@ -1248,13 +1258,13 @@ function DashRevenueByClientPanel({ rev }) {
   return (
     <div>
       {rev.rows.map((r) => (
-        <div key={r.id || (r.name + "|" + r.cents)} style={{ padding: "7px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+        <div key={r.id || (r.name + "|" + r.cents)} style={{ padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
             <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, flexShrink: 0, whiteSpace: "nowrap" }}>{dashMoney(r.cents)}<span style={{ color: DASH_INK50 }}>/mo · {Math.round(r.share * 100)}%</span></span>
           </div>
-          <div style={{ height: 3, marginTop: 6, borderRadius: 999, background: "rgba(242,237,228,0.06)", overflow: "hidden" }}>
-            <div style={{ height: "100%", width: top ? (r.cents / top) * 100 + "%" : 0, background: "#2ee0c4", opacity: 0.8 }} />
+          <div style={{ height: 3, marginTop: 6, borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: top ? (r.cents / top) * 100 + "%" : 0, background: "var(--sh-accent, #2ee0c4)", opacity: 0.8 }} />
           </div>
         </div>
       ))}
@@ -1274,11 +1284,11 @@ function DashProgramsEndingPanel({ ending, role }) {
   return (
     <div>
       {ending.soon.length ? ending.soon.slice(0, 6).map((r) => (
-        <div key={r.id || r.name} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: r.left === 0 ? "#e0a24a" : "rgba(242,237,228,0.35)" }} />
+        <div key={r.id || r.name} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+          <span style={{ width: 7, height: 7, borderRadius: 2, background: r.left === 0 ? "#e0a24a" : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" }} />
           <div style={{ minWidth: 0 }}>
             <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</span>
-            <span style={{ fontSize: 13, color: "rgba(242,237,228,0.8)" }}>{r.program ? " — " + r.program : ""}</span>
+            <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}>{r.program ? " — " + r.program : ""}</span>
             <span style={{ fontSize: 12, color: DASH_INK50 }}> · wk {r.week}/{r.weeks}</span>
           </div>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", color: r.left === 0 ? "#e0a24a" : DASH_INK50 }}>{left(r)}</span>
@@ -1288,7 +1298,7 @@ function DashProgramsEndingPanel({ ending, role }) {
       )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 10 }}>
         <span style={{ fontSize: 11, color: DASH_INK50 }}>{rest}</span>
-        {ending.soon.length > 0 && <a href={dashTabHref(plans, role)} style={{ ...DASH_MONO_LINK, color: "#2ee0c4" }}>Write the next {noun} →</a>}
+        {ending.soon.length > 0 && <a href={dashTabHref(plans, role)} style={{ ...DASH_MONO_LINK, color: "var(--sh-accent, #2ee0c4)" }}>Write the next {noun} →</a>}
       </div>
     </div>
   );
@@ -1377,7 +1387,7 @@ function DashNotesPanel({ prefs, role }) {
     <div>
       <textarea className="dash-notes-ta" value={value} onChange={(e) => setDraft({ acct: acct, text: e.target.value })} rows={5} aria-label="Notes to self"
         placeholder="Anything to remember — a client to call, a block to tweak, a note for Friday."
-        style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 96, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, color: "#f2ede4", fontFamily: sans, fontSize: 13.5, lineHeight: 1.5, padding: "10px 12px" }} />
+        style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 96, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 8, color: "var(--sh-ink, #f2ede4)", fontFamily: sans, fontSize: 13.5, lineHeight: 1.5, padding: "10px 12px" }} />
       <div style={{ fontSize: 11, color: kind === "error" ? DASH_SEV_COLORS.amber : DASH_INK50, marginTop: 8 }}>{status}</div>
     </div>
   );
@@ -1466,7 +1476,7 @@ function CoachDashboardPage({ role }) {
 
   // ── Coach Today as a draggable DashGrid (role-scoped, tab="today"). Each section below
   // becomes a widget; the date/greeting/CTAs stay as the page header (DashShell topbar).
-  const dashPanelStyle = { background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 };
+  const dashPanelStyle = { background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 24 };
   const renderPanel = (title, children) => (
     <div style={dashPanelStyle}>
       {title && <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{title}</div>}
@@ -1474,12 +1484,12 @@ function CoachDashboardPage({ role }) {
     </div>
   );
   const renderKpiStrip = (row) => (
-    <div style={{ display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, overflow: "hidden" }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, overflow: "hidden" }}>
       {row.map((k, i) => (
-        <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none", minWidth: 0 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
+        <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "none", minWidth: 0 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{k.k}</div>
-          {k.sub && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{k.sub}</div>}
+          {k.sub && <div style={{ fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 6 }}>{k.sub}</div>}
         </div>
       ))}
     </div>

@@ -189,6 +189,7 @@ is what catches one that was missed (a canvas handed `var(--…)` draws nothing)
 |---|---|---|
 | 1–4 | Token layer + the four sweeps (dark values) | change a single pixel — pixel diff per tab |
 | 1 | **SHIPPED.** `dash.css` token block + the chrome swept (337 sites) + `tests/newdesign-paper-tokens.test.mjs` | — |
+| 2 | **SHIPPED.** The six coach/client surfaces (342 sites) + every hex parser in the directory made token-tolerant, which is PR 1's own class closed — §11 | — |
 | 5 | The light paper values, the switch, the Settings control, **default light** | touch a marketing page's header (no `data-paper` there) |
 | 6 | Trainer Sheet view + header + toolbar | change the document shape or either route |
 | 7 | Trainer Grid view + side panel + the view switch + weekday defaults | move a published snapshot |
@@ -247,7 +248,13 @@ The token block plus the chrome sweep — `dash.css`, `pageShell.jsx`, `trainerD
 `dashGrid.jsx`, **337 sites**. `coachNav.jsx` and `clientNav.jsx` carry no colour literal at all,
 so the brief's PR 1 list is complete at four files. Proven a visual no-op by a pixel diff of
 **41 surfaces** — 33 dashboard tabs across the three shells plus 8 marketing pages — **all 41
-identical**. Four findings worth carrying into PRs 2–4:
+identical**.
+⚠ **AND IT WAS STILL BROKEN IN THREE PLACES — CORRECTED 2026-09-22, SEE §11.** The diff was
+honest and the sweep was not: a pixel diff proves only the states you captured, and the chat
+bubble's Feed tab, its profile card and Nora's row in site search are all **closed** in a page
+capture. Read that claim as *"identical in every state the harness opened"*, which is a smaller
+claim than it looks.
+Four findings worth carrying into PRs 2–4:
 
 ⚠ **THE HEX-ALPHA TRAP HAS TWO SPELLINGS, AND SWEEPING ONE SHIPS THE OTHER.** `INK` was the
 string `#f2ede4`, so ``${INK}40`` produced the 8-digit hex `#f2ede440`. Once `INK` became
@@ -282,8 +289,20 @@ in `docs/WORKLOG.md` from the `vite.config.ts` incident; PRs 2–4 sweep far mor
 ⚠ **AND THE RENDER HARNESS HAD TO BE PROVEN DETERMINISTIC BEFORE ANY DIFF MEANT ANYTHING.** Two
 independent captures of the *same* tree are **41/41 identical** — the clock fixed with
 `page.clock.setFixedTime`, `Math.random` seeded from an init script, animations and transitions
-disabled, the fonts and the three CDN bundles served from local bytes. Without that control a
-green diff is indistinguishable from a harness that renders the same thing twice by luck.
+disabled, the fonts and the three CDN bundles served from local bytes.
+⚠ **CORRECTED 2026-09-22 — 39 of 41, AND THE CONTROL ITSELF WAS A SAMPLE.** Re-measured over the
+full set (the first control predated the 8 marketing pages), **two** surfaces move between two
+captures of the identical tree: `NutritionistApp-schedule.png` by **11,147 px (0.467%)** in one
+35px band at y 680..714 where the calendar's event chips sit, and `page-index.png` by **221,800
+px** — the scroll-driven journey, which renders in two stable modes depending on run position.
+⚠ **AND THE FIRST CONTROL PASSED `page-index.png`, WHICH IS THE WHOLE LESSON.** Two captures can
+agree by coincidence when the nondeterminism is bimodal, so *a determinism control run once is
+itself a sample, not a proof.* On the PR 2 diff that surface duly reported **110,916 px** — and a
+**position-matched** comparison (capture a vs capture a, b vs b) returns **0 px on both
+positions** while the same tree across positions returns the full 221,800. So the tree is not the
+variable, and the honest way to compare these two surfaces is position-matched or not at all.
+Without that control a green diff is indistinguishable from a harness that renders the same thing
+twice by luck.
 ⚠ Playwright's own `page.screenshot` **hung** on both coach *Today* tabs waiting for
 `document.fonts` (the page is fine; `fonts.ready` resolves), so captures go through CDP
 `Page.captureScreenshot` with `captureBeyondViewport`.
@@ -294,3 +313,105 @@ conversions sit inside cards gated on a session, and are correct by the Chromium
 above rather than by a render. `rgba(var(--triplet), α)`, `var()` fallbacks, and `var()` inside a
 shorthand, a gradient and an SVG presentation attribute were each measured in Chromium before the
 sweep depended on them.
+
+## 11. What PR 2 actually found (shipped 2026-09-22)
+
+The six coach/client surfaces the brief lists — `dashToday.jsx`, `dashWeek.jsx`,
+`dashSchedule.jsx`, `dashRoster.jsx`, `dashClient.jsx`, `coachClientDetail.jsx`, **342 sites** —
+plus a fix for the class PR 1 left open, which is most of what follows.
+
+⚠ **A COLOUR THAT REACHES A HEX-ALPHA APPEND MUST STAY LITERAL, AND FOUR SOURCES IN THIS SET
+DO.** `DashPill` composes its tint and both borders as `c + "1c"` / `c + "55"`; `CKTrend` fills
+under its line with `color + "22"`; the schedule's chip tints with `color + "22"`; the membership
+pill borders with `memberPill.c + "55"`. The first cut tokenised the constants behind all four —
+measured, **every severity pill on both coach Today tabs lost its tint, its border and its
+padding, and the page got 16px shorter**. `DASH_SEV_COLORS`, the queue's inline ternary branch,
+`inkMutedPill`, `DCL_TEAL`/`DCL_RED`/`DCL_INK50`, `coachClientDetail`'s `teal`/`gold`/`rust` and
+`DSC_PALETTE` are reverted, each with the rule written **beside it** rather than only here.
+⚠ `DCL_GREEN` and `DSC_TEAL` stay tokenised, deliberately: nothing appends to either. **The split
+is about where a value ENDS UP, not about what kind of colour it is.**
+
+⚠ **AND THE SWEEP SCRIPT DERIVES THAT SKIP SET NOW, WHICH FOUND THREE OF THE FOUR AND MISSED THE
+FOURTH FOR A REASON WORTH KEEPING.** It walks from each append site back through the file's
+declarations, so `DASH_SEV_COLORS` and the ternary are protected automatically. `DSC_PALETTE` is
+not, because the chain runs `color ← (colorOf || dscClientColor)(…) ← DSC_PALETTE` — through a
+**function return**, and the walker only followed `const`. *A derived skip set is only as deep as
+the hops it knows* — which is why the shipped guard is an AST walk and the sweep is only a
+labour-saver. ⚠ Its SVG rule is imprecise in the same way, and the residual was checked rather
+than assumed: the pattern protects only the **first** colour attribute on a tag, so
+`<circle fill="none" stroke="rgba(242,237,228,0.09)">` had its stroke swept. That one is
+**correct** — a 9% ink hairline is the paper's own colour and should follow it — and Chromium
+resolves `var()` in an SVG presentation attribute with the token present *and* absent (measured
+again here, along with both box-shadow forms). It is the only SVG attribute in the diff that
+moved, so the imprecision cost nothing this time; PR 3 should re-check rather than re-trust it.
+
+⚠ **A SECOND AND WORSE SINK: A HELPER THAT PARSES THE HEX DIGITS ARITHMETICALLY. PR 1 BROKE THREE
+SURFACES THIS WAY AND THE PIXEL DIFF COULD NOT SEE ANY OF THEM.** `ssShade`, `cwHexA`, `cwShade`
+and `cfHexA` all `parseInt(hex, 16)`, and `INK` / `TEAL` / `TEAL_BRIGHT` are `pageShell.jsx`
+module-scope constants that every later classic script can read. Measured on the branch:
+
+| call | before PR 1 | after PR 1 | where |
+| --- | --- | --- | --- |
+| `cfHexA(INK, 0.06)` — 16 of 21 calls | `rgba(242,237,228,0.06)` | **opaque cream** | chat bubble · Feed plate |
+| `ssShade(TEAL, 0.5)` | `rgb(5,99,84)` | **`rgb(0,0,0)`** | site search · Nora's facet |
+| `cwHexA(TEAL_BRIGHT, 0.3)` | `rgba(46,224,196,0.3)` | **`rgba(0,0,0,0.3)`** | chat bubble · avatar |
+| `` `${tc}55` `` | `#2ee0c455` | **invalid, dropped** | chat bubble · profile card |
+
+⚠ **`NaN >> 16 & 255` IS 0, SO TWO OF THOSE ARE VALID CSS THAT IS SIMPLY BLACK** — no browser,
+no linter and no build can report a colour that parses. `livingShared.jsx`'s `hexA` is nastier
+still: `parseInt("ar(--sh-probe, #2ee0c4)", 16)` stops at the leading `a` and returns **10**, so
+the output is a plausible near-black rather than an obvious one.
+
+**Fixed at the sink, not at the sources.** Every one of the directory's **ten** hex-parsing
+helpers now EXTRACTS the digits (`String(x).match(/#([0-9a-fA-F]{3,6})/)`) instead of assuming the
+whole string is a hex — a token always carries its own literal fallback, so the digits are there
+to be found. `cfHexA` and a new `ssAlpha` go further and emit `rgba(var(--<token>-rgb, r,g,b), a)`,
+so those derived alphas **still follow the paper**; a multiplicative shade has no CSS equivalent
+and is honestly pinned to the fallback. ⚠ **All twelve conversions were A/B'd against the
+pre-PR-1 originals** (lifted from source and run, not restated) and the alpha and token
+equivalences were **measured in Chromium** — `#2ee0c455` = `rgba(46,224,196,0.3333)`, and
+`rgba(var(--sh-ink-rgb, 242,237,228), .06)` computes to the literal when the token is absent and
+**follows it** when present.
+
+⚠ **SIX OF THE TEN PARSERS WERE NOT BROKEN TODAY AND ARE FIXED ANYWAY, WHICH IS A SCOPE
+DECISION.** `marketplace.jsx`, `radioInstrument.jsx`, `livingShared.jsx` (×2) and `siteSearch.js`
+read their own literals, so nothing tokenised reaches them yet — and PRs 3–5 tokenise those very
+files. A guard that exempts four parsers is a guard with four holes, and the exemption list is
+the thing that goes stale. Nine one-line changes, each proven byte-identical by driving it, is
+cheaper than four traps.
+
+⚠ **THE GUARD IS SCOPE-AWARE BECAUSE A NAME-KEYED WALK CANNOT BE.** `tests/newdesign-paper-tokens.test.mjs`
+gained two checks, both on the Babel AST: **every hex parser is driven** with a token and a bare
+hex and must answer the same colour; and **no hex-alpha append resolves to a token**, resolved
+through Babel's own bindings across the alias, member-read, function-return and cross-file JSX
+prop hops. Three earlier attempts are recorded because each failed in an instructive way — a
+reads-follow walk over these files reached **183 declarations** from one append site; bounding it
+to a name declared once still crossed scopes via a **parameter**; and a scope-blind walk went
+`c → r → dir → row` through four unrelated functions and reported a defect that was not there.
+⚠ Its own `seen` key had to be **file-scoped**: without that, two files' nodes at the same byte
+offset collided and silently pruned the DashPill chain while the walk reported CLEAN — found by
+the mutation round, not by reading.
+
+⚠ **AND A THIRD CLASS, REGISTERED RATHER THAN GUARDED, BECAUSE NO LIVE INSTANCE EXISTS: A COLOUR
+COMPARED BY EQUALITY.** `dashGoals.jsx` decides a spark's colour with `accent === DGO_INK50`
+(three sites) and `shared.jsx`'s `ShapeWord` infers light-vs-dark with
+`c === "#fff" || … || c.includes("244,241,234")`. Both are **safe today, and checked rather than
+assumed**: every `c:` in `dgoStateView` is assigned the constant itself, never a literal spelling
+of it, so tokenising `DGO_INK50` keeps both sides equal; and `ShapeWord` is handed a colour only
+by the two retired exploration files, where `var(--sh-ink, #f2ede4)` and `#f2ede4` both fail every
+arm of that test identically — measured, the inferred variant does not move.
+**PR 3 owns the hazard**, because it sweeps `dashGoals.jsx`: the moment one side of that
+comparison is a token and the other a literal, the spark silently draws in the wrong colour and
+nothing fails. The fix when it comes is a semantic flag (`muted: true`) rather than a colour
+compare — a colour is not an identity.
+
+**Verification.** `npm test` **4,274 / 0** through the pre-commit gate · all 13 changed modules
+parse · the newdesign precompile check (73 pages, 80 shared jsx, 0 errors) · a pixel diff of the
+same 41 surfaces against PR 1's head: **40 identical outright**, and `page-index.png` — which the
+control above proves renders in two modes — **identical at both positions when matched**, so the
+sweep is pixel-exact on every surface the harness opens · **27 mutations, 27 killed**, each proven to land, the
+suite's own `# pass`/`# fail` parsed, sanity green at both ends, the tree restored in a `finally`
+and on a signal — including the two that close the class **forward** (a brand-new naive parser,
+and a brand-new component that hex-appends a tokenised prop) and one per spelling of the append
+vacuity floor, because a **summed** floor is satisfied by whichever spelling still matches and
+that mutation survived until the floor was split.

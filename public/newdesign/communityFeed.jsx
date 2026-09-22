@@ -437,8 +437,26 @@ function CfDotNumber({ text, size = 34, color, dim, gap = 1, title }) {
 // never has to handle an rgba() input — and it must not be handed one: a hex
 // alpha appended to an rgba() string voids the whole CSS declaration, which is
 // the defect that made two textures erase every page background (2026-09-01).
+// ⚠ THIS MUST ACCEPT A PAPER TOKEN, NOT JUST A HEX. `INK` and friends are
+// `var(--sh-ink, #f2ede4)` now, and the old body's length guard handed such a
+// string straight back — so 16 of this file's 21 calls returned the OPAQUE ink
+// where they meant 6%: measured, `cfHexA(INK, 0.06)` went from `rgba(242,237,228,0.06)` to
+// `var(--sh-ink, #f2ede4)`. A pixel diff could not see it, because this file
+// renders inside the chat bubble's Feed tab, which no page capture has open.
+// The token form is turned into its `-rgb` twin so the derived alpha STILL
+// follows the paper; `var()` falls back to the literal triplet where the twin is
+// not declared, so this is byte-identical wherever dash.css is absent.
+// tests/newdesign-paper-tokens.test.mjs holds the rule.
 function cfHexA(hex, a) {
-  const h = String(hex || "").replace("#", "");
+  const s = String(hex || "");
+  const tok = s.match(/var\(\s*(--[\w-]+)\s*,\s*#([0-9a-fA-F]{6})\s*\)/);
+  if (tok) {
+    const n = parseInt(tok[2], 16);
+    return `rgba(var(${tok[1]}-rgb, ${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}), ${a})`;
+  }
+  const trip = s.match(/var\(\s*(--[\w-]+-rgb)\s*,\s*([\d\s,]+?)\s*\)/);
+  if (trip) return `rgba(var(${trip[1]}, ${trip[2]}), ${a})`;
+  const h = s.replace("#", "");
   if (h.length !== 6) return hex;
   return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${a})`;
 }

@@ -107,8 +107,13 @@ test('the hooks run before the early return', () => {
 test('the gear is a real toggle and says when something is hidden', () => {
   assert.match(SRC, /aria-label="Choose sections"/);
   assert.match(SRC, /aria-expanded=\{showSettings\}/);
-  // lit when a section is hidden, so the drawer never quietly omits one
-  assert.match(SRC, /color: secs\.hiddenCount \? "#2ee0c4" : DASH_ROSTER_INK50/);
+  // Lit when a section is hidden, so the drawer never quietly omits one.
+  // ⚠ ANCHORED ON THE CONDITION, NOT ON THE ACCENT'S SPELLING. This pinned the
+  // literal `"#2ee0c4"` and the paper sweep — whose whole job is to replace that
+  // string with a token — therefore failed a test about a toggle. What the guard
+  // is about is that the gear's colour is DECIDED BY hiddenCount and falls back to
+  // the muted ink; either spelling of teal satisfies that.
+  assert.match(SRC, /color: secs\.hiddenCount \? [^:]+ : DASH_ROSTER_INK50/);
   // and each chip is a pressed-state toggle over the FULL list, not just the shown one
   assert.match(SRC, /\{secs\.all\.map\(\(\[key, title\]\) => \{/);
   assert.match(SRC, /aria-pressed=\{on\}/);

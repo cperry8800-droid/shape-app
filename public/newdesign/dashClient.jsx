@@ -9,9 +9,15 @@
 // Load order: pageShell → trainerDashboard.jsx → clientNav → dashSignals.js →
 // dashData.jsx → this file.
 
+// ⚠ DCL_INK50 · DCL_TEAL · DCL_RED STAY LITERAL, BY RULE. All three reach the
+// membership pill, which composes its border by APPENDING a hex-alpha suffix
+// (`memberPill.c + "55"`), so a var() there is not a colour and CSS drops the whole
+// declaration. DCL_GREEN is tokenised because nothing appends to it — the split is
+// about where a value ENDS UP, not about what kind of colour it is.
+// tests/newdesign-paper-tokens.test.mjs holds the rule.
 const DCL_INK50 = "rgba(242,237,228,0.55)";
 const DCL_TEAL = "#2ee0c4";
-const DCL_GREEN = "#7bbf5a";
+const DCL_GREEN = "var(--sh-green, #7bbf5a)";
 const DCL_RED = "#e0644b";
 const DCL_MONO = "'JetBrains Mono', monospace";
 
@@ -40,8 +46,8 @@ const DCL_DEMO = {
   ],
   compliance: { workoutsDone: 4, workoutsPlanned: 6, mealsLogged: 6, mealDays: 7 },
   team: [
-    { name: "Maya Okafor", role: "Trainer", color: "#c0533b" },
-    { name: "Rae Lindqvist", role: "Nutritionist", color: "#d8a23a" },
+    { name: "Maya Okafor", role: "Trainer", color: "var(--sh-rust2, #c0533b)" },
+    { name: "Rae Lindqvist", role: "Nutritionist", color: "var(--sh-gold, #d8a23a)" },
   ],
   nextSession: { when: "Thu · 6:30 PM", what: "Weekly with Maya · 20 min video" },
   milestonesFeed: {
@@ -128,7 +134,7 @@ function DclRing({ pct, size = 92, stroke = 7, color = DCL_TEAL, children }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(242,237,228,0.09)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.09)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(1, Math.max(0, pct)))} transform={"rotate(-90 " + size / 2 + " " + size / 2 + ")"} />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>{children}</div>
@@ -141,8 +147,8 @@ function DclRing({ pct, size = 92, stroke = 7, color = DCL_TEAL, children }) {
 // the trainer's builder preview renders this exact component, so "client
 // preview" is literally the client's card. Exercises: { prefix?, name,
 // scheme, load, cue? } — cues render verbatim, grouped rows show A1/A2.
-function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain.html", maxRows = 4, interactive = true }) {
-  const ink50 = "rgba(242,237,228,0.55)";
+function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHref = "ClientTrain.html", maxRows = 4, interactive = true }) {
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   const mono = "'JetBrains Mono', monospace";
   if (!workout) return <div style={{ fontSize: 13, color: ink50, marginTop: 8 }}>Rest day — recovery counts. An easy walk keeps the streak alive.</div>;
   const rows = workout.exercises || [];
@@ -156,14 +162,14 @@ function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain
       <div style={{ fontSize: 11.5, color: ink50, marginBottom: 6 }}>with {workout.coach}</div>
       <div className="dash-ledger" style={{ "--dac": accent }} />
       {rows.slice(0, maxRows).map((e, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 10, alignItems: "start", padding: "7px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+        <div key={i} style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 10, alignItems: "start", padding: "7px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
           <span style={{ fontFamily: mono, fontSize: 9.5, color: e.prefix ? accent : ink50, fontWeight: e.prefix ? 700 : 400, marginTop: 2 }}>{e.prefix || String(i + 1).padStart(2, "0")}</span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 500 }}>{e.name}</div>
             <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.05em", color: ink50, marginTop: 2 }}>{e.scheme}</div>
-            {e.cue && <div style={{ fontSize: 11.5, fontStyle: "italic", color: "rgba(242,237,228,0.7)", marginTop: 3 }}>“{e.cue}”</div>}
+            {e.cue && <div style={{ fontSize: 11.5, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", marginTop: 3 }}>“{e.cue}”</div>}
           </div>
-          <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(242,237,228,0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{e.load}</span>
+          <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{e.load}</span>
         </div>
       ))}
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
@@ -173,7 +179,7 @@ function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain
             ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}
           </a>
         ) : (
-          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, border: "1px solid rgba(242,237,228,0.16)", borderRadius: 4, padding: "6px 10px" }}>♪ Shape Radio</a>
+          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", borderRadius: 4, padding: "6px 10px" }}>♪ Shape Radio</a>
         )}
         {interactive && <a href={startHref} style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff", background: accent, borderRadius: 4, padding: "9px 14px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Start →</a>}
       </div>
@@ -190,9 +196,9 @@ function DashWorkoutCard({ workout, accent = "#c0533b", startHref = "ClientTrain
 // ledger math. Bars go red when a macro runs over target (the builder's
 // running total mirrors this exact treatment).
 function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, headerNote, swapStorageKey, interactive = true }) {
-  const ink50 = "rgba(242,237,228,0.55)";
+  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
   const mono = "'JetBrains Mono', monospace";
-  const teal = "#2ee0c4", green = "#7bbf5a", red = "#e0644b";
+  const teal = "var(--sh-accent, #2ee0c4)", green = "var(--sh-green, #7bbf5a)", red = "var(--sh-rust, #e0644b)";
   const [swapSel, setSwapSel] = React.useState(() => {
     if (!swapStorageKey) return {};
     try { return JSON.parse(localStorage.getItem(swapStorageKey) || "{}"); } catch (e) { return {}; }
@@ -212,7 +218,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
     return alt ? { ...m, title: alt.name, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f, _swapped: true } : m;
   };
   const remaining = targets.kcal - ledger.kcal;
-  const ghost = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
+  const ghost = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
@@ -228,7 +234,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
         return (
           <div key={l} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 10, alignItems: "center", padding: "4px 0" }}>
             <span style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50 }}>{l}</span>
-            <div style={{ position: "relative", height: 5, background: "rgba(242,237,228,0.08)", borderRadius: 2 }}>
+            <div style={{ position: "relative", height: 5, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2 }}>
               <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, Math.round((v / Math.max(1, t)) * 100)) + "%", background: over ? red : c2, borderRadius: 2, transition: "width .35s ease, background .35s ease" }} />
             </div>
             <span style={{ fontFamily: mono, fontSize: 10, whiteSpace: "nowrap", color: over ? red : undefined }}>{Math.round(v)}<span style={{ color: ink50 }}>/{t}{l === "Calories" ? "" : "g"}</span></span>
@@ -241,7 +247,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
           const isLogged = !!logged[m.id];
           const canSwap = interactive && !isLogged && (base.alts || []).length > 0;
           return (
-            <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+            <div key={m.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: teal }}>{m.slot}{m.time ? " · " + m.time : ""}{m._swapped ? " · swapped" : ""}</div>
                 <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 3, opacity: isLogged ? 0.55 : 1 }}>{m.title}</div>
@@ -249,7 +255,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {canSwap && (
-                  <button onClick={() => cycleSwap(base)} title={"Approved alternates: " + base.alts.map((a) => a.name).join(", ")} style={{ ...ghost, padding: "8px 10px", borderColor: m._swapped ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.18)", color: m._swapped ? teal : "rgba(242,237,228,0.7)" }}>⇄ Swap</button>
+                  <button onClick={() => cycleSwap(base)} title={"Approved alternates: " + base.alts.map((a) => a.name).join(", ")} style={{ ...ghost, padding: "8px 10px", borderColor: m._swapped ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)", color: m._swapped ? teal : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>⇄ Swap</button>
                 )}
                 {isLogged
                   ? <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: green, textTransform: "uppercase" }}>✓ Logged</span>
@@ -274,7 +280,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
 // /api/client/checkin + /api/client/hydration (cookie session). Demo = signed-out
 // preview (band on top) — taps work locally and nothing persists.
 function DashTodayCard({ live }) {
-  const teal = DCL_TEAL, amber = "#d8a23a", blue = "#7ed4ff";
+  const teal = DCL_TEAL, amber = "var(--sh-gold, #d8a23a)", blue = "#7ed4ff";
   const ink50 = DCL_INK50, mono = DCL_MONO;
   const sleepHM = (h) => { const m = Math.round(Number(h) * 60); return Math.floor(m / 60) + "h " + (m % 60) + "m"; };
   const todayISO = dclTodayISO();
@@ -386,7 +392,7 @@ function DashTodayCard({ live }) {
           <span style={{ fontFamily: serif, fontSize: 18, lineHeight: 1, color: val ? c : ink50 }}>{val || "—"}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}> /10</span></span>
         </div>
         <div style={{ position: "relative", height: 44 }}>
-          <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: 9, borderRadius: 999, background: "rgba(242,237,228,0.08)", overflow: "hidden" }}>
+          <div style={{ position: "absolute", left: 0, right: 0, top: "50%", transform: "translateY(-50%)", height: 9, borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", overflow: "hidden" }}>
             <div style={{ width: (pct * 100) + "%", height: "100%", background: c, transition: "width .16s ease" }} />
           </div>
           {[...Array(9)].map((_, i) => (<div key={i} aria-hidden="true" style={{ position: "absolute", left: (((i + 1) / 10) * 100) + "%", top: "50%", transform: "translate(-50%,-50%)", width: 1, height: 9, background: PAPER, opacity: 0.6 }} />))}
@@ -405,7 +411,7 @@ function DashTodayCard({ live }) {
   const dotCount = Math.max(6, Math.min(14, Math.round((hydTarget || 3) / 0.25)));
   const filledDots = Math.max(0, Math.min(dotCount, Math.round(hpct * dotCount)));
   const hydDisplay = Ln(cur) + " / " + Ln(hydTarget) + " L";
-  const waterBtn = { fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", border: "1px solid rgba(46,224,196,0.4)", background: "rgba(46,224,196,0.08)", color: INK, borderRadius: 5, padding: "10px", cursor: "pointer", flex: 1 };
+  const waterBtn = { fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", color: INK, borderRadius: 5, padding: "10px", cursor: "pointer", flex: 1 };
 
   return (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": teal, paddingLeft: 24 }}>
@@ -419,7 +425,7 @@ function DashTodayCard({ live }) {
           <Gauge label="Energy" val={energy} set={setEnergy} c={teal} />
           <Gauge label="Hunger" val={hunger} set={setHunger} c={amber} />
           {/* SLEEP — device-first hours + an always-on Rested gauge */}
-          <div style={{ marginTop: 2, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+          <div style={{ marginTop: 2, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
               <span style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: ink50 }}>Sleep · last night</span>
               {sleepHours != null && <span style={{ fontFamily: serif, fontSize: 15, color: blue }}>{sleepHM(sleepHours)}</span>}
@@ -431,37 +437,37 @@ function DashTodayCard({ live }) {
             ) : (
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {[6, 6.5, 7, 7.5, 8, 8.5].map((h) => { const sel = sleepHours === h; return (
-                  <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={h + " hours of sleep"} aria-pressed={sel ? "true" : "false"} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: "1px solid " + (sel ? blue : "rgba(242,237,228,0.18)"), background: sel ? "rgba(126,212,255,0.14)" : "transparent", color: sel ? blue : INK, cursor: "pointer", padding: "8px 0", fontFamily: mono, fontSize: 10, fontWeight: 700 }}>{h}</button>
+                  <button key={h} onClick={() => setSleepHours(sel ? null : h)} aria-label={h + " hours of sleep"} aria-pressed={sel ? "true" : "false"} style={{ flex: 1, minWidth: 44, borderRadius: 5, border: "1px solid " + (sel ? blue : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: sel ? "rgba(126,212,255,0.14)" : "transparent", color: sel ? blue : INK, cursor: "pointer", padding: "8px 0", fontFamily: mono, fontSize: 10, fontWeight: 700 }}>{h}</button>
                 ); })}
               </div>
             )}
             <div style={{ marginTop: 10 }}><Gauge label="Rested" val={rested} set={setRested} c={blue} /></div>
           </div>
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(242,237,228,0.12)" : teal, color: (nothingSet || saving) ? ink50 : "#06231f", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
+          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : teal, color: (nothingSet || saving) ? ink50 : "var(--sh-deep, #06231f)", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
         </>
       ) : (
-        <div style={{ fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? "—"}</b> · Hunger <b style={{ color: amber }}>{hunger ?? "—"}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{sleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
+        <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? "—"}</b> · Hunger <b style={{ color: amber }}>{hunger ?? "—"}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{sleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
       )}
 
       {/* HYDRATION — folded in, STAYS LIVE whether or not the check-in is logged */}
-      <div style={{ marginTop: 12, paddingTop: 11, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+      <div style={{ marginTop: 12, paddingTop: 11, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
           <span className="dash-eyebrow">Hydration</span>
           <span style={{ fontFamily: serif, fontSize: 16, color: INK }}>{hyd == null ? "—" : <>{hydDisplay}<span style={{ fontFamily: mono, fontSize: 9, color: ink50 }}> · {Math.round(hpct * 100)}%</span></>}</span>
         </div>
         <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-          {[...Array(dotCount)].map((_, i) => (<div key={i} aria-hidden="true" style={{ flex: "1 1 0", minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : "transparent", border: "1px solid " + (i < filledDots ? teal : "rgba(242,237,228,0.18)") }} />))}
+          {[...Array(dotCount)].map((_, i) => (<div key={i} aria-hidden="true" style={{ flex: "1 1 0", minWidth: 6, height: 9, borderRadius: 2, background: i < filledDots ? teal : "transparent", border: "1px solid " + (i < filledDots ? teal : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)") }} />))}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => addWater(0.25)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+250 ml</button>
           <button onClick={() => addWater(0.5)} disabled={hydBusy} style={{ ...waterBtn, opacity: hydBusy ? 0.5 : 1 }}>+500 ml</button>
-          <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 5, border: "1px solid rgba(242,237,228,0.18)", background: "transparent", color: (lastDelta && !hydBusy) ? INK : ink50, cursor: (lastDelta && !hydBusy) ? "pointer" : "default", fontFamily: mono, fontSize: 13, fontWeight: 700 }}>↶</button>
+          <button onClick={undoWater} disabled={!lastDelta || hydBusy} aria-label="Undo last water" style={{ width: 44, borderRadius: 5, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent", color: (lastDelta && !hydBusy) ? INK : ink50, cursor: (lastDelta && !hydBusy) ? "pointer" : "default", fontFamily: mono, fontSize: 13, fontWeight: 700 }}>↶</button>
         </div>
       </div>
 
       {/* recovery readiness + the door to the trends page */}
       {live && (
-        <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ marginTop: 11, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: ink50 }}>
             {readiness != null ? <>Recovery <b style={{ color: blue, fontSize: 12 }}>{readiness}</b>{readinessLabel ? <span style={{ color: blue }}> · {readinessLabel}</span> : null}</> : "Sleep & recovery"}
           </span>
@@ -578,7 +584,7 @@ function ClientDashboardPage() {
   // No coaches on Shape yet → a signed-in account's team is EMPTY (never the
   // demo coaches). Only a real linked coach shows here.
   const team = live
-    ? (Array.isArray(dash.team) ? dash.team.map((m) => ({ name: m.name, role: m.role, color: /nutri/i.test(m.role || "") ? "#d8a23a" : "#c0533b" })) : [])
+    ? (Array.isArray(dash.team) ? dash.team.map((m) => ({ name: m.name, role: m.role, color: /nutri/i.test(m.role || "") ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust2, #c0533b)" })) : [])
     : DCL_DEMO.team;
   const checkinDue = live
     ? !!(selfRec && selfRec.checkIn && selfRec.checkIn.lastWeekOf !== (() => { const m = new Date(); m.setHours(0,0,0,0); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m.getFullYear() + "-" + String(m.getMonth() + 1).padStart(2, "0") + "-" + String(m.getDate()).padStart(2, "0"); })())
@@ -598,8 +604,8 @@ function ClientDashboardPage() {
     : { text: "Membership · demo", c: DCL_INK50 };
 
   const plate = (ac) => ({ "--dac": ac });
-  const btn = { fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
-  const ghost = { ...btn, color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", textDecoration: "none", display: "inline-block" };
+  const btn = { fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
+  const ghost = { ...btn, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", textDecoration: "none", display: "inline-block" };
 
   return (
     <div style={{ background: PAPER, color: INK, minHeight: "100vh", fontFamily: sans, display: "flex", flexDirection: "column" }}>
@@ -624,12 +630,12 @@ function ClientDashboardPage() {
 
           {/* Check-in CTA — only when due */}
           {checkinDue && (
-            <div className="dash-plate dash-plate--tick" style={{ ...plate("#d8a23a"), marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", paddingLeft: 24 }}>
+            <div className="dash-plate dash-plate--tick" style={{ ...plate("var(--sh-gold, #d8a23a)"), marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", paddingLeft: 24 }}>
               <div>
-                <div className="dash-eyebrow" style={{ color: "#d8a23a" }}>Weekly check-in · due</div>
+                <div className="dash-eyebrow" style={{ color: "var(--sh-gold, #d8a23a)" }}>Weekly check-in · due</div>
                 <div style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", marginTop: 6 }}>2 minutes, 6 sliders — your coaches see it.</div>
               </div>
-              <a href={dashShellHref("ClientProgress.html")} style={{ ...btn, background: "#d8a23a", textDecoration: "none" }}>Check in →</a>
+              <a href={dashShellHref("ClientProgress.html")} style={{ ...btn, background: "var(--sh-gold, #d8a23a)", textDecoration: "none" }}>Check in →</a>
             </div>
           )}
 
@@ -650,9 +656,9 @@ function ClientDashboardPage() {
                       <span style={{ fontFamily: serif, fontSize: 21, color: hero.weekGain >= 0 ? DCL_GREEN : DCL_RED }}>{hero.weekGain >= 0 ? "▲ +" + hero.weekGain : "▼ −" + Math.abs(hero.weekGain)}</span>
                       <DclSpark data={hero.spark} />
                     </div>
-                    <div style={{ fontSize: 13, color: "rgba(242,237,228,0.78)", lineHeight: 1.5, marginTop: 7 }}>{hero.why || "Log workouts and meals to move your score."}</div>
+                    <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5, marginTop: 7 }}>{hero.why || "Log workouts and meals to move your score."}</div>
                   </div>
-                  <div style={{ textAlign: "center", borderLeft: "1px solid rgba(242,237,228,0.08)", paddingLeft: 20 }}>
+                  <div style={{ textAlign: "center", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", paddingLeft: 20 }}>
                     <div style={{ fontFamily: serif, fontSize: 30, lineHeight: 1 }}>{streak}<span style={{ fontSize: 14, color: DCL_INK50 }}>d</span></div>
                     <div style={{ fontFamily: DCL_MONO, fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: DCL_INK50, marginTop: 5 }}>Streak</div>
                   </div>
@@ -661,7 +667,7 @@ function ClientDashboardPage() {
             ) },
             { key: "today", title: "Today", size: "full", render: () => <DashTodayCard live={live} /> },
             { key: "workout", title: "Tonight's Workout", size: "full", render: () => (
-              <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#c0533b"), paddingLeft: 24 }}>
+              <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("var(--sh-rust2, #c0533b)"), paddingLeft: 24 }}>
 {(() => {
                   const w = workout ? { ...workout, meta: workout.meta } : null;
                   return <DashWorkoutCard workout={w} />;
@@ -675,7 +681,7 @@ function ClientDashboardPage() {
                   onLog={logMeal} headerNote={planLive ? "from your plan" : null}
                   swapStorageKey={"shape.dashMealSwap." + todayIso}
                 />
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", textAlign: "right" }}>
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", textAlign: "right" }}>
                   <a href={dashShellHref("ClientNutri.html")} style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL, textDecoration: "none" }}>Full meal plan · week &amp; swaps →</a>
                 </div>
               </div>
@@ -702,9 +708,9 @@ function ClientDashboardPage() {
               </div>
             ) },
             { key: "milestones", title: "Milestones", size: "half", render: () => ((msFeed.recent.length > 0 || msFeed.next.length > 0) ? (
-                <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("#d8a23a"), paddingLeft: 24 }}>
-                  <div className="dash-eyebrow" style={{ color: "#d8a23a" }}>Milestones</div>
-                  <div className="dash-ledger" style={{ "--dac": "#d8a23a", marginTop: 9 }} />
+                <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate("var(--sh-gold, #d8a23a)"), paddingLeft: 24 }}>
+                  <div className="dash-eyebrow" style={{ color: "var(--sh-gold, #d8a23a)" }}>Milestones</div>
+                  <div className="dash-ledger" style={{ "--dac": "var(--sh-gold, #d8a23a)", marginTop: 9 }} />
                   {msFeed.recent.map((m, i) => (
                     <div key={"r" + i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8, alignItems: "center", padding: "6px 0" }}>
                       <span style={{ color: DCL_GREEN, fontSize: 12 }}>✓</span>
@@ -713,7 +719,7 @@ function ClientDashboardPage() {
                     </div>
                   ))}
                   {msFeed.next.length > 0 && (
-                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
                       <div style={{ fontFamily: DCL_MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DCL_INK50, marginBottom: 6 }}>Next up</div>
                       {msFeed.next.map((m, i) => (
                         <div key={"n" + i} style={{ padding: "5px 0" }}>
@@ -722,8 +728,8 @@ function ClientDashboardPage() {
                             <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DCL_INK50 }}>{m.detail}</span>
                           </div>
                           {m.progress != null && (
-                            <div style={{ position: "relative", height: 4, background: "rgba(242,237,228,0.08)", borderRadius: 2, marginTop: 4 }}>
-                              <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, Math.round(m.progress * 100)) + "%", background: "#d8a23a", borderRadius: 2 }} />
+                            <div style={{ position: "relative", height: 4, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2, marginTop: 4 }}>
+                              <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, Math.round(m.progress * 100)) + "%", background: "var(--sh-gold, #d8a23a)", borderRadius: 2 }} />
                             </div>
                           )}
                         </div>
@@ -744,12 +750,12 @@ function ClientDashboardPage() {
                 {team.map((m, i) => {
                   const unread = dclUnreadFor(m.name);
                   return (
-                    <div key={i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.05)" : "none" }}>
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 10, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
                       <span style={{ width: 7, height: 7, borderRadius: 2, background: m.color }} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                           <span style={{ fontSize: 13.5, fontWeight: 500 }}>{m.name}</span>
-                          {unread > 0 && <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, color: "#06231f", background: DCL_TEAL, borderRadius: 999, padding: "2px 7px" }}>{unread}</span>}
+                          {unread > 0 && <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, color: "var(--sh-deep, #06231f)", background: DCL_TEAL, borderRadius: 999, padding: "2px 7px" }}>{unread}</span>}
                         </div>
                         <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>{m.role}</div>
                       </div>
@@ -760,7 +766,7 @@ function ClientDashboardPage() {
               </div>
             ) },
             { key: "secondary", title: "Links", size: "half", render: () => (
-              <div className="dash-plate dash-plate--bracket" style={{ ...plate("rgba(242,237,228,0.35)"), paddingLeft: 24 }}>
+              <div className="dash-plate dash-plate--bracket" style={{ ...plate("rgba(var(--sh-ink-rgb, 242,237,228),0.35)"), paddingLeft: 24 }}>
                 <a href="ClientGrocery.html" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "8px 0", textDecoration: "none", color: INK }}>
                   <div>
                     <div style={{ fontSize: 13.5, fontWeight: 500 }}>Grocery list</div>
@@ -768,15 +774,15 @@ function ClientDashboardPage() {
                   </div>
                   <span style={{ color: DCL_TEAL, padding: "8px 10px", margin: "-8px -10px" }}>→</span>
                 </a>
-                <div style={{ borderTop: "1px solid rgba(242,237,228,0.05)", padding: "8px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", padding: "8px 0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
                   <div>
                     <div style={{ fontSize: 13.5, fontWeight: 500 }}>{nextSession ? nextSession.when : "No session booked"}</div>
                     <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>{nextSession ? nextSession.what : "Book one with your coach"}</div>
                   </div>
                   <a href={dashShellHref("ClientTeam.html")} aria-label="Book a session" style={{ color: DCL_TEAL, textDecoration: "none", padding: "8px 10px", margin: "-8px -10px" }}>→</a>
                 </div>
-                <div style={{ borderTop: "1px solid rgba(242,237,228,0.05)", paddingTop: 10, marginTop: 2 }}>
-                  <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(242,237,228,0.18)" : memberPill.c + "55"), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>
+                <div style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", paddingTop: 10, marginTop: 2 }}>
+                  <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : memberPill.c + "55"), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>
                 </div>
               </div>
             ) },

@@ -706,14 +706,43 @@ function navGroupsFor(authUser) {
 // to the person's public profile page.
 const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "var(--sh-accent3, #34d6c5)"], [750, "var(--sh-gold, #d8a23a)"], [0, "#5fa96e"]];
 function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#5fa96e"; }
-function ssShade(hex, f) { const h = String(hex || "#888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Pull the literal digits out of a colour that may be a paper token — a
+// tokenised colour always carries its own fallback, which is what these need.
+function ssHexDigits(hex, dflt) {
+  const s = String(hex || dflt);
+  const m = s.match(/#([0-9a-fA-F]{3,6})/);
+  return (m ? m[1] : s.replace("#", ""));
+}
+// `${color}55` is not a colour once `color` can be a token, so the alpha is
+// composed as an rgba() instead — and via the `-rgb` twin, so it still follows
+// the paper where one is declared.
+function ssAlpha(hex, a) {
+  const s = String(hex || "");
+  const tok = s.match(/var\(\s*(--[\w-]+)\s*,\s*#([0-9a-fA-F]{6})\s*\)/);
+  if (tok) {
+    const n = parseInt(tok[2], 16);
+    return `rgba(var(${tok[1]}-rgb, ${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}), ${a})`;
+  }
+  const h = ssHexDigits(hex, "#888888");
+  const d = h.length === 3 ? h.split("").map(x => x + x).join("") : h;
+  const n = parseInt(d, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+// ⚠ A MULTIPLICATIVE SHADE CANNOT FOLLOW THE PAPER, SO IT READS THE FALLBACK.
+// These parse the hex digits ARITHMETICALLY, and a paper token is not digits:
+// measured, ssShade("var(--sh-accent2, #0ac5a8)", 0.5) returned rgb(0,0,0) —
+// `NaN >> 16 & 255` is 0, so the output is VALID CSS that is simply black, which
+// is why no browser, linter or build could report it. CSS has no multiply, so the
+// honest fix is to shade the token's own literal fallback: byte-identical today,
+// and registered as not moving with a future paper.
+function ssShade(hex, f) { const h = ssHexDigits(hex, "#888"); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
 // Facet gem avatar (rotated rounded-square, tier gradient, counter-rotated
 // content) — matches the marketplace / living-profile / app avatar.
 function SsFacet({ photo, ini, color, size = 38 }) {
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
     <span style={{ width: size, height: size, flexShrink: 0, position: "relative", display: "inline-grid", placeItems: "center" }}>
-      <span style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${color}, ${ssShade(color, 0.5)})`, boxShadow: `0 5px 16px ${color}55, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+      <span style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${color}, ${ssShade(color, 0.5)})`, boxShadow: `0 5px 16px ${ssAlpha(color, 0.3333)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
         <span style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
         <span style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
           {photo

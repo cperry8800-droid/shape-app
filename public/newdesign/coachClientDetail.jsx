@@ -8,10 +8,10 @@ function ckNum(v) { return (v == null || v === "" || isNaN(Number(v))) ? null : 
 
 function CKStat({ label, value, small, sub, color }) {
   return (
-    <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 12, padding: "14px 16px", background: "rgba(242,237,228,0.02)" }}>
+    <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 12, padding: "14px 16px", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" }}>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color, textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, letterSpacing: "-0.01em", marginTop: 6 }}>{value}{small ? <span style={{ fontSize: 15, color: "rgba(242,237,228,0.5)" }}>{small}</span> : null}</div>
-      {sub ? <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{sub}</div> : null}
+      <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, letterSpacing: "-0.01em", marginTop: 6 }}>{value}{small ? <span style={{ fontSize: 15, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>{small}</span> : null}</div>
+      {sub ? <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{sub}</div> : null}
     </div>
   );
 }
@@ -34,7 +34,7 @@ function CKTrend({ vals, color, h }) {
 }
 
 function CKSecHead({ children }) {
-  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>{children}</div>;
+  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 14 }}>{children}</div>;
 }
 
 // THE CYCLE — coach station (spec 2026-07-19, web parity of the mobile Case File
@@ -88,13 +88,13 @@ function CKCycleStation({ cycle, accent }) {
       <CKSecHead>CYCLE · SHARED BY THE MEMBER</CKSecHead>
       <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 6 }}>{timing}</div>
       {c.predictedStart && (
-        <div style={{ marginTop: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(242,237,228,0.55)" }}>
+        <div style={{ marginTop: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
           Next period window · {ckCycleShortDate(c.predictedStart.from)} – {ckCycleShortDate(c.predictedStart.to)}
         </div>
       )}
       <CkCycleMonthStrip starts={cycle.starts} today={cycle.today} heat={accent} />
       {c.phase === "luteal" && c.predictedStart && (
-        <div style={{ marginTop: 8, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(242,237,228,0.7)" }}>
+        <div style={{ marginTop: 8, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>
           Week of the {ckCycleShortDate(c.predictedStart.from)} is a natural deload window.
         </div>
       )}
@@ -108,7 +108,7 @@ function CKLiveStation(props) { return <CoachLiveWorkoutPanel {...props} />; }
 // An honest empty for a station whose source is absent — the redaction the
 // roster drawer and the mobile Case File already use. Never a demo number.
 function CKEmpty({ children }) {
-  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.04em", color: "rgba(242,237,228,0.5)", fontStyle: "italic", lineHeight: 1.6, padding: "6px 0" }}>{children}</div>;
+  return <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.04em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", fontStyle: "italic", lineHeight: 1.6, padding: "6px 0" }}>{children}</div>;
 }
 
 // The coach's private note on a client — one whole-doc store per coach
@@ -266,8 +266,8 @@ function CKCoachNote({ clientId, accent }) {
       window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId } }));
     });
   };
-  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", color: "rgba(242,237,228,0.65)" };
-  const secondaryButton = { ...mono, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: "#f2ede4", borderRadius: 5, padding: "10px 14px", minHeight: 44, cursor: "pointer" };
+  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)" };
+  const secondaryButton = { ...mono, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: "var(--sh-ink, #f2ede4)", borderRadius: 5, padding: "10px 14px", minHeight: 44, cursor: "pointer" };
   const status = state.kind === "saving" ? "Saving to your account…"
     : state.message ? state.message
     : dirty ? deviceReady ? (state.recovered ? "Draft recovered · not yet saved to your account" : "Draft kept on this device · not yet saved to your account") : "Unsaved · device recovery unavailable"
@@ -276,17 +276,17 @@ function CKCoachNote({ clientId, accent }) {
   return (
     <Card style={{ marginBottom: 16 }}>
       <CKSecHead>COACH NOTE · ONLY YOU SEE THIS</CKSecHead>
-      <div role="status" style={{ ...mono, marginBottom: 12, lineHeight: 1.5, color: state.kind === "error" || state.kind === "conflict" ? "#e0644b" : mono.color }}>{status}</div>
+      <div role="status" style={{ ...mono, marginBottom: 12, lineHeight: 1.5, color: state.kind === "error" || state.kind === "conflict" ? "var(--sh-rust, #e0644b)" : mono.color }}>{status}</div>
       {state.kind === "loading" ? <CKEmpty>Loading your note…</CKEmpty>
         : state.kind === "signedout" ? <CKEmpty>Sign in to keep a private note on this client.</CKEmpty>
         : state.kind === "unavailable" ? <div><CKEmpty>Couldn't load your saved note.</CKEmpty><button style={secondaryButton} onClick={() => setReload((v) => v + 1)}>Retry note</button></div>
         : <React.Fragment>
             <textarea aria-label="Private coach note" value={draft} disabled={state.kind === "saving"} onChange={(e) => changeDraft(e.target.value)} rows={4}
               placeholder="What you're watching, what you told them, what to check next week."
-              style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, padding: 12, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, lineHeight: 1.5 }} />
+              style={{ display: "block", width: "100%", boxSizing: "border-box", resize: "vertical", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 8, padding: 12, color: "var(--sh-ink, #f2ede4)", fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, lineHeight: 1.5 }} />
             {state.kind === "conflict" && <div style={{ marginTop: 12 }}><CKEmpty>Saved version: {state.latestText || "Empty note"}</CKEmpty><button style={secondaryButton} onClick={() => save(true)}>Replace saved note with my draft</button></div>}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
-              <button onClick={() => save()} disabled={!dirty || state.kind === "saving" || state.kind === "conflict"} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "#06231f", background: accent, border: 0, borderRadius: 4, padding: "12px 16px", minHeight: 44, cursor: dirty ? "pointer" : "default", opacity: dirty && state.kind !== "saving" ? 1 : 0.5 }}>{state.kind === "saving" ? "Saving…" : "Save note"}</button>
+              <button onClick={() => save()} disabled={!dirty || state.kind === "saving" || state.kind === "conflict"} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: accent, border: 0, borderRadius: 4, padding: "12px 16px", minHeight: 44, cursor: dirty ? "pointer" : "default", opacity: dirty && state.kind !== "saving" ? 1 : 0.5 }}>{state.kind === "saving" ? "Saving…" : "Save note"}</button>
               <span style={mono}>Private to you — never shown to the client or a co-coach.</span>
             </div>
           </React.Fragment>}
@@ -399,18 +399,18 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
     }
   }
 
-  const backLink = (r) => <a href={hrefTo(r, "clients")} style={{ color: "#2ee0c4", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>← Back to clients</a>;
+  const backLink = (r) => <a href={hrefTo(r, "clients")} style={{ color: "var(--sh-accent, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", textDecoration: "none" }}>← Back to clients</a>;
   if (err) {
     return (
       <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Couldn't load" subtitle={err}>
-        <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.65)", display: "flex", gap: 18, alignItems: "baseline", flexWrap: "wrap" }}><span>Try refreshing or go back to the clients list.</span>{backLink(roleProp)}</div></Card>
+        <Card><div style={{ padding: 24, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)", display: "flex", gap: 18, alignItems: "baseline", flexWrap: "wrap" }}><span>Try refreshing or go back to the clients list.</span>{backLink(roleProp)}</div></Card>
       </DashPage>
     );
   }
   if (!data) {
     return (
       <DashPage navItems={navForRole(roleProp)} payoutCard={cardForRole(roleProp)} eyebrow="CLIENT" title="Loading…" subtitle="">
-        <Card><div style={{ padding: 24, color: "rgba(242,237,228,0.55)" }}>Loading client overview…</div></Card>
+        <Card><div style={{ padding: 24, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>Loading client overview…</div></Card>
       </DashPage>
     );
   }
@@ -419,6 +419,11 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   const isNutri = myRole === "nutritionist";
   const navItems = isNutri ? nutriNavItems("clients") : trainerNavItems("clients");
   const payout = isNutri ? nutriPayoutCard : trainerPayoutCard;
+  // ⚠ THESE STAY LITERAL, BY RULE. `accent` is handed to CKTrend, which fills the
+  // area under the line by APPENDING a hex-alpha suffix (`color + "22"`), so a var()
+  // here is not a colour and the fill silently disappears — an SVG `fill` that fails
+  // to parse renders nothing and raises nothing. See the note above DASH_SEV_COLORS in
+  // dashToday.jsx; tests/newdesign-paper-tokens.test.mjs holds the rule.
   const teal = "#2ee0c4", rust = "#d2693f", gold = "#d8b25a";
   const accent = isNutri ? gold : teal;
   const firstName = data.client.name.split(/\s+/)[0];
@@ -434,8 +439,8 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
     const b = document.getElementById("shape-global-chat-button");
     if (b) { window.__openChatRequest = opts; b.click(); }
   };
-  const actGhost = { background: "transparent", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.25)", padding: "10px 18px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: "pointer", whiteSpace: "nowrap" };
-  const actPrimary = { ...actGhost, background: "#f2ede4", color: "#1a1612", border: 0, fontWeight: 500 };
+  const actGhost = { background: "transparent", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 18px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, textDecoration: "none", display: "inline-flex", alignItems: "center", cursor: "pointer", whiteSpace: "nowrap" };
+  const actPrimary = { ...actGhost, background: "var(--sh-ink, #f2ede4)", color: "var(--sh-ground, #1a1612)", border: 0, fontWeight: 500 };
   const actions = (
     <React.Fragment>
       <a href={hrefTo(myRole, "clients")} style={actGhost}>← Clients</a>
@@ -546,7 +551,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             {/* Week-to-week variance — bare, from the ONE canonical copy source
                 (bsVarianceCopy), identical to the mobile Case File line. */}
             {varRead && (
-              <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: varRead.chip ? "#e8b14a" : "rgba(242,237,228,0.55)" }}>
+              <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: varRead.chip ? "#e8b14a" : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
                 {varRead.line}
               </div>
             )}
@@ -558,12 +563,12 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             <Card style={{ marginBottom: 16 }}>
               <CKSecHead>KEY LIFTS</CKSecHead>
               {liftRows.length ? liftRows.map((l, i) => (
-                <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+                <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.n}</span>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.v} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>▲ {l.d}</span></span>
                   </div>
-                  <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, l.p) * 100}%`, background: accent }} /></div>
+                  <div style={{ marginTop: 8, height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, l.p) * 100}%`, background: accent }} /></div>
                 </div>
               )) : <CKEmpty>No logged lifts yet — key lifts fill in from the sets they log.</CKEmpty>}
             </Card>
@@ -573,12 +578,12 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             <Card style={{ marginBottom: 16 }}>
               <CKSecHead>MACROS · DAILY AVERAGE VS TARGET</CKSecHead>
               {macros.map((m, i) => (
-                <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+                <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.n}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "rgba(242,237,228,0.45)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
                   </div>
-                  {m.cur != null && m.tgt ? <div style={{ marginTop: 8, height: 3, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div> : null}
+                  {m.cur != null && m.tgt ? <div style={{ marginTop: 8, height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div> : null}
                 </div>
               ))}
             </Card>
@@ -597,17 +602,17 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
               <CKSecHead>CARE TEAM</CKSecHead>
               <div style={{ display: "grid", gap: 12 }}>
                 {counterparts.map((c, i) => (
-                  <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(46,224,196,0.18)", border: "1px solid rgba(46,224,196,0.35)", overflow: "hidden" }}>
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 999, background: "rgba(var(--sh-accent-rgb, 46,224,196),0.18)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", overflow: "hidden" }}>
                       {c.avatarUrl ? <img src={c.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>{c.role}</div>
+                      <div style={{ fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", textTransform: "uppercase" }}>{c.role}</div>
                     </div>
                     {c.userId ? (
                       <button onClick={() => openMessage(c)} disabled={busy}
-                        style={{ background: "#0ac5a8", color: "#1a1612", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 500, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+                        style={{ background: "var(--sh-accent2, #0ac5a8)", color: "var(--sh-ground, #1a1612)", border: 0, padding: "8px 16px", borderRadius: 999, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 500, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap" }}>
                         {busy ? "Opening…" : `Message ${c.name.split(/\s+/)[0]}`}
                       </button>
                     ) : <span />}
@@ -625,17 +630,17 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   const tone = p.providerRole === "trainer" ? teal : rust;
                   const tpl = p.template;
                   return (
-                    <div key={p.assignmentId} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 16 }}>
+                    <div key={p.assignmentId} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 16 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                         <span style={{ width: 6, height: 18, borderRadius: 3, background: tone }} />
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>{p.providerRole} · {p.coachName}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", textTransform: "uppercase" }}>{p.providerRole} · {p.coachName}</span>
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: tone, marginLeft: "auto", textTransform: "uppercase" }}>{p.status}</span>
                       </div>
                       <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>{tpl ? tpl.title : "Custom plan"}</div>
-                      <div style={{ fontSize: 12, color: "rgba(242,237,228,0.65)", lineHeight: 1.6 }}>
+                      <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)", lineHeight: 1.6 }}>
                         {tpl ? [tpl.goal, tpl.level, tpl.durationWeeks ? `${tpl.durationWeeks} wks` : null, tpl.daysPerWeek ? `${tpl.daysPerWeek}×/wk` : null].filter(Boolean).join(" · ") : "Details visible to the assigning coach."}
                       </div>
-                      {p.notes && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)", fontSize: 12, color: "rgba(242,237,228,0.55)", fontStyle: "italic" }}>"{p.notes}"</div>}
+                      {p.notes && <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontStyle: "italic" }}>"{p.notes}"</div>}
                     </div>
                   );
                 })}
@@ -657,18 +662,18 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
                   {items.map(([k, l]) => (
-                    <div key={k} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{l}</div>
+                    <div key={k} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{l}</div>
                       <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{R[k] != null ? `${R[k]}/10` : "—"}</div>
                     </div>
                   ))}
                 </div>
                 {(ck.wins || ck.struggles || ck.question) && (
-                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.06)", display: "grid", gap: 10 }}>
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "grid", gap: 10 }}>
                     {[["WINS", ck.wins, teal], ["STRUGGLES", ck.struggles, rust], ["ASKED YOU", ck.question, accent]].map(([l, v, c]) => v ? (
                       <div key={l}>
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: c }}>{l}</div>
-                        <div style={{ marginTop: 3, fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>{v}</div>
+                        <div style={{ marginTop: 3, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.55 }}>{v}</div>
                       </div>
                     ) : null)}
                   </div>
@@ -743,7 +748,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             const checkinHeading = !hasDevice && hasEntered;
             if (!hasDevice && !hasHours && !hasRested && !hasVitals) return null;
             const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
-            const rc = !s || s.readiness == null ? "rgba(242,237,228,0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "#c0533b";
+            const rc = !s || s.readiness == null ? "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "var(--sh-rust2, #c0533b)";
             // Measured cells render only when a device actually reported. For a
             // rating-only member they would otherwise be eight dashes framing a
             // single filled cell, which reads as a device that failed rather
@@ -783,29 +788,29 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   {hasDevice && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: accent, textTransform: "uppercase" }}>Objective · device-synced</span>}
                 </div>
                 {s && s.readiness != null && (
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>READINESS</span>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>READINESS</span>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 30, color: rc, lineHeight: 1 }}>{s.readiness}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 13, color: "rgba(242,237,228,0.5)" }}>/100</span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>/100</span>
                     {s.readinessLabel && <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: rc }}>{s.readinessLabel}</span>}
                   </div>
                 )}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
                   {cells.map(([l, v]) => (
-                    <div key={l} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{l}</div>
+                    <div key={l} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{l}</div>
                       <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{v}</div>
                     </div>
                   ))}
                 </div>
                 {st && (
-                  <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", color: "rgba(242,237,228,0.7)" }}>
+                  <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>
                     STAGES · {[st.deep != null ? `Deep ${st.deep}m` : null, st.rem != null ? `REM ${st.rem}m` : null, st.light != null ? `Light ${st.light}m` : null].filter(Boolean).join(" · ") || "—"}
                   </div>
                 )}
                 {s && Array.isArray(s.series7) && s.series7.filter((p) => p && p.value != null).length >= 2 && (
                   <div style={{ marginTop: 14 }}>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginBottom: 6 }}>7-DAY TREND</div>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 6 }}>7-DAY TREND</div>
                     <CKTrend vals={s.series7.map((p) => p.value)} color={accent} h={56} />
                   </div>
                 )}
@@ -839,12 +844,12 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
                   {rows.map(([l, v]) => (
                     <div key={l}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)" }}>{l}</div>
-                      <div style={{ marginTop: 4, fontSize: 13, color: "rgba(242,237,228,0.75)", lineHeight: 1.55 }}>{v || "— none noted"}</div>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>{l}</div>
+                      <div style={{ marginTop: 4, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.55 }}>{v || "— none noted"}</div>
                     </div>
                   ))}
                 </div>
-                <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.4)", textTransform: "uppercase" }}>Shared with linked coaches for safety & liability{h.consentAt ? ` · completed ${new Date(h.consentAt).toLocaleDateString()}` : ""}</div>
+                <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", textTransform: "uppercase" }}>Shared with linked coaches for safety & liability{h.consentAt ? ` · completed ${new Date(h.consentAt).toLocaleDateString()}` : ""}</div>
               </Card>
             );
           })()}
@@ -855,10 +860,10 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
               {Array.isArray(data.measurements) && data.measurements.length > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: data.progressPhotos.length ? 14 : 0 }}>
                   {data.measurements.map((m) => (
-                    <div key={m.site} style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{m.site}</div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{Number(m.value)} <span style={{ fontSize: 12, color: "rgba(242,237,228,0.5)" }}>{m.unit}</span></div>
-                      <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: "rgba(242,237,228,0.4)" }}>{String(m.measured_on)}</div>
+                    <div key={m.site} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{m.site}</div>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{Number(m.value)} <span style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>{m.unit}</span></div>
+                      <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>{String(m.measured_on)}</div>
                     </div>
                   ))}
                 </div>
@@ -867,8 +872,8 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }}>
                   {data.progressPhotos.slice(0, 6).map((p) => (
                     <a key={p.id} href={p.url} target="_blank" rel="noreferrer" style={{ display: "block" }}>
-                      <div style={{ height: 110, borderRadius: 8, border: "1px solid rgba(242,237,228,0.1)", background: `url(${p.url}) center/cover` }} />
-                      <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
+                      <div style={{ height: 110, borderRadius: 8, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: `url(${p.url}) center/cover` }} />
+                      <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.06em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", textTransform: "uppercase" }}>{p.pose} · {String(p.taken_on).slice(5)}</div>
                     </a>
                   ))}
                 </div>
@@ -880,13 +885,13 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             <Card>
               <CKSecHead>UPCOMING</CKSecHead>
               {upcoming.length === 0 ? (
-                <div style={{ padding: "18px 0", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>Nothing on the books.</div>
+                <div style={{ padding: "18px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontSize: 13 }}>Nothing on the books.</div>
               ) : upcoming.slice(0, 12).map((s, i) => <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />)}
             </Card>
             <Card>
               <CKSecHead>RECENT</CKSecHead>
               {past.length === 0 ? (
-                <div style={{ padding: "18px 0", color: "rgba(242,237,228,0.55)", fontSize: 13 }}>No history yet.</div>
+                <div style={{ padding: "18px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontSize: 13 }}>No history yet.</div>
               ) : past.map((s, i) => <SessionRow key={s.id} s={s} first={i === 0} mine={isMine(s, data.me)} />)}
             </Card>
           </div>
@@ -899,13 +904,13 @@ function GoalsCard({ data, teal, rust, gold }) {
   const G = data.goals;
   // Work-domain headline (spec 2026-07-13) — shared goals include THE WORK station.
   const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta, wkM = G.workMeta;
-  const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", marginTop: 16 }}>{txt}</div>;
+  const subHead = (txt) => <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 16 }}>{txt}</div>;
   const metaRow = (title, subtitle, c) => (
-    <div style={{ border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
+    <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
       <span style={{ width: 5, height: 18, borderRadius: 3, background: c, flexShrink: 0 }} />
       <div>
         <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, letterSpacing: "-0.01em" }}>{title}</div>
-        {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "rgba(242,237,228,0.55)", lineHeight: 1.4 }}>{subtitle}</div>}
+        {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", lineHeight: 1.4 }}>{subtitle}</div>}
       </div>
     </div>
   );
@@ -914,9 +919,9 @@ function GoalsCard({ data, teal, rust, gold }) {
     <Card style={{ marginBottom: 16 }}>
       <CKSecHead>GOALS</CKSecHead>
       {G.share === false ? (
-        <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>{data.client.name.split(/\s+/)[0]} keeps their goals private.</div>
+        <div style={{ padding: "12px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontSize: 13 }}>{data.client.name.split(/\s+/)[0]} keeps their goals private.</div>
       ) : !hasAny ? (
-        <div style={{ padding: "12px 0", color: "rgba(242,237,228,0.6)", fontSize: 13 }}>No goals shared yet.</div>
+        <div style={{ padding: "12px 0", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontSize: 13 }}>No goals shared yet.</div>
       ) : (
         <div>
           {ov && (() => {
@@ -927,14 +932,14 @@ function GoalsCard({ data, teal, rust, gold }) {
             const byD = ov.by ? new Date(ov.by) : null;
             const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase() : "";
             return (
-              <div style={{ border: "1px solid rgba(10,197,168,0.3)", borderRadius: 10, padding: 14, marginTop: 10 }}>
+              <div style={{ border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", borderRadius: 10, padding: 14, marginTop: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "#2ee0c4" }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ""}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{Math.round(pct * 100)}% there</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-accent, #2ee0c4)" }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ""}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{Math.round(pct * 100)}% there</span>
                 </div>
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
-                <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "#0ac5a8" }} /></div>
-                <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(242,237,228,0.55)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+                <div style={{ height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "var(--sh-accent2, #0ac5a8)" }} /></div>
+                <div style={{ marginTop: 7, fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
               </div>
             );
           })()}
@@ -957,17 +962,17 @@ function SessionRow({ s, first, mine }) {
   const d = new Date(s.at);
   const dateLabel = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   const timeLabel = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const tone = s.providerRole === "trainer" ? "#2ee0c4" : "#d2693f";
+  const tone = s.providerRole === "trainer" ? "var(--sh-accent, #2ee0c4)" : "#d2693f";
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 0", borderTop: first ? "none" : "1px solid rgba(242,237,228,0.05)" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 0", borderTop: first ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
       <div style={{ width: 6, height: 36, borderRadius: 3, background: tone, opacity: mine ? 1 : 0.45 }} />
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500 }}>{dateLabel} · {timeLabel}</div>
-        <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>
+        <div style={{ fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", marginTop: 2 }}>
           {s.coachName} · {s.providerRole} · {s.durationMin}min · {s.type}{s.topic ? ` · ${s.topic}` : ""}
         </div>
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase" }}>{s.status}</div>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", textTransform: "uppercase" }}>{s.status}</div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 
 // The dashboard's colours read paper tokens (`--sh-*`, declared in
 // `public/newdesign/dash.css`) so the whole surface can be re-papered from one
@@ -169,4 +170,242 @@ test('the consent-banner exception is a real region, not a blanket escape', () =
   const inside = [...s.slice(a, b).matchAll(/rgba?\(\s*242\s*,\s*237\s*,\s*228\s*[,)]|#f2ede4|#1a1612/gi)].length;
   assert.ok(inside > 0,
     'the consent region carries no colour literal — it no longer needs an exception, so remove it rather than leaving a hole in the ratchet');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The two invariants above are about the TEXT of a colour. These two are about
+// where that text ENDS UP, and both exist because a defect shipped that no
+// pixel diff could see.
+//
+// ⚠ PR 1's sweep was verified by capturing 41 dashboard and marketing surfaces
+// before and after and proving them identical. It was, and three surfaces were
+// still broken — because a pixel diff only proves the states you captured, and
+// the chat bubble's Feed tab, its profile card and Nora's row in site search
+// are all CLOSED in a page capture. Measured on the branch:
+//
+//   cfHexA(INK, 0.06)        rgba(242,237,228,0.06)  ->  var(--sh-ink, #f2ede4)
+//   ssShade(TEAL, 0.5)       rgb(5,99,84)            ->  rgb(0,0,0)
+//   cwHexA(TEAL_BRIGHT, .3)  rgba(46,224,196,0.3)    ->  rgba(0,0,0,0.3)
+//   `${tc}55`                #2ee0c455               ->  (invalid, dropped)
+//
+// `NaN >> 16 & 255` is 0, so two of those are VALID CSS that is simply BLACK,
+// which is why no browser, linter or build could report them — the same shape as
+// a font-variation-settings axis nobody requested.
+//
+// Both checks below DRIVE the shipped code rather than pinning its spelling, and
+// both resolve identifiers through Babel's own scope. That is not a nicety: a
+// name-keyed walk over these files crosses component scopes, because a
+// 1,900-line module reuses `c`, `r`, `row` and `id` in a dozen of them —
+// measured, a scope-blind walk went c -> r -> dir -> row through four unrelated
+// functions and reported a defect that was not there.
+
+const require_ = createRequire(import.meta.url);
+const babelParser = require_('@babel/parser');
+const traverseMod = require_('@babel/traverse');
+const traverse = traverseMod.default || traverseMod;
+
+const jsFiles = files.filter(f => /\.(jsx|js)$/.test(f));
+const astOf = (f) => babelParser.parse(src.get(f), { sourceType: 'module', plugins: ['jsx'], errorRecovery: true });
+
+// A tokenised colour and the bare literal it falls back to. Any helper that
+// derives a colour arithmetically must answer the same thing for both.
+const PROBE_TOKEN = 'var(--sh-probe, #2ee0c4)';
+const PROBE_BARE = '#2ee0c4';
+// `rgba(var(--x-rgb, r,g,b), a)` and `rgba(r,g,b,a)` compute identically where
+// the token is absent, and the token's whole point is that they diverge where it
+// is present — so the comparison is on the fallback.
+const sameColour = (a, b) => {
+  const n = (x) => String(x).replace(/var\(\s*--[\w-]+\s*,\s*/g, '').replace(/\)\s*,/g, ',').replace(/[\s)]/g, '');
+  return n(a) === n(b);
+};
+
+test('every hex-parsing helper in newdesign accepts a paper token', () => {
+  let driven = 0;
+  const naive = [];
+  for (const f of jsFiles) {
+    const s = src.get(f);
+    const fns = new Map();
+    traverse(astOf(f), {
+      Function(p) {
+        const name = p.node.id ? p.node.id.name
+          : (p.parentPath?.node.type === 'VariableDeclarator' && p.parentPath.node.id.type === 'Identifier' ? p.parentPath.node.id.name : null);
+        if (!name || !p.node.params.length) return;
+        const decl = p.parentPath?.node.type === 'VariableDeclarator' ? p.parentPath.parentPath : p;
+        let parses = false; const calls = new Set();
+        p.traverse({
+          CallExpression(q) {
+            if (q.node.callee.type !== 'Identifier') return;
+            if (q.node.callee.name === 'parseInt' && q.node.arguments.some(a => a.type === 'NumericLiteral' && a.value === 16)) parses = true;
+            calls.add(q.node.callee.name);
+          },
+        });
+        fns.set(name, { text: s.slice(decl.node.start, decl.node.end), parses, calls });
+      },
+    });
+    for (const [name, info] of fns) {
+      if (!info.parses) continue;
+      driven++;
+      // lift the parser plus the same-file helpers it delegates to
+      const need = new Set([name]);
+      for (let d = 0; d < 2; d++)
+        for (const n of [...need]) for (const c of fns.get(n)?.calls || []) if (fns.has(c)) need.add(c);
+      const body = [...need].map(n => fns.get(n).text).join('\n');
+      let out;
+      try {
+        out = new Function(`${body}\nreturn [${name}(arguments[0], 0.5), ${name}(arguments[1], 0.5)];`)(PROBE_TOKEN, PROBE_BARE);
+      } catch (e) { naive.push(`${f}: ${name}() threw on a paper token — ${e.message}`); continue; }
+      if (!sameColour(out[0], out[1])) naive.push(`${f}: ${name}(token) = ${out[0]}   but   ${name}(hex) = ${out[1]}`);
+    }
+  }
+  assert.ok(driven >= 9,
+    `expected the directory's hex-parsing helpers, drove ${driven} — this sweep has stopped matching`);
+  assert.deepEqual(naive, [],
+    'a helper that parses hex digits arithmetically must EXTRACT them, because a paper token is not digits ' +
+    'and parseInt on one is NaN — which >> 16 & 255 turns into 0, so the output is valid CSS that is black:\n  ' +
+    naive.join('\n  '));
+});
+
+test('no hex-alpha append resolves to a paper token', () => {
+  const asts = new Map(jsFiles.map(f => [f, astOf(f)]));
+
+  // Every `<Component prop={expr}>` in the tree — a colour crosses files this way
+  // (DashPill is declared in dashToday and called from dashRoster).
+  const props = new Map();
+  for (const [f, ast] of asts) traverse(ast, {
+    JSXAttribute(p) {
+      const el = p.parentPath.node;
+      if (el.type !== 'JSXOpeningElement' || el.name.type !== 'JSXIdentifier') return;
+      if (p.node.name.type !== 'JSXIdentifier') return;
+      if (!p.node.value || p.node.value.type !== 'JSXExpressionContainer') return;
+      const k = el.name.name + '\u0000' + p.node.name.name;
+      if (!props.has(k)) props.set(k, []);
+      props.get(k).push({ file: f, path: p.get('value.expression') });
+    },
+  });
+
+  // These are classic scripts sharing one global lexical scope, so a name with no
+  // local binding may be another file's module-scope const.
+  const globals = new Map();
+  for (const [f, ast] of asts) traverse(ast, {
+    VariableDeclarator(p) {
+      if (p.scope.block.type !== 'Program' || p.node.id.type !== 'Identifier' || !p.node.init) return;
+      if (!globals.has(p.node.id.name)) globals.set(p.node.id.name, []);
+      globals.get(p.node.id.name).push({ file: f, path: p.get('init') });
+    },
+    FunctionDeclaration(p) {
+      if (p.scope.parent?.block?.type !== 'Program' || !p.node.id) return;
+      if (!globals.has(p.node.id.name)) globals.set(p.node.id.name, []);
+      globals.get(p.node.id.name).push({ file: f, path: p, fn: true });
+    },
+  });
+
+  const hits = [];
+  // ⚠ COUNTED PER SPELLING, NOT SUMMED. A single total is satisfied by whichever
+  // spelling still matches, so breaking the concatenation pattern outright left
+  // the floor green — measured, that mutation SURVIVED a summed floor.
+  const sinks = { concat: 0, template: 0 };
+
+  function resolve(file, path, seen, depth, trail) {
+    if (!path || !path.node || depth > 10) return;
+    const n = path.node;
+    // ⚠ FILE-SCOPED, or two files' nodes at the same byte offset collide and one
+    // silently prunes the other's whole branch — measured, that hid the DashPill
+    // chain entirely while the walk reported CLEAN.
+    const key = file + ':' + n.start + ':' + n.type;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const kids = (sel) => resolve(file, path.get(sel), seen, depth + 1, trail);
+
+    switch (n.type) {
+      case 'StringLiteral':
+        if (/var\(--/.test(n.value)) hits.push(`${trail.join(' -> ')}\n        = ${n.value}`);
+        return;
+      case 'TemplateLiteral': {
+        const raw = n.quasis.map(q => q.value.cooked ?? '').join('${…}');
+        if (/var\(--/.test(raw)) hits.push(`${trail.join(' -> ')}\n        = ${raw}`);
+        n.expressions.forEach((_, i) => kids('expressions.' + i));
+        return;
+      }
+      case 'ConditionalExpression': kids('consequent'); kids('alternate'); return;
+      case 'LogicalExpression': kids('left'); kids('right'); return;
+      case 'ObjectExpression':
+        n.properties.forEach((pr, i) => { if (pr.type === 'ObjectProperty') kids('properties.' + i + '.value'); });
+        return;
+      case 'ArrayExpression': n.elements.forEach((_, i) => kids('elements.' + i)); return;
+      case 'MemberExpression': kids('object'); return;
+      case 'CallExpression': kids('callee'); return;
+      case 'ArrowFunctionExpression':
+      case 'FunctionExpression':
+      case 'FunctionDeclaration': returns(file, path, seen, depth + 1, trail); return;
+      case 'Identifier': {
+        const b = path.scope.getBinding(n.name);
+        const t = [...trail, n.name];
+        if (!b) {
+          for (const g of globals.get(n.name) || []) {
+            const gt = [...t, `(module scope of ${g.file})`];
+            if (g.fn) returns(g.file, g.path, seen, depth + 1, gt);
+            else resolve(g.file, g.path, seen, depth + 1, gt);
+          }
+          return;
+        }
+        const k = b.path.node.type;
+        if (k === 'VariableDeclarator') { resolve(file, b.path.get('init'), seen, depth + 1, t); return; }
+        if (k === 'FunctionDeclaration' || k === 'FunctionExpression' || k === 'ArrowFunctionExpression') { returns(file, b.path, seen, depth + 1, t); return; }
+        if (b.kind === 'param') { param(b, n.name, seen, depth + 1, t); return; }
+        return;
+      }
+      default: return;
+    }
+  }
+
+  function returns(file, fnPath, seen, depth, trail) {
+    if (fnPath.node.type === 'ArrowFunctionExpression' && fnPath.node.body.type !== 'BlockStatement') {
+      resolve(file, fnPath.get('body'), seen, depth + 1, trail); return;
+    }
+    fnPath.traverse({
+      Function(p) { p.skip(); },
+      ReturnStatement(p) { if (p.node.argument) resolve(file, p.get('argument'), seen, depth + 1, trail); },
+    });
+  }
+
+  // A parameter is resolved at the CALL SITE, which is how the prop hop works.
+  function param(binding, name, seen, depth, trail) {
+    const fn = binding.scope.path;
+    const fname = fn.node.type === 'FunctionDeclaration' && fn.node.id ? fn.node.id.name
+      : (fn.parentPath?.node.type === 'VariableDeclarator' && fn.parentPath.node.id.type === 'Identifier' ? fn.parentPath.node.id.name : null);
+    if (!fname) return;
+    for (const site of props.get(fname + '\u0000' + name) || [])
+      resolve(site.file, site.path, seen, depth + 1, [...trail, `<${fname} ${name}=…> in ${site.file}`]);
+  }
+
+  const SUFFIX = /^[0-9a-fA-F]{2}(?![0-9a-fA-F])/;
+  for (const [f, ast] of asts) traverse(ast, {
+    // Spelling B — concatenation: `c + "1c"`
+    BinaryExpression(p) {
+      if (p.node.operator !== '+') return;
+      const r = p.node.right;
+      if (r.type !== 'StringLiteral' || !/^[0-9a-fA-F]{2}$/.test(r.value)) return;
+      sinks.concat++;
+      resolve(f, p.get('left'), new Set(), 0, [`${f}:${p.node.loc.start.line}`]);
+    },
+    // Spelling A — interpolation: `${INK}40`. The suffix is the NEXT quasi's first
+    // two characters, so the operand is the expression before it.
+    TemplateLiteral(p) {
+      p.node.expressions.forEach((_, i) => {
+        const q = p.node.quasis[i + 1];
+        if (!q || !SUFFIX.test(q.value.cooked ?? '')) return;
+        sinks.template++;
+        resolve(f, p.get('expressions.' + i), new Set(), 0, [`${f}:${p.node.loc.start.line}`]);
+      });
+    },
+  });
+
+  assert.ok(sinks.concat >= 8,
+    `expected the directory's \`c + "1c"\` append sites, found ${sinks.concat} — this spelling has stopped matching`);
+  assert.ok(sinks.template >= 20,
+    `expected the directory's \`\${INK}40\` append sites, found ${sinks.template} — this spelling has stopped matching`);
+  assert.deepEqual(hits, [],
+    'a colour that reaches a hex-alpha append cannot be a paper token — the suffix makes the whole ' +
+    'declaration invalid and CSS drops it. Either keep the source literal (and say why, beside it) ' +
+    'or compose the alpha as rgba(var(--<token>-rgb, r,g,b), a):\n  ' + hits.join('\n  '));
 });
