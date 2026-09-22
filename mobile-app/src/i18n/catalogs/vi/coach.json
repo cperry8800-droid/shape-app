@@ -999,6 +999,8 @@
   "workoutEditor.tempo": "Nhịp độ",
   "workoutEditor.group": "Nhóm superset",
   "workoutEditor.loadUnit": "Đơn vị tải",
+  "workoutEditor.targetRpe": "Mục tiêu · RPE",
+  "workoutEditor.rpeNone": "Không có",
   "workoutEditor.percentMax": "% 1RM",
   "workoutEditor.existingLoad": "Chỉ định tập hiện tại",
   "workoutEditor.cue": "Hướng dẫn của huấn luyện viên",

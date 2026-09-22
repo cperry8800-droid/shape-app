@@ -192,9 +192,13 @@ test('both panels float over a full-width canvas, and neither hides the other vi
   // `100vh - <constant>` is the same defect in a different position: it fits only
   // while it happens to start at that constant.
   // ⚠ SCOPED TO THE DRAWER'S OWN RULE, because the blanket version FAILS CORRECT
-  // CODE. `.dbu2 .pop` carries `max-height:calc(100vh - 120px)` and is right to:
-  // it is pinned to the viewport BOTTOM, so a viewport-relative budget is exact
-  // there. The drawer's top is wherever it was dropped, so its budget cannot be.
+  // CODE. `.dbu2 .pop` still carries `max-height:calc(100vh - 120px)` as its
+  // RESTING budget, which is exact while the stylesheet's bottom anchor holds.
+  // ⚠ THAT PREMISE USED TO READ "it is pinned to the viewport BOTTOM, so a
+  // viewport-relative budget is exact there" AND IT IS NO LONGER TRUE: the
+  // preview is draggable, so once moved it is positioned by its own top like the
+  // drawer — which is why the drag hook overrides `maxHeight` inline for both
+  // panels from the same expression. The CSS budget is the untouched-panel case.
   // Comments are stripped first — this file's own prose quotes the retired rule.
   // ⚠ THE INTERPOLATIONS ARE BLANKED BEFORE THE RULE IS CUT OUT. This block is a
   // template literal, so `width:${DBU_PANEL_W}px` puts a `}` INSIDE the rule — and
@@ -206,8 +210,16 @@ test('both panels float over a full-width canvas, and neither hides the other vi
   assert.ok(floatRule, 'the .dbu2 .drawer.float rule is gone — this guard is reading nothing');
   assert.ok(!/max-height/.test(floatRule[1]),
     'the panel must not carry a CSS height budget; it is computed from its own top in JS');
-  assert.match(code, /maxHeight: [^\n]*panelPos\.y/,
-    'the panel sizes itself from its own top, so the budget is correct by construction');
+  // ⚠ RE-ANCHORED ON THE INVARIANT, NOT THE SPELLING. This pinned `panelPos.y` —
+  // the name the day panel's own machinery happened to use before both panels
+  // moved onto one `useDbuDrag` hook, where the same expression reads `pos.y`. A
+  // correct refactor failed a test about height budgets. What the guard is for is
+  // that the budget is measured DOWN FROM THE PANEL'S OWN TOP rather than from a
+  // constant, and that is what it asks now.
+  const budget = /maxHeight: Math\.max\([^\n]*window\.innerHeight - ([A-Za-z.]*\by)\b/.exec(code);
+  assert.ok(budget, 'a floating panel must size itself from its own top, so the budget is correct by construction');
+  assert.ok(!/maxHeight: Math\.max\([^\n]*window\.innerHeight - \d/.test(code),
+    'the budget must not be a constant offset from the viewport — that fits only while the panel starts at that constant');
   assert.match(src, /\.dbu2 \.pop\{position:fixed/, 'the client preview floats too');
   assert.match(src, /@media\(max-width:1100px\)\{\.dbu2 \.drawer\.float\{position:static/,
     'and drops back into the flow on a narrow screen rather than covering the page');

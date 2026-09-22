@@ -989,6 +989,8 @@
   "workoutEditor.load": "Charge",
   "workoutEditor.loading": "Chargement de vos entraînements et programmes enregistrés…",
   "workoutEditor.loadUnit": "Unité de charge",
+  "workoutEditor.targetRpe": "Cible · RPE",
+  "workoutEditor.rpeNone": "Aucun",
   "workoutEditor.localDraft": "Brouillon conservé sur cet appareil",
   "workoutEditor.minutes": "Minutes prévues (facultatif)",
   "workoutEditor.moveDown": "Déplacer vers le bas",

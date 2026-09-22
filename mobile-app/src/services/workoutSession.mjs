@@ -1,3 +1,5 @@
+import { supersetKey } from '../../../public/newdesign/workoutDocument.mjs';
+
 // Session rules shared by the live player and regression tests. Drafts contain
 // only this account's work; the existing shapeClient sign-out scrub owns them.
 export const bsWorkoutDraftKey = (userId) => userId ? `shapeClientWorkoutDrafts:${userId}` : null;
@@ -47,13 +49,20 @@ export function bsPreviewSession(workout = {}, formatLoad = value => value) {
     moves: bsSessionMoves(rawMoves.map(m => ({ ...m, m: m.name ?? m.m ?? '', s: m.scheme ?? m.seg ?? m.s ?? '', l: formatLoad(m.load ?? m.l ?? '') || '' }))),
   };
 }
+// Two moves are one superset when their keys match under the document's own
+// rule. ⚠ NAVIGATION AND REST MUST ASK THE SAME QUESTION: this compared a
+// TRIMMED key while the player's rest decision compared the RAW one, so 'A' and
+// 'A ' jumped the member to the partner and then made them sit a full rest.
+export function bsSameGroup(a, b) {
+  const x = supersetKey(a && a.group);
+  return !!x && x === supersetKey(b && b.group);
+}
 export function bsNextSessionMove(moves, completed, from) {
   const pending = i => Array.from({ length: moves[i].sets }).some((_, n) => !completed[`${i}-${n}`]);
-  const group = String(moves[from]?.group || '').trim();
-  if (group) {
+  if (supersetKey(moves[from]?.group)) {
     for (let step = 1; step <= moves.length; step++) {
       const i = (from + step) % moves.length;
-      if (String(moves[i]?.group || '').trim() === group && pending(i)) return i;
+      if (bsSameGroup(moves[from], moves[i]) && pending(i)) return i;
     }
   }
   if (pending(from)) return from;
@@ -72,6 +81,16 @@ export function bsApplyRemainingLoad(inputs, completed, moves, moveIdx, setIdx, 
     }
   });
   return next;
+}
+// The prescribed WEIGHT the member's load box is pre-filled with. `move.l` is
+// the DISPLAY label, and since RPE became its own axis it can read
+// "100 kg · RPE 8" — prefilled verbatim, that string fails `bsLoggedSet`'s
+// number match and a quick-logged set records NO actual load, so the lift
+// silently drops out of the member's history. RPE is the target effort, never a
+// weight, and never pre-entered as the member's own (it stays in the target
+// line). A label with no weight in it ("RPE 8") prefills nothing.
+export function bsLoadPrefill(move) {
+  return String(move?.l ?? '').split(/\s*·\s*/).filter(p => p && !/^RPE\s*\d+(?:\.\d+)?$/i.test(p)).join(' · ');
 }
 export function bsLoggedSet({ move, moveIndex, setIndex, input, startedAt = null, lastEndedAt = null, now, unit }) {
   const timed = Number.isFinite(startedAt) && startedAt > 0;

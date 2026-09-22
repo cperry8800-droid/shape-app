@@ -999,6 +999,8 @@
   "workoutEditor.tempo": "Темп",
   "workoutEditor.group": "Група суперсету",
   "workoutEditor.loadUnit": "Одиниця навантаження",
+  "workoutEditor.targetRpe": "Ціль · RPE",
+  "workoutEditor.rpeNone": "Немає",
   "workoutEditor.percentMax": "% 1ПМ",
   "workoutEditor.existingLoad": "Поточне призначення",
   "workoutEditor.cue": "Підказка тренера",

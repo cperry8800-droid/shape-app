@@ -852,3 +852,49 @@ test('drive: retry after pause and remount sends the original submitted workout 
   assert.deepEqual(resumed.saved[0], h.saved[0]);
   assert.equal(resumed.readDraft(), undefined);
 });
+
+// ⚠ RPE BECAME ITS OWN AXIS, SO A ROW CAN PRESCRIBE "100 kg · RPE 8" — and that is
+// the DISPLAY label the load box used to be pre-filled with. `bsLoggedSet` records an
+// actual load only when the box holds a bare weight, so a member who quick-logged the
+// set as prescribed saved NO load at all: the lift dropped out of their history with
+// nothing on screen saying so. The box takes the weight; the target keeps the RPE.
+test('drive: a quick-logged set on a "weight · RPE" row records the weight', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { moves: [{ m: 'Back squat', s: '5', l: '100 kg · RPE 8', reps: '5', sets: 1 }] } });
+  assert.equal(h.valueOf('Set 1 Load'), '100 kg', 'the load box is pre-filled with the weight, not the label');
+  assert.match(h.html, /RPE 8/, 'the target RPE is still on screen');
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
+  const set = h.saved[0].setLogs[0];
+  assert.equal(set.actualLoad, 100, 'the prescribed weight is recorded as lifted');
+  assert.equal(set.unit, 'kg');
+  assert.equal(set.targetLoad, '100 kg · RPE 8', 'and the full prescription is kept as the target');
+  assert.equal(set.rpe, null, 'a target effort is never entered as the member\'s own');
+});
+
+test('drive: an RPE-only row pre-fills no weight and invents none', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { moves: [{ m: 'Back squat', s: '5', l: 'RPE 8', reps: '5', sets: 1 }] } });
+  assert.equal(h.valueOf('Set 1 Load'), '', 'there is no weight to pre-fill');
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
+  assert.equal(h.saved[0].setLogs[0].actualLoad, null);
+  assert.equal(h.saved[0].setLogs[0].rpe, null);
+});
+
+// ⚠ NAVIGATION TRIMMED THE KEY AND THE REST DECISION COMPARED IT RAW. With 'A' and
+// 'A ' the player jumped to the partner — and then made the member sit a full rest
+// before it, the one combination no coach authors. One predicate decides both now.
+const pair = (a, b) => [
+  { m: 'Split squat', s: '8', l: '20 kg', reps: '8', sets: 2, group: a, restSeconds: 90 },
+  { m: 'Leg curl', s: '10', l: '30 kg', reps: '10', sets: 2, group: b, restSeconds: 90 },
+];
+test('drive: a superset alternates with no rest however the key was typed', async () => {
+  for (const [a, b] of [['A', 'A'], ['A', 'A '], ['A', 'a'], [' b', 'B ']]) {
+    const h = harness({ elapsedMinutes: 30, sessionProps: { moves: pair(a, b) } });
+    await h.click('Log set 1 · 8 reps');
+    assert.ok(h.nodes().some((n) => n.type === 'button' && /^Log set 1 · 10 reps/.test(textOf(n).trim())), `${JSON.stringify([a, b])}: the partner is up next`);
+    assert.doesNotMatch(h.html, /Rest · set 1 done/, `${JSON.stringify([a, b])}: no rest between the two halves of a superset`);
+  }
+});
+test('drive: two different groups still rest between sets', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { moves: pair('A', 'B') } });
+  await h.click('Log set 1 · 8 reps');
+  assert.match(h.html, /Rest · set 1 done/, 'the control: without a pair, the prescribed rest runs');
+});

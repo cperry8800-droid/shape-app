@@ -989,6 +989,8 @@
   "workoutEditor.load": "Gewicht",
   "workoutEditor.loading": "Deine gespeicherten Trainings und Programme werden geladen…",
   "workoutEditor.loadUnit": "Gewichtseinheit",
+  "workoutEditor.targetRpe": "Ziel · RPE",
+  "workoutEditor.rpeNone": "Keine",
   "workoutEditor.localDraft": "Entwurf auf diesem Gerät gesichert",
   "workoutEditor.minutes": "Geplante Minuten (optional)",
   "workoutEditor.moveDown": "Nach unten verschieben",

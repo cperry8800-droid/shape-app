@@ -999,6 +999,8 @@
   "workoutEditor.tempo": "Saurin motsi",
   "workoutEditor.group": "Rukunin superset",
   "workoutEditor.loadUnit": "Ma'aunin nauyi",
+  "workoutEditor.targetRpe": "Buri · RPE",
+  "workoutEditor.rpeNone": "Babu",
   "workoutEditor.percentMax": "% 1RM",
   "workoutEditor.existingLoad": "Umarnin atisaye da ake da shi",
   "workoutEditor.cue": "Umarnin mai horo",

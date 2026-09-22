@@ -9,6 +9,17 @@ const newDay = (name) => ({ id: uid(), name, blocks: [{ kind: 'main', rows: [] }
 
 // The document stays structured for the whole edit. Changing one field never
 // flattens the other weeks, prescription, coaching cues or exercise videos.
+// The RPE scale, 1–10 in half points — plus a stored reading that is not on it. ⚠ A
+// select whose value matches no option DISPLAYS its first option ("None") while the
+// card still prints the stored RPE, so an off-list legacy value would be invisible
+// here and visible to the member. Same rule as the website editor's.
+const RPE_STEPS = Array.from({ length: 19 }, (_, i) => Math.round((1 + i * 0.5) * 10) / 10);
+function rpeOptions(current) {
+  const n = Number(current);
+  const stored = current !== '' && current != null && Number.isFinite(n) && n > 0 && n <= 10 && !RPE_STEPS.includes(n);
+  return stored ? [...RPE_STEPS, n].sort((a, b) => a - b) : RPE_STEPS;
+}
+
 export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedTr, onSave, onClose }) {
   const tr = useWorkoutTr(inheritedTr);
   const account = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
@@ -66,7 +77,7 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   }, keepUndo);
   const changeRow = (bi, ri, key, nextValue) => changeDay((next) => {
     next.blocks[bi].rows[ri][key] = nextValue;
-    if (key === 'load' || key === 'loadType') delete next.blocks[bi].rows[ri].loadText;
+    if (key === 'load' || key === 'loadType' || key === 'rpe') delete next.blocks[bi].rows[ri].loadText;
     if (key === 'rest') delete next.blocks[bi].rows[ri].restSeconds;
   });
   const videos = coachWorkoutVideos([...(plans || []), { name: value.name, detail: value.detail }]);
@@ -157,7 +168,12 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
           <label style={label}>{txt('exercise', 'Exercise')}<input value={row.name || ''} onChange={(e) => changeRow(bi, ri, 'name', e.target.value)} style={input} /></label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
             {[[txt('sets', 'Sets'), 'sets', 'number'], [txt('reps', 'Reps'), 'reps', 'text'], [txt('load', 'Load'), 'load', 'number'], [txt('rest', 'Rest'), 'rest', 'text'], [txt('tempo', 'Tempo'), 'tempo', 'text'], [txt('group', 'Superset group'), 'group', 'text']].map(([caption, key, type]) => <label key={key} style={label}>{caption}<input type={type} min={type === 'number' ? 0 : undefined} step={key === 'load' ? 'any' : undefined} value={row[key] ?? ''} onChange={(e) => changeRow(bi, ri, key, type === 'number' && e.target.value !== '' ? Number(e.target.value) : e.target.value)} style={input} /></label>)}
-            <label style={label}>{txt('loadUnit', 'Load unit')}<select value={row.loadType || 'kg'} onChange={(e) => changeRow(bi, ri, 'loadType', e.target.value)} style={input}>{['kg', 'lb', 'pct', 'rpe'].map((unit) => <option key={unit} value={unit}>{unit === 'pct' ? txt('percentMax', '% 1RM') : unit === 'rpe' ? 'RPE' : unit}</option>)}</select></label>
+            {/* ⚠ RPE IS ITS OWN AXIS, not a fourth unit — see the website editor and
+                `splitLegacyRpe`. Both editors write one document, so a unit list
+                that still offered 'rpe' here would put the retired shape back into
+                a plan the website had just migrated. */}
+            <label style={label}>{txt('loadUnit', 'Load unit')}<select value={row.loadType || 'kg'} onChange={(e) => changeRow(bi, ri, 'loadType', e.target.value)} style={input}>{['kg', 'lb', 'pct'].map((unit) => <option key={unit} value={unit}>{unit === 'pct' ? txt('percentMax', '% 1RM') : unit}</option>)}</select></label>
+            <label style={label}>{txt('targetRpe', 'Target · RPE')}<select value={row.rpe ?? ''} onChange={(e) => changeRow(bi, ri, 'rpe', e.target.value === '' ? '' : Number(e.target.value))} style={input}><option value="">{txt('rpeNone', 'None')}</option>{rpeOptions(row.rpe).map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
           </div>
           {row.loadText && <div style={{ fontFamily: t.MONO, fontSize: 11, marginTop: 8, color: t.INK50 }}>{txt('existingLoad', 'Existing prescription')}: {row.loadText}</div>}
           <label style={{ ...label, marginTop: 10 }}>{txt('cue', 'Coaching cue')}<textarea value={row.cue || ''} onChange={(e) => changeRow(bi, ri, 'cue', e.target.value)} rows={2} style={input} /></label>
@@ -172,7 +188,7 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
           {videos.length > 0 && <label style={{ ...label, marginTop: 8 }}>{txt('chooseVideo', 'Choose a saved video')}<select value="" onChange={(e) => { const selected = videos.find((v) => v.url === e.target.value); if (selected) attachVideo(videoTarget(bi, ri, row), selected); }} style={input}><option value="">{txt('videoLibrary', 'Video library…')}</option>{videos.map((v) => <option key={v.url} value={v.url}>{v.name}</option>)}</select></label>}
           {upload?.target.wi === wi && upload.target.di === di && upload.target.bi === bi && upload.target.ri === ri && <div role="status" style={{ marginTop: 10 }}><progress aria-label={txt('uploading', 'Uploading video')} /> {txt('uploading', 'Uploading video')} · {upload.name}</div>}
         </fieldset>)}
-        <button type="button" onClick={() => changeDay((next) => { next.blocks[bi].rows.push({ id: uid(), name: '', sets: 3, reps: '8', load: '', loadType: 'kg', rest: '90s', tempo: '', cue: '', video: '' }); delete next.outlineOnly; })} style={{ ...button, marginTop: 12 }}>{txt('addExercise', '+ Exercise')}</button>
+        <button type="button" onClick={() => changeDay((next) => { next.blocks[bi].rows.push({ id: uid(), name: '', sets: 3, reps: '8', load: '', loadType: 'kg', rpe: '', rest: '90s', tempo: '', cue: '', video: '' }); delete next.outlineOnly; })} style={{ ...button, marginTop: 12 }}>{txt('addExercise', '+ Exercise')}</button>
       </div>)}
       {!(day.blocks || []).length && <button type="button" onClick={() => changeDay((next) => { next.blocks = [{ kind: 'main', rows: [] }]; })} style={button}>{txt('startSession', 'Add exercises')}</button>}
     </>}
