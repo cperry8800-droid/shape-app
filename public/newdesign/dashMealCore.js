@@ -97,9 +97,11 @@
   // offering them back needs no table and no route — the same derivation the
   // workout builder uses for custom moves. Swap alternates count: a coach who
   // added "Mum's dhal" as a swap meant it as a food.
-  var _BUILTIN_FOOD = (function () { var m = {}; for (var i = 0; i < FOODS.length; i++) m[FOODS[i].name.toLowerCase()] = true; return m; })();
+  var _BUILTIN_FOOD = (function () { var m = Object.create(null); for (var i = 0; i < FOODS.length; i++) m[FOODS[i].name.toLowerCase()] = true; return m; })();
   function customFoodsFromTemplates(templates) {
-    var seen = {}, out = [];
+    // Null-prototype for the same reason as customMovesFromTemplates: a dish name
+    // is a string the coach types, and a plain object answers for Object.prototype.
+    var seen = Object.create(null), out = [];
     var list = templates || [];
     function take(m) {
       var name = String((m && m.name) || "").trim();

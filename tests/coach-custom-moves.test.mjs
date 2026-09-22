@@ -230,3 +230,42 @@ test('the library page uses no light-paper token', async () => {
       `${tok} is a light-paper value and the library list renders on the dark ground`);
   }
 });
+
+// ⚠ A MOVE NAME IS A STRING A COACH TYPES, so the maps these derivations key on
+// are null-prototype. Measured on a plain object before the fix: "__proto__" and
+// "constructor" were dropped from Your moves AND refused by canCreate — the move
+// could neither be offered back nor created, which is the dead end this whole
+// change exists to remove — while "toString" and "valueOf" happened to work. The
+// inconsistency was the tell; every name behaves the same now.
+const PROTO_KEYS = ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf'];
+
+test('a move named after a prototype member behaves like any other name', () => {
+  for (const name of PROTO_KEYS) {
+    const own = DashBuilder.customMovesFromTemplates(withRows([{ name, muscle: 'Conditioning' }]));
+    assert.deepEqual(own.map((m) => m.name), [name], `${name} was dropped from the coach's own moves`);
+    assert.equal(DashBuilder.canCreateMove(name, []), true, `${name} could not be created`);
+    assert.equal(DashBuilder.canCreateMove(name, own), false, `${name} could be created twice`);
+    assert.deepEqual(DashBuilder.searchCustomMoves(own, name).map((m) => m.name), [name], `${name} is not searchable`);
+  }
+  assert.equal(DashBuilder.canCreateMove('Back squat', []), false, 'and a listed move is still refused');
+});
+
+test('a dish named after a prototype member behaves like any other name', () => {
+  for (const name of PROTO_KEYS) {
+    const own = DashMeals.customFoodsFromTemplates(withMeals([{ slots: [{ name, kcal: 300, p: 20, c: 30, f: 8 }] }]));
+    assert.deepEqual(own.map((f) => f.name), [name], `${name} was dropped from the coach's own foods`);
+    assert.equal(DashMeals.canCreateFood(name, []), true, `${name} could not be created`);
+    assert.equal(DashMeals.canCreateFood(name, own), false, `${name} could be created twice`);
+  }
+  assert.equal(DashMeals.canCreateFood('Overnight oats', []), false, 'and a listed food is still refused');
+});
+
+// And nothing reaches Object.prototype on the way.
+test('deriving a coach\'s own moves never writes through to Object.prototype', () => {
+  const probe = Object.keys(Object.prototype).length;
+  DashBuilder.customMovesFromTemplates(withRows([{ name: '__proto__', muscle: 'x', equipment: 'y' }, { name: '__proto__', muscle: 'z' }]));
+  DashMeals.customFoodsFromTemplates(withMeals([{ slots: [{ name: '__proto__', kcal: 1 }] }]));
+  assert.equal(Object.keys(Object.prototype).length, probe, 'Object.prototype gained a key');
+  assert.equal({}.muscle, undefined);
+  assert.equal({}.equipment, undefined);
+});

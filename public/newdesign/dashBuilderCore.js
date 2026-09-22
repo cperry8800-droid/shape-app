@@ -104,9 +104,13 @@
   // ⚠ IT EXCLUDES ANYTHING SHAPE ALREADY LISTS, because the point of the group is
   // the moves that are NOT in the library — a coach seeing "Back squat" under
   // YOUR MOVES learns nothing and the group stops meaning anything.
-  var _BUILTIN = (function () { var m = {}; for (var i = 0; i < EXERCISES.length; i++) m[EXERCISES[i].name.toLowerCase()] = true; return m; })();
+  var _BUILTIN = (function () { var m = Object.create(null); for (var i = 0; i < EXERCISES.length; i++) m[EXERCISES[i].name.toLowerCase()] = true; return m; })();
   function customMovesFromTemplates(templates) {
-    var seen = {}, out = [];
+    // ⚠ NULL-PROTOTYPE, because these keys are names a COACH TYPES. With a plain
+    // object, "__proto__" and "constructor" were dropped here and refused by
+    // canCreateMove — unaddable and unofferable, a dead end — while "toString"
+    // and "valueOf" happened to work. Measured, not reasoned about.
+    var seen = Object.create(null), out = [];
     var list = templates || [];
     for (var t = 0; t < list.length; t++) {
       var b = list[t] && list[t].detail && list[t].detail.builder;
