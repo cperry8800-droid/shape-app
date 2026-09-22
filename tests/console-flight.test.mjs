@@ -512,6 +512,25 @@ test('REQUIRED_CHECKS is every job ci.yml runs, derived from the workflow', () =
   assert.ok(block.length > 200, 'ci.yml has no jobs: block — this sweep has stopped matching');
   // A job's display name is the `name:` at four-space indent under its two-space key;
   // a step's `name:` is deeper and carries a leading `- `.
+  // ⚠ AND THE SAME REFUSAL HAS TO COVER THE JOB KEY, NOT JUST ITS `name:`. Both patterns
+  // below read `^ {2}([A-Za-z0-9_-]+):\s*$`, so a legal-but-unhandled key form — `"mobile":`
+  // quoted, or `mobile: # the app` with a trailing comment — matches NEITHER, and the job
+  // falls out of `keys` AND `pairs` TOGETHER. That is why the keys-vs-named-keys deepEqual
+  // below cannot catch it: both sides lose the same job, so they still agree, and the job is
+  // simply invisible. MEASURED, not reasoned about: quote the mobile key and drop Mobile from
+  // REQUIRED_CHECKS and this file goes 28/28 GREEN while `gateFromRuns` returns `green` over
+  // a FAILING mobile job. (CodeRabbit, #2143 — the `name:` escape above, from the key side.)
+  // ⚠ The suite job alone was covered, and only by accident of SUITE_JOB pinning its literal;
+  // every other job, and every job added later, had nothing. A per-job literal is not the fix.
+  const keyLines = block.split('\n').filter((l) => /^ {2}(?=\S)/.test(l) && !/^ {2}#/.test(l));
+  const badKeys = keyLines.filter((l) => !/^ {2}[A-Za-z0-9_-]+:\s*$/.test(l));
+  assert.deepEqual(badKeys, [],
+    'a job key in ci.yml is not a plain unquoted key, so the patterns below cannot see that ' +
+    'job at all — it drops out of BOTH lists together, which is exactly why the keys-vs-names ' +
+    'check cannot notice:\n' + badKeys.map((l) => `  ${JSON.stringify(l)}`).join('\n') +
+    '\n  Fix by writing the key as a plain unquoted scalar with nothing after the colon, or ' +
+    'teach this guard to resolve the form — never by editing REQUIRED_CHECKS to match, which ' +
+    'is how the board stops judging a real job.');
   const keys = [...block.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)].map((m) => m[1]);
   const pairs = [...block.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$\n(?:.*\n)*?^ {4}name: (.+)$/gm)]
     .map((m) => [m[1], m[2].trim()]);
