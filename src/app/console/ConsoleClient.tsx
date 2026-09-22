@@ -238,9 +238,11 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
     if (p.allGreen)
       return { text: 'AWAITING YOUR WORD', color: N.bg, bg: N.accent, border: N.accent };
     // ⚠ THE HEADLINE MUST KEY ON WHOEVER GATES, or it contradicts the thing it is a
-    // headline for — and since 2026-08-24 NOBODY reviews (owner: "no more coderabbit",
-    // after Codex on 2026-08-20). Both verdicts still render as their own chips below; neither
-    // may decide this tag.
+    // headline for — and NO REVIEWER GATES, which is not the same claim as "nobody
+    // reviews". This comment said the second, and it went stale: CodeRabbit is run again
+    // by ruling (owner, 2026-09-21, "Use coderabbit for now") and reviewed #2142 twice.
+    // What is unchanged since 2026-08-26 is that prAllGreen reads { ci, draft } alone.
+    // Both verdicts still render as their own chips below; neither may decide this tag.
     // ⚠ THIS BRANCH USED TO READ 'CR RE-TRIGGER' ON `coderabbit === 'none'`, AND A RETIRED
     // REVIEWER ANSWERS 'none' FOREVER — so every PR whose CI had not finished printed an
     // instruction nobody could carry out. A status that names an impossible next action is
@@ -611,13 +613,22 @@ export default function ConsoleClient({ initial }: { initial: WarRoomSnapshot })
                   );
                 })}
                 <div style={{ marginTop: 10, fontFamily: MONO, fontSize: 9.5, color: N.dimmer, lineHeight: 1.7 }}>
+                  {/* ⚠ THE "DOES NOT GATE" LINE IS SAID ONCE, FOR BOTH, BECAUSE SAYING IT PER CHIP IS HOW
+                      THE BOARD CAME TO CONTRADICT ITSELF. The CR line read "⚠ CR DOES NOT GATE" and the CDX
+                      line directly under it read "(Codex IS the gate)" — two adjacent sentences disagreeing
+                      about this board's own rule, in the text the owner reads to decide whether to merge.
+                      Codex stopped gating on 2026-08-26 (#1930 removed both reviewers from prAllGreen's
+                      inputs AND its type); the legend kept the old sentence. One statement cannot disagree
+                      with itself, so there is one. */}
                   CR ◇ APPROVED / CLEAN-PASS ✓ · CHANGES ✗ · COMMENTED … · CAPPED, NEVER RAN ⚠ · NO RECORD —
                   (verdicts count on the current head only; a clean pass is read from the edited summary — neither a
-                  dash nor a cap notice is a verdict). ⚠ CR DOES NOT GATE — it is a breadth sweep and its chip is
-                  reported, never required.
+                  dash nor a cap notice is a verdict).
                   <br />
-                  CDX ◇ CLEAN ON THIS HEAD ✓ · FINDINGS ✗ · RAN, BUT NOT ON THIS HEAD ⚠ · NO RECORD — (Codex IS the
-                  gate; ⚠ means re-trigger, not first run)
+                  CDX ◇ CLEAN ON THIS HEAD ✓ · FINDINGS ✗ · RAN, BUT NOT ON THIS HEAD ⚠ · NO RECORD — (⚠ means
+                  re-trigger, not first run).
+                  <br />
+                  ⚠ NEITHER CHIP GATES — the gate is CI green on this head and not a draft. Both verdicts are
+                  reported, never required.
                 </div>
               </div>
             )}

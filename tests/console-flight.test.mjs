@@ -460,8 +460,9 @@ test('the flight route feeds the chips their data, and the gate no reviewer at a
     'the route must fetch the PR review comments — inline findings live there');
   assert.match(src, /coderabbitVerdict\(\{[^}]*reviewComments/,
     'reviewComments must reach coderabbitVerdict, or head findings are invisible to the chip');
-  // ⚠ AND THE INVERSE IS NOW THE LOAD-BEARING HALF. No reviewer has gated since 2026-08-24,
-  // and the way this defect comes back is someone wiring a verdict in AT THE CALL SITE — which
+  // ⚠ AND THE INVERSE IS NOW THE LOAD-BEARING HALF. No reviewer has GATED since 2026-08-24 —
+  // which is not the same as nobody reviewing, and CodeRabbit is run again by ruling (owner,
+  // 2026-09-21). The way this defect comes back is someone wiring a verdict in AT THE CALL SITE — which
   // no unit test of prAllGreen can see, because every one of them builds its own argument.
   // Twice now a retired reviewer's permanent 'none' has closed the gate on every green PR, so
   // the absence is asserted where the bug actually travels.
@@ -469,4 +470,81 @@ test('the flight route feeds the chips their data, and the gate no reviewer at a
     'prAllGreen must NOT be fed a CodeRabbit verdict — no reviewer gates (owner, 2026-08-24)');
   assert.doesNotMatch(src, /prAllGreen\(\{[^}]*codex/,
     'prAllGreen must NOT be fed a Codex verdict — no reviewer gates (owner, 2026-08-20)');
+});
+
+// ⚠ REQUIRED_CHECKS WAS A HAND-TYPED COPY OF A LIST THE TREE ALREADY DECLARES, AND IT
+// HAD GONE STALE IN THE DIRECTION THAT OPENS THE GATE. `ci.yml` runs FOUR jobs and the
+// array named three; the missing one is `Tests (unit + mount)`, which installs both
+// node_modules trees and is the only job that executes a React component, so the entire
+// suite and every mount test were invisible to the board. Driven against the shipped
+// rules before the fix: three green checks beside a FAILING suite returned gate 'green'
+// and prAllGreen true — Mission Control answering "safe to merge" over a red suite.
+// Derived here rather than re-typed, so a fifth job fails this test instead of silently
+// widening the blind spot. The repo has now paid three times for a gate that names a
+// list somebody has to remember to update.
+// ⚠ AND IT IS DERIVED FROM THE JOBS RATHER THAN FROM EITHER DOCUMENTED "REQUIRED
+// CHECKS" LIST, BECAUSE THE TWO PROSE LISTS DISAGREE WITH EACH OTHER. ci.yml's own
+// header says to require Web, Mobile and Tests — omitting gitleaks, which the house
+// records prove IS required (a merge 405'd on it on 2026-07-19). docs/WORKLOG.md's
+// auto-loaded conventions say Web, Mobile and gitleaks — omitting Tests, with a later
+// correction noting CI has four jobs. Neither names all four; between them they name
+// all four. The job table is the only list that cannot be stale, and it is a superset
+// of both, so a board built on it is never LOOSER than whatever protection requires.
+test('REQUIRED_CHECKS is every job ci.yml runs, derived from the workflow', () => {
+  const yml = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  // ⚠ SCOPED TO THE `jobs:` BLOCK, because the first version of this guard was not and
+  // was RIGHT BY ACCIDENT. Over the whole file it matched `pull_request:` under `on:` —
+  // also a two-space key — and paired it with the first four-space `name:` it found,
+  // which happens to be the web job's. The name list came out correct while the KEY it
+  // came from was wrong, and reordering `on:` would silently change the answer.
+  const block = yml.slice(yml.indexOf('\njobs:'));
+  assert.ok(block.length > 200, 'ci.yml has no jobs: block — this sweep has stopped matching');
+  // A job's display name is the `name:` at four-space indent under its two-space key;
+  // a step's `name:` is deeper and carries a leading `- `.
+  const keys = [...block.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)].map((m) => m[1]);
+  const pairs = [...block.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$\n(?:.*\n)*?^ {4}name: (.+)$/gm)]
+    .map((m) => [m[1], m[2].trim()]);
+  const jobs = pairs.map((x) => x[1]);
+  // ⚠ THE VACUITY FLOORS IN THIS TEST ARE BELT-AND-BRACES, measured rather than implied:
+  // with both parses degraded to nothing AND every floor removed, this test still FAILS,
+  // because the final comparison puts four names against an empty list and
+  // REQUIRED_CHECKS can never be empty. They earn their place by naming the failure
+  // precisely — a dead parse rather than a mismatched board — instead of printing a
+  // confusing list diff. Kept for the message, not for the coverage.
+  assert.ok(keys.length >= 3,
+    `expected ci.yml's job keys, parsed ${keys.length} — this sweep has stopped matching`);
+  // ⚠ EVERY KEY MUST HAVE YIELDED A NAME, or the hole re-opens from the other side: a job
+  // declared with no `name:` reports its KEY as the check name on GitHub, so it would be
+  // absent from this list, absent from REQUIRED_CHECKS, and invisible to the board — with
+  // this guard green, because the two short lists would still agree.
+  assert.deepEqual(pairs.map((x) => x[0]), keys,
+    'a job in ci.yml yielded no display name. GitHub then reports it by its KEY, and a ' +
+    'job the board cannot name is a job it cannot judge:\n  keys  ' + JSON.stringify(keys) +
+    '\n  named ' + JSON.stringify(pairs.map((x) => x[0])));
+  assert.ok(jobs.includes('Tests (unit + mount)'),
+    'the suite job is missing from the parse — the guard would pass vacuously on the ' +
+    'one name it exists to protect');
+  assert.deepEqual([...REQUIRED_CHECKS].sort(), [...jobs].sort(),
+    'REQUIRED_CHECKS must be exactly the jobs ci.yml runs. A job the board does not ' +
+    'know about cannot turn its gate red, running or incomplete — it is simply not ' +
+    'judged, and the PR reads green over it:\n  ci.yml  ' + JSON.stringify([...jobs].sort()) +
+    '\n  console ' + JSON.stringify([...REQUIRED_CHECKS].sort()));
+});
+
+// The defect itself, replayed — so the suite is proven to catch it rather than merely
+// to be green after the fix. Each of the three states a missed job can be in was a
+// FALSE GREEN, and each is its own case because they reach different arms of the rule.
+test('a red, running or absent suite job is never a green gate', () => {
+  const others = REQUIRED_CHECKS.filter((n) => n !== 'Tests (unit + mount)').map((n) => run(n));
+  const red = gateFromRuns([...others, run('Tests (unit + mount)', 'failure')]);
+  assert.equal(red, 'red', 'a FAILING suite must block the board');
+  assert.equal(prAllGreen({ ci: red, draft: false }), false);
+
+  const running = gateFromRuns([...others, run('Tests (unit + mount)', null, 'in_progress')]);
+  assert.equal(running, 'running', 'a suite still running is not a pass');
+  assert.equal(prAllGreen({ ci: running, draft: false }), false);
+
+  const absent = gateFromRuns(others);
+  assert.equal(absent, 'none', 'a suite with no record at all is an unread gate, not a passed one');
+  assert.equal(prAllGreen({ ci: absent, draft: false }), false);
 });

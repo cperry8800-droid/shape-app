@@ -13,10 +13,15 @@ export type Gate = 'green' | 'red' | 'running' | 'blocked' | 'none';
 // the same as having commented.
 export type CoderabbitVerdict = 'approved' | 'clean' | 'changes' | 'commented' | 'limited' | 'none';
 
-// Codex is THE gate, and it is head-pinned. 'stale' = Codex ran, but its verdict
-// names a different commit than the head (or names none at all) — neither a pass
-// nor an absence, and the action for it is a re-trigger. It replaced
-// 'present' | 'none', under which any Codex record the PR ever had opened the gate.
+// ⚠ CODEX DOES NOT GATE, AND THIS COMMENT SAID IT WAS THE GATE. prAllGreen reads
+// { ci, draft } and nothing else — #1930 removed both reviewers from its inputs AND
+// from its type on 2026-08-26, precisely so a caller that re-wires one fails to
+// compile. Twice before that, a retired reviewer's permanent 'none' closed the gate
+// on every green PR. This chip is DISPLAY.
+// 'stale' = Codex ran, but its verdict names a different commit than the head (or
+// names none at all) — neither a pass nor an absence, and the action for it is a
+// re-trigger. It replaced 'present' | 'none', under which any Codex record the PR
+// ever had opened the gate.
 export type CodexVerdict = 'clean' | 'findings' | 'stale' | 'none';
 
 export type FlightPr = {
