@@ -131,7 +131,7 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
             </div>
             <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: TEAL, marginTop: 8 }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)} value</div>
             {hasCredit && (
-              <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, border: `1px solid ${TEAL}55`, background: "rgba(10,197,168,0.08)" }}>
+              <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.3333)`, background: "rgba(10,197,168,0.08)" }}>
                 <div style={{ fontFamily: sans, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Coach credit wallet</div>
                 <div style={{ display: "flex", gap: 20, marginTop: 6 }}>
                   {credit.session > 0 && <div><div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.03em", color: INK, lineHeight: 1 }}>${(credit.session / 100).toFixed(0)}</div><div style={{ fontFamily: sans, fontSize: 11, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>Session</div></div>}
@@ -509,7 +509,7 @@ function UnlockedShelf({ rewards, busyKey, onClaim }) {
             const ready = choices.length === 0 || !!pick;
             const busy = busyKey === r.rewardKey;
             return (
-              <article key={r.rewardKey} style={{ padding: "20px 22px", borderRadius: 12, border: `1px solid ${TEAL}55`, background: "rgba(10,197,168,0.06)" }}>
+              <article key={r.rewardKey} style={{ padding: "20px 22px", borderRadius: 12, border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.3333)`, background: "rgba(10,197,168,0.06)" }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Earned at {r.tier}</div>
                 <div style={{ marginTop: 6, fontFamily: serif, fontSize: 22, letterSpacing: "-0.015em", color: INK }}>{r.name}</div>
                 {choices.length > 0 && (

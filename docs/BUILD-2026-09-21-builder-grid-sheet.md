@@ -37,7 +37,11 @@ concept's *Mondays ▾ / Thursdays ▾* is that field with a control on it; what
 
 **The dashboard has no colour system.** `dash.css` declares no custom properties; the dashboard
 modules, the two navs, `trainerDashboard.jsx`, `pageShell.jsx`, `dashboardLayout.mjs` and
-`dash.css` carry **1,129 colour literals, 217 distinct values** (measured on `0e63de1`). The
+`dash.css` carry **1,108 colour literals, 206 distinct values** (measured on `0e63de1`).
+⚠ **CORRECTED while building PR 1 — this read 1,129 / 217**, a count taken with
+`#[0-9a-fA-F]{3,8}` which also matches a **PR reference in prose**: 21 of those "literals" are
+`#2137`, `#2046`, `#2069` and friends. A valid CSS hex is 3, 6 or 8 digits, and the corrected
+pattern is what the sweep and its guard both use. The
 ink family alone — `rgba(242,237,228, α)` at some twenty-five alphas plus `#f2ede4` — is over
 half of them; `#2ee0c4` (accent) 69, `#d8a23a` (gold) 38, `#e0644b` / `#c0533b` (rust) 35,
 `#7bbf5a` (green) 18, `#1a1612` / `#14110e` / `#06231f` (grounds) 45. The switch is therefore a
@@ -184,6 +188,7 @@ is what catches one that was missed (a canvas handed `var(--…)` draws nothing)
 | PR | What | Must not |
 |---|---|---|
 | 1–4 | Token layer + the four sweeps (dark values) | change a single pixel — pixel diff per tab |
+| 1 | **SHIPPED.** `dash.css` token block + the chrome swept (337 sites) + `tests/newdesign-paper-tokens.test.mjs` | — |
 | 5 | The light paper values, the switch, the Settings control, **default light** | touch a marketing page's header (no `data-paper` there) |
 | 6 | Trainer Sheet view + header + toolbar | change the document shape or either route |
 | 7 | Trainer Grid view + side panel + the view switch + weekday defaults | move a published snapshot |
@@ -233,3 +238,59 @@ is why they are four PRs and not one.
 - The app's papers, accents, textures and light effects on the website (§7 row 5).
 - `public/mobile/` and the legacy dashboards keep their own colours; the token layer reaches the
   34 pages that load `dash.css` and no further.
+
+---
+
+## 10. What PR 1 actually found (shipped 2026-09-22)
+
+The token block plus the chrome sweep — `dash.css`, `pageShell.jsx`, `trainerDashboard.jsx`,
+`dashGrid.jsx`, **337 sites**. `coachNav.jsx` and `clientNav.jsx` carry no colour literal at all,
+so the brief's PR 1 list is complete at four files. Proven a visual no-op by a pixel diff of
+**41 surfaces** — 33 dashboard tabs across the three shells plus 8 marketing pages — **all 41
+identical**. Four findings worth carrying into PRs 2–4:
+
+⚠ **THE HEX-ALPHA TRAP HAS TWO SPELLINGS, AND SWEEPING ONE SHIPS THE OTHER.** `INK` was the
+string `#f2ede4`, so ``${INK}40`` produced the 8-digit hex `#f2ede440`. Once `INK` became
+`var(--sh-ink, #f2ede4)` the same expression produced `var(--sh-ink, #f2ede4)40` — not a colour,
+so CSS dropped the **whole declaration** and the Team page's *Browse coaches* button lost its
+border and fill with nothing failing anywhere. A scan for the template form found **6** sites;
+the pixel diff then caught **5 more** written as concatenation (`INK + "8c"`), which that scan
+could not see. Eleven sites in total, across `clientTeam.jsx`, `community.jsx`,
+`marketplace.jsx`, `store.jsx` and `clientMeSettings.jsx` — **five of them outside PR 1's stated
+scope**, because the trap lives wherever a swept constant is *consumed*, not where it is
+declared. Every one became `rgba(var(--<token>-rgb, r,g,b), α)` with α = 0xHH/255, and all nine
+distinct conversions were **verified in Chromium to compute the identical colour** rather than
+trusted to the arithmetic. PRs 2–4 must re-run that scan in **both** spellings after each sweep.
+
+⚠ **THE COOKIE-CONSENT BANNER IS OUTSIDE THE PAPER SYSTEM, AND AN EXISTING GUARD IS WHAT SAID
+SO.** The sweep nested the paper tokens inside the banner's own `--consent-*` fallbacks, and
+`tests/consent-banner-contrast.test.mjs` failed — correctly. That banner is injected on ~69
+pages and keeps a private namespace because it once borrowed generic palette tokens and a page
+that defined one of them drew the disclosure at **1.11:1** while Accept stayed legible; a
+half-legible consent choice is a dark pattern however it was arrived at. Its region is reverted
+to literals, the sweep script now protects it by range, and `dash.css` records why. ⚠ The ink
+ratchet in the new guard had to be **scoped** to that exception, with a second assertion that the
+region is real, non-empty, under 15% of the file and still carries literals — an exclusion that
+large or that vacuous would silently stop the ratchet catching anything.
+
+⚠ **TWO FILES IN THAT SET ARE CRLF-STORED, AND A TEXT-MODE WRITE NORMALISES THEM.**
+`clientMeSettings.jsx` (1,137 CRLF lines) and `store.jsx` (850) came back as **1,700 changed
+lines for a one-line fix** until both edits were re-applied in **bytes**. The lesson is already
+in `docs/WORKLOG.md` from the `vite.config.ts` incident; PRs 2–4 sweep far more files, so check
+`git diff --stat` against the size of the change before trusting any of them.
+
+⚠ **AND THE RENDER HARNESS HAD TO BE PROVEN DETERMINISTIC BEFORE ANY DIFF MEANT ANYTHING.** Two
+independent captures of the *same* tree are **41/41 identical** — the clock fixed with
+`page.clock.setFixedTime`, `Math.random` seeded from an init script, animations and transitions
+disabled, the fonts and the three CDN bundles served from local bytes. Without that control a
+green diff is indistinguishable from a harness that renders the same thing twice by luck.
+⚠ Playwright's own `page.screenshot` **hung** on both coach *Today* tabs waiting for
+`document.fonts` (the page is fine; `fonts.ready` resolves), so captures go through CDP
+`Page.captureScreenshot` with `captureBeyondViewport`.
+
+**What the diff cannot prove, stated rather than implied:** every capture is the **signed-out
+preview**, so a signed-in-only subtree is unverified by it — the two `clientMeSettings.jsx`
+conversions sit inside cards gated on a session, and are correct by the Chromium equality check
+above rather than by a render. `rgba(var(--triplet), α)`, `var()` fallbacks, and `var()` inside a
+shorthand, a gradient and an SVG presentation attribute were each measured in Chromium before the
+sweep depended on them.

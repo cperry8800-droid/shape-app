@@ -869,7 +869,7 @@ function ReminderCard({ signedIn }) {
   const startEdit = (r) => setEditing({ id: r.id, kind: r.kind, label: r.label || "", atTime: r.at_time, days: r.days || [], enabled: r.enabled });
 
   const mono = "'JetBrains Mono', monospace";
-  const chip = (on, square) => ({ padding: square ? "8px 0" : "6px 12px", borderRadius: square ? 8 : 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? TEAL_BRIGHT + "22" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
+  const chip = (on, square) => ({ padding: square ? "8px 0" : "6px 12px", borderRadius: square ? 8 : 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196), 0.1333)" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
   const fieldStyle = { width: "100%", boxSizing: "border-box", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5, outline: "none" };
   const eyebrow = { fontFamily: mono, fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
   const actionChip = { fontSize: 11.5, color: TEAL_BRIGHT, fontFamily: mono, letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 6px", borderRadius: 6 };
@@ -1045,7 +1045,7 @@ function NotificationDashboard({ signedIn }) {
   const lblStyle = { fontSize: 13.5, color: INK };
   const subStyle = { fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 };
   const sel = { background: "transparent", color: TEAL_BRIGHT, border: "1px solid rgba(242,237,228,0.25)", borderRadius: 999, padding: "6px 10px", fontFamily: mono, fontSize: 11, fontWeight: 700, cursor: "pointer" };
-  const chip = (on) => ({ width: 52, padding: "6px 0", borderRadius: 8, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? TEAL_BRIGHT + "22" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
+  const chip = (on) => ({ width: 52, padding: "6px 0", borderRadius: 8, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196), 0.1333)" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
   const Toggle = ({ on, onClick, label }) => (
     <button type="button" onClick={onClick} aria-label={label} style={{ width: 46, height: 27, borderRadius: 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.25)"), background: on ? TEAL_BRIGHT : "transparent", position: "relative", cursor: "pointer", flexShrink: 0 }}>
       <span style={{ position: "absolute", top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? "#100d0a" : "rgba(242,237,228,0.5)" }} />

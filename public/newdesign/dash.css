@@ -2,17 +2,83 @@
    used to inline. One place to evolve (dashboard-v2 roadmap, Phase 1.1).
    Component styling stays inline-in-JS; this file is page chrome only. */
 
-html, body { margin: 0; padding: 0; background: #1a1612; }
+/* ── The paper tokens ──────────────────────────────────────────────────────
+   Every colour on a dashboard reads one of these, so the whole surface can be
+   re-papered from one place. The values here ARE the colours the dashboard has
+   always shipped, so defining them changes nothing; `html[data-paper="light"]`
+   (a later PR) is what moves them.
+
+   ⚠ EVERY CONSUMER WRITES ITS OWN VALUE AS THE var() FALLBACK —
+   `var(--sh-accent, #2ee0c4)`, `rgba(var(--sh-ink-rgb, 242,237,228), .5)` — and
+   that is load-bearing rather than belt-and-braces: `pageShell.jsx` renders the
+   header and footer on 69 pages while this stylesheet is loaded by 34, so on the
+   35 marketing pages the tokens are ABSENT and the fallback is the only value
+   there is. Drop a fallback and a marketing page loses that colour outright.
+
+   ⚠ AND EACH INK IS ONE RGB TRIPLET RATHER THAN A TOKEN PER OPACITY. The
+   dashboard asks for its ink at two dozen different alphas and the header for
+   its own at five; `rgba(var(--sh-ink-rgb), a)` serves all of them from one
+   value, so a new paper redefines one token instead of two dozen, and an alpha
+   nobody anticipated still lands on the right hue.
+
+   ⚠ WHAT IS DELIBERATELY *NOT* HERE, so the next reader does not read the gap as
+   an oversight: shadows (`rgba(0,0,0,a)` — a light card still casts a dark
+   shadow); the near-blacks used as text ON an accent fill (`#031f1c`, `#0b0e0c`,
+   `#0a0f0d`, `#04110f` — dark-on-teal reads on either paper, and folding four
+   values into one token would change pixels rather than rename them); chart and
+   tier series colours; and brand marks (Spotify green, Apple red). None of them
+   move with the paper.
+
+   ⚠ AND THE COOKIE-CONSENT BANNER IS OUTSIDE THIS SYSTEM BY RULE, not by
+   oversight. `pageShell.jsx` injects it on ~69 pages with inline styles and its
+   own `--consent-*` namespace, because it once borrowed generic palette tokens
+   and a page that defined one of them for itself drew the disclosure at 1.11:1
+   while the Accept button stayed legible. A half-legible consent choice is a dark
+   pattern however it was arrived at, so the banner reads literals and a page that
+   wants a themed banner says so with `--consent-*`. See
+   tests/consent-banner-contrast.test.mjs, which is what caught this sweep. */
+:root {
+  /* Ink - the dashboard's foreground family, as one triplet plus its opaque forms. */
+  --sh-ink-rgb: 242,237,228;
+  --sh-ink: var(--sh-ink, #f2ede4);
+  --sh-ink-soft: var(--sh-ink-soft, #efece6);
+
+  /* Nav ink - the shared header and footer run a slightly different cream. */
+  --sh-nav-ink-rgb: 245,239,225;
+  --sh-nav-ink: var(--sh-nav-ink, #f5efe1);
+
+  /* Grounds - the page, a deeper panel, and the teal-black the coach uses. */
+  --sh-ground: var(--sh-ground, #1a1612);
+  --sh-ground-rgb: 26,22,18;
+  --sh-ground2: var(--sh-ground2, #14110e);
+  --sh-deep: var(--sh-deep, #06231f);
+
+  /* Accent - three teals the surface genuinely distinguishes today. */
+  --sh-accent: var(--sh-accent, #2ee0c4);
+  --sh-accent-rgb: 46,224,196;
+  --sh-accent2: var(--sh-accent2, #0ac5a8);
+  --sh-accent2-rgb: 10,197,168;
+  --sh-accent3: var(--sh-accent3, #34d6c5);
+  --sh-accent3-rgb: 52,214,197;
+
+  /* Roles - nutritionist gold, trainer rust, and the positive green. */
+  --sh-gold: var(--sh-gold, #d8a23a);
+  --sh-rust: var(--sh-rust, #e0644b);
+  --sh-rust2: var(--sh-rust2, #c0533b);
+  --sh-green: var(--sh-green, #7bbf5a);
+}
+
+html, body { margin: 0; padding: 0; background: var(--sh-ground, var(--sh-ground, #1a1612)); }
 * { box-sizing: border-box; }
 a { text-decoration: none; color: inherit; }
 
 /* ── Instrument plates (dashboard-v2 step 7 — prototype language) ─────────── */
 @keyframes dashTick { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
-.dash-plate { position:relative; background:linear-gradient(170deg, rgba(242,237,228,.05), rgba(242,237,228,.02) 70%), rgba(242,237,228,.02); border:1px solid rgba(242,237,228,.1); border-left:3px solid var(--dac, #2ee0c4); clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); padding:18px 20px; }
-.dash-plate--tick::before { content:""; position:absolute; top:10px; left:8px; width:5px; height:5px; border-radius:1px; background:var(--dac, #2ee0c4); animation:dashTick 1.6s ease-in-out infinite; }
-.dash-plate--bracket::after { content:""; position:absolute; right:6px; bottom:6px; width:10px; height:10px; border-right:1.5px solid var(--dac, #2ee0c4); border-bottom:1.5px solid var(--dac, #2ee0c4); opacity:.55; }
-.dash-eyebrow { font-family:'JetBrains Mono', monospace; font-size:9px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dac, #2ee0c4); }
-.dash-ledger { height:2px; background:linear-gradient(90deg, var(--dac, #2ee0c4), rgba(46,224,196,.18) 45%, transparent 85%); margin:7px 0 14px; }
+.dash-plate { position:relative; background:linear-gradient(170deg, rgba(var(--sh-ink-rgb, 242,237,228),.05), rgba(var(--sh-ink-rgb, 242,237,228),.02) 70%), rgba(var(--sh-ink-rgb, 242,237,228),.02); border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.1); border-left:3px solid var(--dac, var(--sh-accent, #2ee0c4)); clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%); padding:18px 20px; }
+.dash-plate--tick::before { content:""; position:absolute; top:10px; left:8px; width:5px; height:5px; border-radius:1px; background:var(--dac, var(--sh-accent, #2ee0c4)); animation:dashTick 1.6s ease-in-out infinite; }
+.dash-plate--bracket::after { content:""; position:absolute; right:6px; bottom:6px; width:10px; height:10px; border-right:1.5px solid var(--dac, var(--sh-accent, #2ee0c4)); border-bottom:1.5px solid var(--dac, var(--sh-accent, #2ee0c4)); opacity:.55; }
+.dash-eyebrow { font-family:'JetBrains Mono', monospace; font-size:9px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dac, var(--sh-accent, #2ee0c4)); }
+.dash-ledger { height:2px; background:linear-gradient(90deg, var(--dac, var(--sh-accent, #2ee0c4)), rgba(var(--sh-accent-rgb, 46,224,196),.18) 45%, transparent 85%); margin:7px 0 14px; }
 
 /* ── Responsive (dashboard-v2 step 10) ────────────────────────────────────── */
 .dash-roster-scroll { overflow-x: auto; }

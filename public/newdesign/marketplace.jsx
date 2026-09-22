@@ -357,7 +357,7 @@ function CoachCard({ c }) {
           <h3 style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", fontWeight: 400, margin: 0, color: INK, lineHeight: 1.1 }}>{c.name}</h3>
           <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: tier.color, border: `1px solid ${tier.color}66`, borderRadius: 3, padding: "2px 7px", whiteSpace: "nowrap" }}>{tier.name}</span>
           {c.verified && (
-            <span title="Credentials + insurance verified by Shape" style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: TEAL, background: "rgba(10,197,168,0.12)", border: `1px solid ${TEAL}66`, borderRadius: 3, padding: "2px 7px", whiteSpace: "nowrap" }}>✓ Verified</span>
+            <span title="Credentials + insurance verified by Shape" style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: TEAL, background: "rgba(10,197,168,0.12)", border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.4)`, borderRadius: 3, padding: "2px 7px", whiteSpace: "nowrap" }}>✓ Verified</span>
           )}
         </div>
         <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.65)", margin: 0 }}>{c.role}</div>
