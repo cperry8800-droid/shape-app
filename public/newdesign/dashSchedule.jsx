@@ -220,7 +220,7 @@ function DscAvailability({ role, live, initial, storedZone, onZone }) {
               <span style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50, alignSelf: "center", textAlign: "right", paddingRight: 2 }}>{hLbl}</span>
               {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
                 const on = cells.has(wd + ":" + h);
-                return <button key={wd} onClick={() => toggle(wd, h)} aria-label={lbl + " " + hLbl} aria-pressed={on} style={{ height: 22, borderRadius: 3, border: "1px solid " + (on ? "rgba(216,162,58,0.5)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)"), background: on ? "var(--sh-gold, #d8a23a)" : "transparent", cursor: "pointer", padding: 0 }} />;
+                return <button key={wd} onClick={() => toggle(wd, h)} aria-label={lbl + " " + hLbl} aria-pressed={on} style={{ height: 22, borderRadius: 3, border: "1px solid " + (on ? "rgba(var(--sh-gold-rgb, 216,162,58),0.5)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)"), background: on ? "var(--sh-gold, #d8a23a)" : "transparent", cursor: "pointer", padding: 0 }} />;
               })}
             </React.Fragment>
           );

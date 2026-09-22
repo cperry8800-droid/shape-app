@@ -26,7 +26,23 @@ function cwHexDigits(hex, dflt) {
   const m = s.match(/#([0-9a-fA-F]{3,6})/);
   return (m ? m[1] : s.replace("#", ""));
 }
-function cwHexA(hex, a) { const h = cwHexDigits(hex, "#888888"); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+// An alpha CAN follow the paper, so it is composed through the token's `-rgb`
+// twin rather than flattened to the literal — the same rule as ssAlpha in
+// pageShell.jsx, and every --sh-* colour token declares a twin so this is sound
+// whatever it is handed. cwShade below deliberately does NOT: CSS has no
+// multiply, so a shade has to read the fallback.
+function cwHexA(hex, a) {
+  const s = String(hex || "");
+  const tok = s.match(/var\(\s*(--[\w-]+)\s*,\s*#([0-9a-fA-F]{6})\s*\)/);
+  if (tok) {
+    const n = parseInt(tok[2], 16);
+    return `rgba(var(${tok[1]}-rgb, ${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}), ${a})`;
+  }
+  const h = cwHexDigits(hex, "#888888");
+  const d = h.length === 3 ? h.split("").map(x => x + x).join("") : h;
+  const n = parseInt(d, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
 function cwShade(hex, f) { const h = cwHexDigits(hex, "#888888"); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
 // Presence-tier activity line (spec 2026-07-19): what the member is DOING now
 // ('workout' | 'cooking') + minutes in, from the existing authenticated-read

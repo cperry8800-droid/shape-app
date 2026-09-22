@@ -105,6 +105,45 @@ test('every var(--sh-*) reference carries a fallback', () => {
     'the fallback is the only value there is, so a bare var() is no colour at all:\n  ' + bare.join('\n  '));
 });
 
+// ⚠ A TOKEN THAT REFERENCES ITSELF IS DECLARED AND INERT, WHICH THE TEST ABOVE
+// CANNOT SEE. `--sh-ground: var(--sh-ground, #1a1612)` is a CYCLE, and a cyclic
+// custom property is invalid at computed-value time — measured in Chromium,
+// getComputedStyle(root)['--sh-ground'] came back "" while a plain declaration of
+// the same value came back "#1a1612". It is invisible because every use site
+// carries its own fallback (the test two above enforces exactly that), so the
+// page renders correctly off the fallback and the token silently never moves when
+// the paper changes — which is the one thing the token layer exists to do.
+// It shipped on 13 of the 19 declarations: the sweep rewrote the hex literals in
+// dash.css including inside the :root block it had just written.
+test('no --sh-* token is declared as a reference to itself', () => {
+  const css = src.get('dash.css');
+  assert.ok(css, 'dash.css missing');
+
+  const decls = [...css.matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map(m => [m[1], m[2].trim()]);
+  assert.ok(decls.length >= 15,
+    `expected the paper token block in dash.css, found ${decls.length} declarations — this sweep has stopped matching`);
+
+  // Direct self-reference, and the indirect cycles it generalises to: a token whose
+  // value walks back to itself through any chain of other --sh-* tokens is equally inert.
+  const edges = new Map(decls.map(([n, v]) => [n, [...v.matchAll(/var\(\s*(--sh-[\w-]+)/g)].map(m => m[1])]));
+  const cyclic = [];
+  for (const [start] of decls) {
+    const seen = new Set(), stack = [start];
+    while (stack.length) {
+      const cur = stack.pop();
+      for (const next of edges.get(cur) || []) {
+        if (next === start) { cyclic.push(start); stack.length = 0; break; }
+        if (!seen.has(next)) { seen.add(next); stack.push(next); }
+      }
+    }
+  }
+  assert.deepEqual([...new Set(cyclic)], [],
+    'a custom property that references itself is cyclic, so it computes to the guaranteed-invalid ' +
+    'value and declares NOTHING — every use site then silently falls through to its own literal ' +
+    'fallback, which renders correctly today and can never follow a paper change. Declare the ' +
+    'value plainly (`--sh-ink: #f2ede4;`):\n  ' + [...new Set(cyclic)].join('\n  '));
+});
+
 test('every --sh-* token referenced is declared in dash.css', () => {
   const css = src.get('dash.css');
   assert.ok(css, 'dash.css missing');
@@ -118,6 +157,39 @@ test('every --sh-* token referenced is declared in dash.css', () => {
   }
   assert.ok(referenced.size >= 10,
     `expected the dashboard to read the tokens, found ${referenced.size} references — this sweep has stopped matching`);
+
+  // ⚠ ssAlpha (pageShell.jsx) and cwHexA (chatWidget.jsx) SYNTHESIZE a twin name
+  // (`${token}-rgb`) at runtime, so that reference never appears literally in source
+  // and the sweep above is structurally blind to it. A token handed to one of them
+  // with no declared twin still RENDERS — the var() falls back to the triplet, which
+  // is derived from the token's own literal — but it can never follow a paper change,
+  // which is the one thing the layer exists to do. Reachable today: SS_TIERS' 750-point
+  // rung is var(--sh-gold, #d8a23a), which arrives at ssAlpha via ssTierColor → SsFacet.
+  // Rather than chase which tokens reach which helper, every colour token declares a
+  // twin — then synthesis is sound whatever it is handed.
+  const colour = [...declared].filter(t => !t.endsWith('-rgb'));
+  assert.ok(colour.length >= 10,
+    `expected the paper colour tokens, found ${colour.length} — this sweep has stopped matching`);
+  const noTwin = colour.filter(t => !declared.has(`${t}-rgb`)).sort();
+  assert.deepEqual(noTwin, [],
+    'a colour token with no -rgb twin is unsound for the alpha helpers, which synthesize ' +
+    '`${token}-rgb` at runtime: the alpha renders off the fallback and silently stops ' +
+    'following the paper. Declare the twin beside the token:\n  ' + noTwin.join('\n  '));
+
+  // And a twin that disagrees with its own token is worse than a missing one — the
+  // colour would then depend on whether dash.css happened to load.
+  const drift = [];
+  for (const t of colour) {
+    const hex = (css.match(new RegExp(`^\\s*${t}\\s*:\\s*(#[0-9a-fA-F]{6})\\s*;`, 'm')) || [])[1];
+    const twin = (css.match(new RegExp(`^\\s*${t}-rgb\\s*:\\s*([0-9, ]+);`, 'm')) || [])[1];
+    if (!hex || !twin) continue;
+    const n = parseInt(hex.slice(1), 16);
+    const want = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+    if (twin.replace(/\s/g, '') !== want) drift.push(`${t}: ${hex} but ${t}-rgb is ${twin} (expected ${want})`);
+  }
+  assert.deepEqual(drift, [],
+    'a -rgb twin must be its own token\'s channels, or the alpha and the solid render ' +
+    'different colours:\n  ' + drift.join('\n  '));
 
   const undeclared = [...referenced].filter(t => !declared.has(t)).sort();
   assert.deepEqual(undeclared, [],
@@ -219,9 +291,20 @@ const sameColour = (a, b) => {
   return n(a) === n(b);
 };
 
+// The helpers that PRESERVE a paper token — derived by driving each one with a token
+// and seeing whether a var() survives into the output, not by reading names.
+// ALPHAS can (rgba(var(--x-rgb, r,g,b), a) is exact); SHADES cannot, because CSS has
+// no multiply, so hexA / lvShade / mkShade / rdRgba / shade / ssShade / cwShade read
+// the fallback and are frozen at today's value — stated at each of their sites.
+// ⚠ hexA (livingShared) and rdRgba (radioInstrument) ARE alphas and do NOT preserve.
+// That is a gap rather than a rule, registered rather than fixed here: both are
+// outside what this PR swept, and widening it is PR 3–5's business.
+const TOKEN_PRESERVING = ['cfHexA', 'cwHexA', 'ssAlpha'];
+
 test('every hex-parsing helper in newdesign accepts a paper token', () => {
   let driven = 0;
   const naive = [];
+  const preserving = [];
   for (const f of jsFiles) {
     const s = src.get(f);
     const fns = new Map();
@@ -255,8 +338,23 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
         out = new Function(`${body}\nreturn [${name}(arguments[0], 0.5), ${name}(arguments[1], 0.5)];`)(PROBE_TOKEN, PROBE_BARE);
       } catch (e) { naive.push(`${f}: ${name}() threw on a paper token — ${e.message}`); continue; }
       if (!sameColour(out[0], out[1])) naive.push(`${f}: ${name}(token) = ${out[0]}   but   ${name}(hex) = ${out[1]}`);
+      if (/var\(\s*--/.test(String(out[0]))) preserving.push(name);
     }
   }
+  // ── Which helpers PRESERVE the token, and which flatten it ──────────────────
+  // An ALPHA is linear, so it can be composed as rgba(var(--x-rgb, r,g,b), a) and
+  // keeps following the paper. A SHADE multiplies, and CSS has no multiply, so it
+  // must read the fallback and is frozen at today's value by construction. That is
+  // a real split, not an oversight — but it is invisible in the source, so it is
+  // censused here: a helper silently dropping out of the preserving set is a colour
+  // that quietly stops following the paper, which no render check would ever show.
+  assert.deepEqual(preserving.sort(), TOKEN_PRESERVING,
+    'the set of token-preserving helpers moved. A helper that USED to emit ' +
+    'rgba(var(--x-rgb, …), a) and now flattens to the literal still renders correctly ' +
+    'today and silently stops following the paper. If this was deliberate, update ' +
+    'TOKEN_PRESERVING and say why in the PR:\n  expected ' + JSON.stringify(TOKEN_PRESERVING) +
+    '\n  actual   ' + JSON.stringify(preserving.sort()));
+
   assert.ok(driven >= 9,
     `expected the directory's hex-parsing helpers, drove ${driven} — this sweep has stopped matching`);
   assert.deepEqual(naive, [],
@@ -264,6 +362,36 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
     'and parseInt on one is NaN — which >> 16 & 255 turns into 0, so the output is valid CSS that is black:\n  ' +
     naive.join('\n  '));
 });
+
+// The hex-alpha append census, DERIVED from the tree rather than typed: every site
+// where a colour reaches a `c + "1c"` or `${INK}40` append, counted per file.
+// 21 files, 16 concatenation + 40 template = 56 sinks.
+// ⚠ Replaces a pair of `>=` floors. A floor is satisfied by unrelated sites, so the
+// collector could stop matching a whole file and stay green — which is exactly how a
+// tokenised colour would reach an unswept append. Per-file counts localise the drop.
+const SINK_CENSUS = {
+  'chatWidget.jsx': { concat: 1, template: 0 },
+  'client.jsx': { concat: 0, template: 2 },
+  'clientMeSettings.jsx': { concat: 2, template: 0 },
+  'clientPlaylist.jsx': { concat: 0, template: 1 },
+  'clientTeam.jsx': { concat: 2, template: 0 },
+  'coachClientDetail.jsx': { concat: 1, template: 1 },
+  'coachLiveWorkout.jsx': { concat: 0, template: 1 },
+  'dashClient.jsx': { concat: 1, template: 0 },
+  'dashProfileExtras.jsx': { concat: 0, template: 1 },
+  'dashProgress.jsx': { concat: 4, template: 1 },
+  'dashSchedule.jsx': { concat: 1, template: 0 },
+  'dashToday.jsx': { concat: 2, template: 0 },
+  'landing.jsx': { concat: 0, template: 2 },
+  'marketplace.jsx': { concat: 0, template: 10 },
+  'memberProfile.jsx': { concat: 0, template: 4 },
+  'pricing.jsx': { concat: 0, template: 2 },
+  'publicProfile.jsx': { concat: 1, template: 0 },
+  'score.jsx': { concat: 0, template: 8 },
+  'spotlightTour.js': { concat: 1, template: 4 },
+  'trainerDashboard.jsx': { concat: 0, template: 2 },
+  'trainerPlaylistsPage.jsx': { concat: 0, template: 1 },
+};
 
 test('no hex-alpha append resolves to a paper token', () => {
   const asts = new Map(jsFiles.map(f => [f, astOf(f)]));
@@ -303,7 +431,8 @@ test('no hex-alpha append resolves to a paper token', () => {
   // ⚠ COUNTED PER SPELLING, NOT SUMMED. A single total is satisfied by whichever
   // spelling still matches, so breaking the concatenation pattern outright left
   // the floor green — measured, that mutation SURVIVED a summed floor.
-  const sinks = { concat: 0, template: 0 };
+  const sinks = { concat: 0, template: 0, byFile: {} };
+  const tally = (f, kind) => { (sinks.byFile[f] ||= { concat: 0, template: 0 })[kind]++; };
 
   function resolve(file, path, seen, depth, trail) {
     if (!path || !path.node || depth > 10) return;
@@ -385,7 +514,7 @@ test('no hex-alpha append resolves to a paper token', () => {
       if (p.node.operator !== '+') return;
       const r = p.node.right;
       if (r.type !== 'StringLiteral' || !/^[0-9a-fA-F]{2}$/.test(r.value)) return;
-      sinks.concat++;
+      sinks.concat++; tally(f, 'concat');
       resolve(f, p.get('left'), new Set(), 0, [`${f}:${p.node.loc.start.line}`]);
     },
     // Spelling A — interpolation: `${INK}40`. The suffix is the NEXT quasi's first
@@ -394,16 +523,22 @@ test('no hex-alpha append resolves to a paper token', () => {
       p.node.expressions.forEach((_, i) => {
         const q = p.node.quasis[i + 1];
         if (!q || !SUFFIX.test(q.value.cooked ?? '')) return;
-        sinks.template++;
+        sinks.template++; tally(f, 'template');
         resolve(f, p.get('expressions.' + i), new Set(), 0, [`${f}:${p.node.loc.start.line}`]);
       });
     },
   });
 
-  assert.ok(sinks.concat >= 8,
-    `expected the directory's \`c + "1c"\` append sites, found ${sinks.concat} — this spelling has stopped matching`);
-  assert.ok(sinks.template >= 20,
-    `expected the directory's \`\${INK}40\` append sites, found ${sinks.template} — this spelling has stopped matching`);
+  // ⚠ THESE WERE `>=` FLOORS, AND A FLOOR LETS THE COLLECTOR DROP SITES SILENTLY:
+  // sites in one file can stop matching while unrelated sites elsewhere hold the
+  // total above the floor, so a tokenised colour reaches an unvisited append with
+  // this test green. Exact counts PER FILE localise a drop to the file it happened
+  // in. Deliberately not file:line signatures — a line number pins a layout, so an
+  // unrelated edit above an append site would fail a test about colour.
+  assert.deepEqual(sinks.byFile, SINK_CENSUS,
+    'the hex-alpha append census moved. If you ADDED or REMOVED an append site, update ' +
+    'SINK_CENSUS in this file and say so in the PR. If you did not, the collector has ' +
+    'stopped matching a spelling and is no longer sweeping what it claims to.');
   assert.deepEqual(hits, [],
     'a colour that reaches a hex-alpha append cannot be a paper token — the suffix makes the whole ' +
     'declaration invalid and CSS drops it. Either keep the source literal (and say why, beside it) ' +

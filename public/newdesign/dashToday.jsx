@@ -1081,7 +1081,7 @@ function DashNutriAggPanel({ clients, live }) {
         {stat(pctLogged != null ? pctLogged + "%" : "—", "Logged this week", pctLogged == null ? "no shared logs yet" : null)}
         {stat(renewals != null ? String(renewals) : "—", "Renewals due · 30d", renewals == null ? "connects when billing dates go live" : null)}
       </div>
-      <div style={{ marginTop: 12, padding: "12px 15px", background: "rgba(216,162,58,0.07)", border: "1px solid rgba(216,162,58,0.25)", borderLeft: "3px solid var(--sh-gold, #d8a23a)", borderRadius: 4 }}>
+      <div style={{ marginTop: 12, padding: "12px 15px", background: "rgba(var(--sh-gold-rgb, 216,162,58),0.07)", border: "1px solid rgba(var(--sh-gold-rgb, 216,162,58),0.25)", borderLeft: "3px solid var(--sh-gold, #d8a23a)", borderRadius: 4 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-gold, #d8a23a)" }}>Insight · recipes</div>
         <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", lineHeight: 1.55, marginTop: 6 }}>
           Clients with fresh recipes in their plan log meals more consistently — your lowest-compliance clients are the first place a new recipe drop pays off.

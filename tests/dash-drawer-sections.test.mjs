@@ -113,7 +113,10 @@ test('the gear is a real toggle and says when something is hidden', () => {
   // string with a token — therefore failed a test about a toggle. What the guard
   // is about is that the gear's colour is DECIDED BY hiddenCount and falls back to
   // the muted ink; either spelling of teal satisfies that.
-  assert.match(SRC, /color: secs\.hiddenCount \? [^:]+ : DASH_ROSTER_INK50/);
+  // ⚠ `[^:]+` here accepted DASH_ROSTER_INK50 and "transparent" too — i.e. the gear
+  // staying muted while sections ARE hidden, which is the regression this line exists
+  // to catch. Either spelling of the accent, and nothing else.
+  assert.match(SRC, /color: secs\.hiddenCount \? "(?:var\(--sh-accent, #2ee0c4\)|#2ee0c4)" : DASH_ROSTER_INK50/);
   // and each chip is a pressed-state toggle over the FULL list, not just the shown one
   assert.match(SRC, /\{secs\.all\.map\(\(\[key, title\]\) => \{/);
   assert.match(SRC, /aria-pressed=\{on\}/);

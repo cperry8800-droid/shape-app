@@ -1,6 +1,6 @@
 # Build brief — the coach builders as Grid ⇄ Sheet, on a light paper with a switch to the dark one
 
-**Status:** brief only — **nothing here is built.** Written 2026-09-21 against `main` = `0e63de1`;
+**Status:** the 2026-09-21 baseline — **nothing here was built when it was written.** ⚠ **PR 1 AND PR 2 HAVE SINCE SHIPPED (2026-09-22):** the order table in §2.2 marks both, §10 and §11 record what each one actually found, and this header used to read *"nothing here is built"* flat — which contradicted that table in the same file and would have sent an implementer back to a baseline two PRs stale. PRs 3–9 are still unbuilt. Written 2026-09-21 against `main` = `0e63de1`;
 every `path:line` below was printed from that tree, not remembered. The design is the round-two
 concept board, tab **G**: https://claude.ai/artifact/TWHg2SbPj6VNeoeTXxtYpC · the review is
 [`REVIEW-2026-09-21-coach-builders.md`](REVIEW-2026-09-21-coach-builders.md) (§10.6 for G, §11
@@ -67,11 +67,27 @@ before any script — `TrainerApp.html:17`) on `:root`, with the **dark** values
 exact literals:
 
 ```
---sh-ground:#1a1612  --sh-ground2:#14110e  --sh-deep:#06231f
---sh-ink:#f2ede4     --sh-ink-rgb:242,237,228
---sh-accent:#2ee0c4  --sh-accent2:#0ac5a8   --sh-gold:#d8a23a
---sh-rust:#e0644b    --sh-rust2:#c0533b     --sh-green:#7bbf5a
---sh-shadow:rgba(0,0,0,.5)   --sh-nav-ink:rgba(245,239,225,.78)
+--sh-ink:#f2ede4  (--sh-ink-rgb:242,237,228)
+--sh-ink-soft:#efece6  (--sh-ink-soft-rgb:239,236,230)
+--sh-nav-ink:#f5efe1  (--sh-nav-ink-rgb:245,239,225)
+--sh-ground:#1a1612  (--sh-ground-rgb:26,22,18)
+--sh-ground2:#14110e  (--sh-ground2-rgb:20,17,14)
+--sh-deep:#06231f  (--sh-deep-rgb:6,35,31)
+--sh-accent:#2ee0c4  (--sh-accent-rgb:46,224,196)
+--sh-accent2:#0ac5a8  (--sh-accent2-rgb:10,197,168)
+--sh-accent3:#34d6c5  (--sh-accent3-rgb:52,214,197)
+--sh-gold:#d8a23a  (--sh-gold-rgb:216,162,58)
+--sh-rust:#e0644b  (--sh-rust-rgb:224,100,75)
+--sh-rust2:#c0533b  (--sh-rust2-rgb:192,83,59)
+--sh-green:#7bbf5a  (--sh-green-rgb:123,191,90)
+
+⚠ CORRECTED 2026-09-22, FROM THE SHIPPED dash.css RATHER THAN THE PLAN. This block
+listed 13 entries and had drifted three ways: --sh-accent3 and --sh-ink-soft were
+missing; --sh-nav-ink was written as an alpha (rgba(245,239,225,.78)) where it ships
+opaque; and --sh-shadow was listed but is declared nowhere — it is not one of the
+paper colour tokens and was never swept. EVERY colour token now carries an -rgb twin,
+because ssAlpha and cwHexA synthesize `${token}-rgb` at runtime and a token with no
+twin renders off its fallback and silently stops following the paper.
 ```
 and the **light** values under `html[data-paper="light"]`, taken from the board's own artboard
 palette (`.ab2` in the concept board): ground `#f4f6f5`, card `#ffffff`, ink `#15211e`

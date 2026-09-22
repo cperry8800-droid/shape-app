@@ -40,35 +40,42 @@
 :root {
   /* Ink - the dashboard's foreground family, as one triplet plus its opaque forms. */
   --sh-ink-rgb: 242,237,228;
-  --sh-ink: var(--sh-ink, #f2ede4);
-  --sh-ink-soft: var(--sh-ink-soft, #efece6);
+  --sh-ink: #f2ede4;
+  --sh-ink-soft: #efece6;
+  --sh-ink-soft-rgb: 239,236,230;
 
   /* Nav ink - the shared header and footer run a slightly different cream. */
   --sh-nav-ink-rgb: 245,239,225;
-  --sh-nav-ink: var(--sh-nav-ink, #f5efe1);
+  --sh-nav-ink: #f5efe1;
 
   /* Grounds - the page, a deeper panel, and the teal-black the coach uses. */
-  --sh-ground: var(--sh-ground, #1a1612);
+  --sh-ground: #1a1612;
   --sh-ground-rgb: 26,22,18;
-  --sh-ground2: var(--sh-ground2, #14110e);
-  --sh-deep: var(--sh-deep, #06231f);
+  --sh-ground2: #14110e;
+  --sh-ground2-rgb: 20,17,14;
+  --sh-deep: #06231f;
+  --sh-deep-rgb: 6,35,31;
 
   /* Accent - three teals the surface genuinely distinguishes today. */
-  --sh-accent: var(--sh-accent, #2ee0c4);
+  --sh-accent: #2ee0c4;
   --sh-accent-rgb: 46,224,196;
-  --sh-accent2: var(--sh-accent2, #0ac5a8);
+  --sh-accent2: #0ac5a8;
   --sh-accent2-rgb: 10,197,168;
-  --sh-accent3: var(--sh-accent3, #34d6c5);
+  --sh-accent3: #34d6c5;
   --sh-accent3-rgb: 52,214,197;
 
   /* Roles - nutritionist gold, trainer rust, and the positive green. */
-  --sh-gold: var(--sh-gold, #d8a23a);
-  --sh-rust: var(--sh-rust, #e0644b);
-  --sh-rust2: var(--sh-rust2, #c0533b);
-  --sh-green: var(--sh-green, #7bbf5a);
+  --sh-gold: #d8a23a;
+  --sh-gold-rgb: 216,162,58;
+  --sh-rust: #e0644b;
+  --sh-rust-rgb: 224,100,75;
+  --sh-rust2: #c0533b;
+  --sh-rust2-rgb: 192,83,59;
+  --sh-green: #7bbf5a;
+  --sh-green-rgb: 123,191,90;
 }
 
-html, body { margin: 0; padding: 0; background: var(--sh-ground, var(--sh-ground, #1a1612)); }
+html, body { margin: 0; padding: 0; background: var(--sh-ground, #1a1612); }
 * { box-sizing: border-box; }
 a { text-decoration: none; color: inherit; }
 
