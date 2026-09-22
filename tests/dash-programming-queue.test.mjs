@@ -214,7 +214,12 @@ test('an unknown initiating account refuses the write rather than guessing', () 
   assert.match(src, /if \(!nowUid \|\| nowUid !== startUid\)/, 'the comparison is still conditional');
   assert.ok(!/startUid && nowUid !== startUid/.test(src), 'the skip-when-unknown branch survived');
   // it is resolved late when missing, so one bad read does not disable writes forever
-  assert.match(src, /if \(!startUid\) \{ startUid = await dashDocUid\(\); uidRef\.current = startUid; \}/);
+  // ⚠ RE-ANCHORED, NOT RELAXED. That line gained a staleness check between the read
+  // and the assignment (#2143), so an exact-text pin failed on a STRICTER version of the
+  // rule it was written for — the fifth time this wave. The invariant is that a missing
+  // id is resolved by a fresh read and stored, so one bad hydrate does not disable every
+  // later write.
+  assert.match(src, /if \(!startUid\) \{[^}]*await dashDocUid\(\)[^}]*uidRef\.current = [^}]*\}/);
   assert.match(src, /if \(!startUid\) \{ pendingRef\.current -= 1; setState\(\(s\) => \(\{ \.\.\.s, kind: "error" \}\)\); return false; \}/);
 });
 
@@ -278,8 +283,17 @@ test('useCoachDoc binds the write to the account that acted and declines an untr
 
   // A failed save restores the server copy rather than leaving a claim on screen
   // that the row does not carry.
-  assert.equal((src.match(/\{ \.\.\.s, doc, kind: "error" \}/g) || []).length, 2,
-    'a failure arm does not restore the server copy');
+  // ⚠ ONE ARM, NOT TWO — AND THE OLD COUNT OF 2 WAS PINNING THE DEFECT. The second
+  // occurrence was the ACCOUNT-MISMATCH arm, and the document it carried belongs to the
+  // account that STARTED the write: publishing it put A's saved preference on B's screen,
+  // which is the P1 that round found (#2143). Restoring the server copy is what a failed
+  // SAVE does; an account that has moved has no server copy worth publishing.
+  assert.equal((src.match(/\{ \.\.\.s, doc, kind: "error" \}/g) || []).length, 1,
+    'exactly one failure arm restores the server copy');
+  assert.match(src, /if \(!res \|\| res\.error\) \{ setState\(\(s\) => \(\{ \.\.\.s, doc, kind: "error" \}\)\)/,
+    'the SAVE-failure arm is not the one restoring the server copy');
+  assert.ok(!/nowUid !== startUid\) \{ pendingRef\.current -= 1; setState\(\(s\) => \(\{ \.\.\.s, doc,/.test(src),
+    "the account-mismatch arm is carrying the initiating account's document again");
   assert.ok(!/kind: s\.kind === "error" \? "ready" : s\.kind/.test(src),
     'the optimistic paint clears the error again');
 });

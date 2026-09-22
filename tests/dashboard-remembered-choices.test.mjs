@@ -70,12 +70,31 @@ function makeHost(body) {
     },
   };
   let out = null;
+  // ⚠ A RENDER REACT THREW AWAY, WHICH IS THE ONLY WAY TO SEE THE DEFECT BELOW. On a
+  // concurrent root a render can be interrupted and re-run from the last COMMITTED state:
+  // the queued state updates go with it, and every `useRef` mutation the discarded pass
+  // made SURVIVES, because a ref is a plain mutable object React never rolls back. A hook
+  // that resets state during render and records that it has done so in a ref therefore
+  // loses the reset and keeps the record — which is the cross-account leak. State and
+  // effect cells are snapshotted and restored here; ref cells deliberately are not.
+  const frames = [];
+  let discardNext = false;
+  const runDiscarded = () => {
+    const stateSnap = cells.state.slice();
+    const effectSnap = cells.effect.slice();
+    si = 0; ri = 0; ei = 0; dirty = false;
+    body(React);
+    cells.state.length = 0; for (const v of stateSnap) cells.state.push(v);
+    cells.effect.length = 0; for (const v of effectSnap) cells.effect.push(v);
+    dirty = false;
+  };
   // ⚠ A SET DURING THE BODY RE-RUNS THE BODY BEFORE ANY EFFECT COMMITS, which is what
   // React does and is load-bearing here: two of these hooks adjust state during render
   // (the account clean-slate, and the set hook's rebase). A host that committed the
   // discarded render's effects would let a value the component never returned reach the
   // document — and would then report that as the code's behaviour.
   const render = () => {
+    if (discardNext) { discardNext = false; runDiscarded(); }
     for (let pass = 0; ; pass++) {
       renders += 1; si = 0; ri = 0; ei = 0;
       dirty = false;
@@ -83,6 +102,11 @@ function makeHost(body) {
       if (!dirty) break;
       assert.ok(pass < 10, 'the body set state during render on ten passes running — it does not converge');
     }
+    // ⚠ EVERY COMMITTED FRAME IS KEPT, because `flush` settles and a settled value cannot
+    // see a control that flipped to its fallback for one paint and back. Pushed after the
+    // re-render loop and before effects commit — the passes inside that loop are renders
+    // React would discard, and a frame nobody saw is not a frame.
+    frames.push(out);
     for (const e of cells.effect) {
       if (e && e.pending) { const f = e.pending; e.pending = null; if (typeof e.cleanup === 'function') e.cleanup(); e.cleanup = f() || null; }
     }
@@ -98,7 +122,15 @@ function makeHost(body) {
     }
     return out;
   };
-  return { flush, get renders() { return renders; }, get out() { return out; } };
+  return {
+    flush,
+    // The next render is interrupted and re-run. One shot, so a test says exactly which
+    // render React threw away rather than poisoning every later one.
+    discardNextRender() { discardNext = true; },
+    get frames() { return frames; },
+    get renders() { return renders; },
+    get out() { return out; },
+  };
 }
 
 function makeDb(doc, opts) {
@@ -362,6 +394,116 @@ test("A's un-saved session choice does not follow them to B", async () => {
   db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
   await host.flush();
   assert.equal(host.out.values.rosterFilter, 'all', "A's session choice governs B's screen");
+});
+
+test("a render React DISCARDS cannot carry A's choice into B's document", async () => {
+  // ⚠ THIS IS THE ONE AN ORDINARY A→B TEST CANNOT SEE, and it is why the reset moved out
+  // of the render body. The retired shape was `if (acct !== knownRef.current) { setChosen(null);
+  // askedRef.current = null } ; knownRef.current = acct`. On a concurrent root React may
+  // interrupt that render and re-run it from the last COMMITTED state: `setChosen(null)` is
+  // discarded with the render, both ref writes SURVIVE it, and on the retry `acct` already
+  // equals `knownRef.current` — so the reset never fires, B is shown A's choice, and the
+  // cleared `askedRef` lets the reconciliation write it into B's document. Every assertion
+  // in the test above passes on that code, because nothing there interrupts a render.
+  // (CodeRabbit, #2143; the same class it found in `useRememberedSlots` on #2046.)
+  //
+  // The write is made to fail so A's choice lives ONLY in session state — the leak under
+  // test is the session choice, not a document read.
+  const db = makeDb({}, { saveFails: true });
+  db.state.docB = {};
+  const { host } = drivePage(db);
+  await host.flush();
+  host.out.choose.rosterFilter('eyes');
+  await host.flush();
+  assert.equal(host.out.values.rosterFilter, 'eyes', "setup: A's choice did not take");
+  assert.deepEqual(db.state.doc, {}, 'setup: the write was supposed to fail');
+
+  // B signs in. `setUid` runs synchronously inside the auth handler, so the account is
+  // already B in committed state and the very next render is the A→B one — which is the
+  // render React throws away.
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  host.discardNextRender();
+  await host.flush();
+
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  assert.equal(host.out.values.rosterFilter, 'all',
+    "B is being shown A's choice — the reset was lost with the discarded render");
+  const forB = db.state.written.filter((w) => w.uid === 'coach-b');
+  assert.deepEqual(forB, [], "A's choice was written into B's document after an interrupted render");
+});
+
+test('the pre-auth choice is never PAINTED as the fallback on the frame the account lands', async () => {
+  // ⚠ THIS IS WHAT THE ADOPTION CLAUSE BUYS, AND A SETTLED ASSERTION CANNOT SEE IT. The
+  // re-stamp below runs in an effect, so on the frame `useSignedIn` resolves the choice is
+  // still stamped `{ acct: null }`: matching the account EXACTLY — which is what
+  // `useRememberedSlots` does — paints the fallback for that one frame and the promotion
+  // puts it back on the next. "A choice already made is not yanked away" is the same
+  // property one frame coarser; this pins the frame.
+  const db = makeDb({}, { saveFails: true });
+  const { host } = drivePage(db);
+  host.flush(0);                                  // the very first paint — no account yet
+  host.out.choose.rosterFilter('eyes');
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-a', 'setup: the account never resolved');
+
+  // Every frame from the choice onward: once a choice exists, no painted frame may show
+  // the fallback — not the one where the account arrives, not any after it.
+  const after = host.frames.slice(host.frames.findIndex((f) => f.values.rosterFilter === 'eyes'));
+  assert.ok(after.length >= 2, 'setup: only ' + after.length + ' frames after the choice — nothing to see');
+  const flipped = after.filter((f) => f.values.rosterFilter !== 'eyes');
+  assert.deepEqual(flipped.map((f) => String(f.accountId) + ':' + f.values.rosterFilter), [],
+    'the control was painted as its fallback after the coach had chosen');
+});
+
+test("a choice adopted by one account is not adopted again by the next", async () => {
+  // ⚠ THE OTHER HALF OF THE ADOPTION RULE, AND THE ONLY TEST THAT SEES IT. A choice made
+  // before `useSignedIn` resolves is stamped `{ acct: null }` and adopted by the first
+  // account to become known — which, left there, reads as un-stamped forever: A signs out
+  // and B signs in on the same shared browser, and B adopts it too. The effect RE-STAMPS it
+  // on adoption so it can only ever happen once. Nothing above reaches this: every other
+  // switch test chooses AFTER the account resolves, so the choice is stamped from the start.
+  const db = makeDb({}, { saveFails: true });
+  db.state.docB = {};
+  const { host } = drivePage(db);
+  host.flush(0);                                  // the very first paint — no account yet
+  host.out.choose.rosterFilter('eyes');
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-a');
+  assert.equal(host.out.values.rosterFilter, 'eyes', 'setup: the pre-auth choice was not adopted at all');
+
+  db.state.uid = null;
+  db.state.auth('SIGNED_OUT', null);
+  await host.flush();
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  assert.equal(host.out.values.rosterFilter, 'all', "B inherited a choice A had already adopted");
+  assert.deepEqual(db.state.written.filter((w) => w.uid === 'coach-b'), [],
+    "A's adopted choice was written into B's document");
+});
+
+test('the same value chosen under a second account is written, not suppressed as a repeat', async () => {
+  // ⚠ `askedRef` IS KEYED ON THE ACCOUNT AS WELL AS THE CHOICE. It exists to stop the
+  // optimistic paint and its rollback re-running the write forever — but keyed on the value
+  // alone it also suppresses the SAME value chosen again under a different account, and B's
+  // preference is silently never saved.
+  const db = makeDb({});
+  db.state.docB = {};
+  const { host } = drivePage(db);
+  await host.flush();
+  host.out.choose.rosterFilter('eyes');
+  await host.flush();
+  assert.deepEqual(db.state.doc, { rosterFilter: 'eyes' }, 'setup: A never saved');
+
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  host.out.choose.rosterFilter('eyes');           // the SAME value, under B
+  await host.flush();
+  assert.deepEqual(db.state.docB, { rosterFilter: 'eyes' }, "B's choice was suppressed as a repeat of A's");
 });
 
 test('the store stays SHUT until the account is known, so nothing is read for nobody', async () => {
@@ -711,4 +853,144 @@ test("A's strip does not follow them to B", async () => {
   await host.flush();
   assert.deepEqual(host.out.values, ['a', 'b', 'c', 'd'], "B must not inherit A's arrangement");
   assert.deepEqual(state.docB, {}, "A's arrangement was written into B's row");
+});
+
+// ── A write that outlived its account settles nothing ───────────────────────────────────
+// ⚠ THE UID COMPARISON REFUSED THE WRITE AND NOTHING REFUSED THE STATE. (CodeRabbit, #2143.)
+// `apply` captures the initiating uid, and on a mismatch it correctly declined to save — but
+// it still published the document it had read into `state`, and by then `state` belongs to B.
+// `useRememberedChoice` reads `store.doc`, so B saw A's saved preference as their own
+// `remembered` value until the next hydrate.
+
+// Hold ONLY the read issued while the account is `uid`, and snapshot the document at CALL
+// time. Releasing it later must hand back A's document rather than whatever B now holds, or
+// the harness cannot reproduce the leak it is named for.
+function holdReadFor(db, state, uid) {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const inner = db.getUserGoals;
+  db.getUserGoals = async () => {
+    const mine = state.uid === uid;
+    const snap = await inner();
+    if (mine) await gate;
+    return snap;
+  };
+  return release;
+}
+
+// Hold ONLY the save issued while the account is `uid`. The read and the uid comparison have
+// already passed by then, so this reaches a leak the read-gated test structurally cannot: the
+// account moves during `saveUserGoals`, after every earlier guard is behind us.
+function holdSaveFor(db, state, uid) {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const inner = db.saveUserGoals;
+  db.saveUserGoals = async (kind, val) => {
+    const mine = state.uid === uid;
+    const res = await inner(kind, val);
+    if (mine) await gate;
+    return res;
+  };
+  return release;
+}
+
+test("a write still in flight when the account switches cannot put A's document on B's screen", async () => {
+  const db = makeDb({ rosterFilter: 'eyes' });
+  db.state.docB = { rosterFilter: 'new' };
+  const { host } = drivePage(db);
+  await host.flush();
+  assert.equal(host.out.values.rosterFilter, 'eyes', "setup: A is not seeing A's document");
+
+  // A writes, with its own read held open so the write is genuinely in flight.
+  const release = holdReadFor(db.db, db.state, 'coach-a');
+  host.out.choose.rosterFilter('ontrack');
+  await host.flush();
+
+  // B signs in and hydrates while A's write is still parked on that read.
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  assert.equal(host.out.values.rosterFilter, 'new', "setup: B is not seeing B's document");
+
+  release();
+  await host.flush();
+
+  assert.equal(host.out.values.rosterFilter, 'new',
+    "B is being shown A's remembered filter — an in-flight write published A's document into B's state");
+  assert.equal(host.out.doc.rosterFilter, 'new', "B's document was replaced by A's");
+  assert.deepEqual(db.state.written.map((w) => w.uid), [],
+    'a write from the old account reached the backend');
+});
+
+test("and B's own writes still reconcile afterwards — the stale lane did not go negative", async () => {
+  // ⚠ A STALE DECREMENT IS NOT MERELY A NO-OP. The hydrate resets `pendingRef` to 0 for the
+  // new account, so a decrement from the old lane drives it NEGATIVE — after which
+  // `pendingRef.current === 0` is never true again and B's successful writes stop
+  // reconciling their document. Observable because the reconcile publishes the SERVER
+  // document, which here carries a key B's optimistic paint has never seen.
+  // ⚠ THE SAVE IS GATED, NOT THE READ, and that is what makes this test about the last
+  // guard rather than the first. Held at the READ, A's write exits at the guard after it and
+  // never reaches a decrement at all, so the counter cannot go negative and the test would
+  // pass with the last guard deleted — which is exactly what the first version of it did.
+  // ⚠ AND THE NEGATIVE COUNTER MASKS THE DOC LEAK ON THIS PATH rather than adding to it:
+  // with the lane at -1 the success branch publishes `kind` WITHOUT `doc`, so the visible
+  // damage is B's next write silently failing to reconcile, not A's document on screen.
+  const db = makeDb({ rosterFilter: 'eyes' });
+  db.state.docB = { rosterFilter: 'new' };
+  const { host } = drivePage(db);
+  await host.flush();
+
+  const release = holdSaveFor(db.db, db.state, 'coach-a');
+  host.out.choose.rosterFilter('ontrack');
+  await host.flush();
+  assert.equal(db.state.saves, 1, "setup: A's write never reached the save");
+
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  release();
+  await host.flush();
+
+  // Another device adds a key to B's row AFTER B hydrated, so it exists only on the server.
+  db.state.docB = { ...db.state.docB, fromAnotherDevice: 'yes' };
+  host.out.choose.rosterFilter('eyes');
+  await host.flush();
+
+  assert.equal(db.state.written.filter((w) => w.uid === 'coach-b').length, 1,
+    "B's own write did not reach the backend");
+  assert.equal(host.out.doc.fromAnotherDevice, 'yes',
+    "B's write did not reconcile onto the server document — the lane counter was left negative by the stale write");
+});
+
+
+test("an account that switches DURING the save cannot publish A's written document to B", async () => {
+  // ⚠ THE LAST await IS ITS OWN LEAK, and the earlier guards cannot see it — by this point
+  // the read has returned and the uid comparison has passed. Without a check here the
+  // success path publishes `written` (A's merged document) into B's state and drives
+  // `pendingRef` negative on a lane the hydrate had already reset to 0.
+  const db = makeDb({ rosterFilter: 'eyes' });
+  db.state.docB = { rosterFilter: 'new' };
+  const { host } = drivePage(db);
+  await host.flush();
+  assert.equal(host.out.values.rosterFilter, 'eyes', "setup: A is not seeing A's document");
+
+  const release = holdSaveFor(db.db, db.state, 'coach-a');
+  host.out.choose.rosterFilter('ontrack');
+  await host.flush();
+  assert.equal(db.state.saves, 1, 'setup: A\'s write never reached the save');
+
+  db.state.uid = 'coach-b';
+  db.state.auth('SIGNED_IN', { user: { id: 'coach-b' } });
+  await host.flush();
+  assert.equal(host.out.accountId, 'coach-b', 'setup: the switch did not take');
+  assert.equal(host.out.values.rosterFilter, 'new', "setup: B is not seeing B's document");
+
+  release();
+  await host.flush();
+
+  assert.equal(host.out.values.rosterFilter, 'new',
+    "A's write settled into B's state after the account moved during the save");
+  assert.equal(host.out.doc.rosterFilter, 'new', "B's document was replaced by A's written one");
 });

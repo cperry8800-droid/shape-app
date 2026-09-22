@@ -17,8 +17,23 @@
 //
 // The through-line: an unread gate is not a passed gate.
 
+// ⚠ THIS LIST MUST BE EVERY JOB `ci.yml` RUNS, AND IT WAS MISSING THE ONE THAT
+// RUNS THE SUITE. `Tests (unit + mount)` is its own job — it installs BOTH
+// node_modules trees and is the only one that executes a React component, so every
+// mount test lives there and nowhere else — and it was never in this array.
+// gateFromRuns judges only the names it holds, so a red Tests job was not red, a
+// running one was not running, and an absent one was not absent: measured against
+// the shipped rules, three green checks beside a FAILING suite returned
+// gate 'green' and prAllGreen true. The board's whole job is to say whether a PR
+// is safe to merge, and it was answering yes over a failing suite.
+// ⚠ The defect is the SHAPE, not the omission: a hand-typed list of a thing the
+// tree already declares goes stale the day a job is added, silently and in the
+// direction that opens the gate. tests/console-flight.test.mjs DERIVES the job
+// names from .github/workflows/ci.yml and requires this array to equal them, so a
+// fifth job fails the suite instead of widening the blind spot.
 export const REQUIRED_CHECKS = [
   'Web (typecheck + build)',
+  'Tests (unit + mount)',
   'Mobile (build + public/m sync)',
   'Secret scan (gitleaks)',
 ];
@@ -271,6 +286,10 @@ export function codexVerdict({ reviews, comments, headSha } = {}) {
  * ⚠ NO REVIEWER GATES ANY MORE. Codex went first (owner, 2026-08-20), CodeRabbit
  * followed (owner, 2026-08-24: "no more coderabbit"). Both verdicts are still computed
  * and still render as chips; neither can open or close the gate.
+ * ⚠ AND "DOES NOT GATE" IS NOT "IS NOT RUN" — CodeRabbit is run again by ruling
+ * (owner, 2026-09-21, "Use coderabbit for now"). Nothing above changes: it reviews,
+ * its chip reports, and the gate still reads { ci, draft }. The two claims are
+ * separate, and the board's own legend once had them tangled.
  *
  * ⚠ THE FAILURE THIS SHAPE KEEPS PRODUCING, NOW TWICE. A gate that names a reviewer
  * flips CLOSED the day that reviewer is retired, because its verdict pins at 'none'
@@ -281,6 +300,14 @@ export function codexVerdict({ reviews, comments, headSha } = {}) {
  * 2026-08-24 until this fix. The gate now reads only properties the house itself
  * controls — a green CI run and a non-draft PR — so retiring a reviewer cannot close it
  * a third time.
+ * ⚠ IT HAPPENED A THIRD TIME ANYWAY, FROM THE OTHER DIRECTION, AND FAILING OPEN.
+ * Fixing the reviewer inputs left the OTHER hand-typed list untouched: REQUIRED_CHECKS
+ * named three of the four jobs ci.yml runs, and the missing one was `Tests (unit +
+ * mount)` — the job that runs the whole suite. So this gate read green over a FAILING
+ * suite (measured, with prAllGreen true on it), which is worse than reading closed over
+ * a retired reviewer: a shut gate announces itself, an open one does not. Same shape,
+ * both times — a list somebody has to remember to update. It is derived from ci.yml by
+ * tests/console-flight.test.mjs now, which is the only version that cannot go stale.
  *
  * ⚠ `coderabbitVerdict` and `codexVerdict` ARE STILL CORRECT AND STILL WORTH READING:
  * head-pinning, 'commented' not being a pass, a rate-limit notice not being a cap. That
