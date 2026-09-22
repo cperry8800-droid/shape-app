@@ -367,7 +367,11 @@ helpers now EXTRACTS the digits (`String(x).match(/#([0-9a-fA-F]{3,6})/)`) inste
 whole string is a hex — a token always carries its own literal fallback, so the digits are there
 to be found. `cfHexA` and a new `ssAlpha` go further and emit `rgba(var(--<token>-rgb, r,g,b), a)`,
 so those derived alphas **still follow the paper**; a multiplicative shade has no CSS equivalent
-and is honestly pinned to the fallback. ⚠ **All twelve conversions were A/B'd against the
+and is honestly pinned to the fallback. ⚠ **`cwHexA` is deliberately left on the literal too,
+which is a choice rather than an omission**: its callers are mostly a member's TIER colour, which
+is semantic and does not follow the ground, and the one paper accent among them
+(`chatWidget.jsx:167`) is in a file no sweep list covers anyway — so giving it the twin treatment
+would buy nothing until PR 5 rules on the bubble. ⚠ **All twelve conversions were A/B'd against the
 pre-PR-1 originals** (lifted from source and run, not restated) and the alpha and token
 equivalences were **measured in Chromium** — `#2ee0c455` = `rgba(46,224,196,0.3333)`, and
 `rgba(var(--sh-ink-rgb, 242,237,228), .06)` computes to the literal when the token is absent and
@@ -404,6 +408,31 @@ arm of that test identically — measured, the inferred variant does not move.
 comparison is a token and the other a literal, the spark silently draws in the wrong colour and
 nothing fails. The fix when it comes is a semantic flag (`muted: true`) rather than a colour
 compare — a colour is not an identity.
+
+⚠ **AND SEVEN OF THE THIRTEEN TOKENS HAVE NO `-rgb` TWIN, WHICH SILENTLY CAPS WHAT `cfHexA` AND
+`ssAlpha` CAN FOLLOW.** Both build `var(--<token>-rgb, r,g,b)` from whatever token they are
+handed, and only **six** twins are declared: `--sh-accent`, `--sh-accent2`, `--sh-accent3`,
+`--sh-ground`, `--sh-ink`, `--sh-nav-ink`. The other seven — `--sh-deep`, `--sh-gold`,
+`--sh-green`, `--sh-ground2`, `--sh-ink-soft`, `--sh-rust`, `--sh-rust2` — fall back to the
+literal triplet, which is **correct and honest** (identical to today) and simply does not move
+with the paper. Nothing is broken; the fix, if PR 5 wants those alphas to follow, is seven more
+lines in the token block, not a code change. Recorded because a fallback that works forever is
+the kind of limitation nobody re-derives.
+
+⚠ **AND THE FOUR SWEEPS DO NOT COVER THE DIRECTORY, WHICH PR 5 HAS TO KNOW.** Counted after PR 2
+(the 13 named hexes plus the 6 triplets, comments stripped): **2,721 paper-colour literals remain
+across 82 files**, and only **714** of them are in the brief's PR 3 (491) and PR 4 (223) lists.
+**1,819 across 59 files are in no list at all** — `directionB.jsx` 152, **`chatWidget.jsx` 122**,
+**`communityFeed.jsx` 120**, `recipes.jsx` 120, `store.jsx` 99, `score.jsx` 76, `community.jsx`
+75, and so on. The 188 still inside the PR 1/PR 2 files are the deliberate ones: semantic
+palettes, shadows, brand marks, the consent banner.
+⚠ **THE CHAT BUBBLE IS THE ONE THAT MATTERS.** It mounts on **35 pages including every
+dashboard**, so with `chatWidget.jsx` and `communityFeed.jsx` unswept a member who switches to
+the light paper gets a light dashboard with a **dark chat bubble over it**. That is a product
+consequence of the staging, not a bug in it — but it is the owner's to see, and it belongs in
+PR 5's scope or in an explicit "the bubble keeps the dark paper" ruling. ⚠ The earlier figure of
+"~622 remaining" was wrong in both directions and is replaced by these; it is corrected here
+rather than left, because a wrong scope number is what sizes the next PR.
 
 **Verification.** `npm test` **4,274 / 0** through the pre-commit gate · all 13 changed modules
 parse · the newdesign precompile check (73 pages, 80 shared jsx, 0 errors) · a pixel diff of the
