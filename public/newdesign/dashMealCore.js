@@ -86,6 +86,87 @@
     }).slice(0, 12);
   }
 
+  // ── The nutritionist's own foods ───────────────────────────────────────────
+  // ⚠ THE PICKER WAS THE ONLY WAY TO ADD A MEAL AT ALL, and it could only offer
+  // what Shape ships: a search with no match ended at "No match inside the plan's
+  // constraints" and there was no way forward. A nutritionist could rename a meal
+  // and retype its macros AFTER picking something else, but they could not put a
+  // dish Shape has never heard of on the plan without first pretending it was
+  // another one.
+  // ⚠ AND THE FOODS THEY HAVE ALREADY WRITTEN ARE IN THEIR OWN SAVED PLANS, so
+  // offering them back needs no table and no route — the same derivation the
+  // workout builder uses for custom moves. Swap alternates count: a coach who
+  // added "Mum's dhal" as a swap meant it as a food.
+  var _BUILTIN_FOOD = (function () { var m = {}; for (var i = 0; i < FOODS.length; i++) m[FOODS[i].name.toLowerCase()] = true; return m; })();
+  function customFoodsFromTemplates(templates) {
+    var seen = {}, out = [];
+    var list = templates || [];
+    function take(m) {
+      var name = String((m && m.name) || "").trim();
+      if (!name) return;
+      var key = name.toLowerCase();
+      if (_BUILTIN_FOOD[key] || seen[key]) return;
+      seen[key] = true;
+      out.push({ id: "own-" + key, name: name, kcal: Number(m.kcal) || 0, p: Number(m.p) || 0, c: Number(m.c) || 0, f: Number(m.f) || 0,
+        prepMin: m.prepMin != null ? m.prepMin : null, tags: [], ingredients: clone(m.ingredients || []), own: true });
+    }
+    for (var t = 0; t < list.length; t++) {
+      var doc = list[t] && list[t].detail && list[t].detail.mealBuilder;
+      var days = (doc && doc.days) || [];
+      for (var d = 0; d < days.length; d++) {
+        var slots = days[d].slots || [];
+        for (var i2 = 0; i2 < slots.length; i2++) {
+          take(slots[i2]);
+          var sw = slots[i2].swaps || [];
+          for (var s2 = 0; s2 < sw.length; s2++) take(sw[s2]);
+        }
+        var variants = days[d].variants || {};
+        for (var vk in variants) {
+          if (!Object.prototype.hasOwnProperty.call(variants, vk)) continue;
+          var extras = (variants[vk] && variants[vk].extras) || [];
+          for (var e2 = 0; e2 < extras.length; e2++) take(extras[e2]);
+        }
+      }
+    }
+    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+
+  // ⚠ THE PLAN'S CONSTRAINTS APPLY TO THE COACH'S OWN FOODS TOO. An exclusion is a
+  // fact about the CLIENT — "no dairy" — so a custom dish whose name carries the
+  // excluded word is filtered exactly as a listed one is. `searchFoods` matches an
+  // exclusion against the name as well as the tags; this keeps that rule.
+  function searchCustomFoods(list, q, constraints) {
+    var s = String(q || "").trim().toLowerCase();
+    var ex = (constraints && constraints.exclusions) || [];
+    var maxPrep = constraints && constraints.maxPrep;
+    return (list || []).filter(function (f) {
+      for (var i = 0; i < ex.length; i++) {
+        var tag = String(ex[i]).toLowerCase();
+        if ((f.tags || []).indexOf(tag) >= 0 || f.name.toLowerCase().indexOf(tag) >= 0) return false;
+      }
+      if (maxPrep != null && f.prepMin != null && f.prepMin > maxPrep) return false;
+      if (!s) return true;
+      return f.name.toLowerCase().indexOf(s) >= 0;
+    }).slice(0, 8);
+  }
+
+  function canCreateFood(name, customFoods) {
+    var s = String(name || "").trim();
+    if (!s) return false;
+    var key = s.toLowerCase();
+    if (_BUILTIN_FOOD[key]) return false;
+    var own = customFoods || [];
+    for (var i = 0; i < own.length; i++) if (String(own[i].name || "").toLowerCase() === key) return false;
+    return true;
+  }
+
+  // A dish the coach is about to describe: named, with the macros left at zero for
+  // them to fill in the row editor. Nothing here claims a number nobody measured —
+  // the row's kcal/protein/carb/fat inputs are where those come from.
+  function newCustomFood(name) {
+    return { id: "new-" + String(name).trim().toLowerCase(), name: String(name).trim(), kcal: 0, p: 0, c: 0, f: 0, prepMin: null, tags: [], ingredients: [], own: true, blank: true };
+  }
+
   var _uid = 0;
   function uid() { _uid += 1; return "m" + Date.now().toString(36) + "-" + _uid; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -376,6 +457,8 @@
   return {
     GOAL_PHASES: GOAL_PHASES, SLOTS: SLOTS, VARIANT_KEYS: VARIANT_KEYS, FOODS: FOODS,
     searchFoods: searchFoods, newMeal: newMeal, newDay: newDay, newPlan: newPlan,
+    customFoodsFromTemplates: customFoodsFromTemplates, searchCustomFoods: searchCustomFoods,
+    canCreateFood: canCreateFood, newCustomFood: newCustomFood,
     resolveDay: resolveDay, editBaseMeal: editBaseMeal, hasVariantFollowers: hasVariantFollowers,
     mealsTotals: mealsTotals, scaleMeal: scaleMeal, phaseShift: phaseShift,
     checkConstraints: checkConstraints, buildGrocery: buildGrocery,

@@ -96,6 +96,74 @@
     }).slice(0, 12);
   }
 
+  // ── The coach's own moves ──────────────────────────────────────────────────
+  // ⚠ EVERY MOVE A COACH HAS EVER WRITTEN IS ALREADY IN THEIR OWN SAVED PROGRAMS,
+  // so offering them back needs no table, no route and no migration: `newRow`
+  // keeps `name`, `muscle` and `equipment` on the row, and the library page
+  // already holds every template. This walks them.
+  // ⚠ IT EXCLUDES ANYTHING SHAPE ALREADY LISTS, because the point of the group is
+  // the moves that are NOT in the library — a coach seeing "Back squat" under
+  // YOUR MOVES learns nothing and the group stops meaning anything.
+  var _BUILTIN = (function () { var m = {}; for (var i = 0; i < EXERCISES.length; i++) m[EXERCISES[i].name.toLowerCase()] = true; return m; })();
+  function customMovesFromTemplates(templates) {
+    var seen = {}, out = [];
+    var list = templates || [];
+    for (var t = 0; t < list.length; t++) {
+      var b = list[t] && list[t].detail && list[t].detail.builder;
+      var weeks = (b && b.weeks) || [];
+      for (var w = 0; w < weeks.length; w++) {
+        var days = weeks[w].days || [];
+        for (var d = 0; d < days.length; d++) {
+          var blocks = days[d].blocks || [];
+          for (var bi = 0; bi < blocks.length; bi++) {
+            var rows = blocks[bi].rows || [];
+            for (var r = 0; r < rows.length; r++) {
+              var name = String((rows[r] && rows[r].name) || "").trim();
+              if (!name) continue;
+              var key = name.toLowerCase();
+              if (_BUILTIN[key]) continue;
+              if (seen[key]) {
+                // keep the first non-empty descriptors we meet for this name
+                if (!seen[key].muscle && rows[r].muscle) seen[key].muscle = String(rows[r].muscle);
+                if (!seen[key].equipment && rows[r].equipment) seen[key].equipment = String(rows[r].equipment);
+                continue;
+              }
+              seen[key] = { id: "own-" + key, name: name, muscle: String(rows[r].muscle || ""), equipment: String(rows[r].equipment || ""), own: true };
+              out.push(seen[key]);
+            }
+          }
+        }
+      }
+    }
+    return out.sort(function (a, b2) { return a.name.localeCompare(b2.name); });
+  }
+
+  // Same matching rule as `searchExercises`, so the two groups in the picker
+  // cannot disagree about what a query means.
+  function searchCustomMoves(list, q) {
+    var s = String(q || "").trim().toLowerCase();
+    var all = list || [];
+    if (!s) return all.slice(0, 8);
+    return all.filter(function (e) {
+      return e.name.toLowerCase().indexOf(s) >= 0 || String(e.muscle || "").toLowerCase().indexOf(s) >= 0 || String(e.equipment || "").toLowerCase().indexOf(s) >= 0;
+    }).slice(0, 8);
+  }
+
+  // ⚠ THE "ADD AS CUSTOM" OFFER IS GATED ON AN EXACT NAME MATCH, not on the result
+  // count. It used to render only when the search returned NOTHING, so a coach
+  // whose move merely resembled one in the library — "sled drag" against the
+  // listed "Sled push" — was handed a list without their move on it and no way to
+  // add it. Anything that is not already exactly this name may be created.
+  function canCreateMove(name, customMoves) {
+    var s = String(name || "").trim();
+    if (!s) return false;
+    var key = s.toLowerCase();
+    if (_BUILTIN[key]) return false;
+    var own = customMoves || [];
+    for (var i = 0; i < own.length; i++) if (String(own[i].name || "").toLowerCase() === key) return false;
+    return true;
+  }
+
   // ── Small factories ────────────────────────────────────────────────────────
   var _uid = 0;
   function uid() { _uid += 1; return "r" + Date.now().toString(36) + "-" + _uid; }
@@ -410,6 +478,9 @@
     BLOCK_KINDS: BLOCK_KINDS,
     EXERCISES: EXERCISES,
     searchExercises: searchExercises,
+    customMovesFromTemplates: customMovesFromTemplates,
+    searchCustomMoves: searchCustomMoves,
+    canCreateMove: canCreateMove,
     newRow: newRow, newDay: newDay, newWeek: newWeek, newProgram: newProgram,
     loadLabel: loadLabel, schemeLabel: schemeLabel, rowLabels: rowLabels,
     applyProgression: applyProgression, deloadWeek: deloadWeek,

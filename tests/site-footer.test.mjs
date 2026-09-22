@@ -211,10 +211,21 @@ test('the pages the footer comment calls footer-only are really not in the nav',
 // ⚠ NOT A PIXEL PIN — A FLOOR. The owner asked for the bottom-left logo to be
 // bigger; it was 26px. This asserts it did not quietly go back, without freezing
 // a design decision at one exact number.
-test('the homepage footer logo is not back to its old size', () => {
+// ⚠ THIS PINNED A FLOOR (">= 40") AND NOW DERIVES THE SHARED VALUE INSTEAD. The
+// defect it was written for was the two footers disagreeing — the homepage's mark
+// sat at 40 while the component's was 64 — and a floor cannot see that: it passes
+// for every pair of numbers that are both large enough, including two DIFFERENT
+// ones. It also fails the wrong way round the day the shared mark is deliberately
+// made smaller, which is exactly what happened when the owner asked for the footer
+// to take less room (both went 64 → 44 and this test failed on correct code).
+// Equality is the invariant; the number is the component's to choose.
+test('the homepage footer logo is the same size as the shared one', () => {
+  const shared = /function Footer\(\{ logoHeight = (\d+) \}/.exec(SHELL);
+  assert.ok(shared, 'the shared Footer no longer declares a default logoHeight — this guard is reading nothing');
   const h = /\.ft \.logo\{height:(\d+)px/.exec(INDEX);
   assert.ok(h, 'the homepage footer logo rule is gone');
-  assert.ok(Number(h[1]) >= 40, 'the homepage footer logo is back down to ' + h[1] + 'px');
+  assert.equal(Number(h[1]), Number(shared[1]),
+    `the homepage footer mark is ${h[1]}px and the shared one is ${shared[1]}px — one footer, one mark`);
 });
 
 // The whole point is "same on each page", so the sweep has to know how many
