@@ -37,8 +37,8 @@ globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{
 };
 
 const SRC=fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url));
-const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary };'});
-const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary}=mod;
+const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf };'});
+const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf}=mod;
 
 const buttons=()=>[...document.querySelectorAll('button')];
 const byText=t=>buttons().find(b=>b.textContent===t);
@@ -269,4 +269,111 @@ test('the signed-out preview opens no per-account document',async()=>{
   assert.deepEqual([...new Set(REMEMBER.opens)],[false],
     'there is no account to remember against in the preview, so the store stays shut');
   await React.act(async()=>root.unmount());
+});
+
+// ── Drag and drop on the grid ────────────────────────────────────────────────
+// ⚠ DRIVEN THROUGH THE MOUNTED GRID, never matched in the source. Both defects below are
+// about what the document ends up holding after a drop, and a handler can be spelled any
+// number of correct ways — what must not change is the result on screen.
+const cells = () => [...document.querySelectorAll('button.c')];
+const weekCells = (wi) => cells().slice(wi * 7, wi * 7 + 7);
+const populated = (wi) => weekCells(wi).filter((c) => !c.className.includes('rest'));
+const fire = async (el, type) => {
+  await React.act(async () => { el.dispatchEvent(new window.Event(type, { bubbles: true })); });
+};
+const dragOnto = async (from, to) => { await fire(from, 'dragstart'); await fire(to, 'drop'); };
+
+test('a session dragged onto an empty cell in ANOTHER week does not move within its own', async () => {
+  // ⚠ THE REST CELL WAS MISSING THE `f.wi === wi` GUARD ITS POPULATED SIBLING CARRIES, and
+  // that was not a harmless no-op: `moveTo` only ever edits the DRAG SOURCE's week, so the
+  // drop target the coach aimed at was ignored and the session silently changed WEEKDAY back
+  // in week 1. Moving a day between weeks is a feature and is deliberately not what this
+  // asserts — the fix is that the two cell types behave the same. (CodeRabbit, #2143.)
+  await mount(template(dbuWithWeekdays(legacyDoc())));           // two weeks, Mon + Thu
+  const before = weekCells(0).map((c) => c.className.includes('rest'));
+  assert.deepEqual(before.filter((r) => !r).length, 2, 'setup: week 1 does not have two sessions');
+  const tueOfWeek2 = weekCells(1).find((c) => (c.getAttribute('aria-label') || '').startsWith('Add a session on Tue'));
+  assert.ok(tueOfWeek2, 'setup: week 2 has no empty Tuesday to drop onto');
+
+  await dragOnto(populated(0)[0], tueOfWeek2);
+
+  assert.deepEqual(weekCells(0).map((c) => c.className.includes('rest')), before,
+    "a cross-week drop reassigned the session's weekday inside its own week");
+  assert.equal(populated(1).length, 2, 'the drop target week gained or lost a session');
+});
+
+test('a session dropped onto an occupied day SWAPS with it — no session can vanish', async () => {
+  // ⚠ THE GRID FINDS A DAY BY WEEKDAY, so two days sharing one means the second cannot be
+  // rendered, selected or edited while the document still holds it. Dropping onto a populated
+  // cell means that weekday is by definition taken, so before the swap this was the ORDINARY
+  // case, not an edge one — and it passes the `f.wi === wi` guard, so that guard never
+  // protected it. Found by reading the diff after CodeRabbit's rest-cell finding.
+  await mount(template(dbuWithWeekdays(legacyDoc())));
+  assert.equal(populated(0).length, 2, 'setup: week 1 does not have two sessions');
+  const names = () => populated(0).map((c) => (c.querySelector('b') || {}).textContent);
+  assert.deepEqual(names(), ['Squat day', 'Pull day'], 'setup: the two sessions are not where expected');
+
+  await dragOnto(populated(0)[0], populated(0)[1]);              // Mon onto the occupied Thu
+
+  assert.equal(populated(0).length, 2, 'a session disappeared from the grid — two days share a weekday');
+  assert.deepEqual(names(), ['Pull day', 'Squat day'], 'the drop did not swap the two days');
+});
+
+test('the source is one handler, so the two cell types cannot drift apart again', async () => {
+  // The tests above prove the BEHAVIOUR; this proves there is only one behaviour to prove.
+  const src = await import('node:fs').then((fs) => fs.readFileSync(SRC, 'utf8'));
+  const drops = [...src.matchAll(/onDrop=\{([^\n]*)\}\n/g)].map((m) => m[1].trim());
+  assert.equal(drops.length, 2, 'the grid no longer has exactly two drop handlers — re-read this check');
+  assert.equal(drops[0], drops[1], 'the rest cell and the populated cell handle a drop differently');
+});
+
+test('the reference start snaps to the Monday of whatever week is picked', () => {
+  // ⚠ THE GRID DRAWS Mon–Sun COLUMNS while `builderToAssignmentRows` offsets each day from
+  // the START's weekday. Measured on a Mon/Wed/Fri program with a Wednesday start, each grid
+  // row then spanned TWO calendar weeks and its dates ran BACKWARDS across it — the Monday
+  // cell reading five days LATER than the Wednesday cell beside it. (CodeRabbit, #2143.)
+  assert.equal(dbuMondayOf('2026-09-23'), '2026-09-21', 'a Wednesday did not snap back to its Monday');
+  assert.equal(dbuMondayOf('2026-09-27'), '2026-09-21', 'a Sunday belongs to the week that started six days earlier');
+  assert.equal(dbuMondayOf('2026-09-21'), '2026-09-21', 'a Monday must be left exactly where it is');
+  for (const bad of ['', null, undefined, 'tomorrow', '2026-13-45']) {
+    assert.equal(dbuMondayOf(bad), null, 'an unusable value must yield null so the caller keeps what it had: ' + String(bad));
+  }
+  // and every snapped start really does put one grid row inside one calendar week
+  const doc = dbuWithWeekdays(legacyDoc());
+  for (const picked of ['2026-09-21', '2026-09-23', '2026-09-27']) {
+    const dates = dbuDateMap(doc, dbuMondayOf(picked));
+    const row = doc.weeks[0].days.map((_, di) => dates['0:' + di]);
+    assert.ok(row.every(Boolean), 'setup: the row has no dates for ' + picked);
+    assert.deepEqual(row, [...row].sort(), 'week 1 runs backwards across the row for ' + picked);
+  }
+});
+
+test('the date field itself snaps — the rule is not one the page can bypass', async () => {
+  // ⚠ A RULE THE PAGE DOES NOT GO THROUGH IS A RULE THAT IS RIGHT AND DEAD. `dbuMondayOf`
+  // being correct says nothing about the one control that calls it: measured, a mutation
+  // pointing the input back at the raw value left the whole file GREEN. So the field is
+  // driven rather than the helper.
+  await mount(template(dbuWithWeekdays(legacyDoc())));
+  const field = document.querySelector('input[type="date"]');
+  assert.ok(field, 'setup: the reference-start field is not on screen');
+  // React tracks an input's value itself, so a plain assignment is swallowed as a no-op.
+  const setValue = (el, v) => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, v);
+  };
+  await React.act(async () => {
+    setValue(field, '2026-09-23');                               // a Wednesday
+    field.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  assert.equal(document.querySelector('input[type="date"]').value, '2026-09-21',
+    'the field kept a mid-week start, so the grid rows span two calendar weeks');
+
+  // ⚠ AND CLEARING IT KEEPS WHAT IT HAD, which is what the `|| startISO` is for. Without it
+  // an emptied field writes null and the reference silently jumps to NEXT Monday — invisible
+  // unless the start already differs from that default, which is why this sets one first.
+  await React.act(async () => {
+    setValue(document.querySelector('input[type="date"]'), '');
+    document.querySelector('input[type="date"]').dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  assert.equal(document.querySelector('input[type="date"]').value, '2026-09-21',
+    'clearing the field threw away the reference start the coach had chosen');
 });

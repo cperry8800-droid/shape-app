@@ -75,6 +75,22 @@ function dbuParseISO(iso) {
   const d = new Date(String(iso) + "T00:00:00");
   return Number.isFinite(d.getTime()) ? d : null;
 }
+// ⚠ THE REFERENCE START SNAPS TO ITS MONDAY, because the Grid draws Mon–Sun columns and
+// `builderToAssignmentRows` offsets each day from the START's weekday, not from a Monday
+// (`workoutDocument.js:98`). Measured on a Mon/Wed/Fri program with a WEDNESDAY start: each
+// Grid row then spans TWO calendar weeks and its dates run BACKWARDS across it — Monday's
+// cell reads 28 Sep beside Wednesday's 23 Sep — while the week header, which takes the
+// earliest date in the row, contradicts its own first cell. The field's label already says
+// "Reference start Monday" and the default is `dbuNextMonday()`; only the input accepted
+// anything else. `previewStart` is read in exactly ONE place and reaches nothing at assign
+// (each client's real start is chosen there), so snapping costs no scheduling accuracy.
+// (CodeRabbit, #2143.) An unusable value yields null and the caller keeps what it had.
+function dbuMondayOf(iso) {
+  const d = dbuParseISO(iso);
+  if (!d) return null;
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return dbuISO(d);
+}
 function dbuShortDate(iso) {
   const d = dbuParseISO(iso);
   return d ? DBU_DOW[(d.getDay() + 6) % 7] + " " + d.getDate() + " " + DBU_MON[d.getMonth()] : "";
@@ -537,7 +553,29 @@ function DbuViewSwitch({ view, setView }) {
 function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
   const dragRef = React.useRef(null);
   const weekStart = (wi) => ((doc.weeks[wi].days || []).map((_, di) => dates[wi + ":" + di]).filter(Boolean).sort()[0] || "");
-  const moveTo = (wi, di, weekday) => setWeeks(doc.weeks.map((w, i) => (i === wi ? { ...w, days: w.days.map((d, j) => (j === di ? { ...d, weekday } : d)) } : w)));
+  // ⚠ A DROP SWAPS, IT DOES NOT OVERWRITE — because the Grid finds a day BY WEEKDAY
+  // (`findIndex(d => d.weekday === wd)`), so two days sharing one means the second is
+  // unreachable: it cannot be rendered, selected or edited, while the document still holds
+  // it and Sheet still lists it. Measured on a Mon/Wed/Fri week, dragging Mon onto the
+  // POPULATED Wed cell: 3 of 3 sessions visible becomes 2 of 3, silently. That drop is the
+  // ordinary same-week case and it passes the `f.wi === wi` guard, so the guard is not what
+  // protects it. The retired builder could not hit this — its `moveDay` REORDERED within a
+  // week (a permutation, so no collision existed); assigning a weekday is new here, and so
+  // is the collision. Giving the displaced day the dragged day's old weekday keeps it a
+  // permutation, which is the property that matters.
+  const moveTo = (wi, di, weekday) => setWeeks(doc.weeks.map((w, i) => {
+    if (i !== wi) return w;
+    const from = (w.days || [])[di];
+    // Unreachable from the Grid — a day with no weekday is not drawn, so it cannot be
+    // dragged — but a move with nothing to give the displaced day would hide one, so it
+    // is refused rather than half-applied.
+    if (!dbuHasWeekday(from)) return w;
+    return { ...w, days: w.days.map((d, j) => {
+      if (j === di) return { ...d, weekday };
+      if (dbuHasWeekday(d) && d.weekday === weekday) return { ...d, weekday: from.weekday };
+      return d;
+    }) };
+  }));
   const addAt = (wi, weekday) => {
     const w = doc.weeks[wi];
     setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, days: [...x.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday }] } : x)));
@@ -569,10 +607,16 @@ function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
               const day = di >= 0 ? w.days[di] : null;
               const iso = di >= 0 ? dates[wi + ":" + di] : "";
               if (!day) {
+                // ⚠ THE SAME `f.wi === wi` GUARD THE POPULATED CELL CARRIES, and its absence
+                // here was not a no-op: `moveTo` only ever edits week `f.wi`, so dragging a
+                // Week 1 session onto an empty cell under Week 3 left it in Week 1 and
+                // silently changed its WEEKDAY there — the drop target the coach aimed at
+                // was ignored. (CodeRabbit, #2143.) Moving a day BETWEEN weeks is a feature,
+                // not this fix; registered.
                 return (
                   <button type="button" key={wd} className="c rest"
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => { const f = dragRef.current; if (f && !uploads) moveTo(f.wi, f.di, wd); dragRef.current = null; }}
+                    onDrop={() => { const f = dragRef.current; if (f && !uploads && f.wi === wi) moveTo(f.wi, f.di, wd); dragRef.current = null; }}
                     onClick={() => addAt(wi, wd)}
                     aria-label={"Add a session on " + DBU_DOW[wd] + " of week " + (wi + 1)}>
                     <span className="r">Rest · ＋ Add session</span>
@@ -944,7 +988,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
               <span className="chip">
                 Starts
                 <input type="date" aria-label="Reference start Monday the dates on this page are drawn for"
-                  value={startISO} onChange={(e) => { if (e.target.value) setStart(e.target.value); }} />
+                  value={startISO} onChange={(e) => setStart(dbuMondayOf(e.target.value) || startISO)} />
               </span>
               <span className="chip q">{summary.weeks} {summary.weeks === 1 ? "week" : "weeks"} · {weekdayLabel} · {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}{summary.last ? " · last " + dbuShortDate(summary.last) : ""}</span>
               <span className="saved">v{doc.version} · {saveLabel}</span>
