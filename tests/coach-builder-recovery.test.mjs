@@ -15,9 +15,24 @@ const {createRoot}=require('react-dom/client');globalThis.ReactDOM=require('reac
 globalThis.DashBuilder=require('../public/newdesign/dashBuilderCore.js');
 globalThis.ShapeWorkoutDocument=require('../public/newdesign/workoutDocument.js');
 globalThis.DashPill=({children})=>React.createElement('span',null,children);
+// The builder remembers which view a coach last had open through `dashData.jsx`'s
+// remembered-choice store, which this file does not load; the hook has its own suite
+// (tests/dashboard-remembered-choices.test.mjs). Stubbed as plain React state so recovery
+// behaves exactly as it does with the real store shut in the preview.
+globalThis.useRememberedChoices=(live)=>({live,doc:{},accountId:null});
+globalThis.useRememberedChoice=(_store,_key,_allowed,fallback)=>React.useState(fallback);
 const {DbuBuilder,dbuRecoveredTemplate,TrainerProgramsPage,DbuFutureUpdates}=await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url)),{appendExports:'export { DbuBuilder, dbuRecoveredTemplate, TrainerProgramsPage, DbuFutureUpdates };'});
 const template=()=>({id:'0a7d7e48-46b1-4b23-b2f4-af4d3ef88004',name:'Lower',published:false,detail:{revision:2,builder:DashBuilder.newProgram('Lower')}});
 const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent===label);
+// ⚠ RE-ANCHORED: these cases used to flush by clicking `Save draft`, a control the builder
+// redesign retires (F6 — three save verbs collapse into autosave + Publish). They wait for
+// the autosave now, which is not a workaround but a STRONGER test: it exercises the path
+// every real save actually takes, where the button was a shortcut around it. The debounce
+// is 900ms in dashBuilder.jsx; the second act() drains the fetch that follows it.
+async function saveNow(){
+  await React.act(async()=>{await new Promise(r=>setTimeout(r,1000));});
+  await React.act(async()=>{await Promise.resolve();});
+}
 async function mount(t,extra={}){
   const root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(DbuBuilder,{template:t,clients:[],queue:[],live:true,ownerId:'coach-a',playlists:[],clips:[],dayTemplates:[],onBack(){},onSaved(){},...extra})));
@@ -36,7 +51,7 @@ test('failed creation never reports saved or exits; retry preserves record ident
   localStorage.clear();const calls=[];let fail=true,saves=0,exits=0;
   globalThis.fetch=async(_url,options)=>{const body=JSON.parse(options.body);calls.push(body);return {ok:!fail,json:async()=>fail?{error:'Network unavailable'}:{plan:{...body,id:body.id,detail:{...body.detail,revision:1}}}};};
   const t=template();delete t.id;const root=await mount(t,{onSaved(){saves++;},onBack(){exits++;}});
-  await changeName('New upper');await React.act(async()=>button('Save draft').click());
+  await changeName('New upper');await saveNow();
   assert.equal(saves,0);assert.match(document.body.textContent,/Network unavailable/);
   await React.act(async()=>button('← Library').click());assert.equal(exits,0);
   fail=false;await React.act(async()=>button('Retry save').click());
@@ -46,7 +61,7 @@ test('failed creation never reports saved or exits; retry preserves record ident
 test('save sends the loaded revision; a 409 retains draft and error',async()=>{
   localStorage.clear();let posted;
   globalThis.fetch=async(_url,options)=>{posted=JSON.parse(options.body);return {ok:false,json:async()=>({error:'Changed on another device'})};};
-  const root=await mount(template());await changeName('Conflicting edit');await React.act(async()=>button('Save draft').click());
+  const root=await mount(template());await changeName('Conflicting edit');await saveNow();
   assert.equal(posted.expectedOwnerId,'coach-a');assert.equal(posted.expectedRevision,2);assert.match(document.body.textContent,/Changed on another device/);
   assert.equal(JSON.parse(localStorage.getItem('shape.dashBuilderDrafts.v2.coach-a'))[template().id].name,'Conflicting edit');
   await React.act(async()=>root.unmount());
@@ -61,13 +76,13 @@ test('recovered creation retries the same id after an uncertain response and ret
     return {ok:true,json:async()=>({plan:committed})};
   };
   const t=template();delete t.id;t.detail={...t.detail,buildType:'program',media:[{type:'video',name:'Demo',url:'https://shape.test/demo.mp4'}]};
-  let root=await mount(t);await changeName('New program');await React.act(async()=>button('Save draft').click());
+  let root=await mount(t);await changeName('New program');await saveNow();
   const [id,draft]=Object.entries(JSON.parse(localStorage.getItem('shape.dashBuilderDrafts.v2.coach-a')))[0];
   assert.equal(draft.persisted,false);
   await React.act(async()=>root.unmount());
   const recovery=dbuRecoveredTemplate(id,draft,[committed]);
   assert.equal(recovery.draftId,id);assert.equal(recovery.detail.buildType,'program');assert.deepEqual(recovery.detail.media,t.detail.media);
-  fail=false;root=await mount(recovery);await React.act(async()=>button('Save draft').click());
+  fail=false;root=await mount(recovery);await saveNow();
   assert.equal(new Set(calls.map(c=>c.body.id)).size,1);
   assert.deepEqual(Object.keys(JSON.parse(localStorage.getItem('shape.dashBuilderDrafts.v2.coach-a'))),[],'successful retry should remove the original recovery entry');
   await React.act(async()=>root.unmount());
@@ -93,7 +108,7 @@ test('an exercise upload cannot move to a copied day and video playback remains 
   await React.act(async()=>file.dispatchEvent(new window.Event('change',{bubbles:true})));
   assert.equal(document.querySelector('fieldset').disabled,true);
   assert.equal(document.querySelector('video').controls,true,'a video player is not disabled by the form lock');
-  const lower=[...document.querySelectorAll('button')].find(b=>b.textContent.startsWith('Lower'));
+  const lower=[...document.querySelectorAll('button')].find(b=>/Lower/.test(b.textContent));
   await React.act(async()=>lower.click());
   assert.equal(document.querySelector('#dbu-day-name').value,'Upper');
   const outside=document.createElement('a');outside.href='#clients';document.body.appendChild(outside);
@@ -102,7 +117,7 @@ test('an exercise upload cannot move to a copied day and video playback remains 
   await React.act(async()=>finishUpload());
   assert.equal(document.querySelector('fieldset').disabled,false);
   assert.equal(document.querySelector('video').getAttribute('src'),'https://shape.test/uploaded.mp4');
-  await React.act(async()=>button('Save draft').click());
+  await saveNow();
   assert.equal(posted.detail.builder.weeks[0].days[0].blocks[0].rows[0].video,'https://shape.test/uploaded.mp4');
   assert.equal(posted.detail.builder.weeks[0].days[1].blocks[0].rows[0].video,'https://shape.test/original.mp4');
   await React.act(async()=>root.unmount());
@@ -136,7 +151,7 @@ test('the exercise picker is portaled and adds multiple checked exercises togeth
   const root=await mount(template());
   await React.act(async()=>button('+ Exercise').click());
   const dialog=document.querySelector('[role="dialog"][aria-label="Add exercises"]');
-  assert.ok(dialog);assert.equal(dialog.parentElement.parentElement,document.body);
+  assert.ok(dialog);assert.ok(dialog.parentElement.parentElement===document.body,'the picker portals to the body');
   assert.equal(document.getElementById('root').contains(dialog),false);
   const inputs=[...dialog.querySelectorAll('input[type="checkbox"]')].slice(0,2);
   const selectedNames=DashBuilder.searchExercises('').slice(0,2).map(e=>e.name);
@@ -144,8 +159,8 @@ test('the exercise picker is portaled and adds multiple checked exercises togeth
   await React.act(async()=>inputs[1].click());assert.equal(inputs[1].checked,true);
   assert.equal(button('Add 2 exercises').disabled,false);
   await React.act(async()=>button('Add 2 exercises').click());
-  assert.equal(document.querySelector('[role="dialog"]'),null);
-  await React.act(async()=>button('Save draft').click());
+  assert.ok(!document.querySelector('[role="dialog"]'),'adding the exercises closes the picker');
+  await saveNow();
   assert.deepEqual(posted.detail.builder.weeks[0].days[0].blocks[0].rows.map(r=>r.name),selectedNames);
   await React.act(async()=>root.unmount());
 });
@@ -158,7 +173,7 @@ test('a library account change closes the old account editor without moving its 
   await React.act(async()=>button('Edit workout').click());
   await changeName('Private A draft');
   owner='coach-b';await React.act(async()=>window.dispatchEvent(new window.Event('focus')));
-  assert.equal(document.querySelector('[aria-label="Workout or program name"]'),null);
+  assert.ok(!document.querySelector('[aria-label="Workout or program name"]'),'the builder is gone once the account changes');
   assert.match(document.body.textContent,/coach-b workout/);
   assert.equal(localStorage.getItem('shape.dashBuilderDrafts.v2.coach-b'),null);
   assert.equal(JSON.parse(localStorage.getItem('shape.dashBuilderDrafts.v2.coach-a'))[template().id].name,'Private A draft');
@@ -192,8 +207,8 @@ test('an uncertain creation conflict can be explicitly saved as a new copy witho
     return {ok:true,json:async()=>({plan:{...body,detail:{...body.detail,revision:1}}})};
   };
   const t=template();delete t.id;const root=await mount(t);
-  await changeName('Committed version');await React.act(async()=>button('Save draft').click());
-  await changeName('Edited after response loss');await React.act(async()=>button('Save draft').click());
+  await changeName('Committed version');await saveNow();
+  await changeName('Edited after response loss');await saveNow();
   assert.equal(calls[0].id,calls[1].id);assert.ok(button('Save as new copy'));
   await React.act(async()=>button('Save as new copy').click());
   assert.notEqual(calls[2].id,committed.id);assert.equal(calls[2].published,false);assert.equal(calls[2].expectedRevision,0);

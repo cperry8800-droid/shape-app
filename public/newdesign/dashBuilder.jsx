@@ -11,21 +11,164 @@
 // dashData → dashToday → dashClient (DashWorkoutCard) → dashBuilderCore →
 // this file.
 
-const DBU_INK50 = "rgba(242,237,228,0.55)";
+// ⚠ THE BUILDER IS THE CONCEPT BOARD'S LIGHT PAPER, NOT THE DASHBOARD'S DARK BROADSHEET.
+// The round-one concepts kept the dark newspaper chrome and the tree-beside-editor layout
+// and the owner said no to all of it; the board's own lede is "these three start from a
+// white page, real controls, readable type, and dates you can see". So every value below is
+// lifted from the approved artboards (`.ab2` in the G · Grid ⇄ Sheet board) rather than
+// re-invented: 14px body text where this file used 8.5px mono, 40px controls, 9–10px radii,
+// white cards on #f4f6f5.
+// ⚠ SCOPED TO THE BUILDER, because the global paper switch is PR 5 and PRs 3–4 have not yet
+// swept Business · Goals · Progress · Train · Nutri · Settings · Playlists. Flipping
+// `dash.css`'s tokens now would make the swept surfaces light and the unswept ones dark. The
+// surrounding shell turns light with PR 5; this is the surface the redesign is about.
+const DBU_PG = "#f4f6f5", DBU_WH = "#ffffff";
+const DBU_INK = "#15211e", DBU_INK2 = "#5a6763", DBU_INK3 = "#8a9490";
+const DBU_LINE = "#e1e6e3", DBU_LINE2 = "#c9d2ce";
+const DBU_TEAL = "#0a8f87", DBU_TEALBG = "#e2f2f0";
+const DBU_RUST = "#c0533b", DBU_RUSTBG = "#fbeae5";
+const DBU_GOLD = "#a07a2e", DBU_GOLDBG = "#f7eed8";
+const DBU_REST = "#edf0ee";
+const DBU_INK50 = DBU_INK2;
 const DBU_MONO = "'JetBrains Mono', monospace";
-const DBU_RUST = "#c0533b";
+const DBU_DISPLAY = "'Anybody', system-ui, sans-serif";
+const DBU_BODY = "'Schibsted Grotesk', system-ui, sans-serif";
 
+// `.btn` / `.btn.pri` from the board.
 function dbuBtn(primary, c) {
-  const col = c || "#2ee0c4";
+  const col = c || DBU_TEAL;
+  const base = { display: "inline-flex", alignItems: "center", gap: 7, height: 40, padding: "0 16px", borderRadius: 9, fontFamily: DBU_BODY, fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
   return primary
-    ? { fontFamily: DBU_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: col, border: 0, borderRadius: 4, padding: "9px 13px", minHeight: 40, cursor: "pointer" }
-    : { fontFamily: DBU_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "9px 13px", minHeight: 40, cursor: "pointer" };
+    ? { ...base, background: col, border: "1px solid " + col, color: "#fff" }
+    : { ...base, background: DBU_WH, border: "1px solid " + DBU_LINE2, color: DBU_INK };
 }
-const dbuField = { boxSizing: "border-box", padding: "7px 9px", borderRadius: 4, border: "1px solid rgba(242,237,228,0.16)", background: "rgba(242,237,228,0.04)", color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, outline: "none" };
-const dbuLabel = { fontFamily: DBU_MONO, fontSize: 10, letterSpacing: "0.05em", textTransform: "uppercase", color: DBU_INK50, display: "block", marginBottom: 3 };
+// `.fld` and `.lbl`.
+const dbuField = { boxSizing: "border-box", display: "flex", alignItems: "center", height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid " + DBU_LINE2, background: DBU_WH, fontFamily: DBU_BODY, fontSize: 14, color: DBU_INK, outline: "none" };
+const dbuLabel = { fontFamily: DBU_BODY, fontSize: 12.5, color: DBU_INK2, fontWeight: 600, marginBottom: 5, display: "block" };
 
 function dbuGoalTag(key) {
   return DashBuilder.GOAL_TAGS.find((g) => g.key === key) || DashBuilder.GOAL_TAGS[1];
+}
+
+// ── Dates ────────────────────────────────────────────────────────────────────
+// ⚠ F2 (P0): NOTHING IN THIS BUILDER EVER SHOWED A DATE. The client's page and the app
+// are both dated, and the first date a coach saw was inside a collapsed <details> in the
+// Assign modal — so a program was written blind and its shape on a real calendar was a
+// surprise at assign time.
+//
+// ⚠ AND EVERY DATE DRAWN HERE COMES FROM THE FUNCTION THAT ASSIGNS THEM, never from a
+// second copy of the rule. `DashBuilder.buildAssignmentRows` is what actually writes
+// `scheduledDate` onto every row; deriving the sheet from any other arithmetic would let
+// the preview and the assignment disagree, which is worse than showing no date at all.
+const DBU_DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DBU_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function dbuISO(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+// The Assign modal's own next-Monday rule, lifted so the two cannot drift apart.
+function dbuNextMonday() {
+  const d = new Date();
+  d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+  return dbuISO(d);
+}
+function dbuParseISO(iso) {
+  const d = new Date(String(iso) + "T00:00:00");
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+function dbuShortDate(iso) {
+  const d = dbuParseISO(iso);
+  return d ? DBU_DOW[(d.getDay() + 6) % 7] + " " + d.getDate() + " " + DBU_MON[d.getMonth()] : "";
+}
+function dbuDayMonth(iso) {
+  const d = dbuParseISO(iso);
+  return d ? d.getDate() + " " + DBU_MON[d.getMonth()] : "";
+}
+
+// ── Weekday defaults ─────────────────────────────────────────────────────────
+// ⚠ F3 (P0): `newDay` carried NO weekday, and `builderToAssignmentRows` falls back to the
+// day's INDEX when one is missing (workoutDocument.js:98) — so a two-session week landed
+// on Mon and TUE with five empty days after it, and nothing on screen said so. The table
+// is the brief's: 1 → Mon · 2 → Mon Thu · 3 → Mon Wed Fri · 4 → Mon Tue Thu Fri ·
+// 5 → Mon–Fri · 6 → Mon–Sat · 7 → every day.
+// ⚠ PAST SEVEN DAYS A WEEK THE COLLISION IS ARITHMETIC — a week has seven weekdays — so
+// the extras cycle and the sheet DRAWS two bands on one date. That is the improvement:
+// today the identical collision happens silently at assign time (F12).
+const DBU_WEEKDAYS = { 1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6] };
+function dbuDefaultWeekdays(n) {
+  if (DBU_WEEKDAYS[n]) return DBU_WEEKDAYS[n].slice();
+  return Array.from({ length: Math.max(0, n) }, (_, i) => i % 7);
+}
+const dbuHasWeekday = (d) => !!d && Number.isInteger(d.weekday) && d.weekday >= 0 && d.weekday <= 6;
+// Give a legacy document weekdays ON LOAD, per week, in order, leaving any the coach has
+// already set alone.
+// ⚠ APPLIED IN THE BUILDER RATHER THAN IN THE SHARED NORMALISER (`workoutDocument.js`),
+// which the API route also runs: rewriting stored documents server-side is a far larger
+// blast radius than one PR should take, and doing it here is where the coach can SEE the
+// result before assigning. A document assigned straight from the library without ever
+// being opened keeps today's behaviour — a no-op, not a regression — and the fallback
+// branch of `builderToAssignmentRows` stays as the guard it was written to be.
+function dbuWithWeekdays(doc) {
+  if (!doc || !Array.isArray(doc.weeks)) return doc;
+  if (doc.weeks.every((w) => (w.days || []).every(dbuHasWeekday))) return doc;
+  return {
+    ...doc,
+    weeks: doc.weeks.map((w) => {
+      const days = w.days || [];
+      if (days.every(dbuHasWeekday)) return w;
+      const taken = new Set(days.filter(dbuHasWeekday).map((d) => d.weekday));
+      const free = dbuDefaultWeekdays(days.length).filter((x) => !taken.has(x));
+      let k = 0;
+      return {
+        ...w,
+        days: days.map((d) => {
+          if (dbuHasWeekday(d)) return d;
+          const wd = free[k] != null ? free[k] : k % 7;
+          k += 1;
+          return { ...d, weekday: wd };
+        }),
+      };
+    }),
+  };
+}
+// The next weekday a new day in this week should take: the first the week is not using.
+function dbuNextFreeWeekday(week) {
+  const taken = new Set((week.days || []).filter(dbuHasWeekday).map((d) => d.weekday));
+  const table = dbuDefaultWeekdays((week.days || []).length + 1);
+  const free = table.find((x) => !taken.has(x));
+  if (free != null) return free;
+  for (let i = 0; i < 7; i += 1) if (!taken.has(i)) return i;
+  return 0;
+}
+
+// Every date the assignment would write, keyed "week:day" — one call, one source of truth.
+// ⚠ A meta object is passed rather than null because `builderToAssignmentRows` only stamps
+// `template.week` / `template.day` when it HAS one; with null the rows come back unlabelled
+// and nothing could be keyed to a band.
+function dbuDateMap(doc, startISO) {
+  const out = {};
+  try {
+    DashBuilder.buildAssignmentRows(doc, { id: null, name: "" }, startISO).forEach((r) => {
+      const t = r.payload && r.payload.template;
+      if (t && t.week && t.day) out[(t.week - 1) + ":" + (t.day - 1)] = r.scheduledDate;
+    });
+  } catch (e) { /* an unusable start date or an empty document simply yields no dates */ }
+  return out;
+}
+// A summary a coach can check at a glance, derived rather than typed.
+function dbuSummary(doc, dates) {
+  const weekdays = new Set();
+  let sessions = 0;
+  (doc.weeks || []).forEach((w) => (w.days || []).forEach((d) => {
+    sessions += 1;
+    if (dbuHasWeekday(d)) weekdays.add(d.weekday);
+  }));
+  const all = Object.values(dates).filter(Boolean).sort();
+  return {
+    weeks: (doc.weeks || []).length,
+    sessions,
+    weekdays: [...weekdays].sort((a, b) => a - b),
+    last: all[all.length - 1] || "",
+  };
 }
 
 // ── Template persistence (live API ⇄ localStorage drafts) ───────────────────
@@ -357,12 +500,231 @@ function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
 }
 
 // ── The builder (tree left · day editor right · always-on client preview) ───
+// ── The two canvases ─────────────────────────────────────────────────────────
+// ⚠ ONE DOCUMENT, TWO VIEWS, READ IN OPPOSITE DIRECTIONS — which is why this is a switch
+// and not one stacked page. Grid answers WHEN (rows are weeks, columns are weekdays); Sheet
+// answers HOW MUCH (rows are exercises, columns are weeks, so the progression reads left to
+// right). The board measured the stacked alternative at 1,439px against the grid's 1,115px,
+// showing the same session twice.
+//
+// Every rule below is the approved artboard's own (`.ab2 .wg`, `.ab2 .sh`, `.ab2 .seg`), not
+// a re-interpretation of it.
+
+// The two views, NAMED ONCE. The switch renders from this table and the remembered
+// choice validates against its keys, so a view can never exist in one and not the other:
+// `useRememberedChoice` silently ignores a stored value outside its allow-list, which on
+// screen reads as "the switch forgot what I picked" rather than as a missing entry.
+const DBU_VIEWS = [
+  { key: "grid", glyph: "▦", label: "Grid" },
+  { key: "sheet", glyph: "▤", label: "Sheet" },
+];
+const DBU_VIEW_KEYS = DBU_VIEWS.map((v) => v.key);
+
+// The view switch — the board's `.seg`.
+function DbuViewSwitch({ view, setView }) {
+  return (
+    <div className="seg" role="group" aria-label="Builder view">
+      {DBU_VIEWS.map(({ key, glyph, label }) => (
+        <button key={key} type="button" onClick={() => setView(key)} aria-pressed={view === key} title={label + " view"}>
+          <i aria-hidden="true">{glyph}</i>{label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Grid — the calendar is the builder ───────────────────────────────────────
+function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
+  const dragRef = React.useRef(null);
+  const weekStart = (wi) => ((doc.weeks[wi].days || []).map((_, di) => dates[wi + ":" + di]).filter(Boolean).sort()[0] || "");
+  const moveTo = (wi, di, weekday) => setWeeks(doc.weeks.map((w, i) => (i === wi ? { ...w, days: w.days.map((d, j) => (j === di ? { ...d, weekday } : d)) } : w)));
+  const addAt = (wi, weekday) => {
+    const w = doc.weeks[wi];
+    setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, days: [...x.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday }] } : x)));
+    setSel({ w: wi, d: w.days.length });
+  };
+  return (
+    <div className="scroll">
+      <div className="wg" style={{ minWidth: 760 }}>
+        <div />
+        {DBU_DOW.map((d) => <div className="h" key={d}>{d}</div>)}
+        {doc.weeks.map((w, wi) => (
+          <React.Fragment key={wi}>
+            <div className="wk">
+              <b>Week {wi + 1}</b>
+              <span>{dbuDayMonth(weekStart(wi)) || "—"}</span>
+              {w.deload && <span className="dl">Deload −40%</span>}
+              {/* ⚠ Every week tool the retired tree carried, kept. Losing one to a layout
+                  change would be a silent regression in the engine §1.4 of the review says
+                  must survive any redesign. */}
+              <span className="tools">
+                <button type="button" onClick={() => onWeek("duplicate", wi)} title="Copy this week unchanged">Copy</button>
+                <button type="button" onClick={() => onWeek("progress", wi)} title="Copy this week with the configured load increases">Progress</button>
+                <button type="button" onClick={() => onWeek("deload", wi)} aria-pressed={!!w.deload} title="Deload: −40% volume, then edit freely">Deload</button>
+                {doc.weeks.length > 1 && <button type="button" onClick={() => onWeek("remove", wi)} aria-label={"Remove week " + (wi + 1)}>×</button>}
+              </span>
+            </div>
+            {DBU_DOW.map((_, wd) => {
+              const di = (w.days || []).findIndex((d) => dbuHasWeekday(d) && d.weekday === wd);
+              const day = di >= 0 ? w.days[di] : null;
+              const iso = di >= 0 ? dates[wi + ":" + di] : "";
+              if (!day) {
+                return (
+                  <button type="button" key={wd} className="c rest"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => { const f = dragRef.current; if (f && !uploads) moveTo(f.wi, f.di, wd); dragRef.current = null; }}
+                    onClick={() => addAt(wi, wd)}
+                    aria-label={"Add a session on " + DBU_DOW[wd] + " of week " + (wi + 1)}>
+                    <span className="r">Rest · ＋ Add session</span>
+                  </button>
+                );
+              }
+              const moves = (day.blocks || []).reduce((n, b) => n + (b.rows || []).length, 0);
+              return (
+                <button type="button" key={wd} className={"c" + (sel.w === wi && sel.d === di ? " on" : "")} draggable={!uploads}
+                  onDragStart={(e) => { if (uploads) { e.preventDefault(); return; } dragRef.current = { wi, di }; }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => { const f = dragRef.current; if (f && !uploads && f.wi === wi) moveTo(f.wi, f.di, wd); dragRef.current = null; }}
+                  onClick={() => setSel({ w: wi, d: di })}>
+                  <span className="d">{dbuDayMonth(iso) || "—"}</span>
+                  <span className="s">
+                    <b>{day.name}</b>
+                    <span>{moves} moves{day.playlist ? " · ♪" : ""}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Sheet — exercises down, weeks across ─────────────────────────────────────
+// ⚠ ROWS ARE KEYED BY POSITION (day · block · row), NOT BY EXERCISE NAME. The document is a
+// grid by construction whenever a week was made with Copy or Progress, which is the normal
+// flow; matching by name would silently merge two different moves sharing a name and split
+// one that was renamed. Where a later week genuinely holds a DIFFERENT move at the same
+// position, the cell prints that week's own name — the divergence is drawn, not hidden.
+function DbuSheet({ doc, dates, setSel, setWeeks }) {
+  const weeks = doc.weeks || [];
+  const dayCount = weeks.reduce((n, w) => Math.max(n, (w.days || []).length), 0);
+  const editRow = (di, bi, ri, wi, value) => setWeeks(weeks.map((w, i) => {
+    if (i !== wi) return w;
+    const day = (w.days || [])[di];
+    if (!day || !(day.blocks || [])[bi] || !(day.blocks[bi].rows || [])[ri]) return w;
+    return { ...w, days: w.days.map((d, j) => (j !== di ? d : { ...d, blocks: d.blocks.map((b, k) => (k !== bi ? b : { ...b, rows: b.rows.map((r, m) => (m !== ri ? r : { ...r, ...value })) })) })) };
+  }));
+  return (
+    <div className="scroll">
+      <table className="sh" style={{ minWidth: 300 + weeks.length * 130 }}>
+        <colgroup><col style={{ width: 300 }} />{weeks.map((_, i) => <col key={i} />)}</colgroup>
+        <thead>
+          <tr>
+            <th>Exercise</th>
+            {weeks.map((w, wi) => (
+              <th key={wi}>
+                Week {wi + 1}
+                <small>{dbuShortDate(dates[wi + ":0"]) || "—"}</small>
+                {w.deload && <span className="dl">Deload −40%</span>}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: dayCount }, (_, di) => {
+            const base = weeks.find((w) => (w.days || [])[di]);
+            const day = base ? base.days[di] : null;
+            if (!day) return null;
+            const moves = (day.blocks || []).reduce((n, b) => n + (b.rows || []).length, 0);
+            const names = new Set(weeks.map((w) => ((w.days || [])[di] || {}).name).filter(Boolean));
+            return (
+              <React.Fragment key={di}>
+                <tr className="band">
+                  <td colSpan={weeks.length + 1}>
+                    <div className="bn">
+                      <button type="button" onClick={() => setSel({ w: 0, d: di })} title={"Open " + day.name}>
+                        <b>{day.name}</b>
+                      </button>
+                      <span className="chip rust">{dbuHasWeekday(day) ? DBU_DOW[day.weekday] : "No weekday"}</span>
+                      <span className="hint">
+                        {moves} moves{day.playlist ? " · ♪ " + day.playlist.name : ""}
+                        {names.size > 1 ? " · renamed in a later week" : ""}
+                        {" · "}{weeks.map((_, wi) => dbuDayMonth(dates[wi + ":" + di])).filter(Boolean).join(" · ") || "—"}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+                {(day.blocks || []).map((block, bi) => (block.rows || []).map((row, ri) => (
+                  <tr key={bi + ":" + ri}>
+                    <td className="en">
+                      <b>{row.name || "Unnamed move"}</b>
+                      <span>{block.kind}{row.tempo ? " · " + row.tempo : ""}{row.group ? " · " + row.group : ""}{row.rest ? " · rest " + row.rest : ""}</span>
+                    </td>
+                    {weeks.map((w, wi) => {
+                      const wBlock = (((w.days || [])[di] || {}).blocks || [])[bi];
+                      const cellRow = wBlock && (wBlock.rows || [])[ri];
+                      if (!cellRow) return <td key={wi}><span className="none">—</span></td>;
+                      const diverged = cellRow.name && row.name && cellRow.name !== row.name;
+                      return (
+                        <td key={wi}>
+                          <span className={"cell" + (w.deload ? " dl" : "")}>
+                            {diverged && <span className="div" title={cellRow.name}>{cellRow.name}</span>}
+                            <input className="a" aria-label={"Sets and reps, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
+                              value={(cellRow.sets ?? "") + " × " + (cellRow.reps ?? "")}
+                              onChange={(e) => { const m = String(e.target.value).split(/[×x]/); editRow(di, bi, ri, wi, { sets: (m[0] || "").trim(), reps: (m[1] || "").trim() }); }} />
+                            <input className="b" aria-label={"Load, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
+                              value={cellRow.load ?? ""} onChange={(e) => editRow(di, bi, ri, wi, { load: e.target.value })} />
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )))}
+                <tr className="add">
+                  <td colSpan={weeks.length + 1}>
+                    <button type="button" onClick={() => setSel({ w: 0, d: di })}>＋ Add exercise to {day.name}</button>
+                  </td>
+                </tr>
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      <button type="button" className="addday" onClick={() => setWeeks(weeks.map((w, i) => (i !== 0 ? w : { ...w, days: [...w.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday: dbuNextFreeWeekday(w) }] })))}>
+        ＋ Add a day
+      </button>
+    </div>
+  );
+}
+
 function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips, dayTemplates, onBack, onSaved }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
-  const [doc, setDoc] = React.useState(() => JSON.parse(JSON.stringify(initial.current.doc)));
+  // ⚠ The weekday backfill runs INSIDE the initializer, so it is part of the baseline
+  // `saved.current` below and opening a legacy program does not mark it dirty or spend a
+  // revision. The dates drawn and the dates assigned both use it either way.
+  const [doc, setDoc] = React.useState(() => dbuWithWeekdays(JSON.parse(JSON.stringify(initial.current.doc))));
   const [sel, setSel] = React.useState({w:0,d:0});
+  // ⚠ REMEMBERED PER COACH, which the board's G tab asks for in as many words: "the
+  // switch is remembered per coach, so whoever thinks in calendars opens to the grid and
+  // whoever programs in spreadsheets opens to the sheet". It rides the dashboard's own
+  // `dashboard_prefs` store rather than a second mechanism — same account binding, same
+  // serial write lane, same three read states, no migration and no route.
+  //
+  // ⚠ THE STORE OPENS ONLY WHEN THE BUILDER IS LIVE. In the signed-out preview there is
+  // no account to remember against, and `useRememberedChoices` declines to open a
+  // per-account document without one; the switch still works, it just does not persist.
+  const prefs = useRememberedChoices(!!live);
+  const [view, setViewRaw] = useRememberedChoice(prefs, "builderView", DBU_VIEW_KEYS, "grid");
+  // ⚠ SWITCHING TO SHEET CLOSES THE DAY PANEL. The panel floats over the canvas, and in Sheet
+  // that covers the week columns the view exists to read left to right — measured: the drawer
+  // sits at x 978 over a 1,056px table, hiding Week 2 entirely. In Grid it covers three rest
+  // cells, which is the board's own `G-grid` artboard. So the panel is Grid's editing surface
+  // and the sheet's cells are Sheet's; opening a day from a band still works and still floats.
+  const setView = (next) => { if (next === "sheet") setSel({ w: -1, d: -1 }); setViewRaw(next); };
   const [preview, setPreview] = React.useState(false);
   const [saveState, setSaveState] = React.useState(template.recovered ? 'dirty' : 'saved');
   const [error,setError] = React.useState('');
@@ -374,7 +736,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   const revision = React.useRef(initial.current.revision);
   const published = React.useRef(!!template.published);
   const copiedFrom = React.useRef(null);
-  const dragRef = React.useRef(null), active=React.useRef(true), flight=React.useRef(null);
+  const active=React.useRef(true), flight=React.useRef(null);
   const latest = React.useRef({name,doc}); latest.current={name,doc};
   const saved = React.useRef(template.recovered ? '' : JSON.stringify({name,doc}));
   const draft = value => dbuWriteDraft(ownerRef.current,idRef.current,{...value,detail:{...(template.detail || {}),builder:value.doc},published:published.current,revision:revision.current,persisted:persisted.current,at:Date.now()});
@@ -440,96 +802,263 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
     const next = JSON.parse(JSON.stringify(doc.weeks[wi]));
     setWeeks([...doc.weeks.slice(0, wi + 1), next, ...doc.weeks.slice(wi + 1)]);
   };
+  // Every per-week action in one place, so the grid's gutter and any later caller
+  // cannot drift into two versions of "duplicate a week".
+  const onWeek = (action, wi) => {
+    if (action === "duplicate") return duplicateWeek(wi);
+    if (action === "deload") return toggleDeload(wi);
+    if (action === "progress") {
+      const next = DashBuilder.applyProgression(doc.weeks[wi]);
+      return setWeeks([...doc.weeks.slice(0, wi + 1), next, ...doc.weeks.slice(wi + 1)]);
+    }
+    if (action === "remove" && doc.weeks.length > 1) {
+      setWeeks(doc.weeks.filter((_, i) => i !== wi));
+      setSel({ w: -1, d: -1 });
+    }
+  };
   const toggleDeload = (wi) => {
     const w = doc.weeks[wi];
     if (w.deload) setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, deload: false } : x))); // unflag; sets stay as edited
     else setWeeks(doc.weeks.map((x, i) => (i === wi ? DashBuilder.deloadWeek(x) : x)));
   };
-  const moveDay = (wi, di, to) => {
-    if (to < 0 || to >= doc.weeks[wi].days.length) return;
-    const days = [...doc.weeks[wi].days];
-    const [d] = days.splice(di, 1);
-    days.splice(to, 0, d);
-    setWeeks(doc.weeks.map((w, i) => (i === wi ? { ...w, days } : w)));
-    if (sel.w === wi && sel.d === di) setSel({ w: wi, d: to });
-  };
 
   const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you" }) : null;
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? "Saved" : "Draft saved locally";
 
+  // The reference Monday the dates on this page are drawn for. It lives ON the document
+  // (`detail.builder.previewStart`) so it survives a reload, and it is a REFERENCE only —
+  // ⚠ each client's real start is still chosen per client at assign, which is why the
+  // header says so in as many words rather than letting a coach read it as the start.
+  const startISO = doc.previewStart || dbuNextMonday();
+  const setStart = (iso) => setDoc({ ...doc, previewStart: iso });
+  const dates = React.useMemo(() => dbuDateMap(doc, startISO), [doc, startISO]);
+  const summary = React.useMemo(() => dbuSummary(doc, dates), [doc, dates]);
+  const weekdayLabel = summary.weekdays.length ? summary.weekdays.map((i) => DBU_DOW[i]).join(" ") : "no weekdays set";
+
   return (
     <fieldset disabled={!!uploads} style={{border:0,padding:0,margin:0,minWidth:0}}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <button disabled={!!uploads} onClick={leave} style={dbuBtn(false)}>← Library</button>
-        <input aria-label="Workout or program name" value={name} onChange={(e) => setName(e.target.value)} style={{ ...dbuField, fontSize: 16, fontWeight: 500, minWidth: 240 }} />
-        <DashPill c={dbuGoalTag(doc.goalTag).c}>{dbuGoalTag(doc.goalTag).label}</DashPill>
-        <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>v{doc.version} · {saveLabel}</span>
-        <div style={{ flex: 1 }} />
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: DBU_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: preview ? "#2ee0c4" : DBU_INK50, cursor: "pointer" }}>
-          <input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} /> Client preview
-        </label>
-        <button disabled={!!uploads || saveState==='saving'} onClick={()=>flush()} style={dbuBtn(false)}>{saveState==='error'?'Retry save':'Save draft'}</button>
-        <button disabled={!!uploads || saveState==='saving'} onClick={()=>flush(true)} style={dbuBtn(false)}>Publish template</button>
-        <button disabled={!!uploads} onClick={async()=>{if(await flush())setAssigning(true);}} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff" }}>Assign to clients →</button>
-      </div>
-
-      {error && <div role="alert" style={{fontSize:13,color:'#e0644b'}}><p>{error}</p><button style={dbuBtn(false)} onClick={()=>{if(draft(latest.current))onBack();else setError('This browser could not retain your draft. Keep this page open and retry saving.');}}>Keep draft & return to library</button>{saveConflict && <button disabled={!!uploads || saveState==='saving'} style={{...dbuBtn(false),marginLeft:8}} onClick={saveAsCopy}>Save as new copy</button>}</div>}
-      {doc.outlineOnly && <p style={{fontSize:13,color:DBU_INK50}}>This imported outline has day or week titles only. Add exercises before assigning it as a structured workout.</p>}
-      <style>{`.dbu-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:16;align-items:start}.dbu-layout>*{min-width:0}.dbu-layout input:focus-visible,.dbu-layout select:focus-visible,.dbu-layout button:focus-visible{outline:2px solid #2ee0c4;outline-offset:2px}@media(max-width:1000px){.dbu-layout{grid-template-columns:minmax(0,1fr)}}`}</style>
-      <div className="dbu-layout">
-        {/* Tree */}
-        <div className="dash-plate" style={{ "--dac": DBU_RUST, padding: "14px 14px" }}>
-          {doc.weeks.map((w, wi) => (
-            <div key={wi} style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontFamily: DBU_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DBU_RUST }}>Week {wi + 1}</span>
-                {w.deload && <DashPill c="#7bbf5a">Deload</DashPill>}
-              </div>
-              <div style={{ display: "flex", gap: 5, margin: "6px 0 7px" }}>
-                <button onClick={() => duplicateWeek(wi)} title="Copy this week unchanged" style={{ ...dbuBtn(false), padding: "3px 7px", fontSize: 8 }}>Duplicate</button>
-                <button onClick={()=>{const next=DashBuilder.applyProgression(doc.weeks[wi]);setWeeks([...doc.weeks.slice(0,wi+1),next,...doc.weeks.slice(wi+1)]);}} title="Copy week with the configured load increases" style={{...dbuBtn(false),padding:'3px 7px',fontSize:8}}>Progress</button>
-                <button onClick={() => toggleDeload(wi)} title="Deload: −40% volume, then edit freely" style={{ ...dbuBtn(false), padding: "3px 7px", fontSize: 8, color: w.deload ? "#7bbf5a" : undefined }}>Deload</button>
-                {doc.weeks.length > 1 && <button onClick={() => { setWeeks(doc.weeks.filter((_, i) => i !== wi)); setSel({ w: 0, d: 0 }); }} style={{ ...dbuBtn(false), padding: "3px 7px", fontSize: 8, color: "#e0644b" }}>×</button>}
-              </div>
-              {w.days.map((d, di) => {
-                const on = sel.w === wi && sel.d === di;
-                return (
-                  <div key={di} draggable={!uploads}
-                    onDragStart={(e) => { if(uploads){e.preventDefault();return;} dragRef.current = { wi, di }; }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => { if(uploads)return;const f = dragRef.current; if (f && f.wi === wi) moveDay(wi, f.di, di); dragRef.current = null; }}
-                    style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                    <button onClick={() => setSel({ w: wi, d: di })} style={{ flex: 1, textAlign: "left", cursor: "pointer", border: "1px solid " + (on ? DBU_RUST : "rgba(242,237,228,0.1)"), borderLeft: "3px solid " + (on ? DBU_RUST : "rgba(242,237,228,0.18)"), background: on ? "rgba(192,83,59,0.12)" : "transparent", color: "#f2ede4", borderRadius: 4, padding: "7px 9px", fontSize: 12.5 }}>
-                      {d.name}
-                      <span style={{ display: "block", fontFamily: DBU_MONO, fontSize: 8, color: DBU_INK50, marginTop: 2 }}>{d.blocks.reduce((s, b) => s + b.rows.length, 0)} moves{d.playlist ? " · ♪" : ""}</span>
-                    </button>
-                    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <button onClick={() => moveDay(wi, di, di - 1)} aria-label="Move day up" style={{ ...dbuBtn(false), padding: "1px 5px", fontSize: 8 }}>▲</button>
-                      <button onClick={()=>{const next=JSON.parse(JSON.stringify(d));next.name+=' (copy)';next.id=crypto.randomUUID();setWeeks(doc.weeks.map((x,i)=>i===wi?{...x,days:[...x.days.slice(0,di+1),next,...x.days.slice(di+1)]}:x));}} aria-label={'Duplicate '+d.name} style={{...dbuBtn(false),padding:'1px 5px',fontSize:8}}>Copy</button>
-                      <button onClick={() => moveDay(wi, di, di + 1)} aria-label="Move day down" style={{ ...dbuBtn(false), padding: "1px 5px", fontSize: 8 }}>▼</button>
-                    </span>
-                  </div>
-                );
-              })}
-              <button onClick={() => { setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, days: [...x.days, DashBuilder.newDay("Day " + (x.days.length + 1))] } : x))); }} style={{ ...dbuBtn(false), padding: "3px 8px", fontSize: 8 }}>+ Day</button>
+      {/* ⚠ INLINE, NOT A NAMED CONSTANT. `tests/site-nav.test.mjs` requires every <style>
+          child to be a plain template literal: a stray backtick in a CSS comment closes the
+          template early and builds an EXPRESSION that parses, builds, tests green and throws
+          at render — it cost ~70 pages their chrome once. Behind an identifier this
+          stylesheet would be invisible to the one sweep that catches that. */}
+      <style>{`
+.dbu2{background:${DBU_PG};color:${DBU_INK};font-family:${DBU_BODY};font-size:14px;line-height:1.45;border-radius:14px;padding:22px 24px 30px}
+.dbu2 *{box-sizing:border-box}
+.dbu2 button{font-family:inherit}
+.dbu2 input,.dbu2 select,.dbu2 textarea{font-family:inherit;color:${DBU_INK}}
+.dbu2 :focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:2px}
+.dbu2 h1{font-family:${DBU_DISPLAY};font-weight:600;font-variation-settings:'wdth' 112;font-size:34px;letter-spacing:-.01em;margin:0;line-height:1.05;color:${DBU_INK}}
+.dbu2 .hd{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+.dbu2 .meta{font-size:14px;color:${DBU_INK2};margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dbu2 .chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:7px;font-size:13px;font-weight:600;background:${DBU_WH};border:1px solid ${DBU_LINE2};color:${DBU_INK};white-space:nowrap}
+.dbu2 .chip.rust{background:${DBU_RUSTBG};border-color:transparent;color:${DBU_RUST}}
+.dbu2 .chip.gold{background:${DBU_GOLDBG};border-color:transparent;color:${DBU_GOLD}}
+.dbu2 .chip.q{background:transparent;border-color:transparent;color:${DBU_INK2};font-weight:500;padding:0 2px}
+.dbu2 .acts{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-top:2px}
+.dbu2 .saved{font-size:13px;color:${DBU_INK3}}
+.dbu2 .tog{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:${DBU_INK2};font-weight:500;background:transparent;border:0;cursor:pointer;height:40px;padding:0}
+.dbu2 .tog i{width:36px;height:20px;border-radius:10px;background:${DBU_LINE2};position:relative;display:inline-block}
+.dbu2 .tog[aria-pressed="true"]{color:${DBU_INK}}
+.dbu2 .tog[aria-pressed="true"] i{background:${DBU_TEAL}}
+.dbu2 .tog i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .14s}
+.dbu2 .tog[aria-pressed="true"] i::after{left:18px}
+.dbu2 .seg{display:inline-flex;gap:3px;background:${DBU_PG};border:1px solid ${DBU_LINE2};border-radius:9px;padding:3px;height:40px;align-items:center}
+.dbu2 .seg button{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border:0;border-radius:7px;font-size:13.5px;font-weight:600;color:${DBU_INK2};white-space:nowrap;background:transparent;cursor:pointer}
+.dbu2 .seg button[aria-pressed="true"]{background:${DBU_WH};color:${DBU_INK};box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.dbu2 .seg button i{font-style:normal;font-size:13px;line-height:1;opacity:.85}
+.dbu2 .tb{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.dbu2 .wg{display:grid;grid-template-columns:150px repeat(7,minmax(0,1fr));gap:8px}
+.dbu2 .wg .h{font-size:12px;font-weight:700;color:${DBU_INK3};text-transform:uppercase;letter-spacing:.06em;padding:0 0 4px 10px}
+.dbu2 .wg .wk{padding:10px 8px 10px 0}
+.dbu2 .wg .wk b{display:block;font-size:15px;font-weight:700}
+.dbu2 .wg .wk span{display:block;font-size:13px;color:${DBU_INK2};margin-top:2px}
+.dbu2 .wg .wk .dl{display:inline-block;margin-top:8px;font-size:12px;padding:3px 8px;border-radius:6px;background:${DBU_GOLDBG};color:${DBU_GOLD};font-weight:600}
+.dbu2 .wg .wk .tools{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.dbu2 .wg .wk .tools button{height:26px;padding:0 8px;border-radius:6px;border:1px solid ${DBU_LINE2};background:${DBU_WH};font-size:12px;font-weight:600;color:${DBU_INK2};cursor:pointer}
+.dbu2 .wg .wk .tools button[aria-pressed="true"]{background:${DBU_GOLDBG};border-color:transparent;color:${DBU_GOLD}}
+.dbu2 .wg .c{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:10px;min-height:112px;padding:9px 10px;position:relative;text-align:left;width:100%;cursor:pointer;display:block}
+.dbu2 .wg .c .d{display:block;font-size:13px;color:${DBU_INK3};font-variant-numeric:tabular-nums}
+.dbu2 .wg .c.rest{background:${DBU_REST};border-color:transparent}
+.dbu2 .wg .c.rest .r{display:block;position:absolute;left:10px;bottom:9px;font-size:12.5px;color:${DBU_INK3}}
+.dbu2 .wg .c.rest:hover,.dbu2 .wg .c.rest:focus-visible{border:1.5px dashed ${DBU_TEAL};background:${DBU_TEALBG}}
+.dbu2 .wg .c.rest:hover .r,.dbu2 .wg .c.rest:focus-visible .r{color:${DBU_TEAL};font-weight:700}
+.dbu2 .wg .s{display:block;margin-top:8px;border-left:3px solid ${DBU_RUST};background:${DBU_RUSTBG};border-radius:6px;padding:7px 9px}
+.dbu2 .wg .s b{display:block;font-size:14px;font-weight:700;line-height:1.2}
+.dbu2 .wg .s span{display:block;font-size:12px;color:${DBU_INK2};margin-top:3px}
+.dbu2 .wg .c.on{outline:2px solid ${DBU_TEAL};border-color:transparent}
+.dbu2 .sh{width:100%;border-collapse:separate;border-spacing:0;background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:12px;overflow:hidden;table-layout:fixed}
+.dbu2 .sh th{text-align:left;padding:12px 12px 10px;border-bottom:1px solid ${DBU_LINE};vertical-align:top;font-weight:600;font-size:14px;background:${DBU_PG}}
+.dbu2 .sh th small{display:block;font-size:12.5px;color:${DBU_INK2};font-weight:500;margin-top:2px}
+.dbu2 .sh th .dl{display:inline-block;margin-top:5px;font-size:11.5px;padding:2px 7px;border-radius:5px;background:${DBU_GOLDBG};color:${DBU_GOLD};font-weight:700}
+.dbu2 .sh td{padding:8px 12px;border-bottom:1px solid ${DBU_LINE};vertical-align:middle;font-size:14px}
+.dbu2 .sh tr.band td{background:${DBU_RUSTBG};padding:11px 12px}
+.dbu2 .sh tr.band .bn{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dbu2 .sh tr.band .bn b{font-size:15px;font-weight:700}
+.dbu2 .sh tr.band .bn button{background:transparent;border:0;padding:0;min-height:24px;cursor:pointer;font:inherit;color:inherit;text-align:left}
+.dbu2 .sh tr.band .hint{margin-left:auto;font-size:13px;color:${DBU_INK2}}
+.dbu2 .sh .en b{display:block;font-size:14.5px;font-weight:600}
+.dbu2 .sh .en span{display:block;font-size:12px;color:${DBU_INK3};margin-top:1px}
+.dbu2 .sh .cell{display:inline-flex;flex-direction:column;justify-content:center;width:100%;min-width:0;height:52px;padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-variant-numeric:tabular-nums;line-height:1.15}
+.dbu2 .sh .cell input{border:0;background:transparent;padding:0;width:100%;height:24px;font-variant-numeric:tabular-nums;outline:none}
+.dbu2 .sh .cell input.a{font-size:14px;font-weight:600;color:${DBU_INK}}
+.dbu2 .sh .cell input.b{font-size:12px;color:${DBU_INK2}}
+.dbu2 .sh .cell.dl{background:${DBU_PG}}
+.dbu2 .sh .cell.dl input.b{color:${DBU_GOLD};font-weight:600}
+.dbu2 .sh .cell .div{font-size:12px;color:${DBU_GOLD};font-weight:600}
+.dbu2 .sh tr.add td{padding:9px 12px}
+.dbu2 .sh tr.add button{color:${DBU_TEAL};font-weight:600;font-size:13.5px;background:transparent;border:0;cursor:pointer;padding:0;min-height:24px}
+.dbu2 .back{background:transparent;border:0;padding:4px 0;min-height:24px;cursor:pointer;font-size:13.5px;color:${DBU_INK2}}
+.dbu2 .chip input[type="date"]{border:0;background:transparent;font:inherit;color:inherit;padding:0;height:26px;outline:none}
+.dbu2 input[type="checkbox"]{width:24px;height:24px;accent-color:${DBU_TEAL}}
+.dbu2 .sh .none{color:${DBU_INK3};text-align:center;display:block}
+.dbu2 .addday{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:1.5px dashed ${DBU_LINE2};border-radius:9px;justify-content:center;font-size:14px;font-weight:600;color:${DBU_TEAL};background:transparent;cursor:pointer;margin-top:14px}
+.dbu2 .stage{position:relative}
+.dbu2 .drawer{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:20px 22px 18px}
+.dbu2 .drawer.float{position:absolute;top:-8px;right:-10px;width:400px;max-height:calc(100vh - 140px);overflow-y:auto;z-index:40}
+@media(max-width:1100px){.dbu2 .drawer.float{position:static;width:auto;max-height:none;margin-top:16px}}
+.dbu2 .drawer .dh{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+.dbu2 .drawer .dh b{font-size:19px;font-weight:700;letter-spacing:-.01em}
+.dbu2 .drawer .when{font-size:13.5px;color:${DBU_INK2};margin-bottom:14px}
+.dbu2 .drawer .when b{color:${DBU_RUST};font-weight:700}
+.dbu2 .pop{position:fixed;right:20px;bottom:20px;width:344px;max-width:calc(100vw - 40px);max-height:calc(100vh - 120px);overflow-y:auto;z-index:60;background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:16px 18px 18px}
+.dbu2 .pop .ph2{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.dbu2 .pop .ph2 b{font-size:15px;font-weight:700}
+.dbu2 .x{height:32px;padding:0 11px;border-radius:8px;border:1px solid ${DBU_LINE};background:${DBU_WH};color:${DBU_INK2};font-size:13px;font-weight:600;cursor:pointer}
+.dbu2 .scroll{overflow-x:auto}
+`}</style>
+      <div className="dbu2">
+        {/* ── Header ──────────────────────────────────────────────────────────
+            One row that never moves between the two views: who this is, when it is
+            drawn for, what it adds up to, and the one primary action. */}
+        <div className="hd">
+          <div style={{ minWidth: 260, flex: "1 1 320px" }}>
+            <button type="button" className="back" onClick={leave} disabled={!!uploads} style={{ marginBottom: 6 }}>← Library</button>
+            <input aria-label="Workout or program name" value={name} onChange={(e) => setName(e.target.value)}
+              style={{ fontFamily: DBU_DISPLAY, fontWeight: 600, fontVariationSettings: "'wdth' 112", fontSize: 34, letterSpacing: "-.01em", lineHeight: 1.05, color: DBU_INK,
+                background: "transparent", border: 0, borderBottom: "1px solid transparent", padding: 0, width: "100%", outline: "none" }}
+              onFocus={(e) => { e.target.style.borderBottomColor = DBU_LINE2; }}
+              onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
+            <div className="meta">
+              <span className="chip rust">{dbuGoalTag(doc.goalTag).label}</span>
+              <span className="chip">
+                Starts
+                <input type="date" aria-label="Reference start Monday the dates on this page are drawn for"
+                  value={startISO} onChange={(e) => { if (e.target.value) setStart(e.target.value); }} />
+              </span>
+              <span className="chip q">{summary.weeks} {summary.weeks === 1 ? "week" : "weeks"} · {weekdayLabel} · {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}{summary.last ? " · last " + dbuShortDate(summary.last) : ""}</span>
+              <span className="saved">v{doc.version} · {saveLabel}</span>
             </div>
-          ))}
-          <button onClick={() => setWeeks([...doc.weeks, DashBuilder.newWeek()])} style={dbuBtn(false)}>+ Week</button>
-          {!!dayTemplates?.length && <label style={{display:'block',marginTop:12}}><span style={dbuLabel}>Reuse a saved day</span><select value="" style={{...dbuField,width:'100%'}} onChange={e=>{const savedDay=dayTemplates[Number(e.target.value)];if(!savedDay)return;const next=JSON.parse(JSON.stringify(savedDay.day));next.id=crypto.randomUUID();setWeeks(doc.weeks.map((w,i)=>i===sel.w?{...w,days:[...w.days,next]}:w));}}><option value="">Choose day…</option>{dayTemplates.map((x,i)=><option key={i} value={i}>{x.name}</option>)}</select></label>}
+            {/* ⚠ The reference Monday is a REFERENCE. Each client's real start is chosen per
+                client at assign, so the page says so rather than letting a coach read this
+                as the start date their clients get. */}
+            <div className="saved" style={{ marginTop: 6 }}>Each client's own start is chosen at assign.</div>
+          </div>
+          <div className="acts">
+            <button type="button" className="tog" onClick={() => setPreview(!preview)} aria-pressed={preview}>
+              <i aria-hidden="true" />Preview as client
+            </button>
+            <button type="button" disabled={!!uploads || saveState === "saving"} onClick={() => flush(true)} style={dbuBtn(false)}>Publish</button>
+            <button type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
+          </div>
         </div>
 
-        {/* Day editor */}
-        <div className="dash-plate dash-plate--tick" style={{ "--dac": DBU_RUST, paddingLeft: 24 }}>
-          {day ? <DbuDayEditor day={day} onChange={setDay} playlists={playlists} clips={clips} onUploading={uploadCount} /> : <div style={{ color: DBU_INK50, fontSize: 13 }}>Pick a day on the left.</div>}
+        {/* ⚠ F6 retires *Save draft* and *Publish template* into autosave + Publish — but the
+            header's button was ALSO the retry (it re-labelled itself "Retry save" on failure),
+            so removing it outright would have left a coach whose save failed with no way to
+            try again short of editing something else. The retry moves here, beside the other
+            two recovery actions, rather than disappearing with the verb. */}
+        {error && (
+          <div role="alert" style={{ fontSize: 13.5, color: DBU_RUST, background: DBU_RUSTBG, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
+            <p style={{ margin: "0 0 10px" }}>{error}</p>
+            <button type="button" disabled={!!uploads || saveState === "saving"} style={{ ...dbuBtn(false), marginRight: 8 }} onClick={() => flush()}>Retry save</button>
+            <button type="button" style={{ ...dbuBtn(false), marginRight: 8 }} onClick={() => { if (draft(latest.current)) onBack(); else setError("This browser could not retain your draft. Keep this page open and retry saving."); }}>Keep draft &amp; return to library</button>
+            {saveConflict && <button type="button" disabled={!!uploads || saveState === "saving"} style={dbuBtn(false)} onClick={saveAsCopy}>Save as new copy</button>}
+          </div>
+        )}
+        {doc.outlineOnly && <p style={{ fontSize: 13.5, color: DBU_INK2 }}>This imported outline has day or week titles only. Add exercises before assigning it as a structured workout.</p>}
+
+        {/* ── Toolbar ─────────────────────────────────────────────────────── */}
+        <div className="tb">
+          <DbuViewSwitch view={view} setView={setView} />
+          <div style={{ flex: 1 }} />
+          {/* ⚠ "Reuse a saved day" survives the retired tree. It is the one control there with
+              no home in either canvas, and dropping it would have removed a shipped feature in
+              a layout PR. Its developer-voice label (F10) is what changed, not its behaviour. */}
+          {!!dayTemplates?.length && (
+            <select aria-label="Add a saved day to week 1" value="" style={{ ...dbuField, cursor: "pointer" }}
+              onChange={(e) => {
+                const savedDay = dayTemplates[Number(e.target.value)];
+                if (!savedDay) return;
+                const next = JSON.parse(JSON.stringify(savedDay.day));
+                next.id = crypto.randomUUID();
+                const target = Math.max(0, sel.w);
+                if (!dbuHasWeekday(next)) next.weekday = dbuNextFreeWeekday(doc.weeks[target]);
+                setWeeks(doc.weeks.map((w, i) => (i === target ? { ...w, days: [...w.days, next] } : w)));
+              }}>
+              <option value="">Add a saved day…</option>
+              {dayTemplates.map((x, i) => <option key={i} value={i}>{x.name}</option>)}
+            </select>
+          )}
+          <button type="button" style={dbuBtn(false)} onClick={() => setWeeks([...doc.weeks, { ...DashBuilder.newWeek(), days: [{ ...DashBuilder.newDay("Day 1"), weekday: 0 }] }])}>＋ Week</button>
         </div>
 
-        {/* Client preview — the EXACT card the client dashboard renders */}
+        {/* ⚠ F1 (P0): `.dbu-layout` DECLARED TWO COLUMNS AND HAD THREE CHILDREN, so the client
+            preview wrapped into the second grid row — inside the 210px tree column, measured at
+            1,413px below the fold, where `position:sticky` cannot lift it because the cell it
+            sticks inside IS that row. A coach ticked the box, saw nothing change, and concluded
+            the control did nothing.
+            ⚠ AND NEVER THREE COLUMNS, which is measured rather than preferred: at 1440 the
+            content area is 1,104px, so a canvas beside BOTH a 400px editor and a 340px preview
+            is 332px — at which the grid clips Sunday and the sheet clips the very week columns
+            it exists to read left to right. So the preview takes the panel slot in Sheet (where
+            cells are edited inline anyway) and floats as a popover in Grid (where the panel IS
+            how you edit). Both views keep a ~690px canvas with the preview open. */}
+        <div className="stage">
+          {view === "grid"
+            ? <DbuGrid doc={doc} dates={dates} sel={sel} setSel={setSel} setWeeks={setWeeks} uploads={uploads} onWeek={onWeek} />
+            : <DbuSheet doc={doc} dates={dates} setSel={setSel} setWeeks={setWeeks} />}
+
+          {/* The day editor, unchanged — every engine control it carries survives the redesign.
+              ⚠ IT FLOATS OVER THE CANVAS rather than sitting beside it, which is the board's own
+              `.drawer` and is what keeps the canvas full width: as a column it left the grid
+              640px — measured — at which "Rest · ＋ Add session" wraps to three lines and the
+              sheet's week columns are clipped. Below 1100px it drops back into the flow. */}
+          {day && (
+            <div className="drawer float">
+              <div className="dh">
+                <b>{day.name}</b>
+                {view === "grid" && <button type="button" className="x" onClick={() => setView("sheet")} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
+                {/* ⚠ The tree carried a per-day Copy button; the grid moves a day by dragging it
+                    to another weekday, which is a different action. Duplication would have been
+                    lost with the tree, so it lands here — on the day it is about. */}
+                <button type="button" className="x" aria-label={"Duplicate " + day.name} onClick={() => {
+                  const next = JSON.parse(JSON.stringify(day));
+                  next.name += " (copy)";
+                  next.id = crypto.randomUUID();
+                  next.weekday = dbuNextFreeWeekday(doc.weeks[sel.w]);
+                  setWeeks(doc.weeks.map((x, i) => (i === sel.w ? { ...x, days: [...x.days.slice(0, sel.d + 1), next, ...x.days.slice(sel.d + 1)] } : x)));
+                  setSel({ w: sel.w, d: sel.d + 1 });
+                }}>Duplicate day</button>
+                <button type="button" className="x" aria-label="Close the day editor" onClick={() => setSel({ w: -1, d: -1 })}>Done</button>
+              </div>
+              <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
+              <DbuDayEditor day={day} onChange={setDay} playlists={playlists} clips={clips} onUploading={uploadCount} />
+            </div>
+          )}
+
+        </div>
+
+        {/* Client preview — the EXACT card the client dashboard renders, as the board's `.pop`. */}
         {preview && (
-          <div style={{ position: "sticky", top: 90 }}>
-            <div style={{ fontFamily: DBU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBU_INK50, marginBottom: 8 }}>Client preview · their workout card</div>
-            <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DBU_RUST, paddingLeft: 24 }}>
-              <DashWorkoutCard workout={previewCard} interactive={false} maxRows={99} />
+          <div className="pop" role="dialog" aria-label="Client preview">
+            <div className="ph2">
+              <b>Client preview</b>
+              <button type="button" className="x" onClick={() => setPreview(false)} aria-label="Close the client preview">Close</button>
             </div>
+            {previewCard
+              ? <DashWorkoutCard workout={previewCard} interactive={false} maxRows={99} />
+              : <div style={{ color: DBU_INK3, fontSize: 13.5 }}>Pick a session to see what the client gets.</div>}
           </div>
         )}
       </div>
