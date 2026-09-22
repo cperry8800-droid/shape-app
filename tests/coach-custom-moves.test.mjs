@@ -105,7 +105,10 @@ test('a later row fills in descriptors an earlier one left blank', () => {
     { name: 'Sled drag', muscle: 'Conditioning', equipment: 'Sled' },
   ]));
   assert.equal(own.length, 1);
+  // ⚠ BOTH DESCRIPTORS, because this asserted only `equipment` — so a mutation
+  // disabling the muscle branch alone survived a green suite.
   assert.equal(own[0].equipment, 'Sled');
+  assert.equal(own[0].muscle, 'Conditioning');
 });
 
 // ⚠ THE DEFECT, AS ITS OWN CASE. "sled" matches the listed "Sled push", so the old
@@ -268,4 +271,344 @@ test('deriving a coach\'s own moves never writes through to Object.prototype', (
   assert.equal(Object.keys(Object.prototype).length, probe, 'Object.prototype gained a key');
   assert.equal({}.muscle, undefined);
   assert.equal({}.equipment, undefined);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// The review round on this PR. Six findings, every one verified at the source
+// before it was acted on — and two of them are more serious than they were
+// marked, one less, which is recorded here because a severity is part of a
+// finding.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ⚠ A MEAL DOCUMENT IS STORED VERBATIM. `src/app/api/coach/plans/route.ts` reads
+// `detail: body.kind === 'meal_plan' ? (body.detail || {}) : {...normalizeWorkoutDetail(...)}`
+// on POST and takes the same branch on PATCH — so the meal shape is whatever is in
+// the jsonb column, with no validation anywhere in the stack, and the read path
+// filters on `p.detail.mealBuilder` without normalizing either. This helper then
+// runs inside the Plans library render, where `public/newdesign` has NO error
+// boundary: one property read on a null day is a blank page, not a missing row.
+// That is why this one is the reachable crash and the workout twin below is not.
+test('a ragged meal document does not take the library page down', () => {
+  const own = DashMeals.customFoodsFromTemplates([{ detail: { mealBuilder: { days: [
+    null,
+    { slots: [null, { name: "Mum's dhal", kcal: 520, p: 22, c: 70, f: 14, swaps: [null, { name: 'Beach wrap', kcal: 400, p: 20, c: 44, f: 12 }] }] },
+    { slots: null, variants: { rest: { extras: [null, { name: 'Late snack', kcal: 120, p: 10, c: 8, f: 4 }] } } },
+  ] } } }]);
+  assert.deepEqual(own.map((f) => f.name), ['Beach wrap', 'Late snack', "Mum's dhal"],
+    'every readable dish still comes back, and the null rows are simply skipped');
+});
+
+// ⚠ AND THE WORKOUT TWIN IS THE HELPER KEEPING ITS OWN PROMISE, NOT A LIVE CRASH.
+// It already refused a null template, detail, builder and ROW and left week, day
+// and block bare — accepting a ragged document at five of eight levels, which is
+// arbitrary rather than a design. Reachability today belongs to the route, not to
+// this function: `normalizeWorkoutDetail` reads `week.days`, `day.id` and
+// `block.rows` just as bare, and it runs first, so a persisted null throws there.
+test('a ragged workout document does not break the moves derivation either', () => {
+  const own = DashBuilder.customMovesFromTemplates([{ detail: { builder: { weeks: [
+    null,
+    { days: [null, { blocks: [null, { rows: [null, { name: 'Sled drag', muscle: 'Conditioning', equipment: 'Sled' }] }] }] },
+    { days: [{ blocks: null }] },
+  ] } } }]);
+  assert.deepEqual(own.map((m) => m.name), ['Sled drag']);
+  assert.equal(own[0].equipment, 'Sled');
+});
+
+// ⚠ ZEROS ARE NOT A MEASUREMENT, so first-wins deduplication was handing the next
+// meal a costed dish's placeholder. `newCustomFood` starts every macro at 0 — which
+// is exactly why the picker prints "Macros not set" rather than "0 kcal · 0P" — so a
+// plan where the dish was named and never costed could outrank the plan where it was.
+// Driven in BOTH orders, because a rule that only works when the good copy happens to
+// come second is not a rule.
+test('a measured dish outranks a placeholder copy of itself, whichever is seen first', () => {
+  const blank = { detail: { mealBuilder: { days: [{ slots: [{ name: "Mum's dhal", kcal: 0, p: 0, c: 0, f: 0 }] }] } } };
+  const costed = { detail: { mealBuilder: { days: [{ slots: [{ name: "Mum's dhal", kcal: 480, p: 22, c: 60, f: 14, prepMin: 25 }] }] } } };
+  for (const order of [[blank, costed], [costed, blank]]) {
+    const own = DashMeals.customFoodsFromTemplates(order);
+    assert.equal(own.length, 1);
+    assert.deepEqual([own[0].kcal, own[0].p, own[0].c, own[0].f], [480, 22, 60, 14],
+      'the placeholder won the dedupe and copied zeros into the next meal');
+    assert.equal(own[0].prepMin, 25, 'and the prep time came with it');
+  }
+});
+
+// ⚠ MACROS MOVE AS A SET. kcal, protein, carbs and fat are four readings of ONE dish;
+// filling them in one at a time composes a dish nobody costed. Prep time and
+// ingredients are separate measurements and do fill individually — the rule the moves
+// side already used for muscle and equipment.
+test('a merge never composes macros from two different copies of a dish', () => {
+  const prev = { kcal: 500, p: 30, c: 50, f: 12, prepMin: null, ingredients: [] };
+  DashMeals.mergeFoodInto(prev, { kcal: 900, p: 0, c: 0, f: 0, prepMin: 15, ingredients: [{ item: 'rice' }] });
+  assert.deepEqual([prev.kcal, prev.p, prev.c, prev.f], [500, 30, 50, 12], 'a costed dish is never overwritten');
+  assert.equal(prev.prepMin, 15, 'but a missing prep time is filled');
+  assert.equal(prev.ingredients.length, 1, 'and so is a missing ingredient list');
+
+  const empty = { kcal: 0, p: 0, c: 0, f: 0, prepMin: null, ingredients: [] };
+  DashMeals.mergeFoodInto(empty, { kcal: 0, p: 18, c: 0, f: 0, prepMin: null, ingredients: [] });
+  assert.deepEqual([empty.kcal, empty.p, empty.c, empty.f], [0, 18, 0, 0],
+    'a partial reading is taken whole — never half from one copy and half from another');
+
+  // ⚠ THE CASE THAT ACTUALLY SEPARATES THE TWO RULES, and neither fixture above did.
+  // A mutation replacing the set-move with four `if (!prev.x && next.x)` fills SURVIVED
+  // a green suite: both cases had prev either fully costed or fully empty, where the
+  // two rules agree. The discriminating shape is a dish costed EXCEPT for one field —
+  // field-by-field takes the missing 14g of fat from a different copy of the dish and
+  // reports 500 kcal with somebody else's fat.
+  const partial = { kcal: 500, p: 30, c: 50, f: 0, prepMin: null, ingredients: [] };
+  DashMeals.mergeFoodInto(partial, { kcal: 480, p: 22, c: 60, f: 14, prepMin: null, ingredients: [] });
+  assert.deepEqual([partial.kcal, partial.p, partial.c, partial.f], [500, 30, 50, 0],
+    'a costed dish with one field at zero is still costed — the gap is not filled from another copy');
+});
+
+// ⚠ AND THE ORDER LIVES IN A FUNCTION RATHER THAN IN A MEMO'S ARRAY LITERAL. Inside the
+// component it was one `[...a, ...b]` nobody could drive, and the mutation that reverted
+// it survived a green suite. Out here it is a test.
+test('the open plan outranks the saved copy, without trading a stale figure for a zero', () => {
+  const saved = [{ id: 'own-x', name: "Mum's dhal", kcal: 480, p: 22, c: 60, f: 14, prepMin: 25, tags: [], ingredients: [] }];
+
+  // The plan being edited is the current truth about the dish.
+  const edited = DashMeals.ownFoodsFor({ days: [{ slots: [{ name: "Mum's dhal", kcal: 500, p: 30, c: 50, f: 12 }] }] }, saved);
+  assert.equal(edited.length, 1);
+  assert.deepEqual([edited[0].kcal, edited[0].p], [500, 30], 'the saved copy outranked the plan being edited');
+  assert.equal(edited[0].prepMin, 25, 'and what the open copy does not carry still comes from the saved one');
+
+  // ⚠ BUT DOC-FIRST ALONE WOULD BE WRONG: a dish named in the open plan and not yet
+  // costed must not hand the next meal a fabricated zero over a figure we hold.
+  const placeholder = DashMeals.ownFoodsFor({ days: [{ slots: [{ name: "Mum's dhal", kcal: 0, p: 0, c: 0, f: 0 }] }] }, saved);
+  assert.deepEqual([placeholder[0].kcal, placeholder[0].p], [480, 22],
+    'an uncosted copy in the open plan took precedence over a measured one');
+
+  // A dish that exists in only one of the two still comes back from both sides.
+  const both = DashMeals.ownFoodsFor({ days: [{ slots: [{ name: 'Jollof rice', kcal: 610, p: 18, c: 80, f: 20 }] }] }, saved);
+  assert.deepEqual(both.map((f) => f.name), ['Jollof rice', "Mum's dhal"]);
+});
+
+test('the same order rule governs a coach\'s own moves', () => {
+  const saved = [{ id: 'own-y', name: 'Sled drag', muscle: 'Conditioning', equipment: 'Rope', own: true }];
+  const own = DashBuilder.ownMovesFor({ weeks: [{ days: [{ blocks: [{ rows: [{ name: 'Sled drag', muscle: '', equipment: 'Sled' }] }] }] }] }, saved);
+  assert.equal(own.length, 1);
+  assert.equal(own[0].equipment, 'Sled', 'the open plan is the current truth');
+  assert.equal(own[0].muscle, 'Conditioning', 'and a descriptor it lacks is filled from the saved copy');
+});
+
+// The picker's "Macros not set" line and the merge rule must be the SAME question.
+test('the picker and the merge agree on what counts as a measured dish', () => {
+  assert.equal(DashMeals.foodHasMacros({ kcal: 0, p: 0, c: 0, f: 0 }), false);
+  assert.equal(DashMeals.foodHasMacros({ kcal: 0, p: 18, c: 0, f: 0 }), true, 'protein alone is a measurement');
+  assert.equal(DashMeals.foodHasMacros(null), false);
+  assert.equal(DashMeals.foodHasMacros(DashMeals.newCustomFood('Jollof rice')), false);
+});
+
+// ── The plan's constraints gate the CREATE offer, not just the lists ────────
+// ⚠ THE PICKER CONTRADICTED ITSELF ON ONE SCREEN. `canCreateFood` checked the name
+// for duplicates and nothing else, while both lists filtered on the plan's
+// exclusions — so under a no-dairy plan, typing "Dairy bowl" printed "No match
+// inside the plan's constraints" and, directly above it, offered to add exactly
+// that. Taking the offer put an excluded food on the client's plan.
+const MEAL_SRC = fileURLToPath(new URL('../public/newdesign/dashMealBuilder.jsx', import.meta.url));
+const { DmbFoodPicker } = await loadRealModule(MEAL_SRC, { appendExports: 'export { DmbFoodPicker };' });
+
+async function typeInto(input, v) {
+  await React.act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, v);
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+}
+
+test("an excluded dish cannot be created, and the picker says which rule refused it", async () => {
+  const root = createRoot(document.getElementById('root'));
+  const picked = [];
+  await React.act(async () => root.render(React.createElement(DmbFoodPicker, {
+    constraints: { exclusions: ['dairy'] }, customFoods: [], onClose() {}, onPick: (f) => picked.push(f),
+  })));
+  const input = document.querySelector('input[placeholder^="Search foods"]');
+  assert.ok(input, 'the picker rendered');
+
+  await typeInto(input, 'Dairy bowl');
+  assert.equal(DashMeals.canCreateFood('Dairy bowl', []), true,
+    'the name itself is free — so only the constraint can be what refuses it');
+  assert.ok(!byText(/Add .*Dairy bowl/), 'the create offer is withheld under the exclusion');
+  // ⚠ AND IT IS WITHHELD OUT LOUD. A name that simply vanishes reads as the feature
+  // being broken — the dead end this picker exists to remove, in a new coat.
+  assert.match(document.body.textContent, /carries .*dairy.*, which this plan excludes/,
+    'the refusal names the rule that refused it');
+
+  // A dish that satisfies every constraint is still creatable, or the gate has
+  // simply turned the feature off.
+  await typeInto(input, 'Jollof rice');
+  const add = byText(/Add .*Jollof rice/);
+  assert.ok(add, 'a name the constraints allow is still offered');
+  await React.act(async () => add.click());
+  assert.equal(picked.length, 1);
+  assert.equal(picked[0].name, 'Jollof rice', 'and what was tested is what gets inserted');
+  assert.equal(DashMeals.foodHasMacros(picked[0]), false, 'still claiming no macros it has not measured');
+  await React.act(async () => root.unmount());
+});
+
+// ── An IME's keystrokes belong to the IME ──────────────────────────────────
+// ⚠ ENTER CONFIRMS A CANDIDATE. Without the guard that same Enter also created a
+// move named after whatever was half-composed at the time. Escape is guarded with
+// it, deliberately: during composition Escape cancels the candidate, and letting
+// it through would ALSO close this dialog — throwing away every move ticked so
+// far, because `selected` lives in it and nowhere else.
+test('Enter while an IME is composing does not create a move', async () => {
+  const root = createRoot(document.getElementById('root'));
+  let closed = 0;
+  await React.act(async () => root.render(React.createElement(DbuExercisePicker, {
+    onPick() {}, onClose: () => { closed += 1; }, customMoves: [],
+  })));
+  const input = document.querySelector('input[aria-label="Search exercises"]');
+  await typeInto(input, 'Zercher squat');
+  assert.ok(byText(/Add .*Zercher squat/), 'the fixture depends on this being creatable');
+
+  const key = (k, isComposing) => React.act(async () =>
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, isComposing })));
+
+  await key('Enter', true);
+  assert.ok(!/Selected/.test(document.body.textContent), 'the IME kept its Enter');
+  await key('Escape', true);
+  // ⚠ AND THE HANDLER THAT MATTERS IS `DbuDialog`'s, NOT THE PICKER'S. This test found
+  // that: the picker's own Escape branch is a duplicate, and the Escape that actually
+  // closes the dialog is the listener it bubbles up to — which had no guard, so the
+  // fix was passing while the behaviour it claims was still wrong.
+  assert.equal(closed, 0, 'and its Escape — through every handler the key reaches');
+
+  await key('Enter', false);
+  assert.match(document.body.textContent, /Selected/, 'and an ordinary Enter still creates the move');
+  await key('Escape', false);
+  assert.ok(closed > 0, 'and an ordinary Escape still closes the dialog');
+  await React.act(async () => root.unmount());
+});
+
+test('Enter while an IME is composing does not create a food either', async () => {
+  const root = createRoot(document.getElementById('root'));
+  const picked = []; let closed = 0;
+  await React.act(async () => root.render(React.createElement(DmbFoodPicker, {
+    constraints: {}, customFoods: [], onClose: () => { closed += 1; }, onPick: (f) => picked.push(f),
+  })));
+  const input = document.querySelector('input[placeholder^="Search foods"]');
+  await typeInto(input, 'Jollof rice');
+  assert.ok(byText(/Add .*Jollof rice/), 'the fixture depends on this being creatable');
+  const key = (k, isComposing) => React.act(async () =>
+    input.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, isComposing })));
+
+  await key('Enter', true);
+  assert.equal(picked.length, 0, 'the IME kept its Enter');
+  await key('Escape', true);
+  // ⚠ UNLIKE THE EXERCISE PICKER, THIS ONE IS NOT INSIDE `DbuDialog` — it is a popover,
+  // so its own handler is the whole story and there is no second Escape path.
+  assert.equal(closed, 0, 'and its Escape');
+
+  await key('Enter', false);
+  assert.equal(picked.length, 1, 'and an ordinary Enter still creates the dish');
+  assert.equal(picked[0].name, 'Jollof rice');
+  await key('Escape', false);
+  assert.equal(closed, 1, 'and an ordinary Escape still closes the picker');
+  await React.act(async () => root.unmount());
+});
+
+// ── A drag cannot outlive the gesture that started it ───────────────────────
+const dbuLegacyDoc = () => {
+  const d = DashBuilder.newProgram('Lower');
+  d.weeks[0].days = [DashBuilder.newDay('Squat day'), DashBuilder.newDay('Pull day')];
+  d.weeks[0].days.forEach((day) => { day.blocks[0].rows = [DashBuilder.newRow({ name: 'Back squat', muscle: 'legs', equipment: 'barbell' })]; });
+  return d;
+};
+const dbuTemplate = () => ({ id: '11111111-2222-3333-4444-555555555555', name: 'Lower', published: false, detail: { revision: 1, builder: dbuLegacyDoc() } });
+const mountBuilder = async () => {
+  const root = createRoot(document.getElementById('root'));
+  await React.act(async () => root.render(React.createElement(mod.DbuBuilder, {
+    template: dbuTemplate(), clients: [], queue: [], live: false, ownerId: 'coach-a',
+    playlists: [], clips: [], dayTemplates: [], onBack() {}, onSaved() {},
+  })));
+  return root;
+};
+const grip = () => document.querySelector('.drawer.float .dh');
+const grabbing = () => !!(grip() && /grabbing/.test(grip().getAttribute('style') || ''));
+const ptr = (type, init) => React.act(async () => grip().dispatchEvent(new window.PointerEvent(type, { bubbles: true, ...init })));
+
+test('a second finger does not end the first finger\'s drag', async () => {
+  const root = await mountBuilder();
+  assert.ok(grip(), 'a day is open, so the panel floats and can be grabbed');
+  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
+  assert.ok(grabbing(), 'the grab took');
+  // ⚠ `onPanelMove` WAS POINTER-ID MATCHED AND `onPanelDrop` WAS NOT. A second finger
+  // landing on the header and lifting released the FIRST finger's capture, so the
+  // panel simply stopped following the hand still moving it.
+  await ptr('pointerup', { pointerId: 2, clientX: 500, clientY: 200 });
+  assert.ok(grabbing(), 'a foreign pointer lifting is not this drag ending');
+  await ptr('pointerup', { pointerId: 1, clientX: 600, clientY: 300 });
+  assert.ok(!grabbing(), 'and the pointer that started it does end it');
+  await React.act(async () => root.unmount());
+});
+
+// ⚠ CAPTURE CAN END WITHOUT A POINTERUP — the capturing element removed, the browser
+// taking the pointer back. `lostpointercapture` is the one event that fires however
+// the gesture ends.
+test('losing pointer capture ends the drag', async () => {
+  const root = await mountBuilder();
+  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
+  assert.ok(grabbing());
+  await ptr('lostpointercapture', { pointerId: 1 });
+  assert.ok(!grabbing(), 'the grabbing cursor cannot outlive the capture');
+  await React.act(async () => root.unmount());
+});
+
+// ⚠ AND `dragging` LIVES IN `DbuBuilder`, WHICH OUTLIVES THE PANEL. A drag interrupted
+// by the panel closing left the NEXT open stuck in `grabbing`, with its text
+// unselectable, until the page was reloaded.
+test('a drag interrupted by the panel closing does not follow it to the next day', async () => {
+  const root = await mountBuilder();
+  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
+  assert.ok(grabbing(), 'mid-drag');
+  const seg = (re) => [...document.querySelectorAll('.seg button')].find((b) => re.test(b.textContent));
+  await React.act(async () => seg(/Sheet/).click());
+  assert.ok(!document.querySelector('.drawer.float'), 'the panel closed under the drag');
+  await React.act(async () => seg(/Grid/).click());
+  // ⚠ THE REOPEN IS ASSERTED, NOT ASSUMED. This read `if (grip())` — and switching back
+  // to Grid does NOT restore `sel`, so the panel never reopened and the one line that
+  // mattered was skipped every run. The mutation that disables the clearing survived a
+  // green suite because of it. A day band has to be clicked, and that it exists is its
+  // own assertion.
+  const day = [...document.querySelectorAll('.wg button.c')].find((b) => !b.classList.contains('rest'));
+  assert.ok(day, 'no day band to reopen — without one this test asserts nothing');
+  await React.act(async () => day.click());
+  assert.ok(grip(), 'the panel reopened');
+  assert.ok(!grabbing(), 'and it is not still holding the interrupted grab');
+  await React.act(async () => root.unmount());
+});
+
+// ⚠ THE RULE BEING RIGHT SAYS NOTHING ABOUT THE PAGE USING IT. Both memos hand-rolled
+// their own dedupe once, which is exactly where the ordering drifted; extracting it into
+// `ownFoodsFor` / `ownMovesFor` only helps while the component still CALLS it. A mutation
+// replacing the call with a local merge left every rule test above green — the
+// `bsIbSetRowsFor` class this log records by name: correct, tested, and bypassed.
+//
+// Pinned STRUCTURALLY rather than by spelling: the memo's body must BE a call to the
+// shared rule, so renaming a variable or reformatting the file cannot fail this, and
+// only an actual bypass can.
+test('both builders resolve their own moves and foods through the shared rule', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { parse } = await import('@babel/parser');
+  for (const [file, name, member] of [[MEAL_SRC, 'ownFoods', 'ownFoodsFor'], [SRC, 'ownMoves', 'ownMovesFor']]) {
+    const ast = parse(readFileSync(file, 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
+    let found = null, seen = 0;
+    const walk = (n) => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      if (n.type === 'VariableDeclarator' && n.id && n.id.name === name) { seen += 1; if (!found) found = n.init; }
+      for (const k of Object.keys(n)) if (k !== 'loc' && !/Comments$/.test(k)) walk(n[k]);
+    };
+    walk(ast.program.body);
+    assert.ok(found, `${name} is gone — this guard is reading nothing`);
+    assert.equal(seen, 1, `${name} is declared ${seen} times — this guard is reading the wrong one`);
+    assert.equal(found.type, 'CallExpression');
+    assert.equal(found.callee.property && found.callee.property.name, 'useMemo', `${name} is not a memo any more`);
+    const body = found.arguments[0].body;
+    assert.equal(body.type, 'CallExpression', `${name}'s memo no longer resolves to a single call`);
+    assert.equal(body.callee.property && body.callee.property.name, member,
+      `${name} is not going through ${member} — the shared order rule is being bypassed`);
+    assert.deepEqual(body.arguments.map((a) => a.name), ['doc', name === 'ownFoods' ? 'customFoods' : 'customMoves'],
+      `${member} is not being handed the open document and the saved list`);
+  }
 });

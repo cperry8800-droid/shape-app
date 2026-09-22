@@ -104,6 +104,15 @@
   // ⚠ IT EXCLUDES ANYTHING SHAPE ALREADY LISTS, because the point of the group is
   // the moves that are NOT in the library — a coach seeing "Back squat" under
   // YOUR MOVES learns nothing and the group stops meaning anything.
+  // The rule for a second sighting of one move: keep the first non-empty descriptor we
+  // meet. Shared with the builder's open-document merge, so a move cannot resolve one way
+  // in the library and another inside the plan being edited.
+  function mergeMoveInto(prev, next) {
+    if (!prev || !next) return prev;
+    if (!prev.muscle && next.muscle) prev.muscle = String(next.muscle);
+    if (!prev.equipment && next.equipment) prev.equipment = String(next.equipment);
+    return prev;
+  }
   var _BUILTIN = (function () { var m = Object.create(null); for (var i = 0; i < EXERCISES.length; i++) m[EXERCISES[i].name.toLowerCase()] = true; return m; })();
   function customMovesFromTemplates(templates) {
     // ⚠ NULL-PROTOTYPE, because these keys are names a COACH TYPES. With a plain
@@ -115,23 +124,25 @@
     for (var t = 0; t < list.length; t++) {
       var b = list[t] && list[t].detail && list[t].detail.builder;
       var weeks = (b && b.weeks) || [];
+      // ⚠ THE MIDDLE LEVELS ARE GUARDED LIKE THE OUTER AND INNER ONES. This walk already
+      // refuses a null template, detail, builder and ROW; leaving week, day and block bare
+      // made the helper's own contract arbitrary — it accepted a ragged document at five of
+      // eight levels. Reachability today is the workout route's, not this function's:
+      // `normalizeWorkoutDetail` reads `week.days`, `day.id` and `block.rows` just as bare,
+      // so a persisted null throws THERE first. This is the helper keeping its own promise,
+      // not a live crash — and it is what lets a future caller hand it an un-normalized doc.
       for (var w = 0; w < weeks.length; w++) {
-        var days = weeks[w].days || [];
+        var days = (weeks[w] && weeks[w].days) || [];
         for (var d = 0; d < days.length; d++) {
-          var blocks = days[d].blocks || [];
+          var blocks = (days[d] && days[d].blocks) || [];
           for (var bi = 0; bi < blocks.length; bi++) {
-            var rows = blocks[bi].rows || [];
+            var rows = (blocks[bi] && blocks[bi].rows) || [];
             for (var r = 0; r < rows.length; r++) {
               var name = String((rows[r] && rows[r].name) || "").trim();
               if (!name) continue;
               var key = name.toLowerCase();
               if (_BUILTIN[key]) continue;
-              if (seen[key]) {
-                // keep the first non-empty descriptors we meet for this name
-                if (!seen[key].muscle && rows[r].muscle) seen[key].muscle = String(rows[r].muscle);
-                if (!seen[key].equipment && rows[r].equipment) seen[key].equipment = String(rows[r].equipment);
-                continue;
-              }
+              if (seen[key]) { mergeMoveInto(seen[key], rows[r]); continue; }
               seen[key] = { id: "own-" + key, name: name, muscle: String(rows[r].muscle || ""), equipment: String(rows[r].equipment || ""), own: true };
               out.push(seen[key]);
             }
@@ -140,6 +151,31 @@
       }
     }
     return out.sort(function (a, b2) { return a.name.localeCompare(b2.name); });
+  }
+
+  // The twin of `mergeOwnFoods`: the EARLIER list keeps identity, `mergeMoveInto` fills
+  // what it is missing from the later ones.
+  function mergeOwnMoves(lists) {
+    var out = [], seen = Object.create(null), i, j, k, list, m, rec;
+    for (i = 0; i < (lists || []).length; i++) {
+      list = lists[i] || [];
+      for (j = 0; j < list.length; j++) {
+        m = list[j];
+        k = String((m && m.name) || "").trim().toLowerCase();
+        if (!k) continue;
+        if (seen[k]) { mergeMoveInto(seen[k], m); continue; }
+        rec = {};
+        for (var key in m) if (Object.prototype.hasOwnProperty.call(m, key)) rec[key] = m[key];
+        seen[k] = rec; out.push(rec);
+      }
+    }
+    return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+  // ⚠ THE OPEN DOCUMENT GOES FIRST, and the decision lives here rather than in the
+  // component for the reason `ownFoodsFor` records: in a memo the order is one array
+  // literal nobody can drive, and reverting it is invisible to every test.
+  function ownMovesFor(doc, savedMoves) {
+    return mergeOwnMoves([customMovesFromTemplates([{ detail: { builder: doc } }]), savedMoves || []]);
   }
 
   // Same matching rule as `searchExercises`, so the two groups in the picker
@@ -482,7 +518,8 @@
     BLOCK_KINDS: BLOCK_KINDS,
     EXERCISES: EXERCISES,
     searchExercises: searchExercises,
-    customMovesFromTemplates: customMovesFromTemplates,
+    customMovesFromTemplates: customMovesFromTemplates, mergeMoveInto: mergeMoveInto,
+    mergeOwnMoves: mergeOwnMoves, ownMovesFor: ownMovesFor,
     searchCustomMoves: searchCustomMoves,
     canCreateMove: canCreateMove,
     newRow: newRow, newDay: newDay, newWeek: newWeek, newProgram: newProgram,

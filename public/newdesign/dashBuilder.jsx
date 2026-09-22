@@ -426,7 +426,15 @@ function DbuExercisePicker({ onPick, onClose, customMoves = [] }) {
   return <DbuDialog title="Add exercises" onClose={onClose} busy={false}>
     <h2 style={{ fontSize: 20, margin: "0 0 14px" }}>Add exercises</h2>
     <input autoFocus aria-label="Search exercises" value={q} onChange={(e) => setQ(e.target.value)}
-      onKeyDown={(e) => { if (e.key === "Escape") onClose(); if (e.key === "Enter" && canCreate) { e.preventDefault(); create(); } }}
+      onKeyDown={(e) => {
+        // ⚠ WHILE AN IME IS COMPOSING, THE KEYSTROKES BELONG TO THE IME. The Enter that
+        // confirms a candidate would otherwise also create a half-composed move, and the
+        // Escape that cancels one would close this dialog — throwing away every move
+        // ticked so far, because `selected` lives here and nowhere else.
+        if (e.nativeEvent && e.nativeEvent.isComposing) return;
+        if (e.key === "Escape") onClose();
+        if (e.key === "Enter" && canCreate) { e.preventDefault(); create(); }
+      }}
       placeholder="Search exercises, muscles, equipment…" style={{ ...dbuField, width: "100%", marginBottom: 4 }} />
     {/* ⚠ THE OFFER TO CREATE IS NOT GATED ON AN EMPTY RESULT LIST. It used to be,
         so a coach typing a move that merely RESEMBLED a listed one got the
@@ -600,7 +608,13 @@ function DbuDialog({title,onClose,busy,children}) {
     const previous=document.activeElement;
     const node=ref.current;
     node?.focus();
-    const key=e=>{if(e.key==='Escape'&&!latest.current.busy){e.preventDefault();latest.current.onClose();}if(e.key==='Tab'){
+    // ⚠ A COMPOSING IME OWNS ITS KEYSTROKES, AND THIS LISTENER IS THE ONE THAT
+    // MATTERS. The picker's own Escape branch is a duplicate; THIS is the handler an
+    // Escape bubbles up to, so without the guard, cancelling an IME candidate also
+    // closed the dialog — throwing away every move ticked in the exercise picker,
+    // whose `selected` lives nowhere else. Tab is guarded with it for the same reason:
+    // while composing, it moves the candidate, not the focus ring.
+    const key=e=>{if(e.isComposing)return;if(e.key==='Escape'&&!latest.current.busy){e.preventDefault();latest.current.onClose();}if(e.key==='Tab'){
       const items=[...node.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),summary,[tabindex="0"]')].filter(x=>!x.hidden);
       const first=items[0],last=items[items.length-1];
       if(!first){e.preventDefault();node.focus();}else if(e.shiftKey&&(document.activeElement===first||document.activeElement===node)){e.preventDefault();last.focus();}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===node)){e.preventDefault();first.focus();}
@@ -1015,15 +1029,11 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   // move created ten seconds ago would not be offered for the next day until the
   // program had been saved and re-fetched — which reads as the feature not
   // working. The two are merged and de-duplicated by name.
-  const ownMoves = React.useMemo(() => {
-    const out = [], seen = new Set();
-    for (const m of [...(customMoves || []), ...DashBuilder.customMovesFromTemplates([{ detail: { builder: doc } }])]) {
-      const k = String(m.name || "").toLowerCase();
-      if (!k || seen.has(k)) continue;
-      seen.add(k); out.push(m);
-    }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
-  }, [customMoves, doc]);
+  // ⚠ THE OPEN DOCUMENT GOES FIRST — what the coach typed a moment ago is the current
+  // truth about that move, where the saved copy is last week's. `mergeMoveInto` then fills
+  // any descriptor the open copy is missing from the saved one, so the reorder loses
+  // nothing; it is the library walk's own rule, not a second one written here.
+  const ownMoves = React.useMemo(() => DashBuilder.ownMovesFor(doc, customMoves), [customMoves, doc]);
   const [preview, setPreview] = React.useState(false);
   // The floating day panel's position (viewport px) and its drag machinery.
   const floating = useDbuFloating();
@@ -1051,12 +1061,20 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
     if (!d || d.id !== e.pointerId) return;
     setPanelPos(dbuClampPanel(e.clientX - d.dx, e.clientY - d.dy, DBU_PANEL_W));
   };
+  const endPanelDrag = () => { dragRef.current = null; setDragging(false); };
   const onPanelDrop = (e) => {
-    if (!dragRef.current) return;
-    try { e.currentTarget.releasePointerCapture(dragRef.current.id); } catch (err) {}
-    dragRef.current = null;
-    setDragging(false);
+    const d = dragRef.current;
+    // ⚠ POINTER-ID MATCHED, exactly like `onPanelMove`. A second finger landing on the
+    // header and lifting would otherwise release the FIRST finger's capture and end a drag
+    // that is still under way — the panel would simply stop following the hand moving it.
+    if (!d || (e && e.pointerId != null && d.id !== e.pointerId)) return;
+    try { e.currentTarget.releasePointerCapture(d.id); } catch (err) {}
+    endPanelDrag();
   };
+  // ⚠ CAPTURE CAN END WITHOUT A POINTERUP — the capturing element removed, the browser
+  // taking the pointer back. `lostpointercapture` is the one event that fires however the
+  // gesture ends, so the grabbing cursor and the unselectable text cannot outlive it.
+  const onPanelLostCapture = () => endPanelDrag();
   // ⚠ ARROW KEYS MOVE IT TOO. A drag-only affordance is unreachable by keyboard,
   // and this panel can cover the table it is editing — so the way out of that has
   // to exist without a pointer.
@@ -1071,6 +1089,14 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   // Opening a day places the panel; a resize re-clamps whatever position it holds,
   // so shrinking the window can never strand it off-screen.
   const panelOpen = sel.w >= 0 && sel.d >= 0;
+  // ⚠ `dragging` LIVES IN THIS COMPONENT, WHICH OUTLIVES THE PANEL. A drag interrupted by
+  // the panel closing, or by the window narrowing out of floating mode, would otherwise
+  // leave the NEXT open stuck in `grabbing` with its text unselectable. This covers every
+  // such path at once, including ones no handler can be attached to.
+  React.useEffect(() => {
+    if (panelOpen && floating) return;
+    endPanelDrag();
+  }, [panelOpen, floating]);
   // ⚠ WHERE THEY PUT IT IS WHERE IT STAYS. Resetting on close would make a coach
   // re-drag the panel for every day they open, which is most of the work this
   // editor is for — so the position outlives the close and only the first open
@@ -1426,7 +1452,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
                screen-reader user the rest of the page is inert when it is not. */
             <div className="drawer float dash-thin-scroll--ink" ref={panelRef} role="group" aria-label={"Day editor \u00b7 " + day.name}
               style={floating && panelPos ? { left: panelPos.x, top: panelPos.y, maxHeight: Math.max(DBU_PANEL_MIN_H, window.innerHeight - panelPos.y - DBU_PANEL_GAP) } : undefined}>
-              <div className={"dh" + (floating ? " grab" : "")} onPointerDown={onPanelGrab} onPointerMove={onPanelMove} onPointerUp={onPanelDrop} onPointerCancel={onPanelDrop}
+              <div className={"dh" + (floating ? " grab" : "")} onPointerDown={onPanelGrab} onPointerMove={onPanelMove} onPointerUp={onPanelDrop} onPointerCancel={onPanelDrop} onLostPointerCapture={onPanelLostCapture}
                 style={dragging ? { cursor: "grabbing", userSelect: "none" } : undefined}>
                 {floating && <button type="button" className="gh" aria-label="Move the day editor — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={onPanelKey} title="Drag to move" />}
                 <b>{day.name}</b>

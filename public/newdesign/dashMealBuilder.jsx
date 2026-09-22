@@ -45,7 +45,26 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
   const term = q.trim();
   const mine = DashMeals.searchCustomFoods(customFoods, term, constraints);
   const shape = DashMeals.searchFoods(term, constraints);
-  const canCreate = DashMeals.canCreateFood(term, customFoods);
+  // ⚠ THE PLAN'S CONSTRAINTS GATE THE CREATE OFFER TOO, and the gate is the SHIPPED
+  // predicate run over the CANDIDATE — so the object that is tested is the object that
+  // gets inserted, and there is no second copy of the rule to drift. Without it the picker
+  // refused "Dairy bowl" from every list under a no-dairy plan and then offered to add it
+  // on the next line: one screen contradicting itself, and an excluded food on a client's
+  // plan. Only an exclusion can bite here — a new dish carries `prepMin: null`, which the
+  // prep-time rule passes rather than guessing a time nobody measured.
+  const candidate = term ? DashMeals.newCustomFood(term) : null;
+  const nameFree = DashMeals.canCreateFood(term, customFoods);
+  const canCreate = !!candidate && nameFree && DashMeals.searchCustomFoods([candidate], "", constraints).length === 1;
+  // ⚠ AND A REFUSAL SAYS WHICH RULE REFUSED IT. A name that simply vanishes reads as the
+  // feature being broken — the dead end this picker exists to remove, in a new coat.
+  // ⚠ THE REFUSAL RENDERS WHETHER OR NOT IT CAN NAME THE RULE. Today only an exclusion
+  // can reach here — a new dish carries `tags: []` and `prepMin: null`, so neither the tag
+  // rule nor the prep rule can bite it — but keying the message on having FOUND the word
+  // would go silent the day `newCustomFood` grows a default, which is the dead end again.
+  const blocked = !!term && nameFree && !canCreate;
+  const blockedBy = blocked
+    ? ((constraints && constraints.exclusions) || []).find((t) => term.toLowerCase().indexOf(String(t).toLowerCase()) >= 0) || null
+    : null;
   const excluded = (constraints && constraints.exclusions || []).length;
   const row = (f) => (
     <button key={f.id} onClick={() => onPick(f)} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, width: "100%", textAlign: "left", background: "transparent", border: 0, borderTop: "1px solid rgba(242,237,228,0.05)", padding: "8px 4px", cursor: "pointer", color: "#f2ede4" }}>
@@ -55,7 +74,7 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
           true: the zeros are the row editor's starting values, not a measurement,
           and printing them here states a figure nobody has taken. */}
       <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, letterSpacing: "0.04em", color: DMB_INK50 }}>
-        {(Number(f.kcal) || 0) + (Number(f.p) || 0) + (Number(f.c) || 0) + (Number(f.f) || 0) === 0
+        {!DashMeals.foodHasMacros(f)
           ? "Macros not set"
           : <>{f.kcal} kcal · {f.p}P{f.prepMin != null ? " · " + f.prepMin + "m" : ""}</>}
       </span>
@@ -65,7 +84,15 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
   return (
     <div style={{ position: "absolute", zIndex: 60, top: "100%", left: 0, marginTop: 6, width: 360, background: "#14110e", border: "1px solid rgba(242,237,228,0.16)", borderRadius: 8, boxShadow: "0 18px 48px rgba(0,0,0,0.5)", padding: 10 }}>
       <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); if (e.key === "Enter" && canCreate) { e.preventDefault(); onPick(DashMeals.newCustomFood(term)); } }}
+        onKeyDown={(e) => {
+          // ⚠ WHILE AN IME IS COMPOSING, THE KEYSTROKES BELONG TO THE IME. The Enter that
+          // confirms a candidate would otherwise also create a half-composed name, and the
+          // Escape that cancels one would close the picker — which on the workout side
+          // throws away every move ticked so far. Both are handed back to the IME.
+          if (e.nativeEvent && e.nativeEvent.isComposing) return;
+          if (e.key === "Escape") onClose();
+          if (e.key === "Enter" && canCreate) { e.preventDefault(); onPick(candidate); }
+        }}
         placeholder="Search foods & recipes…" style={{ ...dmbField, width: "100%", marginBottom: 6 }} />
       {(excluded > 0 || (constraints && constraints.maxPrep != null)) && (
         <div style={{ fontFamily: DMB_MONO, fontSize: 8, letterSpacing: "0.08em", color: DMB_GOLD, marginBottom: 6 }}>
@@ -77,8 +104,15 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
           except by picking something else and retyping it. The macros are left for
           the row editor rather than guessed here: nothing on this page may state a
           figure nobody measured. */}
+      {blocked && (
+        <div style={{ fontFamily: DMB_MONO, fontSize: 8.5, lineHeight: 1.5, letterSpacing: "0.05em", color: DMB_INK50, marginBottom: 6, padding: "6px 8px", borderRadius: 5, border: "1px dashed rgba(242,237,228,0.16)" }}>
+          {blockedBy
+            ? <>“{term}” carries “{blockedBy}”, which this plan excludes — it can’t go on this client’s plan.</>
+            : <>“{term}” is outside this plan’s constraints, so it can’t go on this client’s plan.</>}
+        </div>
+      )}
       {canCreate && (
-        <button onClick={() => onPick(DashMeals.newCustomFood(term))}
+        <button onClick={() => onPick(candidate)}
           style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", minHeight: 34, marginBottom: 4, padding: "0 9px", borderRadius: 6, cursor: "pointer", textAlign: "left",
             fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "#2ee0c4", background: "rgba(46,224,196,0.08)", border: "1px dashed rgba(46,224,196,0.45)" }}>
           <span aria-hidden>＋</span> Add “{term}” — you set the macros
@@ -488,15 +522,12 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
   // ⚠ THE OPEN PLAN COUNTS TOO — `customFoods` comes from SAVED plans, so a dish
   // named a minute ago would not be offered for the next day until this one had
   // been saved and re-fetched, which reads as the feature not working.
-  const ownFoods = React.useMemo(() => {
-    const out = [], seen = new Set();
-    for (const f of [...(customFoods || []), ...DashMeals.customFoodsFromTemplates([{ detail: { mealBuilder: doc } }])]) {
-      const k = String(f.name || "").toLowerCase();
-      if (!k || seen.has(k)) continue;
-      seen.add(k); out.push(f);
-    }
-    return out.sort((a, b) => a.name.localeCompare(b.name));
-  }, [customFoods, doc]);
+  // ⚠ THE OPEN DOCUMENT GOES FIRST. What the coach typed a moment ago is the current truth
+  // about that dish; the saved copy is last week's, and first-wins on the saved side handed
+  // the next meal stale macros. `mergeFoodInto` then fills whatever the open copy is
+  // missing — including taking MEASURED macros over a placeholder, so reordering cannot
+  // trade a stale figure for a fabricated zero. One rule, shared with the library walk.
+  const ownFoods = React.useMemo(() => DashMeals.ownFoodsFor(doc, customFoods), [customFoods, doc]);
   const [sel, setSel] = React.useState(0);
   const [previewVariant, setPreviewVariant] = React.useState("training");
   const [preview, setPreview] = React.useState(true);
