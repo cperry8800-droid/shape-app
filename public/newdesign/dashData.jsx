@@ -892,8 +892,9 @@ function useRememberedChoices(live) {
 // One control's memory, read out of a store opened by `useRememberedChoices`.
 // Returns `[value, choose]` and is a drop-in for the `React.useState` it replaces.
 function useRememberedChoice(store, key, allowed, fallback) {
-  // The choice made in THIS session, if any. Null means "nobody has touched it here".
-  const [chosen, setChosen] = React.useState(null);
+  // The choice made in THIS session, if any, paired with the account it was made
+  // under. Null means "nobody has touched it here"; see the account note below.
+  const [chosen, setChosen] = React.useState(null);   // { acct, value } | null
   // The value this hook last asked the document to hold. It is never reset on
   // success, only replaced by the next choice — see the loop note on the effect.
   const askedRef = React.useRef(null);
@@ -903,24 +904,41 @@ function useRememberedChoice(store, key, allowed, fallback) {
   // have gone on governing B's screen after B signed in — and `askedRef` would have
   // suppressed B's first write of the same value.
   //
-  // ⚠ IT RESETS BETWEEN TWO KNOWN ACCOUNTS ONLY, which is why the last KNOWN one is
-  // tracked rather than the last value seen. `useSignedIn` publishes `undefined` for
-  // "not resolved yet" and `null` for "confirmed signed out", so resetting on every
-  // change would discard a choice made during the load — the one case the whole
-  // reconciliation effect exists to keep. Tracking the last known account also closes
-  // A → signed out → B on a shared browser, which a plain previous-value comparison
-  // would wave through.
+  // ⚠ THE CHOICE CARRIES THE ACCOUNT IT WAS MADE UNDER, rather than being reset by a ref
+  // written during render. This hook used to do the latter — `if (acct !== knownRef.current)
+  // { setChosen(null) } ; knownRef.current = acct` — and on a concurrent root (these pages
+  // mount with `createRoot`) React may DISCARD an interrupted render after that ref write
+  // has already landed. The committed state then still holds A's choice while `knownRef`
+  // says B, so the reset never fires on the retry and the reconciliation below writes A's
+  // choice into B's document: the exact cross-account leak the block exists to prevent.
+  // Pairing the choice with its account is self-correcting instead — a choice made under A
+  // simply stops matching when the account is B, with nothing to leak from a render that
+  // never committed, and no render-phase mutation at all. `useRememberedSlots` was fixed
+  // this way first (CodeRabbit, #2046) and registered these siblings as carrying the older
+  // shape; CodeRabbit re-found it here on #2143, on the PR that adds a twelfth consumer.
+  //
+  // ⚠ REGISTERED, NOT SWEPT: `useRememberedSet` still carries the older shape. Same class,
+  // same fix; this PR consumes THIS hook, so widening the diff to a hook with no consumer
+  // in it is the author's call rather than a side effect.
+  //
+  // ⚠ AND A CHOICE MADE BEFORE THE ACCOUNT RESOLVED IS ADOPTED, NOT DISCARDED — which is
+  // where a verbatim copy of `useRememberedSlots` is WRONG for this hook, and the suite is
+  // what said so rather than a reading. Stamping `{ acct: null }` and requiring an exact
+  // match fails two shipped behaviours: a choice made on the very first paint is yanked
+  // back the moment `useSignedIn` resolves ("a choice already made is not yanked away by
+  // the document arriving late"), and a signed-out visitor's choice is never written when
+  // they sign in ("the store stays SHUT until the account is known"). Both are deliberate
+  // and both are tested, so the pre-auth window is adopted by the first account to become
+  // known. ⚠ `useRememberedSlots` has neither test and so carries that regression
+  // silently — registered there, not fixed here.
+  //
+  // ⚠ THE ADOPTION IS ONE-WAY AND TERMINAL, or it re-opens the leak from the other side:
+  // an un-stamped choice adopted by A would still read as un-stamped, so A → signed out →
+  // B on a shared browser would hand it to B as well. The effect below RE-STAMPS it the
+  // first time an account is known, in an effect rather than during render, so it can
+  // never be adopted twice and nothing a discarded render did can survive.
   const acct = store && store.accountId != null ? store.accountId : null;
-  const knownRef = React.useRef(null);
-  if (acct != null && knownRef.current != null && acct !== knownRef.current) {
-    // Adjusting state during render rather than in an effect: an effect resets a frame
-    // late, and that frame is the one that shows B the control A left behind. React
-    // discards this render and re-runs it, and the ref assignment below has already
-    // happened by then, so the condition is false on the retry and it terminates.
-    setChosen(null);
-    askedRef.current = null;
-  }
-  if (acct != null) knownRef.current = acct;
+  const mine = chosen && (chosen.acct == null || chosen.acct === acct) ? chosen.value : null;
   const doc = (store && store.doc) || {};
   const kind = (store && store.kind) || "loading";
   const apply = store && store.apply;
@@ -934,10 +952,11 @@ function useRememberedChoice(store, key, allowed, fallback) {
   // ⚠ AND A LATE READ NEVER YANKS SOMEONE WHO HAS ALREADY CHOSEN. The document
   // resolves after the first paint, so preferring it unconditionally would move a
   // control out from under a hand already on it.
-  const value = chosen != null ? chosen : (remembered != null ? remembered : fallback);
+  const value = mine != null ? mine : (remembered != null ? remembered : fallback);
   // Wrapped rather than handed out raw so that a caller passing a function gets their
-  // function stored, not React's updater semantics applied to it.
-  const choose = React.useCallback((next) => { setChosen(next); }, []);
+  // function stored, not React's updater semantics applied to it — and it stamps the
+  // account the choice is being made under, which is what the pairing above compares.
+  const choose = React.useCallback((next) => { setChosen({ acct: acct, value: next }); }, [acct]);
 
   // ⚠ THE WRITE IS A RECONCILIATION, NOT A CLICK HANDLER, AND THAT IS THE WHOLE
   // REASON IT IS AN EFFECT. A choice made before the document is writable — during the
@@ -948,14 +967,21 @@ function useRememberedChoice(store, key, allowed, fallback) {
   // click") makes the store becoming writable retry it for free.
   const allowedKey = allowed.join("\u0000");
   React.useEffect(() => {
-    if (chosen == null) return;                     // nobody has chosen on this page
-    if (allowed.indexOf(chosen) < 0) return;        // never persist a value we would refuse to read back
+    // The re-stamp described above. It sits ABOVE every other guard because it must happen
+    // as soon as an account is known, whatever the store is doing — a store that never
+    // becomes ready would otherwise leave the choice adoptable for the life of the page.
+    if (chosen != null && chosen.acct == null && acct != null) {
+      setChosen({ acct: acct, value: chosen.value });
+      return;                                       // `chosen` is in the deps, so the write follows on the next pass
+    }
+    if (mine == null) return;                       // nobody has chosen on this page, under THIS account
+    if (allowed.indexOf(mine) < 0) return;          // never persist a value we would refuse to read back
     if (kind !== "ready" && kind !== "error") return;
     if (typeof apply !== "function") return;
     // The fallback is not a preference — storing it would pin today's default into the
     // member's own data, so tomorrow's default could never reach them. Choosing it back
     // means "no preference", which is what an absent key says.
-    const want = chosen === fallback ? undefined : chosen;
+    const want = mine === fallback ? undefined : mine;
     if (stored === want) return;                    // the document already says it
     // ⚠ ONE ATTEMPT PER CHOICE, AND THE REF IS WHAT MAKES THAT TRUE. `apply` paints
     // optimistically and rolls the paint back when the write fails, so `stored` moves
@@ -964,15 +990,22 @@ function useRememberedChoice(store, key, allowed, fallback) {
     // rather than on the document breaks that: a failed write leaves the preference in
     // force for the session and simply unsaved, which is exactly what the page did
     // before it remembered anything.
-    if (askedRef.current === chosen) return;
-    askedRef.current = chosen;
+    // Keyed on the ACCOUNT as well as the choice, so the same value chosen again under a
+    // second account is a fresh attempt rather than a suppressed repeat.
+    const asked = String(acct) + "\u0001" + String(mine);
+    if (askedRef.current === asked) return;
+    askedRef.current = asked;
     apply((d) => {
       const out = { ...d };
       if (want === undefined) delete out[key]; else out[key] = want;
       return out;
     });
     // eslint-disable-next-line
-  }, [chosen, kind, stored, key, fallback, allowedKey]);
+    // ⚠ `chosen` IS IN THE DEPS FOR THE RE-STAMP, not for tidiness: without it the
+    // promotion changes neither `mine` nor `acct`, the effect never re-runs, and the choice
+    // is adopted on screen and NEVER WRITTEN. Measured — it fails "the store stays SHUT
+    // until the account is known" with saves 0.
+  }, [chosen, mine, acct, kind, stored, key, fallback, allowedKey]);
 
   return [value, choose];
 }
@@ -998,7 +1031,7 @@ function useRememberedChoice(store, key, allowed, fallback) {
 // than dropped.
 function useRememberedSlots(store, keys, allowed, defaults) {
   // ⚠ THE CHOICE CARRIES THE ACCOUNT IT WAS MADE UNDER, rather than being reset by a ref
-  // written during render. The sibling hooks do the latter — `if (acct !== knownRef.current)
+  // written during render. `useRememberedSet` still does the latter — `if (acct !== knownRef.current)
   // { setChosen(null) } ; knownRef.current = acct` — and on a concurrent root (these pages
   // mount with `createRoot`) React may DISCARD an interrupted render after that ref write
   // has already landed. The committed state then still holds A's arrangement while
@@ -1008,9 +1041,10 @@ function useRememberedSlots(store, keys, allowed, defaults) {
   // made under A simply stops matching when the account is B, with nothing to leak from a
   // render that never committed, and no render-phase mutation at all. (CodeRabbit, #2046.)
   //
-  // ⚠ REGISTERED, NOT SWEPT: `useRememberedChoice` and `useRememberedSet` carry the older
-  // shape and predate this PR. Same class, same fix; widening this diff to three hooks is
-  // the author's call, not a side effect of adding a fourth.
+  // ⚠ REGISTERED, NOT SWEPT: `useRememberedSet` still carries the older shape. (This note
+  // named `useRememberedChoice` too until #2143, where CodeRabbit re-found the same defect
+  // there and it was ported — corrected at the source, because a stale registration reads
+  // as an open one and the next reader re-opens a closed fix.)
   const [chosen, setChosen] = React.useState(null);   // { acct, slots } | null
   const askedRef = React.useRef(null);
   const acct = store && store.accountId != null ? store.accountId : null;
