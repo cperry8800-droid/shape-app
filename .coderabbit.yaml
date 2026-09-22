@@ -122,9 +122,13 @@ reviews:
 
     - path: "public/newdesign/**"
       instructions: >-
-        Self-contained website pages (HTML + babel .jsx). Flag missing ?v= cache-bust
-        bumps on edited referenced .jsx, and theme-token violations (hardcoded ink/paper
-        on themed surfaces, or theme tokens on fixed-background screens).
+        Self-contained website pages (HTML + babel .jsx). Do NOT flag the ?v= on a
+        <script type="text/babel"> tag: scripts/build-newdesign.mjs rewrites every such
+        tag to a content-hashed compiled file at deploy, so a hand bump is churn. DO flag
+        an edited PLAIN script module (a <script src="x.js?v=..."> that is not
+        text/babel) whose host pages keep an older ?v= key, because the build does not
+        hash those. Also flag theme-token violations (hardcoded ink/paper on themed
+        surfaces, or theme tokens on fixed-background screens).
 
     - path: "**/*.sql"
       instructions: >-
