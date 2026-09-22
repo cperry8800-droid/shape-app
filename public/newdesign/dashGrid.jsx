@@ -4,7 +4,7 @@
 // GridStack-managed item node so live data keeps rendering. Layout persists per
 // role + tab to user_goals('dashboard_layout'). Pure helpers are inlined here as a
 // mirror of public/newdesign/dashboardLayout.mjs — keep identical. Website only.
-const DG_MUTE = "rgba(242,237,228,0.5)";
+const DG_MUTE = "rgba(var(--sh-ink-rgb, 242,237,228),0.5)";
 
 function dgWidgetW(size) { return size === "full" ? 12 : 6; }
 
@@ -189,10 +189,10 @@ function dgInjectStyle() {
   s.textContent = `
 .dash-gridstack .grid-stack-item-content{overflow:hidden!important}
 .dash-gridstack .dash-plate--bracket::after{display:none!important}
-.dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(46,224,196,0.75);background:rgba(46,224,196,0.07);border-radius:8px}
+.dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(var(--sh-accent-rgb, 46,224,196),0.75);background:rgba(var(--sh-accent-rgb, 46,224,196),0.07);border-radius:8px}
 .dash-gridstack .ui-resizable-se{background:transparent!important;background-image:none!important;box-sizing:border-box!important;min-width:0!important;min-height:0!important;width:28px!important;height:28px!important;right:0!important;bottom:0!important;z-index:20;border:0!important;clip-path:none!important;border-radius:0!important;cursor:se-resize;opacity:1!important}
-.dash-rs{position:absolute;right:7px;bottom:7px;width:12px;height:12px;background:rgba(46,224,196,0.5);clip-path:polygon(100% 0,0 100%,100% 100%);border-bottom-right-radius:2px;pointer-events:none;transition:background .12s;z-index:4}
-.dash-gridstack .grid-stack-item:hover .dash-rs{background:rgba(46,224,196,0.95)}
+.dash-rs{position:absolute;right:7px;bottom:7px;width:12px;height:12px;background:rgba(var(--sh-accent-rgb, 46,224,196),0.5);clip-path:polygon(100% 0,0 100%,100% 100%);border-bottom-right-radius:2px;pointer-events:none;transition:background .12s;z-index:4}
+.dash-gridstack .grid-stack-item:hover .dash-rs{background:rgba(var(--sh-accent-rgb, 46,224,196),0.95)}
 /* ⚠ FADED, NOT INVISIBLE. At opacity 0 the drag handle, the ⚙ and the × existed only
    for a member who happened to hover the card — measured on the coach Today: seven
    cards, seven chromes at opacity 0, and nothing else on the page saying the board
@@ -366,8 +366,8 @@ function useDgPanel(open, setOpen, boxRef, panelRef, width) {
 // it scrolls rather than running off the bottom of the screen.
 function dgPanelStyle(box) {
   return Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
-    maxHeight: box.maxHeight, overflowY: "auto", background: "rgba(26,22,18,0.98)",
-    border: "1px solid rgba(242,237,228,0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" },
+    maxHeight: box.maxHeight, overflowY: "auto", background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)",
+    border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 8, boxShadow: "0 18px 44px rgba(0,0,0,0.5)", padding: "8px 6px", textAlign: "left" },
     box.up ? { bottom: box.offset } : { top: box.offset });
 }
 
@@ -402,12 +402,12 @@ function DgCardSettings({ groups }) {
       <button type="button" title="Card settings" aria-label="Card settings" aria-expanded={open}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
-        style={{ ...btn, color: open ? "#2ee0c4" : DG_MUTE }}>⚙</button>
+        style={{ ...btn, color: open ? "var(--sh-accent, #2ee0c4)" : DG_MUTE }}>⚙</button>
       {open && box && ReactDOM.createPortal(
         <div ref={panelRef} onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
           {groups.map((g) => (
             <div key={g.key} style={{ padding: "2px 6px 6px" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)", padding: "2px 4px 6px" }}>{g.label}</div>
               {/* ⚠ CHIPS UNTIL THE LIST IS LONG, THEN A SELECT — and the threshold is the
                   panel, not a preference. This popover is 176–240px wide, so a group of
                   eleven options wraps to five rows of chips and four such groups fill the
@@ -430,7 +430,7 @@ function DgCardSettings({ groups }) {
                     if (picked) g.onPick(picked.v);
                   }}
                   style={{ width: "100%", padding: "6px 22px 6px 8px", borderRadius: 6, cursor: "pointer",
-                           border: "1px solid rgba(242,237,228,0.16)",
+                           border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)",
                            // ⚠ `appearance: none` TAKES THE NATIVE ARROW WITH IT, so the chevron
                            // is drawn back — otherwise the control reads as a plain box and
                            // nothing on it says it opens. The colour is a background LAYER, so
@@ -440,8 +440,8 @@ function DgCardSettings({ groups }) {
                            backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 9 6'><path d='M1 1l3.5 3.5L8 1' fill='none' stroke='%23f2ede4' stroke-opacity='.55' stroke-width='1.4'/></svg>\")",
                            backgroundRepeat: "no-repeat",
                            backgroundPosition: "right 8px center",
-                           backgroundColor: "rgba(242,237,228,0.06)",
-                           color: "#f2ede4", fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                           backgroundColor: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)",
+                           color: "var(--sh-ink, #f2ede4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                            letterSpacing: "0.04em", appearance: "none" }}>
                   {g.options.map((o) => (
                     // The option list is painted by the OS, which does not inherit the panel's
@@ -456,9 +456,9 @@ function DgCardSettings({ groups }) {
                   return (
                     <button type="button" key={String(o.v)} onClick={(e) => { e.stopPropagation(); g.onPick(o.v); }}
                       style={{ padding: "5px 10px", borderRadius: 999, cursor: "pointer",
-                               border: "1px solid " + (on ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.14)"),
-                               background: on ? "rgba(46,224,196,0.14)" : "transparent",
-                               color: on ? "#2ee0c4" : "rgba(242,237,228,0.7)",
+                               border: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"),
+                               background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent",
+                               color: on ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)",
                                fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em" }}>{o.label}</button>
                   );
                 })}
@@ -552,16 +552,16 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
   // board there is nothing to add, and it says so by dropping the plus.
   const label = addable.length ? "＋ Add widget" : "Widgets";
   const mono = { fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", textTransform: "uppercase" };
-  const rowStyle = { display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 6px", borderTop: "1px solid rgba(242,237,228,0.06)" };
+  const rowStyle = { display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 6px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" };
   const pill = (teal) => ({ ...mono, fontSize: 9.5, padding: "5px 9px", borderRadius: 999, cursor: "pointer", flexShrink: 0,
-    border: "1px solid " + (teal ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.18)"),
-    background: teal ? "rgba(46,224,196,0.12)" : "transparent", color: teal ? "#2ee0c4" : "rgba(242,237,228,0.7)" });
-  const head = (text) => <div style={{ ...mono, fontSize: 9, color: "rgba(242,237,228,0.42)", padding: "10px 6px 2px" }}>{text}</div>;
+    border: "1px solid " + (teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
+    background: teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: teal ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" });
+  const head = (text) => <div style={{ ...mono, fontSize: 9, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)", padding: "10px 6px 2px" }}>{text}</div>;
   const item = (r, control) => (
     <div key={r.key} data-dg-row={r.key} style={rowStyle}>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 13, color: r.empty ? "rgba(242,237,228,0.5)" : "#f2ede4" }}>{r.title}</div>
-        {(r.blurb || r.why) && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 2, lineHeight: 1.4 }}>{r.empty ? r.why : r.blurb}</div>}
+        <div style={{ fontSize: 13, color: r.empty ? "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" : "var(--sh-ink, #f2ede4)" }}>{r.title}</div>
+        {(r.blurb || r.why) && <div style={{ fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 2, lineHeight: 1.4 }}>{r.empty ? r.why : r.blurb}</div>}
       </div>
       {control}
     </div>
@@ -571,22 +571,22 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
       <button type="button" className="dash-catalog-btn" data-tour="dash-widgets" aria-haspopup="dialog" aria-expanded={open} aria-label="Add or remove widgets"
         onClick={() => setOpen((v) => !v)}
         style={{ ...mono, fontSize: 10.5, padding: "7px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
-                 border: "1px solid " + (open ? "rgba(46,224,196,0.45)" : "rgba(242,237,228,0.2)"),
-                 background: open ? "rgba(46,224,196,0.12)" : "transparent", color: open ? "#2ee0c4" : "rgba(242,237,228,0.75)" }}>
+                 border: "1px solid " + (open ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"),
+                 background: open ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: open ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" }}>
         <span>{label}</span>
-        {addable.length > 0 && <span style={{ color: "#2ee0c4", fontVariantNumeric: "tabular-nums" }}>{addable.length}</span>}
+        {addable.length > 0 && <span style={{ color: "var(--sh-accent, #2ee0c4)", fontVariantNumeric: "tabular-nums" }}>{addable.length}</span>}
       </button>
       {open && box && ReactDOM.createPortal(
         <div ref={panelRef} role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
-          <div style={{ ...mono, fontSize: 9, color: "rgba(242,237,228,0.42)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
+          <div style={{ ...mono, fontSize: 9, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
           {onBoard.map((r) => item(r, <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
           {addable.length > 0 && head("Available")}
           {addable.map((r) => item(r, <button type="button" onClick={() => act(onAdd, r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>))}
           {waiting.length > 0 && head("Nothing to show yet")}
           {waiting.map((r) => item(r, null))}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(242,237,228,0.08)", marginTop: 4 }}>
-            <span style={{ fontSize: 10.5, color: "rgba(242,237,228,0.45)" }}>Drag ⠿ to move · corner to resize</span>
-            <a href="#" onClick={(e) => { e.preventDefault(); setOpen(false); onReset(); }} style={{ ...mono, fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(242,237,228,0.25)", whiteSpace: "nowrap" }}>Reset layout</a>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", marginTop: 4 }}>
+            <span style={{ fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>Drag ⠿ to move · corner to resize</span>
+            <a href="#" onClick={(e) => { e.preventDefault(); setOpen(false); onReset(); }} style={{ ...mono, fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</a>
           </div>
         </div>,
         document.body
@@ -1084,11 +1084,11 @@ function DashGrid({ role, tab = "today", widgets }) {
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: DG_MUTE }}>Hidden ·</span>
           )}
           {hiddenChips.map((key) => (
-            <button type="button" key={key} onClick={() => restore(key)} title="Restore" style={{ padding: "5px 11px", borderRadius: 999, border: "1px solid rgba(242,237,228,0.2)", background: "transparent", color: DG_MUTE, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, cursor: "pointer" }}>
+            <button type="button" key={key} onClick={() => restore(key)} title="Restore" style={{ padding: "5px 11px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", background: "transparent", color: DG_MUTE, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, cursor: "pointer" }}>
               + {byKey[key] ? (byKey[key].title || key) : key}
             </button>
           ))}
-          <a href="#" onClick={(e) => { e.preventDefault(); reset(); }} style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(242,237,228,0.25)" }}>Reset layout</a>
+          <a href="#" onClick={(e) => { e.preventDefault(); reset(); }} style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)" }}>Reset layout</a>
         </div>
       )}
     </div>

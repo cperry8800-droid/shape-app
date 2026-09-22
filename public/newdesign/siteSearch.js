@@ -24,7 +24,7 @@
   function roleColor(r) { return r === 'trainer' ? '#c0533b' : r === 'nutritionist' ? '#a07a2e' : TEAL; }
   function initials(name) { return String(name || '?').split(' ').map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase(); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function shade(hex, f) { var h = String(hex || '#888').replace('#', ''); var s = h.length === 3 ? h.split('').map(function (x) { return x + x; }).join('') : h; var n = parseInt(s, 16); return 'rgb(' + Math.round(((n >> 16) & 255) * f) + ',' + Math.round(((n >> 8) & 255) * f) + ',' + Math.round((n & 255) * f) + ')'; }
+  function shade(hex, f) { var mm = String(hex || '#888').match(/#([0-9a-fA-F]{3,6})/); var h = mm ? mm[1] : String(hex || '#888').replace('#', ''); var s = h.length === 3 ? h.split('').map(function (x) { return x + x; }).join('') : h; var n = parseInt(s, 16); return 'rgb(' + Math.round(((n >> 16) & 255) * f) + ',' + Math.round(((n >> 8) & 255) * f) + ',' + Math.round((n & 255) * f) + ')'; }
 
   // Facet gem avatar (rotated rounded-square, tier gradient, counter-rotated
   // content) — matches the marketplace / living-profile / app avatar.

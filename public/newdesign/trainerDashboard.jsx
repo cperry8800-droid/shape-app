@@ -119,28 +119,28 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   const liveCount = live && live.kind === "live" && live.count != null ? live.count : null;
   const items = (navItems || []).map((n) => (liveCount != null && (n.slug === "clients" || n.label === "Clients")) ? { ...n, count: liveCount } : n);
   return (
-    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(242,237,228,0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 72, alignSelf: "start", background: "linear-gradient(180deg, rgba(242,237,228,0.025), rgba(242,237,228,0.01))" }}>
+    <aside className="shape-dash-aside" style={{ borderRight: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", padding: "12px 20px", display: "flex", flexDirection: "column", gap: 6, position: "sticky", top: 72, alignSelf: "start", background: "linear-gradient(180deg, rgba(var(--sh-ink-rgb, 242,237,228),0.025), rgba(var(--sh-ink-rgb, 242,237,228),0.01))" }}>
       {items.map((n, i) => (
         <a key={i} href={n.href || "#"} data-tour={'webtab-' + (n.slug || '')} className="shape-dash-navlink" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "11px 14px", borderRadius: 14,
-          background: n.active ? "rgba(10,197,168,0.13)" : "transparent",
-          color: n.active ? INK : "rgba(242,237,228,0.7)",
+          background: n.active ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.13)" : "transparent",
+          color: n.active ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)",
           fontSize: 14, fontWeight: n.active ? 500 : 400,
-          border: n.active ? "1px solid rgba(10,197,168,0.28)" : "1px solid transparent",
+          border: n.active ? "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)" : "1px solid transparent",
           boxShadow: n.active ? "0 12px 28px rgba(0,0,0,0.24)" : "none",
         }}>
           <span>{n.label}</span>
           {n.count != null && (
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", background: n.active ? "rgba(10,197,168,0.18)" : "rgba(242,237,228,0.06)", padding: "2px 7px", borderRadius: 999 }}>{n.count}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", background: n.active ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.18)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", padding: "2px 7px", borderRadius: 999 }}>{n.count}</span>
           )}
         </a>
       ))}
       {card && (
-        <div className="shape-dash-payout" style={{ marginTop: 24, padding: 16, background: "rgba(10,197,168,0.08)", border: "1px solid rgba(10,197,168,0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
+        <div className="shape-dash-payout" style={{ marginTop: 24, padding: 16, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)", borderRadius: 18, boxShadow: "0 16px 36px rgba(0,0,0,0.28)" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{card.label}</div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, marginTop: 6, letterSpacing: "-0.01em" }}>{card.amount}</div>
-          <div style={{ fontSize: 11, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{card.sub}</div>
+          <div style={{ fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 2 }}>{card.sub}</div>
         </div>
       )}
     </aside>
@@ -159,9 +159,9 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
       <main style={{ padding: "24px 48px 80px", minWidth: 0, overflowX: "hidden" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 40 }}>
           <div data-tour={tourHero}>
-            {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 14 }}>{eyebrow}</div>}
+            {eyebrow && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginBottom: 14 }}>{eyebrow}</div>}
             <h1 style={{ fontFamily: serif, fontSize: 52, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1 }}>{title}</h1>
-            {subtitle && <div style={{ fontSize: 15, color: "rgba(242,237,228,0.6)", marginTop: 14, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
+            {subtitle && <div style={{ fontSize: 15, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", marginTop: 14, maxWidth: 640, lineHeight: 1.5 }}>{subtitle}</div>}
           </div>
           {/* flexWrap: a nowrap row of action pills opposite a 52px title is
               clipped by main's overflowX:hidden at narrow widths (and on a
@@ -180,8 +180,8 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
 // Small helpers available to every inner page
 function Card({ children, style }) {
   return <div style={{
-    background: "linear-gradient(180deg, rgba(242,237,228,0.062), rgba(242,237,228,0.035))",
-    border: "1px solid rgba(242,237,228,0.12)",
+    background: "linear-gradient(180deg, rgba(var(--sh-ink-rgb, 242,237,228),0.062), rgba(var(--sh-ink-rgb, 242,237,228),0.035))",
+    border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)",
     borderRadius: 22,
     padding: 24,
     boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
@@ -210,14 +210,14 @@ function SectionTitle({ children, right }) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
       <div style={{ fontSize: 14, fontWeight: 500, minWidth: 0 }}>{children}</div>
-      {right && <div style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)", letterSpacing: "0.08em" }}>{right}</div>}
+      {right && <div style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", letterSpacing: "0.08em" }}>{right}</div>}
     </div>
   );
 }
 function Pill({ children, tone = "mute" }) {
-  const bg = tone === "teal" ? TEAL : tone === "done" ? "rgba(242,237,228,0.08)" : "rgba(242,237,228,0.08)";
-  const col = tone === "teal" ? PAPER : "rgba(242,237,228,0.7)";
-  const bd = tone === "teal" ? "none" : "1px solid rgba(242,237,228,0.12)";
+  const bg = tone === "teal" ? TEAL : tone === "done" ? "rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
+  const col = tone === "teal" ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)";
+  const bd = tone === "teal" ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)";
   return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "5px 9px", borderRadius: 999, background: bg, color: col, border: bd }}>{children}</span>;
 }
 
@@ -237,13 +237,13 @@ function DashTodayItemRow({ t }) {
     </svg>
   );
   return (
-    <div style={{ borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+    <div style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
       <div style={{ display: "grid", gridTemplateColumns: "80px 1fr auto auto", gap: 16, alignItems: "center", padding: "18px 4px" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(242,237,228,0.55)", letterSpacing: "0.04em" }}>{t.time}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", letterSpacing: "0.04em" }}>{t.time}</div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 6 }}>{t.kind}</div>
           <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>{t.title}</div>
-          {t.sub && <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)" }}>{t.sub}</div>}
+          {t.sub && <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{t.sub}</div>}
         </div>
         {p ? (
           <button onClick={() => setOpen(!open)}
@@ -269,7 +269,7 @@ function DashTodayItemRow({ t }) {
       </div>
 
       {open && p && (
-        <div style={{ marginBottom: 14, marginLeft: 96, marginRight: 4, borderRadius: 10, overflow: "hidden", border: "1px solid rgba(242,237,228,0.08)" }}>
+        <div style={{ marginBottom: 14, marginLeft: 96, marginRight: 4, borderRadius: 10, overflow: "hidden", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
           <div style={{ padding: "14px 18px", background: p.cover, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "4px 10px", borderRadius: 999, fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 7, color: PAPER }}>
@@ -277,21 +277,21 @@ function DashTodayItemRow({ t }) {
                 {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"} · {(p.author || "COACH").toUpperCase()}'S PICK
               </div>
               <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em", color: PAPER }}>{p.name}</div>
-              <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.75)", letterSpacing: "0.06em", marginTop: 4 }}>
+              <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", letterSpacing: "0.06em", marginTop: 4 }}>
                 {p.bpm} BPM · {p.tracks || "—"} tracks · optional, always skippable
               </div>
             </div>
             {(() => {
-              const playStyle = { background: p.accent, color: "#1a1612", border: 0, padding: "9px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
+              const playStyle = { background: p.accent, color: "var(--sh-ground, #1a1612)", border: 0, padding: "9px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
               return p.href
                 ? <a href={p.href} style={{ ...playStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>▶ Play</a>
                 : <button style={playStyle}>▶ Play</button>;
             })()}
           </div>
           {p.note && (
-            <div style={{ padding: "12px 18px", background: "rgba(242,237,228,0.04)", display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 12, color: "rgba(242,237,228,0.75)", fontStyle: "italic", flex: 1 }}>"{p.note}" — {p.author || "Coach"}</span>
-              <button onClick={() => setOpen(false)} style={{ background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", cursor: "pointer" }}>HIDE PLAYLIST</button>
+            <div style={{ padding: "12px 18px", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", fontStyle: "italic", flex: 1 }}>"{p.note}" — {p.author || "Coach"}</span>
+              <button onClick={() => setOpen(false)} style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", border: 0, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", cursor: "pointer" }}>HIDE PLAYLIST</button>
             </div>
           )}
         </div>
@@ -340,12 +340,12 @@ function DashShell({
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24, marginBottom: 36 }}>
           <div data-tour={tourHero} style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)", marginBottom: 12 }}>{date}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginBottom: 12 }}>{date}</div>
             <h1 style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.025em", fontWeight: 400, margin: 0, lineHeight: 1.02 }}>{greeting}</h1>
           </div>
           <div style={{ display: "flex", gap: 10, paddingTop: 10, flexShrink: 0 }}>
             {primaryCta && (() => {
-              const style = { background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" };
+              const style = { background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" };
               if (typeof primaryCta[1] === "string") return <a href={primaryCta[1]} style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{primaryCta[0]}</a>;
               if (typeof primaryCta[1] === "function") return <button onClick={primaryCta[1]} style={style}>{primaryCta[0]}</button>;
               return <button style={style}>{primaryCta[0]}</button>;
@@ -368,22 +368,22 @@ function DashShell({
         {[kpis, kpis2].map((row, ri) => (Array.isArray(row) && row.length > 0) ? (
           <div key={ri} style={{
             display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`,
-            background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
+            background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
             borderRadius: 10, marginBottom: (ri === 0 && Array.isArray(kpis2) && kpis2.length) ? 12 : 20, overflow: "hidden",
           }}>
             {row.map((k, i) => (
               <div key={i} style={{
                 padding: "20px 20px",
-                borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none",
+                borderLeft: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "none",
                 minWidth: 0,
               }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
                 <div style={{
                   fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1,
                   whiteSpace: "nowrap",
                   fontVariantNumeric: "tabular-nums",
                 }}>{k.k}</div>
-                {k.sub && <div style={{ fontSize: 11, color: "rgba(242,237,228,0.5)", marginTop: 6 }}>{k.sub}</div>}
+                {k.sub && <div style={{ fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 6 }}>{k.sub}</div>}
               </div>
             ))}
           </div>
@@ -391,7 +391,7 @@ function DashShell({
 
         {topSection && (
           <div style={{
-            background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)",
+            background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
             borderRadius: 10, padding: "14px 16px", marginBottom: 16,
           }}>
             <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>{topSection.title}</div>
@@ -401,9 +401,9 @@ function DashShell({
 
         {/* Today */}
         {todayItems && todayItems.length > 0 && (
-          <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24, marginBottom: 20 }}>
+          <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 24, marginBottom: 20 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)" }}>TODAY</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.14em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>TODAY</div>
               {calendarEvents && cal && (
                 <a href="#" onClick={cal.open} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.16em", color: TEAL_BRIGHT, display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>OPEN CALENDAR <span style={{ fontSize: 12 }}>→</span></a>
               )}
@@ -416,7 +416,7 @@ function DashShell({
 
         {/* Schedule + Pulse */}
         <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1fr", gap: 20 }}>
-          <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 }}>
+          <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{scheduleTitle}</div>
               {calendarEvents && cal && (
@@ -424,31 +424,31 @@ function DashShell({
               )}
             </div>
             {scheduleRender ? scheduleRender() : schedule.map((s, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{s.time}</div>
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{s.time}</div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{s.who}</div>
-                  <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{s.sub}</div>
+                  <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 2 }}>{s.sub}</div>
                 </div>
                 {s.status && (
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4,
-                    background: s.status === "DONE" ? "rgba(242,237,228,0.08)" : s.status === "NEXT" ? TEAL : "rgba(242,237,228,0.08)",
-                    color: s.status === "NEXT" ? PAPER : "rgba(242,237,228,0.65)",
-                    border: s.status === "DONE" ? "1px solid rgba(242,237,228,0.12)" : "none",
+                    background: s.status === "DONE" ? "rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : s.status === "NEXT" ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
+                    color: s.status === "NEXT" ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.65)",
+                    border: s.status === "DONE" ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : "none",
                   }}>{s.status}</span>
                 )}
               </div>
             ))}
           </div>
 
-          <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 }}>
+          <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{pulseTitle}</div>
             {pulseRender ? pulseRender() : pulse.map((p, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "32px 1fr 60px", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-                <div style={{ width: 32, height: 32, borderRadius: 999, background: "#efece6" }} />
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "32px 1fr 60px", gap: 12, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 999, background: "var(--sh-ink-soft, #efece6)" }} />
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{p.who}</div>
-                  <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.55)", marginTop: 1 }}>{p.sub}</div>
+                  <div style={{ fontSize: 11.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 1 }}>{p.sub}</div>
                 </div>
                 <Sparkline data={p.trend} />
               </div>
@@ -457,7 +457,7 @@ function DashShell({
         </div>
 
         {extraSections && extraSections.map((x, i) => (
-          <div key={i} style={{ marginTop: 20, background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 24 }}>
+          <div key={i} style={{ marginTop: 20, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{x.title}</div>
             {x.render()}
           </div>
@@ -490,15 +490,15 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
   // Gradient fallback for cover if no image is supplied. Teal→deep-brown diagonal, subtle noise via layered gradients.
   const coverBg = cover
     ? `url(${cover}) center/cover no-repeat`
-    : `linear-gradient(135deg, rgba(10,197,168,0.45) 0%, rgba(10,197,168,0.08) 40%, rgba(26,22,18,0.9) 100%), radial-gradient(1200px 400px at 20% 20%, rgba(242,237,228,0.12), transparent 60%), #221d18`;
-  const avatarBg = avatar ? `url(${avatar}) center/cover no-repeat` : "#efece6";
+    : `linear-gradient(135deg, rgba(var(--sh-accent2-rgb, 10,197,168),0.45) 0%, rgba(var(--sh-accent2-rgb, 10,197,168),0.08) 40%, rgba(var(--sh-ground-rgb, 26,22,18),0.9) 100%), radial-gradient(1200px 400px at 20% 20%, rgba(var(--sh-ink-rgb, 242,237,228),0.12), transparent 60%), #221d18`;
+  const avatarBg = avatar ? `url(${avatar}) center/cover no-repeat` : "var(--sh-ink-soft, #efece6)";
   return (
-    <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
+    <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, marginBottom: 20, overflow: "hidden" }}>
       {/* Cover */}
       <div style={{ position: "relative", height: 200, background: coverBg }}>
         <button style={{
           position: "absolute", top: 16, right: 16,
-          background: "rgba(26,22,18,0.72)", color: INK, border: "1px solid rgba(242,237,228,0.18)",
+          background: "rgba(var(--sh-ground-rgb, 26,22,18),0.72)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)",
           padding: "8px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer",
           display: "flex", alignItems: "center", gap: 6, backdropFilter: "blur(8px)",
         }}>
@@ -511,11 +511,11 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
       <div style={{ padding: "0 32px 32px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "160px 1fr auto", gap: 28, alignItems: "flex-start" }}>
           <div style={{ position: "relative", marginTop: -80 }}>
-            <div style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid #1a1612", boxShadow: "0 12px 72px -8px rgba(0,0,0,0.5)" }} />
+            <div style={{ width: 160, height: 160, borderRadius: 999, background: avatarBg, border: "4px solid var(--sh-ground, #1a1612)", boxShadow: "0 12px 72px -8px rgba(0,0,0,0.5)" }} />
             <button style={{
               position: "absolute", bottom: 4, right: 4,
               width: 36, height: 36, borderRadius: 999,
-              background: INK, color: PAPER, border: "2px solid #1a1612",
+              background: INK, color: PAPER, border: "2px solid var(--sh-ground, #1a1612)",
               display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
             }} title="Change photo">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10.5V11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-.5M7 9V2M7 2 4.5 4.5M7 2l2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -532,19 +532,19 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
           </div>
           {score != null && (
             <div style={{ textAlign: "right", paddingTop: 20 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.5)", letterSpacing: "0.14em" }}>{scoreLabel}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", letterSpacing: "0.14em" }}>{scoreLabel}</div>
               <div style={{ fontFamily: serif, fontSize: 56, color: TEAL_BRIGHT, letterSpacing: "-0.03em", lineHeight: 1.05 }}>{score}</div>
-              {scoreCaption && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{scoreCaption}</div>}
+              {scoreCaption && <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 4 }}>{scoreCaption}</div>}
             </div>
           )}
         </div>
 
         {stats && stats.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats.length},1fr)`, marginTop: 28, paddingTop: 24, borderTop: "1px solid rgba(242,237,228,0.1)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats.length},1fr)`, marginTop: 28, paddingTop: 24, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)" }}>
             {stats.map(([k, l], i) => (
-              <div key={i} style={{ borderLeft: i ? "1px solid rgba(242,237,228,0.08)" : "none", padding: i ? "0 0 0 24px" : "0 24px 0 0" }}>
+              <div key={i} style={{ borderLeft: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "none", padding: i ? "0 0 0 24px" : "0 24px 0 0" }}>
                 <div style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", lineHeight: 1 }}>{k}</div>
-                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>{l}</div>
+                <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 8 }}>{l}</div>
               </div>
             ))}
           </div>
@@ -558,15 +558,15 @@ function ProfileHero({ eyebrow, name, headline, pills, score, scoreLabel = "COAC
 function BioCard({ body, charLimit = 500 }) {
   const chars = body ? body.length : 0;
   return (
-    <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 28, marginBottom: 20 }}>
+    <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 28, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 500 }}>Bio</div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)", letterSpacing: "0.08em" }}>{chars} / {charLimit}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", letterSpacing: "0.08em" }}>{chars} / {charLimit}</div>
           <span style={{ fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer" }}>EDIT</span>
         </div>
       </div>
-      <div style={{ fontFamily: serif, fontSize: 20, lineHeight: 1.5, color: "rgba(242,237,228,0.88)", letterSpacing: "-0.005em", textWrap: "pretty" }}>{body}</div>
+      <div style={{ fontFamily: serif, fontSize: 20, lineHeight: 1.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.88)", letterSpacing: "-0.005em", textWrap: "pretty" }}>{body}</div>
     </div>
   );
 }
@@ -575,18 +575,18 @@ function BioCard({ body, charLimit = 500 }) {
 // Editable price placeholder ($-- /mo) + muted explainer + check-listed perks.
 function SubscriptionCard({ price = "--", cadence = "mo", caption = "Set your own monthly subscription price", includes = [] }) {
   return (
-    <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 10, padding: 28, marginBottom: 20 }}>
+    <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 28, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 500 }}>Subscription</div>
         <span style={{ fontSize: 11, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", cursor: "pointer", border: `1px solid ${TEAL}`, padding: "4px 10px", borderRadius: 4 }}>EDIT</span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <div style={{ fontFamily: serif, fontSize: 48, letterSpacing: "-0.03em", fontWeight: 400, lineHeight: 1 }}>${price}</div>
-        <div style={{ fontSize: 14, color: "rgba(242,237,228,0.55)" }}>/{cadence}</div>
+        <div style={{ fontSize: 14, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>/{cadence}</div>
       </div>
-      <div style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>{caption}</div>
-      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(242,237,228,0.08)" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>WHAT'S INCLUDED</div>
+      <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 8 }}>{caption}</div>
+      <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 14 }}>WHAT'S INCLUDED</div>
         <div style={{ display: "grid", gap: 10 }}>
           {includes.map((item, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 14 }}>
@@ -609,10 +609,10 @@ function RecentPayouts({ rows }) {
       {rows.map((r, i) => (
         <div key={i} style={{
           display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, alignItems: "center",
-          padding: "16px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)",
+          padding: "16px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)",
         }}>
           <div style={{ fontSize: 14, fontWeight: 500 }}>{r.date}</div>
-          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", textAlign: "center" }}>{r.mid}</div>
+          <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", textAlign: "center" }}>{r.mid}</div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 500, letterSpacing: "-0.01em" }}>{r.amount}</div>
         </div>
       ))}
@@ -666,15 +666,15 @@ function DashExportButton({ kind, build, live, label }) {
         disabled={!on}
         title={on ? "Download a CSV of " + (label || kind) : "Export is live-only — this preview's people are invented"}
         style={{
-          background: "transparent", color: on ? "rgba(242,237,228,0.75)" : "rgba(242,237,228,0.32)",
-          border: "1px solid " + (on ? "rgba(242,237,228,0.18)" : "rgba(242,237,228,0.08)"),
+          background: "transparent", color: on ? "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.32)",
+          border: "1px solid " + (on ? "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"),
           padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace",
           fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
           cursor: on ? "pointer" : "not-allowed", minHeight: 30,
         }}
       >↓ Export CSV</button>
-      {!on && <span style={{ fontSize: 10.5, color: "rgba(242,237,228,0.4)" }}>live only</span>}
-      {err && <span style={{ fontSize: 10.5, color: "#d8a23a" }}>{err}</span>}
+      {!on && <span style={{ fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>live only</span>}
+      {err && <span style={{ fontSize: 10.5, color: "var(--sh-gold, #d8a23a)" }}>{err}</span>}
     </span>
   );
 }

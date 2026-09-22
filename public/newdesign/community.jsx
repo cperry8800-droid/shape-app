@@ -642,7 +642,7 @@ function Community() {
         <HeroC />
         <section style={{ padding: "4px 72px 8px", position: "relative" }}>
           <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", border: `1px solid ${TEAL}33`, background: `${TEAL}0f`, borderRadius: 16, padding: "16px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.2)`, background: `rgba(var(--sh-accent2-rgb, 10,197,168), 0.0588)`, borderRadius: 16, padding: "16px 20px" }}>
               <span style={{ fontSize: 22 }} aria-hidden>💬</span>
               <div style={{ flex: 1, minWidth: 240 }}>
                 <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>This is a preview</div>

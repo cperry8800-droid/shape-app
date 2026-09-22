@@ -13,8 +13,17 @@ const lvSerif = "'Fraunces', serif";
 const lvSans = "'Space Grotesk', sans-serif";
 const lvMono = "'JetBrains Mono', monospace";
 
+// ⚠ EXTRACT THE DIGITS, NEVER ASSUME THE WHOLE STRING IS A HEX. A colour here
+// may be a paper token (`var(--sh-accent, #2ee0c4)`), and `parseInt` on that is
+// NaN — which `>> 16 & 255` turns into 0, so the output is VALID CSS that is
+// simply BLACK. No browser, linter or build can report that. A token always
+// carries its own literal fallback, so the digits are there to be found.
+// CSS has no multiply, so a shade is pinned to that fallback rather than
+// following the paper — registered, not an oversight.
+// tests/newdesign-paper-tokens.test.mjs drives every parser in this directory.
 const hexA = (hex, a) => {
-  const n = parseInt(hex.slice(1), 16);
+  const m = String(hex).match(/#([0-9a-fA-F]{3,6})/);
+  const n = parseInt(m ? m[1] : hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
 function lvRng(seed) { let s = seed % 2147483647; if (s <= 0) s += 2147483646; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
@@ -247,7 +256,8 @@ const lvPortraitURL = (id, s = 360) => !id ? "" : (/^https?:|^data:|^\//.test(St
 // Circular masked portrait with a tier-tinted duotone wash + ring.
 // editable → shows an "add/replace" affordance for own-profile.
 function lvShade(hex, f) {
-  const n = parseInt(String(hex).replace('#', '').slice(0, 6), 16);
+  const m = String(hex).match(/#([0-9a-fA-F]{3,6})/);
+  const n = parseInt(m ? m[1] : String(hex).replace('#', '').slice(0, 6), 16);
   return `rgb(${Math.round(((n >> 16) & 255) * f)}, ${Math.round(((n >> 8) & 255) * f)}, ${Math.round((n & 255) * f)})`;
 }
 // Facet avatar — a rounded-diamond gem with initials/photo inside, tier-coloured.

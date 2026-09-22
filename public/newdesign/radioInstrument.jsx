@@ -74,8 +74,17 @@ const rdLib = () => {
   return { F, S, T };
 };
 
+// ⚠ EXTRACT THE DIGITS, NEVER ASSUME THE WHOLE STRING IS A HEX. A colour here
+// may be a paper token (`var(--sh-accent, #2ee0c4)`), and `parseInt` on that is
+// NaN — which `>> 16 & 255` turns into 0, so the output is VALID CSS that is
+// simply BLACK. No browser, linter or build can report that. A token always
+// carries its own literal fallback, so the digits are there to be found.
+// CSS has no multiply, so a shade is pinned to that fallback rather than
+// following the paper — registered, not an oversight.
+// tests/newdesign-paper-tokens.test.mjs drives every parser in this directory.
 function rdRgba(hex, a) {
-  const h = String(hex).replace("#", "");
+  const m = String(hex).match(/#([0-9a-fA-F]{3,6})/);
+  const h = m ? m[1] : String(hex).replace("#", "");
   const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }

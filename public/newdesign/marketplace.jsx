@@ -299,8 +299,17 @@ function mkCoachTier(c) {
 }
 // Facet gem avatar — the living Signal profile's avatar (rotated rounded-square,
 // tier gradient, counter-rotated content). Shows a real photo when present.
+// ⚠ EXTRACT THE DIGITS, NEVER ASSUME THE WHOLE STRING IS A HEX. A colour here
+// may be a paper token (`var(--sh-accent, #2ee0c4)`), and `parseInt` on that is
+// NaN — which `>> 16 & 255` turns into 0, so the output is VALID CSS that is
+// simply BLACK. No browser, linter or build can report that. A token always
+// carries its own literal fallback, so the digits are there to be found.
+// CSS has no multiply, so a shade is pinned to that fallback rather than
+// following the paper — registered, not an oversight.
+// tests/newdesign-paper-tokens.test.mjs drives every parser in this directory.
 function mkShade(hex, f) {
-  const h = String(hex || "#888").replace("#", "");
+  const m = String(hex || "#888").match(/#([0-9a-fA-F]{3,6})/);
+  const h = m ? m[1] : String(hex || "#888").replace("#", "");
   const s = h.length === 3 ? h.split("").map((x) => x + x).join("") : h;
   const n = parseInt(s, 16);
   return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`;
@@ -357,7 +366,7 @@ function CoachCard({ c }) {
           <h3 style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", fontWeight: 400, margin: 0, color: INK, lineHeight: 1.1 }}>{c.name}</h3>
           <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: tier.color, border: `1px solid ${tier.color}66`, borderRadius: 3, padding: "2px 7px", whiteSpace: "nowrap" }}>{tier.name}</span>
           {c.verified && (
-            <span title="Credentials + insurance verified by Shape" style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: TEAL, background: "rgba(10,197,168,0.12)", border: `1px solid ${TEAL}66`, borderRadius: 3, padding: "2px 7px", whiteSpace: "nowrap" }}>✓ Verified</span>
+            <span title="Credentials + insurance verified by Shape" style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: TEAL, background: "rgba(10,197,168,0.12)", border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.4)`, borderRadius: 3, padding: "2px 7px", whiteSpace: "nowrap" }}>✓ Verified</span>
           )}
         </div>
         <div style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.65)", margin: 0 }}>{c.role}</div>

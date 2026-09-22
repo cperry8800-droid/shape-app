@@ -16,15 +16,24 @@
 // dashData → dashToday (DashDemoBand/helpers) → dashGoals → dashRoster
 // (DashClientDrawer) → this.
 
-const DSC_INK50 = "rgba(242,237,228,0.55)";
+const DSC_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
 const DSC_MONO = "'JetBrains Mono', monospace";
-const DSC_TEAL = "#2ee0c4";
+const DSC_TEAL = "var(--sh-accent, #2ee0c4)";
 const DSC_DAY = 86400000;
 const DSC_DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Client palette. The page builds a colorOf() that assigns palette colors by
 // the DISTINCT clients on the visible calendar (first → palette[0], …) so no
 // two clients on screen ever share a color until there are >10. dscClientColor
 // is the deterministic hash fallback (overflow + standalone callers).
+// ⚠ THESE STAY LITERAL, BY RULE RATHER THAN BY OVERSIGHT. A chip composes its
+// tint by APPENDING a hex-alpha suffix to the palette entry it was given
+// (`color + "22"` in DscChip), so a var() here is not a colour and CSS drops the
+// whole declaration — the chip loses its tint AND its left border. Turning these
+// into paper tokens means teaching DscChip to take a triplet, which is a change
+// of behaviour rather than a rename, and it belongs with the light-paper values
+// where the tint actually has to move. They are also a per-CLIENT identity
+// palette rather than the paper's own colours, so they do not follow the ground.
+// tests/newdesign-paper-tokens.test.mjs holds the rule.
 const DSC_PALETTE = ["#2ee0c4", "#d8a23a", "#c0533b", "#8a5cf6", "#7bbf5a", "#7ed4ff", "#e0644b", "#f5a0c8", "#9be3a8", "#ffb46b"];
 function dscClientColor(key) {
   const s = String(key || "—");
@@ -183,10 +192,10 @@ function DscAvailability({ role, live, initial, storedZone, onZone }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <span className="dash-eyebrow" style={{ color: "#d8a23a" }}>
+        <span className="dash-eyebrow" style={{ color: "var(--sh-gold, #d8a23a)" }}>
           Availability · feeds your marketplace profile{dscZoneLabel(live, storedZone) ? " · " + dscZoneLabel(live, storedZone) : ""}
         </span>
-        <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, color: state === "saved" ? "#7bbf5a" : state === "error" ? "#e0644b" : DSC_INK50 }}>
+        <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, color: state === "saved" ? "var(--sh-green, #7bbf5a)" : state === "error" ? "var(--sh-rust, #e0644b)" : DSC_INK50 }}>
           {state === "saving" ? "Saving…" : state === "saved" ? "Saved · live on your profile" : state === "error" ? "Couldn't save" : state === "demo" ? "Demo · saves once signed in" : blocks + " open hours/wk"}
         </span>
       </div>
@@ -211,7 +220,7 @@ function DscAvailability({ role, live, initial, storedZone, onZone }) {
               <span style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50, alignSelf: "center", textAlign: "right", paddingRight: 2 }}>{hLbl}</span>
               {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
                 const on = cells.has(wd + ":" + h);
-                return <button key={wd} onClick={() => toggle(wd, h)} aria-label={lbl + " " + hLbl} aria-pressed={on} style={{ height: 22, borderRadius: 3, border: "1px solid " + (on ? "rgba(216,162,58,0.5)" : "rgba(242,237,228,0.12)"), background: on ? "#d8a23a" : "transparent", cursor: "pointer", padding: 0 }} />;
+                return <button key={wd} onClick={() => toggle(wd, h)} aria-label={lbl + " " + hLbl} aria-pressed={on} style={{ height: 22, borderRadius: 3, border: "1px solid " + (on ? "rgba(var(--sh-gold-rgb, 216,162,58),0.5)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)"), background: on ? "var(--sh-gold, #d8a23a)" : "transparent", cursor: "pointer", padding: 0 }} />;
               })}
             </React.Fragment>
           );
@@ -267,7 +276,7 @@ function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf
             <div key={i}
               onDragOver={(e) => { if (dragId) e.preventDefault(); }}
               onDrop={(e) => { e.preventDefault(); onDrop(iso); }}
-              style={{ minHeight: 92, borderRadius: 6, border: "1px solid " + (isToday ? "rgba(46,224,196,0.4)" : "rgba(242,237,228,0.08)"), background: inMonth ? "rgba(242,237,228,0.02)" : "transparent", opacity: inMonth ? 1 : 0.4, padding: 5, overflow: "hidden" }}>
+              style={{ minHeight: 92, borderRadius: 6, border: "1px solid " + (isToday ? "rgba(var(--sh-accent-rgb, 46,224,196),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"), background: inMonth ? "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" : "transparent", opacity: inMonth ? 1 : 0.4, padding: 5, overflow: "hidden" }}>
               <div style={{ fontFamily: DSC_MONO, fontSize: 9, color: isToday ? DSC_TEAL : DSC_INK50, marginBottom: 3 }}>{d.getDate()}</div>
               {evs.slice(0, 4).map((ev) => <DscChip key={ev.id} ev={ev} compact colorOf={colorOf} onClick={onPickEvent} onDragStart={onDrag} />)}
               {evs.length > 4 && <div style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50 }}>+{evs.length - 4} more</div>}
@@ -295,7 +304,7 @@ function DscWeek({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf 
           <div key={i}
             onDragOver={(e) => { if (dragId) e.preventDefault(); }}
             onDrop={(e) => { e.preventDefault(); onDrop(iso); }}
-            style={{ minHeight: 280, borderRadius: 6, border: "1px solid " + (isToday ? "rgba(46,224,196,0.4)" : "rgba(242,237,228,0.08)"), background: "rgba(242,237,228,0.02)", padding: 6 }}>
+            style={{ minHeight: 280, borderRadius: 6, border: "1px solid " + (isToday ? "rgba(var(--sh-accent-rgb, 46,224,196),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"), background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)", padding: 6 }}>
             <div style={{ fontFamily: DSC_MONO, fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: isToday ? DSC_TEAL : DSC_INK50, marginBottom: 6, textAlign: "center" }}>
               {DSC_DOW[i]} {d.getDate()}
             </div>
@@ -314,14 +323,14 @@ function DscEventSheet({ ev, onClose, colorOf }) {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(380px, 92vw)", background: "#14110e", border: "1px solid rgba(242,237,228,0.14)", borderLeft: "4px solid " + color, borderRadius: 10, padding: 22, color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(380px, 92vw)", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "4px solid " + color, borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "'Space Grotesk', sans-serif" }}>
         <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: color }}>{ev.kind}{ev.with ? " · " + ev.with : ""}</div>
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 23, margin: "6px 0 4px" }}>{ev.title}</div>
         <div style={{ fontSize: 12.5, color: DSC_INK50 }}>{[ev.date, ev.time ? dscFmt12(ev.time) : null, ev.durationMin ? ev.durationMin + " min" : null, ev.sub].filter(Boolean).join(" · ")}</div>
         {!(ev.reschedulable || ev.editable) && <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, marginTop: 10 }}>🔒︎ READ-ONLY — PUSHED FROM THE {ev.kind === "WORKOUT" ? "PROGRAM" : "MEAL PLAN"}; RESCHEDULE THERE</div>}
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          {ev.meetingUrl && <a href={ev.meetingUrl} target="_blank" rel="noreferrer" style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: DSC_TEAL, borderRadius: 4, padding: "10px 14px", textDecoration: "none" }}>Join →</a>}
-          <button onClick={onClose} style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.7)", background: "transparent", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "10px 14px", cursor: "pointer" }}>Close</button>
+          {ev.meetingUrl && <a href={ev.meetingUrl} target="_blank" rel="noreferrer" style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DSC_TEAL, borderRadius: 4, padding: "10px 14px", textDecoration: "none" }}>Join →</a>}
+          <button onClick={onClose} style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "10px 14px", cursor: "pointer" }}>Close</button>
         </div>
       </div>
     </div>
@@ -418,7 +427,7 @@ function CoachSchedulePage({ role }) {
 
   // Color-key legend: the clients on the visible calendar.
   const legend = [...new Map(planEvents.filter((e) => e.with).map((e) => [e.clientId || e.with, { name: e.with, key: e.clientId || e.with }])).values()].slice(0, 8);
-  const btn = (on) => ({ fontFamily: DSC_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: on ? "#06231f" : "rgba(242,237,228,0.7)", background: on ? DSC_TEAL : "transparent", border: on ? 0 : "1px solid rgba(242,237,228,0.18)", borderRadius: 4, padding: "7px 12px", cursor: "pointer" });
+  const btn = (on) => ({ fontFamily: DSC_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: on ? "var(--sh-deep, #06231f)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: on ? DSC_TEAL : "transparent", border: on ? 0 : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "7px 12px", cursor: "pointer" });
 
   return (
     <React.Fragment>
@@ -432,7 +441,7 @@ function CoachSchedulePage({ role }) {
       >
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           {/* Calendar */}
-          <div className="dash-plate dash-plate--tick" style={{ "--dac": role === "nutritionist" ? "#d8a23a" : "#c0533b", paddingLeft: 24, minWidth: 0 }}>
+          <div className="dash-plate dash-plate--tick" style={{ "--dac": role === "nutritionist" ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust2, #c0533b)", paddingLeft: 24, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button onClick={() => step(-1)} aria-label="Previous" style={btn(false)}>‹</button>
@@ -450,7 +459,7 @@ function CoachSchedulePage({ role }) {
               : <DscWeek cursor={cursor} byDate={byDate} colorOf={colorOf} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />}
             {/* Client color legend */}
             {legend.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(242,237,228,0.06)" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
                 {legend.map((c) => (
                   <span key={c.key} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: DSC_MONO, fontSize: 8.5, color: DSC_INK50 }}>
                     <span style={{ width: 9, height: 9, borderRadius: 2, background: colorOf(c.key) }} />{c.name}
@@ -462,10 +471,10 @@ function CoachSchedulePage({ role }) {
 
           {/* Availability */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#d8a23a", paddingLeft: 22 }}>
+            <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-gold, #d8a23a)", paddingLeft: 22 }}>
               <DscAvailability role={role} live={isLive} initial={availSlots} storedZone={availZone} onZone={setAvailZone} />
             </div>
-            <div className="dash-plate" style={{ "--dac": "rgba(242,237,228,0.35)", padding: "14px 16px" }}>
+            <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "14px 16px" }}>
               <div className="dash-eyebrow">How rescheduling works</div>
               <div style={{ fontSize: 12, color: DSC_INK50, lineHeight: 1.55, marginTop: 8 }}>
                 Drag a session or consult to a new day — the client gets a notification with the new time. Workouts and meals pushed from a plan are read-only here; move those in the program or meal plan.
@@ -479,7 +488,7 @@ function CoachSchedulePage({ role }) {
       {drawerRow && typeof window.DashClientDrawer === "function" && <DashClientDrawer row={drawerRow} role={role} onClose={() => setDrawerRow(null)} prefs={prefs} />}
       {sheetEv && <DscEventSheet ev={sheetEv} colorOf={colorOf} onClose={() => setSheetEv(null)} />}
       {toast && (
-        <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "#14110e", border: "1px solid rgba(242,237,228,0.18)", borderRadius: 8, padding: "10px 18px", color: "#f2ede4", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, maxWidth: "90vw" }}>{toast}</div>
+        <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 8, padding: "10px 18px", color: "var(--sh-ink, #f2ede4)", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12.5, maxWidth: "90vw" }}>{toast}</div>
       )}
     </React.Fragment>
   );

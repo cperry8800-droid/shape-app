@@ -304,7 +304,11 @@ test("every control the Today page draws clears the repo's 24px floor", () => {
 
 test('in-card text links carry the 24px hit area the chrome has', () => {
   assert.match(TODAY, /const DASH_MONO_LINK = \{ \.\.\.DASH_MONO_EYEBROW, display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0"/);
-  assert.match(fn(TODAY, 'DashProgramsEndingPanel'), /style=\{\{ \.\.\.DASH_MONO_LINK, color: "#2ee0c4" \}\}>Write the next \{noun\} →<\/a>/);
+  // ⚠ ANCHORED ON THE SPREAD, NOT ON THE ACCENT'S SPELLING — this pinned
+  // `color: "#2ee0c4"` and so failed on the paper sweep, which is a change about
+  // colour and not about hit areas. The invariant is that the link spreads
+  // DASH_MONO_LINK, which is where the 24px comes from.
+  assert.match(fn(TODAY, 'DashProgramsEndingPanel'), /style=\{\{ \.\.\.DASH_MONO_LINK, color: [^}]+\}\}>Write the next \{noun\} →<\/a>/);
   assert.match(fn(TODAY, 'DashRosterStatusPanel'), /minHeight: 24, margin: "-5px 0" \}\}>Open the roster →<\/a>/);
 });
 

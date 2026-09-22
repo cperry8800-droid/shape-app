@@ -1,14 +1,14 @@
 // Shared Direction-B primitives for Marketplace + Community pages
 // Spatial Cinema design language — shared tokens
-const PAPER = "#1a1612";        // warm dark base (legacy name, kept: used site-wide)
-const INK = "#f2ede4";          // warm cream text
+const PAPER = "var(--sh-ground, #1a1612)";        // warm dark base (legacy name, kept: used site-wide)
+const INK = "var(--sh-ink, #f2ede4)";          // warm cream text
 const INK_DEEP = "#0b0e0c";     // true cinema base (footer / deep surfaces)
-const TEAL = "#0ac5a8";         // refined cinema teal accent
-const TEAL_BRIGHT = "#2ee0c4";
+const TEAL = "var(--sh-accent2, #0ac5a8)";         // refined cinema teal accent
+const TEAL_BRIGHT = "var(--sh-accent, #2ee0c4)";
 // The app's own accent, the one the homepage, the Radio page and every mobile
 // surface paint. The nav pair uses this; the rest of the site's chrome still uses
 // the two above, which is a wider sweep than a nav change.
-const TEAL_APP = "#34d6c5";
+const TEAL_APP = "var(--sh-accent3, #34d6c5)";
 const RUST = "#d2693f";         // warm secondary accent
 const serif = "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif";
 const sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif";
@@ -41,8 +41,8 @@ const NAV_H = 72;
 const NAV_LOGO_H = 52;
 
 function Ph({ label, ratio = "1/1", tone = "dark", style = {} }) {
-  const bg = tone === "dark" ? "#0f1513" : "#efece6";
-  const fg = tone === "dark" ? "rgba(255,255,255,0.4)" : "rgba(242,237,228,0.4)";
+  const bg = tone === "dark" ? "#0f1513" : "var(--sh-ink-soft, #efece6)";
+  const fg = tone === "dark" ? "rgba(255,255,255,0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)";
   const stripe = tone === "dark"
     ? "repeating-linear-gradient(135deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 10px)"
     : "repeating-linear-gradient(135deg, rgba(0,0,0,0.05) 0 1px, transparent 1px 10px)";
@@ -129,11 +129,11 @@ function NavFrame({ stroke }) {
 }
 
 function RadioWordmark() {
-  const cream = "rgba(245,239,225,0.92)";
+  const cream = "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.92)";
   return (
     <a className="shape-nav-radio" href="/newdesign/Radio.html" aria-label="Shape Radio"
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", whiteSpace: "nowrap", height: NAV_PILL_H, padding: "0 12px", clipPath: navChamfer, color: "rgba(245,239,225,0.78)", fontFamily: navDisp, fontWeight: 500, fontVariationSettings: "'wdth' 150", fontSize: 12, letterSpacing: "0.02em", textTransform: "uppercase", lineHeight: 1, flex: "0 0 auto" }}>
-      <NavFrame stroke="rgba(245,239,225,0.14)" />
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none", whiteSpace: "nowrap", height: NAV_PILL_H, padding: "0 12px", clipPath: navChamfer, color: "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", fontFamily: navDisp, fontWeight: 500, fontVariationSettings: "'wdth' 150", fontSize: 12, letterSpacing: "0.02em", textTransform: "uppercase", lineHeight: 1, flex: "0 0 auto" }}>
+      <NavFrame stroke="rgba(var(--sh-nav-ink-rgb, 245,239,225),0.14)" />
       <svg aria-hidden viewBox="8 8 79 98" style={{ width: 11, height: 13, flex: "0 0 auto", display: "block" }}>
         <polygon points="14,47 14,100 51,73" fill={TEAL_APP} />
         <polygon points="81,14 81,65 44,39" fill={cream} />
@@ -158,7 +158,7 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }} onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
       <a href={href || undefined} className="shape-nav-link"
         onClick={href ? undefined : () => setOpen(o => !o)}
-        style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: isActive ? "#f5efe1" : "rgba(245,239,225,0.78)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1, whiteSpace: "nowrap", textDecoration: isActive ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>
+        style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: isActive ? "var(--sh-nav-ink, #f5efe1)" : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, lineHeight: 1, whiteSpace: "nowrap", textDecoration: isActive ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>
         {label}<span aria-hidden style={{ fontSize: 8, opacity: 0.6, lineHeight: 1 }}>▾</span>
       </a>
       {/* Invisible hover bridge — fills the gap between trigger and panel so the
@@ -166,12 +166,12 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
       {open && <div onMouseEnter={cancelClose} style={{ position: "absolute", top: "100%", left: 0, right: 0, height: 20 }} />}
       {open && (
         <div onMouseEnter={cancelClose} onMouseLeave={scheduleClose} style={{ position: "absolute", top: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", minWidth: 200, zIndex: 70 }}>
-          <div style={{ background: "rgba(6,9,15,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(245,239,225,0.12)", borderRadius: 8, padding: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "rgba(6,9,15,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.12)", borderRadius: 8, padding: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
           {items.map(([n, itemHref, sub]) => (
-            <a key={n} href={itemHref} style={{ display: "block", padding: "10px 14px", fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(245,239,225,0.78)", borderRadius: 5, whiteSpace: "nowrap", lineHeight: 1.2 }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(52,214,197,0.12)"; e.currentTarget.style.color = INK; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(245,239,225,0.78)"; }}
-            >{n}{sub ? <small style={{ display: "block", fontSize: 11.5, fontWeight: 400, color: "rgba(245,239,225,0.5)", marginTop: 2 }}>{sub}</small> : null}</a>
+            <a key={n} href={itemHref} style={{ display: "block", padding: "10px 14px", fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", borderRadius: 5, whiteSpace: "nowrap", lineHeight: 1.2 }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(var(--sh-accent3-rgb, 52,214,197),0.12)"; e.currentTarget.style.color = INK; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)"; }}
+            >{n}{sub ? <small style={{ display: "block", fontSize: 11.5, fontWeight: 400, color: "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.5)", marginTop: 2 }}>{sub}</small> : null}</a>
           ))}
           </div>
         </div>
@@ -356,7 +356,7 @@ function dashShellHref(href) {
 //
 // ⚠ AND IT IS THE HEADER, NOT A DASHBOARD CARD, because a notification is not about the
 // page you happen to be on.
-const DASH_INBOX_TEAL = "#2ee0c4";
+const DASH_INBOX_TEAL = "var(--sh-accent, #2ee0c4)";
 const DASH_INBOX_W = 340;
 const DASH_INBOX_GUTTER = 12;
 
@@ -603,7 +603,7 @@ function DashInbox({ signedIn, role, inbox }) {
         aria-label={unread ? unread + " unread notifications" : "Notifications"}
         aria-expanded={open}
         style={{ position: "relative", background: "transparent", border: 0, padding: "6px 8px", cursor: "pointer",
-                 color: open ? DASH_INBOX_TEAL : "rgba(245,239,225,0.78)", lineHeight: 0, minHeight: 30, minWidth: 30 }}
+                 color: open ? DASH_INBOX_TEAL : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", lineHeight: 0, minHeight: 30, minWidth: 30 }}
       >
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
@@ -617,13 +617,13 @@ function DashInbox({ signedIn, role, inbox }) {
       {open && (
         <div style={{ position: "absolute", top: "100%", right: shift ? shift.right : 0, marginTop: 8,
                       width: shift ? shift.w : DASH_INBOX_W, maxWidth: "calc(100vw - " + (DASH_INBOX_GUTTER * 2) + "px)", zIndex: 70 }}>
-          <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)",
+          <div style={{ background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)",
                         borderRadius: 8, boxShadow: "0 20px 50px rgba(0,0,0,0.5)", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Notifications</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>Notifications</span>
               {unread > 0 && (
                 <button onClick={markAll} disabled={busy} style={{ background: "transparent", border: 0, padding: 0, cursor: busy ? "default" : "pointer",
-                          fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(242,237,228,0.3)" : DASH_INBOX_TEAL }}>Mark all read</button>
+                          fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(var(--sh-ink-rgb, 242,237,228),0.3)" : DASH_INBOX_TEAL }}>Mark all read</button>
               )}
             </div>
             <div style={{ maxHeight: 380, overflowY: "auto" }}>
@@ -631,25 +631,25 @@ function DashInbox({ signedIn, role, inbox }) {
                   must not render as "you're all caught up" — that is a claim about the
                   member's inbox made from a failure to read it. */}
               {feed === undefined ? (
-                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Reading your notifications…</div>
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Reading your notifications…</div>
               ) : feed === null ? (
-                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Couldn't read your notifications just now. Reload to try again.</div>
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Couldn't read your notifications just now. Reload to try again.</div>
               ) : rows.length === 0 ? (
-                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(242,237,228,0.5)" }}>Nothing new.</div>
+                <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Nothing new.</div>
               ) : rows.map((n) => {
                 const href = dashInboxHref(n, role);
                 const inner = (
                   <>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                       {!n.read && <span aria-hidden="true" style={{ flex: "none", width: 6, height: 6, borderRadius: 999, background: DASH_INBOX_TEAL, transform: "translateY(-1px)" }} />}
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: n.read ? "rgba(242,237,228,0.7)" : "#f2ede4", fontWeight: n.read ? 400 : 500 }}>{n.title}</span>
-                      <span style={{ flex: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(242,237,228,0.35)" }}>{dashInboxWhen(n.createdAt)}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: n.read ? "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" : "var(--sh-ink, #f2ede4)", fontWeight: n.read ? 400 : 500 }}>{n.title}</span>
+                      <span style={{ flex: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" }}>{dashInboxWhen(n.createdAt)}</span>
                     </div>
-                    {n.body && <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 3, marginLeft: n.read ? 0 : 14, lineHeight: 1.45 }}>{n.body}</div>}
+                    {n.body && <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 3, marginLeft: n.read ? 0 : 14, lineHeight: 1.45 }}>{n.body}</div>}
                   </>
                 );
                 const pad = { display: "block", width: "100%", textAlign: "left", background: "transparent", border: 0,
-                              borderBottom: "1px solid rgba(242,237,228,0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
+                              borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", padding: "11px 14px", textDecoration: "none", color: "inherit" };
                 // A feed notice opens the bubble on its Feed tab rather than
                 // navigating; it is still one tap and still marks itself read.
                 return dashInboxOpensFeed(n) ? (
@@ -664,7 +664,7 @@ function DashInbox({ signedIn, role, inbox }) {
                     {inner}
                     {!n.read && (
                       <button onClick={() => markOne(n.id)} disabled={busy} style={{ background: "transparent", border: 0, padding: "6px 0 0", marginLeft: 14, cursor: busy ? "default" : "pointer",
-                                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(242,237,228,0.3)" : "rgba(242,237,228,0.45)" }}>Mark read</button>
+                                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: busy ? "rgba(var(--sh-ink-rgb, 242,237,228),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>Mark read</button>
                     )}
                   </div>
                 );
@@ -704,21 +704,64 @@ function navGroupsFor(authUser) {
 // goal keywords (role + photo + points → tier color). Nora (Shape's concierge)
 // matches help/support queries and opens the chat widget's Help tab. Rows link
 // to the person's public profile page.
-const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "#34d6c5"], [750, "#d8a23a"], [0, "#5fa96e"]];
+const SS_TIERS = [[15000, "#e879a6"], [5000, "#a78bfa"], [2000, "var(--sh-accent3, #34d6c5)"], [750, "var(--sh-gold, #d8a23a)"], [0, "#5fa96e"]];
 function ssTierColor(points) { const p = Number(points) || 0; for (const [min, c] of SS_TIERS) { if (p >= min) return c; } return "#5fa96e"; }
-function ssShade(hex, f) { const h = String(hex || "#888").replace("#", ""); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+// Pull the literal digits out of a colour that may be a paper token — a
+// tokenised colour always carries its own fallback, which is what these need.
+function ssHexDigits(hex, dflt) {
+  const s = String(hex || dflt);
+  const m = s.match(/#([0-9a-fA-F]{3,6})/);
+  return (m ? m[1] : s.replace("#", ""));
+}
+// `${color}55` is not a colour once `color` can be a token, so the alpha is
+// composed as an rgba() instead — and via the `-rgb` twin, so it still follows
+// the paper.
+// ⚠ THE TWIN IS SYNTHESIZED (`${tok[1]}-rgb`), SO IT NEVER APPEARS LITERALLY IN
+// SOURCE — which means tests/newdesign-paper-tokens.test.mjs's "every --sh-* token
+// referenced is declared in dash.css" STRUCTURALLY CANNOT SEE IT. Do not read that
+// guard as cover for this line. What covers it instead is an invariant on the
+// DECLARATIONS rather than on the references: every colour token in dash.css
+// declares an -rgb twin whose channels are its own, which that same test file
+// asserts on the stylesheet, where a sweep CAN see it.
+// Chasing which tokens reach which helper would be the fragile version — this way
+// synthesis is sound whatever it is handed, including a token added later.
+// Reachable today, so this is not theoretical: SS_TIERS' 750-point rung is
+// var(--sh-gold, #d8a23a), which arrives here through ssTierColor → SsFacet, and
+// the emitted rgba(var(--sh-gold-rgb, 216,162,58), 0.3333) computes in Chromium to
+// rgba(216,162,58,0.333) — byte-identical to the literal it replaced, because the
+// triplet is derived from the token's OWN literal and so cannot drift from it.
+function ssAlpha(hex, a) {
+  const s = String(hex || "");
+  const tok = s.match(/var\(\s*(--[\w-]+)\s*,\s*#([0-9a-fA-F]{6})\s*\)/);
+  if (tok) {
+    const n = parseInt(tok[2], 16);
+    return `rgba(var(${tok[1]}-rgb, ${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}), ${a})`;
+  }
+  const h = ssHexDigits(hex, "#888888");
+  const d = h.length === 3 ? h.split("").map(x => x + x).join("") : h;
+  const n = parseInt(d, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+// ⚠ A MULTIPLICATIVE SHADE CANNOT FOLLOW THE PAPER, SO IT READS THE FALLBACK.
+// These parse the hex digits ARITHMETICALLY, and a paper token is not digits:
+// measured, ssShade("var(--sh-accent2, #0ac5a8)", 0.5) returned rgb(0,0,0) —
+// `NaN >> 16 & 255` is 0, so the output is VALID CSS that is simply black, which
+// is why no browser, linter or build could report it. CSS has no multiply, so the
+// honest fix is to shade the token's own literal fallback: byte-identical today,
+// and registered as not moving with a future paper.
+function ssShade(hex, f) { const h = ssHexDigits(hex, "#888"); const s = h.length === 3 ? h.split("").map(x => x + x).join("") : h; const n = parseInt(s, 16); return `rgb(${Math.round(((n >> 16) & 255) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
 // Facet gem avatar (rotated rounded-square, tier gradient, counter-rotated
 // content) — matches the marketplace / living-profile / app avatar.
 function SsFacet({ photo, ini, color, size = 38 }) {
   const inset = Math.max(2, Math.round(size * 0.055));
   return (
     <span style={{ width: size, height: size, flexShrink: 0, position: "relative", display: "inline-grid", placeItems: "center" }}>
-      <span style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${color}, ${ssShade(color, 0.5)})`, boxShadow: `0 5px 16px ${color}55, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
+      <span style={{ position: "absolute", inset: 0, transform: "rotate(45deg)", borderRadius: "27%", background: `linear-gradient(135deg, ${color}, ${ssShade(color, 0.5)})`, boxShadow: `0 5px 16px ${ssAlpha(color, 0.3333)}, inset 1px 1px 2px rgba(255,255,255,0.35)` }}>
         <span style={{ position: "absolute", inset: 0, borderRadius: "27%", background: "linear-gradient(135deg, rgba(255,255,255,0.28), transparent 42%)" }} />
         <span style={{ position: "absolute", inset, borderRadius: "23%", overflow: "hidden", background: "#0f0c0a", display: "grid", placeItems: "center" }}>
           {photo
             ? <img src={photo} alt="" style={{ position: "absolute", width: "152%", height: "152%", left: "50%", top: "50%", transform: "translate(-50%,-50%) rotate(-45deg)", objectFit: "cover" }} />
-            : <span style={{ transform: "rotate(-45deg)", fontFamily: serif, fontWeight: 500, fontSize: size * 0.4, color: "#f2ede4", lineHeight: 1 }}>{ini}</span>}
+            : <span style={{ transform: "rotate(-45deg)", fontFamily: serif, fontWeight: 500, fontSize: size * 0.4, color: "var(--sh-ink, #f2ede4)", lineHeight: 1 }}>{ini}</span>}
         </span>
       </span>
     </span>
@@ -790,12 +833,12 @@ function SiteSearch({ signedIn = false }) {
   const needle = q.trim().replace(/^@/, "").toLowerCase();
   const noraHit = !!needle && ("nora".includes(needle) || ["concierge", "support", "help", "assistant"].some(w => w.startsWith(needle)));
   const roleLabelOf = (r) => r === "trainer" ? "Trainer" : r === "nutritionist" ? "Nutritionist" : "Member";
-  const roleColorOf = (r) => r === "trainer" ? "#c0533b" : r === "nutritionist" ? "#a07a2e" : TEAL;
+  const roleColorOf = (r) => r === "trainer" ? "var(--sh-rust2, #c0533b)" : r === "nutritionist" ? "#a07a2e" : TEAL;
   const openNora = () => { setOpen(false); try { if (window.__openChat) window.__openChat("Nora", "support"); else window.location.href = "/newdesign/Community.html"; } catch (e) {} };
   const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, textDecoration: "none", cursor: "pointer", background: "transparent", border: 0, width: "100%", textAlign: "left" };
   return (
     <>
-      <button onClick={() => setOpen(true)} aria-label="Search Shape" title="Search Shape" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: "1px solid rgba(245,239,225,0.25)", background: "transparent", color: "rgba(245,239,225,0.75)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+      <button onClick={() => setOpen(true)} aria-label="Search Shape" title="Search Shape" style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 999, border: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.25)", background: "transparent", color: "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.75)", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
       </button>
       {/* Portaled to <body>: the header's backdrop-filter makes it the
@@ -803,47 +846,47 @@ function SiteSearch({ signedIn = false }) {
           overlay inside the 60px nav bar. */}
       {open && ReactDOM.createPortal(
         <div onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", overflowY: "auto", padding: "12vh 18px 40px" }}>
-          <div style={{ maxWidth: 540, margin: "0 auto", background: "#16130f", border: "1px solid rgba(242,237,228,0.12)", borderRadius: 16, boxShadow: "0 30px 80px rgba(0,0,0,0.55)", padding: "18px 18px 12px" }}>
+          <div style={{ maxWidth: 540, margin: "0 auto", background: "#16130f", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, boxShadow: "0 30px 80px rgba(0,0,0,0.55)", padding: "18px 18px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", color: "#f2ede4" }}>Search Shape<span style={{ color: TEAL }}>.</span></div>
-              <button onClick={() => setOpen(false)} aria-label="Close search" style={{ background: "transparent", border: 0, color: "rgba(242,237,228,0.5)", cursor: "pointer", fontFamily: mono, fontSize: 14, fontWeight: 700, padding: 4, lineHeight: 1 }}>✕</button>
+              <div style={{ fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--sh-ink, #f2ede4)" }}>Search Shape<span style={{ color: TEAL }}>.</span></div>
+              <button onClick={() => setOpen(false)} aria-label="Close search" style={{ background: "transparent", border: 0, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", cursor: "pointer", fontFamily: mono, fontSize: 14, fontWeight: 700, padding: 4, lineHeight: 1 }}>✕</button>
             </div>
             <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search names, @handles, goals…"
-              style={{ width: "100%", boxSizing: "border-box", marginTop: 12, padding: "11px 2px", border: 0, borderBottom: "1px solid rgba(242,237,228,0.2)", borderRadius: 0, background: "transparent", color: "#f2ede4", fontFamily: sans, fontSize: 16, outline: "none" }} />
+              style={{ width: "100%", boxSizing: "border-box", marginTop: 12, padding: "11px 2px", border: 0, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", borderRadius: 0, background: "transparent", color: "var(--sh-ink, #f2ede4)", fontFamily: sans, fontSize: 16, outline: "none" }} />
             <div style={{ padding: "10px 0 6px" }}>
               {noraHit && (
                 <button onClick={openNora} style={rowStyle}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                   <SsFacet photo="/nora-avatar.png" ini="N" color={TEAL} />
                   <span style={{ minWidth: 0, flex: 1 }}>
                     <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Shape's Concierge · always online</span>
-                    <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4" }}>Nora</span>
+                    <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "var(--sh-ink, #f2ede4)" }}>Nora</span>
                   </span>
-                  <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(242,237,228,0.4)" }}>›</span>
+                  <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>›</span>
                 </button>
               )}
               {q.trim() ? (
                 rows === null ? (
-                  <div style={{ padding: "12px 12px 8px", fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)" }}>Searching…</div>
+                  <div style={{ padding: "12px 12px 8px", fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>Searching…</div>
                 ) : state !== "ok" ? (
-                  <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
+                  <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
                 ) : rows !== null && rows.length === 0 && !noraHit ? (
-                  <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.55)" }}>
+                  <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
                     {signedIn ? <>Nothing on Shape matches “{q.trim()}”. <a href="/newdesign/Marketplace.html" style={{ color: TEAL, textDecoration: "none" }}>Browse coaches →</a></> : <>Sign in to search every member & coach on Shape. <a href="/newdesign/Login.html" style={{ color: TEAL, textDecoration: "none" }}>Log in →</a></>}
                   </div>
                 ) : rows.map((p) => (
                   <a key={p.id} href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(p.id)}`} style={rowStyle}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(242,237,228,0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.05)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                     <SsFacet photo={p.avatar || ""} ini={String(p.full_name || "?").split(" ").map(w => w.charAt(0)).join("").slice(0, 2).toUpperCase()} color={ssTierColor(p.points)} />
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: "block", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: roleColorOf(p.role) }}>{roleLabelOf(p.role)}</span>
-                      <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "#f2ede4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.full_name}</span>
+                      <span style={{ display: "block", marginTop: 2, fontFamily: sans, fontSize: 15, fontWeight: 600, color: "var(--sh-ink, #f2ede4)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.full_name}</span>
                     </span>
-                    <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(242,237,228,0.4)" }}>›</span>
+                    <span style={{ fontFamily: mono, fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>›</span>
                   </a>
                 ))
               ) : (
-                <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(242,237,228,0.5)" }}>Find anyone on Shape — members, coaches, or Nora for help.</div>
+                <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Find anyone on Shape — members, coaches, or Nora for help.</div>
               )}
             </div>
           </div>
@@ -861,10 +904,10 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
   }, [open]);
   if (!open) return null;
   const groups = navGroupsFor(authUser);
-  const linkBase = { display: "block", padding: "18px 0", fontFamily: sans, fontSize: 22, letterSpacing: "0.02em", borderBottom: "1px solid rgba(242,237,228,0.08)", textDecoration: "none" };
+  const linkBase = { display: "block", padding: "18px 0", fontFamily: sans, fontSize: 22, letterSpacing: "0.02em", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", textDecoration: "none" };
   return (
     <div role="dialog" aria-modal="true"
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
+      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <a href="index.html" style={{ display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={44} /></a>
         <button onClick={onClose} aria-label="Close menu"
@@ -873,10 +916,10 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
       <nav style={{ flex: 1 }}>
         {groups.map(g => g.kind === "drop" ? (
           <div key={g.label}>
-            <div style={{ ...linkBase, color: g.match.includes(active) ? TEAL : INK, fontWeight: 500, borderBottom: "1px solid rgba(242,237,228,0.12)", paddingBottom: 10 }}>{g.label}</div>
-            <div style={{ paddingLeft: 14, paddingBottom: 14, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+            <div style={{ ...linkBase, color: g.match.includes(active) ? TEAL : INK, fontWeight: 500, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", paddingBottom: 10 }}>{g.label}</div>
+            <div style={{ paddingLeft: 14, paddingBottom: 14, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
               {g.items.map(([n, h]) => (
-                <a key={n} href={h} onClick={onClose} style={{ display: "block", padding: "10px 0", fontFamily: sans, fontSize: 15, color: "rgba(242,237,228,0.72)", textDecoration: "none" }}>{n}</a>
+                <a key={n} href={h} onClick={onClose} style={{ display: "block", padding: "10px 0", fontFamily: sans, fontSize: 15, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)", textDecoration: "none" }}>{n}</a>
               ))}
             </div>
           </div>
@@ -913,12 +956,12 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
       <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
         {authUser ? (
           <>
-            <a href="#" onClick={onLogout} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Sign out</a>
+            <a href="#" onClick={onLogout} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Sign out</a>
             <a href={dashShellHref(authUser.role === 'trainer' ? 'TrainerDashboard.html' : authUser.role === 'nutritionist' ? 'NutritionistDashboard.html' : 'ClientDashboard.html')} onClick={onClose} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "#04110f", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Dashboard</a>
           </>
         ) : (
           <>
-            <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(242,237,228,0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Log in</a>
+            <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Log in</a>
             <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "#04110f", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Get started</a>
           </>
         )}
@@ -1064,14 +1107,14 @@ function Header({ active }) {
   // uses, so they share vertical-centering and any future container styles.
   const link = (name, href) => (
     <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
-      <a href={href} className="shape-nav-link" style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: active === name ? "#f5efe1" : "rgba(245,239,225,0.78)", whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center", textDecoration: active === name ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>{name}</a>
+      <a href={href} className="shape-nav-link" style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: active === name ? "var(--sh-nav-ink, #f5efe1)" : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center", textDecoration: active === name ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>{name}</a>
     </div>
   );
   // The auth cluster's shared shapes. ⚠ `whiteSpace: nowrap` on every one of
   // them, and `min-width: max-content` on the two flex columns below: the
   // homepage's bar broke "Log in" onto two lines at 1180px because a
   // `flex: 1 1 0` column may shrink below its own content.
-  const quietLink = { fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(245,239,225,0.78)", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", cursor: "pointer", flex: "0 0 auto" };
+  const quietLink = { fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", cursor: "pointer", flex: "0 0 auto" };
   // ⚠ THE APP'S TEAL, NOT THE SITE'S OLD ONE. #2ee0c4 was this header's own value
   // and #34d6c5 is the pair the app, the homepage and the Radio page all paint, so
   // the two sat a shade apart in one bar. No border, so the fill can simply be
@@ -1079,7 +1122,7 @@ function Header({ active }) {
   const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "#04110f", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
-    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(245,239,225,0.06)" }}>
+    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "rgba(11,14,12,0.55)", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       {/* ⚠ FLEX, NOT A 3-COLUMN GRID, and the two outer columns are equal-BASIS
@@ -1117,17 +1160,17 @@ function Header({ active }) {
               <span style={{ fontSize: 13.5, color: INK, fontFamily: navSans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1, flex: "0 0 auto" }}>Hi, {authUser.firstName || authUser.email}</span>
               {authUser.roles && authUser.roles.length > 1 ? (
                 <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
-                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(52,214,197,0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: TEAL_BRIGHT, fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
+                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(var(--sh-accent3-rgb, 52,214,197),0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: TEAL_BRIGHT, fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
                     {roleLabel(authUser.role)} <span aria-hidden style={{ fontSize: 8, opacity: 0.75 }}>▾</span>
                   </button>
                   {roleMenuOpen && (
                     <div style={{ position: "absolute", top: "100%", right: 0, paddingTop: 8, minWidth: 180, zIndex: 60 }}>
-                      <div style={{ background: "rgba(26,22,18,0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 8, padding: 6, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
-                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.45)", padding: "8px 12px 4px" }}>Switch profile</div>
+                      <div style={{ background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 8, padding: 6, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+                        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", padding: "8px 12px 4px" }}>Switch profile</div>
                         {authUser.roles.map(r => (
-                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(10,197,168,0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? TEAL : "rgba(242,237,228,0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
-                            onMouseEnter={e => { if (r !== authUser.role) { e.currentTarget.style.background = "rgba(10,197,168,0.08)"; e.currentTarget.style.color = INK; } }}
-                            onMouseLeave={e => { if (r !== authUser.role) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(242,237,228,0.85)"; } }}
+                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
+                            onMouseEnter={e => { if (r !== authUser.role) { e.currentTarget.style.background = "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)"; e.currentTarget.style.color = INK; } }}
+                            onMouseLeave={e => { if (r !== authUser.role) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(var(--sh-ink-rgb, 242,237,228),0.85)"; } }}
                           >
                             <span>{roleLabel(r)}</span>
                             {r === authUser.role && <span style={{ fontSize: 10, color: TEAL }}>● active</span>}
@@ -1196,7 +1239,7 @@ function HeroBg() {
     <>
       <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: "url('/get%20started.png')", backgroundSize: "cover", backgroundPosition: "center 40%", pointerEvents: "none" }} />
       {/* Lighter gradient — let the road image breathe */}
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(26,22,18,0.55) 0%, rgba(26,22,18,0.1) 35%, rgba(26,22,18,0.1) 55%, rgba(26,22,18,0.85) 92%, rgba(26,22,18,1) 100%)", pointerEvents: "none" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(var(--sh-ground-rgb, 26,22,18),0.55) 0%, rgba(var(--sh-ground-rgb, 26,22,18),0.1) 35%, rgba(var(--sh-ground-rgb, 26,22,18),0.1) 55%, rgba(var(--sh-ground-rgb, 26,22,18),0.85) 92%, rgba(var(--sh-ground-rgb, 26,22,18),1) 100%)", pointerEvents: "none" }} />
     </>
   );
 }
@@ -1210,7 +1253,7 @@ function Footer({ logoHeight = 64 } = {}) {
           <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "block", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 20, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
-        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(242,237,228,0.1)", justifyItems: "center", textAlign: "center" }}>
+        <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 28, paddingTop: 30, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>
           {[
             /* ── THE CANONICAL FOOTER TABLE ────────────────────────────────
                ⚠ THREE FOOTERS RENDERED THIS SITE, AND THEY HAD DRIFTED INTO
@@ -1281,11 +1324,11 @@ function Footer({ logoHeight = 64 } = {}) {
           ].map(([h, items]) => (
             <div key={h}>
               <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, marginBottom: 14 }}>{h}</div>
-              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 8 }}><a href={href} className="shape-foot-link" style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(242,237,228,0.72)", textDecoration: "none", transition: "color .15s ease" }}>{label}</a></div>)}
+              {items.map(([label, href]) => <div key={label} style={{ marginBottom: 8 }}><a href={href} className="shape-foot-link" style={{ fontFamily: sans, fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)", textDecoration: "none", transition: "color .15s ease" }}>{label}</a></div>)}
             </div>
           ))}
         </div>
-        <div className="shape-footer-base" style={{ marginTop: 36, paddingTop: 18, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(242,237,228,0.42)" }}>
+        <div className="shape-footer-base" style={{ marginTop: 36, paddingTop: 18, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)" }}>
           <span>© 2026 SHAPE</span>
         </div>
       </div>
@@ -1325,7 +1368,7 @@ function ShapeMobileStyles() {
       .shape-nav-link, .shape-foot-link { transition: color .16s ease, border-color .16s ease; }
       .shape-foot-link:hover { color: ${TEAL_BRIGHT} !important; }
       .shape-nav-link:hover { color: ${INK} !important; }
-      .shape-nav-radio:hover { color: ${INK} !important; border-color: rgba(52,214,197,0.4) !important; }
+      .shape-nav-radio:hover { color: ${INK} !important; border-color: rgba(var(--sh-accent3-rgb, 52,214,197),0.4) !important; }
       .shape-header { transition: background .25s ease; }
       /* ⚠ THE translateX NUDGE IS GONE, AND ITS JOB IS DONE STRUCTURALLY. It
          shifted the centred nav right to compensate for an auth cluster heavier
@@ -1416,7 +1459,7 @@ function ShapeMobileStyles() {
            turn the sidebar into a horizontal scrolling nav bar so signed-in
            members still see + reach their tabs on mobile. */
         [style*="grid-template-columns: 240px 1fr"] { grid-template-columns: 1fr !important; }
-        .shape-dash-aside { flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; gap: 8px !important; padding: 10px 16px !important; border-right: none !important; border-bottom: 1px solid rgba(242,237,228,0.08) !important; top: ${NAV_H}px !important; }
+        .shape-dash-aside { flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto !important; gap: 8px !important; padding: 10px 16px !important; border-right: none !important; border-bottom: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08) !important; top: ${NAV_H}px !important; }
         .shape-dash-navlink { flex: 0 0 auto !important; white-space: nowrap !important; padding: 9px 13px !important; }
         .shape-dash-payout { display: none !important; }
 
@@ -1536,7 +1579,7 @@ function shapeConfirmOpen(opts) {
     overlay.setAttribute("aria-modal", "true");
     overlay.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(7,8,7,0.66);display:flex;align-items:center;justify-content:center;padding:20px;";
     const card = document.createElement("div");
-    card.style.cssText = "width:100%;max-width:420px;background:#171310;border:1px solid rgba(242,237,228,0.14);border-left:3px solid " + accent + ";border-radius:12px;padding:22px 22px 18px;box-shadow:0 30px 80px rgba(0,0,0,0.5);font-family:" + sans + ";color:" + INK + ";";
+    card.style.cssText = "width:100%;max-width:420px;background:#171310;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14);border-left:3px solid " + accent + ";border-radius:12px;padding:22px 22px 18px;box-shadow:0 30px 80px rgba(0,0,0,0.5);font-family:" + sans + ";color:" + INK + ";";
     const eyebrow = document.createElement("div");
     eyebrow.textContent = danger ? "Confirm · this can’t be undone" : "Confirm";
     eyebrow.style.cssText = "font-family:" + mono + ";font-size:10px;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:" + accent + ";";
@@ -1546,12 +1589,12 @@ function shapeConfirmOpen(opts) {
     title.style.cssText = "font-family:" + serif + ";font-size:22px;font-weight:600;letter-spacing:-0.01em;margin-top:6px;color:" + INK + ";";
     card.appendChild(title);
     if (o.name) { const nm = document.createElement("div"); nm.textContent = o.name; nm.style.cssText = "font-size:15px;font-weight:600;color:" + accent + ";margin-top:3px;"; card.appendChild(nm); }
-    if (o.message) { const msg = document.createElement("div"); msg.textContent = o.message; msg.style.cssText = "font-size:13.5px;line-height:1.5;color:rgba(242,237,228,0.72);margin-top:11px;"; card.appendChild(msg); }
+    if (o.message) { const msg = document.createElement("div"); msg.textContent = o.message; msg.style.cssText = "font-size:13.5px;line-height:1.5;color:rgba(var(--sh-ink-rgb, 242,237,228),0.72);margin-top:11px;"; card.appendChild(msg); }
     let input = null;
     if (need) {
       input = document.createElement("input");
       input.type = "text"; input.placeholder = "Type " + need + " to confirm";
-      input.style.cssText = "width:100%;box-sizing:border-box;margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid rgba(242,237,228,0.18);background:rgba(0,0,0,0.25);color:" + INK + ";font-family:" + serif + ";font-size:16px;outline:none;";
+      input.style.cssText = "width:100%;box-sizing:border-box;margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18);background:rgba(0,0,0,0.25);color:" + INK + ";font-family:" + serif + ";font-size:16px;outline:none;";
       card.appendChild(input);
     }
     const gateOk = () => !need || (input.value || "").trim().toUpperCase() === need.toUpperCase();
@@ -1559,7 +1602,7 @@ function shapeConfirmOpen(opts) {
     row.style.cssText = "display:flex;gap:9px;margin-top:18px;";
     const cancel = document.createElement("button");
     cancel.type = "button"; cancel.textContent = o.cancelLabel || "Cancel";
-    cancel.style.cssText = "flex:0 0 auto;padding:12px 22px;border-radius:999px;border:1px solid rgba(242,237,228,0.2);background:transparent;color:rgba(242,237,228,0.7);font-family:" + sans + ";font-size:14px;font-weight:600;cursor:pointer;";
+    cancel.style.cssText = "flex:0 0 auto;padding:12px 22px;border-radius:999px;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2);background:transparent;color:rgba(var(--sh-ink-rgb, 242,237,228),0.7);font-family:" + sans + ";font-size:14px;font-weight:600;cursor:pointer;";
     const ok = document.createElement("button");
     ok.type = "button"; ok.textContent = o.confirmLabel || "Confirm";
     const setOk = () => { const e = gateOk(); ok.style.cssText = "flex:1;min-height:46px;border-radius:999px;border:0;background:" + (e ? accent : "rgba(224,120,86,0.35)") + ";color:#fff;font-family:" + sans + ";font-size:14px;font-weight:700;cursor:" + (e ? "pointer" : "default") + ";opacity:" + (e ? 1 : 0.7) + ";"; };
@@ -1618,14 +1661,14 @@ function useCalendarOverlay() {
 }
 
 const KIND_COLORS = {
-  WORKOUT:  "#0ac5a8",
-  SESSION:  "#0ac5a8",
+  WORKOUT:  "var(--sh-accent2, #0ac5a8)",
+  SESSION:  "var(--sh-accent2, #0ac5a8)",
   MEAL:     "#e8b54a",
   PLAN:     "#e8b54a",
   CONSULT:  "#c084e8",
   CHECKIN:  "#6fb5ff",
   REVIEW:   "#6fb5ff",
-  ADMIN:    "rgba(242,237,228,0.5)",
+  ADMIN:    "rgba(var(--sh-ink-rgb, 242,237,228),0.5)",
 };
 const KIND_LABEL = { WORKOUT:"Workout", MEAL:"Meal", CHECKIN:"Check-in", SESSION:"Session", CONSULT:"Consult", REVIEW:"Review", PLAN:"Plan", ADMIN:"Admin" };
 
@@ -1702,21 +1745,21 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
       style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(10,10,8,0.92)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 24px", overflow: "auto" }}
       onClick={onClose}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width: "min(1200px, 100%)", background: PAPER, color: INK, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, boxShadow: "0 40px 120px rgba(0,0,0,0.6)", fontFamily: sans, overflow: "hidden", margin: "auto" }}>
+        style={{ width: "min(1200px, 100%)", background: PAPER, color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, boxShadow: "0 40px 120px rgba(0,0,0,0.6)", fontFamily: sans, overflow: "hidden", margin: "auto" }}>
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 28px", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "22px 28px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.18em", color: TEAL_BRIGHT }}>{roleLabel.toUpperCase()}</div>
             <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em" }}>{view === "week" ? fmtWeekRange(startOfWeek(cursor)) : fmtMonth(cursor)}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ display: "inline-flex", border: "1px solid rgba(242,237,228,0.15)", borderRadius: 999, padding: 3 }}>
+            <div style={{ display: "inline-flex", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", borderRadius: 999, padding: 3 }}>
               {["week","month"].map(v => (
                 <button key={v} onClick={() => setViewAndClose(v)}
                   style={{ background: view===v ? INK : "transparent", color: view===v ? PAPER : INK, border: 0, padding: "6px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 500, letterSpacing: "0.04em", cursor: "pointer", textTransform: "capitalize" }}>{v}</button>
               ))}
             </div>
-            <button onClick={goToday} style={{ background: "transparent", color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.15)", padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Today</button>
+            <button onClick={goToday} style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", padding: "7px 14px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>Today</button>
             <input
               type="date"
               value={ymd(cursor)}
@@ -1726,7 +1769,7 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
                 setCursor(new Date(e.target.value + "T00:00:00"));
               }}
               aria-label="Jump to date"
-              style={{ background: "transparent", color: "rgba(242,237,228,0.8)", border: "1px solid rgba(242,237,228,0.15)", padding: "6px 12px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer", colorScheme: "dark" }}
+              style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", padding: "6px 12px", borderRadius: 999, fontFamily: sans, fontSize: 12, cursor: "pointer", colorScheme: "dark" }}
             />
             <div style={{ display: "inline-flex", gap: 2 }}>
               <button onClick={() => shift(-1)} style={navArrowStyle}>‹</button>
@@ -1735,14 +1778,14 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
             {live && (
               <button onClick={() => setAdding(true)} style={{ background: TEAL, color: "#031f1c", border: 0, padding: "7px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.02em" }}>+ Add</button>
             )}
-            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 22, padding: "2px 10px", cursor: "pointer", marginLeft: 6 }}>×</button>
+            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", border: 0, fontSize: 22, padding: "2px 10px", cursor: "pointer", marginLeft: 6 }}>×</button>
           </div>
         </div>
 
         {/* Legend */}
-        <div style={{ display: "flex", gap: 18, padding: "12px 28px", borderBottom: "1px solid rgba(242,237,228,0.06)", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 18, padding: "12px 28px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", flexWrap: "wrap" }}>
           {legendForRole(role).map(k => (
-            <div key={k} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11.5, fontFamily: sans, color: "rgba(242,237,228,0.65)" }}>
+            <div key={k} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11.5, fontFamily: sans, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)" }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, background: KIND_COLORS[k] }} />
               {KIND_LABEL[k]}
             </div>
@@ -1785,23 +1828,23 @@ function CalAddForm({ defaultDate, onClose, onSaved }) {
       .catch(e => { setErr((e && e.error) || "Could not save."); setBusy(false); });
   };
 
-  const field = { width: "100%", background: "rgba(242,237,228,0.06)", color: INK, border: "1px solid rgba(242,237,228,0.15)", borderRadius: 10, padding: "11px 12px", fontFamily: sans, fontSize: 14, outline: "none", boxSizing: "border-box" };
+  const field = { width: "100%", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", borderRadius: 10, padding: "11px 12px", fontFamily: sans, fontSize: 14, outline: "none", boxSizing: "border-box" };
 
   return (
     <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 10 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: "min(440px, 100%)", background: PAPER, color: INK, border: "1px solid rgba(242,237,228,0.12)", borderRadius: 14, padding: 22, fontFamily: sans }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: "min(440px, 100%)", background: PAPER, color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14, padding: 22, fontFamily: sans }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
           <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em" }}>Add to calendar</div>
-          <button onClick={onClose} style={{ background: "transparent", color: "rgba(242,237,228,0.6)", border: 0, fontSize: 20, cursor: "pointer" }}>×</button>
+          <button onClick={onClose} style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", border: 0, fontSize: 20, cursor: "pointer" }}>×</button>
         </div>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 9, fontWeight: 700 }}>Type</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 9, fontWeight: 700 }}>Type</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 7, marginBottom: 18 }}>
           {KINDS.map(k => {
             const on = kind === k;
             return (
-              <button key={k} onClick={() => setKind(k)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 2px 7px", borderRadius: 12, cursor: "pointer", border: `1px solid ${on ? TEAL : "rgba(242,237,228,0.15)"}`, background: on ? "rgba(10,197,168,0.13)" : "transparent" }}>
+              <button key={k} onClick={() => setKind(k)} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "10px 2px 7px", borderRadius: 12, cursor: "pointer", border: `1px solid ${on ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.15)"}`, background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.13)" : "transparent" }}>
                 <span style={{ fontSize: 17, lineHeight: 1, filter: on ? "none" : "grayscale(0.4)" }}>{KIND_ICON[k] || "✦"}</span>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 700, letterSpacing: "0.04em", color: on ? INK : "rgba(242,237,228,0.55)" }}>{k}</span>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 700, letterSpacing: "0.04em", color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{k}</span>
               </button>
             );
           })}
@@ -1822,7 +1865,7 @@ function CalAddForm({ defaultDate, onClose, onSaved }) {
   );
 }
 
-const navArrowStyle = { background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.15)", width: 32, height: 32, borderRadius: 999, fontFamily: sans, fontSize: 16, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 };
+const navArrowStyle = { background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", width: 32, height: 32, borderRadius: 999, fontFamily: sans, fontSize: 16, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 };
 
 function legendForRole(role) {
   if (role === "trainer") return ["SESSION","CHECKIN","REVIEW","ADMIN"];
@@ -1835,27 +1878,27 @@ function WeekView({ start, byDate, today, onSelect }) {
   const hours = Array.from({length: 14}, (_, i) => i + 7); // 7am – 8pm
   return (
     <div style={{ padding: "0 28px 28px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7, 1fr)", borderTop: "1px solid rgba(242,237,228,0.08)", borderLeft: "1px solid rgba(242,237,228,0.08)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "56px repeat(7, 1fr)", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
         <div />
         {days.map(d => {
           const isToday = ymd(d) === ymd(today);
           return (
-            <div key={d.toString()} style={{ padding: "14px 12px", borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", background: isToday ? "rgba(10,197,168,0.06)" : "transparent" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: isToday ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>{d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}</div>
-              <div style={{ fontFamily: serif, fontSize: 22, marginTop: 4, color: isToday ? INK : "rgba(242,237,228,0.8)" }}>{d.getDate()}</div>
+            <div key={d.toString()} style={{ padding: "14px 12px", borderRight: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: isToday ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)" : "transparent" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: isToday ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}</div>
+              <div style={{ fontFamily: serif, fontSize: 22, marginTop: 4, color: isToday ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}>{d.getDate()}</div>
             </div>
           );
         })}
 
         {hours.map(h => (
           <React.Fragment key={h}>
-            <div style={{ padding: "8px 8px 0", borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.05)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(242,237,228,0.4)", minHeight: 54 }}>
+            <div style={{ padding: "8px 8px 0", borderRight: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", minHeight: 54 }}>
               {h === 12 ? "12 PM" : h < 12 ? `${h} AM` : `${h-12} PM`}
             </div>
             {days.map(d => {
               const list = (byDate[ymd(d)] || []).filter(e => e.time && Number(e.time.slice(0,2)) === h);
               return (
-                <div key={d.toString()+h} style={{ position: "relative", borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.05)", minHeight: 54, padding: 4 }}>
+                <div key={d.toString()+h} style={{ position: "relative", borderRight: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", minHeight: 54, padding: 4 }}>
                   {list.map((e, i) => (
                     <EventChip key={i} e={e} onSelect={onSelect} />
                   ))}
@@ -1879,14 +1922,14 @@ function EventChip({ e, compact, onSelect }) {
   };
   return (
     <button type="button" onClick={handle} title={`${e.title}${e.sub ? " — " + e.sub : ""}`}
-      style={{ display: "block", width: "100%", textAlign: "left", background: "rgba(242,237,228,0.04)", borderLeft: `3px solid ${color}`, borderTop: 0, borderRight: 0, borderBottom: 0, padding: compact ? "3px 6px" : "6px 8px", borderRadius: 3, marginBottom: 3, cursor: "pointer", overflow: "hidden", fontFamily: "inherit", color: "inherit" }}
-      onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(242,237,228,0.08)"; }}
-      onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(242,237,228,0.04)"; }}>
+      style={{ display: "block", width: "100%", textAlign: "left", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", borderLeft: `3px solid ${color}`, borderTop: 0, borderRight: 0, borderBottom: 0, padding: compact ? "3px 6px" : "6px 8px", borderRadius: 3, marginBottom: 3, cursor: "pointer", overflow: "hidden", fontFamily: "inherit", color: "inherit" }}
+      onMouseEnter={(ev) => { ev.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"; }}
+      onMouseLeave={(ev) => { ev.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.04)"; }}>
       <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-        {e.time && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(242,237,228,0.55)" }}>{e.time}</span>}
+        {e.time && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{e.time}</span>}
         <span style={{ fontSize: compact ? 10.5 : 12, fontWeight: 500, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.title}</span>
       </div>
-      {!compact && e.sub && <div style={{ fontSize: 10.5, color: "rgba(242,237,228,0.5)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.sub}</div>}
+      {!compact && e.sub && <div style={{ fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.sub}</div>}
     </button>
   );
 }
@@ -1899,19 +1942,19 @@ function MonthView({ cursor, byDate, today, onSelect }) {
   const weekdays = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
   return (
     <div style={{ padding: "0 28px 28px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
-        {weekdays.map(w => <div key={w} style={{ padding: "12px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.55)" }}>{w}</div>)}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+        {weekdays.map(w => <div key={w} style={{ padding: "12px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{w}</div>)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderLeft: "1px solid rgba(242,237,228,0.08)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
         {cells.map((d, i) => {
           const inMonth = d.getMonth() === cursor.getMonth();
           const isToday = ymd(d) === ymd(today);
           const list = byDate[ymd(d)] || [];
           return (
-            <div key={i} style={{ minHeight: 112, borderRight: "1px solid rgba(242,237,228,0.08)", borderBottom: "1px solid rgba(242,237,228,0.08)", padding: 8, background: isToday ? "rgba(10,197,168,0.06)" : "transparent", opacity: inMonth ? 1 : 0.35 }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: isToday ? TEAL_BRIGHT : "rgba(242,237,228,0.7)", marginBottom: 4 }}>{d.getDate()}</div>
+            <div key={i} style={{ minHeight: 112, borderRight: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", padding: 8, background: isToday ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)" : "transparent", opacity: inMonth ? 1 : 0.35 }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: isToday ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", marginBottom: 4 }}>{d.getDate()}</div>
               {list.slice(0,3).map((e, j) => <EventChip key={j} e={e} compact onSelect={onSelect} />)}
-              {list.length > 3 && <div style={{ fontSize: 10.5, color: "rgba(242,237,228,0.5)", paddingLeft: 4, marginTop: 2 }}>+{list.length-3} more</div>}
+              {list.length > 3 && <div style={{ fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", paddingLeft: 4, marginTop: 2 }}>+{list.length-3} more</div>}
             </div>
           );
         })}
@@ -2007,8 +2050,8 @@ function EventPopover({ selection, role, onClose, onChanged }) {
       onMouseDown={(ev) => ev.stopPropagation()}
       style={{
         position: "fixed", left: pos.left, top: pos.top,
-        width: 320, background: "#1a1612", color: INK,
-        border: "1px solid rgba(242,237,228,0.14)", borderRadius: 10,
+        width: 320, background: "var(--sh-ground, #1a1612)", color: INK,
+        border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10,
         boxShadow: "0 24px 60px rgba(0,0,0,0.55)",
         zIndex: 300, overflow: "hidden", fontFamily: sans,
       }}>
@@ -2019,37 +2062,37 @@ function EventPopover({ selection, role, onClose, onChanged }) {
             <span style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
             {(KIND_LABEL[e.kind] || e.kind || "").toUpperCase()}
           </div>
-          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", color: "rgba(242,237,228,0.5)", border: 0, fontSize: 18, padding: "0 4px", cursor: "pointer", lineHeight: 1 }}>×</button>
+          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", border: 0, fontSize: 18, padding: "0 4px", cursor: "pointer", lineHeight: 1 }}>×</button>
         </div>
         <div style={{ fontFamily: serif, fontSize: 22, letterSpacing: "-0.02em", lineHeight: 1.15, marginBottom: 8 }}>{e.title}</div>
-        <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.65)", marginBottom: 4 }}>{fmtLongDate(e.date)}</div>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.55)" }}>{fmtTimeRange(e.time, e.duration != null ? e.duration : e.durationMin)}</div>
+        <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.65)", marginBottom: 4 }}>{fmtLongDate(e.date)}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{fmtTimeRange(e.time, e.duration != null ? e.duration : e.durationMin)}</div>
       </div>
 
       {(e.sub || e.with || e.location) && (
-        <div style={{ padding: "12px 18px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 6 }}>
+        <div style={{ padding: "12px 18px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "grid", gap: 6 }}>
           {e.with && (
             <div style={{ display: "flex", gap: 10, fontSize: 12.5 }}>
-              <span style={{ color: "rgba(242,237,228,0.5)", width: 56, flexShrink: 0 }}>With</span>
+              <span style={{ color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", width: 56, flexShrink: 0 }}>With</span>
               <span>{e.with}</span>
             </div>
           )}
           {e.location && (
             <div style={{ display: "flex", gap: 10, fontSize: 12.5 }}>
-              <span style={{ color: "rgba(242,237,228,0.5)", width: 56, flexShrink: 0 }}>Where</span>
+              <span style={{ color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", width: 56, flexShrink: 0 }}>Where</span>
               <span>{e.location}</span>
             </div>
           )}
           {e.sub && (
             <div style={{ display: "flex", gap: 10, fontSize: 12.5 }}>
-              <span style={{ color: "rgba(242,237,228,0.5)", width: 56, flexShrink: 0 }}>Details</span>
-              <span style={{ color: "rgba(242,237,228,0.85)" }}>{e.sub}</span>
+              <span style={{ color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", width: 56, flexShrink: 0 }}>Details</span>
+              <span style={{ color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{e.sub}</span>
             </div>
           )}
         </div>
       )}
 
-      <div style={{ padding: "12px 14px 14px", borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ padding: "12px 14px 14px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", flexWrap: "wrap", gap: 8 }}>
         {canDelete && (
           <button onClick={removeEvent}
             style={{ background: "transparent", color: "#ff8b7f", border: "1px solid rgba(255,139,127,0.4)", padding: "9px 14px", borderRadius: 4, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>
@@ -2064,7 +2107,7 @@ function EventPopover({ selection, role, onClose, onChanged }) {
             </button>
           ) : (
             <button key={i} onClick={onClose}
-              style={{ background: "transparent", color: "rgba(242,237,228,0.85)", border: "1px solid rgba(242,237,228,0.18)", padding: "9px 14px", borderRadius: 4, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>
+              style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "9px 14px", borderRadius: 4, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>
               {a.label}
             </button>
           )
@@ -2189,30 +2232,30 @@ function ShapeHomeCards() {
         onDragEnd={draggable ? () => { setDragType(null); setOverType(null); } : undefined}
         onDragOver={draggable ? (e) => { e.preventDefault(); if (overType !== type) setOverType(type); } : undefined}
         onDrop={draggable ? (e) => { e.preventDefault(); onDrop(type); } : undefined}
-        style={{ borderRadius: 14, marginBottom: 16, background: "rgba(242,237,228,0.04)", overflow: "hidden",
-          border: (overType === type && dragType && dragType !== type) ? `1.5px dashed ${accent}` : (pinned ? `1.5px solid ${accent}` : "1px solid rgba(242,237,228,0.1)"),
+        style={{ borderRadius: 14, marginBottom: 16, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", overflow: "hidden",
+          border: (overType === type && dragType && dragType !== type) ? `1.5px dashed ${accent}` : (pinned ? `1.5px solid ${accent}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)"),
           opacity: dragType === type ? 0.5 : 1 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px 0" }}>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: accent, display: "inline-flex", alignItems: "center", gap: 10 }}>
-            {draggable && <span title="Drag to reorder" style={{ cursor: "grab", color: "rgba(242,237,228,0.4)" }}>⠿</span>}
+            {draggable && <span title="Drag to reorder" style={{ cursor: "grab", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" }}>⠿</span>}
             {m.kicker}{pinned ? " · pinned" : ""}
           </span>
           <span style={{ display: "inline-flex", gap: 6 }}>
-            <button onClick={() => togglePin(type)} title={pinned ? "Unpin" : "Pin"} style={shapeCardBtn(pinned ? accent : "rgba(242,237,228,0.5)")}>⌃</button>
-            <button onClick={() => hideCard(type)} title="Hide" style={shapeCardBtn("rgba(242,237,228,0.5)")}>×</button>
+            <button onClick={() => togglePin(type)} title={pinned ? "Unpin" : "Pin"} style={shapeCardBtn(pinned ? accent : "rgba(var(--sh-ink-rgb, 242,237,228),0.5)")}>⌃</button>
+            <button onClick={() => hideCard(type)} title="Hide" style={shapeCardBtn("rgba(var(--sh-ink-rgb, 242,237,228),0.5)")}>×</button>
           </span>
         </div>
         <div style={{ padding: "8px 22px 22px" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <span style={{ fontFamily: serif, fontSize: 64, letterSpacing: "-0.035em", color: INK, lineHeight: 0.9 }}>{m.hero}</span>
-            {m.unit ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{m.unit}</span> : null}
+            {m.unit ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>{m.unit}</span> : null}
           </div>
           {m.meta && m.meta.length ? (
-            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>
               {m.meta.filter(Boolean).map((s, i) => <React.Fragment key={i}>{i > 0 && <span style={{ opacity: 0.5 }}>·</span>}<span>{s}</span></React.Fragment>)}
             </div>
           ) : null}
-          {m.caption ? <div style={{ marginTop: 14, fontFamily: sans, fontSize: 16, color: "rgba(242,237,228,0.72)", lineHeight: 1.35 }}>{m.caption}</div> : null}
+          {m.caption ? <div style={{ marginTop: 14, fontFamily: sans, fontSize: 16, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.72)", lineHeight: 1.35 }}>{m.caption}</div> : null}
         </div>
       </div>
     );
@@ -2223,25 +2266,25 @@ function ShapeHomeCards() {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18 }}>
         <div>
           <h2 style={{ fontFamily: serif, fontSize: 36, letterSpacing: "-0.02em", fontWeight: 400, margin: 0 }}>{["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()]}.</h2>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginTop: 6 }}>Your stack · pin, drag, or choose cards</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 6 }}>Your stack · pin, drag, or choose cards</div>
         </div>
         <div style={{ position: "relative" }}>
-          <button onClick={() => setMenuOpen(v => !v)} style={{ padding: "9px 16px", borderRadius: 999, border: `1px solid ${menuOpen ? TEAL : "rgba(242,237,228,0.2)"}`, background: menuOpen ? TEAL : "transparent", color: menuOpen ? "#0a0f0d" : INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer" }}>CARDS ▾</button>
+          <button onClick={() => setMenuOpen(v => !v)} style={{ padding: "9px 16px", borderRadius: 999, border: `1px solid ${menuOpen ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, background: menuOpen ? TEAL : "transparent", color: menuOpen ? "#0a0f0d" : INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer" }}>CARDS ▾</button>
           {menuOpen && (
             <>
               <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
-              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 51, width: 240, background: "#1a1612", border: "1px solid rgba(242,237,228,0.15)", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>
-                <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(242,237,228,0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Show on home</div>
+              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 51, width: 240, background: "var(--sh-ground, #1a1612)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Show on home</div>
                 {SHAPE_CARD_TYPES.map(type => {
                   const on = layout.order.includes(type);
                   return (
-                    <button key={type} onClick={() => toggleVisible(type)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", border: 0, borderTop: "1px solid rgba(242,237,228,0.06)", background: "transparent", cursor: "pointer" }}>
+                    <button key={type} onClick={() => toggleVisible(type)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 16px", border: 0, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", background: "transparent", cursor: "pointer" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
                         <span style={{ width: 9, height: 9, borderRadius: 2, background: SHAPE_CARD_ACCENT[type] }} />
                         <span style={{ fontFamily: sans, fontSize: 14, color: INK }}>{SHAPE_CARD_LABEL[type]}</span>
                       </span>
-                      <span style={{ width: 36, height: 20, borderRadius: 999, padding: 2, border: `1px solid ${on ? SHAPE_CARD_ACCENT[type] : "rgba(242,237,228,0.2)"}`, background: on ? SHAPE_CARD_ACCENT[type] : "transparent", display: "inline-flex", alignItems: "center", justifyContent: on ? "flex-end" : "flex-start" }}>
-                        <span style={{ width: 14, height: 14, borderRadius: 999, background: on ? "#0a0f0d" : "rgba(242,237,228,0.5)", display: "block" }} />
+                      <span style={{ width: 36, height: 20, borderRadius: 999, padding: 2, border: `1px solid ${on ? SHAPE_CARD_ACCENT[type] : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, background: on ? SHAPE_CARD_ACCENT[type] : "transparent", display: "inline-flex", alignItems: "center", justifyContent: on ? "flex-end" : "flex-start" }}>
+                        <span style={{ width: 14, height: 14, borderRadius: 999, background: on ? "#0a0f0d" : "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", display: "block" }} />
                       </span>
                     </button>
                   );
@@ -2251,10 +2294,10 @@ function ShapeHomeCards() {
           )}
         </div>
       </div>
-      {ordered.length === 0 && <div style={{ padding: "24px", borderRadius: 14, border: "1px dashed rgba(242,237,228,0.15)", fontFamily: sans, fontSize: 15, color: "rgba(242,237,228,0.5)" }}>No cards. Tap <b style={{ color: INK }}>Cards ▾</b> to choose what to show.</div>}
+      {ordered.length === 0 && <div style={{ padding: "24px", borderRadius: 14, border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.15)", fontFamily: sans, fontSize: 15, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>No cards. Tap <b style={{ color: INK }}>Cards ▾</b> to choose what to show.</div>}
       {ordered.map(card)}
-      <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.45)", lineHeight: 1.5 }}>
-        <b style={{ color: "rgba(242,237,228,0.7)" }}>Three defaults, then it's yours.</b> Drag ⠿ to reorder, pin to lock to top, or choose cards from Cards ▾.
+      <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", lineHeight: 1.5 }}>
+        <b style={{ color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>Three defaults, then it's yours.</b> Drag ⠿ to reorder, pin to lock to top, or choose cards from Cards ▾.
         {layout.manual ? <> Order is yours — <a href="#" onClick={(e) => { e.preventDefault(); persist({ ...layout, manual: false }); }} style={{ color: TEAL_BRIGHT }}>switch to auto</a>.</> : " Unpinned cards reorder by what's most alive that day."}
       </div>
     </div>

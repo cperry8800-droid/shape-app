@@ -11,7 +11,7 @@
 // Load order: pageShell → trainerDashboard.jsx → coachNav/clientNav →
 // dashSignals.js → dashData.jsx → dashToday.jsx (DashPill/helpers) → this.
 
-const DASH_ROSTER_INK50 = "rgba(242,237,228,0.55)";
+const DASH_ROSTER_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
 // ⚠ A SEPARATE, WEAKER INK, BECAUSE AN rgba() STRING CANNOT TAKE A HEX ALPHA SUFFIX.
 // Appending two hex digits to this token yields a value that is not a colour, and CSS
 // error-handling then drops the WHOLE declaration — so the border simply does not paint
@@ -19,7 +19,7 @@ const DASH_ROSTER_INK50 = "rgba(242,237,228,0.55)";
 // this change; neither the mutation round nor the browser drive could see an absent
 // border. The same class this log post-mortems on the page textures, and `dashToday.jsx`
 // carries the same warning above its own hex muted ink.
-const DASH_ROSTER_HAIR = "rgba(242,237,228,0.18)";
+const DASH_ROSTER_HAIR = "rgba(var(--sh-ink-rgb, 242,237,228),0.18)";
 
 // ⚠ ONE SHAPE FOR "NO ANSWER", AND IT USED TO HAVE TWO (CodeRabbit, #2031). This
 // returned `null` for a falsy input and `NaN` for an UNPARSEABLE one —
@@ -46,7 +46,7 @@ function dashRelShort(isoStr) {
 // ── Honest cell values — real, or a labelled empty state, never a bare dash ──
 function dashCellText(v) {
   return (
-    <span title={v.text} style={{ display: "block", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: v.dim ? "rgba(242,237,228,0.4)" : v.warn ? DASH_SEV_COLORS.amber : "rgba(242,237,228,0.85)", fontStyle: v.dim ? "italic" : "normal", whiteSpace: "nowrap" }}>{v.text}</span>
+    <span title={v.text} style={{ display: "block", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: v.dim ? "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" : v.warn ? DASH_SEV_COLORS.amber : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", fontStyle: v.dim ? "italic" : "normal", whiteSpace: "nowrap" }}>{v.text}</span>
   );
 }
 function dashLastLogLabel(rec) {
@@ -149,7 +149,7 @@ function dashScoreCell(rec) {
   const r = DashSignals.scoreWeekReading(rec.shapeScoreHistory);
   if (!r) return dashCellText({ text: "Not shared", dim: true });
   return (
-    <span title={r.partial ? "Week in progress" : undefined} style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "rgba(242,237,228,0.85)", whiteSpace: "nowrap" }}>
+    <span title={r.partial ? "Week in progress" : undefined} style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", whiteSpace: "nowrap" }}>
       {r.points}{r.partial && <span style={{ color: DASH_ROSTER_INK50 }}>*</span>}
       {r.delta != null && <span style={{ color: r.delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}> {r.delta >= 0 ? "▲+" + r.delta : "▼−" + Math.abs(r.delta)}</span>}
     </span>
@@ -289,10 +289,10 @@ function DashDrawerSection({ title, right, children }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#2ee0c4" }}>{title}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-accent, #2ee0c4)" }}>{title}</div>
         {right && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{right}</div>}
       </div>
-      <div style={{ height: 2, background: "linear-gradient(90deg, #2ee0c4, rgba(46,224,196,0.2) 45%, transparent 85%)", margin: "7px 0 12px" }} />
+      <div style={{ height: 2, background: "linear-gradient(90deg, var(--sh-accent, #2ee0c4), rgba(var(--sh-accent-rgb, 46,224,196),0.2) 45%, transparent 85%)", margin: "7px 0 12px" }} />
       {children}
     </div>
   );
@@ -300,7 +300,7 @@ function DashDrawerSection({ title, right, children }) {
 function DashDrawerEmpty({ children }) {
   return <div style={{ fontSize: 12.5, color: DASH_ROSTER_INK50, lineHeight: 1.5 }}>{children}</div>;
 }
-function DashDrawerSpark({ data, color = "#2ee0c4", w = 120, h = 34 }) {
+function DashDrawerSpark({ data, color = "var(--sh-accent, #2ee0c4)", w = 120, h = 34 }) {
   if (!Array.isArray(data) || data.length < 2) return null;
   const min = Math.min(...data), max = Math.max(...data), span = max - min || 1;
   const pts = data.map((v, i) => ((i / (data.length - 1)) * (w - 4) + 2) + "," + (h - 4 - ((v - min) / span) * (h - 8)));
@@ -333,8 +333,8 @@ function DashSecAdherence({ rec }) {
         <span style={{ fontFamily: "'Fraunces', serif", fontSize: 22 }}>{a.pct}%</span>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: DASH_ROSTER_INK50 }}>{a.done}/{a.planned} sessions · 42d</span>
       </div>
-      <div style={{ position: "relative", height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 2, marginTop: 8 }}>
-        <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, a.pct) + "%", background: a.pct < 70 ? DASH_SEV_COLORS.amber : "#2ee0c4", borderRadius: 2 }} />
+      <div style={{ position: "relative", height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2, marginTop: 8 }}>
+        <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, a.pct) + "%", background: a.pct < 70 ? DASH_SEV_COLORS.amber : "var(--sh-accent, #2ee0c4)", borderRadius: 2 }} />
       </div>
     </div>
   );
@@ -351,8 +351,8 @@ function DashSecNotes({ rec }) {
   return (
     <div>
       {notes.slice(0, 3).map((n, i) => (
-        <div key={i} style={{ padding: "8px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
-          <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "rgba(242,237,228,0.85)" }}>{n.text}</div>
+        <div key={i} style={{ padding: "8px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
+          <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{n.text}</div>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginTop: 3 }}>{dashRelShort(n.on) || ""}</div>
         </div>
       ))}
@@ -374,7 +374,7 @@ function DashSecMilestones({ rec }) {
       {ms.next.map((m, i) => (
         <div key={"n" + i} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8, alignItems: "center", padding: "5px 0" }}>
           <span style={{ color: DASH_ROSTER_INK50, fontSize: 12 }}>○</span>
-          <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.75)" }}>{m.label}</span>
+          <span style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" }}>{m.label}</span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: DASH_ROSTER_INK50 }}>{m.detail}</span>
         </div>
       ))}
@@ -389,12 +389,12 @@ function DashSecNutritionSummary({ rec }) {
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: weighIns.length ? 12 : 0 }}>
-        <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "11px 13px" }}>
+        <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "11px 13px" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Logging</div>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginTop: 4 }}>{f && f.daysLogged7d != null ? f.daysLogged7d + "/7 days" : "—"}</div>
           <div style={{ fontSize: 10, color: DASH_ROSTER_INK50, marginTop: 2 }}>{f && f.lastLoggedOn ? "last " + (dashRelShort(f.lastLoggedOn) || "").toLowerCase() : "no last-log date shared"}</div>
         </div>
-        <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "11px 13px" }}>
+        <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "11px 13px" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Compliance · 7d</div>
           <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginTop: 4 }}>{f && f.daysLogged7d != null ? Math.round((Math.min(7, f.daysLogged7d) / 7) * 100) + "%" : "—"}</div>
           <div style={{ fontSize: 10, color: DASH_ROSTER_INK50, marginTop: 2 }}>food logs</div>
@@ -417,7 +417,7 @@ function DashSecLogs({ rec }) {
     return (
       <div>
         {rec.recentLogs.slice(0, 3).map((l, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "84px 1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "84px 1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: DASH_ROSTER_INK50 }}>{dashRelShort(l.on)}</span>
             <span style={{ fontSize: 12.5 }}>{l.kcal != null ? l.kcal.toLocaleString() + " kcal" : "logged"}</span>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: DASH_ROSTER_INK50 }}>{l.protein != null ? l.protein + "g P" : ""}</span>
@@ -440,10 +440,10 @@ function DashSecMacros({ rec }) {
     return (
       <div style={{ display: "grid", gridTemplateColumns: "70px 1fr auto", gap: 10, alignItems: "center", padding: "7px 0" }}>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: DASH_ROSTER_INK50, textTransform: "uppercase" }}>{label}</span>
-        <div style={{ position: "relative", height: 5, background: "rgba(242,237,228,0.08)", borderRadius: 2 }}>
-          {pct != null && <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, pct) + "%", background: bad ? DASH_SEV_COLORS.red : "#2ee0c4", borderRadius: 2 }} />}
+        <div style={{ position: "relative", height: 5, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2 }}>
+          {pct != null && <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, pct) + "%", background: bad ? DASH_SEV_COLORS.red : "var(--sh-accent, #2ee0c4)", borderRadius: 2 }} />}
         </div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: bad ? DASH_SEV_COLORS.red : "#f2ede4", whiteSpace: "nowrap" }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: bad ? DASH_SEV_COLORS.red : "var(--sh-ink, #f2ede4)", whiteSpace: "nowrap" }}>
           {avg}{target ? <span style={{ color: DASH_ROSTER_INK50 }}>/{target} ({pct}%)</span> : <span style={{ color: DASH_ROSTER_INK50 }}> · no target set</span>}
         </span>
       </div>
@@ -479,12 +479,12 @@ function DashSecTrainingContext({ rec }) {
   if (!adh && wkPts == null) return <DashDrawerEmpty>Training data isn't shared to coaches on the web yet.</DashDrawerEmpty>;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-      <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "12px 14px" }}>
+      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "12px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Volume · 42d</div>
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, marginTop: 5 }}>{adh ? adh.done + "/" + adh.planned : "—"}</div>
         <div style={{ fontSize: 10.5, color: DASH_ROSTER_INK50, marginTop: 2 }}>{adh ? adh.pct + "% adherence" : "not shared"}</div>
       </div>
-      <div style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.08)", borderRadius: 8, padding: "12px 14px" }}>
+      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "12px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Shape Score · wk</div>
         <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, marginTop: 5 }}>{wkPts != null ? wkPts + " pts" : "—"}{wkPartial && <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>*</span>}</div>
         <div style={{ fontSize: 10.5, color: wkDelta == null ? DASH_ROSTER_INK50 : wkDelta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, marginTop: 2 }}>{wkDelta != null ? (wkDelta >= 0 ? "▲ +" + wkDelta : "▼ −" + Math.abs(wkDelta)) + (wkPartial ? " last full wk" : " wk/wk") : "history not shared"}</div>
@@ -563,7 +563,7 @@ function DashProgressReadout({ row }) {
   const checked = progress.checkedAt ? new Date(progress.checkedAt) : null;
   return <div role="status" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", color: DASH_ROSTER_INK50, fontSize: 12, margin: "0 0 18px", lineHeight: 1.5 }}>
     <span>{progress.label}{checked && Number.isFinite(checked.getTime()) ? " · Last checked " + checked.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""}</span>
-    <button type="button" disabled={progress.state === "loading"} onClick={() => window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: row.client.profile.id } }))} style={{ border: "1px solid " + DASH_ROSTER_HAIR, background: "transparent", color: "#f2ede4", borderRadius: 5, padding: "7px 10px", minHeight: 36, cursor: "pointer" }}>{progress.state === "unavailable" ? "Retry progress" : "Refresh"}</button>
+    <button type="button" disabled={progress.state === "loading"} onClick={() => window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: row.client.profile.id } }))} style={{ border: "1px solid " + DASH_ROSTER_HAIR, background: "transparent", color: "var(--sh-ink, #f2ede4)", borderRadius: 5, padding: "7px 10px", minHeight: 36, cursor: "pointer" }}>{progress.state === "unavailable" ? "Retry progress" : "Refresh"}</button>
   </div>;
 }
 
@@ -640,8 +640,8 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
   return ReactDOM.createPortal(
     <div ref={overlayRef} style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div aria-hidden="true" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(440px, 100vw)", background: "#14110e", borderLeft: "1px solid rgba(242,237,228,0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", overscrollBehavior: "contain", padding: "26px 26px 40px", fontFamily: "'Space Grotesk', sans-serif", color: "#f2ede4" }}>
-        <div style={{ position: "sticky", top: -26, zIndex: 2, background: "#14110e", padding: "16px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(440px, 100vw)", background: "var(--sh-ground2, #14110e)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", overscrollBehavior: "contain", padding: "26px 26px 40px", fontFamily: "'Space Grotesk', sans-serif", color: "var(--sh-ink, #f2ede4)" }}>
+        <div style={{ position: "sticky", top: -26, zIndex: 2, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{view.eyebrow}</div>
             <div id={headingId} style={{ fontFamily: "'Fraunces', serif", fontSize: 28, letterSpacing: "-0.02em", marginTop: 5 }}>{rec.profile.name}</div>
@@ -653,7 +653,7 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
               aria-expanded={showSettings}
               title="Choose which sections this drawer shows"
               onClick={() => setShowSettings((v) => !v)}
-              style={{ background: "transparent", border: 0, color: secs.hiddenCount ? "#2ee0c4" : DASH_ROSTER_INK50, fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "4px 6px" }}
+              style={{ background: "transparent", border: 0, color: secs.hiddenCount ? "var(--sh-accent, #2ee0c4)" : DASH_ROSTER_INK50, fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "4px 6px" }}
             >⚙</button>
             <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: DASH_ROSTER_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1, minWidth: 44, minHeight: 44 }}>×</button>
           </div>
@@ -667,7 +667,7 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
         </div>
         <DashProgressReadout row={row} />
         {showSettings && (
-          <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(242,237,228,0.03)" }}>
+          <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginBottom: 9 }}>
               Sections · {view.eyebrow}
             </div>
@@ -681,9 +681,9 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
                     aria-pressed={on}
                     onClick={() => toggleSection(key)}
                     style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", padding: "7px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
-                      border: "1px solid " + (on ? "#2ee0c4" : DASH_ROSTER_HAIR),
-                      background: on ? "rgba(46,224,196,0.12)" : "transparent",
-                      color: on ? "#f2ede4" : DASH_ROSTER_INK50 }}
+                      border: "1px solid " + (on ? "var(--sh-accent, #2ee0c4)" : DASH_ROSTER_HAIR),
+                      background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent",
+                      color: on ? "var(--sh-ink, #f2ede4)" : DASH_ROSTER_INK50 }}
                   >{on ? "\u2713 " : ""}{title}</button>
                 );
               })}
@@ -702,8 +702,8 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
             Every section is hidden. Open ⚙ above to bring one back.
           </div>
         )}
-        <div style={{ position: "sticky", bottom: -40, background: "#14110e", padding: "16px 0", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
-          <button onClick={() => { onClose(); dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: "#2ee0c4", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
+        <div style={{ position: "sticky", bottom: -40, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
+          <button onClick={() => { onClose(); dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
           {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
         </div>
       </div>
@@ -789,7 +789,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
     return (
       <button key={label} onClick={() => clickSort(k)} title={"Sort by " + label.toLowerCase()}
         style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, minWidth: 0,
-                 color: on ? "#2ee0c4" : "inherit", font: "inherit", letterSpacing: "inherit", minHeight: 24 }}>
+                 color: on ? "var(--sh-accent, #2ee0c4)" : "inherit", font: "inherit", letterSpacing: "inherit", minHeight: 24 }}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
         {/* The arrow marks the ACTIVE column only. A row of arrows on every header
             reads as decoration and stops saying which one is in force. */}
@@ -801,7 +801,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
   return (
     <div className="dash-roster-scroll">
     <div style={{ minWidth: view.minWidth }}>
-      <div style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50, borderBottom: "1px solid rgba(242,237,228,0.08)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
         {headCell("CLIENT", "name")}{view.heads.map(([h, k]) => headCell(h, k))}
       </div>
       {rows.length === 0 && (
@@ -820,7 +820,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
             role="button"
             tabIndex={0}
             aria-label={"Open " + rec.profile.name + " drilldown"}
-            style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.05)", cursor: "pointer" }}
+            style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", cursor: "pointer" }}
           >
             <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0 }}>
               <span style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 2, background: sevColor }} />

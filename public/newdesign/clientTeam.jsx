@@ -8,9 +8,9 @@
 
 const CT_RUST = "#c0533b";      // trainer
 const CT_GOLD = "#d8b25a";      // nutritionist (bright variant reads on dark paper)
-const CT_INK55 = INK + "8c";    // 55% of the cream INK token
-const CT_INK40 = INK + "66";    // 40%
-const CT_HAIR = INK + "1a";     // 10% hairline
+const CT_INK55 = "rgba(var(--sh-ink-rgb, 242,237,228), 0.549)";  // 0x8c/255 — the ink at 55%
+const CT_INK40 = "rgba(var(--sh-ink-rgb, 242,237,228), 0.4)";    // 0x66/255 — the ink at 40%
+const CT_HAIR = "rgba(var(--sh-ink-rgb, 242,237,228), 0.102)";   // 0x1a/255 — the 10% hairline
 const CT_MONO = "'JetBrains Mono', monospace";
 const CT_MARKET = "/newdesign/marketplace.html";
 
@@ -355,7 +355,7 @@ function ClientTeamPage() {
     ? "Loading your coaches…"
     : `${n === 1 ? "One coach" : `${n} coaches`}, one plan. You pay each directly, at their rates.`;
 
-  const ghostBtn = { display: "inline-block", background: "transparent", color: INK, textDecoration: "none", border: `1px solid ${INK}40`, padding: "10px 20px", borderRadius: 4, fontFamily: sans, fontSize: 13, cursor: "pointer" };
+  const ghostBtn = { display: "inline-block", background: "transparent", color: INK, textDecoration: "none", border: `1px solid rgba(var(--sh-ink-rgb, 242,237,228), 0.251)`, padding: "10px 20px", borderRadius: 4, fontFamily: sans, fontSize: 13, cursor: "pointer" };
   const solidBtn = { display: "inline-block", background: INK, color: PAPER, textDecoration: "none", border: 0, padding: "10px 22px", borderRadius: 4, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" };
   const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 40, marginBottom: 20 };
 
