@@ -37,7 +37,21 @@ function TrainerClientsPage() {
   // read) yields null, which the `empty`/`emptyWhy` contract states honestly
   // rather than drawing an empty card. `DashSignals` is loaded by every host of
   // this page, before it (tests/dash-widget-catalog.test.mjs pins the order).
-  const sigOk = !loading && typeof DashSignals !== "undefined";
+  // ⚠ A FEATURE TEST, NOT A PRESENCE TEST — the rule #2137 wrote down for the Today
+  // board (tests/dash-widget-catalog.test.mjs) and this page has to follow, because it
+  // calls the same five producers. dashSignals.js is a plain <script> whose ?v= the
+  // precompile does NOT rewrite (it hashes text/babel tags only), so a warm cache can
+  // hand us a copy that predates these functions while `typeof DashSignals` is still
+  // "object". Asking only that would pass and then throw on the first call — and there
+  // is no error boundary in public/newdesign, so that is a blank Clients page.
+  const sigReady = typeof DashSignals !== "undefined"
+    && ["dashRosterStatus", "dashTopMovers", "dashTenureMilestones", "dashRevenueByClient", "dashProgramsEnding"]
+      .every((fn) => typeof DashSignals[fn] === "function");
+  const sigOk = !loading && sigReady;
+  // Two different reasons a card is empty, kept apart: the roster is still arriving, or
+  // the module is stale. Telling a coach to wait for a roster that has already loaded is
+  // the same class of wrong answer as telling them to reload for one that is loading.
+  const staleWhy = sigReady ? "appears once your roster loads" : "reload the page to enable this widget";
   const rosterStatus = sigOk ? DashSignals.dashRosterStatus(triage) : null;
   const movers = sigOk ? DashSignals.dashTopMovers(clients) : null;
   const tenureMarks = sigOk ? DashSignals.dashTenureMilestones(clients) : null;
@@ -122,19 +136,19 @@ function TrainerClientsPage() {
           ) },
         // ── Optional (off until added) ──
         { key: "status", title: "Roster by status", blurb: "How many clients need you, need watching, and are on track.", optional: true, size: "half",
-          empty: !rosterStatus, emptyWhy: sigOk ? "the pulse could not be read" : "appears once your roster loads",
+          empty: !rosterStatus, emptyWhy: sigOk ? "the pulse could not be read" : staleWhy,
           render: () => rosterPanel("Roster by status", <DashRosterStatusPanel status={rosterStatus} role="trainer" />) },
         { key: "movers", title: "Top movers", blurb: "The biggest Shape Score moves, week over week.", optional: true, size: "half",
-          empty: !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : "appears once your roster loads",
+          empty: !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : staleWhy,
           render: () => rosterPanel("Top movers", <DashTopMoversPanel movers={movers} />) },
         { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a tenure mark on Shape in the next 30 days.", optional: true, size: "half",
-          empty: !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : "appears once your roster loads",
+          empty: !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : staleWhy,
           render: () => rosterPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} />) },
         { key: "revenue", title: "Revenue by client", blurb: "Who pays what per month, from their subscriptions.", optional: true, size: "half",
-          empty: !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : "appears once your roster loads",
+          empty: !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : staleWhy,
           render: () => rosterPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} />) },
         { key: "ending", title: "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, size: "half",
-          empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? "appears once a client is on one of your programs" : "appears once your roster loads",
+          empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? "appears once a client is on one of your programs" : staleWhy,
           render: () => rosterPanel("Programs ending soon", <DashProgramsEndingPanel ending={ending} role="trainer" />) },
       ]} />
     </DashPage>

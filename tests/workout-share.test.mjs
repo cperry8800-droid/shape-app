@@ -102,19 +102,73 @@ test('dedup pre-filter: two plain legs, live + legacy, union of both', async () 
   const rows = await bsFetchDuplicateCandidates(make, '2026-03-14T08:00:00.000Z');
   assert.deepEqual(rows, [live, legacy]);
   assert.equal(calls.length, 2, 'both legs must run');
-  // Leg 1 ranges metrics->>startedAt; leg 2 is narrowed to rows that HAVE no
-  // startedAt, so the 5-row cap can never be spent on rows leg 1 already covers.
+  // The two legs mirror the two branches of bsPostActivityStart: leg 1 ranges
+  // metrics->>startedAt, leg 2 ranges created_at for everything else.
   assert.deepEqual(calls[0].filters, [
     ['gte', 'metrics->>startedAt', '2026-03-14T07:40:00.000Z'],
     ['lte', 'metrics->>startedAt', '2026-03-14T08:20:00.000Z'],
-    ['limit', 5],
+    ['limit', 50],
   ]);
+  // ⚠ LEG 2 CARRIES NO `startedAt is null`, AND THAT ABSENCE IS THE FIX. With it, a row
+  // whose startedAt is present but unusable sorted outside leg 1 AND was not null, so it
+  // matched neither leg — while bsPostActivityStart dates that row by created_at and
+  // would have called it a duplicate. Asserted as an absence because re-adding the
+  // narrowing is the regression.
   assert.deepEqual(calls[1].filters, [
-    ['is', 'metrics->>startedAt', null],
     ['gte', 'created_at', '2026-03-14T07:40:00.000Z'],
     ['lte', 'created_at', '2026-03-14T08:20:00.000Z'],
-    ['limit', 5],
+    ['limit', 50],
   ]);
+  assert.ok(!calls.some((c) => c.filters.some((f) => f[0] === 'is' && f[1] === 'metrics->>startedAt')),
+    'leg 2 is narrowed to `startedAt is null` again — rows with an unusable startedAt fall through both legs');
+});
+
+test('dedup pre-filter: a row whose startedAt is present but unusable still reaches the JS predicate', async () => {
+  // ⚠ THE FINDING. These sort outside leg 1's lexical range and are not SQL NULL, so the
+  // old `startedAt is null` leg 2 matched neither — while bsPostActivityStart dates each by
+  // created_at and would have called it a duplicate. A miss here is a duplicate post.
+  const start = '2026-03-14T08:05:00.000Z';
+  const fetched = async (row) => {
+    const make = () => {
+      const q = { filters: [] };
+      q.gte = (c, v) => { q.filters.push(['gte', c, v]); return q; };
+      q.lte = (c, v) => { q.filters.push(['lte', c, v]); return q; };
+      q.is = (c, v) => { q.filters.push(['is', c, v]); return q; };
+      // answer each leg the way Postgres would: only rows the filters actually select
+      q.limit = () => {
+        const col = q.filters[0][1];
+        const val = col === 'created_at' ? row.created_at : (row.metrics || {}).startedAt;
+        const lo = q.filters[0][2], hi = q.filters[1][2];
+        const hit = typeof val === 'string' && val >= lo && val <= hi
+          && !q.filters.some((f) => f[0] === 'is' && f[1] === col && val !== null);
+        return Promise.resolve({ data: hit ? [row] : [], error: null });
+      };
+      return q;
+    };
+    return bsFetchDuplicateCandidates(make, start);
+  };
+  for (const bad of ['not-a-date', '1773475500000', '']) {
+    const row = { source_provider: 'strava', created_at: start, metrics: { startedAt: bad } };
+    assert.equal(bsPostActivityStart(row), start, JSON.stringify(bad) + ' is not falling back to created_at');
+    assert.deepEqual(await fetched(row), [row], JSON.stringify(bad) + ' never reaches the JS predicate');
+  }
+});
+
+test('dedup pre-filter: the named residual is a startedAt that parses but is not written the way we write one', async () => {
+  // ⚠ PINNED SO IT IS RE-DERIVABLE, NOT JUST DESCRIBED. An offset form is a usable instant
+  // inside the window, but sorts outside leg 1's LEXICAL range — so it is caught only when
+  // its created_at also lands in the window. Our writers cannot emit one (every path goes
+  // through bsActivityStartISO, which returns UTC with milliseconds); this needs a row
+  // written straight into the jsonb. If that ever stops being true, this test says so.
+  const start = '2026-03-14T08:05:00.000Z';
+  const offset = '2026-03-14T04:05:00-04:00';
+  assert.equal(bsActivityStartISO(offset), start, 'the offset form is the same instant');
+  assert.notEqual(offset, start, 'and is not written the way we write it');
+  const b = bsDuplicateWindowBounds(start);
+  assert.ok(!(offset >= b.lo && offset <= b.hi), 'the residual only exists because it sorts outside the lexical window');
+  // every value bsActivityStartISO produces DOES sort inside it — which is why our own
+  // writers can never land in the residual
+  assert.ok(bsActivityStartISO(offset) >= b.lo && bsActivityStartISO(offset) <= b.hi);
 });
 
 test('dedup pre-filter: one leg erroring still lets the other decide', async () => {
