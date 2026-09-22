@@ -39,26 +39,26 @@ function ClientCommitmentCard() {
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
         <div>
           <span style={{ fontSize: 14, fontWeight: 500 }}>This week's commitment</span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>PUT POINTS ON IT</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginLeft: 12 }}>PUT POINTS ON IT</span>
         </div>
         {c && c.stake ? <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: TEAL_BRIGHT, fontWeight: 600 }}>{c.stake} pts staked</span> : null}
       </div>
       {!c && !editing && (
         <React.Fragment>
-          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 4 }}>Hit your target this week for a bonus; miss it and you forfeit the stake.</div>
+          <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>Hit your target this week for a bonus; miss it and you forfeit the stake.</div>
           <button onClick={() => setEditing(true)} style={{ marginTop: 12, ...btn(TEAL, "#04201d") }}>Set a commitment</button>
         </React.Fragment>
       )}
       {c && !editing && (
         <React.Fragment>
           <div style={{ fontFamily: serif, fontSize: 22, color: INK, marginTop: 6 }}>{targetLine || "—"}</div>
-          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: c.status === "met" ? TEAL_BRIGHT : c.status === "missed" ? "#e0463c" : "rgba(242,237,228,0.55)" }}>
+          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: c.status === "met" ? TEAL_BRIGHT : c.status === "missed" ? "#e0463c" : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
             {c.status === "met" ? `✓ Kept · +${c.stake} earned` : c.status === "missed" ? `Missed · −${c.stake}` : c.status === "proposed" ? "Proposed by your coach" : "Active · settles at week's end"}
           </div>
           {c.status === "proposed" && (
             <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
               <button onClick={() => post({ action: "accept", id: c.id })} style={btn(TEAL, "#04201d")}>Accept</button>
-              <button onClick={() => setEditing(true)} style={btn("transparent", INK, "1px solid rgba(242,237,228,0.25)")}>Change</button>
+              <button onClick={() => setEditing(true)} style={btn("transparent", INK, "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)")}>Change</button>
             </div>
           )}
         </React.Fragment>
@@ -69,24 +69,24 @@ function ClientCommitmentCard() {
             <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
               <span style={{ fontSize: 14 }}>{label}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <button onClick={() => setF((s) => ({ ...s, [key]: Math.max(lo, s[key] - 1) }))} style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, cursor: "pointer" }}>−</button>
+                <button onClick={() => setF((s) => ({ ...s, [key]: Math.max(lo, s[key] - 1) }))} style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: INK, cursor: "pointer" }}>−</button>
                 <span style={{ minWidth: 20, textAlign: "center", fontFamily: serif, fontSize: 16 }}>{f[key]}</span>
-                <button onClick={() => setF((s) => ({ ...s, [key]: Math.min(hi, s[key] + 1) }))} style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid rgba(242,237,228,0.25)", background: "transparent", color: INK, cursor: "pointer" }}>+</button>
+                <button onClick={() => setF((s) => ({ ...s, [key]: Math.min(hi, s[key] + 1) }))} style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: INK, cursor: "pointer" }}>+</button>
               </div>
             </div>
           ))}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
             <span style={{ fontSize: 14 }}>Weekly check-in</span>
-            <button onClick={() => setF((s) => ({ ...s, checkin: !s.checkin }))} style={{ padding: "6px 14px", borderRadius: 999, border: `1px solid ${f.checkin ? TEAL : "rgba(242,237,228,0.25)"}`, background: f.checkin ? "rgba(10,197,168,0.12)" : "transparent", color: INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>{f.checkin ? "Yes" : "No"}</button>
+            <button onClick={() => setF((s) => ({ ...s, checkin: !s.checkin }))} style={{ padding: "6px 14px", borderRadius: 999, border: `1px solid ${f.checkin ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)"}`, background: f.checkin ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: INK, fontFamily: sans, fontSize: 12, cursor: "pointer" }}>{f.checkin ? "Yes" : "No"}</button>
           </div>
           <div style={{ marginTop: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.5)" }}><span>STAKE</span><span style={{ color: TEAL_BRIGHT }}>{f.stake} pts</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)" }}><span>STAKE</span><span style={{ color: TEAL_BRIGHT }}>{f.stake} pts</span></div>
             <input type="range" aria-label="Stake points" min={5} max={50} step={5} value={f.stake} onChange={(e) => setF((s) => ({ ...s, stake: Number(e.target.value) }))} style={{ width: "100%", marginTop: 6, accentColor: TEAL }} />
-            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.6)", marginTop: 4 }}>Hit it → +{f.stake} · miss → −{f.stake} (never below 0).</div>
+            <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>Hit it → +{f.stake} · miss → −{f.stake} (never below 0).</div>
           </div>
           <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
             <button disabled={busy} onClick={save} style={{ ...btn(TEAL, "#04201d"), opacity: busy ? 0.6 : 1 }}>{busy ? "Setting…" : "Lock it in"}</button>
-            <button onClick={() => setEditing(false)} style={btn("transparent", INK, "1px solid rgba(242,237,228,0.25)")}>Cancel</button>
+            <button onClick={() => setEditing(false)} style={btn("transparent", INK, "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)")}>Cancel</button>
           </div>
         </div>
       )}
@@ -98,9 +98,9 @@ function ClientCommitmentCard() {
 // outlined, and a pressed one tinted so the view you are in is visible from the chrome.
 function csScoreAction(on, primary) {
   return {
-    background: on ? "rgba(10,197,168,0.14)" : primary ? INK : "transparent",
+    background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : primary ? INK : "transparent",
     color: on ? TEAL_BRIGHT : primary ? PAPER : INK,
-    border: on ? "1px solid " + TEAL_BRIGHT : primary ? 0 : "1px solid rgba(242,237,228,0.25)",
+    border: on ? "1px solid " + TEAL_BRIGHT : primary ? 0 : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)",
     padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13,
     fontWeight: primary && !on ? 500 : 400, cursor: "pointer", minHeight: 24,
   };
@@ -287,12 +287,12 @@ function ClientScorePage() {
       <Card>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4, gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontSize: 14, fontWeight: 500 }}>Twelve weeks</span>
-          <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>
+          <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)" }}>
             {trend.length} WEEK{trend.length === 1 ? "" : "S"} ON THE LEDGER
           </span>
         </div>
         <div style={{ marginTop: 12 }}><CsrLine series={trend} height={72} /></div>
-        <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.45)" }}>
+        <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "var(--sh-ink3, #75706a)" }}>
           <span>{trend[0].cumulative.toLocaleString()} PTS</span>
           <span style={{ color: TEAL_BRIGHT }}>
             {(() => { const d = trend[trend.length - 1].cumulative - trend[0].cumulative; return (d > 0 ? "+" : d < 0 ? "−" : "") + Math.abs(d).toLocaleString(); })()} OVER THE SPAN
@@ -310,21 +310,21 @@ function ClientScorePage() {
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
             <div>
               <span style={{ fontSize: 14, fontWeight: 500 }}>Momentum</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>DON'T BREAK THE STREAK</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginLeft: 12 }}>DON'T BREAK THE STREAK</span>
             </div>
-            <span style={{ fontFamily: serif, fontSize: 28, color: TEAL_BRIGHT, lineHeight: 1 }}>{mv}<span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(242,237,228,0.45)" }}>/100</span></span>
+            <span style={{ fontFamily: serif, fontSize: 28, color: TEAL_BRIGHT, lineHeight: 1 }}>{mv}<span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink3, #75706a)" }}>/100</span></span>
           </div>
-          <div style={{ height: 8, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 12 }}>
+          <div style={{ height: 8, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden", marginTop: 12 }}>
             <div style={{ height: "100%", width: `${mv}%`, background: TEAL, borderRadius: 999 }} />
           </div>
-          <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "rgba(242,237,228,0.55)" }}>
+          <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
             {momentum.bonusThisWeek
               ? ((momentum.streakWeeks || 1) > 1
                   ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
                   : `✓ +${momentum.points || 25} banked this week`)
               : hit ? "At the line · hold it to bank this week" : "Reach 80 for a weekly bonus — grows to +100"}
           </div>
-          <div style={{ marginTop: 6, fontSize: 12.5, color: "rgba(242,237,228,0.65)" }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
+          <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--sh-ink2, #a09b94)" }}>Stay active day to day — a missed day dips it a notch, not a reset.</div>
         </Card>
       );
     } },
@@ -337,9 +337,9 @@ function ClientScorePage() {
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
           <div>
             <span style={{ fontSize: 14, fontWeight: 500 }}>Reward tiers</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)", marginLeft: 12 }}>LIFETIME POINTS</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)", marginLeft: 12 }}>LIFETIME POINTS</span>
           </div>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>{tiers.length} TIERS</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)" }}>{tiers.length} TIERS</span>
         </div>
         <div style={{ marginTop: 12 }}>
           {tiers.map(([t, , r, d], i) => {
@@ -350,8 +350,8 @@ function ClientScorePage() {
               <div key={t} style={{
                 display: "grid", gridTemplateColumns: "100px 1fr auto", gap: 24, alignItems: "center",
                 padding: "18px 8px",
-                borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.08)",
-                background: isCurrent ? "rgba(10,197,168,0.06)" : "transparent",
+                borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
+                background: isCurrent ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)" : "transparent",
                 margin: i === 0 ? "0 -8px" : "0 -8px",
                 borderRadius: 6,
               }}>
@@ -359,23 +359,23 @@ function ClientScorePage() {
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: ORANGE, fontWeight: 500 }}>PTS</div>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: INK, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{r}</div>
                 </div>
-                <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", color: isCurrent ? INK : "rgba(242,237,228,0.85)", lineHeight: 1 }}>
+                <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", color: isCurrent ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", lineHeight: 1 }}>
                   {t}
                   {isCurrent && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginLeft: 12, verticalAlign: "middle" }}>YOU ARE HERE</span>}
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)", textTransform: "uppercase", textAlign: "right", maxWidth: 280 }}>{d}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase", textAlign: "right", maxWidth: 280 }}>{d}</div>
               </div>
             );
           })}
         </div>
-        <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ marginTop: 22, display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>
           <span>{standingKnown ? myPoints.toLocaleString() : settling ? "Reading your standing…" : "Standing couldn't be read"}</span>
           {standingKnown && nextTier && <span>{nextTier[0].toUpperCase()} AT {nextTier[1].toLocaleString()}</span>}
         </div>
         {/* A progress bar drawn from an unknown standing is a picture of a measurement
             that was never taken — and at 0 points it reads as "you have earned nothing". */}
         {standingKnown && (
-          <div style={{ height: 6, background: "rgba(242,237,228,0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
+          <div style={{ height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
             <div style={{ height: "100%", width: `${progressPct}%`, background: TEAL, borderRadius: 999 }} />
           </div>
         )}
@@ -387,7 +387,7 @@ function ClientScorePage() {
       <Card>
         <SectionTitle right={`TOTAL ${total.toLocaleString()}`}>Score breakdown</SectionTitle>
         {!breakdown.length ? (
-          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.5)", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>
             {settling ? "Reading your breakdown…"
               : unread ? "Couldn't read your breakdown just now."
               : "Nothing banked yet — the categories appear as you earn in them."}
@@ -396,13 +396,13 @@ function ClientScorePage() {
         {breakdown.map(([l, v, sub], i) => {
           const w = (v / maxBreakdown) * 100;
           return (
-            <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
+            <div key={i} style={{ padding: "14px 0", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>{l}</div>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT }}>+{v}</div>
               </div>
-              <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginBottom: 8 }}>{sub}</div>
-              <div style={{ height: 3, background: "rgba(242,237,228,0.06)", borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginBottom: 8 }}>{sub}</div>
+              <div style={{ height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", borderRadius: 999, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${w}%`, background: TEAL }} />
               </div>
             </div>
@@ -420,26 +420,26 @@ function ClientScorePage() {
         <div style={{ fontFamily: serif, fontSize: 44, letterSpacing: "-0.02em", lineHeight: 1 }}>
           {live ? "+" + live.week_gain : demo ? "+36" : "—"}
         </div>
-        <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 8 }}>
+        <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", marginTop: 8 }}>
           {live ? "last 7 days" : demo ? "vs 28 last week" : settling ? "Reading this week…" : "Couldn't read this week just now."}
         </div>
         {demo && (
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(242,237,228,0.08)", display: "grid", gap: 8, fontSize: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>4 workouts logged</span><span>+32</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Squat PR</span><span>+12</span></div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "rgba(242,237,228,0.55)" }}>Community reactions</span><span>+4</span></div>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "grid", gap: 8, fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--sh-ink2, #a09b94)" }}>4 workouts logged</span><span>+32</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--sh-ink2, #a09b94)" }}>Squat PR</span><span>+12</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--sh-ink2, #a09b94)" }}>Community reactions</span><span>+4</span></div>
           </div>
         )}
       </Card>
     ) },
 
     { key: "path", title: "Shortest path", size: "half", render: () => (
-      <Card style={{ background: "rgba(10,197,168,0.06)", border: "1px solid rgba(10,197,168,0.25)" }}>
+      <Card style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH{standingKnown && nextTier ? " TO " + nextTier[0].toUpperCase() : ""}</div>
         {/* ⚠ THE DISTANCE IS DERIVED FROM `myPoints`, which is 0 when the read failed —
             so this card promised a member "750 points stand between you and Tempo" as a
             measurement of a standing nobody had read. */}
-        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(242,237,228,0.85)" }}>
+        <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>
           {!standingKnown
             ? (settling ? "Reading your standing…" : "Your standing couldn't be read just now, so there's no distance to quote. Reload to try again.")
             : nextTier ? `${ptsToNext.toLocaleString()} points stand between you and ${nextTier[0]}. Lock 4 workouts + the habit checklist this week and you're inside ${Math.ceil(ptsToNext / 36)} weeks.`
@@ -452,25 +452,25 @@ function ClientScorePage() {
       <Card>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
           <span style={{ fontSize: 14, fontWeight: 500 }}>Recent points</span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "rgba(242,237,228,0.45)" }}>LEDGER</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: "var(--sh-ink3, #75706a)" }}>LEDGER</span>
         </div>
         <div style={{ marginTop: 12 }}>
           {!ledger.length ? (
-            <div style={{ fontSize: 13, color: "rgba(242,237,228,0.5)", lineHeight: 1.5, padding: "8px 4px" }}>
+            <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5, padding: "8px 4px" }}>
               {settling ? "Reading your ledger…"
                 : unread ? "Couldn't read your ledger just now."
                 : "No entries yet. Log a workout, a meal or a habit and the first one lands here."}
             </div>
           ) : null}
           {ledger.map((row, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "180px 1fr auto", gap: 16, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(242,237,228,0.06)" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase" }}>{row.when}</div>
-              <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.85)" }}>{row.what}</div>
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "180px 1fr auto", gap: 16, alignItems: "center", padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{row.when}</div>
+              <div style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{row.what}</div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: TEAL_BRIGHT, fontVariantNumeric: "tabular-nums" }}>+{row.delta}</div>
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(242,237,228,0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "rgba(242,237,228,0.5)" }}>
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)" }}>
           <span>SHOWING LAST 8 ENTRIES</span>
           <button type="button" onClick={() => setView("record")} style={{ background: "transparent", border: 0, padding: "5px 0", minHeight: 24, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", cursor: "pointer" }}>VIEW FULL LEDGER →</button>
         </div>

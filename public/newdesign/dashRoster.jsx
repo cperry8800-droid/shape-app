@@ -11,7 +11,7 @@
 // Load order: pageShell → trainerDashboard.jsx → coachNav/clientNav →
 // dashSignals.js → dashData.jsx → dashToday.jsx (DashPill/helpers) → this.
 
-const DASH_ROSTER_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+const DASH_ROSTER_INK50 = "var(--sh-ink2, #a09b94)";
 // ⚠ A SEPARATE, WEAKER INK, BECAUSE AN rgba() STRING CANNOT TAKE A HEX ALPHA SUFFIX.
 // Appending two hex digits to this token yields a value that is not a colour, and CSS
 // error-handling then drops the WHOLE declaration — so the border simply does not paint
@@ -315,7 +315,7 @@ function DashSecScore({ rec }) {
     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
       <DashDrawerSpark data={r.series} />
       <div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, letterSpacing: "-0.02em" }}>{r.points} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>wk pts</span></div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 22, letterSpacing: "-0.02em" }}>{r.points} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>wk pts</span></div>
         {/* The delta names which weeks it compares — a bare arrow beside an
             in-progress number invites reading it as this week vs last. */}
         {r.delta != null && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, marginTop: 3, color: r.delta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{r.delta >= 0 ? "▲ +" + r.delta : "▼ −" + Math.abs(r.delta)} {r.partial ? "last full wk" : "wk/wk"}</div>}
@@ -330,7 +330,7 @@ function DashSecAdherence({ rec }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-        <span style={{ fontFamily: "'Fraunces', serif", fontSize: 22 }}>{a.pct}%</span>
+        <span style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 22 }}>{a.pct}%</span>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: DASH_ROSTER_INK50 }}>{a.done}/{a.planned} sessions · 42d</span>
       </div>
       <div style={{ position: "relative", height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2, marginTop: 8 }}>
@@ -389,14 +389,14 @@ function DashSecNutritionSummary({ rec }) {
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: weighIns.length ? 12 : 0 }}>
-        <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "11px 13px" }}>
+        <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "11px 13px" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Logging</div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginTop: 4 }}>{f && f.daysLogged7d != null ? f.daysLogged7d + "/7 days" : "—"}</div>
+          <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 18, marginTop: 4 }}>{f && f.daysLogged7d != null ? f.daysLogged7d + "/7 days" : "—"}</div>
           <div style={{ fontSize: 10, color: DASH_ROSTER_INK50, marginTop: 2 }}>{f && f.lastLoggedOn ? "last " + (dashRelShort(f.lastLoggedOn) || "").toLowerCase() : "no last-log date shared"}</div>
         </div>
-        <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "11px 13px" }}>
+        <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "11px 13px" }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Compliance · 7d</div>
-          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18, marginTop: 4 }}>{f && f.daysLogged7d != null ? Math.round((Math.min(7, f.daysLogged7d) / 7) * 100) + "%" : "—"}</div>
+          <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 18, marginTop: 4 }}>{f && f.daysLogged7d != null ? Math.round((Math.min(7, f.daysLogged7d) / 7) * 100) + "%" : "—"}</div>
           <div style={{ fontSize: 10, color: DASH_ROSTER_INK50, marginTop: 2 }}>food logs</div>
         </div>
       </div>
@@ -404,7 +404,7 @@ function DashSecNutritionSummary({ rec }) {
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <DashDrawerSpark data={weighIns.map((w) => w.weight)} />
           <div>
-            <div style={{ fontFamily: "'Fraunces', serif", fontSize: 18 }}>{weighIns[weighIns.length - 1].weight} <span style={{ fontSize: 11, color: DASH_ROSTER_INK50 }}>{weighIns[weighIns.length - 1].unit || "lb"}</span></div>
+            <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 18 }}>{weighIns[weighIns.length - 1].weight} <span style={{ fontSize: 11, color: DASH_ROSTER_INK50 }}>{weighIns[weighIns.length - 1].unit || "lb"}</span></div>
             {wDelta != null && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: DASH_ROSTER_INK50, marginTop: 2 }}>{wDelta > 0 ? "+" : ""}{wDelta} since first shared weigh-in</div>}
           </div>
         </div>
@@ -459,7 +459,7 @@ function DashSecWeighIns({ rec }) {
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
       <DashDrawerSpark data={weighIns.map((w) => w.weight)} />
       <div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, letterSpacing: "-0.02em" }}>{weighIns[weighIns.length - 1].weight} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>{weighIns[weighIns.length - 1].unit || "lb"}</span></div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 20, letterSpacing: "-0.02em" }}>{weighIns[weighIns.length - 1].weight} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>{weighIns[weighIns.length - 1].unit || "lb"}</span></div>
         {wDelta != null && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: DASH_ROSTER_INK50, marginTop: 2 }}>{wDelta > 0 ? "+" : ""}{wDelta} since first shared weigh-in</div>}
       </div>
     </div>
@@ -479,14 +479,14 @@ function DashSecTrainingContext({ rec }) {
   if (!adh && wkPts == null) return <DashDrawerEmpty>Training data isn't shared to coaches on the web yet.</DashDrawerEmpty>;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "12px 14px" }}>
+      <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "12px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Volume · 42d</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, marginTop: 5 }}>{adh ? adh.done + "/" + adh.planned : "—"}</div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 20, marginTop: 5 }}>{adh ? adh.done + "/" + adh.planned : "—"}</div>
         <div style={{ fontSize: 10.5, color: DASH_ROSTER_INK50, marginTop: 2 }}>{adh ? adh.pct + "% adherence" : "not shared"}</div>
       </div>
-      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "12px 14px" }}>
+      <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "12px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Shape Score · wk</div>
-        <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, marginTop: 5 }}>{wkPts != null ? wkPts + " pts" : "—"}{wkPartial && <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>*</span>}</div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 20, marginTop: 5 }}>{wkPts != null ? wkPts + " pts" : "—"}{wkPartial && <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>*</span>}</div>
         <div style={{ fontSize: 10.5, color: wkDelta == null ? DASH_ROSTER_INK50 : wkDelta >= 0 ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, marginTop: 2 }}>{wkDelta != null ? (wkDelta >= 0 ? "▲ +" + wkDelta : "▼ −" + Math.abs(wkDelta)) + (wkPartial ? " last full wk" : " wk/wk") : "history not shared"}</div>
         {wkPartial && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginTop: 2 }}>Week in progress</div>}
       </div>
@@ -640,11 +640,11 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
   return ReactDOM.createPortal(
     <div ref={overlayRef} style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div aria-hidden="true" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(440px, 100vw)", background: "var(--sh-ground2, #14110e)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", overscrollBehavior: "contain", padding: "26px 26px 40px", fontFamily: "'Space Grotesk', sans-serif", color: "var(--sh-ink, #f2ede4)" }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(440px, 100vw)", background: "var(--sh-ground2, #14110e)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", overscrollBehavior: "contain", padding: "26px 26px 40px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" }}>
         <div style={{ position: "sticky", top: -26, zIndex: 2, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{view.eyebrow}</div>
-            <div id={headingId} style={{ fontFamily: "'Fraunces', serif", fontSize: 28, letterSpacing: "-0.02em", marginTop: 5 }}>{rec.profile.name}</div>
+            <div id={headingId} style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 28, letterSpacing: "-0.02em", marginTop: 5 }}>{rec.profile.name}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
             <button

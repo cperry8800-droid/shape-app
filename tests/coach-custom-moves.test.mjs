@@ -223,35 +223,47 @@ test('a ticked move stays on screen after the search moves on', async () => {
   await React.act(async () => root.unmount());
 });
 
-// ── The library list is the DARK dashboard ──────────────────────────────────
-// ⚠ THE BUILDER'S LIGHT-PAPER TOKENS HAD LEAKED ONTO IT. The builder redesign
-// scoped its cream palette to `.dbu2` — correctly, since the global paper switch
-// is a later PR — and the library page then drew its cards with those same values
-// on the dashboard's dark ground. Measured on the shipped page at 1440: the card's
-// kind line and its "N weeks · N days" meta computed to rgb(90,103,99) on
-// rgb(26,22,18) = **3.05:1**, under AA for 13px text, and every secondary action
-// was a WHITE pill on a dark plate.
+// ── The library list follows the paper ──────────────────────────────────────
+// ⚠ THIS GUARD SHIPPED AS "the library page uses no light-paper token", and the
+// premise it rested on is retired. Before the paper switch the builder's cream
+// palette was scoped to `.dbu2` and the library page drew those same values on
+// the dashboard's DARK ground — measured at 1440, the card's kind line computed to
+// 3.05:1 and every secondary action was a WHITE pill on a dark plate — so the fix
+// was a separate dark control set and a ban on the light one. Now `dash.css`'s
+// :root IS the light paper, `html[data-paper="dark"]` brings the old values back,
+// and DBU_INK2 · DBU_WH · dbuBtn read those tokens: a ban on them would forbid the
+// vocabulary the whole dashboard shares. What the class needs instead is that
+// nothing on the library page STOPS following the paper — no bare colour — and
+// that its compact controls derive from the builder's own, so the two cannot drift.
 //
-// ⚠ A CONTRAST NUMBER CANNOT BE ASSERTED FROM SOURCE — it needs a browser and a
-// composite over a translucent plate. What IS checkable is the cause: no
-// light-paper token may be referenced by the page that renders on dark paper.
-// That closes the class; a value drifting within the dark set is the browser
-// pass's job, and this file's header records what that measured.
-test('the library page uses no light-paper token', async () => {
+// ⚠ A CONTRAST NUMBER CANNOT BE ASSERTED FROM SOURCE — the paper-token suite's
+// browser pass and the preview board are where 5.44:1 (light) / 6.5:1 (dark) for
+// ink2 were measured. What IS checkable is the cause, on both sides: the palette
+// the page reads is the token set, and the page adds no literal of its own.
+test('the library page follows the paper: tokens only, and its controls derive from the builder\'s', async () => {
   const { readFileSync } = await import('node:fs');
   const { stripComments } = await import('./helpers/strip-comments.mjs');
   const src = stripComments(readFileSync(SRC, 'utf8'));
+  // The palette the library reads is the paper's, not a fixed light one.
+  for (const tok of ['DBU_INK', 'DBU_INK2', 'DBU_LINE', 'DBU_LINE2', 'DBU_WH', 'DBU_REST', 'DBU_TEAL']) {
+    assert.match(src, new RegExp('const [^\\n]*\\b' + tok + ' = "var\\(--sh-'), `${tok} no longer reads a paper token`);
+  }
   const i = src.indexOf('function TrainerProgramsPage()');
   assert.ok(i > 0, 'TrainerProgramsPage is gone — this guard is reading nothing');
   const page = src.slice(i);
-  // A vacuity floor: the page must still be drawing SOMETHING with the dark set,
+  // A vacuity floor: the page must still be drawing SOMETHING with the compact set,
   // or a sweep that stopped matching would pass this by finding nothing either way.
-  assert.ok((page.match(/dbuDarkBtn\(/g) || []).length >= 4,
-    'the dark control set is not being used — this guard has stopped describing the page');
-  for (const tok of ['dbuLabel', 'DBU_INK50', 'DBU_INK2', 'DBU_INK3', 'dbuBtn(', 'DBU_WH', 'dbuField']) {
-    assert.ok(!page.includes(tok),
-      `${tok} is a light-paper value and the library list renders on the dark ground`);
-  }
+  assert.ok((page.match(/dbuLibBtn\(/g) || []).length >= 4,
+    'the library control set is not being used — this guard has stopped describing the page');
+  // The compact control is the builder's button resized, never a second palette.
+  const lib = /function dbuLibBtn\(primary\) \{([\s\S]*?)\n\}/.exec(src);
+  assert.ok(lib, 'dbuLibBtn is gone');
+  assert.match(lib[1], /\.\.\.dbuBtn\(primary\)/, 'dbuLibBtn no longer derives its colours from dbuBtn');
+  assert.doesNotMatch(lib[1], /#[0-9a-f]{3,8}\b|rgba?\(/i, 'dbuLibBtn carries a colour of its own');
+  // And nothing on the page is a bare colour: every hex or rgb() must sit inside a
+  // var(--sh-…, fallback) — a bare one is a colour that stops following the switch.
+  const bare = page.replace(/var\(--sh-[a-z0-9-]+, *[^)]*\)/g, '').match(/#[0-9a-f]{3,8}\b|rgba?\(\s*\d/gi) || [];
+  assert.deepEqual(bare, [], 'the library page writes a colour that does not follow the paper: ' + bare.join(' '));
 });
 
 // ⚠ A MOVE NAME IS A STRING A COACH TYPES, so the maps these derivations key on

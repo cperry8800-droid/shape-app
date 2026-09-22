@@ -22,11 +22,33 @@ function waitFor(getter, ms = 1200) {
 // measure. getBoundingClientRect right after scrollIntoView reads the OLD position.
 function nextFrames() { return new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res))); }
 
+// ⚠ NEVER `${colour}33`: appending a hex alpha to a value that may be a var()
+// token drops the whole CSS declaration. stAlpha() composes rgba() instead — and
+// keeps a paper token as rgba(var(--x-rgb, r,g,b), a), the same shape
+// pageShell.jsx's ssAlpha emits, so a tokenised accent still follows the paper.
+// Hex digits are EXTRACTED, never parseInt'd off the raw string (a token is not
+// digits; NaN >> 16 is 0, which is a valid black).
+function stAlpha(h, a) {
+  const s = String(h || '');
+  const m = /#([0-9a-f]{6})/i.exec(s);
+  if (!m) return s;
+  const n = parseInt(m[1], 16);
+  const t = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  const tok = s.match(/var\(\s*(--[\w-]+)\s*,/);
+  return tok ? `rgba(var(${tok[1]}-rgb, ${t}), ${a})` : `rgba(${t},${a})`;
+}
+
 export function startTour(steps, opts = {}) {
   const root = opts.root || document.body;
-  const accent = opts.accent || '#2ee0c4';
-  const ink = opts.isLight ? '#14110d' : '#f4eedf';
-  const paper = opts.isLight ? '#f4eedf' : '#1a1714';
+  const accent = opts.accent || (opts.isLight ? '#0a8f87' : '#2ee0c4');
+  // The card's own palette: the light paper is the dashboard's builder white
+  // (#ffffff / #15211e), the dark one its previous dark card. Both are literals
+  // rather than tokens because this module also runs where dash.css is absent.
+  const ink = opts.isLight ? '#15211e' : '#f4eedf';
+  const paper = opts.isLight ? '#ffffff' : '#1a1714';
+  // On the accent fill the label is white on the light teal and near-black on
+  // the bright dark teal — either way the pair clears AA.
+  const onAccent = opts.isLight ? '#ffffff' : '#06231f';
   const rootPos0 = root.style.position;
   if (getComputedStyle(root).position === 'static') root.style.position = 'relative';
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -34,8 +56,8 @@ export function startTour(steps, opts = {}) {
   // Layers: a dim box that uses a huge box-shadow as the "mask" around a transparent cutout.
   const layer = el('div', `position:absolute;inset:0;z-index:99999;`);
   const cut = el('div', `position:absolute;border-radius:12px;box-shadow:0 0 0 9999px rgba(8,10,12,0.66);transition:${reduce ? 'none' : 'all .28s cubic-bezier(.2,.7,.2,1)'};pointer-events:none`);
-  const ring = el('div', `position:absolute;border-radius:14px;border:1.5px solid ${accent};box-shadow:0 0 22px -2px ${accent}88;transition:${reduce ? 'none' : 'all .28s cubic-bezier(.2,.7,.2,1)'};pointer-events:none`);
-  const card = el('div', `position:absolute;width:280px;max-width:84%;background:${paper};color:${ink};border:1px solid ${accent}44;border-radius:16px;padding:18px 18px 14px;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);font-family:system-ui,-apple-system,sans-serif;transition:${reduce ? 'none' : 'top .28s, left .28s'}`);
+  const ring = el('div', `position:absolute;border-radius:14px;border:1.5px solid ${accent};box-shadow:0 0 22px -2px ${stAlpha(accent, 0.53)};transition:${reduce ? 'none' : 'all .28s cubic-bezier(.2,.7,.2,1)'};pointer-events:none`);
+  const card = el('div', `position:absolute;width:280px;max-width:84%;background:${paper};color:${ink};border:1px solid ${stAlpha(accent, 0.27)};border-radius:16px;padding:18px 18px 14px;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);font-family:system-ui,-apple-system,sans-serif;transition:${reduce ? 'none' : 'top .28s, left .28s'}`);
   // The card IS the tour's dialog: the dim layer blocks the page beneath it, so a
   // screen reader / keyboard user should be scoped to the card.
   card.setAttribute('role', 'dialog');
@@ -140,7 +162,7 @@ export function startTour(steps, opts = {}) {
     const b = stepBounds(idx, steps.length);
     // Name the dialog by its step so a screen reader announces what changed on advance.
     card.setAttribute('aria-label', step.title || 'Product tour');
-    const dots = steps.map((_, k) => `<span style="width:${k === idx ? 18 : 6}px;height:6px;border-radius:3px;background:${k === idx ? accent : ink + '40'};transition:width .2s;display:inline-block;margin-right:5px"></span>`).join('');
+    const dots = steps.map((_, k) => `<span style="width:${k === idx ? 18 : 6}px;height:6px;border-radius:3px;background:${k === idx ? accent : stAlpha(ink, 0.25)};transition:width .2s;display:inline-block;margin-right:5px"></span>`).join('');
     const nextLabel = step.final ? (step.ctaLabel || 'Open →') : (b.isLast ? 'Done' : 'Next →');
     card.innerHTML =
       `${step.eyebrow ? `<div style="font:600 10px/1 ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:${accent};margin-bottom:8px">${esc(step.eyebrow)}</div>` : ''}` +
@@ -149,9 +171,9 @@ export function startTour(steps, opts = {}) {
       `<div style="display:flex;align-items:center;justify-content:space-between">` +
         `<div>${dots}</div>` +
         `<div style="display:flex;gap:8px">` +
-          `${b.canBack ? `<button data-st="back" style="background:none;border:1px solid ${ink}33;color:${ink};border-radius:999px;padding:7px 14px;font-size:12.5px;cursor:pointer">Back</button>` : ''}` +
-          `${step.final && step.ctaLabel ? `<button data-st="done" style="background:none;border:1px solid ${ink}33;color:${ink};border-radius:999px;padding:7px 14px;font-size:12.5px;cursor:pointer">Done</button>` : ''}` +
-          `<button data-st="next" style="background:${accent};border:none;color:#06231f;border-radius:999px;padding:7px 16px;font-size:12.5px;font-weight:600;cursor:pointer">${esc(nextLabel)}</button>` +
+          `${b.canBack ? `<button data-st="back" style="background:none;border:1px solid ${stAlpha(ink, 0.2)};color:${ink};border-radius:999px;padding:7px 14px;font-size:12.5px;cursor:pointer">Back</button>` : ''}` +
+          `${step.final && step.ctaLabel ? `<button data-st="done" style="background:none;border:1px solid ${stAlpha(ink, 0.2)};color:${ink};border-radius:999px;padding:7px 14px;font-size:12.5px;cursor:pointer">Done</button>` : ''}` +
+          `<button data-st="next" style="background:${accent};border:none;color:${onAccent};border-radius:999px;padding:7px 16px;font-size:12.5px;font-weight:600;cursor:pointer">${esc(nextLabel)}</button>` +
         `</div>` +
       `</div>` +
       `<button data-st="skip" aria-label="Skip" style="position:absolute;top:10px;right:12px;background:none;border:none;color:${ink};opacity:.5;font-size:18px;line-height:1;cursor:pointer">×</button>`;

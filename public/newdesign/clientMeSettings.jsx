@@ -1,11 +1,11 @@
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "14px 0", borderTop: "1px solid rgba(242,237,228,0.06)" }}>
-      <div style={{ fontSize: 13.5, color: "rgba(242,237,228,0.6)" }}>{label}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "14px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+      <div style={{ fontSize: 13.5, color: "var(--sh-ink2, #a09b94)" }}>{label}</div>
       <div style={{ fontSize: 13.5 }}>{value}</div>
       {action && (onAction
-        ? <button onClick={onAction} onMouseOver={e => e.currentTarget.style.background = "rgba(46,224,196,0.08)"} onMouseOut={e => e.currentTarget.style.background = "transparent"} style={chipStyle}>{action}</button>
+        ? <button onClick={onAction} onMouseOver={e => e.currentTarget.style.background = "rgba(var(--sh-accent-rgb, 46,224,196),0.08)"} onMouseOut={e => e.currentTarget.style.background = "transparent"} style={chipStyle}>{action}</button>
         : <span style={{ ...chipStyle, cursor: "default", opacity: 0.5 }}>{action}</span>)}
     </div>
   );
@@ -62,7 +62,7 @@ function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved }) {
   }
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 480 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 480 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>EDIT · {label.toUpperCase()}</div>
         <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{label}.</div>
         <input
@@ -70,11 +70,11 @@ function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved }) {
           value={val}
           onChange={e => setVal(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") save(); }}
-          style={{ width: "100%", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "12px 14px", borderRadius: 6, fontFamily: "'Space Grotesk', sans-serif", fontSize: 14 }}
+          style={{ width: "100%", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color: INK, padding: "12px 14px", borderRadius: 6, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 14 }}
         />
         {err && <div style={{ color: "#e07856", fontSize: 13, marginTop: 14 }}>{err}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
           <button disabled={saving} onClick={save} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>
         </div>
       </div>
@@ -88,11 +88,11 @@ function EditProfileModal({ initial, onClose, onSaved }) {
   const [err, setErr] = React.useState(null);
   const field = (key, label) => (
     <label style={{ display: "grid", gap: 4 }}>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.55)" }}>{label}</span>
+      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)" }}>{label}</span>
       <input
         value={form[key] || ""}
         onChange={e => setForm({ ...form, [key]: e.target.value })}
-        style={{ background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5 }}
+        style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5 }}
       />
     </label>
   );
@@ -108,7 +108,7 @@ function EditProfileModal({ initial, onClose, onSaved }) {
   }
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(242,237,228,0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>EDIT · PROFILE</div>
         <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>Your profile.</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, color: INK }}>
@@ -129,7 +129,7 @@ function EditProfileModal({ initial, onClose, onSaved }) {
         </div>
         {err && <div style={{ color: "#e07856", fontSize: 13, marginTop: 14 }}>{err}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
           <button disabled={saving} onClick={save} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save changes"}</button>
         </div>
       </div>
@@ -231,6 +231,10 @@ function ConnectedAppsCard({ signedIn }) {
 // Account & settings — rides BELOW the living profile (the page leads with
 // the profile itself, same concept as the app's Me tab; signed-out = demo).
 function ClientMeSettings() {
+  // The paper (light by default, the previous dark tones one tap away) is the
+  // account's, kept in dashboard_prefs beside the layout — dashData.jsx's own hook.
+  // It loads after this module on every host, so the read is a page-life constant.
+  const paperCtl = typeof useDashPaper === "function" ? useDashPaper() : ["light", null, { kind: "none" }];
   const [profile, setProfile] = React.useState(SAMPLE_PROFILE);
   const [loaded, setLoaded] = React.useState(false);
   const [signedIn, setSignedIn] = React.useState(false);
@@ -510,12 +514,12 @@ function ClientMeSettings() {
     <section style={{ maxWidth: 1240, margin: "0 auto", padding: "30px 40px 40px", fontFamily: sans, color: INK }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
         <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>Account · Settings · Billing</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Account · Settings · Billing</div>
           <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", marginTop: 4 }}>Settings.</div>
-          <div style={{ fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 4 }}>{signedIn ? "Your plan, payments, preferences, and how Shape uses your data." : "Sample view — sign in to load your real settings."}</div>
+          <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{signedIn ? "Your plan, payments, preferences, and how Shape uses your data." : "Sample view — sign in to load your real settings."}</div>
         </div>
         <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
-          <button onClick={handleLogout} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
+          <button onClick={handleLogout} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
           <button onClick={() => setEditOpen(true)} style={{ background: INK, color: "#100d0a", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit details</button>
         </div>
       </div>
@@ -529,6 +533,17 @@ function ClientMeSettings() {
           <Row label="Location" value={p.location || "—"} action="EDIT" onAction={() => openField("location", "Location")} />
           <Row label="Birthday" value={p.birthday || "—"} action="EDIT" onAction={() => openField("birthday", "Birthday")} />
           <Row label="Height / weight" value={p.heightWeight || "—"} action="UPDATE" onAction={() => openField("heightWeight", "Height / weight")} />
+        </Card>
+
+        <Card>
+          <SectionTitle>Appearance</SectionTitle>
+          <Row label="Paper" value={paperCtl[0] === "dark" ? "Dark — the previous tones" : "Light"}
+            action={paperCtl[1] ? (paperCtl[0] === "dark" ? "USE LIGHT" : "USE DARK") : "LIGHT"}
+            onAction={paperCtl[1] ? () => paperCtl[1](paperCtl[0] === "dark" ? "light" : "dark") : undefined} />
+          <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5, marginTop: 10 }}>
+            Light is the dashboard's paper; dark brings back the previous tones. Signed in, the
+            choice follows your account across devices.
+          </div>
         </Card>
 
         <PlanBillingCard signedIn={signedIn} />
@@ -598,8 +613,8 @@ function ClientMeSettings() {
       <Card style={{ marginTop: 20, padding: 22 }}>
         <SectionTitle>Danger zone</SectionTitle>
         <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-          <button onClick={exportData} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
-          <button onClick={pauseMembership} style={{ background: "transparent", color: "rgba(242,237,228,0.7)", border: "1px solid rgba(242,237,228,0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
+          <button onClick={exportData} style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Export all my data</button>
+          <button onClick={pauseMembership} style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Pause membership</button>
           <button onClick={deleteAccount} style={{ background: "transparent", color: "#e07856", border: "1px solid rgba(224,120,86,0.4)", padding: "14px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: sans, textAlign: "left" }}>Delete account</button>
         </div>
       </Card>
@@ -716,14 +731,14 @@ function HealthProfileCard() {
     finally { setBusy(false); }
   };
 
-  const taStyle = { width: "100%", boxSizing: "border-box", minHeight: 52, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.04)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", resize: "vertical" };
-  const lbl = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
-  const qTxt = { fontSize: 12.5, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 };
+  const taStyle = { width: "100%", boxSizing: "border-box", minHeight: 52, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: INK, fontFamily: sans, fontSize: 13, outline: "none", resize: "vertical" };
+  const lbl = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase", marginBottom: 6 };
+  const qTxt = { fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.5 };
   const ynRow = (value, onPick, options) => (
     <div style={{ display: "grid", gridTemplateColumns: `repeat(${options.length}, 1fr)`, gap: 6 }}>
       {options.map(([labelTxt, v, c]) => {
         const on = value === v;
-        return <button key={labelTxt} type="button" onClick={() => onPick(v)} style={{ padding: "7px 0", borderRadius: 8, border: `1px solid ${on ? c : "rgba(242,237,228,0.14)"}`, background: on ? c + "22" : "transparent", color: on ? c : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>{labelTxt}</button>;
+        return <button key={labelTxt} type="button" onClick={() => onPick(v)} style={{ padding: "7px 0", borderRadius: 8, border: `1px solid ${on ? c : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: on ? ssAlpha(c, 0.13) : "transparent", color: on ? c : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>{labelTxt}</button>;
       })}
     </div>
   );
@@ -732,21 +747,21 @@ function HealthProfileCard() {
     <Card style={{ marginTop: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <SectionTitle>Health profile</SectionTitle>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: doc ? (doc.flagged ? "#d2693f" : "#0ac5a8") : "rgba(242,237,228,0.5)" }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: doc ? (doc.flagged ? "#d2693f" : "var(--sh-accent2, #0ac5a8)") : "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>
           {doc ? (doc.flagged ? "PAR-Q · flagged" : "PAR-Q · all clear") : "Not completed yet"}
         </span>
       </div>
-      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.6, margin: "6px 0 14px" }}>
+      <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6, margin: "6px 0 14px" }}>
         Safety screening shared with the coaches you hire (for programming + liability). Required in the app before training starts.
       </div>
       <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
         {HP_PARQ.map((q, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 130px", gap: 14, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(242,237,228,0.06)" : "none" }}>
-            <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.75)", lineHeight: 1.5 }}>{i + 1}. {q}</div>
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 130px", gap: 14, alignItems: "center", padding: "9px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
+            <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.5 }}>{i + 1}. {q}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              {[["No", false, "#0ac5a8"], ["Yes", true, "#d2693f"]].map(([labelTxt, v, c]) => {
+              {[["No", false, "var(--sh-accent2, #0ac5a8)"], ["Yes", true, "#d2693f"]].map(([labelTxt, v, c]) => {
                 const on = answers[i] === v;
-                return <button key={labelTxt} onClick={() => setAnswers(a => a.map((x, j) => (j === i ? v : x)))} style={{ padding: "7px 0", borderRadius: 8, border: `1px solid ${on ? c : "rgba(242,237,228,0.14)"}`, background: on ? c + "22" : "transparent", color: on ? c : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>{labelTxt}</button>;
+                return <button key={labelTxt} onClick={() => setAnswers(a => a.map((x, j) => (j === i ? v : x)))} style={{ padding: "7px 0", borderRadius: 8, border: `1px solid ${on ? c : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: on ? ssAlpha(c, 0.13) : "transparent", color: on ? c : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>{labelTxt}</button>;
               })}
             </div>
           </div>
@@ -757,7 +772,7 @@ function HealthProfileCard() {
           <div style={lbl}>Prescription medication · required</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 14, alignItems: "center" }}>
             <div style={qTxt}>Are you currently taking any prescription medication(s)?</div>
-            {ynRow(rxMeds, setRxMeds, [["No", "no", "#0ac5a8"], ["Yes", "yes", "#d2693f"]])}
+            {ynRow(rxMeds, setRxMeds, [["No", "no", "var(--sh-accent2, #0ac5a8)"], ["Yes", "yes", "#d2693f"]])}
           </div>
           {rxMeds === "yes" && <textarea value={medications} onChange={(e) => setMedications(e.target.value)} placeholder="List your prescription medication(s) — e.g. Lisinopril (blood pressure)" style={{ ...taStyle, marginTop: 8 }} />}
         </div>
@@ -765,7 +780,7 @@ function HealthProfileCard() {
           <div style={lbl}>Allergies · required</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 14, alignItems: "center" }}>
             <div style={qTxt}>Do you have any allergies (food, medication, or other)?</div>
-            {ynRow(allergies, setAllergies, [["No", "no", "#0ac5a8"], ["Yes", "yes", "#d2693f"]])}
+            {ynRow(allergies, setAllergies, [["No", "no", "var(--sh-accent2, #0ac5a8)"], ["Yes", "yes", "#d2693f"]])}
           </div>
           {allergies === "yes" && <textarea value={allergyDetails} onChange={(e) => setAllergyDetails(e.target.value)} placeholder="List your allergies — e.g. Peanuts (severe) · penicillin" style={{ ...taStyle, marginTop: 8 }} />}
         </div>
@@ -773,13 +788,13 @@ function HealthProfileCard() {
           <div style={lbl}>Pregnancy · required</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 240px", gap: 14, alignItems: "center" }}>
             <div style={qTxt}>Are you currently pregnant, or have you given birth in the past 6 months?</div>
-            {ynRow(pregnancy, setPregnancy, [["No", "no", "#0ac5a8"], ["Yes", "yes", "#d2693f"], ["N/A", "na", "#8a8378"]])}
+            {ynRow(pregnancy, setPregnancy, [["No", "no", "var(--sh-accent2, #0ac5a8)"], ["Yes", "yes", "#d2693f"], ["N/A", "na", "#8a8378"]])}
           </div>
         </div>
         <div>
           <div style={lbl}>Ongoing medical conditions · optional</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 8 }}>
-            {HP_CONDITION_TAGS.map(tag => { const on = conditionTags.includes(tag); return <button key={tag} onClick={() => toggleTag(tag)} style={{ padding: "6px 11px", borderRadius: 999, border: `1px solid ${on ? "#0ac5a8" : "rgba(242,237,228,0.14)"}`, background: on ? "#0ac5a822" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>{tag}</button>; })}
+            {HP_CONDITION_TAGS.map(tag => { const on = conditionTags.includes(tag); return <button key={tag} onClick={() => toggleTag(tag)} style={{ padding: "6px 11px", borderRadius: 999, border: `1px solid ${on ? "var(--sh-accent2, #0ac5a8)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168), 0.133)" : "transparent", color: on ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.04em", textTransform: "uppercase", cursor: "pointer" }}>{tag}</button>; })}
           </div>
           <textarea value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="Anything else your coach should know — e.g. Type 2 diabetes (diet-managed)" style={taStyle} />
         </div>
@@ -788,9 +803,9 @@ function HealthProfileCard() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 200px", gap: 14, alignItems: "end" }}>
         <div><div style={lbl}>Emergency contact · name</div><input value={emName} onChange={(e) => setEmName(e.target.value)} style={{ ...taStyle, minHeight: 0 }} /></div>
         <div><div style={lbl}>Emergency contact · phone</div><input value={emPhone} onChange={(e) => setEmPhone(e.target.value)} style={{ ...taStyle, minHeight: 0 }} /></div>
-        <button onClick={save} disabled={!screenComplete || busy} style={{ background: screenComplete ? "#0ac5a8" : "rgba(242,237,228,0.12)", color: screenComplete ? "#1a1612" : "rgba(242,237,228,0.45)", border: 0, padding: "12px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: screenComplete ? "pointer" : "default" }}>{busy ? "Saving…" : "Save health profile"}</button>
+        <button onClick={save} disabled={!screenComplete || busy} style={{ background: screenComplete ? "var(--sh-accent2, #0ac5a8)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)", color: screenComplete ? "var(--sh-ground, #1a1612)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", border: 0, padding: "12px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: screenComplete ? "pointer" : "default" }}>{busy ? "Saving…" : "Save health profile"}</button>
       </div>
-      {note && <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.65)" }}>{note}</div>}
+      {note && <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)" }}>{note}</div>}
     </Card>
   );
 }
@@ -869,11 +884,11 @@ function ReminderCard({ signedIn }) {
   const startEdit = (r) => setEditing({ id: r.id, kind: r.kind, label: r.label || "", atTime: r.at_time, days: r.days || [], enabled: r.enabled });
 
   const mono = "'JetBrains Mono', monospace";
-  const chip = (on, square) => ({ padding: square ? "8px 0" : "6px 12px", borderRadius: square ? 8 : 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196), 0.1333)" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
-  const fieldStyle = { width: "100%", boxSizing: "border-box", background: "rgba(242,237,228,0.04)", border: "1px solid rgba(242,237,228,0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5, outline: "none" };
-  const eyebrow = { fontFamily: mono, fontSize: 9.5, letterSpacing: "0.12em", color: "rgba(242,237,228,0.5)", textTransform: "uppercase", marginBottom: 6 };
+  const chip = (on, square) => ({ padding: square ? "8px 0" : "6px 12px", borderRadius: square ? 8 : 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196), 0.1333)" : "transparent", color: on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: mono, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
+  const fieldStyle = { width: "100%", boxSizing: "border-box", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5, outline: "none" };
+  const eyebrow = { fontFamily: mono, fontSize: 9.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase", marginBottom: 6 };
   const actionChip = { fontSize: 11.5, color: TEAL_BRIGHT, fontFamily: mono, letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 6px", borderRadius: 6 };
-  const muted = { fontSize: 13, color: "rgba(242,237,228,0.5)", padding: "8px 0" };
+  const muted = { fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "8px 0" };
 
   const list = reminders;
   return (
@@ -881,10 +896,10 @@ function ReminderCard({ signedIn }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
         <SectionTitle>Your reminders</SectionTitle>
         {signedIn && !editing && (
-          <button onClick={startAdd} style={actionChip} onMouseOver={e => e.currentTarget.style.background = "rgba(46,224,196,0.08)"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>＋ ADD</button>
+          <button onClick={startAdd} style={actionChip} onMouseOver={e => e.currentTarget.style.background = "rgba(var(--sh-accent-rgb, 46,224,196),0.08)"} onMouseOut={e => e.currentTarget.style.background = "transparent"}>＋ ADD</button>
         )}
       </div>
-      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.6, margin: "6px 0 14px" }}>
+      <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6, margin: "6px 0 14px" }}>
         Nudges to weigh in, check in, hydrate, or anything else — delivered at your set time on the days you choose.
       </div>
 
@@ -899,10 +914,10 @@ function ReminderCard({ signedIn }) {
       ) : (
         <div>
           {list.map(r => (
-            <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "13px 0", borderTop: "1px solid rgba(242,237,228,0.06)", opacity: r.enabled ? 1 : 0.5 }}>
+            <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "13px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", opacity: r.enabled ? 1 : 0.5 }}>
               <div>
                 <div style={{ fontSize: 13.5, color: INK }}>{r.label || remKindLabel(r.kind)}</div>
-                <div style={{ fontSize: 12, color: "rgba(242,237,228,0.55)", marginTop: 2 }}>{remFmt12(r.at_time)} · {remDaysLabel(r.days)}</div>
+                <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{remFmt12(r.at_time)} · {remDaysLabel(r.days)}</div>
               </div>
               <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                 <button type="button" onClick={() => toggleEnabled(r)} aria-label={(r.enabled ? "Disable" : "Enable") + " reminder"} style={{ ...chip(r.enabled), padding: "5px 10px" }}>{r.enabled ? "On" : "Off"}</button>
@@ -915,7 +930,7 @@ function ReminderCard({ signedIn }) {
       )}
 
       {editing && (
-        <div style={{ marginTop: 14, padding: 16, borderRadius: 12, border: "1px solid rgba(242,237,228,0.12)", background: "rgba(242,237,228,0.03)" }}>
+        <div style={{ marginTop: 14, padding: 16, borderRadius: 12, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)" }}>
           <div style={eyebrow}>{editing.id ? "Edit · reminder" : "New · reminder"}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
             {REM_KINDS.map(([k, l]) => (
@@ -941,13 +956,13 @@ function ReminderCard({ signedIn }) {
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
-            <button onClick={() => setEditing(null)} style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+            <button onClick={() => setEditing(null)} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "9px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
             <button disabled={!(editing.days || []).length || busy} onClick={saveDraft} style={{ background: INK, color: PAPER, border: 0, padding: "9px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: (!(editing.days || []).length || busy) ? "default" : "pointer", opacity: (!(editing.days || []).length || busy) ? 0.5 : 1 }}>{busy ? "Saving…" : "Save reminder"}</button>
           </div>
         </div>
       )}
 
-      {note && <div style={{ marginTop: 10, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.06em", color: "rgba(242,237,228,0.65)" }}>{note}</div>}
+      {note && <div style={{ marginTop: 10, fontFamily: mono, fontSize: 10.5, letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)" }}>{note}</div>}
     </Card>
   );
 }
@@ -1039,16 +1054,16 @@ function NotificationDashboard({ signedIn }) {
   };
 
   const mono = "'JetBrains Mono', monospace";
-  const muted = { fontSize: 13, color: "rgba(242,237,228,0.5)", padding: "8px 0" };
-  const head = { marginTop: 18, marginBottom: 4, fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" };
-  const rowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 0", borderTop: "1px solid rgba(242,237,228,0.06)" };
+  const muted = { fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "8px 0" };
+  const head = { marginTop: 18, marginBottom: 4, fontFamily: mono, fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" };
+  const rowStyle = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" };
   const lblStyle = { fontSize: 13.5, color: INK };
-  const subStyle = { fontSize: 12, color: "rgba(242,237,228,0.5)", marginTop: 2 };
-  const sel = { background: "transparent", color: TEAL_BRIGHT, border: "1px solid rgba(242,237,228,0.25)", borderRadius: 999, padding: "6px 10px", fontFamily: mono, fontSize: 11, fontWeight: 700, cursor: "pointer" };
-  const chip = (on) => ({ width: 52, padding: "6px 0", borderRadius: 8, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.14)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196), 0.1333)" : "transparent", color: on ? TEAL_BRIGHT : "rgba(242,237,228,0.6)", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
+  const subStyle = { fontSize: 12, color: "var(--sh-ink2, #a09b94)", marginTop: 2 };
+  const sel = { background: "transparent", color: TEAL_BRIGHT, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", borderRadius: 999, padding: "6px 10px", fontFamily: mono, fontSize: 11, fontWeight: 700, cursor: "pointer" };
+  const chip = (on) => ({ width: 52, padding: "6px 0", borderRadius: 8, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196), 0.1333)" : "transparent", color: on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" });
   const Toggle = ({ on, onClick, label }) => (
-    <button type="button" onClick={onClick} aria-label={label} style={{ width: 46, height: 27, borderRadius: 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(242,237,228,0.25)"), background: on ? TEAL_BRIGHT : "transparent", position: "relative", cursor: "pointer", flexShrink: 0 }}>
-      <span style={{ position: "absolute", top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? "#100d0a" : "rgba(242,237,228,0.5)" }} />
+    <button type="button" onClick={onClick} aria-label={label} style={{ width: 46, height: 27, borderRadius: 999, border: "1px solid " + (on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)"), background: on ? TEAL_BRIGHT : "transparent", position: "relative", cursor: "pointer", flexShrink: 0 }}>
+      <span style={{ position: "absolute", top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? "#100d0a" : "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }} />
     </button>
   );
 
@@ -1056,7 +1071,7 @@ function NotificationDashboard({ signedIn }) {
   return (
     <Card style={{ marginTop: 20 }}>
       <SectionTitle>Notifications</SectionTitle>
-      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.55)", lineHeight: 1.6, margin: "6px 0 8px" }}>
+      <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6, margin: "6px 0 8px" }}>
         What reaches you, when, and how. Shape only notifies on a real event — never a guilt-trip.
       </div>
       {s === null ? (
@@ -1095,13 +1110,13 @@ function NotificationDashboard({ signedIn }) {
 
               <div style={head}>What you hear about · per channel</div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "0 0 6px" }}>
-                {NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 52, textAlign: "center", fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)" }}>{l}</span>)}
+                {NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 52, textAlign: "center", fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>{l}</span>)}
               </div>
               {NP_TYPES.map(([type, label, sub]) => (
                 <div key={type} style={rowStyle}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={lblStyle}>{label}</div>
-                    <div style={{ fontSize: 11.5, color: "rgba(242,237,228,0.5)", marginTop: 1 }}>{sub}</div>
+                    <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 1 }}>{sub}</div>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {NP_CHANNELS.map(([k, l]) => <button key={k} type="button" onClick={() => toggleCh(type, k)} aria-label={label + " · " + l + " · " + (chOn(type, k) ? "on" : "off")} style={chip(chOn(type, k))}>{l}</button>)}
@@ -1121,11 +1136,11 @@ function NotificationDashboard({ signedIn }) {
                       <Toggle on={r.enabled} onClick={() => toggleHabit(r)} label={(r.enabled ? "Disable" : "Enable") + " habit reminder"} />
                     </div>
                   ))}
-                  <div style={{ marginTop: 8, fontFamily: mono, fontSize: 9.5, letterSpacing: "0.04em", color: "rgba(242,237,228,0.45)" }}>Set the time + days on each habit in the app's Habits page.</div>
+                  <div style={{ marginTop: 8, fontFamily: mono, fontSize: 9.5, letterSpacing: "0.04em", color: "var(--sh-ink3, #75706a)" }}>Set the time + days on each habit in the app's Habits page.</div>
                 </div>
               )}
 
-              <div style={{ marginTop: 14, fontSize: 12, color: "rgba(242,237,228,0.55)", lineHeight: 1.6 }}>
+              <div style={{ marginTop: 14, fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6 }}>
                 Push also needs your device's system permission. Each notification deep-links you in — nothing changes your data.
               </div>
             </div>

@@ -272,7 +272,7 @@ const DASH_TODAY_ROLES = {
 // contact, and a one-tap Message. Visual language per the prototype: dark
 // panel, squared spine-left pills, mono metas, teal accents.
 
-const DASH_INK50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+const DASH_INK50 = "var(--sh-ink2, #a09b94)";
 const DASH_MONO_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_INK50 };
 // An in-card text link is a control, so it gets the 24px hit area the chrome has —
 // the glyph does not move (the vertical padding is cancelled by a negative margin).
@@ -288,11 +288,17 @@ const DASH_MONO_LINK = { ...DASH_MONO_EYEBROW, display: "inline-flex", alignItem
 // values where the tint actually has to move. They are also SEMANTIC rather than
 // paper colours (severity, not ground), so they do not follow the paper anyway.
 // tests/newdesign-paper-tokens.test.mjs holds the rule.
-const DASH_SEV_COLORS = { red: "#e0644b", amber: "#d8a23a", new: "#2ee0c4", green: "#7bbf5a", unknown: "#9b968d" };
+// ⚠ CORRECTED with the light paper: the severity colours DO follow it now. On white
+// the dark paper's #e0644b reads at 3.3:1 and its teal at 1.6:1, so each severity
+// reads the role/state token whose light value was chosen for AA (rust #c0533b,
+// gold #a07a2e, teal #0a8f87, green #3a7d2c); the dark switch resolves every one
+// back to the literal it carried before. DashPill composes its tint through
+// ssAlpha, which keeps a token as rgba(var(--x-rgb, …), a).
+const DASH_SEV_COLORS = { red: "var(--sh-rust, #e0644b)", amber: "var(--sh-gold, #d8a23a)", new: "var(--sh-accent, #2ee0c4)", green: "var(--sh-green, #7bbf5a)", unknown: "var(--sh-ink2, #a09b94)" };
 
 function DashPill({ c, children }) {
   return (
-    <span style={{ display: "inline-block", whiteSpace: "nowrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: c, background: c + "1c", border: "1px solid " + c + "55", borderLeft: "3px solid " + c, borderRadius: 4, padding: "3px 8px" }}>
+    <span style={{ display: "inline-block", whiteSpace: "nowrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: c, background: ssAlpha(c, 0.11), border: "1px solid " + ssAlpha(c, 0.33), borderLeft: "3px solid " + c, borderRadius: 4, padding: "3px 8px" }}>
       {children}
     </span>
   );
@@ -423,13 +429,13 @@ function ExpandableSchedule({ schedule, clients, role }) {
         return (
           <div key={i} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
             <div onClick={() => expandable && setOpenIdx(open ? null : i)} onKeyDown={(e) => { if (expandable && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setOpenIdx(open ? null : i); } }} role={expandable ? "button" : undefined} tabIndex={expandable ? 0 : undefined} aria-expanded={expandable ? open : undefined} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", gap: 12, alignItems: "center", padding: "14px 4px", cursor: expandable ? "pointer" : "default" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{s.time}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)" }}>{s.time}</div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 500 }}>
-                  {expandable && <span style={{ display: "inline-block", width: 14, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", fontSize: 10 }}>{open ? "▾" : "▸"}</span>}
+                  {expandable && <span style={{ display: "inline-block", width: 14, color: "var(--sh-ink3, #75706a)", fontSize: 10 }}>{open ? "▾" : "▸"}</span>}
                   {s.who}
                 </div>
-                <div style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginTop: 2, paddingLeft: expandable ? 14 : 0 }}>{s.sub}</div>
+                <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", marginTop: 2, paddingLeft: expandable ? 14 : 0 }}>{s.sub}</div>
               </div>
               {s.status && (
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4,
@@ -708,7 +714,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
         const id = r.client.profile.id;
         const st = rowState(id);
         const blocked = r.state === "blocked";
-        const c = st.done ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : "#2ee0c4";  // literal: goes to DashPill, which hex-appends — see the note above DASH_SEV_COLORS
+        const c = st.done ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : DASH_SEV_COLORS.new;
         const pillText = st.pill || (blocked ? "Waiting on check-in" : "Ready");
         return (
           <div key={id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", opacity: st.done ? 0.6 : 1 }}>
@@ -781,9 +787,10 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
   const canPin = typeof onTogglePin === "function";
   const pinSet = new Set(Array.isArray(pinned) ? pinned : []);
   const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
-  // A HEX muted ink for DashPill: the pill composes its bg/border by appending hex
-  // suffixes (c + "1c" / "55"), so an rgba() value would produce invalid CSS.
-  const inkMutedPill = "#9b968d";
+  // The muted pill takes the severity table's own "unknown" ink. It was a hex literal
+  // while DashPill appended hex suffixes; the pill composes through ssAlpha now, so a
+  // token is valid and follows the paper (#5a6763 on the light card, 5.91:1).
+  const inkMutedPill = DASH_SEV_COLORS.unknown;
   // Rows open the shared client drilldown (step 11) when dashRoster.jsx is
   // loaded on the page; the Message button keeps working either way.
   const [selectedId, setSelectedId] = React.useState(null);
@@ -1066,7 +1073,7 @@ function DashNutriAggPanel({ clients, live }) {
     ? Math.round((withLogs.filter((c) => c.foodLogs.daysLogged7d > 0).length / withLogs.length) * 100)
     : null;
   const renewals = live ? null : 4; // billing dates aren't exposed yet
-  const cellStyle = { background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 8, padding: "13px 15px" };
+  const cellStyle = { background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "13px 15px" };
   const stat = (k, l, sub) => (
     <div style={cellStyle}>
       <div style={{ fontFamily: serif, fontSize: 23, lineHeight: 1, color: k === "—" ? ink50 : "var(--sh-ink, #f2ede4)" }}>{k}</div>
@@ -1476,7 +1483,7 @@ function CoachDashboardPage({ role }) {
 
   // ── Coach Today as a draggable DashGrid (role-scoped, tab="today"). Each section below
   // becomes a widget; the date/greeting/CTAs stay as the page header (DashShell topbar).
-  const dashPanelStyle = { background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: 24 };
+  const dashPanelStyle = { background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, padding: 24 };
   const renderPanel = (title, children) => (
     <div style={dashPanelStyle}>
       {title && <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 16 }}>{title}</div>}
@@ -1484,12 +1491,12 @@ function CoachDashboardPage({ role }) {
     </div>
   );
   const renderKpiStrip = (row) => (
-    <div style={{ display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, overflow: "hidden" }}>
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`, background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, overflow: "hidden" }}>
       {row.map((k, i) => (
         <div key={i} style={{ padding: "20px 20px", borderLeft: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "none", minWidth: 0 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10, textTransform: "uppercase" }}>{k.l}</div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.015em", lineHeight: 1, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{k.k}</div>
-          {k.sub && <div style={{ fontSize: 11, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 6 }}>{k.sub}</div>}
+          {k.sub && <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 6 }}>{k.sub}</div>}
         </div>
       ))}
     </div>

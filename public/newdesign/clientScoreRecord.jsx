@@ -14,7 +14,7 @@
 // three different sentences.
 
 const CSR_MONO = "'JetBrains Mono', monospace";
-const CSR_DIM = "rgba(242,237,228,0.5)";
+const CSR_DIM = "var(--sh-ink2, #a09b94)";
 const CSR_RED = "#e0463c";
 const CSR_RANGES = [["1w", "1W"], ["1m", "1M"], ["3m", "3M"], ["all", "ALL"]];
 // ⚠ "week" IS A ROLLING WINDOW, NOT A CALENDAR WEEK. Both RPCs define it as
@@ -125,7 +125,7 @@ function CsrLine({ series, height = 90 }) {
   if (!g) return null;
   return (
     <svg viewBox={"0 0 " + g.W + " " + g.H} preserveAspectRatio="none" style={{ width: "100%", height: g.H, display: "block" }} aria-hidden="true">
-      <path d={g.fill} fill="rgba(10,197,168,0.10)" stroke="none" />
+      <path d={g.fill} fill="rgba(var(--sh-accent2-rgb, 10,197,168),0.10)" stroke="none" />
       <path d={g.path} fill="none" stroke={TEAL_BRIGHT} strokeWidth="2" vectorEffect="non-scaling-stroke" />
       <circle cx={g.last[0]} cy={g.last[1]} r="3.5" fill={TEAL_BRIGHT} />
     </svg>
@@ -136,8 +136,8 @@ function CsrBar({ label, value, max, tone }) {
   const pct = max > 0 ? Math.max(2, Math.round((Math.abs(value) / max) * 100)) : 0;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(96px, 150px) 1fr auto", gap: 12, alignItems: "center", padding: "7px 0" }}>
-      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.8)" }}>{label}</div>
-      <div style={{ height: 6, borderRadius: 3, background: "rgba(242,237,228,0.07)", overflow: "hidden" }}>
+      <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}>{label}</div>
+      <div style={{ height: 6, borderRadius: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.07)", overflow: "hidden" }}>
         <div style={{ width: pct + "%", height: "100%", background: tone || TEAL_BRIGHT }} />
       </div>
       <div style={{ fontFamily: CSR_MONO, fontSize: 12, color: tone || TEAL_BRIGHT, fontVariantNumeric: "tabular-nums" }}>{csrSigned(value)}</div>
@@ -173,7 +173,7 @@ function ClientScoreRecord() {
     return (
       <Card>
         {csrLabel("The record")}
-        <div style={{ marginTop: 10, fontSize: 13.5, color: "rgba(242,237,228,0.7)", lineHeight: 1.55 }}>
+        <div style={{ marginTop: 10, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", lineHeight: 1.55 }}>
           Nothing on the ledger yet. Your first logged workout, meal or habit opens this
           page — every point you earn is written here with the reason it was given.
         </div>
@@ -193,8 +193,8 @@ function ClientScoreRecord() {
             {CSR_RANGES.map(([k, l]) => (
               <button key={k} type="button" onClick={() => setRange(k)} aria-pressed={range === k}
                 style={{ fontFamily: CSR_MONO, fontSize: 10, letterSpacing: "0.1em", padding: "6px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
-                  border: "1px solid " + (range === k ? TEAL_BRIGHT : "rgba(242,237,228,0.18)"),
-                  background: range === k ? "rgba(10,197,168,0.14)" : "transparent", color: range === k ? TEAL_BRIGHT : CSR_DIM }}>{l}</button>
+                  border: "1px solid " + (range === k ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
+                  background: range === k ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : "transparent", color: range === k ? TEAL_BRIGHT : CSR_DIM }}>{l}</button>
             ))}
           </div>
         </div>
@@ -250,14 +250,14 @@ function ClientScoreRecord() {
         {csrLabel("Every entry")}
         <div style={{ marginTop: 8 }}>
           {history.map((day) => (
-            <div key={day.date} style={{ borderTop: "1px solid rgba(242,237,228,0.07)", paddingTop: 10, marginTop: 10 }}>
+            <div key={day.date} style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.07)", paddingTop: 10, marginTop: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
                 <span style={{ fontFamily: CSR_MONO, fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", color: CSR_DIM }}>{csrDay(day.date)}</span>
                 <span style={{ fontFamily: CSR_MONO, fontSize: 12, color: day.subtotal < 0 ? CSR_RED : TEAL_BRIGHT, fontVariantNumeric: "tabular-nums" }}>{csrSigned(day.subtotal)}</span>
               </div>
               {(day.rows || []).map((r, i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "5px 0" }}>
-                  <span style={{ fontSize: 13, color: "rgba(242,237,228,0.82)" }}>{r.note}</span>
+                  <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.82)" }}>{r.note}</span>
                   <span style={{ fontFamily: CSR_MONO, fontSize: 12, color: r.isPenalty ? CSR_RED : TEAL_BRIGHT, fontVariantNumeric: "tabular-nums" }}>{csrSigned(r.delta)}</span>
                 </div>
               ))}
@@ -286,8 +286,8 @@ function ClientLeaderboard() {
       {CSR_PERIODS.map(([k, l]) => (
         <button key={k} type="button" onClick={() => setPeriod(k)} aria-pressed={period === k}
           style={{ fontFamily: CSR_MONO, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
-            border: "1px solid " + (period === k ? TEAL_BRIGHT : "rgba(242,237,228,0.18)"),
-            background: period === k ? "rgba(10,197,168,0.14)" : "transparent", color: period === k ? TEAL_BRIGHT : CSR_DIM }}>{l}</button>
+            border: "1px solid " + (period === k ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
+            background: period === k ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : "transparent", color: period === k ? TEAL_BRIGHT : CSR_DIM }}>{l}</button>
       ))}
     </div>
   );
@@ -320,10 +320,10 @@ function ClientLeaderboard() {
           </div>}
       <div style={{ marginTop: 14 }}>
         {entries.length ? entries.map((e) => (
-          <div key={e.userId} style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 12, alignItems: "center", padding: "9px 6px", borderTop: "1px solid rgba(242,237,228,0.06)",
-            background: e.isMe ? "rgba(10,197,168,0.07)" : "transparent", borderRadius: e.isMe ? 4 : 0 }}>
+          <div key={e.userId} style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 12, alignItems: "center", padding: "9px 6px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)",
+            background: e.isMe ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.07)" : "transparent", borderRadius: e.isMe ? 4 : 0 }}>
             <span style={{ fontFamily: CSR_MONO, fontSize: 12, color: e.rank <= 3 ? TEAL_BRIGHT : CSR_DIM, fontVariantNumeric: "tabular-nums" }}>#{csrNum(e.rank)}</span>
-            <span style={{ fontSize: 13.5, color: e.isMe ? INK : "rgba(242,237,228,0.82)", fontWeight: e.isMe ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name || "A member"}{e.isMe ? " · you" : ""}</span>
+            <span style={{ fontSize: 13.5, color: e.isMe ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.82)", fontWeight: e.isMe ? 600 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name || "A member"}{e.isMe ? " · you" : ""}</span>
             <span style={{ fontFamily: CSR_MONO, fontSize: 12.5, color: TEAL_BRIGHT, fontVariantNumeric: "tabular-nums" }}>{csrNum(e.points)}</span>
           </div>
         )) : <div style={{ fontSize: 12.5, color: CSR_DIM }}>Nobody has earned points in this window yet.</div>}
@@ -343,7 +343,7 @@ function ClientScoreHowItWorks({ tiers, currentTier }) {
     <React.Fragment>
       <Card>
         {csrLabel("How the Shape Score works")}
-        <div style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.6, color: "rgba(242,237,228,0.82)" }}>
+        <div style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.6, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.82)" }}>
           Every logged workout, meal, habit and check-in adds points to one running
           total. It updates nightly. Missing something you committed to takes points
           off — the Record shows both sides, entry by entry.
@@ -360,10 +360,10 @@ function ClientScoreHowItWorks({ tiers, currentTier }) {
             const here = currentTier && t[0] === currentTier;
             return (
               <div key={t[0]} style={{ display: "grid", gridTemplateColumns: "minmax(70px, 100px) minmax(70px, 110px) 1fr", gap: 12, alignItems: "baseline", padding: "9px 6px",
-                borderTop: "1px solid rgba(242,237,228,0.06)", background: here ? "rgba(10,197,168,0.07)" : "transparent", borderRadius: here ? 4 : 0 }}>
+                borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", background: here ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.07)" : "transparent", borderRadius: here ? 4 : 0 }}>
                 <span style={{ fontFamily: serif, fontSize: 15, color: here ? TEAL_BRIGHT : INK }}>{t[0]}{here ? " ·" : ""}</span>
                 <span style={{ fontFamily: CSR_MONO, fontSize: 11.5, color: CSR_DIM, fontVariantNumeric: "tabular-nums" }}>{t[2]}</span>
-                <span style={{ fontSize: 12.5, color: "rgba(242,237,228,0.75)" }}>{t[3]}</span>
+                <span style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" }}>{t[3]}</span>
               </div>
             );
           })}

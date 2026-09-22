@@ -13,7 +13,9 @@
 <title>Shape · Nutritionist</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Anybody:wdth,wght@50..150,400..800&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- The paper switch, first paint: a member who chose the dark paper has it stamped before the stylesheet applies, so a reload never flashes light. dashData.jsx's useDashPaper keeps this mirror in step with the account. -->
+<script>try{if(localStorage.getItem("shape.web.paper")==="dark")document.documentElement.setAttribute("data-paper","dark")}catch(e){}</script>
 <link rel="stylesheet" href="dash.css?v=20260613">
 <link rel="stylesheet" href="/vendor/gridstack/gridstack.min.css">
 <script defer src="/_vercel/insights/script.js"></script></head>

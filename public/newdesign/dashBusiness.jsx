@@ -16,14 +16,14 @@
 // Load order: pageShell → trainerDashboard → coachNav → dashSignals.js →
 // dashData.jsx → dashToday.jsx (DashGrowthPanel/DashFunnelPanel/band) → this.
 
-const DBZ_INK50 = "rgba(242,237,228,0.55)";
+const DBZ_INK50 = "var(--sh-ink2, #a09b94)";
 const DBZ_MONO = "'JetBrains Mono', monospace";
-const DBZ_TEAL = "#2ee0c4";
-const DBZ_GREEN = "#7bbf5a";
-const DBZ_AMBER = "#d8a23a";
-const DBZ_RED = "#e0644b";
-const DBZ_INK = "#f2ede4";        // the dashboard's fixed-dark cream ink
-const DBZ_TEAL_INK = "#06231f";   // ink ON a teal-filled control
+const DBZ_TEAL = "var(--sh-accent, #2ee0c4)";
+const DBZ_GREEN = "var(--sh-green, #7bbf5a)";
+const DBZ_AMBER = "var(--sh-gold, #d8a23a)";
+const DBZ_RED = "var(--sh-rust, #e0644b)";
+const DBZ_INK = "var(--sh-ink, #f2ede4)";        // the dashboard's fixed-dark cream ink
+const DBZ_TEAL_INK = "var(--sh-deep, #06231f)";   // ink ON a teal-filled control
 
 function dbzDate(v) {
   if (!v) return "—";
@@ -113,7 +113,7 @@ const DBZ_DEMO_OUTCOMES = {
 
 const DBZ_ROLES = {
   trainer: {
-    accent: "#c0533b",
+    accent: "var(--sh-rust2, #c0533b)",
     nav: (k) => trainerNavItems(k),
     api: "/api/trainer/analytics",
     okKey: "isTrainer",
@@ -128,7 +128,7 @@ const DBZ_ROLES = {
     consistentSort: (a, b) => (b.workouts30d || 0) - (a.workouts30d || 0),
   },
   nutritionist: {
-    accent: "#d8a23a",
+    accent: "var(--sh-gold, #d8a23a)",
     nav: (k) => nutriNavItems(k),
     api: "/api/nutritionist/analytics",
     okKey: "isNutritionist",
@@ -190,7 +190,7 @@ function DbzPayoutsZone({ live, stripe, providerId, role }) {
           This zone connects when payouts go live — link a Stripe account and every number here turns real: balance, schedule, and the full payout history.
         </div>
         {providerId != null && (
-          <button onClick={startOnboarding} disabled={linking} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#06231f", background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: linking ? 0.6 : 1, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
+          <button onClick={startOnboarding} disabled={linking} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: "pointer", opacity: linking ? 0.6 : 1, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
             {linking ? "Opening Stripe…" : "Set up payouts →"}
           </button>
         )}
@@ -221,7 +221,7 @@ function DbzPayoutsZone({ live, stripe, providerId, role }) {
       )}
       <div style={{ marginTop: 12 }}>
         {(data.payouts || []).length ? (data.payouts || []).map((p, i) => (
-          <div key={p.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+          <div key={p.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
             <span style={{ fontFamily: DBZ_MONO, fontSize: 10, color: DBZ_INK50 }}>{dbzDate(p.arrivalDate || p.created)}</span>
             <DashPill c={p.status === "paid" ? DBZ_GREEN : p.status === "failed" ? DBZ_RED : DBZ_AMBER}>{(p.status || "pending").replace("_", " ")}</DashPill>
             <span style={{ fontFamily: serif, fontSize: 16 }}>{dashMoney(p.amountCents)}</span>
@@ -250,13 +250,13 @@ function DbzChurnZone({ live, churn }) {
       {rows.map((r, i) => {
         const tenure = r.startedAt && r.endedAt ? dbzMonthsBetween(r.startedAt, r.endedAt) : null;
         return (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "10px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "start", padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</div>
               <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DBZ_INK50, marginTop: 3 }}>
                 {r.endedAt ? "ended " + dbzDate(r.endedAt) : "ended —"}{tenure ? " · " + tenure + " mo client" : ""}
               </div>
-              <div style={{ fontSize: 12, color: r.reason ? "rgba(242,237,228,0.78)" : DBZ_INK50, fontStyle: r.reason ? "normal" : "italic", lineHeight: 1.45, marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: r.reason ? "rgba(var(--sh-ink-rgb, 242,237,228),0.78)" : DBZ_INK50, fontStyle: r.reason ? "normal" : "italic", lineHeight: 1.45, marginTop: 4 }}>
                 {r.reason ? "“" + r.reason + "”" : "Exit reason — collects once the cancellation survey ships"}
               </div>
             </div>
@@ -313,21 +313,21 @@ function DbzBringClientsZone({ live, role, providerId }) {
   };
   return (
     <div>
-      <div style={{ fontSize: 12.5, color: "rgba(242,237,228,0.78)", lineHeight: 1.55 }}>{DBZ_BYO_PITCH}</div>
+      <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.55 }}>{DBZ_BYO_PITCH}</div>
       {live && !link ? (
         <div style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50, marginTop: 12, lineHeight: 1.6 }}>
           Your ref-tagged link generates here once you're signed in and referrals are live.
         </div>
       ) : (
         <React.Fragment>
-          <div style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_TEAL, marginTop: 12, padding: "9px 10px", background: "rgba(46,224,196,0.06)", border: "1px solid rgba(46,224,196,0.18)", wordBreak: "break-all", lineHeight: 1.55, userSelect: "all" }}>
+          <div style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_TEAL, marginTop: 12, padding: "9px 10px", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.06)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.18)", wordBreak: "break-all", lineHeight: 1.55, userSelect: "all" }}>
             {url}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <button type="button" onClick={copyIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_TEAL_INK, background: DBZ_TEAL, border: 0, borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5, clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>
               {copied ? "Copied ✓" : "Copy link"}
             </button>
-            <button type="button" onClick={emailIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK, background: "transparent", border: "1px dashed rgba(242,237,228,0.25)", borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5 }}>
+            <button type="button" onClick={emailIt} style={{ fontFamily: DBZ_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK, background: "transparent", border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.25)", borderRadius: 4, padding: "10px 16px", cursor: live ? "pointer" : "default", opacity: live ? 1 : 0.5 }}>
               ✉︎ Email it
             </button>
           </div>
@@ -357,7 +357,7 @@ function DbzOriginZone({ live, byOrigin }) {
         const byo = isByo(r);
         const feePct = Math.round((r.feeBps || 0) / 100 * 10) / 10;
         return (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
             <span style={{ fontSize: 13, fontWeight: 500, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
             <span style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: byo ? DBZ_TEAL : DBZ_INK50, whiteSpace: "nowrap" }}>
               {byo ? "You brought" : "Found you on Shape"} · {feePct}% fee{r.kind === "purchase" ? " · one-time" : ""}
@@ -406,7 +406,7 @@ function DbzOutcomesZone({ role, cp }) {
         <div>
           <div style={{ fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 6 }}>Top weight loss · 30d</div>
           {topLosers.length ? topLosers.map((r, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
               <span style={{ fontSize: 13, fontWeight: 500 }}>{r.name || "Client"}</span>
               <span style={{ fontFamily: serif, fontSize: 15, color: DBZ_TEAL }}>{fmtWeight(r.weightChangeLb)}</span>
             </div>
@@ -417,7 +417,7 @@ function DbzOutcomesZone({ role, cp }) {
           {consistent.length ? consistent.map((r, i) => {
             const v = cfg.consistentValue(r);
             return (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(242,237,228,0.05)" }}>
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
                 <span style={{ fontSize: 13, fontWeight: 500 }}>{r.name || "Client"}</span>
                 <span style={{ fontFamily: serif, fontSize: 15 }}>{v.n} <span style={{ fontFamily: DBZ_MONO, fontSize: 9, color: DBZ_INK50, textTransform: "uppercase" }}>{v.unit}</span></span>
               </div>
@@ -439,12 +439,18 @@ function DbzOutcomesZone({ role, cp }) {
 // validated dark-surface pair(s): teal #12a899 with rust #e0644b (adds vs
 // ended) and teal with amber #b8892f (MRR + one-time) — the brand's brighter
 // #2ee0c4 stays on chrome, where it belongs. Demo series ONLY under the band.
-const DBZ_T_TEAL = "#12a899";   // active · added · MRR
-const DBZ_T_RUST = "#e0644b";   // ended
-const DBZ_T_AMBER = "#b8892f";  // one-time purchases
-const DBZ_T_SURFACE = "#1a1612";
-const DBZ_T_GRID = "rgba(242,237,228,0.10)";
-const DBZ_T_INK = "#f2ede4";
+// ⚠ ALL FOUR ARE TOKENS, because the surface they are drawn on is one: on the
+// light ground the dark pair reads 2.73 / 2.91:1, under the 3:1 floor for a
+// non-text mark, so --sh-chart-teal / --sh-chart-amber take the builder's own
+// accent and gold there (3.66 / 3.64) and resolve back to the pair above on the
+// dark paper. A chart whose surface, grid and rust moved while two of its marks
+// stayed put would disagree with itself on one paper or the other.
+const DBZ_T_TEAL = "var(--sh-chart-teal, #12a899)";   // active · added · MRR
+const DBZ_T_RUST = "var(--sh-rust, #e0644b)";   // ended
+const DBZ_T_AMBER = "var(--sh-chart-amber, #b8892f)";  // one-time purchases
+const DBZ_T_SURFACE = "var(--sh-ground, #1a1612)";
+const DBZ_T_GRID = "rgba(var(--sh-ink-rgb, 242,237,228),0.10)";
+const DBZ_T_INK = "var(--sh-ink, #f2ede4)";
 
 // A deterministic demo walk: 78 weeks, 6 → ~34 active, so the preview shows
 // what a growing practice looks like. Demo band only.
@@ -626,11 +632,11 @@ function DbzChart({ buckets, series, line, unit, hover, onHover, fmt }) {
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={DBZ_T_GRID} strokeWidth="1" />
-          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="rgba(242,237,228,0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{fmtTick(t)}</text>
+          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{fmtTick(t)}</text>
         </g>
       ))}
       {buckets.map((b, i) => (i % labelEvery === 0 || i === n - 1) ? (
-        <text key={b.key} x={xc(i)} y={H - 8} textAnchor="middle" fill="rgba(242,237,228,0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{b.label}</text>
+        <text key={b.key} x={xc(i)} y={H - 8} textAnchor="middle" fill="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{b.label}</text>
       ) : null)}
       {(series || []).length > 0 && buckets.map((b, i) => {
         const k = series.length, gap = 2, bw = Math.min(24, Math.max(3, (band * 0.62 - gap * (k - 1)) / k));
@@ -654,7 +660,7 @@ function DbzChart({ buckets, series, line, unit, hover, onHover, fmt }) {
           </g>
         );
       })()}
-      {hover != null && n > 0 && <line x1={xc(hover)} x2={xc(hover)} y1={padT} y2={padT + plotH} stroke="rgba(242,237,228,0.35)" strokeWidth="1" />}
+      {hover != null && n > 0 && <line x1={xc(hover)} x2={xc(hover)} y1={padT} y2={padT + plotH} stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.35)" strokeWidth="1" />}
     </svg>
   );
 }
@@ -699,7 +705,7 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
     { k: s.churnRate30dPct == null ? "—" : s.churnRate30dPct + "%", l: "Churn · 30d", sub: s.churnRate30dPct == null ? "no clients 30 days ago" : "of clients you had 30 days ago", tone: s.churnRate30dPct == null ? null : s.churnRate30dPct > 10 ? DBZ_AMBER : null },
     { k: tenure, l: "Median tenure", sub: s.totalEverSubscribed ? s.totalEverSubscribed + " subscribers, ever" : "—", tone: null },
   ];
-  const chip = (on) => ({ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 3, border: "1px solid " + (on ? DBZ_TEAL : "rgba(242,237,228,0.18)"), background: on ? "rgba(46,224,196,0.10)" : "transparent", color: on ? DBZ_TEAL : DBZ_INK50, cursor: "pointer" });
+  const chip = (on) => ({ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 3, border: "1px solid " + (on ? DBZ_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? DBZ_TEAL : DBZ_INK50, cursor: "pointer" });
   const hb = hover != null ? buckets[hover] : null;
   const chartHead = (title, legend) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 4px" }}>
@@ -727,15 +733,15 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
       {table ? (
         <div style={{ overflowX: "auto", marginTop: 10 }}>
           <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: DBZ_MONO, fontSize: 10.5, fontVariantNumeric: "tabular-nums" }}>
-            <thead><tr>{["Period", "Active", "Joined", "Left", "MRR · net", "One-time"].map((h) => <th key={h} style={{ textAlign: h === "Period" ? "left" : "right", padding: "6px 8px", color: DBZ_INK50, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", fontSize: 8.5, borderBottom: "1px solid rgba(242,237,228,0.1)" }}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Period", "Active", "Joined", "Left", "MRR · net", "One-time"].map((h) => <th key={h} style={{ textAlign: h === "Period" ? "left" : "right", padding: "6px 8px", color: DBZ_INK50, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", fontSize: 8.5, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)" }}>{h}</th>)}</tr></thead>
             <tbody>{buckets.map((b) => (
               <tr key={b.key}>
-                <td style={{ padding: "5px 8px", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.label}</td>
-                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.active}</td>
-                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.added ? "+" + b.added : "0"}</td>
-                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.ended ? "−" + b.ended : "0"}</td>
-                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{money(b.mrrNetCents)}</td>
-                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(242,237,228,0.05)" }}>{b.oneTimeCents ? money(b.oneTimeCents) : "—"}</td>
+                <td style={{ padding: "5px 8px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>{b.label}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>{b.active}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>{b.added ? "+" + b.added : "0"}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>{b.ended ? "−" + b.ended : "0"}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>{money(b.mrrNetCents)}</td>
+                <td style={{ padding: "5px 8px", textAlign: "right", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>{b.oneTimeCents ? money(b.oneTimeCents) : "—"}</td>
               </tr>
             ))}</tbody>
           </table>
@@ -749,7 +755,7 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
           {chartHead("Revenue · MRR net, one-time purchases", [{ label: "MRR · net", color: DBZ_T_TEAL, line: true }, { label: "One-time", color: DBZ_T_AMBER }])}
           <DbzChart buckets={buckets} series={[{ key: "oneTimeCents", color: DBZ_T_AMBER }]} line={{ key: "mrrNetCents", color: DBZ_T_TEAL, area: false }} unit="$" hover={hover} onHover={setHover} fmt={money} />
           {hb && (
-            <div style={{ position: "absolute", top: 8, ...(hover < buckets.length / 2 ? { right: 8 } : { left: 52 }), pointerEvents: "none", background: "rgba(20,17,14,0.96)", border: "1px solid rgba(242,237,228,0.14)", borderRadius: 6, padding: "9px 12px", minWidth: 170, boxShadow: "0 12px 30px rgba(0,0,0,0.4)" }}>
+            <div style={{ position: "absolute", top: 8, ...(hover < buckets.length / 2 ? { right: 8 } : { left: 52 }), pointerEvents: "none", background: "rgba(var(--sh-ground2-rgb, 20,17,14),0.96)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 6, padding: "9px 12px", minWidth: 170, boxShadow: "0 12px 30px rgba(0,0,0,0.4)" }}>
               <div style={{ fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DBZ_INK50, marginBottom: 6 }}>{hb.label}</div>
               {[[String(hb.active), "active", DBZ_T_TEAL, false], ["+" + hb.added, "joined", DBZ_T_TEAL, false], ["−" + hb.ended, "left", DBZ_T_RUST, false], [money(hb.mrrNetCents), "MRR · net", DBZ_T_TEAL, true], [hb.oneTimeCents ? money(hb.oneTimeCents) : "—", "one-time", DBZ_T_AMBER, false]].map(([v, l, c, isLine], i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "14px 1fr auto", gap: 8, alignItems: "center", padding: "2px 0" }}>
@@ -863,7 +869,7 @@ function CoachBusinessPage({ role }) {
       render: () => plate(DBZ_TEAL, <React.Fragment>
         {head("Revenue · 90-day trend", null, (
           <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>
-            {mrr ? <React.Fragment>MRR <span style={{ fontFamily: serif, fontSize: 17, color: "#f2ede4" }}>{dashMoney(mrr.mrrNetCents)}</span> net · {dashMoney(mrr.mrrGrossCents)} gross</React.Fragment>
+            {mrr ? <React.Fragment>MRR <span style={{ fontFamily: serif, fontSize: 17, color: "var(--sh-ink, #f2ede4)" }}>{dashMoney(mrr.mrrNetCents)}</span> net · {dashMoney(mrr.mrrGrossCents)} gross</React.Fragment>
               : isLive ? "MRR — · no active subscriptions" : "MRR from active subscriptions"}
           </span>
         ))}

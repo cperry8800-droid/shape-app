@@ -13,7 +13,13 @@
    finale CTA that navigates away can no longer lose the flag (the 2026-07-21 fix: an
    async-only onDone write was killed by the unload → the tour re-showed every login). */
 (function () {
-  var ACCENT = { client: '#2ee0c4', trainer: '#0a8f87', nutritionist: '#a07a2e' };
+  // The dashboard's paper is stamped on <html data-paper> before first paint
+  // (light is the default; "dark" is the switch). The tour card follows it, and
+  // the client accent is the paper's own teal — the dark paper's bright teal
+  // reads at 1.6:1 on white.
+  function isDarkPaper() { try { return document.documentElement.getAttribute('data-paper') === 'dark'; } catch (e) { return false; } }
+  var ACCENT_DARK = { client: '#2ee0c4', trainer: '#0a8f87', nutritionist: '#a07a2e' };
+  var ACCENT_LIGHT = { client: '#0a8f87', trainer: '#0a8f87', nutritionist: '#a07a2e' };
   // Dedicated web keys — NEVER write the app's client_onboarding / coach_onboarding
   // docs from here (replace-semantics would clobber the app tour's own seen flag).
   var GOAL_KEY = { client: 'web_client_onboarding', trainer: 'web_coach_onboarding', nutritionist: 'web_coach_onboarding' };
@@ -93,7 +99,8 @@
 
   function start(role, uid) {
     if (!window.SpotlightTour) return;
-    window.SpotlightTour.start(stepsFor(role), { root: document.body, accent: ACCENT[role] || ACCENT.client, isLight: false, onDone: function () { markSeen(role, uid); } });
+    var dark = isDarkPaper(); var ACCENT = dark ? ACCENT_DARK : ACCENT_LIGHT;
+    window.SpotlightTour.start(stepsFor(role), { root: document.body, accent: ACCENT[role] || ACCENT.client, isLight: !dark, onDone: function () { markSeen(role, uid); } });
     // The engine mounts its overlay synchronously, so reaching this line means
     // the tour is ON SCREEN — persist seen NOW, not only in onDone (the second
     // half of the re-show fix: the cloud write gets the whole tour's duration
