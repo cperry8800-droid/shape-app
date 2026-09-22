@@ -715,19 +715,21 @@ function ssHexDigits(hex, dflt) {
 }
 // `${color}55` is not a colour once `color` can be a token, so the alpha is
 // composed as an rgba() instead — and via the `-rgb` twin, so it still follows
-// the paper where one is declared.
+// the paper.
 // ⚠ THE TWIN IS SYNTHESIZED (`${tok[1]}-rgb`), SO IT NEVER APPEARS LITERALLY IN
 // SOURCE — which means tests/newdesign-paper-tokens.test.mjs's "every --sh-* token
 // referenced is declared in dash.css" STRUCTURALLY CANNOT SEE IT. Do not read that
-// guard as cover for this line. Seven of the thirteen colour tokens have no twin,
-// and this path is reachable today: SS_TIERS' 750-point rung is
-// var(--sh-gold, #d8a23a), which arrives here through ssTierColor → SsFacet.
-// That is SAFE, and measured rather than assumed — in Chromium the emitted
-// rgba(var(--sh-gold-rgb, 216,162,58), 0.3333) computes to rgba(216,162,58,0.333),
-// byte-identical to the literal it replaced, because an undeclared custom property
-// falls back to the triplet and the triplet is derived from the token's OWN literal
-// so it cannot drift. What it costs is the same thing ssShade below costs: this
-// shadow will not follow a future paper change of --sh-gold until the twin exists.
+// guard as cover for this line. What covers it instead is an invariant on the
+// DECLARATIONS rather than on the references: every colour token in dash.css
+// declares an -rgb twin whose channels are its own, which that same test file
+// asserts on the stylesheet, where a sweep CAN see it.
+// Chasing which tokens reach which helper would be the fragile version — this way
+// synthesis is sound whatever it is handed, including a token added later.
+// Reachable today, so this is not theoretical: SS_TIERS' 750-point rung is
+// var(--sh-gold, #d8a23a), which arrives here through ssTierColor → SsFacet, and
+// the emitted rgba(var(--sh-gold-rgb, 216,162,58), 0.3333) computes in Chromium to
+// rgba(216,162,58,0.333) — byte-identical to the literal it replaced, because the
+// triplet is derived from the token's OWN literal and so cannot drift from it.
 function ssAlpha(hex, a) {
   const s = String(hex || "");
   const tok = s.match(/var\(\s*(--[\w-]+)\s*,\s*#([0-9a-fA-F]{6})\s*\)/);

@@ -425,7 +425,7 @@ comparison is a token and the other a literal, the spark silently draws in the w
 nothing fails. The fix when it comes is a semantic flag (`muted: true`) rather than a colour
 compare — a colour is not an identity.
 
-⚠ **AND SEVEN OF THE THIRTEEN TOKENS HAVE NO `-rgb` TWIN, WHICH SILENTLY CAPS WHAT `cfHexA` AND
+⚠ **SEVEN OF THE THIRTEEN TOKENS HAVE NO `-rgb` TWIN, WHICH SILENTLY CAPS WHAT `cfHexA` AND
 `ssAlpha` CAN FOLLOW.** Both build `var(--<token>-rgb, r,g,b)` from whatever token they are
 handed, and only **six** twins are declared: `--sh-accent`, `--sh-accent2`, `--sh-accent3`,
 `--sh-ground`, `--sh-ink`, `--sh-nav-ink`. The other seven — `--sh-deep`, `--sh-gold`,
@@ -434,6 +434,16 @@ literal triplet, which is **correct and honest** (identical to today) and simply
 with the paper. Nothing is broken; the fix, if PR 5 wants those alphas to follow, is seven more
 lines in the token block, not a code change. Recorded because a fallback that works forever is
 the kind of limitation nobody re-derives.
+⚠ **CORRECTED 2026-09-22 — THIS IS CLOSED, AND THE FIX IS NOT THE ONE THIS PARAGRAPH
+PROPOSES.** All seven twins are declared (PR 2's review round), so **all thirteen** colour
+tokens have one. But the lesson is that the shape above was wrong: it framed the gap as
+*"which tokens happen to reach an alpha helper"*, which is a question you have to re-answer
+every time a call site moves — and it cannot be swept, because both helpers **synthesize**
+`${token}-rgb` at runtime and no source scan can see a name that is never written down. The
+invariant lives on the DECLARATIONS instead: **every colour token declares a twin whose
+channels are its own**, asserted in `tests/newdesign-paper-tokens.test.mjs`, so synthesis is
+sound whatever it is handed, including a token added by PR 5. *A rule about which callers are
+safe is a rule somebody has to re-derive; a rule about what may be declared is not.*
 
 ⚠ **AND THE FOUR SWEEPS DO NOT COVER THE DIRECTORY, WHICH PR 5 HAS TO KNOW.** Counted after PR 2
 (the 13 named hexes plus the 6 triplets, comments stripped): **2,721 paper-colour literals remain

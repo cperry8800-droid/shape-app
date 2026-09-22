@@ -444,8 +444,9 @@ function CfDotNumber({ text, size = 34, color, dim, gap = 1, title }) {
 // `var(--sh-ink, #f2ede4)`. A pixel diff could not see it, because this file
 // renders inside the chat bubble's Feed tab, which no page capture has open.
 // The token form is turned into its `-rgb` twin so the derived alpha STILL
-// follows the paper; `var()` falls back to the literal triplet where the twin is
-// not declared, so this is byte-identical wherever dash.css is absent.
+// follows the paper. Every --sh-* colour token declares a twin, so the synthesized
+// name always resolves where dash.css loads; on the pages where it does not, the
+// var() falls back to the literal triplet and this is byte-identical.
 // tests/newdesign-paper-tokens.test.mjs holds the rule.
 function cfHexA(hex, a) {
   const s = String(hex || "");

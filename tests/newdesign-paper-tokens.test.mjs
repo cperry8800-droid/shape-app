@@ -105,6 +105,48 @@ test('every var(--sh-*) reference carries a fallback', () => {
     'the fallback is the only value there is, so a bare var() is no colour at all:\n  ' + bare.join('\n  '));
 });
 
+// ⚠ THE FALLBACK IS WHAT MAKES THE WHOLE LAYER A RENDER NO-OP, AND THIS IS THE ONLY
+// THING THAT SAYS SO. Every use site is `var(--sh-x, <today's literal>)`, so on the
+// ~39 pages that never load dash.css the fallback IS the colour, and on the rest the
+// declaration and the fallback agree — which is why swapping 676 literals for tokens
+// could be shipped without a single pixel moving. A fallback that drifts from its own
+// token is the one edit that breaks that property, and it breaks it INVISIBLY: the
+// page that loads dash.css renders one colour and the page that does not renders
+// another, with nothing failing anywhere. Measured on this tree: 676 sites over 20
+// tokens, 0 mismatches.
+test("every var(--sh-*) fallback is its own token's declared value", () => {
+  const css = src.get('dash.css');
+  assert.ok(css, 'dash.css missing');
+  const declared = new Map([...css.matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map(m => [m[1], m[2].trim()]));
+  assert.ok(declared.size >= 15,
+    `expected the paper token block in dash.css, found ${declared.size} declarations`);
+
+  const norm = (x) => String(x).toLowerCase().replace(/\s+/g, '');
+  let sites = 0;
+  const drift = [];
+  for (const [f, s] of code) {
+    // The fallback may not itself contain parentheses — every one in this tree is a
+    // hex literal or an rgb triplet, and refusing a nested var() here is deliberate:
+    // a fallback that is itself a token is a second thing that can fail to resolve.
+    for (const m of s.matchAll(/var\(\s*(--sh-[\w-]+)\s*,\s*([^()]*?)\s*\)/g)) {
+      sites++;
+      const want = declared.get(m[1]);
+      if (want === undefined) continue;   // the sibling test owns undeclared tokens
+      if (norm(want) !== norm(m[2])) drift.push(`${f}: var(${m[1]}, ${m[2]}) but dash.css declares ${want}`);
+    }
+  }
+  // ⚠ Not decoration: measured, breaking the collector's regex AND removing this floor
+  // together goes GREEN, so the floor is the only thing between a dead sweep and a
+  // passing suite. Its own deletion survives, because a floor is a no-op while the
+  // read still matches — which is why it is proven by a read that has stopped.
+  assert.ok(sites >= 400,
+    `expected the tokenised use sites, found ${sites} — this sweep has stopped matching`);
+  assert.deepEqual(drift, [],
+    'a fallback that disagrees with its own token renders one colour on the ~34 pages that load ' +
+    'dash.css and a different one on the ~39 that do not, with nothing failing on either. The ' +
+    'fallback is today\'s value; change the paper by changing the DECLARATION:\n  ' + drift.join('\n  '));
+});
+
 // ⚠ A TOKEN THAT REFERENCES ITSELF IS DECLARED AND INERT, WHICH THE TEST ABOVE
 // CANNOT SEE. `--sh-ground: var(--sh-ground, #1a1612)` is a CYCLE, and a cyclic
 // custom property is invalid at computed-value time — measured in Chromium,
@@ -283,6 +325,15 @@ const astOf = (f) => babelParser.parse(src.get(f), { sourceType: 'module', plugi
 // derives a colour arithmetically must answer the same thing for both.
 const PROBE_TOKEN = 'var(--sh-probe, #2ee0c4)';
 const PROBE_BARE = '#2ee0c4';
+// Derived from the probe rather than typed, so the two cannot drift apart.
+const PROBE_NAME = PROBE_TOKEN.match(/var\(\s*(--[\w-]+)/)[1];
+const PROBE_RGB = `${PROBE_NAME}-rgb`;
+// Which custom properties a helper's output actually reads, and which of them did
+// NOT come from the input. sameColour() below strips the `var(--name,` prefix before
+// comparing, so it is blind to the name by construction — that blindness is correct
+// for the equivalence question it answers and is exactly why identity needs its own.
+const varRefs = (s) => [...String(s).matchAll(/var\(\s*(--[\w-]+)/g)].map((m) => m[1]);
+const foreignRefs = (s) => varRefs(s).filter((t) => t !== PROBE_RGB && t !== PROBE_NAME);
 // `rgba(var(--x-rgb, r,g,b), a)` and `rgba(r,g,b,a)` compute identically where
 // the token is absent, and the token's whole point is that they diverge where it
 // is present — so the comparison is on the fallback.
@@ -305,6 +356,7 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
   let driven = 0;
   const naive = [];
   const preserving = [];
+  const mislinked = [];
   for (const f of jsFiles) {
     const s = src.get(f);
     const fns = new Map();
@@ -338,7 +390,12 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
         out = new Function(`${body}\nreturn [${name}(arguments[0], 0.5), ${name}(arguments[1], 0.5)];`)(PROBE_TOKEN, PROBE_BARE);
       } catch (e) { naive.push(`${f}: ${name}() threw on a paper token — ${e.message}`); continue; }
       if (!sameColour(out[0], out[1])) naive.push(`${f}: ${name}(token) = ${out[0]}   but   ${name}(hex) = ${out[1]}`);
-      if (/var\(\s*--/.test(String(out[0]))) preserving.push(name);
+      const emitted = String(out[0]);
+      if (varRefs(emitted).length) {
+        preserving.push(name);
+        const foreign = [...new Set(foreignRefs(emitted))];
+        if (foreign.length) mislinked.push(`${f}: ${name}(${PROBE_TOKEN}) = ${emitted}  → reads ${foreign.join(', ')}`);
+      }
     }
   }
   // ── Which helpers PRESERVE the token, and which flatten it ──────────────────
@@ -348,6 +405,22 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
   // a real split, not an oversight — but it is invisible in the source, so it is
   // censused here: a helper silently dropping out of the preserving set is a colour
   // that quietly stops following the paper, which no render check would ever show.
+  // ⚠ PRESERVING SOME TOKEN IS NOT PRESERVING THE INPUT'S, AND NOTHING ABOVE COULD
+  // TELL THEM APART. A helper that emitted rgba(var(--sh-accent-rgb, 46,224,196), a)
+  // for EVERY input passes sameColour() (which strips the name) and passes a bare
+  // "is there a var()" test, while the colour silently follows --sh-accent rather
+  // than the token it was handed — so a gold avatar ring would turn teal the day the
+  // paper moved, on a path no render check taken today can reach.
+  assert.equal(foreignRefs(`rgba(var(${PROBE_RGB}, 46,224,196), 0.5)`).length, 0,
+    'the identity check rejects the CORRECT form — it would fail every helper');
+  assert.equal(foreignRefs('rgba(var(--sh-accent-rgb, 46,224,196), 0.5)').length, 1,
+    'the identity check cannot see a mislinked token — this is the exact string a ' +
+    'fixed-token helper emits, and sameColour() provably passes it');
+  assert.deepEqual(mislinked, [],
+    'a token-preserving helper must compose the alpha through the twin of the token it ' +
+    'was HANDED. Reading a different one renders correctly today, off the fallback, and ' +
+    'follows the wrong colour the moment the paper moves:\n  ' + mislinked.join('\n  '));
+
   assert.deepEqual(preserving.sort(), TOKEN_PRESERVING,
     'the set of token-preserving helpers moved. A helper that USED to emit ' +
     'rgba(var(--x-rgb, …), a) and now flattens to the literal still renders correctly ' +
