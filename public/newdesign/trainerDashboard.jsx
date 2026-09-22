@@ -287,7 +287,7 @@ function DashTodayItemRow({ t }) {
               </div>
             </div>
             {(() => {
-              const playStyle = { background: p.accent, color: "var(--sh-ground, #1a1612)", border: 0, padding: "9px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
+              const playStyle = { background: p.accent, color: "#1a1612", border: 0, padding: "9px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
               return p.href
                 ? <a href={p.href} style={{ ...playStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>▶ Play</a>
                 : <button style={playStyle}>▶ Play</button>;

@@ -714,7 +714,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
         const id = r.client.profile.id;
         const st = rowState(id);
         const blocked = r.state === "blocked";
-        const c = st.done ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : "#2ee0c4";  // literal: goes to DashPill, which hex-appends — see the note above DASH_SEV_COLORS
+        const c = st.done ? DASH_SEV_COLORS.green : blocked ? DASH_SEV_COLORS.amber : DASH_SEV_COLORS.new;
         const pillText = st.pill || (blocked ? "Waiting on check-in" : "Ready");
         return (
           <div key={id || i} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "11px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", opacity: st.done ? 0.6 : 1 }}>
@@ -787,9 +787,10 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
   const canPin = typeof onTogglePin === "function";
   const pinSet = new Set(Array.isArray(pinned) ? pinned : []);
   const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
-  // A HEX muted ink for DashPill: the pill composes its bg/border by appending hex
-  // suffixes (c + "1c" / "55"), so an rgba() value would produce invalid CSS.
-  const inkMutedPill = "#9b968d";
+  // The muted pill takes the severity table's own "unknown" ink. It was a hex literal
+  // while DashPill appended hex suffixes; the pill composes through ssAlpha now, so a
+  // token is valid and follows the paper (#5a6763 on the light card, 5.91:1).
+  const inkMutedPill = DASH_SEV_COLORS.unknown;
   // Rows open the shared client drilldown (step 11) when dashRoster.jsx is
   // loaded on the page; the Message button keeps working either way.
   const [selectedId, setSelectedId] = React.useState(null);

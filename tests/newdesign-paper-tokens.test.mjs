@@ -127,6 +127,10 @@ function paperBlocks() {
     const a = css.indexOf(open);
     assert.ok(a >= 0, `dash.css has no ${open.trim()} block`);
     const b = css.indexOf('\n}', a);
+    // Without this a missing brace makes slice(a, -1) read on into the NEXT block, so
+    // dark declarations would parse as light ones and the guard would pass on a file
+    // the browser cannot apply.
+    assert.ok(b >= 0, `dash.css has no closing brace for ${open.trim()} block`);
     return css.slice(a, b);
   };
   const parse = (s) => new Map([...s.matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map(m => [m[1], m[2].trim()]));
@@ -622,12 +626,17 @@ test('no hex-alpha append resolves to a paper token', () => {
   }
 
   const SUFFIX = /^[0-9a-fA-F]{2}(?![0-9a-fA-F])/;
+  // A suffix is a two-hex-digit string, or a conditional choosing between two of them:
+  // `c + (me ? "30" : "22")` is the same append, and requiring a bare literal let the
+  // chat bubble's tier colour reach it as a token with this test green (CodeRabbit,
+  // #2146 — the tier colours became var()s and the bubble's background went invalid).
+  const isSuffix = (n) => n && ((n.type === 'StringLiteral' && /^[0-9a-fA-F]{2}$/.test(n.value)) ||
+    (n.type === 'ConditionalExpression' && isSuffix(n.consequent) && isSuffix(n.alternate)));
   for (const [f, ast] of asts) traverse(ast, {
     // Spelling B — concatenation: `c + "1c"`
     BinaryExpression(p) {
       if (p.node.operator !== '+') return;
-      const r = p.node.right;
-      if (r.type !== 'StringLiteral' || !/^[0-9a-fA-F]{2}$/.test(r.value)) return;
+      if (!isSuffix(p.node.right)) return;
       sinks.concat++; tally(f, 'concat');
       resolve(f, p.get('left'), new Set(), 0, [`${f}:${p.node.loc.start.line}`]);
     },

@@ -27,7 +27,13 @@
    `#0a0f0d`, `#04110f` — dark-on-teal reads on either paper, and folding four
    values into one token would change pixels rather than rename them); chart and
    tier series colours; and brand marks (Spotify green, Apple red). None of them
-   move with the paper.
+   move with the paper. ⚠ The exception is a mark drawn ON a surface that does move:
+   the trajectory chart and the cycle plate each take a token (--sh-chart-*,
+   --sh-cycle-heat), because a series colour validated against the dark ground falls
+   under the 3:1 non-text floor once the ground turns light. And the same reasoning
+   is why text on a FIXED fill (a playlist's own accent, the chat button's #1ec0a8)
+   is a near-black literal and never --sh-ground: the fill does not move, so ground
+   text on it turns light-on-teal on the light paper (2.0:1).
 
    ⚠ AND THE COOKIE-CONSENT BANNER IS OUTSIDE THIS SYSTEM BY RULE, not by
    oversight. `pageShell.jsx` injects it on ~69 pages with inline styles and its
@@ -67,8 +73,11 @@
   --sh-ink-soft-rgb: 223,229,226;
   --sh-ink2: #5a6763;
   --sh-ink2-rgb: 90,103,99;
-  --sh-ink3: #8a9490;
-  --sh-ink3-rgb: 138,148,144;
+  /* ink3 is the builder's tertiary DARKENED to AA: #8a9490 read 3.13:1 on the card and
+     2.88:1 on the ground, under the 4.5:1 floor for the 8–11px labels it sets.
+     #697370 keeps the hue and reads 4.90 / 4.51. */
+  --sh-ink3: #697370;
+  --sh-ink3-rgb: 105,115,112;
 
   /* Nav ink — the shared header and footer, dark on the light bar. */
   --sh-nav-ink: #15211e;
@@ -119,6 +128,22 @@
      token on the dark paper), so a coach's record reads the same on both surfaces. */
   --sh-heat-nutri: #a07a2e;
   --sh-heat-nutri-rgb: 160,122,46;
+  /* The cycle plate's heat, and the ink ON its fill. The dark paper's #34d6c5 reads
+     1.81:1 on the light card, so the light paper takes a darker teal (5.20:1 on the
+     card, 4.79 on the ground) — and a fill that dark needs WHITE text, because no
+     teal clears 4.5:1 both as text on white and under #0b0f0f text. */
+  --sh-cycle-heat: #0a7a72;
+  --sh-cycle-heat-rgb: 10,122,114;
+  --sh-cycle-heat-ink: #ffffff;
+  --sh-cycle-heat-ink-rgb: 255,255,255;
+  /* The practice trajectory's teal and amber marks. They draw on --sh-ground, which
+     moves, so they have to move with it: the dark pair reads 2.73 / 2.91:1 on the
+     light ground, under the 3:1 floor for a non-text mark. The builder's own accent
+     and gold clear it (3.66 / 3.64). */
+  --sh-chart-teal: #0a8f87;
+  --sh-chart-teal-rgb: 10,143,135;
+  --sh-chart-amber: #a07a2e;
+  --sh-chart-amber-rgb: 160,122,46;
 
   /* The shared chrome: the header bar, the footer, and which logo lockup shows. */
   --sh-header-bg: rgba(255,255,255,0.86);
@@ -187,6 +212,14 @@ html[data-paper="dark"] {
   --sh-green-rgb: 123,191,90;
   --sh-heat-nutri: #d8b25a;
   --sh-heat-nutri-rgb: 216,178,90;
+  --sh-cycle-heat: #34d6c5;
+  --sh-cycle-heat-rgb: 52,214,197;
+  --sh-cycle-heat-ink: #0b0f0f;
+  --sh-cycle-heat-ink-rgb: 11,15,15;
+  --sh-chart-teal: #12a899;
+  --sh-chart-teal-rgb: 18,168,153;
+  --sh-chart-amber: #b8892f;
+  --sh-chart-amber-rgb: 184,137,47;
   --sh-header-bg: rgba(11,14,12,0.55);
   --sh-menu-bg: rgba(6,9,15,0.98);
   --sh-footer-bg: #0b0e0c;

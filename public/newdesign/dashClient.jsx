@@ -443,7 +443,7 @@ function DashTodayCard({ live }) {
             )}
             <div style={{ marginTop: 10 }}><Gauge label="Rested" val={rested} set={setRested} c={blue} /></div>
           </div>
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : teal, color: (nothingSet || saving) ? ink50 : "var(--sh-deep, #06231f)", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
+          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : teal, color: (nothingSet || saving) ? ink50 : "#06231f", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
         </>
       ) : (
         <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? "—"}</b> · Hunger <b style={{ color: amber }}>{hunger ?? "—"}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{sleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
@@ -609,7 +609,7 @@ function ClientDashboardPage() {
     : { text: "Membership · demo", c: DCL_INK50 };
 
   const plate = (ac) => ({ "--dac": ac });
-  const btn = { fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
+  const btn = { fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
   const ghost = { ...btn, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", textDecoration: "none", display: "inline-block" };
 
   return (
@@ -760,7 +760,7 @@ function ClientDashboardPage() {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                           <span style={{ fontSize: 13.5, fontWeight: 500 }}>{m.name}</span>
-                          {unread > 0 && <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, color: "var(--sh-deep, #06231f)", background: DCL_TEAL, borderRadius: 999, padding: "2px 7px" }}>{unread}</span>}
+                          {unread > 0 && <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, color: "#06231f", background: DCL_TEAL, borderRadius: 999, padding: "2px 7px" }}>{unread}</span>}
                         </div>
                         <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>{m.role}</div>
                       </div>

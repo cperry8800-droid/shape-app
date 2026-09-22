@@ -557,7 +557,13 @@ const DPR_CYCLE_DISCLAIMER = "The Cycle is for training and recovery context onl
 // disclaimer (matches the mobile cycle:share.consent default; the consent_log receipt
 // must describe the action it audits: sharing phase + start dates with a coach).
 const DPR_CYCLE_SHARE_CONSENT = "I agree to share my cycle phase and recent period start dates with my linked coach(es). I can turn this off at any time.";
-const DPR_CYCLE_HEAT = "#34d6c5"; // house teal (line-only) — deliberately NOT pink; the spec names no cycle colour and a pink would gender the surface.
+const DPR_CYCLE_HEAT = "var(--sh-cycle-heat, #34d6c5)"; // house teal (line-only) — deliberately NOT pink; the spec names no cycle colour and a pink would gender the surface.
+// ⚠ A TOKEN, AND ITS FILL CARRIES A SECOND ONE. The dark paper's #34d6c5 reads 1.81:1 on
+// the light card, and it is TEXT here (the eyebrow, today's date, the share control), so
+// the light paper takes #0a7a72 (5.20:1). No teal clears 4.5:1 both as text on white
+// and under the #0b0f0f this plate used to set on its own fill, so that ink is a token
+// too: #0b0f0f on the dark paper, white on the light (5.20:1).
+const DPR_CYCLE_HEAT_INK = "var(--sh-cycle-heat-ink, #0b0f0f)";
 function dprCycleShortDate(isoStr) {
   try {
     const d = new Date(`${String(isoStr).slice(0, 10)}T00:00:00Z`);
@@ -692,7 +698,7 @@ function DprCycleCard() {
           <div style={{ marginTop: 12, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>Setup isn't available yet.</div>
         ) : (
           <button type="button" onClick={startTracking} disabled={busy}
-            style={{ marginTop: 14, background: DPR_CYCLE_HEAT, color: "#0b0f0f", border: 0, borderRadius: 8, padding: "9px 16px", fontFamily: DPR_MONO, fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>Start tracking</button>
+            style={{ marginTop: 14, background: DPR_CYCLE_HEAT, color: DPR_CYCLE_HEAT_INK, border: 0, borderRadius: 8, padding: "9px 16px", fontFamily: DPR_MONO, fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>Start tracking</button>
         )}
         {msg ? <div style={{ marginTop: 10, fontSize: 12, color: DPR_AMBER }}>{msg}</div> : null}
       </div>
@@ -754,7 +760,7 @@ function DprCycleCard() {
               return (
                 <button key={i} type="button" onClick={() => tapDay(d)} disabled={busy}
                   style={{ aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: DPR_MONO, fontSize: 11, fontVariantNumeric: "tabular-nums",
-                    background: isStart ? DPR_CYCLE_HEAT : "transparent", color: isStart ? "#0b0f0f" : (isToday ? DPR_CYCLE_HEAT : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)"),
+                    background: isStart ? DPR_CYCLE_HEAT : "transparent", color: isStart ? DPR_CYCLE_HEAT_INK : (isToday ? DPR_CYCLE_HEAT : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)"),
                     border: isPred ? `1px dotted ${DPR_CYCLE_HEAT}` : (isToday ? `1px solid ${ssAlpha(DPR_CYCLE_HEAT, 0.4)}` : "1px solid transparent"),
                     borderRadius: 7, cursor: busy ? "default" : "pointer" }}>{d}</button>
               );

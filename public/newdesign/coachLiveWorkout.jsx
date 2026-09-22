@@ -153,7 +153,7 @@ function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trai
             <label htmlFor={inputId} style={{ ...mono, display: 'block', marginBottom: 10 }}>Send a cue</label>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <input id={inputId} value={cue} disabled={sending || !canSend} onChange={event => setCue(event.target.value)} maxLength={500} placeholder="Type a quick cue…" style={{ flex: '1 1 220px', minWidth: 0, width: '100%', boxSizing: 'border-box', border: '1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.35)', borderRadius: 8, padding: '12px 14px', background: 'rgba(var(--sh-ink-rgb, 242,237,228),0.04)', color: 'var(--sh-ink, #f2ede4)', fontSize: 16 }} />
-              <button type="submit" disabled={sending || !cue.trim() || !canSend} style={{ ...button, background: accent, borderColor: accent, color: 'var(--sh-ground, #1a1612)', fontWeight: 600 }}>{sending ? 'Saving…' : 'Send cue'}</button>
+              <button type="submit" disabled={sending || !cue.trim() || !canSend} style={{ ...button, background: accent, borderColor: accent, color: '#1a1612', fontWeight: 600 }}>{sending ? 'Saving…' : 'Send cue'}</button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>{['Slow the eccentric', 'Hold this weight', 'One more set', 'Lengthen your rest'].map(text => <button type="button" key={text} disabled={sending || !canSend} onClick={() => { setCue(text); setCueResult(''); setCueError(''); }} style={button}>{text}</button>)}</div>
             {!canSend && <p role="status" style={{ fontSize: 13, color: '#e1d5bb' }}>Cues are available when your client's coach connection is live.</p>}

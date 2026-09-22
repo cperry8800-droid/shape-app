@@ -846,7 +846,7 @@ function SiteSearch({ signedIn = false }) {
           overlay inside the 60px nav bar. */}
       {open && ReactDOM.createPortal(
         <div onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,0.62)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", overflowY: "auto", padding: "12vh 18px 40px" }}>
-          <div style={{ maxWidth: 540, margin: "0 auto", background: "#16130f", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, boxShadow: "0 30px 80px rgba(0,0,0,0.55)", padding: "18px 18px 12px" }}>
+          <div style={{ maxWidth: 540, margin: "0 auto", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, boxShadow: "0 30px 80px rgba(0,0,0,0.55)", padding: "18px 18px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ fontFamily: sans, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--sh-ink, #f2ede4)" }}>Search Shape<span style={{ color: TEAL }}>.</span></div>
               <button onClick={() => setOpen(false)} aria-label="Close search" style={{ background: "transparent", border: 0, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", cursor: "pointer", fontFamily: mono, fontSize: 14, fontWeight: 700, padding: 4, lineHeight: 1 }}>✕</button>
@@ -1262,9 +1262,12 @@ function Footer({ logoHeight = 44 } = {}) {
       <div style={{ maxWidth: 1320, margin: "0 auto" }}>
         <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingBottom: 20, textAlign: "center" }}>
           {/* Two lockups, one visible per paper: the dashboards' light footer shows the
-              black mark, the dark paper and every marketing page the white one. */}
+              black mark, the dark paper and every marketing page the white one. BOTH
+              carry alt="Shape", as the header's pair does: display:none already drops
+              the hidden one from the accessibility tree, so an aria-hidden on either
+              strips the name from whichever paper shows it. */}
           <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-dark, block)", margin: "0 auto", objectFit: "contain" }} />
-          <img src="/shape-logo-nav-black.png" alt="" aria-hidden="true" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
+          <img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>

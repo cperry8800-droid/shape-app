@@ -84,7 +84,7 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
           setG({ ...g, metric, ...(metric ? goalMetricUnit(metric) : {}) });
         }}
           style={{ width: "100%", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 8, padding: "9px 11px", fontFamily: sans, fontSize: 13 }}>
-          {METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "var(--sh-ground, #1a1612)" }}>{label}</option>)}
+          {METRICS.map(([v, label]) => <option key={v} value={v} style={{ color: "#1a1612", background: "#ffffff" }}>{label}</option>)}
         </select>
       </div>
       <Field label="SUBTEXT" value={g.sub} onChange={v => setG({ ...g, sub: v })} />

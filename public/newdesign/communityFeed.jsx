@@ -144,7 +144,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
   const greyChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", color: "var(--sh-ink2, #a09b94)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(0,0,0,0.66)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px", overflowY: "auto" }}>
-      <div style={{ width: "100%", maxWidth: 560, background: "#16130f", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, padding: "20px 24px 30px" }}>
+      <div style={{ width: "100%", maxWidth: 560, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, padding: "20px 24px 30px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Session details</span>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1264,7 +1264,7 @@ function CommunityFeed() {
     ];
     return (
       <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 130, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "18vh 18px" }}>
-        <div style={{ width: "100%", maxWidth: 360, background: "#16130f", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14, padding: "14px 18px 8px" }}>
+        <div style={{ width: "100%", maxWidth: 360, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14, padding: "14px 18px 8px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Share</span>
             <button type="button" onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "var(--sh-ink2, #a09b94)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
@@ -1329,7 +1329,7 @@ function CommunityFeed() {
     };
     return (
       <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12vh 18px" }}>
-        <div style={{ width: "100%", maxWidth: 440, background: "#16130f", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14, padding: 18 }}>
+        <div style={{ width: "100%", maxWidth: 440, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14, padding: 18 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Send to</span>
             <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: "var(--sh-ink2, #a09b94)", cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}>✕</button>
@@ -1907,7 +1907,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
       role="dialog" aria-modal="true"
       style={{ position: "fixed", inset: 0, zIndex: 220, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ width: "min(560px, 100%)", background: "#1f1a16", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, padding: 28, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
+        style={{ width: "min(560px, 100%)", background: "var(--sh-card, #25211d)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 16, padding: 28, boxShadow: "0 40px 120px rgba(0,0,0,0.6)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{ed ? "EDIT POST" : "NEW POST"}</div>

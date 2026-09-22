@@ -568,6 +568,33 @@ test('the four controls are wired, and the search box deliberately is not', () =
   assert.ok(!/React\.useState\("month"\)/.test(sched), 'the schedule view went back to plain state');
 });
 
+// Does `src` call `n` OUTSIDE a same-expression `typeof n === "function"` guard?
+// Only the guard AND the call it guards are removed — `typeof n === "function" ? n(`,
+// `… && n(`, `if (typeof n === "function") n(` — so an unguarded call that merely
+// shares a line with a typeof check (`const ok = typeof n === "function"; n()`) is
+// still a load-time read. Dropping whole lines would hide exactly that call.
+function callsUnguarded(src, n) {
+  const guarded = new RegExp('typeof\\s+' + n + '\\s*===\\s*["\']function["\']\\s*(?:\\?|&&|\\)\\s*\\{?)\\s*' + n + '\\s*\\(', 'g');
+  return new RegExp('(^|[^\\w.$])' + n + '\\s*\\(').test(src.replace(guarded, ''));
+}
+
+test('the guarded-call filter removes the guard and its call, and nothing else', () => {
+  const n = 'useDashPaper';
+  // Each guarded form this tree uses is not a read…
+  for (const g of [
+    'const x = typeof useDashPaper === "function" ? useDashPaper() : null;',
+    'if (typeof useDashPaper === "function") useDashPaper();',
+    'if (typeof useDashPaper === "function") { useDashPaper(); }',
+    'const ok = typeof useDashPaper === "function" && useDashPaper();',
+  ]) assert.equal(callsUnguarded(g, n), false, 'a guarded call read as unguarded: ' + g);
+  // …while a call the guard does not cover still is, even on the guard's own line.
+  for (const u of [
+    'const ready = typeof useDashPaper === "function"; useDashPaper();',
+    'useDashPaper();',
+    'if (typeof useDashPaper === "function") other(); useDashPaper();',
+  ]) assert.equal(callsUnguarded(u, n), true, 'an unguarded call was filtered out: ' + u);
+});
+
 test('every host page loads dashData.jsx before any module that reads it', () => {
   // ⚠ CLASSIC SCRIPTS, SO THIS IS A REAL FAILURE MODE. `dashProgress.jsx` referenced
   // nothing from `dashData.jsx` before R16, and `ClientProgress.html` did not load it —
@@ -599,10 +626,7 @@ test('every host page loads dashData.jsx before any module that reads it', () =>
   const readers = files.filter((f) => /\.jsx$/.test(f) && f !== 'dashData.jsx')
     .filter((f) => {
       const src = stripComments(read(f));
-      return exported.some((n) => {
-        const bare = src.split('\n').filter((l) => !l.includes('typeof ' + n + ' ===')).join('\n');
-        return new RegExp('(^|[^\\w.$])' + n + '\\s*\\(').test(bare);
-      });
+      return exported.some((n) => callsUnguarded(src, n));
     });
   assert.ok(readers.length >= 3, 'no module reads dashData — the derivation broke: ' + readers.length);
 

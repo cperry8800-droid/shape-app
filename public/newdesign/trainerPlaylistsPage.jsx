@@ -153,7 +153,7 @@ function PlaylistCard({ p, onOpen }) {
           </div>
         </div>
         <div style={{ position: "absolute", right: 18, bottom: 18, width: 44, height: 44, borderRadius: 999, background: p.accent, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 28px rgba(0,0,0,0.4)" }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="var(--sh-ground, #1a1612)"><path d="M4 2.5v11l10-5.5z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="#1a1612"><path d="M4 2.5v11l10-5.5z"/></svg>
         </div>
       </div>
       <div style={{ padding: 16 }}>
@@ -463,7 +463,7 @@ function AttachMatrix() {
                     <td key={p.id} style={td}>
                       <button onClick={() => toggle(w.id, p.id)}
                         style={{ width: 36, height: 36, borderRadius: 10, border: on ? `1.5px solid ${p.accent}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: on ? p.accent : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", transition: "all 0.15s" }}>
-                        {on && <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="var(--sh-ground, #1a1612)" strokeWidth="2.5"><path d="M3 8.5l3 3 7-7"/></svg>}
+                        {on && <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1a1612" strokeWidth="2.5"><path d="M3 8.5l3 3 7-7"/></svg>}
                       </button>
                     </td>
                   );
@@ -534,7 +534,7 @@ function BuilderDetailPane({ p }) {
           </div>
           <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em" }}>{p.name}</div>
         </div>
-        <button style={{ background: p.accent, color: "var(--sh-ground, #1a1612)", border: 0, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>▶ Preview</button>
+        <button style={{ background: p.accent, color: "#1a1612", border: 0, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>▶ Preview</button>
       </div>
 
       <div style={{ padding: 24 }}>
@@ -557,7 +557,7 @@ function BuilderDetailPane({ p }) {
                 return (
                   <label key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"}`, background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)" : "transparent", borderRadius: 8, cursor: "pointer" }}>
                     <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? p.accent : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, background: on ? p.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                      {on && <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="var(--sh-ground, #1a1612)" strokeWidth="3"><path d="M3 8.5l3 3 7-7"/></svg>}
+                      {on && <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#1a1612" strokeWidth="3"><path d="M3 8.5l3 3 7-7"/></svg>}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{w.name}</div>

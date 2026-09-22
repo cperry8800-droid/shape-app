@@ -439,9 +439,15 @@ function DbzOutcomesZone({ role, cp }) {
 // validated dark-surface pair(s): teal #12a899 with rust #e0644b (adds vs
 // ended) and teal with amber #b8892f (MRR + one-time) — the brand's brighter
 // #2ee0c4 stays on chrome, where it belongs. Demo series ONLY under the band.
-const DBZ_T_TEAL = "#12a899";   // active · added · MRR
+// ⚠ ALL FOUR ARE TOKENS, because the surface they are drawn on is one: on the
+// light ground the dark pair reads 2.73 / 2.91:1, under the 3:1 floor for a
+// non-text mark, so --sh-chart-teal / --sh-chart-amber take the builder's own
+// accent and gold there (3.66 / 3.64) and resolve back to the pair above on the
+// dark paper. A chart whose surface, grid and rust moved while two of its marks
+// stayed put would disagree with itself on one paper or the other.
+const DBZ_T_TEAL = "var(--sh-chart-teal, #12a899)";   // active · added · MRR
 const DBZ_T_RUST = "var(--sh-rust, #e0644b)";   // ended
-const DBZ_T_AMBER = "#b8892f";  // one-time purchases
+const DBZ_T_AMBER = "var(--sh-chart-amber, #b8892f)";  // one-time purchases
 const DBZ_T_SURFACE = "var(--sh-ground, #1a1612)";
 const DBZ_T_GRID = "rgba(var(--sh-ink-rgb, 242,237,228),0.10)";
 const DBZ_T_INK = "var(--sh-ink, #f2ede4)";

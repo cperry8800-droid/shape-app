@@ -1750,7 +1750,7 @@ function ChatWidget(props) {
                       onTouchEnd={cancelLongPress}
                       style={{
                         maxWidth: "100%", width: "fit-content", overflowWrap: "anywhere", padding: "9px 13px", borderRadius: 12,
-                        background: bubbleTC + (m.me ? "30" : "22"),
+                        background: cwHexA(bubbleTC, m.me ? 0.19 : 0.13),
                         color: INK,
                         border: "1px solid " + cwHexA(bubbleTC, 0.33),
                         borderTopRightRadius: m.me ? 3 : 12,
