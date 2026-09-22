@@ -10,7 +10,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { upsertSnapshot, type SnapshotPatch } from '@/lib/health-snapshot';
 import { readJson } from '@/lib/request-utils';
-import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -75,6 +75,7 @@ function workoutPostPayload(w: WorkoutInput, userId: string, profile: ProfileRow
     note: noteParts.length ? `Apple Health ${noteParts.join(' · ')}` : 'Imported from Apple Health.',
     metrics: {
       provider: 'apple_health',
+      startedAt: activityStartISO(w.startedAt),
       durationMin: minutes,
       distanceMeter: num(w.distanceM),
       calories,
@@ -89,7 +90,11 @@ function workoutPostPayload(w: WorkoutInput, userId: string, profile: ProfileRow
     route: {},
     source_provider: 'apple_health',
     source_activity_id: w.externalId,
-    created_at: w.startedAt ?? new Date().toISOString(),
+    // ⚠ NO `created_at` — the DB default (now) is when the POST was made, which
+    // is what the feed sorts and dates by. The workout's own start is
+    // `metrics.startedAt`, normalised to UTC ISO so the dedup's text range
+    // compares like with like. Stamping created_at at the activity start filed
+    // a backfill below 50 newer rows, where nobody ever saw it.
   };
 }
 
@@ -142,7 +147,7 @@ async function importWorkouts(
       // Cross-source guard: another provider (or the in-app logger) already
       // posted this workout within ±20 min → keep the activities row, skip the
       // social post (first-writer-wins, silent).
-      const dup = await findCrossSourceDuplicate(client, userId, payload.created_at, 'apple_health');
+      const dup = await findCrossSourceDuplicate(client, userId, activityStartISO(w.startedAt) ?? '', 'apple_health');
       if (dup) continue;
     }
 

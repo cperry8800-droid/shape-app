@@ -20,7 +20,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { upsertSnapshot } from '@/lib/health-snapshot';
-import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -230,6 +230,7 @@ export async function POST(request: Request) {
       note: [type, distMi, avgHr != null ? `${avgHr} bpm avg HR` : null].filter(Boolean).join(' - ') || 'Imported from Garmin.',
       metrics: {
         provider: 'garmin',
+        startedAt: activityStartISO(started),
         durationMinutes: mins,
         averageHeartRate: avgHr,
         maxHeartRate: maxHr,
@@ -242,11 +243,15 @@ export async function POST(request: Request) {
       },
       source_provider: 'garmin',
       source_activity_id: externalId,
-      created_at: started ?? new Date().toISOString(),
+      // ⚠ NO `created_at` — the DB default (now) is when the POST was made, which
+      // is what the feed sorts and dates by. The workout's own start is
+      // `metrics.startedAt`, normalised to UTC ISO so the dedup's text range
+      // compares like with like. Stamping created_at at the activity start filed
+      // a backfill below 50 newer rows, where nobody ever saw it.
     };
 
     if (!existingPost?.id) {
-      const dup = await findCrossSourceDuplicate(admin, uid, postPayload.created_at, 'garmin');
+      const dup = await findCrossSourceDuplicate(admin, uid, activityStartISO(started) ?? '', 'garmin');
       if (dup) continue;
     }
     // Updates never rewrite privacy (retro-tighten stands on re-delivery).

@@ -14,7 +14,7 @@ import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
 import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
-import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, BS_PRIVACY_RANK } from './workoutShare.mjs';
+import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, bsFetchDuplicateCandidates, bsActivityStartISO, bsPostActivityStart, BS_PRIVACY_RANK } from './workoutShare.mjs';
 import { bsLiveAudience } from './liveProgress.mjs';
 import { watchLiveWorkout } from '../../../public/newdesign/liveWatch.mjs';
 import { bsMaterializeProgram, bsRepeatSpec } from './trainingBuilder.mjs';
@@ -2479,6 +2479,13 @@ function communityPostFromRow(row) {
     id: row.id,
     author_id: row.author_id || null,
     created_at: row.created_at || null,
+    // ⚠ WHEN THE WORKOUT HAPPENED, WHICH IS NOT WHEN THE POST WAS MADE. Auto
+    // posters used to collapse the two onto `created_at`; a card dating a
+    // backfilled run by the moment it synced would read "2h ago" about a
+    // workout from March. Falls back to `created_at`, which is the right answer
+    // for a manual post (no metrics.startedAt) AND for a legacy auto post
+    // (where created_at IS the activity start).
+    activity_at: bsPostActivityStart(row),
     name: authorName,
     photo: row.photo_url || (metrics && metrics.photo_url) || null,
     mentions: Array.isArray(metrics.mentions) ? metrics.mentions : [],
@@ -3099,16 +3106,15 @@ async function saveWorkoutSessionLog({
   let crossDup = false;
   if (supabase && state.user?.id) {
     try {
-      const w = 20 * 60 * 1000; const s = Date.parse(sessionStart);
-      const { data: near } = await supabase.from('community_posts')
-        .select('source_provider, created_at')
-        .eq('author_id', state.user.id)
-        .not('source_provider', 'is', null)
-        .neq('source_provider', 'shape_session')
-        .gte('created_at', new Date(s - w).toISOString())
-        .lte('created_at', new Date(s + w).toISOString())
-        .limit(5);
-      crossDup = bsIsDuplicateWorkoutPost(near || [], sessionStart, 'shape_session');
+      const near = await bsFetchDuplicateCandidates(
+        () => supabase.from('community_posts')
+          .select('source_provider, created_at, metrics')
+          .eq('author_id', state.user.id)
+          .not('source_provider', 'is', null)
+          .neq('source_provider', 'shape_session'),
+        sessionStart,
+      );
+      crossDup = bsIsDuplicateWorkoutPost(near, sessionStart, 'shape_session');
     } catch (e) { crossDup = false; }
   }
 
@@ -3161,7 +3167,7 @@ async function saveWorkoutSessionLog({
     // Idempotent by the persisted session id (a retry of the same save can't
     // double-post); Date.now() only for the local/offline fallback.
     sourceActivityId: `shape-session-${structured?.data?.id || Date.now()}`,
-    createdAt: sessionStart,
+    activityStart: sessionStart,
     autoShare: true,
   }).catch(error => { shareError = error; return null; });
 
@@ -3604,7 +3610,13 @@ async function createCommunityPost({
   channel = '',
   photoUrl = '',
   mentions = [],
-  createdAt = '',      // ISO — auto-share posts stamp the activity START
+  activityStart = '',  // ISO — when the WORKOUT happened, stamped into
+                       // metrics.startedAt. ⚠ NEVER created_at: that is when the
+                       // POST was made, and it is what the feed sorts and dates
+                       // by. Auto-posters used to stamp it at the activity start
+                       // so the ±20-min dedup compared like with like, which
+                       // filed a backfill below 50 newer rows where nobody saw
+                       // it. The dedup reads metrics.startedAt now.
   autoShare = false,   // true = automatic workout post (skips the +5 award)
   skipAward = false,   // deliberate share that still must not earn (meal
                        // shares, spec 2026-07-12) — NOT autoShare: auto-post
@@ -3625,6 +3637,12 @@ async function createCommunityPost({
   const cleanChannel = String(channel || '').trim().toUpperCase();
   const mergedMetrics = { ...(metrics || {}) };
   if (cleanChannel) mergedMetrics.channel = cleanChannel;
+  // When the workout happened, normalised to UTC ISO — the dedup's DB pre-filter
+  // compares this as TEXT, so lexical order is only the real order when every
+  // writer spells it the same way. An explicit metrics.startedAt from the caller
+  // stands; this only fills it in.
+  const _startISO = bsActivityStartISO(activityStart);
+  if (_startISO && !mergedMetrics.startedAt) mergedMetrics.startedAt = _startISO;
   if (Array.isArray(mentions) && mentions.length) {
     mergedMetrics.mentions = mentions.map((x) => ({ userId: x.userId || x.id || null, name: x.name || x.full_name || '' })).filter((x) => x.name).slice(0, 12);
   }
@@ -3686,10 +3704,6 @@ async function createCommunityPost({
     photo_url: cleanPhoto || null,
     source_provider: sourceProvider || null,
     source_activity_id: sourceActivityId || null,
-    // Auto-posted workouts stamp created_at at the activity START so the
-    // ±20-min cross-source dedup window compares like with like (device posts
-    // already do this). Manual posts keep the DB default (now).
-    ...(createdAt ? { created_at: createdAt } : {}),
   };
 
   if (!supabase) {

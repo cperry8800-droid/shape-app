@@ -9,7 +9,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { dbError } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeOuraSnapshots } from '@/lib/health-snapshot';
-import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -109,6 +109,7 @@ function workoutPostPayload(workout: OuraWorkout, userId: string, profile: Profi
     note: noteParts.length ? `Oura ${noteParts.join(' · ')}` : 'Imported from Oura.',
     metrics: {
       provider: 'oura',
+      startedAt: activityStartISO(workout.start_datetime),
       durationMin: minutes,
       distanceMeter: workout.distance ?? null,
       calories,
@@ -124,7 +125,11 @@ function workoutPostPayload(workout: OuraWorkout, userId: string, profile: Profi
     route: {},
     source_provider: 'oura',
     source_activity_id: workout.id,
-    created_at: workout.start_datetime ?? new Date().toISOString(),
+    // ⚠ NO `created_at` — the DB default (now) is when the POST was made, which
+    // is what the feed sorts and dates by. The workout's own start is
+    // `metrics.startedAt`, normalised to UTC ISO so the dedup's text range
+    // compares like with like. Stamping created_at at the activity start filed
+    // a backfill below 50 newer rows, where nobody ever saw it.
   };
 }
 
@@ -166,7 +171,7 @@ async function importOuraWorkouts(
       // Cross-source guard: another provider (or the in-app logger) already
       // posted this workout within ±20 min → keep the activities row, skip the
       // social post (first-writer-wins, silent).
-      const dup = await findCrossSourceDuplicate(client, userId, payload.created_at, 'oura');
+      const dup = await findCrossSourceDuplicate(client, userId, activityStartISO(workout.start_datetime) ?? '', 'oura');
       if (dup) continue;
     }
 

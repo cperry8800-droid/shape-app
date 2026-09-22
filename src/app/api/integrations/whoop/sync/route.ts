@@ -4,7 +4,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { dbError } from '@/lib/request-utils';
 import { getFreshAccessToken } from '@/lib/integrations/tokens';
 import { writeWhoopSnapshots } from '@/lib/health-snapshot';
-import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, type SharePrivacy } from '@/lib/workout-share';
+import { resolveWorkoutSharePrivacy, findCrossSourceDuplicate, maybeSendFirstShareNotice, activityStartISO, type SharePrivacy } from '@/lib/workout-share';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -109,6 +109,7 @@ function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: Prof
     note: noteParts.length ? `WHOOP ${noteParts.join(' · ')}` : 'Imported from WHOOP.',
     metrics: {
       provider: 'whoop',
+      startedAt: activityStartISO(workout.start),
       durationMin: minutes,
       averageHeartRate: avgHr,
       maxHeartRate: score.max_heart_rate ?? null,
@@ -129,7 +130,11 @@ function workoutPostPayload(workout: WhoopWorkout, userId: string, profile: Prof
     route: {},
     source_provider: 'whoop',
     source_activity_id: workout.id,
-    created_at: workout.start ?? new Date().toISOString(),
+    // ⚠ NO `created_at` — the DB default (now) is when the POST was made, which
+    // is what the feed sorts and dates by. The workout's own start is
+    // `metrics.startedAt`, normalised to UTC ISO so the dedup's text range
+    // compares like with like. Stamping created_at at the activity start filed
+    // a backfill below 50 newer rows, where nobody ever saw it.
   };
 }
 
@@ -193,7 +198,7 @@ async function importWhoopWorkouts(
       // Cross-source guard: another provider (or the in-app logger) already
       // posted this workout within ±20 min → keep the activities row, skip the
       // social post (first-writer-wins, silent).
-      const dup = await findCrossSourceDuplicate(client, userId, payload.created_at, 'whoop');
+      const dup = await findCrossSourceDuplicate(client, userId, activityStartISO(workout.start) ?? '', 'whoop');
       if (dup) continue;
     }
 

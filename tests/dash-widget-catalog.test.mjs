@@ -10,7 +10,7 @@
 // customized but does not say so is, to most of its users, one that cannot.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { stripComments } from './helpers/strip-comments.mjs';
@@ -364,15 +364,61 @@ test('the data widgets declare emptiness from the SAME derivation their panel re
   }
 });
 
-test('the two shells ask for the signals module under a key newer than the derivations', () => {
-  // ⚠ THE PRECOMPILE REWRITES text/babel TAGS ONLY, so this plain <script>'s cache key is
-  // whatever a human last typed. Both shells that render Today must ask for a copy that
-  // carries dashWeekAhead & co, or the widgets degrade to empty on a warm cache.
-  for (const f of ['TrainerApp.html', 'NutritionistApp.html']) {
-    const html = readFileSync(new URL('../public/newdesign/' + f, import.meta.url), 'utf8');
-    const m = /dashSignals\.js\?v=(\d{8})/.exec(html);
-    assert.ok(m, f + ' does not load dashSignals.js with a dated key');
-    assert.ok(Number(m[1]) >= 20260921, f + ' asks for a signals module older than the catalogue widgets (' + m[1] + ')');
+// The five producers #2137 added. A page that calls one of these needs a signals module
+// new enough to have it; a host that serves such a page needs a cache key to match.
+const CATALOGUE_FNS = ['dashRosterStatus', 'dashTopMovers', 'dashTenureMilestones', 'dashRevenueByClient', 'dashProgramsEnding'];
+
+test('every host serving a page that calls the catalogue producers asks for a new enough signals module', () => {
+  // ⚠ THE PRECOMPILE REWRITES text/babel TAGS ONLY (BABEL_TAG), so this plain <script>'s
+  // cache key is whatever a human last typed — a warm cache can hand a page a copy that
+  // predates these functions. #2137 bumped the two shells and stopped there; extending the
+  // producers to the Clients pages left TrainerClients/NutritionistClients asking for
+  // ?v=20260817, four weeks older than the functions they had started calling.
+  //
+  // ⚠ DERIVED, NOT ENUMERATED. The old version listed the two shells by name, which is
+  // exactly why adding a third and a fourth consumer went unnoticed. This asks the source
+  // which .jsx call a producer, then which hosts load one of those.
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  const read = (f) => readFileSync(new URL(f, dir), 'utf8');
+  const names = readdirSync(dir).filter((f) => f.endsWith('.jsx'))
+    .map((f) => [f, stripComments(read(f))])
+    .filter(([, src]) => CATALOGUE_FNS.some((fn) => src.includes('DashSignals.' + fn + '(')))
+    // the page components such a module declares — what a host writes as a JSX tag
+    .flatMap(([, src]) => [...src.matchAll(/^function ([A-Z][A-Za-z0-9]*)\s*\(/gm)].map((m) => m[1]));
+  assert.ok(names.length >= 3, 'found no page components calling the catalogue producers — the sweep has stopped matching');
+
+  // ⚠ RENDERS IT, NOT MERELY LOADS IT. Six client hosts load dashToday.jsx for its shared
+  // globals and never mount a coach Today; asking only "does this host load the module"
+  // named them and would have bought 6 cache-busting bumps that buy nobody anything.
+  const hosts = readdirSync(dir).filter((f) => f.endsWith('.html'))
+    .filter((f) => { const h = read(f); return names.some((n) => h.includes('<' + n)); });
+  assert.ok(hosts.length >= 4, 'found no hosts rendering those pages (' + hosts.join(', ') + ')');
+
+  // Report EVERY offender: a loop of bare assertions stops at the first, which is how
+  // one stale host hides behind another.
+  const stale = [];
+  for (const f of hosts) {
+    const m = /dashSignals\.js\?v=(\d{8})/.exec(read(f));
+    if (!m) { stale.push(f + ' (no dated key)'); continue; }
+    if (Number(m[1]) < 20260921) stale.push(f + ' (' + m[1] + ')');
+  }
+  assert.deepEqual(stale, [], 'hosts asking for a signals module older than the producers they call');
+});
+
+test('the Clients boards feature-test the producers rather than just checking the global', () => {
+  // ⚠ `typeof DashSignals !== "undefined"` passes on a STALE module and then throws on the
+  // first call — and public/newdesign has no error boundary, so that is a blank page. The
+  // Today board was written this way in #2137; these two were not, until CodeRabbit said so.
+  for (const f of ['trainerClientsPage.jsx', 'nutritionistClientsPage.jsx']) {
+    const src = stripComments(readFileSync(new URL('../public/newdesign/' + f, import.meta.url), 'utf8'));
+    assert.match(src, /every\(\(fn\) => typeof DashSignals\[fn\] === "function"\)/, f + ' checks that the global exists but not that it carries the producers');
+    // every producer it calls must be in the list it tests
+    for (const fn of CATALOGUE_FNS) {
+      if (!src.includes('DashSignals.' + fn + '(')) continue;
+      assert.ok(new RegExp('"' + fn + '"').test(src.slice(src.indexOf('const sigReady'), src.indexOf('const sigOk'))), f + ' calls ' + fn + ' without feature-testing it');
+    }
+    // and a stale module must not be reported as a roster that is still loading
+    assert.match(src, /const staleWhy = sigReady \?/, f + ' collapses "still loading" and "stale module" into one reason');
   }
 });
 
