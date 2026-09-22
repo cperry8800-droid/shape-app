@@ -14,6 +14,17 @@ import {
 const run = (name, conclusion = 'success', status = 'completed') => ({ name, status, conclusion });
 const ALL_GREEN = REQUIRED_CHECKS.map((n) => run(n));
 
+// ⚠ THE SUITE JOB'S NAME IS A LITERAL ON PURPOSE, AND IT IS NAMED ONCE.
+// GitHub pins a branch-protection required check by its LITERAL name, so renaming this job
+// is a deliberate PAIRED action — the job, REQUIRED_CHECKS and the protection rule move
+// together — which `ci.yml`'s own header already records for the mobile job. DERIVING the
+// name instead (find the job whose steps run `npm test`) would let a rename pass here
+// SILENTLY, and that is the worse answer: this board would go green while `main` had quietly
+// stopped requiring the suite at all. So the literal stays, it is written once, and the two
+// guards below name the rename in their failure text — a rename must fail loudly, pointing
+// at branch protection, instead of sending the reader after a parse bug that is not there.
+const SUITE_JOB = 'Tests (unit + mount)';
+
 test('gateFromRuns — green requires EVERY required check present and successful', () => {
   assert.equal(gateFromRuns(ALL_GREEN), 'green');
   // The Codex P1: a subset of required checks (mid-registration, a rename)
@@ -504,6 +515,32 @@ test('REQUIRED_CHECKS is every job ci.yml runs, derived from the workflow', () =
   const keys = [...block.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)].map((m) => m[1]);
   const pairs = [...block.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$\n(?:.*\n)*?^ {4}name: (.+)$/gm)]
     .map((m) => [m[1], m[2].trim()]);
+  // ⚠ THAT CAPTURE IS RAW TEXT, NOT THE SCALAR YAML RESOLVES — and GitHub names a check by
+  // the RESOLVED value. `name: Tests (unit + mount) # suite` resolves to `Tests (unit +
+  // mount)`; a quoted, anchored, aliased, tagged or block scalar resolves to something else
+  // again. Left alone, this guard could extract a name that is not the check's name, and an
+  // edit that then "fixed" REQUIRED_CHECKS to match the bad extraction would leave this test
+  // GREEN while the board could not recognise the real check — the same silent false green
+  // this file exists to close, one level down. (CodeRabbit, #2143.)
+  // ⚠ A YAML PARSER WAS THE OTHER REMEDY AND IS DECLINED ON A MEASUREMENT, not a preference:
+  // this repo has no yaml parser in `dependencies` or `devDependencies` and none installed
+  // even transitively, so that route adds a package to every `npm ci` for one assertion.
+  // Refusing what cannot be resolved costs nothing and keeps the guard fail-loud, which is
+  // the only property it is here for. Every form below is REFUSED rather than guessed at, so
+  // a future job name in one of them stops the suite with a remedy instead of passing wrong.
+  const unresolvable = (raw) => {
+    if (/^["'&*!|>%@`#{}[\],]/.test(raw)) return 'not a plain scalar (quoted, anchored, aliased, tagged, block or flow)';
+    if (/\s#/.test(raw)) return 'carries a trailing `#` comment, which YAML strips and this regex keeps';
+    return null;
+  };
+  const unreadable = pairs.map(([k, raw]) => [k, raw, unresolvable(raw)]).filter((x) => x[2]);
+  assert.deepEqual(unreadable, [],
+    'a job `name:` in ci.yml is not a plain single-line scalar, so the text after `name:` is ' +
+    'NOT the name GitHub will report. This guard refuses to guess:\n' +
+    unreadable.map(([k, raw, why]) => `  ${k}: ${JSON.stringify(raw)} — ${why}`).join('\n') +
+    '\n  Fix by writing the job name as a plain unquoted scalar, or teach this guard to ' +
+    'resolve the form (a real YAML parse) — never by editing REQUIRED_CHECKS to match the ' +
+    'raw text, which is how the board stops matching the real check.');
   const jobs = pairs.map((x) => x[1]);
   // ⚠ THE VACUITY FLOORS IN THIS TEST ARE BELT-AND-BRACES, measured rather than implied:
   // with both parses degraded to nothing AND every floor removed, this test still FAILS,
@@ -521,9 +558,13 @@ test('REQUIRED_CHECKS is every job ci.yml runs, derived from the workflow', () =
     'a job in ci.yml yielded no display name. GitHub then reports it by its KEY, and a ' +
     'job the board cannot name is a job it cannot judge:\n  keys  ' + JSON.stringify(keys) +
     '\n  named ' + JSON.stringify(pairs.map((x) => x[0])));
-  assert.ok(jobs.includes('Tests (unit + mount)'),
-    'the suite job is missing from the parse — the guard would pass vacuously on the ' +
-    'one name it exists to protect');
+  assert.ok(jobs.includes(SUITE_JOB),
+    `ci.yml declares no job named ${JSON.stringify(SUITE_JOB)}. Either the parse above has ` +
+    'stopped matching — in which case this guard would pass vacuously on the one name it ' +
+    'exists to protect — or the job was RENAMED. A rename is a paired action: change it here, ' +
+    'in REQUIRED_CHECKS, and in the branch-protection required check on `main`, which pins ' +
+    'the literal old name and silently stops requiring the suite otherwise.\n  ci.yml ' +
+    JSON.stringify([...jobs].sort()));
   assert.deepEqual([...REQUIRED_CHECKS].sort(), [...jobs].sort(),
     'REQUIRED_CHECKS must be exactly the jobs ci.yml runs. A job the board does not ' +
     'know about cannot turn its gate red, running or incomplete — it is simply not ' +
@@ -535,12 +576,22 @@ test('REQUIRED_CHECKS is every job ci.yml runs, derived from the workflow', () =
 // to be green after the fix. Each of the three states a missed job can be in was a
 // FALSE GREEN, and each is its own case because they reach different arms of the rule.
 test('a red, running or absent suite job is never a green gate', () => {
-  const others = REQUIRED_CHECKS.filter((n) => n !== 'Tests (unit + mount)').map((n) => run(n));
-  const red = gateFromRuns([...others, run('Tests (unit + mount)', 'failure')]);
+  // ⚠ GUARD-THE-GUARD, and it is the difference between a useful failure and a misleading
+  // one. If SUITE_JOB ever stops matching an entry in REQUIRED_CHECKS — a rename — this
+  // filter silently yields the WHOLE array, every case below then runs with the suite
+  // present twice, and the first assertion fails as "a FAILING suite must block the board":
+  // true, unhelpful, and naming neither the cause nor the fix. Caught here instead.
+  const others = REQUIRED_CHECKS.filter((n) => n !== SUITE_JOB).map((n) => run(n));
+  assert.equal(others.length, REQUIRED_CHECKS.length - 1,
+    `REQUIRED_CHECKS does not contain ${JSON.stringify(SUITE_JOB)}, so this test is no longer ` +
+    'removing the suite from the set — every case below would run with it still present. If ' +
+    'the job was renamed, rename it here, in REQUIRED_CHECKS and in branch protection.');
+
+  const red = gateFromRuns([...others, run(SUITE_JOB, 'failure')]);
   assert.equal(red, 'red', 'a FAILING suite must block the board');
   assert.equal(prAllGreen({ ci: red, draft: false }), false);
 
-  const running = gateFromRuns([...others, run('Tests (unit + mount)', null, 'in_progress')]);
+  const running = gateFromRuns([...others, run(SUITE_JOB, null, 'in_progress')]);
   assert.equal(running, 'running', 'a suite still running is not a pass');
   assert.equal(prAllGreen({ ci: running, draft: false }), false);
 
