@@ -893,6 +893,21 @@ test('drive: a superset alternates with no rest however the key was typed', asyn
     assert.doesNotMatch(h.html, /Rest · set 1 done/, `${JSON.stringify([a, b])}: no rest between the two halves of a superset`);
   }
 });
+// ⚠ AND THE BADGE READS THE SAME KEY THE PAIRING DOES. "Superset · {move.group}" printed
+// the raw value, so a legacy "a " read verbatim and a whitespace key printed a
+// "Superset ·" badge over a move the player does not pair with anything.
+test('drive: the superset badge names the key the player pairs on, or nothing', async () => {
+  const badge = (h) => h.nodes().filter((n) => n.type === 'p' && /^Superset · /.test(textOf(n).trim())).map((n) => textOf(n).trim());
+  const paired = harness({ elapsedMinutes: 30, sessionProps: { moves: pair(' b', 'B ') } });
+  assert.deepEqual(badge(paired), ['Superset · B'], 'one spelling of the key, the one the pairing uses');
+  for (const g of ['   ', false, {}]) {
+    const h = harness({ elapsedMinutes: 30, sessionProps: { moves: pair(g, 'A') } });
+    assert.deepEqual(badge(h), [], `${JSON.stringify(g)} is not a superset key, so no badge`);
+  }
+  // ⚠ THE CONTROL: a plain key still gets its badge, or the empty result above passes
+  // on a player that stopped rendering the badge at all.
+  assert.deepEqual(badge(harness({ elapsedMinutes: 30, sessionProps: { moves: pair('A', 'A') } })), ['Superset · A']);
+});
 test('drive: two different groups still rest between sets', async () => {
   const h = harness({ elapsedMinutes: 30, sessionProps: { moves: pair('A', 'B') } });
   await h.click('Log set 1 · 8 reps');

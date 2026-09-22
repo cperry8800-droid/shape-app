@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
+import { supersetKey } from '../../../../../public/newdesign/workoutDocument.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,12 +48,18 @@ function mapExercises(payload: Record<string, unknown> | null): Array<{ name: st
       // never reaches the member — the assignment snapshot has carried `rpe`
       // since RPE became its own axis. The scale is 1–10; anything else is none.
       rpe: rpeOf(e.rpe),
-      // Builder fields — the trainer's tempo / verbatim cue / superset KEY
-      // ride through untouched so the client card shows exactly what was typed
-      // (the A1/A2 label is derived from the key at render, never stored).
+      // Builder fields — the trainer's tempo and verbatim cue ride through
+      // untouched so the client card shows exactly what was typed.
       tempo: e.tempo != null ? String(e.tempo) : '',
       cue: e.cue != null ? String(e.cue) : '',
-      group: e.group != null ? String(e.group) : '',
+      // ⚠ THE SUPERSET KEY IS DELIVERED UNDER THE DOCUMENT'S OWN KEY RULE, NOT
+      // COPIED. `String(e.group)` turned a stray boolean or object into a truthy
+      // key ("false", "[object Object]") that every reader then paired on, and
+      // passed a legacy "a " through for the player to print as its superset
+      // badge. Delivery is one of the places the one rule has to hold, with
+      // storage, the labels and the player (the A1/A2 label is derived from
+      // this key at render, never stored).
+      group: supersetKey(e.group),
       // Self-authored segment row (a run/ride/swim leg or a Hyrox station) — the
       // free descriptor the deck renders in place of a load ("10 mi · Z2").
       seg: e.seg != null ? String(e.seg) : '',

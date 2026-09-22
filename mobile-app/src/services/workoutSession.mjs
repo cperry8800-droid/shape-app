@@ -53,13 +53,20 @@ export function bsPreviewSession(workout = {}, formatLoad = value => value) {
 // rule. ⚠ NAVIGATION AND REST MUST ASK THE SAME QUESTION: this compared a
 // TRIMMED key while the player's rest decision compared the RAW one, so 'A' and
 // 'A ' jumped the member to the partner and then made them sit a full rest.
+// A move's superset key under that same rule — '' when it has none. The player's
+// "Superset · A" badge reads this too, so the badge can never name a pair the
+// player does not run: a whitespace key printed "Superset ·" over a move with no
+// partner, and a legacy "a " printed verbatim.
+export function bsGroupKey(move) {
+  return supersetKey(move && move.group);
+}
 export function bsSameGroup(a, b) {
-  const x = supersetKey(a && a.group);
-  return !!x && x === supersetKey(b && b.group);
+  const x = bsGroupKey(a);
+  return !!x && x === bsGroupKey(b);
 }
 export function bsNextSessionMove(moves, completed, from) {
   const pending = i => Array.from({ length: moves[i].sets }).some((_, n) => !completed[`${i}-${n}`]);
-  if (supersetKey(moves[from]?.group)) {
+  if (bsGroupKey(moves[from])) {
     for (let step = 1; step <= moves.length; step++) {
       const i = (from + step) % moves.length;
       if (bsSameGroup(moves[from], moves[i]) && pending(i)) return i;

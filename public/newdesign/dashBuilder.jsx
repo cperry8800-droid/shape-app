@@ -598,7 +598,7 @@ function DbuExercisePicker({ onPick, onClose, customMoves = [] }) {
 
 // ── Exercise row editor ──────────────────────────────────────────────────────
 function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [], onUploading }) {
-  const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType'||k==='rpe') delete next.loadText; onChange(next);};
+  const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText; onChange(next);};
   const [uploading,setUploading] = React.useState(false);
   const [error,setError] = React.useState('');
   const fileRef=React.useRef(null), latest=React.useRef({row,onChange}); latest.current={row,onChange};

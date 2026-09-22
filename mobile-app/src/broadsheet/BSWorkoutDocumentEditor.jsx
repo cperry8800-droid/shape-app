@@ -77,7 +77,9 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   }, keepUndo);
   const changeRow = (bi, ri, key, nextValue) => changeDay((next) => {
     next.blocks[bi].rows[ri][key] = nextValue;
-    if (key === 'load' || key === 'loadType' || key === 'rpe') delete next.blocks[bi].rows[ri].loadText;
+    // A new weight or unit replaces an imported free-text load; a target RPE sits
+    // beside it (see ShapeWorkoutDocument.loadLabel), so it never clears it.
+    if (key === 'load' || key === 'loadType') delete next.blocks[bi].rows[ri].loadText;
     if (key === 'rest') delete next.blocks[bi].rows[ri].restSeconds;
   });
   const videos = coachWorkoutVideos([...(plans || []), { name: value.name, detail: value.detail }]);

@@ -45,9 +45,16 @@
     return {...row, loadType:'kg', load:'', rpe:Number.isFinite(n) && n > 0 ? n : (row.rpe == null ? '' : row.rpe)};
   }
   function loadLabel(row) {
-    if (row.loadText != null) return text(row.loadText);
     const parts = [];
-    if (!(row.load == null || row.load === '' || Number(row.load) === 0)) {
+    // ⚠ AN IMPORTED FREE-TEXT LOAD ("bodyweight", "heavy") STANDS IN FOR THE WEIGHT,
+    // NOT FOR THE WHOLE PRESCRIPTION. It returned early, so a target RPE on an
+    // imported row never reached the label — and the editors then cleared the text
+    // whenever RPE changed, to make room, which threw away the coach's own
+    // instruction. The text and the RPE are separate axes, like a weight and RPE.
+    if (row.loadText != null) {
+      const own = text(row.loadText);
+      if (own) parts.push(own);
+    } else if (!(row.load == null || row.load === '' || Number(row.load) === 0)) {
       if (row.loadType === 'pct') parts.push(row.load + '% 1RM');
       // ⚠ THE LEGACY ARM STAYS, and is what stops "RPE 8 · RPE 8" on a row that
       // has not passed through `splitLegacyRpe` yet — a demo template, or a

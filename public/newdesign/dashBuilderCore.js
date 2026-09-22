@@ -231,7 +231,11 @@
   function loadLabel(row) {
     if (WorkoutDoc) return WorkoutDoc.loadLabel(row);
     var parts = [];
-    if (!(row.load == null || row.load === 0 || row.load === "")) {
+    // An imported free-text load stands in for the weight, never for the RPE —
+    // the same rule as ShapeWorkoutDocument.loadLabel, which this must agree with.
+    if (row.loadText != null) {
+      if (String(row.loadText)) parts.push(String(row.loadText));
+    } else if (!(row.load == null || row.load === "" || Number(row.load) === 0)) {
       if (row.loadType === "pct") parts.push(row.load + "% 1RM");
       else if (row.loadType === "rpe") parts.push("RPE " + row.load);
       else parts.push(row.load + " " + (row.loadType === "lb" ? "lb" : "kg"));

@@ -4,7 +4,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill } from '../services/workoutSession.mjs';
+import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey } from '../services/workoutSession.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
@@ -31613,7 +31613,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
       <div style={{ padding: `8px ${t.padX}px 0` }}>
         {move.tempo && <p style={{ color: t.INK70 }}>{tr('session:player.tempo')} · {move.tempo}</p>}
-        {move.group && <p style={{ color: t.INK70 }}>{tr('session:player.superset')} · {move.group}</p>}
+        {bsGroupKey(move) && <p style={{ color: t.INK70 }}>{tr('session:player.superset')} · {bsGroupKey(move)}</p>}
         {activeIdx != null && <button onClick={() => setSetInputs(prev => bsApplyRemainingLoad(prev, completed, moves, moveIdx, activeIdx, prev[activeKey]?.load || ''))} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', textAlign: 'left' }}>{tr('session:player.applyRemaining')}</button>}
       </div>
 

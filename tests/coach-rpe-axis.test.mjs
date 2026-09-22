@@ -85,6 +85,42 @@ test('the demo templates a coach is shown first carry the new shape', () => {
   assert.deepEqual([...new Set(efforts.map((r) => W.loadLabel(r)))].sort(), ['RPE 3', 'RPE 4', 'RPE 7', 'RPE 8']);
 });
 
+// ⚠ AN IMPORTED FREE-TEXT LOAD STANDS IN FOR THE WEIGHT, NOT THE WHOLE PRESCRIPTION.
+// `loadLabel` returned `loadText` alone, so the editors cleared the text whenever RPE
+// changed, to make room — and setting "RPE 8" on an imported "bodyweight" row threw
+// the coach's own instruction away. The text and the RPE are separate axes now.
+const LABEL_VECTORS = [
+  [{ load: 100, loadType: 'kg', rpe: 8 }, '100 kg · RPE 8'],
+  [{ load: 225, loadType: 'lb', rpe: 9.5 }, '225 lb · RPE 9.5'],
+  [{ load: 75, loadType: 'pct', rpe: 7 }, '75% 1RM · RPE 7'],
+  [{ load: 100, loadType: 'kg' }, '100 kg'],
+  [{ load: '', loadType: 'kg', rpe: 8 }, 'RPE 8'],
+  [{ load: '', loadType: 'kg' }, ''],
+  [{ load: '0', loadType: 'kg' }, ''],
+  [{ loadType: 'rpe', load: 8 }, 'RPE 8'],
+  [{ loadType: 'rpe', load: 8, rpe: 8 }, 'RPE 8'],
+  [{ loadText: 'bodyweight', load: 0, loadType: 'kg' }, 'bodyweight'],
+  [{ loadText: 'bodyweight', load: 0, loadType: 'kg', rpe: 8 }, 'bodyweight · RPE 8'],
+  [{ loadText: 'heavy', load: 100, loadType: 'kg' }, 'heavy'],
+  [{ loadText: '', load: 0, loadType: 'kg', rpe: 8 }, 'RPE 8'],
+];
+test('an imported load text and a target RPE are both stated, and neither hides the other', () => {
+  for (const [row, want] of LABEL_VECTORS) assert.equal(W.loadLabel(row), want, JSON.stringify(row));
+});
+
+// ⚠ AND THE BUILDER'S FALLBACK SAYS THE SAME THING. `dashBuilderCore.js` carries its own
+// `loadLabel` for a host without the document module — which is how it had no `loadText`
+// arm at all. Run the way such a host would run it: a bare global, no `module`.
+test('the builder\'s fallback label agrees with the document on every row', async () => {
+  const { runInNewContext } = await import('node:vm');
+  const sandbox = { DashSignals: require('../public/newdesign/dashSignals.js'), console };
+  sandbox.window = sandbox;
+  runInNewContext(readFileSync(fileURLToPath(new URL('../public/newdesign/dashBuilderCore.js', import.meta.url)), 'utf8'), sandbox);
+  assert.equal(sandbox.ShapeWorkoutDocument, undefined, 'the document module is absent, so the fallback is what runs');
+  assert.ok(sandbox.DashBuilder && typeof sandbox.DashBuilder.loadLabel === 'function', 'the core did not load — this test runs nothing');
+  for (const [row, want] of LABEL_VECTORS) assert.equal(sandbox.DashBuilder.loadLabel(row), want, 'fallback: ' + JSON.stringify(row));
+});
+
 // ⚠ BOTH EDITORS WRITE ONE DOCUMENT. A unit list that still offered 'rpe' on
 // either surface would put the retired shape straight back into a plan the other
 // had just migrated — so the absence is asserted on both, not just the one the

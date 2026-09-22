@@ -38,8 +38,8 @@ globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{
 };
 
 const SRC=fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url));
-const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday, dbuWeekSound };'});
-const {DbuBuilder,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday,dbuWeekSound}=mod;
+const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, DbuRow, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday, dbuWeekSound };'});
+const {DbuBuilder,DbuRow,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday,dbuWeekSound}=mod;
 
 const buttons=()=>[...document.querySelectorAll('button')];
 const byText=t=>buttons().find(b=>b.textContent===t);
@@ -633,4 +633,29 @@ test('a sound document is returned unchanged, so opening a program cannot mark i
   // caller leans on.
   const sound = { weeks: [wk(1, 0, 2, 4), wk(2, 1, 3)] };
   assert.equal(dbuWithWeekdays(sound), sound, 'a sound document was rebuilt rather than passed through');
+});
+
+// ⚠ A TARGET RPE SITS BESIDE AN IMPORTED LOAD; IT DOES NOT REPLACE IT. The row editor
+// cleared `loadText` whenever RPE changed, to make room in a label that returned the
+// text alone, so "RPE 8" on an imported "bodyweight" row threw the coach's own
+// instruction away. Only a new weight or unit replaces the text now — in both editors.
+test('setting a target RPE keeps an imported load; a new unit still replaces it',async()=>{
+  const seen=[];
+  const row={...DashBuilder.newRow({name:'Push-up'}),load:0,loadText:'bodyweight'};
+  const root=createRoot(document.getElementById('root'));OPEN.push(root);
+  await React.act(async()=>root.render(React.createElement(DbuRow,{row,label:'01',onChange:n=>seen.push(n),onRemove(){},onMove(){},onDuplicate(){},onUploading(){}})));
+  const pick=async(aria,value)=>{
+    const el=document.querySelector('select[aria-label="'+aria+'"]');
+    assert.ok(el,aria+' is not rendered — this test is driving nothing');
+    await React.act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event('change',{bubbles:true}));});
+    return seen.at(-1);
+  };
+  const withRpe=await pick('Push-up target RPE','8');
+  assert.equal(withRpe.rpe,8);
+  assert.equal(withRpe.loadText,'bodyweight','the imported instruction survives an RPE change');
+  assert.equal(DashBuilder.loadLabel(withRpe),'bodyweight · RPE 8','and the prescription states both');
+  // ⚠ THE CONTROL: a new unit still replaces the imported text, or the assertion above
+  // passes on an editor that never clears it at all.
+  const withUnit=await pick('Push-up load unit','lb');
+  assert.equal('loadText' in withUnit,false,'a new unit replaces the imported text');
 });

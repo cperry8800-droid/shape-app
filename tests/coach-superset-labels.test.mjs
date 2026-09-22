@@ -219,6 +219,34 @@ test('storage and delivery both hold the normalized key', () => {
     ['A', 'A', 'B', '', '', ''], 'a raw key is delivered in its one spelling, and a non-key as none');
 });
 
+// ⚠ AND THE MEMBER'S PLAN ROUTE IS A DELIVERY TOO. It rebuilds each exercise field by
+// field, and it copied the key with `String(e.group)` — so a stray boolean or object
+// reached the member as a truthy key ("false", "[object Object]") that every reader
+// then paired on, and a legacy "a " reached the player's superset badge verbatim.
+// Driven against the shipped `mapExercises`, over the same vectors as the key rules.
+test('the member\'s plan route delivers the key under the same rule', async () => {
+  const { loadRealModule } = await import('./helpers/load-real-module.mjs');
+  const { join, dirname } = await import('node:path');
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
+  const route = await loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
+    typescript: true,
+    appendExports: 'export { mapExercises };',
+    registry: new Map([
+      ['next/server', nextServer],
+      ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+    ]),
+  });
+  for (const v of KEY_VECTORS) {
+    const [out] = route.mapExercises({ exercises: [{ name: 'X', group: v }] });
+    assert.equal(out.group, supersetKey(v), `the route delivered ${JSON.stringify(out.group)} for ${String(v)} (${typeof v})`);
+  }
+  // ⚠ THE CONTROL: the vectors hold values a plain copy gets wrong, so a revert to
+  // `String(e.group)` fails above instead of passing on a corpus it happens to agree with.
+  assert.ok(KEY_VECTORS.some((v) => v != null && String(v) !== supersetKey(v)), 'the vectors cannot tell a copy from the rule');
+});
+
 test('the player pairs under the same rule across case and whitespace', () => {
   assert.equal(bsSameGroup({ group: 'A' }, { group: 'a ' }), true);
   assert.equal(bsSameGroup({ group: 'A' }, { group: 'A ' }), true);
