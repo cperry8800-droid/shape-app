@@ -13,7 +13,7 @@ const startedAt = '2026-09-23T12:00:00Z';
 const context = workoutCommentContext({ clientId: 'client-a', startedAt, title: 'Strength', exercise: 'Squat' });
 function mock() {
   const calls = [], writes = [], observers = new Set();
-  const state = { owner: 'coach-a', professional: 'coaching-thread', fail: false, rows: [], gate: null };
+  const state = { owner: 'coach-a', providers: [{id: 'provider-id'}], professional: 'coaching-thread', fail: false, rows: [], gate: null };
   const db = {
     auth: {
       getUser: async () => ({ data: { user: { id: state.owner } } }),
@@ -25,8 +25,10 @@ function mock() {
       const q = {
         select(fields) { calls.push(['select', fields]); return q; },
         eq(k, v) { calls.push(['eq', k, v]); return q; },
+        in(k, v) { calls.push(['in', k, v]); return q; },
         order(k, opts) { calls.push(['order', k, opts]); return q; },
-        limit: async n => { calls.push(['limit', n]); return { data: state.rows }; },
+        limit(n) { calls.push(['limit', n]); return q; },
+        then(resolve, reject) { return Promise.resolve({data: table === 'messages' ? state.rows : state.providers}).then(resolve, reject); },
         maybeSingle: async () => ({ data: table === 'conversations' ? (state.professional ? { id: state.professional } : null) : { id: 'provider-id' } }),
         insert(row) { pending = row; writes.push(row); return q; },
         single: async () => { if (state.gate) await state.gate; return state.fail ? { error: { message: 'Connection lost' } } : { data: { ...pending, id: 'message-' + writes.length } }; }
@@ -124,4 +126,16 @@ test('a changed owner is rejected even if an auth notification was missed', asyn
   m.state.owner = 'coach-b'; await click('Send workout comment');
   assert.equal(m.writes.length, 0); assert.ok(!document.querySelector('textarea'));
   assert.equal(button('Message client').disabled, true);
+});
+
+test('multiple listings resolve a private conversation for the selected client in either coach role', async () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    const m = mock(); m.state.providers = [{id: 'listing-one'}, {id: 'listing-two'}];
+    assert.equal(await workoutConversation(m.db, 'client-b', role, 'coach-a'), 'coaching-thread');
+    assert.deepEqual(m.calls.find(c => c[0] === 'in'), ['in', 'provider_id', ['listing-one', 'listing-two']]);
+    assert.ok(m.calls.some(c => c[0] === 'eq' && c[1] === 'client_id' && c[2] === 'client-b'));
+    assert.ok(m.calls.some(c => c[0] === 'order' && c[1] === 'id'));
+    assert.ok(m.calls.some(c => c[0] === 'limit' && c[1] === 1));
+    assert.ok(!m.calls.some(c => c[0] === 'get_or_create_member_conversation'));
+  }
 });

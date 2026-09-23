@@ -11,11 +11,14 @@ export async function workoutConversation(db, clientId, role, ownerId) {
   // Reuse the professional thread when the client already has one. A coach
   // without one uses the existing private two-person DM, never a social room.
   if (ownerId && (role === 'trainer' || role === 'nutritionist')) {
-    const provider = await db.from(role === 'trainer' ? 'trainers' : 'nutritionists').select('id').eq('owner_id', ownerId).maybeSingle();
-    if (provider.error) throw Error('Could not verify your coach account. Try again.');
-    if (!provider.data?.id) throw Error('Your coach account is unavailable. Reopen your dashboard.');
+    // One owner may hold several listings. Resolve a thread for this client
+    // across those listings; never assume owner_id is unique.
+    const providers = await db.from(role === 'trainer' ? 'trainers' : 'nutritionists').select('id').eq('owner_id', ownerId);
+    if (providers.error) throw Error('Could not verify your coach account. Try again.');
+    const providerIds = (providers.data || []).map(provider => provider.id);
+    if (!providerIds.length) throw Error('Your coach account is unavailable. Reopen your dashboard.');
     const thread = await db.from('conversations').select('id').eq('kind', 'direct').eq('client_id', clientId)
-      .eq('provider_role', role).eq('provider_id', provider.data.id).maybeSingle();
+      .eq('provider_role', role).in('provider_id', providerIds).order('id').limit(1).maybeSingle();
     if (thread.error) throw Error('Could not load your client conversation. Try again.');
     if (thread.data?.id) return thread.data.id;
   }

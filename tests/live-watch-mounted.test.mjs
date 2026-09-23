@@ -108,9 +108,9 @@ for (const role of ['trainer', 'nutritionist']) test(`${role} app monitor saves 
   db.auth.getUser = async () => ({ data: { user: { id: currentOwner } } });
   db.from = table => {
     queried.push(table); let pending;
-    const q = { select() { return q; }, eq() { return q; }, order() { return q; },
+    const q = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; },
       maybeSingle: async () => ({ data: { id: table === 'conversations' ? role + '-private-thread' : 'provider' } }),
-      limit: async () => ({ data: [] }), insert(row) { pending = row; writes.push(row); return q; },
+      limit() { return q; }, then(resolve, reject) { return Promise.resolve({data: table === 'messages' ? [] : [{id: 'provider'}]}).then(resolve, reject); }, insert(row) { pending = row; writes.push(row); return q; },
       single: async () => ({ data: { ...pending, id: 'saved-feedback' } }) };
     return q;
   };

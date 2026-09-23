@@ -762,6 +762,7 @@ function ChatWidget(props) {
       setOpen(true);
       const descriptor = (arg && typeof arg === "object") ? arg : null;
       const who = descriptor ? descriptor.who : (typeof arg === "string" ? arg : null);
+      const conversationId = descriptor && descriptor.conversationId;
       if (!tabId && descriptor && descriptor.tab) tabId = descriptor.tab;
       // Pre-fill the target tab's composer, keeping anything already typed.
       const fillDraft = (ti) => {
@@ -773,7 +774,7 @@ function ChatWidget(props) {
         const ti = tabs.findIndex(t => t.id === tabId);
         if (ti >= 0) setTabIdx(ti);
       }
-      if (!who) {
+      if (!who && !conversationId) {
         // Draft-only deep link (e.g. the client's "Message your coach"):
         // land on the requested tab with the opener ready to edit.
         const ti = tabId ? tabs.findIndex(t => t.id === tabId) : tabIdx;
@@ -781,10 +782,14 @@ function ChatWidget(props) {
         return;
       }
 
-      const searchTabs = tabId ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
+      // An explicit conversation is authoritative across tabs. Names are only
+      // for legacy links: two clients or a member/professional DM can share one.
+      const searchTabs = tabId && !conversationId ? [tabs.findIndex(t => t.id === tabId)] : threadsByTab.map((_, i) => i);
       for (const ti of searchTabs) {
         if (ti < 0) continue;
-        const idx = (threadsByTab[ti] || []).findIndex(t => t.who.toLowerCase().includes(who.toLowerCase()));
+        const idx = (threadsByTab[ti] || []).findIndex(t => conversationId
+          ? t.conversationId === conversationId
+          : t.who.toLowerCase().includes(who.toLowerCase()));
         if (idx >= 0) {
           setTabIdx(ti);
           setActiveByTab(prev => prev.map((v, i) => i === ti ? idx : v));
@@ -798,7 +803,7 @@ function ChatWidget(props) {
       // thread on the current tab so the user can start typing right away.
       if (descriptor) {
         const fresh = {
-          who,
+          who: who || "Direct message",
           role: descriptor.role || descriptor.eyebrow || "Direct message",
           last: "",
           time: "now",
