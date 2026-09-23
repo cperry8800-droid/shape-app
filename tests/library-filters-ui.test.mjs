@@ -15,6 +15,7 @@ Object.defineProperty(globalThis, 'navigator', { value: window.navigator, config
 Object.defineProperty(document, 'hidden', { value: false, configurable: true });
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require('react'); globalThis.React = React;
+Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/newdesign/coachBuilderLayouts.jsx', import.meta.url)), {appendExports:'export {COACH_BUILDER_LAYOUTS, CoachBuilderNav, CoachBuilderFooter, coachTemplateCopy};'}));
 const { createRoot } = require('react-dom/client'); globalThis.ReactDOM = require('react-dom');
 globalThis.DashBuilder = require('../public/newdesign/dashBuilderCore.js');
 globalThis.DashMeals = require('../public/newdesign/dashMealCore.js');
@@ -365,7 +366,7 @@ test('Programs: a program started while the library loads survives the first ans
 test('Programs: signing in closes an example program the preview had open', async () => {
   dashboard('demo'); stubFetch({ libraryOk: false });
   await mount(React.createElement(TrainerProgramsPage));
-  await click(buttonStarting('Edit workout'));
+  await click(buttonStarting('Edit template'));
   assert.ok(button('← Library'));
   stubFetch();
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
@@ -576,7 +577,7 @@ test('Meal plans: the preview and another account both close an open plan', asyn
   // Preview → signed in (a session started in another tab) → the example plan closes.
   dashboardN('demo'); stubMeals({ ok: false });
   await mount(React.createElement(NutritionistPlansPage));
-  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit'));
+  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit template'));
   assert.ok(button('← Library'));
   stubMeals();
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
@@ -584,7 +585,7 @@ test('Meal plans: the preview and another account both close an open plan', asyn
   assert.ok(!button('← Library'), 'the open plan closed');
   assert.match(text(), /Lean Week/);
   // Account A → account B.
-  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit'));
+  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit template'));
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ ownerId: 'nutri-b', plans: [MEALS[1]] }) });
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
   await settle();
@@ -599,7 +600,7 @@ test('Meal plans: the preview and another account both close an open plan', asyn
 test('Meal plans: signed in from the start, another account still closes an open plan', async () => {
   dashboardN('live'); stubMeals();
   await mount(React.createElement(NutritionistPlansPage));
-  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit'));
+  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit template'));
   assert.ok(button('← Library'));
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ ownerId: 'nutri-b', plans: [MEALS[1]] }) });
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });

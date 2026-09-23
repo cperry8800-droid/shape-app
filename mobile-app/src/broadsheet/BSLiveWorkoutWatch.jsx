@@ -1,8 +1,10 @@
 import React from 'react';
 import { bsValidLivePayload, bsValidLiveCoachPayload } from '../services/liveProgress.mjs';
+import { createWorkoutDiscussion } from '../../../public/newdesign/workoutDiscussion.mjs';
+const WorkoutDiscussion = createWorkoutDiscussion(React);
 
-// A coach observes the client's ledger. Only the cue composer writes anything.
-export default function BSLiveWorkoutWatch({ client = 'Alex Rivera', clientId = null, workout = 'Upper Pull — Peak', role = 'trainer', onBack = () => {}, t, tr, masthead, mastTop = '44px' }) {
+// Client readings stay read-only; cues and private feedback use their own stores.
+export default function BSLiveWorkoutWatch({ client = 'Alex Rivera', clientId = null, workout = 'Upper Pull — Peak', role = 'trainer', onBack = () => {}, onMessage, t, tr, masthead, mastTop = '44px' }) {
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const [now, setNow] = React.useState(Date.now());
   const [demoStart] = React.useState(() => Date.now() - 1855000);
@@ -155,6 +157,11 @@ export default function BSLiveWorkoutWatch({ client = 'Alex Rivera', clientId = 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>{quickCues.map(q => <button type="button" key={q} disabled={!canSend || cueState === 'sending'} onClick={() => sendCue(q)} style={{ ...button, opacity: !canSend || cueState === 'sending' ? 0.5 : 1 }}>{q}</button>)}</div>
       <p style={{ ...mono, lineHeight: 1.6 }}>{tr('coach:live.cueFocusNote', { defaultValue: 'Your latest cue also updates your coaching focus note.' })}</p>
     </section>
+    {liveMode && authValid && <div style={section}><WorkoutDiscussion key={clientId + ':' + (sourceRow?.started_at || '')}
+      db={window.ShapeAuth?.client} clientId={clientId} clientName={client} role={role}
+      startedAt={sourceRow?.started_at} title={workoutName} exercise={cur?.n} canComment={canSend}
+      theme={{ink:t.INK,muted:t.INK70,line:t.RULE,paper:t.PAPER2}}
+      onOpenChat={conversationId=>{if(onMessage)onMessage(conversationId);else {onBack();window.dispatchEvent(new CustomEvent('shape:proMessageClient',{detail:{client:{userId:clientId,n:client},conversationId}}));}}}/></div>}
     {queue.length > 0 && <section style={section}>
       <h2 style={heading}>{tr('coach:live.queue', { defaultValue: 'Queue' })}</h2>
       {queue.map(m => <div key={m.index} style={{ borderLeft: `3px solid ${m.index === curIdx ? teal : 'transparent'}`, display: 'flex', alignItems: 'baseline', gap: 10, padding: '14px 0 14px 10px', borderBottom: `1px solid ${t.HAIR}` }}>

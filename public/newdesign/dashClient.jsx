@@ -171,6 +171,7 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 500 }}>{e.name}</div>
             <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.05em", color: ink50, marginTop: 2 }}>{e.scheme}</div>
+            {typeof ShapeWorkoutDocument !== "undefined" && ShapeWorkoutDocument.videoUrl(e.video) && <details style={{marginTop:8}}><summary style={{cursor:"pointer",fontSize:13,minHeight:32}}>Preview {e.name} demonstration</summary><video src={ShapeWorkoutDocument.videoUrl(e.video)} controls playsInline preload="none" style={{width:"100%",maxHeight:260,marginTop:8}}/></details>}
             {e.cue && <div style={{ fontSize: 11.5, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", marginTop: 3 }}>“{e.cue}”</div>}
           </div>
           <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{e.load}</span>

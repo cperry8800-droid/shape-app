@@ -1221,8 +1221,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       const c = e?.detail?.client;
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
-      let cid = null;
-      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) {
+      let cid = e?.detail?.conversationId || null;
+      if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }
       setChatRequest({ coach: name, role: 'Client', conversationId: cid, nonce: Date.now() });
@@ -1285,7 +1285,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   if (showReviews) return takeover(<BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
   if (showHabits) return takeover(<BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => { if (!navBack()) setShowHabits(false); }} onOpenScore={() => { navPush(); setShowHabits(false); setStoreView('score'); setTab('store'); }} />);
   if (queueView) return takeover(<BSProWidgetQueuePage role="trainer" type={queueView} onBack={() => { if (!navBack()) setQueueView(null); }} />);
-  if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} />);
+  if (liveWatch) return takeover(<BSProLiveWatch client={liveWatch.client} clientId={liveWatch.clientId} workout={liveWatch.workout} onBack={() => setLiveWatch(null)} onMessage={conversationId=>{setChatRequest({coach:liveWatch.client,role:'Client',conversationId,nonce:Date.now()});setLiveWatch(null);setTab('chat');}} />);
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
@@ -4191,6 +4191,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [cGoalsLoaded, setCGoalsLoaded] = useStateBSP(false);
   const [showAdjust, setShowAdjust] = useStateBSP(false);
   const [showAdjustPage, setShowAdjustPage] = useStateBSP(false);
+  const [showWorkoutWatch, setShowWorkoutWatch] = useStateBSP(false);
   const [showSchedulePage, setShowSchedulePage] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
   const [showDraft, setShowDraft] = useStateBSP(false);
@@ -4410,6 +4411,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [bodyRef, bodySeen] = useSdInView();
   const bodyStatsSeen = bodySeen;
   if (!client) return null;
+  if (showWorkoutWatch) return <BSProLiveWatch key={clientUid} client={client.n} clientId={clientUid} role={role} onBack={()=>setShowWorkoutWatch(false)} />;
   if (showAdjustPage) return <BSProAdjustProgram client={client} role={role} clientUid={clientUid} onBack={() => setShowAdjustPage(false)} />;
   if (showSchedulePage) return <BSProScheduleSession client={client} role={role} clientUid={clientUid} onBack={() => setShowSchedulePage(false)} />;
   if (showAssignPage) return <BSProAssignPage role={role} client={client} clientUid={clientUid} onBack={() => setShowAssignPage(false)} onDone={() => setShowAssignPage(false)} />;
@@ -4590,6 +4592,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {actionCell(tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' }), () => setShowDraft(true))}
       </div>
       {showDraft && <BSProCheckinDraft clientUid={clientUid} clientName={client.n} role={role} stats={cStats} accent={accent} onClose={() => setShowDraft(false)} />}
+      {clientUid && !isPast && <button type="button" onClick={()=>setShowWorkoutWatch(true)} style={{minHeight:44,width:'100%',marginTop:12,padding:'12px 14px',border:`1px solid ${t.RULE}`,borderRadius:8,background:t.PAPER2,color:t.INK,fontFamily:t.DISPLAY,fontSize:15,textAlign:'left',cursor:'pointer'}}>{tr('coach:live.watchTitle', {defaultValue:'Workout monitor'})} →</button>}
       {/* §C tabs — PROFILE / MANAGE typographic index, drawn heat underline. */}
       <div style={{ marginTop: 4, display: 'flex' }}>
         {[['profile', isNutri ? tr('coach:case.tabPlan', { defaultValue: 'PLAN' }) : tr('coach:case.tabProfile', { defaultValue: 'PROFILE' })], ['manage', tr('coach:case.tabManage', { defaultValue: 'MANAGE' })]].map(([k, label]) => {
@@ -6711,8 +6714,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       const c = e?.detail?.client;
       const uid = c && (c.userId || c.user_id || (typeof c.id === 'string' && c.id.includes('-') ? c.id : null));
       const name = (c && c.n) || 'Client';
-      let cid = null;
-      if (uid && window.ShapeMessages?.getOrCreateMemberConversation) {
+      let cid = e?.detail?.conversationId || null;
+      if (!cid && uid && window.ShapeMessages?.getOrCreateMemberConversation) {
         try { const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: uid }); cid = (conv && conv.data) || null; } catch (err) {}
       }
       setChatRequest({ coach: name, role: 'Client', conversationId: cid, nonce: Date.now() });

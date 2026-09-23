@@ -19,8 +19,8 @@ const DMB_RED = "var(--sh-rust, #e0644b)";
 function dmbBtn(primary, c) {
   const col = c || DMB_GOLD;
   return primary
-    ? { fontFamily: DMB_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: col, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" }
-    : { fontFamily: DMB_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
+    ? { fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, fontWeight: 600, minHeight: 36, color: "var(--sh-deep, #06231f)", background: col, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" }
+    : { fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, fontWeight: 600, minHeight: 36, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
 }
 const dmbField = { boxSizing: "border-box", padding: "7px 9px", borderRadius: 4, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, outline: "none" };
 const dmbLabel = { fontFamily: DMB_MONO, fontSize: 7.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DMB_INK50, display: "block", marginBottom: 3 };
@@ -36,7 +36,8 @@ function dmbWriteDraft(id, name, doc) {
     const all = JSON.parse(localStorage.getItem(DMB_DRAFT_KEY) || "{}");
     all[id] = { name, doc, at: Date.now() };
     localStorage.setItem(DMB_DRAFT_KEY, JSON.stringify(all));
-  } catch (e) {}
+    return true;
+  } catch (e) { return false; }
 }
 
 // ── Food picker popover — search is FILTERED by the plan's constraints ──────
@@ -82,7 +83,7 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
   );
   const head = (t) => <div style={{ fontFamily: DMB_MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DMB_INK50, margin: "9px 0 2px", padding: "0 4px" }}>{t}</div>;
   return (
-    <div style={{ position: "absolute", zIndex: 60, top: "100%", left: 0, marginTop: 6, width: 360, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", borderRadius: 8, boxShadow: "0 18px 48px rgba(0,0,0,0.5)", padding: 10 }}>
+    <div style={{ position: "absolute", zIndex: 60, top: "100%", left: 0, marginTop: 6, width: "min(360px, calc(100vw - 72px))", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", borderRadius: 8, boxShadow: "0 18px 48px rgba(0,0,0,0.5)", padding: 10 }}>
       <input autoFocus value={q} onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => {
           // ⚠ WHILE AN IME IS COMPOSING, THE KEYSTROKES BELONG TO THE IME. The Enter that
@@ -137,19 +138,19 @@ function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge, c
   return (
     <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderLeft: "3px solid " + (badge ? badge.c : "rgba(var(--sh-ink-rgb, 242,237,228),0.16)"), borderRadius: 4, padding: "9px 11px", marginBottom: 7, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, flexWrap: "wrap" }}>
-        <select value={meal.slot} onChange={(e) => set("slot", e.target.value)} style={{ ...dmbField, fontFamily: DMB_MONO, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: DMB_GOLD, padding: "5px 7px" }}>
+        <select aria-label={meal.name + " meal slot"} value={meal.slot} onChange={(e) => set("slot", e.target.value)} style={{ ...dmbField, fontFamily: DMB_MONO, fontSize: 9, textTransform: "uppercase", letterSpacing: "0.1em", color: DMB_GOLD, padding: "5px 7px" }}>
           {DashMeals.SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <input value={meal.name} onChange={(e) => set("name", e.target.value)} style={{ ...dmbField, flex: 1, minWidth: 150, fontWeight: 500 }} />
+        <input aria-label="Meal name" value={meal.name} onChange={(e) => set("name", e.target.value)} style={{ ...dmbField, flex: 1, minWidth: 150, fontWeight: 500 }} />
         {badge && <DashPill c={badge.c}>{badge.label}</DashPill>}
         {followers && <span title="The rest/travel variants currently follow this meal — your next edit asks whether they should keep up" style={{ fontFamily: DMB_MONO, fontSize: 7.5, letterSpacing: "0.06em", color: DMB_INK50 }}>VARIANTS FOLLOW</span>}
         <button onClick={onRemove} aria-label="Remove meal" style={{ ...dmbBtn(false), padding: "4px 8px", color: DMB_RED, borderColor: "rgba(var(--sh-rust-rgb, 224,100,75),0.4)" }}>×</button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 76px)", gap: 8 }}>
-        <div><span style={dmbLabel}>kcal</span><input type="number" value={meal.kcal} onChange={num("kcal")} style={{ ...dmbField, width: "100%" }} /></div>
-        <div><span style={dmbLabel}>Protein g</span><input type="number" value={meal.p} onChange={num("p")} style={{ ...dmbField, width: "100%" }} /></div>
-        <div><span style={dmbLabel}>Carbs g</span><input type="number" value={meal.c} onChange={num("c")} style={{ ...dmbField, width: "100%" }} /></div>
-        <div><span style={dmbLabel}>Fat g</span><input type="number" value={meal.f} onChange={num("f")} style={{ ...dmbField, width: "100%" }} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(70px, 1fr))", gap: 8 }}>
+        <div><span style={dmbLabel}>kcal</span><input aria-label={meal.name + " Calories"} type="number" value={meal.kcal} onChange={num("kcal")} style={{ ...dmbField, width: "100%" }} /></div>
+        <div><span style={dmbLabel}>Protein g</span><input aria-label={meal.name + " Protein g"} type="number" value={meal.p} onChange={num("p")} style={{ ...dmbField, width: "100%" }} /></div>
+        <div><span style={dmbLabel}>Carbs g</span><input aria-label={meal.name + " Carbs g"} type="number" value={meal.c} onChange={num("c")} style={{ ...dmbField, width: "100%" }} /></div>
+        <div><span style={dmbLabel}>Fat g</span><input aria-label={meal.name + " Fat g"} type="number" value={meal.f} onChange={num("f")} style={{ ...dmbField, width: "100%" }} /></div>
         <div><span style={dmbLabel}>Prep</span><div style={{ fontFamily: DMB_MONO, fontSize: 10.5, color: DMB_INK50, paddingTop: 8 }}>{meal.prepMin != null ? meal.prepMin + " min" : "—"}</div></div>
       </div>
       {/* Swap group — approved alternates; the client's ⇄ chip cycles these */}
@@ -232,7 +233,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods })
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 160 }}>
           <span style={dmbLabel}>Day name</span>
-          <input value={day.name} onChange={(e) => onChange({ ...day, name: e.target.value })} style={{ ...dmbField, width: "100%", fontSize: 14 }} />
+          <input aria-label="Meal day name" value={day.name} onChange={(e) => onChange({ ...day, name: e.target.value })} style={{ ...dmbField, width: "100%", fontSize: 14 }} />
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {activeVariants.map((v) => (
@@ -426,7 +427,7 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 250 }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
+      <button type="button" aria-label="Close assignment" onClick={onClose} style={{ position: "absolute", inset: 0, width: "100%", border: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(480px, 94vw)", maxHeight: "86vh", overflowY: "auto", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
         <div style={{ fontFamily: DMB_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DMB_GOLD }}>Assign · {template.name}</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
@@ -516,9 +517,17 @@ function DmbClientPreview({ doc, day, variant }) {
 }
 
 // ── The builder ─────────────────────────────────────────────────────────────
-function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods }) {
+function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId }) {
+  const prefs = useRememberedChoices(!!live);
+  const [layout, setLayout] = useRememberedChoice(prefs, "mealBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
+  const [step, setStep] = React.useState(0);
+  const steps = ["Targets", "Meals", "Rotation", "Review"];
+  const guided = layout === "guided";
+  const [templateSaved, setTemplateSaved] = React.useState(false);
+  const [saveError, setSaveError] = React.useState("");
   const [name, setName] = React.useState(template.name);
   const [doc, setDoc] = React.useState(() => JSON.parse(JSON.stringify(template.detail.mealBuilder)));
+  React.useEffect(() => setTemplateSaved(false), [name, doc]);
   // ⚠ THE OPEN PLAN COUNTS TOO — `customFoods` comes from SAVED plans, so a dish
   // named a minute ago would not be offered for the next day until this one had
   // been saved and re-fetched, which reads as the feature not working.
@@ -530,36 +539,54 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
   const ownFoods = React.useMemo(() => DashMeals.ownFoodsFor(doc, customFoods), [customFoods, doc]);
   const [sel, setSel] = React.useState(0);
   const [previewVariant, setPreviewVariant] = React.useState("training");
-  const [preview, setPreview] = React.useState(true);
+  const [preview, setPreview] = React.useState(false);
   const [saveState, setSaveState] = React.useState("saved");
   const [assigning, setAssigning] = React.useState(!!assignClientId);
-  const idRef = React.useRef(template.id);
-
-  // Autosave (debounced): live → /api/coach/plans, else localStorage drafts.
-  React.useEffect(() => {
+  const persisted = React.useRef(!!template.id && !String(template.id).startsWith("demo-"));
+  const idRef = React.useRef(persisted.current ? template.id : crypto.randomUUID());
+  const ownerRef = React.useRef(ownerId);
+  const latest = React.useRef({name,doc}); latest.current = {name,doc};
+  const saved = React.useRef(JSON.stringify({name,doc}));
+  const flight = React.useRef(null), active = React.useRef(true);
+  React.useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
+  // Save, autosave, leave and assign share one lane. Reusing a template must POST
+  // its fresh id only once, even when Save is pressed during the debounce.
+  const flush = async () => {
+    if(flight.current){if(!await flight.current)return false;if(saved.current!==JSON.stringify(latest.current))return flush();return true;}
+    const value=latest.current, serial=JSON.stringify(value);
+    if(persisted.current && saved.current===serial)return true;
+    if(!value.name.trim()){setSaveError("Give this meal plan a name.");return false;}
+    setSaveError("");setSaveState("saving");
+    flight.current=(async()=>{
+      try{
+        if(live){
+          const res=await fetch("/api/coach/plans",{method:persisted.current?"PATCH":"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:idRef.current,kind:"meal_plan",name:value.name,expectedOwnerId:ownerRef.current,meta:value.doc.targets.kcal+" kcal · "+dmbPhase(value.doc.goalPhase).label,detail:{...(template.detail||{}),mealBuilder:value.doc}})});
+          const data=await res.json();
+          if(!res.ok || !data.plan?.id)throw Error(data.error || "Save failed. Keep this page open and retry to save your edits.");
+          idRef.current=data.plan.id;persisted.current=true;
+        } else if(!dmbWriteDraft(idRef.current,value.name,value.doc))throw Error("This browser could not retain your draft. Keep this page open.");
+        saved.current=serial;
+        if(active.current){setSaveState("saved");onSaved?.({id:idRef.current,name:value.name,doc:value.doc});}
+        return true;
+      }catch(e){if(active.current){setSaveState("error");setSaveError(e.message || "Save failed. Retry.");}return false;}
+      finally{flight.current=null;}
+    })();
+    const ok = await flight.current;
+    // Edits made during a request must finish saving before leaving or assigning.
+    return ok && saved.current !== JSON.stringify(latest.current) ? flush() : ok;
+  };
+  React.useEffect(()=>{
+    if(saved.current===JSON.stringify({name,doc}))return;
+    if(!live)dmbWriteDraft(idRef.current,name,doc);
     setSaveState("dirty");
-    const t = setTimeout(async () => {
-      setSaveState("saving");
-      try {
-        if (live) {
-          if (idRef.current && !String(idRef.current).startsWith("demo-")) {
-            const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: idRef.current, name, detail: { ...(template.detail || {}), mealBuilder: doc } }) });
-            if (!res.ok) throw new Error("save failed");
-          } else {
-            const res = await fetch("/api/coach/plans", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "meal_plan", name, meta: doc.targets.kcal + " kcal · " + dmbPhase(doc.goalPhase).label, detail: { mealBuilder: doc } }) });
-            const d = await res.json();
-            if (d && d.plan && d.plan.id) idRef.current = d.plan.id;
-            else if (d && d.id) idRef.current = d.id;
-          }
-        } else {
-          dmbWriteDraft(idRef.current || "draft-" + Date.now().toString(36), name, doc);
-        }
-        setSaveState("saved");
-        onSaved && onSaved({ id: idRef.current, name, doc });
-      } catch (e) { setSaveState("error"); }
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [doc, name]);
+    const timer=setTimeout(()=>flush(),1200);
+    return()=>clearTimeout(timer);
+  },[name,doc]);
+  React.useEffect(()=>{
+    const guard=e=>{if(saved.current!==JSON.stringify(latest.current)){e.preventDefault();e.returnValue="";}};
+    window.addEventListener("beforeunload",guard);return()=>window.removeEventListener("beforeunload",guard);
+  },[]);
+  const leave=async()=>{if(await flush())onBack();};
 
   const day = doc.days[sel];
   const setDay = (next) => setDoc({ ...doc, days: doc.days.map((d, i) => (i === sel ? next : d)) });
@@ -587,16 +614,19 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
   const resolved = day ? DashMeals.resolveDay(day, curVariant) : [];
   const warnings = day ? DashMeals.checkConstraints(doc, resolved) : [];
   const phase = dmbPhase(doc.goalPhase);
-  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved edits…" : saveState === "error" ? "Save failed — retrying on next edit" : live ? "Saved" : "Draft saved locally";
+  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved edits…" : saveState === "error" ? "Save failed — retrying on next edit" : live ? (persisted.current ? "Saved" : "New template · not saved yet") : "Draft saved locally";
   // One list with the library's Diet filter (DashMeals.ALLERGENS), so a plan built to
   // exclude an allergen and a filter asking for plans without it name the same ones.
   const EXCLUSION_TAGS = DashMeals.ALLERGENS;
 
   return (
-    <div>
+    <div className="cbuilder" data-layout={layout} data-step={step}>
+      <CoachBuilderNav layout={layout} onLayout={setLayout} step={step} onStep={setStep} steps={steps}/>
+      {template.sourceName && (!guided || step === 0) && <p className="cb-copy">Based on <strong>{template.sourceName}</strong>. You’re editing a new copy; the original template stays unchanged.</p>}
+      {guided && <div className="cb-intro"><h2>{["Set the plan’s targets", "Build a day of meals", "Plan the rotation", "Review before sharing"][step]}</h2><p>{["Give this template a name, set targets and dietary exclusions. Your food search uses these choices.", "Add your own meals or choose from the library. Set macros and approved swaps, with optional rest and travel variants.", "Add or copy days to create a rotation. Phase tools adjust every day, variant and swap together.", "Check the client’s meals and grocery list. Save a reusable template or choose clients and a start date."][step]}</p></div>}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <button onClick={onBack} style={dmbBtn(false)}>← Library</button>
-        <input value={name} onChange={(e) => setName(e.target.value)} style={{ ...dmbField, fontSize: 16, fontWeight: 500, minWidth: 220 }} />
+        <button onClick={leave} style={dmbBtn(false)}>← Library</button>
+        <input aria-label="Meal plan name" value={name} onChange={(e) => setName(e.target.value)} style={{ ...dmbField, fontSize: 22, fontWeight: 600, minWidth: 0, flex: "1 1 220px", maxWidth: "100%" }} />
         <select value={doc.goalPhase} onChange={(e) => {
           const p = dmbPhase(e.target.value);
           setDoc({ ...doc, goalPhase: p.key, targets: { ...p.targets }, constraints: { ...doc.constraints, proteinFloor: p.targets.p - 20 } });
@@ -608,23 +638,26 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: DMB_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: preview ? "var(--sh-accent, #2ee0c4)" : DMB_INK50, cursor: "pointer" }}>
           <input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} /> Client preview
         </label>
-        <button onClick={() => setDoc({ ...doc, version: (doc.version || 1) + 1 })} title="Bump the template version — assignments stamp the version they were sent from" style={dmbBtn(false)}>Publish v{(doc.version || 1) + 1}</button>
-        <button onClick={() => setAssigning(true)} style={dmbBtn(true)}>Assign to clients →</button>
+        <button hidden={guided && step !== 3} onClick={() => setDoc({ ...doc, version: (doc.version || 1) + 1 })} title="Bump the template version — assignments stamp the version they were sent from" style={dmbBtn(false)}>Publish v{(doc.version || 1) + 1}</button>
+        <button disabled={saveState === "saving"} onClick={async()=>{if(await flush())setTemplateSaved(true);}} style={dmbBtn(false)}>Save template</button>
+        <button hidden={guided && step !== 3} onClick={async()=>{if(await flush())setAssigning(true);}} style={dmbBtn(true)}>Assign to clients →</button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: preview ? "240px 1fr 360px" : "240px 1fr", gap: 16, alignItems: "start" }}>
+      {saveError && <p role="alert">{saveError} <button style={dmbBtn(false)} onClick={flush}>Retry save</button></p>}
+      {templateSaved && <p role="status">{live ? "Template saved to your library. Use as template makes a separate copy next time." : "Template draft saved on this device. Sign in to save to your library."}</p>}
+      <div className="dmb-layout">
         {/* Left — targets first, then constraints, days, week tools */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div className="dash-plate dash-plate--tick" style={{ "--dac": phase.c, paddingLeft: 22 }}>
+        <div className="dmb-side" hidden={guided && step === 3}>
+          <div hidden={guided && step !== 0} className="dash-plate dash-plate--tick" style={{ "--dac": phase.c, paddingLeft: 22 }}>
             <div className="dash-eyebrow" style={{ color: phase.c }}>Targets · set these first</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
               {[["kcal", "kcal"], ["p", "Protein g"], ["c", "Carbs g"], ["f", "Fat g"]].map(([k, l]) => (
-                <div key={k}><span style={dmbLabel}>{l}</span><input type="number" value={doc.targets[k]} onChange={(e) => setTargets(k, e.target.value)} style={{ ...dmbField, width: "100%" }} /></div>
+                <div key={k}><span style={dmbLabel}>{l}</span><input aria-label={"Daily " + l + " target"} type="number" value={doc.targets[k]} onChange={(e) => setTargets(k, e.target.value)} style={{ ...dmbField, width: "100%" }} /></div>
               ))}
             </div>
           </div>
 
-          <div className="dash-plate" style={{ "--dac": DMB_GOLD, padding: "14px 16px" }}>
+          <div hidden={guided && step !== 0} className="dash-plate" style={{ "--dac": DMB_GOLD, padding: "14px 16px" }}>
             <div className="dash-eyebrow" style={{ color: DMB_GOLD }}>Constraints · filter the food search</div>
             <div style={{ marginTop: 10 }}>
               <span style={dmbLabel}>Protein floor (g/day)</span>
@@ -652,9 +685,9 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
             </div>
           </div>
 
-          <div className="dash-plate" style={{ "--dac": DMB_GOLD, padding: "14px 16px" }}>
+          <div hidden={guided && step === 0} className="dash-plate dmb-rotation" style={{ "--dac": DMB_GOLD, padding: "14px 16px" }}>
             <div className="dash-eyebrow" style={{ color: DMB_GOLD }}>Days · rotation</div>
-            <div style={{ marginTop: 8 }}>
+            <div className={layout === "editor" ? undefined : "dmb-rotation-list"} style={{ marginTop: 8 }}>
               {doc.days.map((d, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
                   <button onClick={() => setSel(i)} style={{ flex: 1, textAlign: "left", cursor: "pointer", border: "1px solid " + (sel === i ? DMB_GOLD : "rgba(var(--sh-ink-rgb, 242,237,228),0.1)"), borderLeft: "3px solid " + (sel === i ? DMB_GOLD : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: sel === i ? "rgba(var(--sh-gold-rgb, 216,162,58),0.1)" : "transparent", color: "var(--sh-ink, #f2ede4)", borderRadius: 4, padding: "7px 9px", fontSize: 12.5 }}>
@@ -671,7 +704,7 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
             </div>
           </div>
 
-          <div className="dash-plate" style={{ "--dac": phase.c, padding: "14px 16px" }}>
+          <div hidden={guided && step !== 2} className="dash-plate" style={{ "--dac": phase.c, padding: "14px 16px" }}>
             <div className="dash-eyebrow" style={{ color: phase.c }}>Phase shift · one step</div>
             <div style={{ fontSize: 11.5, color: DMB_INK50, lineHeight: 1.5, margin: "8px 0 10px" }}>Shifts every day, variant, and swap — kcal recompute from the macros.</div>
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
@@ -684,7 +717,7 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
         </div>
 
         {/* Middle — running bar + the day editor (one shared variant tab) */}
-        <div className="dash-plate dash-plate--tick" style={{ "--dac": DMB_GOLD, paddingLeft: 24 }}>
+        <div hidden={guided && step !== 1 && step !== 2} className="dash-plate dash-plate--tick dmb-content" style={{ "--dac": DMB_GOLD, paddingLeft: 24 }}>
           <span className="dash-eyebrow" style={{ color: DMB_GOLD }}>{day ? day.name : "Day"} · {curVariant === "training" ? "training day" : curVariant + " day"} · running total</span>
           <div className="dash-ledger" style={{ "--dac": DMB_GOLD, margin: "9px 0 10px" }} />
           <DmbTotalsBar meals={resolved} targets={doc.targets} warnings={warnings} />
@@ -694,8 +727,9 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
         </div>
 
         {/* Right — client preview (the literal card) + grocery */}
-        {preview && (
-          <div style={{ position: "sticky", top: 90, display: "flex", flexDirection: "column", gap: 14 }}>
+        {(preview || (guided && step === 3)) && (
+          <div className="dmb-preview">
+            <label>Preview day<select aria-label="Meal preview day" style={dmbField} value={sel} onChange={e=>setSel(Number(e.target.value))}>{doc.days.map((d,i)=><option value={i} key={i}>{d.name}</option>)}</select></label>
             {day && <DmbClientPreview doc={doc} day={day} variant={curVariant} />}
             <div className="dash-plate" style={{ "--dac": DMB_GOLD, padding: "16px 18px" }}>
               <DmbGroceryPanel plan={doc} edits={doc.groceryEdits || {}} onEdits={(e) => setDoc({ ...doc, groceryEdits: e })} />
@@ -704,6 +738,7 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
         )}
       </div>
 
+      {guided && <CoachBuilderFooter step={step} onStep={setStep} steps={steps}/>}
       {assigning && (
         <DmbAssignModal
           template={{ id: idRef.current, name }} doc={doc} groceryEdits={doc.groceryEdits || {}}
@@ -732,7 +767,7 @@ function DmbLifecyclePanel({ lifecycle, onWritePlan }) {
           return (
             <div key={g.key}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: DMB_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: g.c }}>{g.label}</span>
+                <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, fontWeight: 600, minHeight: 36, color: g.c }}>{g.label}</span>
                 <span style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_INK50 }}>{list.length}</span>
               </div>
               <div style={{ fontSize: 11, color: DMB_INK50, lineHeight: 1.45, margin: "4px 0 8px" }}>{g.sub}</div>
@@ -865,13 +900,14 @@ function NutritionistPlansPage() {
       >
         {view ? (
           <DmbBuilder
-            template={view.template}
+            key={view.template.id || view.template.name}
+            template={view.template} ownerId={libraryOwner.current}
             clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
             assignClientId={view.assignClientId}
             customFoods={customFoods}
             onBack={() => { setView(null); setRefresh((n) => n + 1); }}
             onSaved={({ id, name, doc }) => {
-              setTemplates((prev) => (prev || []).map((t) => (t === view.template || t.id === id ? { ...t, id: id || t.id, name, detail: { ...(t.detail || {}), mealBuilder: doc } } : t)));
+              setTemplates(prev => [{id,name,detail:{...view.template.detail,mealBuilder:doc}},...(prev||[]).filter(t=>t.id!==id)]);
             }}
           />
         ) : (
@@ -910,7 +946,8 @@ function NutritionistPlansPage() {
                     <div style={{ fontFamily: DMB_MONO, fontSize: 8.5, lineHeight: 1.6, color: DMB_INK50, marginTop: 6 }}>{dmbCardFacts(info)}</div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                       <button onClick={() => setAssignFor({ template: t })} style={dmbBtn(true)}>Assign to client</button>
-                      <button onClick={() => setView({ template: t })} style={dmbBtn(false)}>Edit</button>
+                      <button onClick={() => setView({ template: coachTemplateCopy(t) })} style={dmbBtn(true)}>Use as template</button>
+                      <button onClick={() => setView({ template: t })} style={dmbBtn(false)}>Edit template</button>
                     </div>
                   </div>
                 );

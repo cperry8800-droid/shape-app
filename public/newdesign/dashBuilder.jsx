@@ -774,8 +774,9 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
 }
 
 // ── Day editor (right pane) ──────────────────────────────────────────────────
-function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves }) {
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, compact = false }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
+  const [expanded, setExpanded] = React.useState(day.blocks[0]?.rows[0]?.id || "");
   const labels = DashBuilder.rowLabels(day);
   let labelIdx = 0;
   const setBlock = (bi, next) => onChange({ ...day, blocks: day.blocks.map((b, i) => (i === bi ? next : b)) });
@@ -831,7 +832,9 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
           {block.rows.map((row, ri) => {
             const label = labels[labelIdx]; labelIdx += 1;
             return (
-              <DbuRow key={row.id} row={row} label={label} clips={clips} onUploading={onUploading}
+              <details className="cb-exercise" key={row.id} open={!compact || expanded === row.id}>
+                <summary onClick={compact ? e=>{e.preventDefault();setExpanded(expanded===row.id?"":row.id);} : undefined}>{label} · {row.name}<small>{row.sets} × {row.reps}{row.rest ? " · rest " + row.rest : ""}{row.video ? " · video" : ""}</small></summary>
+              <DbuRow row={row} label={label} clips={clips} onUploading={onUploading}
                 onDuplicate={() => setBlock(bi, {...block, rows:[...block.rows.slice(0,ri+1),{...JSON.parse(JSON.stringify(row)),id:crypto.randomUUID()},...block.rows.slice(ri+1)]})}
                 onChange={(next) => setBlock(bi, { ...block, rows: block.rows.map((r, i) => (i === ri ? next : r)) })}
                 onRemove={() => setBlock(bi, { ...block, rows: block.rows.filter((_, i) => i !== ri) })}
@@ -842,13 +845,14 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
                   [rows[ri], rows[j]] = [rows[j], rows[ri]];
                   setBlock(bi, { ...block, rows });
                 }} />
+              </details>
             );
           })}
           <div style={{ position: "relative", display: "inline-block" }}>
             <button onClick={() => setPickerFor(pickerFor === bi ? null : bi)} style={dbuBtn(false)}>+ Exercise</button>
             {pickerFor === bi && (
               <DbuExercisePicker customMoves={customMoves}
-                onPick={(items) => { setBlock(bi, { ...block, rows: [...block.rows, ...items.map((ex) => DashBuilder.newRow(ex))] }); setPickerFor(null); }}
+                onPick={(items) => { const added=items.map(ex=>DashBuilder.newRow(ex)); setBlock(bi, { ...block, rows: [...block.rows, ...added] }); if(added.length)setExpanded(added[0].id); setPickerFor(null); }}
                 onClose={() => setPickerFor(null)} />
             )}
           </div>
@@ -1326,11 +1330,20 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   // per-account document without one; the switch still works, it just does not persist.
   const prefs = useRememberedChoices(!!live);
   const [view, setViewRaw] = useRememberedChoice(prefs, "builderView", DBU_VIEW_KEYS, "grid");
-  // ⚠ SWITCHING TO SHEET CLOSES THE DAY PANEL. The panel floats over the canvas, and in Sheet
-  // that covers the week columns the view exists to read left to right — measured: the drawer
-  // sits at x 978 over a 1,056px table, hiding Week 2 entirely. In Grid it covers three rest
-  // cells, which is the board's own `G-grid` artboard. So the panel is Grid's editing surface
-  // and the sheet's cells are Sheet's; opening a day from a band still works and still floats.
+  const [layout, chooseLayout] = useRememberedChoice(prefs, "workoutBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
+  const [step, setStep] = React.useState(0);
+  const [popped, setPopped] = React.useState(false);
+  const [showSchedule, setShowSchedule] = React.useState(false);
+  const steps = ["Basics", "Exercises", "Schedule", "Review"];
+  const [templateSaved, setTemplateSaved] = React.useState(false);
+  React.useEffect(() => setTemplateSaved(false), [name, doc]);
+  const goStep = next => { setStep(next); if (sel.w < 0) setSel({w:0,d:0}); };
+  const setLayout = next => { chooseLayout(next); setPopped(false); if (sel.w < 0) setSel({w:0,d:0}); };
+  const guided = layout === "guided";
+  const scheduleShown = layout === "planner" || (guided ? step === 2 : showSchedule);
+  const selectDay = next => { setSel(next); if (guided && step === 2) setStep(1); };
+  // Sheet edits its own cells. Close the day editor when switching, then reopen
+  // it from a day heading; coaches can explicitly pop it out when they need to.
   const setView = (next) => { if (next === "sheet") setSel({ w: -1, d: -1 }); setViewRaw(next); };
   // ⚠ THE OPEN DOCUMENT COUNTS TOO. `customMoves` comes from SAVED templates, so a
   // move created ten seconds ago would not be offered for the next day until the
@@ -1343,7 +1356,8 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   const ownMoves = React.useMemo(() => DashBuilder.ownMovesFor(doc, customMoves), [customMoves, doc]);
   const [preview, setPreview] = React.useState(false);
   // The two floating panels, on one drag rule (`useDbuDrag`).
-  const floating = useDbuFloating();
+  const canFloat = useDbuFloating();
+  const floating = canFloat && popped;
   const stageRef = React.useRef(null);
   const panelOpen = sel.w >= 0 && sel.d >= 0;
   const panel = useDbuDrag({ enabled: floating, open: panelOpen, defaultPos: () => dbuDefaultPanelPos(stageRef.current) });
@@ -1394,7 +1408,9 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
       }catch(e){if(active.current){setSaveState('error');setSaveConflict(!!e.saveConflict);setError(e.message || 'Save failed. Retry.');}return false;}
       finally{flight.current=null;}
     })();
-    return flight.current;
+    const ok = await flight.current;
+    // A save/leave/assign action includes edits made while its request was pending.
+    return ok && saved.current !== JSON.stringify(latest.current) ? flush() : ok;
   };
   React.useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
   React.useEffect(()=>{
@@ -1459,7 +1475,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
   };
 
   const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you" }) : null;
-  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? "Saved" : "Draft saved locally";
+  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? (persisted.current ? "Saved" : "New template · not saved yet") : "Draft saved locally";
 
   // The reference Monday the dates on this page are drawn for. It lives ON the document
   // (`detail.builder.previewStart`) so it survives a reload, and it is a REFERENCE only —
@@ -1596,7 +1612,10 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
 /* The thin-scrollbar rules live in dash.css (.dash-thin-scroll) because the meal
    builder needs the same ones and has no style host of its own. */
 `}</style>
-      <div className="dbu2">
+      <div className="dbu2 cbuilder" data-layout={layout} data-step={step}>
+        <CoachBuilderNav layout={layout} onLayout={setLayout} step={step} onStep={goStep} steps={steps} busy={!!uploads}/>
+        {template.sourceName && (!guided || step === 0) && <p className="cb-copy">Based on <strong>{template.sourceName}</strong>. You’re editing a new copy; the original template stays unchanged.</p>}
+        {guided && <div className="cb-intro"><h2>{["Start with the basics", "Build your workout", "Arrange days and weeks", "Ready for your clients?"][step]}</h2><p>{["Name this template so you can find it and use it again. You can assign it to clients whenever you’re ready.", "Choose a day, add exercises, then set the prescription. Rest, RPE and demonstration videos are available on every exercise.", "Repeat a week, add progression or plan a deload. Each client’s start date is chosen when you assign the plan.", "Check each day as your client will see it. Save the template for later or choose clients and a start date."][step]}</p></div>}
         {/* ── Header ──────────────────────────────────────────────────────────
             One row that never moves between the two views: who this is, when it is
             drawn for, what it adds up to, and the one primary action. */}
@@ -1604,11 +1623,11 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
           <div style={{ minWidth: 260, flex: "1 1 320px" }}>
             <button type="button" className="back" onClick={leave} disabled={!!uploads} style={{ marginBottom: 6 }}>← Library</button>
             <input aria-label="Workout or program name" value={name} onChange={(e) => setName(e.target.value)}
-              style={{ fontFamily: DBU_DISPLAY, fontWeight: 600, fontVariationSettings: "'wdth' 112", fontSize: 34, letterSpacing: "-.01em", lineHeight: 1.05, color: DBU_INK,
+              style={{ fontFamily: DBU_DISPLAY, fontWeight: 600, fontVariationSettings: "'wdth' 112", fontSize: guided && step !== 0 ? 24 : 34, letterSpacing: "-.01em", lineHeight: 1.05, color: DBU_INK,
                 background: "transparent", border: 0, borderBottom: "1px solid transparent", padding: 0, width: "100%", outline: "none" }}
               onFocus={(e) => { e.target.style.borderBottomColor = DBU_LINE2; }}
               onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
-            <div className="meta">
+            <div className="meta" hidden={guided && step !== 0}>
               <DbuTagPicker tags={doc.tags} customTags={customTags} onChange={(tags) => setDoc({ ...doc, tags })} />
               <span className="chip">
                 Starts
@@ -1621,14 +1640,15 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
             {/* ⚠ The reference Monday is a REFERENCE. Each client's real start is chosen per
                 client at assign, so the page says so rather than letting a coach read this
                 as the start date their clients get. */}
-            <div className="saved" style={{ marginTop: 6 }}>Each client's own start is chosen at assign.</div>
+            <div className="saved" hidden={guided && step !== 0} style={{ marginTop: 6 }}>Each client's own start is chosen at assign.</div>
           </div>
           <div className="acts">
             <button type="button" className="tog" onClick={() => setPreview(!preview)} aria-pressed={preview}>
               <i aria-hidden="true" />Preview as client
             </button>
-            <button type="button" disabled={!!uploads || saveState === "saving"} onClick={() => flush(true)} style={dbuBtn(false)}>Publish</button>
-            <button type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
+            <button type="button" disabled={!!uploads || saveState === "saving"} onClick={async () => { if (await flush()) setTemplateSaved(true); }} style={dbuBtn(false)}>Save template</button>
+            <button hidden={guided && step !== 3} type="button" disabled={!!uploads || saveState === "saving"} onClick={() => flush(true)} style={dbuBtn(false)}>Publish</button>
+            <button hidden={guided && step !== 3} type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
           </div>
         </div>
 
@@ -1645,10 +1665,12 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
             {saveConflict && <button type="button" disabled={!!uploads || saveState === "saving"} style={dbuBtn(false)} onClick={saveAsCopy}>Save as new copy</button>}
           </div>
         )}
+        {templateSaved && <p role="status">{live ? "Template saved to your library. Use as template makes a separate copy next time." : "Template draft saved on this device. Sign in to save to your library."}</p>}
         {doc.outlineOnly && <p style={{ fontSize: 13.5, color: DBU_INK2 }}>This imported outline has day or week titles only. Add exercises before assigning it as a structured workout.</p>}
 
         {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-        <div className="tb">
+        {layout === "editor" && <button className="cb-button" type="button" aria-expanded={showSchedule} onClick={()=>setShowSchedule(!showSchedule)}>{showSchedule ? "Hide schedule tools" : "Arrange days & weeks"}</button>}
+        <div className="tb" hidden={!scheduleShown}>
           <DbuViewSwitch view={view} setView={setView} />
           <div style={{ flex: 1 }} />
           {/* ⚠ "Reuse a saved day" survives the retired tree. It is the one control there with
@@ -1684,25 +1706,34 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
             cells are edited inline anyway) and floats as a popover in Grid (where the panel IS
             how you edit). Both views keep a ~690px canvas with the preview open. */}
         <div className="stage" ref={stageRef}>
+          <div hidden={!scheduleShown}>
           {view === "grid"
-            ? <DbuGrid doc={doc} dates={dates} sel={sel} setSel={setSel} setWeeks={setWeeks} uploads={uploads} onWeek={onWeek} />
-            : <DbuSheet doc={doc} dates={dates} setSel={setSel} setWeeks={setWeeks} />}
+            ? <DbuGrid doc={doc} dates={dates} sel={sel} setSel={selectDay} setWeeks={setWeeks} uploads={uploads} onWeek={onWeek} />
+            : <DbuSheet doc={doc} dates={dates} setSel={selectDay} setWeeks={setWeeks} />}
 
           {/* The day editor, unchanged — every engine control it carries survives the redesign.
               ⚠ IT FLOATS OVER THE CANVAS rather than sitting beside it, which is the board's own
               `.drawer` and is what keeps the canvas full width: as a column it left the grid
               640px — measured — at which "Rest · ＋ Add session" wraps to three lines and the
               sheet's week columns are clipped. Below 1100px it drops back into the flow. */}
-          {day && (
+          </div>
+          <div className={layout === "planner" ? "cb-planner-editor" : "cb-workspace"} hidden={guided && step !== 1 && step !== 3}>
+            {layout !== "planner" && <aside className="cb-days" aria-label="Workout days">
+              <label>Week<select aria-label="Week to edit" value={Math.max(0,sel.w)} style={dbuField} onChange={e=>setSel({w:Number(e.target.value),d:0})}>{doc.weeks.map((w,i)=><option key={i} value={i}>Week {i+1}{w.deload?" · deload":""}</option>)}</select></label>
+              {(week || doc.weeks[0]).days.map((d,i)=><button type="button" className="cb-button" key={d.id || i} aria-pressed={sel.d===i} onClick={()=>setSel({w:Math.max(0,sel.w),d:i})}>{d.name}<small>{d.blocks.reduce((n,b)=>n+b.rows.length,0)} exercises</small></button>)}
+              <button type="button" className="cb-button" onClick={()=>{const wi=Math.max(0,sel.w), w=doc.weeks[wi];setWeeks(doc.weeks.map((v,i)=>i===wi?{...v,days:[...v.days,{...DashBuilder.newDay("Day "+(w.days.length+1)),weekday:dbuNextFreeWeekday(w)}]}:v));setSel({w:wi,d:w.days.length});}}>＋ Add a day</button>
+            </aside>}
+          {day && !(guided && step === 3) && (
             /* ⚠ role="group", NOT "dialog": this panel is not modal, traps no focus and
                sits beside a canvas that stays live. Calling it a dialog tells a
                screen-reader user the rest of the page is inert when it is not. */
-            <div className="drawer float dash-thin-scroll" ref={panel.ref} role="group" aria-label={"Day editor \u00b7 " + day.name}
+            <div className={"drawer float dash-thin-scroll" + (floating ? " is-popped" : "")} ref={panel.ref} role="group" aria-label={"Day editor \u00b7 " + day.name}
               style={floating ? panel.style : undefined}>
               <div className={"dh" + (floating ? " grab" : "")} {...panel.headerProps} style={panel.grabStyle}>
                 {floating && <button type="button" className="gh" aria-label="Move the day editor — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={panel.onKey} title="Drag to move" />}
                 <b>{day.name}</b>
-                {view === "grid" && <button type="button" className="x" onClick={() => setView("sheet")} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
+                {canFloat && <button type="button" className="x" onClick={()=>setPopped(!popped)}>{popped ? "Dock editor" : "Pop out editor"}</button>}
+                {view === "grid" && <button type="button" className="x" onClick={() => {setView("sheet");setShowSchedule(true);if(guided)setStep(2);}} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
                 {/* ⚠ The tree carried a per-day Copy button; the grid moves a day by dragging it
                     to another weekday, which is a different action. Duplication would have been
                     lost with the tree, so it lands here — on the day it is about. */}
@@ -1718,6 +1749,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
               </div>
               <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
               <DbuDayEditor
+                key={sel.w + ":" + day.id}
                 day={day}
                 onChange={setDay}
                 onWeekday={setDayWeekday}
@@ -1725,12 +1757,20 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
                 playlists={playlists}
                 clips={clips}
                 customMoves={ownMoves}
+                compact={guided}
                 onUploading={uploadCount}
               />
             </div>
           )}
 
+          {guided && step === 3 && <section className="cb-review" aria-label="Review workout">
+            <h2>{day?.name || "Choose a day"}</h2>
+            {previewCard && <DashWorkoutCard workout={previewCard} interactive={false} maxRows={99}/>}
+            <div className="cb-actions"><button type="button" className="cb-button" onClick={()=>goStep(1)}>Edit this workout</button></div>
+          </section>}
+          </div>
         </div>
+        {guided && <CoachBuilderFooter step={step} onStep={goStep} steps={steps} busy={!!uploads}/>}
 
         {/* Client preview — the EXACT card the client dashboard renders, as the board's `.pop`.
             ⚠ IT IS DRAGGABLE, on the owner's ruling. Anchored bottom-right it lands on top of
@@ -1876,7 +1916,7 @@ function TrainerProgramsPage() {
     ...(t.detail.media||[]).filter(m=>m.type==='video').map(m=>({name:m.name||t.name,url:ShapeWorkoutDocument.videoUrl(m.url)})),
     ...t.detail.builder.weeks.flatMap(w=>w.days.flatMap(d=>d.blocks.flatMap(b=>b.rows.filter(r=>r.video).map(r=>({name:r.name,url:ShapeWorkoutDocument.videoUrl(r.video)}))))),
   ]).filter(c=>c.url).map(c=>[c.url,c])).values()];
-  const create=type=>{const builder=DashBuilder.newProgram();builder.weeks[0].days[0].name=type==='workout'?'Upper':'Day 1';setView({name:type==='workout'?'Upper':'New program',published:false,detail:{buildType:type,builder}});};
+  const create=type=>{const builder=DashBuilder.newProgram();builder.weeks[0].days[0].name='Day 1';setView({name:type==='workout'?'New workout':'New program',published:false,detail:{buildType:type,builder}});};
   const saved=({plan})=>{setTemplates(prev=>[plan,...(prev||[]).filter(t=>t.id!==plan.id)]);setRecoveries(Object.entries(dbuReadDrafts(ownerId)));};
   return <React.Fragment>
     {source==='demo'&&<DashDemoBand/>}
@@ -1924,9 +1964,10 @@ function TrainerProgramsPage() {
               {!!info.tags.length&&<div style={{display:'flex',gap:6,flexWrap:'wrap',margin:'0 0 10px'}}>{info.tags.map(tag=><span key={tag.key} className="dash-chip dash-chip--sm" style={{'--c':tag.c,cursor:'default'}}>{tag.label}</span>)}</div>}
               {facts&&<p style={{...dbuLibMeta,fontSize:9,lineHeight:1.6,color:DBU_INK2,margin:'0 0 14px'}}>{facts}</p>}
               <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:'auto'}}>
-                <button style={dbuLibBtn(true)} onClick={()=>setView(t)}>Edit workout</button>
+                <button style={dbuLibBtn(true)} onClick={()=>setView(coachTemplateCopy(t))}>Use as template</button>
+                <button style={dbuLibBtn(false)} onClick={()=>setView(t)}>Edit template</button>
                 <button style={dbuLibBtn(false)} onClick={()=>setAssignFor(t)}>Assign</button>
-                <button style={dbuLibBtn(false)} onClick={()=>setView({...JSON.parse(JSON.stringify(t)),id:undefined,published:false,name:t.name+' (copy)',detail:{...t.detail,revision:0}})}>Duplicate</button>
+
               </div>
               {isLive&&<button onClick={()=>setUpdateFor(t)} style={{marginTop:10,padding:'6px 0',minHeight:24,background:'transparent',border:0,cursor:'pointer',textAlign:'left',fontFamily:DBU_BODY,fontSize:12.5,fontWeight:600,color:DBU_TEAL}}>Update future assignments →</button>}
             </div>;})}</div>
