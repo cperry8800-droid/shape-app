@@ -51,72 +51,7 @@ async function dwkBridge() {
 async function dwkUid() {
   try { const u = await window.shapeDb.getUser(); return u && u.id ? u.id : null; } catch (e) { return null; }
 }
-const _dwkLane = { p: Promise.resolve() };
-function dwkSerial(fn) { const run = _dwkLane.p.then(fn, fn); _dwkLane.p = run.catch(() => {}); return run; }
-function useWeekReviews(live) {
-  const [state, setState] = React.useState({ kind: "loading", doc: {} });
-  // The write path must read the CURRENT kind, not the one captured when the
-  // handler was created: a tick during the load would otherwise take the stale
-  // "loading" branch, skip the write, and then be erased by the load's setState.
-  const kindRef = React.useRef("loading");
-  kindRef.current = state.kind;
-  const uidRef = React.useRef(null);
-  React.useEffect(() => {
-    let on = true;
-    kindRef.current = "loading";
-    if (!live) { setState({ kind: "demo", doc: {} }); return undefined; }
-    setState({ kind: "loading", doc: {} });
-    (async () => {
-      const db = window.shapeDb;
-      if (!db || !db.getUserGoals) { if (on) setState({ kind: "unavailable", doc: {} }); return; }
-      await dwkBridge();
-      if (!on) return;
-      uidRef.current = await dwkUid();
-      let doc = null;
-      try { doc = await db.getUserGoals("coach_week_reviews"); } catch (e) { doc = null; }
-      if (!on) return;
-      setState(doc == null ? { kind: "signedout", doc: {} } : { kind: "ready", doc: doc || {} });
-    })();
-    return () => { on = false; };
-  }, [live]);
-  // patches: [{ weekOf, clientId, patch: { reviewedAt?, note? } }] — one read-merge-write.
-  const apply = (patches) => {
-    if (kindRef.current !== "ready" && kindRef.current !== "error") return Promise.resolve(false);
-    setState((s) => {
-      const doc = { ...s.doc };
-      for (const { weekOf, clientId, patch } of patches) {
-        const wk = { ...(doc[weekOf] || {}) };
-        wk[clientId] = { ...(wk[clientId] || {}), ...patch };
-        doc[weekOf] = wk;
-      }
-      return { ...s, doc, kind: s.kind === "error" ? "ready" : s.kind };
-    });
-    return dwkSerial(async () => {
-      const db = window.shapeDb;
-      // ⚠ BOUND TO THE ACCOUNT THAT TICKED. getUserGoals and saveUserGoals each
-      // resolve the user independently at their own call time, so an account
-      // switch between them would upsert coach A's whole reviews blob into B's
-      // row. A changed or unresolvable identity discards the write instead.
-      const startUid = uidRef.current;
-      let doc = null;
-      try { doc = await db.getUserGoals("coach_week_reviews"); } catch (e) { doc = null; }
-      if (doc == null) { setState((s) => ({ ...s, kind: "error" })); return false; }
-      const nowUid = await dwkUid();
-      if (!nowUid || (startUid && nowUid !== startUid)) { setState((s) => ({ ...s, kind: "error" })); return false; }
-      const next = { ...doc };
-      for (const { weekOf, clientId, patch } of patches) {
-        const wk = { ...(next[weekOf] || {}) };
-        wk[clientId] = { ...(wk[clientId] || {}), ...patch };
-        next[weekOf] = wk;
-      }
-      let res = null;
-      try { res = await db.saveUserGoals("coach_week_reviews", next); } catch (e) { res = null; }
-      if (!res || res.error) { setState((s) => ({ ...s, kind: "error" })); return false; }
-      return true;
-    });
-  };
-  return { ...state, apply };
-}
+function useWeekReviews(live) { return useCoachWeekReviews(live); }
 
 // ── Weekly adherence, closed weeks only (the same RPC the client file reads) ──
 // ⚠ BATCHED IN 100s. get_roster_weekly_adherence RAISES `too_many_clients` above
@@ -319,7 +254,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
   const oldestCk = fetched && fetched.length ? dwkWeekOfRow(fetched[fetched.length - 1]) : null;
   const beyondFetch = !ck && live && fetched && fetched.length >= DWK_CHECKIN_LIMIT && oldestCk && weekOf < oldestCk;
   const sevColor = row.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[row.severity];
-  const reviewed = !!(review && review.reviewedAt);
+  const reviewed = dashCheckinReviewed(review, ck);
   const isCurrent = weekOf === thisMonday;
   // Adherence: closed weeks only. The current week has no number yet.
   let adh = null, adhPrev = null, adhNote = null;
@@ -455,8 +390,10 @@ function CoachWeekPage({ role }) {
   // Everything except the in-flight read is editable — see the checkbox comment
   // in DwkRow for why a tick during the load is the one case that must not paint.
   const editable = !live || reviews.kind !== "loading";
-  const reviewedCount = rows.filter((r) => weekDoc[r.client.profile.id] && weekDoc[r.client.profile.id].reviewedAt).length;
-  const shown = onlyOpen ? rows.filter((r) => !(weekDoc[r.client.profile.id] && weekDoc[r.client.profile.id].reviewedAt)) : rows;
+  const checkinFor = (r) => (r.client.checkins || []).find((c) => dwkWeekOfRow(c) === weekOf);
+  const isReviewed = (r) => dashCheckinReviewed(weekDoc[r.client.profile.id], checkinFor(r));
+  const reviewedCount = rows.filter(isReviewed).length;
+  const shown = onlyOpen ? rows.filter((r) => !isReviewed(r)) : rows;
   const patch = (patches) => {
     if (persisting) return reviews.apply(patches);
     setLocalDemo((d) => { const wk = { ...(d[weekOf] || {}) }; for (const p of patches) wk[p.clientId] = { ...(wk[p.clientId] || {}), ...p.patch }; return { ...d, [weekOf]: wk }; });
@@ -499,7 +436,7 @@ function CoachWeekPage({ role }) {
               <button type="button" onClick={() => setOnlyOpen(!onlyOpen)} style={chip(onlyOpen)}>{onlyOpen ? "Showing unreviewed" : "Unreviewed only"}</button>
               {(() => {
                 const off = !rows.length || reviewedCount === rows.length || !editable;
-                return <button type="button" disabled={off} onClick={() => { const now = new Date().toISOString(); patch(rows.filter((r) => !(weekDoc[r.client.profile.id] && weekDoc[r.client.profile.id].reviewedAt)).map((r) => ({ weekOf, clientId: r.client.profile.id, patch: { reviewedAt: now } }))); }} style={{ ...chip(false), color: "var(--sh-deep, #06231f)", background: DWK_TEAL, border: 0, opacity: off ? 0.5 : 1, cursor: off ? "default" : "pointer" }}>Mark all reviewed</button>;
+                return <button type="button" disabled={off} onClick={() => { const now = new Date().toISOString(); patch(rows.filter((r) => !isReviewed(r)).map((r) => ({ weekOf, clientId: r.client.profile.id, patch: { reviewedAt: now, checkinSignature: checkinFor(r) ? JSON.stringify(checkinFor(r)) : null } }))); }} style={{ ...chip(false), color: "var(--sh-deep, #06231f)", background: DWK_TEAL, border: 0, opacity: off ? 0.5 : 1, cursor: off ? "default" : "pointer" }}>Mark all reviewed</button>;
               })()}
             </div>
           </div>
@@ -516,7 +453,7 @@ function CoachWeekPage({ role }) {
               <DwkRow key={id + weekOf} row={row} role={role} weekOf={weekOf} thisMonday={thisMonday} live={live}
                 review={weekDoc[id] || null} adherence={adherence} canPersist={live ? canPersist : false} editable={editable}
                 readout={readouts ? readouts[id] || null : null}
-                onReview={(on) => patch([{ weekOf, clientId: id, patch: { reviewedAt: on ? new Date().toISOString() : null } }])}
+                onReview={(on) => patch([{ weekOf, clientId: id, patch: { reviewedAt: on ? new Date().toISOString() : null, checkinSignature: on && checkinFor(row) ? JSON.stringify(checkinFor(row)) : null } }])}
                 onNote={(text) => patch([{ weekOf, clientId: id, patch: { note: text } }])} />
             );
           })}

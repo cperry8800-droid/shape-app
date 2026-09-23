@@ -136,6 +136,7 @@ export async function GET() {
 
     calendar = rows.map((r) => ({
       at: r.scheduled_at,
+            durationMin: r.duration_min,
       kind: 'SESSION',
       title: r.client_name || 'Client consult',
       sub: [r.topic, `${r.duration_min} min`, r.type].filter(Boolean).join(' · '),
@@ -169,6 +170,7 @@ export async function GET() {
         for (const r of otherRows) {
           calendar.push({
             at: r.scheduled_at,
+            durationMin: r.duration_min,
             kind: 'TRAINING',
             title: `${r.client_name || 'Client'} · with ${nameById.get(r.provider_id) || 'their trainer'}`,
             sub: [r.topic, `${r.duration_min} min`, r.type].filter(Boolean).join(' · '),

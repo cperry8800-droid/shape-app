@@ -352,7 +352,16 @@ function CoachSchedulePage({ role }) {
   // choose it again on every visit to their own calendar.
   const prefs = useRememberedChoices(source === "live");
   const [view, setView] = useRememberedChoice(prefs, "scheduleView", ["month", "week"], "month");
-  const [cursor, setCursor] = React.useState(() => new Date());
+  const [cursor, setCursor] = React.useState(() => {
+    const date = dashRouteParam("date");
+    return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + "T12:00:00") : new Date();
+  });
+  const selectedDay = dashRouteParam("date");
+  const requestedClient = dashRouteParam("client");
+  const focusedClient = (triage || []).find((r) => r.client.profile.id === requestedClient);
+  React.useEffect(() => {
+    if (selectedDay && /^\d{4}-\d{2}-\d{2}$/.test(selectedDay)) { setCursor(new Date(selectedDay + "T12:00:00")); setView("week"); }
+  }, [selectedDay]);
   const [drawerRow, setDrawerRow] = React.useState(null);
   const [sheetEv, setSheetEv] = React.useState(null);
   const [toast, setToast] = React.useState(null);
@@ -381,7 +390,7 @@ function CoachSchedulePage({ role }) {
   // Only the coach's own bookings (sessions/consults) + manual events belong
   // on the planning calendar — the client-facing pushed workouts/meals are a
   // client surface, shown read-only if present.
-  const planEvents = allEvents.filter((e) => e.kind === "SESSION" || e.kind === "CONSULT" || e.source === "event" || e.kind === "WORKOUT" || e.kind === "MEAL");
+  const planEvents = allEvents.filter((e) => (!focusedClient || e.clientId === requestedClient) && (e.kind === "SESSION" || e.kind === "CONSULT" || e.source === "event" || e.kind === "WORKOUT" || e.kind === "MEAL"));
   const colorOf = React.useMemo(() => dscColorMap(planEvents), [JSON.stringify(planEvents.map((e) => e.clientId || e.with || e.title))]);
   const byDate = React.useMemo(() => {
     const m = new Map();
@@ -439,6 +448,8 @@ function CoachSchedulePage({ role }) {
         title="Schedule"
         subtitle="Your whole calendar — sessions and consults color-coded by client. Click any booking for the client, drag it to move it (they're notified), and set the availability members book into."
       >
+        {focusedClient && <p role="status" style={{ fontSize: 13 }}>Schedule for {focusedClient.client.profile.name}. <a href={dashTabHref("schedule", role)}>Show all clients</a></p>}
+        {selectedDay && <p style={{ fontSize: 13 }}>Selected day: {selectedDay}</p>}
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           {/* Calendar */}
           <div className="dash-plate dash-plate--tick" style={{ "--dac": role === "nutritionist" ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust2, #c0533b)", paddingLeft: 24, minWidth: 0 }}>

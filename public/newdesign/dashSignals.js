@@ -1062,7 +1062,7 @@
       .map(function (c) {
         var last = c.checkIn.lastWeekOf || null;
         if (last === thisMonday) {
-          return { client: c, state: "ready", reason: "Check-in reviewed — ready to program" };
+          return { client: c, state: "ready", reason: "Check-in received — ready to program" };
         }
         var reason = !last
           ? "Waiting on their first check-in"
@@ -1965,7 +1965,7 @@
     var buckets = [], byDate = {};
     for (var i = 0; i < days; i++) {
       var d = plusDays(start, i);
-      var b = { date: iso(d), dow: DASH_DOW[d.getDay()], day: d.getDate(), count: 0, first: null, today: i === 0 };
+      var b = { date: iso(d), dow: DASH_DOW[d.getDay()], day: d.getDate(), count: 0, first: null, today: i === 0, bookedMin: 0 };
       buckets.push(b); byDate[b.date] = b;
     }
     var total = 0, skipped = 0;
@@ -1974,6 +1974,10 @@
       var bucket = byDate[e.date];
       if (!bucket) return;
       bucket.count += 1; total += 1;
+      if (!e.sharedCoach && ["SESSION", "CONSULT", "TRAINING", "NUTRITION"].indexOf(String(e.kind).toUpperCase()) >= 0) {
+        var duration = kpiNum(e.durationMin);
+        bucket.bookedMin = bucket.bookedMin == null || duration == null || duration <= 0 ? null : bucket.bookedMin + duration;
+      }
       var t = typeof e.time === "string" && /^\d{2}:\d{2}$/.test(e.time) ? e.time : null;
       if (t && (bucket.first == null || t < bucket.first)) bucket.first = t;
     });
@@ -2009,7 +2013,10 @@
     rows.forEach(function (c) {
       var r = c ? scoreWeekReading(c.shapeScoreHistory) : null;
       if (!r || r.delta == null) return;
-      known.push({ id: recId(c), name: recName(c), delta: r.delta, points: r.points, partial: r.partial });
+      var complete = c.shapeScoreHistory.filter(function(w) { return w && !w.partial && w.points != null && isFinite(Number(w.points)); });
+      known.push({ id: recId(c), name: recName(c), delta: r.delta, points: r.points, partial: r.partial, weekOf: r.weekOf,
+        compareFrom: complete.length >= 2 ? complete[complete.length-2].weekOf : null,
+        compareTo: complete.length >= 1 ? complete[complete.length-1].weekOf : null });
     });
     var byGain = function (a, b) { return b.delta - a.delta || a.name.localeCompare(b.name); };
     var byLoss = function (a, b) { return a.delta - b.delta || a.name.localeCompare(b.name); };
@@ -2077,10 +2084,11 @@
     rows.forEach(function (c) {
       var p = c && c.program ? c.program : null;
       var wk = p ? kpiNum(p.week) : null, total = p ? kpiNum(p.weeks) : null;
+      if (p && (p.paused || p.status === "paused")) { paused += 1; return; }
       if (!p || wk == null || total == null || total <= 0 || wk <= 0) { unknown += 1; return; }
       if (p.paused) { paused += 1; return; }
       var left = Math.max(0, total - wk);
-      if (left <= weeks) soon.push({ id: recId(c), name: recName(c), program: p.name ? String(p.name) : null, week: wk, weeks: total, left: left });
+      if (left <= weeks) soon.push({ id: recId(c), name: recName(c), program: p.name ? String(p.name) : null, week: wk, weeks: total, left: left, overdue: !!p.overdue, endDate: p.estimatedEndAt ? String(p.estimatedEndAt).slice(0,10) : null, nextAssigned: p.nextAssigned || null });
       else later += 1;
     });
     soon.sort(function (a, b) { return a.left - b.left || a.name.localeCompare(b.name); });
@@ -2098,12 +2106,13 @@
     rows.forEach(function (c) {
       var v = c && c.payments ? kpiNum(c.payments.mrrCents) : null;
       if (v == null || v < 0) { unknown += 1; return; }
-      known.push({ id: recId(c), name: recName(c), cents: v });
+      known.push({ id: recId(c), name: recName(c), cents: v, feeCents: kpiNum(c.payments.feeCents) });
       sum += v;
     });
     known.sort(function (a, b) { return b.cents - a.cents || a.name.localeCompare(b.name); });
     return {
-      rows: known.slice(0, n).map(function (k) { return { id: k.id, name: k.name, cents: k.cents, share: sum > 0 ? k.cents / sum : 0 }; }),
+      rows: known.slice(0, n).map(function (k) { return { id: k.id, name: k.name, cents: k.cents, feeCents: k.feeCents, share: sum > 0 ? k.cents / sum : 0 }; }),
+      allRows: known.map(function (k) { return { id: k.id, name: k.name, cents: k.cents, feeCents: k.feeCents, share: sum > 0 ? k.cents / sum : 0 }; }),
       known: known.length,
       unknown: unknown,
       total: rows.length,

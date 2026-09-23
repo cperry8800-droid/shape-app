@@ -12,6 +12,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { stripComments } from './helpers/strip-comments.mjs';
 
@@ -21,13 +22,13 @@ import { stripComments } from './helpers/strip-comments.mjs';
 // passes every test. A guard that thinks it changed zone and did not is a guard that
 // tested UTC twice.
 function inZone(zone, expr) {
-  const code = `const s = require(${JSON.stringify(new URL('../public/newdesign/dashSignals.js', import.meta.url).pathname)}); process.stdout.write(JSON.stringify(${expr}));`;
+  const code = `const s = require(${JSON.stringify(fileURLToPath(new URL('../public/newdesign/dashSignals.js', import.meta.url)))}); process.stdout.write(JSON.stringify(${expr}));`;
   return JSON.parse(execFileSync(process.execPath, ['-e', code], { env: { ...process.env, TZ: zone }, encoding: 'utf8' }));
 }
 
 const require_ = createRequire(import.meta.url);
 const DashSignals = require_('../public/newdesign/dashSignals.js');
-const GRID_RAW = readFileSync(new URL('../public/newdesign/dashGrid.jsx', import.meta.url), 'utf8');
+const GRID_RAW = readFileSync(new URL('../public/newdesign/dashGrid.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const GRID = stripComments(GRID_RAW);
 const TODAY = stripComments(readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8'));
 
@@ -131,42 +132,17 @@ test('every write goes through the split, so `hidden` and `added` cannot disagre
   assert.match(grid, /widgetsRef\.current = widgets;/);
 });
 
-test('the layout write is debounced and a document identical to the last one written is not re-sent', () => {
-  // ⚠ MEASURED ON MAIN with a stubbed store: 24 whole-document upserts per page load
-  // before anyone touched anything, 22 more per hide — one per GridStack `change`. The
-  // document itself is still updated synchronously; only the write is coalesced.
-  const grid = fn(GRID, 'DashGrid');
-  const persist = grid.slice(grid.indexOf('const persist = '), grid.indexOf('\n  };', grid.indexOf('const persist = ')));
-  assert.match(persist, /saveTimerRef\.current = setTimeout\(flushSave, DG_SAVE_DEBOUNCE_MS\)/, 'persist writes on every GridStack event');
-  assert.ok(!/saveUserGoals/.test(persist), 'persist calls the store directly');
-  assert.match(persist, /docRef\.current = \{ \.\.\.docRef\.current, \[role\]: r \};/, 'the document is no longer updated synchronously');
-  const flush = grid.slice(grid.indexOf('const flushSave = '), grid.indexOf('\n  };', grid.indexOf('const flushSave = ')));
-  assert.match(flush, /if \(json === lastSavedRef\.current\) return;/, 'an identical document is re-sent');
-  assert.match(flush, /lastSavedRef\.current = null/, 'a failed save does not clear the memory, so the same change can never be re-sent');
-  assert.match(GRID, /const DG_SAVE_DEBOUNCE_MS = \d+;/);
-  // ⚠ AND A FAILED WRITE IS RETRIED, because the debounce took away the accidental ones.
-  // On main a failure was covered by the next of twenty-two writes; coalesced to a single
-  // settled write, one failure leaves the arrangement unsaved until the member happens to
-  // touch the grid again. Bounded, re-reading the CURRENT document rather than replaying a
-  // snapshot, superseded by a newer change, and stopped at teardown.
-  assert.match(GRID, /const DG_SAVE_RETRY_MS = \[[^\]]+\];/, 'the retry budget is gone');
-  const budget = new Function('return ' + (GRID.match(/const DG_SAVE_RETRY_MS = (\[[^\]]+\]);/) || [])[1])();
-  assert.ok(Array.isArray(budget) && budget.length >= 1 && budget.every((n) => typeof n === 'number' && n > 0),
-    'the retry budget must be a non-empty list of positive delays');
-  assert.match(flush, /setTimeout\(flushSave, wait\)/, 'a failed save schedules no retry');
-  assert.match(flush, /if \(goneRef\.current \|\| wait == null \|\| saveTimerRef\.current\) return;/,
-    'the retry runs after teardown, past its budget, or on top of a newer write');
-  assert.match(flush, /else retryRef\.current = 0;/, 'a successful save does not restore the budget');
-  assert.match(persist, /retryRef\.current = 0;/, 'a new change does not get a fresh retry budget');
-  // the retry re-reads the document rather than replaying the snapshot it failed on
-  assert.ok(!/setTimeout\(\(\) => [^)]*json/.test(flush), 'the retry replays a stale snapshot');
-  // teardown stops it — set BEFORE the final flush, and re-armed on the next tab
-  assert.match(grid, /goneRef\.current = true;[\s\S]{0,200}if \(saveTimerRef\.current\) flushSave\(\);/,
-    'teardown does not stop the retry before its own final flush');
-  assert.match(grid, /goneRef\.current = false;/, 'goneRef is never re-armed — the first tab change disables every retry');
-  // a pending write is flushed when the grid is torn down (tab change) and when the page hides
-  assert.match(grid, /window\.addEventListener\("pagehide", onHide\)/);
-  assert.match(grid, /if \(saveTimerRef\.current\) flushSave\(\);\s*try \{ if \(gridRef\.current\) gridRef\.current\.destroy/);
+test('the shared layout store debounces, deduplicates, and reports errors without dropping the draft', () => {
+  const store = fn(GRID, 'dgCreateLayoutStore');
+  assert.match(store, /JSON.stringify\(next\) === JSON.stringify\(doc\)/);
+  assert.match(store, /schedule\(400\)/);
+  assert.match(store, /status = "error"/);
+  assert.match(store, /\[1500, 6000\]/);
+  assert.match(store, /retry: \(\) =>/);
+  assert.match(fn(GRID, 'useDgLayoutStore'), /addEventListener\("pagehide", flush\)/);
+  assert.match(fn(GRID, 'DashGrid'), /flushSave\(\);\s*try \{ if \(gridRef.current\)/);
+  // Execution coverage for delays, failures, cross-tab merges, and account changes:
+  // dashboard-presets.test.mjs drives this shipping factory with a controlled store.
 });
 
 test('keyboard: focus enters the catalogue panel on open and returns to the button on close', () => {
@@ -218,27 +194,13 @@ test('a visibility change is staged in the same tick, never on a timer', () => {
   }
 });
 
-test('one layout write is in flight at a time, and a newer document supersedes an older one', () => {
-  // ⚠ MEASURED IN CHROMIUM WITH A SLOW WRITE FOLLOWED BY A FAST ONE. `saveUserGoals` is
-  // a whole-document upsert and serializes nothing, so two settled changes 400ms apart go out
-  // side by side — driven on the pre-fix tree the older document LANDED LAST and erased the
-  // second widget (final `["week"]` against the wanted `["week","status"]`); on this tree the
-  // second write waits and the final document carries both. A constant delay cannot reorder
-  // anything, so the first version of that scenario passed on the broken code and proved
-  // nothing. (CodeRabbit, #2137.)
-  const at = GRID.indexOf('const flushSave = () => {');
-  assert.ok(at > 0);
-  const body = GRID.slice(at, GRID.indexOf('\n  const persist = ', at));
-  assert.match(body, /if \(inFlightRef\.current\) \{ queuedRef\.current = true; return; \}/, 'a second write can go out beside the first');
-  // the deferred document is NOT recorded as sent, or the drain dedupes away a write that never went
-  assert.ok(body.indexOf('if (inFlightRef.current)') < body.indexOf('lastSavedRef.current = json;'),
-    'the deferred branch sits below the sent-marker and would claim a write that never happened');
-  // the drain re-reads the CURRENT document rather than replaying the one that was pending
-  assert.match(body, /const drain = \(\) => \{[\s\S]*?flushSave\(\);\n        \};/);
-  assert.match(body, /\.then\(\(res\) => \{ if \(res && res\.error\) failed\(\); else retryRef\.current = 0; drain\(\); \}\)/);
-  assert.match(body, /\.catch\(\(\) => \{ failed\(\); drain\(\); \}\)/);
-  // a synchronous throw must not latch the flag and block every later write
-  assert.match(body, /catch \(e\) \{ inFlightRef\.current = false; failed\(\); \}/);
+test('the save lane survives tab unmounts and merges pending operations into a fresh document', () => {
+  const store = fn(GRID, 'dgCreateLayoutStore');
+  assert.match(store, /if \(flight\) return flight;/);
+  assert.match(store, /batch.reduce\(\(value, op\) => op\(value\), fresh\)/);
+  assert.match(store, /pending.splice\(0, batch.length\)/);
+  assert.match(store, /flight = null; emit\(\)/);
+  assert.match(store, /expectedUserId: uid/);
 });
 
 test('the notes textarea joins the coarse-pointer 16px floor', () => {
@@ -302,17 +264,12 @@ test("every control the Today page draws clears the repo's 24px floor", () => {
   assert.ok(TODAY.indexOf('const DASH_INK50') < TODAY.indexOf('const DASH_MONO_EYEBROW'), 'DASH_INK50 is declared below the token that reads it');
 });
 
-test('in-card text links carry the 24px hit area the chrome has', () => {
-  assert.match(TODAY, /const DASH_MONO_LINK = \{ \.\.\.DASH_MONO_EYEBROW, display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0"/);
-  // ⚠ ANCHORED ON THE SPREAD, NOT ON THE ACCENT'S SPELLING — this pinned
-  // `color: "#2ee0c4"` and so failed on the paper sweep, which is a change about
-  // colour and not about hit areas. The invariant is that the link spreads
-  // DASH_MONO_LINK, which is where the 24px comes from.
-  assert.match(fn(TODAY, 'DashProgramsEndingPanel'), /style=\{\{ \.\.\.DASH_MONO_LINK, color: [^}]+\}\}>Write the next \{noun\} →<\/a>/);
-  assert.match(fn(TODAY, 'DashRosterStatusPanel'), /minHeight: 24, margin: "-5px 0" \}\}>Open the roster →<\/a>/);
+test('widget client and action links retain a tap target and Shape typography', () => {
+  assert.match(GRID_RAW, /\.dw-client-link,\.dw-action\{[^}]*min-height:28px/);
+  assert.match(fn(GRID, 'dgPanelStyle'), /fontFamily: "var\(--sh-font-body/);
+  assert.match(fn(TODAY, 'DashWidgetClient'), /className="dw-client-link"/);
 });
 
-// ── the pure rows helper, driven through the shipped copy ────────────────────
 test('dgCatalogRows: a hidden default is addable, an un-added optional is addable, an empty one is neither', () => {
   const rows = new Function(fn(GRID, 'dgCatalogRows') + '\nreturn dgCatalogRows;')();
   const ws = [
@@ -433,8 +390,9 @@ test('in-card links route inside the shell, and the notes write through the acco
   assert.equal(href('plans', 'nutritionist'), 'NutritionistApp.html#plans');
   // the two panels that link out of a card go through it — a raw legacy href would cost
   // two page loads from inside the shell (the R19 sweep)
-  assert.match(fn(TODAY, 'DashRosterStatusPanel'), /href=\{dashTabHref\("clients", role\)\}/);
-  assert.match(fn(TODAY, 'DashProgramsEndingPanel'), /href=\{dashTabHref\(plans, role\)\}/);
+  assert.match(fn(TODAY, 'DashRosterStatusPanel'), /href=\{dashLinkedTab\("clients", role, \{ status: key \}\)\}/);
+  assert.match(fn(TODAY, 'DashProgramsEndingPanel'), /href=\{dashLinkedTab\(role === "nutritionist" \? "plans" : "programs", role, \{ client: r.id \}\)\}/);
+  assert.match(fn(TODAY, 'dashLinkedTab'), /dashTabHref\(slug, role\)/);
   // ⚠ QUICK ACTIONS IS GONE BY RULING (owner, 2026-09-21: "drop the ones you said drop") —
   // five of its six links were the sidebar. It must not come back as a widget.
   assert.ok(!/DashQuickActionsPanel|key: "actions"/.test(TODAY), 'the Quick actions widget is back');

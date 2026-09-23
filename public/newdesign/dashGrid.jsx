@@ -190,8 +190,6 @@ function dgInjectStyle() {
 .dash-gridstack .grid-stack-item-content{overflow:hidden!important}
 .dash-gridstack .dash-plate--bracket::after{display:none!important}
 .dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(var(--sh-accent-rgb, 46,224,196),0.75);background:rgba(var(--sh-accent-rgb, 46,224,196),0.07);border-radius:8px}
-.dash-gridstack .ui-resizable-se{background:transparent!important;background-image:none!important;box-sizing:border-box!important;min-width:0!important;min-height:0!important;width:28px!important;height:28px!important;right:0!important;bottom:0!important;z-index:20;border:0!important;clip-path:none!important;border-radius:0!important;cursor:se-resize;opacity:1!important}
-.dash-rs{position:absolute;right:7px;bottom:7px;width:12px;height:12px;background:rgba(var(--sh-accent-rgb, 46,224,196),0.5);clip-path:polygon(100% 0,0 100%,100% 100%);border-bottom-right-radius:2px;pointer-events:none;transition:background .12s;z-index:4}
 .dash-gridstack .grid-stack-item:hover .dash-rs{background:rgba(var(--sh-accent-rgb, 46,224,196),0.95)}
 /* ⚠ FADED, NOT INVISIBLE. At opacity 0 the drag handle, the ⚙ and the × existed only
    for a member who happened to hover the card — measured on the coach Today: seven
@@ -201,7 +199,31 @@ function dgInjectStyle() {
 .dash-wchrome{opacity:.4;transition:opacity .12s}
 .dash-gridstack .grid-stack-item:hover .dash-wchrome,.dash-gridstack .grid-stack-item:focus-within .dash-wchrome{opacity:1}
 @media (hover:none){.dash-wchrome{opacity:1}}
-.dash-drag-handle{cursor:move}
+.dash-drag-handle{cursor:grab;touch-action:none}
+.dg-edit-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px 4px 14px;font-size:12px;border:1px solid var(--sh-line2, #413d38);border-radius:10px 10px 0 0;background:var(--sh-ground, #1a1612)}
+.dg-customizing .grid-stack-item-content{border:1px solid var(--sh-line2, #413d38);border-radius:10px;container-type:inline-size}
+.dash-gridstack .grid-stack-item-content{container-type:inline-size}
+.dg-customizing .ui-draggable-dragging{cursor:grabbing;filter:drop-shadow(0 12px 14px rgba(0,0,0,.18))}
+.dash-gridstack .ui-resizable-e{width:44px!important;right:0!important;top:40%!important;height:44px!important;cursor:ew-resize!important;z-index:20}
+.dash-rs{position:absolute;right:5px;top:calc(40% + 10px);bottom:auto;width:24px;height:24px;clip-path:none;background:var(--sh-card, #25211d);color:var(--sh-ink2, #a09b94);text-align:center;line-height:24px;border:1px solid var(--sh-line2, #413d38);border-radius:5px}
+.dg-boards{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto;flex:1 1 380px}
+.dg-board-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-basis:100%;padding:12px;border:1px solid var(--sh-line2, #413d38);border-radius:8px}
+.dg-board-form label{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dw-client-link,.dw-action{color:var(--sh-accent-ink, #2ee0c4);text-decoration:underline;text-underline-offset:3px;display:inline-flex;align-items:center;min-height:28px}
+.dw-note{font-size:12px;color:var(--sh-ink2, #a09b94);line-height:1.5;margin:6px 0}
+.dw-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--sh-line, #302c27);padding:10px 0;font-size:13px}
+.dw-row>div{min-width:0}.dw-row button{margin-left:6px}
+.dw-extra{display:none}.dw-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.dw-day{display:flex;flex-direction:column;gap:6px;background:var(--sh-ground, #1a1612);border:1px solid var(--sh-line, #302c27);border-radius:8px;padding:10px 6px;color:var(--sh-ink, #f2ede4);text-decoration:none;min-width:0}
+.dw-day-date,.dw-day-time{font-size:11px}.dw-day-count{font-size:22px}.dw-day-count small{font-size:11px;color:var(--sh-ink2, #a09b94)}
+.dw-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.dw-status-cell{display:flex;flex-direction:column;gap:6px;border:1px solid var(--sh-line, #302c27);padding:10px;border-radius:8px;color:var(--sh-ink, #f2ede4);text-decoration:none;font-size:12px}.dw-status-cell small{color:var(--sh-ink2, #a09b94)}
+.dw-movers{display:grid;gap:16px}.dw-movers .dw-row{flex-wrap:wrap}
+@container (max-width:650px){.dw-week{grid-template-columns:1fr}.dw-day{display:grid;grid-template-columns:65px 75px 1fr;align-items:center;padding:8px 10px}.dw-day-count{font-size:18px}.dw-status{grid-template-columns:1fr 1fr}.dw-row{flex-wrap:wrap}}
+@container (min-width:850px){.dw-movers{grid-template-columns:1fr 1fr}.dw-movers>p{grid-column:1/-1}.dw-extra:nth-child(-n+10){display:block}}
+.dg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.dg-viewing .ui-resizable-handle{display:none!important}
+@media(max-width:767px){.dash-gridstack .ui-resizable-handle,.dash-rs{display:none!important}.dg-board-form input{font-size:16px;max-width:100%}}
+
 /* ⚠ iOS SAFARI ZOOMS THE VIEWPORT ON FOCUS when a form control computes under 16px, and
    that is worse here than the usual nuisance: this panel is position:fixed and portaled to
    <body>, positioned from the gear's measured rect, so a zoom moves the viewport out from
@@ -367,7 +389,7 @@ function useDgPanel(open, setOpen, boxRef, panelRef, width) {
 function dgPanelStyle(box) {
   return Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
     maxHeight: box.maxHeight, overflowY: "auto", background: "var(--sh-card, #25211d)",
-    border: "1px solid var(--sh-line2, #413d38)", borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.18)", padding: "8px 6px", textAlign: "left" },
+    border: "1px solid var(--sh-line2, #413d38)", borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.18)", padding: "8px 6px", textAlign: "left", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" },
     box.up ? { bottom: box.offset } : { top: box.offset });
 }
 
@@ -489,14 +511,6 @@ function DgCardSettings({ groups }) {
 // with no per-page wiring, and a page that declares no optional widgets still gets
 // the list of what it has.
 const DG_CATALOG_W = 320;
-const DG_SAVE_DEBOUNCE_MS = 400;
-// ⚠ A FAILED LAYOUT WRITE IS RETRIED, BECAUSE THE DEBOUNCE TOOK THE ACCIDENTAL ONES AWAY.
-// On main every GridStack event wrote, so one failure was covered by the next of twenty-two;
-// coalesced to a single settled write, one failure leaves the arrangement unsaved until the
-// member happens to touch the grid again. Two backoff attempts, each re-reading the CURRENT
-// document rather than replaying a stale snapshot, superseded by a newer change and stopped
-// at teardown.
-const DG_SAVE_RETRY_MS = [1500, 6000];
 function DgCatalog({ rows, onAdd, onRemove, onReset }) {
   const [open, setOpen] = React.useState(false);
   const boxRef = React.useRef(null);
@@ -585,7 +599,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
           {waiting.length > 0 && head("Nothing to show yet")}
           {waiting.map((r) => item(r, null))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", marginTop: 4 }}>
-            <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Drag ⠿ to move · corner to resize</span>
+            <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Customize to move, resize or undo</span>
             <a href="#" onClick={(e) => { e.preventDefault(); setOpen(false); onReset(); }} style={{ ...mono, fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</a>
           </div>
         </div>,
@@ -594,6 +608,223 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
     </span>
   );
 }
+
+// Named dashboards retain a complete set of tabs per role. The active tabs stay at
+// doc[role] for older clients; inactive boards are snapshots, never client records.
+function dgBoards(doc, role) {
+  const saved = doc && doc.savedDashboards && doc.savedDashboards[role];
+  if (saved && Array.isArray(saved.boards) && saved.boards.length) return saved;
+  return { active: "default", boards: [{ id: "default", name: "My dashboard", tabs: (doc && doc[role]) || {} }] };
+}
+function dgBoardEdit(doc, role, action) {
+  const library = dgBoards(doc, role);
+  let active = library.active;
+  let boards = library.boards.map((b) => ({ ...b, tabs: b.id === active ? (doc[role] || b.tabs) : b.tabs }));
+  const current = boards.find((b) => b.id === active) || boards[0];
+  if (action.type === "tab") {
+    boards = boards.map((b) => b.id === action.board ? { ...b, tabs: { ...b.tabs, [action.tab]: action.layout } } : b);
+  } else if (action.type === "create" || action.type === "rename") {
+    const name = String(action.name || "").trim();
+    if (!name || name.length > 60) throw new Error("Use a dashboard name of 1–60 characters.");
+    if (boards.some((b) => b.id !== (action.type === "rename" ? (action.board || active) : action.id) && b.name.toLowerCase() === name.toLowerCase())) throw new Error("Choose a different dashboard name.");
+    if (action.type === "rename") boards = boards.map((b) => b.id === (action.board || active) ? { ...b, name } : b);
+    else if (boards.some((b) => b.id === action.id)) active = action.id;
+    else {
+      if (boards.length >= 20) throw new Error("You can save up to 20 dashboards.");
+      boards.push({ id: action.id, name, tabs: JSON.parse(JSON.stringify(action.tabs || current.tabs)) });
+      active = action.id;
+    }
+  } else if (action.type === "switch" && boards.some((b) => b.id === action.id)) active = action.id;
+  const selected = boards.find((b) => b.id === active) || boards[0];
+  return { ...doc, [role]: selected.tabs, savedDashboards: { ...doc.savedDashboards, [role]: { active: selected.id, boards } } };
+}
+
+// One lane per account survives React tab unmounts. Every flush merges operations
+// into a fresh server document so tab A cannot overwrite tab B from a stale read.
+// Failed operations stay queued and visible; a failed read never becomes {}.
+function dgCreateLayoutStore(uid, db, timers = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) }) {
+  let doc = {}, loaded = !uid, status = uid ? "loading" : "preview", error = "";
+  let pending = [], timer = null, flight = null, retries = 0;
+  const listeners = new Set();
+  const emit = () => listeners.forEach((fn) => fn());
+  const identity = async () => {
+    const user = await db.getUser();
+    if (!user || user.id !== uid) throw new Error("Your account changed. Reload before saving.");
+  };
+  const schedule = (ms) => {
+    if (timer) timers.clearTimeout(timer);
+    timer = timers.setTimeout(() => { timer = null; flush(); }, ms);
+  };
+  const hydrate = async () => {
+    try {
+      await identity();
+      const fresh = await db.getUserGoals("dashboard_layout");
+      await identity();
+      if (!fresh || typeof fresh !== "object") throw new Error("Couldn't load your dashboards.");
+      doc = fresh; loaded = true; status = "saved"; error = "";
+    } catch (e) { status = "error"; error = e.message || "Couldn't load your dashboards."; }
+    emit();
+  };
+  const flush = () => {
+    if (timer) { timers.clearTimeout(timer); timer = null; }
+    if (flight) return flight;
+    if (!loaded) return hydrate();
+    if (!uid || !pending.length) return Promise.resolve();
+    const batch = pending.slice();
+    status = "saving"; emit();
+    flight = (async () => {
+      try {
+        await identity();
+        const fresh = await db.getUserGoals("dashboard_layout");
+        if (!fresh || typeof fresh !== "object") throw new Error("Couldn't read your saved dashboards.");
+        const next = batch.reduce((value, op) => op(value), fresh);
+        await identity();
+        const res = await db.saveUserGoals("dashboard_layout", next, { expectedUserId: uid });
+        if (!res || res.error) throw new Error("Couldn't save your dashboard.");
+        await identity();
+        pending.splice(0, batch.length);
+        doc = pending.reduce((value, op) => op(value), next);
+        retries = 0; error = ""; status = pending.length ? "saving" : "saved";
+      } catch (e) {
+        status = "error"; error = e.message || "Couldn't save your dashboard.";
+        const delay = [1500, 6000][retries++];
+        if (delay != null) schedule(delay);
+      } finally {
+        flight = null; emit();
+        if (status !== "error" && pending.length) schedule(0);
+      }
+    })();
+    return flight;
+  };
+  return {
+    uid,
+    read: () => ({ doc, loaded, status, error }),
+    subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+    load: () => loaded ? Promise.resolve() : hydrate(),
+    change: (op) => {
+      if (!loaded) return;
+      const next = op(doc); // validation fails before any state or queue mutation
+      if (JSON.stringify(next) === JSON.stringify(doc)) return;
+      doc = next;
+      if (uid) { pending.push(op); status = "saving"; retries = 0; schedule(400); }
+      emit();
+    },
+    flush,
+    retry: () => { retries = 0; return flush(); },
+  };
+}
+const dgLayoutStores = new Map();
+function useDgLayoutStore() {
+  const [account, setAccount] = React.useState(undefined);
+  const [accountError, setAccountError] = React.useState(false);
+  const [attempt, retryAccount] = React.useReducer((n) => n + 1, 0);
+  const [, redraw] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    let on = true, version = 0;
+    const db = window.shapeDb;
+    const read = async () => {
+      const v = ++version;
+      try {
+        if (db && db.getSession) await db.getSession();
+        const user = db && db.getUser ? await db.getUser() : null;
+        if (on && v === version) { setAccount(user ? user.id : null); setAccountError(false); }
+      } catch (e) { if (on && v === version) { setAccount(undefined); setAccountError(true); } }
+    };
+    read();
+    const sub = db && db.client && db.client.auth && db.client.auth.onAuthStateChange((event, session) => {
+      version += 1;
+      if (on) setAccount(session && session.user ? session.user.id : null);
+    });
+    return () => { on = false; if (sub && sub.data && sub.data.subscription) sub.data.subscription.unsubscribe(); };
+  }, [attempt]);
+  const store = React.useMemo(() => {
+    if (account === undefined) return null;
+    if (!dgLayoutStores.has(account)) dgLayoutStores.set(account, dgCreateLayoutStore(account, window.shapeDb));
+    return dgLayoutStores.get(account);
+  }, [account]);
+  React.useEffect(() => {
+    if (!store) return undefined;
+    const off = store.subscribe(redraw);
+    store.load();
+    const flush = () => store.flush();
+    window.addEventListener("pagehide", flush);
+    return () => { off(); window.removeEventListener("pagehide", flush); store.flush(); };
+  }, [store]);
+  return { store, accountError, retryAccount };
+}
+
+const DG_CONTROL = { font: "inherit", fontSize: 12, color: "var(--sh-ink, #f2ede4)", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line2, #413d38)", borderRadius: 7, minHeight: 40, padding: "7px 12px", cursor: "pointer" };
+function DgSavedDashboards({ store, role, beforeChange }) {
+  const [mode, setMode] = React.useState(null);
+  const [name, setName] = React.useState("");
+  const [error, setError] = React.useState("");
+  const input = React.useRef(null), trigger = React.useRef(null);
+  const state = store ? store.read() : { doc: {}, loaded: false, status: "loading" };
+  const library = dgBoards(state.doc, role);
+  const current = library.boards.find((b) => b.id === library.active) || library.boards[0];
+  React.useEffect(() => { if (mode && input.current) { input.current.focus(); input.current.select(); } }, [mode]);
+  const close = () => { setMode(null); setError(""); if (trigger.current) trigger.current.focus(); };
+  const act = (action) => {
+    beforeChange();
+    store.change((doc) => dgBoardEdit(doc, role, action));
+    store.flush();
+  };
+  return <div className="dg-boards">
+    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>Dashboard
+      <select aria-label="Saved dashboard" disabled={!state.loaded} value={library.active} style={{ ...DG_CONTROL, maxWidth: 210 }} onChange={(e) => act({ type: "switch", id: e.target.value })}>
+        {library.boards.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+    </label>
+    <button ref={trigger} type="button" style={DG_CONTROL} disabled={!state.loaded} onClick={() => { setName(current.name + " copy"); setMode("create"); }}>Save as…</button>
+    <button type="button" style={DG_CONTROL} disabled={!state.loaded} onClick={() => { setName(current.name); setMode("rename"); }}>Rename</button>
+    {["trainer", "nutritionist"].includes(role) && <button type="button" style={DG_CONTROL} disabled={!state.loaded} onClick={() => {
+      setName("Coaching focus"); setMode("coaching");
+    }}>Coaching preset</button>}
+    {mode && <form aria-label={mode === "rename" ? "Rename dashboard" : "Save a dashboard"} className="dg-board-form" onSubmit={(e) => {
+      e.preventDefault();
+      try { act({ type: mode === "coaching" ? "create" : mode, name, board: current.id,
+        ...(mode === "coaching" ? { tabs: { ...current.tabs, today: { items: [], order: ["pulse", "schedule", "checkins", "ending", "week", "wins"], hidden: ["queue", "practice", "kpis", "business", "roster"], added: ["checkins", "ending", "week"] } } } : mode === "create" ? { tabs: current.tabs } : {}), id: "board-" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)) }); close(); }
+      catch (err) { setError(err.message); }
+    }} onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); close(); } }}>
+      <label style={{ fontSize: 12 }}>Dashboard name <input ref={input} style={DG_CONTROL} value={name} maxLength={60} required onChange={(e) => setName(e.target.value)} /></label>
+      <button type="submit" style={DG_CONTROL}>{mode === "rename" ? "Rename" : "Save dashboard"}</button>
+      <button type="button" style={DG_CONTROL} onClick={close}>Cancel</button>
+      <span style={{ fontSize: 12, color: DG_MUTE }}>Includes every tab. Changes save automatically to the selected dashboard.</span>
+      {error && <span role="alert">{error}</span>}
+    </form>}
+  </div>;
+}
+
+function dgWidths(widget) {
+  return widget && widget.widths ? widget.widths : widget && ["practice", "kpis", "roster", "trajectory", "outcomes", "queue"].includes(widget.key) ? [12] : widget && widget.key === "notes" ? [4, 6, 12] : [6, 12];
+}
+function DgWidgetMenu({ widget, mobile, onMove, onSize, onHide }) {
+  const [open, setOpen] = React.useState(false);
+  const boxRef = React.useRef(null), panelRef = React.useRef(null);
+  const box = useDgPanel(open, setOpen, boxRef, panelRef, 260);
+  const wasOpen = React.useRef(false);
+  React.useEffect(() => {
+    if (open && box && !wasOpen.current && panelRef.current) panelRef.current.querySelector("button").focus();
+    if (!open && wasOpen.current && boxRef.current) boxRef.current.querySelector("button").focus();
+    wasOpen.current = !!(open && box);
+  }, [open, box]);
+  const title = widget.title || widget.key;
+  const close = () => { setOpen(false); if (boxRef.current) boxRef.current.querySelector("button").focus(); };
+  const pick = (fn) => { close(); fn(); };
+  return <span ref={boxRef}>
+    <button type="button" style={{ ...DG_CONTROL, minHeight: 44 }} aria-label={"Arrange " + title} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)}>Arrange</button>
+    {open && box && ReactDOM.createPortal(<div ref={panelRef} role="dialog" aria-label={"Arrange " + title} style={dgPanelStyle(box)}>
+      <div style={{ padding: 8, fontSize: 13, fontWeight: 600 }}>{title}</div>
+      {[[-1, "Move up"], [1, "Move down"], ["top", "Move to top"]].map(([dir, label]) => <button key={label} type="button" style={{ ...DG_CONTROL, width: "100%", minHeight: 44, marginBottom: 4 }} onClick={() => pick(() => onMove(dir))}>{label}</button>)}
+      {!mobile && <fieldset style={{ border: 0, margin: "10px 0", padding: 0 }}><legend style={{ fontSize: 12 }}>Width · height fits content</legend>
+        {dgWidths(widget).map((w) => <button key={w} type="button" style={{ ...DG_CONTROL, minHeight: 44, margin: 3 }} onClick={() => pick(() => onSize(w))}>{w === 4 ? "Compact" : w === 6 ? "Standard" : "Wide"}</button>)}
+      </fieldset>}
+      <button type="button" style={{ ...DG_CONTROL, width: "100%", minHeight: 44 }} onClick={() => pick(onHide)}>Hide {title}</button>
+      <button type="button" style={{ ...DG_CONTROL, width: "100%", marginTop: 6 }} onClick={close}>Close</button>
+    </div>, document.body)}
+  </span>;
+}
+
 
 function DashGrid({ role, tab = "today", widgets }) {
   const byKey = {}; widgets.forEach((w) => { if (w && w.key != null) byKey[w.key] = w; });
@@ -631,79 +862,44 @@ function DashGrid({ role, tab = "today", widgets }) {
 
   // saved layout for THIS role+tab from the merged doc.
   const savedFor = () => { try { return ((docRef.current[role] || {})[tab]) || null; } catch (e) { return null; } };
-  // ⚠ ONE UPSERT PER SETTLED CHANGE, NOT ONE PER GRIDSTACK EVENT. Measured on main
-  // with a stubbed store: a page load fired 24 whole-document upserts before anyone
-  // touched anything (the fit effect's resizeToContent fires `change` per item, per
-  // pass), and a single hide fired 22 more. The document is updated synchronously
-  // (savedFor() must read the current state), only the WRITE is coalesced: a trailing
-  // debounce, and a document byte-identical to the last one written is not re-sent.
-  // A rejected save clears that memory so the same change is sent again, and schedules a
-  // bounded retry rather than waiting for an interaction that may never come.
-  const saveTimerRef = React.useRef(null);
-  const lastSavedRef = React.useRef(null);
-  const retryRef = React.useRef(0);
-  const goneRef = React.useRef(false);
-  // ⚠ ONE WRITE IN FLIGHT AT A TIME, OR AN OLDER LAYOUT CAN LAND LAST. `saveUserGoals`
-  // is a whole-document upsert and serializes nothing, so a second change settling while the
-  // first request is still open sends two independent writes for the same row — and on a slow
-  // connection the earlier one can arrive second and restore the arrangement the member just
-  // replaced. The debounce does not cover it: once a write is DISPATCHED the timer is clear,
-  // and a change 400ms later goes out beside it. A newer document supersedes an older one
-  // outright, so this coalesces rather than queues: while a write is open the flush records
-  // that something newer exists and returns, and the settling write re-reads `docRef.current`
-  // — the CURRENT document, not the one that was pending. (CodeRabbit, #2137.)
-  const inFlightRef = React.useRef(false);
-  const queuedRef = React.useRef(false);
-  const flushSave = () => {
-    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
-    try {
-      const json = JSON.stringify(docRef.current);
-      if (json === lastSavedRef.current) return;
-      // Deferred, so `lastSavedRef` is deliberately NOT moved: nothing has been sent, and
-      // claiming otherwise would let the drain dedupe away a document that never went out.
-      if (inFlightRef.current) { queuedRef.current = true; return; }
-      lastSavedRef.current = json;
-      if (window.shapeDb && window.shapeDb.saveUserGoals) {
-        // A newer change already armed the timer — that write supersedes this one, so a
-        // retry here would only send the same document twice.
-        const failed = () => {
-          if (lastSavedRef.current === json) lastSavedRef.current = null;
-          const wait = DG_SAVE_RETRY_MS[retryRef.current];
-          if (goneRef.current || wait == null || saveTimerRef.current) return;
-          retryRef.current += 1;
-          saveTimerRef.current = setTimeout(flushSave, wait);
-        };
-        // The queued document supersedes both the write that just settled and any retry it
-        // armed, so it cancels the retry and goes out now. It runs even after teardown:
-        // `goneRef` exists to stop RETRIES, and this is the write the cleanup's own final
-        // flush asked for — a failure of it will still find `goneRef` set and stop.
-        const drain = () => {
-          inFlightRef.current = false;
-          if (!queuedRef.current) return;
-          queuedRef.current = false;
-          if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
-          flushSave();
-        };
-        inFlightRef.current = true;
-        // The dispatch is guarded on its own: a SYNCHRONOUS throw from the store would
-        // otherwise leave the flag latched and block every later write for the life of the
-        // page — a worse failure than the race it is here to close.
-        try {
-          Promise.resolve(window.shapeDb.saveUserGoals("dashboard_layout", docRef.current))
-            .then((res) => { if (res && res.error) failed(); else retryRef.current = 0; drain(); })
-            .catch(() => { failed(); drain(); });
-        } catch (e) { inFlightRef.current = false; failed(); }
-      }
-    } catch (e) {}
-  };
+  const { store, accountError, retryAccount } = useDgLayoutStore();
+  const storeState = store ? store.read() : { doc: {}, loaded: false, status: accountError ? "error" : "loading", error: "Couldn't identify your account. Please retry." };
+  docRef.current = storeState.doc;
+  const activeBoard = dgBoards(storeState.doc, role).active;
+  const [customizing, setCustomizing] = React.useState(false);
+  const [mobile, setMobile] = React.useState(false);
+  const [announcement, setAnnouncement] = React.useState("");
+  const [undo, setUndo] = React.useState([]);
+  const [revision, setRevision] = React.useState(0);
+  const initialPackRef = React.useRef(true);
+  const lastColumnsRef = React.useRef(null);
+  const flushSave = () => store && store.flush();
   const persist = (next) => {
-    try {
-      const r = { ...(docRef.current[role] || {}), [tab]: next };
-      docRef.current = { ...docRef.current, [role]: r };
-      retryRef.current = 0;
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(flushSave, DG_SAVE_DEBOUNCE_MS);
-    } catch (e) {}
+    if (!store || !store.read().loaded) return;
+    store.change((doc) => dgBoardEdit(doc, role, { type: "tab", board: activeBoard, tab, layout: next }));
+    docRef.current = store.read().doc;
+  };
+  // GridStack's compact save format omits default coordinates and dimensions.
+  // Read the live nodes for arithmetic; undefined widths otherwise become NaN.
+  const liveItems = () => Object.keys(itemRef.current).map((id) => {
+    const n = itemRef.current[id].gridstackNode || {};
+    return { id, x: n.x || 0, y: n.y || 0, w: n.w || 1, h: n.h || 1 };
+  });
+  const checkpoint = () => {
+    hadSavedRef.current = true;
+    const grid = gridRef.current;
+    if (!grid) return;
+    const saved = savedFor() || {};
+    const snapshot = { ...saved, ...dgSplitHidden(hiddenRef.current, widgetsRef.current, saved.added) };
+    if (grid.getColumn() === 12) snapshot.items = dgMergeLayoutItems(liveItems(), saved, declaredKeysRef.current);
+    else snapshot.mobileOrder = liveItems().sort((a,b) => a.y-b.y).map((n) => n.id);
+    setUndo((history) => history.concat([JSON.parse(JSON.stringify(snapshot))]).slice(-20));
+  };
+  const undoLast = () => {
+    const previous = undo[undo.length - 1];
+    if (!previous) return;
+    persist(previous); setUndo(undo.slice(0, -1)); setRevision((v) => v + 1);
+    setAnnouncement("Last layout change undone.");
   };
   const persistFromGrid = () => {
     const grid = gridRef.current; if (!grid) return;
@@ -715,11 +911,18 @@ function DashGrid({ role, tab = "today", widgets }) {
     // viewport meta (a phone reported 980px); adding the meta made every phone
     // visit overwrite the member's desktop dashboard, restored one-column on
     // every device. A collapsed grid is a VIEW of the layout, not the layout.
-    try { if (typeof grid.getColumn === "function" && grid.getColumn() !== 12) return; } catch (e) { return; }
+    try {
+      if (grid.getColumn() !== 12) {
+        const saved = savedFor() || {};
+        const order = liveItems().sort((a,b) => a.y-b.y).map((n) => n.id);
+        persist({ ...saved, mobileOrder: order.concat((saved.mobileOrder || []).filter((id) => !order.includes(id))) });
+        return;
+      }
+    } catch (e) { return; }
     let live = [];
-    try { live = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) {}
+    try { live = liveItems(); } catch (e) {}
     const saved = savedFor();
-    persist({ items: dgMergeLayoutItems(live, saved, declaredKeysRef.current), ...dgSplitHidden(hiddenRef.current, widgetsRef.current, saved && saved.added) });
+    persist({ ...saved, items: dgMergeLayoutItems(live, saved, declaredKeysRef.current), ...dgSplitHidden(hiddenRef.current, widgetsRef.current, saved && saved.added) });
   };
   // Persist a VISIBILITY change (hide / restore). The items half is read from the live
   // grid only while it is in its 12-column layout; collapsed to one column (a phone) the
@@ -737,16 +940,18 @@ function DashGrid({ role, tab = "today", widgets }) {
     let wide = true;
     try { wide = typeof grid.getColumn !== "function" || grid.getColumn() === 12; } catch (e) { wide = false; }
     let live = null;
-    if (wide) { try { live = (grid.save(false) || []).map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h })); } catch (e) { live = null; } }
+    if (wide) { try { live = liveItems(); } catch (e) { live = null; } }
     const saved = savedFor();
     const items = live ? dgMergeLayoutItems(live, saved, declaredKeysRef.current) : ((saved && Array.isArray(saved.items)) ? saved.items : []);
-    persist({ items, ...dgSplitHidden(nextHidden, widgetsRef.current, saved && saved.added) });
+    persist({ ...saved, items, ...dgSplitHidden(nextHidden, widgetsRef.current, saved && saved.added) });
   };
 
   // Add one widget to the grid; return its content host element for the portal.
   const addOne = (spec) => {
     const grid = gridRef.current; if (!grid) return null;
-    const opts = { id: spec.key, w: spec.w, h: spec.h };
+    const widths = dgWidths(widgetsRef.current.find((w) => w.key === spec.key));
+    const minW = widths[0];
+    const opts = { id: spec.key, minW, w: Math.max(minW, spec.w || minW), h: spec.h };
     if (spec.autoPosition) opts.autoPosition = true; else { opts.x = spec.x; opts.y = spec.y; }
     const el = grid.addWidget(opts);
     itemRef.current[spec.key] = el;
@@ -757,19 +962,19 @@ function DashGrid({ role, tab = "today", widgets }) {
 
   // ── init GridStack once per role/tab; load saved → add widgets → set portal hosts.
   React.useEffect(() => {
-    if (typeof window === "undefined" || !window.GridStack || !elRef.current) return undefined;
+    if (!store || !storeState.loaded || typeof window === "undefined" || !window.GridStack || !elRef.current) return undefined;
     dgInjectStyle();
     dgPatchGridStack();
     let destroyed = false;
     // The cleanup sets this on a tab change too, so it is re-armed here rather than left
     // true — otherwise the first tab switch disables every retry for the life of the page.
-    goneRef.current = false;
+    initialPackRef.current = true; lastColumnsRef.current = null; setReady(false);
     const boot = () => {
       if (destroyed || !elRef.current) return;
       const grid = window.GridStack.init({
         column: 12, columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
         cellHeight: 2, margin: 8, float: true,
-        handle: ".dash-drag-handle", resizable: { handles: "se" }, alwaysShowResizeHandle: true,
+        handle: ".dash-drag-handle", draggable: { cancel: "button, input, textarea, select, a" }, resizable: { handles: "e" }, alwaysShowResizeHandle: true, disableDrag: !customizing, disableResize: !customizing,
         // sizeToContent stays OFF: its auto-cascade overrode our explicit ordered layout,
         // and its observer can't see React-portaled content anyway. We fit heights via
         // manual grid.resizeToContent() calls (see the fit effect) instead.
@@ -777,8 +982,9 @@ function DashGrid({ role, tab = "today", widgets }) {
       }, elRef.current);
       gridRef.current = grid;
       const savedAtBoot = savedFor();
-      hadSavedRef.current = !!savedAtBoot;   // capture BEFORE change events repopulate docRef
+      hadSavedRef.current = !!(savedAtBoot && savedAtBoot.items && savedAtBoot.items.length);   // capture BEFORE change events repopulate docRef
       const layout = dgResolveGridLayout(savedAtBoot, widgets);
+      if (savedAtBoot && savedAtBoot.order) layout.visible.sort((a,b) => { const order = savedAtBoot.order; const rank = (key) => order.includes(key) ? order.indexOf(key) : 999; return rank(a.key)-rank(b.key); });
       const nextHosts = {};
       grid.batchUpdate();
       for (const spec of layout.visible) { const host = addOne(spec); if (host) nextHosts[spec.key] = host; }
@@ -786,31 +992,56 @@ function DashGrid({ role, tab = "today", widgets }) {
       setHidden(layout.hidden);
       setHosts(nextHosts);
       setReady(true);
-      grid.on("change", persistFromGrid);
-      grid.on("dragstop", persistFromGrid);
-      // On a width resize, snap the item's height back to its content (height auto-fits).
-      grid.on("resizestop", (ev, el) => { try { grid.resizeToContent(el); } catch (e) {} persistFromGrid(); });
+      grid.on("dragstart resizestart", checkpoint);
+      grid.on("dragstop", () => { persistFromGrid(); setAnnouncement("Widget moved. Layout saved automatically."); });
+      grid.on("resizestop", (ev, el) => {
+        const widths = dgWidths(widgetsRef.current.find((w) => w.key === el.gridstackNode.id));
+        const nearest = widths.reduce((a,b) => Math.abs(b-el.gridstackNode.w) < Math.abs(a-el.gridstackNode.w) ? b : a);
+        grid.update(el, { w: nearest });
+        try { grid.resizeToContent(el); } catch (e) {}
+        persistFromGrid(); setAnnouncement("Widget width changed. Height fits content.");
+      });
     };
-    // shapeDb may be async; load the saved doc first, then boot.
-    if (window.shapeDb && window.shapeDb.getUserGoals) {
-      window.shapeDb.getUserGoals("dashboard_layout").then((doc) => { docRef.current = (doc && typeof doc === "object") ? doc : {}; boot(); }).catch(boot);
-    } else { boot(); }
-    // A write still pending when the tab changes or the page hides is sent now: the
-    // debounce must never cost a member the drag they made a moment before leaving.
-    const onHide = () => { if (saveTimerRef.current) flushSave(); };
-    window.addEventListener("pagehide", onHide);
+    boot();
     return () => {
       destroyed = true;
-      // Set BEFORE the final flush: that write is still worth attempting, a retry for it is
-      // not — nothing is left to re-read the document or to cancel the timer.
-      goneRef.current = true;
-      window.removeEventListener("pagehide", onHide);
-      if (saveTimerRef.current) flushSave();
+      flushSave();
       try { if (gridRef.current) gridRef.current.destroy(false); } catch (e) {}
-      gridRef.current = null; itemRef.current = {};
+      gridRef.current = null; itemRef.current = {}; lastPosRef.current = {};
     };
     // eslint-disable-next-line
-  }, [role, tab]);
+  }, [role, tab, store, storeState.loaded, activeBoard, revision]);
+
+  React.useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    grid.enableMove(customizing);
+    grid.enableResize(customizing && !mobile);
+  }, [customizing, mobile, ready, activeBoard, revision]);
+  React.useEffect(() => { setUndo([]); }, [role, tab, activeBoard, store]);
+
+  const arrange = (key, direction, width) => {
+    const grid = gridRef.current; if (!grid) return;
+    checkpoint();
+    let nodes = liveItems().sort((a,b) => a.y-b.y || a.x-b.x);
+    const index = nodes.findIndex((n) => n.id === key);
+    if (index < 0) return;
+    if (width) nodes[index].w = width;
+    else {
+      const target = direction === "top" ? 0 : Math.max(0, Math.min(nodes.length - 1, index + direction));
+      nodes.splice(target, 0, nodes.splice(index, 1)[0]);
+    }
+    let y = 0, x = 0, rowH = 0;
+    const cols = grid.getColumn();
+    nodes = nodes.map((node) => {
+      const w = Math.min(cols, node.w);
+      if (x + w > cols) { y += rowH; x = 0; rowH = 0; }
+      const next = { ...node, x, y, w }; x += w; rowH = Math.max(rowH, node.h);
+      return next;
+    });
+    grid.load(nodes, false); persistFromGrid();
+    setAnnouncement((byKey[key].title || key) + (width ? " width changed." : " moved."));
+  };
 
   // ── keep the grid in step with the widget list AFTER boot ────────────────
   // ⚠ THIS IS THE OTHER HALF OF THE `empty` CONTRACT, AND THE SUBSTANCE OF THE FIX.
@@ -898,7 +1129,11 @@ function DashGrid({ role, tab = "today", widgets }) {
       const cell = grid.getCellHeight() || 2;
       let y = 0, xCursor = 0, rowH = 0;
       const layout = [];
-      widgets.forEach((w) => {
+      const saved = savedFor() || {};
+      const order = cols === 1 ? (saved.mobileOrder || (saved.items || []).slice().sort((a,b) => a.y-b.y || a.x-b.x).map((n) => n.id)) : (saved.order || []);
+      const arranged = order.map((id) => widgetsRef.current.find((w) => w.key === id)).filter(Boolean);
+      widgetsRef.current.forEach((w) => { if (!arranged.includes(w)) arranged.push(w); });
+      arranged.forEach((w) => {
         const item = itemRef.current[w.key]; if (!item) return;
         const node = item.gridstackNode || {};
         const id = node.id || w.key;
@@ -908,7 +1143,7 @@ function DashGrid({ role, tab = "today", widgets }) {
         // item-content is inset 8px top+bottom (16px) inside the item, so the item must be
         // cardH + 16 tall for the card to fit without clipping; +2 keeps a hair of slop.
         const h = Math.max(1, Math.ceil((cardH + 18) / cell));
-        let wW = dgWidgetW(w.size);
+        let wW = hadSavedRef.current ? (node.w || dgWidgetW(w.size)) : dgWidgetW(w.size);
         if (wW > cols) wW = cols;                                // narrow: clamp to available columns
         if (wW >= cols) {                                        // full-width (or single-column) → stack
           if (xCursor !== 0) { y += rowH; xCursor = 0; rowH = 0; }
@@ -926,7 +1161,22 @@ function DashGrid({ role, tab = "today", widgets }) {
     // float:true and would undo the ordered grid.load. relayoutInOrder is idempotent (grid.load
     // of the same computed layout), so re-running it just re-asserts the tidy layout. On a saved
     // layout we only fit heights and leave the user's placement alone.
-    const run = () => { fitAll(); if (!hadSavedRef.current) relayoutInOrder(); };
+    const run = () => {
+      const cols = grid.getColumn();
+      const changed = lastColumnsRef.current !== cols;
+      setMobile(cols === 1);
+      if (changed) {
+        for (const key of Object.keys(itemRef.current)) grid.update(itemRef.current[key], { minW: cols === 1 ? 1 : dgWidths(widgetsRef.current.find((w) => w.key === key))[0] });
+        if (cols === 12 && lastColumnsRef.current === 1) {
+          const saved = savedFor();
+          if (saved && saved.items) grid.load(saved.items.filter((n) => itemRef.current[n.id]), false);
+        }
+        lastColumnsRef.current = cols;
+      }
+      fitAll();
+      if (cols === 1 || (initialPackRef.current && !hadSavedRef.current)) relayoutInOrder();
+      initialPackRef.current = false;
+    };
     // Debounced re-run for content that loads/changes AFTER the initial fit (async card data,
     // text reflow, the user resizing a card). We observe each card (the item-content's first
     // child) — its height only changes on real content changes, NOT when GridStack resizes the
@@ -965,6 +1215,7 @@ function DashGrid({ role, tab = "today", widgets }) {
   // settled geometry before the write goes out — and the cleanup's flush now has a document
   // that includes the change. (CodeRabbit, #2137.)
   const hide = (key) => {
+    checkpoint();
     const grid = gridRef.current; const el = itemRef.current[key];
     const nextHidden = hidden.includes(key) ? hidden : [...hidden, key];
     // ⚠ BEFORE THE GRID MUTATION, NOT AFTER IT. `removeWidget` fires `change`
@@ -984,6 +1235,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     // An empty widget has no chip to click (see the hidden bar), but restoring one
     // would re-create exactly the empty 18px item this change exists to remove.
     if (!w || w.empty) return;
+    checkpoint();
     const nextHidden = hidden.filter((x) => x !== key);
     hiddenRef.current = nextHidden;   // before addOne: it fires added/change synchronously
     // ⚠ THE SAME PLACEMENT RULE AS THE SYNC EFFECT, through the same function. This
@@ -999,6 +1251,8 @@ function DashGrid({ role, tab = "today", widgets }) {
   };
   const reset = () => {
     const grid = gridRef.current; if (!grid) return;
+    checkpoint();
+    hadSavedRef.current = false; initialPackRef.current = true;
     lastPosRef.current = {};
     // ⚠ THE DEFAULT BOARD IS NOT AN EMPTY HIDDEN LIST. Every optional widget is off it,
     // so the effective list after a reset is the optional set — which is exactly what
@@ -1048,29 +1302,35 @@ function DashGrid({ role, tab = "today", widgets }) {
     if (content == null || content === false) return null;
     return (
       <div style={{ position: "relative" }}>
-        {/* Every control in this cluster is a 24px box (the repo's documented floor, WCAG
-            2.5.8 AA) with the glyph unchanged inside it — the cluster is the drag handle,
-            so ⠿ is an affordance rather than a control, but it is sized like one. */}
-        <div className="dash-drag-handle dash-wchrome" style={{ position: "absolute", top: 5, right: 6, zIndex: 5, display: "inline-flex", gap: 1, alignItems: "center", minHeight: 24, background: "rgba(var(--sh-card-rgb, 37,33,29),0.92)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 7, padding: "0 2px" }}>
-          <span title="Drag to move" style={{ color: DG_MUTE, fontSize: 12, minWidth: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>⠿</span>
-          {dgSettingGroups(w).length > 0 && <DgCardSettings groups={dgSettingGroups(w)} />}
-          <button type="button" title="Hide" aria-label="Hide card" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); hide(key); }} style={{ width: 24, height: 24, borderRadius: 5, border: 0, background: "transparent", color: DG_MUTE, fontSize: 12, fontWeight: 800, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
-        </div>
+        {customizing && <div className="dash-drag-handle dg-edit-header">
+          <span style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, minWidth: 0 }}><span aria-hidden="true">⠿</span><span>{w.title || key}</span></span>
+          <DgWidgetMenu widget={w} mobile={mobile} onMove={(dir) => arrange(key, dir)} onSize={(width) => arrange(key, null, width)} onHide={() => { const button = elRef.current && elRef.current.parentElement.querySelector("[data-dg-customize]"); if (button) button.focus(); hide(key); }} />
+        </div>}
+        {dgSettingGroups(w).length > 0 && <div className="dash-wchrome" style={{ position: "absolute", top: customizing ? 58 : 6, right: 8, zIndex: 5 }}><DgCardSettings groups={dgSettingGroups(w)} /></div>}
         {content}
-        <div className="dash-rs" aria-hidden="true" />
+        {customizing && !mobile && <div className="dash-rs" aria-hidden="true">↔</div>}
       </div>
     );
   };
 
   return (
-    <div>
+    <div className={customizing ? "dg-customizing" : "dg-viewing"}>
       {/* The catalogue: always visible, above the grid, on every tab — see DgCatalog. */}
-      <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10 }}>
+      <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+        <DgSavedDashboards store={store} role={role} beforeChange={() => { if (ready) persistVisibility(hiddenRef.current); }} />
+        <button type="button" data-dg-customize style={DG_CONTROL} disabled={!ready} aria-pressed={customizing} onClick={() => setCustomizing(!customizing)}>{customizing ? "Done" : "Customize dashboard"}</button>
+        <button type="button" style={DG_CONTROL} disabled={!undo.length} onClick={undoLast}>Undo</button>
         <DgCatalog rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />
       </div>
+      <div role="status" style={{ color: DG_MUTE, fontSize: 12, marginBottom: 12 }}>
+        {storeState.status === "loading" ? "Loading dashboards…" : storeState.status === "saving" ? "Saving…" : storeState.status === "error" ? storeState.error : storeState.status === "preview" ? "Preview · sign in to save dashboards" : "Saved · all tabs"}
+        {storeState.status === "error" && <button type="button" style={{ ...DG_CONTROL, marginLeft: 8 }} onClick={() => store ? store.retry() : retryAccount()}>Retry</button>}
+        {customizing && <span> · {mobile ? "Move cards with Arrange or drag. Phone order is saved separately." : "Drag a header or use Arrange. Resize width from the right edge; height fits content."}</span>}
+      </div>
+      <span className="dg-sr-only" aria-live="polite">{announcement}</span>
       {/* min-height reserves space so the page doesn't collapse to 0 then jump down
           when GridStack measures + positions the cards in JS after mount (CLS guard) */}
-      <div ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
+      <div key={role + ":" + tab + ":" + activeBoard + ":" + revision + ":" + (store ? store.uid : "loading")} ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
       {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key]) : null))}
       {/* ⚠ THE BAR IS KEYED ON `hiddenDefaults`, THE CHIPS ON `hiddenChips`, AND THE
           DIFFERENCE IS THE RESET LINK. Gating the whole bar on the chips took `Reset

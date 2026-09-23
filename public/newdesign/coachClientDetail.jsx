@@ -302,8 +302,18 @@ function CKCoachNote({ clientId, accent }) {
 // coach shell the `#client/<id>` route passes it as a prop, with the shell's role
 // and inShell so the back / Schedule / Assign links stay same-document hashes.
 function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell } = {}) {
-  const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(window.location.hash.includes("?") ? window.location.hash.split("?")[1] : window.location.search);
   const clientId = clientIdProp || params.get("id");
+  const targetSection = params.get("section");
+  React.useEffect(() => {
+    if (!["plans", "checkins", "progress"].includes(targetSection)) return;
+    const root = document.getElementById("root");
+    const jump = () => { const el = document.getElementById("client-" + targetSection); if (el) { el.scrollIntoView({ block: "start" }); return true; } return false; };
+    if (jump() || !root) return;
+    const observer = new MutationObserver(() => { if (jump()) observer.disconnect(); });
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [clientId, targetSection]);
   const navForRole = (r) => (r === "nutritionist" ? nutriNavItems : trainerNavItems)("clients");
   const cardForRole = (r) => (r === "nutritionist" ? nutriPayoutCard : trainerPayoutCard);
   const appFor = (r) => (r === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html");
@@ -626,6 +636,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             </Card>
           )}
 
+          <div id="client-plans" />
           {Array.isArray(data.plans) && data.plans.length > 0 && (
             <Card style={{ marginBottom: 16 }}>
               <CKSecHead>CURRENT PLANS</CKSecHead>
@@ -652,8 +663,10 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             </Card>
           )}
 
+          <div id="client-progress" />
           {data.goals && <GoalsCard data={data} teal={teal} rust={rust} gold={gold} />}
 
+          <div id="client-checkins" />
           {Array.isArray(data.checkins) && data.checkins.length > 0 && (() => {
             const ck = data.checkins[0];
             const R = ck.ratings || {};

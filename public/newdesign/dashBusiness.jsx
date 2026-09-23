@@ -778,7 +778,7 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
 // ── The page ─────────────────────────────────────────────────────────────────
 function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
-  const { today: live, source } = useDashboard(role);
+  const { today: live, clients, source } = useDashboard(role);
   const [extra, setExtra] = React.useState(null); // /api/{role}/analytics payload
 
   React.useEffect(() => {
@@ -834,7 +834,11 @@ function CoachBusinessPage({ role }) {
     </React.Fragment>
   );
 
+  const revenueByClient = typeof DashSignals.dashRevenueByClient === "function" ? DashSignals.dashRevenueByClient(clients) : null;
   const gridWidgets = [
+    { key: "revenue-clients", title: "Revenue by client", size: "half", optional: true,
+      blurb: "Gross subscription revenue, fees and each client's share.", empty: !revenueByClient, emptyWhy: "appears once the roster is readable",
+      render: () => plate(cfg.accent, <React.Fragment>{head("Revenue by client", cfg.accent)}<DashRevenueByClientPanel rev={revenueByClient} role={role} /></React.Fragment>) },
     { key: "trajectory", title: "Practice trajectory", size: "full",
       blurb: "Active clients, joined vs left, and revenue over time — the growth question, answered first.",
       render: () => plate(DBZ_TEAL, <React.Fragment>

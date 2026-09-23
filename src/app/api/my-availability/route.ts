@@ -19,10 +19,11 @@ type Role = 'trainer' | 'nutritionist';
 // zone. The house pattern (trainer/dashboard, trainer/analytics) for the same reason.
 async function resolveOwnedProvider(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  role: Role
+  role: Role,
+  userId: string
 ): Promise<{ id: number; timezone: string | null } | null> {
   const table = role === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data } = await supabase.from(table).select('*').maybeSingle();
+  const { data } = await supabase.from(table).select('*').eq('owner_id', userId).maybeSingle();
   if (!data) return null;
   const row = data as { id: number; timezone?: unknown };
   return { id: row.id, timezone: normalizeZone(row.timezone) };
@@ -39,10 +40,10 @@ export async function GET(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const owned = await resolveOwnedProvider(supabase, role);
+  const owned = await resolveOwnedProvider(supabase, role, user.id);
   if (!owned) return NextResponse.json({ slots: [], providerId: null });
 
-  const { data: slots } = await supabase
+  const { data: slots, error: slotsError } = await supabase
     .from('provider_availability')
     .select('weekday, start_minute, duration_min')
     .eq('provider_role', role)
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
     .order('weekday', { ascending: true })
     .order('start_minute', { ascending: true });
 
+  if (slotsError) return NextResponse.json({ error: "Availability could not be read." }, { status: 503 });
   return NextResponse.json({ slots: slots ?? [], providerId: owned.id, timezone: owned.timezone });
 }
 
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const owned = await resolveOwnedProvider(supabase, role);
+  const owned = await resolveOwnedProvider(supabase, role, user.id);
   if (!owned) return NextResponse.json({ error: 'no provider row' }, { status: 404 });
 
   // ── The zone these hours are expressed in ──────────────────────────────────

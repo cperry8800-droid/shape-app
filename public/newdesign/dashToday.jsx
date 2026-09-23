@@ -381,7 +381,7 @@ function dashContextLine(rec) {
   if (rec.checkIn) {
     const thisMonday = DashSignals._internals.mondayOf(new Date());
     const mondayIso = thisMonday.getFullYear() + "-" + String(thisMonday.getMonth() + 1).padStart(2, "0") + "-" + String(thisMonday.getDate()).padStart(2, "0");
-    parts.push(rec.checkIn.lastWeekOf === mondayIso ? "check-in reviewed" : "no check-in this week");
+    parts.push(rec.checkIn.lastWeekOf === mondayIso ? "check-in received" : "no check-in this week");
   }
   if (parts.length < 2 && rec.streaks && rec.streaks.current != null) parts.push(rec.streaks.current + "d streak");
   if (parts.length < 2 && rec.trainingAdherence && rec.trainingAdherence.pct != null) parts.push(rec.trainingAdherence.pct + "% adherence");
@@ -1146,175 +1146,113 @@ function dashTabHref(slug, role) {
   return (role === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html") + "#" + slug;
 }
 
-function DashWeekAheadPanel({ week }) {
+function dashRouteParam(key) {
+  const hash = window.location.hash || "";
+  return new URLSearchParams(hash.includes("?") ? hash.slice(hash.indexOf("?") + 1) : window.location.search).get(key);
+}
+function dashLinkedTab(slug, role, params) {
+  return dashTabHref(slug, role) + "?" + new URLSearchParams(params).toString();
+}
+function dashWidgetClientHref(id, role, section) {
+  if (!id || /^demo-/.test(id)) return null;
+  const base = dashClientPageHref(id, role);
+  return base + (base.includes("?") ? "&" : "?") + "section=" + encodeURIComponent(section || "progress");
+}
+function DashWidgetClient({ id, name, role, section }) {
+  const href = dashWidgetClientHref(id, role, section);
+  return href ? <a href={href} className="dw-client-link">{name}</a> : <span>{name}</span>;
+}
+function DashWidgetList({ rows, renderRow, label = "clients" }) {
+  const [all, setAll] = React.useState(false);
+  return <div className="dw-list">{rows.map((row, i) => <div key={row.id || row.key || (row.name + "|" + i)} className={!all && i >= 6 ? "dw-extra" : ""}>{renderRow(row)}</div>)}
+    {rows.length > 6 && <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => setAll(!all)} aria-expanded={all}>{all ? "Show fewer" : "View all " + rows.length + " " + label}</button>}
+  </div>;
+}
+const DASH_WIDGET_BUTTON = { background: "transparent", border: "1px solid var(--sh-line2, #413d38)", borderRadius: 6, padding: "6px 10px", minHeight: 36, font: "inherit", fontSize: 12, color: "var(--sh-accent-ink, #2ee0c4)", cursor: "pointer" };
+
+function DashWeekAheadPanel({ week, role }) {
   if (!week) return null;
-  const max = week.days.reduce((m, d) => Math.max(m, d.count), 0);
-  return (
-    <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 6 }}>
-        {week.days.map((d) => (
-          <div key={d.date} title={d.date} style={{ textAlign: "center", padding: "10px 4px 8px", borderRadius: 8, minWidth: 0,
-            background: d.today ? "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.03)",
-            border: "1px solid " + (d.today ? "rgba(var(--sh-accent-rgb, 46,224,196),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)") }}>
-            <div style={{ ...DASH_MONO_EYEBROW, color: d.today ? "var(--sh-accent, #2ee0c4)" : DASH_INK50 }}>{d.dow}</div>
-            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: d.count ? "var(--sh-ink, #f2ede4)" : "var(--sh-ink3, #75706a)" }}>{d.count}</div>
-            <div style={{ height: 3, margin: "8px auto 0", width: "70%", borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: max ? (d.count / max) * 100 + "%" : 0, background: "var(--sh-accent, #2ee0c4)", opacity: 0.85 }} />
-            </div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: DASH_INK50, marginTop: 6, fontVariantNumeric: "tabular-nums" }}>{d.first || (d.count ? " " : "—")}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
-        {week.total} on your calendar in the next 7 days
-        {week.busiest ? " · busiest " + week.busiest.dow + " " + week.busiest.day : ""}
-        {week.skipped ? " · " + week.skipped + " with no readable date" : ""}
-      </div>
-    </div>
-  );
+  return <div>
+    <div className="dw-week">{week.days.map((d) => <a key={d.date} href={dashLinkedTab("schedule", role, { date: d.date })} className="dw-day" aria-label={d.dow + " " + d.date + ", " + d.count + " calendar events"}>
+      <span className="dw-day-date">{d.dow} <strong>{d.day}</strong></span>
+      <span className="dw-day-count">{d.count}<small> events</small></span>
+      <span className="dw-day-time">{d.bookedMin != null ? d.bookedMin + " min booked" : "Duration not shared"}{d.first ? " · " + d.first : ""}</span>
+    </a>)}</div>
+    <p className="dw-note">{week.total} calendar events in the next 7 days. Select a date to open Schedule.{week.skipped ? " " + week.skipped + " have no readable date." : ""}</p>
+  </div>;
 }
 
 function DashRosterStatusPanel({ status, role }) {
   if (!status) return null;
   const segs = [["red", "Needs you"], ["amber", "Watch"], ["green", "On track"], ["unknown", "Not enough data"]];
-  if (!status.total) return <div style={{ fontSize: 13, color: DASH_INK50 }}>No clients on the pulse yet.</div>;
-  return (
-    <div>
-      <div style={{ display: "flex", height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-        {segs.map(([k]) => status[k].length ? <div key={k} style={{ width: (status[k].length / status.total) * 100 + "%", background: DASH_SEV_COLORS[k] }} /> : null)}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
-        {segs.map(([k, label]) => (
-          <div key={k} style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span style={{ width: 7, height: 7, borderRadius: 2, background: DASH_SEV_COLORS[k], display: "inline-block", flexShrink: 0 }} />
-              <span style={{ fontFamily: serif, fontSize: 24, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{status[k].length}</span>
-            </div>
-            <div style={{ ...DASH_MONO_EYEBROW, marginTop: 6 }}>{label}</div>
-            {k !== "green" && status[k].length > 0 && (
-              <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 4, lineHeight: 1.4 }}>
-                {status[k].slice(0, 3).join(" · ")}{status[k].length > 3 ? " +" + (status[k].length - 3) : ""}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
-        {status.total} on the pulse{status.fresh ? " · " + status.fresh + " new in the last 14 days" : ""} · <a href={dashTabHref("clients", role)} style={{ color: "var(--sh-accent, #2ee0c4)", textDecoration: "none", display: "inline-flex", alignItems: "center", minHeight: 24, margin: "-5px 0" }}>Open the roster →</a>
-      </div>
-    </div>
-  );
+  return <div>
+    <div className="dw-status">{segs.map(([key, label]) => <a key={key} className="dw-status-cell" href={dashLinkedTab("clients", role, { status: key })}>
+      <span style={{ color: DASH_SEV_COLORS[key], fontSize: 26 }}>{status[key].length}</span><span>{label}</span>
+      {status[key].length > 0 && <small>{status[key].slice(0, 3).join(" · ")}{status[key].length > 3 ? " +" + (status[key].length-3) : ""}</small>}
+    </a>)}</div>
+    <p className="dw-note">{status.total} clients on the pulse. Open a group to see its clients and the reason for each status.</p>
+  </div>;
 }
 
-// ⚠ A ROW IS KEYED ON THE CLIENT'S ID, NOT ON THEIR NAME. All three of these panels
-// (movers, anniversaries, revenue) SORT their rows, so a name-derived key mis-reconciles two
-// same-named clients the moment the order moves — and `dashTopMovers` / `dashTenureMilestones`
-// / `dashRevenueByClient` all carry `id: recId(c)` already. The composite survives as the
-// FALLBACK because `recId` is null for a demo record and for a client with no linked account;
-// an index fallback is not available here for the same reason the id is wanted. The renewals
-// panel below has always keyed this way. (CodeRabbit, #2137.)
-function DashTopMoversPanel({ movers }) {
+function DashTopMoversPanel({ movers, role }) {
   if (!movers) return null;
-  const row = (m, up) => (
-    <div key={(up ? "u:" : "d:") + (m.id || m.name)} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-      <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: up ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red, flexShrink: 0, whiteSpace: "nowrap" }}>
-        {up ? "▲ +" : "▼ "}{Math.abs(m.delta)} <span style={{ color: DASH_INK50 }}>· {m.points}{m.partial ? "*" : ""} pts</span>
-      </span>
+  const row = (m, up) => <div key={(up ? "u:" : "d:") + (m.id || m.name)} className="dw-row">
+    <div><DashWidgetClient id={m.id} name={m.name} role={role} section="progress" />
+      <div className="dw-note">{m.compareFrom && m.compareTo ? "Weeks of " + m.compareFrom + " → " + m.compareTo : "Two completed weeks"}</div>
+      <div className="dw-note">{m.partial ? "This week so far" : "Latest completed week"}: {m.points} points{m.weekOf ? " · " + m.weekOf : ""}</div>
     </div>
-  );
-  const none = (t) => <div style={{ fontSize: 12, color: DASH_INK50, paddingTop: 8 }}>{t}</div>;
-  const anyPartial = movers.up.concat(movers.down).some((m) => m.partial);
-  return (
-    <div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-        <div><div style={DASH_MONO_EYEBROW}>Up · last full week</div>{movers.up.length ? movers.up.map((m) => row(m, true)) : none("Nobody up this week")}</div>
-        <div><div style={DASH_MONO_EYEBROW}>Down · last full week</div>{movers.down.length ? movers.down.map((m) => row(m, false)) : none("Nobody down this week")}</div>
-      </div>
-      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
-        Week over week, on two complete weeks · {movers.known} of {movers.total} with a shared score{anyPartial ? " · * this week so far" : ""}
-      </div>
+    <div><strong style={{ color: up ? DASH_SEV_COLORS.green : DASH_SEV_COLORS.red }}>{m.delta > 0 ? "+" : ""}{m.delta}</strong>
+      <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(m.name, role, up ? "Hi " + m.name.split(" ")[0] + " — your score rose " + m.delta + " points between the last two completed weeks. Well done!" : undefined)}>{up ? "Congratulate" : "Message"}</button>
     </div>
-  );
+  </div>;
+  return <div className="dw-movers">
+    <section><div style={DASH_MONO_EYEBROW}>Up · completed weeks</div>{movers.up.length ? movers.up.map((m) => row(m,true)) : <p className="dw-note">Nobody up this week.</p>}</section>
+    <section><div style={DASH_MONO_EYEBROW}>Down · completed weeks</div>{movers.down.length ? movers.down.map((m) => row(m,false)) : <p className="dw-note">Nobody down this week.</p>}</section>
+    <p className="dw-note">{movers.known} of {movers.total} clients have two comparable completed weeks.</p>
+  </div>;
 }
 
-function DashAnniversariesPanel({ marks }) {
+function DashAnniversariesPanel({ marks, role }) {
   if (!marks) return null;
   const when = (h) => h.inDays === 0 ? "today" : h.inDays === 1 ? "tomorrow" : "in " + h.inDays + " days";
-  return (
-    <div>
-      {marks.soon.length ? marks.soon.slice(0, 6).map((h) => (
-        <div key={h.id || (h.name + "|" + h.label)} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: h.inDays === 0 ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" }} />
-          <div style={{ minWidth: 0 }}>
-            <span style={{ fontSize: 13.5, fontWeight: 500 }}>{h.name}</span>
-            <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}> — {h.label} on Shape</span>
-          </div>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", color: h.inDays === 0 ? "var(--sh-accent, #2ee0c4)" : DASH_INK50 }}>{when(h)}</span>
-        </div>
-      )) : (
-        <div style={{ fontSize: 13, color: DASH_INK50 }}>
-          Nothing in the next 30 days{marks.later ? " · next: " + marks.later.name + ", " + marks.later.label + " " + when(marks.later) : ""}.
-        </div>
-      )}
-      {marks.unknown > 0 && <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 10 }}>{marks.unknown} of {marks.total} without a shared start date</div>}
-    </div>
-  );
+  return <div><DashWidgetList rows={marks.soon} renderRow={(h) => <div className="dw-row" key={h.id || (h.name + "|" + h.label)}>
+    <div><DashWidgetClient id={h.id} name={h.name} role={role} /><div className="dw-note">{h.label} with your practice · {when(h)} · {h.on}</div></div>
+    <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(h.name, role, "Hi " + h.name.split(" ")[0] + " — " + h.label + " working together " + when(h) + ". Thank you for showing up. What are you proudest of so far?")}>Message draft</button>
+  </div>} />
+    {!marks.soon.length && <p className="dw-note">No coaching anniversaries in the next 30 days.</p>}
+    <p className="dw-note">Based on the earliest subscription visible to your practice.{marks.unknown ? " " + marks.unknown + " start dates are not shared." : ""}</p>
+  </div>;
 }
 
-function DashRevenueByClientPanel({ rev }) {
+function DashRevenueByClientPanel({ rev, role }) {
   if (!rev) return null;
-  if (!rev.total) return <div style={{ fontSize: 13, color: DASH_INK50 }}>No clients yet.</div>;
-  if (!rev.known) return <div style={{ fontSize: 13, color: DASH_INK50 }}>Not shared — none of your {rev.total} clients' subscriptions could be read just now.</div>;
-  const top = rev.rows.length ? rev.rows[0].cents : 0;
-  return (
-    <div>
-      {rev.rows.map((r) => (
-        <div key={r.id || (r.name + "|" + r.cents)} style={{ padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-            <span style={{ fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, flexShrink: 0, whiteSpace: "nowrap" }}>{dashMoney(r.cents)}<span style={{ color: DASH_INK50 }}>/mo · {Math.round(r.share * 100)}%</span></span>
-          </div>
-          <div style={{ height: 3, marginTop: 6, borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", overflow: "hidden" }}>
-            <div style={{ height: "100%", width: top ? (r.cents / top) * 100 + "%" : 0, background: "var(--sh-accent, #2ee0c4)", opacity: 0.8 }} />
-          </div>
-        </div>
-      ))}
-      <div style={{ fontSize: 11, color: DASH_INK50, marginTop: 12 }}>
-        {dashMoney(rev.sumCents)}/mo across {rev.known === rev.total ? rev.total + " client" + (rev.total === 1 ? "" : "s") : rev.known + " of " + rev.total + " shared"}{rev.rows.length < rev.known ? " · top " + rev.rows.length : ""}
-      </div>
+  if (!rev.total) return <p className="dw-note">No clients yet.</p>;
+  if (!rev.known) return <p className="dw-note">Subscriptions could not be read just now.</p>;
+  return <div><DashWidgetList rows={rev.allRows || rev.rows} renderRow={(r) => <div className="dw-row" key={r.id || (r.name + "|" + r.cents)}>
+    <div><DashWidgetClient id={r.id} name={r.name} role={role} />
+      <details><summary style={{ cursor: "pointer", minHeight: 28, fontSize: 12 }}>Billing details</summary><p className="dw-note">Gross {dashMoney(r.cents)}/month{r.feeCents != null ? " · platform fee " + dashMoney(r.feeCents) + " · net " + dashMoney(r.cents-r.feeCents) : " · fee and net not shared"}. Subscription totals; not a payout statement.</p></details>
     </div>
-  );
+    <div style={{ whiteSpace: "nowrap", fontSize: 13 }}>{dashMoney(r.cents)}/mo <span className="dw-note">· {Math.round(r.share*100)}%</span></div>
+  </div>} />
+    <p className="dw-note">Gross recurring revenue: {dashMoney(rev.sumCents)}/month. Percentages use the {rev.known} readable subscriptions{rev.unknown ? "; " + rev.unknown + " clients excluded because their amounts are unavailable" : ""}. Fees have not been deducted.</p>
+  </div>;
 }
 
 function DashProgramsEndingPanel({ ending, role }) {
   if (!ending) return null;
-  const plans = role === "nutritionist" ? "plans" : "programs";
-  const noun = role === "nutritionist" ? "plan" : "block";
-  const left = (r) => r.left === 0 ? "last week" : r.left === 1 ? "1 week left" : r.left + " weeks left";
-  const rest = [ending.later ? ending.later + " mid-" + noun : null, ending.paused ? ending.paused + " paused" : null, ending.unknown ? ending.unknown + " without a " + noun : null].filter(Boolean).join(" · ");
-  return (
-    <div>
-      {ending.soon.length ? ending.soon.slice(0, 6).map((r) => (
-        <div key={r.id || r.name} style={{ display: "grid", gridTemplateColumns: "10px 1fr auto", gap: 12, alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: r.left === 0 ? "#e0a24a" : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" }} />
-          <div style={{ minWidth: 0 }}>
-            <span style={{ fontSize: 13.5, fontWeight: 500 }}>{r.name}</span>
-            <span style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}>{r.program ? " — " + r.program : ""}</span>
-            <span style={{ fontSize: 12, color: DASH_INK50 }}> · wk {r.week}/{r.weeks}</span>
-          </div>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", color: r.left === 0 ? "#e0a24a" : DASH_INK50 }}>{left(r)}</span>
-        </div>
-      )) : (
-        <div style={{ fontSize: 13, color: DASH_INK50 }}>Nothing ends in the next {ending.weeks} weeks.</div>
-      )}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginTop: 10 }}>
-        <span style={{ fontSize: 11, color: DASH_INK50 }}>{rest}</span>
-        {ending.soon.length > 0 && <a href={dashTabHref(plans, role)} style={{ ...DASH_MONO_LINK, color: "var(--sh-accent, #2ee0c4)" }}>Write the next {noun} →</a>}
-      </div>
+  const noun = role === "nutritionist" ? "plan" : "program";
+  return <div><DashWidgetList rows={ending.soon} renderRow={(r) => <div className="dw-row" key={r.id || r.name}>
+    <div><DashWidgetClient id={r.id} name={r.name} role={role} section="plans" /><div>{r.program || "Current " + noun}</div>
+      <div className="dw-note">{r.overdue ? "Past estimated end" : r.left === 0 ? "Final week" : r.left + " weeks left"}{r.endDate ? " · estimated end " + r.endDate : " · end date not shared"}</div>
+      {r.nextAssigned && <div className="dw-note">Another {noun} already assigned: {r.nextAssigned}</div>}
     </div>
-  );
+    {r.id && <a className="dw-action" href={dashLinkedTab(role === "nutritionist" ? "plans" : "programs", role, { client: r.id })}>Next {noun} →</a>}
+  </div>} />
+    {!ending.soon.length && <p className="dw-note">Nothing ends in the next {ending.weeks} weeks.</p>}
+    <p className="dw-note">{ending.paused} paused · {ending.later} mid-plan · {ending.unknown} unavailable. Estimated dates use the assignment date and template duration; pauses can change the actual finish.</p>
+  </div>;
 }
+
 
 // A private scratchpad, kept in the same per-account `dashboard_prefs` document the
 // roster filter and the KPI picker use — so it follows the coach between devices with
@@ -1392,7 +1330,7 @@ function DashNotesPanel({ prefs, role }) {
   }, []);
   // "Saved" is the store's optimistic paint, as every remembered control's is; a write
   // that fails moves the store to `error`, which is the line above the others.
-  const status = kind === "error" ? "Couldn't save just now — your note is still here and saves on your next edit"
+  const status = kind === "error" ? "Couldn't save — your note is still here"
     : !writable ? (kind === "loading" ? "Loading your notes…" : "Preview — notes save on your live dashboard")
     : mine != null && mine !== stored ? "Unsaved…" : "Saved with your account";
   return (
@@ -1400,10 +1338,201 @@ function DashNotesPanel({ prefs, role }) {
       <textarea className="dash-notes-ta" value={value} onChange={(e) => setDraft({ acct: acct, text: e.target.value })} rows={5} aria-label="Notes to self"
         placeholder="Anything to remember — a client to call, a block to tweak, a note for Friday."
         style={{ width: "100%", boxSizing: "border-box", resize: "vertical", minHeight: 96, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 8, color: "var(--sh-ink, #f2ede4)", fontFamily: sans, fontSize: 13.5, lineHeight: 1.5, padding: "10px 12px" }} />
-      <div style={{ fontSize: 11, color: kind === "error" ? DASH_SEV_COLORS.amber : DASH_INK50, marginTop: 8 }}>{status}</div>
+      <div style={{ fontSize: 11, color: kind === "error" ? DASH_SEV_COLORS.amber : DASH_INK50, marginTop: 8 }} role="status">{status}{kind === "error" && <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => writeNote(value)}>Retry</button>}</div>
     </div>
   );
 }
+
+// Reviews are explicit, private coach choices. A received check-in is never treated
+// as reviewed, and an edited submission reopens because its signature changes.
+function dashCheckinReviewed(review, checkin) {
+  if (!review || !review.reviewedAt) return false;
+  if (!checkin) return true;
+  if (review.checkinSignature) return review.checkinSignature === JSON.stringify(checkin);
+  const submitted = checkin.updated_at || checkin.submitted_at || checkin.created_at;
+  return !submitted || submitted <= review.reviewedAt;
+}
+function dashCheckinRows(clients, reviews) {
+  const rows = [];
+  for (const client of clients || []) for (const checkin of client.checkins || []) {
+    const week = checkin.week_of || checkin.weekOf;
+    if (!week || !client.profile || !client.profile.id) continue;
+    const key = client.profile.id + ":" + week;
+    const signature = JSON.stringify(checkin);
+    if (dashCheckinReviewed(reviews && reviews[week] && reviews[week][client.profile.id], checkin)) continue;
+    rows.push({ key, id: key, clientId: client.profile.id, name: client.profile.name, week, checkin, signature,
+      at: checkin.created_at || checkin.submitted_at || week });
+  }
+  return rows.sort((a,b) => String(a.at).localeCompare(String(b.at)) || a.name.localeCompare(b.name));
+}
+function DashCheckinQueuePanel({ clients, role, live }) {
+  const reviews = useCoachWeekReviews(live);
+  const [selected, setSelected] = React.useState(null);
+  const [state, setState] = React.useState("");
+  const [preview, setPreview] = React.useState({});
+  const ready = !live || ["ready", "error"].includes(reviews.kind);
+  const rows = ready ? dashCheckinRows(clients, live ? reviews.doc : preview) : [];
+  const unknown = clients.filter((c) => !Array.isArray(c.checkins)).length;
+  const open = rows.find((row) => row.key === selected);
+  const mark = async () => {
+    if (!open) return;
+    const value = { checkinSignature: open.signature, reviewedAt: new Date().toISOString() };
+    if (!live) { setPreview({ ...preview, [open.week]: { ...preview[open.week], [open.clientId]: value } }); setSelected(null); setState("Preview · review not saved"); return; }
+    setState("Saving review…");
+    const ok = await reviews.apply([{ weekOf: open.week, clientId: open.clientId, patch: value }]);
+    setState(ok ? "Review saved" : "Couldn't save review. Reopen the check-in to retry.");
+    if (ok) setSelected(null);
+  };
+  return <div>
+    <p className="dw-note">Oldest first · the latest 4 shared check-ins per client. {unknown ? unknown + " clients' check-ins are unavailable." : ""}</p>
+    {!ready ? <p>{reviews.kind === "loading" ? "Loading your reviews…" : "Reviews unavailable. Reload to try again."}</p> : !rows.length && <p>No unreviewed check-ins in this recent window.</p>}
+    <DashWidgetList rows={rows} label="check-ins" renderRow={(row) => <div className="dw-row"><div>{row.name}<div className="dw-note">Week of {row.week}</div></div><button type="button" style={DASH_WIDGET_BUTTON} aria-expanded={selected === row.key} onClick={() => setSelected(selected === row.key ? null : row.key)}>Review {row.name}</button></div>} />
+    {open && <section aria-label={"Check-in from " + open.name} style={{ marginTop: 12, padding: 16, border: "1px solid var(--sh-line2, #413d38)", borderRadius: 8 }}>
+      <strong>{open.name} · week of {open.week}</strong>
+      {Object.entries(open.checkin.ratings || {}).map(([label, value]) => <p className="dw-note" key={label}>{label.replace(/([A-Z])/g, " $1")}: {String(value)}</p>)}
+      {[["wins", "Wins"], ["struggles", "Struggles"], ["question", "Question"], ["notes", "Notes"]].map(([field,label]) => open.checkin[field] ? <p key={field} style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}><strong>{label}: </strong>{String(open.checkin[field])}</p> : null)}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(open.name, role, "Hi " + open.name.split(" ")[0] + " — thanks for your check-in for the week of " + open.week + ". ")}>Draft response</button>
+        <button type="button" style={DASH_WIDGET_BUTTON} disabled={state === "Saving review…" || !ready} onClick={mark}>Mark reviewed</button>
+        <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => setSelected(null)}>Close</button>
+      </div>
+    </section>}
+    <p className="dw-note" role="status">{state}</p>
+  </div>;
+}
+
+function dashSetupSteps(client, confirmed) {
+  const checkins = client.checkins;
+  return [
+    { key: "intake", label: "Intake", done: !!confirmed, manual: true },
+    { key: "appointment", label: "First appointment", done: client.payments && client.payments.sessionCount != null ? client.payments.sessionCount > 0 : null },
+    { key: "plan", label: "First plan", done: client.program ? true : null },
+    { key: "checkin", label: "First check-in", done: Array.isArray(checkins) ? checkins.length > 0 : null },
+  ];
+}
+function DashSetupPanel({ clients, prefs, role, live }) {
+  const key = "setupIntake:" + role;
+  const [state, setState] = React.useState("");
+  const rows = clients.filter((c) => c.profile && c.profile.isNew);
+  return <div>
+    <p className="dw-note">Clients new to your practice. Confirm intake after you complete it; the other steps use shared records.</p>
+    {!rows.length && <p>No new clients needing setup.</p>}
+    {rows.map((client) => <section key={client.profile.id || client.profile.name} style={{ borderTop: "1px solid var(--sh-line, #302c27)", padding: "12px 0" }}>
+      <DashWidgetClient id={client.profile.id} name={client.profile.name} role={role} />
+      {dashSetupSteps(client, prefs.doc[key] && prefs.doc[key][client.profile.id]).map((step) => <div className="dw-row" key={step.key}>
+        <span>{step.done ? "✓ " : ""}{step.label}{step.done == null ? " · not shared" : step.done ? " · complete" : " · to do"}</span>
+        {step.manual ? <button type="button" style={DASH_WIDGET_BUTTON} disabled={!live || !client.profile.id || state === "Saving…" || !["ready","error"].includes(prefs.kind)} onClick={async () => {
+          setState("Saving…"); const id = client.profile.id;
+          const ok = await prefs.apply((doc) => ({ ...doc, [key]: { ...doc[key], [id]: !step.done } }));
+          setState(ok ? "Intake updated" : "Couldn't save. Try again.");
+        }}>{step.done ? "Reopen" : "Confirm intake"}</button> : !step.done && <a className="dw-action" href={step.key === "appointment" ? dashLinkedTab("schedule",role,{client:client.profile.id}) : step.key === "plan" ? dashLinkedTab(role === "nutritionist" ? "plans" : "programs",role,{client:client.profile.id}) : dashWidgetClientHref(client.profile.id,role,"checkins") || dashTabHref("clients",role)}>Open step →</a>}
+      </div>)}
+    </section>)}
+    <p className="dw-note" role="status">{state || (!live ? "Preview · intake confirmations save after sign-in" : "")}</p>
+  </div>;
+}
+
+function dashReplyRows(threads) {
+  return (threads || []).filter((thread) => {
+    const messages = thread.messages || [];
+    return thread.latestKnown !== false && messages.length && messages[messages.length-1].mine === false;
+  }).map((thread) => ({ ...thread, waitingSince: thread.messages[thread.messages.length-1].createdAt }))
+    .sort((a,b) => String(a.waitingSince).localeCompare(String(b.waitingSince)));
+}
+function useDashWidgetRead(paths, enabled) {
+  const account = useSignedIn();
+  const [attempt, retry] = React.useReducer((n) => n+1,0);
+  const [state, setState] = React.useState({ loading: true, data: null, error: false });
+  const key = paths.join("|");
+  React.useEffect(() => {
+    let on = true;
+    if (!enabled || !account) { setState({ loading:false, data:null, error:enabled, account }); return; }
+    setState({ loading:true, data:null, error:false });
+    Promise.all(paths.map(async (path) => { const res = await fetch(path,{credentials:"same-origin",cache:"no-store"}); if (!res.ok) throw new Error("unavailable"); return res.json(); }))
+      .then((data) => { if (on) setState({ loading:false, data, error:false, account }); })
+      .catch(() => { if (on) setState({ loading:false,data:null,error:true,account }); });
+    return () => { on=false; };
+  }, [key, enabled, attempt, account]);
+  return { ...state, loading: state.loading || (enabled && state.account !== account), data: state.account === account ? state.data : null, retry };
+}
+function DashRepliesPanel({ role, live }) {
+  const read = useDashWidgetRead(["/api/" + role + "/messages"],live);
+  const rows = read.data ? dashReplyRows(read.data[0].threads) : [];
+  const unknown = read.data ? (read.data[0].threads || []).filter((t) => t.latestKnown === false).length : 0;
+  return <div>
+    {!live ? <p className="dw-note">Replies appear from your client conversations after sign-in.</p> : read.loading ? <p>Loading conversations…</p> : read.error ? <p>Couldn't read conversations. <button type="button" style={DASH_WIDGET_BUTTON} onClick={read.retry}>Retry</button></p> : <>
+      <p className="dw-note">Latest message is incoming · oldest first · up to 50 recent conversations.</p>
+      {!!unknown && <p className="dw-note">Latest message unavailable for {unknown} conversations. Open Messages to check them.</p>}
+      {!rows.length && <p>No replies waiting in the conversations we could read.</p>}
+      <DashWidgetList rows={rows} label="conversations" renderRow={(row) => <div className="dw-row"><div>{row.clientName}<div className="dw-note">Waiting since {new Date(row.waitingSince).toLocaleString()}</div></div><button type="button" style={DASH_WIDGET_BUTTON} onClick={() => {
+        const opts = { conversationId: row.id, who: row.clientName };
+        if (window.__openChatTo) window.__openChatTo(opts); else if (window.__openChat) window.__openChat(opts);
+      }}>Open conversation</button></div>} />
+      <button type="button" style={DASH_WIDGET_BUTTON} onClick={read.retry}>Refresh replies</button>
+    </>}
+  </div>;
+}
+
+// Union working-hour intervals and subtract booking intervals, never event counts.
+// Session instants are converted to this browser zone before entering the helper.
+// Working hours in another/unknown zone are explicitly unavailable.
+function dashCapacity(events, slots, now = new Date()) {
+  const merge = (ranges) => {
+    const out = [];
+    for (const [start,end] of ranges.sort((a,b) => a[0]-b[0])) {
+      const last = out[out.length-1];
+      if (last && start <= last[1]) last[1] = Math.max(last[1],end); else out.push([start,end]);
+    }
+    return out;
+  };
+  const days = []; let available = 0, booked = 0, unreadable = 0;
+  for (let i=0;i<7;i++) {
+    const day = new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
+    const date = dashCalDate(day);
+    const hours = merge((slots || []).filter((s) => s.weekday === day.getDay() && Number.isFinite(s.start_minute) && s.start_minute >= 0 && s.start_minute < 1440 && Number.isFinite(s.duration_min) && s.duration_min > 0).map((s) => [s.start_minute,Math.min(1440,s.start_minute+s.duration_min)]));
+    const bookings = [];
+    for (const event of events || []) {
+      if (!["SESSION","CONSULT"].includes(event.kind) || ["cancelled","canceled","declined"].includes(event.status)) continue;
+      if (!/^\d{2}:\d{2}$/.test(event.time || "") || !Number.isFinite(Number(event.durationMin)) || !(Number(event.durationMin)>0)) { if (event.date === date) unreadable++; continue; }
+      const [h,m] = event.time.split(":").map(Number), start = h*60+m;
+      if (h>23 || m>59) { if (event.date === date) unreadable++; continue; }
+      const offset = Math.round((new Date(event.date + "T12:00:00") - new Date(date + "T12:00:00")) / 86400000) * 1440;
+      const a = offset + start, b = a + Number(event.durationMin);
+      if (Number.isFinite(a) && a < 1440 && b > 0) bookings.push([Math.max(0,a),Math.min(1440,b)]);
+    }
+    const busy = merge(bookings);
+    const free = [];
+    for (const [start,end] of hours) {
+      available += end-start;
+      let cursor = start;
+      for (const [a,b] of busy) {
+        if (a >= end || b <= cursor) continue;
+        if (a>cursor) free.push([cursor,Math.min(a,end)]);
+        booked += Math.max(0,Math.min(end,b)-Math.max(cursor,a));
+        cursor = Math.max(cursor,Math.min(end,b));
+      }
+      if (cursor<end) free.push([cursor,end]);
+    }
+    days.push({date,free});
+  }
+  return { available, booked, free:available-booked, unreadable, days };
+}
+function DashCapacityPanel({ role, live }) {
+  const read = useDashWidgetRead(["/api/calendar?capacityRole="+role, "/api/my-availability?role="+role],live);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const comparable = read.data && read.data[0].bookingsReadable === true && read.data[1].timezone === zone;
+  const capacity = comparable ? dashCapacity(read.data[0].events.map((event) => event.scheduledAt ? { ...event, date: dashCalDate(event.scheduledAt), time: dashCalTime(event.scheduledAt) } : event),read.data[1].slots) : null;
+  const hm = (minute) => String(Math.floor(minute/60)).padStart(2,"0")+":"+String(minute%60).padStart(2,"0");
+  return <div>
+    {!live ? <p className="dw-note">Capacity appears once your bookings and working hours are saved.</p> : read.loading ? <p>Loading capacity…</p> : read.error || !read.data ? <p>Couldn't read capacity. <button type="button" style={DASH_WIDGET_BUTTON} onClick={read.retry}>Retry</button></p> : !comparable ? <p className="dw-note">Open Schedule to review working hours in {read.data[1].timezone || "your saved time zone"}. Capacity requires hours in this browser's time zone ({zone}).</p> : !capacity.available ? <p>Set your working hours in Schedule to see capacity.</p> : capacity.unreadable ? <p>Capacity unavailable: {capacity.unreadable} bookings have an unreadable time or duration.</p> : <>
+      <div style={{ fontSize:22 }}>{(capacity.booked/60).toFixed(1)} of {(capacity.available/60).toFixed(1)} hours booked</div>
+      <p className="dw-note">Next 7 days · {zone} · {(capacity.free/60).toFixed(1)} hours free within working hours. Overlapping bookings count once.</p>
+      {capacity.days.filter((d) => d.free.length).map((d) => <div className="dw-row" key={d.date}><a className="dw-action" href={dashLinkedTab("schedule",role,{date:d.date})}>{d.date}</a><span className="dw-note">{d.free.map(([a,b]) => hm(a)+"–"+hm(b)).join(" · ")}</span></div>)}
+    </>}
+    <a className="dw-action" href={dashTabHref("schedule",role)}>Open Schedule →</a>
+  </div>;
+}
+
 
 // ── The shared page ─────────────────────────────────────────────────────────
 function CoachDashboardPage({ role }) {
@@ -1457,7 +1586,7 @@ function CoachDashboardPage({ role }) {
   const practiceKpis = practiceChosen.map((k) => dashKpiCell(k, role, kpiCtx));
 
   const calendarEvents = live && Array.isArray(live.calendar)
-    ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub }))
+    ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub, durationMin: e.durationMin, sharedCoach: e.sharedCoach }))
     : dashDemoCalendar(cfg.mockCalendar);
 
   const pulseRows = live && Array.isArray(live.pulse) ? live.pulse : null;
@@ -1511,6 +1640,14 @@ function CoachDashboardPage({ role }) {
   // are the honest-absence contract — the entry stays in the array, and the catalogue
   // says why the card cannot be added yet.
   const gridWidgets = [
+    { key: "checkins", title: "Check-ins to review", blurb: "Recent shared check-ins, oldest first, with your saved review status.", optional: true, size: "half",
+      render: () => renderPanel("Check-ins to review", <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
+    { key: "setup", title: "New-client setup", blurb: "Intake, first appointment, first plan and first check-in.", optional: true, size: "half",
+      render: () => renderPanel("New-client setup", <DashSetupPanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
+    { key: "replies", title: "Replies needed", blurb: "Conversations where the latest message came from your client.", optional: true, size: "half",
+      render: () => renderPanel("Replies needed", <DashRepliesPanel role={role} live={source === "live"} />) },
+    { key: "capacity", title: "Capacity this week", blurb: "Booked time, working hours and gaps over the next seven days.", optional: true, size: "half",
+      render: () => renderPanel("Capacity this week", <DashCapacityPanel role={role} live={source === "live"} />) },
     { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
     { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
     ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
@@ -1522,21 +1659,21 @@ function CoachDashboardPage({ role }) {
       settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
     { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
     // ── Optional (off until added) ──
-    { key: "week", title: "Week ahead", blurb: "The next seven days of your calendar, one column per day.", optional: true, size: "half",
+    { key: "week", title: "Week ahead", blurb: "The next seven days of your calendar, with links to each day.", optional: true, size: "half",
       empty: !weekAhead, emptyWhy: staleWhy,
-      render: () => renderPanel("Week ahead", <DashWeekAheadPanel week={weekAhead} />) },
+      render: () => renderPanel("Week ahead", <DashWeekAheadPanel week={weekAhead} role={role} />) },
     { key: "status", title: "Roster by status", blurb: "How many clients need you, need watching, and are on track.", optional: true, size: "half",
       empty: !rosterStatus, emptyWhy: sigOk ? "the pulse could not be read" : staleWhy,
       render: () => renderPanel("Roster by status", <DashRosterStatusPanel status={rosterStatus} role={role} />) },
     { key: "movers", title: "Top movers", blurb: "The biggest Shape Score moves, week over week.", optional: true, size: "half",
       empty: !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : staleWhy,
-      render: () => renderPanel("Top movers", <DashTopMoversPanel movers={movers} />) },
-    { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a tenure mark on Shape in the next 30 days.", optional: true, size: "half",
+      render: () => renderPanel("Top movers", <DashTopMoversPanel movers={movers} role={role} />) },
+    { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a milestone with your practice in the next 30 days.", optional: true, size: "half",
       empty: !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : staleWhy,
-      render: () => renderPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} />) },
+      render: () => renderPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} role={role} />) },
     { key: "revenue", title: "Revenue by client", blurb: "Who pays what per month, from their subscriptions.", optional: true, size: "half",
       empty: !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : staleWhy,
-      render: () => renderPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} />) },
+      render: () => renderPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} role={role} />) },
     { key: "ending", title: role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, size: "half",
       empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? (role === "nutritionist" ? "appears once a client is on one of your plans" : "appears once a client is on one of your programs") : staleWhy,
       render: () => renderPanel(role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", <DashProgramsEndingPanel ending={ending} role={role} />) },
