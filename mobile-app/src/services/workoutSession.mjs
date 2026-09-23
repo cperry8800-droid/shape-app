@@ -30,7 +30,8 @@ export function bsRemoveWorkoutDraft(storage, userId, sessionId) {
 // finds it (`bsPlainScheme`: sets × reps, and a unit that ends the value). The rest is then
 // read from what follows that reading, past the text run on to it up to the parser's own
 // end of a value (a space, a "·", a comma or a semicolon), so a hold list such as
-// "30s/45s" is not read as the rest either. Nothing before the rep value is kept: it holds
+// "30s/45s" is not read as the rest either, unless its final slash value is labelled
+// with the complete word "rest". That explicit work/rest pair keeps its rest duration. Nothing before the rep value is kept: it holds
 // no reading (one there would have come first), and joined to what follows, the 2 of
 // "rest 2 3 × 30s min" would run into the "min". "m" is metres in a rep value and minutes
 // in a rest ("2 m rest"), and the rep value is never read as one. A remaining duration
@@ -40,11 +41,17 @@ const BS_REST_DURATION = /(\d+(?:\.\d+)?)\s*(min(?:ute)?s?|m|sec(?:ond)?s?|s)(?:
 const BS_REST_AMOUNT = String.raw`(?:\d+:\d{2}|\d+(?:\.\d+)?\s*(?:min(?:ute)?s?|m|sec(?:ond)?s?|s))`;
 const BS_NAMED_REST = new RegExp(String.raw`\brest\s*:?\s*(${BS_REST_AMOUNT})(?![\w.:])|(?:^|[^\w.:])(${BS_REST_AMOUNT})\s*rest\b`);
 const BS_VALUE_RUN = /^[^\s·,;]*/;
+// The run's last value after a slash, a number and a unit or a clock, marked by the word
+// rest. A rest followed by a number is that number's ("3 × 30s/45s rest: 60s"), not the pair's.
+const BS_PAIR_REST = /^(?:\/[^\s·,;\/]*)*\/\s*(?:(\d+):(\d{2})|(\d+(?:\.\d+)?\s*(?:min(?:ute)?s?|m|sec(?:ond)?s?|s)))\s*rest\b(?!\s*:?\s*\d)/;
 function bsRestText(scheme) {
   const at = bsPlainScheme(scheme);
   const read = BS_REST_DURATION.exec(scheme);
   if (!at || !read || read.index < at.index || read.index >= at.index + at[0].length) return scheme;
   const after = scheme.slice(read.index + read[0].length);
+  const pair = BS_PAIR_REST.exec(after);
+  // A clock is spelled in seconds, so the one duration reader below reads either kind.
+  if (pair) return pair[3] ? `${pair[3]} rest` : `${Number(pair[1]) * 60 + Number(pair[2])}s rest`;
   return after.slice(BS_VALUE_RUN.exec(after)[0].length);
 }
 export function bsRestSeconds(move = {}) {
