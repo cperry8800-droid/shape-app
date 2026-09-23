@@ -31,9 +31,9 @@
   if (root) root.DashMeals = api;
 })(typeof window !== "undefined" ? window : null, function () {
   var GOAL_PHASES = [
-    { key: "cut", label: "Cut", c: "#d8a23a", targets: { kcal: 1900, p: 165, c: 170, f: 60 } },
-    { key: "maintain", label: "Maintain", c: "#2ee0c4", targets: { kcal: 2300, p: 160, c: 250, f: 75 } },
-    { key: "build", label: "Build", c: "#8a5cf6", targets: { kcal: 2700, p: 180, c: 320, f: 85 } },
+    { key: "cut", label: "Cut", c: "var(--sh-gold, #d8a23a)", targets: { kcal: 1900, p: 165, c: 170, f: 60 } },
+    { key: "maintain", label: "Maintain", c: "var(--sh-accent, #2ee0c4)", targets: { kcal: 2300, p: 160, c: 250, f: 75 } },
+    { key: "build", label: "Build", c: "var(--sh-violet, #8a5cf6)", targets: { kcal: 2700, p: 180, c: 320, f: 85 } },
   ];
   var SLOTS = ["Breakfast", "Lunch", "Dinner", "Snack"];
   var VARIANT_KEYS = [

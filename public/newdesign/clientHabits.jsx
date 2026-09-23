@@ -15,7 +15,7 @@ function HabitRow({ h, onToggle, onRemove }) {
       <HabitCheckbox checked={done} onClick={() => onToggle(h.id)} type={h.type}
         ariaLabel={done ? "Mark not done" : "Mark done"} />
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: done ? "rgba(var(--sh-ink-rgb, 242,237,228),0.6)" : INK, textDecoration: done ? "line-through" : "none" }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: done ? "var(--sh-ink2, #a09b94)" : INK, textDecoration: done ? "line-through" : "none" }}>
           {h.label}
           {/* WORK domain tag (spec 2026-07-13) — slate, mobile parity */}
           {h.domain === "work" && <span style={{ marginLeft: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", color: "#7aa7dc", border: "1px solid rgba(122,167,220,0.4)", borderRadius: 3, padding: "1px 5px", verticalAlign: "2px" }}>WORK</span>}
@@ -26,7 +26,7 @@ function HabitRow({ h, onToggle, onRemove }) {
         +{h.points}
       </span>
       <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em",
-        color: streakFor(h) > 0 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.3)", whiteSpace: "nowrap" }}>
+        color: streakFor(h) > 0 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" : "var(--sh-ink3, #75706a)", whiteSpace: "nowrap" }}>
         {streakFor(h)}d
       </span>
       <button onClick={() => onRemove(h.id)} aria-label="Remove habit" title="Remove"
@@ -114,7 +114,7 @@ function ClientHabitsPage() {
               borderRadius: 999,
               border: visibility === key ? `1px solid ${TEAL_BRIGHT}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)",
               background: visibility === key ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent",
-              color: visibility === key ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.72)",
+              color: visibility === key ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.72)",
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10.5,
               letterSpacing: "0.12em",

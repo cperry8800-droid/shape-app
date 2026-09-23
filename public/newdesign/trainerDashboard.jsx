@@ -131,7 +131,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
         }}>
           <span>{n.label}</span>
           {n.count != null && (
-            <span style={{ fontFamily: mono, fontSize: 11, color: n.active ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)", background: n.active ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "var(--sh-rest, #221e19)", padding: "2px 7px", borderRadius: 6 }}>{n.count}</span>
+            <span style={{ fontFamily: mono, fontSize: 11, color: n.active ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink3, #75706a)", background: n.active ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "var(--sh-rest, #221e19)", padding: "2px 7px", borderRadius: 6 }}>{n.count}</span>
           )}
         </a>
       ))}
@@ -277,7 +277,7 @@ function DashTodayItemRow({ t }) {
         <div style={{ marginBottom: 14, marginLeft: 96, marginRight: 4, borderRadius: 10, overflow: "hidden", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
           <div style={{ padding: "14px 18px", background: p.cover, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14 }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "4px 10px", borderRadius: 999, fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 7, color: PAPER }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "4px 10px", borderRadius: 999, fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 7, color: "#f2ede4" }}>
                 {p.provider === "apple" ? appleMark : spotMark}
                 {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"} · {(p.author || "COACH").toUpperCase()}'S PICK
               </div>
@@ -443,7 +443,7 @@ function DashShell({
                 {s.status && (
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4,
                     background: s.status === "DONE" ? "rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : s.status === "NEXT" ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
-                    color: s.status === "NEXT" ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.65)",
+                    color: s.status === "NEXT" ? PAPER : "var(--sh-ink2, #a09b94)",
                     border: s.status === "DONE" ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : "none",
                   }}>{s.status}</span>
                 )}
@@ -676,7 +676,7 @@ function DashExportButton({ kind, build, live, label }) {
         disabled={!on}
         title={on ? "Download a CSV of " + (label || kind) : "Export is live-only — this preview's people are invented"}
         style={{
-          background: "transparent", color: on ? "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.32)",
+          background: "transparent", color: on ? "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" : "var(--sh-ink3, #75706a)",
           border: "1px solid " + (on ? "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"),
           padding: "7px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace",
           fontSize: 10.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",

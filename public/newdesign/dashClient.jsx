@@ -9,16 +9,20 @@
 // Load order: pageShell → trainerDashboard.jsx → clientNav → dashSignals.js →
 // dashData.jsx → this file.
 
-// ⚠ DCL_INK50 · DCL_TEAL · DCL_RED STAY LITERAL, BY RULE. All three reach the
-// membership pill, which composes its border by APPENDING a hex-alpha suffix
-// (`memberPill.c + "55"`), so a var() there is not a colour and CSS drops the whole
-// declaration. DCL_GREEN is tokenised because nothing appends to it — the split is
-// about where a value ENDS UP, not about what kind of colour it is.
-// tests/newdesign-paper-tokens.test.mjs holds the rule.
-const DCL_INK50 = "rgba(242,237,228,0.55)";
-const DCL_TEAL = "#2ee0c4";
+// All four follow the paper. DCL_INK50 · DCL_TEAL · DCL_RED were fixed literals
+// because the membership pill composed its border by APPENDING a hex-alpha suffix
+// (`memberPill.c + "55"`), and a var() with a suffix is not a colour — CSS drops the
+// whole declaration. The pill composes through ssAlpha now, which keeps a token as
+// rgba(var(--x-rgb, …), a), so nothing here needs a literal. As literals they were
+// dark-paper colours on the light card: the cream labels read 1.09:1 and the teal
+// 1.67:1. Each fallback is its token's DARK value, so the pages without dash.css
+// render exactly what they did (tests/newdesign-paper-tokens.test.mjs).
+// DCL_INK50 keeps its name and is the paper's SECONDARY ink, not 55% of the ink:
+// 55% of the light paper's ink on white is 3.77:1.
+const DCL_INK50 = "var(--sh-ink2, #a09b94)";
+const DCL_TEAL = "var(--sh-accent, #2ee0c4)";
 const DCL_GREEN = "var(--sh-green, #7bbf5a)";
-const DCL_RED = "#e0644b";
+const DCL_RED = "var(--sh-rust, #e0644b)";
 const DCL_MONO = "'JetBrains Mono', monospace";
 
 // ── Demo dataset (signed-out / API unavailable) ─────────────────────────────
@@ -148,7 +152,7 @@ function DclRing({ pct, size = 92, stroke = 7, color = DCL_TEAL, children }) {
 // preview" is literally the client's card. Exercises: { prefix?, name,
 // scheme, load, cue? } — cues render verbatim, grouped rows show A1/A2.
 function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHref = "ClientTrain.html", maxRows = 4, interactive = true }) {
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = DCL_INK50;
   const mono = "'JetBrains Mono', monospace";
   if (!workout) return <div style={{ fontSize: 13, color: ink50, marginTop: 8 }}>Rest day — recovery counts. An easy walk keeps the streak alive.</div>;
   const rows = workout.exercises || [];
@@ -175,7 +179,7 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
         {workout.playlist && workout.playlist.name ? (
-          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#1DB954", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "6px 10px" }}>
+          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-spotify-ink, #1db954)", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "6px 10px" }}>
             ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}
           </a>
         ) : (
@@ -196,7 +200,7 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
 // ledger math. Bars go red when a macro runs over target (the builder's
 // running total mirrors this exact treatment).
 function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, headerNote, swapStorageKey, interactive = true }) {
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = DCL_INK50;
   const mono = "'JetBrains Mono', monospace";
   const teal = "var(--sh-accent, #2ee0c4)", green = "var(--sh-green, #7bbf5a)", red = "var(--sh-rust, #e0644b)";
   const [swapSel, setSwapSel] = React.useState(() => {
@@ -280,7 +284,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
 // /api/client/checkin + /api/client/hydration (cookie session). Demo = signed-out
 // preview (band on top) — taps work locally and nothing persists.
 function DashTodayCard({ live }) {
-  const teal = DCL_TEAL, amber = "var(--sh-gold, #d8a23a)", blue = "#7ed4ff";
+  const teal = DCL_TEAL, amber = "var(--sh-gold, #d8a23a)", blue = "var(--sh-sky, #7ed4ff)";
   const ink50 = DCL_INK50, mono = DCL_MONO;
   const sleepHM = (h) => { const m = Math.round(Number(h) * 60); return Math.floor(m / 60) + "h " + (m % 60) + "m"; };
   const todayISO = dclTodayISO();
@@ -443,7 +447,7 @@ function DashTodayCard({ live }) {
             )}
             <div style={{ marginTop: 10 }}><Gauge label="Rested" val={rested} set={setRested} c={blue} /></div>
           </div>
-          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : teal, color: (nothingSet || saving) ? ink50 : "#06231f", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
+          <button onClick={doLog} disabled={nothingSet || saving} style={{ marginTop: 2, width: "100%", border: 0, background: (nothingSet || saving) ? "rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : teal, color: (nothingSet || saving) ? ink50 : "var(--sh-deep, #06231f)", cursor: saving ? "default" : "pointer", padding: "11px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>{saving ? "Saving…" : "Log today"}</button>
         </>
       ) : (
         <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.5 }}>Energy <b style={{ color: teal }}>{energy ?? "—"}</b> · Hunger <b style={{ color: amber }}>{hunger ?? "—"}</b>{sleepHours != null ? <> · Sleep <b style={{ color: blue }}>{sleepHM(sleepHours)}</b></> : null}{rested != null ? <> · Rested <b style={{ color: blue }}>{rested}</b></> : null} · logged ✓</div>
@@ -607,7 +611,7 @@ function ClientDashboardPage() {
     : { text: "Membership · demo", c: DCL_INK50 };
 
   const plate = (ac) => ({ "--dac": ac });
-  const btn = { fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#06231f", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
+  const btn = { fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
   const ghost = { ...btn, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", textDecoration: "none", display: "inline-block" };
 
   return (
@@ -758,7 +762,7 @@ function ClientDashboardPage() {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                           <span style={{ fontSize: 13.5, fontWeight: 500 }}>{m.name}</span>
-                          {unread > 0 && <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, color: "#06231f", background: DCL_TEAL, borderRadius: 999, padding: "2px 7px" }}>{unread}</span>}
+                          {unread > 0 && <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, color: "var(--sh-deep, #06231f)", background: DCL_TEAL, borderRadius: 999, padding: "2px 7px" }}>{unread}</span>}
                         </div>
                         <div style={{ fontFamily: DCL_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50, marginTop: 2 }}>{m.role}</div>
                       </div>
@@ -785,7 +789,7 @@ function ClientDashboardPage() {
                   <a href={dashShellHref("ClientTeam.html")} aria-label="Book a session" style={{ color: DCL_TEAL, textDecoration: "none", padding: "8px 10px", margin: "-8px -10px" }}>→</a>
                 </div>
                 <div style={{ borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", paddingTop: 10, marginTop: 2 }}>
-                  <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : memberPill.c + "55"), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>
+                  <span style={{ fontFamily: DCL_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: memberPill.c, border: "1px solid " + (memberPill.c === DCL_INK50 ? "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : ssAlpha(memberPill.c, 0x55 / 255)), borderRadius: 4, padding: "4px 9px" }}>{memberPill.text}</span>
                 </div>
               </div>
             ) },

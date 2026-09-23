@@ -179,8 +179,16 @@ test('the spotlight tour reads the paper instead of assuming dark', () => {
   assert.ok(!/isLight: false/.test(tour), 'the tour is hardcoded dark again');
   const engine = read('spotlightTour.js');
   assert.match(engine, /const onAccent = opts\.isLight \? '#ffffff' : '#06231f';/, 'the Next button\'s label colour must follow the accent it sits on');
-  // The client accent on the light paper is the paper's teal, not the dark paper's bright one.
-  assert.match(tour, /ACCENT_LIGHT = \{ client: '#0a8f87'/, 'the light tour accent is the dark paper\'s teal (1.6:1 on white)');
+  // The light tour accents are the stylesheet's own light TEXT tokens — derived, not
+  // typed, so the tour cannot drift from the paper it sits on (it read the builder's
+  // #0a8f87 at 3.97:1 on the card until the text tokens moved to AA).
+  const root = /:root \{([\s\S]*?)\n\}/.exec(CSS)[1];
+  const lightOf = (tok) => new RegExp('\\s' + tok + ':\\s*(#[0-9a-f]{6});').exec(root)[1];
+  const light = /ACCENT_LIGHT = \{ client: '(#[0-9a-f]{6})', trainer: '(#[0-9a-f]{6})', nutritionist: '(#[0-9a-f]{6})' \}/.exec(tour);
+  assert.ok(light, 'ACCENT_LIGHT moved — re-derive it');
+  assert.equal(light[1], lightOf('--sh-accent'), 'the client tour accent is not the light paper\'s text teal');
+  assert.equal(light[2], lightOf('--sh-accent'), 'the trainer tour accent is not the light paper\'s text teal');
+  assert.equal(light[3], lightOf('--sh-gold'), 'the nutritionist tour accent is not the light paper\'s text gold');
 });
 
 test('the card chrome is the builder\'s: one hairline, a 12px radius, no chamfer, no tick, no bracket', () => {

@@ -140,7 +140,7 @@ function PlaylistCard({ p, onOpen }) {
       <div onClick={onOpen}
         style={{ height: 168, background: p.cover, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", padding: "6px 10px", borderRadius: 999, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", color: PAPER }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", padding: "6px 10px", borderRadius: 999, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", color: "#f2ede4" }}>
             <ProviderMark kind={p.provider} size={12} />
             {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
           </div>
@@ -356,7 +356,7 @@ function PlaylistDetail({ p, onClose }) {
     <div onClick={onClose} style={modalOverlay}>
       <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 640, padding: 0 }}>
         <div style={{ height: 180, background: p.cover, padding: 24, display: "flex", alignItems: "flex-end", position: "relative" }}>
-          <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", border: 0, color: PAPER, width: 32, height: 32, borderRadius: 999, cursor: "pointer", fontSize: 16 }}>×</button>
+          <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", border: 0, color: "#f2ede4", width: 32, height: 32, borderRadius: 999, cursor: "pointer", fontSize: 16 }}>×</button>
           <div>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "5px 10px", borderRadius: 999, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 10 }}>
               <ProviderMark kind={p.provider} size={11} />
@@ -376,7 +376,7 @@ function PlaylistDetail({ p, onClose }) {
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {p.attachedTo.map(tid => {
                 const w = ctx.attachTargets.find(x => x.id === tid);
-                return <span key={tid} style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: TEAL_BRIGHT }}>{w?.name}</span>;
+                return <span key={tid} style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: "var(--sh-accent-ink, #2ee0c4)" }}>{w?.name}</span>;
               })}
               <span style={{ border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: "var(--sh-ink2, #a09b94)", cursor: "pointer" }}>+ Attach {ctx.attachmentUnit}</span>
             </div>

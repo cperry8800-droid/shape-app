@@ -320,7 +320,7 @@ function DbzBringClientsZone({ live, role, providerId }) {
         </div>
       ) : (
         <React.Fragment>
-          <div style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_TEAL, marginTop: 12, padding: "9px 10px", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.06)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.18)", wordBreak: "break-all", lineHeight: 1.55, userSelect: "all" }}>
+          <div style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: "var(--sh-accent-ink, #2ee0c4)", marginTop: 12, padding: "9px 10px", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.06)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.18)", wordBreak: "break-all", lineHeight: 1.55, userSelect: "all" }}>
             {url}
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -632,11 +632,11 @@ function DbzChart({ buckets, series, line, unit, hover, onHover, fmt }) {
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke={DBZ_T_GRID} strokeWidth="1" />
-          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{fmtTick(t)}</text>
+          <text x={padL - 6} y={y(t) + 3} textAnchor="end" fill="var(--sh-ink2, #a09b94)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{fmtTick(t)}</text>
         </g>
       ))}
       {buckets.map((b, i) => (i % labelEvery === 0 || i === n - 1) ? (
-        <text key={b.key} x={xc(i)} y={H - 8} textAnchor="middle" fill="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{b.label}</text>
+        <text key={b.key} x={xc(i)} y={H - 8} textAnchor="middle" fill="var(--sh-ink2, #a09b94)" fontFamily="'JetBrains Mono', monospace" fontSize="9">{b.label}</text>
       ) : null)}
       {(series || []).length > 0 && buckets.map((b, i) => {
         const k = series.length, gap = 2, bw = Math.min(24, Math.max(3, (band * 0.62 - gap * (k - 1)) / k));
@@ -705,7 +705,7 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
     { k: s.churnRate30dPct == null ? "—" : s.churnRate30dPct + "%", l: "Churn · 30d", sub: s.churnRate30dPct == null ? "no clients 30 days ago" : "of clients you had 30 days ago", tone: s.churnRate30dPct == null ? null : s.churnRate30dPct > 10 ? DBZ_AMBER : null },
     { k: tenure, l: "Median tenure", sub: s.totalEverSubscribed ? s.totalEverSubscribed + " subscribers, ever" : "—", tone: null },
   ];
-  const chip = (on) => ({ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 3, border: "1px solid " + (on ? DBZ_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? DBZ_TEAL : DBZ_INK50, cursor: "pointer" });
+  const chip = (on) => ({ fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 3, border: "1px solid " + (on ? DBZ_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? "var(--sh-accent-ink, #2ee0c4)" : DBZ_INK50, cursor: "pointer" });
   const hb = hover != null ? buckets[hover] : null;
   const chartHead = (title, legend) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "14px 0 4px" }}>

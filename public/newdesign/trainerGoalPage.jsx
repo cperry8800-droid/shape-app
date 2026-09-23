@@ -17,7 +17,7 @@ const DEFAULT_GOALS_STATE = {
 
 function Chip({ children, onClick, danger }) {
   const [hover, setHover] = React.useState(false);
-  const color = danger ? "#ff8a6d" : TEAL_BRIGHT;
+  const color = danger ? "var(--sh-danger, #e07856)" : "var(--sh-accent-ink, #2ee0c4)";
   return (
     <button onClick={onClick}
       onMouseOver={()=>setHover(true)} onMouseOut={()=>setHover(false)}
@@ -60,7 +60,7 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
       title={goal ? "Edit goal." : "New goal."}
       onClose={onClose}
       footer={<>
-        {onDelete && <button onClick={onDelete} style={{ background: "transparent", color: "#ff8a6d", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
+        {onDelete && <button onClick={onDelete} style={{ background: "transparent", color: "var(--sh-danger, #e07856)", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
         <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
         <button onClick={() => onSave(g)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
       </>}
@@ -311,11 +311,11 @@ function TrainerGoalPage() {
               ["ANNUAL TAKE-HOME", fmt(annual), `${fmt(grossWeekly * 4.33 * 12)} gross · 12 months`, null],
             ].map(([lab, val, sub, delta], i) => (
               <div key={i} style={{ padding: 20, background: i === 0 ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: `1px solid ${i === 0 ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"}`, borderRadius: 10 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: i === 0 ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", marginBottom: 10 }}>{lab}</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: i === 0 ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>{lab}</div>
                 <div style={{ fontFamily: serif, fontSize: 32, letterSpacing: "-0.02em", lineHeight: 1 }}>{val}</div>
                 <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 6 }}>
                   {delta != null ? (
-                    <span style={{ color: delta >= 0 ? TEAL_BRIGHT : "#ff8a6d" }}>{delta >= 0 ? "+" : ""}{fmt(delta)} </span>
+                    <span style={{ color: delta >= 0 ? TEAL_BRIGHT : "var(--sh-danger, #e07856)" }}>{delta >= 0 ? "+" : ""}{fmt(delta)} </span>
                   ) : null}
                   {sub}
                 </div>

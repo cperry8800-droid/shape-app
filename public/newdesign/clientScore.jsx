@@ -46,18 +46,18 @@ function ClientCommitmentCard() {
       {!c && !editing && (
         <React.Fragment>
           <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>Hit your target this week for a bonus; miss it and you forfeit the stake.</div>
-          <button onClick={() => setEditing(true)} style={{ marginTop: 12, ...btn(TEAL, "#04201d") }}>Set a commitment</button>
+          <button onClick={() => setEditing(true)} style={{ marginTop: 12, ...btn(TEAL, "var(--sh-deep, #06231f)") }}>Set a commitment</button>
         </React.Fragment>
       )}
       {c && !editing && (
         <React.Fragment>
           <div style={{ fontFamily: serif, fontSize: 22, color: INK, marginTop: 6 }}>{targetLine || "—"}</div>
-          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: c.status === "met" ? TEAL_BRIGHT : c.status === "missed" ? "#e0463c" : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
+          <div style={{ marginTop: 8, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: c.status === "met" ? TEAL_BRIGHT : c.status === "missed" ? "#e0463c" : "var(--sh-ink2, #a09b94)" }}>
             {c.status === "met" ? `✓ Kept · +${c.stake} earned` : c.status === "missed" ? `Missed · −${c.stake}` : c.status === "proposed" ? "Proposed by your coach" : "Active · settles at week's end"}
           </div>
           {c.status === "proposed" && (
             <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-              <button onClick={() => post({ action: "accept", id: c.id })} style={btn(TEAL, "#04201d")}>Accept</button>
+              <button onClick={() => post({ action: "accept", id: c.id })} style={btn(TEAL, "var(--sh-deep, #06231f)")}>Accept</button>
               <button onClick={() => setEditing(true)} style={btn("transparent", INK, "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)")}>Change</button>
             </div>
           )}
@@ -85,7 +85,7 @@ function ClientCommitmentCard() {
             <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>Hit it → +{f.stake} · miss → −{f.stake} (never below 0).</div>
           </div>
           <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-            <button disabled={busy} onClick={save} style={{ ...btn(TEAL, "#04201d"), opacity: busy ? 0.6 : 1 }}>{busy ? "Setting…" : "Lock it in"}</button>
+            <button disabled={busy} onClick={save} style={{ ...btn(TEAL, "var(--sh-deep, #06231f)"), opacity: busy ? 0.6 : 1 }}>{busy ? "Setting…" : "Lock it in"}</button>
             <button onClick={() => setEditing(false)} style={btn("transparent", INK, "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)")}>Cancel</button>
           </div>
         </div>
@@ -99,7 +99,7 @@ function ClientCommitmentCard() {
 function csScoreAction(on, primary) {
   return {
     background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : primary ? INK : "transparent",
-    color: on ? TEAL_BRIGHT : primary ? PAPER : INK,
+    color: on ? "var(--sh-accent-ink, #2ee0c4)" : primary ? PAPER : INK,
     border: on ? "1px solid " + TEAL_BRIGHT : primary ? 0 : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)",
     padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13,
     fontWeight: primary && !on ? 500 : 400, cursor: "pointer", minHeight: 24,
@@ -242,7 +242,9 @@ function ClientScorePage() {
       }))
     : demo ? staticLedger : [];
 
-  const ORANGE = "#c1641f";
+  // The rust token, not the old #c1641f: that read 3.8:1 on the light card and 3.9:1
+  // on the dark one, and it labels the score's only unit.
+  const ORANGE = "var(--sh-rust, #e0644b)";
   // Momentum meter — real { value, bonusThisWeek } when signed in (null = pre-migration,
   // card hidden); a demo value drives the signed-out marketing preview.
   // ⚠ THE DEMO MOMENTUM IS FOR THE SIGNED-OUT PAGE ONLY. `live` is null for a member
@@ -317,7 +319,7 @@ function ClientScorePage() {
           <div style={{ height: 8, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden", marginTop: 12 }}>
             <div style={{ height: "100%", width: `${mv}%`, background: TEAL, borderRadius: 999 }} />
           </div>
-          <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
+          <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.04em", textTransform: "uppercase", color: momentum.bonusThisWeek ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)" }}>
             {momentum.bonusThisWeek
               ? ((momentum.streakWeeks || 1) > 1
                   ? `🔥 ${momentum.streakWeeks}-week streak · +${momentum.points || 25} banked`
@@ -435,7 +437,7 @@ function ClientScorePage() {
 
     { key: "path", title: "Shortest path", size: "half", render: () => (
       <Card style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>SHORTEST PATH{standingKnown && nextTier ? " TO " + nextTier[0].toUpperCase() : ""}</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "var(--sh-accent-ink, #2ee0c4)", marginBottom: 10 }}>SHORTEST PATH{standingKnown && nextTier ? " TO " + nextTier[0].toUpperCase() : ""}</div>
         {/* ⚠ THE DISTANCE IS DERIVED FROM `myPoints`, which is 0 when the read failed —
             so this card promised a member "750 points stand between you and Tempo" as a
             measurement of a standing nobody had read. */}

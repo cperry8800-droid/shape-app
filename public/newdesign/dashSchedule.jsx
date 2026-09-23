@@ -474,7 +474,7 @@ function CoachSchedulePage({ role }) {
             <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-gold, #d8a23a)", paddingLeft: 22 }}>
               <DscAvailability role={role} live={isLive} initial={availSlots} storedZone={availZone} onZone={setAvailZone} />
             </div>
-            <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "14px 16px" }}>
+            <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", padding: "14px 16px" }}>
               <div className="dash-eyebrow">How rescheduling works</div>
               <div style={{ fontSize: 12, color: DSC_INK50, lineHeight: 1.55, marginTop: 8 }}>
                 Drag a session or consult to a new day — the client gets a notification with the new time. Workouts and meals pushed from a plan are read-only here; move those in the program or meal plan.

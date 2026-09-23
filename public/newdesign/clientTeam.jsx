@@ -8,8 +8,11 @@
 
 const CT_RUST = "var(--sh-rust2, #c0533b)";      // trainer
 const CT_GOLD = "#d8b25a";      // nutritionist (bright variant reads on dark paper)
-const CT_INK55 = "rgba(var(--sh-ink-rgb, 242,237,228), 0.549)";  // 0x8c/255 — the ink at 55%
-const CT_INK40 = "rgba(var(--sh-ink-rgb, 242,237,228), 0.4)";    // 0x66/255 — the ink at 40%
+// Secondary / tertiary TEXT. These were the ink at 55% and 40% alpha, which on the
+// light paper composite to 3.77:1 and 2.7:1 on white; the paper's own ink2 / ink3 hold
+// the same hierarchy and clear 4.5:1 on the card.
+const CT_INK55 = "var(--sh-ink2, #a09b94)";
+const CT_INK40 = "var(--sh-ink3, #75706a)";
 const CT_HAIR = "rgba(var(--sh-ink-rgb, 242,237,228), 0.102)";   // 0x1a/255 — the 10% hairline
 const CT_MONO = "'JetBrains Mono', monospace";
 const CT_MARKET = "/newdesign/marketplace.html";
@@ -390,7 +393,7 @@ function ClientTeamPage() {
         </div>
       ) : state === "error" ? (
         <CtNotice
-          accent={RUST}
+          accent="var(--sh-ember, #d2693f)"
           eyebrow="COULDN'T LOAD"
           title="Your team didn't load."
           body="Something went wrong reaching your coaches. Give it another try."
