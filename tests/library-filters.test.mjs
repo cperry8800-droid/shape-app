@@ -399,6 +399,15 @@ for (const [paper, open] of [['light', ':root {'], ['dark', 'html[data-paper="da
   });
 }
 
+// ⚠ iOS SAFARI ZOOMS THE PAGE ON FOCUS when a text box computes under 16px. Both text
+// boxes the library filters added are in the coarse-pointer floor, read from the sheet.
+test('the library\'s text boxes take the 16px floor on a coarse pointer', () => {
+  const m = /@media \(pointer:coarse\)\{([^{}]*)\{\s*font-size:16px !important;\s*\}\s*\}/.exec(CSS);
+  assert.ok(m, 'no coarse-pointer font floor in dash.css');
+  const sel = m[1].split(',').map((x) => x.trim());
+  for (const x of ['.dash-filter-search input', '.dash-tag-new']) assert.ok(sel.includes(x), x + ' is not in the floor');
+});
+
 test('the selected chip text is the declared mix, not the bare tag colour', () => {
   assert.match(CSS, /\.dash-chip\.is-on, \.dash-chip\.is-set \{[^}]*color:color-mix\(in srgb, var\(--c, var\(--sh-accent, #2ee0c4\)\) var\(--sh-tag-ink-mix, 65%\), var\(--sh-ink, #f2ede4\)\)/);
 });

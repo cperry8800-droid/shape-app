@@ -47,10 +47,16 @@ const MIN = {
   'dashSignals.js': '20260922b',
 };
 
-const stale = (pages, mod) => pages
-  .map((p) => [p, keyOf(p, mod)])
-  .filter(([, k]) => !k || k < MIN[mod])
-  .map(([p, k]) => p + ' (' + (k || 'no dated key') + ')');
+// ⚠ A MODULE WITH NO ENTRY IN MIN MUST FAIL, NOT PASS. `k < undefined` is false for
+// every key, so a module added to a checked list without a floor would report no stale
+// host at all and the guard would switch itself off. (CodeRabbit, #2150.)
+const stale = (pages, mod) => {
+  assert.ok(/^\d{8}[a-z]*$/.test(MIN[mod] || ''), 'no MIN key for ' + mod + ' — give it the key this change wrote');
+  return pages
+    .map((p) => [p, keyOf(p, mod)])
+    .filter(([, k]) => !k || k < MIN[mod])
+    .map(([p, k]) => p + ' (' + (k || 'no dated key') + ')');
+};
 
 for (const mod of ['workoutDocument.js', 'dashBuilderCore.js', 'dashMealCore.js']) {
   test(`every host of ${mod} asks for the copy this change wrote`, () => {
@@ -84,6 +90,10 @@ test('every host that calls the superset rules asks for a new enough signals mod
   const hosts = [...new Set([...rendering, ...loading])].sort();
   assert.ok(hosts.length >= 4, 'found too few hosts (' + hosts.join(', ') + ')');
   assert.deepEqual(stale(hosts, 'dashSignals.js'), [], 'hosts asking for a signals module older than the superset rules they call');
+});
+
+test('a module with no floor fails the check instead of passing every host', () => {
+  assert.throws(() => stale(['TrainerApp.html'], 'noSuchModule.js'), /no MIN key for noSuchModule\.js/);
 });
 
 // ⚠ THE COMPARISON ITSELF IS CHECKED, because a guard that compares keys as numbers

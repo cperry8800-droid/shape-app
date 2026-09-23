@@ -45,6 +45,11 @@ function dbuBtn(primary, c) {
 }
 // `.fld` and `.lbl`.
 const dbuField = { boxSizing: "border-box", display: "flex", alignItems: "center", height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid " + DBU_LINE2, background: DBU_WH, fontFamily: DBU_BODY, fontSize: 14, color: DBU_INK, outline: "none" };
+// ⚠ WHILE AN IME IS COMPOSING, ITS KEYSTROKES BELONG TO IT. The Enter that confirms a
+// candidate and the Escape that cancels one are the IME's, not the control's. keyCode 229
+// is Safari's form: WebKit ends the composition BEFORE the keydown for the Enter that
+// confirms it, so `isComposing` already reads false there.
+const dbuImeComposing = (e) => !!(e && (e.isComposing || e.keyCode === 229));
 // The row's secondary controls: a step quieter than dbuBtn, still past the floor.
 const dbuRowBtn = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 32, height: 32, padding: "0 10px", borderRadius: 7, border: "1px solid " + DBU_LINE2, background: DBU_WH, color: DBU_INK, fontFamily: DBU_BODY, fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
 const dbuLabel = { fontFamily: DBU_BODY, fontSize: 12.5, color: DBU_INK2, fontWeight: 600, marginBottom: 5, display: "block" };
@@ -91,7 +96,7 @@ function DbuTagPicker({ tags, customTags, onChange }) {
   React.useEffect(() => {
     if (!open) return undefined;
     const down = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false); };
-    const key = (e) => { if (e.key === "Escape") { setOpen(false); if (toggleBtn.current) toggleBtn.current.focus(); } };
+    const key = (e) => { if (dbuImeComposing(e)) return; if (e.key === "Escape") { setOpen(false); if (toggleBtn.current) toggleBtn.current.focus(); } };
     document.addEventListener("mousedown", down);
     document.addEventListener("keydown", key);
     return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
@@ -134,8 +139,8 @@ function DbuTagPicker({ tags, customTags, onChange }) {
             {!!own.length && <div className="dash-facet-h" style={{ marginTop: 10 }}>Your tags</div>}
             {own.map(row)}
             <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <input value={text} maxLength={DashBuilder.TAG_MAX_LEN} placeholder="New tag" aria-label="New tag"
-                onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+              <input className="dash-tag-new" value={text} maxLength={DashBuilder.TAG_MAX_LEN} placeholder="New tag" aria-label="New tag"
+                onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (dbuImeComposing(e.nativeEvent)) return; if (e.key === "Enter") { e.preventDefault(); add(); } }}
                 style={{ ...dbuField, height: 36, flex: 1, minWidth: 0, fontSize: 13 }} />
               <button type="button" style={dbuLibBtn(false)} disabled={!typed || (full && !has(typed))} onClick={add}>Add</button>
             </div>

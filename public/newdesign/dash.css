@@ -341,6 +341,12 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
 .dash-filter-search input { flex:1; min-width:0; min-height:32px; margin:0; padding:0; border:0; outline:none; background:transparent;
   font-family:var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif); font-size:13px; color:var(--sh-ink, #f2ede4); }
 .dash-filter-search input::placeholder { color:var(--sh-ink2, #a09b94); opacity:1; }
+/* ⚠ iOS SAFARI ZOOMS THE PAGE ON FOCUS when a text box computes under 16px. The two boxes
+   the library filters added, the search and the builder tag picker's New tag, take the
+   16px floor on a coarse pointer only, so the mouse keeps the smaller size. The same floor
+   dashGrid.jsx keeps for its own controls (#2046, #2137); it lives here because the
+   library pages load dash.css and not dashGrid.jsx. */
+@media (pointer:coarse){ .dash-filter-search input, .dash-tag-new { font-size:16px !important; } }
 .dash-filter-result { display:inline-flex; align-items:center; gap:10px; margin-left:auto; white-space:nowrap; }
 .dash-filter-count { font-family:var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size:10px; letter-spacing:.1em;
   text-transform:uppercase; color:var(--sh-ink2, #a09b94); white-space:nowrap; }

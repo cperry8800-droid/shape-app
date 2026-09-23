@@ -431,6 +431,31 @@ test('the tag picker keeps the menu contract: it names its panel, focus goes in,
   assert.equal(add.getAttribute('aria-controls'), null, 'and it stops naming a panel that is gone');
 });
 
+// ⚠ WHILE AN IME IS COMPOSING, ITS KEYSTROKES ARE ITS OWN. The Enter that confirms a
+// candidate saved a half-typed tag, and the Escape that cancels one closed the picker.
+// keyCode 229 is Safari's form of both (the composition has already ended by the time
+// the keydown arrives, so `isComposing` reads false). (CodeRabbit, #2150.)
+test('the tag picker leaves an IME\'s own Enter and Escape alone', async () => {
+  await mount(React.createElement(PickerHarness));
+  await click(button('＋ Tag'));
+  const input = document.querySelector('.dash-facet-pop input[aria-label="New tag"]');
+  assert.ok(input.classList.contains('dash-tag-new'), 'the box takes the coarse-pointer font floor');
+  await typeInto(input, '日本');
+  const press = (init) => React.act(async () => { input.dispatchEvent(new window.KeyboardEvent('keydown', { bubbles: true, ...init })); });
+  await press({ key: 'Enter', isComposing: true });
+  assert.deepEqual(saved(), ['cut'], 'the Enter that confirms a candidate adds nothing');
+  await press({ key: 'Enter', keyCode: 229 });
+  assert.deepEqual(saved(), ['cut'], 'nor does Safari\'s form of it');
+  await press({ key: 'Escape', isComposing: true });
+  assert.ok(!!document.querySelector('.dash-facet-pop'), 'cancelling a candidate leaves the picker open');
+  await press({ key: 'Escape', keyCode: 229 });
+  assert.ok(!!document.querySelector('.dash-facet-pop'), 'in Safari too');
+  await press({ key: 'Enter' });
+  assert.deepEqual(saved(), ['cut', '日本'], 'a plain Enter still adds the tag');
+  await press({ key: 'Escape' });
+  assert.ok(!document.querySelector('.dash-facet-pop'), 'and a plain Escape still closes the picker');
+});
+
 // ── The meal library ────────────────────────────────────────────────────────
 const mealPlan = (id, name, phase, slots, over = {}) => {
   const doc = { ...DashMeals.newPlan(name, phase), ...over };
