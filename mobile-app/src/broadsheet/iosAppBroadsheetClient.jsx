@@ -4,7 +4,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps } from '../services/workoutSession.mjs';
+import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsIsTimedReps } from '../services/workoutSession.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
@@ -6191,8 +6191,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   );
   const cur = PROGRAM[day] || PROGRAM[0];
   const days = PROGRAM.map(p => p.d);
-  // Apply any coach-approved exercise swaps the user picked for this day.
-  const effMoves = (cur.moves || []).map((r, i) => ({ ...r, ...(moveOverrides[`${day}:${i}`] || {}) }));
+  // Apply any coach-approved exercise swaps the user picked for this day. A swap with
+  // its own scheme replaces the move's sets, reps and rest (bsApplyMoveSwap), so the
+  // player runs the scheme this deck shows.
+  const effMoves = (cur.moves || []).map((r, i) => bsApplyMoveSwap(r, moveOverrides[`${day}:${i}`]));
   // "No moves" is NOT the same as "no session". Every outline-delivered session —
   // a coach-assigned weekday split, and now a week-block phase — ships with an
   // empty exercise list, because the outline states the day, not the movements.
@@ -31690,7 +31692,8 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         {activeIdx != null ? (
           <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {!timedMode || activeRunning
-              ? (bsSetPrefill(move, activeIdx).reps
+              // A hold or a distance is not a rep count, so it never reads "30 s reps".
+              ? (bsSetPrefill(move, activeIdx).reps && !bsIsTimedReps(bsSetPrefill(move, activeIdx).reps)
                   ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: bsSetPrefill(move, activeIdx).reps })
                   : tr('session:player.logSetCta', { n: activeIdx + 1 }))
               : tr('session:player.startSetCta', { n: activeIdx + 1 })}
