@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { bsSessionMoves } from '../mobile-app/src/services/workoutSession.mjs';
 
 const require = createRequire(import.meta.url);
 const { JSDOM } = require('jsdom');
@@ -24,7 +25,7 @@ globalThis.useRememberedChoice = (_store, _key, _allowed, fallback) => React.use
 const nd = (f) => fileURLToPath(new URL('../public/newdesign/' + f, import.meta.url));
 Object.assign(globalThis, await loadRealModule(nd('dashFilterBar.jsx'),
   { appendExports: 'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };' }));
-const { DbuSheet, dbuSplitSetsReps } = await loadRealModule(nd('dashBuilder.jsx'), { appendExports: 'export { DbuSheet, dbuSplitSetsReps };' });
+const { DbuSheet, DbuRow, dbuSplitSetsReps } = await loadRealModule(nd('dashBuilder.jsx'), { appendExports: 'export { DbuSheet, DbuRow, dbuSplitSetsReps };' });
 
 // Every row was read with main's split before this change. A row with a third value is
 // one main cut short at a second × or at a letter x, and the third value is what the box
@@ -88,11 +89,11 @@ async function typeInto(input, value) {
     input.dispatchEvent(new window.Event('input', { bubbles: true }));
   });
 }
-function SheetHarness({ onWeeks }) {
-  const [weeks, setWeeks] = React.useState([{ deload: false, days: [{ name: 'Lower', blocks: [{ kind: 'main', rows: [
+function SheetHarness({ onWeeks, weekCount = 1 }) {
+  const [weeks, setWeeks] = React.useState(() => Array.from({ length: weekCount }, () => ({ deload: false, days: [{ name: 'Lower', blocks: [{ kind: 'main', rows: [
     { id: 'r1', name: 'Push-up', sets: 3, reps: 'max', load: '', loadType: 'kg' },
     { id: 'r2', name: 'Back squat', sets: 3, reps: '10', load: 60, loadType: 'kg' },
-  ] }] }] }]);
+  ] }] }] })));
   onWeeks(weeks);
   return React.createElement(DbuSheet, { doc: { weeks }, dates: {}, setSel() {}, setWeeks });
 }
@@ -114,4 +115,67 @@ test('editing the sets of a 3 × max row keeps its reps as max, through the Shee
   assert.equal(row().load, 'bodyweight');
   assert.equal(row().reps, 'max');
   await React.act(async () => root.unmount()); root = null;
+});
+
+test('typing each after a rep count keeps spaces in the focused Sheet cell and trims only the stored value', async () => {
+  let weeks;
+  await mount(React.createElement(SheetHarness, { weekCount: 2, onWeeks: (w) => { weeks = w; } }));
+  try {
+    const box = document.querySelector('[aria-label="Sets and reps, Back squat, week 1"]');
+    assert.ok(box, 'the Sheet renders the sets and reps box');
+    await React.act(async () => box.focus());
+    assert.equal(box.value, '3 × 10');
+    let typed = box.value;
+    for (const key of ' each') {
+      typed += key;
+      // Read the controlled box back between keys, as real typing does. Passing
+      // the entire final string would only test paste and miss the lost space.
+      await typeInto(box, box.value + key);
+      assert.equal(box.value, typed, 'a rerender discarded text before the next key');
+    }
+    const row = () => weeks[0].days[0].blocks[0].rows[1];
+    assert.equal(row().sets, '3');
+    assert.equal(row().reps, '10 each');
+    const outline = ShapeWorkoutDocument.builderToOutlineBlocks({ weeks });
+    await typeInto(box, box.value + '  ');
+    assert.equal(box.value, '3 × 10 each  ', 'focused text keeps trailing spaces');
+    assert.equal(row().reps, '10 each', 'saved reps are trimmed on every change');
+    assert.deepEqual(ShapeWorkoutDocument.builderToOutlineBlocks({ weeks }), outline, 'draft whitespace must not reach the outline');
+    await React.act(async () => box.blur());
+    assert.equal(box.value, '3 × 10 each', 'blur returns to the canonical document value');
+    assert.equal(row().load, 60);
+    assert.equal(weeks[0].days[0].blocks[0].rows[0].reps, 'max', 'another row must stay unchanged');
+    assert.equal(weeks[1].days[0].blocks[0].rows[1].reps, '10', 'another week must stay unchanged');
+    const next = document.querySelector('[aria-label="Sets and reps, Back squat, week 2"]');
+    await React.act(async () => next.focus());
+    await typeInto(next, next.value + ' ');
+    assert.equal(next.value, '3 × 10 ', 'each week owns its focused text');
+    assert.equal(box.value, '3 × 10 each', 'a different focused cell must not overwrite this one');
+  } finally { await React.act(async () => root.unmount()); root = null; }
+});
+
+test('a trainer can replace an imported rest override and send custom rest times to the player', async () => {
+  let row;
+  function TrainerHarness() {
+    const [value, setValue] = React.useState({ id: 'r1', name: 'Back squat', sets: 3, reps: '8', load: 60, loadType: 'kg', rest: '75s', restSeconds: 75 });
+    row = value;
+    return React.createElement(DbuRow, { row: value, label: '01', onChange: setValue, onRemove() {}, onMove() {}, onDuplicate() {}, onUploading() {} });
+  }
+  await mount(React.createElement(TrainerHarness));
+  try {
+    await typeInto(document.querySelector('[aria-label="Back squat load"]'), '65');
+    assert.equal(row.restSeconds, 75, 'unrelated edits preserve an explicit rest override');
+    const rest = document.querySelector('[aria-label="Back squat Rest"]');
+    assert.ok(rest, 'the trainer has a Rest field');
+    for (const [text, seconds] of [['105', 105], ['45s', 45], ['2 min', 120], ['1:30', 90], ['0', 0], ['', null]]) {
+      await typeInto(rest, text);
+      assert.equal(row.rest, text);
+      assert.equal('restSeconds' in row, false, 'the old override must not defeat the new trainer value');
+      const builder = { weeks: [{ days: [{ name: 'Lower', blocks: [{ kind: 'main', rows: [row] }] }] }] };
+      const exercise = ShapeWorkoutDocument.builderToAssignmentRows(builder, null, '2026-09-21')[0].payload.exercises[0];
+      assert.equal(exercise.rest, text, 'the assignment keeps the trainer prescription');
+      const [move] = bsSessionMoves([{ ...exercise, m: exercise.name, s: [exercise.sets + ' × ' + exercise.reps, exercise.rest].filter(Boolean).join(' · ') }]);
+      assert.equal(move.restSeconds, seconds, 'the session timer uses the trainer prescription');
+    }
+  } finally { await React.act(async () => root.unmount()); root = null; }
 });

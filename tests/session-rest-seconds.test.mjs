@@ -10,12 +10,10 @@ import { bsBuildDemoTrainProgram } from '../mobile-app/src/broadsheet/bsClientWe
 // hold or a distance that is the rep value: the demo Farmer carry, "3 × 40m · 60s rest",
 // started a 40:00 rest timer. That first reading is now replaced only when it starts inside
 // the rep value (the outline parser's own `bsPlainScheme` says where that is), and the rest
-// is read from what follows it. In a work/rest pair glued on with a slash ("8 × 20s/10s
-// rest"), the rest is the value the word rest marks.
+// is read from what follows it.
 //
-// Every row below was read with main's bsRestSeconds before the change. A row with a third
-// value is one whose rest main read off the rep value, and the third value is what it reads
-// now. Every other row must read exactly as it did.
+// Every row was recorded on 51b96e24 (main after #2166), including its adjacent-rest fixes.
+// A third value marks a changed reading; every unmarked reading stays exactly the same.
 const ROWS = [
   // The clock form.
   [{ s: '3 × 8 · 2:00' }, 120],
@@ -59,7 +57,7 @@ const ROWS = [
   // No sets × reps to take out: the whole scheme is read, as before.
   [{ s: '2 min rest' }, 120],
   [{ s: 'walk · 90s rest' }, 90],
-  // A rest after a rep value with no unit, including two readings that are wrong for another reason (registered, not changed here).
+  // A rest after a rep value with no unit, including a second hold or distance before the labelled rest.
   [{ s: '4 × 6-8 · 3 min rest' }, 180],
   [{ s: '4 × 8 · 2 min rest' }, 120],
   [{ s: '3 × 10 · 90s rest' }, 90],
@@ -74,70 +72,87 @@ const ROWS = [
   [{ s: '3 × 8 · 2.5 min rest' }, 150],
   [{ s: '3x10 · 90s rest' }, 90],
   [{ s: '3 × 1.5 km · 2 min rest' }, 120],
-  [{ s: '3 × 8 · 30s hold · 90s rest' }, 30],
-  [{ s: '3 × 10 · 40 m sled · 90s rest' }, 2400],
-  // A number glued to a rep value with no unit is outside the parser's rep value, so it reads
-  // as before: right when it is the rest, and wrong when it is a second hold (registered:
-  // position alone cannot tell the two apart).
+  [{ s: '3 × 8 · 30s hold · 90s rest' }, 90],
+  [{ s: '3 × 10 · 40 m sled · 90s rest' }, 90],
+  // A slash-attached duration after unitless reps is still outside the rep value.
   [{ s: '3 × 10/90s rest' }, 90],
   [{ s: '3 × 30/45s · 60s rest' }, 45],
-  // The rep value is a hold or a distance: main read it as the rest.
-  [{ s: '3 × 40m · 60s rest' }, 2400, 60],
-  [{ s: '3 × 45s · 30s rest' }, 45, 30],
-  [{ s: '3 × 30 s · 60s rest' }, 30, 60],
-  [{ s: '3 × 400 m · 90s rest' }, 24000, 90],
-  [{ s: '3 × 1 mi · 2 min rest' }, 60, 120],
-  [{ s: '3 × 2 min · 1 min rest' }, 120, 60],
-  [{ s: '3 × 30 sec · 45 sec rest' }, 30, 45],
-  [{ s: '3 × 40m · 2 m rest' }, 2400, 120],
-  [{ s: '3 × 40m rest' }, 2400, null],
-  [{ s: '3 × 15 secs rest' }, 15, null],
-  [{ s: '3 × 10 sets · 90s rest' }, 10, 90],
-  [{ s: '3 × 8-10 sec · 60s rest' }, 10, 60],
-  [{ s: '3 × 30s/45s · 60s rest' }, 30, 60],
-  [{ s: '3 × 30s-45s · 60s rest' }, 30, 60],
-  [{ s: '3 × 30s rest 60s' }, 30, 60],
-  [{ s: '3x40m · 60s rest' }, 2400, 60],
-  [{ s: '3 × 40M · 60S REST' }, 2400, 60],
-  [{ s: '3 × 40m·60s rest' }, 2400, 60],
-  [{ s: '3 × 40m,60s rest' }, 2400, 60],
-  [{ s: '3 × 40m;60s rest' }, 2400, 60],
+  // #2164 already stopped reading these rep values as the rest; preserve those fixes.
+  [{ s: '3 × 40m · 60s rest' }, 60],
+  [{ s: '3 × 45s · 30s rest' }, 30],
+  [{ s: '3 × 30 s · 60s rest' }, 60],
+  [{ s: '3 × 400 m · 90s rest' }, 90],
+  [{ s: '3 × 1 mi · 2 min rest' }, 120],
+  [{ s: '3 × 2 min · 1 min rest' }, 60],
+  [{ s: '3 × 30 sec · 45 sec rest' }, 45],
+  [{ s: '3 × 40m · 2 m rest' }, 120],
+  [{ s: '3 × 40m rest' }, null],
+  [{ s: '3 × 15 secs rest' }, null],
+  [{ s: '3 × 10 sets · 90s rest' }, 90],
+  [{ s: '3 × 8-10 sec · 60s rest' }, 60],
+  [{ s: '3 × 30s/45s · 60s rest' }, 60],
+  [{ s: '3 × 30s-45s · 60s rest' }, 60],
+  [{ s: '3 × 30s rest 60s' }, 60],
+  [{ s: '3x40m · 60s rest' }, 60],
+  [{ s: '3 × 40M · 60S REST' }, 60],
+  [{ s: '3 × 40m·60s rest' }, 60],
+  [{ s: '3 × 40m,60s rest' }, 60],
+  [{ s: '3 × 40m;60s rest' }, 60],
   // A hold list with a space before each unit: the second hold's number runs on to the reading
   // of the first, so it is not read as the rest.
-  [{ s: '3 × 30 s/45 s · 60s rest' }, 30, 60],
+  [{ s: '3 × 30 s/45 s · 60s rest' }, 60],
   // Nothing before the rep value is kept once the rep value is taken out. It holds no reading
   // of its own, and joined to what follows, the 2 of "rest 2" would run into the "min".
-  [{ s: 'rest 2 3 × 10 sets' }, 10, null],
-  [{ s: 'rest 2 3 × 30s min' }, 30, null],
-  // A work/rest pair glued on with a slash: the value the word rest marks is the rest, where
-  // the run past the rep value would otherwise drop it. In the first two, main read the rep
-  // value, which is the same number as the rest.
-  [{ s: '5 × 30s/30s rest' }, 30],
-  [{ s: '5 × 30s/30 sec rest' }, 30],
-  [{ s: '8 × 20s/10s rest' }, 20, 10],
-  [{ s: '8 × 20s / 10s rest' }, 20, 10],
-  [{ s: '4 × 20 sec/10 sec rest' }, 20, 10],
-  [{ s: '3 × 30s/45s rest' }, 30, 45],
-  [{ s: '3 × 30s/45s/60s rest' }, 30, 60],
-  [{ s: '5 × 1 min/30s rest' }, 60, 30],
-  [{ s: '5 × 30s/1:30 rest' }, 30, 90],
-  [{ s: '3 × 40m/2 min rest' }, 2400, 120],
-  // A pair the word rest does not mark names no rest. A rest followed by a number is that
-  // number's, as in "3 × 10 · rest 90s", so it marks no pair.
-  [{ s: '5 × 30s/30s' }, null],
-  [{ s: '8 × 20s/10s off' }, null],
-  [{ s: '3 × 30s/45s rest 60s' }, 30, 60],
+  [{ s: 'rest 2 3 × 10 sets' }, null],
+  [{ s: 'rest 2 3 × 30s min' }, null],
+  // Additional adjacency, clock-precedence and explicit-field compatibility probes.
+  [{ s: '3 × 8 · 30s hold · 2 min rest' }, 120],
+  [{ s: '3 × 8 · 30s hold · rest 90s' }, 90],
+  [{ s: '3 × 8 · 30s hold · rest: 1:30' }, 90],
+  [{ s: '3 × 8 · 30s hold · 1:30 rest' }, 90],
+  [{ s: '3 × 8 · 30s hold · rest: 2.5 minutes' }, 150],
+  [{ s: '3 × 8 · 30s hold · rest as needed' }, 30],
+  [{ s: '3 × 8 · 30s hold · no rest' }, 30],
+  [{ s: '3 × 8 · rest: 1:30' }, null],
+  [{ s: '3 × 8 · 0:30 hold · 90s rest' }, 30],
+  [{ s: '3 × 8 · 2:00 · rest as needed' }, 120],
+  [{ rest: '30s hold · 90s rest' }, 30],
+  [{ rest: 'rest: 1:30' }, null],
+  [{ restSeconds: 45, s: '3 × 8 · 30s hold · 90s rest' }, 45],
+  [{ s: '3 × 8 · 30s hold · 0s rest' }, 0],
+  [{ s: '3 × 8 · 30s hold · 90s restless' }, 30],
+  [{ s: '3 × 8 · 30s hold · rest 2 mi' }, 30],
+  [{ s: '5 × 30s/30s rest' }, null, 30],
+  // Slash pairs, whole-word rest labels, and explicit trainer overrides.
+  [{"s":"5 × 30s/30 sec rest"},null,30],
+  [{"s":"8 × 20s/10s rest"},null,10],
+  [{"s":"8 × 20s / 10s rest"},10],
+  [{"s":"4 × 20 sec/10 sec rest"},null,10],
+  [{"s":"3 × 30s/45s rest"},null,45],
+  [{"s":"3 × 30s/45s/60s rest"},null,60],
+  [{"s":"5 × 1 min/30s rest"},null,30],
+  [{"s":"5 × 30s/1:30 rest"},null,90],
+  [{"s":"3 × 40m/2 min rest"},null,120],
+  [{"s":"5 × 30s/30s"},null],
+  [{"s":"8 × 20s/10s off"},null],
+  [{"s":"3 × 30s/45s rest 60s"},60],
+  [{"s":"3 × 30s/45s rest: 60s"},60],
+  [{"s":"3 × 30s/45s resting hold · 60s rest"},60],
+  [{"s":"3 × 30s/45s restoration hold · 60s rest"},60],
+  [{"s":"3 × 30s/45s restore · 60s rest"},60],
+  [{"rest":"105s","s":"8 × 20s/10s rest"},105],
+  [{"restSeconds":45,"s":"8 × 20s/10s rest"},45],
 ];
 
-test('every pinned scheme reads its rest as recorded on main, except the rows that read the rep value', () => {
-  assert.ok(ROWS.length >= 89, 'the table is shorter than the one main was recorded over');
+test('every pinned rest reading stays unchanged except the marked work/rest pairs', () => {
+  assert.ok(ROWS.length >= 111, 'the table is shorter than the one main was recorded over');
   for (const [move, before, ...now] of ROWS) {
     const want = now.length ? now[0] : before;
     assert.equal(bsRestSeconds(move), want, `${JSON.stringify(move)}: main read ${before}`);
   }
   const changed = ROWS.filter((row) => row.length === 3);
-  assert.equal(changed.length, 32, 'the number of schemes whose rest reads differently now');
-  // Each of them is a scheme with no rest field of its own, whose rep value the parser finds.
+  assert.equal(changed.length, 9, 'the number of schemes whose rest reads differently now');
+  // Every changed row explicitly labels the last duration in a slash-separated work/rest pair.
   for (const [move] of changed) {
     assert.ok(move.rest == null && move.restSeconds == null, `${JSON.stringify(move)} carries a rest field`);
     assert.ok(bsPlainScheme(String(move.s).toLowerCase()), `${JSON.stringify(move)} has no rep value to take out`);
@@ -150,18 +165,6 @@ test('the Farmer carry rests 60 s, and a 45 s hold with a 30 s rest rests 30 s',
   // "m" is metres in a rep value and minutes in a rest.
   assert.equal(bsRestSeconds({ s: '3 × 40m · 2 m rest' }), 120);
   assert.equal(bsRestSeconds({ rest: '2 m' }), 120);
-});
-
-test('a work/rest pair glued on with a slash rests the value the word rest marks', () => {
-  // The run past the rep value is dropped so a hold list is not read as the rest. A value the
-  // word rest marks is kept from it, or these would name no rest at all.
-  assert.equal(bsRestSeconds({ s: '5 × 30s/30s rest' }), 30);
-  assert.equal(bsRestSeconds({ s: '8 × 20s/10s rest' }), 10);
-  assert.equal(bsRestSeconds({ s: '5 × 30s/1:30 rest' }), 90);
-  assert.equal(bsRestSeconds({ s: '3 × 30s/45s/60s rest' }), 60);
-  // A hold list followed by a rest of its own still rests that rest, and an unmarked pair none.
-  assert.equal(bsRestSeconds({ s: '3 × 30s/45s · 60s rest' }), 60);
-  assert.equal(bsRestSeconds({ s: '5 × 30s/30s' }), null);
 });
 
 test('bsPlainScheme says where the rep value starts, with or without a unit after it', () => {
@@ -185,4 +188,13 @@ test('every demo move rests what its scheme names, through the path the Train de
     assert.equal(session.restSeconds, want, `${mv.m} "${mv.s}"`);
   }
   assert.ok(named > 15, `expected most demo moves to name a rest, found ${named}`);
+});
+
+ test('a work/rest pair requires the complete word rest and keeps a following rest value', () => {
+  for (const word of ['resting', 'restoration', 'restore']) {
+    assert.equal(bsRestSeconds({s: '3 × 30s/45s ' + word + ' hold · 60s rest'}), 60);
+  }
+  assert.equal(bsRestSeconds({s: '3 × 30s/45s rest: 60s'}), 60);
+  assert.equal(bsRestSeconds({s: '8 × 20s/10s rest'}), 10);
+  assert.equal(bsRestSeconds({s: '5 × 30s/1:30 rest'}), 90);
 });
