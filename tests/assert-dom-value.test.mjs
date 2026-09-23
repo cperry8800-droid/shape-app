@@ -65,7 +65,9 @@ const KNOWN = {
 //   - a node returned by a helper other than byText, like `find(...)` and `byAria(...)` (the shapes
 //     #2150 and #2152 hit) and dob-gate-web's `gateIn(doc)`;
 //   - a node held in a variable (`dialog`, `opener`);
-//   - a node reached through a pointer that is not on the list (`document.body`, `.firstChild`).
+//   - a node reached through a pointer that is not on the list (`document.body`, `.firstChild`);
+//   - values passed through a spread of anything but an array literal (`assert.equal(...args)`),
+//     and any argument after one, whose position is then unknown.
 // `byText` is on the list only because it is known by name. It also knows `assert` by name,
 // including node:test's `t.assert`; a destructured `import { equal }` would be invisible.
 // Only a runtime check could see the rest. Compare a boolean, e.g.
@@ -121,6 +123,20 @@ function eachNode(root, fn) {
   }
 }
 
+// The two values a call compares. A spread of an array literal still spells them out, so
+// `assert.equal(...[a, b])` compares `a` and `b`; a spread of anything else (`...args`) hides
+// them, like a variable does, and hides which position every later argument lands in.
+function comparedValues(args) {
+  const out = [];
+  for (const a of args) {
+    if (a.type !== 'SpreadElement') out.push(a);
+    else if (a.argument.type === 'ArrayExpression') out.push(...a.argument.elements);
+    else break;
+    if (out.length >= 2) break;
+  }
+  return out.slice(0, 2);
+}
+
 // Every equality call handed a DOM node as EITHER compared value. One call is one site, however
 // many of its values are nodes. Throws (a SyntaxError) when the source does not parse.
 function scan(src) {
@@ -130,7 +146,7 @@ function scan(src) {
   eachNode(ast.program, (n) => {
     if (!equalityCall(n)) return;
     calls++;
-    if (n.arguments.slice(0, 2).some(nodeish)) sites.push(n.loc.start.line);
+    if (comparedValues(n.arguments).some(nodeish)) sites.push(n.loc.start.line);
   });
   return { sites: sites.sort((a, b) => a - b), calls };
 }
@@ -213,6 +229,9 @@ test('the detector reads both compared values and split calls, and not the safe 
     "assert.equal(el['parentElement'], null);",
     // both values nodes: one call is one site
     "assert.equal(document.activeElement, document.getElementById('save'));",
+    // a spread of an array literal still spells out both values
+    "assert.equal(...[document.querySelector('.x'), null]);",
+    'assert.equal(first, ...[doc.activeElement]);',
   ];
   for (const s of bad) assert.equal(sitesIn(s), 1, `should have flagged: ${s}`);
 
@@ -243,6 +262,8 @@ test('the detector reads both compared values and split calls, and not the safe 
     "assert.equal(find(m, 'button'), null);",
     'assert.equal(dialog, opener);',
     'assert.equal(document.body, host);',
+    'assert.equal(...args);',
+    'assert.equal(...args, document.activeElement);',
   ];
   for (const s of blind) assert.equal(sitesIn(s), 0, `a documented blind spot started matching: ${s}`);
 
