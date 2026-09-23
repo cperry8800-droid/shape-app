@@ -96,7 +96,7 @@ test('drawer uses a viewport portal, contains focus, closes on Escape and restor
   const dialog = document.querySelector('[role="dialog"]');
   assert.ok(dialog);
   assert.equal(m.el.contains(dialog), false, 'dialog must escape filtered roster-card ancestors');
-  assert.equal(dialog.parentElement.parentElement, document.body);
+  assert.ok(dialog.parentElement.parentElement === document.body, 'the dialog is portaled straight into the body');
   assert.equal(dialog.getAttribute('aria-modal'), 'true');
   assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, 'Client One');
   assert.ok(dialog.contains(document.activeElement));
@@ -104,12 +104,12 @@ test('drawer uses a viewport portal, contains focus, closes on Escape and restor
   const buttons = [...dialog.querySelectorAll('button:not([disabled]),a[href]')];
   buttons.at(-1).focus();
   await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })));
-  assert.equal(document.activeElement, buttons[0]);
+  assert.ok(document.activeElement === buttons[0], 'Tab off the last control wraps to the first');
   await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true })));
-  assert.equal(document.activeElement, buttons.at(-1));
+  assert.ok(document.activeElement === buttons.at(-1), 'Shift+Tab off the first control wraps to the last');
   await act(async () => document.activeElement.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })));
-  assert.equal(document.querySelector('[role="dialog"]'), null);
-  assert.equal(document.activeElement, opener);
+  assert.ok(!document.querySelector('[role="dialog"]'), 'Escape closes the drawer');
+  assert.ok(document.activeElement === opener, 'focus returns to the control that opened the drawer');
   assert.equal(opener.getAttribute('aria-hidden'), null);
   await m.close(); opener.remove();
 });

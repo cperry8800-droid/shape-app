@@ -238,11 +238,11 @@ test('Tab cycles inside the gate instead of escaping to the page behind', async 
 
   last.focus();
   assert.equal(tab(false), true, 'Tab off the last control must be intercepted');
-  assert.equal(doc.activeElement, first, 'and wrap to the first, not to the page behind');
+  assert.ok(doc.activeElement === first, 'and wrap to the first, not to the page behind');
 
   first.focus();
   assert.equal(tab(true), true, 'Shift+Tab off the first control must be intercepted');
-  assert.equal(doc.activeElement, last, 'and wrap to the last');
+  assert.ok(doc.activeElement === last, 'and wrap to the last');
 });
 
 test('the trap skips a control that is disabled mid-save', async () => {
@@ -259,8 +259,8 @@ test('the trap skips a control that is disabled mid-save', async () => {
   last.focus();
   const ev = new win.KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
   doc.activeElement.dispatchEvent(ev);
-  assert.equal(doc.activeElement, enabled[0], 'the cycle must land on an enabled control');
-  assert.notEqual(doc.activeElement, submit);
+  assert.ok(doc.activeElement === enabled[0], 'the cycle must land on an enabled control');
+  assert.ok(doc.activeElement !== submit, 'and never on the disabled submit button');
 });
 
 // ⚠ THE CONTAINER IS A FOCUS POSITION THE TRAP DID NOT KNOW ABOUT. `wrap` carries
@@ -283,15 +283,15 @@ test('Shift+Tab from the dialog container stays inside it', async () => {
 
   const gate = gateIn(doc);
   gate.focus();
-  assert.equal(doc.activeElement, gate, 'the blocked panel starts focus on the container');
+  assert.ok(doc.activeElement === gate, 'the blocked panel starts focus on the container');
 
   const ev = new win.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true });
   doc.activeElement.dispatchEvent(ev);
   assert.equal(ev.defaultPrevented, true, 'Shift+Tab off the container must be intercepted');
 
   const f = [...gate.querySelectorAll('input, button')];
-  assert.equal(doc.activeElement, f[f.length - 1], 'and wrap to the last control inside the gate');
-  assert.notEqual(doc.activeElement, behind);
+  assert.ok(doc.activeElement === f[f.length - 1], 'and wrap to the last control inside the gate');
+  assert.ok(doc.activeElement !== behind, 'focus must not reach the control behind the overlay');
 });
 
 test('a backdrop click does not open the same hole in the form state', async () => {
@@ -310,7 +310,7 @@ test('a backdrop click does not open the same hole in the form state', async () 
 
   assert.equal(ev.defaultPrevented, true, 'the container is a boundary in every state');
   assert.ok(gate.contains(doc.activeElement), 'focus must stay inside the dialog');
-  assert.notEqual(doc.activeElement, behind);
+  assert.ok(doc.activeElement !== behind, 'focus must not reach the control behind the overlay');
 });
 
 test('the blocked panel puts focus inside the dialog', async () => {
