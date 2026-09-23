@@ -230,8 +230,8 @@ const COACHES_ITEMS = [
 // way Coaches is the coaches' — owner, 2026-09-14: `Client.html` ("For members")
 // was reachable from the footer alone; "maybe a seperate client tab on nav bar",
 // named Members because the footer already says "For members" and a visitor who
-// has not got a coach yet is not anyone's client. Signed in it drops out with the
-// rest of the pitch links (`PORTAL_NAV` is the essentials).
+// has not got a coach yet is not anyone's client. Signed in it drops out, with
+// Pricing: those two are the sign-up pages (`SIGNED_OUT_ONLY`, below).
 //
 // ⚠ AND THE THREE `Dashboard` DROPDOWN ITEMS ARE GONE. The retired Clients /
 // Trainers / Nutritionists menus each carried one, which opened the demo
@@ -256,22 +256,35 @@ const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "About", href: "About.html" },
 ];
 
-// ⚠ SIGNED IN, THE ROW IS THE ESSENTIALS AND NOTHING ELSE — the same row for a
-// member, a trainer and a nutritionist. Owner: "for signed in dont say workouts
-// and nutritionists for client. its repetitive… just have coaches", and "the
-// dashboard is totally built out. all of those tabs on nav are on the dashboard
-// nav bar".
+// ⚠ SIGNED IN, THE ROW IS THE SITE'S OWN TABS MINUS THE TWO SIGN-UP PAGES —
+// Coaches ▾ · App · Kitchen · Community · Rewards · About, the same row for a
+// member, a trainer and a nutritionist. Owner, 2026-09-23, on a screenshot of the
+// signed-in bar reading only "Coaches ▾  About": "need to add more nav tabs on main
+// nav bar when signed into account" — and of the rows put to them, "Site tabs
+// minus sign-up pages". Members (the pitch to someone without a membership) and
+// Pricing (what joining costs) are written for a visitor who has no account yet;
+// every other tab is a place a signed-in member still goes.
 //
-// That is literally true, which is why the old per-role tables are deleted
-// rather than trimmed: every tab they carried — Workouts, Nutrition, Progress,
-// Schedule, Clients, Programs, Plans, Messages, Business — is a tab of the
-// dashboard that the teal Dashboard button opens. Rendering them here put the
-// same nine destinations on screen twice, and rendered `Dashboard` itself twice
-// (first tab, and again in the auth cluster).
-const PORTAL_NAV = [
-  { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists"], items: COACHES_ITEMS },
-  { kind: "link", label: "About", href: "About.html" },
-];
+// ⚠ DERIVED FROM THE SIGNED-OUT TABLE, NOT RESTATED. This was a second
+// hand-written table, and the two had already drifted: its Coaches tab lit on
+// fewer pages than the signed-out one (it had lost the two coach overview pages).
+// Filtering means the rows cannot disagree about a label, a target, an order or
+// what lights a tab — and a tab the site adds later appears signed in too, unless
+// somebody decides it is a sign-up page and names it here.
+//
+// ⚠ THE DASHBOARD'S OWN TABS STAY OFF THIS ROW; that half of the old ruling
+// stands. Owner: "for signed in dont say workouts and nutritionists for client.
+// its repetitive… just have coaches", and "the dashboard is totally built out.
+// all of those tabs on nav are on the dashboard nav bar". Workouts, Nutrition,
+// Progress, Schedule, Clients, Programs, Plans, Messages, Business — each is a tab
+// of the dashboard the teal Dashboard button opens, and none is in the table this
+// filters, so none can come back through it. `tests/site-nav.test.mjs` pins both.
+//
+// ⚠ AND THE HOMEPAGE'S STATIC BAR CANNOT READ THIS, so it marks the same two
+// links `data-signed-out-only` in its own markup and removes them on sign-in; the
+// same test requires the two lists to agree.
+const SIGNED_OUT_ONLY = ["Members", "Pricing"];
+const PORTAL_NAV = SHAPE_NAV_GROUPS.filter((g) => !SIGNED_OUT_ONLY.includes(g.label));
 
 // ── In-shell routing (review 2026-09-09, R19) ───────────────────────────────
 // Every page in this table is a PURE REDIRECT STUB — its entire body is
@@ -898,19 +911,96 @@ function SiteSearch({ signedIn = false }) {
 }
 
 function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
+  const dialogRef = React.useRef(null);
+  const closeRef = React.useRef(null);
+  // Header hands a fresh onClose arrow every render; the key handler below reads
+  // it through a ref so a re-render cannot re-run the focus effect and yank the
+  // reader back to the close button mid-menu.
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+  // `shape-drawer-open` is what hides the floating chat launcher while this
+  // modal is up (the rule is in ShapeMobileStyles, beside the header's own).
   React.useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    document.body.classList.toggle("shape-drawer-open", !!open);
+    return () => { document.body.style.overflow = ""; document.body.classList.remove("shape-drawer-open"); };
+  }, [open]);
+  // ⚠ FOCUS GOES IN, STAYS IN, AND COMES BACK. Portaled to the END of <body>, the
+  // drawer is the last thing in tab order: opened from the keyboard, focus stayed
+  // on the burger and the next Tab walked the covered page's links, unseen, before
+  // it reached a single drawer control (CodeRabbit, on #2158 — inside <header> it
+  // had sat right after the burger, so the portal is what broke this). So: focus
+  // the close button on open, wrap Tab and Shift+Tab at the drawer's edges (and
+  // pull a Tab that starts outside it back in), close on Escape, and hand focus
+  // back to whatever opened it — the burger, when a keyboard did — on close.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const opener = document.activeElement;
+    if (closeRef.current) closeRef.current.focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onCloseRef.current(); return; }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const list = Array.from(dialogRef.current.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!list.length) return;
+      const first = list[0], last = list[list.length - 1], at = document.activeElement;
+      const inside = dialogRef.current.contains(at);
+      if (e.shiftKey ? (!inside || at === first) : (!inside || at === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus();
+    };
   }, [open]);
   if (!open) return null;
   const groups = navGroupsFor(authUser);
   const linkBase = { display: "block", padding: "18px 0", fontFamily: sans, fontSize: 22, letterSpacing: "0.02em", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", textDecoration: "none" };
-  return (
-    <div role="dialog" aria-modal="true"
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
+  const logoH = Math.round(44 * 1.8);
+  // ⚠ PORTALED TO <body>, THE WAY SiteSearch's OVERLAY ALREADY IS. `.shape-header`
+  // carries `backdrop-filter`, and a backdrop-filter makes an element the
+  // containing block for its position:fixed descendants — so while this rendered
+  // inside <header>, `inset: 0` resolved against the header's 72px box, not the
+  // viewport. Measured in Chromium at 390×844, signed in: the dialog was 390×72,
+  // with its links running down to y 696 inside that strip. On a phone this is the
+  // only nav there is, so the menu read as a bar that never opened — and it is
+  // where the signed-in row's six tabs land below the collapse.
+  // Leaving the header costs it nothing: every token it reads (--sh-ink,
+  // --sh-ground-rgb, the logo pair) is declared on :root, and React still bubbles
+  // its events through Header, so onClose and onLogout are Header's handlers as
+  // before.
+  // ⚠ zIndex 9000: ABOVE EVERY PAGE LAYER, BELOW THE HOUSE'S GLOBAL ONES. In <body>
+  // the drawer competes with every fixed layer on the page, and at 100 it lost to
+  // the rich chat window (180): measured at 820×1180, the open chat covered the
+  // drawer's Dashboard / Sign out row and took its taps. That window mounts in a
+  // host of its own (#shape-support-bubble, or #shape-rich-chat-root when the
+  // launcher boots it), which the launcher's hide rule does not reach. The Store's
+  // cart button (120) looked like the same defect and is not: it renders inside the
+  // Store page's zIndex:1 wrapper, so its 120 never leaves that stacking context,
+  // and the drawer at 100 already covered it at 390 and 820 wide. The highest page
+  // layer is the card-settings popover at 3000. What stays above on purpose:
+  // toasts (10000), the cookie-consent bar (99999, answered in one tap), the pages'
+  // own full-screen dialogs (9999, which cannot be open while the burger is
+  // reachable), ShapeConfirm (100000), and the age gate and chat launcher
+  // (2147483000, the launcher stepping aside below).
+  // `tests/site-nav.test.mjs` derives every fixed layer on the site and fails on a
+  // new one above this line that nobody has decided about.
+  return ReactDOM.createPortal(
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Menu"
+      style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <a href="index.html" style={{ display: "inline-flex", alignItems: "center" }}><Logo variant="white" size={44} /></a>
-        <button onClick={onClose} aria-label="Close menu"
+        {/* The paper's logo, not always the white one. The header and footer swap
+            this pair on --sh-logo-dark / --sh-logo-light; a drawer that finally
+            shows on a light-paper dashboard would otherwise put a white mark on a
+            near-white sheet. Bare <img>s, not <Logo>: its class carries
+            `display: block !important`, which beats the token. */}
+        <a href="index.html" style={{ display: "inline-flex", alignItems: "center" }}>
+          <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} />
+          <img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
+        </a>
+        <button ref={closeRef} onClick={onClose} aria-label="Close menu"
           style={{ background: "transparent", color: INK, border: 0, fontSize: 30, lineHeight: 1, padding: 8, cursor: "pointer", fontFamily: sans }}>×</button>
       </div>
       <nav style={{ flex: 1 }}>
@@ -966,7 +1056,8 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1095,6 +1186,11 @@ function Header({ active }) {
     }
   }
   const roleLabel = (r) => r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Client';
+  // ⚠ ONE READING OF "THIS ACCOUNT HAS A PROFILE SWITCH", used twice: it renders
+  // the switch pill AND stamps `data-role-switch` on the header, which the
+  // stylesheet reads to give the widest right-hand cluster its own breakpoints.
+  // Two spellings of the condition would let the pill and its layout disagree.
+  const hasRoleSwitch = !!(authUser && Array.isArray(authUser.roles) && authUser.roles.length > 1);
   // ⚠ THROUGH `dashShellHref`, so inside a shell the Dashboard button is a hash
   // route rather than a full page load and an SPA boot. It was an absolute URL,
   // which is exactly the two-page-loads defect R19 removed everywhere else.
@@ -1122,7 +1218,7 @@ function Header({ active }) {
   const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "var(--sh-deep, #06231f)", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
-    <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
+    <header className="shape-header" data-role-switch={hasRoleSwitch ? "" : undefined} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
       <div aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, transparent 0%, ${TEAL} 30%, ${RUST} 70%, transparent 100%)`, opacity: 0.5 }} />
       <ShapeMobileStyles />
       {/* ⚠ FLEX, NOT A 3-COLUMN GRID, and the two outer columns are equal-BASIS
@@ -1157,8 +1253,8 @@ function Header({ active }) {
           <DashInbox signedIn={!!authUser} role={authUser && authUser.role} inbox={inbox} />
           {authUser ? (
             <>
-              <span style={{ fontSize: 13.5, color: INK, fontFamily: navSans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1, flex: "0 0 auto" }}>Hi, {authUser.firstName || authUser.email}</span>
-              {authUser.roles && authUser.roles.length > 1 ? (
+              <span className="shape-nav-hi" style={{ fontSize: 13.5, color: INK, fontFamily: navSans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1, flex: "0 0 auto" }}>Hi, {authUser.firstName || authUser.email}</span>
+              {hasRoleSwitch ? (
                 <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
                   <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(var(--sh-accent3-rgb, 52,214,197),0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
                     {roleLabel(authUser.role)} <span aria-hidden style={{ fontSize: 8, opacity: 0.75 }}>▾</span>
@@ -1211,22 +1307,13 @@ function Header({ active }) {
         </button>
         </div>
       </div>
-      {/* ⚠ REGISTERED, NOT FIXED — THIS DRAWER IS CLIPPED TO THE HEADER'S OWN
-          72px BOX, AND IT PREDATES THIS CHANGE. `.shape-header` carries
-          `backdrop-filter: blur(20px) saturate(1.05)`, and a backdrop-filter makes
-          an element the containing block for its position:fixed DESCENDANTS — so
-          the drawer's `inset: 0` resolves against the header instead of the
-          viewport. Measured in Chromium at 390×900, on this branch and on
-          origin/main alike: the dialog's box is 390×72 with its links laid out
-          down to y 656, and forcing `backdrop-filter: none` on the header takes it
-          straight to 390×900. It scrolls (overflowY: auto), so the links are
-          reachable rather than lost — but every one of them, Sign out included, is
-          being read through a 72px slot on every page this Header renders.
-          The homepage's own drawer is unaffected: `.ndrawer` is a SIBLING of its
-          <nav>, not a child, so nothing filters above it.
-          The fix is to render this outside <header> (or portal it to body) and is
-          a change to the chrome of ~70 pages, so it is not smuggled into a PR
-          about which links the bar carries. */}
+      {/* Rendered here so its state and handlers stay Header's, but its DOM is
+          portaled to <body> (see MobileDrawer). Inside <header> the header's
+          backdrop-filter clipped it to a 72px strip on every page this Header
+          renders; registered since 2026-09-15 and fixed on 2026-09-23, when the
+          signed-in row grew to six tabs that land in this drawer on a phone.
+          The homepage's own drawer never had the problem: `.ndrawer` is a
+          SIBLING of its <nav>, not a child, so nothing filters above it. */}
       <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} active={active} authUser={authUser} onLogout={handleLogout} />
     </header>
     <div aria-hidden className="shape-header-spacer" style={{ height: NAV_H }} />
@@ -1387,6 +1474,20 @@ function ShapeMobileStyles() {
       .shape-nav-link:hover { color: ${INK} !important; }
       .shape-nav-radio:hover { color: ${INK} !important; border-color: rgba(var(--sh-accent3-rgb, 52,214,197),0.4) !important; }
       .shape-header { transition: background .25s ease; }
+      /* While the phone drawer is open it is a modal (aria-modal), so the
+         floating chat launcher and its panel must not sit on top of it. They
+         mount from 761px up, and at 820 and 1000 wide the launcher covered the
+         right-hand end of the drawer's Dashboard button, which the drawer pins
+         to the bottom of the screen. Hidden only while the drawer is open:
+         MobileDrawer sets and clears the class. The drawer is not raised past
+         them instead: they float at 2147483000, and a layer that high would also
+         cover ShapeConfirm (100000) and the age gate. Nothing else needs this.
+         Every other floating control sits under the drawer's 9000 except the
+         cookie-consent bar, a legal choice kept answerable (one tap on the bar
+         clears it); the rest above it are toasts, or dialogs that cannot be open
+         while the burger is reachable. */
+      body.shape-drawer-open #shape-global-chat-button,
+      body.shape-drawer-open #shape-global-chat-panel { visibility: hidden !important; }
       /* ⚠ THE translateX NUDGE IS GONE, AND ITS JOB IS DONE STRUCTURALLY. It
          shifted the centred nav right to compensate for an auth cluster heavier
          than the logo — a viewport-width fudge for a layout problem. The header
@@ -1411,7 +1512,8 @@ function ShapeMobileStyles() {
 
          1200 was honest for the OLD content — nine links including three
          dropdowns, plus a heavy auth cluster. The bar is eight links signed out
-         (Members joined it on 2026-09-14) and two signed in now.
+         (Members joined it on 2026-09-14) and six signed in (it was two until
+         2026-09-23; the signed-in fit is measured in the block below).
 
          ⚠ 1020, AND THE HOMEPAGE MOVED WITH IT — MEASURED, NOT PICKED. At seven
          links the signed-out row needed ~975px (15px over at 960, fit at 980),
@@ -1456,6 +1558,58 @@ function ShapeMobileStyles() {
            eight links. */
         .shape-header-inner { padding: 0 24px !important; gap: 18px !important; }
         .shape-nav-tabs { gap: 16px !important; }
+      }
+      /* ⚠ SIGNED IN, THE RIGHT-HAND CLUSTER IS THE WIDE ONE, AND IT IS NOT ONE WIDTH.
+         Six tabs came back to the signed-in row on 2026-09-23, and the cluster
+         beside them carries the bell, "Hi, name" (capped at 150px) and, for an
+         account with more than one profile, the switch pill: measured in Chromium
+         in the real faces, 304px signed out against 428 for "Hi, Chris", 524 for a
+         150px name, and 578 / 618 for a Trainer / Nutritionist switch beside
+         "Hi, Christopher". With the
+         greeting kept at every width the row overhung that cluster from 1162px
+         down for a 150px name, was already overhanging at 1200 for a Trainer
+         switch (by 49px at 1021), and from 1310 down for the widest switch —
+         while a short single-profile name fitted everywhere.
+
+         Three rules, cheapest first, keyed on what the header already knows
+         (data-role-switch is stamped by the same flag that renders the pill).
+         Each "needs" below is measured — that rule disabled, the widest width at
+         which the row first overhangs its box — and each breakpoint sits above
+         it, with room for fonts that render a little wider on another platform:
+           1 · the greeting goes when room runs out — at 1200 for everyone (a
+               150px name needs 1163 to keep it), and at 1340 for a switch account
+               (a 150px name beside the Nutritionist pill needs 1311);
+           2 · a switch account takes the tight GAPS from 1200 rather than 1100:
+               with the greeting gone the Nutritionist pill still needs 1149 at
+               the loose gaps, and left the last tab 1px clear at 1101;
+           3 · a switch account folds to the menu at 1120 rather than 1020. With
+               the tight gaps the Nutritionist pill and six tabs need 1103 to sit
+               without overhanging their box; below that there is nothing left to
+               give that the rest of the site does not depend on.
+         ⚠ RULE 2 MOVES THE GAPS AND NEVER THE SIDE PADDING. The padding is the
+         page's gutter, and other pages line up with it — the Radio fold steps its
+         own padding with this one, and tests/radio-instrument-rules.test.mjs
+         holds the two equal. A first cut tightened the padding here too, which
+         would have set the Radio hero 8px out of line with the header for these
+         accounts between 1101 and 1200; that guard is what caught it.
+         Rule 2 is written with :where() so it weighs no more than the plain rules
+         below it — the 1020 and 900 blocks tighten the gap further and must still
+         win for these accounts on a phone.
+         After all three, swept every 4px from 1440 to 1016 for seven account
+         shapes: no overhang, 18px clear at the tightest, no sideways scroll. */
+      @media (max-width: 1340px) {
+        .shape-header[data-role-switch] .shape-nav-hi { display: none !important; }
+      }
+      @media (max-width: 1200px) {
+        .shape-nav-hi { display: none !important; }
+        :where(.shape-header[data-role-switch]) .shape-header-inner { gap: 18px !important; }
+        :where(.shape-header[data-role-switch]) .shape-nav-tabs { gap: 16px !important; }
+      }
+      @media (max-width: 1120px) {
+        .shape-header[data-role-switch] .shape-nav-tabs { display: none !important; }
+        .shape-header[data-role-switch] .shape-nav-auth { display: none !important; }
+        .shape-header[data-role-switch] .shape-nav-bell { display: inline-flex !important; }
+        .shape-header[data-role-switch] .shape-nav-burger { display: inline-flex !important; }
       }
       @media (max-width: 1020px) {
         .shape-header-inner { padding: 0 24px !important; gap: 14px !important; }

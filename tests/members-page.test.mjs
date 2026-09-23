@@ -15,6 +15,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripComments } from './helpers/strip-comments.mjs';
+import { navTables } from './helpers/nav-tables.mjs';
 
 const ND = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'newdesign');
 const read = (f) => readFileSync(path.join(ND, f), 'utf8');
@@ -23,18 +24,9 @@ const INDEX = read('index.html');
 const PAGE = read('clientOverview.jsx');
 const target = (href) => String(href || '').replace(/^.*\//, '');
 
-// The shared header's signed-out table, lifted the way tests/site-nav does.
-const decl = (name) => {
-  const m = new RegExp('const ' + name + ' = (\\[[\\s\\S]*?\\n\\]);').exec(SHELL);
-  assert.ok(m, name + ' did not parse out of pageShell.jsx');
-  return m[1];
-};
-const NAV = new Function(
-  'const COACHES_HREF = ' + /const COACHES_HREF = ("[^"]*")/.exec(SHELL)[1] + ';' +
-  'const COACHES_ITEMS = ' + decl('COACHES_ITEMS') + ';' +
-  'const SHAPE_NAV_GROUPS = ' + decl('SHAPE_NAV_GROUPS') + ';' +
-  'const PORTAL_NAV = ' + decl('PORTAL_NAV') + ';' +
-  'return { SHAPE_NAV_GROUPS, PORTAL_NAV };')();
+// The shared header's tables, evaluated the way tests/site-nav does — including
+// the signed-in row, which is derived from the signed-out one.
+const NAV = navTables(SHELL);
 
 // ── 1 · the link ────────────────────────────────────────────────────────────
 test('Members sits beside Coaches and points at the members page', () => {
@@ -45,7 +37,9 @@ test('Members sits beside Coaches and points at the members page', () => {
   assert.equal(members.kind, 'link', 'Members is a plain link, not a menu');
   assert.equal(target(members.href), 'Client.html');
   assert.ok(existsSync(path.join(ND, 'Client.html')), 'Client.html is not in public/newdesign');
-  // Signed in, the row is the essentials — the pitch to members is not one of them.
+  // Signed in, Members is one of the two sign-up pages kept off the row (owner,
+  // 2026-09-23: "Site tabs minus sign-up pages") — the pitch to members is for
+  // someone without an account.
   assert.ok(!NAV.PORTAL_NAV.some((g) => g.label === 'Members'), 'Members is on the signed-in row');
 });
 
