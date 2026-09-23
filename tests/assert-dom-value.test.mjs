@@ -24,14 +24,14 @@ import { stripComments } from './helpers/strip-comments.mjs';
 // above the assertion would fail a guard about something else — the defect this repo has paid
 // for repeatedly. A count moves only when somebody adds or removes one of these.
 //
-// ⚠ AND IT IS A RATCHET THAT MAY ONLY SHRINK. The thirteen sites below predate the guard and
-// live in files this work does not otherwise touch, so they are REGISTERED rather than swept:
-// fixing one is a two-character change and a lower number here. A file that is not on the list
-// may carry none at all.
+// ⚠ AND IT IS A RATCHET THAT MAY ONLY SHRINK. The sites below predate the guard and sat in
+// files that work did not otherwise touch, so they were REGISTERED rather than swept: fixing one
+// is a two-character change and a lower number here. A change that touches one of these files
+// fixes its sites rather than leaving them registered. A file that is not on the list may carry
+// none at all.
 
 const KNOWN = {
   'tests/broadsheet-builder-render.test.mjs': 4,
-  'tests/dashboard-coaching-usability.test.mjs': 2,
   'tests/desktop-live-workout.test.mjs': 4,
   'tests/live-watch-mounted.test.mjs': 1,
   'tests/workout-coach-cues.test.mjs': 2,
@@ -40,8 +40,18 @@ const KNOWN = {
 // An assert whose COMPARED VALUE is a bare DOM query or element reference — no property read
 // after it. `assert.equal(el.value, 'x')` is a string comparison and is fine; it is the node
 // itself reaching the formatter that costs the minute.
+//
+// ⚠ `.activeElement` IS THE SHAPE THIS MISSED FIRST, AND IT COST THE SAME MINUTE. A focus check
+// that fails formats the document exactly like a query does. Measured twice: a mutation that broke
+// Escape-returns-focus in the coach library filters turned a ~17s run into a multi-minute stall,
+// and a focus mutation in the per-set ladder suite was SIGKILLed at 76s. That one was reported as
+// a kill, which is the worse half: it proves the run stopped, not that the assertion fired.
+//
+// ⚠ IT READS THE FIRST ARGUMENT ONLY, ON ONE LINE. `assert.equal(x, document.activeElement)`
+// puts the node second and is invisible here, and so is a call split across lines. Compare a
+// boolean — `assert.ok(document.activeElement === x, msg)` — and neither question arises.
 const CALL = /assert\.(?:equal|strictEqual|notEqual|notStrictEqual|deepEqual|deepStrictEqual)\(\s*([^,]*?)\s*,/g;
-const NODEISH = /(?:document\.(?:querySelector|querySelectorAll|getElementById|getElementsByClassName)\([^)]*\)|\.(?:parentElement|parentNode|firstElementChild|lastElementChild)|\.closest\([^)]*\)|\bbyText\([^)]*\))\s*$/;
+const NODEISH = /(?:document\.(?:querySelector|querySelectorAll|getElementById|getElementsByClassName)\([^)]*\)|\.(?:parentElement|parentNode|firstElementChild|lastElementChild|activeElement)|\.closest\([^)]*\)|\bbyText\([^)]*\))\s*$/;
 
 function sitesIn(src) {
   const clean = stripComments(src);
@@ -105,6 +115,9 @@ test('the detector fires on the shape it is written for, and not on the safe for
     `${A}strictEqual(el.parentElement, document.body);`,
     `${A}equal(m.byText('Strength'), undefined);`,
     `${A}deepEqual(document.querySelector('.x'), null);`,
+    `${A}equal(document.activeElement, opener);`,
+    `${A}notEqual(doc.activeElement, submit);`,
+    `${A}strictEqual(win.document.activeElement, first, 'msg');`,
   ];
   for (const s of bad) assert.equal(sitesIn(s), 1, `should have flagged: ${s}`);
 
@@ -114,6 +127,10 @@ test('the detector fires on the shape it is written for, and not on the safe for
     `${A}equal(document.querySelector('fieldset').disabled, true);`,
     `${A}equal(byText('Sheet').getAttribute('aria-pressed'), 'true');`,
     `${A}equal(document.getElementById('root').contains(dialog), false);`,
+    `${A}ok(document.activeElement === opener, 'msg');`,
+    `${A}ok(doc.activeElement !== submit, 'msg');`,
+    `${A}equal(document.activeElement.id, 'save');`,
+    `${A}equal(doc.activeElement.getAttribute('aria-label'), 'Close');`,
     // a mention inside a comment is not a claim about the code
     `// ${A}equal(document.querySelector('.x'), null);`,
   ];
