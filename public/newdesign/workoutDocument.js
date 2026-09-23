@@ -147,16 +147,45 @@
     if (rpe != null && row.loadType !== 'rpe') parts.push('RPE ' + rpe);
     return parts.join(' · ');
   }
+  // ⚠ THE OUTLINE PARSER'S UNIT LIST, COPIED. What makes a rep value a hold or a
+  // distance is one rule, whose home is BS_TIME_DISTANCE_UNITS in the mobile app's
+  // planOutline.mjs, and a plain browser script cannot import it. So this file keeps its
+  // own copy, split into the two families it reads differently, and
+  // tests/unit-rule-readers.test.mjs fails the moment the two lists drift.
+  const TIME_UNITS = 's|secs?|seconds?|mins?|minutes?';
+  const DISTANCE_UNITS = 'm|km|mi|yds?|yards?';
+  const TIME_DISTANCE_UNITS = TIME_UNITS + '|' + DISTANCE_UNITS;
+  // The unit after a rep number, three ways:
+  // ⚠ A WHOLE NUMBER'S TIME UNIT READS EXACTLY AS IT ALWAYS HAS: the longest unit word
+  // that follows, with nothing checked after it, so "30s/side", "30s/45s" and
+  // "30 min/km" keep their readings. That needs the longer spellings tried first, so
+  // the list is sorted here rather than rewritten out of the parser's order. ⚠ It still
+  // reads a word that starts with a unit as one ("3 × 10 sets" is "10 s" and a load of
+  // "ets"), as it did before this list came here. Registered, not changed here.
+  // A decimal part is the parser's, and new here ("1.5 min"), so it takes one check: no
+  // letter may follow the unit. That keeps it from changing another reading ("1.5 sets"
+  // is still 1 and a load of ".5 sets"), and it is also what lets this branch keep the
+  // parser's order: without it "1.5 seconds" would read as "1.5 s".
+  // ⚠ THE DISTANCE UNITS ARE NEW HERE AND TAKE THE PARSER'S OWN RULE: the unit ends the
+  // value (the end, a space, " · ", a comma or a semicolon), or this reader's own
+  // "/side" follows it. So "40 m · 32 kg" is 40 m with a load of 32 kg, while a speed
+  // ("10 m/s"), a word ("max", "mph", "meters") and a unit run into a list ("40 m/40 m",
+  // "400m-800m") read exactly as they did before. A speed written with spaces
+  // ("10 m / s") is 10 m and a load of "/ s", in the parser as here: the unit ends the
+  // value, which is all the rule can see.
+  const TIME_LONGEST_FIRST = TIME_UNITS.split('|').sort((a, b) => b.length - a.length).join('|');
+  const REP_UNIT = String.raw`(?:\s*(?:${TIME_LONGEST_FIRST})|\.\d+\s*(?:${TIME_UNITS})(?![a-z])|(?:\.\d+)?\s*(?:${DISTANCE_UNITS})(?=$|[\s·,;]|\/\s*(?:side|leg)\b))`;
+  // Repetitions can be timed, a distance or effort-based. Preserve the authored token;
+  // parsing only its numeric prefix changed "30s" into 30 repetitions and moved
+  // "AMRAP" into the load field.
+  const SCHEME = new RegExp(String.raw`(\d+)\s*[×x]\s*((?:\d+(?:[–-]\d+)?${REP_UNIT}?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)`, 'i');
   function rowFromBlock(block, id) {
     const b = typeof block === 'object' && block ? block : {text:block};
     const raw = text(b.text).trim();
     const split = raw.match(/^(.*?)\s*[—–:]\s*(.+)$/);
     const parts = split ? [split[1], split[2]] : raw.split(/\s*·\s*/);
     const tail = parts.slice(1).join(' · ');
-    // Repetitions can be timed or effort-based. Preserve the authored token;
-    // parsing only its numeric prefix changed "30s" into 30 repetitions and
-    // moved "AMRAP" into the load field.
-    const scheme = tail.match(/(\d+)\s*[×x]\s*((?:\d+(?:[–-]\d+)?(?:\s*(?:seconds?|secs?|s|minutes?|mins?))?|AMRAP|to\s+failure|max)(?:\s*(?:ea(?:ch)?|per\s+(?:side|leg)|\/\s*(?:side|leg)))?)/i);
+    const scheme = tail.match(SCHEME);
     const loadText = b.load != null ? text(b.load) : tail.replace(scheme ? scheme[0] : /$^/, '').replace(/^[\s·,]+|[\s·,]+$/g, '');
     const numeric = loadText.match(/^([\d.]+)\s*(kg|lbs?|%\s*1RM)$/i);
     const effort = loadText.match(/^RPE\s*([\d.]+)$/i);
@@ -257,5 +286,5 @@
       text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, videoUrl};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, videoUrl, TIME_DISTANCE_UNITS};
 });
