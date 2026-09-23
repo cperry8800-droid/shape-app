@@ -105,7 +105,9 @@ export function bsPlainScheme(tail) {
   const m = /(\d+)\s*[×x]\s*([\d–-]+)/.exec(tail);
   if (!m) return null;
   const unit = BS_UNIT_AFTER.exec(tail.slice(m.index + m[0].length));
-  return unit ? [m[0] + unit[0], m[1], m[2] + unit[0]] : m;
+  // Either way the result keeps the match's `index`, so a reader can find where the rep
+  // value ends: `bsRestSeconds` (workoutSession.mjs) reads a rest from outside it.
+  return unit ? Object.assign([m[0] + unit[0], m[1], m[2] + unit[0]], { index: m.index }) : m;
 }
 
 // "Secondary compound · 4×8" / "Back squat — 4 × 6 · RPE 8" → exercise row.
