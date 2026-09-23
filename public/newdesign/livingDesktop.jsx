@@ -287,7 +287,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
         </div>
         <h1 style={{ fontFamily: dSerif, fontSize: 76, fontWeight: 400, letterSpacing: "-0.04em", lineHeight: 0.92, margin: 0 }}>{d.name}</h1>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 16, fontFamily: dMono, fontSize: 13, color: dHexA(LV_INK, 0.55) }}>
-          <span>{d.handle}</span><span style={{ opacity: 0.4 }}>·</span><span>{d.pronouns}</span><span style={{ opacity: 0.4 }}>·</span><span>{d.city}</span><span style={{ opacity: 0.4 }}>·</span><span style={{ color: c }}>{d.roleLabel}</span>
+          {[d.handle,d.pronouns,d.city].filter(Boolean).map((value,i)=><React.Fragment key={i}><span>{value}</span><span style={{opacity:0.4}}>·</span></React.Fragment>)}<span style={{ color: c }}>{d.roleLabel}</span>
         </div>
         {/* goal — zero-box: heat-tick eyebrow + serif italic, a short heat rule */}
         <div style={{ marginTop: 26, maxWidth: 460, position: "relative", paddingLeft: 15 }}>
