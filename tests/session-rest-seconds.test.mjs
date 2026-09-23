@@ -12,7 +12,7 @@ import { bsBuildDemoTrainProgram } from '../mobile-app/src/broadsheet/bsClientWe
 // the rep value (the outline parser's own `bsPlainScheme` says where that is), and the rest
 // is read from what follows it.
 //
-// Every row was recorded on 15e25ae (merged #2164) before this preference change.
+// Every row was recorded on 51b96e24 (main after #2166), including its adjacent-rest fixes.
 // A third value marks a changed reading; every unmarked reading stays exactly the same.
 const ROWS = [
   // The clock form.
@@ -72,8 +72,8 @@ const ROWS = [
   [{ s: '3 × 8 · 2.5 min rest' }, 150],
   [{ s: '3x10 · 90s rest' }, 90],
   [{ s: '3 × 1.5 km · 2 min rest' }, 120],
-  [{ s: '3 × 8 · 30s hold · 90s rest' }, 30, 90],
-  [{ s: '3 × 10 · 40 m sled · 90s rest' }, 2400, 90],
+  [{ s: '3 × 8 · 30s hold · 90s rest' }, 90],
+  [{ s: '3 × 10 · 40 m sled · 90s rest' }, 90],
   // A slash-attached duration after unitless reps is still outside the rep value.
   [{ s: '3 × 10/90s rest' }, 90],
   [{ s: '3 × 30/45s · 60s rest' }, 45],
@@ -106,11 +106,11 @@ const ROWS = [
   [{ s: 'rest 2 3 × 10 sets' }, null],
   [{ s: 'rest 2 3 × 30s min' }, null],
   // Additional adjacency, clock-precedence and explicit-field compatibility probes.
-  [{ s: '3 × 8 · 30s hold · 2 min rest' }, 30, 120],
-  [{ s: '3 × 8 · 30s hold · rest 90s' }, 30, 90],
-  [{ s: '3 × 8 · 30s hold · rest: 1:30' }, 30, 90],
+  [{ s: '3 × 8 · 30s hold · 2 min rest' }, 120],
+  [{ s: '3 × 8 · 30s hold · rest 90s' }, 90],
+  [{ s: '3 × 8 · 30s hold · rest: 1:30' }, 90],
   [{ s: '3 × 8 · 30s hold · 1:30 rest' }, 90],
-  [{ s: '3 × 8 · 30s hold · rest: 2.5 minutes' }, 30, 150],
+  [{ s: '3 × 8 · 30s hold · rest: 2.5 minutes' }, 150],
   [{ s: '3 × 8 · 30s hold · rest as needed' }, 30],
   [{ s: '3 × 8 · 30s hold · no rest' }, 30],
   [{ s: '3 × 8 · rest: 1:30' }, null],
@@ -119,21 +119,40 @@ const ROWS = [
   [{ rest: '30s hold · 90s rest' }, 30],
   [{ rest: 'rest: 1:30' }, null],
   [{ restSeconds: 45, s: '3 × 8 · 30s hold · 90s rest' }, 45],
-  [{ s: '3 × 8 · 30s hold · 0s rest' }, 30, 0],
+  [{ s: '3 × 8 · 30s hold · 0s rest' }, 0],
   [{ s: '3 × 8 · 30s hold · 90s restless' }, 30],
   [{ s: '3 × 8 · 30s hold · rest 2 mi' }, 30],
-  [{ s: '5 × 30s/30s rest' }, null],
+  [{ s: '5 × 30s/30s rest' }, null, 30],
+  // Slash pairs, whole-word rest labels, and explicit trainer overrides.
+  [{"s":"5 × 30s/30 sec rest"},null,30],
+  [{"s":"8 × 20s/10s rest"},null,10],
+  [{"s":"8 × 20s / 10s rest"},10],
+  [{"s":"4 × 20 sec/10 sec rest"},null,10],
+  [{"s":"3 × 30s/45s rest"},null,45],
+  [{"s":"3 × 30s/45s/60s rest"},null,60],
+  [{"s":"5 × 1 min/30s rest"},null,30],
+  [{"s":"5 × 30s/1:30 rest"},null,90],
+  [{"s":"3 × 40m/2 min rest"},null,120],
+  [{"s":"5 × 30s/30s"},null],
+  [{"s":"8 × 20s/10s off"},null],
+  [{"s":"3 × 30s/45s rest 60s"},60],
+  [{"s":"3 × 30s/45s rest: 60s"},60],
+  [{"s":"3 × 30s/45s resting hold · 60s rest"},60],
+  [{"s":"3 × 30s/45s restoration hold · 60s rest"},60],
+  [{"s":"3 × 30s/45s restore · 60s rest"},60],
+  [{"rest":"105s","s":"8 × 20s/10s rest"},105],
+  [{"restSeconds":45,"s":"8 × 20s/10s rest"},45],
 ];
 
-test('every pinned rest reading stays unchanged except the marked adjacent-rest preferences', () => {
-  assert.ok(ROWS.length >= 93, 'the table is shorter than the one main was recorded over');
+test('every pinned rest reading stays unchanged except the marked work/rest pairs', () => {
+  assert.ok(ROWS.length >= 111, 'the table is shorter than the one main was recorded over');
   for (const [move, before, ...now] of ROWS) {
     const want = now.length ? now[0] : before;
     assert.equal(bsRestSeconds(move), want, `${JSON.stringify(move)}: main read ${before}`);
   }
   const changed = ROWS.filter((row) => row.length === 3);
-  assert.equal(changed.length, 7, 'the number of schemes whose rest reads differently now');
-  // Every changed row is a scheme with a second duration before its labelled rest.
+  assert.equal(changed.length, 9, 'the number of schemes whose rest reads differently now');
+  // Every changed row explicitly labels the last duration in a slash-separated work/rest pair.
   for (const [move] of changed) {
     assert.ok(move.rest == null && move.restSeconds == null, `${JSON.stringify(move)} carries a rest field`);
     assert.ok(bsPlainScheme(String(move.s).toLowerCase()), `${JSON.stringify(move)} has no rep value to take out`);
@@ -169,4 +188,13 @@ test('every demo move rests what its scheme names, through the path the Train de
     assert.equal(session.restSeconds, want, `${mv.m} "${mv.s}"`);
   }
   assert.ok(named > 15, `expected most demo moves to name a rest, found ${named}`);
+});
+
+ test('a work/rest pair requires the complete word rest and keeps a following rest value', () => {
+  for (const word of ['resting', 'restoration', 'restore']) {
+    assert.equal(bsRestSeconds({s: '3 × 30s/45s ' + word + ' hold · 60s rest'}), 60);
+  }
+  assert.equal(bsRestSeconds({s: '3 × 30s/45s rest: 60s'}), 60);
+  assert.equal(bsRestSeconds({s: '8 × 20s/10s rest'}), 10);
+  assert.equal(bsRestSeconds({s: '5 × 30s/1:30 rest'}), 90);
 });
