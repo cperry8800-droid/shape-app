@@ -16,6 +16,68 @@ export function bsAssignSplitBlock(text) {
   return { head: (m ? m[1] : s).trim(), tail: m ? m[2].trim() : '' };
 }
 
+// ⚠ A TEXT LADDER BECOMES A STRUCTURED ONE. `perSet` is what the session player
+// pre-fills each set with, in the shape ShapeWorkoutDocument.exerciseFromRow writes
+// for a builder row: each set's reps, and its weight WITH its unit and WITHOUT the
+// RPE (the player adds the move's RPE back when it records the plan). Without it a
+// hand-typed "3 × 8/6/4" reaches the player as "8/6/4" in every set's reps box, and
+// "3 × 5 · 100/105/110 kg" as "100/105/110 kg" in every weight box; neither logs.
+// A ladder is either list: the reps ("8/6/4", one per set) or the weights, in the
+// two forms the document writes ("60/70/80 kg", or "— / 70 kg / 80 kg" when the
+// sets differ in kind). Straight sets are no ladder, so they carry no `perSet`.
+// ⚠ A LIST THAT DOES NOT HAVE ONE VALUE PER SET IS NOT READ AS ONE: "60/70 kg" over
+// three sets names two weights for three sets, so the weights are left blank rather
+// than guessed, and "3 × 10/10" (per side) is not a rep ladder at all.
+export function bsTextLadder(sets, reps, load) {
+  const n = Number(sets);
+  if (!Number.isInteger(n) || n < 2 || n > 50) return null;
+  const repText = String(reps == null ? '' : reps).trim();
+  const repLadder = repText.includes('/');
+  const repList = repLadder ? repText.split('/').map((x) => x.trim()) : Array.from({ length: n }, () => repText);
+  if (repList.length !== n) return null;
+  const weight = String(load == null ? '' : load).split(/\s*·\s*/).filter((p) => p && !/^RPE\s*\d+(?:\.\d+)?$/i.test(p)).join(' · ');
+  let loads = null;
+  let weightLadder = false;
+  const compact = weight.match(/^(\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?)+)\s*(kg|lbs?|%\s*1RM)$/i);
+  if (compact) {
+    const nums = compact[1].split(/\s*\/\s*/);
+    const unit = /%/.test(compact[2]) ? '% 1RM' : ' ' + (/^lb/i.test(compact[2]) ? 'lb' : 'kg');
+    if (nums.length === n) { loads = nums.map((x) => x + unit); weightLadder = true; }
+  } else if (/\s\/\s/.test(weight)) {
+    const parts = weight.split(/\s+\/\s+/);
+    if (parts.length === n) { loads = parts.map((x) => (x === '—' || x === '-' ? '' : x)); weightLadder = true; }
+  } else if (!weight.includes('/')) {
+    loads = repList.map(() => weight);
+  }
+  if (!repLadder && !weightLadder) return null;
+  return repList.map((r, i) => ({ reps: r === '—' || r === '-' ? '' : r, load: loads ? loads[i] : '' }));
+}
+
+// ⚠ A LADDER'S REPS NEED NOT BE NUMBERS. The builder writes each set's reps as the
+// coach typed them ("8/6/AMRAP", "30s/45s/60s", "8 each/6 each/4 each"), and the
+// numeric pattern in bsAssignExercise knows only digits, so "3 × 8/6/AMRAP · 60 kg"
+// fell to the plain read: 8 reps and a load of "/6/AMRAP · 60 kg" in a plan's public
+// preview. The builder ends the reps at " · ", so this reads what it writes: the run
+// from "N ×" to the first " · " (or the end), one value per set, none of them empty,
+// and none a weight. A hand-typed line may end the reps at a comma or a semicolon
+// instead ("4 × 8/6/4/AMRAP, 90s rest"), which the numeric pattern already honours, so
+// the run stops there too rather than folding "90s rest" into the last set. A weight
+// list in the reps position ("3 × 70/75/80% 1RM") is refused here exactly as it is
+// there. Returns a match-shaped [whole, sets, reps], where `whole` is the text to take
+// out of the line, or null.
+export function bsTextRepLadder(tail) {
+  const at = /(\d+)\s*[×x]\s*/.exec(String(tail || ''));
+  if (!at) return null;
+  const from = at.index + at[0].length;
+  const rest = tail.slice(from);
+  const end = rest.search(/\s·(?:\s|$)|,\s|;/);
+  const run = (end === -1 ? rest : rest.slice(0, end)).replace(/\s+$/, '');
+  const parts = run.split('/').map((part) => part.trim());
+  if (parts.length < 2 || parts.length !== Number(at[1])) return null;
+  if (parts.some((part) => !part || /\d\s*(?:%|kg\b|lbs?\b)/i.test(part))) return null;
+  return [tail.slice(at.index, from + run.length), at[1], run];
+}
+
 // "Secondary compound · 4×8" / "Back squat — 4 × 6 · RPE 8" → exercise row.
 export function bsAssignExercise(text) {
   const authored = text && typeof text === 'object' ? text : null;
@@ -26,13 +88,30 @@ export function bsAssignExercise(text) {
     const dot = head.split(/\s*·\s*/);
     if (dot.length > 1 && /\d/.test(dot.slice(1).join(''))) { head = dot[0].trim(); tail = dot.slice(1).join(' · '); }
   }
-  const sx = tail.match(/(\d+)\s*[×x]\s*([\d–-]+)/);
+  // ⚠ A REP LADDER IS ONE SCHEME. A builder row with per-set reps is written
+  // "3 × 8/6/4 · 60/70/80 kg" (ShapeWorkoutDocument.builderToOutlineBlocks), and the
+  // plain pattern stopped at the first "/", reading 8 reps and a load of
+  // "/6/4 · 60/70/80 kg" into a plan's public preview. A slash-joined run counts as a
+  // ladder only when it lists ONE VALUE PER SET, so "3 × 10/10" (per side) reads as
+  // it always has. A set with no reps is written "—", and a run that ends in a unit
+  // ("3 × 70/75/80% 1RM") is a weight ladder with no reps, never a rep ladder.
+  const ladder = tail.match(/(\d+)\s*[×x]\s*((?:[\d–-]+|—)(?:\/(?:[\d–-]+|—))+)(?![\d–—\/-]|\s*(?:%|kg\b|lbs?\b))/);
+  const isLadder = !!ladder && ladder[2].split('/').length === Number(ladder[1]);
+  const sx = isLadder ? ladder : bsTextRepLadder(tail) || tail.match(/(\d+)\s*[×x]\s*([\d–-]+)/);
+  // The separator that ended the reps is not part of the load: a comma, a " · ", and a
+  // semicolon, which both ladder readers stop at as well.
+  const load = sx ? tail.replace(sx[0], '').replace(/^[\s·,;]+|[\s·,;]+$/g, '') : tail;
+  // Only a ladder the TEXT is the authority for: an authored block's own reps or
+  // load outrank its text (below), and a ladder read out of text they overrule
+  // would describe a prescription the row no longer carries.
+  const perSet = sx && !(authored && (authored.reps != null || authored.load != null)) ? bsTextLadder(sx[1], sx[2], load) : null;
   return {
     name: head,
     sets: sx ? sx[1] : '',
     reps: sx ? sx[2] : '',
     rest: '',
-    load: sx ? tail.replace(sx[0], '').replace(/^[\s·,]+|[\s·,]+$/g, '') : tail,
+    load,
+    ...(perSet ? { perSet } : {}),
     // Preserve a structured legacy block's prescription and clip. Text is a
     // display field, never the authority over separately authored fields.
     ...(authored ? Object.fromEntries(['id', 'name', 'sets', 'reps', 'rest', 'restSeconds', 'load', 'loadType', 'rpe', 'tempo', 'cue', 'group', 'video'].filter((key) => authored[key] != null).map((key) => [key, authored[key]])) : {}),
@@ -853,8 +932,10 @@ export function bsMaterializeOutline({ plan, startISO, weeks = 4, runId }) {
   } else {
     // A week label is never a movement — drop it here too, so a mixed outline
     // (one phase line + real exercises) can't smuggle "Week 1" in as a lift.
+    // `perSet` is listed or it never arrives: this whitelist drops every field it
+    // does not name, and a text ladder without it pre-fills "8/6/4" into one set.
     const exercises = blocks.filter((_, i) => !weekLines[i]).map(bsAssignExercise).filter(Boolean)
-      .map(e => ({ name: e.name, sets: e.sets, reps: e.reps, load: e.load, seg: '' }));
+      .map(e => ({ name: e.name, sets: e.sets, reps: e.reps, load: e.load, seg: '', ...(e.perSet ? { perSet: e.perSet } : {}) }));
     for (let w = 0; w < nWeeks; w++) {
       const d = new Date(start); d.setDate(d.getDate() + w * 7);
       const dow = (d.getDay() + 6) % 7;

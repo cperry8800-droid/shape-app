@@ -659,6 +659,57 @@ function DbuExercisePicker({ onPick, onClose, customMoves = [] }) {
 }
 
 // ── Exercise row editor ──────────────────────────────────────────────────────
+// ⚠ PER-SET REPS AND WEIGHT: THE FULL LADDER. Owner: "i also should be able to
+// customize as a coach the numbers of reps for each set and weight if I want to";
+// the pick was a full ladder (Back squat 3 × 8/6/4 · 60/70/80 kg). A blank field
+// INHERITS the row, and its placeholder shows what it inherits, so filling in only
+// the sets that differ is the whole job. The unit is the row's and so is the RPE.
+// Reps are stored as typed and trimmed when the document is saved, never per
+// keystroke, so a space the coach is in the middle of typing is not eaten.
+function DbuLadder({ row, onChange }) {
+  const doc = ShapeWorkoutDocument;
+  const count = Number(row.sets);
+  const n = Number.isInteger(count) && count > 0 ? Math.min(count, doc.LADDER_MAX) : 0;
+  const ladder = doc.ladder(row);
+  const stored = Array.isArray(row.perSet) ? row.perSet : [];
+  const any = doc.perSetEntries(row).some(e => e.reps !== '' || e.load !== '');
+  const [open, setOpen] = React.useState(() => !!ladder);
+  const unit = row.loadType === 'pct' ? '% 1RM' : row.loadType === 'lb' ? 'lb' : 'kg';
+  const baseWeight = doc.weightLabel(row);
+  const edit = (i, key, value) => {
+    const list = stored.map(e => ({ ...(e && typeof e === 'object' ? e : {}) }));
+    while (list.length <= i) list.push({});
+    list[i] = { ...list[i], [key]: value };
+    onChange({ ...row, perSet: list });
+  };
+  // ⚠ CLEAR TAKES ITSELF AWAY (nothing is left to clear), so it hands focus to the
+  // summary first, or a keyboard user lands on the page.
+  const summaryRef = React.useRef(null);
+  const clear = () => { const { perSet, ...rest } = row; onChange(rest); if (summaryRef.current) summaryRef.current.focus(); };
+  // A row the mobile editor added and has not named yet has no name to label with,
+  // and "undefined set 1 reps" names nothing; the mobile editor calls it "New exercise".
+  const who = String(row.name || '').trim() || 'New exercise';
+  const cellStyle = { ...dbuField, width: '100%', height: 36 };
+  return <details open={open} onToggle={e => setOpen(e.currentTarget.open)} style={{ marginTop: 12 }}>
+    <summary ref={summaryRef} style={{ cursor: 'pointer', fontSize: 13, minHeight: 32 }}>Per-set reps & weight{ladder ? ' · ' + [ladder.reps, ladder.weight].filter(Boolean).join(' · ') : ''}</summary>
+    {!n ? <p style={{ fontSize: 12.5, color: DBU_INK50, margin: '8px 0 0' }}>Set the number of sets first.</p> : <>
+      <div role="group" aria-label={who + ' per-set targets'} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 1fr', gap: '6px 10px', alignItems: 'center', marginTop: 8 }}>
+        <span style={dbuLabel}>Set</span><span style={dbuLabel}>Reps</span><span style={dbuLabel}>Weight ({unit})</span>
+        {Array.from({ length: n }, (_, i) => {
+          const e = stored[i] && typeof stored[i] === 'object' ? stored[i] : {};
+          return <React.Fragment key={i}>
+            <span style={{ fontFamily: DBU_MONO, fontSize: 13, color: DBU_INK2 }}>{String(i + 1).padStart(2, '0')}</span>
+            <input aria-label={who + ' set ' + (i + 1) + ' reps'} value={e.reps ?? ''} maxLength={doc.SET_REPS_MAX} placeholder={String(row.reps ?? '') || '—'} onChange={ev => edit(i, 'reps', ev.target.value)} style={cellStyle} />
+            <input aria-label={who + ' set ' + (i + 1) + ' weight'} type="number" min="0" step="any" value={e.load ?? ''} placeholder={baseWeight || '—'} onChange={ev => edit(i, 'load', ev.target.value === '' ? '' : Number(ev.target.value))} style={cellStyle} />
+          </React.Fragment>;
+        })}
+      </div>
+      <p style={{ fontSize: 12.5, color: DBU_INK50, margin: '8px 0 0' }}>A blank field uses the row's {String(row.reps ?? '') ? row.reps + ' reps' : 'reps'}{baseWeight ? ' and ' + baseWeight : ''}.{count > doc.LADDER_MAX ? ' Per-set targets cover the first ' + doc.LADDER_MAX + ' sets.' : ''}</p>
+      {any && <button type="button" onClick={clear} style={{ ...dbuRowBtn, marginTop: 8 }}>Clear per-set targets</button>}
+    </>}
+  </details>;
+}
+
 function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [], onUploading }) {
   const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText; onChange(next);};
   const [uploading,setUploading] = React.useState(false);
@@ -702,6 +753,7 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
       {field('rest','Rest')}
     </div>
     {row.loadText && <p style={{fontSize:12,color:DBU_INK50}}>Original load instruction: {row.loadText}</p>}
+    <DbuLadder row={row} onChange={onChange}/>
     <details style={{marginTop:12}}><summary style={{cursor:'pointer',fontSize:13,minHeight:32}}>Cues, tempo, superset & progression</summary>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}}>{field('cue','Coach cue')}{field('tempo','Tempo')}<label><span style={dbuLabel}>Superset</span><select value={row.group || ''} onChange={e=>set('group',e.target.value || null)} style={dbuField}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label></div>
       <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,marginTop:10}}><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:Number(row.rpe)>0?0.5:undefined}:null)}/> Apply progression when copying a week with progression</label>
@@ -1110,6 +1162,15 @@ function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
 // flow; matching by name would silently merge two different moves sharing a name and split
 // one that was renamed. Where a later week genuinely holds a DIFFERENT move at the same
 // position, the cell prints that week's own name — the divergence is drawn, not hidden.
+// A ladder written out ("100/107.5/110/115 kg") has no space to wrap at, so a week column
+// on a phone (~105px) cut it off with an ellipsis: the one cell that exists to be read
+// lost its last weights. A break opportunity after each slash lets it wrap there and
+// nowhere mid-number; the text a reader copies is unchanged.
+function dbuSlashBreaks(text) {
+  const parts = String(text).split("/");
+  return parts.map((p, i) => <React.Fragment key={i}>{i ? <>/<wbr /></> : null}{p}</React.Fragment>);
+}
+
 function DbuSheet({ doc, dates, setSel, setWeeks }) {
   const weeks = doc.weeks || [];
   const dayCount = weeks.reduce((n, w) => Math.max(n, (w.days || []).length), 0);
@@ -1170,6 +1231,22 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
                       const cellRow = wBlock && (wBlock.rows || [])[ri];
                       if (!cellRow) return <td key={wi}><span className="none">—</span></td>;
                       const diverged = cellRow.name && row.name && cellRow.name !== row.name;
+                      // ⚠ A ROW WITH PER-SET TARGETS IS READ HERE, NEVER EDITED. These two
+                      // boxes write the row's own sets × reps and weight, and every set the
+                      // coach wrote a value for would ignore them — an edit that reads as
+                      // saved and changes nothing the member does. The cell shows the ladder
+                      // and opens the day, where the per-set table is.
+                      const cellLadder = ShapeWorkoutDocument.ladder(cellRow);
+                      if (cellLadder) return (
+                        <td key={wi}>
+                          <button type="button" className={"cell ladder" + (w.deload ? " dl" : "")} onClick={() => setSel({ w: wi, d: di })}
+                            aria-label={"Per-set targets, " + (cellRow.name || row.name) + ", week " + (wi + 1) + ": " + cellRow.sets + " × " + cellLadder.reps + (cellLadder.weight ? ", " + cellLadder.weight : "") + ". Open the day to edit."}>
+                            {diverged && <span className="div" title={cellRow.name}>{cellRow.name}</span>}
+                            <span className="a">{cellRow.sets} × {dbuSlashBreaks(cellLadder.reps)}</span>
+                            <span className="b">{cellLadder.weight ? dbuSlashBreaks(cellLadder.weight) : "—"}</span>
+                          </button>
+                        </td>
+                      );
                       return (
                         <td key={wi}>
                           <span className={"cell" + (w.deload ? " dl" : "")}>
@@ -1438,6 +1515,11 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
 .dbu2 .sh .cell.dl{background:${DBU_PG}}
 .dbu2 .sh .cell.dl input.b{color:${DBU_GOLD};font-weight:600}
 .dbu2 .sh .cell .div{font-size:12px;color:${DBU_GOLD};font-weight:600}
+.dbu2 .sh .cell.ladder{cursor:pointer;text-align:left;font:inherit;color:inherit;height:auto;min-height:52px;padding:6px 10px}
+.dbu2 .sh .cell.ladder .a,.dbu2 .sh .cell.ladder .b{display:block;white-space:normal;overflow:hidden;line-height:20px;padding:2px 0}
+.dbu2 .sh .cell.ladder .a{font-size:14px;font-weight:600;color:${DBU_INK}}
+.dbu2 .sh .cell.ladder .b{font-size:12px;color:${DBU_INK2}}
+.dbu2 .sh .cell.ladder.dl .b{color:${DBU_GOLD};font-weight:600}
 .dbu2 .sh tr.add td{padding:9px 12px}
 .dbu2 .sh tr.add button{color:${DBU_TEAL};font-weight:600;font-size:13.5px;background:transparent;border:0;cursor:pointer;padding:0;min-height:24px}
 .dbu2 .back{background:transparent;border:0;padding:4px 0;min-height:24px;cursor:pointer;font-size:13.5px;color:${DBU_INK2}}

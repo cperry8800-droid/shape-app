@@ -179,6 +179,25 @@ export function bsSdUnitizeText(text, prefs) {
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}/${want.distance}`;
   });
 
+  // ⚠ A LADDER OF WEIGHTS SHARES ONE UNIT. "60/70/80 kg" is three weights in kg (a
+  // coach's per-set targets, ShapeWorkoutDocument's compact ladder), and converting
+  // only the number the unit touches read "60/70/176 lb": two kilogram figures under
+  // a pound label. Every number in a slash-joined run before a WEIGHT unit converts
+  // together. Distance is deliberately left alone: "1/2 mi" is a fraction, and nothing
+  // writes a ladder of distances.
+  out = out.replace(/(\d[\d,]*(?:\.\d+)?(?:\s*\/\s*\d[\d,]*(?:\.\d+)?)+)(\s*)(lbs?|kg)(?![\w-])/gi, (m, list, gap, unit) => {
+    const src = sdUnitKind(unit);
+    const target = want.weight;
+    if (src.kind !== 'weight' || !target || target === src.key) return m;
+    const parts = list.split(/\s*\/\s*/).map((num) => {
+      const n = Number(num.replace(/,/g, ''));
+      const conv = Number.isFinite(n) ? bsSdConvertValue(n, src.key, target) : null;
+      return conv == null ? null : sdFormatNumber(conv, num.includes(','), 1);
+    });
+    if (parts.some((x) => x == null)) return m;
+    return `${parts.join('/')}${gap ? ' ' : ''}${target}`;
+  });
+
   out = out.replace(/(\d[\d,]*(?:\.\d+)?)\s*(lbs?|kg|mi|km)(?![\w-])/gi, (m, num, unit) => {
     const src = sdUnitKind(unit);
     const target = src.kind === 'weight' ? want.weight : want.distance;

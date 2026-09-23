@@ -46,8 +46,89 @@ export function bsPreviewSession(workout = {}, formatLoad = value => value) {
     clientWorkoutId: workout.workoutId || workout.id || null,
     title: workout.title || '',
     prescriptionMeta: { template: workout.template || workout.payload?.template || null, program: workout.program || null, adjustGen: workout.adjustGen || workout.payload?.adjustGen || null },
-    moves: bsSessionMoves(rawMoves.map(m => ({ ...m, m: m.name ?? m.m ?? '', s: m.scheme ?? m.seg ?? m.s ?? '', l: formatLoad(m.load ?? m.l ?? '') || '' }))),
+    moves: bsSessionMoves(rawMoves.map(m => {
+      const perSet = bsPerSetLabels(m.perSet, formatLoad);
+      return { ...m, m: m.name ?? m.m ?? '', s: m.scheme ?? m.seg ?? m.s ?? '', l: formatLoad(m.load ?? m.l ?? '') || '', ...(perSet ? { perSet } : {}) };
+    })),
   };
+}
+// ⚠ PER-SET TARGETS: THE COACH'S LADDER. A move may carry `perSet`, each set's own
+// resolved `{reps, load}` (ShapeWorkoutDocument.exerciseFromRow writes it: every
+// weight carries its unit and none carries the RPE). When it is there a set's
+// target is its OWN entry, and when it is not every set's target is the move's.
+// The move's own `reps` and `l` then hold the whole ladder written out ("8/6/4",
+// "60/70/80 kg · RPE 8") for reading, and must never be pre-filled into one set:
+// "8/6/4" in a reps box logs no reps at all.
+// The weights go through the same formatter as the move's label, so a member on
+// the other unit reads every set in their own unit, not only the summary.
+export function bsPerSetLabels(perSet, formatLoad = value => value) {
+  if (!Array.isArray(perSet) || !perSet.length) return undefined;
+  return perSet.slice(0, 50).map((p) => {
+    const e = p && typeof p === 'object' ? p : {};
+    const load = e.load == null ? '' : String(e.load);
+    return { reps: e.reps == null ? '' : String(e.reps), load: load ? (formatLoad(load) || '') : '' };
+  });
+}
+export function bsHasLadder(move) {
+  return Array.isArray(move?.perSet) && move.perSet.length > 0;
+}
+// A set past the end of the ladder repeats its LAST set: that is what "one more"
+// means after a 60/70/80 pyramid, and the member's own added set is the only way to
+// get there (the coach's ladder always covers every prescribed set).
+// ⚠ SO ADDING A SET NEEDS NO CHANGE TO THE LADDER — this clamp IS the rule. Growing
+// the list on add appended exactly the entry the clamp already reads, and a mutation
+// deleting it changed nothing, so it went: a second copy of a rule is where they drift.
+function bsLadderEntry(move, setIdx) {
+  if (!bsHasLadder(move)) return null;
+  const e = move.perSet[Math.min(Math.max(0, setIdx), move.perSet.length - 1)];
+  return e && typeof e === 'object' ? e : {};
+}
+// What a set's boxes start with: its own reps and weight on a ladder, the move's
+// otherwise. The weight never carries the RPE (see bsLoadPrefill).
+export function bsSetPrefill(move, setIdx) {
+  const e = bsLadderEntry(move, setIdx);
+  if (!e) return { reps: String(move?.reps || ''), load: bsLoadPrefill(move) };
+  return { reps: String(e.reps ?? ''), load: bsLoadPrefill({ l: e.load }) };
+}
+// What a logged set records as its plan: the set's own reps and weight on a ladder,
+// with the move's target RPE beside the weight exactly as the move's label carries
+// it ("70 kg · RPE 8"), so the plan a coach reads back is the one they wrote.
+export function bsSetPlan(move, setIdx) {
+  const e = bsLadderEntry(move, setIdx);
+  if (!e) return { reps: move?.reps, load: move?.l };
+  const rpe = (String(move.l ?? '').match(/RPE\s*\d+(?:\.\d+)?/i) || [])[0] || '';
+  return { reps: String(e.reps ?? ''), load: [String(e.load ?? ''), rpe].filter(Boolean).join(' · ') };
+}
+// The ladder after the member removes set `setIdx`. ⚠ THE ENTRY GOES WITH THE SET.
+// The player shifts every later set's inputs and logs down one index; a ladder left
+// as it was would then hand set 3's weight to the set that used to be set 4, and a
+// logged set would record another set's plan.
+export function bsLadderRemoveSet(move, setIdx) {
+  if (!bsHasLadder(move)) return move?.perSet;
+  const n = Math.max(1, Number(move.sets) || 1);
+  if (n <= 1) return move.perSet;
+  const list = Array.from({ length: n }, (_, i) => ({ ...bsLadderEntry(move, i) }));
+  list.splice(setIdx, 1);
+  return list;
+}
+// Total prescribed reps for a move: each set's own on a ladder, sets × reps from the
+// scheme otherwise. ⚠ ONE RULE FOR WHAT A REP COUNT IS, in both branches: a number,
+// or the low end of a range ("8-10" is 8, as the scheme line always read it). A hold
+// or a distance is not a count, so "3 × 30s" adds no reps — the scheme parse had
+// counted it as 90, the same defect the ladder branch was written not to have.
+const bsRepCount = (text) => {
+  const m = /^(\d+)(?:\s*[–-]\s*\d+)?(?:\s*reps?)?$/i.exec(String(text ?? '').trim());
+  return m ? Number(m[1]) : 0;
+};
+export function bsMoveTotalReps(move) {
+  if (bsHasLadder(move)) {
+    const n = Math.max(1, Number(move.sets) || move.perSet.length);
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += bsRepCount(bsLadderEntry(move, i).reps);
+    return sum;
+  }
+  const repMatch = String(move?.s).match(/(\d+)\s*×\s*(\d+)(?!\d|\s*(?:s|secs?|seconds?|mins?|minutes?|m|km|mi|yds?|yards?)\b)/i);
+  return repMatch ? Number(repMatch[1]) * Number(repMatch[2]) : 0;
 }
 // Two moves are one superset when their keys match under the document's own
 // rule. ⚠ NAVIGATION AND REST MUST ASK THE SAME QUESTION: this compared a
@@ -106,9 +187,10 @@ export function bsLoggedSet({ move, moveIndex, setIndex, input, startedAt = null
   const repText = String(input.reps ?? '').trim();
   const reps = /^(\d+)(?:\s*reps?)?$/i.exec(repText);
   const load = /^\+?(\d[\d,]*(?:\.\d+)?)\s*(kg|lbs?)?$/i.exec(String(input.load ?? '').trim());
+  const plan = bsSetPlan(move, setIndex);
   return {
     key: `${moveIndex}-${setIndex}`, moveIndex, moveName: move.m, setNumber: setIndex + 1,
-    targetReps: move.reps, targetLoad: move.l, actualReps: reps ? Number(reps[1]) : null,
+    targetReps: plan.reps, targetLoad: plan.load, actualReps: reps ? Number(reps[1]) : null,
     actualLoad: load ? Number(load[1].replace(/,/g, '')) : null,
     enteredReps: input.reps, enteredLoad: input.load,
     rpe: input.rpe === '' || input.rpe == null ? null : input.rpe,

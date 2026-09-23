@@ -4,7 +4,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey } from '../services/workoutSession.mjs';
+import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps } from '../services/workoutSession.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
@@ -5384,7 +5384,11 @@ function bsBuildTrainProgram(workouts, t, tr) {
       if (e.seg) return { ...e, n: String(j + 1).padStart(2, '0'), m: e.name, s: e.seg, l: '', video: e.video || null };
       const sr = [e.sets, e.reps].filter(Boolean).join(' × ');
       const s = [sr, e.rest].filter(Boolean).join(' · ');
-      return { ...e, n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: t.uText(e.load) || '—', video: e.video || null };
+      // ⚠ A LADDER'S SETS ARE CONVERTED WITH ITS LABEL. `l` is the whole ladder
+      // in the reader's unit; `perSet` is each set's own weight, which the player
+      // pre-fills one set at a time, so it has to be in the same unit.
+      const perSet = bsPerSetLabels(e.perSet, (v) => t.uText(v));
+      return { ...e, n: String(j + 1).padStart(2, '0'), m: e.name, s: s || '—', l: t.uText(e.load) || '—', video: e.video || null, ...(perSet ? { perSet } : {}) };
     });
     const isSelf = !!w.selfAuthored;
     const prog = w.program && w.program.id ? w.program : null;
@@ -30648,11 +30652,8 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
       ];
 
   // Aggregate stats
-  const totalReps = program.moves.reduce((s, m) => {
-    const repMatch = String(m.s).match(/(\d+)\s*×\s*(\d+)/);
-    if (!repMatch) return s;
-    return s + (Number(repMatch[1]) * Number(repMatch[2]));
-  }, 0);
+  // Each set's own reps on a ladder (3 × 8/6/4 is 18, not 24), sets × reps otherwise.
+  const totalReps = program.moves.reduce((s, m) => s + bsMoveTotalReps(m), 0);
 
   return (
     <BSPage>
@@ -30831,9 +30832,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
       .map((m) => ({ ...m, sets: Math.max(1, Number(m.sets) || 1) })));
   const buildSetInputs = () => moves.reduce((acc, m, mIdx) => {
     Array.from({ length: m.sets }).forEach((_, setIdx) => {
+      // Each set starts from its OWN target — a ladder's 8/6/4 at 60/70/80 is
+      // three different sets, never "8/6/4" typed into every reps box.
+      const pre = bsSetPrefill(m, setIdx);
       acc[`${mIdx}-${setIdx}`] = {
-        reps: String(m.reps || ''),
-        load: bsLoadPrefill(m),
+        reps: pre.reps,
+        load: pre.load,
         rpe: '',
       };
     });
@@ -30985,7 +30989,11 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
   const move = moves[moveIdx];
   const _bsSug = (() => {
-    if (!move || !move.m) return null;
+    // ⚠ NO SUGGESTION ON A LADDER. The suggester autoregulates off the LAST set of
+    // the last session, which on a 60/70/80 pyramid is the top set — offering 82.5
+    // for a set the coach wrote at 60. The ladder IS the coach's progression inside
+    // the session, so the chip stays out of its way.
+    if (!move || !move.m || bsHasLadder(move)) return null;
     const lift = (_bsStrength && Array.isArray(_bsStrength.lifts))
       ? _bsStrength.lifts.find((l) => l.key === String(move.m).trim().toLowerCase())
       : null;
@@ -31001,7 +31009,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     const cur = setInputs[`${moveIdx}-${i}`] || {};
     // Don't clobber a load the athlete typed: only fill when the field is still the
     // pre-filled default (the prescribed weight) or empty. Reps only when blank.
-    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === bsLoadPrefill(move);
+    const loadIsDefault = cur.load == null || String(cur.load) === '' || String(cur.load) === bsSetPrefill(move, i).load;
     if (loadIsDefault) updateSetInput(i, 'load', String(_bsSug.load));
     if (_bsSug.reps != null && (cur.reps == null || String(cur.reps) === '')) updateSetInput(i, 'reps', String(_bsSug.reps));
   };
@@ -31134,9 +31142,9 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     const k = `${moveIdx}-${setIdx}`;
     // Functional updaters so two updates in one handler (e.g. the suggestion chip
     // filling load AND reps) compose instead of clobbering a stale-closure snapshot.
-    const other = setInputs[k] || { reps: String(move.reps || ''), load: bsLoadPrefill(move) };
+    const other = setInputs[k] || bsSetPrefill(move, setIdx);
     setSetInputs((prev) => {
-      const current = prev[k] || { reps: String(move.reps || ''), load: bsLoadPrefill(move) };
+      const current = prev[k] || bsSetPrefill(move, setIdx);
       return { ...prev, [k]: { ...current, [field]: value } };
     });
     setSetLogs((prev) => prev.map((entry) => (
@@ -31155,8 +31163,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
   const addSet = () => {
     const k = `${moveIdx}-${move.sets}`;
+    // On a ladder the added set repeats the last prescribed one: a set past the
+    // end of `perSet` reads its last entry (bsSetPrefill), so the ladder itself is
+    // left as the coach wrote it.
+    const pre = bsSetPrefill(move, move.sets);
     setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: m.sets + 1 } : m)));
-    setSetInputs((si) => ({ ...si, [k]: { reps: String(move.reps || ''), load: bsLoadPrefill(move), rpe: '' } }));
+    setSetInputs((si) => ({ ...si, [k]: { reps: pre.reps, load: pre.load, rpe: '' } }));
   };
   // Remove a set from the CURRENT exercise (Cockpit/Split spec — full set
   // editing). Pending sets remove instantly; a LOGGED set goes through the
@@ -31183,7 +31195,9 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
       });
       return out;
     };
-    setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: Math.max(1, m.sets - 1) } : m)));
+    // ⚠ THE LADDER ENTRY LEAVES WITH ITS SET, or the shifted sets below would read
+    // (and log as their plan) the target of the set above them.
+    setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, sets: Math.max(1, m.sets - 1), ...(bsHasLadder(m) ? { perSet: bsLadderRemoveSet(m, setIdx) } : {}) } : m)));
     setSetInputs(shiftKeys);
     setCompleted(shiftKeys);
     setSetLogs((prev) => prev
@@ -31314,7 +31328,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const activeIdx = (() => { for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
   const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
   const activeRunning = !!(activeKey && activeSetKey === activeKey);
-  const activeLoad = (activeKey && setInputs[activeKey] && setInputs[activeKey].load) || bsLoadPrefill(move);
+  const activeLoad = (activeKey && setInputs[activeKey] && setInputs[activeKey].load) || (activeIdx != null ? bsSetPrefill(move, activeIdx).load : bsLoadPrefill(move));
   const plates = bsPlates(activeLoad);
   const perSide = (() => { const v = (Number(activeLoad) - 45) / 2; return Number.isFinite(v) && v > 0 ? v : null; })();
   const plateColor = { 45: t.RUST, 35: t.AMBER, 25: t.BLUE, 10: teal, 5: t.GREEN, 2.5: t.INK50 };
@@ -31639,7 +31653,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
           const k = `${moveIdx}-${i}`;
           const done = completed[k];
           const isActive = i === activeIdx;
-          const ri = setInputs[k] || { reps: '', load: bsLoadPrefill(move), rpe: '' };
+          const ri = setInputs[k] || { reps: '', load: bsSetPrefill(move, i).load, rpe: '' };
           // Every row stays tap-to-edit in place (Cockpit/Split spec: full set
           // editing — done, active, pending alike share state with the band's
           // readout). The dotted underlines died with the redesign: pending =
@@ -31676,8 +31690,8 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         {activeIdx != null ? (
           <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {!timedMode || activeRunning
-              ? (move.reps
-                  ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: move.reps })
+              ? (bsSetPrefill(move, activeIdx).reps
+                  ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: bsSetPrefill(move, activeIdx).reps })
                   : tr('session:player.logSetCta', { n: activeIdx + 1 }))
               : tr('session:player.startSetCta', { n: activeIdx + 1 })}
           </button>

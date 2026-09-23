@@ -57,11 +57,41 @@ async function leg(promise) {
 
 // ─── training plan ───────────────────────────────────────────────────────────
 
+// ⚠ A LONG TARGET IS SHORTENED, NEVER CUT, AND SAYS SO. A coach's per-set ladder is
+// written out in `reps` and `load` ("12/10/8/6/4/3", "102.5/107.5/112.5 kg · RPE 8").
+// A plain slice ended an eleven-set ladder at "152." with its unit and its RPE gone,
+// and the record then presented that partial prescription as the whole one. A list
+// keeps its first sets whole, stands "…" for the rest, and keeps what follows it (the
+// unit, the RPE); the scheme beside it still says how many sets there are. Text that
+// is no list ends at a word, marked the same way. Never longer than `max`.
+function clipTarget(v, max) {
+  const s = txt(v, 2000);
+  if (!s || s.length <= max) return s;
+  const [head, ...rest] = s.split(' · ');
+  const after = rest.map((part) => ' · ' + part).join('');
+  // The document writes a ladder two ways: "60/70/80 kg" (one unit, after the list)
+  // and "— / 70 kg / 80 kg" (each weight with its own), so the unit is split off only
+  // from the first.
+  const spaced = head.includes(' / ');
+  const unit = spaced ? null : /^(.*?\d)(\s*(?:kg|lbs?|%\s*1RM))$/i.exec(head);
+  const sep = spaced ? ' / ' : '/';
+  const items = (unit ? unit[1] : head).split(sep);
+  for (let k = items.length - 1; k >= 1; k--) {
+    const out = items.slice(0, k).join(sep) + sep + '…' + (unit ? unit[2] : '') + after;
+    if (out.length <= max) return out;
+  }
+  const cut = s.slice(0, max - 1);
+  return cut.replace(/\s+\S*$/, '') + '…';
+}
+
 function exerciseLine(e) {
   if (!e || typeof e !== 'object') return null;
   const name = str(e.name, 60);
   if (!name) return null;
-  const sets = txt(e.sets, 8), reps = txt(e.reps, 12), load = txt(e.load ?? e.notes, 40), seg = txt(e.seg, 40);
+  // The caps leave room for a six-set ladder written in full: cut at 12 and 40, one
+  // reached Nora as "12/10/8/6/4/" and a load that stopped partway through its fourth
+  // weight. A longer ladder is shortened by `clipTarget`, never cut.
+  const sets = txt(e.sets, 8), reps = clipTarget(e.reps, 40), load = clipTarget(e.load ?? e.notes, 64), seg = txt(e.seg, 40);
   const scheme = [sets, reps].filter(Boolean).join(' × ') || null;
   return { name, ...(scheme ? { scheme } : {}), ...(load ? { load } : {}), ...(seg ? { seg } : {}) };
 }

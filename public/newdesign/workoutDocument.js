@@ -44,24 +44,105 @@
     const n = Number(row.load);
     return {...row, loadType:'kg', load:'', rpe:Number.isFinite(n) && n > 0 ? n : (row.rpe == null ? '' : row.rpe)};
   }
-  function loadLabel(row) {
-    const parts = [];
+  // The row's own WEIGHT, without its RPE: the imported free text when there is
+  // one, else the number and its unit, else nothing. Split out of `loadLabel` so a
+  // set that inherits the row's weight reads exactly what the row itself says.
+  function weightLabel(row) {
     // ⚠ AN IMPORTED FREE-TEXT LOAD ("bodyweight", "heavy") STANDS IN FOR THE WEIGHT,
     // NOT FOR THE WHOLE PRESCRIPTION. It returned early, so a target RPE on an
     // imported row never reached the label — and the editors then cleared the text
     // whenever RPE changed, to make room, which threw away the coach's own
     // instruction. The text and the RPE are separate axes, like a weight and RPE.
-    if (row.loadText != null) {
-      const own = text(row.loadText);
-      if (own) parts.push(own);
-    } else if (!(row.load == null || row.load === '' || Number(row.load) === 0)) {
-      if (row.loadType === 'pct') parts.push(row.load + '% 1RM');
-      // ⚠ THE LEGACY ARM STAYS, and is what stops "RPE 8 · RPE 8" on a row that
-      // has not passed through `splitLegacyRpe` yet — a demo template, or a
-      // document read by an older build. Belt and braces beside the migration.
-      else if (row.loadType === 'rpe') parts.push('RPE ' + row.load);
-      else parts.push(row.load + ' ' + (row.loadType === 'lb' ? 'lb' : 'kg'));
-    }
+    if (row.loadText != null) return text(row.loadText);
+    if (row.load == null || row.load === '' || Number(row.load) === 0) return '';
+    if (row.loadType === 'pct') return row.load + '% 1RM';
+    // ⚠ THE LEGACY ARM STAYS, and is what stops "RPE 8 · RPE 8" on a row that
+    // has not passed through `splitLegacyRpe` yet — a demo template, or a
+    // document read by an older build. Belt and braces beside the migration.
+    if (row.loadType === 'rpe') return 'RPE ' + row.load;
+    return row.load + ' ' + (row.loadType === 'lb' ? 'lb' : 'kg');
+  }
+  // ⚠ PER-SET TARGETS: THE FULL LADDER. Owner: "i also should be able to customize
+  // as a coach the numbers of reps for each set and weight if I want to". The pick
+  // was a full ladder, e.g. Back squat 3 × 8/6/4 · 60/70/80 kg.
+  // A row may carry `perSet`, one `{reps, load}` entry per set, in order.
+  // ⚠ A BLANK FIELD INHERITS THE ROW'S OWN VALUE. A coach who writes 8 reps @ 60 kg
+  // on the row and fills in only sets 2 and 3 has written exactly what they meant,
+  // and a row with no entries is the row it always was. The unit is the row's
+  // `loadType` and the RPE stays the row's: one axis each, as before.
+  const LADDER_MAX = 20;
+  // The longest set's reps a ladder keeps. Both editors cap their field at this, so
+  // what a coach types is what is saved: a field that took more would have been cut
+  // here, silently, on save.
+  const SET_REPS_MAX = 24;
+  function ladderEntry(value) {
+    const e = value && typeof value === 'object' ? value : {};
+    const raw = typeof e.load === 'number' ? e.load : text(e.load).trim() === '' ? NaN : Number(text(e.load).trim());
+    return {reps:text(e.reps).trim().slice(0, SET_REPS_MAX), load:Number.isFinite(raw) && raw >= 0 ? raw : ''};
+  }
+  function perSetEntries(row) {
+    return (row && Array.isArray(row.perSet) ? row.perSet.slice(0, LADDER_MAX) : []).map(ladderEntry);
+  }
+  // The stored ladder, cleaned: at most LADDER_MAX entries, each field a rep text or
+  // a non-negative number, trailing blank entries dropped (a blank entry inherits,
+  // so a run of them at the end says nothing), and null when nothing is left, so a
+  // row that never had a ladder does not grow an empty one.
+  // ⚠ ENTRIES PAST THE SET COUNT ARE KEPT, never trimmed to `sets`. A coach editing
+  // the sets field passes through '' on the way from 3 to 5 and through "1" on the
+  // way to "12"; trimming there would destroy entries they are about to see again.
+  // Delivery reads only the first `sets`, so a hidden entry reaches nobody.
+  function normalizePerSet(value) {
+    if (!Array.isArray(value)) return null;
+    const list = value.slice(0, LADDER_MAX).map(ladderEntry);
+    while (list.length && list[list.length - 1].reps === '' && list[list.length - 1].load === '') list.pop();
+    return list.length ? list : null;
+  }
+  const loadUnitSuffix = row => row.loadType === 'pct' ? '% 1RM' : ' ' + (row.loadType === 'lb' ? 'lb' : 'kg');
+  // One set's target: its own entry where the coach wrote one, the row's where not.
+  // `label` is that set's weight WITHOUT the RPE (the row prints the RPE once);
+  // `num` is the weight as a number when the label is one, so a ladder of numbers
+  // can be written compactly ("60/70/80 kg") and anything else in full.
+  function setTarget(row, i) {
+    const e = perSetEntries(row)[i] || {reps:'', load:''};
+    const reps = e.reps !== '' ? e.reps : text(row.reps).trim();
+    if (e.load !== '') return {reps, label:e.load === 0 ? '' : e.load + loadUnitSuffix(row), num:e.load === 0 ? null : e.load};
+    const base = row.loadText == null && row.loadType !== 'rpe' && !(row.load == null || row.load === '') && Number.isFinite(Number(row.load)) && Number(row.load) > 0 ? Number(row.load) : null;
+    return {reps, label:weightLabel(row), num:base};
+  }
+  const setCount = row => {
+    const n = Number(row && row.sets);
+    return Number.isInteger(n) && n > 0 ? Math.min(n, 50) : 0;
+  };
+  // The ladder a row prescribes, or null when it has none: every set's target, and
+  // the reps and the weight written the way a coach writes them — "8/6/4" and
+  // "60/70/80 kg" — collapsing to the one value when every set agrees.
+  // ⚠ NULL UNLESS AN ENTRY INSIDE THE SET COUNT SAYS SOMETHING. A row whose only
+  // entries sit past `sets` is delivered as the straight sets it now is.
+  function ladder(row) {
+    const n = setCount(row);
+    if (!n || !perSetEntries(row).slice(0, n).some(e => e.reps !== '' || e.load !== '')) return null;
+    const sets = Array.from({length:n}, (_, i) => setTarget(row, i));
+    const same = list => list.every(x => x === list[0]);
+    const reps = sets.map(x => x.reps);
+    const labels = sets.map(x => x.label);
+    return {
+      sets,
+      reps:same(reps) ? reps[0] : reps.map(x => x || '—').join('/'),
+      // ⚠ THE COMPACT FORM NEEDS EVERY SET TO BE A NUMBER IN THE ROW'S UNIT. A set
+      // with no weight, or one inheriting an imported "bodyweight", is written in
+      // full ("— / 70 kg / 80 kg"), so each weight still carries its own unit.
+      weight:same(labels) ? labels[0] : sets.every(x => x.num != null) ? sets.map(x => x.num).join('/') + loadUnitSuffix(row) : labels.map(x => x || '—').join(' / '),
+    };
+  }
+  function repsLabel(row) {
+    const l = ladder(row);
+    return l ? l.reps : text(row.reps);
+  }
+  function loadLabel(row) {
+    const parts = [];
+    const l = ladder(row);
+    const weight = l ? l.weight : weightLabel(row);
+    if (weight) parts.push(weight);
     const rpe = rpeValue(row);
     if (rpe != null && row.loadType !== 'rpe') parts.push('RPE ' + rpe);
     return parts.join(' · ');
@@ -89,6 +170,14 @@
       rest:text(b.rest), tempo:text(b.tempo), cue:text(b.cue), group:b.group || null,
       video:videoUrl(b.video), muscle:text(b.muscle), equipment:text(b.equipment),
     };
+  }
+  // A row with its ladder cleaned, or with no `perSet` key at all when nothing in
+  // it says anything — never an empty array beside a row that has no ladder.
+  function withLadder(row) {
+    if (!row || !('perSet' in row)) return row;
+    const {perSet, ...rest} = row;
+    const clean = normalizePerSet(perSet);
+    return clean ? {...rest, perSet:clean} : rest;
   }
   function normalizeWorkoutDetail(input, options = {}) {
     const detail = input && typeof input === 'object' ? copy(input) : {};
@@ -120,7 +209,7 @@
     builder.version = Math.max(1, Number(builder.version) || 1);
     builder.weeks = builder.weeks.map((week, wi) => ({...week, days:(week.days || []).map((day, di) => ({
       ...day, id:day.id || `day-${wi}-${di}`, name:day.name || `Day ${di + 1}`,
-      blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => splitLegacyRpe({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video), group:supersetKey(row.group) || null}))})),
+      blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => withLadder(splitLegacyRpe({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video), group:supersetKey(row.group) || null})))})),
     }))}));
     if (!builder.weeks.length) builder.weeks = [{deload:false,days:[{id:'day-0',name:options.name || 'Workout',blocks:[{kind:'main',rows:[]}]}]}];
     const dayCount = builder.weeks.reduce((n,w) => n + w.days.length, 0);
@@ -130,9 +219,17 @@
     return plan && plan.kind !== 'meal_plan' ? {...plan, detail:normalizeWorkoutDetail(plan.detail,{name:plan.name})} : plan;
   }
   function exerciseFromRow(row) {
-    return {id:row.id, name:text(row.name), sets:text(row.sets), reps:text(row.reps), rest:text(row.rest),
+    const l = ladder(row);
+    return {id:row.id, name:text(row.name), sets:text(row.sets), reps:l ? l.reps : text(row.reps), rest:text(row.rest),
       ...(row.restSeconds != null ? {restSeconds:row.restSeconds} : {}), load:loadLabel(row),
       loadType:row.loadType, ...(rpeValue(row) != null ? {rpe:rpeValue(row)} : {}),
+      // ⚠ THE LADDER TRAVELS TWICE, AND BOTH ARE NEEDED. `reps` and `load` above are
+      // the whole ladder written out ("8/6/4", "60/70/80 kg"), which is what every
+      // card and list already prints; `perSet` is each set's own target, resolved,
+      // which is what the session player pre-fills a set with and what a logged set
+      // records as its plan. A player reading "8/6/4" into one set's reps box would
+      // log no reps at all. Weights here carry their unit and never the RPE.
+      ...(l ? {perSet:l.sets.map(x => ({reps:x.reps, load:x.label}))} : {}),
       tempo:text(row.tempo), cue:text(row.cue), group:supersetKey(row.group),
       video:videoUrl(row.video), ...(row.seg ? {seg:row.seg} : {})};
   }
@@ -157,8 +254,8 @@
   function builderToOutlineBlocks(builder) {
     return builder.weeks.flatMap((week,wi) => week.days.flatMap((day,di) => day.blocks.flatMap(block => block.rows.map(row => ({
       ...row, week:wi, day:di, dayName:day.name, weekday:day.weekday,
-      text:`${row.name} — ${row.sets} × ${row.reps}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
+      text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, rpeValue, splitLegacyRpe, supersetKey, videoUrl};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, videoUrl};
 });

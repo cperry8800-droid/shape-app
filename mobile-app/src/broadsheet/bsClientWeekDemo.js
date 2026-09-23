@@ -359,7 +359,11 @@ export function bsApplyTrainAdjust(program, training, t, tr) {
     if (training.gen != null && day.adjustGen != null && Number(day.adjustGen) === Number(training.gen)) {
       return { ...day, coachAdjust: true, intensityLabel, coachLine: note || day.coachLine };
     }
-    const next = { ...day, moves: day.moves.map((m) => ({ ...m, l: bsScaleLoad(m.l, scale) })), meta: bsAdjustRpeMeta(day.meta, rpeAdj), coachAdjust: true, intensityLabel, coachLine: note || day.coachLine };
+    // A ladder's sets scale with its label: the player pre-fills each set from
+    // `perSet`, so a scaled label over unscaled sets would say one weight and fill
+    // in another.
+    const scaleMove = (m) => ({ ...m, l: bsScaleLoad(m.l, scale), ...(Array.isArray(m.perSet) && m.perSet.length ? { perSet: m.perSet.map((p) => (p && typeof p === 'object' ? { ...p, load: bsScaleLoad(p.load, scale) } : p)) } : {}) });
+    const next = { ...day, moves: day.moves.map(scaleMove), meta: bsAdjustRpeMeta(day.meta, rpeAdj), coachAdjust: true, intensityLabel, coachLine: note || day.coachLine };
     // Re-theme by the coach split focus (keep the day's actual moves).
     if (cd && cd !== 'Rest' && day.tag !== 'COND' && BS_SPLIT_TAG[cd]) {
       next.coachFocus = cd.replace(/\s*day$/i, '');

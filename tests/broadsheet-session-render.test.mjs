@@ -93,13 +93,17 @@ globalThis._bsScrollTopOnMount = () => {};
 globalThis.BSEyebrow = ({ children }) => React.createElement('div', null, children);
 globalThis.BSPage = ({ children }) => React.createElement('div', null, children);
 globalThis.BSFooter = ({ left, right }) => React.createElement('footer', null, left, right);
+// The workout preview's header reads two more pieces of shared chrome off `window`,
+// destructured when the module loads, so they are stubbed before it does.
+globalThis.BSBackButton = ({ label }) => React.createElement('button', null, label || 'Back');
+globalThis.BSMastRow = ({ children }) => React.createElement('div', null, children);
 
 async function loadModule(reactImpl = React) {
   const dir = dirname(SRC);
   // Substitute ALL of `import.meta`, not just `import.meta.env`: this file also
   // probes a bare `typeof import.meta !== 'undefined'`, which is a hard
   // SyntaxError inside a CJS function body. One replacement covers both forms.
-  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSSession, BSClientTrain };\n`;
+  const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { BSSession, BSClientTrain, bsBuildTrainProgram, BSWorkoutPreview };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact],
     plugins: [commonjs],
@@ -912,4 +916,84 @@ test('drive: two different groups still rest between sets', async () => {
   const h = harness({ elapsedMinutes: 30, sessionProps: { moves: pair('A', 'B') } });
   await h.click('Log set 1 · 8 reps');
   assert.match(h.html, /Rest · set 1 done/, 'the control: without a pair, the prescribed rest runs');
+});
+
+// ── Per-set targets: the coach's ladder, driven through the real player ─────
+// ⚠ A LADDER IS THREE DIFFERENT SETS, NEVER "8/6/4" TYPED INTO EVERY REPS BOX. The move
+// carries its whole ladder written out (`reps`, `l`) for reading, and `perSet` for the
+// player: each set pre-fills its OWN target and records its OWN plan when logged.
+const LADDER = () => ({ m: 'Back squat', s: '3 × 8/6/4', l: '60/70/80 kg · RPE 8', reps: '8/6/4', sets: 3,
+  perSet: [{ reps: '8', load: '60 kg' }, { reps: '6', load: '70 kg' }, { reps: '4', load: '80 kg' }] });
+test('drive: a ladder pre-fills each set with its own target, and each logged set records its own plan', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { moves: [LADDER()] } });
+  assert.deepEqual([1, 2, 3].map((n) => h.valueOf(`Set ${n} Load`)), ['60 kg', '70 kg', '80 kg']);
+  assert.deepEqual([1, 2, 3].map((n) => h.valueOf(`Set ${n} Reps`)), ['8', '6', '4']);
+  assert.ok(h.nodes().some((n) => n.type === 'button' && textOf(n).trim() === 'Log set 1 · 8 reps'), 'the call to action names the set\'s own reps');
+  await h.click('Log set 1 · 8 reps');
+  assert.ok(h.nodes().some((n) => n.type === 'button' && textOf(n).trim() === 'Log set 2 · 6 reps'), 'and the next set\'s');
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
+  const logs = h.saved[0].setLogs;
+  assert.deepEqual(logs.map((s) => s.targetReps), ['8', '6', '4']);
+  assert.deepEqual(logs.map((s) => s.targetLoad), ['60 kg · RPE 8', '70 kg · RPE 8', '80 kg · RPE 8']);
+  assert.deepEqual(logs.map((s) => s.actualReps), [8, 6, 4], 'every set logs a real rep count');
+  assert.deepEqual(logs.map((s) => s.actualLoad), [60, 70, 80]);
+});
+test('drive: an added set repeats the last target, and a removed one takes its target with it', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { moves: [LADDER()] } });
+  await h.clickAria('Add a set to this exercise');
+  assert.equal(h.valueOf('Set 4 Load'), '80 kg');
+  assert.equal(h.valueOf('Set 4 Reps'), '4');
+  // Remove targets the current pending set, which is set 1.
+  await h.clickAria('Remove a set from this exercise');
+  assert.deepEqual([1, 2, 3].map((n) => h.valueOf(`Set ${n} Load`)), ['70 kg', '80 kg', '80 kg']);
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
+  assert.deepEqual(h.saved[0].setLogs.map((s) => s.targetLoad), ['70 kg · RPE 8', '80 kg · RPE 8', '80 kg · RPE 8'],
+    'each logged set records the plan of the set it is, not of the set that used to sit there');
+});
+test('drive: straight sets pre-fill and record exactly as before', async () => {
+  const h = harness({ elapsedMinutes: 30, sessionProps: { moves: [{ m: 'Back squat', s: '5', l: '100 kg · RPE 8', reps: '5', sets: 2 }] } });
+  assert.deepEqual([1, 2].map((n) => h.valueOf(`Set ${n} Load`)), ['100 kg', '100 kg']);
+  assert.deepEqual([1, 2].map((n) => h.valueOf(`Set ${n} Reps`)), ['5', '5']);
+  await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
+  assert.deepEqual(h.saved[0].setLogs.map((s) => [s.targetReps, s.targetLoad]), [['5', '100 kg · RPE 8'], ['5', '100 kg · RPE 8']]);
+});
+test('Begin session carries a coach\'s ladder from the assigned workout into each set', () => {
+  globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'client-test' } }) };
+  const perSet = [{ reps: '8', load: '60 kg' }, { reps: '6', load: '70 kg' }, { reps: '4', load: '80 kg' }];
+  const { html, warnings } = render(React.createElement(MOD.BSClientTrain, { autoStart: { workout: { id: 'ladder-workout', title: 'Lower', exercises: [{ name: 'Back squat', sets: 3, reps: '8/6/4', load: '60/70/80 kg · RPE 8', rest: '120s', perSet }] } } }));
+  assert.equal(warnings.length, 0, warnings.join('\n'));
+  for (const load of ['60 kg', '70 kg', '80 kg']) assert.match(html, new RegExp(`value="${load}"`), `a set pre-filled with ${load}`);
+  assert.doesNotMatch(html, /value="8\/6\/4"/, 'the written-out ladder is never typed into a set');
+  assert.match(html, /Log set 1 · 8 reps/);
+});
+// ⚠ THE DECK IS WHERE A SESSION USUALLY STARTS, and its moves are what the player
+// pre-fills from (`bsSessionMoves(effMoves)`). The move spreads the delivered exercise,
+// so a deck that forgot `perSet` would still carry the raw one — in the COACH's unit.
+// Driven with a pound reader, where that difference is visible.
+test('the Train deck hands the player each set\'s weight in the member\'s unit', async () => {
+  const { bsSdUnitizeText } = await import('../mobile-app/src/services/sessionLedger.mjs');
+  const theme = { ...THEME_KNOWN, BLUE: '#00f', uText: (v) => bsSdUnitizeText(v, { weight: 'lb', distance: 'mi' }) };
+  const tr = (k, o) => (o && o.defaultValue) || k;
+  const perSet = [{ reps: '8', load: '60 kg' }, { reps: '6', load: '70 kg' }, { reps: '4', load: '80 kg' }];
+  const days = MOD.bsBuildTrainProgram([{ id: 'w1', title: 'Lower', exercises: [
+    { name: 'Back squat', sets: 3, reps: '8/6/4', load: '60/70/80 kg · RPE 8', rest: '120s', perSet },
+    { name: 'Plank', sets: 3, reps: '30s' },
+  ] }], theme, tr);
+  const day = days.find((d) => d.moves && d.moves.length);
+  assert.ok(day, 'the workout landed on the deck');
+  const [squat, plank] = day.moves;
+  assert.equal(squat.l, '132/154/176 lb · RPE 8');
+  assert.deepEqual(squat.perSet.map((s) => s.load), ['132 lb', '154 lb', '176 lb'], 'every set, not only the summary');
+  assert.deepEqual(squat.perSet.map((s) => s.reps), ['8', '6', '4']);
+  assert.ok(!('perSet' in plank), 'straight sets carry no ladder');
+});
+// ⚠ THE PREVIEW COUNTS EACH SET'S OWN REPS. It read "sets × reps" off the scheme line,
+// which on a ladder is the FIRST set's reps times the set count: 3 × 8/6/4 read as 24.
+test('the workout preview totals a ladder set by set', () => {
+  const program = { tag: 'STR', tagLabel: 'Strength', meta: '60 min · RPE 8', headline: 'Lower', copy: 'Squat day.', moves: [
+    { ...LADDER(), s: '3 × 8/6/4 · 120s' }, { m: 'Row', s: '3 × 10 · 90s', l: '50 kg', reps: '10', sets: 3 }, { m: 'Plank', s: '3 × 30s', l: '—' },
+  ] };
+  const { html, warnings } = render(React.createElement(MOD.BSWorkoutPreview, { program, onBack() {}, onStart() {} }));
+  assert.equal(warnings.length, 0, warnings.join('\n'));
+  assert.match(html, />Reps<\/div><div[^>]*>48<\/div>/, '8 + 6 + 4, plus 3 × 10 — not 3 × 8 + 3 × 10');
 });
