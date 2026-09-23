@@ -22,13 +22,38 @@ export function bsRemoveWorkoutDraft(storage, userId, sessionId) {
   if (!userId) return;
   try { storage.setItem(bsWorkoutDraftKey(userId), JSON.stringify(bsWorkoutDrafts(storage, userId).filter(d => d.sessionId !== sessionId))); } catch {}
 }
+// ⚠ THE REP VALUE IS NOT THE REST. A move with no rest field of its own took the first
+// number-and-unit anywhere in its scheme, and on a hold or a distance that is the rep
+// value: the demo Farmer carry, "3 × 40m · 60s rest", started a 40:00 rest timer (40
+// metres read as 40 minutes), and "3 × 45s · 30s rest" rested 45 s. That first reading is
+// replaced only when it starts inside the rep value as the outline parser's own reader
+// finds it (`bsPlainScheme`: sets × reps, and a unit that ends the value). The rest is then
+// read from what follows that reading, past the text run on to it up to the parser's own
+// end of a value (a space, a "·", a comma or a semicolon), so a hold list such as
+// "30s/45s" is not read as the rest either. Nothing before the rep value is kept: it holds
+// no reading (one there would have come first), and joined to what follows, the 2 of
+// "rest 2 3 × 30s min" would run into the "min". "m" is metres in a rep value and minutes
+// in a rest ("2 m rest"), and the rep value is never read as one. Every other scheme is
+// read unchanged, so it rests what it rested before: a rest glued to a rep value with no
+// unit ("3 × 10/90s rest") rests its 90 s, and the same shape with a second hold glued on
+// ("3 × 30/45s · 60s rest") still rests the 45 s hold. That one is registered: position
+// alone cannot tell the two apart. tests/session-rest-seconds.test.mjs pins main's readings.
+const BS_REST_DURATION = /(\d+(?:\.\d+)?)\s*(min(?:ute)?s?|m|sec(?:ond)?s?|s)(?:\s*rest)?/;
+const BS_VALUE_RUN = /^[^\s·,;]*/;
+function bsRestText(scheme) {
+  const at = bsPlainScheme(scheme);
+  const read = BS_REST_DURATION.exec(scheme);
+  if (!at || !read || read.index < at.index || read.index >= at.index + at[0].length) return scheme;
+  const after = scheme.slice(read.index + read[0].length);
+  return after.slice(BS_VALUE_RUN.exec(after)[0].length);
+}
 export function bsRestSeconds(move = {}) {
   if (move.restSeconds != null && Number.isFinite(Number(move.restSeconds))) return Math.max(0, Number(move.restSeconds));
   const raw = String(move.rest || move.s || '').toLowerCase();
   if (move.rest != null && /^\d+(?:\.\d+)?$/.test(String(move.rest).trim())) return Number(move.rest);
   const clock = raw.match(/(?:^|[·,]\s*)(\d+):(\d{2})(?:\s*rest)?(?:$|\s)/);
   if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
-  const duration = raw.match(/(\d+(?:\.\d+)?)\s*(min(?:ute)?s?|m|sec(?:ond)?s?|s)(?:\s*rest)?/);
+  const duration = BS_REST_DURATION.exec(move.rest ? raw : bsRestText(raw));
   // A segment such as "30 min zone 2" is activity, not a rest prescription.
   if (duration && (move.rest || /rest/.test(raw))) return Math.round(Number(duration[1]) * (/^m/.test(duration[2]) ? 60 : 1));
   return null;

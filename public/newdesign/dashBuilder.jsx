@@ -1170,6 +1170,20 @@ function dbuSlashBreaks(text) {
   const parts = String(text).split("/");
   return parts.map((p, i) => <React.Fragment key={i}>{i ? <>/<wbr /></> : null}{p}</React.Fragment>);
 }
+// ⚠ ONLY THE FIRST SEPARATOR SPLITS SETS FROM REPS. The Sheet's "sets × reps" box split on
+// every × and every letter x and kept two pieces, and each keystroke rewrites both fields,
+// so a row whose reps hold an x lost part of them as soon as the coach touched the cell:
+// changing the sets of "3 × max" stored the reps "ma". The box always writes " × " between
+// the two, so its first × is the boundary; a coach who types "3x10" has no ×, and then the
+// first x is. Everything after the boundary is the reps, trimmed as before. A capital X is
+// not a separator, as before.
+function dbuSplitSetsReps(value) {
+  const text = String(value ?? "");
+  let at = text.indexOf("×");
+  if (at === -1) at = text.indexOf("x");
+  if (at === -1) return { sets: text.trim(), reps: "" };
+  return { sets: text.slice(0, at).trim(), reps: text.slice(at + 1).trim() };
+}
 
 function DbuSheet({ doc, dates, setSel, setWeeks }) {
   const weeks = doc.weeks || [];
@@ -1253,7 +1267,7 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
                             {diverged && <span className="div" title={cellRow.name}>{cellRow.name}</span>}
                             <input className="a" aria-label={"Sets and reps, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
                               value={(cellRow.sets ?? "") + " × " + (cellRow.reps ?? "")}
-                              onChange={(e) => { const m = String(e.target.value).split(/[×x]/); editRow(di, bi, ri, wi, { sets: (m[0] || "").trim(), reps: (m[1] || "").trim() }); }} />
+                              onChange={(e) => editRow(di, bi, ri, wi, dbuSplitSetsReps(e.target.value))} />
                             <input className="b" aria-label={"Load, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
                               value={cellRow.load ?? ""} onChange={(e) => editRow(di, bi, ri, wi, { load: e.target.value })} />
                           </span>

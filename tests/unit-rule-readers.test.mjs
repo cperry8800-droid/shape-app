@@ -251,7 +251,9 @@ const PLAYER = [
   ["3 × max", { sets: 1, reps: "", restSeconds: null }],
   ["3 × AMRAP", { sets: 1, reps: "", restSeconds: null }],
   ["3 × to failure", { sets: 1, reps: "", restSeconds: null }],
-  ["3 × 15 secs rest", { sets: 3, reps: "15", restSeconds: 15 }, { sets: 3, reps: "15 secs", restSeconds: 15 }],
+  // The 15 secs are the rep value, which bsRestSeconds no longer also reads as the rest
+  // (tests/session-rest-seconds.test.mjs): the scheme names no rest of its own.
+  ["3 × 15 secs rest", { sets: 3, reps: "15", restSeconds: 15 }, { sets: 3, reps: "15 secs", restSeconds: null }],
   // time
   ["3 × 30s", { sets: 3, reps: "30", restSeconds: null }, { sets: 3, reps: "30s", restSeconds: null }],
   ["3 × 30 s · 1:00", { sets: 3, reps: "30", restSeconds: 60 }, { sets: 3, reps: "30 s", restSeconds: 60 }],
