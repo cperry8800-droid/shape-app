@@ -632,7 +632,11 @@ function dgBoardEdit(doc, role, action) {
     else if (boards.some((b) => b.id === action.id)) active = action.id;
     else {
       if (boards.length >= 20) throw new Error("You can save up to 20 dashboards.");
-      boards.push({ id: action.id, name, tabs: JSON.parse(JSON.stringify(action.tabs || current.tabs)) });
+      // The preceding capture has already updated this document, even when React
+      // has not redrawn the form yet. Bind replay to the source dashboard too.
+      const source = boards.find((b) => b.id === action.board) || current;
+      const tabs = action.preset === "coaching" ? { ...source.tabs, today: { items: [], order: ["pulse", "schedule", "checkins", "ending", "week", "wins"], hidden: ["queue", "practice", "kpis", "business", "roster"], added: ["checkins", "ending", "week"] } } : source.tabs;
+      boards.push({ id: action.id, name, tabs: JSON.parse(JSON.stringify(tabs)) });
       active = action.id;
     }
   } else if (action.type === "switch" && boards.some((b) => b.id === action.id)) active = action.id;
@@ -788,7 +792,7 @@ function DgSavedDashboards({ store, role, beforeChange }) {
     {mode && <form aria-label={mode === "rename" ? "Rename dashboard" : "Save a dashboard"} className="dg-board-form" onSubmit={(e) => {
       e.preventDefault();
       try { act({ type: mode === "coaching" ? "create" : mode, name, board: current.id,
-        ...(mode === "coaching" ? { tabs: { ...current.tabs, today: { items: [], order: ["pulse", "schedule", "checkins", "ending", "week", "wins"], hidden: ["queue", "practice", "kpis", "business", "roster"], added: ["checkins", "ending", "week"] } } } : mode === "create" ? { tabs: current.tabs } : {}), id: "board-" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)) }); close(); }
+        preset: mode === "coaching" ? "coaching" : null, id: "board-" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)) }); close(); }
       catch (err) { setError(err.message); }
     }} onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); close(); } }}>
       <label style={{ fontSize: 12 }}>Dashboard name <input ref={input} style={DG_CONTROL} value={name} maxLength={60} required onChange={(e) => setName(e.target.value)} /></label>

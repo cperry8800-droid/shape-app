@@ -261,8 +261,9 @@ test('restoring a hidden card that has nothing to show is refused', () => {
   // enough — had a dashboard they could not reset and nothing on screen explaining why.
   assert.match(body, /const hiddenDefaults = hidden\.filter\(\(k\) => byKey\[k\] && !byKey\[k\]\.optional\)/,
     'the bar is no longer keyed on the hidden defaults (empty ones included)');
-  assert.match(body, /\{hiddenDefaults\.length > 0 && \(/, 'the bar no longer renders for an all-empty hidden list');
-  const bar = body.slice(body.indexOf('{hiddenDefaults.length > 0 && ('));
+  // An unreadable saved layout uses a read-only fallback until Retry succeeds.
+  assert.match(body, /\{storeState\.loaded && hiddenDefaults\.length > 0 && \(/, 'a readable layout must keep reset available for all-empty hidden defaults');
+  const bar = body.slice(body.indexOf('{storeState.loaded && hiddenDefaults.length > 0 && ('));
   assert.match(bar.slice(0, 600), /\{hiddenChips\.length > 0 && \(/, 'the "Hidden ·" label renders over no chips');
   assert.match(bar, /Reset layout/, 'the reset link left the bar');
 });
