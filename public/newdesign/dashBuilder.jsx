@@ -682,19 +682,25 @@ function DbuLadder({ row, onChange }) {
     list[i] = { ...list[i], [key]: value };
     onChange({ ...row, perSet: list });
   };
-  const clear = () => { const { perSet, ...rest } = row; onChange(rest); };
+  // ⚠ CLEAR TAKES ITSELF AWAY (nothing is left to clear), so it hands focus to the
+  // summary first, or a keyboard user lands on the page.
+  const summaryRef = React.useRef(null);
+  const clear = () => { const { perSet, ...rest } = row; onChange(rest); if (summaryRef.current) summaryRef.current.focus(); };
+  // A row the mobile editor added and has not named yet has no name to label with,
+  // and "undefined set 1 reps" names nothing; the mobile editor calls it "New exercise".
+  const who = String(row.name || '').trim() || 'New exercise';
   const cellStyle = { ...dbuField, width: '100%', height: 36 };
   return <details open={open} onToggle={e => setOpen(e.currentTarget.open)} style={{ marginTop: 12 }}>
-    <summary style={{ cursor: 'pointer', fontSize: 13, minHeight: 32 }}>Per-set reps & weight{ladder ? ' · ' + [ladder.reps, ladder.weight].filter(Boolean).join(' · ') : ''}</summary>
+    <summary ref={summaryRef} style={{ cursor: 'pointer', fontSize: 13, minHeight: 32 }}>Per-set reps & weight{ladder ? ' · ' + [ladder.reps, ladder.weight].filter(Boolean).join(' · ') : ''}</summary>
     {!n ? <p style={{ fontSize: 12.5, color: DBU_INK50, margin: '8px 0 0' }}>Set the number of sets first.</p> : <>
-      <div role="group" aria-label={row.name + ' per-set targets'} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 1fr', gap: '6px 10px', alignItems: 'center', marginTop: 8 }}>
+      <div role="group" aria-label={who + ' per-set targets'} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 1fr', gap: '6px 10px', alignItems: 'center', marginTop: 8 }}>
         <span style={dbuLabel}>Set</span><span style={dbuLabel}>Reps</span><span style={dbuLabel}>Weight ({unit})</span>
         {Array.from({ length: n }, (_, i) => {
           const e = stored[i] && typeof stored[i] === 'object' ? stored[i] : {};
           return <React.Fragment key={i}>
             <span style={{ fontFamily: DBU_MONO, fontSize: 13, color: DBU_INK2 }}>{String(i + 1).padStart(2, '0')}</span>
-            <input aria-label={row.name + ' set ' + (i + 1) + ' reps'} value={e.reps ?? ''} placeholder={String(row.reps ?? '') || '—'} onChange={ev => edit(i, 'reps', ev.target.value)} style={cellStyle} />
-            <input aria-label={row.name + ' set ' + (i + 1) + ' weight'} type="number" min="0" step="any" value={e.load ?? ''} placeholder={baseWeight || '—'} onChange={ev => edit(i, 'load', ev.target.value === '' ? '' : Number(ev.target.value))} style={cellStyle} />
+            <input aria-label={who + ' set ' + (i + 1) + ' reps'} value={e.reps ?? ''} maxLength={doc.SET_REPS_MAX} placeholder={String(row.reps ?? '') || '—'} onChange={ev => edit(i, 'reps', ev.target.value)} style={cellStyle} />
+            <input aria-label={who + ' set ' + (i + 1) + ' weight'} type="number" min="0" step="any" value={e.load ?? ''} placeholder={baseWeight || '—'} onChange={ev => edit(i, 'load', ev.target.value === '' ? '' : Number(ev.target.value))} style={cellStyle} />
           </React.Fragment>;
         })}
       </div>

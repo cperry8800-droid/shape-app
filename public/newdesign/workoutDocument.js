@@ -71,10 +71,14 @@
   // and a row with no entries is the row it always was. The unit is the row's
   // `loadType` and the RPE stays the row's: one axis each, as before.
   const LADDER_MAX = 20;
+  // The longest set's reps a ladder keeps. Both editors cap their field at this, so
+  // what a coach types is what is saved: a field that took more would have been cut
+  // here, silently, on save.
+  const SET_REPS_MAX = 24;
   function ladderEntry(value) {
     const e = value && typeof value === 'object' ? value : {};
     const raw = typeof e.load === 'number' ? e.load : text(e.load).trim() === '' ? NaN : Number(text(e.load).trim());
-    return {reps:text(e.reps).trim().slice(0, 24), load:Number.isFinite(raw) && raw >= 0 ? raw : ''};
+    return {reps:text(e.reps).trim().slice(0, SET_REPS_MAX), load:Number.isFinite(raw) && raw >= 0 ? raw : ''};
   }
   function perSetEntries(row) {
     return (row && Array.isArray(row.perSet) ? row.perSet.slice(0, LADDER_MAX) : []).map(ladderEntry);
@@ -253,5 +257,5 @@
       text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, rpeValue, splitLegacyRpe, supersetKey, videoUrl};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, videoUrl};
 });

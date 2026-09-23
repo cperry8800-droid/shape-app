@@ -92,6 +92,29 @@ test('website: one row per set, each blank field showing what it inherits', asyn
   assert.ok(!buttonStarting('Clear per-set targets'));
 });
 
+// ⚠ FOCUS IS CHECKED AS A BOOLEAN, NEVER BY COMPARING TWO NODES: a failing
+// assert.equal on a jsdom node formats the whole document and stalls the run.
+test('website: Clear hands focus to the summary before it takes itself away', async () => {
+  await mount(React.createElement(LadderHarness, { initial: squat({ perSet: [{}, { reps: '6' }] }), onRow() {} }));
+  const clear = buttonStarting('Clear per-set targets');
+  clear.focus();
+  assert.ok(document.activeElement === clear, 'Clear has focus');
+  await click(clear);
+  assert.ok(!buttonStarting('Clear per-set targets'), 'the button is gone');
+  assert.ok(document.activeElement === document.querySelector('summary'), 'focus is on the table\'s own control, not the page');
+  assert.equal(document.querySelector('details').open, true, 'and the table stays open');
+});
+
+test('website: an unnamed row labels its fields as a new exercise, and each reps field stops where the save does', async () => {
+  await mount(React.createElement(LadderHarness, { initial: squat({ name: '' }), onRow() {} }));
+  assert.ok(byAria('New exercise set 1 reps'), 'labelled the way the mobile editor names an unnamed row');
+  assert.ok(document.querySelector('[aria-label="New exercise per-set targets"]'));
+  for (const el of document.querySelectorAll('[aria-label]')) assert.doesNotMatch(el.getAttribute('aria-label'), /^\s|undefined/, el.getAttribute('aria-label'));
+  await mount(React.createElement(LadderHarness, { initial: squat(), onRow() {} }));
+  assert.equal(byAria('Back squat set 1 reps').maxLength, W.SET_REPS_MAX, 'what the coach can type is what is saved');
+  assert.equal(W.normalizePerSet([{ reps: 'x'.repeat(W.SET_REPS_MAX + 5) }])[0].reps.length, W.SET_REPS_MAX, 'the cap the field matches');
+});
+
 test('website: a row that already carries a ladder opens on it', async () => {
   await mount(React.createElement(LadderHarness, { initial: squat({ perSet: [{}, { reps: '6', load: 70 }] }), onRow() {} }));
   assert.equal(document.querySelector('details').open, true);
@@ -172,6 +195,44 @@ test('mobile: a stored ladder opens on it, and clearing returns the row to strai
   assert.equal(toggle().textContent, 'Per-set reps & load', 'the summary drops the ladder');
   await click(buttons().find((b) => b.textContent === 'Save draft'));
   assert.ok(!('perSet' in saved[0].detail.builder.weeks[0].days[0].blocks[0].rows[0]));
+});
+
+// ⚠ THE TABLE MAY NOT CLOSE UNDER THE COACH'S HANDS. A stored ladder opens because it
+// IS a ladder; emptying its last value used to make it none and unmount the table,
+// the focused field with it, mid-keystroke.
+test('mobile: emptying a stored ladder\'s last value keeps the table, and the field, in place', async () => {
+  localStorage.clear();
+  await mount(React.createElement(Editor, { plan: plan({ perSet: [{}, { reps: '6' }] }), plans: [], t: theme, tr, onClose() {}, onSave: async () => {} }));
+  assert.equal(toggle().getAttribute('aria-expanded'), 'true', 'a stored ladder opens on it');
+  const field = byAria('Set 2 reps');
+  field.focus();
+  await typeInto(field, '');
+  assert.equal(toggle().getAttribute('aria-expanded'), 'true', 'still open with the ladder momentarily empty');
+  assert.ok(byAria('Set 2 reps') === field, 'the same field, not a remounted one');
+  assert.ok(document.activeElement === field, 'and it keeps focus');
+  await typeInto(field, '5');
+  assert.equal(toggle().textContent, 'Per-set reps & load · 8/5/8 · 60 kg');
+  // The same for the last weight.
+  await mount(React.createElement(Editor, { plan: plan({ perSet: [{}, {}, { load: 80 }] }), plans: [], t: theme, tr, onClose() {}, onSave: async () => {} }));
+  await typeInto(byAria('Set 3 load'), '');
+  assert.equal(toggle().getAttribute('aria-expanded'), 'true');
+  assert.ok(byAria('Set 3 load'));
+  // A coach's own close still closes it.
+  await click(toggle());
+  assert.equal(toggle().getAttribute('aria-expanded'), 'false');
+});
+
+test('mobile: Clear keeps the table open and hands focus to its button', async () => {
+  localStorage.clear();
+  await mount(React.createElement(Editor, { plan: plan({ perSet: [{}, { reps: '6', load: 70 }] }), plans: [], t: theme, tr, onClose() {}, onSave: async () => {} }));
+  const clear = buttons().find((b) => b.textContent === 'Clear per-set targets');
+  clear.focus();
+  await click(clear);
+  assert.ok(!buttons().find((b) => b.textContent === 'Clear per-set targets'), 'nothing left to clear');
+  assert.equal(toggle().getAttribute('aria-expanded'), 'true', 'the empty table stays, ready for a new ladder');
+  assert.ok(document.activeElement === toggle(), 'focus is on the table\'s button, not the page');
+  assert.equal(byAria('Set 2 reps').value, '');
+  assert.equal(byAria('Set 1 reps').maxLength, W.SET_REPS_MAX, 'each reps field stops where the save does');
 });
 
 test('mobile: no set count, no table', async () => {

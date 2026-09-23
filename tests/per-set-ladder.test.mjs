@@ -17,7 +17,7 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 import { bsPerSetLabels, bsHasLadder, bsSetPrefill, bsSetPlan, bsLadderRemoveSet, bsMoveTotalReps, bsLoggedSet, bsPreviewSession, bsLoadPrefill } from '../mobile-app/src/services/workoutSession.mjs';
 import { bsSdUnitizeText } from '../mobile-app/src/services/sessionLedger.mjs';
 import { bsScaleLoad, bsAdjustRegen } from '../mobile-app/src/services/adjustRegen.mjs';
-import { bsAssignExercise, bsTextLadder, bsMaterializeOutline } from '../mobile-app/src/services/planOutline.mjs';
+import { bsAssignExercise, bsTextLadder, bsTextRepLadder, bsMaterializeOutline } from '../mobile-app/src/services/planOutline.mjs';
 
 const require = createRequire(import.meta.url);
 const W = require('../public/newdesign/workoutDocument.js');
@@ -39,6 +39,13 @@ const VECTORS = [
   [kg({ reps: '5', load: 135, loadType: 'lb', perSet: [{}, { load: 155 }, { load: 175 }] }), '5', '135/155/175 lb'],
   [kg({ sets: 2, reps: '5', load: 70, perSet: [{}, { load: '72.5' }] }), '5', '70/72.5 kg'],
   [kg({ reps: '', perSet: [{ reps: '8' }, {}, { reps: '4' }] }), '8/—/4', '60 kg'],
+  // ⚠ REPS ARE WHAT THE COACH TYPED, NOT ALWAYS A NUMBER. The outline text has to read
+  // these back as ladders too (the round trip below), or a plan's public preview shows
+  // "3 × 8" with a load of "/6/AMRAP · 60 kg".
+  [kg({ perSet: [{}, { reps: '6' }, { reps: 'AMRAP' }] }), '8/6/AMRAP', '60 kg'],
+  [kg({ reps: '30s', load: '', perSet: [{}, { reps: '45s' }, { reps: '60s' }] }), '30s/45s/60s', ''],
+  [kg({ reps: '8 each', load: 20, perSet: [{}, { reps: '6 each' }, { reps: '4 each' }] }), '8 each/6 each/4 each', '20 kg'],
+  [kg({ reps: '', rpe: 9, perSet: [{ reps: '8 - 10' }, { reps: '6 - 8' }, { reps: 'to failure', load: 70 }] }), '8 - 10/6 - 8/to failure', '60/60/70 kg · RPE 9'],
   // A ladder whose every set agrees reads as the one value.
   [kg({ reps: '5', perSet: [{ reps: '5', load: 60 }] }), '5', '60 kg'],
   // Not a ladder: entries only past the set count, and entries that say nothing.
@@ -126,7 +133,8 @@ test('the assignment snapshot a member receives carries the ladder', () => {
 // structured path reads `exerciseFromRow`. Round-tripped over every ladder vector.
 test('the outline text reads back to the same per-set targets the structured delivery sends', () => {
   const ladders = VECTORS.filter(([row]) => W.ladder(row));
-  assert.ok(ladders.length >= 10, `expected the ladder vectors; found ${ladders.length}`);
+  assert.ok(ladders.length >= 14, `expected the ladder vectors; found ${ladders.length}`);
+  assert.ok(ladders.some(([row]) => /AMRAP/.test(W.repsLabel(row))), 'a free-text rep ladder is among them');
   for (const [row] of ladders) {
     const builder = { weeks: [{ days: [{ name: 'D', blocks: [{ kind: 'main', rows: [row] }] }] }] };
     const [block] = W.builderToOutlineBlocks(builder);
@@ -164,6 +172,38 @@ test('a hand-typed text ladder becomes a structured one, and a list that does no
   assert.equal(bsTextLadder('3', '5', '60 kg'), null, 'nor are straight sets');
 });
 
+test('a ladder of reps the coach typed as words reads back as one, and the same refusals hold', () => {
+  const read = (t) => bsAssignExercise(t);
+  const amrap = read('Back squat — 3 × 8/6/AMRAP · 60 kg');
+  assert.equal(amrap.reps, '8/6/AMRAP');
+  assert.equal(amrap.load, '60 kg', 'the reps stop at " · ", so the load is not swallowed');
+  assert.deepEqual(amrap.perSet.map((s) => s.reps), ['8', '6', 'AMRAP']);
+  assert.deepEqual(read('Plank — 3 × 30s/45s/60s').perSet.map((s) => s.reps), ['30s', '45s', '60s']);
+  assert.deepEqual(read('Push-up — 3 × max/max/AMRAP').perSet.map((s) => s.reps), ['max', 'max', 'AMRAP']);
+  assert.deepEqual(read('Squat — 3 × 8/—/AMRAP · 60 kg').perSet.map((s) => s.reps), ['8', '', 'AMRAP'], 'a dash is a blank');
+  // A hand-typed line may end the reps at a comma; the numeric path already does.
+  const comma = read('Squat — 4 × 8/6/4/AMRAP, 90s rest');
+  assert.equal(comma.reps, '8/6/4/AMRAP');
+  assert.equal(comma.load, read('Squat — 4 × 8/6/4/2, 90s rest').load, 'read the way a numeric ladder with the same tail is');
+  // A semicolon ends the run too, and is not left at the front of the load.
+  assert.equal(read('Squat — 3 × 8/6/AMRAP; rest 2 min').load, 'rest 2 min');
+  assert.equal(read('Squat — 3 × 8/6/4; rest 2 min').load, 'rest 2 min', 'the numeric path agrees');
+  // ⚠ NOT LADDERS: one value short of the sets, and a weight typed where the reps go.
+  // An empty value is no set either: the builder writes a blank set as "—", and the
+  // numeric pattern has never read an empty one.
+  for (const t of ['Squat — 3 × 8/AMRAP · 60 kg', 'Squat — 2 × 8/AMRAP/6 · 60 kg', 'Squat — 3 × AMRAP/75/80% 1RM', 'Squat — 3 × 8/6/AMRAP @ 60 kg', 'Bench — 3 × 60 kg/70 kg/80 kg', 'Squat — 3 × 8//AMRAP · 60 kg']) {
+    assert.ok(!('perSet' in read(t)), t);
+  }
+  assert.equal(bsTextRepLadder('3 × 8/6/4 · 60 kg')[2], '8/6/4', 'a numeric run is one too');
+  assert.equal(bsTextRepLadder('3 × AMRAP'), null, 'straight sets are no ladder');
+  assert.equal(bsTextRepLadder('no scheme here'), null);
+  // `whole` is exactly the text taken out of the line, so the load keeps everything else.
+  const tail = '3 × 8/6/AMRAP · 60 kg';
+  const [whole] = bsTextRepLadder(tail);
+  assert.equal(tail.indexOf(whole), 0);
+  assert.equal(tail.slice(whole.length), ' · 60 kg');
+});
+
 test('a text-outline plan carries its ladder into the member\'s rows', () => {
   const rows = bsMaterializeOutline({ plan: { id: 'p', name: 'Plan', detail: { blocks: ['Back squat — 3 × 8/6/4 · 60/70/80 kg', 'Plank — 3 × 30s'] } }, startISO: '2026-09-21', weeks: 1, runId: 'r' });
   const [squat, plank] = rows[0].payload.exercises;
@@ -183,6 +223,9 @@ test('the builder\'s fallback labels agree with the document on every ladder', a
   const extra = [
     kg({ sets: Infinity, perSet: [{}, { load: 70 }] }), kg({ sets: '3', perSet: [{ load: '70' }] }), kg({ sets: 2.5, perSet: [{ load: 70 }] }),
     kg({ perSet: [{ load: NaN }, { load: Infinity }, { load: true }] }), kg({ loadType: 'lb', perSet: [{ reps: 12 }] }),
+    // Past the reps cap: the fallback restates the document's SET_REPS_MAX, so the two
+    // must keep the same number of characters.
+    kg({ perSet: [{}, { reps: 'x'.repeat(W.SET_REPS_MAX + 6) }] }),
   ];
   for (const row of [...VECTORS.map(([r]) => r), ...extra]) {
     assert.equal(F.loadLabel(row), W.loadLabel(row), 'load: ' + JSON.stringify(row));
@@ -334,25 +377,56 @@ test('the member\'s plan route delivers the ladder, and only a ladder-shaped one
   assert.deepEqual(deliver([{ reps: 8, load: 60 }, { reps: { x: 1 }, load: NaN }, 'junk', null, [1, 2]]).perSet,
     [{ reps: '8', load: '60' }, { reps: '', load: '' }, { reps: '', load: '' }, { reps: '', load: '' }, { reps: '', load: '' }]);
   assert.equal(deliver(Array.from({ length: 80 }, () => ({ reps: '5' }))).perSet.length, 50, 'capped');
-  assert.equal(deliver([{ reps: 'x'.repeat(100), load: 'y'.repeat(100) }]).perSet[0].reps.length, 24);
-  assert.equal(deliver([{ reps: 'x'.repeat(100), load: 'y'.repeat(100) }]).perSet[0].load.length, 40);
+  // ⚠ AN ENTRY IS NEVER CUT. A set the coach left blank carries the row's own reps and
+  // load, which the route passes through whole, so a cap on the entry cut an inherited
+  // label partway: part of a target, shown as the whole of it.
+  const row = kg({ reps: '12 each side, 3-sec pause', loadText: 'bodyweight plus a 20 kg vest, slow on the way down', load: 0, perSet: [{}, { load: 70 }, { load: 80 }] });
+  assert.ok(row.reps.length > 24 && row.loadText.length > 40, 'past the caps the route used to apply, or this proves nothing');
+  const written = W.exerciseFromRow(row);
+  const sent = route.mapExercises({ exercises: [{ name: 'X', sets: 3, reps: written.reps, load: written.load, perSet: written.perSet }] })[0];
+  assert.deepEqual(sent.perSet, written.perSet, 'every set arrives as the document wrote it');
+  assert.equal(sent.perSet[0].reps, row.reps);
+  assert.equal(sent.perSet[0].load, row.loadText);
 });
 
-test('Nora reads a six-set ladder whole', async () => {
-  const src = readFileSync(join(ROOT, 'src/lib/ai/memberReads.mjs'), 'utf8');
-  const m = /function exerciseLine\(e\)[\s\S]*?\n}/.exec(src);
-  assert.ok(m, 'exerciseLine is gone — this guard reads nothing');
-  const helpers = /(?:const|function) (?:str|txt)\b[\s\S]*?\n/g;
-  const deps = src.match(helpers) || [];
-  assert.ok(deps.length >= 2, 'the text helpers moved — this guard would run a restatement');
-  // eslint-disable-next-line no-new-func
-  const exerciseLine = new Function(`${deps.join('')}\n${m[0]}\nreturn exerciseLine;`)();
+// ⚠ NORA READS A LADDER WHOLE, OR SAYS IT DID NOT. Driven through `readTrainingPlan`,
+// the read the chat route runs, so `workoutRecord` and the caps are the shipped ones.
+test('Nora reads a six-set ladder whole and shortens a longer one at a set, keeping its unit and RPE', async () => {
+  const { readTrainingPlan } = await import('../src/lib/ai/memberReads.mjs');
+  const { fakeSupabase } = await import('./helpers/fake-supabase.mjs');
+  const weights = (n, from, step) => Array.from({ length: n }, (_, i) => (from + step * i).toFixed(1));
+  const V = {
+    six: { sets: 6, reps: '12/10/8/6/4/3', load: weights(6, 102.5, 5).join('/') + ' kg · RPE 8' },
+    eleven: { sets: 11, reps: '5', load: weights(11, 102.5, 5).join('/') + ' kg · RPE 8' },
+    spaced: { sets: 9, reps: '5', load: ['—', ...weights(8, 65, 5).map((w) => w + ' kg')].join(' / ') + ' · RPE 8' },
+    percent: { sets: 20, reps: '12/12/10/10/8/8/6/6/5/5/4/4/3/3/2/2/1/1/1/1', load: Array.from({ length: 20 }, (_, i) => 60 + 2 * i).join('/') + '% 1RM · RPE 9' },
+    prose: { sets: 3, reps: '8', load: 'Moderate — leave two reps in reserve on every working set, and slow the lowering' },
+  };
+  const exercises = Object.entries(V).map(([name, v]) => ({ name, ...v }));
+  const sb = fakeSupabase({ tables: { client_workouts: [{ id: 'w', client_id: 'u', status: 'published', title: 'T', trainer_id: null, scheduled_date: '2026-09-23', created_at: '2026-09-01T00:00:00Z', payload: { exercises } }], client_meal_plans: [] } });
+  const r = await readTrainingPlan(sb, 'u', { now: new Date('2026-09-23T15:00:00Z') });
+  const line = Object.fromEntries(r.training.thisWeek[0].exercises.map((e) => [e.name, e]));
   // Past the old caps on both fields (12 and 40 characters), or the guard proves nothing.
-  const reps = '12/10/8/6/4/3', load = '102.5/107.5/112.5/117.5/122.5/127.5 kg · RPE 8';
-  assert.ok(reps.length > 12 && load.length > 40, 'the vector is long enough to be cut');
-  const line = exerciseLine({ name: 'Back squat', sets: 6, reps, load });
-  assert.equal(line.scheme, '6 × ' + reps);
-  assert.equal(line.load, load);
+  assert.ok(V.six.reps.length > 12 && V.six.load.length > 40);
+  assert.equal(line.six.scheme, '6 × ' + V.six.reps, 'a six-set ladder is read whole');
+  assert.equal(line.six.load, V.six.load);
+  // Longer than the cap: every weight shown is a whole one from the ladder, in order,
+  // "…" stands for the rest, and the unit and the RPE are still there.
+  const shortened = (got, full, sep, tail, cap) => {
+    assert.ok(full.length > cap, 'the vector is long enough to be shortened');
+    assert.ok(got.length <= cap, `within the cap: ${got}`);
+    assert.ok(got.endsWith(sep + '…' + tail), `marked, and keeps "${tail}": ${got}`);
+    const shown = got.slice(0, got.length - (sep + '…' + tail).length).split(sep);
+    assert.deepEqual(shown, full.slice(0, full.length - tail.length).split(sep).slice(0, shown.length), `whole values, in order: ${got}`);
+    assert.ok(shown.length >= 2, 'more than one set survives');
+  };
+  shortened(line.eleven.load, V.eleven.load, '/', ' kg · RPE 8', 64);
+  shortened(line.spaced.load, V.spaced.load, ' / ', ' · RPE 8', 64);
+  shortened(line.percent.scheme.slice('20 × '.length), V.percent.reps, '/', '', 40);
+  shortened(line.percent.load, V.percent.load, '/', '% 1RM · RPE 9', 64);
+  // Text that is no list ends at a word, and says so.
+  assert.ok(line.prose.load.length <= 64 && line.prose.load.endsWith('…'));
+  assert.ok(V.prose.load.startsWith(line.prose.load.slice(0, -1)) && V.prose.load[line.prose.load.length - 1] === ' ', `ends at a word: ${line.prose.load}`);
 });
 
 // ⚠ NO SUGGESTION ON A LADDER. The suggester autoregulates off the LAST set of the last

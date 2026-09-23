@@ -53,6 +53,31 @@ export function bsTextLadder(sets, reps, load) {
   return repList.map((r, i) => ({ reps: r === '—' || r === '-' ? '' : r, load: loads ? loads[i] : '' }));
 }
 
+// ⚠ A LADDER'S REPS NEED NOT BE NUMBERS. The builder writes each set's reps as the
+// coach typed them ("8/6/AMRAP", "30s/45s/60s", "8 each/6 each/4 each"), and the
+// numeric pattern in bsAssignExercise knows only digits, so "3 × 8/6/AMRAP · 60 kg"
+// fell to the plain read: 8 reps and a load of "/6/AMRAP · 60 kg" in a plan's public
+// preview. The builder ends the reps at " · ", so this reads what it writes: the run
+// from "N ×" to the first " · " (or the end), one value per set, none of them empty,
+// and none a weight. A hand-typed line may end the reps at a comma or a semicolon
+// instead ("4 × 8/6/4/AMRAP, 90s rest"), which the numeric pattern already honours, so
+// the run stops there too rather than folding "90s rest" into the last set. A weight
+// list in the reps position ("3 × 70/75/80% 1RM") is refused here exactly as it is
+// there. Returns a match-shaped [whole, sets, reps], where `whole` is the text to take
+// out of the line, or null.
+export function bsTextRepLadder(tail) {
+  const at = /(\d+)\s*[×x]\s*/.exec(String(tail || ''));
+  if (!at) return null;
+  const from = at.index + at[0].length;
+  const rest = tail.slice(from);
+  const end = rest.search(/\s·(?:\s|$)|,\s|;/);
+  const run = (end === -1 ? rest : rest.slice(0, end)).replace(/\s+$/, '');
+  const parts = run.split('/').map((part) => part.trim());
+  if (parts.length < 2 || parts.length !== Number(at[1])) return null;
+  if (parts.some((part) => !part || /\d\s*(?:%|kg\b|lbs?\b)/i.test(part))) return null;
+  return [tail.slice(at.index, from + run.length), at[1], run];
+}
+
 // "Secondary compound · 4×8" / "Back squat — 4 × 6 · RPE 8" → exercise row.
 export function bsAssignExercise(text) {
   const authored = text && typeof text === 'object' ? text : null;
@@ -72,8 +97,10 @@ export function bsAssignExercise(text) {
   // ("3 × 70/75/80% 1RM") is a weight ladder with no reps, never a rep ladder.
   const ladder = tail.match(/(\d+)\s*[×x]\s*((?:[\d–-]+|—)(?:\/(?:[\d–-]+|—))+)(?![\d–—\/-]|\s*(?:%|kg\b|lbs?\b))/);
   const isLadder = !!ladder && ladder[2].split('/').length === Number(ladder[1]);
-  const sx = isLadder ? ladder : tail.match(/(\d+)\s*[×x]\s*([\d–-]+)/);
-  const load = sx ? tail.replace(sx[0], '').replace(/^[\s·,]+|[\s·,]+$/g, '') : tail;
+  const sx = isLadder ? ladder : bsTextRepLadder(tail) || tail.match(/(\d+)\s*[×x]\s*([\d–-]+)/);
+  // The separator that ended the reps is not part of the load: a comma, a " · ", and a
+  // semicolon, which both ladder readers stop at as well.
+  const load = sx ? tail.replace(sx[0], '').replace(/^[\s·,;]+|[\s·,;]+$/g, '') : tail;
   // Only a ladder the TEXT is the authority for: an authored block's own reps or
   // load outrank its text (below), and a ladder read out of text they overrule
   // would describe a prescription the row no longer carries.

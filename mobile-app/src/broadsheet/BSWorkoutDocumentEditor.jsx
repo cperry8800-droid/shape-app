@@ -1,5 +1,5 @@
 import React from 'react';
-import { normalizeWorkoutDetail, videoUrl, ladder as rowLadder, perSetEntries, weightLabel, LADDER_MAX } from '../../../public/newdesign/workoutDocument.mjs';
+import { normalizeWorkoutDetail, videoUrl, ladder as rowLadder, perSetEntries, weightLabel, LADDER_MAX, SET_REPS_MAX } from '../../../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutVideos, coachWorkoutDraftKey } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutFutureUpdates, { useWorkoutTr } from './BSWorkoutFutureUpdates.jsx';
 
@@ -89,14 +89,26 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   // builder writes (`perSet`, one entry per set). A blank field inherits the row, so
   // an entry only ever holds what differs. Reps are stored as typed and trimmed when
   // the document is saved, never per keystroke.
-  const changeSet = (bi, ri, i, key, nextValue) => changeDay((next) => {
-    const row = next.blocks[bi].rows[ri];
-    const list = Array.isArray(row.perSet) ? row.perSet.map((e) => ({ ...(e && typeof e === 'object' ? e : {}) })) : [];
-    while (list.length <= i) list.push({});
-    list[i] = { ...list[i], [key]: nextValue };
-    row.perSet = list;
-  });
-  const clearSets = (bi, ri) => changeDay((next) => { delete next.blocks[bi].rows[ri].perSet; });
+  // ⚠ AN EDIT PINS THE TABLE OPEN. A row that already carries a ladder opens on it only
+  // because `ladder(row)` is not null, so the open state was derived — and emptying the
+  // ladder's last value (deleting "6" to type "5") made it null mid-keystroke and
+  // unmounted the table under the coach's hands, the focused field with it. Clearing did
+  // the same. The website table seeds its state once and never did this.
+  const pinLadder = (bi, ri) => {
+    const id = day.blocks[bi]?.rows[ri]?.id;
+    if (id != null) setLadderOpen((m) => (m[id] === true ? m : { ...m, [id]: true }));
+  };
+  const changeSet = (bi, ri, i, key, nextValue) => {
+    pinLadder(bi, ri);
+    changeDay((next) => {
+      const row = next.blocks[bi].rows[ri];
+      const list = Array.isArray(row.perSet) ? row.perSet.map((e) => ({ ...(e && typeof e === 'object' ? e : {}) })) : [];
+      while (list.length <= i) list.push({});
+      list[i] = { ...list[i], [key]: nextValue };
+      row.perSet = list;
+    });
+  };
+  const clearSets = (bi, ri) => { pinLadder(bi, ri); changeDay((next) => { delete next.blocks[bi].rows[ri].perSet; }); };
   const videos = coachWorkoutVideos([...(plans || []), { name: value.name, detail: value.detail }]);
   const videoTarget = (bi, ri, row) => ({ wi, di, bi, ri, id: row.id });
   const attachVideo = (target, media) => change((next) => {
@@ -203,8 +215,9 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
             const base = weightLabel(row);
             const unit = row.loadType === 'pct' ? txt('percentMax', '% 1RM') : (row.loadType || 'kg');
             const region = `ladder-${row.id}`;
+            const toggleId = `ladder-toggle-${row.id}`;
             return <div style={{ marginTop: 10 }}>
-              <button type="button" aria-expanded={open} aria-controls={open ? region : undefined} onClick={() => setLadderOpen((m) => ({ ...m, [row.id]: !open }))} style={{ ...button, width: '100%', textAlign: 'left' }}>
+              <button type="button" id={toggleId} aria-expanded={open} aria-controls={open ? region : undefined} onClick={() => setLadderOpen((m) => ({ ...m, [row.id]: !open }))} style={{ ...button, width: '100%', textAlign: 'left' }}>
                 {txt('perSet', 'Per-set reps & load')}{lad ? ` · ${[lad.reps, lad.weight].filter(Boolean).join(' · ')}` : ''}
               </button>
               {open && <div id={region} style={{ marginTop: 8 }}>
@@ -215,13 +228,15 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
                       const e = stored[i] && typeof stored[i] === 'object' ? stored[i] : {};
                       return <React.Fragment key={i}>
                         <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
-                        <input aria-label={tr('coach:workoutEditor.perSetRepsAria', { defaultValue: 'Set {n} reps', n: i + 1 })} value={e.reps ?? ''} placeholder={String(row.reps ?? '') || '—'} onChange={(ev) => changeSet(bi, ri, i, 'reps', ev.target.value)} style={input} />
+                        <input aria-label={tr('coach:workoutEditor.perSetRepsAria', { defaultValue: 'Set {n} reps', n: i + 1 })} value={e.reps ?? ''} maxLength={SET_REPS_MAX} placeholder={String(row.reps ?? '') || '—'} onChange={(ev) => changeSet(bi, ri, i, 'reps', ev.target.value)} style={input} />
                         <input aria-label={tr('coach:workoutEditor.perSetLoadAria', { defaultValue: 'Set {n} load', n: i + 1 })} type="number" min={0} step="any" inputMode="decimal" value={e.load ?? ''} placeholder={base || '—'} onChange={(ev) => changeSet(bi, ri, i, 'load', ev.target.value === '' ? '' : Number(ev.target.value))} style={input} />
                       </React.Fragment>;
                     })}
                   </div>
                   <div style={{ fontFamily: t.MONO, fontSize: 11, marginTop: 8, color: t.INK50 }}>{txt('perSetHint', 'A blank field uses this exercise’s reps and load.')}{count > LADDER_MAX ? ` ${tr('coach:workoutEditor.perSetCap', { defaultValue: 'Per-set targets cover the first {count} sets.', count: LADDER_MAX })}` : ''}</div>
-                  {any && <button type="button" onClick={() => clearSets(bi, ri)} style={{ ...button, marginTop: 8 }}>{txt('perSetClear', 'Clear per-set targets')}</button>}
+                  {/* ⚠ CLEAR TAKES ITSELF AWAY — nothing is left to clear — so it hands focus to
+                      the table's own button first, or a keyboard user lands on the page. */}
+                  {any && <button type="button" onClick={() => { clearSets(bi, ri); document.getElementById(toggleId)?.focus(); }} style={{ ...button, marginTop: 8 }}>{txt('perSetClear', 'Clear per-set targets')}</button>}
                 </>}
               </div>}
             </div>;

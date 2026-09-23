@@ -31,14 +31,19 @@ type SetTarget = { reps: string; load: string };
 // Each set's own target when the coach wrote a ladder (ShapeWorkoutDocument.
 // exerciseFromRow resolves it: `{ reps, load }` per set, every weight with its unit).
 // ⚠ THE PAYLOAD IS CLIENT-WRITTEN JSONB, so this reads a shape rather than trusting
-// one: only strings and numbers become text, each capped, at most 50 sets, and
-// anything that is not a list is no ladder at all.
+// one: only strings and numbers become text, at most 50 sets, and anything that is
+// not a list is no ladder at all.
+// ⚠ NO LENGTH CAP ON AN ENTRY. A set the coach left blank carries the row's own reps
+// and load, which pass through whole below (`reps`, `load`), so capping an entry at
+// 24 and 40 characters cut "12 each side, 3-sec pause" to "12 each side, 3-sec paus"
+// in that set's box: part of a target, shown as the whole of it. It bounded nothing
+// the exercise's own fields do not already carry.
 const perSetOf = (v: unknown): SetTarget[] | undefined => {
   if (!Array.isArray(v) || !v.length) return undefined;
-  const field = (x: unknown, cap: number) => (typeof x === 'string' || (typeof x === 'number' && Number.isFinite(x)) ? String(x).slice(0, cap) : '');
+  const field = (x: unknown) => (typeof x === 'string' || (typeof x === 'number' && Number.isFinite(x)) ? String(x) : '');
   return v.slice(0, 50).map((entry) => {
     const o = entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as Record<string, unknown>) : {};
-    return { reps: field(o.reps, 24), load: field(o.load, 40) };
+    return { reps: field(o.reps), load: field(o.load) };
   });
 };
 
