@@ -94,11 +94,14 @@ test('exercise parse: a line with no single timed or distance value reads exactl
     ['Squat — 3 × 5 kg', '3', '5', 'kg'],
     ['Row — 3 × 1.5', '3', '1', '.5'],
     // ⚠ KNOWN LEFTOVERS, STILL SPLIT IN TWO AND PINNED AS THEY WERE READ. A unit run into a
-    // list, a range or a rate, a per-side suffix, a trailing period, m:ss, spelled-out
-    // distances the list does not name, and a decimal comma. Reading one of them whole is its own
-    // change, and it should change this table on purpose rather than as a side effect.
+    // list, a range or a rate, a range with spaces around its dash or a decimal on its near
+    // end, a per-side suffix, a trailing period, m:ss, spelled-out distances the list does
+    // not name, and a decimal comma. Reading one of them whole is its own change, and it
+    // should change this table on purpose rather than as a side effect.
     ['Plank — 3 × 30s/45s', '3', '30', 's/45s'],
     ['Plank — 3 × 30s-45s', '3', '30', 's-45s'],
+    ['Plank — 3 × 30 – 45 sec', '3', '30', '– 45 sec'],
+    ['Run — 3 × 1.5-2 km', '3', '1', '.5-2 km'],
     ['Plank — 3 × 30s/side', '3', '30', 's/side'],
     ['Row — 3 × 10 m/s', '3', '10', 'm/s'],
     ['Hold — 3 × 10 sec.', '3', '10', 'sec.'],
@@ -121,6 +124,7 @@ test('exercise parse: a line with no single timed or distance value reads exactl
 test('a timed or distance row written by the builder reads back with its unit intact', () => {
   const rows = [
     { name: 'Plank', sets: 3, reps: '30s' },
+    { name: 'Plank', sets: 3, reps: '30-45s' },
     { name: 'Hold', sets: 3, reps: '45 sec', rpe: 7 },
     { name: 'Row', sets: 4, reps: '2 min' },
     { name: 'Run', sets: 5, reps: '400m' },
@@ -142,13 +146,15 @@ test('a timed or distance row written by the builder reads back with its unit in
 });
 
 // ⚠ THE PARSER AND THE REP TOTAL READ ONE RULE. Every spelling the list names, run on,
-// spaced and with a decimal part, is kept whole by the parser and is not a count to
-// bsMoveTotalReps. The controls are numbers with no unit, which both read as before.
+// spaced, with a decimal part and as a range whose far end carries the unit, is kept
+// whole by the parser and is not a count to bsMoveTotalReps. The controls are values
+// with no unit, which both read as before: a range still counts its low end, a rest
+// after a range is not the range's unit, and neither is a word that starts with one.
 test('the rep total declines to count every value the parser keeps whole', () => {
   const forms = BS_TIME_DISTANCE_UNITS.split('|').flatMap((u) => (u.endsWith('?') ? [u.slice(0, -2), u.slice(0, -1)] : [u]));
   assert.ok(forms.length >= 16, `expected every spelling of the list; expanded ${forms.length}`);
   for (const unit of forms) {
-    for (const value of [`30${unit}`, `30 ${unit}`, `1.5 ${unit}`]) {
+    for (const value of [`30${unit}`, `30 ${unit}`, `1.5 ${unit}`, `30-45${unit}`, `30–45 ${unit}`, `1-1.5 ${unit}`]) {
       const e = bsAssignExercise(`Move — 3 × ${value}`);
       assert.equal(e.reps, value, `the parser keeps "${value}" whole`);
       assert.equal(e.load, '', `and leaves no piece of "${value}" in the load`);
@@ -157,6 +163,10 @@ test('the rep total declines to count every value the parser keeps whole', () =>
   }
   assert.equal(bsMoveTotalReps({ s: '3 × 30' }), 90, 'a number with no unit still counts');
   assert.equal(bsMoveTotalReps({ s: '3 × 1.5' }), 3, 'a decimal with no unit reads as it always has');
+  assert.equal(bsMoveTotalReps({ s: '3 × 30-45' }), 90, 'a range with no unit still counts its low end');
+  assert.equal(bsMoveTotalReps({ s: '3 × 8-10 · 60s' }), 24, 'a rest after a range is not the range\'s unit');
+  assert.equal(bsMoveTotalReps({ s: '3 × 8–10 · 2 min' }), 24, 'nor is a rest in minutes after an en-dash range');
+  assert.equal(bsMoveTotalReps({ s: '3 × 10 steps' }), 30, 'and a word that starts with a unit\'s letters is not a unit');
 });
 
 test('day line: "Mon — Upper (push)" → dow 0; non-day → null', () => {

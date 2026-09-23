@@ -122,12 +122,17 @@ const bsRepCount = (text) => {
   return m ? Number(m[1]) : 0;
 };
 // The scheme line's count, refused when a hold or a distance follows the number. The
-// suffix is the outline parser's own rule (BS_TIME_DISTANCE_SUFFIX), so a value the
-// parser keeps whole ("30s", "1.5 km") is one this total declines to count. ⚠ The
-// decimal part is the one change from the list this line carried before: "3 × 1.5 km"
-// counted as 3 reps, which only matched a parser that had read "1" and a load of
-// ".5 km". Now that the parser reads 1.5 km, the total agrees that it is not a count.
-const BS_SCHEME_REPS = new RegExp(String.raw`(\d+)\s*×\s*(\d+)(?!\d|${BS_TIME_DISTANCE_SUFFIX}\b)`, 'i');
+// suffix is the outline parser's own rule (BS_TIME_DISTANCE_SUFFIX), and a range before
+// it runs over the parser's own reps characters ([\d–-]), so a value the parser keeps
+// whole ("30s", "1.5 km", "30-45s") is one this total declines to count. ⚠ Two changes
+// from the list this line carried before, both for that reason. The decimal part:
+// "3 × 1.5 km" counted as 3 reps, which only matched a parser that had read "1" and a
+// load of ".5 km". And a range whose far end carries the unit: "3 × 30-45s" counted as
+// 90 reps, while the ladder path below already reads a set of "30-45s" as no count
+// (bsRepCount, above). A range with no unit still counts its low end, as it always has.
+// The class takes digits as well, so a shorter match of the number ("3" of "30s") is
+// refused by the same unit and cannot be counted in its place.
+const BS_SCHEME_REPS = new RegExp(String.raw`(\d+)\s*×\s*(\d+)(?![\d–-]*${BS_TIME_DISTANCE_SUFFIX}\b)`, 'i');
 export function bsMoveTotalReps(move) {
   if (bsHasLadder(move)) {
     const n = Math.max(1, Number(move.sets) || move.perSet.length);
