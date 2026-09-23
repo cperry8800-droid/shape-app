@@ -15,8 +15,11 @@ import {
   bsAssignMonday,
   bsAssignKey,
   bsAssignWeeks,
+  BS_TIME_DISTANCE_UNITS,
 } from '../mobile-app/src/services/planOutline.mjs';
 import { bsPlanPreview } from '../mobile-app/src/services/planPreview.mjs';
+import { bsMoveTotalReps } from '../mobile-app/src/services/workoutSession.mjs';
+import { builderToOutlineBlocks, repsLabel, loadLabel, exerciseFromRow } from '../public/newdesign/workoutDocument.mjs';
 
 test('exercise parse: "Back squat — 4 × 6 · RPE 8"', () => {
   const e = bsAssignExercise('Back squat — 4 × 6 · RPE 8');
@@ -31,6 +34,129 @@ test('exercise parse: dot-only form "Secondary compound · 4×8"', () => {
   assert.equal(e.name, 'Secondary compound');
   assert.equal(e.sets, '4');
   assert.equal(e.reps, '8');
+});
+
+// ⚠ A SINGLE TIMED OR DISTANCE VALUE KEEPS ITS UNIT. The plain pattern stopped at the
+// first non-digit, so "3 × 30s" read as 30 reps and a load of "s" in a plan's public
+// preview and in a text-outline plan's member rows.
+test('exercise parse: a single timed or distance value keeps its unit, and the load after it', () => {
+  const cases = [
+    ['Plank — 3 × 30s', '3', '30s', ''],
+    ['Run — 3 × 400m', '3', '400m', ''],
+    ['Hold — 3 × 45 sec', '3', '45 sec', ''],
+    ['Row — 4 × 2 min', '4', '2 min', ''],
+    ['Carry — 3 × 40 m · 32 kg', '3', '40 m', '32 kg'],
+    ['Carry — 3 × 40m·32 kg', '3', '40m', '32 kg'],
+    ['Run — 1 × 1 km', '1', '1 km', ''],
+    ['Run — 2 × 1 mi', '2', '1 mi', ''],
+    ['Run — 3 × 1.5 km · RPE 7', '3', '1.5 km', 'RPE 7'],
+    ['Plank — 3 × 30-45s', '3', '30-45s', ''],
+    ['Sled — 4 × 20 yd · heavy', '4', '20 yd', 'heavy'],
+    ['Hold — 3 × 30 seconds each side', '3', '30 seconds', 'each side'],
+    ['Run — 5 × 400m, 90s rest', '5', '400m', '90s rest'],
+    ['Bike — 4 × 5 minutes; easy spin', '4', '5 minutes', 'easy spin'],
+    ['Hold — 3 × 45 Sec', '3', '45 Sec', ''],
+  ];
+  for (const [line, sets, reps, load] of cases) {
+    const e = bsAssignExercise(line);
+    assert.deepEqual({ sets: e.sets, reps: e.reps, load: e.load }, { sets, reps, load }, line);
+  }
+});
+
+// ⚠ AND EVERY OTHER LINE READS EXACTLY AS IT DID BEFORE THE RULE. The expected values
+// were recorded from the parser on main before the change, not written by hand.
+test('exercise parse: a line with no single timed or distance value reads exactly as before', () => {
+  const before = [
+    // the three the unit rule must not reach
+    ['Squat — 3 × 5 · 60 kg', '3', '5', '60 kg'],
+    ['Bench — 3 × 70/75/80% 1RM', '3', '70', '/75/80% 1RM'],
+    ['Back squat — 4 × 6 · RPE 8', '4', '6', 'RPE 8'],
+    // plain numbers, ranges and the separators that end them
+    ['Secondary compound · 4×8', '4', '8', ''],
+    ['Bench — 4 × 6-8 · RPE 8', '4', '6-8', 'RPE 8'],
+    ['Squat — 3 × 12-15 · 90s rest', '3', '12-15', '90s rest'],
+    ['Squat — 3 × 5; rest 2 min', '3', '5', 'rest 2 min'],
+    ['Squat — 3 × 5 · 60 kg · RPE 8', '3', '5', '60 kg · RPE 8'],
+    // a word that starts with a unit's letters is not a unit
+    ['Squat — 3 × 5 sets', '3', '5', 'sets'],
+    ['Bench — 3 × 8 max', '3', '8', 'max'],
+    ['Walk — 3 × 10 steps', '3', '10', 'steps'],
+    ['Row — 3 × 12 slow', '3', '12', 'slow'],
+    ['Row — 3 × 10 mph', '3', '10', 'mph'],
+    // ladders belong to the two ladder readers
+    ['Back squat — 3 × 8/6/4 · 60/70/80 kg · RPE 8', '3', '8/6/4', '60/70/80 kg · RPE 8', true],
+    ['Plank — 3 × 30s/45s/60s', '3', '30s/45s/60s', '', true],
+    ['Run — 3 × 400m/800m/1200m', '3', '400m/800m/1200m', '', true],
+    ['Back squat — 3 × 8/6/AMRAP · 60 kg', '3', '8/6/AMRAP', '60 kg', true],
+    // an uppercase X is not the multiplication sign, a weight unit is not a hold, and a
+    // decimal with no unit after it reads as it always has
+    ['Squat — 3 X 5 · 60 kg', '', '', '3 X 5 · 60 kg'],
+    ['Squat — 3 × 5 kg', '3', '5', 'kg'],
+    ['Row — 3 × 1.5', '3', '1', '.5'],
+    // ⚠ KNOWN LEFTOVERS, STILL SPLIT IN TWO AND PINNED AS THEY WERE READ. A unit run into a
+    // list, a range or a rate, a per-side suffix, a trailing period, m:ss, spelled-out
+    // distances the list does not name, and a decimal comma. Reading one of them whole is its own
+    // change, and it should change this table on purpose rather than as a side effect.
+    ['Plank — 3 × 30s/45s', '3', '30', 's/45s'],
+    ['Plank — 3 × 30s-45s', '3', '30', 's-45s'],
+    ['Plank — 3 × 30s/side', '3', '30', 's/side'],
+    ['Row — 3 × 10 m/s', '3', '10', 'm/s'],
+    ['Hold — 3 × 10 sec.', '3', '10', 'sec.'],
+    ['Plank — 3 × 1:30', '3', '1', ':30'],
+    ['Run — 3 × 1 mile', '3', '1', 'mile'],
+    ['Run — 3 × 400 meters', '3', '400', 'meters'],
+    ['Run — 3 × 1,5 km', '3', '1', '5 km'],
+    ['Lunge — 3 × 10/side · 20 kg', '3', '10', '/side · 20 kg'],
+  ];
+  assert.ok(before.length >= 30, `expected the recorded table; found ${before.length} lines`);
+  for (const [line, sets, reps, load, ladder] of before) {
+    const e = bsAssignExercise(line);
+    assert.deepEqual({ sets: e.sets, reps: e.reps, load: e.load, ladder: !!e.perSet }, { sets, reps, load, ladder: !!ladder }, line);
+  }
+});
+
+// ⚠ THE BUILDER'S OWN TEXT READS BACK WHOLE. builderToOutlineBlocks writes a timed or
+// distance row, and this parser reads that text in the Listing preview and in a
+// text-outline plan, so the two must agree on the reps, the load and a weight ladder.
+test('a timed or distance row written by the builder reads back with its unit intact', () => {
+  const rows = [
+    { name: 'Plank', sets: 3, reps: '30s' },
+    { name: 'Hold', sets: 3, reps: '45 sec', rpe: 7 },
+    { name: 'Row', sets: 4, reps: '2 min' },
+    { name: 'Run', sets: 5, reps: '400m' },
+    { name: 'Carry', sets: 3, reps: '40 m', load: 32 },
+    { name: 'Run', sets: 3, reps: '1.5 km' },
+    { name: 'Sled', sets: 4, reps: '20 yd', load: 100, loadType: 'lb' },
+    { name: 'Carry', sets: 3, reps: '40 m', load: 60, perSet: [{ load: 60 }, { load: 70 }, { load: 80 }] },
+  ].map((r, i) => ({ id: 'r' + i, load: 0, loadType: 'kg', ...r }));
+  assert.ok(rows.some((r) => exerciseFromRow(r).perSet), 'a weight ladder is among them');
+  for (const row of rows) {
+    const [block] = builderToOutlineBlocks({ weeks: [{ days: [{ name: 'D', blocks: [{ kind: 'main', rows: [row] }] }] }] });
+    assert.ok(block.text.includes(' × ' + row.reps), 'the builder wrote the unit: ' + block.text);
+    const e = bsAssignExercise(block.text);
+    assert.equal(e.sets, String(row.sets), block.text);
+    assert.equal(e.reps, repsLabel(row), block.text);
+    assert.equal(e.load, loadLabel(row), block.text);
+    assert.deepEqual(e.perSet, exerciseFromRow(row).perSet, block.text);
+  }
+});
+
+// ⚠ THE PARSER AND THE REP TOTAL READ ONE RULE. Every spelling the list names, run on,
+// spaced and with a decimal part, is kept whole by the parser and is not a count to
+// bsMoveTotalReps. The controls are numbers with no unit, which both read as before.
+test('the rep total declines to count every value the parser keeps whole', () => {
+  const forms = BS_TIME_DISTANCE_UNITS.split('|').flatMap((u) => (u.endsWith('?') ? [u.slice(0, -2), u.slice(0, -1)] : [u]));
+  assert.ok(forms.length >= 16, `expected every spelling of the list; expanded ${forms.length}`);
+  for (const unit of forms) {
+    for (const value of [`30${unit}`, `30 ${unit}`, `1.5 ${unit}`]) {
+      const e = bsAssignExercise(`Move — 3 × ${value}`);
+      assert.equal(e.reps, value, `the parser keeps "${value}" whole`);
+      assert.equal(e.load, '', `and leaves no piece of "${value}" in the load`);
+      assert.equal(bsMoveTotalReps({ s: `3 × ${e.reps}` }), 0, `"${value}" is not a count`);
+    }
+  }
+  assert.equal(bsMoveTotalReps({ s: '3 × 30' }), 90, 'a number with no unit still counts');
+  assert.equal(bsMoveTotalReps({ s: '3 × 1.5' }), 3, 'a decimal with no unit reads as it always has');
 });
 
 test('day line: "Mon — Upper (push)" → dow 0; non-day → null', () => {
