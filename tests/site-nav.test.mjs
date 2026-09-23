@@ -16,33 +16,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+import { parse as parseJs } from '@babel/parser';
+import { navTables } from './helpers/nav-tables.mjs';
 
 const ND = path.dirname(fileURLToPath(new URL('../public/newdesign/x', import.meta.url)));
 const SHELL = readFileSync(path.join(ND, 'pageShell.jsx'), 'utf8');
 const INDEX = readFileSync(path.join(ND, 'index.html'), 'utf8');
 
-// Brace-match a top-level declaration out of the source and evaluate it, so the
-// test drives the table that SHIPS rather than a copy of it.
-function decl(name) {
-  const at = SHELL.indexOf('const ' + name + ' = ');
-  assert.notEqual(at, -1, name + ' is gone from pageShell.jsx');
-  const open = SHELL.indexOf('[', at);
-  let depth = 0, end = -1;
-  for (let i = open; i < SHELL.length; i++) {
-    const c = SHELL[i];
-    if (c === '[') depth++;
-    else if (c === ']') { depth--; if (depth === 0) { end = i + 1; break; } }
-  }
-  assert.ok(end > open, 'could not bracket-match ' + name);
-  return SHELL.slice(open, end);
-}
-const NAV_TABLES = new Function(
-  'const COACHES_HREF = ' + /const COACHES_HREF = ("[^"]*")/.exec(SHELL)[1] + ';' +
-  'const COACHES_ITEMS = ' + decl('COACHES_ITEMS') + ';' +
-  'const SHAPE_NAV_GROUPS = ' + decl('SHAPE_NAV_GROUPS') + ';' +
-  'const PORTAL_NAV = ' + decl('PORTAL_NAV') + ';' +
-  'return { SHAPE_NAV_GROUPS, PORTAL_NAV, COACHES_HREF, COACHES_ITEMS };')();
+// Each table is evaluated from its own statement in the source, so the test
+// drives the table that SHIPS — including the signed-in row, which is derived
+// from the signed-out one rather than written out (see the helper).
+const NAV_TABLES = navTables(SHELL);
 
 // A link's identity for comparison: the file it lands on plus any hash. The two
 // bars legitimately spell the same destination differently — the homepage writes
@@ -310,18 +296,219 @@ test('no newdesign stylesheet is an expression around a literal, in any module',
     'CSS comments, which can parse, build and test green and then throw at render:\n  ' + bad.join('\n  '));
 });
 
-// ── 2 · signed in, the row is the essentials ────────────────────────────────
-// Owner: "for signed in dont say workouts and nutritionists for client. its
-// repetitive… just have coaches", and "all of those tabs on nav are on the
-// dashboard nav bar".
+// ── 2 · signed in, the row is the site's tabs minus the sign-up pages ──────
+// Owner, 2026-09-23, on a screenshot of the signed-in bar reading only
+// "Coaches ▾  About": "need to add more nav tabs on main nav bar when signed into
+// account" — and of the rows put to them, "Site tabs minus sign-up pages".
+// The older ruling still holds for the dashboard's own tabs: "for signed in dont
+// say workouts and nutritionists for client. its repetitive… just have coaches",
+// and "all of those tabs on nav are on the dashboard nav bar".
 const DASHBOARD_TABS = ['Workouts', 'Nutrition', 'Progress', 'Schedule', 'Clients', 'Programs', 'Plans', 'Messages', 'Business'];
 
-test('the signed-in row carries the essentials and none of the dashboard\'s own tabs', () => {
+test('the signed-in row is the site\'s tabs minus the two sign-up pages, and none of the dashboard\'s', () => {
   const labels = NAV_TABLES.PORTAL_NAV.map((g) => g.label);
-  assert.deepEqual(labels, ['Coaches', 'About'], 'the signed-in row is not the essentials: ' + labels.join(' · '));
+  assert.deepEqual(labels, ['Coaches', 'App', 'Kitchen', 'Community', 'Rewards', 'About'],
+    'the signed-in row is not the owner\'s pick: ' + labels.join(' · '));
+  assert.deepEqual(NAV_TABLES.SIGNED_OUT_ONLY, ['Members', 'Pricing'],
+    'the sign-up pages kept off the signed-in row changed: ' + NAV_TABLES.SIGNED_OUT_ONLY.join(' · '));
   for (const tab of DASHBOARD_TABS) {
     assert.ok(!labels.includes(tab), tab + ' is on the nav AND is a tab of the dashboard — the duplication the owner asked to remove');
   }
+});
+
+// ⚠ DERIVED, NOT RESTATED — and asserted by IDENTITY, so this guard does not
+// reimplement the filter it is checking. The signed-in row used to be a second
+// hand-written table, and it had drifted: its Coaches tab lit on fewer pages than
+// the signed-out one's. Every signed-in entry must be the very object the
+// signed-out table holds, in the same order — a restated table fails even when
+// every value in it happens to match today.
+test('the signed-in row is the signed-out row\'s own entries, in its order', () => {
+  const out = NAV_TABLES.SHAPE_NAV_GROUPS;
+  const signedIn = NAV_TABLES.PORTAL_NAV;
+  assert.ok(out.length >= 6 && signedIn.length >= 4, 'read ' + out.length + ' / ' + signedIn.length + ' tabs — this guard is reading nothing');
+  let lastAt = -1;
+  for (const g of signedIn) {
+    const at = out.indexOf(g);
+    assert.notEqual(at, -1, g.label + ' is on the signed-in row as a copy, not the signed-out table\'s own entry — the two tables can drift again');
+    assert.ok(at > lastAt, g.label + ' is out of the signed-out row\'s order');
+    lastAt = at;
+  }
+  // Every signed-out tab is either on the signed-in row or named as a sign-up
+  // page — so a tab the site adds later reaches members unless somebody decides.
+  for (const g of out) {
+    assert.ok(signedIn.includes(g) !== NAV_TABLES.SIGNED_OUT_ONLY.includes(g.label),
+      g.label + ' must be on exactly one side: the signed-in row or SIGNED_OUT_ONLY');
+  }
+  // A sign-up page named here must BE a tab. Renamed away (say "Pricing" →
+  // "Plans"), the old name would exclude nothing and the page would slip back
+  // onto the signed-in row with every other assertion still green.
+  const outLabels = out.map((g) => g.label);
+  for (const name of NAV_TABLES.SIGNED_OUT_ONLY) {
+    assert.ok(outLabels.includes(name), 'SIGNED_OUT_ONLY names ' + name + ', which is not a tab on the signed-out row — it keeps nothing off');
+  }
+});
+
+// ⚠ THE HOMEPAGE'S STATIC BAR CANNOT READ PORTAL_NAV, so it carries the same
+// decision in its markup: each sign-up link is marked `data-signed-out-only`, on
+// the bar AND in the drawer, and its /api/me scripts remove what is marked. This
+// file's own header claimed to compare the two long before anything did — the old
+// homepage kept a hand-written set of labels that nothing read back.
+function markedLinks(block) {
+  return [...block.matchAll(/<a href="([^"]+)"([^>]*)>([\s\S]*?)<\/a>/g)]
+    .filter((a) => /\bdata-signed-out-only\b/.test(a[2]))
+    .map((a) => [a[3].replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').trim(), target(a[1])]);
+}
+test('the homepage marks exactly the sign-up pages, on its bar and in its drawer', () => {
+  const bar = /<div class="nlinks">([\s\S]*?)<\/div>\s*<div class="nauth">/.exec(INDEX);
+  const drawer = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
+  assert.ok(bar && drawer, 'the homepage bar or drawer did not parse — this guard is reading nothing');
+  const expected = NAV_TABLES.SIGNED_OUT_ONLY.map((n) => [n, target(NAV_TABLES.SHAPE_NAV_GROUPS.find((g) => g.label === n).href)]);
+  assert.ok(expected.length >= 1, 'SIGNED_OUT_ONLY is empty — this guard compares nothing');
+  assert.deepEqual(markedLinks(bar[1]), expected, 'the homepage bar marks a different set of sign-up links than the shared header keeps off');
+  assert.deepEqual(markedLinks(drawer[1]), expected, 'the homepage drawer marks a different set of sign-up links than its bar');
+});
+
+// Driven, not grepped: the homepage's two /api/me scripts run in a real DOM
+// against the real markup, once signed in and once signed out (the control — a
+// swap that removed links for everyone would pass the first half alone).
+async function homepageAfterMe(user) {
+  const { JSDOM } = createRequire(import.meta.url)('jsdom');
+  const dom = new JSDOM(INDEX, { runScripts: 'outside-only', url: 'https://shape.test/newdesign/index.html' });
+  const w = dom.window;
+  w.fetch = async () => ({ ok: true, json: async () => ({ user }) });
+  const scripts = [...INDEX.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  const header = scripts.filter((s) => /nav \.nauth/.test(s) && /fetch\('\/api\/me'/.test(s));
+  const drawer = scripts.filter((s) => /getElementById\('ndrawer'\)/.test(s) && /fetch\('\/api\/me'/.test(s));
+  assert.equal(header.length, 1, 'found ' + header.length + ' signed-in header scripts on the homepage — this guard is driving nothing');
+  assert.equal(drawer.length, 1, 'found ' + drawer.length + ' signed-in drawer scripts on the homepage — this guard is driving nothing');
+  w.eval(header[0]);
+  w.eval(drawer[0]);
+  for (let i = 0; i < 5; i++) await new Promise((r) => w.setTimeout(r, 0));
+  const doc = w.document;
+  const bar = [...doc.querySelectorAll('nav .nlinks > *')]
+    .map((el) => (el.matches('a') ? el : el.querySelector('a')).childNodes[0].textContent.trim());
+  const inDrawer = [...doc.querySelectorAll('#ndrawer a')].map((a) => a.textContent.replace(/ /g, ' ').trim());
+  dom.window.close();
+  return { bar, inDrawer };
+}
+test('signed in, the homepage bar and drawer carry the shared header\'s signed-in row', async () => {
+  const want = NAV_TABLES.PORTAL_NAV.map((g) => g.label);
+  const tabs = new Set(NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => g.label));
+  const me = await homepageAfterMe({ id: 'u', email: 'x@shape.test', firstName: 'Chris', role: 'client', roles: ['client'] });
+  assert.deepEqual(me.bar, want, 'the homepage\'s signed-in bar is not the shared header\'s signed-in row');
+  assert.deepEqual(me.inDrawer.filter((l) => tabs.has(l)), want, 'the homepage\'s signed-in drawer is not the shared header\'s signed-in row');
+  for (const extra of ['Marketplace', 'Radio', 'Dashboard', 'Sign out']) {
+    assert.ok(me.inDrawer.includes(extra), 'the signed-in homepage drawer lost ' + extra + ': ' + me.inDrawer.join(' · '));
+  }
+  const out = await homepageAfterMe(null);
+  const all = NAV_TABLES.SHAPE_NAV_GROUPS.map((g) => g.label);
+  assert.deepEqual(out.bar, all, 'signed OUT, the homepage bar lost a tab — the swap is firing without an account');
+  assert.deepEqual(out.inDrawer.filter((l) => tabs.has(l)), all, 'signed OUT, the homepage drawer lost a tab');
+});
+
+// ── 2b · every tab lights on the page it opens ─────────────────────────────
+// A plain tab lights when its page renders `<Header active="<its label>" />`,
+// a menu tab when the page's value is in its `match` list. The Rewards tab's own
+// page passed "Shape Score", so the one page that tab opens was the one page it
+// never marked — found while bringing Rewards onto the signed-in row. Derived
+// from the table and each page's own scripts, so a tab added later is covered.
+test('every tab on the bar lights on its own page', () => {
+  const groups = NAV_TABLES.SHAPE_NAV_GROUPS;
+  assert.ok(groups.length >= 6, 'read only ' + groups.length + ' tabs — this guard is reading nothing');
+  for (const g of groups) {
+    const page = target(g.href);
+    const html = readFileSync(path.join(ND, page), 'utf8');
+    const modules = [...html.matchAll(/<script type="text\/babel"[^>]*\bsrc="([^"?]+)(?:\?[^"]*)?"/g)].map((m) => m[1]);
+    const text = [html, ...modules.filter((m) => existsSync(path.join(ND, m))).map((m) => readFileSync(path.join(ND, m), 'utf8'))].join('\n');
+    const actives = [...text.matchAll(/<Header active="([^"]*)"/g)].map((m) => m[1]);
+    assert.ok(actives.length >= 1, page + ' (the ' + g.label + ' tab) renders no <Header active="…"> that this guard can find');
+    for (const a of actives) {
+      const lit = g.kind === 'drop' ? g.match.includes(a) : a === g.label;
+      assert.ok(lit, page + ' passes active="' + a + '", which does not light the ' + g.label + ' tab that opens it');
+    }
+  }
+});
+
+// ── 2c · the wider signed-in cluster gives way before it meets the tabs ─────
+// ⚠ A FIT IS A BROWSER QUESTION; what is asserted here is what can be deleted by
+// accident. Measured in Chromium in the real faces (the numbers live beside the
+// rules in pageShell.jsx): with six tabs back on the signed-in row, a 150px name
+// or a profile-switch pill ran the row into the right-hand cluster at widths the
+// signed-out bar clears. Three rules close it — drop the greeting, tighten a
+// switch account's spacing, fold a switch account to the menu — and each is
+// keyed on a hook the markup has to keep providing.
+function mediaBlocks(src) {
+  const out = [];
+  for (const m of src.matchAll(/@media \(max-width: ?(\d+)px\) ?\{/g)) {
+    let depth = 0, end = -1;
+    for (let i = m.index + m[0].length - 1; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    out.push({ at: m.index, width: Number(m[1]), body: src.slice(m.index, end) });
+  }
+  return out;
+}
+test('signed in, the wide right-hand cluster gives way before it can meet the tabs', () => {
+  const header = SHELL.slice(SHELL.indexOf('function Header({ active })'), SHELL.indexOf('function HeroBg('));
+  assert.ok(header.length > 2000, 'could not slice Header — this guard is reading nothing');
+  // The hooks: the greeting carries the class the stylesheet hides, and the
+  // header's switch attribute comes from the SAME flag that renders the pill.
+  assert.match(header, /<span className="shape-nav-hi"[^>]*>Hi, \{/, 'the greeting lost the class its width rules key on');
+  assert.match(header, /<header className="shape-header" data-role-switch=\{hasRoleSwitch \? "" : undefined\}/, 'the header no longer stamps data-role-switch from hasRoleSwitch');
+  assert.match(header, /\{hasRoleSwitch \? \(/, 'the switch pill renders on a condition of its own again — the pill and its layout can disagree');
+
+  const blocks = mediaBlocks(SHELL);
+  const find = (re) => blocks.filter((b) => re.test(b.body));
+  const collapse = find(/\n\s*\.shape-nav-tabs \{ display: none/);
+  assert.equal(collapse.length, 1, 'expected ONE everyone-collapse block, found ' + collapse.length);
+  const everyone = collapse[0].width;
+
+  // 1 · the greeting goes at some width above the everyone-collapse, and a switch
+  // account's greeting goes no later than everyone's.
+  const hi = find(/\n\s*\.shape-nav-hi \{ display: none !important; \}/);
+  const hiSwitch = find(/\.shape-header\[data-role-switch\] \.shape-nav-hi \{ display: none !important; \}/);
+  assert.equal(hi.length, 1, 'the greeting has no width at which it gives way');
+  assert.equal(hiSwitch.length, 1, 'a switch account\'s greeting has no width at which it gives way');
+  assert.ok(hi[0].width > everyone, 'the greeting only goes once the whole bar has collapsed — too late');
+  assert.ok(hiSwitch[0].width >= hi[0].width, 'a switch account keeps its greeting to a narrower width than everyone else — it has the wider cluster');
+
+  // 2 · a switch account's tight spacing weighs no more than the plain rules
+  // (:where), and sits BEFORE the everyone-collapse and phone blocks in the
+  // source, so those still tighten a switch account further on a phone.
+  const tight = find(/:where\(\.shape-header\[data-role-switch\]\) \.shape-header-inner \{/);
+  assert.equal(tight.length, 1, 'a switch account lost its early tight spacing, or it no longer uses :where()');
+  assert.match(tight[0].body, /:where\(\.shape-header\[data-role-switch\]\) \.shape-nav-tabs \{ gap:/, 'the early tight spacing no longer tightens the tabs');
+  // ⚠ GAPS ONLY. The side padding is the page gutter the Radio fold steps with
+  // (tests/radio-instrument-rules.test.mjs); moving it for some accounts sets
+  // their Radio hero out of line with the header — the first cut of this rule did.
+  assert.doesNotMatch(tight[0].body, /\[data-role-switch\]\) \.shape-header-inner \{[^}]*padding/,
+    'the early tight spacing moves the side padding — the page gutter other pages line up with');
+  const phone = blocks.filter((b) => b.width < everyone + 1 && /\.shape-header-inner \{ padding/.test(b.body) && b !== tight[0]);
+  assert.ok(phone.length >= 2, 'found ' + phone.length + ' later inner-tightening blocks — this guard is reading nothing');
+  for (const p of phone) {
+    assert.ok(p.at > tight[0].at, 'the ' + p.width + 'px block sits before the :where() rule, so on a phone a switch account keeps the looser inner');
+  }
+
+  // 3 · a switch account folds to the menu above the everyone-collapse, and the
+  // fold hides and shows the same four things the everyone-collapse does.
+  const fold = find(/\.shape-header\[data-role-switch\] \.shape-nav-tabs \{ display: none !important; \}/);
+  assert.equal(fold.length, 1, 'a switch account no longer folds to the menu early');
+  assert.ok(fold[0].width > everyone && fold[0].width < tight[0].width, 'the switch fold (' + fold[0].width + ') must sit between the everyone-collapse (' + everyone + ') and the switch tight spacing (' + tight[0].width + ')');
+  for (const [cls, shown] of [['shape-nav-tabs', 'none'], ['shape-nav-auth', 'none'], ['shape-nav-bell', 'inline-flex'], ['shape-nav-burger', 'inline-flex']]) {
+    assert.match(fold[0].body, new RegExp('\\.shape-header\\[data-role-switch\\] \\.' + cls + ' \\{ display: ' + shown + ' !important; \\}'),
+      'the switch fold does not set .' + cls + ' to ' + shown + ' — a phone-width bar with a half-folded cluster');
+    assert.match(collapse[0].body, new RegExp('\\.' + cls + ' \\{ display: ' + shown), 'the everyone-collapse changed shape for .' + cls + ' — re-check the switch fold against it');
+  }
+
+  // The homepage's greeting: the same 150px cap and the same width to go at —
+  // one bar, one breakpoint.
+  assert.match(header, /className="shape-nav-hi" style=\{\{[^}]*maxWidth: 150/, 'the shared greeting is no longer capped at 150px');
+  assert.match(INDEX, /\.nauth \.nhi\{max-width:150px;overflow:hidden;text-overflow:ellipsis\}/, 'the homepage greeting is no longer capped at 150px');
+  const homeHi = /@media \(max-width:(\d+)px\)\{\.nauth \.nhi\{display:none\}\}/.exec(INDEX);
+  assert.ok(homeHi, 'the homepage greeting has no width at which it gives way');
+  assert.equal(Number(homeHi[1]), hi[0].width, 'the two bars drop the greeting at different widths');
+  assert.match(INDEX, /hi\.className='login nhi'/, 'the homepage greeting lost the class its width rule keys on');
 });
 
 test('the signed-in row is the same for a member, a trainer and a nutritionist', () => {
@@ -609,6 +796,151 @@ test('the homepage drawer carries every link the homepage bar carries', () => {
   for (const extra of ['Marketplace', 'Radio']) {
     assert.ok(drawer.includes(extra), 'the drawer lost ' + extra + ', which the bar does not carry as a tab');
   }
+});
+
+// ── 7e · the shared drawer covers the screen it is the only nav on ──────────
+// ⚠ THE DRAWER WAS CLIPPED TO A 72px STRIP ON EVERY PAGE THE HEADER RENDERS.
+// `.shape-header` carries `backdrop-filter`, which makes it the containing block
+// for its position:fixed descendants — so `inset: 0` resolved against the
+// header, not the viewport. Measured at 390×844, signed in: the dialog was
+// 390×72 with its links running to y 696 inside it. It is portaled to <body>
+// now, and these read the AST rather than the spelling, so an equivalent
+// rewrite passes and moving it back into the header does not.
+const SHELL_AST = parseJs(SHELL, { sourceType: 'module', plugins: ['jsx'] });
+function walkAst(node, visit) {
+  if (!node || typeof node.type !== 'string') return;
+  if (visit(node) === false) return;
+  for (const k of Object.keys(node)) {
+    if (k === 'loc' || /Comments$/.test(k)) continue;
+    const v = node[k];
+    if (Array.isArray(v)) v.forEach((c) => walkAst(c, visit));
+    else if (v && typeof v.type === 'string') walkAst(v, visit);
+  }
+}
+function shellFn(name) {
+  let hit = null;
+  walkAst(SHELL_AST, (n) => { if (n.type === 'FunctionDeclaration' && n.id && n.id.name === name) { hit = n; return false; } });
+  assert.ok(hit, 'pageShell.jsx no longer declares ' + name + ' — this guard is reading nothing');
+  return hit;
+}
+const isMember = (n, obj, prop) => !!n && n.type === 'MemberExpression' && !n.computed && n.property.name === prop &&
+  (typeof obj === 'string' ? n.object.type === 'Identifier' && n.object.name === obj : obj(n.object));
+const jsxName = (el) => el.openingElement.name.name;
+const jsxAttr = (el, name) => el.openingElement.attributes.find((a) => a.type === 'JSXAttribute' && a.name.name === name);
+function jsxStyle(el) {
+  const a = jsxAttr(el, 'style');
+  const out = {};
+  if (a && a.value && a.value.type === 'JSXExpressionContainer' && a.value.expression.type === 'ObjectExpression') {
+    for (const p of a.value.expression.properties) if (p.type === 'ObjectProperty') out[p.key.name || p.key.value] = p.value;
+  }
+  return out;
+}
+function jsxElements(root, name) {
+  const out = [];
+  walkAst(root, (n) => { if (n.type === 'JSXElement' && (!name || jsxName(n) === name)) out.push(n); });
+  return out;
+}
+
+test('the shared drawer is portaled out of the header, so it covers the screen', () => {
+  const drawer = shellFn('MobileDrawer');
+  // Its OWN returns: a handler's `return` inside an arrow is not the component's.
+  const returns = [];
+  walkAst(drawer.body, (n) => {
+    if (n !== drawer.body && /Function/.test(n.type)) return false;
+    if (n.type === 'ReturnStatement') returns.push(n);
+  });
+  const rendered = returns.filter((r) => r.argument && r.argument.type !== 'NullLiteral');
+  assert.ok(rendered.length >= 1, 'MobileDrawer renders nothing this guard can see — it is reading nothing');
+  for (const r of rendered) {
+    const call = r.argument;
+    assert.ok(call.type === 'CallExpression' && isMember(call.callee, 'ReactDOM', 'createPortal'),
+      'MobileDrawer returns its dialog in place — inside <header>, whose backdrop-filter clips a fixed child to the header\'s 72px box. Portal it to document.body.');
+    assert.ok(isMember(call.arguments[1], (o) => o.type === 'Identifier' && o.name === 'document', 'body'),
+      'MobileDrawer portals somewhere other than document.body — anything inside the header keeps the clip');
+    const dialog = call.arguments[0];
+    assert.equal(dialog.type, 'JSXElement', 'the portal no longer carries the drawer\'s markup');
+    const role = jsxAttr(dialog, 'role');
+    assert.equal(role && role.value && role.value.value, 'dialog', 'the portaled element is not the drawer\'s dialog');
+    // What the portal exists to make true: a fixed box pinned to all four edges.
+    const st = jsxStyle(dialog);
+    assert.equal(st.position && st.position.value, 'fixed', 'the drawer is no longer position:fixed');
+    assert.equal(st.inset && st.inset.value, 0, 'the drawer is no longer pinned to all four edges');
+  }
+  // The React tree is unchanged — only the DOM moved — so Header still owns it.
+  const header = shellFn('Header');
+  assert.equal(jsxElements(header, 'MobileDrawer').length, 1, 'Header no longer renders the drawer exactly once');
+});
+
+test('the drawer sits above the header and below the page\'s own modals', () => {
+  // ⚠ THIS IS WHY THE DRAWER DOES NOT SIMPLY OUT-RANK THE CHAT LAUNCHER. The
+  // launcher floats at 2147483000; a drawer raised past it would also sit above
+  // ShapeConfirm and the other page modals, so the launcher steps aside instead
+  // (next test). Both bounds are read from the shipped source.
+  const z = (el) => { const v = jsxStyle(el).zIndex; return v && v.type === 'NumericLiteral' ? v.value : NaN; };
+  const [dialog] = jsxElements(shellFn('MobileDrawer')).filter((el) => { const r = jsxAttr(el, 'role'); return r && r.value && r.value.value === 'dialog'; });
+  assert.ok(dialog, 'the drawer\'s dialog is gone');
+  const header = jsxElements(shellFn('Header'), 'header').find((el) => { const c = jsxAttr(el, 'className'); return c && c.value && c.value.value === 'shape-header'; });
+  assert.ok(header, 'the shared <header className="shape-header"> is gone');
+  const confirmFn = shellFn('shapeConfirmOpen');
+  const confirmZ = Number((/z-index:\s*(\d+)/.exec(SHELL.slice(confirmFn.start, confirmFn.end)) || [])[1]);
+  assert.ok(Number.isFinite(z(dialog)) && Number.isFinite(z(header)) && Number.isFinite(confirmZ),
+    'could not read the three layers (drawer ' + z(dialog) + ', header ' + z(header) + ', confirm ' + confirmZ + ')');
+  assert.ok(z(dialog) > z(header), 'the drawer (' + z(dialog) + ') paints under the header (' + z(header) + ') now that both live in <body>');
+  assert.ok(z(dialog) < confirmZ, 'the drawer (' + z(dialog) + ') would cover ShapeConfirm (' + confirmZ + ')');
+});
+
+test('the floating chat launcher steps aside while the drawer is open', () => {
+  // Measured: from 761px up the launcher mounts, and at 820 and 1000 wide it
+  // covered the right-hand end of the drawer's Dashboard button. The drawer is
+  // aria-modal, so nothing outside it should sit on top of it while it is open.
+  const chat = readFileSync(path.join(ND, 'globalChatButton.js'), 'utf8');
+  const ids = ['ID', 'PANEL_ID'].map((v) => (new RegExp('var ' + v + ' = "([^"]+)"').exec(chat) || [])[1]);
+  assert.ok(ids.every(Boolean), 'could not read the launcher\'s ids from globalChatButton.js — this guard is reading nothing');
+
+  const drawer = shellFn('MobileDrawer');
+  const calls = [];
+  walkAst(drawer, (n) => {
+    if (n.type === 'CallExpression' && n.callee.type === 'MemberExpression' && isMember(n.callee.object, (o) => isMember(o, 'document', 'body'), 'classList')) {
+      calls.push([n.callee.property.name, n.arguments[0] && n.arguments[0].value]);
+    }
+  });
+  const toggled = calls.filter(([m]) => m === 'toggle').map(([, c]) => c);
+  assert.equal(toggled.length, 1, 'the drawer sets ' + toggled.length + ' body classes — expected the one the stylesheet keys on');
+  const cls = toggled[0];
+  assert.ok(calls.some(([m, c]) => m === 'remove' && c === cls),
+    'the drawer never removes ' + cls + ' — unmounted while open, it would leave the launcher hidden on the next page state');
+
+  // The rule has to live in the style block Header mounts, or it is absent on
+  // exactly the pages that render the drawer.
+  const styles = shellFn('ShapeMobileStyles');
+  assert.equal(jsxElements(shellFn('Header'), 'ShapeMobileStyles').length, 1, 'Header no longer mounts ShapeMobileStyles');
+  const css = jsxElements(styles, 'style')
+    .flatMap((el) => el.children).filter((c) => c.type === 'JSXExpressionContainer' && c.expression.type === 'TemplateLiteral')
+    .map((c) => c.expression.quasis.map((q) => q.value.raw).join('x')).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const hides = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, , body]) => /visibility:\s*hidden\s*!important|display:\s*none\s*!important/.test(body))
+    .flatMap(([, sel]) => sel.split(',').map((s) => s.trim().replace(/\s+/g, ' ')));
+  for (const id of ids) {
+    assert.ok(hides.includes('body.' + cls + ' #' + id),
+      'nothing hides #' + id + ' while body.' + cls + ' is set — it floats over the open drawer');
+  }
+});
+
+test('the drawer\'s logo follows the paper, like the header\'s', () => {
+  // The dashboards open on the light paper, where the drawer's sheet is near
+  // white — a white mark there is invisible. The header and footer swap a pair
+  // of <img>s on --sh-logo-dark / --sh-logo-light; the drawer takes the same
+  // pair, derived from the header rather than restated.
+  const pair = (fn) => jsxElements(shellFn(fn), 'img')
+    .map((el) => jsxStyle(el).display).filter((v) => v && v.type === 'StringLiteral' && /^var\(--sh-logo-/.test(v.value))
+    .map((v) => v.value).sort();
+  const header = pair('Header');
+  assert.equal(header.length, 2, 'the header\'s logo pair is no longer two paper-swapped images (' + header.join(', ') + ')');
+  assert.deepEqual(pair('MobileDrawer'), header, 'the drawer\'s logo does not swap with the paper the way the header\'s does');
+  // <Logo> cannot do it: its class carries `display: block !important`, which
+  // beats the token. Checked, so the reason cannot quietly stop being true.
+  assert.match(SHELL, /\.shape-brand-logo \{[^}]*display: block !important/, 'the logo class lost its !important display — re-check whether <Logo> could swap');
+  assert.equal(jsxElements(shellFn('MobileDrawer'), 'Logo').length, 0, 'the drawer renders <Logo>, whose class pins display:block over the paper token');
 });
 
 // ── 8 · the pages the nav dropped are still reachable ──────────────────────

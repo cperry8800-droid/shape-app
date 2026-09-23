@@ -654,7 +654,10 @@ function ScorePage() {
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, backgroundImage: "url('/Rewards-bg.webp')", backgroundSize: "cover", backgroundPosition: "center", pointerEvents: "none", opacity: 0.9 }} />
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: "radial-gradient(120% 90% at 50% 6%, rgba(26,24,19,0.28) 0%, rgba(11,14,12,0.52) 55%, rgba(11,14,12,0.74) 100%)" }} />
       <div style={{ position: "relative", zIndex: 1 }}>
-        <Header active="Shape Score" />
+        {/* The bar's tab for this page is labelled Rewards, and a tab lights only
+            when active equals its label — "Shape Score" lit nothing, so the one
+            page the Rewards tab opens was the one page it never marked. */}
+        <Header active="Rewards" />
         {recordOpen ? (
           <ScoreRecordView onBack={function () { setRecordOpen(false); }} />
         ) : (

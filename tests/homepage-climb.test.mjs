@@ -155,9 +155,28 @@ test('the shared radio wordmark RENDERS, and what it renders claims nothing', as
   // A single-line const is safe to lift; a multi-line literal's first line alone is a
   // parse error. The test is "ends in a semicolon once any trailing comment is off",
   // because half of this file's constants carry one.
-  const consts = (src.match(/^const [A-Za-z_$][\w$]* = .*$/gm) || [])
-    .filter((l) => l.replace(/\s*\/\/.*$/, '').trim().endsWith(';'))
-    .join('\n');
+  // ⚠ AND "SINGLE-LINE IS SAFE" STOPPED BEING TRUE THE DAY A ONE-LINE CONST WAS
+  // DERIVED FROM A MULTI-LINE ONE: `PORTAL_NAV = SHAPE_NAV_GROUPS.filter(…)` fits
+  // on a line, but SHAPE_NAV_GROUPS is a table and is never lifted, so lifting the
+  // filter threw a ReferenceError before the wordmark was reached. A one-line const
+  // is lifted only when nothing it reads is a const this harness left behind —
+  // followed to a fixpoint, so a const built on a skipped one is skipped too.
+  const declared = src.match(/^const [A-Za-z_$][\w$]* = .*$/gm) || [];
+  const oneLine = (l) => l.replace(/\s*\/\/.*$/, '').trim().endsWith(';');
+  const nameOf = (l) => /^const ([A-Za-z_$][\w$]*)/.exec(l)[1];
+  const leftBehind = new Set(declared.filter((l) => !oneLine(l)).map(nameOf));
+  let lifted = declared.filter(oneLine);
+  for (let changed = true; changed;) {
+    changed = false;
+    lifted = lifted.filter((l) => {
+      const rhs = l.slice(l.indexOf('=') + 1);
+      if (![...leftBehind].some((n) => new RegExp('(^|[^\\w$.])' + n.replace(/\$/g, '\\$') + '(?![\\w$])').test(rhs))) return true;
+      leftBehind.add(nameOf(l));
+      changed = true;
+      return false;
+    });
+  }
+  const consts = lifted.join('\n');
   // ...plus the helper components it renders, brace-matched like the wordmark itself
   const helpers = ['NavFrame'].map((name) => {
     const at = src.indexOf('function ' + name + '(');
