@@ -10,6 +10,7 @@ globalThis.window = dom.window; globalThis.document = dom.window.document; globa
 Object.defineProperty(globalThis, 'navigator', { value: window.navigator, configurable: true });
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require('react'); globalThis.React = React;
+Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/newdesign/coachBuilderLayouts.jsx', import.meta.url)), {appendExports:'export {COACH_BUILDER_LAYOUTS, CoachBuilderNav, CoachBuilderFooter, coachTemplateCopy};'}));
 const { createRoot } = require('react-dom/client'); globalThis.ReactDOM = require('react-dom');
 globalThis.DashBuilder = require('../public/newdesign/dashBuilderCore.js');
 globalThis.ShapeWorkoutDocument = require('../public/newdesign/workoutDocument.js');

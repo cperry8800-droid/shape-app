@@ -19,6 +19,7 @@ globalThis.window=dom.window;globalThis.document=dom.window.document;globalThis.
 Object.defineProperty(globalThis,'navigator',{value:window.navigator,configurable:true});
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 const React=require('react');globalThis.React=React;
+Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/newdesign/coachBuilderLayouts.jsx', import.meta.url)), {appendExports:'export {COACH_BUILDER_LAYOUTS, CoachBuilderNav, CoachBuilderFooter, coachTemplateCopy};'}));
 const {createRoot}=require('react-dom/client');globalThis.ReactDOM=require('react-dom');
 globalThis.DashBuilder=require('../public/newdesign/dashBuilderCore.js');
 globalThis.ShapeWorkoutDocument=require('../public/newdesign/workoutDocument.js');
@@ -74,6 +75,9 @@ async function mount(t,extra={}){
   const root=createRoot(document.getElementById('root'));
   OPEN.push(root);
   await React.act(async()=>root.render(React.createElement(DbuBuilder,{template:t,clients:[],queue:[],live:false,ownerId:'coach-a',playlists:[],clips:[],dayTemplates:[{name:'Saved push day',day:DashBuilder.newDay('Push')}],onBack(){},onSaved(){},...extra})));
+  // The drag/canvas regressions exercise the optional popped-out Planner editor.
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Planner').click());
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pop out editor')?.click());
   return root;
 }
 
@@ -533,7 +537,7 @@ test('both weekday writers go through one implementation, and there is no third'
   }
 });
 
-test('every site that sets a day weekday is one of eight, each safe for a stated reason', async () => {
+test('every site that sets a day weekday is one of nine, each safe for a stated reason', async () => {
   // ⚠ DERIVED FROM THE AST, NOT GREPPED, because a weekday is written in three spellings and
   // a sweep blind to any one of them reports a clean tree: `weekday: x`, the SHORTHAND
   // `{ ...d, weekday }` (how `addAt` and the move itself are written), and the ASSIGNMENT
@@ -577,6 +581,8 @@ test('every site that sets a day weekday is one of eight, each safe for a stated
     'DbuBuilder :: next.weekday = dbuNextFreeWeekday(doc.weeks[target])',
     // ＋ Week: a fresh week whose only day can collide with nothing.
     'DbuBuilder :: weekday: 0',
+    // Guided/Editor adds a day using the same next-free-weekday helper.
+    'DbuBuilder :: weekday:dbuNextFreeWeekday(w)',
     // ＋ Add session in Sheet: next free.
     'DbuSheet :: weekday: dbuNextFreeWeekday(w)',
     // addAt is reached from a REST cell, so that weekday is free by construction.

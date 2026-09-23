@@ -25,6 +25,7 @@ globalThis.window = dom.window; globalThis.document = dom.window.document; globa
 Object.defineProperty(globalThis, 'navigator', { value: window.navigator, configurable: true });
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require('react'); globalThis.React = React;
+Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/newdesign/coachBuilderLayouts.jsx', import.meta.url)), {appendExports:'export {COACH_BUILDER_LAYOUTS, CoachBuilderNav, CoachBuilderFooter, coachTemplateCopy};'}));
 const { createRoot } = require('react-dom/client'); globalThis.ReactDOM = require('react-dom');
 const DashBuilder = require('../public/newdesign/dashBuilderCore.js');
 const DashMeals = require('../public/newdesign/dashMealCore.js');
@@ -559,6 +560,9 @@ const mountBuilder = async () => {
     template: dbuTemplate(), clients: [], queue: [], live: false, ownerId: 'coach-a',
     playlists: [], clips: [], dayTemplates: [], onBack() {}, onSaved() {},
   })));
+  // The drag/canvas regressions exercise the optional popped-out Planner editor.
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Planner').click());
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pop out editor')?.click());
   return root;
 };
 const grip = () => document.querySelector('.drawer.float .dh');

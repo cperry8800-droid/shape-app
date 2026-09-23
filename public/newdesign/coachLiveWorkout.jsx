@@ -1,11 +1,12 @@
 // One read-only workout monitor for the desktop client page and both consoles.
 // The shared transport rechecks RLS, recovers missed events and reports freshness.
 async function coachLiveRuntime() {
-  const [transport, validate] = await Promise.all([
+  const [transport, validate, discussion] = await Promise.all([
     import('/newdesign/liveWatch.mjs'),
     import('/newdesign/liveProgress.mjs'),
+    import('/newdesign/workoutDiscussion.mjs'),
   ]);
-  return { ...transport, ...validate };
+  return { ...transport, ...validate, ...discussion };
 }
 
 function CoachLiveWorkoutPanel(props) {
@@ -16,6 +17,7 @@ function CoachLiveWorkoutPanel(props) {
 function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trainer', accent = 'var(--sh-accent, #2ee0c4)', loadRuntime = coachLiveRuntime }) {
   const [snapshot, setSnapshot] = React.useState({ status: 'connecting', publicRow: null, coachRow: null, lastSyncedAt: null });
   const [runtime, setRuntime] = React.useState(null);
+  const Discussion = React.useMemo(() => runtime?.createWorkoutDiscussion?.(React), [runtime]);
   const [retry, setRetry] = React.useState(0);
   const [cue, setCue] = React.useState('');
   const [sending, setSending] = React.useState(false);
@@ -162,6 +164,15 @@ function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trai
             {cueResult && <p role="status" style={{ fontSize: 14, color: accent, overflowWrap: 'anywhere' }}>{cueResult}</p>}
           </form>
         </>}
+        {Discussion && identityValid && <Discussion key={clientId + ':' + (source?.started_at || '')}
+          db={window.shapeDb?.client} clientId={clientId} clientName={clientName} role={role}
+          startedAt={source?.started_at} title={lp?.title} exercise={lp?.exercises?.[lp.curIdx]?.n}
+          canComment={canSend} onOpenChat={conversationId=>{
+            const opts={conversationId,who:clientName,role:'Client'};
+            if(typeof window.__openChatTo==='function')window.__openChatTo(opts);
+            else if(typeof window.__openChat==='function')window.__openChat(opts);
+            else {const button=document.getElementById('shape-global-chat-button');if(button){window.__openChatRequest=opts;button.click();}else throw Error('Chat is unavailable on this page. Open Messages from your dashboard.');}
+          }}/>}
       </section>
     </Card>
   );
@@ -185,4 +196,3 @@ function clwAlpha(hex, a) {
   const tok = s.match(/var\(\s*(--[\w-]+)\s*,/);
   return tok ? `rgba(var(${tok[1]}-rgb, ${t}), ${a})` : `rgba(${t},${a})`;
 }
-

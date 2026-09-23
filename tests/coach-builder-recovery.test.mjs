@@ -11,6 +11,7 @@ Object.defineProperty(globalThis,'navigator',{value:window.navigator,configurabl
 Object.defineProperty(document,'hidden',{value:false,configurable:true});
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 const React=require('react');globalThis.React=React;
+Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/newdesign/coachBuilderLayouts.jsx', import.meta.url)), {appendExports:'export {COACH_BUILDER_LAYOUTS, CoachBuilderNav, CoachBuilderFooter, coachTemplateCopy};'}));
 const {createRoot}=require('react-dom/client');globalThis.ReactDOM=require('react-dom');
 globalThis.DashBuilder=require('../public/newdesign/dashBuilderCore.js');
 globalThis.ShapeWorkoutDocument=require('../public/newdesign/workoutDocument.js');
@@ -138,7 +139,7 @@ test('a failed demo load clears raw parse errors while live failure gives an act
   globalThis.fetch=async()=>({ok:false,json:async()=>{throw new SyntaxError('Unexpected token N, Not found is not valid JSON');}});
   let root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(TrainerProgramsPage)));
-  assert.ok(button('Edit workout'));
+  assert.ok(button('Edit template'));
   assert.doesNotMatch(document.body.textContent,/Unexpected token|Not found is not valid JSON|Could not load your workouts/);
   await React.act(async()=>root.unmount());
   libraryChrome('live');root=createRoot(document.getElementById('root'));
@@ -173,7 +174,7 @@ test('a library account change closes the old account editor without moving its 
   globalThis.fetch=async(url)=>({ok:true,json:async()=>url.includes('soundtracks')?{soundtracks:[]}:{ownerId:owner,plans:[{...template(),kind:'program',name:owner+' workout'}]}});
   const root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(TrainerProgramsPage)));
-  await React.act(async()=>button('Edit workout').click());
+  await React.act(async()=>button('Edit template').click());
   await changeName('Private A draft');
   owner='coach-b';await React.act(async()=>window.dispatchEvent(new window.Event('focus')));
   assert.ok(!document.querySelector('[aria-label="Workout or program name"]'),'the builder is gone once the account changes');

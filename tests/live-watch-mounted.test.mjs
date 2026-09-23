@@ -100,3 +100,34 @@ test('demo cue is explicitly a preview and performs no write', async () => {
   assert.doesNotMatch(document.body.textContent, /Sent to/);
   await unmount();
 });
+
+for (const role of ['trainer', 'nutritionist']) test(`${role} app monitor saves private workout feedback and opens that exact conversation`, async () => {
+  const opened = [], writes = [], queried = [];
+  await mount({ role, onMessage: id => opened.push(id) });
+  const db = window.ShapeAuth.client;
+  db.auth.getUser = async () => ({ data: { user: { id: currentOwner } } });
+  db.from = table => {
+    queried.push(table); let pending;
+    const q = { select() { return q; }, eq() { return q; }, order() { return q; },
+      maybeSingle: async () => ({ data: { id: table === 'conversations' ? role + '-private-thread' : 'provider' } }),
+      limit: async () => ({ data: [] }), insert(row) { pending = row; writes.push(row); return q; },
+      single: async () => ({ data: { ...pending, id: 'saved-feedback' } }) };
+    return q;
+  };
+  await React.act(async () => button('Open workout comments').click());
+  await React.act(async () => {
+    const el = document.querySelector('textarea');
+    Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set.call(el, 'Keep your chest lifted');
+    el.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+  await React.act(async () => button('Send workout comment').click());
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].conversation_id, role + '-private-thread');
+  assert.equal(writes[0].metadata.workout_title, 'Actual session');
+  assert.equal(writes[0].metadata.exercise, 'Row');
+  assert.equal(sends.length, 0, 'persistent feedback is distinct from a temporary cue');
+  assert.ok(queried.includes(role === 'trainer' ? 'trainers' : 'nutritionists'));
+  await React.act(async () => button('Message client').click());
+  assert.deepEqual(opened, [role + '-private-thread']);
+  await unmount();
+});
