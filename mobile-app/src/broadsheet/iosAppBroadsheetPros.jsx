@@ -4592,7 +4592,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         {actionCell(tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' }), () => setShowDraft(true))}
       </div>
       {showDraft && <BSProCheckinDraft clientUid={clientUid} clientName={client.n} role={role} stats={cStats} accent={accent} onClose={() => setShowDraft(false)} />}
-      {clientUid && !isPast && <button type="button" onClick={()=>setShowWorkoutWatch(true)} style={{minHeight:44,width:'100%',marginTop:12,padding:'12px 14px',border:`1px solid ${t.RULE}`,borderRadius:8,background:t.PAPER2,color:t.INK,fontFamily:t.DISPLAY,fontSize:15,textAlign:'left',cursor:'pointer'}}>View current workout · comment &amp; message →</button>}
+      {clientUid && !isPast && <button type="button" onClick={()=>setShowWorkoutWatch(true)} style={{minHeight:44,width:'100%',marginTop:12,padding:'12px 14px',border:`1px solid ${t.RULE}`,borderRadius:8,background:t.PAPER2,color:t.INK,fontFamily:t.DISPLAY,fontSize:15,textAlign:'left',cursor:'pointer'}}>{tr('coach:live.watchTitle', {defaultValue:'Workout monitor'})} →</button>}
       {/* §C tabs — PROFILE / MANAGE typographic index, drawn heat underline. */}
       <div style={{ marginTop: 4, display: 'flex' }}>
         {[['profile', isNutri ? tr('coach:case.tabPlan', { defaultValue: 'PLAN' }) : tr('coach:case.tabProfile', { defaultValue: 'PROFILE' })], ['manage', tr('coach:case.tabManage', { defaultValue: 'MANAGE' })]].map(([k, label]) => {
