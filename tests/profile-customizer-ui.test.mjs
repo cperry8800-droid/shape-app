@@ -62,7 +62,7 @@ test('a failed save stays open and announces the error in the fixed footer',asyn
 test('Escape dismisses through onClose and member panels keep member-only controls',async()=>{
  let closed=0;window.shapeDb=null;
  await mount({coach:false,onClose:()=>closed++});
- assert.equal(document.querySelector('.dk-editor-business'),null);
+ assert.ok(!document.querySelector('.dk-editor-business'));
  await click(button('Highlights'));
  assert.ok(document.querySelector('[aria-label="Training goal"]'));
  await React.act(async()=>document.querySelector('dialog').dispatchEvent(new window.Event('cancel',{cancelable:true,bubbles:true})));
