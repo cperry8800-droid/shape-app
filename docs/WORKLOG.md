@@ -758,6 +758,89 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-23 — The session player and the builder's legacy reader keep a hold or a distance whole, and a swap brings its own prescription
+
+- **Merged [#2159](https://github.com/cperry8800-droid/shape-app/pull/2159) as `3dc82ec`**, final head `5b86e08`; the merged tree is **byte-identical** to it (tree `a2aadc0` on both, since `main` had not moved). It closes the last two readers #2155 registered: the session player's scheme fallback and the website builder's legacy block reader. No migration, no route, no i18n key.
+- **The player** (`bsSessionMoves`, `workoutSession.mjs`).
+  - A move with no reps of its own now reads its scheme with the outline parser's own plain reader (`bsPlainScheme`, exported from `planOutline.mjs`), not a copy of its number pattern.
+  - `3 × 30 s` pre-fills `30 s` where it pre-filled `30`, so a quick-logged plank no longer records 30 reps.
+  - The **Log set · N reps** button names a count, so it leaves out a hold or a distance (`bsIsTimedReps`, the same unit rule).
+- **The builder** (`rowFromBlock`, `workoutDocument.js`) gains the distance units.
+  - ⚠ **A plain browser script cannot import the parser, so it keeps its own copy of the list**, exported as `TIME_DISTANCE_UNITS`. `tests/unit-rule-readers.test.mjs` compares the two lists exactly, so they cannot drift.
+  - Its time units read exactly as they always have. The distance units take the parser's rule: the unit ends the value, or `/side` or `/leg` follows it.
+  - ⚠ **Without a boundary after the unit, the time list has to be tried longest first**, or `30 seconds` reads as `30 s` and a load of `econds`. The copy is sorted where it is used, not rewritten out of the parser's order.
+  - A decimal, new here (`1.5 min`), takes one check: no letter may follow the unit. That keeps `1.5 sets` reading as it did.
+- **The swap.** The owner's question was whether a swapped-in move inherits the original's reps through `{ ...r, ...override }`. **It did.**
+  - The Train deck applied a pick as `{ ...move, m, s }`, and the player reads `sets`, `reps`, rest and the per-set ladder ahead of the scheme.
+  - So a delivered back squat swapped to *Goblet squat · 4 × 10 · 2:00* still ran 5 × 5 on 3:00. The test pins `main`'s `[5, '5', 180]` as the control.
+  - ⚠ **Decided and shipped: a swap whose scheme differs from the move's own clears those five fields** (`sets`, `reps`, `rest`, `restSeconds`, `perSet`; `bsApplyMoveSwap`), so the player runs what the deck shows.
+  - A ladder's written-out `l` becomes `—` and its `load` goes, because the list cannot outlive the ladder: every set's load box would otherwise be pre-filled with the whole list and log no load.
+  - A generic variant carrying the move's own scheme keeps everything.
+  - Load, RPE, tempo, cue and video are left as they were. That is registered as its own question.
+- **The readings from `main` were recorded before anything changed, then pinned.**
+  - 103 builder lines (plain numbers, ranges, ladders, `5 kg`, words such as `sets` / `steps` / `minimum`, decimals, per-side forms, speeds, lists): **exactly 23 change**.
+  - 70 player schemes: **exactly 25 change**.
+  - Every changed row is a hold or a distance, and both counts are asserted.
+- **Cache keys.** `workoutDocument.js` is a plain-script module, so both hosts move to `?v=20260923b` and the guard's floor follows.
+- **Review.** Codex auto-reviewed `5b86e08`, the PR's only commit, when the PR opened, and completed with **no findings**. CodeRabbit was **not** triggered: Codex had reviewed the head, and the owner's standing ruling is that the two do not both run. Its comment on the PR is the automatic under-10-stars skip notice, not a review.
+  - ⚠ **Two standing rulings meet here, and the owner may want to say which wins.** *"Use coderabbit for now"* asks for one CodeRabbit round per PR, the 2026-09-11 ruling says the two never run together, and Codex fires on its own when a PR opens. On #2157 the trigger went out at PR open and both engaged the same commit. On this PR, Codex's completed review was read first and CodeRabbit was not triggered.
+- **Verified.**
+  - Re-run on the merged tree (`3dc82ec`): `npm test` **4597/4597** · `tsc --noEmit` **0** · mobile build 0 · the newdesign precompile check **73 pages, 81 shared jsx, 0 errors**. All four required checks were green on `5b86e08`.
+  - **34 of 34 mutations killed**, 0 skipped, each anchor occurring exactly once, sanity 128/128 at both ends, the tree restored byte for byte.
+    - ⚠ **The first round ran on a tree two edits older than the commit**: its log predates the last edits to the test file and `workoutDocument.js`. A count for a tree that no longer exists is not a count, so the round was re-run on the committed tree, with two more mutations for the edits it had missed.
+  - **Driven in Chromium at 390×844, and on `main` too, as the control.** Both builds were served side by side.
+    - ⚠ **The first pass would have driven a `dist` built before the last source edit.** It was rebuilt, and each server was checked to serve its own client chunk. That check lists `dist/assets`, because the client chunk is lazy-loaded and never appears in `index.html`.
+    - Farmer carry `3 × 40m · 60s rest`: *Log set 1 · 40 reps*, box `40` → **Log set 1**, box `40m`.
+    - Swapped to Trap-bar hold: *Log set 1 · 30 reps*, box `30` → **Log set 1**, box `30 s`.
+    - Pull-up reads *Log set 1 · 6-8 reps* on both builds.
+    - Zero page errors on either.
+- ⚠ **REGISTERED, NOT FIXED:**
+  - The builder still reads a word that starts with a time unit as one: `3 × 10 sets` is `10 s` with a load of `ets`. This predates the PR and is pinned as it reads.
+  - A spaced speed, `10 m / s`, reads as 10 m in both readers. The unit ends the value, which is all the rule can see.
+  - The button still says `{reps} reps` for per-side and effort values (`8 each`, `AMRAP`, `30s/side`).
+  - Russian's plural renders a rep range as *не число*. This predates the PR.
+  - A saved swap is a snapshot of the scheme, so a later coach edit to the move does not reach it.
+  - A semicolon load keeps its semicolon (`; rest 1 min`).
+- ⚠ **TWO MORE DEFECTS OF THE SAME CLASS WERE FOUND WHILE DRIVING THIS ONE, AND ARE QUEUED AS THEIR OWN TASKS.**
+  - `bsRestSeconds` takes the first number-and-unit in a scheme, so the demo client's Farmer carry, `3 × 40m · 60s rest`, starts a **40-minute** rest timer: 40 metres read as 40 minutes. `3 × 45s · 30s rest` rests 45 s.
+  - The builder's Sheet cell splits sets × reps on any `×` **or letter x**, so changing the sets of a `3 × max` row rewrites the reps to `ma`.
+  - Both predate this PR. It changes neither reader, so neither is widened into it.
+
+### 2026-09-23 — The DOM-value guard reads the syntax tree: both compared values, split calls, and a trap on another receiver
+
+- **Merged [#2157](https://github.com/cperry8800-droid/shape-app/pull/2157) as `a7e2ea5`**, final head `2e37f4b`; the merged tree is **byte-identical** to it (tree `fee5531` on both, since `main` had not moved). Tests only: no app change, no migration, no route. It closes the gap #2154 registered: the guard read only the **first** argument of a call written on **one** line.
+- **How it reads now.** `tests/assert-dom-value.test.mjs` parses every test file with `@babel/parser` and checks **both** compared values of every equality assert: `equal`, `strictEqual`, `notEqual`, `notStrictEqual`, the four deep forms and `partialDeepStrictEqual`, plus node:test's `t.assert`.
+  - A split call is one node in the tree, so line layout cannot hide it.
+  - A comment or a string is not code to a parser. The fixtures no longer need to be assembled to stay out of the sweep.
+  - ⚠ **A file that does not parse fails the sweep.** Skipping it would report a clean file that was never read. All 327 files under `tests/` parsed at merge.
+  - At merge the sweep walked **10,215** equality asserts, re-measured on `a7e2ea5`. A floor of 5,000 fails the run if the walk stops recognising `assert`.
+- **What the first census found.** Before any conversion, the new reading flagged exactly three files:
+  - `error-boundary-mount.test.mjs:91` compared `document.getElementById('root')` as the **second** value, which the old reading could not see.
+  - `dob-gate-web` and `dashboard-coaching-usability` compared a query on **another receiver**: `doc.getElementById(...)` and `m.el.querySelector(...)`. Both return a live JSDOM node, so it is the same trap.
+  - ⚠ **So the four query methods now count on any receiver, not only `document.`**, which goes one step past the brief. The PR said so and offered the one-line revert.
+  - The 11 registered sites are unchanged (four files, all first-value and single-line), so the ratchet did not grow.
+- **Converted to `assert.ok(...)`, each with a message.** The three flagged sites, plus dob-gate-web's three `gateIn(doc)` comparisons. `gateIn` is a helper that returns a live node, which no reading of the syntax can see. They were converted because the change touched the file.
+- **What it still cannot see, in the header and pinned by fixtures:**
+  - a node returned by a helper other than `byText`, such as `find(...)`, `byAria(...)` or `gateIn(doc)`;
+  - a node held in a variable;
+  - a node reached through a pointer that is not on the list (`document.body`, `.firstChild`);
+  - values passed through a spread of anything but an array literal, and any argument after one.
+  - The tree records how a value is spelled, not what it is. Only a runtime check could see these.
+- **Review.**
+  - **Codex** auto-reviewed `24eaca4` when the PR opened and completed with **no findings**. Its usage limit had lifted.
+  - **CodeRabbit answered the one trigger as chat again**, not as a review. The reply opened with the *initiate chat* tip, and the commit status stayed at *Review skipped*.
+    - ⚠ **This trigger was 783 characters as posted, footer included, with no numbered list**, so neither length nor a list predicts the outcome. Commands so far: 221, 642 and 942 characters. Chat: 783, 1,555 and 4,404. Check the reply for the command marker and the commit status; nothing else tells you a review ran.
+  - The chat reply confirmed all five conversions keep their test's condition. It raised one point: `assert.equal(...[node, null])` hides both values behind a spread. That was fixed in `2e37f4b`, with fixtures, including one pinning that an opaque spread (`...args`) stays invisible.
+  - ⚠ **Both reviewers engaged `24eaca4`, which the owner's ruling says should not happen.** The trigger went out at PR open, five seconds before Codex's automatic review started.
+  - CodeRabbit was **not** triggered again, since a round is one trigger per PR. **So no external reviewer read `2e37f4b`**: the spread fix is covered by my own read and the mutation round below.
+- **Verified:**
+  - `npm test` **4581/4581** through the pre-commit gate, on both commits. The merged tree is the final head's, so that count is the merged tree's.
+  - All four required checks green on `2e37f4b`.
+  - **20 of 20 mutations killed**, with sanity green at both ends and five files restored byte for byte.
+    - Seven were sites. Each converted site was put back; a split call, a second-value node and a split second-value node were added; and one site was added to a registered file. Each failed the sweep and **named the file**.
+    - Thirteen broke the detector's own rules, and each failed the fixtures or the sweep.
+  - ⚠ **One mutation survived the first round, and it was a gap in the fixtures.** Reading an opaque spread's argument as a compared value changed nothing any fixture could see. The position of every argument after `...args` is unknown, so that is now pinned as a blind spot, and the header says so.
+
 ### 2026-09-23 — The light paper's role colours reach AA, and 1,228 faint labels follow the paper
 
 - **Merged [#2160](https://github.com/cperry8800-droid/shape-app/pull/2160)** by the owner as merge commit `197cfad`, head `4f9acf7`. Every file the PR touched is **byte-identical** to that head on `main`; the only other files that moved are #2159's, and the two share none. Follows #2146. Owner: *"what do you suggest?"* → *"ok do it"*, on a proposal to darken the three role colours **on the white version only**, fix the faint teal and orange labels, ship one PR and send a side-by-side preview before merging (https://claude.ai/artifact/MKWo35sQapW2zW2n7wixvJ). `public/newdesign/` and four test files. **No migration, no route, no data change.**
@@ -832,8 +915,8 @@ Append new entries at the top, under this note.
   - The owner asked *"do we need coderabbit review?"*. It is not part of the gate, which is CI green on the final head and not a draft. The owner then ruled *"merge"*, for this PR. A merged PR cannot be reviewed, so this diff has had my own read and the two mutation rounds, and no external review.
 - ⚠ **REGISTERED, NOT FIXED**, pinned in the tests as they read today so that fixing one is a deliberate change:
   - A unit run into a list, range or rate (`30s/45s`, `30s-45s`, `10 m/s`); a range with spaces around its dash (`30 – 45 sec`) or a decimal on its near end (`1.5-2 km`); a per-side suffix (`10/side`, `30s/side`); `m:ss` (`1:30`); spelled-out distances the list does not name (`1 mile`, `400 meters`); a trailing period (`10 sec.`); a decimal comma (`1,5 km`).
-  - The website's `rowFromBlock` (`workoutDocument.js`) keeps time units but has no distance units, so a legacy outline block `Run — 3 × 400m` still opens in the builder as 400 reps.
-  - The live player's `bsSessionMoves` still reads reps off a move's scheme line with the old plain pattern when the move carries no reps of its own. A swap override carries only `{ m, s }`.
+  - The website's `rowFromBlock` (`workoutDocument.js`) keeps time units but has no distance units, so a legacy outline block `Run — 3 × 400m` still opens in the builder as 400 reps. ⚠ **FIXED in [#2159](https://github.com/cperry8800-droid/shape-app/pull/2159)**: `rowFromBlock` takes the distance units now, so a `400m` block opens as `400m`, not 400 reps.
+  - The live player's `bsSessionMoves` still reads reps off a move's scheme line with the old plain pattern when the move carries no reps of its own. A swap override carries only `{ m, s }`. ⚠ **FIXED in [#2159](https://github.com/cperry8800-droid/shape-app/pull/2159)**: the player reads the scheme with the parser's own `bsPlainScheme`, and a swap whose scheme differs from the move's own clears the original's sets, reps, rest and per-set ladder (`bsApplyMoveSwap`), so the player runs the swap's scheme.
 
 ### 2026-09-23 — The DOM-value guard learns `activeElement`, and thirteen node comparisons become boolean asserts
 
@@ -850,7 +933,7 @@ Append new entries at the top, under this note.
   - the dialog query put back, in a file no longer registered, fails;
   - the stale `KNOWN` entry left in place fails the both-direction count check;
   - the reversed order, `assert.equal(first, doc.activeElement)`, **passes**, as the guard's header now says.
-- ⚠ **WHAT IT STILL CANNOT SEE.** It reads the **first** argument of a call written on **one line**, and its header says so. A read of every assertion in all 327 test files with `@babel/parser`, which sees split calls too, found no `activeElement` comparison the widened pattern misses and one node in the second argument: `tests/error-boundary-mount.test.mjs:91`. Closing that means reading both arguments from the syntax tree, which is its own change. ⚠ **And a node returned by a helper is invisible to any pattern.** It knows `byText(...)` by name; `find(...)` and `byAria(...)`, the shapes #2150 and #2152 hit, it cannot know. The header does not say this yet.
+- ⚠ **WHAT IT STILL CANNOT SEE.** It reads the **first** argument of a call written on **one line**, and its header says so. A read of every assertion in all 327 test files with `@babel/parser`, which sees split calls too, found no `activeElement` comparison the widened pattern misses and one node in the second argument: `tests/error-boundary-mount.test.mjs:91`. Closing that means reading both arguments from the syntax tree, which is its own change. ⚠ **CLOSED in [#2157](https://github.com/cperry8800-droid/shape-app/pull/2157)**: the guard reads both compared values from the syntax tree, split calls included, and that site compares a boolean now. ⚠ **And a node returned by a helper is invisible to any pattern.** It knows `byText(...)` by name; `find(...)` and `byAria(...)`, the shapes #2150 and #2152 hit, it cannot know. The header does not say this yet. ⚠ **It does since #2157**, and fixtures pin each blind spot it names.
 - **Review:** CodeRabbit, one front-loaded round, **no findings**. It APPROVED `5b593f5`, and its Merge Risk line (Minimal) names that same head. Its own census found zero guarded sites left in either converted file. Codex refused on its usage limit.
 
 ### 2026-09-23 — A coach can write a ladder: per-set reps and weight on every surface, and a review round whose three findings were all real
@@ -883,7 +966,7 @@ Append new entries at the top, under this note.
 - ⚠ **THE TRAP #2150 RECORDED, WALKED INTO AGAIN: FIVE ASSERTIONS IN THE NEW UI SUITE COMPARED DOM NODES.** Two focus mutations therefore read as *killed* for the wrong reason. The node formatting stalled the run until the runner SIGKILLed it at 76 s, and the named assertion never reported. Only the log's `signal: 'SIGKILL'` gave it away.
   - `tests/assert-dom-value.test.mjs` saw none of the five. It reads only the **first** value an assertion compares, and it recognises the `document.querySelector` family, parent and child pointers, `.closest()` and `byText()`.
   - Four of mine put `document.activeElement` first and one put a helper's result (`byAria(...)`) first. The node each was compared against sat in the **second** position, where the guard does not look, even when it was a `document.querySelector(...)` call.
-  - That is wider than the blind spot #2150 queued as its own task: a node in the second argument is invisible as well. ⚠ **[#2154](https://github.com/cperry8800-droid/shape-app/pull/2154) closed the part #2150 queued**: the guard counts `.activeElement` now, and those 11 sites compare booleans. The second-argument half is still open, at `tests/error-boundary-mount.test.mjs:91`.
+  - That is wider than the blind spot #2150 queued as its own task: a node in the second argument is invisible as well. ⚠ **[#2154](https://github.com/cperry8800-droid/shape-app/pull/2154) closed the part #2150 queued**: the guard counts `.activeElement` now, and those 11 sites compare booleans. The second-argument half is still open, at `tests/error-boundary-mount.test.mjs:91`. ⚠ **CLOSED in [#2157](https://github.com/cperry8800-droid/shape-app/pull/2157)**, which reads both compared values from the syntax tree.
   - All five now compare booleans (`assert.ok(a === b, msg)`), and both mutations die on their own assertions.
   - *A kill by timeout is not a kill: it proves the run stopped, not that the guard fired.*
 - ⚠ **THE FIRST MUTATION ROUND ON THE FIXES HAD TWO SURVIVORS, AND BOTH WERE REAL GAPS IN MY GUARDS.**
