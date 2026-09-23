@@ -1,5 +1,5 @@
 import { supersetKey } from '../../../public/newdesign/workoutDocument.mjs';
-import { BS_TIME_DISTANCE_SUFFIX } from './planOutline.mjs';
+import { BS_TIME_DISTANCE_SUFFIX, bsPlainScheme } from './planOutline.mjs';
 
 // Session rules shared by the live player and regression tests. Drafts contain
 // only this account's work; the existing shapeClient sign-out scrub owns them.
@@ -33,11 +33,36 @@ export function bsRestSeconds(move = {}) {
   if (duration && (move.rest || /rest/.test(raw))) return Math.round(Number(duration[1]) * (/^m/.test(duration[2]) ? 60 : 1));
   return null;
 }
+// A move with no reps of its own reads them from its scheme, with the outline parser's
+// own reader (`bsPlainScheme`, planOutline.mjs), so a hold or a distance keeps its unit:
+// "3 × 30 s" pre-fills "30 s", where the digits alone pre-filled "30" and a quick-logged
+// plank recorded 30 reps. Any other scheme reads exactly as it did: the reader's number
+// pattern is the one this line carried, and it adds a unit only where one ends the value.
 export function bsSessionMoves(moves = []) {
   return moves.map(m => {
-    const scheme = String(m.s || '').match(/(\d+)\s*[×x]\s*([\d–-]+)/);
+    const scheme = bsPlainScheme(String(m.s || ''));
     return { ...m, sets: Math.max(1, Number(m.sets) || (scheme ? Number(scheme[1]) : 1)), reps: m.reps ?? (scheme ? scheme[2] : ''), restSeconds: bsRestSeconds(m) };
   });
+}
+// ⚠ A SWAP THAT BRINGS ITS OWN SCHEME BRINGS ITS OWN PRESCRIPTION. The Train deck
+// applies a picked alternative as `{ ...move, m, s }`, so the move swapped in kept the
+// original's `sets`, `reps`, rest and ladder, and the player reads every one of those
+// ahead of the scheme (`bsSessionMoves`, `bsRestSeconds`, `bsSetPrefill`): the deck
+// showed "Goblet squat · 4 × 10 · 2:00" while the player ran the back squat's 5 × 5 on
+// its 3:00 rest. When the swap's scheme is not the move's own, those fields go, so the
+// player runs the scheme the deck shows. A generic variant ("Dumbbell variant") carries
+// the move's own scheme and keeps everything, because nothing it prescribes changed.
+// A ladder's `l` and `load` are the ladder written out ("60/70/80 kg"), which cannot
+// outlive the ladder: every set's load box would be pre-filled with the whole list and
+// log no load, so they read '—', the deck's own mark for no load. The load, RPE,
+// tempo, cue and video of a move with no ladder are left as they were.
+const BS_SWAP_CLEARS = ['sets', 'reps', 'rest', 'restSeconds', 'perSet'];
+export function bsApplyMoveSwap(move, swap) {
+  const next = { ...move, ...(swap || {}) };
+  if (!swap || typeof swap !== 'object' || swap.s == null || String(swap.s) === String(move?.s ?? '')) return next;
+  for (const key of BS_SWAP_CLEARS) delete next[key];
+  if (bsHasLadder(move)) { next.l = '—'; delete next.load; }
+  return next;
 }
 // The preview owns the selected workout. Carry that exact assignment into the
 // player rather than navigating to a separate screen that defaults to today.
@@ -142,6 +167,15 @@ export function bsMoveTotalReps(move) {
   }
   const repMatch = String(move?.s).match(BS_SCHEME_REPS);
   return repMatch ? Number(repMatch[1]) * Number(repMatch[2]) : 0;
+}
+// A rep value that is a hold or a distance by the same rule: a number, or the parser's
+// own range characters, with a unit from its list after it that ends the value ("30 s",
+// "1.5 km", "30-45s"). The player's "Log set · N reps" button names a COUNT, so it
+// leaves one of these out rather than print "30 s reps" (and, in Russian, a plural of
+// a value that is not a number).
+const BS_TIMED_REPS = new RegExp(String.raw`^\d[\d–-]*${BS_TIME_DISTANCE_SUFFIX}$`, 'i');
+export function bsIsTimedReps(value) {
+  return BS_TIMED_REPS.test(String(value ?? '').trim());
 }
 // Two moves are one superset when their keys match under the document's own
 // rule. ⚠ NAVIGATION AND REST MUST ASK THE SAME QUESTION: this compared a

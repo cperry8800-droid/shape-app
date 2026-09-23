@@ -43,8 +43,11 @@ const loads = (page, file) => read(page).includes('src="' + file);
 // ⚠ 20260923: per-set targets — `ladder`, `setTarget`, `perSetEntries` and the
 // ladder-aware `loadLabel` in the document module, which the builder's new per-set
 // table calls on every render, and the ladder-aware labels in the builder core.
+// ⚠ 20260923b: workoutDocument.js only. Its legacy block reader keeps a hold or a
+// distance whole (`TIME_DISTANCE_UNITS`); a page handed the older copy reads a legacy
+// "Carry — 3 × 40 m · 32 kg" as 40 reps and a load of "m · 32 kg".
 const MIN = {
-  'workoutDocument.js': '20260923',
+  'workoutDocument.js': '20260923b',
   'dashBuilderCore.js': '20260923',
   'dashMealCore.js': '20260922c',
   'dashSignals.js': '20260922b',

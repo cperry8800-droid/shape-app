@@ -82,7 +82,11 @@ export function bsTextRepLadder(tail) {
 // right after the number, which may carry a decimal part first ("1.5 km"). The plain
 // reader below keeps such a suffix with its number, and the member preview's rep total
 // (`bsMoveTotalReps`, workoutSession.mjs) refuses to count the same value as reps. Both
-// read BS_TIME_DISTANCE_SUFFIX, so a unit added for one is known to the other.
+// read BS_TIME_DISTANCE_SUFFIX, so a unit added for one is known to the other. The
+// session player reads a move's scheme with the plain reader itself (`bsSessionMoves`),
+// and the website builder, a plain browser script that cannot import this module,
+// carries its own copy of the list (`TIME_DISTANCE_UNITS`, workoutDocument.js), which
+// tests/unit-rule-readers.test.mjs holds equal to this one.
 export const BS_TIME_DISTANCE_UNITS = 's|secs?|seconds?|mins?|minutes?|m|km|mi|yds?|yards?';
 export const BS_TIME_DISTANCE_SUFFIX = String.raw`(?:\.\d+)?\s*(?:${BS_TIME_DISTANCE_UNITS})`;
 
@@ -97,7 +101,7 @@ export const BS_TIME_DISTANCE_SUFFIX = String.raw`(?:\.\d+)?\s*(?:${BS_TIME_DIST
 // exactly as it was before this rule existed. The number itself is still the plain
 // pattern's, unchanged, so a value with no unit after it reads as it always has.
 const BS_UNIT_AFTER = new RegExp(String.raw`^${BS_TIME_DISTANCE_SUFFIX}(?=$|[\s·,;])`, 'i');
-function bsPlainScheme(tail) {
+export function bsPlainScheme(tail) {
   const m = /(\d+)\s*[×x]\s*([\d–-]+)/.exec(tail);
   if (!m) return null;
   const unit = BS_UNIT_AFTER.exec(tail.slice(m.index + m[0].length));

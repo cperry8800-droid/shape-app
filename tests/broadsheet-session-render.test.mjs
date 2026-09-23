@@ -957,6 +957,22 @@ test('drive: straight sets pre-fill and record exactly as before', async () => {
   await h.completeAllSets(); await h.click('Finish workout ✓'); await h.click('Save & finish ✓');
   assert.deepEqual(h.saved[0].setLogs.map((s) => [s.targetReps, s.targetLoad]), [['5', '100 kg · RPE 8'], ['5', '100 kg · RPE 8']]);
 });
+// ⚠ A HOLD IS NOT A REP COUNT ON THE BUTTON. The scheme fallback keeps "30 s" whole now,
+// and "Log set {n} · {reps} reps" would print "30 s reps" (and in Russian put "30 s"
+// through a plural, which renders a value that is not a number as "не число"). A hold
+// takes the plain "Log set {n}", and the reps box holds the hold as written.
+test('the call to action never calls a hold reps, and the reps box holds it whole', async () => {
+  const { bsSessionMoves } = await import('../mobile-app/src/services/workoutSession.mjs');
+  const plank = render(session({ moves: bsSessionMoves([{ m: 'Plank', s: '3 × 30 s · 1:00', l: '—' }]) }));
+  assert.equal(plank.warnings.length, 0, plank.warnings.join('\n'));
+  assert.match(plank.html, />Log set 1<\/button>/);
+  assert.doesNotMatch(plank.html, /reps<\/button>/);
+  assert.match(plank.html, /value="30 s"/);
+  // The control: a count still names its reps on the button.
+  const row = render(session({ moves: bsSessionMoves([{ m: 'Row', s: '3 × 10 · 1:30', l: '50 kg' }]) }));
+  assert.equal(row.warnings.length, 0, row.warnings.join('\n'));
+  assert.match(row.html, />Log set 1 · 10 reps<\/button>/);
+});
 test('Begin session carries a coach\'s ladder from the assigned workout into each set', () => {
   globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'client-test' } }) };
   const perSet = [{ reps: '8', load: '60 kg' }, { reps: '6', load: '70 kg' }, { reps: '4', load: '80 kg' }];
