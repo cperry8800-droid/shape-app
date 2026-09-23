@@ -30,21 +30,30 @@ export function bsRemoveWorkoutDraft(storage, userId, sessionId) {
 // finds it (`bsPlainScheme`: sets × reps, and a unit that ends the value). The rest is then
 // read from what follows that reading, past the text run on to it up to the parser's own
 // end of a value (a space, a "·", a comma or a semicolon), so a hold list such as
-// "30s/45s" is not read as the rest either. Nothing before the rep value is kept: it holds
-// no reading (one there would have come first), and joined to what follows, the 2 of
-// "rest 2 3 × 30s min" would run into the "min". "m" is metres in a rep value and minutes
-// in a rest ("2 m rest"), and the rep value is never read as one. Every other scheme is
-// read unchanged, so it rests what it rested before: a rest glued to a rep value with no
-// unit ("3 × 10/90s rest") rests its 90 s, and the same shape with a second hold glued on
-// ("3 × 30/45s · 60s rest") still rests the 45 s hold. That one is registered: position
-// alone cannot tell the two apart. tests/session-rest-seconds.test.mjs pins main's readings.
+// "30s/45s" is not read as the rest either. The run keeps one value: in a work/rest pair
+// glued on with a slash, the run's last value is the rest when the word rest follows it
+// ("8 × 20s/10s rest" rests 10 s, "5 × 30s/1:30 rest" 90 s). Nothing before the rep value
+// is kept: it holds no reading (one there would have come first), and joined to what
+// follows, the 2 of "rest 2 3 × 30s min" would run into the "min". "m" is metres in a rep
+// value and minutes in a rest ("2 m rest"), and the rep value is never read as one. Every
+// other scheme is read unchanged, so it rests what it rested before: a rest glued to a rep
+// value with no unit ("3 × 10/90s rest") rests its 90 s, and the same shape with a second
+// hold glued on ("3 × 30/45s · 60s rest") still rests the 45 s hold. That one is
+// registered: position alone cannot tell the two apart. tests/session-rest-seconds.test.mjs
+// pins main's readings.
 const BS_REST_DURATION = /(\d+(?:\.\d+)?)\s*(min(?:ute)?s?|m|sec(?:ond)?s?|s)(?:\s*rest)?/;
 const BS_VALUE_RUN = /^[^\s·,;]*/;
+// The run's last value after a slash, a number and a unit or a clock, marked by the word
+// rest. A rest followed by a number is that number's ("3 × 30s/45s rest 60s"), not the pair's.
+const BS_PAIR_REST = /^(?:\/[^\s·,;\/]*)*\/\s*(?:(\d+):(\d{2})|(\d+(?:\.\d+)?\s*(?:min(?:ute)?s?|m|sec(?:ond)?s?|s)))\s*rest(?!\s*\d)/;
 function bsRestText(scheme) {
   const at = bsPlainScheme(scheme);
   const read = BS_REST_DURATION.exec(scheme);
   if (!at || !read || read.index < at.index || read.index >= at.index + at[0].length) return scheme;
   const after = scheme.slice(read.index + read[0].length);
+  const pair = BS_PAIR_REST.exec(after);
+  // A clock is spelled in seconds, so the one duration reader below reads either kind.
+  if (pair) return pair[3] ? `${pair[3]} rest` : `${Number(pair[1]) * 60 + Number(pair[2])}s rest`;
   return after.slice(BS_VALUE_RUN.exec(after)[0].length);
 }
 export function bsRestSeconds(move = {}) {

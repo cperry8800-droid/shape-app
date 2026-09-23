@@ -10,7 +10,8 @@ import { bsBuildDemoTrainProgram } from '../mobile-app/src/broadsheet/bsClientWe
 // hold or a distance that is the rep value: the demo Farmer carry, "3 × 40m · 60s rest",
 // started a 40:00 rest timer. That first reading is now replaced only when it starts inside
 // the rep value (the outline parser's own `bsPlainScheme` says where that is), and the rest
-// is read from what follows it.
+// is read from what follows it. In a work/rest pair glued on with a slash ("8 × 20s/10s
+// rest"), the rest is the value the word rest marks.
 //
 // Every row below was read with main's bsRestSeconds before the change. A row with a third
 // value is one whose rest main read off the rep value, and the third value is what it reads
@@ -108,16 +109,34 @@ const ROWS = [
   // of its own, and joined to what follows, the 2 of "rest 2" would run into the "min".
   [{ s: 'rest 2 3 × 10 sets' }, 10, null],
   [{ s: 'rest 2 3 × 30s min' }, 30, null],
+  // A work/rest pair glued on with a slash: the value the word rest marks is the rest, where
+  // the run past the rep value would otherwise drop it. In the first two, main read the rep
+  // value, which is the same number as the rest.
+  [{ s: '5 × 30s/30s rest' }, 30],
+  [{ s: '5 × 30s/30 sec rest' }, 30],
+  [{ s: '8 × 20s/10s rest' }, 20, 10],
+  [{ s: '8 × 20s / 10s rest' }, 20, 10],
+  [{ s: '4 × 20 sec/10 sec rest' }, 20, 10],
+  [{ s: '3 × 30s/45s rest' }, 30, 45],
+  [{ s: '3 × 30s/45s/60s rest' }, 30, 60],
+  [{ s: '5 × 1 min/30s rest' }, 60, 30],
+  [{ s: '5 × 30s/1:30 rest' }, 30, 90],
+  [{ s: '3 × 40m/2 min rest' }, 2400, 120],
+  // A pair the word rest does not mark names no rest. A rest followed by a number is that
+  // number's, as in "3 × 10 · rest 90s", so it marks no pair.
+  [{ s: '5 × 30s/30s' }, null],
+  [{ s: '8 × 20s/10s off' }, null],
+  [{ s: '3 × 30s/45s rest 60s' }, 30, 60],
 ];
 
 test('every pinned scheme reads its rest as recorded on main, except the rows that read the rep value', () => {
-  assert.ok(ROWS.length >= 76, 'the table is shorter than the one main was recorded over');
+  assert.ok(ROWS.length >= 89, 'the table is shorter than the one main was recorded over');
   for (const [move, before, ...now] of ROWS) {
     const want = now.length ? now[0] : before;
     assert.equal(bsRestSeconds(move), want, `${JSON.stringify(move)}: main read ${before}`);
   }
   const changed = ROWS.filter((row) => row.length === 3);
-  assert.equal(changed.length, 23, 'the number of schemes whose rest reads differently now');
+  assert.equal(changed.length, 32, 'the number of schemes whose rest reads differently now');
   // Each of them is a scheme with no rest field of its own, whose rep value the parser finds.
   for (const [move] of changed) {
     assert.ok(move.rest == null && move.restSeconds == null, `${JSON.stringify(move)} carries a rest field`);
@@ -131,6 +150,18 @@ test('the Farmer carry rests 60 s, and a 45 s hold with a 30 s rest rests 30 s',
   // "m" is metres in a rep value and minutes in a rest.
   assert.equal(bsRestSeconds({ s: '3 × 40m · 2 m rest' }), 120);
   assert.equal(bsRestSeconds({ rest: '2 m' }), 120);
+});
+
+test('a work/rest pair glued on with a slash rests the value the word rest marks', () => {
+  // The run past the rep value is dropped so a hold list is not read as the rest. A value the
+  // word rest marks is kept from it, or these would name no rest at all.
+  assert.equal(bsRestSeconds({ s: '5 × 30s/30s rest' }), 30);
+  assert.equal(bsRestSeconds({ s: '8 × 20s/10s rest' }), 10);
+  assert.equal(bsRestSeconds({ s: '5 × 30s/1:30 rest' }), 90);
+  assert.equal(bsRestSeconds({ s: '3 × 30s/45s/60s rest' }), 60);
+  // A hold list followed by a rest of its own still rests that rest, and an unmarked pair none.
+  assert.equal(bsRestSeconds({ s: '3 × 30s/45s · 60s rest' }), 60);
+  assert.equal(bsRestSeconds({ s: '5 × 30s/30s' }), null);
 });
 
 test('bsPlainScheme says where the rep value starts, with or without a unit after it', () => {
