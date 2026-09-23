@@ -615,9 +615,10 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     },
 
     // Upsert the user's goal page state. Requires a logged-in session.
-    async saveUserGoals(kind, data) {
+    async saveUserGoals(kind, data, options) {
       var u = await shapeDb.getUser();
       if (!u) return { error: { message: 'Not logged in' } };
+      if (options && options.expectedUserId && u.id !== options.expectedUserId) return { error: { message: 'Account changed' } };
       var res = await client.from('user_goals').upsert({
         user_id: u.id,
         kind: kind,

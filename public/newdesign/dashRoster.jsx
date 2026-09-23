@@ -762,6 +762,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
   const view = DASH_ROSTER_VIEWS[role] || DASH_ROSTER_VIEWS.nutritionist;
 
   const matchesFilter = (r) => {
+    if (["red", "amber", "green"].includes(filter)) return r.severity === filter;
     if (filter === "eyes") return r.severity === "red" || r.severity === "amber";
     if (filter === "unknown") return r.severity === "unknown";
     if (filter === "new") return !!r.client.profile.isNew;

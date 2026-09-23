@@ -918,8 +918,9 @@ function DbuFutureUpdates({template,clients,onClose}) {
 }
 
 // ── Assign modal — multi-client + start date; marks the programming queue ───
-function DbuAssignModal({ template, doc, clients, queue, live, onClose }) {
-  const [picked, setPicked] = React.useState({});
+function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose }) {
+  const [picked, setPicked] = React.useState(() => preselectId ? { [preselectId]: true } : {});
+  React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [startDate, setStartDate] = React.useState(() => {
     const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); // next Monday
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
@@ -1310,7 +1311,7 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
   );
 }
 
-function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved }) {
+function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
@@ -1791,7 +1792,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
         )}
       </div>
 
-      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} onClose={() => setAssigning(false)} />}
+      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} onClose={() => setAssigning(false)} />}
     </fieldset>
   );
 }
@@ -1841,6 +1842,8 @@ function dbuCardFacts(info) {
 
 function TrainerProgramsPage() {
   const {clients,queue,today:live,source}=useDashboard('trainer');
+  const forClient = typeof dashRouteParam === 'function' ? dashRouteParam('client') : null;
+  const targetClient = clients.find(c => c.profile.id === forClient);
   const [templates,setTemplates]=React.useState(null),[view,setView]=React.useState(null);
   const [filters,setFilters]=React.useState(DFB_EMPTY),[error,setError]=React.useState('');
   const [ownerId,setOwnerId]=React.useState(null),[refresh,setRefresh]=React.useState(0);
@@ -1922,7 +1925,8 @@ function TrainerProgramsPage() {
     {source==='demo'&&<DashDemoBand/>}
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={live?{label:'MONTHLY · NET',amount:live.kpis.monthlyNetCents!=null?dashMoney(live.kpis.monthlyNetCents):'—',sub:live.kpis.activeClients+' active clients'}:trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
-      {view?<DbuBuilder key={view.id||view.name} template={view} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+      {targetClient && <p role="status">Choose a program for {targetClient.profile.name}. The assignment will have this client selected.</p>}
+      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetClient ? forClient : null} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}><button style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button><button style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button><button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Refresh</button></div>
         {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
         {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
@@ -1974,7 +1978,7 @@ function TrainerProgramsPage() {
       </>}
     </DashPage>
     {updateFor&&<DbuFutureUpdates template={updateFor} clients={clients} onClose={()=>setUpdateFor(null)}/>}
-    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={clients} queue={queue} live={isLive} onClose={()=>setAssignFor(null)}/>}
+    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={clients} queue={queue} live={isLive} preselectId={targetClient ? forClient : null} onClose={()=>setAssignFor(null)}/>}
   </React.Fragment>;
 }
 

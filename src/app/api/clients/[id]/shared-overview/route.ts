@@ -233,7 +233,7 @@ export async function GET(
   // photos, and the health profile (PAR-Q screening — never share-gated).
   const [
     { data: goals }, { data: stats }, { data: lifts },
-    { data: checkins }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
+    { data: checkins, error: checkinsError }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
     { data: cycle },
     { data: prep },
     { data: programRow },
@@ -459,7 +459,7 @@ export async function GET(
     goals: goals ?? null,
     stats: stats ?? null,
     lifts: lifts ?? null,
-    checkins: checkins ?? [],
+    checkins: checkinsError ? null : (checkins ?? []),
     measurements: measurements ?? [],
     progressPhotos: progressPhotos ?? [],
     healthProfile: healthProfile ?? null,

@@ -69,8 +69,8 @@ test('the gear and its panel read the SAME list', () => {
   // Named once, so a card can never render a ⚙ that opens nothing — the failure mode
   // this repo has already paid for on the hidden-cards bar, where the bar's visibility
   // and its contents were two different expressions.
-  const chrome = GRID.slice(GRID.indexOf('const chrome = (key)'), GRID.indexOf('return (\n    <div>'));
-  assert.match(chrome, /dgSettingGroups\(w\)\.length > 0 && <DgCardSettings groups=\{dgSettingGroups\(w\)\} \/>/);
+  const chrome = GRID.slice(GRID.indexOf('const chrome = (key)'), GRID.indexOf('className={customizing', GRID.indexOf('const chrome = (key)')));
+  assert.match(chrome, /dgSettingGroups\(w\)\.length > 0 && [\s\S]*?<DgCardSettings groups=\{dgSettingGroups\(w\)\} \/>/);
 });
 
 // ── the window ──────────────────────────────────────────────────────────────

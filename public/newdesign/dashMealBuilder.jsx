@@ -377,6 +377,7 @@ function DmbGroceryPanel({ plan, edits, onEdits }) {
 // ── Assign modal — per-client portion scale + training days + start date ────
 function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle, live, preselectId, onClose }) {
   const [picked, setPicked] = React.useState(() => (preselectId ? { [preselectId]: true } : {}));
+  React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [scales, setScales] = React.useState({});
   const [startDate, setStartDate] = React.useState(() => {
     const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); // next Monday
@@ -517,7 +518,7 @@ function DmbClientPreview({ doc, day, variant }) {
 }
 
 // ── The builder ─────────────────────────────────────────────────────────────
-function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId }) {
+function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId }) {
   const prefs = useRememberedChoices(!!live);
   const [layout, setLayout] = useRememberedChoice(prefs, "mealBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
   const [step, setStep] = React.useState(0);
@@ -743,7 +744,7 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
         <DmbAssignModal
           template={{ id: idRef.current, name }} doc={doc} groceryEdits={doc.groceryEdits || {}}
           clients={clients} queue={queue} lifecycle={lifecycle} live={live}
-          preselectId={assignClientId}
+          preselectId={assignClientId || preselectId}
           onClose={() => setAssigning(false)} />
       )}
     </div>
@@ -807,6 +808,8 @@ function dmbCardFacts(info) {
 
 function NutritionistPlansPage() {
   const { clients, queue, today: live, source } = useDashboard("nutritionist");
+  const forClient = typeof dashRouteParam === "function" ? dashRouteParam("client") : null;
+  const targetClient = clients.find((c) => c.profile.id === forClient);
   const [templates, setTemplates] = React.useState(null);
   const [view, setView] = React.useState(null); // null = library, else { template, assignClientId? }
   const [filters, setFilters] = React.useState(DFB_EMPTY);
@@ -898,12 +901,13 @@ function NutritionistPlansPage() {
         title="Plans"
         subtitle={view ? "Editing — autosaves as you build; Assign publishes a scaled snapshot to the client's meals + grocery." : "Your meal-plan library and who needs a plan next. Assign pre-fills the plan queue."}
       >
+        {targetClient && <p role="status">Choose a plan for {targetClient.profile.name}. The assignment will have this client selected.</p>}
         {view ? (
           <DmbBuilder
             key={view.template.id || view.template.name}
             template={view.template} ownerId={libraryOwner.current}
             clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
-            assignClientId={view.assignClientId}
+            assignClientId={view.assignClientId} preselectId={targetClient ? forClient : null}
             customFoods={customFoods}
             onBack={() => { setView(null); setRefresh((n) => n + 1); }}
             onSaved={({ id, name, doc }) => {
@@ -945,7 +949,7 @@ function NutritionistPlansPage() {
                     <div style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_INK50 }}>{b.targets.kcal} kcal · {b.targets.p}P · {b.days.length}-day rotation{variants ? " · " + variants + " variant" + (variants === 1 ? "" : "s") : ""}</div>
                     <div style={{ fontFamily: DMB_MONO, fontSize: 8.5, lineHeight: 1.6, color: DMB_INK50, marginTop: 6 }}>{dmbCardFacts(info)}</div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                      <button onClick={() => setAssignFor({ template: t })} style={dmbBtn(true)}>Assign to client</button>
+                      <button onClick={() => setAssignFor({ template: t, clientId: targetClient ? forClient : null })} style={dmbBtn(true)}>Assign to client</button>
                       <button onClick={() => setView({ template: coachTemplateCopy(t) })} style={dmbBtn(true)}>Use as template</button>
                       <button onClick={() => setView({ template: t })} style={dmbBtn(false)}>Edit template</button>
                     </div>
@@ -965,7 +969,7 @@ function NutritionistPlansPage() {
           doc={assignFor.template.detail.mealBuilder}
           groceryEdits={assignFor.template.detail.mealBuilder.groceryEdits || {}}
           clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
-          preselectId={assignFor.clientId}
+          preselectId={assignFor.clientId || (targetClient ? forClient : null)}
           onClose={() => setAssignFor(null)} />
       )}
     </React.Fragment>

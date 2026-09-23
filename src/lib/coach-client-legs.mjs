@@ -87,7 +87,14 @@ export function bsProgramLeg(assignments, templatesById, mine, now = Date.now())
     week = Math.floor((now - start) / (7 * DAY_MS)) + 1;
     if (weeks != null && weeks > 0) week = Math.min(week, weeks);
   }
-  return { name, week, weeks: weeks != null && weeks > 0 ? weeks : null, status };
+  const estimatedEnd = start != null && weeks != null && weeks > 0 && status !== 'paused' ? start + weeks * 7 * DAY_MS : null;
+  const next = mineRows.find((row) => row !== a && row.status === 'assigned' && ms(row.created_at) >= (start || 0));
+  const nextTemplate = next && templatesById && templatesById.get ? templatesById.get(next.program_template_id) : null;
+  return { name, week, weeks: weeks != null && weeks > 0 ? weeks : null, status,
+    estimatedEndAt: estimatedEnd != null ? new Date(estimatedEnd).toISOString() : null,
+    overdue: estimatedEnd != null && now > estimatedEnd,
+    nextAssigned: nextTemplate && nextTemplate.title ? nextTemplate.title : null };
+
 }
 
 // ── Food logging: the last logged day, and the recent days themselves ───────

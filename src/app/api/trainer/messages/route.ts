@@ -21,18 +21,19 @@ export async function GET() {
     return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   }
 
-  const { data: trainerRow } = await supabase
+  const { data: trainerRow, error: providerError } = await supabase
     .from('trainers')
     .select('id')
     .eq('owner_id', user.id)
     .maybeSingle();
 
+  if (providerError) return dbError(providerError, 'load coach identity');
   const providerId: number | null = trainerRow?.id ?? null;
   if (providerId == null) {
     return NextResponse.json({ isTrainer: false, threads: [] });
   }
 
-  const { data: convRows } = await supabase
+  const { data: convRows, error: convError } = await supabase
     .from('conversations')
     .select('id, client_id, last_message, last_message_at')
     .eq('kind', 'direct')
@@ -41,6 +42,7 @@ export async function GET() {
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(50);
 
+  if (convError) return dbError(convError, 'load coach conversations');
   const conversations = convRows ?? [];
   if (!conversations.length) {
     return NextResponse.json({ isTrainer: true, threads: [] });
@@ -48,11 +50,14 @@ export async function GET() {
 
   const convIds = conversations.map((c) => c.id);
 
-  const { data: msgRows } = await supabase
+  const { data: msgRows, error: msgError } = await supabase
     .from('messages')
     .select('id, conversation_id, sender_id, body, created_at')
     .in('conversation_id', convIds)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false })
+    .limit(1000);
+
+  if (msgError) return dbError(msgError, 'load coach messages');
 
   // Sessions are the RLS-safe source of client display names.
   const { data: sessRows } = await supabase
@@ -70,7 +75,7 @@ export async function GET() {
   }
 
   const msgsByConv = new Map<string, ThreadMessage[]>();
-  for (const m of msgRows ?? []) {
+  for (const m of [...(msgRows ?? [])].reverse()) {
     const arr = msgsByConv.get(m.conversation_id) ?? [];
     arr.push({ id: m.id, body: m.body, mine: m.sender_id === user.id, createdAt: m.created_at });
     msgsByConv.set(m.conversation_id, arr);
@@ -82,6 +87,7 @@ export async function GET() {
     lastMessage: c.last_message ?? '',
     lastMessageAt: c.last_message_at ?? null,
     messages: msgsByConv.get(c.id) ?? [],
+    latestKnown: !!c.last_message_at && (msgsByConv.get(c.id) ?? []).some((m) => Date.parse(m.createdAt) >= Date.parse(c.last_message_at)),
   }));
 
   return NextResponse.json({ isTrainer: true, threads });

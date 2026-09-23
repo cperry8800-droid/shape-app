@@ -2,7 +2,7 @@
 // The roster filter set, hoisted so its KEYS can be derived rather than typed out a
 // second time at the useRememberedChoice call below: a filter added here is
 // remembered without anyone having to notice a second list exists.
-const TCP_FILTERS = (n) => [["eyes", "Needs attention · " + n, true], ["all", "All"], ["new", "New"], ["ontrack", "On track"], ["unknown", "Progress unknown"]];
+const TCP_FILTERS = (n) => [["red", "Needs you"], ["amber", "Watch"], ["green", "On track · all"], ["eyes", "Needs attention · " + n, true], ["all", "All"], ["new", "New"], ["ontrack", "On track"], ["unknown", "Progress unknown"]];
 const TCP_FILTER_KEYS = TCP_FILTERS(0).map((f) => f[0]);
 
 function TrainerClientsPage() {
@@ -15,6 +15,10 @@ function TrainerClientsPage() {
   const prefs = useRememberedChoices(source === "live");
   const [tab, setTab] = useRememberedChoice(prefs, "clientsTab", ["all", "shared"], "all");
   const [flt, setFlt] = useRememberedChoice(prefs, "rosterFilter", TCP_FILTER_KEYS, "all");
+  const requestedStatus = dashRouteParam("status");
+  React.useEffect(() => {
+    if (["red", "amber", "green", "unknown"].includes(requestedStatus)) { setTab("all"); setFlt(requestedStatus); }
+  }, [requestedStatus]);
   // The sort R16's memory was waiting on. `triage` — the engine's severity order — is
   // the default and is what the roster has always shown, so a coach who never touches a
   // header sees no change at all.
@@ -140,13 +144,13 @@ function TrainerClientsPage() {
           render: () => rosterPanel("Roster by status", <DashRosterStatusPanel status={rosterStatus} role="trainer" />) },
         { key: "movers", title: "Top movers", blurb: "The biggest Shape Score moves, week over week.", optional: true, size: "half",
           empty: !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : staleWhy,
-          render: () => rosterPanel("Top movers", <DashTopMoversPanel movers={movers} />) },
-        { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a tenure mark on Shape in the next 30 days.", optional: true, size: "half",
+          render: () => rosterPanel("Top movers", <DashTopMoversPanel movers={movers} role="trainer" />) },
+        { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a milestone with your practice in the next 30 days.", optional: true, size: "half",
           empty: !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : staleWhy,
-          render: () => rosterPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} />) },
+          render: () => rosterPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} role="trainer" />) },
         { key: "revenue", title: "Revenue by client", blurb: "Who pays what per month, from their subscriptions.", optional: true, size: "half",
           empty: !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : staleWhy,
-          render: () => rosterPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} />) },
+          render: () => rosterPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} role="trainer" />) },
         { key: "ending", title: "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, size: "half",
           empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? "appears once a client is on one of your programs" : staleWhy,
           render: () => rosterPanel("Programs ending soon", <DashProgramsEndingPanel ending={ending} role="trainer" />) },

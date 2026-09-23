@@ -171,7 +171,7 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
     // nothing" as a measurement. `feeCents`/`origin` are the R12 export's columns and
     // follow the same rule.
     payments: {
-      mrrCents: row.mrrCents ?? null, status: "active",
+      mrrCents: row.mrrCents ?? null, status: "active", sessionCount: row.sessions ?? null,
       lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null,
       feeCents: row.feeCents ?? null, origin: row.origin ?? null,
     },
@@ -741,7 +741,7 @@ function useCoachDoc(goalKind, live, accountId) {
       if (!nowUid || nowUid !== startUid) { pendingRef.current -= 1; setState((s) => ({ ...s, kind: "error" })); return false; }
       const written = merge(doc);
       let res = null;
-      try { res = await db.saveUserGoals(goalKind, written); } catch (e) { res = null; }
+      try { res = await db.saveUserGoals(goalKind, written, { expectedUserId: startUid }); } catch (e) { res = null; }
       if (stale()) return false;
       pendingRef.current -= 1;
       if (!res || res.error) { setState((s) => ({ ...s, doc, kind: "error" })); return false; }
@@ -757,6 +757,29 @@ function useCoachDoc(goalKind, live, accountId) {
     });
   };
   return { ...state, apply };
+}
+
+// Today and The Week share one review document and the same write lane.
+function useCoachWeekReviews(live) {
+  const account = useSignedIn();
+  const store = useCoachDoc("coach_week_reviews", live && !!account, account);
+  const apply = (patches) => store.apply((doc) => {
+    const next = { ...doc };
+    for (const { weekOf, clientId, patch } of patches) {
+      next[weekOf] = { ...next[weekOf], [clientId]: { ...(next[weekOf] || {})[clientId], ...patch } };
+    }
+    return next;
+  });
+  return { ...store, kind: live && account === undefined ? "loading" : live && account === null ? "signedout" : store.kind, apply, accountId: account };
+}
+
+// Shared by Today and Week: receiving is distinct from reviewing, and edits reopen.
+function dashCheckinReviewed(review, checkin) {
+  if (!review || !review.reviewedAt) return false;
+  if (!checkin) return true;
+  if (review.checkinSignature) return review.checkinSignature === JSON.stringify(checkin);
+  const submitted = checkin.updated_at || checkin.submitted_at || checkin.created_at;
+  return !submitted || submitted <= review.reviewedAt;
 }
 
 // The unit a bound metric intrinsically carries. The goal CARD formats through

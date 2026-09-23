@@ -77,6 +77,8 @@ export async function GET(request: Request) {
   const supabase = await clientForRequest(request);
 
   const url = new URL(request.url);
+  const capacityRole = url.searchParams.get('capacityRole');
+  if (capacityRole !== null && !['trainer', 'nutritionist'].includes(capacityRole)) return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
   const from = clean(url.searchParams.get('from'), 10);
   const to = clean(url.searchParams.get('to'), 10);
   const clientId = clean(url.searchParams.get('clientId'), 64);
@@ -88,7 +90,7 @@ export async function GET(request: Request) {
   const dTo = isDate(to) ? to : new Date(today.getTime() + 60 * 86400000).toISOString().slice(0, 10);
 
   // 1) calendar_events (RLS allows owner + active coach).
-  const { data: evRows } = await supabase
+  const { data: evRows } = capacityRole ? { data: [] } : await supabase
     .from('calendar_events')
     .select('id, user_id, created_by, created_by_role, kind, title, sub, event_date, event_time, duration_min, with_name, location, accent, status')
     .eq('user_id', targetUserId)
@@ -101,19 +103,28 @@ export async function GET(request: Request) {
   // 2) sessions (coaching bookings) merged read-only.
   const fromIso = `${dFrom}T00:00:00Z`;
   const toIso = `${dTo}T23:59:59Z`;
-  const { data: sessRows } = await supabase
+  let sessionQuery = supabase
     .from('sessions')
     .select('id, client_id, provider_role, type, scheduled_at, duration_min, status, topic, meeting_url')
     .gte('scheduled_at', fromIso)
     .lte('scheduled_at', toIso)
     .in('status', ['requested', 'confirmed', 'completed'])
     .order('scheduled_at', { ascending: true });
+  if (capacityRole) {
+    const { data: provider, error: providerError } = await supabase.from(capacityRole === 'trainer' ? 'trainers' : 'nutritionists').select('id').eq('owner_id', user.id).maybeSingle();
+    if (providerError || !provider) return NextResponse.json({ error: 'Working hours unavailable.' }, { status: 503 });
+    sessionQuery = sessionQuery.eq('provider_role', capacityRole).eq('provider_id', provider.id).limit(1000);
+  }
+  const { data: sessRows, error: sessionsError } = await sessionQuery;
+  if (capacityRole && sessionsError) return NextResponse.json({ error: 'Bookings could not be read.' }, { status: 503 });
+  if (capacityRole && sessRows && sessRows.length >= 1000) return NextResponse.json({ error: 'Booking window is too large to measure capacity.' }, { status: 503 });
+
 
   // Resolve client names for the coach Schedule view (color-coding + the
   // click-through client drawer). RLS already scoped these to the caller.
   const sessClientIds = [...new Set((sessRows ?? []).map((s: { client_id?: string }) => s.client_id).filter(Boolean) as string[])];
   const sessNameById = new Map<string, string>();
-  if (sessClientIds.length) {
+  if (!capacityRole && sessClientIds.length) {
     // ⚠ A status='requested' booking is a PROSPECT — no subscription yet, so the
     // coach read policy on `profiles` does not cover them. get_display_names
     // returns display fields only and is not scoped to the roster.
@@ -139,6 +150,7 @@ export async function GET(request: Request) {
     return {
       id: `session:${s.id}`,
       sessionId: s.id,
+      scheduledAt: s.scheduled_at,
       source: 'session' as const,
       kind: s.provider_role === 'nutritionist' ? 'CONSULT' : 'SESSION',
       title: s.topic || (s.provider_role === 'nutritionist' ? 'Nutrition consult' : 'Coaching session'),
@@ -160,6 +172,8 @@ export async function GET(request: Request) {
       reschedulable: isSessionReschedulable(s.status),
     };
   });
+
+  if (capacityRole) return NextResponse.json({ bookingsReadable: true, events: sessions });
 
   // 3) Assigned workouts (trainer "push to client"). Mirrors the Home tab
   //    (/api/client/plan → bsHomeLiveWeek): DATED workouts land on their date;

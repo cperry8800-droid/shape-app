@@ -19,12 +19,12 @@ const asg = (o) => ({ provider_role: 'trainer', provider_id: 7, program_template
 
 test('program leg: name, week from the assignment, capped at the template length', () => {
   const p = bsProgramLeg([asg()], tpl(), ME, NOW);
-  assert.deepEqual(p, { name: 'Strength Block 3', week: 3, weeks: 12, status: 'active' });
+  assert.deepEqual(p, { name: 'Strength Block 3', week: 3, weeks: 12, status: 'active', estimatedEndAt: new Date(NOW + 64 * DAY).toISOString(), overdue: false, nextAssigned: null });
   // 400 days in on a 12-week template must not read "Wk 58/12"
   assert.equal(bsProgramLeg([asg({ created_at: iso(400 * DAY) })], tpl(), ME, NOW).week, 12);
   // no durationWeeks → a week with no total, never an invented one
   assert.deepEqual(bsProgramLeg([asg()], tpl({ durationWeeks: null }), ME, NOW),
-    { name: 'Strength Block 3', week: 3, weeks: null, status: 'active' });
+    { name: 'Strength Block 3', week: 3, weeks: null, status: 'active', estimatedEndAt: null, overdue: false, nextAssigned: null });
 });
 
 test('program leg: ANOTHER coach\'s assignment is never attributed to the caller', () => {
@@ -48,7 +48,7 @@ test('program leg: a PAUSED block reports no week', () => {
   // Wall-clock from created_at knows nothing about the pause, so a 12-week
   // block paused at week 4 would otherwise read "Wk 12/12" months later.
   const p = bsProgramLeg([asg({ status: 'paused', created_at: iso(200 * DAY) })], tpl(), ME, NOW);
-  assert.deepEqual(p, { name: 'Strength Block 3', week: null, weeks: 12, status: 'paused' });
+  assert.deepEqual(p, { name: 'Strength Block 3', week: null, weeks: 12, status: 'paused', estimatedEndAt: null, overdue: false, nextAssigned: null });
 });
 
 test('program leg: an ACTIVE block outranks a paused one, whatever updated_at says', () => {
