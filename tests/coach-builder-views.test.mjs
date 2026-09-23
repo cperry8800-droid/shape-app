@@ -37,6 +37,11 @@ globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{
   return [v,setV];
 };
 
+// The builder's tag picker places its panel through `useDfbPopShift`, published by the
+// library's filter bar (dashFilterBar.jsx) — loaded here as the hosts load it, before the
+// builder, and as the real module rather than a stand-in.
+Object.assign(globalThis,await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashFilterBar.jsx',import.meta.url)),{appendExports:'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };'}));
+
 const SRC=fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url));
 const mod=await loadRealModule(SRC,{appendExports:'export { DbuBuilder, DbuRow, dbuWithWeekdays, dbuDefaultWeekdays, dbuDateMap, dbuNextFreeWeekday, dbuSummary, dbuMondayOf, dbuAssignWeekday, dbuTakenByWeekday, dbuWeekSound };'});
 const {DbuBuilder,DbuRow,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFreeWeekday,dbuSummary,dbuMondayOf,dbuAssignWeekday,dbuTakenByWeekday,dbuWeekSound}=mod;

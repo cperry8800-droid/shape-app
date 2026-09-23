@@ -35,6 +35,12 @@ globalThis.DashWorkoutCard = () => React.createElement('div', null, 'card');
 globalThis.useRememberedChoices = (live) => ({ live, doc: {}, accountId: live ? 'coach-a' : null });
 globalThis.useRememberedChoice = (store, key, allowed, fallback) => React.useState(fallback);
 
+// The builder's tag picker places its panel through `useDfbPopShift`, published by the
+// library's filter bar (dashFilterBar.jsx) — loaded here as the hosts load it, before the
+// builder, and as the real module rather than a stand-in.
+Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashFilterBar.jsx', import.meta.url)),
+  { appendExports: 'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };' }));
+
 const SRC = fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx', import.meta.url));
 const mod = await loadRealModule(SRC, { appendExports: 'export { DbuBuilder, DbuExercisePicker, dbuClampPanel, dbuDefaultPanelPos, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H };' });
 const { DbuExercisePicker, dbuClampPanel, dbuDefaultPanelPos, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H } = mod;

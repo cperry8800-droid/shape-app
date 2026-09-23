@@ -44,10 +44,18 @@
 
   // ── Food + recipe library (searchable; tags drive exclusion filters) ──────
   // qty units are per listed serving; ingredients aggregate into the grocery.
+  // ⚠ A TAG IS A CLAIM ABOUT WHAT IS IN THE FOOD, and three foods listed an allergen in
+  // their own ingredients without carrying it: the omelette's butter, the tuna wrap's Greek
+  // yogurt and the scramble's feta are all dairy — so "exclude dairy" offered all three,
+  // and the library's Diet filter would have called a plan holding one dairy-free. Oats
+  // carry gluten here as they already did on the pancakes, so one rule covers both dishes.
+  // ⚠ `packaged` MARKS A FOOD WHOSE CONTENTS DEPEND ON THE BRAND — a protein bar, a sushi
+  // set, a trail mix. Its tags say what it certainly holds, never what it lacks, so the
+  // library cannot call a plan that serves one free of anything (see mealDiet).
   var FOODS = [
     { id: "f1", name: "Greek yogurt (250 g)", kcal: 160, p: 25, c: 9, f: 2, prepMin: 1, tags: ["dairy"], ingredients: [{ name: "Greek yogurt", qty: 250, unit: "g" }] },
-    { id: "f2", name: "Overnight oats", kcal: 420, p: 18, c: 62, f: 11, prepMin: 5, tags: ["oats", "dairy"], ingredients: [{ name: "Rolled oats", qty: 80, unit: "g" }, { name: "Milk", qty: 200, unit: "ml" }, { name: "Chia seeds", qty: 15, unit: "g" }] },
-    { id: "f3", name: "3-egg omelette + toast", kcal: 440, p: 28, c: 28, f: 22, prepMin: 10, tags: ["egg", "gluten"], ingredients: [{ name: "Eggs", qty: 3, unit: "" }, { name: "Sourdough", qty: 2, unit: "slices" }, { name: "Butter", qty: 10, unit: "g" }] },
+    { id: "f2", name: "Overnight oats", kcal: 420, p: 18, c: 62, f: 11, prepMin: 5, tags: ["oats", "dairy", "gluten"], ingredients: [{ name: "Rolled oats", qty: 80, unit: "g" }, { name: "Milk", qty: 200, unit: "ml" }, { name: "Chia seeds", qty: 15, unit: "g" }] },
+    { id: "f3", name: "3-egg omelette + toast", kcal: 440, p: 28, c: 28, f: 22, prepMin: 10, tags: ["egg", "gluten", "dairy"], ingredients: [{ name: "Eggs", qty: 3, unit: "" }, { name: "Sourdough", qty: 2, unit: "slices" }, { name: "Butter", qty: 10, unit: "g" }] },
     { id: "f4", name: "Protein shake (whey + banana)", kcal: 260, p: 32, c: 28, f: 3, prepMin: 2, tags: ["dairy"], ingredients: [{ name: "Whey protein", qty: 35, unit: "g" }, { name: "Banana", qty: 1, unit: "" }] },
     { id: "f5", name: "Grilled chicken bowl", kcal: 620, p: 52, c: 68, f: 18, prepMin: 20, tags: [], ingredients: [{ name: "Chicken breast", qty: 200, unit: "g" }, { name: "Rice", qty: 180, unit: "g" }, { name: "Broccoli", qty: 150, unit: "g" }, { name: "Olive oil", qty: 10, unit: "ml" }] },
     { id: "f6", name: "Salmon, rice & greens", kcal: 680, p: 46, c: 64, f: 24, prepMin: 25, tags: ["fish"], ingredients: [{ name: "Salmon fillet", qty: 180, unit: "g" }, { name: "Rice", qty: 180, unit: "g" }, { name: "Spinach", qty: 100, unit: "g" }] },
@@ -56,19 +64,19 @@
     { id: "f9", name: "Tofu stir-fry + rice", kcal: 580, p: 34, c: 72, f: 16, prepMin: 18, tags: ["soy", "plant"], ingredients: [{ name: "Tofu", qty: 200, unit: "g" }, { name: "Rice", qty: 160, unit: "g" }, { name: "Stir-fry veg", qty: 200, unit: "g" }] },
     { id: "f10", name: "Shrimp tacos (3)", kcal: 540, p: 38, c: 58, f: 16, prepMin: 15, tags: ["shellfish", "gluten"], ingredients: [{ name: "Shrimp", qty: 180, unit: "g" }, { name: "Tortillas", qty: 3, unit: "" }, { name: "Slaw mix", qty: 100, unit: "g" }] },
     { id: "f11", name: "Beef chili + sweet potato", kcal: 640, p: 44, c: 60, f: 22, prepMin: 35, tags: [], ingredients: [{ name: "Lean beef mince", qty: 180, unit: "g" }, { name: "Sweet potato", qty: 250, unit: "g" }, { name: "Black beans", qty: 120, unit: "g" }] },
-    { id: "f12", name: "Tuna wrap", kcal: 430, p: 36, c: 44, f: 12, prepMin: 8, tags: ["fish", "gluten"], ingredients: [{ name: "Tuna (tin)", qty: 1, unit: "" }, { name: "Tortilla wrap", qty: 1, unit: "" }, { name: "Greek yogurt", qty: 40, unit: "g" }] },
+    { id: "f12", name: "Tuna wrap", kcal: 430, p: 36, c: 44, f: 12, prepMin: 8, tags: ["fish", "gluten", "dairy"], ingredients: [{ name: "Tuna (tin)", qty: 1, unit: "" }, { name: "Tortilla wrap", qty: 1, unit: "" }, { name: "Greek yogurt", qty: 40, unit: "g" }] },
     { id: "f13", name: "Cottage cheese + berries", kcal: 220, p: 26, c: 18, f: 5, prepMin: 2, tags: ["dairy"], ingredients: [{ name: "Cottage cheese", qty: 200, unit: "g" }, { name: "Mixed berries", qty: 100, unit: "g" }] },
     { id: "f14", name: "Apple + peanut butter", kcal: 280, p: 8, c: 30, f: 16, prepMin: 2, tags: ["nuts"], ingredients: [{ name: "Apple", qty: 1, unit: "" }, { name: "Peanut butter", qty: 30, unit: "g" }] },
     { id: "f15", name: "Rice cakes + cottage cheese", kcal: 190, p: 16, c: 26, f: 3, prepMin: 3, tags: ["dairy"], ingredients: [{ name: "Rice cakes", qty: 3, unit: "" }, { name: "Cottage cheese", qty: 120, unit: "g" }] },
-    { id: "f16", name: "Trail mix (40 g)", kcal: 230, p: 7, c: 18, f: 15, prepMin: 0, tags: ["nuts"], ingredients: [{ name: "Trail mix", qty: 40, unit: "g" }] },
+    { id: "f16", name: "Trail mix (40 g)", kcal: 230, p: 7, c: 18, f: 15, prepMin: 0, tags: ["nuts"], packaged: true, ingredients: [{ name: "Trail mix", qty: 40, unit: "g" }] },
     { id: "f17", name: "Protein pancakes", kcal: 480, p: 36, c: 54, f: 12, prepMin: 15, tags: ["egg", "dairy", "gluten"], ingredients: [{ name: "Whey protein", qty: 30, unit: "g" }, { name: "Oats", qty: 60, unit: "g" }, { name: "Eggs", qty: 2, unit: "" }] },
     { id: "f18", name: "Burrito bowl (chicken)", kcal: 720, p: 50, c: 78, f: 22, prepMin: 20, tags: [], ingredients: [{ name: "Chicken breast", qty: 180, unit: "g" }, { name: "Rice", qty: 180, unit: "g" }, { name: "Black beans", qty: 100, unit: "g" }, { name: "Guacamole", qty: 50, unit: "g" }] },
     { id: "f19", name: "Lentil curry + rice", kcal: 560, p: 24, c: 88, f: 12, prepMin: 30, tags: ["plant"], ingredients: [{ name: "Red lentils", qty: 150, unit: "g" }, { name: "Rice", qty: 160, unit: "g" }, { name: "Coconut milk", qty: 100, unit: "ml" }] },
     { id: "f20", name: "Steak, potatoes & asparagus", kcal: 710, p: 52, c: 52, f: 30, prepMin: 30, tags: [], ingredients: [{ name: "Sirloin steak", qty: 220, unit: "g" }, { name: "Baby potatoes", qty: 250, unit: "g" }, { name: "Asparagus", qty: 120, unit: "g" }] },
-    { id: "f21", name: "Protein bar", kcal: 210, p: 20, c: 21, f: 7, prepMin: 0, tags: ["bar"], ingredients: [{ name: "Protein bar", qty: 1, unit: "" }] },
-    { id: "f22", name: "Sushi set (12 pc)", kcal: 580, p: 28, c: 88, f: 12, prepMin: 0, tags: ["fish", "travel"], ingredients: [{ name: "Sushi set", qty: 1, unit: "" }] },
+    { id: "f21", name: "Protein bar", kcal: 210, p: 20, c: 21, f: 7, prepMin: 0, tags: ["bar"], packaged: true, ingredients: [{ name: "Protein bar", qty: 1, unit: "" }] },
+    { id: "f22", name: "Sushi set (12 pc)", kcal: 580, p: 28, c: 88, f: 12, prepMin: 0, tags: ["fish", "travel"], packaged: true, ingredients: [{ name: "Sushi set", qty: 1, unit: "" }] },
     { id: "f23", name: "Chicken caesar (no croutons)", kcal: 460, p: 42, c: 12, f: 26, prepMin: 10, tags: ["dairy", "egg"], ingredients: [{ name: "Chicken breast", qty: 160, unit: "g" }, { name: "Romaine", qty: 120, unit: "g" }, { name: "Caesar dressing", qty: 30, unit: "ml" }] },
-    { id: "f24", name: "Egg-white veggie scramble", kcal: 280, p: 30, c: 14, f: 11, prepMin: 12, tags: ["egg"], ingredients: [{ name: "Egg whites", qty: 250, unit: "ml" }, { name: "Mixed veg", qty: 150, unit: "g" }, { name: "Feta", qty: 30, unit: "g" }] },
+    { id: "f24", name: "Egg-white veggie scramble", kcal: 280, p: 30, c: 14, f: 11, prepMin: 12, tags: ["egg", "dairy"], ingredients: [{ name: "Egg whites", qty: 250, unit: "ml" }, { name: "Mixed veg", qty: 150, unit: "g" }, { name: "Feta", qty: 30, unit: "g" }] },
   ];
 
   function searchFoods(q, constraints) {
@@ -501,6 +509,150 @@
     return { intake: intake, phaseChange: phase, expiring: expiring };
   }
 
+  // ── The library's filters ───────────────────────────────────────────────────
+  // ⚠ THE BUILDER'S EXCLUSION LIST AND THE LIBRARY'S DIET FILTER ARE ONE LIST, so a
+  // plan built to exclude an allergen and a filter that asks for plans without it
+  // cannot disagree about which allergens exist.
+  var ALLERGENS = ["dairy", "gluten", "nuts", "shellfish", "fish", "egg", "soy"];
+  var _FOOD_BY_NAME = (function () { var m = Object.create(null); for (var i = 0; i < FOODS.length; i++) m[FOODS[i].name.toLowerCase()] = FOODS[i]; return m; })();
+  function mealText(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").trim().toLowerCase(); }
+  // The ingredient NAMES a meal lists, as one comparable string. Quantities are left out:
+  // the builder never edits them, and assignment scales them per client.
+  function ingredientSig(list) {
+    var names = [];
+    for (var i = 0; i < (Array.isArray(list) ? list.length : 0); i++) {
+      var n = mealText(list[i] && list[i].name);
+      if (n) names.push(n);
+    }
+    return names.sort().join("|");
+  }
+  // The same rule searchFoods applies to a plan's exclusions — the food's tags, or the
+  // word in its name — so the filter and the picker mean one thing by "has dairy".
+  function foodHasAllergen(food, allergen) {
+    return (food.tags || []).indexOf(allergen) >= 0 || String(food.name).toLowerCase().indexOf(allergen) >= 0;
+  }
+  // ⚠ A PLACED MEAL NO LONGER CARRIES ITS FOOD'S ALLERGEN TAGS — `newMeal` copies the name,
+  // macros and ingredients and not the tags — so reading tags off the plan finds none on
+  // every plan there is, and "no dairy" would match all of them. What a meal contains is
+  // read from Shape's food list instead, and only when the meal is STILL that food: the
+  // same name AND the same ingredients. A meal the coach renamed, and a dish they wrote
+  // themselves, carry no record of what is in them, so they are NOT CHECKED — never
+  // "dairy-free".
+  // ⚠ AND NOTHING IS READ OFF SUCH A DISH'S NAME. A name is not a list of ingredients:
+  // "Dairy-free banana bread" contains the word dairy, and "shellfish bisque" the word
+  // fish, so a name read that way would claim the one thing the dish was named to rule
+  // out. Unchecked is the whole answer, and the plan's card says so.
+  // A swap is stored as a name and macros only, and cannot be renamed; a name the coach
+  // could not have given their own dish (canCreateFood refuses Shape's names) is that food.
+  function mealDiet(meal, isSwap) {
+    var name = mealText(meal && meal.name);
+    var food = name ? _FOOD_BY_NAME[name] : null;
+    if (food && (isSwap || ingredientSig(meal.ingredients) === ingredientSig(food.ingredients))) {
+      var contains = ALLERGENS.filter(function (a) { return foodHasAllergen(food, a); });
+      // What a packaged food certainly holds is known; what it lacks is the brand's to say.
+      return { known: !food.packaged, contains: contains };
+    }
+    return { known: false, contains: [] };
+  }
+  // Every meal a client can be served from this plan: the base days, each rest or travel
+  // version's replacements and extras, and every approved alternate. A diet claim has
+  // to hold for all of them — an alternate is a meal the coach has already said yes to.
+  function planServed(plan) {
+    var out = [];
+    var days = (plan && Array.isArray(plan.days)) ? plan.days : [];
+    function take(m) {
+      if (!m || typeof m !== "object") return;
+      out.push({ meal: m, swap: false });
+      var sw = Array.isArray(m.swaps) ? m.swaps : [];
+      for (var s = 0; s < sw.length; s++) if (sw[s] && typeof sw[s] === "object") out.push({ meal: sw[s], swap: true });
+    }
+    for (var d = 0; d < days.length; d++) {
+      var day = days[d];
+      if (!day) continue;
+      var slots = Array.isArray(day.slots) ? day.slots : [];
+      for (var i = 0; i < slots.length; i++) take(slots[i]);
+      var variants = day.variants && typeof day.variants === "object" ? day.variants : {};
+      for (var vk in variants) {
+        if (!Object.prototype.hasOwnProperty.call(variants, vk) || !variants[vk]) continue;
+        var extras = Array.isArray(variants[vk].extras) ? variants[vk].extras : [];
+        for (var e = 0; e < extras.length; e++) take(extras[e]);
+        var overrides = variants[vk].overrides && typeof variants[vk].overrides === "object" ? variants[vk].overrides : {};
+        for (var ok in overrides) if (Object.prototype.hasOwnProperty.call(overrides, ok)) take(overrides[ok]);
+      }
+    }
+    return out;
+  }
+  // An empty plan has nothing checked, so it is never offered as free of anything.
+  function planDiet(plan) {
+    var served = planServed(plan);
+    var known = served.length > 0, contains = Object.create(null);
+    for (var i = 0; i < served.length; i++) {
+      var d = mealDiet(served[i].meal, served[i].swap);
+      if (!d.known) known = false;
+      for (var j = 0; j < d.contains.length; j++) contains[d.contains[j]] = true;
+    }
+    return { known: known, contains: ALLERGENS.filter(function (a) { return contains[a]; }) };
+  }
+  // The longest PLANNED meal — the plan's own cooking, so alternates do not count. A meal
+  // with no prep time recorded (every dish a coach adds themselves) makes the longest one
+  // unknown; a meal that is measured at over 30 minutes still settles "batch-cook".
+  function prepValue(v) {
+    if (typeof v === "number") return v;
+    if (typeof v === "string" && v.trim() !== "") return Number(v);
+    return NaN;
+  }
+  function planPrep(plan) {
+    var meals = planServed(plan).filter(function (x) { return !x.swap; });
+    var max = null, known = meals.length > 0;
+    for (var i = 0; i < meals.length; i++) {
+      var p = prepValue(meals[i].meal.prepMin);
+      if (!isFinite(p) || p < 0) { known = false; continue; }
+      if (max == null || p > max) max = p;
+    }
+    return { max: max, known: known };
+  }
+  function kcalBucket(k) { return k < 1800 ? "under-1800" : k <= 2400 ? "1800-2400" : "over-2400"; }
+  function mealPlanFacts(template) {
+    var t = template || {};
+    var plan = (t.detail && t.detail.mealBuilder) || {};
+    var phase = GOAL_PHASES.find(function (g) { return g.key === plan.goalPhase; });
+    var kcal = Number(plan.targets && plan.targets.kcal);
+    var diet = planDiet(plan);
+    var prep = planPrep(plan);
+    var prepKeys = [];
+    if (prep.known && prep.max <= 15) prepKeys.push("quick");
+    if (prep.known && prep.max > 15 && prep.max <= 30) prepKeys.push("standard");
+    if (prep.max != null && prep.max > 30) prepKeys.push("batch");
+    var days = Array.isArray(plan.days) ? plan.days : [];
+    var dayTypes = ["rest", "travel"].filter(function (k) {
+      return days.some(function (d) { return d && d.variants && typeof d.variants === "object" && d.variants[k]; });
+    });
+    return {
+      search: mealText(t.name),
+      keys: {
+        phase: phase ? [phase.key] : [],
+        kcal: isFinite(kcal) && kcal > 0 ? [kcalBucket(kcal)] : [],
+        diet: diet.known ? ALLERGENS.filter(function (a) { return diet.contains.indexOf(a) < 0; }).map(function (a) { return "no-" + a; }) : [],
+        prep: prepKeys,
+        days: dayTypes,
+      },
+      info: { diet: diet, prep: prep, dayTypes: dayTypes },
+    };
+  }
+  var MEAL_FACETS = [
+    { key: "kcal", label: "Calories", help: "The plan’s daily calorie target.",
+      options: [{ key: "under-1800", label: "Under 1,800" }, { key: "1800-2400", label: "1,800–2,400" }, { key: "over-2400", label: "Over 2,400" }] },
+    { key: "diet", label: "Diet", help: "Every meal and approved alternate is looked up in Shape’s food list. A dish you wrote yourself, a meal you renamed, or a packaged food whose contents depend on the brand has no full record of what is in it — so a plan holding one is not checked, rather than called free of anything.",
+      options: ALLERGENS.map(function (a) { return { key: "no-" + a, label: "No " + a }; }) },
+    { key: "prep", label: "Prep time", help: "The longest planned meal. A meal with no prep time recorded leaves the plan unknown, unless another meal already takes over 30 minutes.",
+      options: [{ key: "quick", label: "Quick · 15 min or less" }, { key: "standard", label: "Standard · 16–30 min" }, { key: "batch", label: "Batch-cook · over 30 min" }] },
+    { key: "days", label: "Day types", help: "Whether the plan has its own version for rest days or travel days.",
+      options: [{ key: "rest", label: "Rest-day version" }, { key: "travel", label: "Travel-day version" }] },
+  ];
+  function mealPhaseFacet() {
+    return { key: "phase", label: "Phase", options: GOAL_PHASES.map(function (g) { return { key: g.key, label: g.label, c: g.c }; }) };
+  }
+
   // ── Demo templates ─────────────────────────────────────────────────────────
   function demoMealTemplates() {
     var meal = function (foodId, slot, swapsIds) {
@@ -549,5 +701,7 @@
     checkConstraints: checkConstraints, buildGrocery: buildGrocery,
     buildMealAssignment: buildMealAssignment, buildPlanLifecycle: buildPlanLifecycle,
     demoMealTemplates: demoMealTemplates,
+    ALLERGENS: ALLERGENS, mealDiet: mealDiet, planServed: planServed, planDiet: planDiet, planPrep: planPrep,
+    mealPlanFacts: mealPlanFacts, MEAL_FACETS: MEAL_FACETS, mealPhaseFacet: mealPhaseFacet,
   };
 });

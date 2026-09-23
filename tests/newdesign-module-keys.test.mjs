@@ -34,13 +34,22 @@ const keyOf = (page, mod) => {
 };
 const loads = (page, file) => read(page).includes('src="' + file);
 
-// The change this guard pins. Moving a module past its entry here means it changed
-// again and every host needs the newer key — which is the point.
-const MIN = '20260922b';
+// The change this guard pins, PER MODULE. Moving a module past its entry here means it
+// changed again and every host needs the newer key — which is the point. Per module,
+// because one shared floor would make an untouched module's hosts bump for nothing.
+// ⚠ 20260922c: the library filters — `programFacts`, `programTagFacet` and the tag rules
+// in the builder core, `mealPlanFacts` and `ALLERGENS` in the meal core. A page handed the
+// older copy calls functions that are not there, which here is a blank page.
+const MIN = {
+  'workoutDocument.js': '20260922b',
+  'dashBuilderCore.js': '20260922c',
+  'dashMealCore.js': '20260922c',
+  'dashSignals.js': '20260922b',
+};
 
 const stale = (pages, mod) => pages
   .map((p) => [p, keyOf(p, mod)])
-  .filter(([, k]) => !k || k < MIN)
+  .filter(([, k]) => !k || k < MIN[mod])
   .map(([p, k]) => p + ' (' + (k || 'no dated key') + ')');
 
 for (const mod of ['workoutDocument.js', 'dashBuilderCore.js', 'dashMealCore.js']) {
@@ -82,7 +91,8 @@ test('every host that calls the superset rules asks for a new enough signals mod
 test('a key with a letter suffix orders after the bare date', () => {
   assert.ok('20260922b' > '20260922');
   assert.ok('20260923' > '20260922b');
-  assert.ok('20260613' < MIN);
+  assert.ok('20260613' < MIN['dashMealCore.js']);
+  assert.ok('20260922b' < MIN['dashBuilderCore.js'], 'the builder core moved past the key its hosts asked for before');
 });
 
 // ⚠ AND THE ORDER, NOT ONLY THE KEY. dashBuilderCore.js captures `DashSignals` and
