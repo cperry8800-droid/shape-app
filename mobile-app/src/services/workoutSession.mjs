@@ -1,4 +1,5 @@
 import { supersetKey } from '../../../public/newdesign/workoutDocument.mjs';
+import { BS_TIME_DISTANCE_SUFFIX } from './planOutline.mjs';
 
 // Session rules shared by the live player and regression tests. Drafts contain
 // only this account's work; the existing shapeClient sign-out scrub owns them.
@@ -120,6 +121,18 @@ const bsRepCount = (text) => {
   const m = /^(\d+)(?:\s*[–-]\s*\d+)?(?:\s*reps?)?$/i.exec(String(text ?? '').trim());
   return m ? Number(m[1]) : 0;
 };
+// The scheme line's count, refused when a hold or a distance follows the number. The
+// suffix is the outline parser's own rule (BS_TIME_DISTANCE_SUFFIX), and a range before
+// it runs over the parser's own reps characters ([\d–-]), so a value the parser keeps
+// whole ("30s", "1.5 km", "30-45s") is one this total declines to count. ⚠ Two changes
+// from the list this line carried before, both for that reason. The decimal part:
+// "3 × 1.5 km" counted as 3 reps, which only matched a parser that had read "1" and a
+// load of ".5 km". And a range whose far end carries the unit: "3 × 30-45s" counted as
+// 90 reps, while the ladder path below already reads a set of "30-45s" as no count
+// (bsRepCount, above). A range with no unit still counts its low end, as it always has.
+// The class takes digits as well, so a shorter match of the number ("3" of "30s") is
+// refused by the same unit and cannot be counted in its place.
+const BS_SCHEME_REPS = new RegExp(String.raw`(\d+)\s*×\s*(\d+)(?![\d–-]*${BS_TIME_DISTANCE_SUFFIX}\b)`, 'i');
 export function bsMoveTotalReps(move) {
   if (bsHasLadder(move)) {
     const n = Math.max(1, Number(move.sets) || move.perSet.length);
@@ -127,7 +140,7 @@ export function bsMoveTotalReps(move) {
     for (let i = 0; i < n; i++) sum += bsRepCount(bsLadderEntry(move, i).reps);
     return sum;
   }
-  const repMatch = String(move?.s).match(/(\d+)\s*×\s*(\d+)(?!\d|\s*(?:s|secs?|seconds?|mins?|minutes?|m|km|mi|yds?|yards?)\b)/i);
+  const repMatch = String(move?.s).match(BS_SCHEME_REPS);
   return repMatch ? Number(repMatch[1]) * Number(repMatch[2]) : 0;
 }
 // Two moves are one superset when their keys match under the document's own
