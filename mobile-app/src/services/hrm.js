@@ -26,7 +26,7 @@ function loadBle() {
 const HR_SERVICE = '0000180d-0000-1000-8000-00805f9b34fb';
 const HR_MEASUREMENT = '00002a37-0000-1000-8000-00805f9b34fb';
 
-const state = { deviceId: null, bpm: null, initialized: false };
+const state = { deviceId: null, bpm: null, t: null, initialized: false };
 
 function emit(detail) {
   try { window.dispatchEvent(new CustomEvent('shape:hrm', { detail })); } catch { /* no-op */ }
@@ -60,10 +60,14 @@ function parseHeartRate(value) {
   }
 }
 
+export function hrmReading() {
+  return { bpm: state.bpm, t: state.t, connected: !!state.deviceId };
+}
+
 async function handleDisconnect() {
   const had = state.deviceId;
   state.deviceId = null;
-  state.bpm = null;
+  state.bpm = null; state.t = null;
   if (had) emit({ bpm: null, connected: false });
 }
 
@@ -80,15 +84,24 @@ export async function hrmConnect() {
   }
   const device = await BleClient.requestDevice({ services: [HR_SERVICE] });
   await BleClient.connect(device.deviceId, () => handleDisconnect());
-  await BleClient.startNotifications(device.deviceId, HR_SERVICE, HR_MEASUREMENT, (value) => {
-    const bpm = parseHeartRate(value);
-    if (bpm != null && bpm > 0) {
-      state.bpm = bpm;
-      emit({ bpm, connected: true });
-    }
-  });
   state.deviceId = device.deviceId;
-  emit({ bpm: state.bpm, connected: true });
+  try {
+    await BleClient.startNotifications(device.deviceId, HR_SERVICE, HR_MEASUREMENT, (value) => {
+      if (state.deviceId !== device.deviceId) return; // queued callback after disconnect
+      const bpm = parseHeartRate(value);
+      if (bpm != null && bpm > 0) {
+        state.bpm = bpm;
+        state.t = Date.now();
+        emit({ bpm, t: state.t, connected: true });
+      }
+    });
+    if (state.deviceId !== device.deviceId) throw new Error('Heart-rate monitor disconnected.');
+  } catch (error) {
+    try { await BleClient.disconnect(device.deviceId); } catch {}
+    await handleDisconnect();
+    throw error;
+  }
+  if (state.t == null) emit({ bpm: null, connected: true });
   return { deviceId: device.deviceId };
 }
 

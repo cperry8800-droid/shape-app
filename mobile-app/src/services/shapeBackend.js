@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
-import { hrmAvailable, hrmConnected, hrmCurrent, hrmConnect, hrmDisconnect } from './hrm.js';
+import { hrmAvailable, hrmConnected, hrmCurrent, hrmReading, hrmConnect, hrmDisconnect } from './hrm.js';
 import { registerPush, teardownPush } from './push.js';
 import { signOutGen, bumpSignOutGen } from './signOutGen.mjs';
 import { makePlaybackGate } from './playbackGate.mjs';
@@ -2786,10 +2786,34 @@ async function listWorkoutSessions() {
   const { data, error } = await supabase
     .from('workout_sessions')
     .select('*, workout_set_logs(*), workout_sensor_samples(*), coach_workout_review_notes(*)')
+    // Timelines are loaded only for the selected session, with pagination.
+    .neq('workout_sensor_samples.sample_type', 'heart_rate')
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw error;
   return { stored: 'supabase', data: data || [] };
+}
+
+// RLS on workout_sensor_samples uses the same private participant check as
+// the workout record. Fetch the WHOLE selected timeline, not an embedded
+// relation silently truncated by the API's default row limit.
+async function listWorkoutSensorSamples(sessionId) {
+  const userId = state.user?.id;
+  if (!userId || !supabase) throw new Error('Sign in before loading workout readings.');
+  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(String(sessionId || ''))) throw new Error('Invalid workout session.');
+  const rows = [];
+  for (let offset = 0; offset < 100000; offset += 500) {
+    if (state.user?.id !== userId) throw new Error('Account changed.');
+    const { data, error } = await supabase.from('workout_sensor_samples')
+      .select('id, sample_type, sampled_at, value, unit, provider, payload')
+      .eq('session_id', sessionId).eq('sample_type', 'heart_rate')
+      .order('sampled_at', { ascending: true }).order('id', { ascending: true }).range(offset, offset + 499);
+    if (state.user?.id !== userId) throw new Error('Account changed.');
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < 500) return { stored: 'supabase', data: rows };
+  }
+  throw new Error('Too many workout readings to load.');
 }
 
 // A NUTRITIONIST'S review queue is meal-log DAYS, not workout sessions. The
@@ -3047,6 +3071,8 @@ async function saveWorkoutSessionLog({
   const avgRestSeconds = restEntries.length ? Math.round(restEntries.reduce((sum, entry) => sum + Number(entry.restBeforeSeconds), 0) / restEntries.length) : null;
   const summary = {
     ...sessionSummary,
+    // Private structured record retains wearable coverage even without feed sharing.
+    heartRate: hr,
     completedSets,
     avgSetSeconds,
     avgRestSeconds,
@@ -6086,6 +6112,7 @@ window.ShapeHRM = {
   available: hrmAvailable,
   connected: hrmConnected,
   current: hrmCurrent,
+  reading: hrmReading,
   connect: hrmConnect,
   disconnect: hrmDisconnect,
 };
@@ -7814,6 +7841,7 @@ window.ShapeWorkoutLogs = {
   saveSessionLog: saveWorkoutSessionLog,
   saveStructuredSession: saveStructuredWorkoutSession,
   listSessions: listWorkoutSessions,
+  listSensorSamples: listWorkoutSensorSamples,
   addCoachReviewNote: addCoachWorkoutReviewNote,
   listSensorLogs: listSensorWorkoutLogs,
   importSensorLogs: importSensorWorkoutLogs,

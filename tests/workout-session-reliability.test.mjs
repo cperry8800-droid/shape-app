@@ -146,3 +146,20 @@ test('the backend independently rejects non-repetition prescriptions and honors 
   assert.equal(set.actual_load, 20);
   assert.equal(set.load_unit, 'kg');
 });
+
+test('private structured save carries timestamped HR and coverage through the atomic RPC', async () => {
+  const w = writer({ postError: new Error('sharing unavailable') });
+  const hr = { avg: 125, max: 140, samples: 2, coveragePercent: 12 };
+  const result = await w.save({ ...payload, hr, sensorSamples: [
+    { provider: 'bluetooth_heart_rate', sampleType: 'heart_rate', sampledAt: '2026-09-23T12:00:00Z', value: 110, unit: 'bpm', payload: { gapBefore: false } },
+    { provider: 'bluetooth_heart_rate', sampleType: 'heart_rate', sampledAt: '2026-09-23T12:01:00Z', value: 140, unit: 'bpm', payload: { gapBefore: true } },
+  ] });
+  assert.equal(result.workoutSession.stored, 'supabase');
+  const data = w.calls.find(c => c.name === 'save_workout_session').payload;
+  assert.equal(data.p_session.privacy, 'private');
+  assert.deepEqual(JSON.parse(JSON.stringify(data.p_session.summary.heartRate)), hr);
+  const readings = data.p_samples.filter(s => s.sample_type === 'heart_rate');
+  assert.equal(readings.length, 2);
+  assert.equal(readings[1].sampled_at, '2026-09-23T12:01:00Z');
+  assert.equal(readings[1].value, 140); assert.equal(readings[1].payload.gapBefore, true);
+});

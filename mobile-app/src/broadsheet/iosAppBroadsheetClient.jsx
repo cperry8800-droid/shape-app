@@ -5,6 +5,7 @@ import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsCl
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsIsTimedReps } from '../services/workoutSession.mjs';
+import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
@@ -30814,6 +30815,17 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     prescription: draft?.prescription || { ...prescriptionMeta, title: requestedTitle, clientWorkoutId: requestedWorkoutId, moves: movesProp },
   }));
   const title = identity.title;
+  const [view, setView] = useStateBSC(() => bsReadWorkoutView(window.localStorage, identity.userId) || bsWorkoutView(draft?.view) || 'focus');
+  const [viewChooser, setViewChooser] = useStateBSC(() => !bsReadWorkoutView(window.localStorage, identity.userId) && !bsWorkoutView(draft?.view));
+  const [viewWarning, setViewWarning] = useStateBSC(false);
+  const [guideStep, setGuideStep] = useStateBSC(draft?.guideStep === 'perform' ? 'perform' : 'prepare');
+  const chooseView = next => {
+    if (!bsWorkoutView(next)) return;
+    setView(next); setViewChooser(false);
+    // A preview has no account; signed-in choices are remembered on this device.
+    if (identity.userId && window.ShapeAuth?.getCachedState?.()?.user?.id === identity.userId)
+      setViewWarning(!bsSaveWorkoutView(window.localStorage, identity.userId, next));
+  };
   const [timedMode, setTimedMode] = useStateBSC(draft?.timedMode || false);
   const [saveState, setSaveState] = useStateBSC('idle');
   const [saveError, setSaveError] = useStateBSC('');
@@ -30852,9 +30864,9 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const [setInputs, setSetInputs] = useStateBSC(() => draft?.setInputs || buildSetInputs());
   const [moveIdx, setMoveIdx] = useStateBSC(() => Math.min(draft?.moveIdx || 0, moves.length - 1));
   const [completed, setCompleted] = useStateBSC(draft?.completed || {});
-  const [restEnd, setRestEnd] = useStateBSC(null);   // timestamp ms
-  const [restTotal, setRestTotal] = useStateBSC(120); // seconds of the current rest
-  const [restAfterSet, setRestAfterSet] = useStateBSC(0); // which set number just finished
+  const [restEnd, setRestEnd] = useStateBSC(draft?.restEnd || null);   // absolute deadline survives view changes and recovery
+  const [restTotal, setRestTotal] = useStateBSC(draft?.restTotal || 0); // coach-authored duration, never a default prescription
+  const [restAfterSet, setRestAfterSet] = useStateBSC(draft?.restAfterSet || 0); // which set number just finished
   const [reviewFeel, setReviewFeel] = useStateBSC(draft?.reviewFeel ?? null);
   // Session RPE 1-10 — a GENUINE post-session rating, the primary input to
   // session RPE load (SPEC-guardrails.md §3.1). This replaced a three-way
@@ -30888,6 +30900,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // Latch the clock, THEN show the screen — so every derivation on it reads the
   // same instant no matter how long the member stands there.
   const openCompletion = () => {
+    hrCaptureRef.current = false; bsCloseHr(hrSamplesRef.current, Date.now());
     if (endedAtRef.current == null) endedAtRef.current = new Date().toISOString();
     if (completedAtRef.current == null) completedAtRef.current = Math.floor((Date.now() - elapsedStart) / 1000);
     setCompleting(true);
@@ -30896,35 +30909,46 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const completedAtRef = React.useRef(draft?.completing ? draft.elapsedSeconds : null);
   const endedAtRef = React.useRef(draft?.endedAt || null);
   const savedRef = React.useRef(false); // confirmed cloud persistence, not an attempted save
-  // Live heart rate from a worn Bluetooth monitor (window.ShapeHRM). Samples are
-  // collected through the whole session → avg + max land on the workout's stats.
-  const [hrNow, setHrNow] = useStateBSC(null);             // current bpm (live chip)
-  const [hrmOn, setHrmOn] = useStateBSC(false);            // a monitor is connected
-  const hrSamplesRef = React.useRef([]);                   // [{ bpm, t }]
-  const hrMaxRef = React.useRef(0);
+  // Keep the private sensor ledger with the draft. Display freshness and capture
+  // are separate: disconnects clear the display; old samples remain reviewable.
+  const [hrReading, setHrReading] = useStateBSC(null);
+  const [hrmOn, setHrmOn] = useStateBSC(false);
+  const [hrConnecting, setHrConnecting] = useStateBSC(false);
+  const hrSamplesRef = React.useRef(null);
+  if (hrSamplesRef.current == null) hrSamplesRef.current = bsRestoreHr(draft?.hrSamples);
+  const hrCaptureRef = React.useRef(false);
+  hrCaptureRef.current = !completing && !submissionPending;
   React.useEffect(() => {
-    const onHr = (e) => {
-      const bpm = e && e.detail && e.detail.bpm;
-      if (typeof bpm === 'number' && bpm > 0) {
-        setHrNow(bpm); setHrmOn(true);
-        hrSamplesRef.current.push({ bpm, t: Date.now() });
-        if (bpm > hrMaxRef.current) hrMaxRef.current = bpm;
+    const onHr = e => {
+      const detail = e?.detail || {};
+      if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== identity.userId) return;
+      if (detail.connected === false) {
+        setHrmOn(false); setHrReading(null); bsCloseHr(hrSamplesRef.current, Date.now());
+      } else {
+        const next = { ...detail, connected: true, t: Number.isFinite(detail.t) ? detail.t : Date.now() };
+        setHrmOn(true); setHrReading(next);
+        if (hrCaptureRef.current) bsCollectHr(hrSamplesRef.current, next);
       }
     };
     window.addEventListener('shape:hrm', onHr);
-    try { const cur = window.ShapeHRM?.current?.(); if (cur) { setHrNow(cur); setHrmOn(true); } if (window.ShapeHRM?.connected?.()) setHrmOn(true); } catch (err) {}
-    return () => window.removeEventListener('shape:hrm', onHr);
+    // A timestamped snapshot may be displayed but is not a new observation.
+    try { setHrmOn(!!window.ShapeHRM?.connected?.()); setHrReading(window.ShapeHRM?.reading?.() || null); } catch {}
+    return () => { bsCloseHr(hrSamplesRef.current, Date.now()); window.removeEventListener('shape:hrm', onHr); };
   }, []);
   const connectHrm = async () => {
+    if (hrConnecting) return;
     if (!window.ShapeHRM?.available?.()) { window.__bsToast?.(tr('session:player.hrUnavailable'), 'info'); return; }
+    setHrConnecting(true);
     try { await window.ShapeHRM.connect(); setHrmOn(true); window.__bsToast?.(tr('session:player.hrConnected'), 'ok'); }
-    catch (err) { window.__bsToast?.(tr('session:player.hrFailed'), 'warn'); }
+    catch { window.__bsToast?.(tr('session:player.hrFailed'), 'warn'); }
+    finally { setHrConnecting(false); }
   };
   const [now, setNow] = useStateBSC(Date.now());
   const [elapsedStart, setElapsedStart] = useStateBSC(() => Date.now() - Math.max(0, Number(draft?.elapsedSeconds) || 0) * 1000);
-  const [activeSetKey, setActiveSetKey] = useStateBSC(null);
-  const [setStartedAt, setSetStartedAt] = useStateBSC(null);
-  const [lastSetEndedAt, setLastSetEndedAt] = useStateBSC(null);
+  const hrNow = bsHrFresh(hrReading, Date.now()) ? hrReading.bpm : null;
+  const [activeSetKey, setActiveSetKey] = useStateBSC(draft?.activeSetKey || null);
+  const [setStartedAt, setSetStartedAt] = useStateBSC(draft?.setStartedAt || null);
+  const [lastSetEndedAt, setLastSetEndedAt] = useStateBSC(draft?.lastSetEndedAt || null);
   // The publisher retains the newest public + coach snapshot, retries failures,
   // and refreshes its heartbeat while this player is active. Completed input
   // corrections matter even when the public set counts remain unchanged.
@@ -30954,6 +30978,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) === identity.userId) bsSetMyActivity(completing ? null : 'workout');
   }, [moves, completed, moveIdx, liveResting, title, setInputs, completing]);
   const endWorkout = () => {
+    bsCloseHr(hrSamplesRef.current, Date.now());
     if (draftRef.current?.() === false) {
       setDraftWarning(tr('session:player.storageFailed'));
       setSaveError(tr('session:player.storageFailed'));
@@ -31030,7 +31055,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // offered, and the answer all describe one instant.
   const elapsedSec = completing && completedAtRef.current != null
     ? completedAtRef.current
-    : Math.floor((now - elapsedStart) / 1000);
+    : Math.max(0, Math.floor((now - elapsedStart) / 1000));
   // Session RPE load is RPE x MINUTES — a product, so a wrong duration is not a
   // small error (SPEC-guardrails.md §3.1). This timer is WALL-CLOCK: elapsedStart
   // is stamped at mount and never pauses, so it measures "how long the screen was
@@ -31127,32 +31152,36 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   draftRef.current = () => {
     if (savedRef.current || discardedRef.current || !identity.userId || window.ShapeAuth?.getCachedState?.()?.user?.id !== identity.userId) return true;
     return bsStoreWorkoutDraft(window.localStorage, identity.userId, { ...identity, moves, openMode, setInputs, completed, setLogs, moveIdx,
+      view, guideStep, hrSamples: hrSamplesRef.current, restEnd, restTotal, restAfterSet, activeSetKey, setStartedAt, lastSetEndedAt,
       timedMode, elapsedSeconds: completing && completedAtRef.current != null ? completedAtRef.current : Math.max(0, Math.floor((Date.now() - elapsedStart) / 1000)),
       completing, endedAt: endedAtRef.current, sessionRpe, reviewFeel, manualMinutes, shareToFeed, pendingSubmission: pendingSubmissionRef.current });
   };
   React.useEffect(() => {
     const ok = draftRef.current?.();
     setDraftWarning(ok === false ? tr('session:player.storageFailed') : '');
-  }, [now, moves, setInputs, completed, setLogs, moveIdx, timedMode, completing, sessionRpe, reviewFeel, manualMinutes, shareToFeed]);
+  }, [now, moves, setInputs, completed, setLogs, moveIdx, timedMode, completing, sessionRpe, reviewFeel, manualMinutes, shareToFeed, view, guideStep, restEnd, activeSetKey]);
   React.useEffect(() => {
     const persist = () => draftRef.current?.();
     window.addEventListener('pagehide', persist);
     return () => { persist(); window.removeEventListener('pagehide', persist); };
   }, []);
 
-  const updateSetInput = (setIdx, field, value) => {
-    const k = `${moveIdx}-${setIdx}`;
+  const updateSetInput = (setIdx, field, value, targetMoveIdx = moveIdx) => {
+    const targetMove = moves[targetMoveIdx];
+    const k = `${targetMoveIdx}-${setIdx}`;
     // Functional updaters so two updates in one handler (e.g. the suggestion chip
     // filling load AND reps) compose instead of clobbering a stale-closure snapshot.
-    const other = setInputs[k] || bsSetPrefill(move, setIdx);
+    const other = setInputs[k] || bsSetPrefill(targetMove, setIdx);
     setSetInputs((prev) => {
-      const current = prev[k] || bsSetPrefill(move, setIdx);
+      const current = prev[k] || bsSetPrefill(targetMove, setIdx);
       return { ...prev, [k]: { ...current, [field]: value } };
     });
     setSetLogs((prev) => prev.map((entry) => (
       entry.key === k
         ? {
             ...entry,
+            enteredReps: field === 'reps' ? value : entry.enteredReps,
+            enteredLoad: field === 'load' ? value : entry.enteredLoad,
             actualReps: field === 'reps' ? value : (entry.actualReps ?? other.reps),
             actualLoad: field === 'load' ? value : (entry.actualLoad ?? other.load),
             // A logged set stays editable in place (Cockpit/Split spec) — an
@@ -31232,34 +31261,42 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // Rename the current move (open session — you type it as you log).
   const renameMove = (val) => setMoves((ms) => ms.map((m, i) => (i === moveIdx ? { ...m, m: val } : m)));
 
-  const startSet = (setIdx) => {
-    const k = `${moveIdx}-${setIdx}`;
+  const startSet = (setIdx, targetMoveIdx = moveIdx) => {
+    const k = `${targetMoveIdx}-${setIdx}`;
     if (completed[k]) return;
+    // Switching views or inspecting another row cannot replace a running set.
+    if (activeSetKey && activeSetKey !== k) {
+      const [runningMove, runningSet] = activeSetKey.split('-').map(Number);
+      setMoveIdx(runningMove); setLogStatus(tr('session:player.setLive', { n: runningSet + 1 })); return;
+    }
+    setMoveIdx(targetMoveIdx); setGuideStep('perform');
     setActiveSetKey(k); setSetStartedAt(Date.now()); setRestEnd(null);
   };
-  const finishSet = (setIdx, quick = false) => {
-    const k = `${moveIdx}-${setIdx}`;
+  const finishSet = (setIdx, quick = false, targetMoveIdx = moveIdx) => {
+    const move = moves[targetMoveIdx];
+    const k = `${targetMoveIdx}-${setIdx}`;
     if (completed[k]) return;
     if (!move.m.trim()) { setLogStatus(tr('session:player.nameFirst')); return; }
     const nowMs = Date.now();
     const actual = setInputs[k] || { reps: '', load: '', rpe: '' };
-    const nextLog = bsLoggedSet({ move, moveIndex: moveIdx, setIndex: setIdx, input: actual,
-      startedAt: quick ? null : setStartedAt, lastEndedAt: lastSetEndedAt, now: nowMs, unit: identity.loadUnit });
+    const nextLog = bsLoggedSet({ move, moveIndex: targetMoveIdx, setIndex: setIdx, input: actual,
+      startedAt: quick || activeSetKey !== k ? null : setStartedAt, lastEndedAt: lastSetEndedAt, now: nowMs, unit: identity.loadUnit });
     setSetLogs(prev => [...prev.filter(entry => entry.key !== k), nextLog].sort((a, b) => a.moveIndex - b.moveIndex || a.setNumber - b.setNumber));
     const nextCompleted = { ...completed, [k]: true };
     setCompleted(nextCompleted); setActiveSetKey(null); setSetStartedAt(null); setLastSetEndedAt(nowMs);
-    const nextMove = bsNextSessionMove(moves, nextCompleted, moveIdx);
-    const sameGroup = nextMove != null && nextMove !== moveIdx && bsSameGroup(move, moves[nextMove]);
-    const rest = sameGroup && nextMove > moveIdx ? 0 : move.restSeconds;
+    const nextMove = bsNextSessionMove(moves, nextCompleted, targetMoveIdx);
+    const sameGroup = nextMove != null && nextMove !== targetMoveIdx && bsSameGroup(move, moves[nextMove]);
+    const rest = sameGroup && nextMove > targetMoveIdx ? 0 : move.restSeconds;
     setRestTotal(rest || 0); setRestAfterSet(setIdx + 1);
     setRestEnd(rest > 0 ? nowMs + rest * 1000 : null);
     if (nextMove != null) setMoveIdx(nextMove);
+    setGuideStep('prepare');
     setLogStatus(tr('session:player.setLogged'));
   };
-  const logSet = (setIdx) => {
-    if (!timedMode) finishSet(setIdx, true);
-    else if (activeSetKey === `${moveIdx}-${setIdx}`) finishSet(setIdx);
-    else startSet(setIdx);
+  const logSet = (setIdx, targetMoveIdx = moveIdx) => {
+    if (!timedMode) finishSet(setIdx, true, targetMoveIdx);
+    else if (activeSetKey === `${targetMoveIdx}-${setIdx}`) finishSet(setIdx, false, targetMoveIdx);
+    else startSet(setIdx, targetMoveIdx);
   };
   // Only confirmed persistence clears a draft. The stable session UUID makes
   // retrying a failed or interrupted save the same write, never a new workout.
@@ -31270,8 +31307,9 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     if (window.ShapeAuth?.getCachedState?.()?.user?.id !== identity.userId) { setSaveError(tr('session:player.accountChanged')); return false; }
     savingRef.current = true; setSaveState('saving'); setSaveError('');
     try {
-      const hrSamples = hrSamplesRef.current;
-      const hr = hrSamples.length ? { avg: Math.round(hrSamples.reduce((sum, h) => sum + h.bpm, 0) / hrSamples.length), max: hrMaxRef.current || null, samples: hrSamples.length } : null;
+      const hrStart = Date.parse(identity.startedAt), hrEnd = Date.parse(endedAtRef.current) || Date.now();
+      const hr = bsHrSummary(hrSamplesRef.current, hrStart, hrEnd);
+      const sensorSamples = bsHrSensorSamples(hrSamplesRef.current, hrStart, hrEnd);
       // A lost response may mean the server committed. Freeze the first
       // submission in the durable draft so a retry can never send new values
       // under an id which already names a completed workout.
@@ -31280,7 +31318,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         title: title || tr('session:player.liveSession'), workout: 'workout',
         durationSeconds: loggedDurationSec, sessionRpe,
         durationAnswer: !askDuration ? 'not_prompted' : (answered ? 'confirmed' : 'declined'),
-        setLogs, hr, summary: { prescription: identity.prescription, reviewFeel, startedAt: identity.startedAt, endedAt: endedAtRef.current },
+        setLogs, hr, sensorSamples, summary: { prescription: identity.prescription, reviewFeel, startedAt: identity.startedAt, endedAt: endedAtRef.current },
         privacy: shareToFeed ? null : 'private',
       };
       setSubmissionPending(true);
@@ -31307,7 +31345,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const pct = totalSets ? doneSets / totalSets : 0;
-  const minLeft = Math.max(0, Math.round((totalSets - doneSets) * 1.6));
+  // Progress is measured in sets; free-text holds and rests do not imply an ETA.
   // ⚠ THE MOVE'S OWN AUTHORED CUE, NOT A POSITION-INDEXED DEMO ARRAY. This read
   // `CUES[moveIdx]` off a hardcoded six-item list of PULL-UP cues, so move #1
   // always said "Dead hang every rep. Chest to bar or it doesn't count." — even
@@ -31327,7 +31365,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // its own: the band deliberately reads LOAD where the table header reads WEIGHT,
   // because a band value can carry its unit ("165 lb").
   const fieldLabel = (f) => (f === 'rpe' ? 'RPE' : tr(f === 'load' ? 'session:player.fieldLoad' : 'session:player.colReps'));
-  const activeIdx = (() => { for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
+  const activeIdx = (() => { if (activeSetKey?.startsWith(`${moveIdx}-`) && !completed[activeSetKey]) return Number(activeSetKey.split('-')[1]); for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
   const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
   const activeRunning = !!(activeKey && activeSetKey === activeKey);
   const activeLoad = (activeKey && setInputs[activeKey] && setInputs[activeKey].load) || (activeIdx != null ? bsSetPrefill(move, activeIdx).load : bsLoadPrefill(move));
@@ -31343,6 +31381,21 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const BAND = { bg: '#0b0f0f', cream: '#f4ede0', dim: 'rgba(244,237,224,0.55)', dim35: 'rgba(244,237,224,0.35)', hair: 'rgba(244,237,224,0.14)' };
   const bandEyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' };
   const moveAllDone = (i) => Array.from({ length: moves[i].sets }).every((_, si) => completed[`${i}-${si}`]);
+
+  const viewControlRef = React.useRef(null);
+  const choiceHeadingRef = React.useRef(null);
+  const choosingBeforeRef = React.useRef(false);
+  React.useEffect(() => {
+    if (viewChooser) choiceHeadingRef.current?.focus();
+    else if (choosingBeforeRef.current) viewControlRef.current?.focus();
+    choosingBeforeRef.current = viewChooser;
+  }, [viewChooser]);
+  const guidePrepare = view === 'guided' && guideStep === 'prepare' && !activeRunning;
+  const primarySetAction = () => {
+    if (restLeft > 0) { setRestEnd(null); return; }
+    if (guidePrepare) { if (timedMode) startSet(activeIdx); else setGuideStep('perform'); return; }
+    logSet(activeIdx);
+  };
 
   // ═══ THE COMPLETION SCREEN ═══
   // Fixed-dark like the band — the same machine on every paper. Effort leads;
@@ -31491,6 +31544,23 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     );
   }
 
+  if (viewChooser) return (
+    <BSPage noSwipe mast={false}>
+      <div style={{ padding: `46px ${t.padX}px 120px`, minHeight: '100%', boxSizing: 'border-box', background: t.PAPER, color: t.INK }}>
+        <button onClick={endWorkout} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.INK, cursor: 'pointer', padding: 0 }}>{tr('session:player.pause')}</button>
+        <h1 ref={choiceHeadingRef} tabIndex={-1} style={{ fontFamily: t.DISPLAY, fontSize: 30, textTransform: 'uppercase', lineHeight: 1.1 }}>{tr('session:player.view.choose')}</h1>
+        <p style={{ color: t.INK70, lineHeight: 1.5 }}>{tr('session:player.view.help')}</p>
+        {BS_WORKOUT_VIEWS.map((option, i) => (
+          <button key={option} aria-label={tr('session:player.view.' + option)} onClick={() => chooseView(option)} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 22px', gap: 12, width: '100%', textAlign: 'left', padding: '23px 0', border: 0, borderTop: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer' }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 11, color: teal }}>{String(i + 1).padStart(2, '0')}</span>
+            <span><strong style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 23 }}>{tr('session:player.view.' + option)}</strong><span style={{ display: 'block', marginTop: 8, fontSize: 14, lineHeight: 1.5, color: t.INK70 }}>{tr('session:player.view.' + option + 'Help')}</span></span>
+            <span aria-hidden style={{ color: teal }}>→</span>
+          </button>
+        ))}
+      </div>
+    </BSPage>
+  );
+
   return (
     <BSPage noSwipe>
       {/* ═══ THE BAND — live numbers only; the paper ledger below the seam
@@ -31505,6 +31575,11 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
             {tr('session:player.elapsed')} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
           </span>
         </div>
+        <div style={{ position: 'relative', margin: '8px 0', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+          <span style={{ ...bandEyebrow, color: bandHeat, fontSize: 11 }}>{tr('session:player.view.' + view)}</span>
+          <button ref={viewControlRef} onClick={() => setViewChooser(true)} style={{ minHeight: 44, background: 'transparent', border: 0, color: BAND.cream, cursor: 'pointer', textDecoration: 'underline' }}>{tr('session:player.view.change')}</button>
+        </div>
+        {viewWarning && <p role="alert" style={{ position: 'relative', color: '#e8a33c' }}>{tr('session:player.view.storage')}</p>}
         <BSWorkoutCoachCue identity={identity} />
         {/* Session line — real figures only */}
         <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
@@ -31517,7 +31592,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
             <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: moveAllDone(i) ? bandHeat : BAND.hair, boxShadow: moveAllDone(i) ? `0 0 8px ${bsTHexA(bandHeat, 0.55)}` : 'none', outline: i === moveIdx ? `1px solid ${bsTHexA(bandHeat, 0.7)}` : 'none', outlineOffset: 1, ...heatTrans }} />
           ))}
         </div>
-        <div style={{ position: 'relative', marginTop: 6, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{tr('session:player.progressLeft', { pct: Math.round(pct * 100), min: minLeft })}</div>
+        <div style={{ position: 'relative', marginTop: 6, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{tr('session:player.view.progress', { pct: Math.round(pct * 100) })}</div>
         {/* Exercise title (+ open-session rename) + the trainer form clip */}
         <div style={{ position: 'relative', marginTop: 14 }}>
           {openMode ? (
@@ -31529,13 +31604,20 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
             <button onClick={() => setClipOpen(true)} style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${bsTHexA(bandHeat, 0.4)}`, borderRadius: 5, padding: '8px 11px', cursor: 'pointer', ...bandEyebrow, fontSize: 8, color: bandHeat, ...heatTrans }}>▶ {tr('session:player.formClip')}</button>
           )}
         </div>
-        <div style={{ position: 'relative', marginTop: 12, display: 'flex', gap: 8 }}>
-          {[false, true].map(timed => <button key={String(timed)} aria-pressed={timedMode === timed} onClick={() => { setTimedMode(timed); setActiveSetKey(null); setSetStartedAt(null); }} style={{ minHeight: 44, flex: 1, background: timedMode === timed ? BAND.hair : 'transparent', color: BAND.cream, border: `1px solid ${BAND.hair}`, borderRadius: 5, cursor: 'pointer' }}>{timed ? tr('session:player.timedSets') : tr('session:player.quickLog')}</button>)}
-        </div>
         {draftWarning && <p role="alert" style={{ position: 'relative', fontSize: 13, color: '#e8a33c' }}>{draftWarning}</p>}
         {logStatus && <p role="status" style={{ position: 'relative', fontSize: 13, color: BAND.cream }}>{logStatus}</p>}
+        {view === 'focus' && <div style={{ position: 'relative', marginTop: 12, fontFamily: t.MONO, fontSize: 12, lineHeight: 1.5, color: BAND.dim }}>
+          {move.s || `${move.sets} × ${move.reps || '—'}`}{move.rpe ? ` · ${tr('session:player.view.targetRpe', { rpe: move.rpe })}` : ''}
+          {cue && <p style={{ fontFamily: t.DISPLAY, fontSize: 15, color: BAND.cream, margin: '8px 0 0' }}>{cue}</p>}
+        </div>}
+        {activeRunning && <p style={{ position: 'relative', fontFamily: t.MONO, color: bandHeat }}>{tr('session:player.setLive', { n: activeIdx + 1 })} · {fmt(activeSetSeconds)}</p>}
+        {view === 'guided' && activeIdx != null && <div style={{ position: 'relative', marginTop: 18, borderTop: `1px solid ${BAND.hair}`, paddingTop: 14 }}>
+          <div style={{ ...bandEyebrow, color: bandHeat }}>{tr(guidePrepare ? 'session:player.view.prepare' : 'session:player.view.perform')}</div>
+          <p style={{ color: BAND.cream, fontSize: 15, lineHeight: 1.5 }}>{guidePrepare ? (cue || tr('session:player.view.prepareHelp')) : tr('session:player.view.performHelp')}</p>
+          <p style={{ fontFamily: t.MONO, color: BAND.dim, fontSize: 12 }}>{bsSetPrefill(move, activeIdx).reps || '—'} · {bsSetPrefill(move, activeIdx).load || '—'}{move.rpe ? ` · ${tr('session:player.view.targetRpe', { rpe: move.rpe })}` : ''}{move.restSeconds != null ? ` · ${tr('session:player.view.rest')} ${fmt(move.restSeconds)}` : ''}</p>
+        </div>}
         {/* Current-set readout — the big figures ARE the inputs */}
-        {activeIdx != null ? (
+        {view !== 'log' && (activeIdx != null ? (
           <div style={{ position: 'relative', marginTop: 14 }}>
             <div style={{ ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr(activeRunning ? 'session:player.setLive' : 'session:player.setUp', { n: String(activeIdx + 1).padStart(2, '0') })}</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 8 }}>
@@ -31549,12 +31631,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
                   <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{fieldLabel(field)}</div>
                 </div>
               ))}
-              <button onClick={() => logSet(activeIdx)} aria-label={tr(!timedMode || activeRunning ? 'session:player.logSetAria' : 'session:player.startSetAria', { n: activeIdx + 1 })} style={{ flexShrink: 0, width: 48, height: 48, marginBottom: 14, padding: 0, borderRadius: 6, border: `1.5px solid ${bandHeat}`, background: activeRunning ? bandHeat : 'transparent', color: activeRunning ? '#04211c' : bandHeat, display: 'grid', placeItems: 'center', fontSize: 15, fontWeight: 800, cursor: 'pointer', ...heatTrans }}>✓</button>
+
             </div>
           </div>
         ) : (
           <div style={{ position: 'relative', marginTop: 14, ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr('session:player.allSetsLogged')}</div>
-        )}
+        ))}
         {/* Rest — countdown + a bar that FILLS as the rest runs (owner add) */}
         {restEnd && restLeft > 0 && (
           <div style={{ position: 'relative', marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11 }}>
@@ -31572,29 +31654,25 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
             </div>
           </div>
         )}
-        {/* HR — zone strip with a live strap; the quiet connect pill without */}
-        {hrmOn && hrNow ? (
-          <div style={{ position: 'relative', marginTop: 13 }} aria-label={tr('session:player.hrStripAria', { bpm: hrNow, zone: effort?.zone || 1 })}>
-            <div style={{ position: 'relative', height: 3, background: `linear-gradient(90deg, ${BS_EFFORT_RAMP[1]}, ${BS_EFFORT_RAMP[3]}, ${BS_EFFORT_RAMP[4]}, ${BS_EFFORT_RAMP[5]})` }}>
-              <span aria-hidden style={{ position: 'absolute', top: -4, width: 2, height: 11, background: BAND.cream, left: `${Math.min(97, Math.max(1, (hrNow / BS_EFFORT_HRMAX) * 100))}%`, transition: 'left 1.2s ease' }} />
-            </div>
-            <div style={{ marginTop: 5, display: 'flex', justifyContent: 'space-between', ...bandEyebrow, fontSize: 8 }}>
-              <span style={{ color: BAND.dim35 }}>Z1</span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: bandHeat, ...heatTrans }}>{bsFeedIcon('heart', 10, true)} {tr('session:player.hrEffort', { bpm: hrNow, zone: effort?.label || 'Z1' })}</span>
-              <span style={{ color: BAND.dim35 }}>Z5</span>
-            </div>
-          </div>
-        ) : (
-          <div style={{ position: 'relative', marginTop: 13, display: 'flex' }}>
-            <button onClick={connectHrm} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: 'transparent', border: `1px solid ${BAND.hair}`, borderRadius: 999, padding: '5px 12px', cursor: 'pointer', ...bandEyebrow, fontSize: 8.5, color: BAND.dim }}>
-              {bsFeedIcon('heart', 11)} {tr('session:player.connectHr')}
-            </button>
-          </div>
-        )}
+        <div style={{ position: 'relative', marginTop: 15, borderTop: `1px solid ${BAND.hair}`, paddingTop: 12, color: BAND.cream }}>
+          {hrNow != null ? <span style={{ fontFamily: t.MONO, color: bandHeat }}>{bsFeedIcon('heart', 12, true)} {tr('session:player.view.hrReading', { bpm: hrNow })} · {tr('session:player.view.hrLive')}</span> : <>
+            <span style={{ fontSize: 12, color: BAND.dim }}>{tr(hrmOn ? 'session:player.view.hrWaiting' : hrSamplesRef.current.length ? 'session:player.view.hrLost' : 'session:player.view.hrAbsent')}</span>
+            <button onClick={connectHrm} disabled={hrConnecting || hrmOn} style={{ minHeight: 44, display: 'block', border: 0, padding: 0, background: 'transparent', color: bandHeat, cursor: 'pointer' }}>{tr(hrConnecting ? 'session:player.view.hrConnecting' : 'session:player.connectHr')}</button>
+          </>}
+          <div style={{ marginTop: 5, fontSize: 11, color: BAND.dim }}>{tr('session:player.view.hrHelp')}</div>
+        </div>
       </div>
       {/* The seam — the ONE band/paper boundary (Cockpit/Split signature) */}
       <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
 
+      <details key={view} open={view === 'log'} style={{ color: t.INK }}>
+        <summary style={{ padding: `18px ${t.padX}px`, minHeight: 44, boxSizing: 'border-box', cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, borderBottom: `1px solid ${t.RULE}` }}>{tr('session:player.view.details')}</summary>
+        <div style={{ padding: `0 ${t.padX}px`, background: BAND.bg }}>
+        <div style={{ position: 'relative', marginTop: 12, display: 'flex', gap: 8 }}>
+          {[false, true].map(timed => <button key={String(timed)} aria-pressed={timedMode === timed} onClick={() => { setTimedMode(timed); setActiveSetKey(null); setSetStartedAt(null); }} style={{ minHeight: 44, flex: 1, background: timedMode === timed ? BAND.hair : 'transparent', color: BAND.cream, border: `1px solid ${BAND.hair}`, borderRadius: 5, cursor: 'pointer' }}>{timed ? tr('session:player.timedSets') : tr('session:player.quickLog')}</button>)}
+        </div>
+
+        </div>
       {/* ═══ THE LEDGER (paper) — cue · last · suggestion · plates · sets */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         {!openMode && !!cue && <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
@@ -31651,11 +31729,15 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
           <span>{tr('session:player.colSet')}</span><span>{tr('session:player.colWeight')}</span><span>{tr('session:player.colReps')}</span><span>RPE</span><span style={{ textAlign: 'right' }}>{tr('session:player.colDone')}</span>
         </div>
-        {Array.from({ length: move.sets }).map((_, i) => {
-          const k = `${moveIdx}-${i}`;
+        {(view === 'log' ? moves.map((rowMove, rowMoveIdx) => ({ rowMove, rowMoveIdx })) : [{ rowMove: move, rowMoveIdx: moveIdx }]).map(({ rowMove, rowMoveIdx }) => (
+          <section key={rowMoveIdx} aria-labelledby={`bs-log-move-${rowMoveIdx}`} style={{ marginBottom: 16 }}>
+            <button id={`bs-log-move-${rowMoveIdx}`} onClick={() => { setMoveIdx(rowMoveIdx); setGuideStep('prepare'); }} style={{ width: '100%', textAlign: 'left', minHeight: 44, background: 'transparent', border: 0, borderTop: `1px solid ${t.RULE}`, color: t.INK, padding: '12px 0', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18 }}>{rowMove.m || tr('session:player.namePlaceholder')}</button>
+            {view === 'log' && <p style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, margin: '0 0 8px' }}>{rowMove.s || `${rowMove.sets} × ${rowMove.reps || '—'}`}{rowMove.l ? ` · ${rowMove.l}` : ''}</p>}
+        {Array.from({ length: rowMove.sets }).map((_, i) => {
+          const k = `${rowMoveIdx}-${i}`;
           const done = completed[k];
-          const isActive = i === activeIdx;
-          const ri = setInputs[k] || { reps: '', load: bsSetPrefill(move, i).load, rpe: '' };
+          const isActive = rowMoveIdx === moveIdx && i === activeIdx;
+          const ri = setInputs[k] || { reps: '', load: bsSetPrefill(rowMove, i).load, rpe: '' };
           // Every row stays tap-to-edit in place (Cockpit/Split spec: full set
           // editing — done, active, pending alike share state with the band's
           // readout). The dotted underlines died with the redesign: pending =
@@ -31664,7 +31746,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
             // Logged sets stay editable in place (a mis-entered load/reps/RPE
             // corrects without delete-and-relog — updateSetInput patches the
             // captured log row); they read dimmed, not locked.
-            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value)} placeholder={ph} inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: i + 1, field: fieldLabel(field) })}
+            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value, rowMoveIdx)} placeholder={ph} inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: i + 1, field: fieldLabel(field) })} aria-describedby={`bs-log-move-${rowMoveIdx}`}
               style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px solid ${t.HAIR}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
           );
           return (
@@ -31673,10 +31755,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
               {cell('load', identity.loadUnit)}
               {cell('reps', '—')}
               {cell('rpe', '—')}
-              <button onClick={() => { if (!done) logSet(i); }} aria-label={tr(done ? 'session:player.setDoneAria' : 'session:player.markSetDoneAria', { n: i + 1 })} style={{ justifySelf: 'end', width: 44, height: 44, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>✓</button>
+              <button onClick={() => { if (!done) logSet(i, rowMoveIdx); }} disabled={!!done} aria-label={tr(done ? 'session:player.setDoneAria' : timedMode && activeSetKey !== k ? 'session:player.startSetCta' : 'session:player.markSetDoneAria', { n: i + 1 })} style={{ justifySelf: 'end', width: 44, height: 44, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>{timedMode && !done && activeSetKey !== k ? '▶' : '✓'}</button>
             </div>
           );
         })}
+          </section>
+        ))}
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={addSet} aria-label={tr('session:player.addSetAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.addSet')}</button>
           {/* Remove targets the current pending set (else the last set, confirm-
@@ -31688,10 +31772,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
       </div>
 
+      </details>
+
       {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
         {activeIdx != null ? (
-          <button onClick={() => logSet(activeIdx)} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {!timedMode || activeRunning
+          <button onClick={primarySetAction} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+            {restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning
               // A hold or a distance is not a rep count, so it never reads "30 s reps".
               ? (bsSetPrefill(move, activeIdx).reps && !bsIsTimedReps(bsSetPrefill(move, activeIdx).reps)
                   ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: bsSetPrefill(move, activeIdx).reps })
@@ -31699,7 +31785,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
               : tr('session:player.startSetCta', { n: activeIdx + 1 })}
           </button>
         ) : (
-          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } else openCompletion(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } else openCompletion(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
             {tr(moveIdx < moves.length - 1 ? 'session:player.nextExercise' : 'session:player.finishWorkout')}
           </button>
         )}
@@ -31707,8 +31793,8 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
 
       {/* Prev / next — text-actions (the bordered boxes died with the spec) */}
       <div style={{ padding: `6px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => setMoveIdx(Math.max(0, moveIdx - 1))} disabled={moveIdx === 0} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{tr('session:player.previous')}</button>
-        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setRestEnd(null); } }} disabled={moveIdx >= moves.length - 1} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, minWidth: 0, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: moveIdx >= moves.length - 1 ? t.INK50 : teal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? <span style={{ borderBottom: `2px solid ${bsTHexA(teal, 0.4)}`, paddingBottom: 2 }}>{tr('session:player.nextNamed', { move: moves[moveIdx + 1].m })}</span> : tr('session:player.lastExercise')}</button>
+        <button onClick={() => { setMoveIdx(Math.max(0, moveIdx - 1)); setGuideStep('prepare'); }} disabled={moveIdx === 0} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{tr('session:player.previous')}</button>
+        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } }} disabled={moveIdx >= moves.length - 1} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, minWidth: 0, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: moveIdx >= moves.length - 1 ? t.INK50 : teal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? <span style={{ borderBottom: `2px solid ${bsTHexA(teal, 0.4)}`, paddingBottom: 2 }}>{tr('session:player.nextNamed', { move: moves[moveIdx + 1].m })}</span> : tr('session:player.lastExercise')}</button>
       </div>
 
       {/* Queue */}
@@ -31721,7 +31807,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
           const mDone = Array.from({ length: mv.sets }).every((_, si) => completed[`${i}-${si}`]);
           const isCurrent = i === moveIdx;
           return (
-            <button key={i} onClick={() => setMoveIdx(i)} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${heat}` : '3px solid transparent', display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'baseline', padding: '13px 0 13px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1, ...heatTrans }}>
+            <button key={i} onClick={() => { setMoveIdx(i); setGuideStep('prepare'); }} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${heat}` : '3px solid transparent', display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'baseline', padding: '13px 0 13px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1, ...heatTrans }}>
               <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? heat : t.INK50, ...heatTrans }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{mv.m}{isCurrent && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: heat, marginLeft: 8, ...heatTrans }}>{tr('session:player.now')}</span>}</div>
