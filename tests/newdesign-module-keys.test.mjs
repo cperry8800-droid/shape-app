@@ -40,9 +40,12 @@ const loads = (page, file) => read(page).includes('src="' + file);
 // ⚠ 20260922c: the library filters — `programFacts`, `programTagFacet` and the tag rules
 // in the builder core, `mealPlanFacts` and `ALLERGENS` in the meal core. A page handed the
 // older copy calls functions that are not there, which here is a blank page.
+// ⚠ 20260923: per-set targets — `ladder`, `setTarget`, `perSetEntries` and the
+// ladder-aware `loadLabel` in the document module, which the builder's new per-set
+// table calls on every render, and the ladder-aware labels in the builder core.
 const MIN = {
-  'workoutDocument.js': '20260922b',
-  'dashBuilderCore.js': '20260922c',
+  'workoutDocument.js': '20260923',
+  'dashBuilderCore.js': '20260923',
   'dashMealCore.js': '20260922c',
   'dashSignals.js': '20260922b',
 };

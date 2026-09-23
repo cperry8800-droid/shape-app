@@ -61,7 +61,11 @@ function exerciseLine(e) {
   if (!e || typeof e !== 'object') return null;
   const name = str(e.name, 60);
   if (!name) return null;
-  const sets = txt(e.sets, 8), reps = txt(e.reps, 12), load = txt(e.load ?? e.notes, 40), seg = txt(e.seg, 40);
+  // A coach's per-set ladder is written out in `reps` and `load` ("12/10/8/6/4/3",
+  // "102.5/107.5/112.5/117.5/122.5 kg · RPE 8"), so the caps leave room for one: cut
+  // at 12 and 40, that six-set ladder reached Nora as "12/10/8/6/4/" and a load that
+  // stopped partway through its fourth weight.
+  const sets = txt(e.sets, 8), reps = txt(e.reps, 40), load = txt(e.load ?? e.notes, 64), seg = txt(e.seg, 40);
   const scheme = [sets, reps].filter(Boolean).join(' × ') || null;
   return { name, ...(scheme ? { scheme } : {}), ...(load ? { load } : {}), ...(seg ? { seg } : {}) };
 }

@@ -230,25 +230,72 @@
   // ⚠ THE FALLBACK IS A FALLBACK, and it has to compose the same two axes or a
   // browser that somehow loaded this without `workoutDocument.js` would silently
   // drop every coach's RPE. `WorkoutDoc.loadLabel` is the rule; this mirrors it.
+  function fbWeight(row) {
+    // An imported free-text load stands in for the weight, never for the RPE —
+    // the same rule as ShapeWorkoutDocument.loadLabel, which this must agree with.
+    if (row.loadText != null) return String(row.loadText);
+    if (row.load == null || row.load === "" || Number(row.load) === 0) return "";
+    if (row.loadType === "pct") return row.load + "% 1RM";
+    if (row.loadType === "rpe") return "RPE " + row.load;
+    return row.load + " " + (row.loadType === "lb" ? "lb" : "kg");
+  }
+  // ⚠ AND SO DOES THE LADDER. `WorkoutDoc.ladder` is the rule: a blank per-set field
+  // inherits the row's own value, the compact "60/70/80 kg" form is used only when
+  // every set is a number in the row's unit, and entries past the set count are
+  // not delivered. A fallback that printed "60 kg" over a 60/70/80 ladder would be
+  // the dropped-RPE defect above in a new place; tests/coach-rpe-axis.test.mjs holds
+  // the two equal over one vector set.
+  function fbLadder(row) {
+    var n = Number(row && row.sets);
+    // Number.isInteger, spelled for ES5: Infinity passes `n === Math.floor(n)`.
+    n = isFinite(n) && n === Math.floor(n) && n > 0 ? Math.min(n, 50) : 0;
+    var raw = row && Array.isArray(row.perSet) ? row.perSet.slice(0, 20) : [];
+    var entries = raw.map(function (v) {
+      var e = v && typeof v === "object" ? v : {};
+      var t = e.load == null ? "" : String(e.load).trim();
+      var num = typeof e.load === "number" ? e.load : t === "" ? NaN : Number(t);
+      return { reps: (e.reps == null ? "" : String(e.reps)).trim().slice(0, 24), load: isFinite(num) && num >= 0 ? num : "" };
+    });
+    var any = false;
+    for (var k = 0; k < Math.min(n, entries.length); k++) if (entries[k].reps !== "" || entries[k].load !== "") any = true;
+    if (!n || !any) return null;
+    var unit = row.loadType === "pct" ? "% 1RM" : " " + (row.loadType === "lb" ? "lb" : "kg");
+    var baseNum = row.loadText == null && row.loadType !== "rpe" && !(row.load == null || row.load === "") && isFinite(Number(row.load)) && Number(row.load) > 0 ? Number(row.load) : null;
+    var reps = [], labels = [], nums = [];
+    for (var i = 0; i < n; i++) {
+      var e = entries[i] || { reps: "", load: "" };
+      reps.push(e.reps !== "" ? e.reps : (row.reps == null ? "" : String(row.reps)).trim());
+      if (e.load !== "") { labels.push(e.load === 0 ? "" : e.load + unit); nums.push(e.load === 0 ? null : e.load); }
+      else { labels.push(fbWeight(row)); nums.push(baseNum); }
+    }
+    var same = function (list) { for (var j = 1; j < list.length; j++) if (list[j] !== list[0]) return false; return true; };
+    var allNum = true;
+    for (var q = 0; q < nums.length; q++) if (nums[q] == null) allNum = false;
+    return {
+      reps: same(reps) ? reps[0] : reps.map(function (x) { return x || "\u2014"; }).join("/"),
+      weight: same(labels) ? labels[0] : allNum ? nums.join("/") + unit : labels.map(function (x) { return x || "\u2014"; }).join(" / "),
+    };
+  }
   function loadLabel(row) {
     if (WorkoutDoc) return WorkoutDoc.loadLabel(row);
     var parts = [];
-    // An imported free-text load stands in for the weight, never for the RPE —
-    // the same rule as ShapeWorkoutDocument.loadLabel, which this must agree with.
-    if (row.loadText != null) {
-      if (String(row.loadText)) parts.push(String(row.loadText));
-    } else if (!(row.load == null || row.load === "" || Number(row.load) === 0)) {
-      if (row.loadType === "pct") parts.push(row.load + "% 1RM");
-      else if (row.loadType === "rpe") parts.push("RPE " + row.load);
-      else parts.push(row.load + " " + (row.loadType === "lb" ? "lb" : "kg"));
-    }
+    var ladder = fbLadder(row);
+    var weight = ladder ? ladder.weight : fbWeight(row);
+    if (weight) parts.push(weight);
     var n = Number(row.rpe);
     if (row.loadType !== "rpe" && isFinite(n) && n > 0 && n <= 10) parts.push("RPE " + n);
     return parts.join(" \u00b7 ");
   }
+  function repsLabel(row) {
+    if (WorkoutDoc) return WorkoutDoc.repsLabel(row);
+    var ladder = fbLadder(row);
+    return ladder ? ladder.reps : row.reps;
+  }
   function schemeLabel(row) {
     var parts = [];
-    if (row.sets && row.reps) parts.push(row.sets + " × " + row.reps);
+    // The ladder's reps ("8/6/4"), so the preview card shows what each set is for.
+    var reps = repsLabel(row);
+    if (row.sets && reps) parts.push(row.sets + " × " + reps);
     if (row.tempo) parts.push(row.tempo + " tempo");
     if (row.rest) parts.push(row.rest);
     return parts.join(" · ");
@@ -289,6 +336,18 @@
             //   ordinary block, and keying this on `loadType` made the two
             //   mutually exclusive.
             if (r.progression.incRpe && Number(r.rpe) > 0) r.rpe = Math.min(10, Math.round((Number(r.rpe) + r.progression.incRpe) * 100) / 100);
+            // ⚠ A LADDER PROGRESSES SET BY SET. Bumping only the row's own weight
+            //   moves the sets that inherit it and leaves every set the coach wrote
+            //   standing still, so a 60/70/80 pyramid would flatten a little every
+            //   week. A set written as 0 is a set with no weight, and stays one.
+            var inc = r.loadType === "kg" ? r.progression.incKg : r.loadType === "lb" ? r.progression.incLb : r.loadType === "pct" ? r.progression.incPct : 0;
+            if (inc && Array.isArray(r.perSet)) {
+              r.perSet = r.perSet.map(function (e) {
+                if (!e || typeof e !== "object" || e.load === "" || e.load == null || !isFinite(Number(e.load)) || Number(e.load) <= 0) return e;
+                var v = r.loadType === "pct" ? Math.min(100, Number(e.load) + inc) : Math.round((Number(e.load) + inc) * 100) / 100;
+                return Object.assign({}, e, { load: v });
+              });
+            }
           }
           r.id = uid(); // duplicated rows are their own rows
         }
@@ -625,7 +684,10 @@
         { name: "Lower Push", playlist: { name: "Lower Push — Peak", meta: "95–138 BPM · 14 tracks" }, blocks: [
           { kind: "warmup", rows: [row("Hip 90/90 flow", "Mobility", "Bodyweight", 2, "5 ea", "kg", 0, "", "30s", "Slow — own every position", null)] },
           { kind: "main", rows: [
-            row("Back squat", "Quads", "Barbell", 4, "5", "kg", 110, "31X1", "150s", "Brace before the walkout", null, { rule: "all-reps", incKg: 2.5 }),
+            // The preview shows a ladder, so a coach meets per-set targets where they
+            // will use them: 5/5/5/3 at 100/105/110/115, set 3 inheriting the row.
+            Object.assign(row("Back squat", "Quads", "Barbell", 4, "5", "kg", 110, "31X1", "150s", "Brace before the walkout", null, { rule: "all-reps", incKg: 2.5 }),
+              { perSet: [{ load: 100 }, { load: 105 }, {}, { reps: "3", load: 115 }] }),
             row("Romanian deadlift", "Hamstrings", "Barbell", 3, "8", "kg", 90, "3010", "120s", "Push the hips back, bar on the thighs", null, { rule: "all-reps", incKg: 2.5 }),
           ] },
           { kind: "accessory", rows: [
@@ -755,7 +817,7 @@
     searchCustomMoves: searchCustomMoves,
     canCreateMove: canCreateMove,
     newRow: newRow, newDay: newDay, newWeek: newWeek, newProgram: newProgram,
-    loadLabel: loadLabel, schemeLabel: schemeLabel, rowLabels: rowLabels,
+    loadLabel: loadLabel, repsLabel: repsLabel, schemeLabel: schemeLabel, rowLabels: rowLabels,
     applyProgression: applyProgression, deloadWeek: deloadWeek,
     dayToClientCard: dayToClientCard, buildAssignmentRows: buildAssignmentRows,
     demoTemplates: demoTemplates, demoPerformance: demoPerformance,

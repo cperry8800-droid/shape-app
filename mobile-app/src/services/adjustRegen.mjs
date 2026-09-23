@@ -30,13 +30,21 @@ export const BS_ADJUST_SCALE = { deload: 0.85, maintain: 1, progress: 1.025 };
 
 // Scale the first number in a free-text load ("135 lb" → "115 lb"); loads
 // ≥20 round to the nearest 5 (plate math), smaller round to 1.
+// ⚠ A LADDER SCALES EVERY SET. A coach's per-set targets arrive written out
+// ("60/70/80 kg · RPE 8", or "— / 70 kg / 80 kg" when a set has no weight), and
+// scaling only the first number deloaded the lightest set and left the heavy ones
+// standing. Every number BEFORE the first " · " scales; the RPE after it never does.
 export function bsScaleLoad(load, scale) {
   const s = String(load == null ? '' : load);
   if (scale === 1 || !/\d/.test(s)) return s;
-  return s.replace(/\d+(?:\.\d+)?/, (n) => {
+  const one = (n) => {
     const v = Number(n) * scale;
     return String(v >= 20 ? Math.round(v / 5) * 5 : Math.round(v));
-  });
+  };
+  const cut = s.indexOf(' · ');
+  const head = cut < 0 ? s : s.slice(0, cut);
+  if (head.includes('/')) return head.replace(/\d+(?:\.\d+)?/g, one) + (cut < 0 ? '' : s.slice(cut));
+  return s.replace(/\d+(?:\.\d+)?/, one);
 }
 
 const isoShift = (iso, days) => {
@@ -59,7 +67,15 @@ function scaleExercises(exercises, scale) {
     if (!m || typeof m !== 'object' || m.seg) return m;
     const base = m.baseL != null && String(m.baseL).length ? String(m.baseL) : String(m.load == null ? '' : m.load);
     if (!/\d/.test(base)) return m;
-    return { ...m, baseL: base, load: bsScaleLoad(base, scale) };
+    // ⚠ EACH SET OF A LADDER SCALES FROM ITS OWN BASE TOO. `perSet` is what the
+    // player pre-fills a set with, so scaling only the written-out label would show
+    // a deloaded ladder over sets that still pre-fill the old weights. The base is
+    // stamped once, like `baseL`, so a repeated Apply re-derives rather than compounds.
+    const ladder = Array.isArray(m.basePerSet) ? m.basePerSet : Array.isArray(m.perSet) && m.perSet.length ? m.perSet : null;
+    return {
+      ...m, baseL: base, load: bsScaleLoad(base, scale),
+      ...(ladder ? { basePerSet: ladder, perSet: ladder.map((p) => (p && typeof p === 'object' ? { ...p, load: bsScaleLoad(p.load, scale) } : p)) } : {}),
+    };
   });
 }
 

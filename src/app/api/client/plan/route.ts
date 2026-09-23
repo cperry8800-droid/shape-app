@@ -25,18 +25,34 @@ function weekStartISO(d = new Date()): string {
   return x.toISOString().slice(0, 10);
 }
 
-type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; rpe?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown; video?: unknown };
+type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; rpe?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown; video?: unknown; perSet?: unknown };
+
+type SetTarget = { reps: string; load: string };
+// Each set's own target when the coach wrote a ladder (ShapeWorkoutDocument.
+// exerciseFromRow resolves it: `{ reps, load }` per set, every weight with its unit).
+// ⚠ THE PAYLOAD IS CLIENT-WRITTEN JSONB, so this reads a shape rather than trusting
+// one: only strings and numbers become text, each capped, at most 50 sets, and
+// anything that is not a list is no ladder at all.
+const perSetOf = (v: unknown): SetTarget[] | undefined => {
+  if (!Array.isArray(v) || !v.length) return undefined;
+  const field = (x: unknown, cap: number) => (typeof x === 'string' || (typeof x === 'number' && Number.isFinite(x)) ? String(x).slice(0, cap) : '');
+  return v.slice(0, 50).map((entry) => {
+    const o = entry && typeof entry === 'object' && !Array.isArray(entry) ? (entry as Record<string, unknown>) : {};
+    return { reps: field(o.reps, 24), load: field(o.load, 40) };
+  });
+};
 
 const rpeOf = (v: unknown): number | null => {
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
   return Number.isFinite(n) && n > 0 && n <= 10 ? n : null;
 };
 
-function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; rpe: number | null; tempo: string; cue: string; group: string; seg: string; video: unknown }> {
+function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; rpe: number | null; tempo: string; cue: string; group: string; seg: string; video: unknown; perSet?: SetTarget[] }> {
   const list = Array.isArray(payload?.exercises) ? (payload!.exercises as ExerciseRow[]) : [];
   return list
     .filter((e) => e && (e.name != null))
-    .map((e) => ({
+    .map((e) => ({ e, perSet: perSetOf(e.perSet) }))
+    .map(({ e, perSet }) => ({
       name: String(e.name ?? '').trim(),
       sets: e.sets != null ? String(e.sets) : '',
       reps: e.reps != null ? String(e.reps) : '',
@@ -67,6 +83,11 @@ function mapExercises(payload: Record<string, unknown> | null): Array<{ name: st
       // ＋CLIP rails) rides through untouched — the live session's ▶ How-to
       // chip gates on it (honest-absent when the block carries none).
       video: e.video ?? null,
+      // ⚠ THE LADDER IS LISTED OR IT NEVER ARRIVES. This whitelist drops every field
+      // it does not name — the same way `rpe` was lost before it was added above — and
+      // without `perSet` the player would pre-fill every set with the written-out
+      // "8/6/4". Absent (not an empty list) when the coach wrote straight sets.
+      ...(perSet ? { perSet } : {}),
     }));
 }
 

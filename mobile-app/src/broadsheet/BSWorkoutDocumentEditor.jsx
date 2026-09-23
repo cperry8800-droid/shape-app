@@ -1,5 +1,5 @@
 import React from 'react';
-import { normalizeWorkoutDetail, videoUrl } from '../../../public/newdesign/workoutDocument.mjs';
+import { normalizeWorkoutDetail, videoUrl, ladder as rowLadder, perSetEntries, weightLabel, LADDER_MAX } from '../../../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutVideos, coachWorkoutDraftKey } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutFutureUpdates, { useWorkoutTr } from './BSWorkoutFutureUpdates.jsx';
 
@@ -45,6 +45,9 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   const [retry, setRetry] = React.useState(null);
   const [undo, setUndo] = React.useState(null);
   const [futureUpdates, setFutureUpdates] = React.useState(false);
+  // Which rows have their per-set table open, by row id. A row that already carries a
+  // ladder opens with it showing, so a coach sees the sets they wrote.
+  const [ladderOpen, setLadderOpen] = React.useState({});
   const savingRef = React.useRef(false);
   const fileRef = React.useRef(null);
   const targetRef = React.useRef(null);
@@ -82,6 +85,18 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
     if (key === 'load' || key === 'loadType') delete next.blocks[bi].rows[ri].loadText;
     if (key === 'rest') delete next.blocks[bi].rows[ri].restSeconds;
   });
+  // ⚠ PER-SET REPS AND LOAD: THE FULL LADDER, the same document field the website
+  // builder writes (`perSet`, one entry per set). A blank field inherits the row, so
+  // an entry only ever holds what differs. Reps are stored as typed and trimmed when
+  // the document is saved, never per keystroke.
+  const changeSet = (bi, ri, i, key, nextValue) => changeDay((next) => {
+    const row = next.blocks[bi].rows[ri];
+    const list = Array.isArray(row.perSet) ? row.perSet.map((e) => ({ ...(e && typeof e === 'object' ? e : {}) })) : [];
+    while (list.length <= i) list.push({});
+    list[i] = { ...list[i], [key]: nextValue };
+    row.perSet = list;
+  });
+  const clearSets = (bi, ri) => changeDay((next) => { delete next.blocks[bi].rows[ri].perSet; });
   const videos = coachWorkoutVideos([...(plans || []), { name: value.name, detail: value.detail }]);
   const videoTarget = (bi, ri, row) => ({ wi, di, bi, ri, id: row.id });
   const attachVideo = (target, media) => change((next) => {
@@ -178,6 +193,39 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
             <label style={label}>{txt('targetRpe', 'Target · RPE')}<select value={row.rpe ?? ''} onChange={(e) => changeRow(bi, ri, 'rpe', e.target.value === '' ? '' : Number(e.target.value))} style={input}><option value="">{txt('rpeNone', 'None')}</option>{rpeOptions(row.rpe).map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
           </div>
           {row.loadText && <div style={{ fontFamily: t.MONO, fontSize: 11, marginTop: 8, color: t.INK50 }}>{txt('existingLoad', 'Existing prescription')}: {row.loadText}</div>}
+          {(() => {
+            const count = Number(row.sets);
+            const n = Number.isInteger(count) && count > 0 ? Math.min(count, LADDER_MAX) : 0;
+            const lad = rowLadder(row);
+            const open = ladderOpen[row.id] ?? !!lad;
+            const stored = Array.isArray(row.perSet) ? row.perSet : [];
+            const any = perSetEntries(row).some((e) => e.reps !== '' || e.load !== '');
+            const base = weightLabel(row);
+            const unit = row.loadType === 'pct' ? txt('percentMax', '% 1RM') : (row.loadType || 'kg');
+            const region = `ladder-${row.id}`;
+            return <div style={{ marginTop: 10 }}>
+              <button type="button" aria-expanded={open} aria-controls={open ? region : undefined} onClick={() => setLadderOpen((m) => ({ ...m, [row.id]: !open }))} style={{ ...button, width: '100%', textAlign: 'left' }}>
+                {txt('perSet', 'Per-set reps & load')}{lad ? ` · ${[lad.reps, lad.weight].filter(Boolean).join(' · ')}` : ''}
+              </button>
+              {open && <div id={region} style={{ marginTop: 8 }}>
+                {!n ? <div style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>{txt('perSetSetsFirst', 'Set the number of sets first.')}</div> : <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr', gap: 8, alignItems: 'center' }}>
+                    <span style={label}>{txt('perSetSet', 'Set')}</span><span style={label}>{txt('reps', 'Reps')}</span><span style={label}>{txt('load', 'Load')} ({unit})</span>
+                    {Array.from({ length: n }, (_, i) => {
+                      const e = stored[i] && typeof stored[i] === 'object' ? stored[i] : {};
+                      return <React.Fragment key={i}>
+                        <span style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
+                        <input aria-label={tr('coach:workoutEditor.perSetRepsAria', { defaultValue: 'Set {n} reps', n: i + 1 })} value={e.reps ?? ''} placeholder={String(row.reps ?? '') || '—'} onChange={(ev) => changeSet(bi, ri, i, 'reps', ev.target.value)} style={input} />
+                        <input aria-label={tr('coach:workoutEditor.perSetLoadAria', { defaultValue: 'Set {n} load', n: i + 1 })} type="number" min={0} step="any" inputMode="decimal" value={e.load ?? ''} placeholder={base || '—'} onChange={(ev) => changeSet(bi, ri, i, 'load', ev.target.value === '' ? '' : Number(ev.target.value))} style={input} />
+                      </React.Fragment>;
+                    })}
+                  </div>
+                  <div style={{ fontFamily: t.MONO, fontSize: 11, marginTop: 8, color: t.INK50 }}>{txt('perSetHint', 'A blank field uses this exercise’s reps and load.')}{count > LADDER_MAX ? ` ${tr('coach:workoutEditor.perSetCap', { defaultValue: 'Per-set targets cover the first {count} sets.', count: LADDER_MAX })}` : ''}</div>
+                  {any && <button type="button" onClick={() => clearSets(bi, ri)} style={{ ...button, marginTop: 8 }}>{txt('perSetClear', 'Clear per-set targets')}</button>}
+                </>}
+              </div>}
+            </div>;
+          })()}
           <label style={{ ...label, marginTop: 10 }}>{txt('cue', 'Coaching cue')}<textarea value={row.cue || ''} onChange={(e) => changeRow(bi, ri, 'cue', e.target.value)} rows={2} style={input} /></label>
           {videoUrl(row.video) && <video src={videoUrl(row.video)} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 220, marginTop: 12 }} />}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
