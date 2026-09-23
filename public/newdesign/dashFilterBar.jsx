@@ -173,7 +173,19 @@ function DashTagChips({ facet, run, onToggle, onClear, allLabel }) {
 }
 
 // ── The bar: search, every filter, and the result ───────────────────────────
-function DashFilterBar({ facets, run, state, setState, one, many, placeholder, notes }) {
+function DashFilterBar({ facets, run, state, setState, one, many, placeholder, notes, primaryFacetKeys }) {
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  const moreId = React.useId();
+  const primary = primaryFacetKeys ? facets.filter((f) => primaryFacetKeys.includes(f.key)) : facets;
+  const additional = primaryFacetKeys ? facets.filter((f) => !primaryFacetKeys.includes(f.key)) : [];
+  // Count the effective selections, not stale keys a refreshed facet no longer offers.
+  const additionalActive = additional.filter((f) => (run.sels[f.key] || []).length > 0).length;
+  const renderFacet = (f) => (
+    <DashFacetMenu key={f.key} facet={f} counts={run.counts[f.key] || {}} selected={run.sels[f.key] || []}
+      note={notes && notes[f.key]}
+      onToggle={(k) => setState((s) => dfbToggle(s, f.key, k))}
+      onClear={() => setState((s) => dfbClearFacet(s, f.key))} />
+  );
   return (
     <div className="dash-filterbar" role="search" aria-label={"Filter " + many}>
       <label className="dash-filter-search">
@@ -181,18 +193,21 @@ function DashFilterBar({ facets, run, state, setState, one, many, placeholder, n
         <input type="search" value={state.q} placeholder={placeholder} aria-label={"Find " + one + " by name"}
           onChange={(e) => { const q = e.target.value; setState((s) => ({ ...s, q })); }} />
       </label>
-      {facets.map((f) => (
-        <DashFacetMenu key={f.key} facet={f} counts={run.counts[f.key] || {}} selected={run.sels[f.key] || []}
-          note={notes && notes[f.key]}
-          onToggle={(k) => setState((s) => dfbToggle(s, f.key, k))}
-          onClear={() => setState((s) => dfbClearFacet(s, f.key))} />
-      ))}
+      {primary.map(renderFacet)}
+      {!!additional.length && <button type="button" className="dash-filter-more" aria-expanded={moreOpen}
+        aria-controls={moreOpen ? moreId : undefined} onClick={() => setMoreOpen((o) => !o)}>
+        More filters{additionalActive > 0 && <span> · {additionalActive} active</span>}
+        <span aria-hidden="true">{moreOpen ? "▴" : "▾"}</span>
+      </button>}
       {/* The result and its Clear are one unit, so a full row cannot strand Clear on a
           line of its own, away from the count it resets. */}
       <span className="dash-filter-result">
         <span className="dash-filter-count" role="status">{dfbCountLabel(run, one, many)}</span>
         {run.active && <button type="button" className="dash-filter-clear" onClick={() => setState(DFB_EMPTY)}>Clear</button>}
       </span>
+      {moreOpen && !!additional.length && <div id={moreId} className="dash-filter-additional" role="group" aria-label={"Additional " + one + " filters"}>
+        {additional.map(renderFacet)}
+      </div>}
     </div>
   );
 }

@@ -1927,18 +1927,22 @@ function TrainerProgramsPage() {
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
       {targetClient && <p role="status">Choose a program for {targetClient.profile.name}. The assignment will have this client selected.</p>}
       {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetClient ? forClient : null} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}><button style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button><button style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button><button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Refresh</button></div>
+        <div className="dbu-library-actions">
+          <button type="button" style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button>
+          <button type="button" style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button>
+          <button type="button" className="dbu-library-refresh" onClick={()=>setRefresh(n=>n+1)}>Refresh</button>
+        </div>
         {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
         {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
         {templates===null&&!error&&<p role="status">Loading workouts…</p>}
         {templates?.length===0&&<p>No workouts yet. Create a single day or program to start your library.</p>}
-        {!!templates?.length&&<>
+        {!!templates?.length&&<div className="dbu-library-filters">
           {/* ⚠ EVERY FILTER SAYS WHAT IT WOULD LEAVE. Options inside one filter widen it,
               two filters narrow each other, and the count beside Clear is the result. */}
-          <DashFilterBar facets={barFacets} run={run} state={filters} setState={setFilters} one="program" many="programs" placeholder="Find a program…" notes={{use:useNote}}/>
+          <DashFilterBar facets={barFacets} primaryFacetKeys={['type','focus']} run={run} state={filters} setState={setFilters} one="program" many="programs" placeholder="Find a program…" notes={{use:useNote}}/>
           <DashTagChips facet={tagFacet} run={run} onToggle={k=>setFilters(s=>dfbToggle(s,'tags',k))} onClear={()=>setFilters(s=>dfbClearFacet(s,'tags'))}/>
-          {!customTags.length&&!items.some(x=>x.keys.tags.length)&&<p style={{...dbuLibMeta,fontSize:9,color:DBU_INK2,margin:'-8px 0 16px'}}>Tag a program under its name in the builder to file it here.</p>}
-        </>}
+          {!customTags.length&&!items.some(x=>x.keys.tags.length)&&<p style={{...dbuLibMeta,fontSize:9,color:DBU_INK2,margin:'10px 0 0'}}>Tag a program under its name in the builder to file it here.</p>}
+        </div>}
         {!!templates?.length&&!run.shown.length&&<p role="status" style={{fontSize:14,color:DBU_INK2}}>No programs match these filters. <button type="button" style={dbuLibBtn(false)} onClick={()=>setFilters(DFB_EMPTY)}>Clear filters</button></p>}
         {/* ⚠ ONE HIERARCHY PER CARD, AND ONE ACTION ROW. The four buttons were all the
             same weight and ran 119 / 79 / 266 / 98px wide, so on a 359px card they

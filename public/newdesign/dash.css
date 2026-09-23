@@ -438,6 +438,43 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
 .dash-facet-note { padding:2px 0 6px; font-size:12.5px; line-height:1.45; color:var(--sh-ink2, #a09b94); }
 .dash-facet-note button { margin-top:8px; }
 
+/* Programs toolbar: quiet controls, with the accent reserved for selection.
+   Scoped here so meal-plan filters and the builder's tag picker keep their own UI. */
+.dbu-library-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+.dbu-library-refresh { margin-left:auto; min-height:36px; padding:0 10px; border:1px solid transparent; border-radius:8px;
+  background:transparent; color:var(--sh-ink2, #a09b94); cursor:pointer;
+  font-family:var(--sh-font-body, 'Space Grotesk', sans-serif); font-size:13px; font-weight:500; }
+.dbu-library-refresh:hover { color:var(--sh-ink, #f2ede4); background:rgba(var(--sh-ink-rgb, 242,237,228),.06); }
+.dbu-library-refresh:focus-visible { outline:2px solid var(--sh-accent, #2ee0c4); outline-offset:2px; }
+.dbu-library-filters { margin-bottom:22px; }
+.dbu-library-filters .dash-filterbar { gap:8px; margin-bottom:12px; }
+.dbu-library-filters .dash-filter-search { flex:1 1 230px; min-width:min(230px,100%); min-height:36px; border-radius:8px; }
+.dbu-library-filters .dash-filter-result { min-height:36px; }
+.dbu-library-filters .dash-filter-more { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:0 10px;
+  border:1px solid var(--sh-line, #36322d); border-radius:8px; background:transparent; color:var(--sh-ink2, #a09b94);
+  font-family:var(--sh-font-body, 'Space Grotesk', sans-serif); font-size:12.5px; font-weight:500; cursor:pointer; }
+.dbu-library-filters .dash-filter-more[aria-expanded="true"] { color:var(--sh-accent-ink, #2ee0c4); }
+.dbu-library-filters .dash-filter-more:focus-visible { outline:2px solid var(--sh-accent, #2ee0c4); outline-offset:2px; }
+.dbu-library-filters .dash-filter-additional { display:flex; flex:1 0 100%; flex-wrap:wrap; gap:8px; padding-top:4px; }
+.dbu-library-filters .dash-chip { min-height:34px; border:1px solid var(--sh-line, #36322d); border-radius:8px;
+  clip-path:none; background:transparent; font-weight:500; }
+.dbu-library-filters .dash-chip::before { content:none; }
+.dbu-library-filters .dash-chip--menu > .dash-chip-main { min-height:34px; padding:0 10px; }
+.dbu-library-filters .dash-chip--menu > .dash-chip-main:not(:last-child) { padding-right:4px; }
+.dbu-library-filters .dash-chip--menu > .dash-chip-x { padding:0 8px 0 4px; min-width:28px; }
+.dbu-library-filters .dash-chiprow { gap:6px; margin:0; padding-top:12px; border-top:1px solid var(--sh-line, #36322d); }
+.dbu-library-filters .dash-chiprow > .dash-chip { border-color:transparent; border-radius:999px; padding:0 12px; }
+.dbu-library-filters .dash-chip.is-on, .dbu-library-filters .dash-chip.is-set {
+  color:var(--sh-accent-ink, #2ee0c4); border-color:rgba(var(--sh-accent-rgb, 46,224,196),.3);
+  background:rgba(var(--sh-accent-rgb, 46,224,196),.1); }
+.dbu-library-filters .dash-chip:not(.is-zero):hover { background:rgba(var(--sh-ink-rgb, 242,237,228),.06); }
+.dbu-library-filters .dash-chip.is-zero { opacity:1; color:var(--sh-ink3, #75706a); }
+.dbu-library-filters .dash-chip.is-zero .dash-chip-n { color:inherit; }
+@media (max-width:600px) {
+  .dbu-library-filters .dash-filter-search { flex-basis:100%; }
+  .dbu-library-filters .dash-filter-result { margin-left:0; }
+}
+
 /* ── Responsive (dashboard-v2 step 10) ────────────────────────────────────── */
 .dash-roster-scroll { overflow-x: auto; }
 .dash-roster-scroll > div { min-width: 640px; }

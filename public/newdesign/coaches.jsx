@@ -25,8 +25,8 @@
 // read the redirect as the harness being broken; it is the gate working.
 //
 // Captures refreshed 2026-09-23 from the current trainer and nutritionist apps,
-// using their signed-out demo practice and default light appearance. A local
-// static server leaves /api/me unavailable, so the existing preview fallback
+// using their signed-out demo practice with Settings > Appearance > Dark selected.
+// A local static server leaves /api/me unavailable, so the existing preview fallback
 // renders; no production session or client data is used. Capture at 1440x900,
 // hide the site header, global chat button and fixed preview banner, and move
 // main up by the header's 72px. Keep the sidebar and dashboard controls intact.
@@ -133,7 +133,7 @@ const CO_TOUR = {
 // ⚠ THE FRAME CARRIES ITS OWN LABEL. Not a caption under the picture — a mark on
 // it, so the claim travels with the image wherever it is seen.
 function CoFrame({ role, tab, style = {} }) {
-  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20260923`;
+  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20260923-dark`;
   return (
     <div style={{ border: "1px solid rgba(238,243,240,0.10)", borderRadius: 10, background: "#0a0f17", boxShadow: "0 40px 90px rgba(0,0,0,0.55)", overflow: "hidden", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, height: 34, padding: "0 12px", borderBottom: "1px solid rgba(238,243,240,0.055)", background: "rgba(255,255,255,0.02)" }}>
