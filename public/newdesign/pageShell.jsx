@@ -911,12 +911,49 @@ function SiteSearch({ signedIn = false }) {
 }
 
 function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
+  const dialogRef = React.useRef(null);
+  const closeRef = React.useRef(null);
+  // Header hands a fresh onClose arrow every render; the key handler below reads
+  // it through a ref so a re-render cannot re-run the focus effect and yank the
+  // reader back to the close button mid-menu.
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
   // `shape-drawer-open` is what hides the floating chat launcher while this
   // modal is up (the rule is in ShapeMobileStyles, beside the header's own).
   React.useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     document.body.classList.toggle("shape-drawer-open", !!open);
     return () => { document.body.style.overflow = ""; document.body.classList.remove("shape-drawer-open"); };
+  }, [open]);
+  // ⚠ FOCUS GOES IN, STAYS IN, AND COMES BACK. Portaled to the END of <body>, the
+  // drawer is the last thing in tab order: opened from the keyboard, focus stayed
+  // on the burger and the next Tab walked the covered page's links, unseen, before
+  // it reached a single drawer control (CodeRabbit, on #2158 — inside <header> it
+  // had sat right after the burger, so the portal is what broke this). So: focus
+  // the close button on open, wrap Tab and Shift+Tab at the drawer's edges (and
+  // pull a Tab that starts outside it back in), close on Escape, and hand focus
+  // back to whatever opened it — the burger, when a keyboard did — on close.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const opener = document.activeElement;
+    if (closeRef.current) closeRef.current.focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); onCloseRef.current(); return; }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const list = Array.from(dialogRef.current.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!list.length) return;
+      const first = list[0], last = list[list.length - 1], at = document.activeElement;
+      const inside = dialogRef.current.contains(at);
+      if (e.shiftKey ? (!inside || at === first) : (!inside || at === last)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus();
+    };
   }, [open]);
   if (!open) return null;
   const groups = navGroupsFor(authUser);
@@ -933,10 +970,26 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
   // Leaving the header costs it nothing: every token it reads (--sh-ink,
   // --sh-ground-rgb, the logo pair) is declared on :root, and React still bubbles
   // its events through Header, so onClose and onLogout are Header's handlers as
-  // before. zIndex 100 now competes in <body>, where it sits above the header (60).
+  // before.
+  // ⚠ zIndex 9000: ABOVE EVERY PAGE LAYER, BELOW THE HOUSE'S GLOBAL ONES. In <body>
+  // the drawer competes with every fixed layer on the page, and at 100 it lost to
+  // the rich chat window (180): measured at 820×1180, the open chat covered the
+  // drawer's Dashboard / Sign out row and took its taps. That window mounts in a
+  // host of its own (#shape-support-bubble, or #shape-rich-chat-root when the
+  // launcher boots it), which the launcher's hide rule does not reach. The Store's
+  // cart button (120) looked like the same defect and is not: it renders inside the
+  // Store page's zIndex:1 wrapper, so its 120 never leaves that stacking context,
+  // and the drawer at 100 already covered it at 390 and 820 wide. The highest page
+  // layer is the card-settings popover at 3000. What stays above on purpose:
+  // toasts (10000), the cookie-consent bar (99999, answered in one tap), the pages'
+  // own full-screen dialogs (9999, which cannot be open while the burger is
+  // reachable), ShapeConfirm (100000), and the age gate and chat launcher
+  // (2147483000, the launcher stepping aside below).
+  // `tests/site-nav.test.mjs` derives every fixed layer on the site and fails on a
+  // new one above this line that nobody has decided about.
   return ReactDOM.createPortal(
-    <div role="dialog" aria-modal="true"
-      style={{ position: "fixed", inset: 0, zIndex: 100, background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Menu"
+      style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", display: "flex", flexDirection: "column", padding: "20px 24px 32px", overflowY: "auto" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         {/* The paper's logo, not always the white one. The header and footer swap
             this pair on --sh-logo-dark / --sh-logo-light; a drawer that finally
@@ -947,7 +1000,7 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
           <img src="/shape-logo-nav-white.png" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} />
           <img src="/shape-logo-nav-black.png" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
         </a>
-        <button onClick={onClose} aria-label="Close menu"
+        <button ref={closeRef} onClick={onClose} aria-label="Close menu"
           style={{ background: "transparent", color: INK, border: 0, fontSize: 30, lineHeight: 1, padding: 8, cursor: "pointer", fontFamily: sans }}>×</button>
       </div>
       <nav style={{ flex: 1 }}>
@@ -1426,9 +1479,13 @@ function ShapeMobileStyles() {
          mount from 761px up, and at 820 and 1000 wide the launcher covered the
          right-hand end of the drawer's Dashboard button, which the drawer pins
          to the bottom of the screen. Hidden only while the drawer is open:
-         MobileDrawer sets and clears the class. The drawer's own layer is not
-         raised to clear them instead, because anything above it would also sit
-         above ShapeConfirm and the other page modals. */
+         MobileDrawer sets and clears the class. The drawer is not raised past
+         them instead: they float at 2147483000, and a layer that high would also
+         cover ShapeConfirm (100000) and the age gate. Nothing else needs this.
+         Every other floating control sits under the drawer's 9000 except the
+         cookie-consent bar, a legal choice kept answerable (one tap on the bar
+         clears it); the rest above it are toasts, or dialogs that cannot be open
+         while the burger is reachable. */
       body.shape-drawer-open #shape-global-chat-button,
       body.shape-drawer-open #shape-global-chat-panel { visibility: hidden !important; }
       /* ⚠ THE translateX NUDGE IS GONE, AND ITS JOB IS DONE STRUCTURALLY. It

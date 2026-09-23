@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parse } from '@babel/parser';
 import { stripComments } from './helpers/strip-comments.mjs';
+import { mediaBlocks } from './helpers/media-blocks.mjs';
 import { wallBand, wallWordFit, WALL_METER_SPAN } from '../public/newdesign/radioField.mjs';
 
 const SRC = readFileSync(new URL('../public/newdesign/radioInstrument.jsx', import.meta.url), 'utf8');
@@ -179,19 +180,12 @@ test('the fold gutter steps with the header gutter, not only above 1100px', () =
   // borrows the NEXT block's: when the signed-in header grew a 1340px block that
   // only hides the greeting, it read as "the header pads 24px from 1340 down".
   // A padding rule counts wherever it is scoped — a padding change that holds for
-  // only some accounts still moves their gutter away from the fold's.
-  const mediaBlocks = (src) => [...src.matchAll(/@media \(max-width:\s*(\d+)px\)\s*\{/g)].map((m) => {
-    let depth = 0, end = src.length;
-    for (let k = m.index + m[0].length - 1; k < src.length; k++) {
-      if (src[k] === '{') depth++;
-      else if (src[k] === '}') { depth--; if (depth === 0) { end = k; break; } }
-    }
-    return { at: Number(m[1]), body: src.slice(m.index + m[0].length, end) };
-  });
+  // only some accounts still moves their gutter away from the fold's. The blocks
+  // come from tests/helpers/media-blocks.mjs, shared with site-nav's guard.
   const headerRules = [
     { at: Infinity, pad: Number(/className="shape-header-inner"[^>]*?padding:\s*"0\s+(\d+)px"/.exec(bare)[1]) },
     ...mediaBlocks(bare).flatMap((b) => [...b.body.matchAll(/\.shape-header-inner\s*\{[^}]*padding:\s*0\s+(\d+)px/g)]
-      .map((m) => ({ at: b.at, pad: Number(m[1]) }))),
+      .map((m) => ({ at: b.width, pad: Number(m[1]) }))),
   ];
   const foldRules = [
     { at: Infinity, pad: Number(/className="rd-top"\s+style=\{\{[^}]*padding:\s*"0\s+(\d+)px"/.exec(BARE)[1]) },

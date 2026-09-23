@@ -77,6 +77,19 @@ const TIERS_COACH = [
 
 const SC_RPR = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// ⚠ AN EXAMPLE MEMBER'S FIGURES, SAID WHERE THEY SIT. The score ring, the four
+// hero figures, the tier standing, the activity card and the 940 balance are
+// constants, the same member for every reader, and they rendered with nothing
+// saying so, in the second person, to members too (CodeRabbit, on #2158, when the
+// signed-in nav gained this page). This mark goes beside each group of them, the
+// way the homepage's .exlabel does, so no reader takes them for their own. A
+// member's live score is on their dashboard (ClientApp.html#score); this page
+// explains the program, and `tests/score-page-examples.test.mjs` keeps every
+// group of constants labelled.
+function ScExample({ children = "Example member", style }) {
+  return <div data-sc-example="" style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.6)", ...style }}>{children}</div>;
+}
+
 function ScReveal({ children, delay = 0, style = {} }) {
   const ref = React.useRef(null);
   const [on, setOn] = React.useState(SC_RPR);
@@ -125,9 +138,11 @@ function ScoreHero() {
               <text x="140" y="152" textAnchor="middle" fontFamily="Space Grotesk, sans-serif" fontSize="13" fill="rgba(242,237,228,0.5)">of {SCORE_GOAL}</text>
               <text x="140" y="176" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="10" fill={TEAL} letterSpacing="1.5">{STREAK}-DAY STREAK</text>
             </svg>
+            <ScExample style={{ marginTop: 10 }} />
           </div>
         </div>
-        <div className="sc-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, marginTop: 60, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
+        <ScExample style={{ marginTop: 60 }} />
+        <div className="sc-stats" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0, marginTop: 12, borderTop: "1px solid rgba(242,237,228,0.15)", borderBottom: "1px solid rgba(242,237,228,0.15)" }}>
           {[
             ["+36", "Points this week", "vs 32 last"],
             [`${STREAK}d`, "Current streak", "personal best 22d"],
@@ -172,7 +187,7 @@ function ScoreTiers() {
     <section style={{ padding: "96px 72px" }}>
       <ScReveal>
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Tiers</div>
+          <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL, marginBottom: 18 }}>Tiers · example member</div>
           <h2 style={{ fontFamily: serif, fontSize: "clamp(36px, 5vw, 60px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "0 0 28px", lineHeight: 1 }}>
             {aud === "coach"
               ? <>Coaches climb <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>their own</em> ladder.</>
@@ -263,7 +278,10 @@ function ScoreActivity() {
                 <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: TEAL }}>Activity · last 12 weeks</div>
                 <h3 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.025em", fontWeight: 400, margin: "10px 0 0" }}>Consistency tells the story.</h3>
               </div>
-              <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{STREAK}d · {HEATMAP.filter(v => v > 0).length}/84</div>
+              <div style={{ textAlign: "right" }}>
+                <ScExample style={{ marginBottom: 6 }} />
+                <div style={{ fontFamily: mono, fontSize: 11, color: "rgba(242,237,228,0.5)" }}>{STREAK}d · {HEATMAP.filter(v => v > 0).length}/84</div>
+              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${weeks}, 1fr)`, gap: 4 }}>
               {Array.from({ length: weeks }, (_, w) => (
@@ -403,7 +421,7 @@ function ScoreLedger(props) {
         <div style={{ maxWidth: 1320, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 26, flexWrap: "wrap", gap: 16 }}>
             <div>
-              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL }}>Ledger</div>
+              <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL }}>{live ? "Ledger" : "Ledger · example entries"}</div>
               <h2 style={{ fontFamily: serif, fontSize: "clamp(34px, 4.4vw, 52px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "14px 0 0", lineHeight: 1 }}>Recent earnings.</h2>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -472,10 +490,11 @@ function ScoreRewards() {
             <div>
               <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.25em", textTransform: "uppercase", color: TEAL }}>Rewards</div>
               <h2 style={{ fontFamily: serif, fontSize: "clamp(38px, 5.4vw, 64px)", letterSpacing: "-0.035em", fontWeight: 300, margin: "14px 0 0", lineHeight: 1 }}>
-                Spend your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>940</em>.
+                Spend your <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>points</em>.
               </h2>
             </div>
             <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", textAlign: "right" }}>
+              <ScExample style={{ marginBottom: 6 }} />
               Available balance<br />
               <span style={{ fontFamily: serif, fontSize: 38, color: INK, letterSpacing: "-0.02em" }}>940 pts</span>
             </div>

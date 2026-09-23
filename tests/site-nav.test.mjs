@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { parse as parseJs } from '@babel/parser';
 import { navTables } from './helpers/nav-tables.mjs';
+import { mediaBlocks } from './helpers/media-blocks.mjs';
 
 const ND = path.dirname(fileURLToPath(new URL('../public/newdesign/x', import.meta.url)));
 const SHELL = readFileSync(path.join(ND, 'pageShell.jsx'), 'utf8');
@@ -387,7 +388,7 @@ async function homepageAfterMe(user) {
   const doc = w.document;
   const bar = [...doc.querySelectorAll('nav .nlinks > *')]
     .map((el) => (el.matches('a') ? el : el.querySelector('a')).childNodes[0].textContent.trim());
-  const inDrawer = [...doc.querySelectorAll('#ndrawer a')].map((a) => a.textContent.replace(/ /g, ' ').trim());
+  const inDrawer = [...doc.querySelectorAll('#ndrawer a')].map((a) => a.textContent.replace(/\u00a0/g, ' ').trim());
   dom.window.close();
   return { bar, inDrawer };
 }
@@ -436,19 +437,8 @@ test('every tab on the bar lights on its own page', () => {
 // or a profile-switch pill ran the row into the right-hand cluster at widths the
 // signed-out bar clears. Three rules close it — drop the greeting, tighten a
 // switch account's spacing, fold a switch account to the menu — and each is
-// keyed on a hook the markup has to keep providing.
-function mediaBlocks(src) {
-  const out = [];
-  for (const m of src.matchAll(/@media \(max-width: ?(\d+)px\) ?\{/g)) {
-    let depth = 0, end = -1;
-    for (let i = m.index + m[0].length - 1; i < src.length; i++) {
-      if (src[i] === '{') depth++;
-      else if (src[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
-    }
-    out.push({ at: m.index, width: Number(m[1]), body: src.slice(m.index, end) });
-  }
-  return out;
-}
+// keyed on a hook the markup has to keep providing. (The blocks come from the
+// shared tests/helpers/media-blocks.mjs, which radio-instrument-rules reads too.)
 test('signed in, the wide right-hand cluster gives way before it can meet the tabs', () => {
   const header = SHELL.slice(SHELL.indexOf('function Header({ active })'), SHELL.indexOf('function HeroBg('));
   assert.ok(header.length > 2000, 'could not slice Header — this guard is reading nothing');
@@ -459,7 +449,7 @@ test('signed in, the wide right-hand cluster gives way before it can meet the ta
   assert.match(header, /\{hasRoleSwitch \? \(/, 'the switch pill renders on a condition of its own again — the pill and its layout can disagree');
 
   const blocks = mediaBlocks(SHELL);
-  const find = (re) => blocks.filter((b) => re.test(b.body));
+  const find = (re) => blocks.filter((b) => re.test(b.block));
   const collapse = find(/\n\s*\.shape-nav-tabs \{ display: none/);
   assert.equal(collapse.length, 1, 'expected ONE everyone-collapse block, found ' + collapse.length);
   const everyone = collapse[0].width;
@@ -478,16 +468,16 @@ test('signed in, the wide right-hand cluster gives way before it can meet the ta
   // source, so those still tighten a switch account further on a phone.
   const tight = find(/:where\(\.shape-header\[data-role-switch\]\) \.shape-header-inner \{/);
   assert.equal(tight.length, 1, 'a switch account lost its early tight spacing, or it no longer uses :where()');
-  assert.match(tight[0].body, /:where\(\.shape-header\[data-role-switch\]\) \.shape-nav-tabs \{ gap:/, 'the early tight spacing no longer tightens the tabs');
+  assert.match(tight[0].block, /:where\(\.shape-header\[data-role-switch\]\) \.shape-nav-tabs \{ gap:/, 'the early tight spacing no longer tightens the tabs');
   // ⚠ GAPS ONLY. The side padding is the page gutter the Radio fold steps with
   // (tests/radio-instrument-rules.test.mjs); moving it for some accounts sets
   // their Radio hero out of line with the header — the first cut of this rule did.
-  assert.doesNotMatch(tight[0].body, /\[data-role-switch\]\) \.shape-header-inner \{[^}]*padding/,
+  assert.doesNotMatch(tight[0].block, /\[data-role-switch\]\) \.shape-header-inner \{[^}]*padding/,
     'the early tight spacing moves the side padding — the page gutter other pages line up with');
-  const phone = blocks.filter((b) => b.width < everyone + 1 && /\.shape-header-inner \{ padding/.test(b.body) && b !== tight[0]);
+  const phone = blocks.filter((b) => b.width < everyone + 1 && /\.shape-header-inner \{ padding/.test(b.block) && b !== tight[0]);
   assert.ok(phone.length >= 2, 'found ' + phone.length + ' later inner-tightening blocks — this guard is reading nothing');
   for (const p of phone) {
-    assert.ok(p.at > tight[0].at, 'the ' + p.width + 'px block sits before the :where() rule, so on a phone a switch account keeps the looser inner');
+    assert.ok(p.offset > tight[0].offset, 'the ' + p.width + 'px block sits before the :where() rule, so on a phone a switch account keeps the looser inner');
   }
 
   // 3 · a switch account folds to the menu above the everyone-collapse, and the
@@ -496,9 +486,9 @@ test('signed in, the wide right-hand cluster gives way before it can meet the ta
   assert.equal(fold.length, 1, 'a switch account no longer folds to the menu early');
   assert.ok(fold[0].width > everyone && fold[0].width < tight[0].width, 'the switch fold (' + fold[0].width + ') must sit between the everyone-collapse (' + everyone + ') and the switch tight spacing (' + tight[0].width + ')');
   for (const [cls, shown] of [['shape-nav-tabs', 'none'], ['shape-nav-auth', 'none'], ['shape-nav-bell', 'inline-flex'], ['shape-nav-burger', 'inline-flex']]) {
-    assert.match(fold[0].body, new RegExp('\\.shape-header\\[data-role-switch\\] \\.' + cls + ' \\{ display: ' + shown + ' !important; \\}'),
+    assert.match(fold[0].block, new RegExp('\\.shape-header\\[data-role-switch\\] \\.' + cls + ' \\{ display: ' + shown + ' !important; \\}'),
       'the switch fold does not set .' + cls + ' to ' + shown + ' — a phone-width bar with a half-folded cluster');
-    assert.match(collapse[0].body, new RegExp('\\.' + cls + ' \\{ display: ' + shown), 'the everyone-collapse changed shape for .' + cls + ' — re-check the switch fold against it');
+    assert.match(collapse[0].block, new RegExp('\\.' + cls + ' \\{ display: ' + shown), 'the everyone-collapse changed shape for .' + cls + ' — re-check the switch fold against it');
   }
 
   // The homepage's greeting: the same 150px cap and the same width to go at —
@@ -509,6 +499,18 @@ test('signed in, the wide right-hand cluster gives way before it can meet the ta
   assert.ok(homeHi, 'the homepage greeting has no width at which it gives way');
   assert.equal(Number(homeHi[1]), hi[0].width, 'the two bars drop the greeting at different widths');
   assert.match(INDEX, /hi\.className='login nhi'/, 'the homepage greeting lost the class its width rule keys on');
+});
+
+test('the @media reader refuses an unbalanced block instead of reading on to the end', () => {
+  // The copy this suite used to carry answered an unclosed block with
+  // slice(start, -1): every later rule in the file, read as if it sat inside
+  // that query. The shared reader throws, so a broken stylesheet fails loudly.
+  const ok = mediaBlocks('a{} @media (max-width: 900px) { .x { top: 0 } } b{}');
+  assert.equal(ok.length, 1);
+  assert.equal(ok[0].width, 900);
+  assert.equal(ok[0].body.trim(), '.x { top: 0 }');
+  assert.ok(ok[0].block.startsWith('@media (max-width: 900px)'), 'the block no longer carries its @media header');
+  assert.throws(() => mediaBlocks('@media (max-width: 900px) { .x { top: 0 } .y { left: 0 }'), /unbalanced/);
 });
 
 test('the signed-in row is the same for a member, a trainer and a nutritionist', () => {
@@ -871,11 +873,17 @@ test('the shared drawer is portaled out of the header, so it covers the screen',
   assert.equal(jsxElements(header, 'MobileDrawer').length, 1, 'Header no longer renders the drawer exactly once');
 });
 
-test('the drawer sits above the header and below the page\'s own modals', () => {
+const drawerZ = (() => {
+  const [dialog] = jsxElements(shellFn('MobileDrawer')).filter((el) => { const r = jsxAttr(el, 'role'); return r && r.value && r.value.value === 'dialog'; });
+  const v = dialog && jsxStyle(dialog).zIndex;
+  return v && v.type === 'NumericLiteral' ? v.value : NaN;
+})();
+
+test('the drawer sits above the header and below ShapeConfirm', () => {
   // ⚠ THIS IS WHY THE DRAWER DOES NOT SIMPLY OUT-RANK THE CHAT LAUNCHER. The
   // launcher floats at 2147483000; a drawer raised past it would also sit above
-  // ShapeConfirm and the other page modals, so the launcher steps aside instead
-  // (next test). Both bounds are read from the shipped source.
+  // ShapeConfirm (100000) and the age gate, so the launcher steps aside instead
+  // (two tests down). Both bounds are read from the shipped source.
   const z = (el) => { const v = jsxStyle(el).zIndex; return v && v.type === 'NumericLiteral' ? v.value : NaN; };
   const [dialog] = jsxElements(shellFn('MobileDrawer')).filter((el) => { const r = jsxAttr(el, 'role'); return r && r.value && r.value.value === 'dialog'; });
   assert.ok(dialog, 'the drawer\'s dialog is gone');
@@ -887,6 +895,144 @@ test('the drawer sits above the header and below the page\'s own modals', () => 
     'could not read the three layers (drawer ' + z(dialog) + ', header ' + z(header) + ', confirm ' + confirmZ + ')');
   assert.ok(z(dialog) > z(header), 'the drawer (' + z(dialog) + ') paints under the header (' + z(header) + ') now that both live in <body>');
   assert.ok(z(dialog) < confirmZ, 'the drawer (' + z(dialog) + ') would cover ShapeConfirm (' + confirmZ + ')');
+});
+
+// ── every fixed layer that can share a page with the drawer ──────────────────
+// Derived, never listed: the pages that load pageShell.jsx (so render the shared
+// header and its drawer), every local module they load (script tags, the rich
+// chat's lazy loads out of globalChatButton.js, and ES imports, followed), plus
+// their inline scripts, <style> blocks and style="" attributes. A layer is any
+// `position: fixed`, read from a style object or from CSS text (a rule block or a
+// cssText string). It FLOATS unless it is pinned to all four edges: a
+// full-screen layer is a dialog of its own and cannot be open while the burger
+// is reachable, so only a floating one can sit on top of an open drawer.
+function walkLayers(node, visit) {
+  if (!node || typeof node.type !== 'string') return;
+  visit(node);
+  for (const k of Object.keys(node)) {
+    if (k === 'loc' || /Comments$/.test(k)) continue;
+    const v = node[k];
+    if (Array.isArray(v)) v.forEach((c) => walkLayers(c, visit));
+    else if (v && typeof v.type === 'string') walkLayers(v, visit);
+  }
+}
+const isZero = (v) => v === 0 || v === '0' || v === '0px';
+const pinnedToEdges = (get) => isZero(get('inset')) || ['top', 'right', 'bottom', 'left'].every((k) => isZero(get(k)));
+function cssLayers(text, where, out) {
+  for (const m of text.matchAll(/position\s*:\s*fixed/gi)) {
+    // The declaration block around it: back to the rule's `{` (or the string's
+    // start, for a cssText string), forward to its `}` (or the string's end).
+    const open = Math.max(text.lastIndexOf('{', m.index), text.lastIndexOf('}', m.index));
+    const close = text.indexOf('}', m.index);
+    const decl = {};
+    for (const d of text.slice(open + 1, close < 0 ? text.length : close).split(';')) {
+      const c = d.indexOf(':');
+      if (c > 0) decl[d.slice(0, c).trim().toLowerCase()] = d.slice(c + 1).replace(/!important/g, '').trim();
+    }
+    const raw = decl['z-index'];
+    out.push({ where, z: raw === undefined ? 0 : /^-?\d+$/.test(raw) ? Number(raw) : NaN, floats: !pinnedToEdges((k) => decl[k]) });
+  }
+}
+const styleValue = (n) => !n ? undefined
+  : n.type === 'NumericLiteral' || n.type === 'StringLiteral' ? n.value
+  : n.type === 'UnaryExpression' && n.operator === '-' && n.argument.type === 'NumericLiteral' ? -n.argument.value
+  : NaN;
+const setsFixed = (n) => !!n && ((n.type === 'StringLiteral' && n.value === 'fixed') ||
+  (n.type === 'ConditionalExpression' && (setsFixed(n.consequent) || setsFixed(n.alternate))));
+function jsLayers(code, where, out) {
+  walkLayers(parseJs(code, { sourceType: 'unambiguous', plugins: ['jsx'] }), (n) => {
+    if (n.type === 'ObjectExpression') {
+      const props = {};
+      for (const p of n.properties) if (p.type === 'ObjectProperty' && !p.computed) props[p.key.name || p.key.value] = p.value;
+      if (!setsFixed(props.position)) return;
+      const z = 'zIndex' in props ? styleValue(props.zIndex) : 0;
+      out.push({ where: where + ':' + n.loc.start.line, z: typeof z === 'number' ? z : /^-?\d+$/.test(z) ? Number(z) : NaN,
+        floats: !pinnedToEdges((k) => styleValue(props[k])) });
+    } else if (n.type === 'StringLiteral') cssLayers(n.value, where, out);
+    else if (n.type === 'TemplateLiteral') cssLayers(n.quasis.map((q) => q.value.cooked).join('0'), where, out);
+  });
+}
+function siteLayers() {
+  const srcs = (html) => [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1].split(/[?#]/)[0].split('/').pop());
+  const imports = (code) => [...code.matchAll(/(?:from|import)\s*\(?\s*["'](?:\.\/|\/newdesign\/)([\w.-]+\.m?jsx?)["']/g)].map((m) => m[1]);
+  const pages = readdirSync(ND).filter((f) => f.endsWith('.html') && srcs(readFileSync(path.join(ND, f), 'utf8')).includes('pageShell.jsx'));
+  const mods = new Set();
+  const out = [];
+  for (const p of pages) {
+    const html = readFileSync(path.join(ND, p), 'utf8');
+    for (const s of srcs(html)) if (/\.(jsx|js|mjs)$/.test(s) && existsSync(path.join(ND, s))) mods.add(s);
+    for (const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
+      if (/\bsrc=/.test(m[1]) || /json|importmap/.test(m[1])) continue;
+      jsLayers(m[2], p, out);
+      for (const i of imports(m[2])) if (existsSync(path.join(ND, i))) mods.add(i);
+    }
+    for (const m of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)) cssLayers(m[1], p, out);
+    for (const m of html.matchAll(/\bstyle="([^"]*)"/g)) cssLayers(m[1], p, out);
+  }
+  const chat = readFileSync(path.join(ND, 'globalChatButton.js'), 'utf8');
+  for (const m of chat.matchAll(/["']\/newdesign\/([\w.-]+\.(?:jsx|js|mjs))["']/g)) if (existsSync(path.join(ND, m[1]))) mods.add(m[1]);
+  // ES imports, followed to a fixpoint (a module can import a module).
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const f of [...mods]) for (const i of imports(readFileSync(path.join(ND, f), 'utf8'))) {
+      if (!mods.has(i) && existsSync(path.join(ND, i))) { mods.add(i); grew = true; }
+    }
+  }
+  for (const f of mods) jsLayers(readFileSync(path.join(ND, f), 'utf8'), f, out);
+  return { pages, mods, out };
+}
+
+test('no layer that stays on screen floats over the open drawer', () => {
+  // ⚠ CODEX, ON #2158: A DRAWER AT 100 LOSES TO ANY LAYER ABOVE IT. Once the drawer
+  // left the header for <body> it competed with every fixed layer on the page.
+  // Codex named the Store's cart button (120), and that one did not reproduce: it
+  // renders inside the Store page's zIndex:1 wrapper, so its 120 never leaves that
+  // stacking context, and the drawer at 100 covered it at 390 and 820 wide. The
+  // class was real one layer over: the rich chat window (180) mounts in a host of
+  // its own (#shape-support-bubble, or #shape-rich-chat-root when the launcher
+  // boots it) that the launcher's hide rule never reached, and at 820×1180 it
+  // covered the drawer's Dashboard / Sign out row and took its taps. The drawer
+  // sits above every page layer now, and this census is what stays above it on
+  // purpose. It reads z-index values, not stacking contexts, so it errs toward
+  // flagging: a NEW entry means somebody put a floating layer at or over the
+  // drawer's z. Lower it under the drawer, hide it under body.shape-drawer-open
+  // like the launcher, or add it here with the reason it belongs on top.
+  const ABOVE_THE_DRAWER = {
+    // The chat launcher and its fallback panel (2147483000): hidden while the
+    // drawer is open, by the rule the next test pins.
+    'globalChatButton.js': 2,
+    // The cookie-consent bar (99999): a legal choice, kept answerable above
+    // everything. It covers the drawer's bottom row only until it is answered,
+    // which is one tap on the bar itself.
+    'pageShell.jsx': 1,
+    // Toasts (10000): a few seconds of feedback, meant to be topmost.
+    'clientMeSettings.jsx': 1, 'nutritionistGoalPage.jsx': 1, 'trainerGoalPage.jsx': 1,
+    // The retired design-exploration board's tweaks panel and direction
+    // switcher (10000 and 9999), on a page linked from nowhere.
+    'app.jsx': 1, 'index-explorations.html': 1,
+  };
+  // Counted per FILE, never per line: a line number pins a layout, and this
+  // guard must not fail on an edit that moves a toast down the file.
+  assert.ok(Number.isFinite(drawerZ), 'could not read the drawer\'s zIndex — this guard is reading nothing');
+  const { pages, mods, out } = siteLayers();
+  // Vacuity: the scan has to be seeing the site, and seeing both kinds of layer.
+  assert.ok(pages.length >= 60, 'only ' + pages.length + ' pages load pageShell.jsx — the page scan stopped matching');
+  assert.ok(mods.has('store.jsx') && mods.has('chatWidget.jsx'), 'the module scan lost store.jsx or chatWidget.jsx');
+  assert.ok(out.some((l) => /^store\.jsx:\d+$/.test(l.where) && l.floats),
+    'the scan no longer sees the Store\'s cart button (a floating style object) — it is reading nothing');
+  assert.ok(out.some((l) => l.where === 'globalChatButton.js' && l.floats),
+    'the scan no longer sees the chat launcher (CSS text) — it is reading nothing');
+  const above = {};
+  const seen = [];
+  for (const l of out) {
+    if (!l.floats || l.z < drawerZ) continue; // NaN (a z it cannot read) falls through, on purpose
+    const file = l.where.replace(/:\d+$/, '');
+    above[file] = (above[file] || 0) + 1;
+    seen.push(l.where + ' (z ' + l.z + ')');
+  }
+  // Two-way, so a layer that is lowered or removed takes its census entry with it.
+  assert.deepEqual(above, ABOVE_THE_DRAWER,
+    'the floating layers above the open drawer (z ' + drawerZ + ') changed: ' + seen.join(', '));
 });
 
 test('the floating chat launcher steps aside while the drawer is open', () => {
