@@ -522,6 +522,15 @@
   @media (max-width:1020px){
     .nlinks,.nauth .login,.nauth .nradio{display:none}
     .nburger{display:flex}
+    /* Keep the drawer below the nav so its 12px slide still emerges underneath.
+       Chat's rich hosts sit above this drawer: hide them while it is open,
+       preserving the mounted widget and drafts. Include the fallback and launcher
+       deliberately, matching the shared drawer and preventing a hidden reopen.
+       This page owns its CSS because it does not mount ShapeMobileStyles. */
+    body.shape-drawer-open #shape-global-chat-button,
+    body.shape-drawer-open #shape-global-chat-panel,
+    body.shape-drawer-open #shape-rich-chat-root,
+    body.shape-drawer-open #shape-support-bubble{visibility:hidden !important}
     .ndrawer{display:block;position:fixed;inset:72px 0 0;z-index:59;background:rgba(6,9,15,.97);
              backdrop-filter:blur(16px);padding:26px 32px;transform:translateY(-12px);opacity:0;
              pointer-events:none;visibility:hidden;
@@ -1577,6 +1586,7 @@
   var b=document.getElementById('nburger'), d=document.getElementById('ndrawer');
   if(!b||!d) return;
   function set(open){ d.classList.toggle('open',open); b.setAttribute('aria-expanded',open?'true':'false');
+    document.body.classList.toggle('shape-drawer-open',open);
     document.body.style.overflow=open?'hidden':''; }
   b.addEventListener('click',function(){ set(!d.classList.contains('open')); });
   /* Tapping the link you are already on fires no navigation, so the drawer has

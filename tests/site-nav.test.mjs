@@ -1072,6 +1072,62 @@ test('the floating chat launcher steps aside while the drawer is open', () => {
   }
 });
 
+test('the homepage hides both rich chat hosts and the launcher without unmounting chat', () => {
+  // The homepage does not mount ShapeMobileStyles. Its own collapse block must
+  // cover both rich-chat mount paths, plus the launcher and fallback panel.
+  const css = [...INDEX.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)]
+    .map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const collapse = mediaBlocks(css).find((b) => /\.ndrawer\s*\{/.test(b.body));
+  assert.ok(collapse, 'the homepage drawer collapse block is missing');
+  const hides = [...collapse.body.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, , body]) => /visibility:\s*hidden\s*!important/.test(body) && !/display:\s*none/.test(body))
+    .flatMap(([, sel]) => sel.split(',').map((s) => s.trim().replace(/\s+/g, ' ')));
+  for (const id of ['shape-rich-chat-root', 'shape-support-bubble', 'shape-global-chat-button', 'shape-global-chat-panel']) {
+    assert.ok(hides.includes('body.shape-drawer-open #' + id),
+      'the homepage does not visibility-hide #' + id + ' while its drawer is open');
+  }
+});
+
+test('the homepage restores chat on burger close, link selection and desktop resize', () => {
+  const { JSDOM } = createRequire(import.meta.url)('jsdom');
+  const dom = new JSDOM(INDEX, { runScripts: 'outside-only', url: 'https://shape.test/newdesign/index.html' });
+  const w = dom.window;
+  try {
+    let onChange;
+    w.matchMedia = () => ({ addEventListener: (event, fn) => { assert.equal(event, 'change'); onChange = fn; } });
+    const scripts = [...INDEX.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+      .map((m) => m[1]).filter((s) => /getElementById\('nburger'\)/.test(s));
+    assert.equal(scripts.length, 1, 'the homepage drawer script is missing or duplicated');
+    const doc = w.document, burger = doc.getElementById('nburger'), drawer = doc.getElementById('ndrawer');
+    const host = doc.createElement('div');
+    host.id = 'shape-rich-chat-root';
+    host.innerHTML = '<textarea>Keep this draft</textarea>';
+    doc.body.appendChild(host);
+    const draft = host.firstChild;
+    w.eval(scripts[0]);
+    const state = (open) => {
+      assert.equal(drawer.classList.contains('open'), open);
+      assert.equal(doc.body.classList.contains('shape-drawer-open'), open, 'chat visibility must follow the drawer');
+      assert.equal(burger.getAttribute('aria-expanded'), String(open));
+      assert.equal(doc.body.style.overflow, open ? 'hidden' : '');
+      assert.ok(doc.getElementById(host.id) === host, 'chat must stay mounted');
+      assert.ok(host.firstChild === draft, 'the draft node must survive');
+      assert.equal(draft.value, 'Keep this draft');
+    };
+    state(false);
+    burger.click(); state(true);
+    burger.click(); state(false);
+    burger.click(); state(true);
+    const link = drawer.querySelector('a');
+    link.addEventListener('click', (e) => e.preventDefault());
+    link.click(); state(false);
+    burger.click(); state(true);
+    assert.equal(typeof onChange, 'function', 'desktop resize must release chat');
+    onChange({ matches: true }); state(true);
+    onChange({ matches: false }); state(false);
+  } finally { w.close(); }
+});
+
 test('the drawer\'s logo follows the paper, like the header\'s', () => {
   // The dashboards open on the light paper, where the drawer's sheet is near
   // white — a white mark there is invisible. The header and footer swap a pair
