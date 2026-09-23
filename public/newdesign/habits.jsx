@@ -177,7 +177,7 @@ function HabitsWidget({ max = 5, items }) {
             <HabitCheckbox checked={h.today} onClick={() => toggle(h.id)} type={h.type} size={22}
               ariaLabel={h.today ? "Mark not done" : "Mark done"} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: h.today ? "rgba(var(--sh-ink-rgb, 242,237,228),0.6)" : INK, textDecoration: h.today ? "line-through" : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: h.today ? "var(--sh-ink2, #a09b94)" : INK, textDecoration: h.today ? "line-through" : "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.1em", color: h.type === "dont" ? "#ff8a6d" : TEAL_BRIGHT, marginRight: 6 }}>
                   {h.type === "dont" ? "DON'T" : "DO"}
                 </span>

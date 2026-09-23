@@ -491,15 +491,17 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
 
 // The hex-alpha append census, DERIVED from the tree rather than typed: every site
 // where a colour reaches a `c + "1c"` or `${INK}40` append, counted per file.
-// 21 files, 16 concatenation + 40 template = 56 sinks.
+// 11 files, 2 concatenation + 32 template = 34 sinks. (This read "21 files, 56 sinks"
+// after #2142 and had drifted from the table below; the count is the table's.)
+// ⚠ dashClient.jsx's membership pill and coachClientDetail.jsx's CKTrend + cycle strip
+// LEFT the census on purpose: their colours follow the paper now, so their alphas
+// compose through ssAlpha, which keeps a token as rgba(var(--x-rgb, …), a).
 // ⚠ Replaces a pair of `>=` floors. A floor is satisfied by unrelated sites, so the
 // collector could stop matching a whole file and stay green — which is exactly how a
 // tokenised colour would reach an unswept append. Per-file counts localise the drop.
 const SINK_CENSUS = {
   'client.jsx': { concat: 0, template: 2 },
   'clientPlaylist.jsx': { concat: 0, template: 1 },
-  'coachClientDetail.jsx': { concat: 1, template: 1 },
-  'dashClient.jsx': { concat: 1, template: 0 },
   'dashProfileExtras.jsx': { concat: 0, template: 1 },
   'dashSchedule.jsx': { concat: 1, template: 0 },
   'landing.jsx': { concat: 0, template: 2 },

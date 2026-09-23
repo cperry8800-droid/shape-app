@@ -19,7 +19,7 @@ const DMB_RED = "var(--sh-rust, #e0644b)";
 function dmbBtn(primary, c) {
   const col = c || DMB_GOLD;
   return primary
-    ? { fontFamily: DMB_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#231803", background: col, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" }
+    ? { fontFamily: DMB_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: col, border: 0, borderRadius: 4, padding: "8px 13px", cursor: "pointer" }
     : { fontFamily: DMB_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
 }
 const dmbField = { boxSizing: "border-box", padding: "7px 9px", borderRadius: 4, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, outline: "none" };
@@ -114,7 +114,7 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
       {canCreate && (
         <button onClick={() => onPick(candidate)}
           style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", minHeight: 34, marginBottom: 4, padding: "0 9px", borderRadius: 6, cursor: "pointer", textAlign: "left",
-            fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--sh-accent, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px dashed rgba(var(--sh-accent-rgb, 46,224,196),0.45)" }}>
+            fontFamily: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px dashed rgba(var(--sh-accent-rgb, 46,224,196),0.45)" }}>
           <span aria-hidden>＋</span> Add “{term}” — you set the macros
         </button>
       )}
@@ -440,7 +440,7 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
             <span style={dmbLabel}>Training days · base meals (others get the rest variant)</span>
             <div style={{ display: "flex", gap: 4 }}>
               {DOW_LABELS.map((l, i) => (
-                <button key={l} onClick={() => setTrainingDows({ ...trainingDows, [i]: !trainingDows[i] })} style={{ ...dmbBtn(false), padding: "5px 7px", fontSize: 8, color: trainingDows[i] ? DMB_GOLD : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", borderColor: trainingDows[i] ? "rgba(var(--sh-gold-rgb, 216,162,58),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>{l}</button>
+                <button key={l} onClick={() => setTrainingDows({ ...trainingDows, [i]: !trainingDows[i] })} style={{ ...dmbBtn(false), padding: "5px 7px", fontSize: 8, color: trainingDows[i] ? DMB_GOLD : "var(--sh-ink2, #a09b94)", borderColor: trainingDows[i] ? "rgba(var(--sh-gold-rgb, 216,162,58),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>{l}</button>
               ))}
             </div>
           </div>
@@ -638,7 +638,7 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
                   const on = (doc.constraints.exclusions || []).indexOf(tag) >= 0;
                   return (
                     <button key={tag} onClick={() => setConstraint("exclusions", on ? doc.constraints.exclusions.filter((t) => t !== tag) : [...(doc.constraints.exclusions || []), tag])}
-                      style={{ ...dmbBtn(false), padding: "4px 8px", fontSize: 8, color: on ? DMB_RED : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", borderColor: on ? "rgba(var(--sh-rust-rgb, 224,100,75),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>
+                      style={{ ...dmbBtn(false), padding: "4px 8px", fontSize: 8, color: on ? DMB_RED : "var(--sh-ink2, #a09b94)", borderColor: on ? "rgba(var(--sh-rust-rgb, 224,100,75),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>
                       {on ? "× " : ""}{tag}
                     </button>
                   );

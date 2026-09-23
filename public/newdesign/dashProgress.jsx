@@ -1197,7 +1197,7 @@ function ClientProgressPage() {
     // (work habits + enough data past the statistical floors). Slate accent
     // (#7aa7dc), the work domain's color.
     { key: "crossover", title: "The crossover · work × body", size: "half", empty: !crossover, render: () => (
-      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#7aa7dc", paddingLeft: 24 }}>
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-sky, #7ed4ff)", paddingLeft: 24 }}>
         <span className="dash-eyebrow" style={{ color: "#7aa7dc" }}>The crossover · work × body</span>
         <div style={{ marginTop: 12 }}>
           {/* Words + numbers both from the shared engine (crossoverCopy) —
@@ -1248,7 +1248,7 @@ function ClientProgressPage() {
     ) },
 
     { key: "photos", title: "Photos · then vs today", size: "half", render: () => (
-      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", paddingLeft: 24 }}>
+      <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-ink3, #75706a)", paddingLeft: 24 }}>
         <span className="dash-eyebrow">Photos · {photoPair ? photoPair.pose + " · then vs today" : "side by side"}</span>
         <div style={{ marginTop: 12 }}>
           {photoPair ? (
@@ -1316,7 +1316,7 @@ function ClientProgressPage() {
           {(availableTabs.length ? availableTabs : [DPR_TREND_TABS[0]]).map((t) => {
             const on = activeTab.k === t.k;   // the RESOLVED tab, not the raw state — or the fallback chart and the lit button disagree
             return (
-              <button key={t.k} onClick={() => setTrend(t.k)} style={{ fontFamily: DPR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "transparent", color: on ? t.color : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", border: "1px solid " + (on ? ssAlpha(t.color, 0.47) : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"), borderLeft: "3px solid " + (on ? t.color : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)") }}>{t.label}</button>
+              <button key={t.k} onClick={() => setTrend(t.k)} style={{ fontFamily: DPR_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", padding: "5px 10px", borderRadius: 4, cursor: "pointer", background: "transparent", color: on ? t.color : "var(--sh-ink2, #a09b94)", border: "1px solid " + (on ? ssAlpha(t.color, 0.47) : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"), borderLeft: "3px solid " + (on ? t.color : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)") }}>{t.label}</button>
             );
           })}
         </div>

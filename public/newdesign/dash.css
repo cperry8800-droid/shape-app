@@ -107,27 +107,75 @@
   --sh-gold-tint: #f7eed8;
   --sh-gold-tint-rgb: 247,238,216;
 
-  /* Accent — the three dark teals collapse onto the builder's one. */
-  --sh-accent: #0a8f87;
-  --sh-accent-rgb: 10,143,135;
-  --sh-accent2: #0a8f87;
-  --sh-accent2-rgb: 10,143,135;
-  --sh-accent3: #0a8f87;
-  --sh-accent3-rgb: 10,143,135;
+  /* Accent — the three dark teals collapse onto one. These are TEXT colours as often
+     as fills (eyebrows, links, pill labels, the ink under a button), so each one clears
+     4.5:1 on the card, the ground, the resting fill AND its own tint, and white clears
+     4.5:1 on it. The builder's #0a8f87 reads 3.66:1 on the ground and 3.97:1 on the
+     card, and white on it 3.97:1, so the text value is the cycle plate's darker teal;
+     #0a8f87 stays as --sh-chart-teal, where a non-text mark needs only 3:1.
+     tests/newdesign-paper-pairs.test.mjs holds every floor. */
+  --sh-accent: #0a7a72;
+  --sh-accent-rgb: 10,122,114;
+  --sh-accent2: #0a7a72;
+  --sh-accent2-rgb: 10,122,114;
+  --sh-accent3: #0a7a72;
+  --sh-accent3-rgb: 10,122,114;
 
-  /* Roles — nutritionist gold, trainer rust, and the positive green, each at AA on the ground. */
-  --sh-gold: #a07a2e;
-  --sh-gold-rgb: 160,122,46;
-  --sh-rust: #c0533b;
-  --sh-rust-rgb: 192,83,59;
-  --sh-rust2: #c0533b;
-  --sh-rust2-rgb: 192,83,59;
-  --sh-green: #3a7d2c;
-  --sh-green-rgb: 58,125,44;
-  /* The wall plate's nutritionist heat: the APP's own pair (a shade off the gold
-     token on the dark paper), so a coach's record reads the same on both surfaces. */
+  /* Roles — nutritionist gold, trainer rust, and the positive green, held to the same
+     four floors. The gold was #a07a2e (3.64:1 on the ground) and the rust #c0533b
+     (4.26:1); #8a6a28 would clear the ground and card but not its own tint (4.36:1),
+     which is where a gold pill sets its label. */
+  --sh-gold: #86662a;
+  --sh-gold-rgb: 134,102,42;
+  --sh-rust: #b24c36;
+  --sh-rust-rgb: 178,76,54;
+  --sh-rust2: #b24c36;
+  --sh-rust2-rgb: 178,76,54;
+  /* #3a7d2c read 4.41:1 on the resting fill; one step darker clears it (4.59). */
+  --sh-green: #387a2b;
+  --sh-green-rgb: 56,122,43;
+  /* The wall plate's heat — one per author role, and the APP's own pair for each
+     (iosAppBroadsheetClient's `const heat`), so a coach's record reads the same on
+     both surfaces; tests/community-wall-plate.test.mjs derives them from the app.
+     ⚠ These are deliberately NOT the text tokens above. The app's light values are
+     the pre-AA ones (#c0533b 4.26 · #a07a2e 3.64 · #0a8f87 3.66:1 on the ground), so
+     the plate's small heat label inherits the app's gap; moving them is an app-wide
+     colour change, registered rather than made here. */
+  --sh-heat-trainer: #c0533b;
+  --sh-heat-trainer-rgb: 192,83,59;
   --sh-heat-nutri: #a07a2e;
   --sh-heat-nutri-rgb: 160,122,46;
+  --sh-heat-client: #0a8f87;
+  --sh-heat-client-rgb: 10,143,135;
+  /* Text colours for the few hues that had no light-paper value. Each dark value is
+     the literal the site carried, so the dark paper does not move:
+     accent-ink — teal TEXT on a teal wash of itself (a selected chip, a filter tab):
+       the accent reads 4.46:1 on its own 0.11 wash and 3.66:1 on a 0.25 one, so text
+       on a wash takes this deeper teal (4.79:1 even on 0.25);
+     ember — the coral that flags a health answer or a resting-HR line;
+     danger — destructive and error text (Delete, a failed save);
+     sky — sleep and recovery; violet — the Build phase. All clear 4.5:1 on the
+     card, the ground and the resting fill. */
+  --sh-accent-ink: #0a6660;
+  --sh-accent-ink-rgb: 10,102,96;
+  --sh-ember: #b24c36;
+  --sh-ember-rgb: 178,76,54;
+  --sh-danger: #b24c36;
+  --sh-danger-rgb: 178,76,54;
+  --sh-sky: #1f6a99;
+  --sh-sky-rgb: 31,106,153;
+  --sh-violet: #6f45d9;
+  --sh-violet-rgb: 111,69,217;
+  /* The coach case file's nutrition gold — a shade off --sh-gold on the dark paper,
+     so it keeps its own token rather than moving the case file's colour. */
+  --sh-gold2: #86662a;
+  --sh-gold2-rgb: 134,102,42;
+  /* The Spotify green as TEXT (a linked playlist's name on its own 8% green wash).
+     The brand green stays on the stripe, the border and the logo; as 8.5px text it
+     reads 2.4:1 on the light card, so the words take a deeper green (4.8:1 or better
+     on the wash over the card, the ground and the resting fill). */
+  --sh-spotify-ink: #12733a;
+  --sh-spotify-ink-rgb: 18,115,58;
   /* The cycle plate's heat, and the ink ON its fill. The dark paper's #34d6c5 reads
      1.81:1 on the light card, so the light paper takes a darker teal (5.20:1 on the
      card, 4.79 on the ground) — and a fill that dark needs WHITE text, because no
@@ -138,8 +186,9 @@
   --sh-cycle-heat-ink-rgb: 255,255,255;
   /* The practice trajectory's teal and amber marks. They draw on --sh-ground, which
      moves, so they have to move with it: the dark pair reads 2.73 / 2.91:1 on the
-     light ground, under the 3:1 floor for a non-text mark. The builder's own accent
-     and gold clear it (3.66 / 3.64). */
+     light ground, under the 3:1 floor for a non-text mark. The builder's teal and gold
+     clear it (3.66 / 3.64) — and stay here, because as marks they need only 3:1, where
+     the text tokens above had to go darker. */
   --sh-chart-teal: #0a8f87;
   --sh-chart-teal-rgb: 10,143,135;
   --sh-chart-amber: #a07a2e;
@@ -154,8 +203,9 @@
   /* The shared chrome: the header bar, the footer, and which logo lockup shows. */
   --sh-header-bg: rgba(255,255,255,0.86);
   --sh-menu-bg: rgba(255,255,255,0.98);
-  --sh-footer-bg: #e9eeec;
-  --sh-footer-bg-rgb: 233,238,236;
+  /* #e9eeec put the footer's teal group heads at 4.43:1; a hair lighter clears 4.5. */
+  --sh-footer-bg: #edf1ef;
+  --sh-footer-bg-rgb: 237,241,239;
   --sh-logo-light: block;
   --sh-logo-dark: none;
 
@@ -216,8 +266,26 @@ html[data-paper="dark"] {
   --sh-rust2-rgb: 192,83,59;
   --sh-green: #7bbf5a;
   --sh-green-rgb: 123,191,90;
+  --sh-heat-trainer: #c0533b;
+  --sh-heat-trainer-rgb: 192,83,59;
   --sh-heat-nutri: #d8b25a;
   --sh-heat-nutri-rgb: 216,178,90;
+  --sh-heat-client: #34d6c5;
+  --sh-heat-client-rgb: 52,214,197;
+  --sh-accent-ink: #2ee0c4;
+  --sh-accent-ink-rgb: 46,224,196;
+  --sh-ember: #d2693f;
+  --sh-ember-rgb: 210,105,63;
+  --sh-danger: #e07856;
+  --sh-danger-rgb: 224,120,86;
+  --sh-sky: #7ed4ff;
+  --sh-sky-rgb: 126,212,255;
+  --sh-violet: #8a5cf6;
+  --sh-violet-rgb: 138,92,246;
+  --sh-gold2: #d8b25a;
+  --sh-gold2-rgb: 216,178,90;
+  --sh-spotify-ink: #1db954;
+  --sh-spotify-ink-rgb: 29,185,84;
   --sh-cycle-heat: #34d6c5;
   --sh-cycle-heat-rgb: 52,214,197;
   --sh-cycle-heat-ink: #0b0f0f;

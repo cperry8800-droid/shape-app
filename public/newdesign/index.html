@@ -144,6 +144,13 @@
   .nauth{flex:1 1 0;min-width:max-content;display:flex;align-items:center;justify-content:flex-end;gap:12px}
   .nauth .login{font-size:13.5px;font-weight:500;color:var(--fg-2);white-space:nowrap;line-height:1}
   .nauth .login:hover{color:var(--fg)}
+  /* The signed-in greeting ("Hi, name"), added by the /api/me script below. The
+     shared header caps its twin at 150px and drops it at 1200px, and this does the
+     same: with six tabs back on the signed-in row an uncapped name pushed this bar
+     wider than the window below ~1060px. One bar, one breakpoint —
+     tests/site-nav.test.mjs compares the two numbers. */
+  .nauth .nhi{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:1200px){.nauth .nhi{display:none}}
   .ncta{font-family:var(--sans);font-weight:600;font-size:13px;background:var(--teal);color:#04110f;
         padding:0 15px;height:36px;display:inline-flex;align-items:center;
         white-space:nowrap;line-height:1;transition:background .16s;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
@@ -628,12 +635,12 @@
     <a class="brand" href="/newdesign/index.html"><img src="/shape-logo-nav-teal-white.png" width="265" height="128" alt="Shape" /></a>
     <div class="nlinks">
       <span class="ndrop"><a href="/newdesign/Coaches.html">Coaches<span class="car" aria-hidden="true">&#9662;</span></a><div class="nmenu"><a href="/newdesign/Marketplace.html">Marketplace</a></div></span>
-      <a href="/newdesign/Client.html">Members</a>
+      <a href="/newdesign/Client.html" data-signed-out-only>Members</a>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Recipes.html">Kitchen</a>
       <a href="/newdesign/Community.html">Community</a>
       <a href="/newdesign/Score.html">Rewards</a>
-      <a href="/newdesign/Pricing.html">Pricing</a>
+      <a href="/newdesign/Pricing.html" data-signed-out-only>Pricing</a>
       <a href="/newdesign/About.html">About</a>
     </div>
     <div class="nauth">
@@ -648,12 +655,12 @@
 <div class="ndrawer" id="ndrawer">
   <a href="/newdesign/Coaches.html">Coaches</a>
   <a href="/newdesign/Marketplace.html">&nbsp;&nbsp;Marketplace</a>
-  <a href="/newdesign/Client.html">Members</a>
+  <a href="/newdesign/Client.html" data-signed-out-only>Members</a>
   <a href="/newdesign/GetApp.html">App</a>
   <a href="/newdesign/Recipes.html">Kitchen</a>
   <a href="/newdesign/Community.html">Community</a>
   <a href="/newdesign/Score.html">Rewards</a>
-  <a href="/newdesign/Pricing.html">Pricing</a>
+  <a href="/newdesign/Pricing.html" data-signed-out-only>Pricing</a>
   <a href="/newdesign/About.html">About</a>
   <!-- ⚠ RADIO STAYS IN THE DRAWER THOUGH IT LEFT THE BAR (owner, 2026-09-15:
        "dont need 2 tabs on dash"). The bar offered it twice — as a middle-row link
@@ -1610,29 +1617,28 @@
       if(login)login.remove();
       if(cta)cta.remove();
       /* The LINKS row swaps too, not just the auth cluster. Signed in, the row is
-         the essentials — Coaches (with its menu) and About; every other
-         destination is a tab of the dashboard the button now opens. This mirrors
-         PORTAL_NAV in pageShell.jsx, and tests/site-nav.test.mjs requires the two
-         to agree, because two hand-written copies of one bar is how the site came
-         to have two different bars in the first place. */
+         the site's tabs minus the two sign-up pages, Members and Pricing (owner,
+         2026-09-23: "need to add more nav tabs on main nav bar when signed into
+         account" → "Site tabs minus sign-up pages"). This mirrors PORTAL_NAV in
+         pageShell.jsx, which derives the same row as SHAPE_NAV_GROUPS minus
+         SIGNED_OUT_ONLY; tests/site-nav.test.mjs requires the links marked here to
+         be exactly that list, because two hand-written copies of one bar is how the
+         site came to have two different bars in the first place.
+
+         ⚠ THE MARK LIVES ON THE LINK, NOT IN A LIST OF NAMES. This block used to
+         keep a set of labels and remove everything else, matched by reading each
+         anchor's own text nodes (the Coaches trigger wraps its menu panel, so its
+         textContent reads "Coaches▾Marketplace" and a naive match removed the one
+         link the row was meant to keep). Removing what is marked needs no text
+         matching at all, and a tab the homepage adds later stays on the signed-in
+         row unless someone marks it — the same default PORTAL_NAV's filter has.
+         The drawer's block below removes the same marked links. */
       var links=document.querySelector('nav .nlinks');
       if(links){
-        var keep={'Coaches':1,'About':1};
-        Array.prototype.slice.call(links.children).forEach(function(el){
-          /* ⚠ THE TRIGGER'S OWN TEXT, NOT THE SUBTREE'S. Coaches is a <span>
-             wrapping its anchor AND its menu panel, so `el.textContent` reads
-             "Coaches▾Marketplace" — which matches nothing in
-             `keep`, and the first cut silently removed the one link the signed-in
-             row is supposed to keep. Direct text nodes of the anchor give
-             "Coaches"; the caret lives in a nested span and drops out for free. */
-          var a=el.matches('a')?el:el.querySelector('a');
-          var name=a?Array.prototype.filter.call(a.childNodes,function(n){return n.nodeType===3;})
-            .map(function(n){return n.textContent;}).join('').trim():'';
-          if(!keep[name])el.remove();
-        });
+        Array.prototype.slice.call(links.querySelectorAll('[data-signed-out-only]')).forEach(function(el){el.remove();});
       }
       var hi=document.createElement('span');
-      hi.className='login';
+      hi.className='login nhi';
       hi.style.color='var(--fg)';
       hi.textContent='Hi, '+(u.firstName||u.email||'there');
       /* ⚠ DASHBOARD IS THE BUTTON AND SIGN OUT IS THE QUIET LINK — the reverse of
@@ -1701,6 +1707,11 @@
     .then(function(d){
       if(!d||!d.user)return;
       var drawer=document.getElementById('ndrawer'); if(!drawer)return;
+      /* The same two sign-up pages leave the drawer that leave the bar above, so a
+         phone gets the signed-in row a laptop does. This drawer used to keep every
+         tab when signed in while the shared header's drawer showed two, so the
+         only nav a phone has disagreed with itself across pages. */
+      Array.prototype.slice.call(drawer.querySelectorAll('[data-signed-out-only]')).forEach(function(el){el.remove();});
       var role=d.user.role||'client';
       var dash=role==='trainer'?'/newdesign/TrainerDashboard.html'
         :role==='nutritionist'?'/newdesign/NutritionistDashboard.html'

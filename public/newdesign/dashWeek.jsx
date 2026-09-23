@@ -411,7 +411,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
           )}
           {/* Actions */}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-            <button type="button" onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ ...btn, color: DWK_TEAL, borderColor: "rgba(var(--sh-accent-rgb, 46,224,196),0.35)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" }}>Message</button>
+            <button type="button" onClick={() => dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null)} style={{ ...btn, color: "var(--sh-accent-ink, #2ee0c4)", borderColor: "rgba(var(--sh-accent-rgb, 46,224,196),0.35)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" }}>Message</button>
             {!(noteOpen || (review && review.note)) && <button type="button" onClick={() => setNoteOpen(true)} style={btn}>＋ Note</button>}
             {href && <a href={href} style={btn}>Client file →</a>}
           </div>
@@ -463,7 +463,7 @@ function CoachWeekPage({ role }) {
     return Promise.resolve(false);
   };
   const rel = weekOf === thisMonday ? "this week" : weekOf === dwkAddDays(thisMonday, -7) ? "last week" : weekOf > thisMonday ? "ahead" : Math.round((new Date(thisMonday + "T00:00:00") - new Date(weekOf + "T00:00:00")) / (7 * 86400000)) + " weeks ago";
-  const chip = (on) => ({ fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? DWK_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? DWK_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer" });
+  const chip = (on) => ({ fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? DWK_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer" });
   const actions = (
     <React.Fragment>
       <button type="button" onClick={() => setWeekOf(dwkAddDays(weekOf, -7))} style={chip(false)} aria-label="Previous week">‹ Prev</button>

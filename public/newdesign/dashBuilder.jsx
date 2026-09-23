@@ -1886,7 +1886,7 @@ function TrainerProgramsPage() {
                 {inUse&&<span style={{marginLeft:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',color:DBU_TEAL}}>In use · {info.clients}{usage.capped?'+':''} {info.clients===1&&!usage.capped?'client':'clients'}</span>}
                 <span style={{marginLeft:inUse?0:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',padding:'3px 8px',borderRadius:99,
                   ...(t.published
-                    ? {color:DBU_TEAL,background:'rgba(var(--sh-accent-rgb, 46,224,196),0.12)',border:'1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)'}
+                    ? {color:"var(--sh-accent-ink, #2ee0c4)",background:'rgba(var(--sh-accent-rgb, 46,224,196),0.12)',border:'1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)'}
                     : {color:DBU_INK2,background:DBU_REST,border:'1px solid '+DBU_LINE})}}>{t.published?'Published':'Draft'}</span>
               </div>
               <h2 style={{fontFamily:"var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)",fontSize:23,fontWeight:600,lineHeight:1.15,margin:'0 0 6px',color:'var(--sh-ink, #f2ede4)'}}>{t.name}</h2>

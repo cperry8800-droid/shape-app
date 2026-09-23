@@ -46,7 +46,7 @@ function dashRelShort(isoStr) {
 // ── Honest cell values — real, or a labelled empty state, never a bare dash ──
 function dashCellText(v) {
   return (
-    <span title={v.text} style={{ display: "block", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: v.dim ? "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" : v.warn ? DASH_SEV_COLORS.amber : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", fontStyle: v.dim ? "italic" : "normal", whiteSpace: "nowrap" }}>{v.text}</span>
+    <span title={v.text} style={{ display: "block", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: v.dim ? "var(--sh-ink3, #75706a)" : v.warn ? DASH_SEV_COLORS.amber : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", fontStyle: v.dim ? "italic" : "normal", whiteSpace: "nowrap" }}>{v.text}</span>
   );
 }
 function dashLastLogLabel(rec) {

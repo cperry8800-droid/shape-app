@@ -122,7 +122,7 @@ function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trai
         <style>{`.coach-live-workout button:focus-visible,.coach-live-workout input:focus-visible,.coach-live-workout summary:focus-visible{outline:2px solid ${accent};outline-offset:3px}.coach-live-workout button:disabled{opacity:.6;cursor:default}.coach-live-workout summary{min-height:44px;cursor:pointer}.coach-live-workout table{width:100%;table-layout:fixed;border-collapse:collapse}`}</style>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' }}>
           <h2 style={{ ...mono, margin: 0, fontSize: 13, textTransform: 'uppercase', color: accent }}>Watching workout</h2>
-          <span role="status" style={{ ...mono, color: status === 'live' ? accent : '#e1d5bb', lineHeight: 1.6 }}>{statusText}</span>
+          <span role="status" style={{ ...mono, color: status === 'live' ? accent : 'var(--sh-ink2, #a09b94)', lineHeight: 1.6 }}>{statusText}</span>
         </div>
         {!lp && identityValid && <p style={{ fontSize: 14, lineHeight: 1.6, color: 'rgba(var(--sh-ink-rgb, 242,237,228),0.8)', marginBottom: 0 }}>{status === 'connecting' ? 'Checking for an active workout.' : status === 'idle' ? 'This view updates automatically when workout progress is available.' : 'Checking the connection. You can retry while automatic recovery continues.'}</p>}
         {!identityValid && <p role="status" style={{ fontSize: 14 }}>Your account changed. Reload this page to continue watching.</p>}
@@ -153,10 +153,10 @@ function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trai
             <label htmlFor={inputId} style={{ ...mono, display: 'block', marginBottom: 10 }}>Send a cue</label>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <input id={inputId} value={cue} disabled={sending || !canSend} onChange={event => setCue(event.target.value)} maxLength={500} placeholder="Type a quick cue…" style={{ flex: '1 1 220px', minWidth: 0, width: '100%', boxSizing: 'border-box', border: '1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.35)', borderRadius: 8, padding: '12px 14px', background: 'rgba(var(--sh-ink-rgb, 242,237,228),0.04)', color: 'var(--sh-ink, #f2ede4)', fontSize: 16 }} />
-              <button type="submit" disabled={sending || !cue.trim() || !canSend} style={{ ...button, background: accent, borderColor: accent, color: '#1a1612', fontWeight: 600 }}>{sending ? 'Saving…' : 'Send cue'}</button>
+              <button type="submit" disabled={sending || !cue.trim() || !canSend} style={{ ...button, background: accent, borderColor: accent, color: clwInkOn(accent), fontWeight: 600 }}>{sending ? 'Saving…' : 'Send cue'}</button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>{['Slow the eccentric', 'Hold this weight', 'One more set', 'Lengthen your rest'].map(text => <button type="button" key={text} disabled={sending || !canSend} onClick={() => { setCue(text); setCueResult(''); setCueError(''); }} style={button}>{text}</button>)}</div>
-            {!canSend && <p role="status" style={{ fontSize: 13, color: '#e1d5bb' }}>Cues are available when your client's coach connection is live.</p>}
+            {!canSend && <p role="status" style={{ fontSize: 13, color: 'var(--sh-ink2, #a09b94)' }}>Cues are available when your client's coach connection is live.</p>}
             <p style={{ fontSize: 12, color: 'rgba(var(--sh-ink-rgb, 242,237,228),0.75)', lineHeight: 1.5 }}>Cues also update your coaching focus note.</p>
             {cueError && <p role="alert" style={{ fontSize: 14, color: '#ffb6a2' }}>{cueError}</p>}
             {cueResult && <p role="status" style={{ fontSize: 14, color: accent, overflowWrap: 'anywhere' }}>{cueResult}</p>}
@@ -169,6 +169,13 @@ function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trai
 // declaration. This composes rgba() instead and keeps a paper token as
 // rgba(var(--x-rgb, r,g,b), a) — pageShell.jsx's ssAlpha, restated locally because
 // this module is mounted by test harnesses that load it without pageShell.
+// The ink ON an accent fill. A paper token turns dark on the light paper, so the text
+// on it is --sh-deep (white there, near-black on the dark paper); a caller's literal
+// stays bright on both papers, so near-black reads on it everywhere. `#1a1612` on the
+// trainer console's token read 3.6:1 on the light paper.
+function clwInkOn(accent) {
+  return /^\s*var\(/.test(String(accent || "")) ? "var(--sh-deep, #06231f)" : "#1a1612";
+}
 function clwAlpha(hex, a) {
   const s = String(hex || "");
   const m = /#([0-9a-f]{6})/i.exec(s);

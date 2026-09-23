@@ -376,7 +376,13 @@ test('meal plans have no Status filter — every one of them is published', () =
 const CSS = readFileSync(new URL('../public/newdesign/dash.css', import.meta.url), 'utf8');
 const block = (open) => { const i = CSS.indexOf(open); assert.ok(i >= 0, open); return CSS.slice(i, CSS.indexOf('\n}', i)); };
 const token = (b, name) => { const m = new RegExp('--' + name + ':\\s*([^;]+);').exec(b); assert.ok(m, name); return m[1].trim(); };
-const hex = (h) => { h = h.replace('#', ''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); };
+// ⚠ A phase colour is a token now (`var(--sh-gold, #d8a23a)`), and parsing that as hex gives
+// NaN channels — `NaN < 4.5` is false, so the chip used to drop out of this test with the
+// suite green. A token resolves against THIS paper's block (its fallback is the dark value
+// and says nothing about the light paper), and anything that is still not a 6-digit hex
+// fails here rather than quietly measuring nothing.
+const resolve = (b, c) => { const m = /^var\(--([\w-]+),/.exec(c); return m ? token(b, m[1]) : c; };
+const hex = (h) => { assert.match(h, /^#[0-9a-f]{6}$/i, 'not a resolved hex colour: ' + h); h = h.slice(1); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); };
 const mix = (a, b, p) => a.map((v, i) => v * p + b[i] * (1 - p));
 const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; const [r, g, b] = c.map(f); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
@@ -387,7 +393,11 @@ for (const [paper, open] of [['light', ':root {'], ['dark', 'html[data-paper="da
     const P = { ink: token(b, 'sh-ink'), ink2: token(b, 'sh-ink2'), ground: token(b, 'sh-ground'), card: token(b, 'sh-card'), accent: token(b, 'sh-accent') };
     const p = parseFloat(token(b, 'sh-tag-ink-mix')) / 100;
     assert.ok(p > 0 && p < 1, 'the mix is a percentage');
-    const colours = [...DB.GOAL_TAGS.map((g) => g.c), ...DB.TAG_PALETTE, ...DM.GOAL_PHASES.map((g) => g.c), P.accent];
+    const colours = [...DB.GOAL_TAGS.map((g) => g.c), ...DB.TAG_PALETTE, ...DM.GOAL_PHASES.map((g) => g.c), P.accent].map((c) => resolve(b, c));
+    // The resolver reads the paper, never the fallback: a fallback no paper declares must not survive it.
+    assert.equal(resolve(b, 'var(--sh-gold, #000001)'), token(b, 'sh-gold'));
+    // And an unresolved token is refused, never measured as NaN.
+    assert.throws(() => hex('var(--sh-gold, #d8a23a)'));
     const worst = [];
     for (const c of colours) for (const bg of [P.ground, P.card]) {
       const r = ratio(mix(hex(c), hex(P.ink), p), mix(hex(c), hex(bg), 0.13));

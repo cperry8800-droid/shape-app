@@ -290,15 +290,17 @@ const DASH_MONO_LINK = { ...DASH_MONO_EYEBROW, display: "inline-flex", alignItem
 // tests/newdesign-paper-tokens.test.mjs holds the rule.
 // ⚠ CORRECTED with the light paper: the severity colours DO follow it now. On white
 // the dark paper's #e0644b reads at 3.3:1 and its teal at 1.6:1, so each severity
-// reads the role/state token whose light value was chosen for AA (rust #c0533b,
-// gold #a07a2e, teal #0a8f87, green #3a7d2c); the dark switch resolves every one
+// reads the role/state token whose light value clears AA as text (rust #b24c36,
+// gold #86662a, teal #0a7a72, green #387a2b; tests/newdesign-paper-pairs.test.mjs
+// holds the floors — the first light values, #c0533b / #a07a2e / #0a8f87, did NOT,
+// at 4.26 / 3.64 / 3.66:1 on the ground); the dark switch resolves every one
 // back to the literal it carried before. DashPill composes its tint through
 // ssAlpha, which keeps a token as rgba(var(--x-rgb, …), a).
 const DASH_SEV_COLORS = { red: "var(--sh-rust, #e0644b)", amber: "var(--sh-gold, #d8a23a)", new: "var(--sh-accent, #2ee0c4)", green: "var(--sh-green, #7bbf5a)", unknown: "var(--sh-ink2, #a09b94)" };
 
 function DashPill({ c, children }) {
   return (
-    <span style={{ display: "inline-block", whiteSpace: "nowrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: c, background: ssAlpha(c, 0.11), border: "1px solid " + ssAlpha(c, 0.33), borderLeft: "3px solid " + c, borderRadius: 4, padding: "3px 8px" }}>
+    <span style={{ display: "inline-block", whiteSpace: "nowrap", fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: c, background: ssAlpha(c, 0.09), border: "1px solid " + ssAlpha(c, 0.33), borderLeft: "3px solid " + c, borderRadius: 4, padding: "3px 8px" }}>
       {children}
     </span>
   );
@@ -418,7 +420,7 @@ function dashClientHref(rec, role) {
 // context line + inline actions: Message · Last notes · Start log.
 function ExpandableSchedule({ schedule, clients, role }) {
   const [openIdx, setOpenIdx] = React.useState(null);
-  const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
+  const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
   return (
     <div>
       {schedule.map((s, i) => {
@@ -440,7 +442,7 @@ function ExpandableSchedule({ schedule, clients, role }) {
               {s.status && (
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 4,
                   background: s.status === "DONE" ? "rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : s.status === "NEXT" ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
-                  color: s.status === "NEXT" ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.65)",
+                  color: s.status === "NEXT" ? PAPER : "var(--sh-ink2, #a09b94)",
                   border: s.status === "DONE" ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)" : "none",
                 }}>{s.status}</span>
               )}
@@ -676,7 +678,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
       .catch(() => {});
   };
 
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = "var(--sh-ink2, #a09b94)"; // the paper's secondary ink; 55% of the light ink reads 3.77:1 on white
   const notices = dashQueueNotices(ledger.kind, storeKind);
   const settling = ledger.kind === "loading" || storeKind === "loading";
   const noticeBlock = notices.length ? (
@@ -731,7 +733,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
               <a href={dashShellHref(role === "nutritionist" ? "NutritionistPlans.html" : "TrainerPrograms.html")} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "7px 11px", textDecoration: "none" }}>Template</a>
               {st.canToggle && (
-                <button onClick={() => toggle(id)} disabled={settling} style={{ opacity: settling ? 0.45 : 1, cursor: settling ? "default" : "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: st.done ? "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" : "var(--sh-deep, #06231f)", background: st.done ? "transparent" : "var(--sh-accent, #2ee0c4)", border: st.done ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : "0", borderRadius: 4, padding: "7px 11px" }}>
+                <button onClick={() => toggle(id)} disabled={settling} style={{ opacity: settling ? 0.45 : 1, cursor: settling ? "default" : "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: st.done ? "var(--sh-ink2, #a09b94)" : "var(--sh-deep, #06231f)", background: st.done ? "transparent" : "var(--sh-accent, #2ee0c4)", border: st.done ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)" : "0", borderRadius: 4, padding: "7px 11px" }}>
                   {Object.prototype.hasOwnProperty.call(intentRef.current, id) ? "Retry" : st.done ? "Undo" : "Mark written"}
                 </button>
               )}
@@ -747,7 +749,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
 // one-tap congratulate. Live coach-side milestone data is sparse today, so
 // the empty state explains itself instead of inventing wins.
 function DashWinsPanel({ clients, role }) {
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = "var(--sh-ink2, #a09b94)";
   const rows = [];
   for (const c of clients) {
     const ms = DashSignals.buildMilestones(c);
@@ -786,7 +788,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
   const rows = order.rest;
   const canPin = typeof onTogglePin === "function";
   const pinSet = new Set(Array.isArray(pinned) ? pinned : []);
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = "var(--sh-ink2, #a09b94)";
   // The muted pill takes the severity table's own "unknown" ink. It was a hex literal
   // while DashPill appended hex suffixes; the pill composes through ssAlpha now, so a
   // token is valid and follows the paper (#5a6763 on the light card, 5.91:1).
@@ -862,10 +864,10 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
                   aria-pressed={pinSet.has(c.profile.id)}
                   title={pinSet.has(c.profile.id) ? "Unpin " + c.profile.name : "Pin " + c.profile.name + " to the top"}
                   onClick={(e) => { e.stopPropagation(); onTogglePin(c.profile.id); }}
-                  style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", minWidth: 24, lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.3)" }}
+                  style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", minWidth: 24, lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}
                 >{pinSet.has(c.profile.id) ? "\u2691" : "\u2690"}</button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r)); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
                 Message
               </button>
             </div>
@@ -915,13 +917,16 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
 // (signed out, wrong role, or the API is down) the page SAYS so, exactly like
 // the profiles' preview band. Demo data must never look like real tracking.
 function DashDemoBand() {
+  // The band is a FIXED near-black fill on both papers, so its ink is the fixed
+  // bright teal — the paper's accent is the light paper's dark teal, which read
+  // 3.85:1 on this band and would only get darker.
   // Fixed BOTTOM banner (not a top strip). It's placed before the position:fixed
   // header on every dash page, so an in-flow top band was hidden behind the header
   // yet still pushed the whole dashboard down — a phantom gap under the nav bar.
   // Pinning it to the bottom (like the mobile preview banner) keeps the demo
   // notice visible while letting content sit flush under the header.
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(16,20,18,0.92)", borderTop: "1px solid rgba(30,192,168,0.3)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent, #2ee0c4)", textAlign: "center" }}>
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(16,20,18,0.92)", borderTop: "1px solid rgba(30,192,168,0.3)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
       <span>Preview · demo data — an example of a live account</span>
       <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "4px 12px", textDecoration: "none" }}>Sign in →</a>
     </div>
@@ -939,7 +944,7 @@ const DASH_DEMO_GROWTH = {
 };
 function DashGrowthPanel({ live, role }) {
   const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = "var(--sh-ink2, #a09b94)";
   if (!g || !Array.isArray(g.weeklyAdds) || !g.weeklyAdds.length) {
     return <div style={{ fontSize: 13, color: ink50 }}>Growth history connects when payouts go live — current numbers are in the stat bar.</div>;
   }
@@ -983,7 +988,7 @@ const DASH_DEMO_FUNNEL = { views: 1240, consults90: 86, signed90: 34 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
 function DashFunnelPanel({ live }) {
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = "var(--sh-ink2, #a09b94)";
   if (!f) return <div style={{ fontSize: 13, color: ink50 }}>Funnel data connects soon.</div>;
   const stages = [
     { l: "Profile views", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
@@ -1023,7 +1028,7 @@ function DashFunnelPanel({ live }) {
 // honesty: monthly net derives from real subscriptions; payout-flavored
 // numbers never appear here — the Business page owns those (real or "—").
 function DashBusinessSummary({ live, role, clients }) {
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = "var(--sh-ink2, #a09b94)";
   const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
   const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
   const counts = g && Array.isArray(g.weeklyAdds) ? g.weeklyAdds.map((w) => w.count) : null;
@@ -1064,7 +1069,7 @@ function DashBusinessSummary({ live, role, clients }) {
 
 // Nutritionist roster aggregates + the recipe-publishing insight.
 function DashNutriAggPanel({ clients, live }) {
-  const ink50 = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)";
+  const ink50 = "var(--sh-ink2, #a09b94)";
   const withLogs = clients.filter((c) => c.foodLogs && c.foodLogs.daysLogged7d != null);
   const avgCompliance = withLogs.length
     ? Math.round((withLogs.reduce((s, c) => s + Math.min(7, c.foodLogs.daysLogged7d), 0) / (withLogs.length * 7)) * 100)
@@ -1152,7 +1157,7 @@ function DashWeekAheadPanel({ week }) {
             background: d.today ? "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.03)",
             border: "1px solid " + (d.today ? "rgba(var(--sh-accent-rgb, 46,224,196),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)") }}>
             <div style={{ ...DASH_MONO_EYEBROW, color: d.today ? "var(--sh-accent, #2ee0c4)" : DASH_INK50 }}>{d.dow}</div>
-            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: d.count ? "var(--sh-ink, #f2ede4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)" }}>{d.count}</div>
+            <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums", color: d.count ? "var(--sh-ink, #f2ede4)" : "var(--sh-ink3, #75706a)" }}>{d.count}</div>
             <div style={{ height: 3, margin: "8px auto 0", width: "70%", borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", overflow: "hidden" }}>
               <div style={{ height: "100%", width: max ? (d.count / max) * 100 + "%" : 0, background: "var(--sh-accent, #2ee0c4)", opacity: 0.85 }} />
             </div>

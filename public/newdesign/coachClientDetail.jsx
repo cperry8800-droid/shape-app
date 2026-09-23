@@ -26,9 +26,13 @@ function CKTrend({ vals, color, h }) {
   const lp = pts[pts.length - 1];
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" style={{ display: "block" }}>
-      <path d={`${line} L${W},${H} L0,${H} Z`} fill={color + "22"} />
-      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={lp[0]} cy={lp[1]} r="3.5" fill={color} />
+      {/* The colour is a paper token, so the area's alpha composes through ssAlpha
+          (rgba(var(--x-rgb, …), a)) — `color + "22"` on a var() is not a colour and the
+          fill silently disappears. Painted through style rather than presentation
+          attributes, where var() support is the part that varies by engine. */}
+      <path d={`${line} L${W},${H} L0,${H} Z`} style={{ fill: ssAlpha(color, 0x22 / 255) }} />
+      <path d={line} fill="none" style={{ stroke: color }} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={lp[0]} cy={lp[1]} r="3.5" style={{ fill: color }} />
     </svg>
   );
 }
@@ -65,7 +69,7 @@ function CkCycleMonthStrip({ starts, today, heat }) {
     <div style={{ display: "flex", gap: 2, marginTop: 12, alignItems: "flex-end" }}>
       {Array.from({ length: days }, (_, i) => {
         const day = i + 1; const isStart = startDays.has(day);
-        return <div key={day} style={{ flex: 1, height: isStart ? 9 : 3, borderRadius: isStart ? 5 : 2, background: isStart ? heat : `${heat}2a`, boxShadow: day === todayDay ? `0 0 0 1px ${heat}` : "none" }} />;
+        return <div key={day} style={{ flex: 1, height: isStart ? 9 : 3, borderRadius: isStart ? 5 : 2, background: isStart ? heat : ssAlpha(heat, 0x2a / 255), boxShadow: day === todayDay ? `0 0 0 1px ${heat}` : "none" }} />;
       })}
     </div>
   );
@@ -419,12 +423,12 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   const isNutri = myRole === "nutritionist";
   const navItems = isNutri ? nutriNavItems("clients") : trainerNavItems("clients");
   const payout = isNutri ? nutriPayoutCard : trainerPayoutCard;
-  // ⚠ THESE STAY LITERAL, BY RULE. `accent` is handed to CKTrend, which fills the
-  // area under the line by APPENDING a hex-alpha suffix (`color + "22"`), so a var()
-  // here is not a colour and the fill silently disappears — an SVG `fill` that fails
-  // to parse renders nothing and raises nothing. See the note above DASH_SEV_COLORS in
-  // dashToday.jsx; tests/newdesign-paper-tokens.test.mjs holds the rule.
-  const teal = "#2ee0c4", rust = "#d2693f", gold = "#d8b25a";
+  // These follow the paper. They were literals because CKTrend and the cycle strip
+  // composed their alphas by APPENDING a hex suffix (`color + "22"`), and a var() with
+  // a suffix is not a colour; both compose through ssAlpha now. As literals they were
+  // dark-paper colours on the light card — the teal read 1.8:1 as text. Each fallback
+  // is the literal it replaces, so the dark paper does not move.
+  const teal = "var(--sh-accent, #2ee0c4)", rust = "var(--sh-ember, #d2693f)", gold = "var(--sh-gold2, #d8b25a)";
   const accent = isNutri ? gold : teal;
   const firstName = data.client.name.split(/\s+/)[0];
 
@@ -551,7 +555,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             {/* Week-to-week variance — bare, from the ONE canonical copy source
                 (bsVarianceCopy), identical to the mobile Case File line. */}
             {varRead && (
-              <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: varRead.chip ? "#e8b14a" : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
+              <div style={{ marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: varRead.chip ? "#e8b14a" : "var(--sh-ink2, #a09b94)" }}>
                 {varRead.line}
               </div>
             )}
@@ -581,7 +585,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                     <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.n}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
+                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "var(--sh-ink3, #75706a)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
                   </div>
                   {m.cur != null && m.tgt ? <div style={{ marginTop: 8, height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div> : null}
                 </div>
@@ -748,7 +752,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
             const checkinHeading = !hasDevice && hasEntered;
             if (!hasDevice && !hasHours && !hasRested && !hasVitals) return null;
             const fmtH = (v) => (v == null ? "—" : `${Number(v)}h`);
-            const rc = !s || s.readiness == null ? "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "#5b9bd5" : s.readiness >= 40 ? "#e8b14a" : "var(--sh-rust2, #c0533b)";
+            const rc = !s || s.readiness == null ? "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" : s.readiness >= 80 ? accent : s.readiness >= 60 ? "var(--sh-sky, #7ed4ff)" : s.readiness >= 40 ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust2, #c0533b)";
             // Measured cells render only when a device actually reported. For a
             // rating-only member they would otherwise be eight dashes framing a
             // single filled cell, which reads as a device that failed rather
@@ -962,7 +966,7 @@ function SessionRow({ s, first, mine }) {
   const d = new Date(s.at);
   const dateLabel = d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   const timeLabel = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const tone = s.providerRole === "trainer" ? "var(--sh-accent, #2ee0c4)" : "#d2693f";
+  const tone = s.providerRole === "trainer" ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ember, #d2693f)";
   return (
     <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: "12px 0", borderTop: first ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
       <div style={{ width: 6, height: 36, borderRadius: 3, background: tone, opacity: mine ? 1 : 0.45 }} />

@@ -458,7 +458,7 @@ function DgCardSettings({ groups }) {
                       style={{ padding: "5px 10px", borderRadius: 999, cursor: "pointer",
                                border: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"),
                                background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent",
-                               color: on ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)",
+                               color: on ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)",
                                fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.06em" }}>{o.label}</button>
                   );
                 })}
@@ -555,12 +555,12 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
   const rowStyle = { display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 6px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" };
   const pill = (teal) => ({ ...mono, fontSize: 9.5, padding: "5px 9px", borderRadius: 999, cursor: "pointer", flexShrink: 0,
     border: "1px solid " + (teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
-    background: teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: teal ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" });
+    background: teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: teal ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" });
   const head = (text) => <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "10px 6px 2px" }}>{text}</div>;
   const item = (r, control) => (
     <div key={r.key} data-dg-row={r.key} style={rowStyle}>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 13, color: r.empty ? "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" : "var(--sh-ink, #f2ede4)" }}>{r.title}</div>
+        <div style={{ fontSize: 13, color: r.empty ? "var(--sh-ink2, #a09b94)" : "var(--sh-ink, #f2ede4)" }}>{r.title}</div>
         {(r.blurb || r.why) && <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", marginTop: 2, lineHeight: 1.4 }}>{r.empty ? r.why : r.blurb}</div>}
       </div>
       {control}
@@ -572,7 +572,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
         onClick={() => setOpen((v) => !v)}
         style={{ ...mono, fontSize: 10.5, padding: "7px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
                  border: "1px solid " + (open ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"),
-                 background: open ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: open ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" }}>
+                 background: open ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: open ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" }}>
         <span>{label}</span>
         {addable.length > 0 && <span style={{ color: "var(--sh-accent, #2ee0c4)", fontVariantNumeric: "tabular-nums" }}>{addable.length}</span>}
       </button>

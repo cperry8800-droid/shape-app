@@ -140,7 +140,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
       {chip && <span style={{ marginLeft: "auto" }}>{chip}</span>}
     </div>
   );
-  const accentChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: TEAL_BRIGHT, background: "rgba(var(--sh-accent-rgb, 46,224,196),0.1)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.34)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
+  const accentChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.1)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.34)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
   const greyChip = (txt) => <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.04em", color: "var(--sh-ink2, #a09b94)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", borderRadius: 999, padding: "2px 8px" }}>{txt}</span>;
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, zIndex: 120, background: "rgba(0,0,0,0.66)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px", overflowY: "auto" }}>
@@ -194,7 +194,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
                   <span style={{ width: 8, height: 8, borderRadius: 2, background: ZC[i % 5] }} />
                   <span style={{ width: 18, fontFamily: mono, fontSize: 9, fontWeight: 700, color: INK }}>{z[0]}</span>
                   <div style={{ flex: 1, height: 9, borderRadius: 999, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.07)", overflow: "hidden" }}><div style={{ width: Math.max(z[1], 1.5) + "%", height: "100%", borderRadius: 999, background: ZC[i % 5] }} /></div>
-                  <span style={{ width: 32, textAlign: "right", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: z[1] >= 30 ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{z[1]}%</span>
+                  <span style={{ width: 32, textAlign: "right", fontFamily: mono, fontSize: 9.5, fontWeight: 700, color: z[1] >= 30 ? INK : "var(--sh-ink2, #a09b94)" }}>{z[1]}%</span>
                 </div>
               ))}
             </div>
@@ -245,7 +245,7 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
               {rows.map((r, i) => (
                 <div key={i} style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
                   <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r[0]}</div>
-                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", marginTop: 3, whiteSpace: "nowrap" }}>{r[2]}</div>}
+                  {r[2] && <div style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 600, textTransform: "uppercase", color: i === bestIdx ? TEAL_BRIGHT : "var(--sh-ink3, #75706a)", marginTop: 3, whiteSpace: "nowrap" }}>{r[2]}</div>}
                 </div>
               ))}
             </div>
@@ -468,7 +468,7 @@ function cfHexA(hex, a) {
 // at a glance. The bubble is always dark, so these are the app's dark values
 // verbatim; its light-mode pair is deliberately not carried, because there is no
 // light bubble to carry it for.
-const CF_HEAT = { TRAINER: "var(--sh-rust2, #c0533b)", NUTRI: "var(--sh-heat-nutri, #d8b25a)", CLIENT: "var(--sh-accent3, #34d6c5)", SHAPE: "var(--sh-accent3, #34d6c5)" };
+const CF_HEAT = { TRAINER: "var(--sh-heat-trainer, #c0533b)", NUTRI: "var(--sh-heat-nutri, #d8b25a)", CLIENT: "var(--sh-heat-client, #34d6c5)", SHAPE: "var(--sh-heat-client, #34d6c5)" };
 function cfHeat(p) { return CF_HEAT[cfKindOfRole(p && p.role)] || CF_HEAT.CLIENT; }
 
 // The app's `bsSdSplitUnit` (services/sessionLedger.mjs:9), verbatim — only a
@@ -1347,7 +1347,7 @@ function CommunityFeed() {
             ) : people.map((m, i) => (
               <button key={m.id} disabled={!!busy} onClick={() => sendTo(m)} style={{ width: "100%", textAlign: "left", cursor: "pointer", background: "transparent", border: 0, borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.07)" : 0, padding: "10px 2px", display: "flex", alignItems: "center", gap: 10, color: INK, opacity: busy && busy !== m.id ? 0.5 : 1 }}>
                 <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.full_name || "Member"}</span>
-                <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy === m.id ? "rgba(var(--sh-ink-rgb, 242,237,228),0.4)" : TEAL_BRIGHT }}>{busy === m.id ? "Sending…" : "Send →"}</span>
+                <span style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: busy === m.id ? "var(--sh-ink3, #75706a)" : TEAL_BRIGHT }}>{busy === m.id ? "Sending…" : "Send →"}</span>
               </button>
             ))}
           </div>
@@ -1485,14 +1485,14 @@ function CommunityFeed() {
         {p.note && !p.photo && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)", fontStyle: "italic", marginTop: 6 }}>"{p.note}"</div>}
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", display: "flex", gap: 20, alignItems: "center", fontSize: 12, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>
           <button onClick={toggleLike} aria-pressed={liked} aria-label={liked ? "Unlike" : "Like"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: liked ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: liked ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", transition: "color 0.15s, transform 0.15s", transform: liked ? "scale(1.05)" : "scale(1)" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill={liked ? "currentColor" : "none"}>
               <path d="M6 10.2S1.5 7.5 1.5 4.5a2.5 2.5 0 0 1 4.5-1.5 2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 5.7-4.5 5.7Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
             </svg>
             {likeCount}
           </button>
           <button onClick={() => setShowReplies(v => !v)} aria-expanded={showReplies} aria-label={showReplies ? "Hide replies" : "Show replies"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: showReplies ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: showReplies ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 5.5a3 3 0 0 1 3-3h4a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2H5l-2.5 2V7a2.5 2.5 0 0 1-.5-1.5Z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/></svg>
             {totalReplies} replies
           </button>
@@ -1555,7 +1555,7 @@ function CommunityFeed() {
                 style={{ flex: 1, padding: "10px 14px", borderRadius: 8, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", color: INK, fontFamily: sans, fontSize: 13.5, outline: "none" }}
               />
               <button onClick={submitReply} disabled={!draft.trim()}
-                style={{ padding: "10px 18px", borderRadius: 8, background: draft.trim() ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", color: draft.trim() ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", border: 0, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: draft.trim() ? "pointer" : "default" }}>
+                style={{ padding: "10px 18px", borderRadius: 8, background: draft.trim() ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", color: draft.trim() ? PAPER : "var(--sh-ink3, #75706a)", border: 0, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: draft.trim() ? "pointer" : "default" }}>
                 Send
               </button>
             </div>
@@ -1572,7 +1572,7 @@ function CommunityFeed() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "11px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-        <button onClick={() => setMyPostsOnly(v => !v)} style={{ background: myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "transparent", color: myPostsOnly ? TEAL_BRIGHT : INK, border: `1px solid ${myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)"}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{myPostsOnly ? "All posts" : "My posts"}</button>
+        <button onClick={() => setMyPostsOnly(v => !v)} style={{ background: myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "transparent", color: myPostsOnly ? "var(--sh-accent-ink, #2ee0c4)" : INK, border: `1px solid ${myPostsOnly ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)"}`, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>{myPostsOnly ? "All posts" : "My posts"}</button>
         {/* ⚠ GATED, AND IT DID NOT USED TO NEED TO BE. As a dashboard page this
             composer was already behind a signed-in shell. The feed now renders in
             the site-wide chat bubble, which mounts on Landing and Login too — so a
@@ -1585,7 +1585,7 @@ function CommunityFeed() {
             that leads nowhere costs more trust than one that explains itself. */}
         <button onClick={() => setComposerOpen(true)} disabled={signedIn !== true}
           title={signedIn === false ? "Sign in to post" : signedIn === null ? "Checking your account…" : ""}
-          style={{ background: signedIn === true ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: signedIn === true ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: signedIn === true ? "pointer" : "default", whiteSpace: "nowrap" }}>New post</button>
+          style={{ background: signedIn === true ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: signedIn === true ? PAPER : "var(--sh-ink3, #75706a)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: signedIn === true ? "pointer" : "default", whiteSpace: "nowrap" }}>New post</button>
         {signedIn === false && (
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>Sign in to post</span>
         )}
@@ -1609,7 +1609,7 @@ function CommunityFeed() {
                   <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
                     {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
                       const on = feedMode === m;
-                      return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
+                      return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "var(--sh-ink3, #75706a)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
                     })}
                   </div>
                   <div style={{ padding: "26px 4px" }}>
@@ -1625,14 +1625,14 @@ function CommunityFeed() {
                 <div style={{ display: "flex", gap: 18, marginBottom: 4 }}>
                   {[["universal", "UNIVERSAL"], ["following", "FOLLOWING"]].map(([m, lab]) => {
                     const on = feedMode === m;
-                    return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
+                    return (<button key={m} onClick={() => switchFeedMode(m)} aria-pressed={on} style={{ position: "relative", background: "transparent", border: 0, cursor: "pointer", padding: "8px 2px 10px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: on ? INK : "var(--sh-ink3, #75706a)" }}>{lab}{on && <span aria-hidden style={{ position: "absolute", left: 0, right: 0, bottom: 4, height: 2, background: TEAL_BRIGHT }} />}</button>);
                   })}
                 </div>
                 {/* The MY POSTS ONLY badge kept its own row when the chips went:
                     it is a state readout, not one of them. */}
                 {myPostsOnly && (
                   <div style={{ display: "flex", alignItems: "center" }}>
-                    <span style={{ marginLeft: "auto", padding: "5px 10px", borderRadius: 999, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", color: TEAL_BRIGHT, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em" }}>
+                    <span style={{ marginLeft: "auto", padding: "5px 10px", borderRadius: 999, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", color: "var(--sh-accent-ink, #2ee0c4)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em" }}>
                       MY POSTS ONLY · {feed.filter(p => p.isMe).length}
                     </span>
                   </div>
@@ -1925,7 +1925,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em",
                 padding: "6px 12px", borderRadius: 999, cursor: "pointer",
                 background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)",
-                color: on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)",
+                color: on ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)",
                 border: "1px solid " + (on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"),
               }}>{k.label.toUpperCase()}</button>
             );
@@ -1977,7 +1977,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
         {photoUrl ? (
           <div style={{ marginTop: 12, position: "relative", display: "inline-block" }}>
             <img src={photoUrl} alt="" style={{ display: "block", maxHeight: 180, maxWidth: "100%", borderRadius: 10, border: "1px solid rgba(242,237,228,0.14)" }} />
-            <button onClick={() => setPhotoUrl("")} aria-label="Remove photo" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 999, background: "rgba(10,10,8,0.7)", color: INK, border: "1px solid rgba(242,237,228,0.2)", cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
+            <button onClick={() => setPhotoUrl("")} aria-label="Remove photo" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 999, background: "rgba(10,10,8,0.7)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.2)", cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
           </div>
         ) : (
           <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1995,7 +1995,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
             {videoUrl ? (
               <div style={{ position: "relative" }}>
                 <video src={videoUrl} controls playsInline preload="metadata" style={{ display: "block", width: "100%", maxHeight: 220, borderRadius: 10, background: "#000", border: "1px solid rgba(242,237,228,0.14)" }} />
-                <button onClick={() => setVideoUrl("")} aria-label="Remove video" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 999, background: "rgba(10,10,8,0.7)", color: INK, border: "1px solid rgba(242,237,228,0.2)", cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
+                <button onClick={() => setVideoUrl("")} aria-label="Remove video" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 999, background: "rgba(10,10,8,0.7)", color: "#f2ede4", border: "1px solid rgba(242,237,228,0.2)", cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
               </div>
             ) : (
               <button onClick={() => videoRef.current && videoRef.current.click()} disabled={videoBusy} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(242,237,228,0.04)", color: videoBusy ? "rgba(242,237,228,0.45)" : INK, border: "1px solid rgba(242,237,228,0.14)", padding: "9px 14px", borderRadius: 999, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.08em", cursor: videoBusy ? "default" : "pointer" }}>
@@ -2037,7 +2037,7 @@ function PostComposer({ me, onCancel, onSubmit, editing }) {
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "var(--sh-ink2, #a09b94)", letterSpacing: "0.08em" }}>{body.length} CHARS</span>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={onCancel} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-            <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: canSubmit ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: canSubmit ? "pointer" : "default" }}>{ed ? "Save" : "Post"}</button>
+            <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: canSubmit ? PAPER : "var(--sh-ink3, #75706a)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: canSubmit ? "pointer" : "default" }}>{ed ? "Save" : "Post"}</button>
           </div>
         </div>
       </div>

@@ -76,7 +76,7 @@ function cstCard(children, extra) {
   );
 }
 function cstChip(on) {
-  return { fontFamily: CST_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer" };
+  return { fontFamily: CST_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid " + (on ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.10)" : "transparent", color: on ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer" };
 }
 // ⚠ A NUMBER FIELD THAT COMMITS ON BLUR, NOT ON EVERY KEYSTROKE, AND THAT REFUSES AN
 // EMPTY VALUE. Two measured problems with the naive form:
@@ -639,7 +639,7 @@ function CoachNotificationCard({ signedIn, acct }) {
                   <td key={ch} style={{ padding: "10px 8px", textAlign: "center" }}>
                     <button type="button" role="switch" aria-checked={isOn(type, ch)} aria-label={label + " · " + ch}
                       onClick={() => toggle(type, ch, !isOn(type, ch))}
-                      style={{ width: 34, minHeight: 24, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isOn(type, ch) ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: isOn(type, ch) ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: isOn(type, ch) ? CST_TEAL : CST_INK50, fontFamily: CST_MONO, fontSize: 11 }}>
+                      style={{ width: 34, minHeight: 24, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isOn(type, ch) ? CST_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"), background: isOn(type, ch) ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: isOn(type, ch) ? "var(--sh-accent-ink, #2ee0c4)" : CST_INK50, fontFamily: CST_MONO, fontSize: 11 }}>
                       {isOn(type, ch) ? "✓" : "×"}
                     </button>
                   </td>

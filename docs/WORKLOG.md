@@ -841,6 +841,57 @@ Append new entries at the top, under this note.
     - Thirteen broke the detector's own rules, and each failed the fixtures or the sweep.
   - ⚠ **One mutation survived the first round, and it was a gap in the fixtures.** Reading an opaque spread's argument as a compared value changed nothing any fixture could see. The position of every argument after `...args` is unknown, so that is now pinned as a blind spot, and the header says so.
 
+### 2026-09-23 — The light paper's role colours reach AA, and 1,228 faint labels follow the paper
+
+- **Merged [#2160](https://github.com/cperry8800-droid/shape-app/pull/2160)** by the owner as merge commit `197cfad`, head `4f9acf7`. Every file the PR touched is **byte-identical** to that head on `main`; the only other files that moved are #2159's, and the two share none. Follows #2146. Owner: *"what do you suggest?"* → *"ok do it"*, on a proposal to darken the three role colours **on the white version only**, fix the faint teal and orange labels, ship one PR and send a side-by-side preview before merging (https://claude.ai/artifact/MKWo35sQapW2zW2n7wixvJ). `public/newdesign/` and four test files. **No migration, no route, no data change.**
+- **The role colours, light `:root` only.** The dark block and every `var()` fallback are unchanged, so the dark paper and the 39 pages without `dash.css` do not move. Ratios are on the card / the ground:
+  - teal (`--sh-accent`, `accent2`, `accent3`) `#0a8f87` → **`#0a7a72`**, 3.97 / 3.66 → 5.20 / 4.79;
+  - gold `#a07a2e` → **`#86662a`**, 3.95 / 3.64 → 5.32 / 4.90;
+  - rust `#c0533b` → **`#b24c36`**, 4.62 / 4.26 → 5.28 / 4.86;
+  - green `#3a7d2c` → **`#387a2b`**, 5.06 / 4.66 → 5.27 / 4.85.
+  - ⚠ **Two differ from the proposal, on measurement.** The proposed gold `#8a6a28` read **4.36:1 on its own gold tint**, and green, which was not in the proposal, read **4.41:1 on the resting fill**. A value that passes on white can still fail on the tint a chip is drawn on.
+- ⚠ **THE SCOPE GREW BECAUSE A BROWSER PROBE FOUND 1,244 SUB-AA TEXTS, AND THEY WERE ALL ONE CLASS: AN INK THAT DID NOT FOLLOW THE PAPER.** The probe composites each text over its real background chain in Chromium, ancestor opacity included, across the 39 dashboard pages (6,379 texts), on `main` and on the branch. It went **1,244 → 16**. The 16 left:
+  - 12 *Spotify* / *Apple Music* labels over playlist cover photos (the probe cannot see the photo, and the chip sits on a dark scrim);
+  - 2 Instacart brand colours;
+  - 2 disabled buttons, which AA exempts.
+  - The hover-only card chrome (drag, hide) is deliberately faded and not counted.
+- **The fixes:**
+  - **Faint ink-alpha text** (66 sites at 28–70% ink, plus the shared grey constants on Today, the client dashboard and Team) moves onto `--sh-ink2` / `--sh-ink3`.
+  - **Teal text on a teal wash** (48 sites) moves onto a new `--sh-accent-ink`. Its dark value *is* the accent, so the dark paper does not change there.
+  - **`dashClient`'s teal, red and grey, and the coach file's accent, rust and gold** (the owner's second ask) become tokens. The membership pill, CKTrend and the cycle strip compose their alphas through `ssAlpha`, so they leave the hex-append census (now 11 files, 34 sinks).
+  - **New text-only tokens**, each with a light value and each floored in tests: `--sh-accent-ink`, `--sh-ember`, `--sh-danger`, `--sh-sky`, `--sh-violet`, `--sh-gold2`, `--sh-spotify-ink`. Each dark value is the literal it replaced.
+  - **Button ink on a role fill** goes to `--sh-deep`; the fixed dark panels (the demo band, the playlist cover chips) take a fixed ink.
+  - The live console's Send button asks `clwInkOn(accent)`: `--sh-deep` on a token accent, near-black on a fixed one.
+  - **The wall plate's heat** moves onto `--sh-heat-*` tokens pinned to the **app's** values, so `community-wall-plate`'s parity test still holds.
+- ⚠ **THE DARK PAPER MOVED IN A FEW LISTED PLACES, AND EACH ONE IS A FIX.** All 39 dark pages were rendered before and after: identical layout, and no colour channel moves more than 48/255, except:
+  - the footer © line, 3.59 → 7.03:1;
+  - the coach file's readiness blue and amber, now the site's sky and gold;
+  - the live console's *Reconnecting…* line, cream → grey;
+  - the playlist cover chip, which was dark text on a dark chip and is now cream;
+  - message timestamps in your own bubbles, 50% → 100%.
+- **Guards** (`tests/newdesign-paper-pairs.test.mjs`):
+  - every role token clears 4.5:1 on the card, the ground, the resting fill and its own tint;
+  - `--sh-deep` clears 4.5:1 on each role fill;
+  - every new text-only token clears 4.5:1 on each surface it sits on;
+  - the pair walk now sees rgba dark panels, a fixed dark ink on a role fill, inks that arrive through a `...spread`, and teal text on a teal wash at 0.06 alpha or more. Each rule has its own guard-the-guard probe, and **the wash rule found six sites the sweep had missed**;
+  - `clwInkOn` is lifted and driven. A mutation replacing it with a constant **survived** until that test existed;
+  - the spotlight tour's light accents are derived from `:root` instead of typed.
+- ⚠ **THE ONE REVIEW FINDING WAS A GUARD THIS PR HAD MADE VACUOUS.** Codex auto-fired on PR open (it was not triggered) and returned **one P2, real**. The meal-plan phase colours became tokens (`var(--sh-gold, #d8a23a)`), and `tests/library-filters.test.mjs` parsed them as hex. That gives NaN channels, and `NaN < 4.5` is false, so **all three phase chips dropped out of the light and dark contrast checks with the suite green**.
+  - Fixed in `4f9acf7`. The test resolves each token against the paper block it is measuring (the fallback is the dark value and says nothing about the light paper), and `hex()` refuses anything that is not a 6-digit hex.
+  - Control, re-run rather than argued: the old test with the light `--sh-violet` set to `#ffffff` passes **41/41**; the fixed one fails on it at **4.10:1**. **4/4 mutations killed.**
+  - The other tests that parse a hex colour were checked for the same shape. The paper-pairs floors refuse a non-hex value outright, and the consent banner asserts `>= 4.5`, so a NaN there fails loudly rather than passing.
+  - *A test that parses a value is a claim about the value's shape.* Turning a literal into a token changed the shape, and nothing reported it.
+- ⚠ **NO CODERABBIT ROUND RAN.**
+  - The front-loaded trigger (about 2,500 characters, with a numbered list) was posted at 13:09:02, **before** CodeRabbit had posted its own skip notice at 13:10:49. It got **no reply at all**: no chat, no marker, no refusal. Whether the timing or the length is why is not known.
+  - A bare `@coderabbitai full review` at 13:23 **was** read as a command (it carries the `review command invocation` marker, and its reply quotes the earlier brief's four areas). It was refused: *"Action not completed — Review rate limited"*, with the included review 17 minutes out. The skip notice was edited in place into a *"Review limit reached"* notice at the same time.
+  - The owner then said *"run codex"* · *"1 round"* · *"just merge it"*, and merged. So the review here is **Codex's one round, my own read of the diff and the mutation rounds**. Codex was not re-triggered: its one round had already run and its one finding was fixed.
+- **Verified:** `npm test` **4582/4582** on the head and **4598/4598** on the merged tree (⚠ the +16 are #2159's tests, not this PR's) · `tsc --noEmit` 0 · the newdesign precompile check **73 pages, 0 errors** · zero CRLF drift across the 46 files · **25/25 mutations killed** (21 on the first head, 4 on the review fix), each proven to land, with sanity green at both ends and the tree restored on a signal. Every rejected value (`#8a6a28`, `#3a7d2c`, the builder teal, each reverted ink) was replayed as its own mutation · CI green on all required checks on `4f9acf7`.
+- ⚠ **REGISTERED, NOT FIXED:**
+  - **The app's light heat values** (`#0a8f87`, `#a07a2e` as small labels on the wall plate) are sub-AA. The plate matches the app by rule, so fixing them is an app-wide change and **an owner call**.
+  - Dark `--sh-ember` (`#d2693f`) and `--sh-violet` (`#8a5cf6`) read under 4.5:1 on the dark card. They are the literals they replaced, unchanged.
+  - The macro bar fills (`#7ed4ff` / `#f6c177` / `#ff8a6d`) are non-text marks.
+  - **No on-account pass.** Every reading is the signed-out demo state.
+
 ### 2026-09-23 — A timed or distance rep value reads whole in outline text, and the rep total stops counting one
 
 - **Merged [#2155](https://github.com/cperry8800-droid/shape-app/pull/2155) as `c8e2849`**, final head `653be93`; the merged tree is **byte-identical** to it (tree `900b560` on both, since `main` had not moved). No migration, no route. It closes the item #2152 registered: the builder's own `Plank — 3 × 30s` read back as **30 reps with a load of `s`**.
@@ -970,7 +1021,7 @@ Append new entries at the top, under this note.
 - ⚠ **REGISTERED, NOT FIXED:**
   - The two older IME guards in `dashBuilder.jsx` (the exercise picker's and `DbuDialog`'s) read `isComposing` only, so Safari's `keyCode 229` Enter still reaches them. They predate this PR.
   - The builder's own fields (`dbuField`) set 14px, so they zoom the page on focus on iOS as the search box did. Pre-existing.
-  - The meal card's phase eyebrow sets dark-paper colours as text on the light paper, so its contrast is low. Pre-existing since #2146.
+  - The meal card's phase eyebrow sets dark-paper colours as text on the light paper, so its contrast is low. Pre-existing since #2146. ⚠ **FIXED in [#2160](https://github.com/cperry8800-droid/shape-app/pull/2160)**: the phase colours are tokens now, and as eyebrow text on the light card they read 5.20–5.95:1.
   - The meal builder cancels its pending autosave if the coach leaves within 1.2s of an edit. Pre-existing.
   - On a phone the two filter rows take ~250px before the first card.
 - ⚠ **NO ON-ACCOUNT PASS.** Every signed-in reading here is a stubbed fetch. No real coach has filtered a real library, and the usage route has not run against real RLS. The honest check is the owner opening both libraries.
@@ -1017,8 +1068,8 @@ Append new entries at the top, under this note.
 - ⚠ **ONE GITHUB REPLY FAILED WITH "Connection refused".** The thread was read before retrying, the reply was confirmed not posted, and it was retried once, so no duplicate landed. *A transport error on a write is an unknown outcome, not a failure; check before retrying.*
 - **Verified on `7284da9`, which the merged tree is byte-identical to:** `npm test` **4402/4402** · `tsc --noEmit` **0** · the newdesign precompile check **73 pages, 0 errors** · **zero CRLF drift** · CI green on all required checks · **36/36 mutations killed**. Each mutation was **proven to land** (anchors occurrence-counted, the suite's own `# pass`/`# fail` parsed), with sanity green at both ends and the tree restored as bytes in a `finally` **and on a signal**. **Every finding was replayed as its own mutation**, including the three test fixes and the new guards' own premises (a light token dropping under its floor, the `dash.css` closing brace). Before the round: **126 captures** (42 targets × today / light / dark) at 1440 with **0 page errors**.
 - ⚠ **REGISTERED, NOT FIXED:**
-  - **The builder's accent `#0a8f87` is below AA for small text on the light paper**: 3.66:1 on the ground, 3.97:1 on the card, and white on it is 3.97:1. It sets the eyebrows and the teal buttons on every dashboard. It is the palette the owner approved in #2143, so moving it is **an owner call**.
-  - `dashClient`'s `DCL_TEAL` and `coachClientDetail`'s `accent` / `rust` stay fixed literals, because the membership pill and CKTrend hex-append them. They are **also used as text on the moving card, at 1.8:1 on white**. The fix is to compose those alphas through `ssAlpha` and then tokenize, which is its own change.
+  - **The builder's accent `#0a8f87` is below AA for small text on the light paper**: 3.66:1 on the ground, 3.97:1 on the card, and white on it is 3.97:1. It sets the eyebrows and the teal buttons on every dashboard. It is the palette the owner approved in #2143, so moving it is **an owner call**. ⚠ **MADE AND SHIPPED in [#2160](https://github.com/cperry8800-droid/shape-app/pull/2160)**: the owner said *"ok do it"*, and the light paper's teal is `#0a7a72` (5.20:1 on the card, 4.79 on the ground). The dark paper is unchanged.
+  - `dashClient`'s `DCL_TEAL` and `coachClientDetail`'s `accent` / `rust` stay fixed literals, because the membership pill and CKTrend hex-append them. They are **also used as text on the moving card, at 1.8:1 on white**. The fix is to compose those alphas through `ssAlpha` and then tokenize, which is its own change. ⚠ **DONE in [#2160](https://github.com/cperry8800-droid/shape-app/pull/2160)**, exactly that way: the alphas go through `ssAlpha` and the constants are tokens.
   - The `trainerDashboard.jsx:256` playlist chip sets `color: PAPER`. It reads that way on `main`, so it is pre-existing.
   - The Docstring Coverage warning (44%) is left deliberately.
   - Two design calls from the board were not made here: the program cards moved Fraunces → Anybody with the display token, and the dark paper's secondary text sits at ~62% where it used to read 50–55%.
