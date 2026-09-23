@@ -452,7 +452,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   return wrapShell(
     <React.Fragment>
       <div data-tour="hero-profile">
-      <DesktopProfile direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
+      <DesktopProfile key={(st.uid || "preview") + ":" + variant} direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />
       </div>
       {sheet && (
         <div onClick={() => setSheet(null)} style={{ position: "fixed", inset: 0, zIndex: 240, background: "rgba(10,10,8,0.78)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
