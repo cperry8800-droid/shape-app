@@ -158,7 +158,7 @@ function CwProposalCard({ a }) {
   const [err, setErr] = React.useState("");
   const [auditId, setAuditId] = React.useState(null);
   const mono = "'JetBrains Mono', monospace";
-  const ink = "var(--sh-ink, #f2ede4)", muted = "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", hair = "rgba(var(--sh-ink-rgb, 242,237,228),0.14)";
+  const ink = "var(--sh-ink, #f2ede4)", muted = "var(--sh-ink2, #a09b94)", hair = "rgba(var(--sh-ink-rgb, 242,237,228),0.14)";
   const diff = Array.isArray(a.diff) ? a.diff : [];
   const fmtV = (v) => (v == null || v === "") ? "—" : String(v);
   const post = async (url, payload) => {
@@ -1368,7 +1368,7 @@ function ChatWidget(props) {
                   <button key={t.id} onClick={() => selectTab(i)}
                     style={{
                       flex: 1, padding: "12px 10px", border: 0, background: isActive ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)" : "transparent",
-                      color: isActive ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)",
+                      color: isActive ? INK : "var(--sh-ink2, #a09b94)",
                       fontFamily: sans, fontSize: 12, fontWeight: isActive ? 500 : 400,
                       cursor: "pointer",
                       borderBottom: isActive ? `2px solid ${TEAL}` : "2px solid transparent",
@@ -1476,7 +1476,7 @@ function ChatWidget(props) {
                         {t.online && <span style={{ flex: "none", width: 7, height: 7, borderRadius: 999, background: "#3ddc84", boxShadow: "0 0 0 2px rgba(61,220,132,0.2)" }} />}
                         {t.who}
                       </span>
-                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>PINNED</span>}
+                      {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>PINNED</span>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "none" }}>
                       <button
@@ -1488,7 +1488,7 @@ function ChatWidget(props) {
                           opacity: t.pinned ? 1 : 0,
                           background: "transparent", border: 0, padding: "2px 4px",
                           cursor: "pointer", fontSize: 12, lineHeight: 1,
-                          color: t.pinned ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)",
+                          color: t.pinned ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)",
                           transition: "opacity 120ms",
                         }}>
                         {t.pinned ? "📌" : "📍"}
@@ -1554,7 +1554,7 @@ function ChatWidget(props) {
                     <button onClick={createChannel} disabled={!newName.trim()}
                       style={{
                         flex: 1, background: newName.trim() ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
-                        color: newName.trim() ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)",
+                        color: newName.trim() ? PAPER : "var(--sh-ink3, #75706a)",
                         border: 0, padding: "7px 10px", borderRadius: 6,
                         fontFamily: sans, fontSize: 12, fontWeight: 500,
                         cursor: newName.trim() ? "pointer" : "not-allowed",
@@ -1735,7 +1735,7 @@ function ChatWidget(props) {
                     )}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: m.me ? "flex-end" : "flex-start", minWidth: 0 }}>
                       {!m.me && active?.group && (
-                        <button onClick={() => openProfile(m)} style={{ background: "transparent", border: 0, padding: "0 4px", cursor: "pointer", textAlign: "left", fontSize: 10.5, color: m.coach ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", marginBottom: 3 }}>
+                        <button onClick={() => openProfile(m)} style={{ background: "transparent", border: 0, padding: "0 4px", cursor: "pointer", textAlign: "left", fontSize: 10.5, color: m.coach ? TEAL_BRIGHT : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em", marginBottom: 3 }}>
                           {m.who}{m.coach ? " · COACH" : ""}
                         </button>
                       )}
@@ -1816,7 +1816,7 @@ function ChatWidget(props) {
                           ? <CwProposalCard key={ai} a={a} />
                           : <a key={ai} href={a.url || "#"}
                               onClick={(e) => { if (!a.url) e.preventDefault(); }}
-                              style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.10)", color: TEAL_BRIGHT, borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
+                              style={{ textDecoration: "none", border: `1px solid ${TEAL}`, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.10)", color: "var(--sh-accent-ink, #2ee0c4)", borderRadius: 14, padding: "7px 12px", fontFamily: sans, fontSize: 12, fontWeight: 500, cursor: "pointer", display: "inline-flex", flexDirection: "column", lineHeight: 1.3 }}>
                               <span>{a.label}</span>
                               {a.meta && <span style={{ fontSize: 10, opacity: 0.7 }}>{a.meta}</span>}
                             </a>
@@ -1856,7 +1856,7 @@ function ChatWidget(props) {
             {isSupport && (
               <div style={{ padding: "8px 14px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <button onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: noraVoice.enabled ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: noraVoice.enabled ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: noraVoice.enabled ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: noraVoice.enabled ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                   {noraVoice.enabled ? "🔊" : "🔇"} Voice {noraVoice.enabled ? "on" : "off"}
                 </button>
                 {holdSupported && (
@@ -1866,14 +1866,14 @@ function ChatWidget(props) {
                   // mark only — no colored emoji on new additions.
                   <button type="button" onClick={() => { stopVoice(); setVoiceChat(v => !v); }} title="Hold the mic to talk — your words send as a message and Nora's reply plays aloud"
                     aria-pressed={voiceChat}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${voiceChat ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: voiceChat ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: voiceChat ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${voiceChat ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: voiceChat ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: voiceChat ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                     Voice chat {voiceChat ? "on" : "off"}
                   </button>
                 )}
                 <div style={{ display: "inline-flex", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", overflow: "hidden" }}>
                   {["supportive", "direct"].map(tn => (
                     <button key={tn} onClick={() => setNoraTone(tn)} title={tn === "supportive" ? "Warm and encouraging" : "Concise and factual"}
-                      style={{ padding: "5px 10px", border: 0, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
+                      style={{ padding: "5px 10px", border: 0, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
                   ))}
                 </div>
                 <select value={noraVoice.voice} onChange={(e) => setNoraVoiceId(e.target.value)} title="Nora's voice"
@@ -1884,7 +1884,7 @@ function ChatWidget(props) {
               </div>
             )}
             {isSupport && (voiceState !== "idle" || voiceErr || speakNotice) && (
-              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: (voiceErr || speakNotice) && voiceState === "idle" ? "var(--sh-gold, #d8a23a)" : (voiceState === "listening" ? "#e0463c" : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)") }}>
+              <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: (voiceErr || speakNotice) && voiceState === "idle" ? "var(--sh-gold, #d8a23a)" : (voiceState === "listening" ? "#e0463c" : "var(--sh-ink2, #a09b94)") }}>
                 {voiceState === "listening" ? (voiceChat ? "● Recording… release to send" : "● Listening… tap the mic to stop")
                   : voiceState === "transcribing" ? "Transcribing…"
                   : (voiceErr || speakNotice)}
@@ -1928,7 +1928,7 @@ function ChatWidget(props) {
                     touchAction: "none", userSelect: "none", WebkitUserSelect: "none",
                     border: voiceState === "listening" ? `1px solid ${TEAL}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)",
                     background: voiceState === "listening" ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.18)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)",
-                    color: TEAL_BRIGHT,
+                    color: "var(--sh-accent-ink, #2ee0c4)",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
                   {voiceState === "transcribing" ? <TypingDots /> : <MicGlyph />}
@@ -1949,7 +1949,7 @@ function ChatWidget(props) {
               <button onClick={send} disabled={!draft.trim()}
                 style={{
                   background: draft.trim() ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)",
-                  color: draft.trim() ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.4)",
+                  color: draft.trim() ? PAPER : "var(--sh-ink3, #75706a)",
                   border: 0, padding: "10px 16px", borderRadius: 8,
                   fontFamily: sans, fontSize: 13, fontWeight: 500,
                   cursor: draft.trim() ? "pointer" : "not-allowed",

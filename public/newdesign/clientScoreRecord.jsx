@@ -194,7 +194,7 @@ function ClientScoreRecord() {
               <button key={k} type="button" onClick={() => setRange(k)} aria-pressed={range === k}
                 style={{ fontFamily: CSR_MONO, fontSize: 10, letterSpacing: "0.1em", padding: "6px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
                   border: "1px solid " + (range === k ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
-                  background: range === k ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : "transparent", color: range === k ? TEAL_BRIGHT : CSR_DIM }}>{l}</button>
+                  background: range === k ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : "transparent", color: range === k ? "var(--sh-accent-ink, #2ee0c4)" : CSR_DIM }}>{l}</button>
             ))}
           </div>
         </div>
@@ -287,7 +287,7 @@ function ClientLeaderboard() {
         <button key={k} type="button" onClick={() => setPeriod(k)} aria-pressed={period === k}
           style={{ fontFamily: CSR_MONO, fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase", padding: "6px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
             border: "1px solid " + (period === k ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
-            background: period === k ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : "transparent", color: period === k ? TEAL_BRIGHT : CSR_DIM }}>{l}</button>
+            background: period === k ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)" : "transparent", color: period === k ? "var(--sh-accent-ink, #2ee0c4)" : CSR_DIM }}>{l}</button>
       ))}
     </div>
   );

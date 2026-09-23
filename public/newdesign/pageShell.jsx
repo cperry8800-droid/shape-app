@@ -610,7 +610,7 @@ function DashInbox({ signedIn, role, inbox }) {
         </svg>
         {unread > 0 && (
           <span style={{ position: "absolute", top: 1, right: 1, minWidth: 15, height: 15, padding: "0 4px", borderRadius: 999,
-                         background: DASH_INBOX_TEAL, color: "#0b0e0c", fontFamily: "'JetBrains Mono', monospace",
+                         background: DASH_INBOX_TEAL, color: "var(--sh-deep, #06231f)", fontFamily: "'JetBrains Mono', monospace",
                          fontSize: 9, fontWeight: 700, lineHeight: "15px", textAlign: "center" }}>{badge}</span>
         )}
       </button>
@@ -833,7 +833,7 @@ function SiteSearch({ signedIn = false }) {
   const needle = q.trim().replace(/^@/, "").toLowerCase();
   const noraHit = !!needle && ("nora".includes(needle) || ["concierge", "support", "help", "assistant"].some(w => w.startsWith(needle)));
   const roleLabelOf = (r) => r === "trainer" ? "Trainer" : r === "nutritionist" ? "Nutritionist" : "Member";
-  const roleColorOf = (r) => r === "trainer" ? "var(--sh-rust2, #c0533b)" : r === "nutritionist" ? "#a07a2e" : TEAL;
+  const roleColorOf = (r) => r === "trainer" ? "var(--sh-rust2, #c0533b)" : r === "nutritionist" ? "var(--sh-gold, #d8a23a)" : TEAL;
   const openNora = () => { setOpen(false); try { if (window.__openChat) window.__openChat("Nora", "support"); else window.location.href = "/newdesign/Community.html"; } catch (e) {} };
   const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, textDecoration: "none", cursor: "pointer", background: "transparent", border: 0, width: "100%", textAlign: "left" };
   return (
@@ -957,12 +957,12 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
         {authUser ? (
           <>
             <a href="#" onClick={onLogout} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Sign out</a>
-            <a href={dashShellHref(authUser.role === 'trainer' ? 'TrainerDashboard.html' : authUser.role === 'nutritionist' ? 'NutritionistDashboard.html' : 'ClientDashboard.html')} onClick={onClose} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "#04110f", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Dashboard</a>
+            <a href={dashShellHref(authUser.role === 'trainer' ? 'TrainerDashboard.html' : authUser.role === 'nutritionist' ? 'NutritionistDashboard.html' : 'ClientDashboard.html')} onClick={onClose} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Dashboard</a>
           </>
         ) : (
           <>
             <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Log in</a>
-            <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "#04110f", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Get started</a>
+            <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Get started</a>
           </>
         )}
       </div>
@@ -1119,7 +1119,7 @@ function Header({ active }) {
   // and #34d6c5 is the pair the app, the homepage and the Radio page all paint, so
   // the two sat a shade apart in one bar. No border, so the fill can simply be
   // clipped — only the bordered chip beside it needs a drawn outline.
-  const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "#04110f", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
+  const ctaBtn = { fontFamily: navSans, fontSize: 13, fontWeight: 600, background: TEAL_APP, color: "var(--sh-deep, #06231f)", padding: "0 15px", height: NAV_PILL_H, clipPath: navChamfer, display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", lineHeight: 1, textDecoration: "none", border: 0, cursor: "pointer", flex: "0 0 auto", transition: "background .16s ease" };
   return (
     <>
     <header className="shape-header" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--sh-header-bg, rgba(11,14,12,0.55))", backdropFilter: "blur(20px) saturate(1.05)", WebkitBackdropFilter: "blur(20px) saturate(1.05)", borderBottom: "1px solid rgba(var(--sh-nav-ink-rgb, 245,239,225),0.06)" }}>
@@ -1160,7 +1160,7 @@ function Header({ active }) {
               <span style={{ fontSize: 13.5, color: INK, fontFamily: navSans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1, flex: "0 0 auto" }}>Hi, {authUser.firstName || authUser.email}</span>
               {authUser.roles && authUser.roles.length > 1 ? (
                 <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
-                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(var(--sh-accent3-rgb, 52,214,197),0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: TEAL_BRIGHT, fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
+                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(var(--sh-accent3-rgb, 52,214,197),0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
                     {roleLabel(authUser.role)} <span aria-hidden style={{ fontSize: 8, opacity: 0.75 }}>▾</span>
                   </button>
                   {roleMenuOpen && (
@@ -1168,7 +1168,7 @@ function Header({ active }) {
                       <div style={{ background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 8, padding: 6, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", padding: "8px 12px 4px" }}>Switch profile</div>
                         {authUser.roles.map(r => (
-                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
+                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
                             onMouseEnter={e => { if (r !== authUser.role) { e.currentTarget.style.background = "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)"; e.currentTarget.style.color = INK; } }}
                             onMouseLeave={e => { if (r !== authUser.role) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(var(--sh-ink-rgb, 242,237,228),0.85)"; } }}
                           >
@@ -1345,7 +1345,7 @@ function Footer({ logoHeight = 44 } = {}) {
             </div>
           ))}
         </div>
-        <div className="shape-footer-base" style={{ marginTop: 20, paddingTop: 13, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.42)" }}>
+        <div className="shape-footer-base" style={{ marginTop: 20, paddingTop: 13, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", fontFamily: mono, fontSize: 10, letterSpacing: "0.16em", color: "var(--sh-ink2, #a09b94)" }}>
           <span>© 2026 SHAPE</span>
         </div>
       </div>
@@ -1793,7 +1793,7 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
               <button onClick={() => shift(1)} style={navArrowStyle}>›</button>
             </div>
             {live && (
-              <button onClick={() => setAdding(true)} style={{ background: TEAL, color: "#031f1c", border: 0, padding: "7px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.02em" }}>+ Add</button>
+              <button onClick={() => setAdding(true)} style={{ background: TEAL, color: "var(--sh-deep, #06231f)", border: 0, padding: "7px 16px", borderRadius: 999, fontFamily: sans, fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.02em" }}>+ Add</button>
             )}
             <button onClick={onClose} aria-label="Close" style={{ background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.6)", border: 0, fontSize: 22, padding: "2px 10px", cursor: "pointer", marginLeft: 6 }}>×</button>
           </div>
@@ -1876,7 +1876,7 @@ function CalAddForm({ defaultDate, onClose, onSaved }) {
           </div>
         </div>
         {err && <div style={{ color: "#ff8b7f", fontSize: 12, marginTop: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" }}>{err}</div>}
-        <button onClick={save} disabled={busy} style={{ width: "100%", marginTop: 18, padding: "15px 0", borderRadius: 999, background: TEAL, color: "#031f1c", border: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.65 : 1 }}>{busy ? "Saving…" : "Add to calendar →"}</button>
+        <button onClick={save} disabled={busy} style={{ width: "100%", marginTop: 18, padding: "15px 0", borderRadius: 999, background: TEAL, color: "var(--sh-deep, #06231f)", border: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase", cursor: busy ? "wait" : "pointer", opacity: busy ? 0.65 : 1 }}>{busy ? "Saving…" : "Add to calendar →"}</button>
       </div>
     </div>
   );
@@ -2286,7 +2286,7 @@ function ShapeHomeCards() {
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginTop: 6 }}>Your stack · pin, drag, or choose cards</div>
         </div>
         <div style={{ position: "relative" }}>
-          <button onClick={() => setMenuOpen(v => !v)} style={{ padding: "9px 16px", borderRadius: 999, border: `1px solid ${menuOpen ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, background: menuOpen ? TEAL : "transparent", color: menuOpen ? "#0a0f0d" : INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer" }}>CARDS ▾</button>
+          <button onClick={() => setMenuOpen(v => !v)} style={{ padding: "9px 16px", borderRadius: 999, border: `1px solid ${menuOpen ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, background: menuOpen ? TEAL : "transparent", color: menuOpen ? "var(--sh-deep, #06231f)" : INK, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", cursor: "pointer" }}>CARDS ▾</button>
           {menuOpen && (
             <>
               <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />

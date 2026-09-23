@@ -558,7 +558,7 @@ function ClientGoalsPage() {
 
   const widgets = goalWidgets.concat([
     { key: "projection", title: "How the projection works", size: "half", render: () => (
-      <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "18px 20px" }}>
+      <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", padding: "18px 20px" }}>
         <div className="dash-eyebrow">How the projection works</div>
         <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.6, marginTop: 9 }}>
           Each date is your pace over the last 8 weeks of entries, run forward from your latest one — not a promise, a trajectory.
@@ -571,7 +571,7 @@ function ClientGoalsPage() {
       </div>
     ) },
     { key: "share", title: "Share with your coaches", size: "half", render: () => (
-      <div className="dash-plate" style={{ "--dac": share ? DGO_TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "16px 18px" }}>
+      <div className="dash-plate" style={{ "--dac": share ? DGO_TEAL : "var(--sh-ink3, #75706a)", padding: "16px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 500 }}>Share with your coaches</div>
@@ -590,7 +590,7 @@ function ClientGoalsPage() {
     // and DashGrid's boot effect resolved its layout from the FIRST render — so an
     // omitted entry got no portal host and this card never mounted for anyone.
     { key: "why", title: "Your why", size: "half", empty: !why, render: () => (
-      <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", padding: "16px 18px" }}>
+      <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", padding: "16px 18px" }}>
         <div className="dash-eyebrow">Your why</div>
         <div style={{ fontSize: 12.5, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", lineHeight: 1.6, marginTop: 8 }}>“{why}”</div>
       </div>

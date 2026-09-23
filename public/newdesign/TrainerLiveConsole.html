@@ -414,7 +414,7 @@ function TrainerLiveConsolePage() {
           { l: "Console",        href: "TrainerLiveConsole.html", on: true },
           { l: "Business",       href: "TrainerAnalytics.html",   on: false },
         ].map((s, i) => (
-          <a key={i} href={s.href} style={{ background: s.on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: s.on ? "var(--sh-accent, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.65)", border: s.on ? "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", padding: "8px 16px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, fontWeight: 500, cursor: "pointer", letterSpacing: "0.02em", textDecoration: "none" }}>{s.l}</a>
+          <a key={i} href={s.href} style={{ background: s.on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.14)" : "transparent", color: s.on ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", border: s.on ? "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", padding: "8px 16px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, fontWeight: 500, cursor: "pointer", letterSpacing: "0.02em", textDecoration: "none" }}>{s.l}</a>
         ))}
       </div>
       {/* Client picker — dropdown grouped by Current / Past */}
@@ -468,7 +468,7 @@ function TrainerLiveConsolePage() {
                           style={{
                             display: "block", width: "100%", textAlign: "left",
                             background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)" : "transparent",
-                            color: on ? TEAL_BRIGHT : INK,
+                            color: on ? "var(--sh-accent-ink, #2ee0c4)" : INK,
                             border: 0, padding: "10px 18px", cursor: "pointer",
                             fontFamily: sans, fontSize: 13.5, fontWeight: on ? 500 : 400,
                           }}
@@ -585,7 +585,7 @@ function TrainerLiveConsolePage() {
               <button key={r} onClick={() => setRange(r)} style={{
                 padding: "4px 10px", borderRadius: 999, cursor: "pointer",
                 background: range === r ? TEAL : "transparent",
-                color: range === r ? PAPER : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)",
+                color: range === r ? PAPER : "var(--sh-ink2, #a09b94)",
                 border: range === r ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)",
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em",
                 textTransform: "uppercase",
@@ -613,7 +613,7 @@ function TrainerLiveConsolePage() {
               <button key={m.key} onClick={() => setMetric(m.key)} style={{
                 padding: "12px 16px", cursor: "pointer",
                 background: "transparent",
-                color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.55)",
+                color: on ? INK : "var(--sh-ink2, #a09b94)",
                 border: 0,
                 borderBottom: on ? "2px solid " + TEAL : "2px solid transparent",
                 marginBottom: -1,
@@ -736,7 +736,7 @@ function TrajChart({ label, data, unit, goodWhen, windowLabel }) {
   const delta  = latest - first;
   const tiny   = Math.abs(delta) < Math.max(Math.abs(first) * 0.005, 0.5);
   const good   = goodWhen === "up" ? delta > 0 : delta < 0;
-  const deltaColor = tiny ? "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" : good ? TEAL_BRIGHT : "#e07856";
+  const deltaColor = tiny ? "var(--sh-ink2, #a09b94)" : good ? TEAL_BRIGHT : "var(--sh-danger, #e07856)";
   const fmt = (v) => {
     if (Math.abs(v) >= 100) return Math.round(v).toLocaleString();
     if (Math.abs(v) >= 10)  return v.toFixed(1).replace(/\.0$/, "");

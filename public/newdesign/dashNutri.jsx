@@ -138,7 +138,7 @@ function DnuWeekStrip({ days, week, todayDow, onPick, picked }) {
             border: "1px solid " + (on ? DNU_TEAL : isToday ? "rgba(var(--sh-accent-rgb, 46,224,196),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)"),
             borderRadius: 6, padding: "8px 4px", cursor: "pointer", textAlign: "center", color: "var(--sh-ink, #f2ede4)",
           }}>
-            <div style={{ fontFamily: DNU_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: isToday ? DNU_TEAL : DNU_INK50 }}>{lbl}</div>
+            <div style={{ fontFamily: DNU_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: isToday ? "var(--sh-accent-ink, #2ee0c4)" : DNU_INK50 }}>{lbl}</div>
             <div style={{ fontFamily: serif, fontSize: 15, margin: "4px 0 3px" }}>{tgt ? Math.round(tgt / 100) / 10 + "k" : "—"}</div>
             <div style={{ display: "flex", justifyContent: "center" }}>
               <span style={{ width: 7, height: 7, borderRadius: "50%", background: logged ? DNU_GREEN : "transparent", border: "1px solid " + (logged ? DNU_GREEN : "rgba(var(--sh-ink-rgb, 242,237,228),0.25)") }} />
@@ -310,12 +310,12 @@ function ClientNutritionPage() {
 
         // Grocery — auto-built from the plan's ingredients
         { key: "grocery", title: "Grocery", size: "half", render: () => (
-          <div data-tour="hero-grocery" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "#8a5cf6", paddingLeft: 24 }}>
+          <div data-tour="hero-grocery" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-violet, #8a5cf6)", paddingLeft: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-              <span className="dash-eyebrow" style={{ color: "#8a5cf6" }}>Grocery · auto-built from your plan</span>
+              <span className="dash-eyebrow" style={{ color: "var(--sh-violet, #8a5cf6)" }}>Grocery · auto-built from your plan</span>
               <a href="ClientGrocery.html" style={{ fontFamily: DNU_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DNU_INK50, textDecoration: "none" }}>Full list →</a>
             </div>
-            <div className="dash-ledger" style={{ "--dac": "#8a5cf6", marginTop: 9 }} />
+            <div className="dash-ledger" style={{ "--dac": "var(--sh-violet, #8a5cf6)", marginTop: 9 }} />
             {grocery.length ? grocery.slice(0, 10).map((g, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
                 <div style={{ minWidth: 0 }}>

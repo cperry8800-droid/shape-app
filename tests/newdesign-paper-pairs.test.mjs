@@ -68,6 +68,33 @@ test('the tokens the light paper made reachable clear their contrast floor on bo
   // ink3 sets the 8–11px labels, and the dark paper's value is the one the dashboard
   // shipped with — so the light paper is where this PR owns the floor.
   need('light', light, '--sh-ink3', ['--sh-card', '--sh-ground'], 4.5, 'tertiary labels');
+  // The role and state colours are TEXT as often as fills — eyebrows, links, pill
+  // labels, a severity word — so on the light paper each clears 4.5:1 on every
+  // surface text sits on: the card, the ground, the resting fill, and its own tint
+  // (a pill sets its label in the colour over a wash of the same colour). The first
+  // light values did not: #0a8f87 read 3.66:1 on the ground, #a07a2e 3.64, #c0533b
+  // 4.26. The chart tokens keep those, because a mark needs only 3:1 (above), and so
+  // do the wall plate's --sh-heat-* tokens, which are pinned to the APP's values by
+  // tests/community-wall-plate.test.mjs rather than to a floor here.
+  const SURFACES = ['--sh-card', '--sh-ground', '--sh-rest'];
+  for (const [fg, tint] of [['--sh-accent', '--sh-accent-tint'], ['--sh-accent2', '--sh-accent-tint'], ['--sh-accent3', '--sh-accent-tint'],
+                            ['--sh-gold', '--sh-gold-tint'],
+                            ['--sh-rust', '--sh-rust-tint'], ['--sh-rust2', '--sh-rust-tint'], ['--sh-green', null]]) {
+    need('light', light, fg, tint ? [...SURFACES, tint] : SURFACES, 4.5, 'role colour as text');
+    // A filled button sets --sh-deep over the role colour (white on the light paper).
+    need('light', light, '--sh-deep', [fg], 4.5, 'button text on a role fill');
+  }
+  // The text-only tokens that replaced fixed literals on the light paper: accent-ink
+  // is the teal set ON a teal wash, ember/danger the warnings, sky/violet/gold2 the
+  // readiness, goal-phase and coach-file labels. Each is text and nothing else, so
+  // each gets the text floor on every surface and on the tint it is set over.
+  // ⚠ The DARK values are the literals these tokens replaced, unchanged — ember
+  // (#d2693f) and violet (#8a5cf6) read under 4.5:1 on the dark card and did before;
+  // that is the dark paper's pre-existing state, not this floor's.
+  for (const [fg, tint] of [['--sh-accent-ink', '--sh-accent-tint'], ['--sh-ember', '--sh-rust-tint'], ['--sh-danger', '--sh-rust-tint'],
+                            ['--sh-sky', null], ['--sh-violet', null], ['--sh-gold2', '--sh-gold-tint'], ['--sh-spotify-ink', null]]) {
+    need('light', light, fg, tint ? [...SURFACES, tint] : SURFACES, 4.5, 'text-only token');
+  }
   assert.deepEqual(failures, [], failures.join('\n'));
 });
 
@@ -140,6 +167,25 @@ function values(n, scope) {
 const isPaper = (v) => PAPER_RE.test(v);
 const isFixed = (v) => v === '#accent' || HEX_RE.test(v);
 const isDarkHex = (v) => HEX_RE.test(v) && lum(v) < 0.03;
+// A dark panel written as rgba() is as fixed as a hex one — the demo band is
+// rgba(16,20,18,0.92), the playlist chips rgba(0,0,0,0.4) over a cover — and it was
+// invisible to the hex-only test, so paper ink on it went unflagged (the band's teal
+// read 3.85:1). Enough alpha to be a surface, dark enough that the light paper's
+// ink cannot read on it.
+const RGBA_RE = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/;
+const isDarkFill = (v) => {
+  if (isDarkHex(v)) return true;
+  const m = RGBA_RE.exec(v || ''); if (!m) return false;
+  const a = m[4] == null ? 1 : Number(m[4]);
+  const h = '#' + [m[1], m[2], m[3]].map((x) => Number(x).toString(16).padStart(2, '0')).join('');
+  return a >= 0.35 && lum(h) < 0.03;
+};
+// A ROLE fill follows the paper: on the light paper it is the dark text teal, gold or
+// rust, so a fixed near-black ink on it drops to ~3:1 ("Check in →" read 4.19:1 on the
+// old gold and would read less on the AA one). The ink on a role fill is --sh-deep.
+const ROLE_FILL_RE = /^\s*var\(--sh-(?:accent\d?|gold|rust2?|green|heat-nutri)[,)]/;
+const ACCENT_TEXT_RE = /^\s*var\(--sh-accent\d?[,)]/;
+const washAlpha = (v) => { const m = /^rgba\(var\(--sh-accent\d?-rgb,\s*[\d,\s]+\),\s*(0?\.\d+|1)\)$/.exec(v || ''); return m ? Number(m[1]) : 0; };
 
 // Follow an identifier to the expression it names, within its own scope.
 function deref(n, scope) {
@@ -164,9 +210,16 @@ function combos(fillNode, inkNode, scope, code) {
   return out;
 }
 
-function styleProps(obj) {
+function styleProps(obj, scope) {
   const out = {};
   for (const p of obj.properties) {
+    // `{ ...btn, background: gold }` — the ink rides in on the spread, so a check that
+    // skips spreads cannot see the pair ("Check in →" was exactly this shape).
+    if (p.type === 'SpreadElement' && scope) {
+      const t = deref(p.argument, scope).n;
+      if (t && t.type === 'ObjectExpression') Object.assign(out, styleProps(t, scope));
+      continue;
+    }
     if (p.type !== 'ObjectProperty') continue;
     const k = p.key.type === 'Identifier' ? p.key.name : p.key.type === 'StringLiteral' ? p.key.value : null;
     if (k) out[k] = p.value;
@@ -179,7 +232,7 @@ function pairOffenders(inScope = onPaper) {
   let objects = 0;
   for (const { f, code, ast } of parsed) if (inScope(f)) traverse(ast, {
     ObjectExpression(p) {
-      const s = styleProps(p.node);
+      const s = styleProps(p.node, p.scope);
       if (!s.background) return;
       objects++;
       const line = p.node.loc ? p.node.loc.start.line : '?';
@@ -190,8 +243,15 @@ function pairOffenders(inScope = onPaper) {
       // A dark literal panel whose ink or whose own border follows the paper: half
       // converted, so on the light paper its text or its edge is dark on dark.
       const border = s.border ? values(s.border, p.scope) : [];
-      const dark = pairs.filter(([fill, ink]) => isDarkHex(fill) && ((ink && isPaper(ink)) || border.some(v => /var\(--sh-/.test(v))));
+      const dark = pairs.filter(([fill, ink]) => isDarkFill(fill) && ((ink && isPaper(ink)) || (isDarkHex(fill) && border.some(v => /var\(--sh-/.test(v)))));
       if (dark.length) out.push(`${f}:${line} — a fixed dark panel (${dark.map(x => x[0]).join(', ')}) under paper ink or a paper border`);
+      const onRole = pairs.filter(([fill, ink]) => ROLE_FILL_RE.test(fill) && ink && isDarkHex(ink));
+      if (onRole.length) out.push(`${f}:${line} — a fixed dark ink (${onRole.map(x => x[1]).join(', ')}) on a role fill that darkens on the light paper`);
+      // Teal text on a teal wash of itself: on the light paper the wash is the text teal
+      // at 6–25%, which takes the text under 4.5:1 ("PINNED" read 3.9:1). The ink there is
+      // --sh-accent-ink, whose dark value IS the accent, so the dark paper is unchanged.
+      const onWash = pairs.filter(([fill, ink]) => ink && ACCENT_TEXT_RE.test(ink) && washAlpha(fill) >= 0.06);
+      if (onWash.length) out.push(`${f}:${line} — the accent as text on an accent wash (${onWash.map(x => x[0]).join(', ')}); use --sh-accent-ink`);
     },
     // An SVG glyph painted in the paper's ground, on a fill that does not move.
     JSXAttribute(p) {
@@ -240,6 +300,16 @@ test('the pair walk can actually fire', () => {
   assert.equal(probe('const a = { background: p.accent, color: "#1a1612" };').length, 0, 'near-black on a fixed fill is the fix');
   assert.equal(probe('const bg = t === "d" ? "#0f1513" : "var(--sh-ink-soft, #efece6)"; const fg = t === "d" ? "rgba(255,255,255,0.4)" : "var(--sh-ink2, #a09b94)"; const a = { background: bg, color: fg };').length, 0, 'branchwise pairs on one test are consistent');
   assert.equal(probe('const bg = t === "d" ? "#0f1513" : "var(--sh-ink-soft, #efece6)"; const fg = t === "d" ? "var(--sh-ink2, #a09b94)" : "#000"; const a = { background: bg, color: fg };').length, 1, 'a crossed branch pair still fires');
+  assert.equal(probe('const a = { background: "rgba(16,20,18,0.92)", color: "var(--sh-accent, #2ee0c4)" };').length, 1, 'demo band: paper ink on an rgba dark panel');
+  assert.equal(probe('const a = { background: "rgba(0,0,0,0.4)", color: PAPER };').length, 1, 'cover chip: the paper ground as ink on a dark rgba chip');
+  assert.equal(probe('const a = { background: "rgba(0,0,0,0.12)", color: "var(--sh-ink, #f2ede4)" };').length, 0, 'a faint wash is not a panel');
+  assert.equal(probe('const a = { background: "var(--sh-gold, #d8a23a)", color: "#231803" };').length, 1, 'dark ink on a role fill');
+  assert.equal(probe('const btn = { color: "#06231f", background: "var(--sh-accent, #2ee0c4)" }; const b = { ...btn, background: "var(--sh-gold, #d8a23a)" };').length, 2, 'the ink rides in on a spread');
+  assert.equal(probe('const a = { background: "var(--sh-gold, #d8a23a)", color: "var(--sh-deep, #06231f)" };').length, 0, '--sh-deep on a role fill is the fix');
+  assert.equal(probe('const a = { background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", color: "var(--sh-accent, #2ee0c4)" };').length, 1, 'teal text on a teal wash');
+  assert.equal(probe('const on = x; const a = { background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.18)" : "transparent", color: on ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink2, #a09b94)" };').length, 1, 'teal on its wash in the active branch');
+  assert.equal(probe('const a = { background: "rgba(var(--sh-accent-rgb, 46,224,196),0.04)", color: "var(--sh-accent, #2ee0c4)" };').length, 0, 'a 4% wash is below the rule');
+  assert.equal(probe('const a = { background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", color: "var(--sh-accent-ink, #2ee0c4)" };').length, 0, '--sh-accent-ink on a teal wash is the fix');
 });
 
 // A CSS rule injected as a string (globalChatButton.js) — the same rule, in CSS.
@@ -350,4 +420,21 @@ test('the trajectory chart and the cycle plate draw in tokens, fill ink included
     },
   });
   assert.deepEqual(bad, [], 'text on the cycle heat must be --sh-cycle-heat-ink: no teal clears 4.5:1 both as text on white and under #0b0f0f\n  ' + bad.join('\n  '));
+});
+
+// The live console hands one component two kinds of accent: the trainer console a
+// fixed hex, the nutritionist console the paper's gold TOKEN. The Send button's ink has
+// to follow whichever it is handed — a fixed near-black on the token gold drops to ~3:1
+// on the light paper, --sh-deep on the fixed hex turns white on a bright fill. The pair
+// walk cannot see through a call, so the helper is lifted and driven.
+test('the live console Send ink follows the accent it is handed', () => {
+  const src = read('coachLiveWorkout.jsx');
+  const at = src.indexOf('function clwInkOn(');
+  assert.ok(at >= 0, 'clwInkOn moved — re-derive this guard');
+  let i = src.indexOf('{', src.indexOf(')', at)), depth = 0, end = -1;
+  for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) { end = i + 1; break; } }
+  const clwInkOn = new Function(`${src.slice(at, end)}; return clwInkOn;`)();
+  assert.equal(clwInkOn('var(--sh-gold2, #d8b25a)'), 'var(--sh-deep, #06231f)', 'a token accent takes the paper-following ink');
+  assert.equal(clwInkOn('#2ee0c4'), '#1a1612', 'a fixed accent takes the fixed near-black');
+  assert.match(src, /background: accent, borderColor: accent, color: clwInkOn\(accent\)/, 'the Send button stopped asking clwInkOn for its ink');
 });

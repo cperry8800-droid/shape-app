@@ -55,7 +55,7 @@ function ClientLibraryPage() {
               style={{
                 padding: "6px 12px", borderRadius: 999, cursor: "pointer",
                 background: isActive ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.16)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.04)",
-                color: isActive ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)",
+                color: isActive ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)",
                 border: "1px solid " + (isActive ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"),
                 fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit",
               }}

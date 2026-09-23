@@ -230,7 +230,7 @@ function DtrNextWeekLocked({ coach, weekN }) {
       <div style={{ fontSize: 12.5, color: DTR_INK50, lineHeight: 1.55, maxWidth: 520 }}>
         Your next block isn't generated — it's built from what this week's check-in says. Send it and the plan lands here.
       </div>
-      <a href={dashShellHref("ClientProgress.html")} style={{ display: "inline-block", marginTop: 11, fontFamily: DTR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#231803", background: "var(--sh-gold, #d8a23a)", borderRadius: 4, padding: "10px 16px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Check in →</a>
+      <a href={dashShellHref("ClientProgress.html")} style={{ display: "inline-block", marginTop: 11, fontFamily: DTR_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-gold, #d8a23a)", borderRadius: 4, padding: "10px 16px", textDecoration: "none", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" }}>Check in →</a>
     </div>
   );
 }
@@ -307,7 +307,7 @@ function dtrDayLetters(dows) {
 
 const DTR_BTN = { fontFamily: DTR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", background: "transparent", color: DTR_INK50, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" };
 const DTR_BTN_ON = { ...DTR_BTN, color: DTR_TEAL, borderColor: DTR_TEAL };
-const DTR_CTA = { ...DTR_BTN, background: DTR_TEAL, color: "#08221f", border: 0, padding: "10px 16px", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" };
+const DTR_CTA = { ...DTR_BTN, background: DTR_TEAL, color: "var(--sh-deep, #06231f)", border: 0, padding: "10px 16px", clipPath: "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" };
 const DTR_FIELD = { background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 6, padding: "9px 11px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, outline: "none" };
 
 let dtrMoveSeq = 0;
@@ -754,7 +754,7 @@ function ClientWorkoutsPage() {
           </div>
         )}
         {anytime.length > 0 && (
-          <div className="dash-plate" style={{ "--dac": "rgba(var(--sh-ink-rgb, 242,237,228),0.35)", paddingLeft: 24 }}>
+          <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", paddingLeft: 24 }}>
             <div className="dash-eyebrow">Anytime · unscheduled assignments</div>
             <div style={{ marginTop: 6 }}>
               {anytime.map((w, i) => (

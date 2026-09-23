@@ -45,8 +45,8 @@ function TrainerScorePage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", marginTop: 8 }}>
           {tiers.map(([t,r,d,cur],i)=>(
             <div key={t} style={{ padding: "18px 16px", borderLeft: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: cur ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)" : "transparent" }}>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: cur ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", marginBottom: 6 }}>{r}</div>
-              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", color: cur ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.6)" }}>{t}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: cur ? TEAL_BRIGHT : "var(--sh-ink3, #75706a)", marginBottom: 6 }}>{r}</div>
+              <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", color: cur ? INK : "var(--sh-ink2, #a09b94)" }}>{t}</div>
               <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{d}</div>
             </div>
           ))}
@@ -90,7 +90,7 @@ function TrainerScorePage() {
 
     { key: "path", title: "Path to Icon", size: "half", render: () => (
       <Card style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 10 }}>PATH TO ICON</div>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: "var(--sh-accent-ink, #2ee0c4)", marginBottom: 10 }}>PATH TO ICON</div>
         <div style={{ fontSize: 14, lineHeight: 1.55, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>8,580 more points. Top levers: add 10 clients (+450), hit 95% adherence (+220), publish 2 programs (+450).</div>
       </Card>
     ) },
