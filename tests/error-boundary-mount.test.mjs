@@ -88,7 +88,7 @@ function withTrappedConsole(allow, fn) {
 
 test('module top-level renders <BSErrorBoundary> at the app root (shipping composition)', () => {
   assert.equal(rootRenders.length, 1);
-  assert.equal(rootRenders[0].container, document.getElementById('root'));
+  assert.ok(rootRenders[0].container === document.getElementById('root'), 'the app must render into #root');
   assert.equal(rootRenders[0].el.type, MOD.BSErrorBoundary);
   assert.ok(rootRenders[0].el.props.children, 'boundary must wrap the app');
 });

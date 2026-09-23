@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { stripComments } from './helpers/strip-comments.mjs';
+import { parse } from '@babel/parser';
 
 // WHY THIS FILE EXISTS, measured rather than argued.
 //
@@ -22,7 +22,8 @@ import { stripComments } from './helpers/strip-comments.mjs';
 //
 // ⚠ THE CENSUS IS PER FILE, NEVER file:line. A line number pins a layout, so an unrelated edit
 // above the assertion would fail a guard about something else — the defect this repo has paid
-// for repeatedly. A count moves only when somebody adds or removes one of these.
+// for repeatedly. A count moves only when somebody adds or removes one of these. (A failure
+// message may still cite lines, to help whoever fixes it; nothing is compared against them.)
 //
 // ⚠ AND IT IS A RATCHET THAT MAY ONLY SHRINK. The sites below predate the guard and sat in
 // files that work did not otherwise touch, so they were REGISTERED rather than swept: fixing one
@@ -37,32 +38,119 @@ const KNOWN = {
   'tests/workout-coach-cues.test.mjs': 2,
 };
 
-// An assert whose COMPARED VALUE is a bare DOM query or element reference — no property read
-// after it. `assert.equal(el.value, 'x')` is a string comparison and is fine; it is the node
-// itself reaching the formatter that costs the minute.
+// HOW IT READS. Every test file is parsed with @babel/parser, and every equality assertion in the
+// tree is checked on BOTH of the values it compares. A call split across lines is one node in the
+// tree, so layout cannot hide it. A comment or a string is not code to a parser, so a mention in
+// one is never read as a call — which is why the fixtures below can be written out plainly.
+// ⚠ A FILE THAT DOES NOT PARSE FAILS THE SWEEP. Skipping it would report a clean file that was
+// never read.
 //
-// ⚠ `.activeElement` IS THE SHAPE THIS MISSED FIRST, AND IT COST THE SAME MINUTE. A focus check
+// How the shape list got here:
+// ⚠ `.activeElement` was the first shape it missed, and it cost the same minute. A focus check
 // that fails formats the document exactly like a query does. Measured twice: a mutation that broke
 // Escape-returns-focus in the coach library filters turned a ~17s run into a multi-minute stall,
 // and a focus mutation in the per-set ladder suite was SIGKILLed at 76s. That one was reported as
 // a kill, which is the worse half: it proves the run stopped, not that the assertion fired.
+// ⚠ The line-by-line reading this replaced saw the FIRST argument of a call written on ONE line.
+// It missed `document.getElementById('root')` as the second argument in error-boundary-mount, and
+// it would have missed any call split across lines. The tree reading closes both.
+// ⚠ A query on another receiver is the same trap, and the old pattern only knew `document.`.
+// `doc.getElementById(...)` in dob-gate-web and `m.el.querySelector(...)` in
+// dashboard-coaching-usability were live when this was written. So the four query methods now
+// count on any receiver.
 //
-// ⚠ IT READS THE FIRST ARGUMENT ONLY, ON ONE LINE. `assert.equal(x, document.activeElement)`
-// puts the node second and is invisible here, and so is a call split across lines. Compare a
-// boolean — `assert.ok(document.activeElement === x, msg)` — and neither question arises.
-const CALL = /assert\.(?:equal|strictEqual|notEqual|notStrictEqual|deepEqual|deepStrictEqual)\(\s*([^,]*?)\s*,/g;
-const NODEISH = /(?:document\.(?:querySelector|querySelectorAll|getElementById|getElementsByClassName)\([^)]*\)|\.(?:parentElement|parentNode|firstElementChild|lastElementChild|activeElement)|\.closest\([^)]*\)|\bbyText\([^)]*\))\s*$/;
+// ⚠ WHAT IT STILL CANNOT SEE. The tree records how a value is SPELLED, not what it is at runtime.
+// These are all invisible to any check of the syntax, because nothing in `find(x)` says what
+// `find` returns:
+//   - a node returned by a helper other than byText, like `find(...)` and `byAria(...)` (the shapes
+//     #2150 and #2152 hit) and dob-gate-web's `gateIn(doc)`;
+//   - a node held in a variable (`dialog`, `opener`);
+//   - a node reached through a pointer that is not on the list (`document.body`, `.firstChild`);
+//   - values passed through a spread of anything but an array literal (`assert.equal(...args)`),
+//     and any argument after one, whose position is then unknown.
+// `byText` is on the list only because it is known by name. It also knows `assert` by name,
+// including node:test's `t.assert`; a destructured `import { equal }` would be invisible.
+// Only a runtime check could see the rest. Compare a boolean, e.g.
+// `assert.ok(a === b, msg)`, and none of this arises.
 
-function sitesIn(src) {
-  const clean = stripComments(src);
-  let n = 0;
-  for (const line of clean.split('\n')) {
-    CALL.lastIndex = 0;
-    let m;
-    while ((m = CALL.exec(line))) if (NODEISH.test(m[1])) n++;
+// The whole equality family: each of these builds its failure message by inspecting the values.
+const METHODS = new Set([
+  'equal', 'strictEqual', 'notEqual', 'notStrictEqual', 'deepEqual', 'deepStrictEqual',
+  'notDeepEqual', 'notDeepStrictEqual', 'partialDeepStrictEqual',
+]);
+const QUERIES = new Set(['querySelector', 'querySelectorAll', 'getElementById', 'getElementsByClassName']);
+const POINTERS = new Set(['parentElement', 'parentNode', 'firstElementChild', 'lastElementChild', 'activeElement']);
+
+const isMember = (n) => n?.type === 'MemberExpression' || n?.type === 'OptionalMemberExpression';
+const isCall = (n) => n?.type === 'CallExpression' || n?.type === 'OptionalCallExpression';
+// `a.b` and `a['b']` name the same property.
+const propName = (m) => (m.computed ? (m.property.type === 'StringLiteral' ? m.property.value : null) : m.property.name);
+
+// A compared value that IS a DOM node: the query or pointer itself, with no property read after
+// it. `assert.equal(el.value, 'x')` compares a string and is fine; it is the node reaching the
+// formatter that costs the minute.
+function nodeish(n) {
+  if (isCall(n)) {
+    const c = n.callee;
+    if (c.type === 'Identifier') return c.name === 'byText';
+    if (!isMember(c)) return false;
+    const p = propName(c);
+    return p === 'byText' || p === 'closest' || QUERIES.has(p);
   }
-  return n;
+  return isMember(n) && POINTERS.has(propName(n));
 }
+
+// `assert.equal(...)`, and node:test's `t.assert.equal(...)`.
+function equalityCall(n) {
+  if (!isCall(n) || !isMember(n.callee) || !METHODS.has(propName(n.callee))) return false;
+  const o = n.callee.object;
+  return (o.type === 'Identifier' && o.name === 'assert') || (isMember(o) && propName(o) === 'assert');
+}
+
+// Comments ride on the nodes as metadata, not code, so they are never walked.
+const META = new Set(['loc', 'start', 'end', 'extra', 'comments', 'leadingComments', 'trailingComments', 'innerComments']);
+function eachNode(root, fn) {
+  const stack = [root];
+  while (stack.length) {
+    const node = stack.pop();
+    fn(node);
+    for (const key of Object.keys(node)) {
+      if (META.has(key)) continue;
+      const v = node[key];
+      if (Array.isArray(v)) { for (const c of v) if (c && typeof c.type === 'string') stack.push(c); }
+      else if (v && typeof v.type === 'string') stack.push(v);
+    }
+  }
+}
+
+// The two values a call compares. A spread of an array literal still spells them out, so
+// `assert.equal(...[a, b])` compares `a` and `b`; a spread of anything else (`...args`) hides
+// them, like a variable does, and hides which position every later argument lands in.
+function comparedValues(args) {
+  const out = [];
+  for (const a of args) {
+    if (a.type !== 'SpreadElement') out.push(a);
+    else if (a.argument.type === 'ArrayExpression') out.push(...a.argument.elements);
+    else break;
+    if (out.length >= 2) break;
+  }
+  return out.slice(0, 2);
+}
+
+// Every equality call handed a DOM node as EITHER compared value. One call is one site, however
+// many of its values are nodes. Throws (a SyntaxError) when the source does not parse.
+function scan(src) {
+  const ast = parse(src, { sourceType: 'module', plugins: ['jsx'] });
+  const sites = [];
+  let calls = 0;
+  eachNode(ast.program, (n) => {
+    if (!equalityCall(n)) return;
+    calls++;
+    if (comparedValues(n.arguments).some(nodeish)) sites.push(n.loc.start.line);
+  });
+  return { sites: sites.sort((a, b) => a - b), calls };
+}
+const sitesIn = (src) => scan(src).sites.length;
 
 function walk(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -73,18 +161,29 @@ function walk(dir, out = []) {
   return out;
 }
 
-test('no assertion is handed a live DOM node as the value it compares', () => {
+test('no assertion is handed a live DOM node as a value it compares', () => {
   const files = walk('tests');
   // A sweep that stops matching passes vacuously, so the corpus size is asserted first.
   assert.ok(files.length > 200, `expected the whole test corpus, walked ${files.length} files`);
 
   const census = {};
+  const lines = {};
+  let calls = 0;
   for (const f of files) {
-    const n = sitesIn(fs.readFileSync(f, 'utf8'));
-    if (n) census[f] = n;
+    let r;
+    try {
+      r = scan(fs.readFileSync(f, 'utf8'));
+    } catch (e) {
+      assert.fail(`${f} did not parse, so this sweep could not read it: ${e.message}`);
+    }
+    calls += r.calls;
+    if (r.sites.length) { census[f] = r.sites.length; lines[f] = r.sites; }
   }
+  // Everything below rests on the walk recognising `assert.equal`: if it stopped, every file would
+  // read clean. There were ~10,000 equality assertions when this was written.
+  assert.ok(calls > 5000, `expected the corpus's equality assertions, walked ${calls}`);
 
-  const unexpected = Object.entries(census).filter(([f]) => !(f in KNOWN));
+  const unexpected = Object.keys(census).filter((f) => !(f in KNOWN)).map((f) => `${f} (line ${lines[f].join(', ')})`);
   assert.deepEqual(unexpected, [],
     'a new DOM-valued assertion: compare a boolean instead — assert.ok(!node, msg) — or the ' +
     'failure takes 81s to format and the runner SIGKILLs the whole file');
@@ -102,40 +201,72 @@ test('no assertion is handed a live DOM node as the value it compares', () => {
   }
 });
 
-test('the detector fires on the shape it is written for, and not on the safe forms', () => {
-  // ⚠ THE FIXTURES ARE ASSEMBLED, NOT WRITTEN OUT. Spelled literally they would be real
-  // matches in this file's own source and the sweep above would flag its own test data — so
-  // the alternative was exempting this file from the sweep, which is an exemption far wider
-  // than the thing it excuses. `A + 'equal('` never reads as `assert.equal(` to the detector.
-  const A = 'assert.';
-
+test('the detector reads both compared values and split calls, and not the safe forms', () => {
   const bad = [
-    `${A}equal(document.querySelector('.x'), null);`,
-    `${A}equal(document.getElementById('root'), null, 'msg');`,
-    `${A}strictEqual(el.parentElement, document.body);`,
-    `${A}equal(m.byText('Strength'), undefined);`,
-    `${A}deepEqual(document.querySelector('.x'), null);`,
-    `${A}equal(document.activeElement, opener);`,
-    `${A}notEqual(doc.activeElement, submit);`,
-    `${A}strictEqual(win.document.activeElement, first, 'msg');`,
+    // the first compared value
+    "assert.equal(document.querySelector('.x'), null);",
+    "assert.equal(document.getElementById('root'), null, 'msg');",
+    'assert.strictEqual(el.parentElement, document.body);',
+    "assert.equal(m.byText('Strength'), undefined);",
+    "assert.deepEqual(document.querySelector('.x'), null);",
+    'assert.equal(document.activeElement, opener);',
+    'assert.notEqual(doc.activeElement, submit);',
+    "assert.strictEqual(win.document.activeElement, first, 'msg');",
+    // the SECOND compared value, which the one-line reading this replaced could not see
+    "assert.equal(rootRenders[0].container, document.getElementById('root'));",
+    'assert.strictEqual(first, doc.activeElement);',
+    "assert.equal(undefined, byText('Sheet'));",
+    // a call split across lines
+    "assert.equal(\n  document.querySelector('.x'),\n  null,\n  'msg',\n);",
+    'assert.equal(\n  first,\n  doc.activeElement,\n);',
+    // the same query on another receiver
+    "assert.equal(doc.getElementById('x'), null);",
+    'assert.equal(m.el.querySelector(\'[role="button"]\'), null);',
+    // the rest of the equality family, node:test's t.assert, optional chaining, a computed name
+    "assert.notDeepStrictEqual(document.querySelector('.x'), null);",
+    't.assert.equal(document.activeElement, opener);',
+    "assert.equal(el?.closest('li'), null);",
+    "assert.equal(el['parentElement'], null);",
+    // both values nodes: one call is one site
+    "assert.equal(document.activeElement, document.getElementById('save'));",
+    // a spread of an array literal still spells out both values
+    "assert.equal(...[document.querySelector('.x'), null]);",
+    'assert.equal(first, ...[doc.activeElement]);',
   ];
   for (const s of bad) assert.equal(sitesIn(s), 1, `should have flagged: ${s}`);
 
   const good = [
-    `${A}ok(!document.querySelector('.x'), 'msg');`,
-    `${A}equal(document.querySelector('.x').value, 'Upper');`,
-    `${A}equal(document.querySelector('fieldset').disabled, true);`,
-    `${A}equal(byText('Sheet').getAttribute('aria-pressed'), 'true');`,
-    `${A}equal(document.getElementById('root').contains(dialog), false);`,
-    `${A}ok(document.activeElement === opener, 'msg');`,
-    `${A}ok(doc.activeElement !== submit, 'msg');`,
-    `${A}equal(document.activeElement.id, 'save');`,
-    `${A}equal(doc.activeElement.getAttribute('aria-label'), 'Close');`,
-    // a mention inside a comment is not a claim about the code
-    `// ${A}equal(document.querySelector('.x'), null);`,
+    "assert.ok(!document.querySelector('.x'), 'msg');",
+    "assert.ok(document.activeElement === opener, 'msg');",
+    "assert.ok(rootRenders[0].container === document.getElementById('root'), 'msg');",
+    "assert.ok(doc.activeElement !== submit, 'msg');",
+    "assert.equal(document.querySelector('.x').value, 'Upper');",
+    "assert.equal(document.activeElement.id, 'save');",
+    "assert.equal(first, document.activeElement.id);",
+    "assert.equal(doc.activeElement.getAttribute('aria-label'), 'Close');",
+    "assert.equal(byText('Sheet').getAttribute('aria-pressed'), 'true');",
+    'assert.equal(document.getElementById(\'root\').contains(dialog), false);',
+    "assert.match(document.querySelector('.x').textContent, /x/);",
+    // not an assertion at all
+    "other.equal(document.querySelector('.x'), null);",
+    // a comment and a string are not code
+    "// assert.equal(document.querySelector('.x'), null);",
+    "const s = \"assert.equal(document.querySelector('.x'), null)\";",
   ];
   for (const s of good) assert.equal(sitesIn(s), 0, `should NOT have flagged: ${s}`);
 
-  // and the sweep can see this file at all — otherwise the assembly above would be hiding it
-  assert.ok(fs.readFileSync('tests/assert-dom-value.test.mjs', 'utf8').length > 1000);
+  // The blind spots the header names, pinned so it cannot drift from the code: nothing in how these
+  // are spelled says they are nodes. A detector that learns one moves it to `bad` above.
+  const blind = [
+    'assert.equal(gateIn(doc), null);',
+    "assert.equal(find(m, 'button'), null);",
+    'assert.equal(dialog, opener);',
+    'assert.equal(document.body, host);',
+    'assert.equal(...args);',
+    'assert.equal(...args, document.activeElement);',
+  ];
+  for (const s of blind) assert.equal(sitesIn(s), 0, `a documented blind spot started matching: ${s}`);
+
+  // A file that does not parse throws; it never reads as clean.
+  assert.throws(() => sitesIn("assert.equal(document.querySelector('.x'), null"), SyntaxError);
 });
