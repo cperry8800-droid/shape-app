@@ -1803,3 +1803,38 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
 }
 
 Object.assign(window, { DesktopProfile, DesktopNav, DesktopHero });
+
+function cmeSettingsSync() {
+  return window.ShapeSettingsReady || (window.ShapeSettingsReady = import("/newdesign/settingsSync.mjs").catch(error => { window.ShapeSettingsReady=null; throw error; }));
+}
+function EditProfileModal({ initial, accountId, onClose, onSaved, onPersist }) {
+  const [form, setForm] = React.useState(initial || {});
+  const [ownerId] = React.useState(accountId);
+  const touched = React.useRef(new Set());
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const field = (key, label) => <label style={{ display:"grid", gap:7, marginBottom:16 }}>
+    <span style={{ fontFamily:sans, fontSize:13 }}>{label}</span>
+    <input disabled={saving} value={form[key] || ""} onChange={e => { touched.current.add(key); setForm({...form,[key]:e.target.value}); }}
+      style={{ width:"100%", boxSizing:"border-box", background:"rgba(242,237,228,.04)", border:"1px solid rgba(242,237,228,.18)", color:"#f2ede4", padding:"12px 14px", borderRadius:9, fontFamily:sans, fontSize:16 }} />
+  </label>;
+  async function save() {
+    setSaving(true); setErr(null);
+    const patch=Object.fromEntries([...touched.current].map(k=>[k,form[k]]));
+    try {
+      const failure=await onPersist(patch,ownerId);
+      if(failure) { setErr(failure); return; }
+      onSaved(patch); onClose();
+    } catch(error) { setErr(error.message || "Could not save. Please retry."); }
+    finally { setSaving(false); }
+  }
+  return <ProfileEditorDialog c="#2ee0c4" onClose={onClose} onSave={save} busy={saving} saving={saving} error={err}>
+    <div key="identity" data-editor-label="Identity">
+      <p style={{margin:"0 0 20px",fontSize:13,color:"rgba(242,237,228,.65)"}}>These details are shared with your profile in the app.</p>
+      {field("displayName","Name")}{field("handle","Handle")}{field("location","Location")}{field("pronouns","Pronouns")}
+    </div>
+    <div key="links" data-editor-label="Links">
+      {field("instagram","Instagram")}{field("tiktok","TikTok")}{field("youtube","YouTube")}{field("twitter","X")}{field("website","Website")}
+    </div>
+  </ProfileEditorDialog>;
+}

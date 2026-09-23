@@ -940,7 +940,7 @@ function useRememberedChoices(live) {
 
 // One control's memory, read out of a store opened by `useRememberedChoices`.
 // Returns `[value, choose]` and is a drop-in for the `React.useState` it replaces.
-function useRememberedChoice(store, key, allowed, fallback) {
+function useRememberedChoice(store, key, allowed, fallback, persistDefault = false) {
   // The choice made in THIS session, if any, paired with the account it was made
   // under. Null means "nobody has touched it here"; see the account note below.
   const [chosen, setChosen] = React.useState(null);   // { acct, value } | null
@@ -1030,7 +1030,7 @@ function useRememberedChoice(store, key, allowed, fallback) {
     // The fallback is not a preference — storing it would pin today's default into the
     // member's own data, so tomorrow's default could never reach them. Choosing it back
     // means "no preference", which is what an absent key says.
-    const want = mine === fallback ? undefined : mine;
+    const want = mine === fallback && !persistDefault ? undefined : mine;
     if (stored === want) return;                    // the document already says it
     // ⚠ ONE ATTEMPT PER CHOICE, AND THE REF IS WHAT MAKES THAT TRUE. `apply` paints
     // optimistically and rolls the paint back when the write fails, so `stored` moves
@@ -1314,12 +1314,39 @@ function dashApplyPaper(paper) {
 // that account's own document rather than inheriting the previous member's tap.
 let dashPaperSession = null; // { acct, paper } | null
 function useDashPaper() {
-  const store = useRememberedChoices(true);
-  const [remembered, choose] = useRememberedChoice(store, "paper", DASH_PAPERS, "light");
+  const legacy = useRememberedChoices(true);
+  const accountId = legacy.accountId;
+  const appStore = useCoachDoc("app_tweaks", accountId != null, accountId);
+  const store = { ...appStore, accountId };
+  // Keep the app's colored papers intact; colorMode is the shared light/dark choice.
+  const appPaper = appStore.doc && appStore.doc.paperMode;
+  const fallback = appPaper ? (["light","white","manila","steel","bone","sage","rose","mist"].includes(appPaper) ? "light" : "dark") : (legacy.doc && legacy.doc.paper === "dark" ? "dark" : "light");
+  const [remembered, choose] = useRememberedChoice(store, "colorMode", DASH_PAPERS, fallback, true);
   const [paper, setPaper] = React.useState(() => dashReadPaperMirror());
   const kind = store && store.kind;
   const acct = store && store.accountId;
   const sessionChose = !!dashPaperSession && dashPaperSession.acct === acct;
+  const paperReadVersion = React.useRef(0);
+  const paperStoreKind = React.useRef(kind);
+  paperStoreKind.current = kind;
+  React.useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      if (!acct || paperStoreKind.current !== "ready") return;
+      const version = paperReadVersion.current;
+      try {
+        const db = window.shapeDb;
+        if ((await db.getUser())?.id !== acct) return;
+        const doc = await db.getUserGoals("app_tweaks");
+        if (!active || doc == null || version !== paperReadVersion.current || (await db.getUser())?.id !== acct) return;
+        const next = doc.colorMode === "light" || doc.colorMode === "dark" ? doc.colorMode
+          : doc.paperMode ? (["light","white","manila","steel","bone","sage","rose","mist"].includes(doc.paperMode) ? "light" : "dark") : null;
+        if (next) { dashPaperSession = { acct, paper: next }; dashApplyPaper(next); setPaper(next); }
+      } catch (e) { /* Keep the last confirmed appearance when offline. */ }
+    };
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.removeEventListener("focus", refresh); };
+  }, [acct]);
   // The document, once read, corrects the device mirror — unless this session chose.
   // Only a READ document is trusted: "signedout", "demo" and "unavailable" all leave
   // the mirror standing, because an absent read is not a preference for light.
@@ -1336,6 +1363,7 @@ function useDashPaper() {
     return () => window.removeEventListener(DASH_PAPER_EVENT, on);
   }, []);
   const setPaperChoice = React.useCallback((next) => {
+    paperReadVersion.current += 1;
     const p = next === "dark" ? "dark" : "light";
     dashPaperSession = { acct, paper: p };
     choose(p);           // → the document, through the reconciliation effect

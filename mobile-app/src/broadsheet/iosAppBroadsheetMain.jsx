@@ -1,3 +1,4 @@
+import { effectiveAppPaper, appearancePatch, saveAppearancePatch, paperColorMode } from '../../../public/newdesign/appearanceSync.mjs';
 import React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
@@ -1965,11 +1966,20 @@ function bsTweaksForCloud(t) { const o = { ...(t || {}) }; BS_TWEAKS_NO_PERSIST.
 function bsReadLocalTweaks() { try { return JSON.parse(window.localStorage.getItem(BS_TWEAKS_LOCAL_KEY) || '{}') || {}; } catch (e) { return {}; } }
 function bsWriteLocalTweaks(t) { try { window.localStorage.setItem(BS_TWEAKS_LOCAL_KEY, JSON.stringify(bsTweaksForCloud(t))); } catch (e) {} }
 let _bsTweakCloudTimer = null;
-function bsSaveTweaksCloud(t) {
+let _bsTweakPending = null;
+let _bsTweakEditVersion = 0;
+function bsSaveTweaksCloud(patch) {
+  const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+  if (!uid) return;
   if (_bsTweakCloudTimer) clearTimeout(_bsTweakCloudTimer);
-  const snapshot = bsTweaksForCloud(t);
-  _bsTweakCloudTimer = setTimeout(() => {
-    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals(BS_TWEAKS_CLOUD_KIND, snapshot); } catch (e) {}
+  const pending = { uid, patch: { ...(_bsTweakPending?.uid === uid ? _bsTweakPending.patch : {}), ...patch } };
+  _bsTweakPending = pending;
+  _bsTweakCloudTimer = setTimeout(async () => {
+    try {
+      const out = await saveAppearancePatch(window.shapeDb,pending.patch,uid);
+      if(!out || out.error) window.__bsToast?.(out?.error?.message || 'Appearance could not be saved.', 'err');
+    } catch(error) { window.__bsToast?.('Appearance could not be saved.', 'err'); }
+    finally { if(_bsTweakPending === pending) _bsTweakPending = null; }
   }, 600);
 }
 
@@ -1988,12 +1998,14 @@ function BSApp() {
   const [tweaksOn, setTweaksOn] = useStateBSM(false);
 
   function setTweak(k, v) {
+    const patch = appearancePatch(k,v);
+    _bsTweakEditVersion += 1;
+    if (!BS_TWEAKS_NO_PERSIST.has(k)) bsSaveTweaksCloud(patch);
     setTweaks(s => {
-      const next = { ...s, [k]: v };
+      const next = { ...s, ...patch };
       // Persist every change: localStorage (this device) + cloud (this account),
       // so it survives reloads and follows the user across logins/devices.
       bsWriteLocalTweaks(next);
-      if (!BS_TWEAKS_NO_PERSIST.has(k)) bsSaveTweaksCloud(next);
       return next;
     });
     window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, '*');
@@ -2016,14 +2028,18 @@ function BSApp() {
   // out resets the marker so the next login reloads. Runs for all profiles.
   useEffectBSM(() => {
     let lastUid = null;
-    const tryLoad = async () => {
+    const tryLoad = async (force = false) => {
       let uid = null;
       try { uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null; } catch (e) {}
-      if (uid && uid !== lastUid) {
+      if (uid && (uid !== lastUid || force) && _bsTweakPending?.uid !== uid) {
         lastUid = uid;
+        const version = _bsTweakEditVersion;
         try {
           const cloud = await (window.shapeDb && window.shapeDb.getUserGoals ? window.shapeDb.getUserGoals(BS_TWEAKS_CLOUD_KIND) : null);
+          const currentUid = window.ShapeAuth?.getCachedState?.()?.user?.id;
+          if(currentUid !== uid || version !== _bsTweakEditVersion || _bsTweakPending?.uid === uid) return;
           const merged = cloud ? bsTweaksForCloud(cloud) : {};
+          if (merged.paperMode && !['light','dark'].includes(merged.colorMode)) merged.colorMode = paperColorMode(merged.paperMode);
           if (merged && Object.keys(merged).length) {
             setTweaks(s => ({ ...s, ...merged }));
             bsWriteLocalTweaks({ ...bsReadLocalTweaks(), ...merged });
@@ -2035,16 +2051,18 @@ function BSApp() {
     };
     tryLoad();
     const iv = setInterval(tryLoad, 1500);
-    return () => clearInterval(iv);
+    const focus = () => tryLoad(true);
+    window.addEventListener('focus',focus);
+    return () => { clearInterval(iv); window.removeEventListener('focus',focus); };
   }, []);
 
   return (
     <I18nextProvider i18n={bsI18n}>
-      <BSProvider paperMode={tweaks.paperMode} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textScaleKey={tweaks.textScaleKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
+      <BSProvider paperMode={effectiveAppPaper(tweaks)} accentKey={tweaks.accentKey} densityKey="dense" borderKey={tweaks.borderKey} weightKey={tweaks.weightKey} textScaleKey={tweaks.textScaleKey} textureKey={tweaks.textureKey} textureColor={tweaks.textureColor} inkOverride={tweaks.inkOverride}>
         <div style={{ width: '100vw', minHeight: '100dvh', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, background: '#ffffff' }}>
           {/* The ?crash=1 probe is armed inside BSAppShell, not here — it is
               gated on a signed-in user, and BSApp never re-renders on auth. */}
-          <BSAppShell tweaks={tweaks} setTweak={setTweak} />
+          <BSAppShell tweaks={{...tweaks,paperMode:effectiveAppPaper(tweaks)}} setTweak={setTweak} />
           {tweaksOn && <BSTweaksPanel tweaks={tweaks} setTweak={setTweak} onClose={() => { setTweaksOn(false); window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*'); }} />}
         </div>
       </BSProvider>
