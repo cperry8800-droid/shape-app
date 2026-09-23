@@ -711,7 +711,9 @@ function DbuLadder({ row, onChange }) {
 }
 
 function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [], onUploading }) {
-  const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText; onChange(next);};
+  const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText;
+    // A trainer's new Rest value replaces any older numeric override, as in the mobile editor.
+    if(k==='rest') delete next.restSeconds; onChange(next);};
   const [uploading,setUploading] = React.useState(false);
   const [error,setError] = React.useState('');
   const fileRef=React.useRef(null), latest=React.useRef({row,onChange}); latest.current={row,onChange};
@@ -1185,6 +1187,17 @@ function dbuSplitSetsReps(value) {
   return { sets: text.slice(0, at).trim(), reps: text.slice(at + 1).trim() };
 }
 
+// Keep the focused text separate from the trimmed document. Otherwise the space
+// after "10 " disappears on rerender before the coach can type "each".
+function DbuSheetSetsReps({ row, label, onChange }) {
+  const [draft, setDraft] = React.useState(null);
+  return <input className="a" aria-label={label}
+    value={draft ?? ((row.sets ?? "") + " × " + (row.reps ?? ""))}
+    onFocus={(e) => setDraft(e.target.value)}
+    onChange={(e) => { setDraft(e.target.value); onChange(dbuSplitSetsReps(e.target.value)); }}
+    onBlur={() => setDraft(null)} />;
+}
+
 function DbuSheet({ doc, dates, setSel, setWeeks }) {
   const weeks = doc.weeks || [];
   const dayCount = weeks.reduce((n, w) => Math.max(n, (w.days || []).length), 0);
@@ -1265,9 +1278,9 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
                         <td key={wi}>
                           <span className={"cell" + (w.deload ? " dl" : "")}>
                             {diverged && <span className="div" title={cellRow.name}>{cellRow.name}</span>}
-                            <input className="a" aria-label={"Sets and reps, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
-                              value={(cellRow.sets ?? "") + " × " + (cellRow.reps ?? "")}
-                              onChange={(e) => editRow(di, bi, ri, wi, dbuSplitSetsReps(e.target.value))} />
+                            <DbuSheetSetsReps key={cellRow.id} row={cellRow}
+                              label={"Sets and reps, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
+                              onChange={(value) => editRow(di, bi, ri, wi, value)} />
                             <input className="b" aria-label={"Load, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
                               value={cellRow.load ?? ""} onChange={(e) => editRow(di, bi, ri, wi, { load: e.target.value })} />
                           </span>

@@ -33,12 +33,12 @@ export function bsRemoveWorkoutDraft(storage, userId, sessionId) {
 // "30s/45s" is not read as the rest either. Nothing before the rep value is kept: it holds
 // no reading (one there would have come first), and joined to what follows, the 2 of
 // "rest 2 3 × 30s min" would run into the "min". "m" is metres in a rep value and minutes
-// in a rest ("2 m rest"), and the rep value is never read as one. Every other scheme is
-// read unchanged, so it rests what it rested before: a rest glued to a rep value with no
-// unit ("3 × 10/90s rest") rests its 90 s, and the same shape with a second hold glued on
-// ("3 × 30/45s · 60s rest") still rests the 45 s hold. That one is registered: position
-// alone cannot tell the two apart. tests/session-rest-seconds.test.mjs pins main's readings.
+// in a rest ("2 m rest"), and the rep value is never read as one. A remaining duration
+// may still describe a second hold or a distance: prefer the one labelled "rest" below.
+// tests/session-rest-seconds.test.mjs pins the readings before each change.
 const BS_REST_DURATION = /(\d+(?:\.\d+)?)\s*(min(?:ute)?s?|m|sec(?:ond)?s?|s)(?:\s*rest)?/;
+const BS_REST_AMOUNT = String.raw`(?:\d+:\d{2}|\d+(?:\.\d+)?\s*(?:min(?:ute)?s?|m|sec(?:ond)?s?|s))`;
+const BS_NAMED_REST = new RegExp(String.raw`\brest\s*:?\s*(${BS_REST_AMOUNT})(?![\w.:])|(?:^|[^\w.:])(${BS_REST_AMOUNT})\s*rest\b`);
 const BS_VALUE_RUN = /^[^\s·,;]*/;
 function bsRestText(scheme) {
   const at = bsPlainScheme(scheme);
@@ -53,7 +53,21 @@ export function bsRestSeconds(move = {}) {
   if (move.rest != null && /^\d+(?:\.\d+)?$/.test(String(move.rest).trim())) return Number(move.rest);
   const clock = raw.match(/(?:^|[·,]\s*)(\d+):(\d{2})(?:\s*rest)?(?:$|\s)/);
   if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
-  const duration = BS_REST_DURATION.exec(move.rest ? raw : bsRestText(raw));
+  const restText = move.rest ? raw : bsRestText(raw);
+  const duration = BS_REST_DURATION.exec(restText);
+  const scheme = bsPlainScheme(restText);
+  const repEnd = scheme && scheme.index + scheme[0].length;
+  const inRepRun = duration && scheme && duration.index >= scheme.index &&
+    duration.index < repEnd + BS_VALUE_RUN.exec(restText.slice(repEnd))[0].length;
+  // Preserve explicit rest fields and the clock rule above. When the existing
+  // scheme reader found a duration, bind it to "rest" if possible, instead of
+  // mistaking "30s hold" or "40 m sled" for the timer. No adjacent label means
+  // the old reading wins; an unsupported standalone clock stays unsupported.
+  // A slash-attached rep list ("3 × 30/45s") keeps its pinned legacy reading too.
+  if (!move.rest && duration && !inRepRun) {
+    const named = BS_NAMED_REST.exec(restText);
+    if (named) return bsRestSeconds({ rest: named[1] || named[2] });
+  }
   // A segment such as "30 min zone 2" is activity, not a rest prescription.
   if (duration && (move.rest || /rest/.test(raw))) return Math.round(Number(duration[1]) * (/^m/.test(duration[2]) ? 60 : 1));
   return null;
