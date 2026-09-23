@@ -920,6 +920,7 @@ function DbuFutureUpdates({template,clients,onClose}) {
 // ── Assign modal — multi-client + start date; marks the programming queue ───
 function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose }) {
   const [picked, setPicked] = React.useState(() => preselectId ? { [preselectId]: true } : {});
+  React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [startDate, setStartDate] = React.useState(() => {
     const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); // next Monday
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");

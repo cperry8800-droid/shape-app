@@ -60,7 +60,7 @@ test('the catalogue is rendered by DashGrid itself, outside the faded chrome, on
   assert.ok(!/hidden(Defaults|Chips)?\.length > 0 &&/.test(before), 'the catalogue is gated on something having been hidden');
   assert.ok(!/dash-wchrome/.test(before), 'the catalogue sits inside the hover-only chrome');
   // and it is fed the rows helper plus the three actions, never a copy of them
-  assert.match(grid, /<DgCatalog rows=\{dgCatalogRows\(widgets, hidden\)\} onAdd=\{restore\} onRemove=\{hide\} onReset=\{reset\} \/>/);
+  assert.match(grid, /<DgCatalog disabled=\{!storeState.loaded\} rows=\{dgCatalogRows\(widgets, hidden\)\} onAdd=\{restore\} onRemove=\{hide\} onReset=\{reset\} \/>/);
 });
 
 test('the card chrome is faded, not invisible, until hover', () => {

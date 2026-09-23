@@ -511,8 +511,9 @@ function DgCardSettings({ groups }) {
 // with no per-page wiring, and a page that declares no optional widgets still gets
 // the list of what it has.
 const DG_CATALOG_W = 320;
-function DgCatalog({ rows, onAdd, onRemove, onReset }) {
+function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false }) {
   const [open, setOpen] = React.useState(false);
+  React.useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
   const boxRef = React.useRef(null);
   const panelRef = React.useRef(null);
   const box = useDgPanel(open, setOpen, boxRef, panelRef, DG_CATALOG_W);
@@ -582,7 +583,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
   );
   return (
     <span ref={boxRef} style={{ position: "relative", display: "inline-flex" }}>
-      <button type="button" className="dash-catalog-btn" data-tour="dash-widgets" aria-haspopup="dialog" aria-expanded={open} aria-label="Add or remove widgets"
+      <button type="button" className="dash-catalog-btn" disabled={disabled} data-tour="dash-widgets" aria-haspopup="dialog" aria-expanded={open} aria-label="Add or remove widgets"
         onClick={() => setOpen((v) => !v)}
         style={{ ...mono, fontSize: 10.5, padding: "7px 12px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8,
                  border: "1px solid " + (open ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"),
@@ -600,7 +601,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset }) {
           {waiting.map((r) => item(r, null))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", marginTop: 4 }}>
             <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Customize to move, resize or undo</span>
-            <a href="#" onClick={(e) => { e.preventDefault(); setOpen(false); onReset(); }} style={{ ...mono, fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</a>
+            <button type="button" onClick={() => { setOpen(false); onReset(); }} style={{ ...mono, background: "transparent", border: 0, minHeight: 36, cursor: "pointer", fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</button>
           </div>
         </div>,
         document.body
@@ -644,7 +645,7 @@ function dgBoardEdit(doc, role, action) {
 // Failed operations stay queued and visible; a failed read never becomes {}.
 function dgCreateLayoutStore(uid, db, timers = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) }) {
   let doc = {}, loaded = !uid, status = uid ? "loading" : "preview", error = "";
-  let pending = [], timer = null, flight = null, retries = 0;
+  let pending = [], timer = null, flight = null, hydration = null, retries = 0;
   const listeners = new Set();
   const emit = () => listeners.forEach((fn) => fn());
   const identity = async () => {
@@ -655,7 +656,9 @@ function dgCreateLayoutStore(uid, db, timers = { setTimeout: (fn, ms) => setTime
     if (timer) timers.clearTimeout(timer);
     timer = timers.setTimeout(() => { timer = null; flush(); }, ms);
   };
-  const hydrate = async () => {
+  const hydrate = () => {
+    if (hydration) return hydration;
+    hydration = (async () => {
     try {
       await identity();
       const fresh = await db.getUserGoals("dashboard_layout");
@@ -664,6 +667,8 @@ function dgCreateLayoutStore(uid, db, timers = { setTimeout: (fn, ms) => setTime
       doc = fresh; loaded = true; status = "saved"; error = "";
     } catch (e) { status = "error"; error = e.message || "Couldn't load your dashboards."; }
     emit();
+    })().finally(() => { hydration = null; });
+    return hydration;
   };
   const flush = () => {
     if (timer) { timers.clearTimeout(timer); timer = null; }
@@ -864,6 +869,7 @@ function DashGrid({ role, tab = "today", widgets }) {
   const savedFor = () => { try { return ((docRef.current[role] || {})[tab]) || null; } catch (e) { return null; } };
   const { store, accountError, retryAccount } = useDgLayoutStore();
   const storeState = store ? store.read() : { doc: {}, loaded: false, status: accountError ? "error" : "loading", error: "Couldn't identify your account. Please retry." };
+  const layoutUnavailable = !!store && !storeState.loaded && storeState.status === "error";
   docRef.current = storeState.doc;
   const activeBoard = dgBoards(storeState.doc, role).active;
   const [customizing, setCustomizing] = React.useState(false);
@@ -962,7 +968,7 @@ function DashGrid({ role, tab = "today", widgets }) {
 
   // ── init GridStack once per role/tab; load saved → add widgets → set portal hosts.
   React.useEffect(() => {
-    if (!store || !storeState.loaded || typeof window === "undefined" || !window.GridStack || !elRef.current) return undefined;
+    if (!store || (!storeState.loaded && !layoutUnavailable) || typeof window === "undefined" || !window.GridStack || !elRef.current) return undefined;
     dgInjectStyle();
     dgPatchGridStack();
     let destroyed = false;
@@ -974,7 +980,7 @@ function DashGrid({ role, tab = "today", widgets }) {
       const grid = window.GridStack.init({
         column: 12, columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
         cellHeight: 2, margin: 8, float: true,
-        handle: ".dash-drag-handle", draggable: { cancel: "button, input, textarea, select, a" }, resizable: { handles: "e" }, alwaysShowResizeHandle: true, disableDrag: !customizing, disableResize: !customizing,
+        handle: ".dash-drag-handle", draggable: { cancel: "button, input, textarea, select, a" }, resizable: { handles: "e" }, alwaysShowResizeHandle: true, disableDrag: !customizing || !storeState.loaded, disableResize: !customizing || !storeState.loaded,
         // sizeToContent stays OFF: its auto-cascade overrode our explicit ordered layout,
         // and its observer can't see React-portaled content anyway. We fit heights via
         // manual grid.resizeToContent() calls (see the fit effect) instead.
@@ -1010,14 +1016,14 @@ function DashGrid({ role, tab = "today", widgets }) {
       gridRef.current = null; itemRef.current = {}; lastPosRef.current = {};
     };
     // eslint-disable-next-line
-  }, [role, tab, store, storeState.loaded, activeBoard, revision]);
+  }, [role, tab, store, storeState.loaded, layoutUnavailable, activeBoard, revision]);
 
   React.useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
-    grid.enableMove(customizing);
-    grid.enableResize(customizing && !mobile);
-  }, [customizing, mobile, ready, activeBoard, revision]);
+    grid.enableMove(customizing && storeState.loaded);
+    grid.enableResize(customizing && storeState.loaded && !mobile);
+  }, [customizing, storeState.loaded, mobile, ready, activeBoard, revision]);
   React.useEffect(() => { setUndo([]); }, [role, tab, activeBoard, store]);
 
   const arrange = (key, direction, width) => {
@@ -1215,6 +1221,7 @@ function DashGrid({ role, tab = "today", widgets }) {
   // settled geometry before the write goes out — and the cleanup's flush now has a document
   // that includes the change. (CodeRabbit, #2137.)
   const hide = (key) => {
+    if (!storeState.loaded) return;
     checkpoint();
     const grid = gridRef.current; const el = itemRef.current[key];
     const nextHidden = hidden.includes(key) ? hidden : [...hidden, key];
@@ -1231,6 +1238,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     persistVisibility(nextHidden);
   };
   const restore = (key) => {
+    if (!storeState.loaded) return;
     const w = byKey[key];
     // An empty widget has no chip to click (see the hidden bar), but restoring one
     // would re-create exactly the empty 18px item this change exists to remove.
@@ -1250,6 +1258,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     persistVisibility(nextHidden);
   };
   const reset = () => {
+    if (!storeState.loaded) return;
     const grid = gridRef.current; if (!grid) return;
     checkpoint();
     hadSavedRef.current = false; initialPackRef.current = true;
@@ -1318,9 +1327,9 @@ function DashGrid({ role, tab = "today", widgets }) {
       {/* The catalogue: always visible, above the grid, on every tab — see DgCatalog. */}
       <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <DgSavedDashboards store={store} role={role} beforeChange={() => { if (ready) persistVisibility(hiddenRef.current); }} />
-        <button type="button" data-dg-customize style={DG_CONTROL} disabled={!ready} aria-pressed={customizing} onClick={() => setCustomizing(!customizing)}>{customizing ? "Done" : "Customize dashboard"}</button>
-        <button type="button" style={DG_CONTROL} disabled={!undo.length} onClick={undoLast}>Undo</button>
-        <DgCatalog rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />
+        <button type="button" data-dg-customize style={DG_CONTROL} disabled={!ready || !storeState.loaded} aria-pressed={customizing} onClick={() => setCustomizing(!customizing)}>{customizing ? "Done" : "Customize dashboard"}</button>
+        <button type="button" style={DG_CONTROL} disabled={!storeState.loaded || !undo.length} onClick={undoLast}>Undo</button>
+        <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />
       </div>
       <div role="status" style={{ color: DG_MUTE, fontSize: 12, marginBottom: 12 }}>
         {storeState.status === "loading" ? "Loading dashboards…" : storeState.status === "saving" ? "Saving…" : storeState.status === "error" ? storeState.error : storeState.status === "preview" ? "Preview · sign in to save dashboards" : "Saved · all tabs"}
@@ -1330,7 +1339,7 @@ function DashGrid({ role, tab = "today", widgets }) {
       <span className="dg-sr-only" aria-live="polite">{announcement}</span>
       {/* min-height reserves space so the page doesn't collapse to 0 then jump down
           when GridStack measures + positions the cards in JS after mount (CLS guard) */}
-      <div key={role + ":" + tab + ":" + activeBoard + ":" + revision + ":" + (store ? store.uid : "loading")} ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
+      <div key={role + ":" + tab + ":" + activeBoard + ":" + revision + ":" + (store ? store.uid : "loading") + ":" + storeState.loaded + ":" + layoutUnavailable} ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
       {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key]) : null))}
       {/* ⚠ THE BAR IS KEYED ON `hiddenDefaults`, THE CHIPS ON `hiddenChips`, AND THE
           DIFFERENCE IS THE RESET LINK. Gating the whole bar on the chips took `Reset
@@ -1338,7 +1347,7 @@ function DashGrid({ role, tab = "today", widgets }) {
           empty (a failed fetch is enough) had a dashboard they could not reset and
           nothing on screen explaining why. (The catalogue carries a second reset now,
           so the bar is the quick way back for a card just hidden, not the only one.) */}
-      {hiddenDefaults.length > 0 && (
+      {storeState.loaded && hiddenDefaults.length > 0 && (
         <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {hiddenChips.length > 0 && (
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: DG_MUTE }}>Hidden ·</span>
@@ -1348,7 +1357,7 @@ function DashGrid({ role, tab = "today", widgets }) {
               + {byKey[key] ? (byKey[key].title || key) : key}
             </button>
           ))}
-          <a href="#" onClick={(e) => { e.preventDefault(); reset(); }} style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)" }}>Reset layout</a>
+          <button type="button" onClick={reset} style={{ background: "transparent", border: 0, minHeight: 36, cursor: "pointer", marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)" }}>Reset layout</button>
         </div>
       )}
     </div>

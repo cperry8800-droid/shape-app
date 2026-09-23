@@ -377,6 +377,7 @@ function DmbGroceryPanel({ plan, edits, onEdits }) {
 // ── Assign modal — per-client portion scale + training days + start date ────
 function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle, live, preselectId, onClose }) {
   const [picked, setPicked] = React.useState(() => (preselectId ? { [preselectId]: true } : {}));
+  React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [scales, setScales] = React.useState({});
   const [startDate, setStartDate] = React.useState(() => {
     const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); // next Monday
@@ -968,7 +969,7 @@ function NutritionistPlansPage() {
           doc={assignFor.template.detail.mealBuilder}
           groceryEdits={assignFor.template.detail.mealBuilder.groceryEdits || {}}
           clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
-          preselectId={assignFor.clientId}
+          preselectId={assignFor.clientId || (targetClient ? forClient : null)}
           onClose={() => setAssignFor(null)} />
       )}
     </React.Fragment>

@@ -5,10 +5,12 @@ import { createRequire } from 'node:module';
 const require=createRequire(import.meta.url);
 const babel=require('next/dist/compiled/babel/core'),preset=require('next/dist/compiled/babel/preset-react');
 const source=readFileSync(new URL('../public/newdesign/dashToday.jsx',import.meta.url),'utf8');
-const code=babel.transformSync(source,{presets:[preset]}).code;
+const shared=readFileSync(new URL('../public/newdesign/dashData.jsx',import.meta.url),'utf8');
+const reviewHelper=shared.slice(shared.indexOf('function dashCheckinReviewed('),shared.indexOf('// The unit a bound metric'));
+const code=reviewHelper + babel.transformSync(source,{presets:[preset]}).code;
 const api=new Function('window','serif','sans',code+';return {dashCapacity,dashSetupSteps,dashReplyRows,dashCheckinRows};')({},'serif','sans');
 const sig=require('../public/newdesign/dashSignals.js');
-const MONDAY=new Date(2026,8,21,12);
+const MONDAY=new Date(2026,8,21,0);
 
 test('check-ins are oldest first; receiving is not reviewing and edits reopen a review',()=>{
   const client={profile:{id:'a',name:'Alex'},checkins:[{week_of:'2026-09-21',wins:'More sleep'},{week_of:'2026-09-14',wins:'Training'}]};
@@ -81,3 +83,19 @@ test('mover comparison dates come from completed weeks while current points reta
   const out=api.dashCapacity([{date:'2026-09-20',time:'23:30',durationMin:90,kind:'SESSION'}],[{weekday:1,start_minute:0,duration_min:120}],MONDAY);
   assert.equal(out.booked,60);assert.equal(out.free,60);assert.deepEqual(out.days[0].free,[[60,120]]);
  });
+
+test('capacity counts only remaining working time today',()=>{
+  const out=api.dashCapacity([{date:'2026-09-21',time:'09:00',durationMin:60,kind:'SESSION'}],[{weekday:1,start_minute:540,duration_min:300}],new Date(2026,8,21,12,30));
+  assert.equal(out.available,90);assert.equal(out.booked,0);assert.deepEqual(out.days[0].free,[[750,840]]);
+});
+
+test('capacity intersects real instants through fall-back and spring-forward clock changes',()=>{
+  const before=process.env.TZ;process.env.TZ='America/New_York';
+  try {
+    const slots=[{weekday:0,start_minute:0,duration_min:240}];
+    const fall=api.dashCapacity([{scheduledAt:'2026-11-01T01:30:00-04:00',durationMin:90,kind:'SESSION'}],slots,new Date(2026,10,1));
+    assert.equal(fall.available,300);assert.equal(fall.booked,90);assert.equal(fall.free,210);assert.equal(fall.days[0].clockChange,true);
+    const spring=api.dashCapacity([{scheduledAt:'2026-03-08T01:30:00-05:00',durationMin:90,kind:'SESSION'}],slots,new Date(2026,2,8));
+    assert.equal(spring.available,180);assert.equal(spring.booked,90);assert.equal(spring.free,90);
+  } finally { if(before==null) delete process.env.TZ;else process.env.TZ=before; }
+});

@@ -230,7 +230,8 @@ test('a later success reconciles the document instead of clearing an older failu
   // only B — and A vanished on reload.
   const src = fn(DATA, 'useCoachDoc');
   assert.match(src, /const written = merge\(doc\);/);
-  assert.match(src, /saveUserGoals\(goalKind, written\)/, 'the saved value is not the one reconciled to');
+  assert.match(src, /saveUserGoals\(goalKind, written(?:,\s*\{[^}]*\})?\)/, 'the saved value is not the one reconciled to');
+  assert.match(src, /saveUserGoals\(goalKind, written,\s*\{ expectedUserId: startUid \}\)/, 'the save must verify the initiating account at the database boundary');
   assert.match(src, /setState\(\(s\) => \(pendingRef\.current === 0 \? \{ \.\.\.s, doc: written, kind: "ready" \} : \{ \.\.\.s, kind: "ready" \}\)\);/);
   assert.ok(!/setState\(\(s\) => \(\{ \.\.\.s, kind: "ready" \}\)\);\n      return true;/.test(src),
     'success still clears the error without reconciling');

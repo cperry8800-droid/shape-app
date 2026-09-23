@@ -108,6 +108,16 @@ test('preview changes never call a database',async()=>{
   store.change(edit('trainer',{type:'create',id:'example',name:'Example'}));await store.flush();assert.equal(store.read().status,'preview');
 });
 
+test('simultaneous mounts share hydration, so a late read cannot erase edits',async()=>{
+  const f=fixture();let reads=0,release;
+  f.db.getUserGoals=async()=>{reads++;await new Promise(r=>release=r);return copy(original);};
+  const first=f.store.load(),second=f.store.load();
+  for(let i=0;i<10&&!release;i++) await Promise.resolve();
+  assert.equal(reads,1);release();await Promise.all([first,second]);
+  f.store.change(edit('trainer',{type:'tab',board:'default',tab:'today',layout:layout('notes')}));
+  await f.store.load();assert.equal(f.store.read().doc.trainer.today.items[0].id,'notes');
+});
+
 test('retrying a committed create never adds the same dashboard twice',()=>{
   const action={type:'create',id:'daily',name:'Daily',tabs:original.trainer};
   const once=dgBoardEdit(original,'trainer',action);

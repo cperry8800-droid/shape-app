@@ -770,7 +770,16 @@ function useCoachWeekReviews(live) {
     }
     return next;
   });
-  return { ...store, apply };
+  return { ...store, kind: live && account === undefined ? "loading" : live && account === null ? "signedout" : store.kind, apply, accountId: account };
+}
+
+// Shared by Today and Week: receiving is distinct from reviewing, and edits reopen.
+function dashCheckinReviewed(review, checkin) {
+  if (!review || !review.reviewedAt) return false;
+  if (!checkin) return true;
+  if (review.checkinSignature) return review.checkinSignature === JSON.stringify(checkin);
+  const submitted = checkin.updated_at || checkin.submitted_at || checkin.created_at;
+  return !submitted || submitted <= review.reviewedAt;
 }
 
 // The unit a bound metric intrinsically carries. The goal CARD formats through

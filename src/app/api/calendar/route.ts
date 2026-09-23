@@ -77,6 +77,8 @@ export async function GET(request: Request) {
   const supabase = await clientForRequest(request);
 
   const url = new URL(request.url);
+  const capacityRole = url.searchParams.get('capacityRole');
+  if (capacityRole !== null && !['trainer', 'nutritionist'].includes(capacityRole)) return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
   const from = clean(url.searchParams.get('from'), 10);
   const to = clean(url.searchParams.get('to'), 10);
   const clientId = clean(url.searchParams.get('clientId'), 64);
@@ -88,7 +90,7 @@ export async function GET(request: Request) {
   const dTo = isDate(to) ? to : new Date(today.getTime() + 60 * 86400000).toISOString().slice(0, 10);
 
   // 1) calendar_events (RLS allows owner + active coach).
-  const { data: evRows } = await supabase
+  const { data: evRows } = capacityRole ? { data: [] } : await supabase
     .from('calendar_events')
     .select('id, user_id, created_by, created_by_role, kind, title, sub, event_date, event_time, duration_min, with_name, location, accent, status')
     .eq('user_id', targetUserId)
@@ -101,8 +103,6 @@ export async function GET(request: Request) {
   // 2) sessions (coaching bookings) merged read-only.
   const fromIso = `${dFrom}T00:00:00Z`;
   const toIso = `${dTo}T23:59:59Z`;
-  const capacityRole = url.searchParams.get('capacityRole');
-  if (capacityRole && !['trainer', 'nutritionist'].includes(capacityRole)) return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
   let sessionQuery = supabase
     .from('sessions')
     .select('id, client_id, provider_role, type, scheduled_at, duration_min, status, topic, meeting_url')
@@ -124,7 +124,7 @@ export async function GET(request: Request) {
   // click-through client drawer). RLS already scoped these to the caller.
   const sessClientIds = [...new Set((sessRows ?? []).map((s: { client_id?: string }) => s.client_id).filter(Boolean) as string[])];
   const sessNameById = new Map<string, string>();
-  if (sessClientIds.length) {
+  if (!capacityRole && sessClientIds.length) {
     // ⚠ A status='requested' booking is a PROSPECT — no subscription yet, so the
     // coach read policy on `profiles` does not cover them. get_display_names
     // returns display fields only and is not scoped to the roster.

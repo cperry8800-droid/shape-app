@@ -54,6 +54,11 @@ function dscColorMap(events) {
   return (key) => map.get(key) || dscClientColor(key);
 }
 function dscIso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function dscRouteDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
+  const date = new Date(value + "T12:00:00");
+  return Number.isFinite(date.getTime()) && dscIso(date) === value ? date : null;
+}
 function dscMonday(d) { const x = new Date(d.getTime()); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 function dscFmt12(t) {
   if (!t) return null;
@@ -353,14 +358,14 @@ function CoachSchedulePage({ role }) {
   const prefs = useRememberedChoices(source === "live");
   const [view, setView] = useRememberedChoice(prefs, "scheduleView", ["month", "week"], "month");
   const [cursor, setCursor] = React.useState(() => {
-    const date = dashRouteParam("date");
-    return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(date + "T12:00:00") : new Date();
+    return dscRouteDate(dashRouteParam("date")) || new Date();
   });
   const selectedDay = dashRouteParam("date");
   const requestedClient = dashRouteParam("client");
   const focusedClient = (triage || []).find((r) => r.client.profile.id === requestedClient);
   React.useEffect(() => {
-    if (selectedDay && /^\d{4}-\d{2}-\d{2}$/.test(selectedDay)) { setCursor(new Date(selectedDay + "T12:00:00")); setView("week"); }
+    const requestedDate = dscRouteDate(selectedDay);
+    if (requestedDate) { setCursor(requestedDate); setView("week"); }
   }, [selectedDay]);
   const [drawerRow, setDrawerRow] = React.useState(null);
   const [sheetEv, setSheetEv] = React.useState(null);

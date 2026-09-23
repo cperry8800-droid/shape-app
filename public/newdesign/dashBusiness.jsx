@@ -778,7 +778,7 @@ function DbzTrajectoryZone({ live, trajectory, role, loading }) {
 // ── The page ─────────────────────────────────────────────────────────────────
 function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
-  const { today: live, clients, source } = useDashboard(role);
+  const { loading, today: live, clients, source } = useDashboard(role);
   const [extra, setExtra] = React.useState(null); // /api/{role}/analytics payload
 
   React.useEffect(() => {
@@ -811,14 +811,11 @@ function CoachBusinessPage({ role }) {
   // so a coach can hide the ones their practice does not use, reorder the rest and
   // resize them — the same board every other coach tab already has.
   //
-  // ⚠ EVERY WIDGET IS A DEFAULT (none `optional: true`), and that is the honest
-  // conversion: these eight plates ARE the Business page a coach already has, so
-  // making any of them opt-in would silently take a card off the board of someone
-  // who never asked. What the catalogue adds here is the ability to turn one OFF.
+  // The original eight plates stay on by default. Revenue by client is an
+  // optional addition so an existing dashboard keeps its familiar arrangement.
   //
   // ⚠ AND THE 1.4fr/1fr PAIRS BECOME EQUAL HALVES, because the grid's only
-  // granularity is 12 or 6 columns (dgWidgetW). A coach who wants the old ratio
-  // drags the edge once and it is remembered.
+  // supported widths are 12 or 6 columns (dgWidgetW).
   const plate = (accent, children, extraStyle) => (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": accent, paddingLeft: 24, ...(extraStyle || {}) }}>{children}</div>
   );
@@ -834,10 +831,10 @@ function CoachBusinessPage({ role }) {
     </React.Fragment>
   );
 
-  const revenueByClient = typeof DashSignals.dashRevenueByClient === "function" ? DashSignals.dashRevenueByClient(clients) : null;
+  const revenueByClient = !loading && typeof DashSignals.dashRevenueByClient === "function" ? DashSignals.dashRevenueByClient(clients) : null;
   const gridWidgets = [
     { key: "revenue-clients", title: "Revenue by client", size: "half", optional: true,
-      blurb: "Gross subscription revenue, fees and each client's share.", empty: !revenueByClient, emptyWhy: "appears once the roster is readable",
+      blurb: "Gross subscription revenue, fees and each client's share.", empty: !revenueByClient || revenueByClient.total === 0, emptyWhy: loading ? "appears once your roster loads" : "appears once you have clients",
       render: () => plate(cfg.accent, <React.Fragment>{head("Revenue by client", cfg.accent)}<DashRevenueByClientPanel rev={revenueByClient} role={role} /></React.Fragment>) },
     { key: "trajectory", title: "Practice trajectory", size: "full",
       blurb: "Active clients, joined vs left, and revenue over time — the growth question, answered first.",

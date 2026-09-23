@@ -13,7 +13,7 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
       q.then = (resolve,reject) => Promise.resolve(results[table] || { data: [], error: null }).then(resolve,reject);
       return q;
     },
-    rpc: async () => ({ data: [] }),
+    rpc: async (name) => { calls.push(['rpc',name]);return { data: [] }; },
   };
   const json = (body, init) => Response.json(body, { status: init?.status || 200 });
   const registry = new Map([
@@ -34,19 +34,22 @@ const booking={id:'booking',provider_role:'trainer',scheduled_at:'2026-09-23T13:
 
 test('capacity is restricted to the caller-owned provider and preserves booking instants',async()=>{
   const {route,calls}=await api('calendar',{trainers:own,sessions:{data:[booking]}});
-  const response=await route.GET(req('calendar?capacityRole=trainer'));
+  const response=await route.GET(req('calendar?capacityRole=trainer&from=2026-09-22&to=2026-09-30'));
   assert.equal(response.status,200);
   const body=await response.json();assert.equal(body.bookingsReadable,true);assert.equal(body.events[0].scheduledAt,booking.scheduled_at);assert.equal(body.events[0].durationMin,45);
   assert.ok(calls.some(c=>c.join('|')==='trainers|eq|owner_id|coach-a'));
   assert.ok(calls.some(c=>c.join('|')==='sessions|eq|provider_id|42'));
   assert.ok(calls.some(c=>c.join('|')==='sessions|eq|provider_role|trainer'));
   assert.ok(!calls.some(c=>c[0]==='client_workouts'));
+  assert.ok(!calls.some(c=>c[0]==='calendar_events'||c[0]==='rpc'));
+  assert.ok(calls.some(c=>c.join('|')==='sessions|gte|scheduled_at|2026-09-22T00:00:00Z'));
+  assert.ok(calls.some(c=>c.join('|')==='sessions|lte|scheduled_at|2026-09-30T23:59:59Z'));
 });
 test('capacity never turns missing providers, failed or capped booking reads into free time',async()=>{
   for(const results of [{trainers:{data:null}}, {trainers:own,sessions:{data:null,error:{message:'offline'}}}, {trainers:own,sessions:{data:Array(1000).fill(booking)}}]) {
     const {route}=await api('calendar',results);assert.equal((await route.GET(req('calendar?capacityRole=trainer'))).status,503);
   }
-  const {route}=await api('calendar');assert.equal((await route.GET(req('calendar?capacityRole=client'))).status,400);
+  const {route,calls}=await api('calendar');assert.equal((await route.GET(req('calendar?capacityRole=client'))).status,400);assert.deepEqual(calls,[]);
 });
 test('signed-out capacity requests do not query data',async()=>{
   const {route,calls}=await api('calendar',{},null);assert.equal((await route.GET(req('calendar?capacityRole=trainer'))).status,401);assert.deepEqual(calls,[]);

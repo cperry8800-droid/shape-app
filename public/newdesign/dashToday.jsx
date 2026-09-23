@@ -1343,15 +1343,6 @@ function DashNotesPanel({ prefs, role }) {
   );
 }
 
-// Reviews are explicit, private coach choices. A received check-in is never treated
-// as reviewed, and an edited submission reopens because its signature changes.
-function dashCheckinReviewed(review, checkin) {
-  if (!review || !review.reviewedAt) return false;
-  if (!checkin) return true;
-  if (review.checkinSignature) return review.checkinSignature === JSON.stringify(checkin);
-  const submitted = checkin.updated_at || checkin.submitted_at || checkin.created_at;
-  return !submitted || submitted <= review.reviewedAt;
-}
 function dashCheckinRows(clients, reviews) {
   const rows = [];
   for (const client of clients || []) for (const checkin of client.checkins || []) {
@@ -1368,24 +1359,28 @@ function dashCheckinRows(clients, reviews) {
 function DashCheckinQueuePanel({ clients, role, live }) {
   const reviews = useCoachWeekReviews(live);
   const [selected, setSelected] = React.useState(null);
+  const [failedReview, setFailedReview] = React.useState(null);
   const [state, setState] = React.useState("");
   const [preview, setPreview] = React.useState({});
   const ready = !live || ["ready", "error"].includes(reviews.kind);
   const rows = ready ? dashCheckinRows(clients, live ? reviews.doc : preview) : [];
   const unknown = clients.filter((c) => !Array.isArray(c.checkins)).length;
   const open = rows.find((row) => row.key === selected);
-  const mark = async () => {
-    if (!open) return;
-    const value = { checkinSignature: open.signature, reviewedAt: new Date().toISOString() };
-    if (!live) { setPreview({ ...preview, [open.week]: { ...preview[open.week], [open.clientId]: value } }); setSelected(null); setState("Preview · review not saved"); return; }
+  const mark = async (row) => {
+    if (!row) return;
+    const accountId = reviews.accountId;
+    const value = { checkinSignature: row.signature, reviewedAt: new Date().toISOString() };
+    if (!live) { setPreview({ ...preview, [row.week]: { ...preview[row.week], [row.clientId]: value } }); setSelected(null); setState("Preview · review not saved"); return; }
+    setFailedReview(null);
     setState("Saving review…");
-    const ok = await reviews.apply([{ weekOf: open.week, clientId: open.clientId, patch: value }]);
-    setState(ok ? "Review saved" : "Couldn't save review. Reopen the check-in to retry.");
+    const ok = await reviews.apply([{ weekOf: row.week, clientId: row.clientId, patch: value }]);
+    setState(ok ? "Review saved" : "Couldn't save review.");
+    if (!ok) setFailedReview({ row, accountId });
     if (ok) setSelected(null);
   };
   return <div>
     <p className="dw-note">Oldest first · the latest 4 shared check-ins per client. {unknown ? unknown + " clients' check-ins are unavailable." : ""}</p>
-    {!ready ? <p>{reviews.kind === "loading" ? "Loading your reviews…" : "Reviews unavailable. Reload to try again."}</p> : !rows.length && <p>No unreviewed check-ins in this recent window.</p>}
+    {!ready ? <p>{reviews.kind === "loading" ? "Loading your reviews…" : "Reviews unavailable. Reload to try again."}</p> : !rows.length && !(failedReview && failedReview.accountId === reviews.accountId) && state !== "Saving review…" && <p>No unreviewed check-ins in this recent window.</p>}
     <DashWidgetList rows={rows} label="check-ins" renderRow={(row) => <div className="dw-row"><div>{row.name}<div className="dw-note">Week of {row.week}</div></div><button type="button" style={DASH_WIDGET_BUTTON} aria-expanded={selected === row.key} onClick={() => setSelected(selected === row.key ? null : row.key)}>Review {row.name}</button></div>} />
     {open && <section aria-label={"Check-in from " + open.name} style={{ marginTop: 12, padding: 16, border: "1px solid var(--sh-line2, #413d38)", borderRadius: 8 }}>
       <strong>{open.name} · week of {open.week}</strong>
@@ -1393,11 +1388,12 @@ function DashCheckinQueuePanel({ clients, role, live }) {
       {[["wins", "Wins"], ["struggles", "Struggles"], ["question", "Question"], ["notes", "Notes"]].map(([field,label]) => open.checkin[field] ? <p key={field} style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}><strong>{label}: </strong>{String(open.checkin[field])}</p> : null)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => dashMessageClient(open.name, role, "Hi " + open.name.split(" ")[0] + " — thanks for your check-in for the week of " + open.week + ". ")}>Draft response</button>
-        <button type="button" style={DASH_WIDGET_BUTTON} disabled={state === "Saving review…" || !ready} onClick={mark}>Mark reviewed</button>
+        <button type="button" style={DASH_WIDGET_BUTTON} disabled={state === "Saving review…" || !ready} onClick={() => mark(open)}>Mark reviewed</button>
         <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => setSelected(null)}>Close</button>
       </div>
     </section>}
     <p className="dw-note" role="status">{state}</p>
+    {failedReview && failedReview.accountId === reviews.accountId && <button type="button" style={DASH_WIDGET_BUTTON} onClick={() => mark(failedReview.row)}>Retry review save</button>}
   </div>;
 }
 
@@ -1414,6 +1410,7 @@ function DashSetupPanel({ clients, prefs, role, live }) {
   const key = "setupIntake:" + role;
   const [state, setState] = React.useState("");
   const rows = clients.filter((c) => c.profile && c.profile.isNew);
+  if (live && !["ready", "error"].includes(prefs.kind)) return <p className="dw-note">{prefs.kind === "loading" ? "Loading setup confirmations…" : "Setup confirmations unavailable. Reload to try again."}</p>;
   return <div>
     <p className="dw-note">Clients new to your practice. Confirm intake after you complete it; the other steps use shared records.</p>
     {!rows.length && <p>No new clients needing setup.</p>}
@@ -1446,7 +1443,9 @@ function useDashWidgetRead(paths, enabled) {
   const key = paths.join("|");
   React.useEffect(() => {
     let on = true;
-    if (!enabled || !account) { setState({ loading:false, data:null, error:enabled, account }); return; }
+    if (!enabled) { setState({ loading:false, data:null, error:false, account }); return; }
+    if (account === undefined) { setState({ loading:true, data:null, error:false, account }); return; }
+    if (account === null) { setState({ loading:false, data:null, error:true, account }); return; }
     setState({ loading:true, data:null, error:false });
     Promise.all(paths.map(async (path) => { const res = await fetch(path,{credentials:"same-origin",cache:"no-store"}); if (!res.ok) throw new Error("unavailable"); return res.json(); }))
       .then((data) => { if (on) setState({ loading:false, data, error:false, account }); })
@@ -1474,7 +1473,7 @@ function DashRepliesPanel({ role, live }) {
 }
 
 // Union working-hour intervals and subtract booking intervals, never event counts.
-// Session instants are converted to this browser zone before entering the helper.
+// Intersect actual instants, including overnight sessions and clock changes.
 // Working hours in another/unknown zone are explicitly unavailable.
 function dashCapacity(events, slots, now = new Date()) {
   const merge = (ranges) => {
@@ -1488,46 +1487,51 @@ function dashCapacity(events, slots, now = new Date()) {
   const days = []; let available = 0, booked = 0, unreadable = 0;
   for (let i=0;i<7;i++) {
     const day = new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
+    const endDay = new Date(day.getFullYear(),day.getMonth(),day.getDate()+1);
     const date = dashCalDate(day);
-    const hours = merge((slots || []).filter((s) => s.weekday === day.getDay() && Number.isFinite(s.start_minute) && s.start_minute >= 0 && s.start_minute < 1440 && Number.isFinite(s.duration_min) && s.duration_min > 0).map((s) => [s.start_minute,Math.min(1440,s.start_minute+s.duration_min)]));
+    const at = (minute) => new Date(day.getFullYear(),day.getMonth(),day.getDate(),0,minute).getTime();
+    const hours = merge((slots || []).filter((s) => s.weekday === day.getDay() && Number.isFinite(s.start_minute) && s.start_minute >= 0 && s.start_minute < 1440 && Number.isFinite(s.duration_min) && s.duration_min > 0).map((s) => [Math.max(at(s.start_minute), Math.ceil(now.getTime()/60000)*60000),at(Math.min(1440,s.start_minute+s.duration_min))]).filter(([a,b]) => b>a));
     const bookings = [];
     for (const event of events || []) {
       if (!["SESSION","CONSULT"].includes(event.kind) || ["cancelled","canceled","declined"].includes(event.status)) continue;
-      if (!/^\d{2}:\d{2}$/.test(event.time || "") || !Number.isFinite(Number(event.durationMin)) || !(Number(event.durationMin)>0)) { if (event.date === date) unreadable++; continue; }
-      const [h,m] = event.time.split(":").map(Number), start = h*60+m;
-      if (h>23 || m>59) { if (event.date === date) unreadable++; continue; }
-      const offset = Math.round((new Date(event.date + "T12:00:00") - new Date(date + "T12:00:00")) / 86400000) * 1440;
-      const a = offset + start, b = a + Number(event.durationMin);
-      if (Number.isFinite(a) && a < 1440 && b > 0) bookings.push([Math.max(0,a),Math.min(1440,b)]);
+      const start = event.scheduledAt ? new Date(event.scheduledAt).getTime() : /^\d{4}-\d{2}-\d{2}$/.test(event.date || "") && /^([01]\d|2[0-3]):[0-5]\d$/.test(event.time || "") ? new Date(event.date + "T" + event.time + ":00").getTime() : NaN;
+      if (!Number.isFinite(start) || !Number.isFinite(Number(event.durationMin)) || !(Number(event.durationMin)>0)) { if (event.date === date || (Number.isFinite(start) && dashCalDate(new Date(start)) === date)) unreadable++; continue; }
+      const end = start + Number(event.durationMin)*60000;
+      if (start < endDay.getTime() && end > day.getTime()) bookings.push([Math.max(day.getTime(),start),Math.min(endDay.getTime(),end)]);
     }
     const busy = merge(bookings);
     const free = [];
     for (const [start,end] of hours) {
-      available += end-start;
+      available += (end-start)/60000;
       let cursor = start;
       for (const [a,b] of busy) {
         if (a >= end || b <= cursor) continue;
         if (a>cursor) free.push([cursor,Math.min(a,end)]);
-        booked += Math.max(0,Math.min(end,b)-Math.max(cursor,a));
+        booked += Math.max(0,Math.min(end,b)-Math.max(cursor,a))/60000;
         cursor = Math.max(cursor,Math.min(end,b));
       }
       if (cursor<end) free.push([cursor,end]);
     }
-    days.push({date,free});
+    const minute = (stamp) => stamp === endDay.getTime() ? 1440 : new Date(stamp).getHours()*60+new Date(stamp).getMinutes();
+    days.push({date,free:free.map(([a,b]) => [minute(a),minute(b)]),freeInstants:free,clockChange:day.getTimezoneOffset() !== endDay.getTimezoneOffset()});
   }
   return { available, booked, free:available-booked, unreadable, days };
 }
 function DashCapacityPanel({ role, live }) {
-  const read = useDashWidgetRead(["/api/calendar?capacityRole="+role, "/api/my-availability?role="+role],live);
+  const today = new Date();
+  const from = dashCalDate(new Date(today.getFullYear(),today.getMonth(),today.getDate()-1));
+  const to = dashCalDate(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7));
+  const read = useDashWidgetRead(["/api/calendar?capacityRole="+role+"&from="+from+"&to="+to, "/api/my-availability?role="+role],live);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const comparable = read.data && read.data[0].bookingsReadable === true && read.data[1].timezone === zone;
-  const capacity = comparable ? dashCapacity(read.data[0].events.map((event) => event.scheduledAt ? { ...event, date: dashCalDate(event.scheduledAt), time: dashCalTime(event.scheduledAt) } : event),read.data[1].slots) : null;
+  const capacity = comparable ? dashCapacity(read.data[0].events,read.data[1].slots) : null;
   const hm = (minute) => String(Math.floor(minute/60)).padStart(2,"0")+":"+String(minute%60).padStart(2,"0");
+  const zonedTime = (stamp) => new Date(stamp).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",timeZoneName:"short"});
   return <div>
     {!live ? <p className="dw-note">Capacity appears once your bookings and working hours are saved.</p> : read.loading ? <p>Loading capacity…</p> : read.error || !read.data ? <p>Couldn't read capacity. <button type="button" style={DASH_WIDGET_BUTTON} onClick={read.retry}>Retry</button></p> : !comparable ? <p className="dw-note">Open Schedule to review working hours in {read.data[1].timezone || "your saved time zone"}. Capacity requires hours in this browser's time zone ({zone}).</p> : !capacity.available ? <p>Set your working hours in Schedule to see capacity.</p> : capacity.unreadable ? <p>Capacity unavailable: {capacity.unreadable} bookings have an unreadable time or duration.</p> : <>
       <div style={{ fontSize:22 }}>{(capacity.booked/60).toFixed(1)} of {(capacity.available/60).toFixed(1)} hours booked</div>
-      <p className="dw-note">Next 7 days · {zone} · {(capacity.free/60).toFixed(1)} hours free within working hours. Overlapping bookings count once.</p>
-      {capacity.days.filter((d) => d.free.length).map((d) => <div className="dw-row" key={d.date}><a className="dw-action" href={dashLinkedTab("schedule",role,{date:d.date})}>{d.date}</a><span className="dw-note">{d.free.map(([a,b]) => hm(a)+"–"+hm(b)).join(" · ")}</span></div>)}
+      <p className="dw-note">Rest of today and the next 6 days · {zone} · {(capacity.free/60).toFixed(1)} hours free within working hours. Overlapping bookings count once.</p>
+      {capacity.days.filter((d) => d.free.length).map((d) => <div className="dw-row" key={d.date}><a className="dw-action" href={dashLinkedTab("schedule",role,{date:d.date})}>{d.date}</a><span className="dw-note">{d.clockChange ? d.freeInstants.map(([a,b]) => zonedTime(a)+"–"+zonedTime(b)).join(" · ") : d.free.map(([a,b]) => hm(a)+"–"+hm(b)).join(" · ")}</span></div>)}
     </>}
     <a className="dw-action" href={dashTabHref("schedule",role)}>Open Schedule →</a>
   </div>;
