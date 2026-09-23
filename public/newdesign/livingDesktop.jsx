@@ -950,11 +950,10 @@ function dkImgExt(file) {
 // would then refuse.
 const DK_WALL_MIME = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/pjpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/heic": "heic", "image/heif": "heif" };
 function dkWallExt(file) { return (file && DK_WALL_MIME[String(file.type || "").toLowerCase()]) || null; }
-function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave }) {
+function ProfileExtras({ d, owner, coach = false, custom = null, onEdit }) {
   // `custom` is lifted to DesktopProfile so a save reflects in BOTH the hero
   // (M2/M4) and this block (M1/M3) at once — the hero reads d.custom, which the
   // loaded person prop freezes until reload (Codex P2).
-  const [edit, setEdit] = React.useState(false);
   const cu = custom || {};
   const profLib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
   // M1 (wall) / M3 (shelf) — normalized at render; wall URLs bound to the profile
@@ -973,7 +972,7 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave })
   if (empty && !owner) return null;
   return (
     <div style={{ marginBottom: 22 }}>
-      {owner && <button type="button" onClick={() => setEdit(true)} style={{ marginBottom: empty ? 0 : 18, padding: "10px 16px", borderRadius: 10, border: `1px dashed ${dHexA(c, 0.5)}`, background: "transparent", color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
+      {owner && <button type="button" onClick={onEdit} style={{ marginBottom: empty ? 0 : 18, padding: "10px 16px", borderRadius: 10, border: `1px dashed ${dHexA(c, 0.5)}`, background: "transparent", color: c, cursor: "pointer", fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" }}>✎ Customize profile</button>}
       {heroStats.length > 0 && (
         <div style={{ display: "flex", gap: 34, marginBottom: 26 }}>
           {heroStats.map((s) => <DLedgerStat key={s.k} c={c} label={s.label} value={s.value} figSize={28} />)}
@@ -1042,10 +1041,103 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onCustomSave })
           )}
         </div>
       )}
-      {edit && <ProfileCustomizer key={(d && d.uid) || "self"} initial={custom} c={c} coach={coach} ownerUid={d.uid} ownerName={d.name} onClose={() => setEdit(false)} onSave={(doc) => { if (onCustomSave) onCustomSave(doc); setEdit(false); }} />}
     </div>
   );
 }
+function ProfileEditorDialog({ c, onClose, onSave, busy, saving, error, children }) {
+  const dialogRef = React.useRef(null), bodyRef = React.useRef(null), tabRefs = React.useRef([]);
+  const id = React.useId();
+  const [section, setSection] = React.useState(0);
+  const panels = React.Children.toArray(children);
+  React.useEffect(() => {
+    const dialog = dialogRef.current, previous = document.activeElement;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      document.body.style.overflow = overflow;
+      if (previous && previous.isConnected) previous.focus();
+    };
+  }, []);
+  const select = (index, focus = false) => {
+    setSection(index);
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+    if (focus && tabRefs.current[index]) tabRefs.current[index].focus();
+  };
+  return ReactDOM.createPortal(<>
+    <style>{`
+      .dk-profile-editor { width:min(780px,calc(100vw - 40px)); height:min(790px,calc(100dvh - 40px)); max-width:none; max-height:none; box-sizing:border-box; padding:0; border:1px solid ${dHexA(LV_INK, .14)}; border-radius:20px; background:${LV_BG}; color:${LV_INK}; font-family:${dSans}; overflow:hidden; }
+      .dk-profile-editor[open] { display:flex; flex-direction:column; }
+      .dk-profile-editor::backdrop { background:rgba(0,0,0,.72); backdrop-filter:blur(5px); }
+      .dk-editor-header { padding:24px 28px 18px; display:flex; justify-content:space-between; gap:16px; flex-shrink:0; }
+      .dk-editor-header h2 { font-family:${dSerif}; font-size:30px; font-weight:400; letter-spacing:-.02em; margin:5px 0 7px; }
+      .dk-editor-header p { margin:0; color:${dHexA(LV_INK,.6)}; font-size:13px; line-height:1.5; }
+      .dk-editor-close { align-self:flex-start; width:36px; height:36px; border:1px solid ${dHexA(LV_INK,.14)}; border-radius:50%; background:transparent; color:inherit; font-size:22px; cursor:pointer; }
+      .dk-editor-tabs { display:flex; gap:4px; padding:0 28px; border-bottom:1px solid ${dHexA(LV_INK,.12)}; flex-shrink:0; }
+      .dk-editor-tabs button { flex:1; min-width:0; min-height:44px; border:0; border-bottom:2px solid transparent; background:transparent; color:${dHexA(LV_INK,.6)}; font:500 13px ${dSans}; cursor:pointer; }
+      .dk-editor-tabs button[aria-selected=true] { color:${c}; border-bottom-color:${c}; }
+      .dk-editor-body { min-height:0; flex:1; padding:24px 28px; overflow:auto; overscroll-behavior:contain; scrollbar-width:none; }
+      .dk-editor-body::-webkit-scrollbar { display:none; width:0; height:0; }
+      .dk-profile-editor :is(input,textarea,select) { min-width:0; }
+      .dk-profile-editor :is(button,input,textarea,select):focus-visible { outline:2px solid ${c}!important; outline-offset:3px; }
+      .dk-profile-editor button:disabled { opacity:.55; cursor:wait; }
+      .dk-editor-business { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+      .dk-editor-business-field > span { display:block; margin-bottom:6px; color:${dHexA(LV_INK,.7)}; font-size:12px; }
+      .dk-editor-hint { display:block; margin-top:6px; font-size:11px; color:${dHexA(LV_INK,.55)}; }
+      .dk-editor-footer { flex-shrink:0; padding:16px 28px; border-top:1px solid ${dHexA(LV_INK,.12)}; background:${LV_BG}; }
+      .dk-editor-footer-actions { display:flex; align-items:center; gap:10px; justify-content:flex-end; }
+      .dk-editor-footer-actions > span { margin-right:auto; color:${dHexA(LV_INK,.55)}; font-size:12px; }
+      .dk-editor-footer button { min-height:42px; padding:0 20px; border:1px solid ${dHexA(LV_INK,.2)}; border-radius:9px; background:transparent; color:inherit; font:500 13px ${dSans}; cursor:pointer; }
+      .dk-editor-footer .dk-editor-save { background:${LV_TEAL}; color:#06110e; border-color:transparent; }
+      @media(max-width:600px) {
+        .dk-profile-editor { width:calc(100vw - 16px); height:calc(100dvh - 16px); border-radius:16px; }
+        .dk-editor-header { padding:20px 18px 14px; }
+        .dk-editor-tabs { padding:0 14px; }
+        .dk-editor-tabs button { font-size:12px; }
+        .dk-editor-body { padding:20px 18px; }
+        .dk-editor-business { grid-template-columns:1fr; }
+        .dk-editor-footer { padding:14px 18px; }
+        .dk-editor-footer-actions > span { display:none; }
+        .dk-editor-footer button { flex:1; }
+        .dk-profile-editor :is(input,textarea,select) { font-size:16px!important; }
+      }
+    `}</style>
+    <dialog ref={dialogRef} className="dk-profile-editor" aria-labelledby={id + '-title'} aria-describedby={id + '-description'}
+      onCancel={(e) => { e.preventDefault(); if (!busy) onClose(); }}>
+      <header className="dk-editor-header">
+        <div><DKick c={c}>Your profile</DKick><h2 id={id + '-title'}>Edit profile</h2><p id={id + '-description'}>Make your profile feel like you. Save when you’re ready.</p></div>
+        <button type="button" className="dk-editor-close" aria-label="Close profile editor" disabled={busy} onClick={onClose}>×</button>
+      </header>
+      <div className="dk-editor-tabs" role="tablist" aria-label="Profile sections">
+        {panels.map((panel, index) => <button key={panel.key} ref={(el) => { tabRefs.current[index] = el; }} type="button" role="tab"
+          id={id + '-tab-' + index} aria-controls={id + '-panel-' + index} aria-selected={section === index} tabIndex={section === index ? 0 : -1}
+          onClick={() => select(index)} onKeyDown={(e) => {
+            if (e.isComposing) return;
+            let next = index;
+            if (e.key === 'ArrowRight') next = (index + 1) % panels.length;
+            else if (e.key === 'ArrowLeft') next = (index + panels.length - 1) % panels.length;
+            else if (e.key === 'Home') next = 0;
+            else if (e.key === 'End') next = panels.length - 1;
+            else return;
+            e.preventDefault(); select(next, true);
+          }}>{panel.props['data-editor-label']}</button>)}
+      </div>
+      <div ref={bodyRef} className="dk-editor-body">
+        {panels.map((panel, index) => <section key={panel.key} role="tabpanel" id={id + '-panel-' + index}
+          aria-labelledby={id + '-tab-' + index} hidden={section !== index}>{panel}</section>)}
+      </div>
+      <footer className="dk-editor-footer">
+        {error && <p role="alert" style={{ margin:'0 0 12px', color:'#e07856', fontSize:13 }}>{error}</p>}
+        <div className="dk-editor-footer-actions"><span>{busy && !saving ? 'Upload in progress…' : 'Changes apply when you save.'}</span>
+          <button type="button" disabled={busy} onClick={onClose}>Cancel</button>
+          <button type="button" className="dk-editor-save" disabled={busy} onClick={onSave}>{saving ? 'Saving…' : 'Save profile'}</button>
+        </div>
+      </footer>
+    </dialog>
+  </>, document.body);
+}
+
 function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUid = null, ownerName = "" }) {
   const init = initial || {};
   const PROMPT_OPTS = dkPromptOpts(coach);
@@ -1248,6 +1340,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     let uid = null;
     if (cl) { try { const { data: u } = await cl.auth.getUser(); uid = u && u.user && u.user.id; } catch (e) {} }
     if (!cl || !uid) { setBusy(false); setErr("Sign in to save your profile."); return; }
+    if (ownerUid && uid !== ownerUid) { setBusy(false); setErr("Your account changed. Close the editor and reopen your profile."); return; }
     if (!plib || !plib.bsNormalizeProfileCustom) { setBusy(false); setErr("Editor is still loading — try again in a moment."); return; }
     const out = plib.bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let error = null;
@@ -1268,7 +1361,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
           <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: "#000" }}>
             <video src={film.url} controls playsInline preload="metadata" style={{ display: "block", width: "100%", maxHeight: 240, background: "#000" }} />
           </div>
-          <input value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, FCM) }))} maxLength={FCM} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
+          <input aria-label="Intro film caption" value={film.caption} onChange={(e) => setFilm((prev) => ({ ...prev, caption: e.target.value.slice(0, FCM) }))} maxLength={FCM} placeholder="Caption (optional)" style={{ ...field, marginTop: 8 }} />
           <button type="button" onClick={() => setFilm(null)} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Remove film</button>
         </div>
       ) : (
@@ -1278,29 +1371,84 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
     </div>
   );
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto", background: LV_BG, borderRadius: 20, border: `1px solid ${dHexA(LV_INK, 0.12)}`, padding: 26 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <div><div style={{ fontFamily: dMono, fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", color: c }}>Your profile</div><div style={{ fontFamily: dSerif, fontSize: 26, letterSpacing: "-0.02em", marginTop: 3 }}>Customize.</div></div>
-          <button onClick={onClose} style={{ background: "transparent", border: 0, color: dHexA(LV_INK, 0.6), fontSize: 22, cursor: "pointer" }}>×</button>
-        </div>
-        <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /></div>
+    <ProfileEditorDialog c={c} onClose={onClose} busy={busy || wallBusy || coverBusy || filmBusy}
+      saving={busy} error={err} onSave={save}>
+      <div key="about" data-editor-label="About">
+        <div style={{ marginBottom: 18 }}><span style={label}>Bio</span><textarea aria-label="Bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder="A line about you, your training, your why…" style={{ ...field, resize: "vertical" }} /><span className="dk-editor-hint">{bio.length}/280 characters</span></div>
         {coach && (<>
           {/* P2 · The Line (shared key) */}
           <div style={{ marginBottom: 18 }}>
             <span style={label}>Your line · one motto</span>
-            <input value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you coach by — e.g. Strong is a skill." style={field} />
+            <input aria-label="Your motto" value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you coach by — e.g. Strong is a skill." style={field} />
           </div>
           {/* P1 · The intro film (coach → coach-media) */}
           {filmSection}
           {/* P4 · The Business card */}
           <div style={{ marginBottom: 18 }}>
-            <span style={label}>The practice · business card</span>
-            <input value={biz.name} onChange={(e) => setBiz((p) => ({ ...p, name: e.target.value.slice(0, BNM) }))} maxLength={BNM} placeholder="Business name — e.g. Iron Path Strength" style={field} />
-            <input value={biz.where} onChange={(e) => setBiz((p) => ({ ...p, where: e.target.value.slice(0, BWM) }))} maxLength={BWM} placeholder="Where (optional) — e.g. Austin, TX · online" style={{ ...field, marginTop: 8 }} />
-            <input value={biz.hours} onChange={(e) => setBiz((p) => ({ ...p, hours: e.target.value.slice(0, BHM) }))} maxLength={BHM} placeholder="Hours (optional) — e.g. Mon–Fri, mornings" style={{ ...field, marginTop: 8 }} />
-            <input value={biz.handle} onChange={(e) => setBiz((p) => ({ ...p, handle: e.target.value.slice(0, BKM) }))} maxLength={BKM} placeholder="Find me (optional) — e.g. @ironpath" style={{ ...field, marginTop: 8 }} />
+            <span style={label}>Your practice</span>
+            <div className="dk-editor-business">
+            <label className="dk-editor-business-field"><span>Business name</span><input value={biz.name} onChange={(e) => setBiz((p) => ({ ...p, name: e.target.value.slice(0, BNM) }))} maxLength={BNM} placeholder="Business name — e.g. Iron Path Strength" style={field} /></label>
+            <label className="dk-editor-business-field"><span>Location or online</span><input value={biz.where} onChange={(e) => setBiz((p) => ({ ...p, where: e.target.value.slice(0, BWM) }))} maxLength={BWM} placeholder="Where (optional) — e.g. Austin, TX · online" style={field} /></label>
+            <label className="dk-editor-business-field"><span>Hours</span><input value={biz.hours} onChange={(e) => setBiz((p) => ({ ...p, hours: e.target.value.slice(0, BHM) }))} maxLength={BHM} placeholder="Hours (optional) — e.g. Mon–Fri, mornings" style={field} /></label>
+            <label className="dk-editor-business-field"><span>Contact handle</span><input value={biz.handle} onChange={(e) => setBiz((p) => ({ ...p, handle: e.target.value.slice(0, BKM) }))} maxLength={BKM} placeholder="Find me (optional) — e.g. @ironpath" style={field} /></label>
+            </div>
           </div>
+        </>)}
+        {!coach && (<>
+          {/* M4 · The Line */}
+          <div style={{ marginBottom: 18 }}>
+            <span style={label}>Your line · one motto</span>
+            <input aria-label="Your motto" value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you live by — e.g. Strong is a skill." style={field} />
+          </div>
+          {/* M5 · The intro film (member → member-films) */}
+          {filmSection}
+        </>)}
+      </div>
+      <div key="appearance" data-editor-label="Appearance">
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Cover image</span>
+          <div style={{ position: "relative", height: 130, borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: coverUrl ? "#000" : `linear-gradient(135deg, ${dHexA(accent || c, 0.4)}, ${dHexA(accent || c, 0.08)})` }}>
+            {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+            <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.6)}`, background: "rgba(0,0,0,0.5)", color: LV_INK, cursor: coverBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{coverBusy ? "Uploading…" : coverUrl ? "Replace" : "Upload cover"}</button>
+              {coverUrl && <button onClick={() => setCoverUrl("")} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.4)}`, background: "rgba(0,0,0,0.5)", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button>}
+            </div>
+          </div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Accent color</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <button onClick={() => setAccent("")} title="Tier default" aria-label="Tier default accent" aria-pressed={!accent} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${!accent ? LV_INK : dHexA(LV_INK, 0.25)}`, background: `linear-gradient(135deg, ${c}, ${lvShade(c, 0.5)})`, color: "#fff", fontSize: 12 }}>{!accent ? "✓" : ""}</button>
+            {DK_ACCENTS.map((a) => <button key={a} aria-label={"Accent " + a} aria-pressed={accent === a} onClick={() => setAccent(a)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${accent === a ? LV_INK : "transparent"}`, background: a, color: "#fff", fontSize: 12 }}>{accent === a ? "✓" : ""}</button>)}
+          </div>
+          <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Climb background</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+            {DK_CLIMB_BGS.map((b) => {
+              const on = (climbBg || "") === b.key;
+              return (
+                <button key={b.key || "paper"} aria-pressed={on} onClick={() => setClimbBg(b.key)} style={{ width: 64, borderRadius: 10, cursor: "pointer", border: `2px solid ${on ? LV_INK : dHexA(LV_INK, 0.18)}`, background: "transparent", padding: 4 }}>
+                  <span style={{ display: "block", height: 30, borderRadius: 6, background: b.css || dHexA(LV_INK, 0.06), border: b.css ? "none" : `1px dashed ${dHexA(LV_INK, 0.25)}` }} />
+                  <span style={{ display: "block", marginTop: 5, fontFamily: dMono, fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: on ? LV_INK : dHexA(LV_INK, 0.5) }}>{b.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Headline stats · pick up to 3</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {DK_STAT_OPTIONS.map((s) => { const on = heroStats.includes(s.key); return (
+              <button key={s.key} aria-pressed={on} onClick={() => toggleStat(s.key)} style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? c : dHexA(LV_INK, 0.18)}`, background: on ? dHexA(c, 0.14) : "transparent", color: on ? c : dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{on ? "✓ " : ""}{s.label}</button>
+            ); })}
+          </div>
+        </div>
+      </div>
+      <div key="highlights" data-editor-label="Highlights">
+        {coach && (<>
           {/* P5 · The Wins wall picker — only the coach's OWN pinnable reviews */}
           <div style={{ marginBottom: 18 }}>
             <span style={label}>Wins wall · pin up to {PRM} reviews</span>
@@ -1319,16 +1467,11 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
           </div>
         </>)}
         {!coach && (<>
-          {/* M4 · The Line */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>Your line · one motto</span>
-            <input value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you live by — e.g. Strong is a skill." style={field} />
-          </div>
           {/* M2 · The Start line */}
           <div style={{ marginBottom: 18 }}>
             <span style={label}>Training for · a countdown</span>
-            <input value={startTitle} onChange={(e) => setStartTitle(e.target.value.slice(0, STTM))} maxLength={STTM} placeholder="What you're training for — e.g. My first marathon" style={field} />
-            <input value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="Date · YYYY-MM-DD" style={{ ...field, marginTop: 8 }} />
+            <input aria-label="Training goal" value={startTitle} onChange={(e) => setStartTitle(e.target.value.slice(0, STTM))} maxLength={STTM} placeholder="What you're training for — e.g. My first marathon" style={field} />
+            <input aria-label="Goal date" value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="Date · YYYY-MM-DD" style={{ ...field, marginTop: 8 }} />
             {startDate.trim() && !startState && <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10, color: "#c0533b" }}>{startValid ? "That date has passed — clear or update it." : "Enter a real date as YYYY-MM-DD."}</div>}
             {startState && <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 10, color: dHexA(LV_INK, 0.5) }}>{startState.days === 0 ? "Shows: TODAY" : `Shows: ${startState.days} ${startState.days === 1 ? "day" : "days"} out`}</div>}
             {(startTitle.trim() || startDate.trim()) && <button type="button" onClick={() => { setStartTitle(""); setStartDate(""); }} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Clear start line</button>}
@@ -1341,7 +1484,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
               {wall.map((w, i) => (
                 <div key={w._k} style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <div aria-hidden="true" style={{ width: 54, height: 54, flexShrink: 0, borderRadius: 8, border: `1px solid ${dHexA(LV_INK, 0.14)}`, background: `center/cover no-repeat url("${w.url}")`, backgroundColor: dHexA(LV_INK, 0.05) }} />
-                  <input value={w.caption} onChange={(e) => setWallCap(i, e.target.value)} maxLength={CAPM} placeholder="Caption (optional)" style={{ ...field, flex: 1 }} />
+                  <input aria-label={"Photo caption " + (i + 1)} value={w.caption} onChange={(e) => setWallCap(i, e.target.value)} maxLength={CAPM} placeholder="Caption (optional)" style={{ ...field, flex: 1 }} />
                   <button type="button" onClick={() => removeWall(i)} aria-label="Remove photo" style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 34, height: 34, cursor: "pointer", flexShrink: 0, fontSize: 17 }}>×</button>
                 </div>
               ))}
@@ -1354,73 +1497,24 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {shelf.map((s, i) => (
                 <div key={s._k} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input value={s.title} onChange={(e) => setShelfField(i, "title", e.target.value)} maxLength={STM} placeholder="e.g. Deadlift 140kg" style={{ ...field, flex: 1 }} />
-                  <input value={s.when} onChange={(e) => setShelfField(i, "when", e.target.value)} maxLength={SWM} placeholder="When" style={{ ...field, flex: "0 0 110px" }} />
+                  <input aria-label={"Achievement " + (i + 1)} value={s.title} onChange={(e) => setShelfField(i, "title", e.target.value)} maxLength={STM} placeholder="e.g. Deadlift 140kg" style={{ ...field, flex: 1 }} />
+                  <input aria-label={"Achievement date " + (i + 1)} value={s.when} onChange={(e) => setShelfField(i, "when", e.target.value)} maxLength={SWM} placeholder="When" style={{ ...field, flex: "0 0 110px" }} />
                   <button type="button" onClick={() => removeShelf(i)} aria-label="Remove row" style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 34, height: 34, cursor: "pointer", flexShrink: 0, fontSize: 17 }}>×</button>
                 </div>
               ))}
             </div>
             {shelf.length < SMAX && <button type="button" onClick={addShelfRow} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 8, padding: "9px 15px", cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add row</button>}
           </div>
-          {/* M5 · The intro film (member → member-films) */}
-          {filmSection}
         </>)}
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>Cover image</span>
-          <div style={{ position: "relative", height: 130, borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: coverUrl ? "#000" : `linear-gradient(135deg, ${dHexA(accent || c, 0.4)}, ${dHexA(accent || c, 0.08)})` }}>
-            {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-            <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
-            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-              <button onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ padding: "8px 15px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.6)}`, background: "rgba(0,0,0,0.5)", color: LV_INK, cursor: coverBusy ? "wait" : "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{coverBusy ? "Uploading…" : coverUrl ? "Replace" : "Upload cover"}</button>
-              {coverUrl && <button onClick={() => setCoverUrl("")} style={{ padding: "8px 13px", borderRadius: 999, border: `1px solid ${dHexA(LV_INK, 0.4)}`, background: "rgba(0,0,0,0.5)", color: dHexA(LV_INK, 0.8), cursor: "pointer", fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>Remove</button>}
-            </div>
-          </div>
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>Accent color</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-            <button onClick={() => setAccent("")} title="Tier default" style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${!accent ? LV_INK : dHexA(LV_INK, 0.25)}`, background: `linear-gradient(135deg, ${c}, ${lvShade(c, 0.5)})`, color: "#fff", fontSize: 12 }}>{!accent ? "✓" : ""}</button>
-            {DK_ACCENTS.map((a) => <button key={a} onClick={() => setAccent(a)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${accent === a ? LV_INK : "transparent"}`, background: a, color: "#fff", fontSize: 12 }}>{accent === a ? "✓" : ""}</button>)}
-          </div>
-          <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>Climb background</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
-            {DK_CLIMB_BGS.map((b) => {
-              const on = (climbBg || "") === b.key;
-              return (
-                <button key={b.key || "paper"} onClick={() => setClimbBg(b.key)} style={{ width: 64, borderRadius: 10, cursor: "pointer", border: `2px solid ${on ? LV_INK : dHexA(LV_INK, 0.18)}`, background: "transparent", padding: 4 }}>
-                  <span style={{ display: "block", height: 30, borderRadius: 6, background: b.css || dHexA(LV_INK, 0.06), border: b.css ? "none" : `1px dashed ${dHexA(LV_INK, 0.25)}` }} />
-                  <span style={{ display: "block", marginTop: 5, fontFamily: dMono, fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: on ? LV_INK : dHexA(LV_INK, 0.5) }}>{b.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>Headline stats · pick up to 3</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {DK_STAT_OPTIONS.map((s) => { const on = heroStats.includes(s.key); return (
-              <button key={s.key} onClick={() => toggleStat(s.key)} style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", border: `1px solid ${on ? c : dHexA(LV_INK, 0.18)}`, background: on ? dHexA(c, 0.14) : "transparent", color: on ? c : dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{on ? "✓ " : ""}{s.label}</button>
-            ); })}
-          </div>
-        </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Pin a highlight</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 9 }}>
             {dkPinKinds().map((k) => <button key={k.id} onClick={() => setPinKind(k.id)} aria-pressed={dkPinKindToken(pinKind) === k.id} style={{ padding: "7px 13px", borderRadius: 999, cursor: "pointer", border: `1px solid ${dkPinKindToken(pinKind) === k.id ? c : dHexA(LV_INK, 0.18)}`, background: dkPinKindToken(pinKind) === k.id ? dHexA(c, 0.14) : "transparent", color: dkPinKindToken(pinKind) === k.id ? c : dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>{dkPinKindLabel(k.id)}</button>)}
           </div>
-          <input value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder="Headline — e.g. Pulled 2× bodyweight today" style={field} />
-          <input value={pinNote} onChange={(e) => setPinNote(e.target.value)} maxLength={160} placeholder="A line of context (optional)" style={{ ...field, marginTop: 8 }} />
-          <input value={pinMetric} onChange={(e) => setPinMetric(e.target.value)} maxLength={24} placeholder="Metric (optional) — e.g. 2×BW" style={{ ...field, marginTop: 8 }} />
+          <input aria-label="Highlight headline" value={pinTitle} onChange={(e) => setPinTitle(e.target.value)} maxLength={80} placeholder="Headline — e.g. Pulled 2× bodyweight today" style={field} />
+          <input aria-label="Highlight context" value={pinNote} onChange={(e) => setPinNote(e.target.value)} maxLength={160} placeholder="A line of context (optional)" style={{ ...field, marginTop: 8 }} />
+          <input aria-label="Highlight metric" value={pinMetric} onChange={(e) => setPinMetric(e.target.value)} maxLength={24} placeholder="Metric (optional) — e.g. 2×BW" style={{ ...field, marginTop: 8 }} />
           {pinTitle.trim() && <button onClick={() => { setPinTitle(""); setPinNote(""); setPinMetric(""); }} style={{ marginTop: 8, background: "transparent", border: 0, color: dHexA(LV_INK, 0.5), fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>Clear pin</button>}
-        </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>Profile song · Spotify link</span>
-          <input value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" style={field} />
-          <input value={songLabel} onChange={(e) => setSongLabel(e.target.value)} placeholder="Label (optional) — e.g. Lift anthem" style={{ ...field, marginTop: 8 }} />
-          {embedPreview && <div style={{ marginTop: 10, borderRadius: 11, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.1)}` }}><iframe title="Song preview" src={embedPreview} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: "block", border: 0 }} /></div>}
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Prompts</span>
@@ -1428,14 +1522,22 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             {prompts.map((p, i) => (
               <div key={i} style={{ border: `1px solid ${dHexA(LV_INK, 0.12)}`, borderRadius: 11, padding: 11 }}>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                  <select value={dkPromptToken(p.q)} onChange={(e) => setPrompt(i, "q", e.target.value)} style={{ ...field, padding: "8px 10px", fontSize: 12.5, flex: 1 }}>{PROMPT_OPTS.map((q) => <option key={q.id} value={q.id}>{dkPromptLabel(q.id)}</option>)}</select>
-                  <button onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))} style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 32, cursor: "pointer" }}>×</button>
+                  <select value={dkPromptToken(p.q)} aria-label={"Prompt " + (i + 1)} onChange={(e) => setPrompt(i, "q", e.target.value)} style={{ ...field, padding: "8px 10px", fontSize: 12.5, flex: 1 }}>{PROMPT_OPTS.map((q) => <option key={q.id} value={q.id}>{dkPromptLabel(q.id)}</option>)}</select>
+                  <button aria-label={"Remove prompt " + (i + 1)} onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))} style={{ background: "transparent", border: `1px solid ${dHexA(LV_INK, 0.16)}`, borderRadius: 999, color: dHexA(LV_INK, 0.6), width: 32, cursor: "pointer" }}>×</button>
                 </div>
-                <input value={p.a} onChange={(e) => setPrompt(i, "a", e.target.value)} maxLength={120} placeholder="Your answer…" style={field} />
+                <input aria-label={"Answer " + (i + 1)} value={p.a} onChange={(e) => setPrompt(i, "a", e.target.value)} maxLength={120} placeholder="Your answer…" style={field} />
               </div>
             ))}
           </div>
           {prompts.length < 4 && <button onClick={() => setPrompts((prev) => [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length].id, a: "" }])} style={{ marginTop: 10, background: "transparent", border: `1px dashed ${dHexA(c, 0.5)}`, color: c, borderRadius: 999, padding: "8px 14px", cursor: "pointer", fontFamily: dMono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>+ Add prompt</button>}
+        </div>
+      </div>
+      <div key="links" data-editor-label="Links">
+        <div style={{ marginBottom: 18 }}>
+          <span style={label}>Profile song · Spotify link</span>
+          <input aria-label="Spotify link" value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" style={field} />
+          <input aria-label="Song label" value={songLabel} onChange={(e) => setSongLabel(e.target.value)} placeholder="Label (optional) — e.g. Lift anthem" style={{ ...field, marginTop: 8 }} />
+          {embedPreview && <div style={{ marginTop: 10, borderRadius: 11, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.1)}` }}><iframe title="Song preview" src={embedPreview} width="100%" height="80" frameBorder="0" allow="encrypted-media" style={{ display: "block", border: 0 }} /></div>}
         </div>
         <div style={{ marginBottom: 22 }}>
           <span style={label}>Social links</span>
@@ -1443,15 +1545,13 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             {DK_LINKS.map((l) => (
               <div key={l.key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ flex: "0 0 84px", fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase", color: dHexA(LV_INK, 0.55) }}>{l.label}</span>
-                <input value={links[l.key] || ""} onChange={(e) => setLinks((prev) => ({ ...prev, [l.key]: e.target.value }))} placeholder={l.pre ? l.pre + "you" : "yoursite.com"} style={{ ...field, flex: 1 }} />
+                <input aria-label={l.label} value={links[l.key] || ""} onChange={(e) => setLinks((prev) => ({ ...prev, [l.key]: e.target.value }))} placeholder={l.pre ? l.pre + "you" : "yoursite.com"} style={{ ...field, flex: 1 }} />
               </div>
             ))}
           </div>
         </div>
-        {err && <div role="alert" style={{ marginBottom: 10, fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "#c0533b" }}>{err}</div>}
-        <button onClick={save} disabled={busy || wallBusy || coverBusy || filmBusy} style={{ width: "100%", padding: "14px", borderRadius: 999, background: c, color: "#08120f", border: 0, cursor: (busy || wallBusy || coverBusy || filmBusy) ? "wait" : "pointer", fontFamily: dMono, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700 }}>{busy ? "Saving…" : "Save profile"}</button>
       </div>
-    </div>
+    </ProfileEditorDialog>
   );
 }
 
@@ -1592,6 +1692,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
   // which read d.custom) and ProfileExtras (M1/M3) at once — the loaded person
   // prop otherwise freezes d.custom until a full reload (Codex P2).
   const [custom, setCustom] = React.useState(d.custom || null);
+  const [editingProfile, setEditingProfile] = React.useState(false);
   const heroPerson = custom ? Object.assign({}, d, { custom }) : d;
 
   return (
@@ -1608,7 +1709,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
           <DesktopLocked d={d} follow={follow} onMessage={onMessage} onFollow={onFollow} coachingHref={coachingHref} />
         ) : (
           <React.Fragment>
-            <DesktopHero d={heroPerson} direction={direction} owner={owner} reduced={reduced} onMessage={onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
+            <DesktopHero d={heroPerson} direction={direction} owner={owner} reduced={reduced} onMessage={owner ? () => setEditingProfile(true) : onMessage} onFollow={onFollow} follow={followWired} coachingHref={coachingHref} />
             {/* P1 / M5 · The intro film — a full-width video band under the hero. A
                 coach's film lives in coach-media, a member's in member-films; the
                 guard binds the url to the matching bucket + owner folder, so nothing
@@ -1629,7 +1730,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
               <section id="dk-activity" style={{ maxWidth: 900, margin: "0 auto", padding: "14px 40px 0" }}>
                 <div style={{ position: "relative", paddingLeft: 22 }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: 0, top: 4, bottom: 4, width: 2, background: `linear-gradient(180deg, ${dHexA(c, 0.85)}, ${dHexA(c, 0.25)})` }} />
-                  <ProfileExtras d={d} owner={owner} coach={coach} custom={custom} onCustomSave={setCustom} />
+                  <ProfileExtras d={d} owner={owner} coach={coach} custom={custom} onEdit={() => setEditingProfile(true)} />
                   <FeedBlock d={d} direction={direction} owner={owner} />
                 </div>
               </section>
@@ -1693,6 +1794,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
             {tab === "music" && <MusicBlock d={d} owner={owner} />}
           </React.Fragment>
         )}
+        {owner && editingProfile && <ProfileCustomizer key={d.uid || "self"} initial={custom} c={c} coach={coach} ownerUid={d.uid} ownerName={d.name} onClose={() => setEditingProfile(false)} onSave={(doc) => { setCustom(doc); setEditingProfile(false); }} />}
         {belowContent}
         {chrome ? <DesktopFooter /> : <div style={{ height: 34 }} />}
       </div>
