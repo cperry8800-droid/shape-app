@@ -226,6 +226,32 @@ function stubFetch({ owner = 'coach-a', plans = LIB, usage = { usage: { p1: { cl
 const dashboard = (source) => { globalThis.useDashboard = () => ({ clients: [], queue: [], today: null, source }); };
 const cardOf = (name) => [...document.querySelectorAll('.dash-plate')].find((c) => c.querySelector('h2')?.textContent === name);
 
+test('Programs: additional filters stay applied and visible in the count when collapsed', async () => {
+  dashboard('live'); stubFetch();
+  await mount(React.createElement(TrainerProgramsPage));
+  assert.ok(button('Type▾'));
+  assert.ok(button('Focus▾'));
+  assert.ok(!button('In use▾'));
+  const more = buttonStarting('More filters');
+  assert.equal(more.getAttribute('aria-expanded'), 'false');
+  await click(more);
+  const group = document.getElementById(more.getAttribute('aria-controls'));
+  assert.equal(group.getAttribute('aria-label'), 'Additional program filters');
+  await click(button('In use▾'));
+  await click(option('Yes').querySelector('input'));
+  assert.equal(count(), '1 of 3 programs');
+  await click(more);
+  assert.equal(more.getAttribute('aria-expanded'), 'false');
+  assert.match(more.textContent, /1 active/);
+  assert.ok(!button('In use · Yes▾'));
+  assert.equal(count(), '1 of 3 programs');
+  await click(button('Clear'));
+  assert.equal(count(), '3 programs');
+  assert.doesNotMatch(more.textContent, /active/);
+  await click(more);
+  assert.ok(button('In use▾'), 'reopening shows the cleared filter');
+});
+
 test('Programs: the tag row offers Shape\'s goals and this coach\'s own tags, and files by them', async () => {
   dashboard('live'); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
@@ -244,6 +270,7 @@ test('Programs: who is on each program narrows the library and badges the card',
   assert.ok(calls.some((u) => /\/api\/coach\/plans\/usage\?today=\d{4}-\d{2}-\d{2}$/.test(u)), 'asked with the coach\'s own day');
   assert.match(cardOf('Glute Builder').textContent, /In use · 2 clients/);
   assert.doesNotMatch(cardOf('Home Sweat').textContent, /In use/);
+  await click(buttonStarting('More filters'));
   await click(button('In use▾'));
   assert.equal(option('Yes').querySelector('.dash-facet-n').textContent, '1');
   assert.equal(option('No').querySelector('.dash-facet-n').textContent, '2');
@@ -256,6 +283,7 @@ test('Programs: a capped read may say "in use" and never "not in use"', async ()
   dashboard('live'); stubFetch({ usage: { usage: { p1: { clients: 5 } }, capped: true } });
   await mount(React.createElement(TrainerProgramsPage));
   assert.match(cardOf('Glute Builder').textContent, /In use · 5\+ clients/);
+  await click(buttonStarting('More filters'));
   await click(button('In use▾'));
   assert.ok(option('Yes'));
   assert.ok(!option('No'), 'a capped read never offers No');
@@ -267,6 +295,7 @@ test('Programs: an In use · No chosen before a refresh comes back capped stops 
   // or the old choice narrows the library to nothing with no chip left to undo it.
   dashboard('live'); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
+  await click(buttonStarting('More filters'));
   await click(button('In use▾'));
   await click(option('No').querySelector('input'));
   assert.equal(count(), '2 of 3 programs');
@@ -280,6 +309,7 @@ test('Programs: an In use · No chosen before a refresh comes back capped stops 
 test('Programs: an unread calendar says why, and Retry reads it again', async () => {
   dashboard('live'); stubFetch({ usageStatus: 500, usage: { error: 'x' } });
   await mount(React.createElement(TrainerProgramsPage));
+  await click(buttonStarting('More filters'));
   await click(button('In use▾'));
   const pop = document.querySelector('.dash-facet-pop');
   assert.match(pop.textContent, /Couldn’t read who is on each program just now/);
@@ -295,6 +325,7 @@ test('Programs: in the preview nobody is on anything, and it says so', async () 
   await mount(React.createElement(TrainerProgramsPage));
   assert.ok(chip('Strength'), 'the preview\'s programs carry their tags');
   assert.ok(!calls.some((u) => u.includes('/usage')), 'no account, no read');
+  await click(buttonStarting('More filters'));
   await click(button('In use▾'));
   assert.match(document.querySelector('.dash-facet-pop').textContent, /Live only — in the preview no program is on anyone’s calendar\./);
 });
