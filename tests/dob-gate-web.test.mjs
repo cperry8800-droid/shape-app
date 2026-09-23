@@ -80,7 +80,7 @@ test('blocks when the server says the date is needed', async () => {
 test('does NOT block when the server says the date is not needed', async () => {
   const { doc } = boot({ getResp: () => resp(200, { needed: false }) });
   await settle();
-  assert.equal(gateIn(doc), null);
+  assert.ok(!gateIn(doc), 'the gate must not mount when the date is not needed');
   assert.notEqual(doc.documentElement.style.overflow, 'hidden');
 });
 
@@ -107,7 +107,7 @@ for (const [label, getResp] of [
   test(`does not block on: ${label}`, async () => {
     const { doc } = boot(getResp ? { getResp } : {});
     await settle();
-    assert.equal(gateIn(doc), null, `${label} must not hold the member`);
+    assert.ok(!gateIn(doc), `${label} must not hold the member`);
   });
 }
 
@@ -118,7 +118,7 @@ test('the profile-less account gets the blocked panel and no form', async () => 
   assert.ok(gate, 'overlay should still be present');
   // Offering a form here would be offering something guaranteed to 409 — the
   // account has no row for POST to write to.
-  assert.equal(doc.getElementById(`${GATE_ID}-input`), null, 'no form should be offered');
+  assert.ok(!doc.getElementById(`${GATE_ID}-input`), 'no form should be offered');
   assert.match(gate.textContent, /can’t finish this here/i);
   assert.match(gate.textContent, /Sign out/i);
 });
@@ -134,7 +134,7 @@ test('a successful save removes the overlay and restores scrolling', async () =>
   doc.querySelector(`#${GATE_ID} form`).dispatchEvent(new doc.defaultView.Event('submit', { cancelable: true, bubbles: true }));
   await settle();
 
-  assert.equal(gateIn(doc), null, 'overlay should be gone');
+  assert.ok(!gateIn(doc), 'overlay should be gone');
   assert.equal(doc.documentElement.style.overflow, '', 'scroll lock should be released');
   const post = calls.find((c) => c.method === 'POST');
   assert.ok(post, 'a POST should have been made');

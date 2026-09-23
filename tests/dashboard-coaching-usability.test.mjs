@@ -126,7 +126,7 @@ test('open roster drawer follows enriched records and unknown progress is exclud
   assert.match(document.querySelector('[role="dialog"]').textContent, /On track/);
   await click(document.querySelector('[aria-label="Close"]'));
   await m.update({ ...props, filter: 'ontrack' });
-  assert.equal(m.el.querySelector('[role="button"]'), null);
+  assert.ok(!m.el.querySelector('[role="button"]'), 'a record whose progress is unknown must not be listed under On track');
   await m.close();
 });
 
