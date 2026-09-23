@@ -24,28 +24,16 @@
 // shot before the gate existed. The next person to fulfil `{user:null}` will
 // read the redirect as the harness being broken; it is the gate working.
 //
-// ⚠ AND THE REST OF THE RECIPE IS WRITTEN DOWN THIS TIME, because the 2026-09-15
-// re-capture had to re-derive every part of it from the shipped pixels. A frame
-// is the DASHBOARD, not the site chrome around it, so the capture suppresses
-// three fixed elements — `.shape-header`, `#shape-global-chat-button`, and the
-// preview banner (a fixed div carrying no id or class: find it by its own
-// "Preview · demo data" text) — and then pulls the main column up by the
-// header's own height with `main{margin-top:-72px}`. That last number is
-// MEASURED, not chosen: against the shipped `trainer-business` frame, -72 lands
-// at 0.155% differing pixels where -60..-68 land at 6.2-7.8%. The sidebar is
-// deliberately NOT moved, which is why every frame keeps a dark band above
-// "Today". Viewport 1440x900 at dpr 1, clock pinned to 2026-09-14T13:30:00Z so
-// a re-shoot differs from the shipped set in the sidebar and nowhere else.
-//
-// ⚠ AND "THE PAGES CANNOT BE DRIVEN IN THIS CONTAINER" IS FALSE — it was recorded
-// as fact in the worklog and cost a round to refute. React, ReactDOM and Babel
-// come from unpkg, which the container's proxy answers 403 CONNECT for, and the
-// tags carry SRI — so a hand-rolled substitute is correctly rejected. But unpkg
-// serves the npm tarball's bytes verbatim: `npm pack react@18.3.1` (and
-// react-dom@18.3.1, @babel/standalone@7.29.0) yields files whose sha384 equals
-// the `integrity` attribute exactly, checked for all three. Route the unpkg URLs
-// to those bytes and SRI validates, because they ARE the bytes. A blocked host is
-// not the same thing as an unobtainable file.
+// Captures refreshed 2026-09-23 from the current trainer and nutritionist apps,
+// using their signed-out demo practice and default light appearance. A local
+// static server leaves /api/me unavailable, so the existing preview fallback
+// renders; no production session or client data is used. Capture at 1440x900,
+// hide the site header, global chat button and fixed preview banner, and move
+// main up by the header's 72px. Keep the sidebar and dashboard controls intact.
+// Wait for the page and its widgets to paint before capturing. Browser captures
+// are normalized to 1440x900 JPEGs; CoFrame retains its 40px bottom crop.
+// Restore all temporary capture styles before committing. The in-frame example
+// label below remains visible in the public tour.
 //
 // ⚠ EVERY FRAME IS LABELLED "EXAMPLE ACCOUNT", IN THE FRAME ITSELF. These are
 // captures of the signed-out demo practice — real screens, invented numbers. An
@@ -74,7 +62,7 @@ const CO_TOUR = {
     label: "Trainer",
     tabs: [
       { key: "today", file: "today", name: "Today",
-        body: "The day at a glance: your balance and next payout, today's sessions, the programs that are due, roster compliance, and a client pulse that says who needs eyes first.",
+        body: "The day at a glance: your balance and next payout, today's sessions, the programs that are due, roster compliance, and client attention that says who needs eyes first.",
         list: ["Sessions today, with the next one marked", "Programs due, and how many are ready", "Joint-attention flags shared with the client's other coach", "Message any client from the row"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
@@ -109,7 +97,7 @@ const CO_TOUR = {
     label: "Nutritionist",
     tabs: [
       { key: "today", file: "today", name: "Today",
-        body: "The day at a glance: your balance and next payout, today's consults, the plans that are due, food-log compliance across the roster, and a client pulse that says who needs eyes first.",
+        body: "The day at a glance: your balance and next payout, today's consults, the plans that are due, food-log compliance across the roster, and client attention that says who needs eyes first.",
         list: ["Consults today, with the next one marked", "Plans due, and how many are ready", "Joint-attention flags shared with the client's trainer", "Message any client from the row"] },
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
@@ -145,7 +133,7 @@ const CO_TOUR = {
 // ⚠ THE FRAME CARRIES ITS OWN LABEL. Not a caption under the picture — a mark on
 // it, so the claim travels with the image wherever it is seen.
 function CoFrame({ role, tab, style = {} }) {
-  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20260915`;
+  const src = `/newdesign/coaches/coaches-dash-${role}-${tab.file}.jpg?v=20260923`;
   return (
     <div style={{ border: "1px solid rgba(238,243,240,0.10)", borderRadius: 10, background: "#0a0f17", boxShadow: "0 40px 90px rgba(0,0,0,0.55)", overflow: "hidden", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, height: 34, padding: "0 12px", borderBottom: "1px solid rgba(238,243,240,0.055)", background: "rgba(255,255,255,0.02)" }}>
@@ -234,6 +222,7 @@ function CoTour({ role, setRole }) {
           <div>
             <span className="co-eyebrow">The dashboard</span>
             <h2 className="co-h2">What's waiting once your <em>account is created.</em></h2>
+            <p style={{ maxWidth: "62ch", color: "rgba(238,243,240,0.72)", fontSize: 15, lineHeight: 1.6 }}>Choose your widgets, drag them into place, and change their widths. Save multiple dashboards with all tabs together, then switch to the view you need.</p>
           </div>
           <div className="co-roles" role="group" aria-label="Show the dashboard for">
             {["trainer", "nutri"].map((r) => (
