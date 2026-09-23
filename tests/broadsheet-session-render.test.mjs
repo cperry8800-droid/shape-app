@@ -50,6 +50,9 @@ const THEME = new Proxy(THEME_KNOWN, {
 // (the house Object.assign(window, …) pattern). Stub ONLY those — everything
 // inside BSSession is the shipping component.
 globalThis.window = globalThis;
+globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'client-test' } }) };
+globalThis.localStorage = { getItem: key => key === 'shapeClientWorkoutView:client-test' ? 'focus' : null };
+
 globalThis.__VITE_IMPORTMETA__ = { env: { BASE_URL: '/m/' } };
 globalThis.useBS = () => THEME;
 // ⚠ A REAL TRANSLATOR, NOT A PASS-THROUGH STUB. `useShapeTr()` falls back to
@@ -137,13 +140,15 @@ const MOD = await loadModule();
 // Render warnings are failures: "Rendered more hooks than during the previous
 // render" and "Cannot update during render" arrive here rather than as throws.
 function render(el) {
+  const priorStorage = globalThis.localStorage;
+  globalThis.localStorage = { getItem: key => key === 'shapeClientWorkoutView:client-test' ? 'focus' : priorStorage?.getItem?.(key) };
   const warnings = [];
   const realError = console.error;
   console.error = (...a) => warnings.push(a.join(' '));
   try {
     return { html: ReactDOMServer.renderToStaticMarkup(el), warnings };
   } finally {
-    console.error = realError;
+    console.error = realError; globalThis.localStorage = priorStorage;
   }
 }
 
@@ -289,6 +294,9 @@ function harness({ elapsedMinutes = 0, failSaves = 0, draft = null, sessionProps
     Date.now = realNow;
   }
 
+  // Select through the shipping chooser, not a hook-cell shortcut.
+  const choice = flatten(tree).find(n => n.type === 'button' && n.props['aria-label'] === 'Focus');
+  if (choice) { choice.props.onClick(); renderOnce(); }
   const nodes = () => flatten(tree);
   const api = {
     get html() { return nodes().map(textOf).join(' '); },

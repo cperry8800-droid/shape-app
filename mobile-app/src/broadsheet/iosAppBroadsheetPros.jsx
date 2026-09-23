@@ -1,4 +1,5 @@
 import React from 'react';
+import { bsHrChart } from '../services/workoutExperience.mjs';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProHourLabel, bsProGapLabel, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget, bsProLeadVerdict } from '../services/proLedger.mjs';
@@ -271,6 +272,23 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
   const selected = sessions.find((session) => session.id === selectedId) || sessions[0];
   const setLogs = selected?.workout_set_logs || selected?.set_logs || [];
   const sensorSamples = selected?.workout_sensor_samples || selected?.sensor_samples || [];
+  const [hrDetail, setHrDetail] = useStateBSP({ id: null, state: 'idle', rows: [] });
+  useEffectBSP(() => {
+    let cancelled = false;
+    const id = selected?.id;
+    if (isNutri || !id || String(id).startsWith('demo-')) return undefined;
+    setHrDetail({ id, state: 'loading', rows: [] });
+    Promise.resolve().then(() => {
+      if (!window.ShapeWorkoutLogs?.listSensorSamples) throw new Error('Readings unavailable');
+      return window.ShapeWorkoutLogs.listSensorSamples(id);
+    }).then(result => {
+      if (!cancelled) setHrDetail({ id, state: 'ready', rows: result?.data || [] });
+    }).catch(() => { if (!cancelled) setHrDetail({ id, state: 'error', rows: [] }); });
+    return () => { cancelled = true; };
+  }, [selected?.id, isNutri]);
+  const hrRows = hrDetail.id === selected?.id && hrDetail.state === 'ready' ? hrDetail.rows : [];
+  const hrPaths = bsHrChart(hrRows, Date.parse(selected?.started_at), Date.parse(selected?.ended_at));
+  const hrSummary = selected?.summary?.heartRate;
   const reviewNotes = selected?.coach_workout_review_notes || selected?.review_notes || [];
   const completedSets = selected?.summary?.completedSets || setLogs.filter((entry) => entry.completed !== false).length;
   const avgSet = setLogs.length ? knownWorkoutAverage(setLogs, 'set_duration_seconds', 'setDurationSeconds') : selected?.summary?.avgSetSeconds ?? null;
@@ -553,6 +571,20 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
             </div>
           </div>
 
+          <section aria-label={tr('session:player.view.hrReview')} style={{ padding: `22px ${t.padX}px 0`, color: t.INK }}>
+            <h3 style={{ fontFamily: t.DISPLAY, fontSize: 22, margin: '0 0 10px' }}>{tr('session:player.view.hrReview')}</h3>
+            {hrSummary && <>
+              <p style={{ fontFamily: t.MONO, fontSize: 12 }}>{tr('session:player.view.hrSummary', { avg: hrSummary.avg, max: hrSummary.max })}</p>
+              <p style={{ color: t.INK70, fontSize: 12 }}>{tr('session:player.view.hrCoverage', { pct: hrSummary.coveragePercent, count: hrSummary.samples })}</p>
+            </>}
+            {hrPaths.length > 0 && <svg role="img" aria-label={tr('session:player.view.hrChart')} viewBox="-2 0 304 80" style={{ width: '100%', height: 110, overflow: 'visible' }}>
+              {hrPaths.map((points, i) => points.includes(' ')
+                ? <polyline key={i} points={points} fill="none" stroke={heat} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                : <circle key={i} cx={points.split(',')[0]} cy={points.split(',')[1]} r="2" fill={heat} />)}
+            </svg>}
+            {!String(selected?.id || '').startsWith('demo-') && <p role="status" style={{ fontSize: 12, color: t.INK70 }}>{hrDetail.id !== selected?.id || hrDetail.state === 'loading' ? tr('session:player.view.hrLoading') : hrDetail.state === 'error' ? tr('session:player.view.hrFailed') : !hrPaths.length ? tr('session:player.view.hrNone') : ''}</p>}
+          </section>
+
           {/* ── Watch samples — bare registers (eyebrow above figure); a pending
               sample renders — in t.INK50. ── */}
           <div style={{ padding: `22px ${t.padX}px 0` }}>
@@ -562,7 +594,7 @@ function BSWorkoutReviewPage({ role = 'trainer', onBack }) {
                 const pending = sample.value === 'pending' || sample.value == null;
                 return (
                   <div key={sample.id || index} style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.type || tr('coach:review.metricFallback', { defaultValue: 'metric' })).replace(/_/g, ' ')}</div>
+                    <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase' }}>{String(sample.metric || sample.sample_type || sample.type || tr('coach:review.metricFallback', { defaultValue: 'metric' })).replace(/_/g, ' ')}</div>
                     <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, color: pending ? t.INK50 : t.INK, letterSpacing: '-0.04em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                       {pending ? '—' : t.uMeasure(sample.value, sample.unit).value}{!pending && sample.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', color: t.INK50, textTransform: 'uppercase', marginLeft: 5 }}>{t.uMeasure(sample.value, sample.unit).unit}</span> : null}
                     </div>
