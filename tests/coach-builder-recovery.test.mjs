@@ -15,6 +15,9 @@ const {createRoot}=require('react-dom/client');globalThis.ReactDOM=require('reac
 globalThis.DashBuilder=require('../public/newdesign/dashBuilderCore.js');
 globalThis.ShapeWorkoutDocument=require('../public/newdesign/workoutDocument.js');
 globalThis.DashPill=({children})=>React.createElement('span',null,children);
+// The library's filter bar is its own module (dashFilterBar.jsx), read as globals at
+// render exactly as the hosts load it — the real module, not a stand-in.
+Object.assign(globalThis,await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashFilterBar.jsx',import.meta.url)),{appendExports:'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };'}));
 // The builder remembers which view a coach last had open through `dashData.jsx`'s
 // remembered-choice store, which this file does not load; the hook has its own suite
 // (tests/dashboard-remembered-choices.test.mjs). Stubbed as plain React state so recovery

@@ -246,6 +246,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/clients/[id]/goals', 'GET,POST'],
   ['/api/coach/grocery-lists', 'GET,POST,PATCH,DELETE'],
   ['/api/coach/plans', 'GET,POST,PATCH,DELETE'],
+  ['/api/coach/plans/usage', 'GET'],
   ['/api/coach/credentials', 'GET,POST'],
   ['/api/coach/credentials/document', 'POST'],
   ['/api/coach/review-note', 'POST'],

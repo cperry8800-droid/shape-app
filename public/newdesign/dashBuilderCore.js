@@ -5,7 +5,9 @@
 // Template document (stored in coach_plans.detail.builder):
 //   {
 //     version: n,                 // bumped on every saved edit of the template
-//     goalTag: 'cut'|'strength'|'hypertrophy'|'return-to-gym'|'5k-prep',
+//     goalTag: 'strength',        // LEGACY — every writer stamps 'strength' and no control
+//                                 // ever chose it, so nothing reads it (see programFacts)
+//     tags: ['cut', 'Postnatal'], // what the coach chose: GOAL_TAGS keys or their own words
 //     weeks: [ {
 //       deload: bool,
 //       days: [ {
@@ -396,10 +398,216 @@
     return out;
   }
 
+  // ── The library's filters ───────────────────────────────────────────────────
+  // ⚠ EVERY FILTER READS SOMETHING THE COACH ACTUALLY SET. The row this replaces
+  // filtered on `goalTag`, and nothing anywhere lets a coach choose that: `newProgram`
+  // writes "strength" and so does the importer (workoutDocument.js), so on a real
+  // library Cut, Hypertrophy, Return to gym and 5k prep matched nothing, ever — they
+  // only ever matched the demo. Everything below is derived from what the coach
+  // already built (the moves, the weeks, the publish state) or from `builder.tags`,
+  // which the builder's own tag picker writes.
+  // ⚠ `goalTag` IS DELIBERATELY NOT READ AS A TAG. Carrying it over would tag every
+  // program the coach has ever made "Strength" — the same fabrication in a new place.
+
+  // Tags a coach chooses: Shape's five goals plus their own words.
+  var TAG_MAX_LEN = 32, TAG_MAX = 12;
+  // A coach's own tag takes one of these, picked by a hash of its text, so a tag reads
+  // the same colour on every card and in every row with nothing stored. They sit in
+  // GOAL_TAGS' register (dark-paper colours); the chip mixes each with the paper's ink
+  // (dash.css `--sh-tag-ink-mix`) so its text clears AA on both papers.
+  var TAG_PALETTE = ["#e0884b", "#e05ea8", "#5e8ee0", "#a9c25a", "#c77dd6", "#c8a86e"];
+  // Keyed by a built-in's KEY and by its label, so "strength", "Strength" and
+  // "5K PREP" all resolve to the goal they name. Null-prototype: a tag is a string a
+  // coach types, and a plain object would answer for "constructor".
+  var _BUILTIN_TAG = (function () {
+    var m = Object.create(null);
+    for (var i = 0; i < GOAL_TAGS.length; i++) { m[GOAL_TAGS[i].key] = GOAL_TAGS[i]; m[GOAL_TAGS[i].label.toLowerCase()] = GOAL_TAGS[i]; }
+    return m;
+  })();
+  function tagText(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").trim(); }
+  // One stored spelling per tag: a built-in's KEY, or the coach's own words as they
+  // typed them (trimmed and capped). A label that names a built-in becomes that
+  // built-in rather than a look-alike of it.
+  function normalizeTag(s) {
+    if (typeof s !== "string") return null;
+    var t = tagText(s);
+    if (!t) return null;
+    var b = _BUILTIN_TAG[t.toLowerCase()];
+    if (b) return b.key;
+    return tagText(t.slice(0, TAG_MAX_LEN)) || null;
+  }
+  // `builder.tags` is client-written jsonb, so everything is checked on the way in:
+  // strings only, one copy per tag ignoring case, and never more than TAG_MAX.
+  function normalizeTags(raw) {
+    var out = [], seen = Object.create(null);
+    var list = Array.isArray(raw) ? raw : [];
+    for (var i = 0; i < list.length && out.length < TAG_MAX; i++) {
+      var t = normalizeTag(list[i]);
+      if (!t) continue;
+      var k = t.toLowerCase();
+      if (seen[k]) continue;
+      seen[k] = true;
+      out.push(t);
+    }
+    return out;
+  }
+  function tagInfo(t) {
+    var text = tagText(t);
+    var b = _BUILTIN_TAG[text.toLowerCase()];
+    if (b) return { key: b.key, label: b.label, c: b.c, builtin: true };
+    var lower = text.toLowerCase(), h = 0;
+    for (var i = 0; i < lower.length; i++) h = (h * 31 + lower.charCodeAt(i)) | 0;
+    return { key: "tag:" + lower, label: text, c: TAG_PALETTE[Math.abs(h) % TAG_PALETTE.length], builtin: false };
+  }
+  function programTags(template) {
+    var b = template && template.detail && template.detail.builder;
+    return normalizeTags(b && b.tags);
+  }
+  // Every tag of the coach's own, across their saved programs — derived, like their
+  // own moves, so a tag they stop using simply stops being offered.
+  function customTagsFromTemplates(templates) {
+    var seen = Object.create(null), out = [];
+    var list = templates || [];
+    for (var i = 0; i < list.length; i++) {
+      var tags = programTags(list[i]);
+      for (var j = 0; j < tags.length; j++) {
+        var info = tagInfo(tags[j]);
+        if (info.builtin || seen[info.key]) continue;
+        seen[info.key] = true;
+        out.push(info.label);
+      }
+    }
+    return out.sort(function (a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); });
+  }
+
+  // What a row trains and needs. The row's own descriptor wins; a row that carries none
+  // — every move a coach adds themselves, and every row the mobile editor writes — is
+  // recognised BY NAME from Shape's list, because the name is what identifies it there.
+  // A row that is neither stays unknown: it adds no focus, and it stops a program from
+  // being counted as needing no gym.
+  var _EXERCISE_BY_NAME = (function () { var m = Object.create(null); for (var i = 0; i < EXERCISES.length; i++) m[EXERCISES[i].name.toLowerCase()] = EXERCISES[i]; return m; })();
+  function rowKit(row) {
+    var lib = _EXERCISE_BY_NAME[tagText(row && row.name).toLowerCase()];
+    return {
+      muscle: (tagText(row && row.muscle) || (lib ? lib.muscle : "")).toLowerCase(),
+      equipment: (tagText(row && row.equipment) || (lib ? lib.equipment : "")).toLowerCase(),
+    };
+  }
+  function has(map, k) { return !!k && Object.prototype.hasOwnProperty.call(map, k); }
+  var REGION_OF = {
+    quads: "lower", hamstrings: "lower", glutes: "lower", calves: "lower", "posterior chain": "lower",
+    chest: "upper", shoulders: "upper", back: "upper", traps: "upper", biceps: "upper", triceps: "upper",
+    core: "core", conditioning: "conditioning", mobility: "mobility",
+  };
+  // "Home" is named, not inferred: the equipment a client can be expected to own.
+  var HOME_KIT = { bodyweight: 1, none: 1, band: 1, dumbbell: 1, kettlebell: 1, rope: 1, wheel: 1, box: 1 };
+  var BODYWEIGHT_KIT = { bodyweight: 1, none: 1 };
+  var BARBELL_KIT = { barbell: 1, "trap bar": 1 };
+  var MACHINE_KIT = { machine: 1, cable: 1 };
+  var CARDIO_KIT = { sled: 1, rower: 1, bike: 1 };
+
+  // Every row of a program. Guarded at every level for the reason customMovesFromTemplates
+  // gives: this runs inside the library render, where a throw is a blank page.
+  function programRows(builder) {
+    var out = [], weeks = (builder && Array.isArray(builder.weeks)) ? builder.weeks : [];
+    for (var w = 0; w < weeks.length; w++) {
+      var days = (weeks[w] && weeks[w].days) || [];
+      for (var d = 0; d < days.length; d++) {
+        var blocks = (days[d] && days[d].blocks) || [];
+        for (var bi = 0; bi < blocks.length; bi++) {
+          var rows = (blocks[bi] && blocks[bi].rows) || [];
+          for (var ri = 0; ri < rows.length; ri++) if (rows[ri]) out.push(rows[ri]);
+        }
+      }
+    }
+    return out;
+  }
+  function lengthBucket(weeks) { return weeks <= 1 ? "1" : weeks <= 4 ? "2-4" : weeks <= 8 ? "5-8" : "9+"; }
+  function daysBucket(n) { return n >= 6 ? "6+" : String(n); }
+
+  // The facts one program answers each filter with. `usage` is { clients, capped } when
+  // the library has read who is on each program, and null when it has not — which is
+  // not the same as "on nobody's calendar", so an unknown usage answers nothing.
+  function programFacts(template, usage) {
+    var t = template || {};
+    var detail = t.detail || {};
+    var b = detail.builder || {};
+    var weeks = Array.isArray(b.weeks) ? b.weeks : [];
+    var perWeek = weeks[0] && Array.isArray(weeks[0].days) ? weeks[0].days.length : 0;
+    var rows = programRows(b);
+    var regions = Object.create(null);
+    var home = rows.length > 0, bodyweight = rows.length > 0, barbell = false, machines = false, cardio = false;
+    for (var i = 0; i < rows.length; i++) {
+      var kit = rowKit(rows[i]);
+      if (has(REGION_OF, kit.muscle)) regions[REGION_OF[kit.muscle]] = true;
+      if (!has(HOME_KIT, kit.equipment)) home = false;
+      if (!has(BODYWEIGHT_KIT, kit.equipment)) bodyweight = false;
+      if (has(BARBELL_KIT, kit.equipment)) barbell = true;
+      if (has(MACHINE_KIT, kit.equipment)) machines = true;
+      if (has(CARDIO_KIT, kit.equipment)) cardio = true;
+    }
+    var focus = ["lower", "upper", "core", "conditioning", "mobility"].filter(function (k) { return regions[k]; });
+    if (regions.lower && regions.upper) focus.push("full");
+    var equipment = [];
+    if (home) equipment.push("home");
+    if (bodyweight) equipment.push("bodyweight");
+    if (barbell) equipment.push("barbell");
+    if (machines) equipment.push("machines");
+    if (cardio) equipment.push("cardio");
+    var tags = programTags(t).map(tagInfo);
+    var clients = usage && Number(usage.clients) > 0 ? Math.floor(Number(usage.clients)) : 0;
+    // ⚠ A CAPPED READ CAN ONLY UNDER-COUNT, so it may say "in use" and never "not in use".
+    var use = !usage ? [] : clients > 0 ? ["in-use"] : usage.capped ? [] : ["idle"];
+    return {
+      search: tagText(t.name).toLowerCase(),
+      keys: {
+        type: [detail.buildType === "workout" ? "single" : "program"],
+        length: weeks.length ? [lengthBucket(weeks.length)] : [],
+        days: perWeek ? [daysBucket(perWeek)] : [],
+        focus: focus,
+        equipment: equipment,
+        status: [t.published ? "published" : "draft"],
+        use: use,
+        tags: tags.map(function (x) { return x.key; }),
+      },
+      info: { weeks: weeks.length, perWeek: perWeek, moves: rows.length, focus: focus, equipment: equipment, tags: tags, clients: usage ? clients : null },
+    };
+  }
+
+  var FOCUS_LABELS = { lower: "Lower body", upper: "Upper body", full: "Full body", core: "Core", conditioning: "Conditioning", mobility: "Mobility" };
+  var EQUIPMENT_LABELS = { home: "Home", bodyweight: "Bodyweight only", barbell: "Barbell", machines: "Machines & cables", cardio: "Sled, rower or bike" };
+  // The filters, in the order the bar shows them. Tags are built per library (their
+  // options are the coach's own), so `programTagFacet` supplies that one.
+  var PROGRAM_FACETS = [
+    { key: "type", label: "Type", options: [{ key: "single", label: "Single day" }, { key: "program", label: "Program" }] },
+    { key: "length", label: "Length", options: [{ key: "1", label: "1 week" }, { key: "2-4", label: "2–4 weeks" }, { key: "5-8", label: "5–8 weeks" }, { key: "9+", label: "9+ weeks" }] },
+    { key: "days", label: "Days / week", help: "How many sessions the first week holds.",
+      options: [{ key: "1", label: "1 day" }, { key: "2", label: "2 days" }, { key: "3", label: "3 days" }, { key: "4", label: "4 days" }, { key: "5", label: "5 days" }, { key: "6+", label: "6–7 days" }] },
+    { key: "focus", label: "Focus", help: "The muscles the moves train. A move you added yourself has none recorded, so it adds nothing here.",
+      options: ["lower", "upper", "full", "core", "conditioning", "mobility"].map(function (k) { return { key: k, label: FOCUS_LABELS[k] }; }) },
+    { key: "equipment", label: "Equipment", help: "What the moves need. Home means nothing beyond bodyweight, bands, dumbbells, kettlebells, a jump rope, an ab wheel or a box — and a move you added yourself has no equipment recorded, so a program with one is never counted as Home.",
+      options: ["home", "bodyweight", "barbell", "machines", "cardio"].map(function (k) { return { key: k, label: EQUIPMENT_LABELS[k] }; }) },
+    { key: "status", label: "Status", options: [{ key: "published", label: "Published" }, { key: "draft", label: "Draft" }] },
+    { key: "use", label: "In use", help: "On a client’s calendar today or later.",
+      // Yes / No, so a chosen filter reads "In use · Yes" rather than naming itself twice.
+      options: [{ key: "in-use", label: "Yes" }, { key: "idle", label: "No" }] },
+  ];
+  // Shape's five goals always, then the coach's own tags from their library.
+  function programTagFacet(templates) {
+    var own = customTagsFromTemplates(templates).map(tagInfo);
+    return {
+      key: "tags", label: "Tags",
+      options: GOAL_TAGS.map(function (g) { return { key: g.key, label: g.label, c: g.c }; })
+        .concat(own.map(function (x) { return { key: x.key, label: x.label, c: x.c }; })),
+    };
+  }
+
   // ── Demo templates + performance (signed-out / API-down fallback) ─────────
   function demoTemplates() {
     var mk = function (name, goalTag, weeks) {
-      return { id: "demo-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: name, published: true, detail: { builder: { version: 3, goalTag: goalTag, weeks: weeks } } };
+      // The preview's programs carry the tag their names already promise, so the demo
+      // shows what the tag row does — on a real library every tag is one the coach chose.
+      return { id: "demo-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-"), name: name, published: true, detail: { builder: { version: 3, goalTag: goalTag, tags: [goalTag], weeks: weeks } } };
     };
     var row = function (name, muscle, equipment, sets, reps, loadType, load, tempo, rest, cue, group, prog) {
       // ⚠ THROUGH THE SAME MIGRATION THE STORED DOCUMENTS TAKE. These demo rows
@@ -551,5 +759,9 @@
     applyProgression: applyProgression, deloadWeek: deloadWeek,
     dayToClientCard: dayToClientCard, buildAssignmentRows: buildAssignmentRows,
     demoTemplates: demoTemplates, demoPerformance: demoPerformance,
+    TAG_MAX: TAG_MAX, TAG_MAX_LEN: TAG_MAX_LEN, TAG_PALETTE: TAG_PALETTE,
+    normalizeTag: normalizeTag, normalizeTags: normalizeTags, tagInfo: tagInfo, programTags: programTags,
+    customTagsFromTemplates: customTagsFromTemplates, rowKit: rowKit, programFacts: programFacts,
+    PROGRAM_FACETS: PROGRAM_FACETS, programTagFacet: programTagFacet,
   };
 });

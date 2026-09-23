@@ -9,7 +9,7 @@
 //
 // Load order: pageShell → trainerDashboard → coachNav → clientNav →
 // dashSignals → dashData → dashToday → dashClient (DashMealLedgerCard) →
-// dashMealCore → this file.
+// dashMealCore → dashFilterBar (the library's filters) → this file.
 
 const DMB_INK50 = "var(--sh-ink2, #a09b94)";
 const DMB_MONO = "'JetBrains Mono', monospace";
@@ -588,7 +588,9 @@ function DmbBuilder({ template, clients, queue, lifecycle, live, onBack, onSaved
   const warnings = day ? DashMeals.checkConstraints(doc, resolved) : [];
   const phase = dmbPhase(doc.goalPhase);
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved edits…" : saveState === "error" ? "Save failed — retrying on next edit" : live ? "Saved" : "Draft saved locally";
-  const EXCLUSION_TAGS = ["dairy", "gluten", "nuts", "shellfish", "fish", "egg", "soy"];
+  // One list with the library's Diet filter (DashMeals.ALLERGENS), so a plan built to
+  // exclude an allergen and a filter asking for plans without it name the same ones.
+  const EXCLUSION_TAGS = DashMeals.ALLERGENS;
 
   return (
     <div>
@@ -752,38 +754,100 @@ function DmbLifecyclePanel({ lifecycle, onWritePlan }) {
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
+// The facts line on a library card, in the filters' own words so a nutritionist can see
+// why a card matched — and what the page could NOT check, said as such.
+function dmbCardFacts(info) {
+  const parts = [];
+  const d = info.diet, p = info.prep;
+  // "None of the N allergens Shape checks", never a bare "allergen-free": sesame, for one, is
+  // not on the list, and the count is read from the list so it cannot drift from it.
+  if (d.known) parts.push(d.contains.length ? "Contains " + d.contains.join(", ") : "None of the " + DashMeals.ALLERGENS.length + " allergens Shape checks");
+  else parts.push(d.contains.length ? "Contains " + d.contains.join(", ") + " · the rest not checked" : "Allergens not checked");
+  if (p.known && p.max != null) parts.push("Longest meal " + p.max + " min");
+  else if (p.max != null && p.max > 30) parts.push("Longest meal at least " + p.max + " min");
+  else parts.push("Prep time not recorded on every meal");
+  if (info.dayTypes.length) parts.push(info.dayTypes.map((k) => (k === "rest" ? "Rest-day" : "Travel-day")).join(" & ") + " version");
+  return parts.join(" · ");
+}
+
 function NutritionistPlansPage() {
   const { clients, queue, today: live, source } = useDashboard("nutritionist");
   const [templates, setTemplates] = React.useState(null);
   const [view, setView] = React.useState(null); // null = library, else { template, assignClientId? }
-  const [phaseFilter, setPhaseFilter] = React.useState("all");
+  const [filters, setFilters] = React.useState(DFB_EMPTY);
   const [assignFor, setAssignFor] = React.useState(null); // { template, clientId? }
+  const [error, setError] = React.useState("");
+  const [appOnly, setAppOnly] = React.useState(0);
+  const [refresh, setRefresh] = React.useState(0);
+  const libraryOwner = React.useRef(null);
+  // Whether the library has answered once. "+ New meal plan" works while it is still
+  // loading, and the first answer is not an account CHANGE — treating it as one closed the
+  // builder under the coach's hands and took what they had typed with it.
+  const resolved = React.useRef(false);
   const isLive = !!live;
   const lifecycle = React.useMemo(() => DashMeals.buildPlanLifecycle(clients || [], queue || []), [clients, queue]);
 
+  // ⚠ SHAPE'S EXAMPLE PLANS ARE THE PREVIEW'S, NEVER A SIGNED-IN LIBRARY'S. This page used
+  // to fall back to them whenever the read came back empty or failed — so a nutritionist
+  // with no website plans yet, or one who builds only in the app, was shown three plans
+  // they never wrote as their own, and opening one saved it into their account as theirs.
+  // Now: the preview gets the examples; an empty library is empty; a failed read says so
+  // and offers Retry. Mirrors the workout library (dashBuilder.jsx).
   React.useEffect(() => {
     let on = true;
     (async () => {
       try {
         const res = await fetch("/api/coach/plans?kind=meal_plan", { credentials: "same-origin" });
-        if (!res.ok) throw new Error();
-        const d = await res.json();
-        const rows = (d.plans || d || []).filter((p) => p && p.detail && p.detail.mealBuilder);
-        if (on) setTemplates(rows.length ? rows : DashMeals.demoMealTemplates());
-      } catch (e) { if (on) setTemplates(DashMeals.demoMealTemplates()); }
+        const d = await res.json().catch(() => null);
+        if (!res.ok || !d) throw new Error((d && d.error) || "Could not load your meal plans. Check your connection and retry.");
+        const all = Array.isArray(d.plans) ? d.plans : [];
+        const rows = all.filter((p) => p && p.detail && p.detail.mealBuilder);
+        if (!on) return;
+        // A different account is a different library: nothing from the last one — the
+        // open plan, the assign sheet, the filters — may carry across.
+        const owner = d.ownerId || null;
+        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); }
+        resolved.current = true;
+        libraryOwner.current = owner;
+        setTemplates(rows);
+        // Plans written in the app have no website builder document, so this page cannot
+        // open them — it says how many rather than pretending they do not exist.
+        setAppOnly(all.length - rows.length);
+        setError("");
+      } catch (e) {
+        if (!on) return;
+        // Until the dashboard knows whether anyone is signed in, a failure means nothing
+        // yet: stay on Loading rather than flash an error at a visitor about to see the preview.
+        if (source == null) return;
+        if (source === "demo" && !libraryOwner.current) { resolved.current = true; setTemplates(DashMeals.demoMealTemplates()); setAppOnly(0); setError(""); }
+        else { setError(e.message || "Could not load your meal plans. Check your connection and retry."); setTemplates(null); }
+      }
     })();
     return () => { on = false; };
+  }, [source, refresh]);
+  // A plan saved on the phone shows up here without a reload.
+  React.useEffect(() => {
+    const update = () => { if (!document.hidden) setRefresh((n) => n + 1); };
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => { window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
   }, []);
 
-  const list = (templates || []).filter((t) => phaseFilter === "all" || t.detail.mealBuilder.goalPhase === phaseFilter);
+  // Every filter reads the plan's own facts (DashMeals.mealPlanFacts).
+  const phaseFacet = React.useMemo(() => DashMeals.mealPhaseFacet(), []);
+  const items = React.useMemo(() => (templates || []).map((t) => ({ t, ...DashMeals.mealPlanFacts(t) })), [templates]);
+  const run = dfbRun(items, [...DashMeals.MEAL_FACETS, phaseFacet], filters);
   // Every dish this nutritionist has written that Shape does not list.
   const customFoods = DashMeals.customFoodsFromTemplates(templates || []);
-  // "Write plan" from the lifecycle: pre-fill the assign modal with that
-  // client on the matching-phase template (else the first one).
+  const newPlan = (phaseKey) => ({ id: null, name: "New meal plan", detail: { mealBuilder: DashMeals.newPlan("New meal plan", phaseKey || "maintain") } });
+  // "Write plan" from the lifecycle: pre-fill the assign modal with that client on the
+  // matching-phase template (else the first one). With no template yet it opens a new plan
+  // in the client's phase — a button that does nothing on an empty library is a dead one.
   const writePlanFor = (clientId) => {
     const c = (clients || []).find((x) => x.profile.id === clientId);
     const tpl = (templates || []).find((t) => c && c.goalPhase && t.detail.mealBuilder.goalPhase === c.goalPhase) || (templates || [])[0];
     if (tpl) setAssignFor({ template: tpl, clientId });
+    else setView({ template: newPlan(c && c.goalPhase) });
   };
 
   return (
@@ -805,7 +869,7 @@ function NutritionistPlansPage() {
             clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
             assignClientId={view.assignClientId}
             customFoods={customFoods}
-            onBack={() => setView(null)}
+            onBack={() => { setView(null); setRefresh((n) => n + 1); }}
             onSaved={({ id, name, doc }) => {
               setTemplates((prev) => (prev || []).map((t) => (t === view.template || t.id === id ? { ...t, id: id || t.id, name, detail: { ...(t.detail || {}), mealBuilder: doc } } : t)));
             }}
@@ -814,15 +878,24 @@ function NutritionistPlansPage() {
           <React.Fragment>
             {/* Zone 1 — Library */}
             <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-              {[["all", "All"]].concat(DashMeals.GOAL_PHASES.map((g) => [g.key, g.label])).map(([k, l]) => (
-                <button key={k} onClick={() => setPhaseFilter(k)} style={{ ...dmbBtn(false), color: phaseFilter === k ? DMB_GOLD : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", borderColor: phaseFilter === k ? "rgba(var(--sh-gold-rgb, 216,162,58),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>{l}</button>
-              ))}
-              <div style={{ flex: 1 }} />
-              <button onClick={() => setView({ template: { id: null, name: "New meal plan", detail: { mealBuilder: DashMeals.newPlan("New meal plan", "maintain") } } })} style={dmbBtn(true)}>+ New meal plan</button>
+              <button onClick={() => setView({ template: newPlan("maintain") })} style={dmbBtn(true)}>+ New meal plan</button>
+              <button onClick={() => setRefresh((n) => n + 1)} style={dmbBtn(false)}>Refresh</button>
             </div>
+            {error && <p role="alert" style={{ fontSize: 13.5, color: "var(--sh-ink, #f2ede4)" }}>{error} <button onClick={() => setRefresh((n) => n + 1)} style={dmbBtn(false)}>Retry</button></p>}
+            {templates == null && !error && <p role="status" style={{ color: DMB_INK50, fontSize: 13 }}>Loading plans…</p>}
+            {templates && templates.length === 0 && <p style={{ fontSize: 13.5, color: DMB_INK50 }}>No meal plans on the website yet. Build one to start your library.</p>}
+            {appOnly > 0 && <p style={{ fontFamily: DMB_MONO, fontSize: 9, lineHeight: 1.6, letterSpacing: "0.06em", color: DMB_INK50, margin: "0 0 14px" }}>
+              {appOnly === 1 ? "1 meal plan you wrote in the app isn’t listed here" : appOnly + " meal plans you wrote in the app aren’t listed here"} — the website builder can’t open {appOnly === 1 ? "it" : "them"} yet. You’ll find {appOnly === 1 ? "it" : "them"} in the app.
+            </p>}
+            {!!(templates && templates.length) && <>
+              {/* ⚠ EVERY FILTER SAYS WHAT IT WOULD LEAVE. Options inside one filter widen it,
+                  two filters narrow each other, and the count beside Clear is the result. */}
+              <DashFilterBar facets={DashMeals.MEAL_FACETS} run={run} state={filters} setState={setFilters} one="plan" many="plans" placeholder="Find a plan…" />
+              <DashTagChips facet={phaseFacet} run={run} onToggle={(k) => setFilters((s) => dfbToggle(s, "phase", k))} onClear={() => setFilters((s) => dfbClearFacet(s, "phase"))} />
+            </>}
+            {!!(templates && templates.length) && !run.shown.length && <p role="status" style={{ fontSize: 13.5, color: DMB_INK50 }}>No plans match these filters. <button onClick={() => setFilters(DFB_EMPTY)} style={dmbBtn(false)}>Clear filters</button></p>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14, marginBottom: 22 }}>
-              {templates == null && <div style={{ color: DMB_INK50, fontSize: 13 }}>Loading templates…</div>}
-              {list.map((t) => {
+              {run.shown.map(({ t, info }) => {
                 const b = t.detail.mealBuilder;
                 const ph = dmbPhase(b.goalPhase);
                 const variants = b.days.reduce((s, d) => s + Object.keys(d.variants || {}).length, 0);
@@ -834,6 +907,7 @@ function NutritionistPlansPage() {
                     </div>
                     <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 21, letterSpacing: "-0.015em", margin: "7px 0 3px" }}>{t.name}</div>
                     <div style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_INK50 }}>{b.targets.kcal} kcal · {b.targets.p}P · {b.days.length}-day rotation{variants ? " · " + variants + " variant" + (variants === 1 ? "" : "s") : ""}</div>
+                    <div style={{ fontFamily: DMB_MONO, fontSize: 8.5, lineHeight: 1.6, color: DMB_INK50, marginTop: 6 }}>{dmbCardFacts(info)}</div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                       <button onClick={() => setAssignFor({ template: t })} style={dmbBtn(true)}>Assign to client</button>
                       <button onClick={() => setView({ template: t })} style={dmbBtn(false)}>Edit</button>

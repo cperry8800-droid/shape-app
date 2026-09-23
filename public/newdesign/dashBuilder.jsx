@@ -9,7 +9,7 @@
 //
 // Load order: pageShell → trainerDashboard → coachNav → dashSignals →
 // dashData → dashToday → dashClient (DashWorkoutCard) → dashBuilderCore →
-// this file.
+// dashFilterBar (the library's filters) → this file.
 
 // ⚠ THE BUILDER IS THE CONCEPT BOARD'S LIGHT PAPER, NOT THE DASHBOARD'S DARK BROADSHEET.
 // The round-one concepts kept the dark newspaper chrome and the tree-beside-editor layout
@@ -45,6 +45,11 @@ function dbuBtn(primary, c) {
 }
 // `.fld` and `.lbl`.
 const dbuField = { boxSizing: "border-box", display: "flex", alignItems: "center", height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid " + DBU_LINE2, background: DBU_WH, fontFamily: DBU_BODY, fontSize: 14, color: DBU_INK, outline: "none" };
+// ⚠ WHILE AN IME IS COMPOSING, ITS KEYSTROKES BELONG TO IT. The Enter that confirms a
+// candidate and the Escape that cancels one are the IME's, not the control's. keyCode 229
+// is Safari's form: WebKit ends the composition BEFORE the keydown for the Enter that
+// confirms it, so `isComposing` already reads false there.
+const dbuImeComposing = (e) => !!(e && (e.isComposing || e.keyCode === 229));
 // The row's secondary controls: a step quieter than dbuBtn, still past the floor.
 const dbuRowBtn = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 32, height: 32, padding: "0 10px", borderRadius: 7, border: "1px solid " + DBU_LINE2, background: DBU_WH, color: DBU_INK, fontFamily: DBU_BODY, fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
 const dbuLabel = { fontFamily: DBU_BODY, fontSize: 12.5, color: DBU_INK2, fontWeight: 600, marginBottom: 5, display: "block" };
@@ -66,8 +71,85 @@ function dbuLibBtn(primary) {
   return { ...dbuBtn(primary), gap: 6, height: 36, padding: "0 13px", borderRadius: 8, fontSize: 13 };
 }
 
-function dbuGoalTag(key) {
-  return DashBuilder.GOAL_TAGS.find((g) => g.key === key) || DashBuilder.GOAL_TAGS[1];
+// ── Tags ─────────────────────────────────────────────────────────────────────
+// ⚠ THE HEADER USED TO SAY "STRENGTH" ON EVERY PROGRAM, because `newProgram` and the
+// importer both stamp goalTag:'strength' and nothing let a coach change it. This is
+// that control: Shape's five goals plus the coach's own words, written to `doc.tags`
+// and saved with the program like any other edit. The library files programs under
+// these, and its tag row offers every tag the coach has used anywhere.
+function DbuTagPicker({ tags, customTags, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const [text, setText] = React.useState("");
+  const wrap = React.useRef(null), toggleBtn = React.useRef(null), anchor = React.useRef(null), panel = React.useRef(null);
+  const shift = useDfbPopShift(open, anchor, panel);
+  const id = React.useId();
+  const current = DashBuilder.normalizeTags(tags);
+  const keyOf = (t) => DashBuilder.tagInfo(t).key;
+  const has = (t) => current.some((x) => keyOf(x) === keyOf(t));
+  const full = current.length >= DashBuilder.TAG_MAX;
+  const write = (next) => onChange(DashBuilder.normalizeTags(next));
+  const toggle = (t) => { if (has(t)) write(current.filter((x) => keyOf(x) !== keyOf(t))); else if (!full) write([...current, t]); };
+  const typed = DashBuilder.normalizeTag(text);
+  const add = () => { if (!typed) return; if (!has(typed) && !full) write([...current, typed]); if (has(typed) || !full) setText(""); };
+  // Every tag of the coach's own: the ones on their other programs, and this one's.
+  const own = [...new Map([...(customTags || []), ...current.filter((t) => !DashBuilder.tagInfo(t).builtin)].map((t) => [keyOf(t), t])).values()];
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const down = (e) => { if (wrap.current && !wrap.current.contains(e.target)) setOpen(false); };
+    const key = (e) => { if (dbuImeComposing(e)) return; if (e.key === "Escape") { setOpen(false); if (toggleBtn.current) toggleBtn.current.focus(); } };
+    document.addEventListener("mousedown", down);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
+  }, [open]);
+  // The same menu contract as DashFacetMenu: the button names the panel it opens, and
+  // the keyboard lands on the first choice it can use rather than back at the page.
+  React.useEffect(() => {
+    if (!open || !panel.current) return;
+    const first = panel.current.querySelector("input:not([aria-disabled='true']), button");
+    if (first) first.focus();
+  }, [open]);
+  const row = (t) => {
+    const info = DashBuilder.tagInfo(t), on = has(t), dead = !on && full;
+    return (
+      <label key={info.key} className={"dash-facet-opt" + (dead ? " is-zero" : "")}>
+        <input type="checkbox" checked={on} aria-disabled={dead ? "true" : undefined} onChange={() => { if (!dead) toggle(t); }} />
+        <span className="dash-facet-l">{info.label}</span>
+      </label>
+    );
+  };
+  return (
+    <span ref={wrap} style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+      {current.map((t) => {
+        const info = DashBuilder.tagInfo(t);
+        return (
+          <span key={info.key} className="dash-chip dash-chip--sm dash-chip--menu" style={{ "--c": info.c }}>
+            <span className="dash-chip-main">{info.label}</span>
+            <button type="button" className="dash-chip-x" aria-label={"Remove the " + info.label + " tag"} onClick={() => toggle(t)}>×</button>
+          </span>
+        );
+      })}
+      <span ref={anchor} className="dash-facet">
+        <button ref={toggleBtn} type="button" className="dash-chip dash-chip--sm" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((o) => !o)}>
+          {current.length ? "＋ Tag" : "＋ Add a tag"}
+        </button>
+        {open && (
+          <div ref={panel} id={id} className="dash-facet-pop" style={shift ? { left: -shift } : undefined} role="group" aria-label="Tags for this program">
+            <div className="dash-facet-h">Shape’s goals</div>
+            {DashBuilder.GOAL_TAGS.map((g) => row(g.key))}
+            {!!own.length && <div className="dash-facet-h" style={{ marginTop: 10 }}>Your tags</div>}
+            {own.map(row)}
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              <input className="dash-tag-new" value={text} maxLength={DashBuilder.TAG_MAX_LEN} placeholder="New tag" aria-label="New tag"
+                onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (dbuImeComposing(e.nativeEvent)) return; if (e.key === "Enter") { e.preventDefault(); add(); } }}
+                style={{ ...dbuField, height: 36, flex: 1, minWidth: 0, fontSize: 13 }} />
+              <button type="button" style={dbuLibBtn(false)} disabled={!typed || (full && !has(typed))} onClick={add}>Add</button>
+            </div>
+            {full && <p className="dash-facet-note">A program can carry {DashBuilder.TAG_MAX} tags — remove one to add another.</p>}
+          </div>
+        )}
+      </span>
+    </span>
+  );
 }
 
 // ── Dates ────────────────────────────────────────────────────────────────────
@@ -1120,7 +1202,7 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
   );
 }
 
-function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, onBack, onSaved }) {
+function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
@@ -1418,7 +1500,7 @@ function DbuBuilder({ template, clients, queue, live, playlists, ownerId, clips,
               onFocus={(e) => { e.target.style.borderBottomColor = DBU_LINE2; }}
               onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
             <div className="meta">
-              <span className="chip rust">{dbuGoalTag(doc.goalTag).label}</span>
+              <DbuTagPicker tags={doc.tags} customTags={customTags} onChange={(tags) => setDoc({ ...doc, tags })} />
               <span className="chip">
                 Starts
                 <input type="date" aria-label="Reference start Monday the dates on this page are drawn for"
@@ -1594,14 +1676,49 @@ function DbuPerformance({ template, live }) {
 }
 
 // ── The page ─────────────────────────────────────────────────────────────────
+// The facts line on a library card: what the program trains and what it needs, in the
+// filters' own words so a coach can see why a card matched. "Full body" stands in for
+// lower + upper, and "Bodyweight only" for Home, which it implies.
+function dbuFacetLabel(facetKey, optionKey) {
+  const f = DashBuilder.PROGRAM_FACETS.find((x) => x.key === facetKey);
+  const o = f && f.options.find((x) => x.key === optionKey);
+  return o ? o.label : optionKey;
+}
+function dbuCardFacts(info) {
+  const focus = info.focus.includes("full") ? ["full", ...info.focus.filter((k) => k !== "lower" && k !== "upper" && k !== "full")] : info.focus;
+  const kit = info.equipment.includes("bodyweight") ? info.equipment.filter((k) => k !== "home") : info.equipment;
+  return [...focus.map((k) => dbuFacetLabel("focus", k)), ...kit.map((k) => dbuFacetLabel("equipment", k))].join(" · ");
+}
+
 function TrainerProgramsPage() {
   const {clients,queue,today:live,source}=useDashboard('trainer');
   const [templates,setTemplates]=React.useState(null),[view,setView]=React.useState(null);
-  const [tagFilter,setTagFilter]=React.useState('all'),[error,setError]=React.useState('');
+  const [filters,setFilters]=React.useState(DFB_EMPTY),[error,setError]=React.useState('');
   const [ownerId,setOwnerId]=React.useState(null),[refresh,setRefresh]=React.useState(0);
   const libraryOwner = React.useRef(null);
+  // Whether the library has answered once. "＋ Program" works while it is still loading,
+  // and the first answer is not an account CHANGE: treating it as one (null → this coach)
+  // closed the builder under the coach's hands. The meal library carries the same flag.
+  const resolved = React.useRef(false);
   const [playlists,setPlaylists]=React.useState([]),[assignFor,setAssignFor]=React.useState(null),[updateFor,setUpdateFor]=React.useState(null);
   const [recoveries,setRecoveries]=React.useState([]);
+  // ⚠ WHO IS ON EACH PROGRAM IS ITS OWN READ, and an unread one is not "nobody". Until
+  // it lands (and in the preview, where no program is on anyone's calendar) the In use
+  // filter says why it cannot answer instead of offering an empty "No"; a failed
+  // REFRESH keeps the reading the page already had, because a stale count is still a
+  // count and a blank is a claim.
+  const [usage,setUsage]=React.useState({state:'idle'});
+  const usageRead=React.useRef(0);
+  const loadUsage=React.useCallback(async()=>{
+    const read=++usageRead.current;
+    setUsage(u=>u.state==='ready'?u:{state:'loading'});
+    try{
+      const res=await fetch('/api/coach/plans/usage?today='+dbuISO(new Date()),{credentials:'same-origin'});
+      const data=await res.json().catch(()=>null);
+      if(!res.ok || !data || !data.usage || typeof data.usage!=='object')throw new Error('usage');
+      if(read===usageRead.current)setUsage({state:'ready',map:data.usage,capped:!!data.capped});
+    }catch(e){if(read===usageRead.current)setUsage(u=>u.state==='ready'?u:{state:'error'});}
+  },[]);
   const isLive=!!ownerId;
   React.useEffect(()=>{
     let on=true;
@@ -1610,18 +1727,42 @@ function TrainerProgramsPage() {
         const res=await fetch('/api/coach/plans?kind=program',{credentials:'same-origin'});
         const data=await res.json().catch(()=>null);
         if(!res.ok || !data)throw new Error(data?.error || 'Could not load your workouts. Check your connection and retry.');
-        if(on){if(libraryOwner.current!==data.ownerId){setView(null);setAssignFor(null);setUpdateFor(null);}libraryOwner.current=data.ownerId;setOwnerId(data.ownerId);setTemplates((data.plans||[]).map(ShapeWorkoutDocument.normalizeWorkoutPlan));setError('');setRecoveries(Object.entries(dbuReadDrafts(data.ownerId)));}
-      }catch(e){if(on){if(source==='demo' && !libraryOwner.current){setTemplates(DashBuilder.demoTemplates());setRecoveries(Object.entries(dbuReadDrafts(null)));setError('');}else{setError(e.message || 'Could not load your workouts. Check your connection and retry.');setTemplates(null);}}}
+        if(on){
+          // A different account is a different library: nothing from the last one — the
+          // open program, the filters, who was on what — may carry across.
+          if(resolved.current&&libraryOwner.current!==data.ownerId){setView(null);setAssignFor(null);setUpdateFor(null);setFilters(DFB_EMPTY);usageRead.current++;setUsage({state:'idle'});}
+          resolved.current=true;libraryOwner.current=data.ownerId;setOwnerId(data.ownerId);setTemplates((data.plans||[]).map(ShapeWorkoutDocument.normalizeWorkoutPlan));setError('');setRecoveries(Object.entries(dbuReadDrafts(data.ownerId)));
+          if(data.ownerId)loadUsage();
+        }
+      // Until the dashboard knows whether anyone is signed in (`source` still null), a
+      // failed read means nothing yet: stay on Loading instead of flashing an error at a
+      // visitor who is a moment from the preview.
+      }catch(e){if(on&&source!=null){if(source==='demo' && !libraryOwner.current){resolved.current=true;setTemplates(DashBuilder.demoTemplates());setRecoveries(Object.entries(dbuReadDrafts(null)));setError('');}else{setError(e.message || 'Could not load your workouts. Check your connection and retry.');setTemplates(null);}}}
       try{const res=await fetch('/api/coach/soundtracks',{credentials:'same-origin'});if(!res.ok)return;const data=await res.json();if(on)setPlaylists((data.soundtracks||data.playlists||[]).map(x=>({name:x.name,meta:x.track_count?x.track_count+' tracks':''})));}catch(e){}
     })();
     return()=>{on=false;};
   },[source,refresh]);
   React.useEffect(()=>{const update=()=>{if(!document.hidden)setRefresh(n=>n+1);};window.addEventListener('focus',update);document.addEventListener('visibilitychange',update);return()=>{window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);};},[]);
-  const list=(templates||[]).filter(t=>tagFilter==='all'||t.detail.builder.goalTag===tagFilter);
+  // Every filter reads the program's own facts (DashBuilder.programFacts); the tag row's
+  // options are Shape's goals plus every tag this coach has used.
+  const tagFacet=React.useMemo(()=>DashBuilder.programTagFacet(templates||[]),[templates]);
+  const items=React.useMemo(()=>(templates||[]).map(t=>{
+    const entry=usage.state==='ready' && Object.prototype.hasOwnProperty.call(usage.map,t.id) ? usage.map[t.id] : null;
+    return {t,...DashBuilder.programFacts(t,usage.state==='ready'?{clients:entry?Number(entry.clients)||0:0,capped:usage.capped}:null)};
+  }),[templates,usage]);
+  const useNote=usage.state==='ready'?null
+    :usage.state==='error'?<>Couldn’t read who is on each program just now.<br/><button type="button" style={dbuLibBtn(false)} onClick={loadUsage}>Retry</button></>
+    :isLive?'Checking who is on each program…':'Live only — in the preview no program is on anyone’s calendar.';
+  // ⚠ THE COUNT RUNS ON THE FACETS THE BAR SHOWS. A capped read drops In use · No from
+  // the bar; counting against the unpruned list would keep a No chosen before
+  // the cap narrowing the library to nothing, with no chip left on screen to undo it.
+  const barFacets=DashBuilder.PROGRAM_FACETS.map(f=>f.key==='use'&&usage.state==='ready'&&usage.capped?{...f,help:f.help+' There were too many upcoming sessions to read them all, so this can only answer Yes — a program without it may still be on someone’s calendar.',options:f.options.filter(o=>o.key!=='idle')}:f);
+  const run=dfbRun(items,[...barFacets,tagFacet],filters);
   const days=(templates||[]).flatMap(t=>t.detail.builder.weeks.flatMap(w=>w.days.map(day=>({name:t.name+' · '+day.name,day}))));
   // Every move this coach has written that Shape does not list — derived from
   // their own saved programs, so the picker can offer it back with no store.
   const customMoves=DashBuilder.customMovesFromTemplates(templates||[]);
+  const customTags=DashBuilder.customTagsFromTemplates(templates||[]);
   const clips=[...new Map((templates||[]).flatMap(t=>[
     ...(t.detail.media||[]).filter(m=>m.type==='video').map(m=>({name:m.name||t.name,url:ShapeWorkoutDocument.videoUrl(m.url)})),
     ...t.detail.builder.weeks.flatMap(w=>w.days.flatMap(d=>d.blocks.flatMap(b=>b.rows.filter(r=>r.video).map(r=>({name:r.name,url:ShapeWorkoutDocument.videoUrl(r.video)}))))),
@@ -1632,36 +1773,47 @@ function TrainerProgramsPage() {
     {source==='demo'&&<DashDemoBand/>}
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={live?{label:'MONTHLY · NET',amount:live.kpis.monthlyNetCents!=null?dashMoney(live.kpis.monthlyNetCents):'—',sub:live.kpis.activeClients+' active clients'}:trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
-      {view?<DbuBuilder key={view.id||view.name} template={view} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+      {view?<DbuBuilder key={view.id||view.name} template={view} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
         <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:14}}><button style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button><button style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button><button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Refresh</button></div>
         {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
         {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
-        {/* Filters are a quieter register than the actions above them: a row of six
-            solid buttons read as six things to do. The chosen one is the only one
-            that fills. */}
-        <div style={{display:'flex',gap:7,flexWrap:'wrap',marginBottom:16}}>{[['all','All'],...DashBuilder.GOAL_TAGS.map(g=>[g.key,g.label])].map(([k,l])=><button key={k} aria-pressed={tagFilter===k} onClick={()=>setTagFilter(k)} style={{...dbuLibBtn(false),height:32,padding:'0 12px',fontSize:12.5,borderRadius:99,...(tagFilter===k?{background:'rgba(var(--sh-accent-rgb, 46,224,196),0.13)',borderColor:'rgba(var(--sh-accent-rgb, 46,224,196),0.5)',color:DBU_TEAL}:{color:DBU_INK2})}}>{l}</button>)}</div>
         {templates===null&&!error&&<p role="status">Loading workouts…</p>}
         {templates?.length===0&&<p>No workouts yet. Create a single day or program to start your library.</p>}
+        {!!templates?.length&&<>
+          {/* ⚠ EVERY FILTER SAYS WHAT IT WOULD LEAVE. Options inside one filter widen it,
+              two filters narrow each other, and the count beside Clear is the result. */}
+          <DashFilterBar facets={barFacets} run={run} state={filters} setState={setFilters} one="program" many="programs" placeholder="Find a program…" notes={{use:useNote}}/>
+          <DashTagChips facet={tagFacet} run={run} onToggle={k=>setFilters(s=>dfbToggle(s,'tags',k))} onClear={()=>setFilters(s=>dfbClearFacet(s,'tags'))}/>
+          {!customTags.length&&!items.some(x=>x.keys.tags.length)&&<p style={{...dbuLibMeta,fontSize:9,color:DBU_INK2,margin:'-8px 0 16px'}}>Tag a program under its name in the builder to file it here.</p>}
+        </>}
+        {!!templates?.length&&!run.shown.length&&<p role="status" style={{fontSize:14,color:DBU_INK2}}>No programs match these filters. <button type="button" style={dbuLibBtn(false)} onClick={()=>setFilters(DFB_EMPTY)}>Clear filters</button></p>}
         {/* ⚠ ONE HIERARCHY PER CARD, AND ONE ACTION ROW. The four buttons were all the
             same weight and ran 119 / 79 / 266 / 98px wide, so on a 359px card they
             dealt themselves into two or three ragged rows of white pills — which is
             most of what reads as clutter. "Update future assignments" is the one that
             blows the row out AND the rarest thing a coach does here, so it drops to a
             quiet line of its own and the three everyday actions sit in one even row. */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(290px,100%),1fr))',gap:14}}>{list.map(t=>{
-            const b=t.detail.builder;
-            const weeks=b.weeks.length, days=b.weeks.reduce((n,w)=>n+w.days.length,0);
+          {/* auto-FILL, not auto-fit: a filter that leaves one program would otherwise
+              stretch its card across the whole library. */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(290px,100%),1fr))',gap:14}}>{run.shown.map(({t,info})=>{
+            const facts=dbuCardFacts(info);
+            const inUse=info.clients!=null&&info.clients>0;
             return <div key={t.id} className="dash-plate" style={{'--dac':DBU_RUST,display:'flex',flexDirection:'column',gap:0}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9}}>
                 <span style={{...dbuLibMeta,color:DBU_INK2}}>{t.detail.buildType==='workout'?'Single day':'Program'}</span>
-                <span style={{marginLeft:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',padding:'3px 8px',borderRadius:99,
+                {inUse&&<span style={{marginLeft:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',color:DBU_TEAL}}>In use · {info.clients}{usage.capped?'+':''} {info.clients===1&&!usage.capped?'client':'clients'}</span>}
+                <span style={{marginLeft:inUse?0:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',padding:'3px 8px',borderRadius:99,
                   ...(t.published
                     ? {color:DBU_TEAL,background:'rgba(var(--sh-accent-rgb, 46,224,196),0.12)',border:'1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)'}
                     : {color:DBU_INK2,background:DBU_REST,border:'1px solid '+DBU_LINE})}}>{t.published?'Published':'Draft'}</span>
               </div>
               <h2 style={{fontFamily:"var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)",fontSize:23,fontWeight:600,lineHeight:1.15,margin:'0 0 6px',color:'var(--sh-ink, #f2ede4)'}}>{t.name}</h2>
               {/* It read "1 weeks · 1 days" on every single-week workout. */}
-              <p style={{...dbuLibMeta,fontSize:10,color:DBU_INK2,margin:'0 0 14px'}}>{weeks} {weeks===1?'week':'weeks'} · {days} {days===1?'day':'days'}</p>
+              <p style={{...dbuLibMeta,fontSize:10,color:DBU_INK2,margin:'0 0 10px'}}>{t.detail.buildType==='workout'
+                ? info.moves+' '+(info.moves===1?'move':'moves')
+                : info.weeks+' '+(info.weeks===1?'week':'weeks')+' · '+info.perWeek+' '+(info.perWeek===1?'day':'days')+' a week'}</p>
+              {!!info.tags.length&&<div style={{display:'flex',gap:6,flexWrap:'wrap',margin:'0 0 10px'}}>{info.tags.map(tag=><span key={tag.key} className="dash-chip dash-chip--sm" style={{'--c':tag.c,cursor:'default'}}>{tag.label}</span>)}</div>}
+              {facts&&<p style={{...dbuLibMeta,fontSize:9,lineHeight:1.6,color:DBU_INK2,margin:'0 0 14px'}}>{facts}</p>}
               <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:'auto'}}>
                 <button style={dbuLibBtn(true)} onClick={()=>setView(t)}>Edit workout</button>
                 <button style={dbuLibBtn(false)} onClick={()=>setAssignFor(t)}>Assign</button>
