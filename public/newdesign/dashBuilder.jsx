@@ -77,6 +77,7 @@ function DbuTagPicker({ tags, customTags, onChange }) {
   const [text, setText] = React.useState("");
   const wrap = React.useRef(null), toggleBtn = React.useRef(null), anchor = React.useRef(null), panel = React.useRef(null);
   const shift = useDfbPopShift(open, anchor, panel);
+  const id = React.useId();
   const current = DashBuilder.normalizeTags(tags);
   const keyOf = (t) => DashBuilder.tagInfo(t).key;
   const has = (t) => current.some((x) => keyOf(x) === keyOf(t));
@@ -94,6 +95,13 @@ function DbuTagPicker({ tags, customTags, onChange }) {
     document.addEventListener("mousedown", down);
     document.addEventListener("keydown", key);
     return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
+  }, [open]);
+  // The same menu contract as DashFacetMenu: the button names the panel it opens, and
+  // the keyboard lands on the first choice it can use rather than back at the page.
+  React.useEffect(() => {
+    if (!open || !panel.current) return;
+    const first = panel.current.querySelector("input:not([aria-disabled='true']), button");
+    if (first) first.focus();
   }, [open]);
   const row = (t) => {
     const info = DashBuilder.tagInfo(t), on = has(t), dead = !on && full;
@@ -116,11 +124,11 @@ function DbuTagPicker({ tags, customTags, onChange }) {
         );
       })}
       <span ref={anchor} className="dash-facet">
-        <button ref={toggleBtn} type="button" className="dash-chip dash-chip--sm" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <button ref={toggleBtn} type="button" className="dash-chip dash-chip--sm" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen((o) => !o)}>
           {current.length ? "＋ Tag" : "＋ Add a tag"}
         </button>
         {open && (
-          <div ref={panel} className="dash-facet-pop" style={shift ? { left: -shift } : undefined} role="group" aria-label="Tags for this program">
+          <div ref={panel} id={id} className="dash-facet-pop" style={shift ? { left: -shift } : undefined} role="group" aria-label="Tags for this program">
             <div className="dash-facet-h">Shape’s goals</div>
             {DashBuilder.GOAL_TAGS.map((g) => row(g.key))}
             {!!own.length && <div className="dash-facet-h" style={{ marginTop: 10 }}>Your tags</div>}

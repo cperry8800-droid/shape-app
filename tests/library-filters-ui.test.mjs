@@ -412,6 +412,23 @@ test('the tag picker stops at the cap and says why', async () => {
   await click(button('＋ Tag'));
   assert.match(text(), new RegExp('A program can carry ' + DashBuilder.TAG_MAX + ' tags'));
   assert.equal(option('Strength').querySelector('input').getAttribute('aria-disabled'), 'true');
+  // At the cap every goal row is dead, so the first choice the keyboard can USE is the
+  // coach's own first tag (it can always be switched off), not the dimmed Cut above it.
+  assert.ok(document.activeElement === option('Tag 0').querySelector('input'), 'focus skips the dimmed rows');
+});
+
+test('the tag picker keeps the menu contract: it names its panel, focus goes in, Escape hands it back', async () => {
+  await mount(React.createElement(PickerHarness));
+  const add = button('＋ Tag');
+  assert.equal(add.getAttribute('aria-controls'), null, 'nothing to name while it is closed');
+  await click(add);
+  const pop = document.querySelector('.dash-facet-pop');
+  assert.ok(!!pop.id && add.getAttribute('aria-controls') === pop.id, 'the button names the panel it opened');
+  assert.ok(document.activeElement === option('Cut').querySelector('input'), 'the keyboard lands on the first choice');
+  await React.act(async () => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  assert.ok(!document.querySelector('.dash-facet-pop'));
+  assert.ok(document.activeElement === add, 'Escape hands focus back to the button');
+  assert.equal(add.getAttribute('aria-controls'), null, 'and it stops naming a panel that is gone');
 });
 
 // ── The meal library ────────────────────────────────────────────────────────
