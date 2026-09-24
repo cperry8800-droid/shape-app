@@ -26,12 +26,27 @@ const _dashCache = new Map(); // key -> { at, data }
 
 async function _dashJson(url) {
   const hit = _dashCache.get(url);
+  if (hit && hit.pending) return hit.pending;
   if (hit && Date.now() - hit.at < DASH_CACHE_TTL) return hit.data;
-  const res = await fetch(url, { credentials: "same-origin" });
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const data = await res.json();
-  _dashCache.set(url, { at: Date.now(), data });
-  return data;
+  // Insert before awaiting: sidebar + page requests made in the same render
+  // share the in-flight read as well as the eventual cached result.
+  const entry = {};
+  _dashCache.set(url, entry);
+  entry.pending = (async () => {
+    try {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      // A refresh can delete/replace the entry while this request is running.
+      // Never let the old response repopulate that invalidated cache.
+      if (_dashCache.get(url) === entry) _dashCache.set(url, { at: Date.now(), data });
+      return data;
+    } catch (error) {
+      if (_dashCache.get(url) === entry) _dashCache.delete(url);
+      throw error;
+    }
+  })();
+  return entry.pending;
 }
 
 // Run tasks through a fixed-size pool so a 30-client roster doesn't fire 30

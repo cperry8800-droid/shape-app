@@ -381,9 +381,8 @@ function ChatWidget(props) {
       let uid = "anon";
       let probe = "unknown";
       try {
-        const r = await fetch("/api/me", { credentials: "same-origin" });
-        if (r.ok) {
-          const j = await r.json();
+        const j = await shapeReadPortalMe();
+        if (j) {
           uid = (j && (j.user?.id || j.id || j.profile?.id)) || "anon";
           probe = uid === "anon" ? "out" : "in";
         }
@@ -1184,8 +1183,7 @@ function ChatWidget(props) {
   const [member, setMember] = React.useState(null);
   React.useEffect(() => {
     let cancelled = false;
-    fetch("/api/me", { credentials: "same-origin" })
-      .then(r => (r.ok ? r.json() : null))
+    shapeReadPortalMe()
       .then(async (d) => {
         const u = d && d.user;
         if (!cancelled) myUserIdRef.current = u ? u.id : null;

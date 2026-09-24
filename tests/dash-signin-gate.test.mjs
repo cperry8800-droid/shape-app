@@ -35,7 +35,7 @@ function guardOf(file) {
   // Normalize checkout line endings before extracting source blocks.
   const html = readFileSync(path.join(ND, file), 'utf8').replace(/\r\n/g, '\n');
   const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  const hit = blocks.filter((b) => b.includes("fetch('/api/me'"));
+  const hit = blocks.filter((b) => b.includes("window.ShapePortalSession.read()"));
   if (hit.length !== 1) throw new Error(`${file}: expected exactly one /api/me guard, found ${hit.length}`);
   return hit[0];
 }
@@ -50,7 +50,7 @@ async function run(file, res, at = { pathname: '/newdesign/' + file, search: '',
     hash: at.hash,
     replace: (url) => replaced.push(url),
   };
-  const win = { location };
+  const win = { location, addEventListener() {} };
   const sandbox = {
     window: win,
     location,
@@ -60,6 +60,7 @@ async function run(file, res, at = { pathname: '/newdesign/' + file, search: '',
     Promise,
     Error,
   };
+  vm.runInNewContext(readFileSync(path.join(ND, 'portalSession.js'), 'utf8'), sandbox);
   vm.runInNewContext(guardOf(file), sandbox);
   // The guard is two chained .then()s over a resolved promise; drain the
   // microtask queue rather than guessing a timeout.

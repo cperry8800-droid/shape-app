@@ -1075,6 +1075,7 @@ function MobileDrawer({ open, onClose, active, authUser, onLogout }) {
 // a broadcast only on a CONFIRMED cookie clear, because a premature stamp
 // manufactures a signed-in sibling tab that nothing will later correct).
 async function shapePortalSignOutStandalone() {
+  if (window.ShapePortalSession) window.ShapePortalSession.clear();
   // ⚠ ONE COPY OF THIS ORDERING, AND THIS IS IT. It was tuned across a whole
   // review wave, and for a while this file held TWO copies — Header's
   // handleLogout and this one — which is precisely the "copied guard with its
@@ -1125,18 +1126,27 @@ async function shapePortalSignOutStandalone() {
 }
 window.shapePortalSignOut = window.shapePortalSignOut || shapePortalSignOutStandalone;
 
+// Dashboard shells share a document-local account reading. Standalone pages
+// retain their normal uncached lookup.
+function shapeReadPortalMe() {
+  if (window.ShapePortalSession) return window.ShapePortalSession.read();
+  return fetch('/api/me', { credentials: 'same-origin' })
+    .then(r => r.ok ? r.json() : null);
+}
+
 function Header({ active }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const [authUser, setAuthUser] = React.useState(null);
+  const [authUser, setAuthUser] = React.useState(() => window.ShapePortalSession?.peek()?.user || null);
   const [roleMenuOpen, setRoleMenuOpen] = React.useState(false);
+  const [switchingRole, setSwitchingRole] = React.useState(null);
+  const roleSwitchBusy = React.useRef(false);
   // One read of the inbox for the whole header, shared by the two bell render sites.
   const inbox = useDashInboxFeed(!!authUser);
   React.useEffect(() => {
     let cancelled = false;
-    fetch('/api/me', { credentials: 'same-origin' })
-      .then(r => r.ok ? r.json() : { user: null })
-      .then(d => { if (!cancelled) setAuthUser(d && d.user ? d.user : null); })
-      .catch(() => { if (!cancelled) setAuthUser(null); });
+    shapeReadPortalMe()
+      .then(d => { if (!cancelled && d && Object.prototype.hasOwnProperty.call(d, 'user')) setAuthUser(d.user); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, []);
   async function handleLogout(e) {
@@ -1167,7 +1177,10 @@ function Header({ active }) {
 
   async function switchRole(nextRole) {
     setRoleMenuOpen(false);
-    if (!authUser || nextRole === authUser.role) return;
+    if (!authUser || nextRole === authUser.role || roleSwitchBusy.current) return;
+    roleSwitchBusy.current = true;
+    setSwitchingRole(nextRole);
+    let navigating = false;
     try {
       const res = await fetch('/api/me/role', {
         method: 'POST',
@@ -1177,12 +1190,21 @@ function Header({ active }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.dashboard) {
+        if (window.ShapePortalSession) window.ShapePortalSession.clear();
         window.location.href = data.dashboard;
+        navigating = true;
       } else {
         alert(data.error || 'Could not switch role.');
       }
     } catch (err) {
       console.error('[header] switchRole failed', err);
+      alert('Could not switch account. Please try again.');
+    } finally {
+      // Keep the control locked while the destination document is loading.
+      if (!navigating) {
+        roleSwitchBusy.current = false;
+        setSwitchingRole(null);
+      }
     }
   }
   const roleLabel = (r) => r === 'trainer' ? 'Trainer' : r === 'nutritionist' ? 'Nutritionist' : 'Client';
@@ -1255,16 +1277,16 @@ function Header({ active }) {
             <>
               <span className="shape-nav-hi" style={{ fontSize: 13.5, color: INK, fontFamily: navSans, fontWeight: 500, whiteSpace: "nowrap", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", lineHeight: 1, flex: "0 0 auto" }}>Hi, {authUser.firstName || authUser.email}</span>
               {hasRoleSwitch ? (
-                <div style={{ position: "relative" }} onMouseEnter={() => setRoleMenuOpen(true)} onMouseLeave={() => setRoleMenuOpen(false)}>
-                  <button onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(var(--sh-accent3-rgb, 52,214,197),0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
-                    {roleLabel(authUser.role)} <span aria-hidden style={{ fontSize: 8, opacity: 0.75 }}>▾</span>
+                <div style={{ position: "relative" }} onMouseLeave={() => setRoleMenuOpen(false)} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setRoleMenuOpen(false); }} onKeyDown={e => { if (e.key === "Escape") setRoleMenuOpen(false); }}>
+                  <button disabled={!!switchingRole} aria-busy={!!switchingRole} aria-expanded={roleMenuOpen} onClick={() => setRoleMenuOpen(v => !v)} style={{ background: "rgba(var(--sh-accent3-rgb, 52,214,197),0.10)", border: `1px solid ${TEAL_BRIGHT}`, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: navDisp, fontWeight: 600, fontVariationSettings: "'wdth' 125", fontSize: 10.5, letterSpacing: "0.08em", textTransform: "uppercase", height: 26, padding: "0 10px", borderRadius: 999, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, lineHeight: 1, whiteSpace: "nowrap", flex: "0 0 auto" }}>
+                    {switchingRole ? "Switching…" : roleLabel(authUser.role)} <span aria-hidden style={{ fontSize: 8, opacity: 0.75 }}>▾</span>
                   </button>
                   {roleMenuOpen && (
                     <div style={{ position: "absolute", top: "100%", right: 0, paddingTop: 8, minWidth: 180, zIndex: 60 }}>
                       <div style={{ background: "rgba(var(--sh-ground-rgb, 26,22,18),0.98)", backdropFilter: "blur(14px)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 8, padding: 6, boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
                         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.45)", padding: "8px 12px 4px" }}>Switch profile</div>
                         {authUser.roles.map(r => (
-                          <button key={r} onClick={() => switchRole(r)} disabled={r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
+                          <button key={r} onClick={() => switchRole(r)} disabled={!!switchingRole || r === authUser.role} style={{ width: "100%", textAlign: "left", background: r === authUser.role ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", border: 0, padding: "9px 12px", fontFamily: sans, fontSize: 13, color: r === authUser.role ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", cursor: r === authUser.role ? "default" : "pointer", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "space-between", lineHeight: 1 }}
                             onMouseEnter={e => { if (r !== authUser.role) { e.currentTarget.style.background = "rgba(var(--sh-accent2-rgb, 10,197,168),0.08)"; e.currentTarget.style.color = INK; } }}
                             onMouseLeave={e => { if (r !== authUser.role) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(var(--sh-ink-rgb, 242,237,228),0.85)"; } }}
                           >
@@ -2516,6 +2538,7 @@ window.shapeBroadcastSignOut = function () {
 };
 
 window.shapeClearLocalUserContent = function (opts) {
+  if (window.ShapePortalSession) window.ShapePortalSession.clear();
   var broadcast = !(opts && opts.broadcast === false);
   try {
     [
