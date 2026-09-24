@@ -1,4 +1,6 @@
 import React from 'react';
+import { createMobileVideoComponents } from '../services/videoComponents.mjs';
+const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 import { createPortal } from 'react-dom';
 // iosAppBroadsheetMarketplace.jsx — Coach marketplace in the Broadsheet visual language.
 // "The Personals" / classifieds-meets-features. Browse trainers + nutritionists.
@@ -1579,11 +1581,11 @@ function BSPlanPreviewSheet({ plan, isNutri, roleColor, teal, onBuy, onClose }) 
         <div aria-hidden style={{ margin: '12px 0 2px', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
 
         {p.media.length > 0 && (
-          <div style={{ margin: '12px 0 2px', display: 'flex', gap: 7, overflowX: 'auto' }} className="bs-hide-scroll">
+          <div style={{ margin: '12px 0 2px', display: 'flex', gap: 7, flexWrap:'wrap' }}>
             {p.media.map((m, i) => (
-              <div key={i} style={{ flex: 'none', width: 132, height: 96, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.HAIR}` }}>
+              <div key={i} style={{ flex: 'none', width:m.type==='video'?'100%':132, height:m.type==='video'?'auto':96, minWidth:0, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.HAIR}` }}>
                 {m.type === 'video'
-                  ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline preload="metadata" />
+                  ? <ShapeVideoPlayer value={m}/>
                   : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               </div>
             ))}
@@ -2217,13 +2219,12 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         </div>
         {pl.meta ? <div style={{ fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pl.meta}</div> : null}
         {media.length > 0 && (
-          <div style={{ margin: '8px 0 2px', display: 'flex', gap: 6, overflowX: 'auto' }} className="bs-hide-scroll">
+          <div style={{ margin: '8px 0 2px', display: 'flex', gap: 6, flexWrap:'wrap' }}>
             {media.slice(0, 8).map((m, mi) => (
-              <div key={mi} style={{ position: 'relative', flex: 'none', width: 64, height: 64, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.HAIR}` }}>
+              <div key={mi} style={{ position: 'relative', flex: 'none', width:m.type==='video'?'100%':64, height:m.type==='video'?'auto':64, minWidth:0, overflow: 'hidden', background: t.PAPER2, border: `1px solid ${t.HAIR}` }}>
                 {m.type === 'video'
-                  ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline preload="metadata" />
+                  ? <ShapeVideoPlayer value={m}/>
                   : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-                {m.type === 'video' && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}><div style={{ width: 18, height: 18, borderRadius: '50%', background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="8" height="8" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" fill="#fff" /></svg></div></div>}
               </div>
             ))}
           </div>

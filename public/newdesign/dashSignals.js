@@ -2191,6 +2191,7 @@
         scheme: [[e.sets, e.reps].filter(Boolean).join(" × "), e.tempo ? e.tempo + " tempo" : null, e.rest].filter(Boolean).join(" · "),
         load: e.load || "",
         cue: e.cue || "",
+        video: e.video || null,
       };
     });
   }

@@ -165,13 +165,15 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
       <div style={{ fontFamily: serif, fontSize: 24, letterSpacing: "-0.02em", margin: "8px 0 2px" }}>{workout.title}</div>
       <div style={{ fontSize: 11.5, color: ink50, marginBottom: 6 }}>with {workout.coach}</div>
       <div className="dash-ledger" style={{ "--dac": accent }} />
+      <ShapeVideoPlayer value={workout.programVideo} title="Program introduction"/>
+      <ShapeVideoPlayer value={workout.video} title="Workout walkthrough"/>
       {rows.slice(0, maxRows).map((e, i) => (
         <div key={i} style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 10, alignItems: "start", padding: "7px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
           <span style={{ fontFamily: mono, fontSize: 9.5, color: e.prefix ? accent : ink50, fontWeight: e.prefix ? 700 : 400, marginTop: 2 }}>{e.prefix || String(i + 1).padStart(2, "0")}</span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 500 }}>{e.name}</div>
             <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.05em", color: ink50, marginTop: 2 }}>{e.scheme}</div>
-            {typeof ShapeWorkoutDocument !== "undefined" && ShapeWorkoutDocument.videoUrl(e.video) && <details style={{marginTop:8}}><summary style={{cursor:"pointer",fontSize:13,minHeight:32}}>Preview {e.name} demonstration</summary><video src={ShapeWorkoutDocument.videoUrl(e.video)} controls playsInline preload="none" style={{width:"100%",maxHeight:260,marginTop:8}}/></details>}
+            {e.video && <ShapeVideoPlayer value={e.video} title={e.name+' demonstration'}/>}
             {e.cue && <div style={{ fontSize: 11.5, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", marginTop: 3 }}>“{e.cue}”</div>}
           </div>
           <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{e.load}</span>
@@ -524,6 +526,7 @@ function ClientDashboardPage() {
       //   a blank page, not a missing label.
       exercises: DashSignals.workoutCardExercises(w.exercises),
       playlist: w.playlist || null,
+      video: w.video || null, programVideo: w.programVideo || null,
     } : null;
     const byDow = {}; const seq = [];
     for (const d of (plan.meals.days || [])) { if (Number.isInteger(d.dow) && byDow[d.dow] == null) byDow[d.dow] = d; else seq.push(d); }

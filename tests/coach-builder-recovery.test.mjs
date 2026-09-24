@@ -107,7 +107,8 @@ test('an exercise upload cannot move to a copied day and video playback remains 
   // Copied days deliberately retain exercise IDs, reproducing the React key reuse.
   t.detail.builder.weeks=[{days:[upper,{...structuredClone(upper),id:'lower',name:'Lower'}]}];
   const root=await mount(t);
-  const file=document.querySelector('input[type="file"]');
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='▷ Watch · Squat').click());
+  const file=[...document.querySelectorAll('button')].find(b=>b.textContent==='Replace demo').parentElement.parentElement.querySelector('input[type="file"]');
   Object.defineProperty(file,'files',{value:[new window.File(['video'],'squat.mp4',{type:'video/mp4'})],configurable:true});
   await React.act(async()=>file.dispatchEvent(new window.Event('change',{bubbles:true})));
   assert.equal(document.querySelector('fieldset').disabled,true);
@@ -120,6 +121,7 @@ test('an exercise upload cannot move to a copied day and video playback remains 
   await React.act(async()=>outside.dispatchEvent(nav));assert.equal(nav.defaultPrevented,true);outside.remove();
   await React.act(async()=>finishUpload());
   assert.equal(document.querySelector('fieldset').disabled,false);
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='▷ Watch · Squat').click());
   assert.equal(document.querySelector('video').getAttribute('src'),'https://shape.test/uploaded.mp4');
   await saveNow();
   assert.equal(posted.detail.builder.weeks[0].days[0].blocks[0].rows[0].video,'https://shape.test/uploaded.mp4');

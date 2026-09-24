@@ -1,3 +1,4 @@
+import { validateFile as validateVideoFile } from '../../../public/newdesign/shapeVideo.mjs';
 import { Capacitor } from '@capacitor/core';
 import { createClient } from '@supabase/supabase-js';
 import { isHealthKitPlatform, requestHealthKitAuth, collectHealthKitSnapshots } from './healthkit.js';
@@ -6074,6 +6075,7 @@ async function uploadMediaFile(file, opts = {}) {
   // and the returned `type` coherent (a .mp4 must not come back as an image).
   const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v'];
   const isVideo = isVideoType || VIDEO_EXT.includes(ext.toLowerCase());
+  if (isVideo || opts.videoOnly) validateVideoFile(file, maxVideoBytes);
   if (opts.videoOnly && !isVideo) throw new Error('Pick a video file — MP4, MOV or WebM.');
   // Guard the shared helper (not just the film picker) so no video flow can push an
   // oversized file to storage — the bucket has its own file_size_limit as a backstop.

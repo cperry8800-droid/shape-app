@@ -40,9 +40,11 @@ export function coachWorkoutVideos(plans) {
   };
   for (const p of Array.isArray(plans) ? plans : []) {
     const detail = p?.detail || {};
+    add(detail.builder?.video, (p.name || 'Program')+' · Introduction');
     for (const media of detail.media || []) if (media?.type === 'video') add(media, p.name);
     for (const block of detail.blocks || []) add(block?.video, block?.name || block?.text || p.name);
     for (const week of detail.builder?.weeks || []) for (const day of week.days || []) {
+      add(day.video, (day.name || 'Workout')+' · Walkthrough');
       for (const block of day.blocks || []) for (const row of block.rows || []) add(row.video, row.name || p.name);
     }
   }

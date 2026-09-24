@@ -107,8 +107,10 @@ test('an upload attaches only to its selected row when website-copied weeks reus
   let finish, saved;
   window.ShapeCoachMedia = { upload: async () => new Promise((resolve) => { finish = () => resolve({ url: 'https://example.test/new.mp4', type: 'video', name: 'New demo' }); }) };
   const root = await mount(Editor, { plan: copied, onSave: async (row) => { saved = row; } });
-  await React.act(async () => button('Upload video').click());
-  const picker = document.querySelector('input[type=file]');
+  const exerciseUpload = [...document.querySelectorAll('button')].find(node => node.textContent === 'Upload video' && node.closest('fieldset')?.querySelector('legend')?.textContent.includes('Squat'));
+  await React.act(async () => exerciseUpload.click());
+  // This editor now has separate program/day upload inputs as well.
+  const picker = [...document.querySelectorAll('input[type=file]')].at(-1);
   Object.defineProperty(picker, 'files', { value: [new window.File(['clip'], 'new.mp4', { type: 'video/mp4' })], configurable: true });
   await React.act(async () => picker.dispatchEvent(new window.Event('change', { bubbles: true })));
   assert.equal(document.querySelector('fieldset').disabled, true);

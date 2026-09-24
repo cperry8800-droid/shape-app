@@ -383,11 +383,9 @@ async function dbuUploadVideo(file) {
   if (!client) throw new Error("Sign in to upload a demonstration.");
   const {data, error:authError} = await client.auth.getUser();
   if (authError || !data?.user) throw new Error("Sign in to upload a demonstration.");
-  const ext = String(file.name || "").split(".").pop().toLowerCase();
-  if (!['mp4','mov','m4v','webm'].includes(ext)) throw new Error("Choose an MP4, MOV, M4V or WebM video.");
-  if (file.size > 200 * 1024 * 1024) throw new Error("Keep the video under 200 MB.");
+  const {ext, contentType} = ShapeVideo.validateFile(file);
   const path = data.user.id + "/exercise/" + crypto.randomUUID() + "." + ext;
-  const {error} = await client.storage.from("coach-media").upload(path,file,{upsert:false,contentType:file.type || ({mov:'video/quicktime',webm:'video/webm'}[ext] || 'video/mp4')});
+  const {error} = await client.storage.from("coach-media").upload(path,file,{upsert:false,contentType});
   if (error) throw error;
   const {data:media} = client.storage.from("coach-media").getPublicUrl(path);
   if (!media?.publicUrl) throw new Error("Upload did not return a playable link. Retry.");
@@ -768,7 +766,8 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
       </div>
       {uploading && <progress aria-label="Uploading exercise demonstration" style={{width:'100%',marginTop:8}}/>}
       {error && <p role="alert" style={{fontSize:13,color:'var(--sh-rust, #e0644b)'}}>{error}</p>}
-      {video && <details style={{marginTop:8}}><summary style={{cursor:'pointer',fontSize:13}}>Preview demonstration</summary><video src={video} controls playsInline preload="metadata" onError={()=>setError('This browser could not play the clip. Upload a compatible MP4 before assigning.')} style={{width:'100%',maxHeight:240,marginTop:8}}/></details>}
+      <ShapeVideoLink value={video} onChange={url=>set('video',url)} label={'Video link for '+(row.name || 'exercise')} disabled={uploading}/>
+      <ShapeVideoPlayer value={video} title={row.name || 'Exercise demonstration'}/>
     </div>
   </div>;
 }
@@ -820,6 +819,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
           <span className="hint">Chips on the client card</span>
         </div>
       </div>
+      <ShapeVideoAttachment key={day.id} value={day.video} title="Workout walkthrough" onChange={video=>onChange({...day,video})} upload={dbuUploadVideo} onBusy={onUploading} clips={clips}/>
       {day.blocks.map((block, bi) => (
         <div key={bi} style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
@@ -1475,7 +1475,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
     else setWeeks(doc.weeks.map((x, i) => (i === wi ? DashBuilder.deloadWeek(x) : x)));
   };
 
-  const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you" }) : null;
+  const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you", programVideo:doc.video }) : null;
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? (persisted.current ? "Saved" : "New template · not saved yet") : "Draft saved locally";
 
   // The reference Monday the dates on this page are drawn for. It lives ON the document
@@ -1652,6 +1652,8 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
             <button hidden={guided && step !== 3} type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
           </div>
         </div>
+
+        {(!guided || step === 0) && <ShapeVideoAttachment value={doc.video} title="Program introduction" onChange={video=>setDoc({...doc,video})} upload={dbuUploadVideo} onBusy={uploadCount} clips={clips}/>}
 
         {/* ⚠ F6 retires *Save draft* and *Publish template* into autosave + Publish — but the
             header's button was ALSO the retry (it re-labelled itself "Retry save" on failure),
@@ -1916,6 +1918,8 @@ function TrainerProgramsPage() {
   const customMoves=DashBuilder.customMovesFromTemplates(templates||[]);
   const customTags=DashBuilder.customTagsFromTemplates(templates||[]);
   const clips=[...new Map((templates||[]).flatMap(t=>[
+    {name:t.name+' · Introduction',url:ShapeWorkoutDocument.videoUrl(t.detail.builder.video)},
+    ...t.detail.builder.weeks.flatMap(w=>w.days.map(d=>({name:d.name+' · Walkthrough',url:ShapeWorkoutDocument.videoUrl(d.video)}))),
     ...(t.detail.media||[]).filter(m=>m.type==='video').map(m=>({name:m.name||t.name,url:ShapeWorkoutDocument.videoUrl(m.url)})),
     ...t.detail.builder.weeks.flatMap(w=>w.days.flatMap(d=>d.blocks.flatMap(b=>b.rows.filter(r=>r.video).map(r=>({name:r.name,url:ShapeWorkoutDocument.videoUrl(r.video)}))))),
   ]).filter(c=>c.url).map(c=>[c.url,c])).values()];

@@ -23,6 +23,13 @@ export async function loadRealModule(srcPath, { registry = new Map(), appendExpo
   const srcRequire = createRequire(pathToFileURL(srcPath));
   // import.meta.env is Vite's build-time injection; substitute like the bundler.
   const source = `${readFileSync(srcPath, 'utf8').replace(/import\.meta\.env/g, '__VITE_ENV__')}\n${appendExports}\n`;
+  // Classic website scripts get their shared video components from shapeVideo.js.
+  // Reproduce that script dependency when mounting the actual JSX in Node.
+  if (srcPath.replace(/\\/g, '/').includes('/public/newdesign/') && /<ShapeVideo/.test(source)) {
+    const api = require_('../../public/newdesign/shapeVideo.js');
+    Object.assign(globalThis, api.createComponents(registry.get('react') || require_('react')));
+    globalThis.ShapeVideo = api;
+  }
   const { code } = babel.transformSync(source, {
     presets: typescript ? [[presetTs, { isTSX: true, allExtensions: true }], presetReact] : [presetReact],
     plugins: [commonjs],
