@@ -50,15 +50,15 @@ test('serialized app edits read the latest document and preserve web edits',asyn
  assert.deepEqual(f.docs.client_nutrition_prefs,{dislikes:'web edit',allergies:'nuts',protein_target_g:'120'});
  f.state.writeError=true;await assert.rejects(saveAccountDocPatch(f.db,'client_identity',{name:'No'},'a'),/rejected/);
 });
-test('privacy edits tighten auto-post history and withdraw live sharing; retries reconcile partial failure',async()=>{
+test('privacy is one account-bound write; cleanup failure rolls back the save',async()=>{
  const f=fixture({client_settings:{profileVisibility:'Public',shareWorkoutData:'On',weekStarts:'Monday'}});
- f.state.queryError=true;await assert.rejects(saveSettingsPatch(f.db,{shareWorkoutData:'Off'},'a'),/Retry Save/);
- f.state.queryError=false;await saveSettingsPatch(f.db,{shareWorkoutData:'Off'},'a');
- assert.equal(f.docs.client_settings.weekStarts,'Monday');
- assert.deepEqual(f.queries[1],{table:'community_posts',update:{privacy:'private'},eq:['author_id','a'],not:['source_provider','is',null],in:['privacy',['public','community','followers']]});
- assert.deepEqual(f.queries[2],{table:'user_activity_live',delete:true,eq:['user_id','a']});
- f.queries.length=0;await saveSettingsPatch(f.db,{shareWorkoutData:'On'},'a');
- assert.equal(f.queries.length,1);assert.equal(f.queries[0].table,'user_activity_live');
+ f.state.writeError=true;
+ await assert.rejects(saveSettingsPatch(f.db,{shareWorkoutData:'Off'},'a'),/rejected/);
+ assert.equal(f.docs.client_settings.shareWorkoutData,'On');
+ f.state.writeError=false;await saveSettingsPatch(f.db,{shareWorkoutData:'Off'},'a');
+ assert.equal(f.docs.client_settings.weekStarts,'Monday');assert.equal(f.docs.client_settings.shareWorkoutData,'Off');
+ assert.equal(f.writes.length,1);assert.equal(f.writes[0].o.expectedUserId,'a');
+ assert.equal(f.queries.length,0,'no browser-side cleanup can be stranded by an account switch');
 });
 test('unknown account controls and invalid values are rejected before writing',async()=>{
  const f=fixture();

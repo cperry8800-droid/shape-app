@@ -1,5 +1,4 @@
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionToken } from './prefOptions.mjs';
-import { bsWorkoutSharePrivacy } from './workoutPrivacy.mjs';
 
 // Website names map to the app's existing account documents. An explicit empty
 // value wins over legacy data, so clearing on either surface stays cleared.
@@ -72,21 +71,6 @@ export function saveAccountDocPatch(db,kind,patch,expectedUserId) {
   const result=(lanes.get(db)||Promise.resolve()).catch(()=>{}).then(work);
   lanes.set(db,result);return result;
 }
-async function applySharingAudience(db,next,uid) {
-  const privacy=bsWorkoutSharePrivacy(next);
-  await owner(db,uid);
-  // Reconcile even on a retry after a partially successful save. Never loosen
-  // history; only automatically generated posts with a wider audience change.
-  const looser=privacy==='private'?['public','community','followers']:privacy==='followers'?['public','community']:[];
-  if(looser.length) {
-    const result=await db.client.from('community_posts').update({privacy}).eq('author_id',uid).not('source_provider','is',null).in('privacy',looser);
-    if(result?.error)throw new Error('Settings saved, but past workout sharing could not be updated. Retry Save.');
-  }
-  await owner(db,uid);
-  const query=db.client.from('user_activity_live');
-  const result=await (privacy==='private'?query.delete():query.update({visibility:privacy})).eq('user_id',uid);
-  if(result?.error)throw new Error('Settings saved, but live sharing could not be updated. Retry Save.');
-}
 export function saveSettingsPatch(db,patch,expectedUserId) {
   if(!expectedUserId) return Promise.reject(new Error('Wait for your settings to load before saving.'));
   const work=async()=>{
@@ -126,7 +110,7 @@ export function saveSettingsPatch(db,patch,expectedUserId) {
         const mirrored=await db.client.from('profiles').update({full_name:next.name}).eq('id',expectedUserId);
         if(mirrored?.error)throw new Error('Profile saved, but the display name could not be updated everywhere. Retry Save.');
       }
-      if(kind==='client_settings' && edits.some(e=>e.key==='profileVisibility'||e.key==='shareWorkoutData')) await applySharingAudience(db,next,expectedUserId);
+      // The database trigger makes privacy and audience cleanup one transaction.
     }
     await owner(db,expectedUserId);
     return {ok:true};
