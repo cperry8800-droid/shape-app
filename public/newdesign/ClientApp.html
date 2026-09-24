@@ -21,14 +21,14 @@
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body>
 <div id="root"></div>
+<script src="portalSession.js"></script>
 <script>
 // Sign-in gate + role guard. The dashboard is for people who have an account
 // (owner, 2026-09-14), so a signed-out visitor is sent to Login.html carrying
 // this page as ?next=. A signed-in member on the WRONG dashboard is forwarded
 // to their own. Anything we cannot measure renders — see the gate below.
 (function () {
-  fetch('/api/me', { credentials: 'same-origin' })
-    .then(function (r) { return r.ok ? r.json() : null; })
+  window.ShapePortalSession.read()
     .then(function (d) {
       // ⚠ SIGNED OUT IS A READING, NOT THE ABSENCE OF ONE — AND ONLY A READING MAY
       // REDIRECT. /api/me answers 200 with { user: null } for an anonymous visitor, so

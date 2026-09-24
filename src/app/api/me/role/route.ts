@@ -54,10 +54,10 @@ export async function POST(req: NextRequest) {
 
   const dashboard =
     next === 'trainer'
-      ? '/newdesign/TrainerDashboard.html'
+      ? '/newdesign/TrainerApp.html'
       : next === 'nutritionist'
-        ? '/newdesign/NutritionistDashboard.html'
-        : '/newdesign/ClientDashboard.html';
+        ? '/newdesign/NutritionistApp.html'
+        : '/newdesign/ClientApp.html';
 
   return NextResponse.json({ ok: true, role: next, dashboard });
 }
