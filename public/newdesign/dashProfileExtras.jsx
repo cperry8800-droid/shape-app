@@ -310,20 +310,43 @@ function CoachListingMediaCard() {
   );
 }
 
-function DashProfileExtras() {
+function CoachAccountSettings({ accountId }) {
+  const [details,setDetails]=React.useState(null);
+  const [error,setError]=React.useState("");
+  const [editing,setEditing]=React.useState(false);
+  const load=React.useCallback(async()=>{
+    if(!accountId)return;
+    setError("");
+    try {
+      const lib=await cmeSettingsSync();
+      const saved=await lib.loadSettings(window.shapeDb);
+      if(saved.userId!==accountId)throw new Error("Your account changed. Reopen Settings.");
+      setDetails(saved.profile);
+    } catch(e) { setError(e.message || "Could not load your profile details."); }
+  },[accountId]);
+  React.useEffect(()=>{load();},[load]);
+  async function persist(patch,uid) {
+    try { const lib=await cmeSettingsSync();await lib.saveSettingsPatch(window.shapeDb,patch,uid);return null; }
+    catch(e) { return e.message || "Could not save your profile details."; }
+  }
   const mono = "'JetBrains Mono', monospace";
-  const btn = (danger) => ({ background: "transparent", color: danger ? "#e07856" : "rgba(242,237,228,0.7)", border: `1px solid ${danger ? "rgba(224,120,86,0.4)" : "rgba(242,237,228,0.2)"}`, padding: "14px 16px", borderRadius: 10, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", textAlign: "left" });
+  const btn = (danger) => ({ background: "transparent", color: danger ? "var(--sh-danger, #e07856)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", border: `1px solid ${danger ? "rgba(224,120,86,0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, padding: "14px 16px", borderRadius: 10, fontSize: 13, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", textAlign: "left" });
   return (
-    <section style={{ maxWidth: 900, margin: "0 auto", padding: "26px 40px 34px" }}>
-      <CoachCredentialsCard />
-      <CoachListingMediaCard />
-      <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 18 }}>
-        <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>App tour</div>
+    <section style={{ maxWidth: 900, margin: "0 auto", padding: "26px 0 34px" }}>
+      <div style={{marginBottom:24}}>
+        <h2 style={{fontSize:18,margin:"0 0 8px"}}>Profile details</h2>
+        <p style={{fontSize:13,color:"var(--sh-ink2, #a09b94)"}}>Your name, handle, location and links are shared with the app. Manage your bio, credentials and listing on your profile.</p>
+        {error && <p role="alert">{error} <button type="button" onClick={load}>Retry</button></p>}
+        <button type="button" disabled={!accountId || !details} style={btn(false)} onClick={()=>setEditing(true)}>Edit profile details</button>
+        {editing && <EditProfileModal initial={details} accountId={accountId} onClose={()=>setEditing(false)} onPersist={persist} onSaved={patch=>setDetails({...details,...patch})} />}
+      </div>
+      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 16, padding: "20px 22px", marginBottom: 18 }}>
+        <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 14 }}>App tour</div>
         <button style={btn(false)} onClick={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }}>Take a tour — walk through your dashboard</button>
       </div>
-      <div style={{ background: "rgba(242,237,228,0.03)", border: "1px solid rgba(242,237,228,0.1)", borderRadius: 16, padding: "20px 22px" }}>
-        <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.5)", marginBottom: 14 }}>Account · Danger zone</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }} className="dk-3up">
+      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 16, padding: "20px 22px" }}>
+        <div style={{ fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)", marginBottom: 14 }}>Account · Danger zone</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 14 }} className="dk-3up">
           <button style={btn(false)} onClick={async (ev) => {
             const b = ev && ev.currentTarget;
             if (b) b.disabled = true; // guard against double-submission
@@ -338,7 +361,6 @@ function DashProfileExtras() {
             } catch (e) { alert("Could not export your data right now. Email privacy@theshapecommunity.com."); }
             finally { if (b) b.disabled = false; }
           }}>Export my data</button>
-          <button style={btn(false)}>Pause coach profile</button>
           <button style={btn(true)} onClick={async (ev) => {
             const b = ev && ev.currentTarget;
             if (!window.confirm("Permanently delete your Shape account and ALL your data? This cannot be undone.")) return;
@@ -361,4 +383,8 @@ function DashProfileExtras() {
       </div>
     </section>
   );
+}
+
+function DashProfileExtras() {
+  return <section style={{maxWidth:900,margin:"0 auto",padding:"26px 40px 34px"}}><CoachCredentialsCard /><CoachListingMediaCard /></section>;
 }

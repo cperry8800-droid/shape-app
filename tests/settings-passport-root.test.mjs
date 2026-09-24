@@ -501,7 +501,7 @@ test('saveEdit writes only the keys the member touched — Codex P1 and P2 on #2
   // One rule closes both: only a TOUCHED key is written, and a touched handle is
   // written whatever its value.
   const clean = stripComments(src);
-  const i = clean.indexOf('const saveEdit  = () => {');
+  const i = clean.indexOf('const saveEdit  = async () => {');
   assert.ok(i > 0, 'saveEdit is gone');
   const body = clean.slice(i, clean.indexOf('const cancelEdit = ', i));
   assert.ok(body.length > 400 && body.length < 4000, `saveEdit span is ${body.length} chars`);

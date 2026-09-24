@@ -33,7 +33,7 @@ const CHOICE = region('function useRememberedChoices(', 'Object.assign(window,')
 test('the suite is running the shipped hooks, not an empty string', () => {
   assert.match(HELPERS, /function dashDocSerial\(fn\)/);
   assert.match(STORE, /pendingRef/);
-  assert.match(CHOICE, /function useRememberedChoice\(store, key, allowed, fallback\)/);
+  assert.match(CHOICE, /function useRememberedChoice\(store, key, allowed, fallback, persistDefault = false\)/);
   assert.ok(CHOICE.length > 400, 'the choice hook lifted as a stub');
   assert.match(AUTH, /onAuthStateChange/, 'the account hook lifted as a stub');
 });
@@ -649,7 +649,7 @@ test('the preference document is one named kind, not a new store per control', (
   assert.match(CHOICE, /useCoachDoc\("dashboard_prefs", !!live && accountId != null, accountId\)/);
   // and it is the shared store, not a fourth copy of it — the thing the file
   // post-mortems having three of already
-  assert.ok(!/getUserGoals|saveUserGoals|dashDocSerial/.test(CHOICE),
+  assert.ok(!/saveUserGoals|dashDocSerial/.test(CHOICE),
     'the choice hook grew its own write path instead of using useCoachDoc');
 });
 

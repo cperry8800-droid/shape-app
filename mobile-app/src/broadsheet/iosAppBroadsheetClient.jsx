@@ -1,6 +1,7 @@
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import React from 'react';
 const { ShapeVideoPlayer } = createMobileVideoComponents(React);
+import { saveAccountDocPatch } from '../../../public/newdesign/settingsSync.mjs';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution, bsAllergenNoteText } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
@@ -173,15 +174,15 @@ function bsHydrateIdentity() {
 // reconciles the cache. Chained so writes apply in order.
 let _bsIdentitySaveChain = Promise.resolve();
 function bsSaveIdentity(patch) {
-  _bsIdentitySaveChain = _bsIdentitySaveChain.then(async () => {
-    let existing = {};
-    try { const p = window.shapeDb?.getUserGoals?.('client_identity'); existing = (p && p.then ? await p : p) || {}; } catch (e) {}
-    const merged = { ...(existing || {}), ...(patch || {}) };
-    let res = null;
-    try { res = await window.shapeDb?.saveUserGoals?.('client_identity', merged); } catch (e) {}
-    try { window.ShapeIdentity = merged; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-    return res;
-  }).catch(() => null);
+  const uid=window.ShapeAuth?.getCachedState?.()?.user?.id;
+  _bsIdentitySaveChain = _bsIdentitySaveChain.catch(()=>{}).then(async () => {
+    try {
+      const merged=await saveAccountDocPatch(window.shapeDb,'client_identity',patch,uid);
+      if(window.ShapeAuth?.getCachedState?.()?.user?.id!==uid) return {error:{message:'Account changed.'}};
+      window.ShapeIdentity=merged; window.dispatchEvent(new Event('shape:identity'));
+      return {ok:true};
+    } catch(error) { return {error:{message:error.message || 'Could not save your profile.'}}; }
+  });
   return _bsIdentitySaveChain;
 }
 // My current Shape Score tier (cached on window.ShapeScore from /api/client/score)
@@ -32934,10 +32935,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     })();
     return () => { cancelled = true; };
   }, []);
-  const persistPref = async (store, next) => {
+  const persistPref = async (store, patch, uid) => {
     const kind = store === 'nutrition' ? 'client_nutrition_prefs' : 'client_training_prefs';
-    try { await window.shapeDb?.saveUserGoals?.(kind, next); window.__bsToast?.(tr('settings:toast.saved', { defaultValue: 'Saved' }), 'ok'); } catch (e) { window.__bsToast?.(tr('settings:toast.saveFailed', { defaultValue: 'Save failed' }), 'err'); }
-    if (store === 'nutrition') setNutritionPrefs(next); else setTrainingPrefs(next);
+    try {
+      const next=await saveAccountDocPatch(window.shapeDb,kind,patch,uid);
+      if (store === 'nutrition') setNutritionPrefs(next); else setTrainingPrefs(next);
+      window.__bsToast?.(tr('settings:toast.saved', { defaultValue: 'Saved' }), 'ok');
+      return true;
+    } catch (e) { window.__bsToast?.(tr('settings:toast.saveFailed', { defaultValue: 'Save failed' }), 'err'); return false; }
   };
 
   // Live subscription for the "Your plan" card. null until loaded; { active:false }
@@ -33065,6 +33070,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const persistPrefs = (key, value) => {
     editedRef.current[key] = value;
     const db = window.shapeDb;
+    const expectedUserId = window.ShapeAuth?.getCachedState?.()?.user?.id;
     if (!(db && db.saveUserGoals)) return;
     const write = (doc) => {
       // No real document ⇒ decline rather than publish our defaults. The
@@ -33077,7 +33083,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       // member's next unrelated edit (Codex P2 on #1933). Folded only when the
       // row was not edited HERE — an in-pane edit is already in editedRef and
       // wins by spread order.
-      bsSettingsWriteSerial(() => {
+      bsSettingsWriteSerial(async () => {
+        if (!expectedUserId || (await db.getUser())?.id !== expectedUserId) return null;
+        doc = await db.getUserGoals('client_settings');
+        if (doc == null) throw new Error('Could not read settings.');
         const railFold = (!('onlineRail' in editedRef.current) && !bsOnlineRailMirrorRead()) ? { onlineRail: 'Off' } : null;
         // Same fold for the radio ask-gate, written outside this pane by the
         // prompt (and by the pane's own radio toggle, which goes through the
@@ -33086,8 +33095,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         // ever adds it back.
         let askedFold = null;
         try { if (doc.radioAsked !== true && window.ShapeRadioAsked?.asked?.()) askedFold = { radioAsked: true }; } catch (e) {}
-        try { return db.saveUserGoals('client_settings', { ...doc, ...railFold, ...askedFold, ...editedRef.current }); } catch (e) { return null; }
-      });
+        const sent = { ...editedRef.current };
+        const result = await db.saveUserGoals('client_settings', { ...doc, ...railFold, ...askedFold, ...editedRef.current }, { expectedUserId });
+        if (!result || result.error) throw new Error('Could not save settings.');
+        serverDocRef.current = { ...doc, ...railFold, ...askedFold, ...sent };
+        for (const k of Object.keys(sent)) if (editedRef.current[k] === sent[k]) delete editedRef.current[k];
+        return result;
+      }).catch(() => window.__bsToast?.(tr('settings:toast.saveFailed', { defaultValue: 'Save failed' }), 'err'));
     };
     if (serverDocRef.current) { write(serverDocRef.current); return; }
     // Pre-hydrate: defer to the read already in flight; if that one came back
@@ -33584,7 +33598,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }).catch(() => {});
   }, []);
   const startEdit = () => { touchedRef.current = new Set(); setDraft(seedDraft()); setEditing(true); };
-  const saveEdit  = () => {
+  const saveEdit  = async () => {
     // ⚠ ONLY WHAT THE MEMBER TOUCHED IS WRITTEN (see touchedRef). The draft is a copy
     // of `identity`, which also carries `goal` (the Goal page's own field, written by
     // its own editor) and the persona's `accent`, and its untouched keys may still be
@@ -33620,29 +33634,23 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     if (touched.has('pronouns')) fields.pronouns = draft.pronouns || '';
     if (touched.has('bio')) fields.bio = bio;
     if (touched.has('handle')) fields.handle = handle;
+
+    if (!Object.keys(fields).length) return;
+    const patch = fields;
+    const result = await bsSaveIdentity(patch);
+    if (!result || result.error) { window.__bsToast?.(result?.error?.message || 'Could not save your profile.', 'err'); return; }
     setIdentity(prev => ({ ...prev, ...fields })); setEditing(false);
     if (touched.has('location')) setLocationKnown(!!location);
     if (touched.has('bio')) setBioKnown(!!bio.trim());
     if (touched.has('handle')) setHandleKnown(!!handle);
-    // Persist through the serialized writer (merges over the freshest stored doc, so
-    // the photo picker's photo and our avatarMode can't clobber each other).
-    // Optimistically update the cache first so on-screen avatars refresh instantly
-    // without navigating.
-    // ⚠ ASKED OF WHAT THE MEMBER EDITED, NOT OF THE PATCH: the cached photo rides every
-    // write, so a check on the patch could never fire and an untouched Save still
-    // round-tripped the store — driven, 1 document written where 0 was expected.
-    if (!Object.keys(fields).length) return; // nothing edited: nothing to write
-    const photo = bsMyPhotoRaw() || null;
-    const patch = photo ? { ...fields, photo } : fields;
-    try { window.ShapeIdentity = { ...(window.ShapeIdentity || {}), ...patch }; window.dispatchEvent(new Event('shape:identity')); } catch (e) {}
-    bsSaveIdentity(patch);
     // Mirror the display name to the auth-cached profile so other surfaces pick it up.
     if (touched.has('name')) { try { window.ShapeAuth?.updateProfileName?.(name); } catch (e) {} }
   };
   const cancelEdit = () => setEditing(false);
 
   // Editable account fields (Account pane) — edited via an in-app sheet.
-  const [account, setAccount] = useStateBSC({ email: 'alex@rivera.co', phone: '+1 (415) 555-0144', twoFactor: true });
+  const accountUser=window.ShapeAuth?.getCachedState?.()?.user;
+  const account={email:accountUser?.email || '—',phone:accountUser?.phone || '—'};
   const [editField, setEditField] = useStateBSC(null); // { key, label, value, type, placeholder }
   // Custom Shape-styled dropdown (replaces the native <select> picker).
   const [dropdown, setDropdown] = useStateBSC(null); // { key, label, options, top, right }
@@ -33662,40 +33670,22 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       window.removeEventListener('touchmove', close);
     };
   }, [dropdown]);
-  const openAccountEdit = (key, label, opts = {}) => setEditField({ key, label, value: opts.value != null ? opts.value : (account[key] || ''), type: opts.type || 'text', placeholder: opts.placeholder || '' });
-  const openPrefEdit = (store, key, label, opts = {}) => setEditField({ store, key, label, value: (store === 'nutrition' ? nutritionPrefs : trainingPrefs)[key] || '', type: opts.type || 'text', placeholder: opts.placeholder || '', options: opts.options || null });
-  const saveEditField = () => {
+  const openPrefEdit = (store, key, label, opts = {}) => setEditField({ ownerId:window.ShapeAuth?.getCachedState?.()?.user?.id, store, key, label, value: (store === 'nutrition' ? nutritionPrefs : trainingPrefs)[key] || '', type: opts.type || 'text', placeholder: opts.placeholder || '', options: opts.options || null });
+  const saveEditField = async () => {
     if (!editField) return;
     const v = String(editField.value || '').trim();
     if (editField.store) {
-      const blob = editField.store === 'nutrition' ? nutritionPrefs : trainingPrefs;
       // Store the TOKEN. A chip already carries one; a member who typed the
       // option by hand lands on it too; anything else is free text and passes
       // through untouched.
-      persistPref(editField.store, { ...blob, [editField.key]: bsPrefOptionToken(editField.key, v, tr) });
+      const saved=await persistPref(editField.store, { [editField.key]: bsPrefOptionToken(editField.key, v, tr) }, editField.ownerId);
+      if(!saved)return;
       setEditField(null);
       return;
     }
-    if (!v) { setEditField(null); return; }
-    if (editField.key === 'password') {
-      window.__bsToast?.(tr('settings:toast.passwordUpdated', { defaultValue: 'Password updated' }), 'ok');
-    } else {
-      setAccount(a => ({ ...a, [editField.key]: v }));
-      window.__bsToast?.(tr('settings:toast.fieldUpdated', { label: editField.label, defaultValue: '{label} updated' }), 'ok');
-    }
     setEditField(null);
   };
-  const toggleTwoFactor = () => setAccount(a => {
-    const twoFactor = !a.twoFactor;
-    window.__bsToast?.(twoFactor ? tr('settings:toast.twoFactorEnabled', { defaultValue: 'Two-factor enabled' }) : tr('settings:toast.twoFactorDisabled', { defaultValue: 'Two-factor disabled' }), 'ok');
-    return { ...a, twoFactor };
-  });
 
-  // Appearance controls — ONE uniform option cell for every picker (papers,
-  // textures, accents, ink, weight, text size) so each grid renders identical
-  // footprints (owner call 2026-07-14: "make these all the same size").
-  // Anatomy: a live 38px preview band over a mono label bar; active = ink
-  // frame + an accent ✓ tick on the band.
   const OptGrid = ({ children }) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 7 }}>{children}</div>
   );
@@ -34071,10 +34061,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             : tr('settings:account.metaFree', { defaultValue: 'Free' }))
         : '',
       rows: [
-        { l: tr('settings:account.email', { defaultValue: 'Email' }),           r: account.email, action: () => openAccountEdit('email', tr('settings:account.email', { defaultValue: 'Email' }), { type: 'email' }) },
-        { l: tr('settings:account.phone', { defaultValue: 'Phone' }),           r: account.phone, action: () => openAccountEdit('phone', tr('settings:account.phone', { defaultValue: 'Phone' }), { type: 'tel' }) },
-        { l: tr('settings:account.password', { defaultValue: 'Password' }),        r: tr('settings:account.change', { defaultValue: 'Change' }), action: () => openAccountEdit('password', tr('settings:account.password', { defaultValue: 'Password' }), { type: 'password', value: '', placeholder: tr('settings:account.newPasswordPh', { defaultValue: 'New password' }) }) },
-        { l: tr('settings:account.twoFactor', { defaultValue: 'Two-factor auth' }), r: account.twoFactor ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' }), action: toggleTwoFactor },
+        { l: tr('settings:account.email', { defaultValue: 'Email' }), r: account.email },
+        { l: tr('settings:account.phone', { defaultValue: 'Phone' }), r: account.phone },
       ],
     },
     {

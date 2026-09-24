@@ -412,7 +412,7 @@ test('every Settings write goes through the deferred, merge-on-a-real-document w
   // wins, and nothing but a *Fold sits between them.
   assert.match(
     settings,
-    /db\.saveUserGoals\('client_settings', \{ \.\.\.doc,(?: \.\.\.\w+Fold,)* \.\.\.editedRef\.current \}\)/,
+    /db\.saveUserGoals\('client_settings', \{ \.\.\.doc,(?: \.\.\.\w+Fold,)* \.\.\.editedRef\.current \}, \{ expectedUserId \}\)/,
     'the write merges edited keys (last) onto the server document, after any folds',
   );
   // The ask-gate fold specifically: dropping it silently re-asks the member the

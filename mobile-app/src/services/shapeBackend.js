@@ -4455,10 +4455,11 @@ window.shapeDb = window.shapeDb || {
     if (res.error) { console.warn('[shape] getUserGoals error', res.error); return null; }
     return (res.data && res.data.data) || {};
   },
-  async saveUserGoals(kind, data) {
+  async saveUserGoals(kind, data, options) {
     if (!supabase) return { error: { message: 'No backend' } };
     const u = await window.shapeDb.getUser();
     if (!u) return { error: { message: 'Not logged in' } };
+    if (options?.expectedUserId && u.id !== options.expectedUserId) return { error: { message: 'Account changed' } };
     const res = await supabase.from('user_goals').upsert({ user_id: u.id, kind, data: data || {} }, { onConflict: 'user_id,kind' });
     if (res.error) { console.warn('[shape] saveUserGoals error', res.error); return { error: res.error }; }
     return { ok: true };

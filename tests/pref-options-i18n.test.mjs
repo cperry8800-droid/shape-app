@@ -153,7 +153,7 @@ test('the Turkish fold is load-bearing, not decoration', () => {
 
 test('bsGoalKind takes no translator — it reads stored values, on the server too', () => {
   assert.equal(bsGoalKind.length, 2, 'two arguments, no tr');
-  const src = fs.readFileSync(path.join('mobile-app', 'src', 'services', 'prefOptions.mjs'), 'utf8');
+  const src = fs.readFileSync(path.join('public', 'newdesign', 'prefOptions.mjs'), 'utf8');
   const body = /export function bsGoalKind\([\s\S]*?\n}/.exec(src);
   assert.ok(body, 'bsGoalKind is declared');
   assert.ok(!/\btr\b/.test(body[0]), 'no translator reaches the classifier');
