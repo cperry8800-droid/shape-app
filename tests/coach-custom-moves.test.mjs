@@ -562,6 +562,7 @@ const mountBuilder = async () => {
   })));
   // The drag/canvas regressions exercise the optional popped-out Planner editor.
   await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Planner').click());
+  await React.act(async()=>document.querySelector('.wg button.c:not(.rest)').click());
   await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pop out editor')?.click());
   return root;
 };

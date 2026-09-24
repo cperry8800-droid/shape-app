@@ -10,7 +10,7 @@ function coachTemplateCopy(template) {
   return { name: template.name + " (copy)", published: false, detail, sourceName: template.name };
 }
 
-function CoachBuilderNav({ layout, onLayout, step, onStep, steps, busy }) {
+function CoachBuilderNav({ layout, onLayout, step, onStep, steps, busy, children }) {
   return <>
     <style>{`
 .cbuilder{color:var(--sh-ink, #f2ede4);font-family:var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif);min-width:0}
@@ -48,7 +48,16 @@ function CoachBuilderNav({ layout, onLayout, step, onStep, steps, busy }) {
 .cbuilder.dbu2 .drawer.float:not(.is-popped){position:static;width:100%;max-height:none;margin:0;overflow:visible;box-shadow:none}
 .cbuilder.dbu2 .stage{min-height:0}
 .cbuilder.dbu2 .drawer .dh{position:static;flex-wrap:wrap}
-.cbuilder.dbu2 .cb-planner-editor{margin-top:24px}
+.cbuilder.dbu2 .cb-planner-editor{margin:0}
+.cbuilder.dbu2 .cb-planner-editor .drawer.is-sidepanel{position:fixed!important;inset:16px 16px 16px auto!important;width:min(600px,calc(100vw - 32px))!important;max-height:calc(100dvh - 32px)!important;margin:0!important;overflow:auto;overscroll-behavior:contain;z-index:55;box-shadow:0 18px 50px rgba(0,0,0,.24)}
+.cbuilder.dbu2 .drawer.is-sidepanel .dh{position:sticky;top:0;z-index:2;background:var(--sh-card, #25211d);padding:8px 0}
+.cbuilder.dbu2 .cb-choice .tb{margin:0;flex:1;flex-wrap:wrap;gap:8px}
+.cbuilder.dbu2 .cb-choice .tb select{max-width:240px}
+.cbuilder .cb-details{border-bottom:1px solid var(--sh-line, #302c27);margin:0 0 14px;padding:0 0 4px}
+.cbuilder .cb-details>summary{cursor:pointer;padding:10px 0;font-size:14px;font-weight:600}
+.cbuilder .cb-details>summary small{margin-left:10px;color:var(--sh-ink2, #a09b94);font-size:12px;font-weight:400}
+.cbuilder .cb-details>p{font-size:13px;line-height:1.5;color:var(--sh-ink2, #a09b94);margin:4px 0 12px}
+.cbuilder .cb-details .meta{margin-bottom:10px}
 .cbuilder .dmb-layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:20px;align-items:start}
 .cbuilder .dmb-side{display:flex;flex-direction:column;gap:14px;min-width:0}
 .cbuilder .dmb-content,.cbuilder .dmb-preview{min-width:0}
@@ -73,13 +82,14 @@ function CoachBuilderNav({ layout, onLayout, step, onStep, steps, busy }) {
  .cbuilder.dbu2{padding:16px 12px}
  .cbuilder.dbu2 .hd>div{min-width:0!important}
  .cbuilder .dmb-preview{display:block}
+ .cbuilder.dbu2 .cb-planner-editor .drawer.is-sidepanel{inset:0!important;width:100%!important;max-height:100dvh!important;border-radius:0}
 }
 `}</style>
     <div className="cb-choice">
       <div className="cb-options" role="group" aria-label="Builder layout">
         {[["guided", "Guided"], ["editor", "Editor"], ["planner", "Planner"]].map(([key, label]) => <button key={key} type="button" className="cb-button" aria-pressed={layout === key} disabled={busy} onClick={() => onLayout(key)}>{label}</button>)}
       </div>
-      <p>Choose how you build. Your plan stays the same.</p>
+      {children || <p>Choose how you build. Your plan stays the same.</p>}
     </div>
     {layout === "guided" && <nav className="cb-steps" aria-label="Builder steps">
       {steps.map((label, i) => <button key={label} type="button" className="cb-button cb-step" aria-current={step === i ? "step" : undefined} disabled={busy} onClick={() => onStep(i)}><span>{i + 1}</span><span>{label}</span></button>)}

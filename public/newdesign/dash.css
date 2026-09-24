@@ -338,6 +338,12 @@ a { text-decoration: none; color: inherit; }
    variant would have been a bright bar on the dark switch and was retired.
    Declared here rather than in either module because both need it and neither
    owns the other — and dashMealBuilder.jsx has no <style> host at all. */
+/* Keep document scrolling while hiding the full-page native scrollbar. */
+html, body { scrollbar-width: none; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+/* The Widgets dropdown keeps overflow scrolling without native scrollbar chrome. */
+.dash-widget-catalog { scrollbar-width: none; }
+.dash-widget-catalog::-webkit-scrollbar { display: none; }
 .dash-thin-scroll { scrollbar-width: thin; scrollbar-color: rgba(var(--sh-ink-rgb, 242,237,228),.24) transparent; }
 .dash-thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .dash-thin-scroll::-webkit-scrollbar-track { background: transparent; }

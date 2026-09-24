@@ -819,7 +819,11 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
           <span className="hint">Chips on the client card</span>
         </div>
       </div>
-      <ShapeVideoAttachment key={day.id} value={day.video} title="Workout walkthrough" onChange={video=>onChange({...day,video})} upload={dbuUploadVideo} onBusy={onUploading} clips={clips}/>
+      <details className="cb-details" key={day.id}>
+        <summary>Workout walkthrough video <small>{day.video ? "Video added" : "Optional"}</small></summary>
+        <p>Explain this day's workout: exercises, technique and what to focus on.</p>
+        <ShapeVideoAttachment value={day.video} title="Workout walkthrough" onChange={video=>onChange({...day,video})} upload={dbuUploadVideo} onBusy={onUploading} clips={clips}/>
+      </details>
       {day.blocks.map((block, bi) => (
         <div key={bi} style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
@@ -1304,9 +1308,6 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
           })}
         </tbody>
       </table>
-      <button type="button" className="addday" onClick={() => setWeeks(weeks.map((w, i) => (i !== 0 ? w : { ...w, days: [...w.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday: dbuNextFreeWeekday(w) }] })))}>
-        ＋ Add a day
-      </button>
     </div>
   );
 }
@@ -1334,18 +1335,19 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const [layout, chooseLayout] = useRememberedChoice(prefs, "workoutBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
   const [step, setStep] = React.useState(0);
   const [popped, setPopped] = React.useState(false);
-  const [showSchedule, setShowSchedule] = React.useState(false);
+  const [plannerEditorOpen, setPlannerEditorOpen] = React.useState(false);
+  const dayTrigger = React.useRef(null);
   const steps = ["Basics", "Exercises", "Schedule", "Review"];
   const [templateSaved, setTemplateSaved] = React.useState(false);
   React.useEffect(() => setTemplateSaved(false), [name, doc]);
   const goStep = next => { setStep(next); if (sel.w < 0) setSel({w:0,d:0}); };
-  const setLayout = next => { chooseLayout(next); setPopped(false); if (sel.w < 0) setSel({w:0,d:0}); };
+  const setLayout = next => { chooseLayout(next); setPopped(false); setPlannerEditorOpen(false); if (sel.w < 0) setSel({w:0,d:0}); };
   const guided = layout === "guided";
-  const scheduleShown = layout === "planner" || (guided ? step === 2 : showSchedule);
-  const selectDay = next => { setSel(next); if (guided && step === 2) setStep(1); };
+  const scheduleShown = layout === "planner" || (guided && step === 2);
+  const selectDay = next => { dayTrigger.current = document.activeElement; setSel(next); if (layout === "planner") setPlannerEditorOpen(true); if (guided && step === 2) setStep(1); };
   // Sheet edits its own cells. Close the day editor when switching, then reopen
   // it from a day heading; coaches can explicitly pop it out when they need to.
-  const setView = (next) => { if (next === "sheet") setSel({ w: -1, d: -1 }); setViewRaw(next); };
+  const setView = (next) => { setPlannerEditorOpen(false); setPopped(false); if (next === "sheet") setSel({ w: -1, d: -1 }); setViewRaw(next); };
   // ⚠ THE OPEN DOCUMENT COUNTS TOO. `customMoves` comes from SAVED templates, so a
   // move created ten seconds ago would not be offered for the next day until the
   // program had been saved and re-fetched — which reads as the feature not
@@ -1360,7 +1362,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const canFloat = useDbuFloating();
   const floating = canFloat && popped;
   const stageRef = React.useRef(null);
-  const panelOpen = sel.w >= 0 && sel.d >= 0;
+  const panelOpen = sel.w >= 0 && sel.d >= 0 && (layout !== "planner" || plannerEditorOpen);
   const panel = useDbuDrag({ enabled: floating, open: panelOpen, defaultPos: () => dbuDefaultPanelPos(stageRef.current) });
   // ⚠ THE PREVIEW IS DRAGGABLE AT EVERY WIDTH, unlike the day editor. `.pop` is
   // `position:fixed` in every media query — nothing drops it back into the flow —
@@ -1374,6 +1376,16 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const [saveConflict,setSaveConflict] = React.useState(false);
   const [assigning,setAssigning] = React.useState(false);
   const [uploads,setUploads] = React.useState(0);
+  const closeDayEditor = () => {
+    if (uploads) return;
+    setPopped(false);
+    setPlannerEditorOpen(false);
+    if (layout === "planner") dayTrigger.current?.isConnected && dayTrigger.current.focus();
+    else setSel({w:-1,d:-1});
+  };
+  React.useEffect(() => {
+    if (layout === "planner" && plannerEditorOpen) panel.ref.current?.focus();
+  }, [layout, plannerEditorOpen]);
   const idRef = React.useRef(template.draftId || (template.id && !String(template.id).startsWith('demo-') ? template.id : crypto.randomUUID()));
   const persisted = React.useRef(template.recovered ? !!template.recovered.persisted : !!template.id && !String(template.id).startsWith('demo-'));
   const revision = React.useRef(initial.current.revision);
@@ -1614,7 +1626,33 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
    builder needs the same ones and has no style host of its own. */
 `}</style>
       <div className="dbu2 cbuilder" data-layout={layout} data-step={step}>
-        <CoachBuilderNav layout={layout} onLayout={setLayout} step={step} onStep={goStep} steps={steps} busy={!!uploads}/>
+        <CoachBuilderNav layout={layout} onLayout={setLayout} step={step} onStep={goStep} steps={steps} busy={!!uploads}>
+        <div className="tb" hidden={guided && step !== 1 && step !== 2}>
+          {scheduleShown && <DbuViewSwitch view={view} setView={setView} />}
+          <div style={{ flex: 1 }} />
+          {/* ⚠ "Reuse a saved day" survives the retired tree. It is the one control there with
+              no home in either canvas, and dropping it would have removed a shipped feature in
+              a layout PR. Its developer-voice label (F10) is what changed, not its behaviour. */}
+          {scheduleShown && !!dayTemplates?.length && (
+            <select aria-label="Add a saved day to week 1" value="" style={{ ...dbuField, cursor: "pointer" }}
+              onChange={(e) => {
+                const savedDay = dayTemplates[Number(e.target.value)];
+                if (!savedDay) return;
+                const next = JSON.parse(JSON.stringify(savedDay.day));
+                next.id = crypto.randomUUID();
+                const target = Math.max(0, sel.w);
+                if (!dbuHasWeekday(next)) next.weekday = dbuNextFreeWeekday(doc.weeks[target]);
+                setWeeks(doc.weeks.map((w, i) => (i === target ? { ...w, days: [...w.days, next] } : w)));
+              }}>
+              <option value="">Add a saved day…</option>
+              {dayTemplates.map((x, i) => <option key={i} value={i}>{x.name}</option>)}
+            </select>
+          )}
+          <button type="button" className="cb-button" onClick={()=>{const wi=Math.max(0,sel.w), w=doc.weeks[wi];setWeeks(doc.weeks.map((v,i)=>i===wi?{...v,days:[...v.days,{...DashBuilder.newDay("Day "+(w.days.length+1)),weekday:dbuNextFreeWeekday(w)}]}:v));selectDay({w:wi,d:w.days.length});}}>＋ Add a day</button>
+          <button type="button" hidden={!scheduleShown} style={dbuBtn(false)} onClick={() => setWeeks([...doc.weeks, { ...DashBuilder.newWeek(), days: [{ ...DashBuilder.newDay("Day 1"), weekday: 0 }] }])}>＋ Week</button>
+        </div>
+          {layout === "editor" && <button className="cb-button" type="button" onClick={()=>setLayout("planner")}>Arrange days &amp; weeks</button>}
+        </CoachBuilderNav>
         {template.sourceName && (!guided || step === 0) && <p className="cb-copy">Based on <strong>{template.sourceName}</strong>. You’re editing a new copy; the original template stays unchanged.</p>}
         {guided && <div className="cb-intro"><h2>{["Start with the basics", "Build your workout", "Arrange days and weeks", "Ready for your clients?"][step]}</h2><p>{["Name this template so you can find it and use it again. You can assign it to clients whenever you’re ready.", "Choose a day, add exercises, then set the prescription. Rest, RPE and demonstration videos are available on every exercise.", "Repeat a week, add progression or plan a deload. Each client’s start date is chosen when you assign the plan.", "Check each day as your client will see it. Save the template for later or choose clients and a start date."][step]}</p></div>}
         {/* ── Header ──────────────────────────────────────────────────────────
@@ -1629,19 +1667,10 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
               onFocus={(e) => { e.target.style.borderBottomColor = DBU_LINE2; }}
               onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
             <div className="meta" hidden={guided && step !== 0}>
-              <DbuTagPicker tags={doc.tags} customTags={customTags} onChange={(tags) => setDoc({ ...doc, tags })} />
-              <span className="chip">
-                Starts
-                <input type="date" aria-label="Reference start Monday the dates on this page are drawn for"
-                  value={startISO} onChange={(e) => setStart(dbuMondayOf(e.target.value) || startISO)} />
-              </span>
               <span className="chip q">{summary.weeks} {summary.weeks === 1 ? "week" : "weeks"} · {weekdayLabel} · {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}{summary.last ? " · last " + dbuShortDate(summary.last) : ""}</span>
               <span className="saved">v{doc.version} · {saveLabel}</span>
             </div>
-            {/* ⚠ The reference Monday is a REFERENCE. Each client's real start is chosen per
-                client at assign, so the page says so rather than letting a coach read this
-                as the start date their clients get. */}
-            <div className="saved" hidden={guided && step !== 0} style={{ marginTop: 6 }}>Each client's own start is chosen at assign.</div>
+
           </div>
           <div className="acts">
             <button type="button" className="tog" onClick={() => setPreview(!preview)} aria-pressed={preview}>
@@ -1653,7 +1682,20 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
           </div>
         </div>
 
-        {(!guided || step === 0) && <ShapeVideoAttachment value={doc.video} title="Program introduction" onChange={video=>setDoc({...doc,video})} upload={dbuUploadVideo} onBusy={uploadCount} clips={clips}/>}
+        <details className="cb-details" hidden={guided && step !== 0}>
+          <summary>Program details <small>Tags, start date &amp; introduction video{doc.video ? " · Video added" : ""}</small></summary>
+          <div className="meta">
+              <DbuTagPicker tags={doc.tags} customTags={customTags} onChange={(tags) => setDoc({ ...doc, tags })} />
+              <span className="chip">
+                Starts
+                <input type="date" aria-label="Reference start Monday the dates on this page are drawn for"
+                  value={startISO} onChange={(e) => setStart(dbuMondayOf(e.target.value) || startISO)} />
+              </span>
+          </div>
+          <p>The reference date sets the dates shown here. Each client's own start is chosen at assign.</p>
+          <p><strong>Program introduction video · Optional.</strong> Explain the entire program, its goals, structure and what to expect.</p>
+          <ShapeVideoAttachment value={doc.video} title="Program introduction" onChange={video=>setDoc({...doc,video})} upload={dbuUploadVideo} onBusy={uploadCount} clips={clips}/>
+        </details>
 
         {/* ⚠ F6 retires *Save draft* and *Publish template* into autosave + Publish — but the
             header's button was ALSO the retry (it re-labelled itself "Retry save" on failure),
@@ -1670,32 +1712,6 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
         )}
         {templateSaved && <p role="status">{live ? "Template saved to your library. Use as template makes a separate copy next time." : "Template draft saved on this device. Sign in to save to your library."}</p>}
         {doc.outlineOnly && <p style={{ fontSize: 13.5, color: DBU_INK2 }}>This imported outline has day or week titles only. Add exercises before assigning it as a structured workout.</p>}
-
-        {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-        {layout === "editor" && <button className="cb-button" type="button" aria-expanded={showSchedule} onClick={()=>setShowSchedule(!showSchedule)}>{showSchedule ? "Hide schedule tools" : "Arrange days & weeks"}</button>}
-        <div className="tb" hidden={!scheduleShown}>
-          <DbuViewSwitch view={view} setView={setView} />
-          <div style={{ flex: 1 }} />
-          {/* ⚠ "Reuse a saved day" survives the retired tree. It is the one control there with
-              no home in either canvas, and dropping it would have removed a shipped feature in
-              a layout PR. Its developer-voice label (F10) is what changed, not its behaviour. */}
-          {!!dayTemplates?.length && (
-            <select aria-label="Add a saved day to week 1" value="" style={{ ...dbuField, cursor: "pointer" }}
-              onChange={(e) => {
-                const savedDay = dayTemplates[Number(e.target.value)];
-                if (!savedDay) return;
-                const next = JSON.parse(JSON.stringify(savedDay.day));
-                next.id = crypto.randomUUID();
-                const target = Math.max(0, sel.w);
-                if (!dbuHasWeekday(next)) next.weekday = dbuNextFreeWeekday(doc.weeks[target]);
-                setWeeks(doc.weeks.map((w, i) => (i === target ? { ...w, days: [...w.days, next] } : w)));
-              }}>
-              <option value="">Add a saved day…</option>
-              {dayTemplates.map((x, i) => <option key={i} value={i}>{x.name}</option>)}
-            </select>
-          )}
-          <button type="button" style={dbuBtn(false)} onClick={() => setWeeks([...doc.weeks, { ...DashBuilder.newWeek(), days: [{ ...DashBuilder.newDay("Day 1"), weekday: 0 }] }])}>＋ Week</button>
-        </div>
 
         {/* ⚠ F1 (P0): `.dbu-layout` DECLARED TWO COLUMNS AND HAD THREE CHILDREN, so the client
             preview wrapped into the second grid row — inside the 210px tree column, measured at
@@ -1714,29 +1730,26 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
             ? <DbuGrid doc={doc} dates={dates} sel={sel} setSel={selectDay} setWeeks={setWeeks} uploads={uploads} onWeek={onWeek} />
             : <DbuSheet doc={doc} dates={dates} setSel={selectDay} setWeeks={setWeeks} />}
 
-          {/* The day editor, unchanged — every engine control it carries survives the redesign.
-              ⚠ IT FLOATS OVER THE CANVAS rather than sitting beside it, which is the board's own
-              `.drawer` and is what keeps the canvas full width: as a column it left the grid
-              640px — measured — at which "Rest · ＋ Add session" wraps to three lines and the
-              sheet's week columns are clipped. Below 1100px it drops back into the flow. */}
+          {/* Planner opens a day on demand in a viewport-bound side panel.
+              Editor and Guided keep the day beside their day navigation. */}
           </div>
-          <div className={layout === "planner" ? "cb-planner-editor" : "cb-workspace"} hidden={guided && step !== 1 && step !== 3}>
+          <div className={layout === "planner" ? "cb-planner-editor" : "cb-workspace"} hidden={(guided && step !== 1 && step !== 3) || (layout === "planner" && !plannerEditorOpen)}>
             {layout !== "planner" && <aside className="cb-days" aria-label="Workout days">
               <label>Week<select aria-label="Week to edit" value={Math.max(0,sel.w)} style={dbuField} onChange={e=>setSel({w:Number(e.target.value),d:0})}>{doc.weeks.map((w,i)=><option key={i} value={i}>Week {i+1}{w.deload?" · deload":""}</option>)}</select></label>
               {(week || doc.weeks[0]).days.map((d,i)=><button type="button" className="cb-button" key={d.id || i} aria-pressed={sel.d===i} onClick={()=>setSel({w:Math.max(0,sel.w),d:i})}>{d.name}<small>{d.blocks.reduce((n,b)=>n+b.rows.length,0)} exercises</small></button>)}
-              <button type="button" className="cb-button" onClick={()=>{const wi=Math.max(0,sel.w), w=doc.weeks[wi];setWeeks(doc.weeks.map((v,i)=>i===wi?{...v,days:[...v.days,{...DashBuilder.newDay("Day "+(w.days.length+1)),weekday:dbuNextFreeWeekday(w)}]}:v));setSel({w:wi,d:w.days.length});}}>＋ Add a day</button>
             </aside>}
-          {day && !(guided && step === 3) && (
+          {day && !(guided && step === 3) && (layout !== "planner" || plannerEditorOpen) && (
             /* ⚠ role="group", NOT "dialog": this panel is not modal, traps no focus and
                sits beside a canvas that stays live. Calling it a dialog tells a
                screen-reader user the rest of the page is inert when it is not. */
-            <div className={"drawer float dash-thin-scroll" + (floating ? " is-popped" : "")} ref={panel.ref} role="group" aria-label={"Day editor \u00b7 " + day.name}
+            <div className={"drawer float dash-thin-scroll" + (floating ? " is-popped" : layout === "planner" ? " is-sidepanel" : "")} ref={panel.ref} role="group" tabIndex={-1}
+              onKeyDown={e=>{if(e.key === "Escape" && layout === "planner" && !e.defaultPrevented && !e.target.closest('[role="dialog"]')){e.stopPropagation();closeDayEditor();}}} aria-label={"Day editor \u00b7 " + day.name}
               style={floating ? panel.style : undefined}>
               <div className={"dh" + (floating ? " grab" : "")} {...panel.headerProps} style={panel.grabStyle}>
                 {floating && <button type="button" className="gh" aria-label="Move the day editor — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={panel.onKey} title="Drag to move" />}
                 <b>{day.name}</b>
                 {canFloat && <button type="button" className="x" onClick={()=>setPopped(!popped)}>{popped ? "Dock editor" : "Pop out editor"}</button>}
-                {view === "grid" && <button type="button" className="x" onClick={() => {setView("sheet");setShowSchedule(true);if(guided)setStep(2);}} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
+                {view === "grid" && <button type="button" className="x" onClick={() => {setView("sheet");if(guided)setStep(2);else setLayout("planner");}} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
                 {/* ⚠ The tree carried a per-day Copy button; the grid moves a day by dragging it
                     to another weekday, which is a different action. Duplication would have been
                     lost with the tree, so it lands here — on the day it is about. */}
@@ -1748,7 +1761,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
                   setWeeks(doc.weeks.map((x, i) => (i === sel.w ? { ...x, days: [...x.days.slice(0, sel.d + 1), next, ...x.days.slice(sel.d + 1)] } : x)));
                   setSel({ w: sel.w, d: sel.d + 1 });
                 }}>Duplicate day</button>
-                <button type="button" className="x" aria-label="Close the day editor" onClick={() => setSel({ w: -1, d: -1 })}>Done</button>
+                <button type="button" className="x" aria-label="Close the day editor" disabled={!!uploads} onClick={closeDayEditor}>Done</button>
               </div>
               <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
               <DbuDayEditor

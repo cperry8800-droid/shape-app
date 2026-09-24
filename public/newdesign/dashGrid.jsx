@@ -592,7 +592,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false }) {
         {addable.length > 0 && <span style={{ color: "var(--sh-accent, #2ee0c4)", fontVariantNumeric: "tabular-nums" }}>{addable.length}</span>}
       </button>
       {open && box && ReactDOM.createPortal(
-        <div ref={panelRef} role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
+        <div ref={panelRef} className="dash-widget-catalog" role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
           <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
           {onBoard.map((r) => item(r, <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
           {addable.length > 0 && head("Available")}
