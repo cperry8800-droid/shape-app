@@ -5786,7 +5786,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
             {lbl(tr('coach:editor.media', { defaultValue: 'MEDIA · PHOTOS & VIDEOS' }))}
             <button onClick={() => mediaInputRef.current && mediaInputRef.current.click()} disabled={uploading} style={{ border: 0, background: 'transparent', cursor: uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent, opacity: uploading ? 0.5 : 1 }}>{uploading ? tr('coach:editor.uploading', { defaultValue: 'UPLOADING…' }) : tr('coach:editor.upload', { defaultValue: '+ UPLOAD' })}</button>
           </div>
-          <ShapeVideoLink onChange={url=>setMedia(previous=>[...previous,{url,type:'video',name:'Plan video'}])} label={tr('coach:video.planLink',{defaultValue:'Plan video link'})} disabled={uploading}/>
+          <ShapeVideoLink onChange={url=>setMedia(previous=>[...previous,{url,type:'video'}])} label={tr('coach:video.planLink',{defaultValue:'Plan video link'})} disabled={uploading}/>
           <input ref={mediaInputRef} type="file" accept="image/*,video/*" multiple onChange={pickMedia} style={{ display: 'none' }} />
           {media.length === 0
             ? <div onClick={() => mediaInputRef.current && mediaInputRef.current.click()} style={{ borderRadius: 12, border: `1px dashed ${t.RULE}`, background: t.PAPER2, padding: '18px 13px', textAlign: 'center', cursor: 'pointer' }}>
