@@ -31,6 +31,7 @@ async function _dashJson(url) {
   // Insert before awaiting: sidebar + page requests made in the same render
   // share the in-flight read as well as the eventual cached result.
   const entry = {};
+  _dashCache.set(url, entry);
   entry.pending = (async () => {
     try {
       const res = await fetch(url, { credentials: "same-origin" });
@@ -45,7 +46,6 @@ async function _dashJson(url) {
       throw error;
     }
   })();
-  _dashCache.set(url, entry);
   return entry.pending;
 }
 
