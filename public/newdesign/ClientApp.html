@@ -56,16 +56,12 @@
       var role = d.user.role;
       var dash = role === 'trainer' ? 'TrainerApp.html' : role === 'nutritionist' ? 'NutritionistApp.html' : null;
       if (dash) {
-        // Reconcile client-only routes when forwarding a coach. #settings is a
-        // client tab; the coach SPAs have no such route and fall back to Today
-        // for unknown hashes. A coach's account controls ride their profile, so
-        // translate #settings -> #profile. This is the ONE place that knows the
-        // role, so it's where the role-blind ClientMe.html alias (which now
-        // targets #settings) is made safe for coaches following an old link.
+        // Coach shells have their own Settings route. Preserve it when an old
+        // ClientMe link forwards a coach to their dashboard.
         // Preserve the query string (e.g. ?u=/?name= the profile stack reads),
         // ordered before the hash so it doesn't become part of the route key.
         var search = window.location.search || '';
-        var hash = window.location.hash === '#settings' ? '#profile' : (window.location.hash || '');
+        var hash = window.location.hash || '';
         window.location.replace('/newdesign/' + dash + search + hash);
       }
     })

@@ -181,7 +181,7 @@ function CoachSettingsPage({ role }) {
   const tunables = DashSignals.TUNABLES || [];
   const landing = cstLandingOptions(role);
   // The paper (light by default, the previous dark tones one tap away) is the
-  // account's, kept in dashboard_prefs beside the layout — dashData.jsx's own hook.
+  // account's, shared with the app through app_tweaks — dashData.jsx's own hook.
   // It loads after this module on every host, so the read is a page-life constant.
   const paperCtl = typeof useDashPaper === "function" ? useDashPaper() : ["light", null, { kind: "none" }];
   const [localDemo, setLocalDemo] = React.useState(null); // preview edits — this tab only
@@ -366,6 +366,7 @@ function CoachSettingsPage({ role }) {
               coach is replaced by another. */}
           <CoachNotificationCard key={acct || "anon"} signedIn={signedIn} acct={acct} />
         </div>
+        {typeof CoachAccountSettings === "function" && <CoachAccountSettings key={acct || "anon"} accountId={acct} />}
       </DashPage>
     </React.Fragment>
   );

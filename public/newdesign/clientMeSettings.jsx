@@ -1,3 +1,4 @@
+// The app and website share the same account documents and option tokens.
 function Row({ label, value, action, onAction }) {
   const chipStyle = { fontSize: 12, color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", cursor: "pointer", background: "transparent", border: 0, padding: "4px 8px", margin: "-4px -8px", borderRadius: 6 };
   return (
@@ -52,85 +53,30 @@ const SAMPLE_PROFILE = {
   garmin: false
 };
 
-function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved }) {
+function SingleFieldModal({ label, fieldKey, initialValue, onClose, onSaved, options, accountId }) {
+  const [ownerId] = React.useState(accountId);
   const [val, setVal] = React.useState(initialValue == null ? "" : String(initialValue));
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState(null);
   async function save() {
     setSaving(true); setErr(null);
-    onSaved(fieldKey, val, (errMsg) => { setSaving(false); if (errMsg) setErr(errMsg); else onClose(); });
+    onSaved(fieldKey, val, (errMsg) => { setSaving(false); if (errMsg) setErr(errMsg); else onClose(); }, ownerId);
   }
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 480 }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>EDIT · {label.toUpperCase()}</div>
         <div style={{ fontFamily: serif, fontSize: 28, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>{label}.</div>
-        <input
-          autoFocus
-          value={val}
-          onChange={e => setVal(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") save(); }}
-          style={{ width: "100%", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color: INK, padding: "12px 14px", borderRadius: 6, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 14 }}
-        />
+        {options ? <select aria-label={label} value={val} onChange={e => setVal(e.target.value)} style={{ width:"100%", minHeight:44, background:PAPER, color:INK, border:"1px solid var(--sh-line, #302c27)", borderRadius:8, padding:10 }}>
+          {!options.includes(val) && <option value={val}>{val || "Choose…"}</option>}
+          {options.map(option => <option key={option} value={option}>{option}</option>)}
+        </select> : <input aria-label={label} autoFocus value={val} onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter" && !saving && !e.isComposing) save(); }}
+          style={{ width:"100%", boxSizing:"border-box", background:"rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border:"1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color:INK, padding:"12px 14px", borderRadius:8, fontFamily:sans, fontSize:16 }} />}
         {err && <div style={{ color: "var(--sh-danger, #e07856)", fontSize: 13, marginTop: 14 }}>{err}</div>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
           <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
           <button disabled={saving} onClick={save} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EditProfileModal({ initial, onClose, onSaved }) {
-  const [form, setForm] = React.useState(initial || {});
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState(null);
-  const field = (key, label) => (
-    <label style={{ display: "grid", gap: 4 }}>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)" }}>{label}</span>
-      <input
-        value={form[key] || ""}
-        onChange={e => setForm({ ...form, [key]: e.target.value })}
-        style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", color: INK, padding: "10px 12px", borderRadius: 6, fontFamily: sans, fontSize: 13.5 }}
-      />
-    </label>
-  );
-  async function save() {
-    setSaving(true); setErr(null);
-    if (!window.shapeDb || !window.shapeDb.saveClientProfile) {
-      setErr("Supabase client not loaded."); setSaving(false); return;
-    }
-    const res = await window.shapeDb.saveClientProfile(form);
-    setSaving(false);
-    if (res && res.error) { setErr(res.error.message || "Save failed"); return; }
-    onSaved(form); onClose();
-  }
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,8,6,0.7)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: PAPER, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, padding: 28, width: "100%", maxWidth: 720, maxHeight: "90vh", overflowY: "auto" }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>EDIT · PROFILE</div>
-        <div style={{ fontFamily: serif, fontSize: 30, letterSpacing: "-0.02em", margin: "6px 0 20px", color: INK }}>Your profile.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, color: INK }}>
-          {field("displayName", "NAME")}
-          {field("email", "EMAIL")}
-          {field("phone", "PHONE")}
-          {field("location", "LOCATION")}
-          {field("birthday", "BIRTHDAY")}
-          {field("heightWeight", "HEIGHT / WEIGHT")}
-          {field("primaryGoal", "PRIMARY GOAL")}
-          {field("experience", "EXPERIENCE")}
-          {field("dietaryStyle", "DIETARY STYLE")}
-          {field("allergies", "ALLERGIES")}
-          {field("proteinTarget", "PROTEIN TARGET")}
-          {field("hydrationTarget", "HYDRATION TARGET")}
-          {field("instagram", "INSTAGRAM")}
-          {field("strava", "STRAVA")}
-        </div>
-        {err && <div style={{ color: "var(--sh-danger, #e07856)", fontSize: 13, marginTop: 14 }}>{err}</div>}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-          <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-          <button disabled={saving} onClick={save} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving…" : "Save changes"}</button>
         </div>
       </div>
     </div>
@@ -232,10 +178,16 @@ function ConnectedAppsCard({ signedIn }) {
 // the profile itself, same concept as the app's Me tab; signed-out = demo).
 function ClientMeSettings() {
   // The paper (light by default, the previous dark tones one tap away) is the
-  // account's, kept in dashboard_prefs beside the layout — dashData.jsx's own hook.
+  // account's, shared with the app through app_tweaks — dashData.jsx's own hook.
   // It loads after this module on every host, so the read is a page-life constant.
   const paperCtl = typeof useDashPaper === "function" ? useDashPaper() : ["light", null, { kind: "none" }];
   const [profile, setProfile] = React.useState(SAMPLE_PROFILE);
+  const [accountId, setAccountId] = React.useState(null);
+  const [settingsError, setSettingsError] = React.useState("");
+  const [sync, setSync] = React.useState(null);
+  const [accountEmail, setAccountEmail] = React.useState("");
+  const loadGeneration = React.useRef(0);
+  const authOwner = React.useRef(undefined);
   const [loaded, setLoaded] = React.useState(false);
   const [signedIn, setSignedIn] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
@@ -382,67 +334,54 @@ function ClientMeSettings() {
       : "Applied for now — that didn't save.");
   }
 
-  // Mirror the display name to profiles.full_name so a rename round-trips to
-  // the dashboard / chat / leaderboard (which read profiles, not client_profiles).
-  async function mirrorName(data) {
+  async function persist(patch, expectedAccount = accountId) {
     try {
-      const nm = ((data && data.displayName) || "").trim();
-      const c = window.shapeDb && window.shapeDb.client;
-      if (!nm || !c || !c.auth) return;
-      const u = await c.auth.getUser();
-      const uid = u && u.data && u.data.user && u.data.user.id;
-      if (uid) await c.from("profiles").update({ full_name: nm }).eq("id", uid);
-    } catch (e) {}
+      const lib=await cmeSettingsSync();
+      await lib.saveSettingsPatch(window.shapeDb,patch,expectedAccount);
+      return null;
+    } catch(error) { return error.message || "Could not save your settings."; }
   }
 
-  async function persist(next) {
-    if (window.shapeDb && window.shapeDb.saveClientProfile) {
-      const res = await window.shapeDb.saveClientProfile(next);
-      if (res && res.error) return res.error.message || "Save failed";
-    }
-    await mirrorName(next);
-    return null;
+  async function saveField(key,value,done,expectedAccount=accountId) {
+    const failure=await persist({[key]:value},expectedAccount);
+    if(failure) { done(failure); return; }
+    setProfile(prev=>({...prev,[key]:value})); showToast("Saved. Shared with the app."); done(null);
   }
-
-  async function saveField(key, value, done) {
-    const next = { ...profile, [key]: value };
-    const err = await persist(next);
-    if (err) { done(err); return; }
-    setProfile(next);
-    showToast(signedIn ? "Saved." : "Sample view — sign in to save.");
-    done(null);
+  function openField(key,label) {
+    if(!loaded || !signedIn || !accountId) { showToast("Sign in and wait for your settings to load."); return; }
+    setFieldEdit({key,label});
   }
-
-  async function toggleField(key) {
-    const next = { ...profile, [key]: !profile[key] };
-    setProfile(next);
-    const err = await persist(next);
-    showToast(err ? err : (signedIn ? "Saved." : "Sample view — sign in to save."));
-  }
-
-  function openField(key, label) {
-    setFieldEdit({ key, label });
-  }
-
+  const loadSettings = React.useCallback(async () => {
+    const gen=++loadGeneration.current;
+    setLoaded(false); setSettingsError("");
+    try {
+      const db=window.shapeDb;
+      const user=db && await db.getUser();
+      if(gen!==loadGeneration.current)return;
+      authOwner.current=user?.id || null;
+      if(!user) { setAccountId(null);setSignedIn(false);setProfile(SAMPLE_PROFILE);setAccountEmail("");return; }
+      setSignedIn(true);setAccountEmail(user.email || "");
+      const lib=await cmeSettingsSync();
+      const remote=await lib.loadSettings(db);
+      if(gen!==loadGeneration.current)return;
+      setSync(lib);setAccountId(remote.userId);setProfile(remote.profile);
+      if(window.ShapeWebPresence?.visible) setOnlineVisible(window.ShapeWebPresence.visible()!==false);
+    } catch(error) { if(gen===loadGeneration.current) { setSettingsError(error.message || "Could not load settings.");setAccountId(null);setProfile({}); } }
+    finally { if(gen===loadGeneration.current)setLoaded(true); }
+  },[]);
   React.useEffect(() => {
-    (async () => {
-      if (!window.shapeDb) { setLoaded(true); return; }
-      const user = await window.shapeDb.getUser();
-      if (!user) { setLoaded(true); return; }
-      setSignedIn(true);
-      const remote = await window.shapeDb.getClientProfile();
-      // Signed in → drop the demo persona base so unfilled preferences read "—",
-      // not Priya Shah's sample values (matches the app-wide demo zero-out). Only
-      // the user's real saved fields show; the demo stays the signed-out preview.
-      setProfile(remote && Object.keys(remote).length > 0 ? remote : {});
-      try {
-        if (window.ShapeWebPresence && typeof window.ShapeWebPresence.visible === "function") {
-          setOnlineVisible(window.ShapeWebPresence.visible() !== false);
-        }
-      } catch (e) {}
-      setLoaded(true);
-    })();
-  }, []);
+    loadSettings();
+    let active=true, timer;
+    const refresh=()=>{if(active)loadSettings();};
+    window.addEventListener("focus",refresh);
+    const sub=window.shapeDb?.client?.auth?.onAuthStateChange?.((_event,session)=>{
+      const uid=session?.user?.id || null;
+      if(uid===authOwner.current)return;
+      authOwner.current=uid;loadGeneration.current++;
+      setAccountId(null);setEditOpen(false);setFieldEdit(null);clearTimeout(timer);timer=setTimeout(refresh,0);
+    });
+    return ()=>{active=false;clearTimeout(timer);loadGeneration.current++;window.removeEventListener("focus",refresh);sub?.data?.subscription?.unsubscribe?.();};
+  },[loadSettings]);
 
   async function handleLogout() {
     if (window.shapeDb) await window.shapeDb.signOut();
@@ -520,19 +459,20 @@ function ClientMeSettings() {
         </div>
         <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
           <button onClick={handleLogout} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Log out</button>
-          <button onClick={() => setEditOpen(true)} style={{ background: INK, color: "var(--sh-ground, #1a1612)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit details</button>
+          <button disabled={!loaded || !signedIn || !accountId} onClick={() => setEditOpen(true)} style={{ background: INK, color: "var(--sh-ground, #1a1612)", border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Edit details</button>
         </div>
       </div>
 
+      {settingsError && <p role="alert">{settingsError} <button type="button" onClick={loadSettings}>Retry</button></p>}
+      {!loaded && <p role="status">Loading your saved settings…</p>}
       <div className="dk-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         <Card>
           <SectionTitle>Profile</SectionTitle>
           <Row label="Name" value={p.displayName || "—"} action="EDIT" onAction={() => openField("displayName", "Name")} />
-          <Row label="Email" value={p.email || "—"} action="EDIT" onAction={() => openField("email", "Email")} />
-          <Row label="Phone" value={p.phone || "—"} action="EDIT" onAction={() => openField("phone", "Phone")} />
+          <Row label="Account email" value={accountEmail || "—"} />
+          <Row label="Handle" value={p.handle || "—"} action="EDIT" onAction={() => openField("handle", "Handle")} />
+          <Row label="Pronouns" value={p.pronouns || "—"} action="EDIT" onAction={() => openField("pronouns", "Pronouns")} />
           <Row label="Location" value={p.location || "—"} action="EDIT" onAction={() => openField("location", "Location")} />
-          <Row label="Birthday" value={p.birthday || "—"} action="EDIT" onAction={() => openField("birthday", "Birthday")} />
-          <Row label="Height / weight" value={p.heightWeight || "—"} action="UPDATE" onAction={() => openField("heightWeight", "Height / weight")} />
         </Card>
 
         <Card>
@@ -555,17 +495,17 @@ function ClientMeSettings() {
           <Row label="Dietary style" value={p.dietaryStyle || "—"} action="EDIT" onAction={() => openField("dietaryStyle", "Dietary style")} />
           <Row label="Allergies &amp; intolerances" value={p.allergies || "—"} action="EDIT" onAction={() => openField("allergies", "Allergies & intolerances")} />
           <Row label="Dislikes" value={p.dislikes || "—"} action="EDIT" onAction={() => openField("dislikes", "Dislikes")} />
-          <Row label="Protein target" value={p.proteinTarget || "—"} action="EDIT" onAction={() => openField("proteinTarget", "Protein target")} />
+          <Row label="Protein target (g/day)" value={p.proteinTarget || "—"} action="EDIT" onAction={() => openField("proteinTarget", "Protein target (g/day)")} />
           <Row label="Calorie range" value={p.calorieRange || "—"} action="CHANGE" onAction={() => openField("calorieRange", "Calorie range")} />
           <Row label="Meal cadence" value={p.mealCadence || "—"} action="EDIT" onAction={() => openField("mealCadence", "Meal cadence")} />
-          <Row label="Kitchen &amp; cooking" value={p.kitchen || "—"} action="EDIT" onAction={() => openField("kitchen", "Kitchen & cooking")} />
           <Row label="Supplements" value={p.supplements || "—"} action="EDIT" onAction={() => openField("supplements", "Supplements")} />
           <Row label="Alcohol" value={p.alcohol || "—"} action="EDIT" onAction={() => openField("alcohol", "Alcohol")} />
-          <Row label="Hydration target" value={p.hydrationTarget || "—"} action="EDIT" onAction={() => openField("hydrationTarget", "Hydration target")} />
+          <Row label="Hydration target (L/day)" value={p.hydrationTarget || "—"} action="EDIT" onAction={() => openField("hydrationTarget", "Hydration target (L/day)")} />
         </Card>
 
         <Card>
           <SectionTitle>Training preferences</SectionTitle>
+          <Row label="Units" value={p.units || "Imperial · lb / mi"} action="CHANGE" onAction={() => openField("units", "Units")} />
           <Row label="Primary goal" value={p.primaryGoal || "—"} action="EDIT" onAction={() => openField("primaryGoal", "Primary goal")} />
           <Row label="Experience" value={p.experience || "—"} action="EDIT" onAction={() => openField("experience", "Experience")} />
           <Row label="Sessions / week" value={p.sessionsPerWeek || "—"} action="EDIT" onAction={() => openField("sessionsPerWeek", "Sessions / week")} />
@@ -577,13 +517,11 @@ function ClientMeSettings() {
         <Card>
           <SectionTitle>Privacy</SectionTitle>
           <Row label="Profile visibility" value={p.profileVisibility || "—"} action="CHANGE" onAction={() => openField("profileVisibility", "Profile visibility")} />
+          <Row label="Share workout data" value={p.shareWorkoutData || "On"} action="CHANGE" onAction={() => openField("shareWorkoutData", "Share workout data")} />
           <Row label="Show when I'm online" value={onlineVisible ? "On" : "Off"} action="TOGGLE" onAction={toggleOnlineVisible} />
-          <Row label="Share data with coaches" value={p.shareDataWithCoaches || "—"} action="CHANGE" onAction={() => openField("shareDataWithCoaches", "Share data with coaches")} />
           {/* Your coaches always see your age for the clients they work with —
               that is the server's rule (member_dobs_for_viewer), not this row's. */}
           <Row label="Show my age on my profile" value={agePublic == null ? "—" : agePublic ? "On" : "Off"} action="TOGGLE" onAction={toggleAgePublic} />
-          <Row label="Community posts" value={p.communityPosts ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("communityPosts")} />
-          <Row label="Marketing emails" value={p.marketingEmails ? "On" : "Off"} action="TOGGLE" onAction={() => toggleField("marketingEmails")} />
         </Card>
       </div>
 
@@ -598,7 +536,6 @@ function ClientMeSettings() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 32px" }}>
           <Row label="Instagram" value={p.instagram || "Not connected"} action="EDIT" onAction={() => openField("instagram", "Instagram")} />
           <Row label="TikTok" value={p.tiktok || "Not connected"} action={p.tiktok ? "EDIT" : "CONNECT"} onAction={() => openField("tiktok", "TikTok")} />
-          <Row label="Strava" value={p.strava || "Not connected"} action="EDIT" onAction={() => openField("strava", "Strava")} />
           <Row label="Website" value={p.website || "Not added"} action={p.website ? "EDIT" : "ADD"} onAction={() => openField("website", "Website")} />
           <Row label="YouTube" value={p.youtube || "Not connected"} action={p.youtube ? "EDIT" : "CONNECT"} onAction={() => openField("youtube", "YouTube")} />
           <Row label="Twitter / X" value={p.twitter || "Not connected"} action="EDIT" onAction={() => openField("twitter", "Twitter / X")} />
@@ -620,17 +557,22 @@ function ClientMeSettings() {
       </Card>
       {editOpen && (
         <EditProfileModal
+          key={accountId}
           initial={profile}
+          accountId={accountId}
+          onPersist={persist}
           onClose={() => setEditOpen(false)}
           onSaved={(next) => {
             setProfile(prev => ({ ...prev, ...next }));
-            mirrorName(next);
             showToast(signedIn ? "Profile saved." : "Sign in to save changes.");
           }}
         />
       )}
       {fieldEdit && (
         <SingleFieldModal
+          key={accountId + ":" + fieldEdit.key}
+          accountId={accountId}
+          options={sync?.settingOptions(fieldEdit.key)}
           label={fieldEdit.label}
           fieldKey={fieldEdit.key}
           initialValue={profile[fieldEdit.key]}

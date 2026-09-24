@@ -8,6 +8,15 @@
 // visitor gets DEMO MODE — the LV_PEOPLE demo persona rendered on the same
 // living layout under a "Preview · demo profile" band — instead of a sign-in
 // wall. Same concept as the app's signed-out preview.
+function lvProfileIdentity(row, base, isDerived, isPrivate) {
+  const ownHandle = Object.prototype.hasOwnProperty.call(row,"handle");
+  return {
+    handle: ownHandle ? row.handle || "" : row.username ? "@" + row.username : (isDerived ? base.handle : ""),
+    pronouns: (!isPrivate && row.pronouns) || (isDerived ? base.pronouns : ""),
+    city: (!isPrivate && row.location) || (isDerived ? base.city : ""),
+    link: (!isPrivate && row.link) ? ["Link", String(row.link).replace(/^https?:\/\//, "")] : (isDerived ? base.link : null),
+  };
+}
 function liveTier(points, coach) {
   const member = [[0, "Raw", "#5fa96e", "I"], [750, "Tempo", "#d8a23a", "II"], [2000, "Form", "#e0463c", "III"], [5000, "Peak", "#8fe3e6", "IV"], [15000, "Legend", "#34d6c5", "V"]];
   const coachL = [[0, "Certified", "#5fa96e", "I"], [750, "Pro", "#d8a23a", "II"], [2000, "Elite", "#e0463c", "III"], [5000, "Master", "#8fe3e6", "IV"], [15000, "Icon", "#34d6c5", "V"]];
@@ -157,6 +166,20 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       let row = null; try { const res = await c.rpc("get_public_profile", { p_user_id: uid }); row = Array.isArray(res && res.data) ? res.data[0] : (res && res.data); } catch (e) {}
       if (!on) return;
       const isSelf = !!(me && me.id === uid);
+      // The owner sees the same identity document edited in web/app Settings.
+      // Query the explicit owner id; never fetch another member's private doc.
+      if (isSelf && row) {
+        try {
+          const identity = await c.from("user_goals").select("data").eq("user_id", uid).eq("kind", "client_identity").maybeSingle();
+          if (!on) return;
+          if (identity && !identity.error && identity.data && identity.data.data) {
+            const d = identity.data.data;
+            row = { ...row };
+            for (const key of ["handle","pronouns","location","link"]) if (Object.prototype.hasOwnProperty.call(d,key)) row[key] = d[key];
+            if (d.name) row.full_name = d.name;
+          }
+        } catch (e) { /* Keep the public reading when the owner read fails. */ }
+      }
       // Coach credential-verified badge — read the public `verified` flag the admin
       // review queue mirrors onto the marketplace coach row.
       let verified = false;
@@ -381,7 +404,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const name = row.full_name || "Shape member";
   const first = String(name).trim().split(/\s+/)[0] || "Member";
   const initials = String(name).trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
-  const isPrivate = row.is_public === false || row.can_view === false;
+  const isPrivate = row.can_view === false || (row.can_view == null && row.is_public === false);
   const base = LV_PEOPLE[role] || LV_PEOPLE.client;
   const isDerived = st.status === "derived";
   const person = Object.assign({}, base, {
@@ -393,11 +416,9 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     // never the demo persona's fabricated credentials. The demo certs stay only
     // for a derived (no-account, example) profile.
     certs: (coach && st.coachCerts && st.coachCerts.length) ? st.coachCerts : (isDerived ? base.certs : []),
-    handle: row.handle || ("@" + first.toLowerCase().replace(/[^a-z0-9]/g, "")),
-    pronouns: (!isPrivate && row.pronouns) || base.pronouns,
+    ...lvProfileIdentity(row,base,isDerived,isPrivate),
     goal: (!isPrivate && row.goal) || base.goal,
     portrait: row.avatar || "",
-    link: (!isPrivate && row.link) ? ["Link", String(row.link).replace(/^https?:\/\//, "")] : base.link,
     custom: (!isPrivate && row.custom) || null,
     // The activity feed: a REAL account shows its own posts (empty while loading /
     // if none — never the demo persona's field notes); a DERIVED (no-account,

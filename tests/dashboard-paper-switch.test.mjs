@@ -121,10 +121,11 @@ test('a blocked localStorage cannot break the paper', () => {
   assert.equal(attrs['data-paper'], 'dark', 'the page still stamps when the mirror cannot be written');
 });
 
-test('useDashPaper rides the account\'s dashboard_prefs document and only a READ document corrects the mirror', () => {
+test('useDashPaper rides the account\'s shared app_tweaks document and only a READ document corrects the mirror', () => {
   const hook = lift(DATA, 'useDashPaper');
   assert.match(hook, /useRememberedChoices\(true\)/, 'the hook must open the per-account preference store');
-  assert.match(hook, /useRememberedChoice\(store, "paper", DASH_PAPERS, "light"\)/, 'the choice is validated against the two papers with light as the fallback');
+  assert.match(hook, /useRememberedChoice\(store, "colorMode", DASH_PAPERS, fallback, true\)/, 'the shared choice is validated against light/dark, with legacy and app-theme fallback');
+  assert.match(hook, /useCoachDoc\("app_tweaks", accountId != null, accountId\)/, 'appearance must use the app account record');
   // The device mirror is corrected only by a document that was READ. "signedout",
   // "demo" and "unavailable" leave it standing — an absent read is not a preference.
   assert.match(hook, /if \(kind !== "ready" \|\| sessionChose\) return;/, 'the correction must wait for a read document and defer to a choice made this session');

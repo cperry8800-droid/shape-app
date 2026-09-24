@@ -3,16 +3,7 @@
 // visibility scopes it. Defaults mirror the Settings pills' first options
 // (On · Public), so a member who never opened Settings shares publicly.
 // Mirrored in src/lib/workout-share.ts (server twin) — keep in sync.
-export const BS_PRIVACY_RANK = { public: 0, followers: 1, private: 2 };
-
-export function bsWorkoutSharePrivacy(doc) {
-  const d = doc && typeof doc === 'object' ? doc : {};
-  if (String(d.shareWorkoutData || 'On') === 'Off') return 'private';
-  const vis = String(d.profileVisibility || 'Public');
-  if (vis === 'Private') return 'private';
-  if (vis === 'Just friends') return 'followers';
-  return 'public';
-}
+export { BS_PRIVACY_RANK, bsWorkoutSharePrivacy } from '../../../public/newdesign/workoutPrivacy.mjs';
 
 // Cross-source guard: a watch and the phone must not both post one workout.
 // True when another DIFFERENT provider's workout post sits within ±20 minutes
