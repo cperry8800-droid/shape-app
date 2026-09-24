@@ -1085,5 +1085,12 @@
   "live.sending": "Wird gesendet…",
   "live.sendFailed": "Senden fehlgeschlagen. Dein Hinweis bleibt erhalten—versuche es erneut.",
   "live.previewCue": "Nur Vorschau—kein Hinweis gesendet.",
-  "live.cueFocusNote": "Dein letzter Hinweis aktualisiert auch deine Trainingsfokus-Notiz."
+  "live.cueFocusNote": "Dein letzter Hinweis aktualisiert auch deine Trainingsfokus-Notiz.",
+  "video.exerciseDemo": "Übungsdemonstration",
+  "video.exerciseLink": "Videolink für {name}",
+  "video.namedDemo": "Demonstration: {name}",
+  "video.planLink": "Videolink zum Plan",
+  "video.planVideo": "Video zum Plan",
+  "video.programIntro": "Programmeinführung",
+  "video.workoutWalkthrough": "Trainingsanleitung"
 }

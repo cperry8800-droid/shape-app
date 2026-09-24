@@ -1085,5 +1085,12 @@
   "live.sending": "Dey send…",
   "live.sendFailed": "E no send. Your cue still dey—try again.",
   "live.previewCue": "Na preview only—no cue send.",
-  "live.cueFocusNote": "Your latest cue go also update your coaching focus note."
+  "live.cueFocusNote": "Your latest cue go also update your coaching focus note.",
+  "video.exerciseDemo": "Exercise demonstration",
+  "video.exerciseLink": "Video link for {name}",
+  "video.namedDemo": "{name} demonstration",
+  "video.planLink": "Plan video link",
+  "video.planVideo": "Plan video",
+  "video.programIntro": "Program introduction",
+  "video.workoutWalkthrough": "Workout guide"
 }

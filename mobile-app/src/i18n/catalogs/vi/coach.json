@@ -1085,5 +1085,12 @@
   "live.sending": "Đang gửi…",
   "live.sendFailed": "Không thể gửi. Hướng dẫn được giữ lại; hãy thử lại.",
   "live.previewCue": "Chỉ xem trước; chưa gửi hướng dẫn.",
-  "live.cueFocusNote": "Hướng dẫn mới nhất cũng cập nhật ghi chú trọng tâm huấn luyện của bạn."
+  "live.cueFocusNote": "Hướng dẫn mới nhất cũng cập nhật ghi chú trọng tâm huấn luyện của bạn.",
+  "video.exerciseDemo": "Minh họa bài tập",
+  "video.exerciseLink": "Liên kết video cho {name}",
+  "video.namedDemo": "Minh họa {name}",
+  "video.planLink": "Liên kết video kế hoạch",
+  "video.planVideo": "Video kế hoạch",
+  "video.programIntro": "Giới thiệu chương trình",
+  "video.workoutWalkthrough": "Hướng dẫn buổi tập"
 }

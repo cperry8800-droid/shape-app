@@ -1,4 +1,6 @@
+import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import React from 'react';
+const { ShapeVideoPlayer, ShapeVideoLink, ShapeVideoAttachment } = createMobileVideoComponents(React);
 import { normalizeWorkoutDetail, videoUrl, ladder as rowLadder, perSetEntries, weightLabel, LADDER_MAX, SET_REPS_MAX } from '../../../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutVideos, coachWorkoutDraftKey } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutFutureUpdates, { useWorkoutTr } from './BSWorkoutFutureUpdates.jsx';
@@ -120,6 +122,13 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
     const list = next.detail.media || [];
     if (!list.some((item) => item.url === media.url)) next.detail.media = [...list, media];
   });
+  const uploadIntroduction = async file => {
+    if (!window.ShapeCoachMedia?.upload) throw new Error('Sign in to upload a video.');
+    const media = await window.ShapeCoachMedia.upload(file, {videoOnly:true});
+    if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== ownerRef.current) throw new Error('Your account changed. Reopen the library.');
+    return media;
+  };
+  const introductionBusy = delta => setUpload(delta > 0 ? {target:{},name:'Introduction'} : null);
   const uploadVideo = async (file, target) => {
     if (!file || !target) return;
     setUpload({ target, name: file.name }); setUploadError(''); setRetry(null);
@@ -169,6 +178,7 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
     {plan.id && window.ShapeCoachPlans?.assignments && <button type="button" disabled={dirty || saving || !!upload} onClick={() => setFutureUpdates(true)} style={{ ...button, marginBottom: 14 }}>{dirty ? txt('saveBeforeFuture', 'Save before reviewing future workouts') : txt('reviewFuture', 'Review future assignments')}</button>}
     <label style={label}>{txt('name', 'Name')}<input value={value.name} onChange={(e) => change((next) => { next.name = e.target.value; })} style={input} /></label>
     <label style={{ ...label, marginTop: 10 }}>{txt('type', 'Library section')}<select value={value.detail.buildType || 'program'} onChange={(e) => change((next) => { next.detail.buildType = e.target.value; })} style={input}><option value="workout">{txt('singleWorkout', 'Workouts')}</option><option value="program">{txt('routine', 'Programs')}</option><option value="plan">{txt('paidPlan', 'Plans')}</option></select></label>
+    <ShapeVideoAttachment value={builder.video} title={tr('coach:video.programIntro', {defaultValue:'Program introduction'})} onChange={video=>change(next=>{next.detail.builder.video=video;})} upload={uploadIntroduction} onBusy={introductionBusy} clips={videos}/>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>
       {builder.weeks.map((_, i) => <button type="button" key={i} aria-pressed={wi === i} onClick={() => { setWeekIdx(i); setDayIdx(0); }} style={{ ...button, color: wi === i ? accent : t.INK }}>{txt('week', 'Week')} {i + 1}</button>)}
       <button type="button" onClick={() => { change((next) => { next.detail.builder.weeks.push({ deload: false, days: [newDay(txt('newSession', 'New session'))] }); }); setWeekIdx(builder.weeks.length); setDayIdx(0); }} style={button}>{txt('addWeek', '+ Week')}</button>
@@ -190,6 +200,7 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
         <label style={label}>{txt('minutes', 'Planned minutes (optional)')}<input type="number" min="1" max="480" value={day.plannedMinutes ?? ''} onChange={(e) => changeDay((next) => { next.plannedMinutes = e.target.value === '' ? undefined : Number(e.target.value); next.loadCapture = next.plannedMinutes && next.plannedRpe ? 'per_session' : undefined; })} style={input} /></label>
         <label style={label}>{txt('effort', 'Planned effort · RPE (optional)')}<input type="number" min="1" max="10" step="0.5" value={day.plannedRpe ?? ''} onChange={(e) => changeDay((next) => { next.plannedRpe = e.target.value === '' ? undefined : Number(e.target.value); next.loadCapture = next.plannedMinutes && next.plannedRpe ? 'per_session' : undefined; })} style={input} /></label>
       </div>
+      <ShapeVideoAttachment key={wi+'-'+di+'-'+day.id} value={day.video} title={tr('coach:video.workoutWalkthrough', {defaultValue:'Workout walkthrough'})} onChange={video=>changeDay(next=>{next.video=video;})} upload={uploadIntroduction} onBusy={introductionBusy} clips={videos}/>
       {(day.blocks || []).map((block, bi) => <div key={bi} style={{ marginTop: 22 }}>
         <div style={{ color: t.INK50, fontFamily: t.MONO, fontSize: 11 }}>{block.kind || txt('exercises', 'Exercises')}</div>
         {(block.rows || []).map((row, ri) => <fieldset key={row.id} style={{ minWidth: 0, padding: '18px 0', margin: 0, border: 0, borderBottom: `1px solid ${t.RULE || t.INK20}` }}>
@@ -242,7 +253,8 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
             </div>;
           })()}
           <label style={{ ...label, marginTop: 10 }}>{txt('cue', 'Coaching cue')}<textarea value={row.cue || ''} onChange={(e) => changeRow(bi, ri, 'cue', e.target.value)} rows={2} style={input} /></label>
-          {videoUrl(row.video) && <video src={videoUrl(row.video)} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 220, marginTop: 12 }} />}
+          <ShapeVideoLink value={row.video} label={tr('coach:video.exerciseLink',{defaultValue:'Video link for {name}',name:row.name || txt('exercise','Exercise')})} disabled={!!upload} onChange={url=>attachVideo(videoTarget(bi,ri,row),{url,type:'video',name:row.name})}/>
+          <ShapeVideoPlayer value={row.video} title={row.name || tr('coach:video.exerciseDemo',{defaultValue:'Exercise demonstration'})}/>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
             <button type="button" disabled={!!upload} onClick={() => { targetRef.current = videoTarget(bi, ri, row); fileRef.current?.click(); }} style={button}>{txt('upload', 'Upload video')}</button>
             {videoUrl(row.video) && <button type="button" onClick={() => changeRow(bi, ri, 'video', '')} style={button}>{txt('removeVideo', 'Remove video')}</button>}

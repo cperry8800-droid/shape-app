@@ -1085,5 +1085,12 @@
   "live.sending": "Ana aikawa…",
   "live.sendFailed": "Ba a iya aikawa ba. An riƙe umarninka—sake gwadawa.",
   "live.previewCue": "Dubawa kawai—ba a aika umarni ba.",
-  "live.cueFocusNote": "Sabon umarninka yana sabunta bayanin abin da horonka ya fi mayar da hankali a kai."
+  "live.cueFocusNote": "Sabon umarninka yana sabunta bayanin abin da horonka ya fi mayar da hankali a kai.",
+  "video.exerciseDemo": "Nunin motsa jiki",
+  "video.exerciseLink": "Hanyar bidiyon {name}",
+  "video.namedDemo": "Nunin {name}",
+  "video.planLink": "Hanyar bidiyon tsari",
+  "video.planVideo": "Bidiyon tsari",
+  "video.programIntro": "Gabatarwar shiri",
+  "video.workoutWalkthrough": "Jagorar motsa jiki"
 }

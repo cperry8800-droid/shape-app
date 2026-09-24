@@ -1085,5 +1085,12 @@
   "live.sending": "Sending…",
   "live.sendFailed": "Could not send. Your cue is kept—try again.",
   "live.previewCue": "Preview only—no cue was sent.",
-  "live.cueFocusNote": "Your latest cue also updates your coaching focus note."
+  "live.cueFocusNote": "Your latest cue also updates your coaching focus note.",
+  "video.exerciseDemo": "Exercise demonstration",
+  "video.exerciseLink": "Video link for {name}",
+  "video.namedDemo": "{name} demonstration",
+  "video.planLink": "Plan video link",
+  "video.planVideo": "Plan video",
+  "video.programIntro": "Program introduction",
+  "video.workoutWalkthrough": "Workout walkthrough"
 }

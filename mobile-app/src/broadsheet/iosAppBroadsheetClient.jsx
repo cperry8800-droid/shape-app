@@ -1,4 +1,6 @@
+import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import React from 'react';
+const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution, bsAllergenNoteText } from './shapeKitchenData.js';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
@@ -2835,6 +2837,8 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
       </div>
 
+      <div style={{padding:'0 '+t.padX+'px'}}><ShapeVideoPlayer value={workout?.programVideo} title={tr('coach:video.programIntro',{defaultValue:'Program introduction'})}/><ShapeVideoPlayer value={workout?.video} title={tr('coach:video.workoutWalkthrough',{defaultValue:'Workout walkthrough'})}/></div>
+
       {/* Coach note — Wire press credit (rust = trainer role) */}
       <div style={{ padding: `16px ${t.padX}px 0` }}>
         <div style={{ borderLeft: `3px solid ${rust}`, padding: '3px 0 3px 11px' }}>
@@ -5425,6 +5429,7 @@ function bsBuildTrainProgram(workouts, t, tr) {
       timeLabel,
       adjustGen: w.adjustGen ?? (w.payload && w.payload.adjustGen) ?? null,
       headline: title,
+      video:w.video || null, programVideo:w.programVideo || null,
       meta: [w.durationMin ? T('session:train.minutes', `${w.durationMin} min`, { min: w.durationMin }) : null, movesLabel].filter(Boolean).join(' · '),
       copy: w.description || (isSelf ? selfByline : T('session:train.programmedByCoach', 'Programmed by your coach.')),
       moves,
@@ -30666,6 +30671,8 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
         title={program.headline}
       />
 
+      <div style={{padding:'0 '+t.padX+'px'}}><ShapeVideoPlayer value={program.programVideo} title={tr('coach:video.programIntro', {defaultValue:'Program introduction'})}/><ShapeVideoPlayer value={program.video} title={tr('coach:video.workoutWalkthrough', {defaultValue:'Workout walkthrough'})}/></div>
+
       {/* Register — the session at a glance (eyebrow-above-figure, no boxes) */}
       <div style={{ padding: `18px ${t.padX}px 0`, display: 'flex' }}>
         {[
@@ -31853,12 +31860,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
       {clipOpen && clip && (() => {
         const sheet = (
           <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', color:'#f4ede0', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
                 <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
                 <button onClick={() => setClipOpen(false)} aria-label={tr('session:player.closeClipAria')} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('session:player.closeClip')}</button>
               </div>
-              <video src={clip.url} controls playsInline autoPlay style={{ width: '100%', maxHeight: '55vh', display: 'block', background: '#000', borderRadius: 6 }} />
+              <ShapeVideoPlayer key={clip.url} value={clip.url} title={tr('coach:video.namedDemo',{defaultValue:'{name} demonstration',name:move.m})} expanded/>
               <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('session:player.openExternally')}</button>
             </div>
           </div>

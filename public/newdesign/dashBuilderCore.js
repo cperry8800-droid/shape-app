@@ -407,6 +407,7 @@
       meta: exercises.length + " moves · " + totalSets + " sets",
       exercises: exercises,
       playlist: day.playlist || null,
+      video: WorkoutDoc.videoUrl(day.video), programVideo: WorkoutDoc.videoUrl(opts.programVideo),
     };
   }
 

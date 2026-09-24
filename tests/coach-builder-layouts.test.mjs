@@ -102,8 +102,10 @@ test('leaving nutrition waits for edits made while its save is in flight',async(
 test('the actual client preview offers safe coach demonstrations without autoplay',async()=>{
   root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(WorkoutCard,{workout:{title:'Strength',coach:'Coach',exercises:[{name:'Squat',video:'https://shape.test/squat.mp4'},{name:'Invalid',video:'javascript:alert(1)'}]},interactive:false})));
+  assert.equal(document.querySelectorAll('video').length,0);
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='▷ Watch · Squat demonstration').click());
   assert.equal(document.querySelectorAll('video').length,1);
   const video=document.querySelector('video');assert.equal(video.getAttribute('src'),'https://shape.test/squat.mp4');
-  assert.equal(video.controls,true);assert.equal(video.autoplay,false);assert.equal(video.preload,'none');
-  assert.equal(document.querySelector('summary').textContent,'Preview Squat demonstration');
+  assert.equal(video.controls,true);assert.equal(video.autoplay,false);assert.equal(video.preload,'metadata');
+  assert.equal(document.querySelectorAll('iframe').length,0);
 });

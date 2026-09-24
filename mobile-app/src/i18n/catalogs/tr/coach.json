@@ -1085,5 +1085,12 @@
   "live.sending": "Gönderiliyor…",
   "live.sendFailed": "Gönderilemedi. İpucunuz korundu; yeniden deneyin.",
   "live.previewCue": "Yalnızca önizleme; ipucu gönderilmedi.",
-  "live.cueFocusNote": "Son ipucunuz antrenman odak notunuzu da günceller."
+  "live.cueFocusNote": "Son ipucunuz antrenman odak notunuzu da günceller.",
+  "video.exerciseDemo": "Egzersiz gösterimi",
+  "video.exerciseLink": "{name} için video bağlantısı",
+  "video.namedDemo": "{name} gösterimi",
+  "video.planLink": "Plan videosu bağlantısı",
+  "video.planVideo": "Plan videosu",
+  "video.programIntro": "Program tanıtımı",
+  "video.workoutWalkthrough": "Antrenman rehberi"
 }

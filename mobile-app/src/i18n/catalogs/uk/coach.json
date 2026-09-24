@@ -1085,5 +1085,12 @@
   "live.sending": "Надсилання…",
   "live.sendFailed": "Не вдалося надіслати. Підказку збережено; спробуйте ще раз.",
   "live.previewCue": "Лише попередній перегляд; підказку не надіслано.",
-  "live.cueFocusNote": "Остання підказка також оновлює нотатку про фокус тренування."
+  "live.cueFocusNote": "Остання підказка також оновлює нотатку про фокус тренування.",
+  "video.exerciseDemo": "Демонстрація вправи",
+  "video.exerciseLink": "Посилання на відео: {name}",
+  "video.namedDemo": "Демонстрація: {name}",
+  "video.planLink": "Посилання на відео плану",
+  "video.planVideo": "Відео плану",
+  "video.programIntro": "Вступ до програми",
+  "video.workoutWalkthrough": "Огляд тренування"
 }

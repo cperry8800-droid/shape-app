@@ -1085,5 +1085,12 @@
   "live.sending": "Invio…",
   "live.sendFailed": "Invio non riuscito. L’indicazione è conservata; riprova.",
   "live.previewCue": "Solo anteprima; nessuna indicazione inviata.",
-  "live.cueFocusNote": "L’ultima indicazione aggiorna anche la nota sull’obiettivo del coaching."
+  "live.cueFocusNote": "L’ultima indicazione aggiorna anche la nota sull’obiettivo del coaching.",
+  "video.exerciseDemo": "Dimostrazione dell’esercizio",
+  "video.exerciseLink": "Link video per {name}",
+  "video.namedDemo": "Dimostrazione di {name}",
+  "video.planLink": "Link video del piano",
+  "video.planVideo": "Video del piano",
+  "video.programIntro": "Introduzione al programma",
+  "video.workoutWalkthrough": "Guida all’allenamento"
 }

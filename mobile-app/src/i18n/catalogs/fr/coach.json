@@ -1085,5 +1085,12 @@
   "live.sending": "Envoi…",
   "live.sendFailed": "Échec de l’envoi. Votre consigne est conservée ; réessayez.",
   "live.previewCue": "Aperçu uniquement ; aucune consigne envoyée.",
-  "live.cueFocusNote": "Votre dernière consigne met aussi à jour votre note d’objectif de coaching."
+  "live.cueFocusNote": "Votre dernière consigne met aussi à jour votre note d’objectif de coaching.",
+  "video.exerciseDemo": "Démonstration de l’exercice",
+  "video.exerciseLink": "Lien vidéo pour {name}",
+  "video.namedDemo": "Démonstration de {name}",
+  "video.planLink": "Lien vidéo du plan",
+  "video.planVideo": "Vidéo du plan",
+  "video.programIntro": "Présentation du programme",
+  "video.workoutWalkthrough": "Présentation de la séance"
 }

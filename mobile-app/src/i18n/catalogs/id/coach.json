@@ -1085,5 +1085,12 @@
   "live.sending": "Mengirim…",
   "live.sendFailed": "Gagal mengirim. Instruksi Anda tersimpan—coba lagi.",
   "live.previewCue": "Hanya pratinjau—tidak ada instruksi yang dikirim.",
-  "live.cueFocusNote": "Instruksi terbaru Anda juga memperbarui catatan fokus pelatihan."
+  "live.cueFocusNote": "Instruksi terbaru Anda juga memperbarui catatan fokus pelatihan.",
+  "video.exerciseDemo": "Demonstrasi gerakan",
+  "video.exerciseLink": "Tautan video untuk {name}",
+  "video.namedDemo": "Demonstrasi {name}",
+  "video.planLink": "Tautan video rencana",
+  "video.planVideo": "Video rencana",
+  "video.programIntro": "Pengantar program",
+  "video.workoutWalkthrough": "Panduan latihan"
 }

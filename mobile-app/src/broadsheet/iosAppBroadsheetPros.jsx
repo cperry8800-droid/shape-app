@@ -1,4 +1,6 @@
+import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import React from 'react';
+const { ShapeVideoPlayer, ShapeVideoLink } = createMobileVideoComponents(React);
 import { bsHrChart } from '../services/workoutExperience.mjs';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
@@ -5784,6 +5786,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
             {lbl(tr('coach:editor.media', { defaultValue: 'MEDIA · PHOTOS & VIDEOS' }))}
             <button onClick={() => mediaInputRef.current && mediaInputRef.current.click()} disabled={uploading} style={{ border: 0, background: 'transparent', cursor: uploading ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: accent, opacity: uploading ? 0.5 : 1 }}>{uploading ? tr('coach:editor.uploading', { defaultValue: 'UPLOADING…' }) : tr('coach:editor.upload', { defaultValue: '+ UPLOAD' })}</button>
           </div>
+          <ShapeVideoLink onChange={url=>setMedia(previous=>[...previous,{url,type:'video',name:'Plan video'}])} label={tr('coach:video.planLink',{defaultValue:'Plan video link'})} disabled={uploading}/>
           <input ref={mediaInputRef} type="file" accept="image/*,video/*" multiple onChange={pickMedia} style={{ display: 'none' }} />
           {media.length === 0
             ? <div onClick={() => mediaInputRef.current && mediaInputRef.current.click()} style={{ borderRadius: 12, border: `1px dashed ${t.RULE}`, background: t.PAPER2, padding: '18px 13px', textAlign: 'center', cursor: 'pointer' }}>
@@ -5792,9 +5795,9 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
               </div>
             : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                 {media.map((m, i) => (
-                  <div key={i} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', aspectRatio: '1 / 1', background: t.PAPER2, border: `1px solid ${t.RULE}` }}>
+                  <div key={i} style={{ position: 'relative', borderRadius: 10, padding:m.type==='video'?8:0, minWidth:0, aspectRatio:m.type==='video'?undefined:'1', overflow:'hidden', gridColumn:m.type==='video'?'1 / -1':undefined, background: t.PAPER2, border: `1px solid ${t.RULE}` }}>
                     {m.type === 'video'
-                      ? <video src={m.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+                      ? <ShapeVideoPlayer value={m} title={tr('coach:video.planVideo',{defaultValue:'Plan video'})}/>
                       : <img src={m.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                     {m.type === 'video' && <div style={{ position: 'absolute', bottom: 4, left: 4, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', color: '#fff', background: 'rgba(0,0,0,0.6)', borderRadius: 4, padding: '1px 4px' }}>{tr('coach:editor.videoBadge', { defaultValue: 'VIDEO' })}</div>}
                     <button onClick={() => rmMedia(i)} aria-label={tr('coach:common.remove', { defaultValue: 'Remove' })} style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 0, background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, lineHeight: '18px', textAlign: 'center', cursor: 'pointer', padding: 0 }}>×</button>
@@ -6331,7 +6334,7 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
           return (
             <div style={{ marginTop: 2 }}>
               {clips.map((c, i) => (
-                <BSProCatRow key={i} index={i} name={c.name} meta={c.meta} heat={heat} t={t} onOpen={() => window.open(c.url, '_blank', 'noopener,noreferrer')} />
+                <ShapeVideoPlayer key={c.url} value={c} title={c.name}/>
               ))}
             </div>
           );

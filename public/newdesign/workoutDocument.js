@@ -235,9 +235,10 @@
       builder = {version:1, schemaVersion:1, goalTag:'strength', weeks, ...(outlineOnly ? {outlineOnly:true} : {})};
     }
     builder.schemaVersion = 1;
+    if ('video' in builder) builder.video = videoUrl(builder.video);
     builder.version = Math.max(1, Number(builder.version) || 1);
     builder.weeks = builder.weeks.map((week, wi) => ({...week, days:(week.days || []).map((day, di) => ({
-      ...day, id:day.id || `day-${wi}-${di}`, name:day.name || `Day ${di + 1}`,
+      ...day, ...('video' in day ? {video:videoUrl(day.video)} : {}), id:day.id || `day-${wi}-${di}`, name:day.name || `Day ${di + 1}`,
       blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => withLadder(splitLegacyRpe({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video), group:supersetKey(row.group) || null})))})),
     }))}));
     if (!builder.weeks.length) builder.weeks = [{deload:false,days:[{id:'day-0',name:options.name || 'Workout',blocks:[{kind:'main',rows:[]}]}]}];
@@ -275,7 +276,7 @@
       const exercises = (day.blocks || []).flatMap(block => (block.rows || []).map(row => ({...exerciseFromRow(row),block:block.kind})));
       const capture = {};
       for (const key of ['plannedMinutes','plannedRpe','loadCapture']) if (day[key] != null) capture[key] = day[key];
-      out.push({title:day.name, scheduledDate:iso(date), ...capture, payload:{...capture,exercises,playlist:day.playlist ? copy(day.playlist) : null,
+      out.push({title:day.name, scheduledDate:iso(date), ...capture, payload:{...capture,exercises,...(videoUrl(day.video) ? {video:videoUrl(day.video)} : {}),...(videoUrl(builder.video) ? {programVideo:videoUrl(builder.video)} : {}),playlist:day.playlist ? copy(day.playlist) : null,
         template:meta ? {id:meta.id || null,name:meta.name || '',version:meta.revision || builder.version || 1,week:wi+1,day:di+1,...(day.id ? {dayId:day.id} : {})} : null}});
     }));
     return out.sort((a,b) => a.scheduledDate.localeCompare(b.scheduledDate));

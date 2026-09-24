@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
-import { supersetKey } from '../../../../../public/newdesign/workoutDocument.mjs';
+import { supersetKey, videoUrl } from '../../../../../public/newdesign/workoutDocument.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -181,6 +181,8 @@ export async function GET(request: Request) {
           }
         : null,
       exercises: mapExercises(payload),
+      video: videoUrl(payload?.video),
+      programVideo: videoUrl(payload?.programVideo),
     };
   });
 

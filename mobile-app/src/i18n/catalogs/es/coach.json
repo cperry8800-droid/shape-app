@@ -1085,5 +1085,12 @@
   "live.sending": "Enviando…",
   "live.sendFailed": "No se pudo enviar. Tu indicación se conserva; vuelve a intentarlo.",
   "live.previewCue": "Solo vista previa; no se envió ninguna indicación.",
-  "live.cueFocusNote": "Tu última indicación también actualiza tu nota de enfoque del entrenamiento."
+  "live.cueFocusNote": "Tu última indicación también actualiza tu nota de enfoque del entrenamiento.",
+  "video.exerciseDemo": "Demostración del ejercicio",
+  "video.exerciseLink": "Enlace de vídeo de {name}",
+  "video.namedDemo": "Demostración de {name}",
+  "video.planLink": "Enlace del vídeo del plan",
+  "video.planVideo": "Vídeo del plan",
+  "video.programIntro": "Introducción al programa",
+  "video.workoutWalkthrough": "Guía del entrenamiento"
 }
