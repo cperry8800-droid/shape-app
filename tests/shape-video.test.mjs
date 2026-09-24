@@ -5,6 +5,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, validateLink, validateFile, createComponents } from '../public/newdesign/shapeVideo.mjs';
 import { normalizeWorkoutDetail, builderToAssignmentRows } from '../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutVideos } from '../mobile-app/src/services/coachWorkoutLibrary.mjs';
+import { createMobileVideoComponents } from '../mobile-app/src/services/videoComponents.mjs';
+import { fileURLToPath } from 'node:url';
+import { loadRealModule } from './helpers/load-real-module.mjs';
 const require=createRequire(import.meta.url);
 const React=require('react'), {JSDOM}=require('jsdom');
 const dom=new JSDOM('<div id="root"></div>',{url:'https://shape.test/'});
@@ -46,7 +49,7 @@ test('program, session and exercise videos survive normalization, assignment and
 test('every website consumer loads the player script before its components',()=>{
   for(const name of readdirSync(new URL('../public/newdesign/',import.meta.url)).filter(n=>n.endsWith('.html'))){
     const s=readFileSync(new URL('../public/newdesign/'+name,import.meta.url),'utf8');
-    if(s.includes('src="dashClient.jsx'))assert.ok(s.indexOf('src="shapeVideo.js"')>0 && s.indexOf('src="shapeVideo.js"')<s.indexOf('src="dashClient.jsx'),name);
+    for(const component of ['dashClient.jsx','livingShared.jsx'])if(s.includes('src="'+component))assert.ok(s.indexOf('src="shapeVideo.js"')>0 && s.indexOf('src="shapeVideo.js"')<s.indexOf('src="'+component),name);
   }
 });
 
@@ -112,4 +115,55 @@ test('an introduction upload locks edits, rejects an empty result and never atta
   await React.act(async()=>finish({}));assert.equal(changes.length,0);assert.match(document.querySelector('[role=alert]').textContent,/Upload failed/);assert.deepEqual(busy,[1,-1]);
   await React.act(async()=>pick());await React.act(async()=>root.unmount());await React.act(async()=>finish({url:'https://cdn.example.com/new.mp4'}));
   assert.equal(changes.length,0);assert.deepEqual(busy,[1,-1,1,-1]);
+});
+
+test('mobile controls translate on locale changes, including validation, with catalog parity',async()=>{
+  const catalogs={};
+  for(const lang of ['en','es','pt-BR','fr','de','it','id','vi','tr','ha','pcm','ru','uk'])catalogs[lang]=JSON.parse(readFileSync(new URL('../mobile-app/src/i18n/catalogs/'+lang+'/coach.json',import.meta.url),'utf8'));
+  const keys=Object.keys(catalogs.en).filter(k=>k.startsWith('video.'));
+  for(const [lang,cat] of Object.entries(catalogs))for(const key of keys){assert.ok(cat[key],lang+':'+key);assert.deepEqual((cat[key].match(/\{\w+\}/g)||[]).sort(),(catalogs.en[key].match(/\{\w+\}/g)||[]).sort());}
+  let locale='es';const listeners=new Set();
+  window.ShapeLocale={subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);}};
+  window.ShapeI18n={t:(key,opts)=>catalogs[locale][key.replace('coach:','')]?.replace(/\{(\w+)\}/g,(_,k)=>opts[k]??k)};
+  const {ShapeVideoAttachment:Attachment}=createMobileVideoComponents(React);
+  const root=createRoot(document.getElementById('root'));
+  await React.act(async()=>root.render(React.createElement(Attachment,{value:'https://cdn.example.com/a.mp4',onChange:()=>{},upload:async()=>null})));
+  const watch=[...document.querySelectorAll('button')].find(b=>b.textContent.startsWith('▷ Ver'));
+  assert.ok(Boolean(watch));await React.act(async()=>watch.click());
+  assert.match(document.body.textContent,/Velocidad de reproducción/);
+  const input=document.querySelector('input[type=url]');
+  await React.act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(input,'https://example.com/watch');input.dispatchEvent(new window.Event('input',{bubbles:true}));});
+  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Reemplazar con enlace').click());
+  assert.match(document.querySelector('[role=alert]').textContent,/Usa un enlace/);
+  await React.act(async()=>{locale='fr';for(const fn of listeners)fn();});
+  assert.match(document.body.textContent,/Vitesse de lecture/);assert.match(document.querySelector('[role=alert]').textContent,/Utilisez un lien/);
+  await React.act(async()=>root.unmount());assert.equal(listeners.size,0);delete window.ShapeLocale;delete window.ShapeI18n;
+});
+
+test('buyer plan preview renders a provider player instead of feeding a page URL to native video',async()=>{
+  globalThis.__VITE_ENV__={};
+  window.useBS=()=>({INK:'#111',INK50:'#777',PAPER:'#fff',PAPER2:'#eee',HAIR:'#ccc',MONO:'monospace',DISPLAY:'serif',padX:16});
+  const {Preview}=await loadRealModule(fileURLToPath(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx',import.meta.url)),{registry:new Map([['react',React],['react-dom',require('react-dom')]]),appendExports:'exports.Preview=BSPlanPreviewSheet;'});
+  const root=createRoot(document.getElementById('root'));
+  await React.act(async()=>root.render(React.createElement(Preview,{plan:{name:'Strength',detail:{media:[{type:'video',url:'https://youtu.be/M7lc1UVf-VE'}]}},onClose:()=>{}})));
+  const watch=[...document.querySelectorAll('button')].find(b=>b.textContent.startsWith('▷ Watch'));
+  assert.ok(Boolean(watch));await React.act(async()=>watch.click());
+  assert.match(document.querySelector('iframe').src,/youtube-nocookie/);assert.equal(Boolean(document.querySelector('video')),false);
+  assert.equal(document.querySelector('iframe').parentElement.parentElement.style.width,'100%');
+  await React.act(async()=>root.unmount());
+});
+
+test('website offer video opens inline without starting the containing plan checkout',async()=>{
+  globalThis.React=React;
+  let purchases=0;const previousFetch=globalThis.fetch;
+  globalThis.fetch=async()=>{purchases++;return {json:async()=>({})};};
+  const {Services}=await loadRealModule(fileURLToPath(new URL('../public/newdesign/livingShared.jsx',import.meta.url)),{appendExports:'exports.Services=LvServices;'});
+  const root=createRoot(document.getElementById('root'));
+  try{
+    await React.act(async()=>root.render(React.createElement(Services,{d:{role:'trainer',offerings:[{kind:'Program',name:'Strength',price:'$20',planId:'p',providerId:'c',media:[{type:'video',url:'https://vimeo.com/123456789'}]}]},ink:'#111',c:'#333',stHead:()=>null})));
+    const watch=[...document.querySelectorAll('button')].find(b=>b.textContent.startsWith('▷ Watch'));
+    assert.ok(Boolean(watch));await React.act(async()=>watch.click());
+    assert.match(document.querySelector('iframe').src,/player.vimeo.com/);assert.equal(purchases,0);
+    await React.act(async()=>watch.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true})));assert.equal(purchases,0);
+  }finally{await React.act(async()=>root.unmount());globalThis.fetch=previousFetch;}
 });

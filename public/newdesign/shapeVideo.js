@@ -9,6 +9,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   const ACCEPT = '.mp4,.mov,.m4v,.webm,video/mp4,video/quicktime,video/x-m4v,video/webm';
   const HELP = 'YouTube, Vimeo, Loom, or a direct MP4, MOV, M4V or WebM link.';
+  const problem = (code, message, values = {}) => Object.assign(new Error(message.replace(/\{(\w+)\}/g, (_,name)=>values[name] ?? name)), {code, values});
   function resolve(value) {
     const raw = typeof value === 'string' ? value : value && value.url;
     if (!raw || typeof raw !== 'string') return null;
@@ -43,22 +44,32 @@
   }
   function validateLink(value) {
     const source = resolve(value);
-    if (!source || source.kind === 'link') throw new Error('Use a supported video link. ' + HELP);
-    if (!source.url.startsWith('https://')) throw new Error('Use a secure video link starting with https://.');
+    if (!source || source.kind === 'link') throw problem('invalidLink', 'Use a supported video link. ' + HELP);
+    if (!source.url.startsWith('https://')) throw problem('secureLink', 'Use a secure video link starting with https://.');
     return source.url;
   }
   function validateFile(file, maxBytes = 200 * 1024 * 1024) {
-    if (!file || !file.size) throw new Error('Choose a video file that is not empty.');
+    if (!file || !file.size) throw problem('emptyFile', 'Choose a video file that is not empty.');
     const ext = String(file.name || '').split('.').pop().toLowerCase();
     const types = { mp4:['video/mp4'], mov:['video/quicktime'], m4v:['video/mp4','video/x-m4v','video/m4v'], webm:['video/webm'] };
-    if (!types[ext] || (file.type && !types[ext].includes(file.type.toLowerCase()))) throw new Error('Choose an MP4, MOV, M4V or WebM video. MP4 with H.264 works best across devices.');
-    if (file.size > maxBytes) throw new Error('Keep the video under ' + Math.round(maxBytes / 1024 / 1024) + ' MB.');
+    if (!types[ext] || (file.type && !types[ext].includes(file.type.toLowerCase()))) throw problem('fileType', 'Choose an MP4, MOV, M4V or WebM video. MP4 with H.264 works best across devices.');
+    if (file.size > maxBytes) throw problem('fileSize', 'Keep the video under {limit} MB.', {limit:Math.round(maxBytes / 1024 / 1024)});
     return { ext, contentType: file.type || types[ext][0] };
   }
   function createComponents(React, options = {}) {
     const h = React.createElement;
+    function useText() {
+      const [,refresh] = React.useState(0);
+      React.useEffect(() => options.subscribe?.(() => refresh(n => n + 1)), []);
+      return (key, fallback, values = {}) => {
+        const fullKey='coach:video.'+key, translated=options.translate?.(fullKey,{defaultValue:fallback,...values});
+        return translated && translated!==fullKey ? translated : fallback.replace(/\{(\w+)\}/g, (_,name)=>values[name] ?? name);
+      };
+    }
+    const errorText = (error, t) => error?.code ? t(error.code,error.message,error.values) : error?.message || '';
     const control = { minHeight:44, padding:'8px 12px', border:'1px solid currentColor', borderRadius:8, background:'transparent', color:'inherit', font:'inherit', cursor:'pointer', maxWidth:'100%' };
-    function ShapeVideoPlayer({ value, title = 'Video', expanded = false }) {
+    function ShapeVideoPlayer({ value, title, expanded = false }) {
+      const t = useText();
       const source = resolve(value), url = source && source.url;
       const [open, setOpen] = React.useState(expanded), [failed, setFailed] = React.useState(false), [duration, setDuration] = React.useState(0);
       const [speed, setSpeed] = React.useState('1'), [loop, setLoop] = React.useState(false);
@@ -72,33 +83,35 @@
       }, []);
       if (!source) return null;
       const activate = () => { window.dispatchEvent(new window.CustomEvent('shape-video-open', { detail:identity.current })); setOpen(true); setFailed(false); };
-      const name = (value && value.name) || title;
+      const name = (value && value.name) || title || t('video','Video');
       return h('section', { 'aria-label':name, onKeyDown:e=>{if(e.key==='Escape'){setOpen(false);}}, style:{ margin:'12px 0', minWidth:0 } },
         h('div', { style:{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap' } },
-          h('button', { type:'button', style:control, 'aria-expanded':open, onClick:() => open ? setOpen(false) : activate() }, (open ? 'Close video · ' : '▷ Watch · ') + name),
-          h('small', null, source.provider + (duration > 0 ? ' · ' + Math.floor(duration/60) + ':' + String(Math.floor(duration%60)).padStart(2,'0') : ''))),
+          h('button', { type:'button', style:control, 'aria-expanded':open, onClick:() => open ? setOpen(false) : activate() }, (open ? t('close','Close video') : '▷ '+t('watch','Watch')) + ' · ' + name),
+          h('small', null, (source.kind==='file'?t('file','Video file'):source.kind==='link'?t('external','External link'):source.provider) + (duration > 0 ? ' · ' + Math.floor(duration/60) + ':' + String(Math.floor(duration%60)).padStart(2,'0') : ''))),
         open && source.kind === 'file' && !failed && h(React.Fragment, null,
           h('video', { key:url, ref, src:source.src, controls:true, playsInline:true, preload:'metadata', loop, 'aria-label':name,
             onLoadedMetadata:e => {setDuration(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0);e.currentTarget.playbackRate=Number(speed);},
             onError:() => setFailed(true), style:{ display:'block', width:'100%', maxHeight:'65vh', objectFit:'contain', background:'#000', marginTop:10, borderRadius:8 } }),
           h('div', { style:{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginTop:8 } },
-            h('label', null, 'Playback speed ', h('select', { value:speed, style:control, onChange:e => { setSpeed(e.target.value); if(ref.current) ref.current.playbackRate=Number(e.target.value); } }, ['0.5','0.75','1','1.25','1.5','2'].map(n=>h('option',{key:n,value:n},n+'×')))),
-            h('label', { style:{minHeight:44,display:'flex',alignItems:'center',gap:8} }, h('input',{type:'checkbox',checked:loop,onChange:e=>setLoop(e.target.checked)}),'Repeat clip'))),
+            h('label', null, t('speed','Playback speed')+' ', h('select', { value:speed, style:control, onChange:e => { setSpeed(e.target.value); if(ref.current) ref.current.playbackRate=Number(e.target.value); } }, ['0.5','0.75','1','1.25','1.5','2'].map(n=>h('option',{key:n,value:n},n+'×')))),
+            h('label', { style:{minHeight:44,display:'flex',alignItems:'center',gap:8} }, h('input',{type:'checkbox',checked:loop,onChange:e=>setLoop(e.target.checked)}),t('repeat','Repeat clip')))),
         open && source.kind === 'embed' && h('iframe', { key:url, src:options.embedBase ? options.embedBase + '?video=' + encodeURIComponent(source.url) : source.src, title:name + ' — ' + source.provider,
           allow:'autoplay; encrypted-media; fullscreen; picture-in-picture', allowFullScreen:true, referrerPolicy:'strict-origin-when-cross-origin',
           style:{ display:'block', width:'100%', aspectRatio:'16 / 9', minHeight:200, border:0, borderRadius:8, marginTop:10, background:'#000' } }),
-        open && (failed || source.kind === 'link') && h('p', { role:'status' }, failed ? 'This video could not play. Try another connection or upload an MP4 with H.264 video.' : 'This source does not support playback here.'),
-        open && (source.kind !== 'file' || failed) && h('p', { style:{fontSize:12} }, source.kind === 'embed' ? 'If the owner has disabled embedding or requires sign-in, ' : '', h('a',{href:source.url,target:'_blank',rel:'noopener noreferrer',style:{color:'inherit'}},'open the original video ↗')));
+        open && (failed || source.kind === 'link') && h('p', { role:'status' }, failed ? t('playFailed','This video could not play. Try another connection or upload an MP4 with H.264 video.') : t('unsupported','This source does not support playback here.')),
+        open && (source.kind !== 'file' || failed) && h('p', { style:{fontSize:12} }, source.kind === 'embed' ? t('ownerRestriction','If the owner has disabled embedding or requires sign-in,')+' ' : '', h('a',{href:source.url,target:'_blank',rel:'noopener noreferrer',style:{color:'inherit'}},t('original','Open the original video')+' ↗')));
     }
-    function ShapeVideoLink({ value, onChange, label = 'Video link', disabled = false }) {
+    function ShapeVideoLink({ value, onChange, label, disabled = false }) {
+      const t = useText();
       const [draft,setDraft] = React.useState(''), [error,setError] = React.useState('');
       return h('div', {style:{marginTop:10}},
-        h('label', {style:{display:'block'}}, label, h('input',{type:'url',value:draft,disabled,placeholder:'https://…',onChange:e=>{setDraft(e.target.value);setError('');},style:{...control,width:'100%',boxSizing:'border-box',marginTop:6}})),
-        h('small',{style:{display:'block',margin:'6px 0'}}, HELP),
-        h('button',{type:'button',style:control,disabled:disabled || !draft.trim(),onClick:()=>{try{onChange(validateLink(draft));setDraft('');setError('');}catch(e){setError(e.message);}}},value?'Replace with link':'Attach link'),
-        error && h('p',{role:'alert'},error));
+        h('label', {style:{display:'block'}}, label || t('link','Video link'), h('input',{type:'url',value:draft,disabled,placeholder:'https://…',onChange:e=>{setDraft(e.target.value);setError('');},style:{...control,width:'100%',boxSizing:'border-box',marginTop:6}})),
+        h('small',{style:{display:'block',margin:'6px 0'}}, t('help',HELP)),
+        h('button',{type:'button',style:control,disabled:disabled || !draft.trim(),onClick:()=>{try{onChange(validateLink(draft));setDraft('');setError('');}catch(e){setError(e);}}},value?t('replaceLink','Replace with link'):t('attachLink','Attach link')),
+        error && h('p',{role:'alert'},errorText(error,t)));
     }
-    function ShapeVideoAttachment({ value, onChange, upload, onBusy, title = 'Introduction video', clips = [] }) {
+    function ShapeVideoAttachment({ value, onChange, upload, onBusy, title, clips = [] }) {
+      const t = useText(), heading = title || t('intro','Introduction video');
       const [busy,setBusy] = React.useState(false), [error,setError] = React.useState('');
       const input = React.useRef(null), alive = React.useRef(true), pending = React.useRef(false), current = React.useRef({onChange,onBusy});
       current.current={onChange,onBusy};
@@ -106,20 +119,20 @@
       const pick = async file => {
         if (!file || pending.current) return;
         pending.current=true; setError(''); setBusy(true); const finish=current.current.onBusy; finish?.(1);
-        try { validateFile(file); const media=await upload(file); const url=typeof media==='string'?media:media?.url; if(!resolve(url))throw new Error('Upload failed. Try again.'); if(alive.current)current.current.onChange(url); }
-        catch(e){if(alive.current)setError(e.message || 'Upload failed. Try again.');}
+        try { validateFile(file); const media=await upload(file); const url=typeof media==='string'?media:media?.url; if(!resolve(url))throw problem('uploadFailed','Upload failed. Try again.'); if(alive.current)current.current.onChange(url); }
+        catch(e){if(alive.current)setError(e?.message ? e : problem('uploadFailed','Upload failed. Try again.'));}
         finally {pending.current=false;if(alive.current)setBusy(false);finish?.(-1);}
       };
       return h('fieldset',{disabled:busy,style:{border:0,padding:0,margin:'14px 0',minWidth:0}},
-        h('legend',{style:{fontWeight:600}},title),
+        h('legend',{style:{fontWeight:600}},heading),
         h('input',{ref:input,type:'file',accept:ACCEPT,hidden:true,onChange:e=>{const file=e.target.files[0];e.target.value='';pick(file);}}),
-        h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},h('button',{type:'button',style:control,onClick:()=>input.current.click()},busy?'Uploading…':value?'Replace video':'Upload video'),
-          value && h('button',{type:'button',style:control,onClick:()=>onChange('')},'Remove video')),
-        h('small',{style:{display:'block',marginTop:6}},'Up to 200 MB. MP4 with H.264 works best across devices.'),
-        busy && h('p',{role:'status'},'Uploading video…'), error && h('p',{role:'alert'},error),
-        clips.length>0 && h('label',{style:{display:'block',marginTop:8}},'Saved videos ',h('select',{value:'',style:control,onChange:e=>{if(e.target.value)onChange(e.target.value);}},h('option',{value:''},'Choose from library'),clips.map(c=>h('option',{key:c.url,value:c.url},c.name || 'Video')))),
-        h(ShapeVideoLink,{value,onChange,label:title+' link',disabled:busy}),
-        h(ShapeVideoPlayer,{value,title}));
+        h('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},h('button',{type:'button',style:control,onClick:()=>input.current.click()},busy?t('uploading','Uploading…'):value?t('replace','Replace video'):t('upload','Upload video')),
+          value && h('button',{type:'button',style:control,onClick:()=>onChange('')},t('remove','Remove video'))),
+        h('small',{style:{display:'block',marginTop:6}},t('uploadHelp','Up to 200 MB. MP4 with H.264 works best across devices.')),
+        busy && h('p',{role:'status'},t('uploadingVideo','Uploading video…')), error && h('p',{role:'alert'},errorText(error,t)),
+        clips.length>0 && h('label',{style:{display:'block',marginTop:8}},t('saved','Saved videos')+' ',h('select',{value:'',style:control,onChange:e=>{if(e.target.value)onChange(e.target.value);}},h('option',{value:''},t('library','Choose from library')),clips.map(c=>h('option',{key:c.url,value:c.url},c.name || t('video','Video'))))),
+        h(ShapeVideoLink,{value,onChange,label:t('namedLink','{name} link',{name:heading}),disabled:busy}),
+        h(ShapeVideoPlayer,{value,title:heading}));
     }
     return {ShapeVideoPlayer, ShapeVideoLink, ShapeVideoAttachment};
   }

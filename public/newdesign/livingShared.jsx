@@ -504,13 +504,12 @@ function LvServices({ d, light, ink, c, owner, onReviews, stHead, ratingAvg, rev
                 </div>
               </div>
               {o.media && o.media.length > 0 && (
-                <div style={{ marginTop: 10, display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none" }}>
+                <div onClick={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()} style={{ marginTop: 10, display: "flex", gap: 6, flexWrap:"wrap" }}>
                   {o.media.slice(0, 8).map((m, j) => (
-                    <div key={m.url || j} style={{ position: "relative", flex: "none", width: 66, height: 66, borderRadius: 9, overflow: "hidden", background: hexA(ink, 0.06), border: `1px solid ${hexA(ink, 0.08)}` }}>
+                    <div key={m.url || j} style={{ position: "relative", flex: "none", width:m.type==='video'?'100%':66, height:m.type==='video'?'auto':66, minWidth:0, borderRadius: 9, overflow: "hidden", background: hexA(ink, 0.06), border: `1px solid ${hexA(ink, 0.08)}` }}>
                       {m.type === "video"
-                        ? <video src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline preload="metadata" />
+                        ? <ShapeVideoPlayer value={m}/>
                         : <img src={m.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-                      {m.type === "video" && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><div style={{ width: 20, height: 20, borderRadius: "50%", background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}><svg width="9" height="9" viewBox="0 0 10 10"><path d="M2 1l6 4-6 4z" fill="#fff" /></svg></div></div>}
                     </div>
                   ))}
                 </div>
