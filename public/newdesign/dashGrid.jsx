@@ -222,6 +222,7 @@ function dgInjectStyle() {
 @container (min-width:850px){.dw-movers{grid-template-columns:1fr 1fr}.dw-movers>p{grid-column:1/-1}.dw-extra:nth-child(-n+10){display:block}}
 .dg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .dg-viewing .ui-resizable-handle{display:none!important}
+@media(min-width:768px){.dg-viewing .grid-stack-item-content{cursor:grab}.dg-viewing .ui-draggable-dragging{cursor:grabbing}}
 @media(max-width:767px){.dash-gridstack .ui-resizable-handle,.dash-rs{display:none!important}.dg-board-form input{font-size:16px;max-width:100%}}
 
 /* ⚠ iOS SAFARI ZOOMS THE VIEWPORT ON FOCUS when a form control computes under 16px, and
@@ -600,7 +601,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false }) {
           {waiting.length > 0 && head("Nothing to show yet")}
           {waiting.map((r) => item(r, null))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", marginTop: 4 }}>
-            <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Customize to move, resize or undo</span>
+            <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Customize for arrangement and sizing options</span>
             <button type="button" onClick={() => { setOpen(false); onReset(); }} style={{ ...mono, background: "transparent", border: 0, minHeight: 36, cursor: "pointer", fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</button>
           </div>
         </div>,
@@ -984,7 +985,9 @@ function DashGrid({ role, tab = "today", widgets }) {
       const grid = window.GridStack.init({
         column: 12, columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
         cellHeight: 2, margin: 8, float: true,
-        handle: ".dash-drag-handle", draggable: { cancel: "button, input, textarea, select, a" }, resizable: { handles: "e" }, alwaysShowResizeHandle: true, disableDrag: !customizing || !storeState.loaded, disableResize: !customizing || !storeState.loaded,
+        // The content host exists before React portals mount and survives Customize
+        // toggles. Dragging it must never intercept a widget's interactive controls.
+        handle: ".grid-stack-item-content", draggable: { cancel: "button, input, textarea, select, a, label, summary, [contenteditable], [role='button'], [role='slider']" }, resizable: { handles: "e" }, alwaysShowResizeHandle: true, disableDrag: true, disableResize: !customizing || !storeState.loaded,
         // sizeToContent stays OFF: its auto-cascade overrode our explicit ordered layout,
         // and its observer can't see React-portaled content anyway. We fit heights via
         // manual grid.resizeToContent() calls (see the fit effect) instead.
@@ -1025,7 +1028,10 @@ function DashGrid({ role, tab = "today", widgets }) {
   React.useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
-    grid.enableMove(customizing && storeState.loaded);
+    // Desktop cards can move directly. On phones, normal swipes scroll the page;
+    // Customize explicitly enables rearranging. Read the actual column count so
+    // initialization cannot briefly enable touch dragging before mobile state settles.
+    grid.enableMove(storeState.loaded && (customizing || grid.getColumn() > 1));
     grid.enableResize(customizing && storeState.loaded && !mobile);
   }, [customizing, storeState.loaded, mobile, ready, activeBoard, revision]);
   React.useEffect(() => { setUndo([]); }, [role, tab, activeBoard, store]);
@@ -1338,7 +1344,7 @@ function DashGrid({ role, tab = "today", widgets }) {
       <div role="status" style={{ color: DG_MUTE, fontSize: 12, marginBottom: 12 }}>
         {storeState.status === "loading" ? "Loading dashboards…" : storeState.status === "saving" ? "Saving…" : storeState.status === "error" ? storeState.error : storeState.status === "preview" ? "Preview · sign in to save dashboards" : "Saved · all tabs"}
         {storeState.status === "error" && <button type="button" style={{ ...DG_CONTROL, marginLeft: 8 }} onClick={() => store ? store.retry() : retryAccount()}>Retry</button>}
-        {customizing && <span> · {mobile ? "Move cards with Arrange or drag. Phone order is saved separately." : "Drag a header or use Arrange. Resize width from the right edge; height fits content."}</span>}
+        {storeState.loaded && <span> · {customizing ? (mobile ? "Move cards with Arrange or drag. Phone order is saved separately." : "Drag a widget or use Arrange. Resize width from the right edge; height fits content.") : (mobile ? "Customize dashboard to arrange cards." : "Drag a widget to move it. Customize for resizing and more options.")}</span>}
       </div>
       <span className="dg-sr-only" aria-live="polite">{announcement}</span>
       {/* min-height reserves space so the page doesn't collapse to 0 then jump down
