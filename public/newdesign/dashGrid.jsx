@@ -222,7 +222,7 @@ function dgInjectStyle() {
 @container (min-width:850px){.dw-movers{grid-template-columns:1fr 1fr}.dw-movers>p{grid-column:1/-1}.dw-extra:nth-child(-n+10){display:block}}
 .dg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .dg-viewing .ui-resizable-handle{display:none!important}
-@media(min-width:768px){.dg-viewing .grid-stack-item-content{cursor:grab}.dg-viewing .ui-draggable-dragging{cursor:grabbing}}
+.dg-direct-drag .grid-stack-item-content{cursor:grab}.dg-direct-drag .ui-draggable-dragging{cursor:grabbing}
 @media(max-width:767px){.dash-gridstack .ui-resizable-handle,.dash-rs{display:none!important}.dg-board-form input{font-size:16px;max-width:100%}}
 
 /* ⚠ iOS SAFARI ZOOMS THE VIEWPORT ON FOCUS when a form control computes under 16px, and
@@ -879,6 +879,21 @@ function DashGrid({ role, tab = "today", widgets }) {
   const activeBoard = dgBoards(storeState.doc, role).active;
   const [customizing, setCustomizing] = React.useState(false);
   const [mobile, setMobile] = React.useState(false);
+  const [directDrag, setDirectDrag] = React.useState(false);
+  React.useEffect(() => {
+    // Width alone cannot distinguish a mouse from a tablet. Touch-capable hybrid
+    // devices also keep normal swipes until Customize explicitly enables dragging.
+    const fine = window.matchMedia("(pointer: fine) and (hover: hover)");
+    const touch = window.matchMedia("(any-pointer: coarse)");
+    const update = () => setDirectDrag(fine.matches && !touch.matches);
+    update();
+    fine.addEventListener("change", update);
+    touch.addEventListener("change", update);
+    return () => {
+      fine.removeEventListener("change", update);
+      touch.removeEventListener("change", update);
+    };
+  }, []);
   const [announcement, setAnnouncement] = React.useState("");
   const [undo, setUndo] = React.useState([]);
   const [revision, setRevision] = React.useState(0);
@@ -1028,12 +1043,11 @@ function DashGrid({ role, tab = "today", widgets }) {
   React.useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
-    // Desktop cards can move directly. On phones, normal swipes scroll the page;
-    // Customize explicitly enables rearranging. Read the actual column count so
-    // initialization cannot briefly enable touch dragging before mobile state settles.
-    grid.enableMove(storeState.loaded && (customizing || grid.getColumn() > 1));
+    // Read the actual column count so initialization cannot briefly enable dragging
+    // in a narrow layout before mobile state settles.
+    grid.enableMove(storeState.loaded && (customizing || (directDrag && grid.getColumn() > 1)));
     grid.enableResize(customizing && storeState.loaded && !mobile);
-  }, [customizing, storeState.loaded, mobile, ready, activeBoard, revision]);
+  }, [customizing, directDrag, storeState.loaded, mobile, ready, activeBoard, revision]);
   React.useEffect(() => { setUndo([]); }, [role, tab, activeBoard, store]);
 
   const arrange = (key, direction, width) => {
@@ -1333,7 +1347,7 @@ function DashGrid({ role, tab = "today", widgets }) {
   };
 
   return (
-    <div className={customizing ? "dg-customizing" : "dg-viewing"}>
+    <div className={customizing ? "dg-customizing" : (directDrag && !mobile ? "dg-viewing dg-direct-drag" : "dg-viewing")}>
       {/* The catalogue: always visible, above the grid, on every tab — see DgCatalog. */}
       <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <DgSavedDashboards store={store} role={role} beforeChange={() => { if (ready) persistVisibility(hiddenRef.current); }} />
@@ -1344,7 +1358,7 @@ function DashGrid({ role, tab = "today", widgets }) {
       <div role="status" style={{ color: DG_MUTE, fontSize: 12, marginBottom: 12 }}>
         {storeState.status === "loading" ? "Loading dashboards…" : storeState.status === "saving" ? "Saving…" : storeState.status === "error" ? storeState.error : storeState.status === "preview" ? "Preview · sign in to save dashboards" : "Saved · all tabs"}
         {storeState.status === "error" && <button type="button" style={{ ...DG_CONTROL, marginLeft: 8 }} onClick={() => store ? store.retry() : retryAccount()}>Retry</button>}
-        {storeState.loaded && <span> · {customizing ? (mobile ? "Move cards with Arrange or drag. Phone order is saved separately." : "Drag a widget or use Arrange. Resize width from the right edge; height fits content.") : (mobile ? "Customize dashboard to arrange cards." : "Drag a widget to move it. Customize for resizing and more options.")}</span>}
+        {storeState.loaded && <span> · {customizing ? (mobile ? "Move cards with Arrange or drag. Phone order is saved separately." : "Drag a widget or use Arrange. Resize width from the right edge; height fits content.") : (mobile || !directDrag ? "Customize dashboard to arrange cards." : "Drag a widget to move it. Customize for resizing and more options.")}</span>}
       </div>
       <span className="dg-sr-only" aria-live="polite">{announcement}</span>
       {/* min-height reserves space so the page doesn't collapse to 0 then jump down
