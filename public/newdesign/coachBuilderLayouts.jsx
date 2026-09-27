@@ -49,7 +49,7 @@ function CoachBuilderNav({ layout, onLayout, step, onStep, steps, busy, children
 .cbuilder.dbu2 .stage{min-height:0}
 .cbuilder.dbu2 .drawer .dh{position:static;flex-wrap:wrap}
 .cbuilder.dbu2 .cb-planner-editor{margin:0}
-.cbuilder.dbu2 .cb-planner-editor .drawer.is-sidepanel{position:fixed!important;inset:16px 16px 16px auto!important;width:min(600px,calc(100vw - 32px))!important;max-height:calc(100dvh - 32px)!important;margin:0!important;overflow:auto;overscroll-behavior:contain;z-index:55;box-shadow:0 18px 50px rgba(0,0,0,.24)}
+.cbuilder.dbu2 .cb-planner-editor .drawer.is-sidepanel{position:fixed!important;inset:16px 16px 16px auto!important;width:min(600px,calc(100vw - 32px))!important;max-height:calc(100dvh - 32px)!important;margin:0!important;overflow:auto;overscroll-behavior:contain;z-index:80;box-shadow:0 18px 50px rgba(0,0,0,.24)}
 .cbuilder.dbu2 .drawer.is-sidepanel .dh{position:sticky;top:0;z-index:2;background:var(--sh-card, #25211d);padding:8px 0}
 .cbuilder.dbu2 .cb-choice .tb{margin:0;flex:1;flex-wrap:wrap;gap:8px}
 .cbuilder.dbu2 .cb-choice .tb select{max-width:240px}
