@@ -14,6 +14,8 @@
   "timer.dismiss": "Fertig",
   "mise.eyebrow": "Die Mise",
   "mise.title": "Alles aufs Brett.",
+  "mise.checkAllIngredients": "Alle Zutaten abhaken",
+  "mise.uncheckAllIngredients": "Alle Zutaten abwählen",
   "mise.prepTag": "PREP",
   "mise.none": "Keine Zutatenliste dabei — koch das Gericht, das du kennst.",
   "mise.noMethod": "Keine geschriebene Methode dabei — der Teller deines Coaches, deine Küche. Timer und Log stehen bereit.",
@@ -148,5 +150,13 @@
   "roadmap.hide": "Ablauf ausblenden",
   "roadmap.duration": "Etwa {n} Min.",
   "roadmap.planned": "Geplant: {time}",
-  "roadmap.back": "Zurück zum Kochen"
+  "roadmap.back": "Zurück zum Kochen",
+  "voice.loading": "Noras Stimme wird geladen…",
+  "voice.signIn": "Melde dich mit einer aktiven Mitgliedschaft an, um Nora zu hören.",
+  "voice.playbackError": "Noras Audio konnte nicht abgespielt werden. Tippe, um es erneut zu versuchen.",
+  "voice.retry": "Stimme abspielen",
+  "prep.cannotCoordinate": "Diese Schritte können mit dieser Küchenausstattung nicht parallel laufen. Wähle getrenntes Kochen oder ändere Gerichte oder Geräte.",
+  "prep.pauseOverdue": "Die geplante Pause wurde überschritten: {titles}. Prüfe diese Gerichte, bevor du fortfährst.",
+  "prep.pauseUpcoming": "{title} braucht bis {time} deine Aufmerksamkeit. Der aktualisierte Zeitplan überschreitet diese Pausenfrist.",
+  "prep.invalidTiming": "Diese Rezeptzeiten sind zu lang für die Planung. Prüfe die Zeitangaben der Rezepte, bevor du beginnst."
 }

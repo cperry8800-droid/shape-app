@@ -14,6 +14,8 @@
   "timer.dismiss": "Feito",
   "mise.eyebrow": "A mise",
   "mise.title": "Tudo na tábua.",
+  "mise.checkAllIngredients": "Marcar todos os ingredientes",
+  "mise.uncheckAllIngredients": "Desmarcar todos os ingredientes",
   "mise.prepTag": "PREP",
   "mise.none": "Esta não traz lista de ingredientes — cozinhe o prato que você já conhece.",
   "mise.noMethod": "Esta não traz método escrito — o prato do seu coach, a sua cozinha. Os timers e o registro estão prontos quando você estiver.",
@@ -148,5 +150,13 @@
   "roadmap.hide": "Ocultar roteiro",
   "roadmap.duration": "Cerca de {n} min",
   "roadmap.planned": "Previsto para {time}",
-  "roadmap.back": "Voltar ao preparo"
+  "roadmap.back": "Voltar ao preparo",
+  "voice.loading": "Carregando a voz da Nora…",
+  "voice.signIn": "Entre com uma assinatura ativa para ouvir a Nora.",
+  "voice.playbackError": "Não foi possível reproduzir o áudio da Nora. Toque para tentar novamente.",
+  "voice.retry": "Reproduzir voz",
+  "prep.cannotCoordinate": "Estas etapas não podem ocorrer ao mesmo tempo com esta cozinha. Escolha cozinhar separadamente ou altere os pratos ou equipamentos.",
+  "prep.pauseOverdue": "A pausa planejada foi excedida: {titles}. Verifique estes pratos antes de continuar.",
+  "prep.pauseUpcoming": "{title} precisa de atenção até {time}. O cronograma atualizado ultrapassa o limite desta pausa.",
+  "prep.invalidTiming": "Os tempos destas receitas são longos demais para programar. Confira as durações antes de começar."
 }

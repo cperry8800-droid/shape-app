@@ -14,6 +14,8 @@
   "timer.dismiss": "Fatto",
   "mise.eyebrow": "La mise",
   "mise.title": "Tutto sul tagliere.",
+  "mise.checkAllIngredients": "Spunta tutti gli ingredienti",
+  "mise.uncheckAllIngredients": "Rimuovi tutte le spunte dagli ingredienti",
   "mise.prepTag": "PREP",
   "mise.none": "Niente lista ingredienti qui — cucina il piatto che conosci.",
   "mise.noMethod": "Niente metodo scritto qui — il piatto del tuo coach, la tua cucina. Timer e diario pronti quando lo sei tu.",
@@ -148,5 +150,13 @@
   "roadmap.hide": "Nascondi il percorso",
   "roadmap.duration": "Circa {n} min",
   "roadmap.planned": "Previsto alle {time}",
-  "roadmap.back": "Torna a cucinare"
+  "roadmap.back": "Torna a cucinare",
+  "voice.loading": "Caricamento della voce di Nora…",
+  "voice.signIn": "Accedi con un abbonamento attivo per ascoltare Nora.",
+  "voice.playbackError": "Impossibile riprodurre la voce di Nora. Tocca per riprovare.",
+  "voice.retry": "Riproduci voce",
+  "prep.cannotCoordinate": "Questi passaggi non possono sovrapporsi con questa cucina. Scegli di cucinare separatamente o cambia piatti o attrezzatura.",
+  "prep.pauseOverdue": "La pausa prevista è stata superata: {titles}. Controlla questi piatti prima di continuare.",
+  "prep.pauseUpcoming": "{title} richiede attenzione entro le {time}. Il programma aggiornato supera il limite di questa pausa.",
+  "prep.invalidTiming": "I tempi di queste ricette sono troppo lunghi per pianificarli. Controlla le durate prima di iniziare."
 }

@@ -14,6 +14,8 @@
   "timer.dismiss": "Selesai",
   "mise.eyebrow": "Persiapan",
   "mise.title": "Siapkan semuanya.",
+  "mise.checkAllIngredients": "Centang semua bahan",
+  "mise.uncheckAllIngredients": "Hapus centang semua bahan",
   "mise.prepTag": "PREP",
   "mise.none": "Tidak ada daftar bahan — masak hidangan yang sudah kamu kenal.",
   "mise.noMethod": "Tidak ada metode tertulis — piring dari coach-mu, dapurmu. Timer dan log siap kapan pun kamu siap.",
@@ -148,5 +150,13 @@
   "roadmap.hide": "Sembunyikan alur",
   "roadmap.duration": "Sekitar {n} menit",
   "roadmap.planned": "Direncanakan {time}",
-  "roadmap.back": "Kembali memasak"
+  "roadmap.back": "Kembali memasak",
+  "voice.loading": "Memuat suara Nora…",
+  "voice.signIn": "Masuk dengan keanggotaan aktif untuk mendengar Nora.",
+  "voice.playbackError": "Audio Nora tidak dapat diputar. Ketuk untuk mencoba lagi.",
+  "voice.retry": "Putar suara",
+  "prep.cannotCoordinate": "Langkah-langkah ini tidak dapat dilakukan bersamaan dengan peralatan dapur ini. Pilih memasak terpisah atau ubah hidangan atau peralatan.",
+  "prep.pauseOverdue": "Jeda yang direncanakan telah terlewati: {titles}. Periksa hidangan ini sebelum melanjutkan.",
+  "prep.pauseUpcoming": "{title} perlu diperhatikan sebelum {time}. Jadwal yang diperbarui melewati batas waktu jeda ini.",
+  "prep.invalidTiming": "Durasi resep ini terlalu lama untuk dijadwalkan. Periksa durasi resep sebelum memulai."
 }

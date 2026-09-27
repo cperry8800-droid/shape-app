@@ -172,8 +172,10 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
     r.stepMeta.forEach((m, i) => {
       if (m == null) return;
       assert.ok(BS_STATIONS.includes(m.station), `${r.title} step ${i}: bad station "${m.station}"`);
-      assert.equal(m.passive, true, `${r.title} step ${i}: overlay entries must be passive windows`);
-      assert.ok(Number.isFinite(m.min) && m.min >= MIN_PASSIVE, `${r.title} step ${i}: min ${m.min} below the ${MIN_PASSIVE}-min floor`);
+      assert.equal(typeof m.passive, 'boolean', `${r.title} step ${i}: attendance must be explicit`);
+      assert.ok(Number.isFinite(m.min) && m.min > 0, `${r.title} step ${i}: invalid duration`);
+      if (m.passive) assert.ok(m.min >= MIN_PASSIVE, `${r.title} step ${i}: passive window below the ${MIN_PASSIVE}-min floor`);
+      if (m.maxPause != null) assert.ok(!m.passive && Number.isFinite(m.maxPause) && m.maxPause > 0, `${r.title} step ${i}: pause must follow attended work`);
       assert.ok(m.min <= 6 * 60, `${r.title} step ${i}: min ${m.min} exceeds 6h`);
       // No fabrication: the authored `min` must equal a real duration the step text itself states.
       // ⚠ `bsStepTimers` reduces a RANGE to one figure — "simmer 4 to 5 minutes" comes back as
@@ -181,7 +183,8 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
       // range are stated, and the sibling gate below requires the low one; without this the two
       // rules contradict each other and the honest value is the one that fails.
       const RANGE_ENDS = /(\d+)\s*(?:to|\u2013|-)\s*(\d+)\s*(minutes?|mins?|hours?|hrs?)/gi;
-      const stated = bsStepTimers(r.steps[i]).map((x) => Math.round(x.seconds / 60));
+      const stated = bsStepTimers(r.steps[i]).map((x) => x.seconds / 60);
+      if (!m.passive) stated.push(stated.reduce((sum, n) => sum + n, 0));
       for (const hit of String(r.steps[i]).matchAll(RANGE_ENDS)) {
         const scale = /hour|hr/i.test(hit[3]) ? 60 : 1;
         stated.push(Number(hit[1]) * scale, Number(hit[2]) * scale);

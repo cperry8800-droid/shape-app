@@ -14,6 +14,8 @@
   "timer.dismiss": "OK",
   "mise.eyebrow": "La mise en place",
   "mise.title": "Tout sur la planche.",
+  "mise.checkAllIngredients": "Cocher tous les ingrédients",
+  "mise.uncheckAllIngredients": "Décocher tous les ingrédients",
   "mise.prepTag": "PRÉP",
   "mise.none": "Pas de liste d'ingrédients ici — cuisinez le plat que vous connaissez.",
   "mise.noMethod": "Pas de méthode écrite ici — l'assiette de votre coach, votre cuisine. Minuteurs et journal sont prêts quand vous l'êtes.",
@@ -148,5 +150,13 @@
   "roadmap.hide": "Masquer le parcours",
   "roadmap.duration": "Environ {n} min",
   "roadmap.planned": "Prévu à {time}",
-  "roadmap.back": "Revenir à la préparation"
+  "roadmap.back": "Revenir à la préparation",
+  "voice.loading": "Chargement de la voix de Nora…",
+  "voice.signIn": "Connectez-vous avec un abonnement actif pour écouter Nora.",
+  "voice.playbackError": "Impossible de lire la voix de Nora. Appuyez pour réessayer.",
+  "voice.retry": "Écouter la voix",
+  "prep.cannotCoordinate": "Ces étapes ne peuvent pas se chevaucher avec cet équipement. Choisissez de cuisiner séparément ou changez les plats ou le matériel.",
+  "prep.pauseOverdue": "La pause prévue a été dépassée : {titles}. Vérifiez ces plats avant de continuer.",
+  "prep.pauseUpcoming": "{title} nécessite votre attention avant {time}. Le planning mis à jour dépasse la durée autorisée pour cette pause.",
+  "prep.invalidTiming": "Les durées de ces recettes sont trop longues pour établir un planning. Vérifiez-les avant de commencer."
 }

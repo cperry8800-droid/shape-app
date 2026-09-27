@@ -7997,6 +7997,9 @@ async function speakVoice(text, toneOverride, opts = {}) {
     try {
       await audio.play();
     } catch (playErr) {
+      // Keep a browser-blocked clip for a direct user-gesture retry. Fetching
+      // a new clip on every retry loses that gesture before play() runs.
+      if (myGen === _voiceGen && playErr?.name === 'NotAllowedError') return { ok: false, reason: 'playback_blocked' };
       // Autoplay block / playback failure — release THIS clip's blob so it can't
       // leak, but only if a newer speak hasn't already taken over (CodeRabbit).
       try { URL.revokeObjectURL(url); } catch (e2) {}
@@ -8015,6 +8018,17 @@ async function speakVoice(text, toneOverride, opts = {}) {
     return { ok: false, reason: 'unavailable' };
   } finally {
     if (_voiceAbort === ctrl) _voiceAbort = null;  // this call's fetch is done
+  }
+}
+async function retryVoice() {
+  const audio = _voiceAudio, generation = _voiceGen;
+  if (!audio) return { ok: false, reason: 'unavailable' };
+  try {
+    await audio.play();
+    return generation === _voiceGen ? { ok: true, source: 'server' } : { ok: false, superseded: true };
+  } catch (error) {
+    if (generation !== _voiceGen) return { ok: false, superseded: true };
+    return { ok: false, reason: error?.name === 'NotAllowedError' ? 'playback_blocked' : 'unavailable' };
   }
 }
 // The TONE + VOICE sync to the account (user_goals 'nora_voice') so Nora's
@@ -8097,6 +8111,7 @@ window.ShapeVoice = {
   setVoice(v) { const p = readVoicePrefs(); p.voice = normVoice(v); writeVoicePrefs(p); persistPrefsToAccount(p); return p; },
   load: loadVoiceTone,
   speak: speakVoice,
+  retry: retryVoice,
   stop: stopVoice,
 };
 

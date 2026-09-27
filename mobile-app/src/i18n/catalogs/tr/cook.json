@@ -14,6 +14,8 @@
   "timer.dismiss": "Tamam",
   "mise.eyebrow": "Hazırlık",
   "mise.title": "Her şeyi tahtaya al.",
+  "mise.checkAllIngredients": "Tüm malzemeleri işaretle",
+  "mise.uncheckAllIngredients": "Tüm malzemelerin işaretini kaldır",
   "mise.prepTag": "HAZIRLIK",
   "mise.none": "Bu tarifte malzeme listesi yok — bildiğin tabağı pişir.",
   "mise.noMethod": "Bu tarifte yazılı yöntem yok — koçunun tabağı, senin mutfağın. Zamanlayıcılar ve kayıt hazır.",
@@ -148,5 +150,13 @@
   "roadmap.hide": "Planı gizle",
   "roadmap.duration": "Yaklaşık {n} dk",
   "roadmap.planned": "Planlanan saat: {time}",
-  "roadmap.back": "Pişirmeye dön"
+  "roadmap.back": "Pişirmeye dön",
+  "voice.loading": "Nora’nın sesi yükleniyor…",
+  "voice.signIn": "Nora’yı duymak için aktif üyeliğinizle giriş yapın.",
+  "voice.playbackError": "Nora’nın sesi çalınamadı. Tekrar denemek için dokunun.",
+  "voice.retry": "Sesi çal",
+  "prep.cannotCoordinate": "Bu adımlar bu mutfak düzeninde aynı anda yapılamaz. Ayrı pişirmeyi seçin veya yemekleri ya da ekipmanı değiştirin.",
+  "prep.pauseOverdue": "Planlanan mola aşıldı: {titles}. Devam etmeden önce bu yemekleri kontrol edin.",
+  "prep.pauseUpcoming": "{title} ile en geç {time} saatinde ilgilenmeniz gerekiyor. Güncellenen program bu molanın süresini aşıyor.",
+  "prep.invalidTiming": "Bu tariflerin süreleri planlama için çok uzun. Başlamadan önce tarif sürelerini kontrol edin."
 }

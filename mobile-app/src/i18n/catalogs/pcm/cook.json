@@ -14,6 +14,8 @@
   "timer.dismiss": "Done",
   "mise.eyebrow": "Di prep",
   "mise.title": "Bring everything come board.",
+  "mise.checkAllIngredients": "Mark all ingredients",
+  "mise.uncheckAllIngredients": "Unmark all ingredients",
   "mise.prepTag": "PREP",
   "mise.none": "No ingredient list dey here — cook di food wey you sabi.",
   "mise.noMethod": "No written method dey here — na your coach plate, na your kitchen. Timer and log dey ready anytime.",
@@ -148,5 +150,13 @@
   "roadmap.hide": "Hide cooking plan",
   "roadmap.duration": "About {n} min",
   "roadmap.planned": "Plan na {time}",
-  "roadmap.back": "Go back to cooking"
+  "roadmap.back": "Go back to cooking",
+  "voice.loading": "Nora voice dey load…",
+  "voice.signIn": "Sign in with active membership to hear Nora.",
+  "voice.playbackError": "Nora voice no fit play. Tap make you try again.",
+  "voice.retry": "Play voice",
+  "prep.cannotCoordinate": "These steps no fit happen together with this kitchen setup. Choose to cook separately or change the dishes or equipment.",
+  "prep.pauseOverdue": "The planned break don pass: {titles}. Check these dishes before you continue.",
+  "prep.pauseUpcoming": "{title} need attention before {time}. The new cooking plan go pass the time wey this break suppose end.",
+  "prep.invalidTiming": "The time for these recipes too long to plan. Check how long the recipes go take before you start."
 }
