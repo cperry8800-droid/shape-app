@@ -9760,7 +9760,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const minsLeftNow = () => Math.round((nowRef.current + chosenServe * 60000 - Date.now()) / 60000);
   // A serve time that cannot be met must not be startable. The engine would clamp to
   // the earliest and run a session for a table time the cook never chose.
-  const cannotStart = (multi && !choice) || (choice === BS_COOK_CHOICE.SERVE && (serveTooSoon || orch.coordinated === false));
+  const cannotStart = !!orch.invalidTiming || (multi && !choice) || (choice === BS_COOK_CHOICE.SERVE && (serveTooSoon || orch.coordinated === false));
   const spanOf = (o) => (o.timeline.length
     ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
     : 0);
@@ -10182,7 +10182,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
                         </span>
                       ) : null}
                     </div>
-                    {orch.coordinated === false && <p role="status" style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.RUST }}>{tr('cook:prep.cannotCoordinate', { defaultValue: 'These steps cannot overlap with this kitchen setup. Choose Cook separately or change the dishes or equipment.' })}</p>}
+                    {orch.coordinated === false && !orch.invalidTiming && <p role="status" style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.RUST }}>{tr('cook:prep.cannotCoordinate', { defaultValue: 'These steps cannot overlap with this kitchen setup. Choose Cook separately or change the dishes or equipment.' })}</p>}
                     {(orch.ready || []).map(d => <div key={d.iid} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12 }}><span>{tr('cook:prep.ready', { defaultValue: '{title} ready', title: d.title })}</span><time style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{clockOf(d.readyAt)}</time></div>)}
                     {serveTooSoon ? (
                       <div style={{ marginTop: 7 }}>
@@ -10279,6 +10279,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
                 </div>
               </div>
             )}
+            {orch.invalidTiming && <p role="alert" style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.RUST }}>{tr('cook:prep.invalidTiming', { defaultValue: 'These recipe times are too large to schedule. Check the recipe durations before starting.' })}</p>}
             {serveSlipped ? (
               <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.RUST }}>
                 {tr('cook:prep.serveTooSoon', { defaultValue: 'Not enough time — the earliest these can all be ready is {t}', t: clockOf(chosenServe) })}

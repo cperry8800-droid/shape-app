@@ -156,5 +156,7 @@
   "voice.playbackError": "Nora’nın sesi çalınamadı. Tekrar denemek için dokunun.",
   "voice.retry": "Sesi çal",
   "prep.cannotCoordinate": "Bu adımlar bu mutfak düzeninde aynı anda yapılamaz. Ayrı pişirmeyi seçin veya yemekleri ya da ekipmanı değiştirin.",
-  "prep.pauseOverdue": "Planlanan mola aşıldı: {titles}. Devam etmeden önce bu yemekleri kontrol edin."
+  "prep.pauseOverdue": "Planlanan mola aşıldı: {titles}. Devam etmeden önce bu yemekleri kontrol edin.",
+  "prep.pauseUpcoming": "{title} ile en geç {time} saatinde ilgilenmeniz gerekiyor. Güncellenen program bu molanın süresini aşıyor.",
+  "prep.invalidTiming": "Bu tariflerin süreleri planlama için çok uzun. Başlamadan önce tarif sürelerini kontrol edin."
 }

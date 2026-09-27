@@ -156,5 +156,7 @@
   "voice.playbackError": "Impossible de lire la voix de Nora. Appuyez pour réessayer.",
   "voice.retry": "Écouter la voix",
   "prep.cannotCoordinate": "Ces étapes ne peuvent pas se chevaucher avec cet équipement. Choisissez de cuisiner séparément ou changez les plats ou le matériel.",
-  "prep.pauseOverdue": "La pause prévue a été dépassée : {titles}. Vérifiez ces plats avant de continuer."
+  "prep.pauseOverdue": "La pause prévue a été dépassée : {titles}. Vérifiez ces plats avant de continuer.",
+  "prep.pauseUpcoming": "{title} nécessite votre attention avant {time}. Le planning mis à jour dépasse la durée autorisée pour cette pause.",
+  "prep.invalidTiming": "Les durées de ces recettes sont trop longues pour établir un planning. Vérifiez-les avant de commencer."
 }

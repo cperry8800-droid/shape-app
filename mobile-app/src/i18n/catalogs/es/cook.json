@@ -156,5 +156,7 @@
   "voice.playbackError": "No se pudo reproducir el audio de Nora. Toca para reintentar.",
   "voice.retry": "Reproducir voz",
   "prep.cannotCoordinate": "Estos pasos no pueden solaparse con esta cocina. Elige cocinar por separado o cambia los platos o el equipo.",
-  "prep.pauseOverdue": "Se ha superado la pausa prevista: {titles}. Revisa estos platos antes de continuar."
+  "prep.pauseOverdue": "Se ha superado la pausa prevista: {titles}. Revisa estos platos antes de continuar.",
+  "prep.pauseUpcoming": "{title} necesita atención antes de las {time}. El horario actualizado supera el límite de esta pausa.",
+  "prep.invalidTiming": "Los tiempos de estas recetas son demasiado largos para planificarlos. Revisa las duraciones antes de empezar."
 }

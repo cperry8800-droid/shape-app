@@ -156,5 +156,7 @@
   "voice.playbackError": "Ba a iya kunna muryar Nora ba. Taɓa don sake gwadawa.",
   "voice.retry": "Kunna murya",
   "prep.cannotCoordinate": "Ba za a iya yin waɗannan matakai a lokaci guda da wannan kayan girki ba. Zaɓi girki dabam ko sauya abinci ko kayan aiki.",
-  "prep.pauseOverdue": "An wuce hutun da aka tsara: {titles}. Duba waɗannan abinci kafin ci gaba."
+  "prep.pauseOverdue": "An wuce hutun da aka tsara: {titles}. Duba waɗannan abinci kafin ci gaba.",
+  "prep.pauseUpcoming": "{title} na buƙatar kulawa kafin {time}. Sabon jadawalin ya wuce iyakar wannan hutu.",
+  "prep.invalidTiming": "Lokutan waɗannan girke-girke sun yi tsawo sosai don tsara jadawali. Duba tsawon lokacin girke-girken kafin farawa."
 }

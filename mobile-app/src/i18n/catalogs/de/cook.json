@@ -156,5 +156,7 @@
   "voice.playbackError": "Noras Audio konnte nicht abgespielt werden. Tippe, um es erneut zu versuchen.",
   "voice.retry": "Stimme abspielen",
   "prep.cannotCoordinate": "Diese Schritte können mit dieser Küchenausstattung nicht parallel laufen. Wähle getrenntes Kochen oder ändere Gerichte oder Geräte.",
-  "prep.pauseOverdue": "Die geplante Pause wurde überschritten: {titles}. Prüfe diese Gerichte, bevor du fortfährst."
+  "prep.pauseOverdue": "Die geplante Pause wurde überschritten: {titles}. Prüfe diese Gerichte, bevor du fortfährst.",
+  "prep.pauseUpcoming": "{title} braucht bis {time} deine Aufmerksamkeit. Der aktualisierte Zeitplan überschreitet diese Pausenfrist.",
+  "prep.invalidTiming": "Diese Rezeptzeiten sind zu lang für die Planung. Prüfe die Zeitangaben der Rezepte, bevor du beginnst."
 }

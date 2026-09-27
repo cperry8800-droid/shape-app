@@ -156,5 +156,7 @@
   "voice.playbackError": "Audio Nora tidak dapat diputar. Ketuk untuk mencoba lagi.",
   "voice.retry": "Putar suara",
   "prep.cannotCoordinate": "Langkah-langkah ini tidak dapat dilakukan bersamaan dengan peralatan dapur ini. Pilih memasak terpisah atau ubah hidangan atau peralatan.",
-  "prep.pauseOverdue": "Jeda yang direncanakan telah terlewati: {titles}. Periksa hidangan ini sebelum melanjutkan."
+  "prep.pauseOverdue": "Jeda yang direncanakan telah terlewati: {titles}. Periksa hidangan ini sebelum melanjutkan.",
+  "prep.pauseUpcoming": "{title} perlu diperhatikan sebelum {time}. Jadwal yang diperbarui melewati batas waktu jeda ini.",
+  "prep.invalidTiming": "Durasi resep ini terlalu lama untuk dijadwalkan. Periksa durasi resep sebelum memulai."
 }

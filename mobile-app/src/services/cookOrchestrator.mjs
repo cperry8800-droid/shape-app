@@ -54,6 +54,8 @@ export const BS_ORCH = {
   // and read at CALL time, so the fallback below is reachable in a test without building
   // a 500-step recipe.
   serveSearchMax: 512,
+  // Shared across all phase orders, including candidate and collision probes.
+  phaseSearchMax: 100000,
 };
 
 const STATIONS_EXCLUSIVE = ['oven', 'stove', 'board']; // 'off' (rest/chill) ties up nothing
@@ -195,6 +197,20 @@ const serialTimeline = (rs, activeMin) => {
 // than hidden. `off` (rest/chill) holds nothing and never forces a pull.
 const durationOf = (r, activeMin) => r.steps.reduce((n, _s, i) => n + stepCost(r.meta[i], activeMin), 0);
 
+// Beyond a year this is not a usable cooking session. Check the aggregate before
+// adding/subtracting horizons so finite metadata cannot overflow into Infinity/NaN.
+const MAX_SCHEDULE_MIN = 365 * 24 * 60;
+const timingInRange = (rs, activeMin, serveAt) => {
+  let total = 0;
+  for (const r of rs) for (let i = 0; i < r.steps.length; i++) {
+    total += stepCost(r.meta[i], activeMin) + pauseOf(r.meta[i]);
+    if (!Number.isFinite(total) || total > MAX_SCHEDULE_MIN) return false;
+  }
+  return !(serveAt > MAX_SCHEDULE_MIN);
+};
+const invalidServe = () => ({ timeline: [], serveAt: 0, earliestServe: 0, spread: 0,
+  exact: false, estimated: true, coordinated: false, ready: [], issues: [], invalidTiming: true });
+
 // ⚠ ONE COOK, TWO HANDS. Station capacity says nothing about the PERSON. Two dishes can
 // each want three minutes of chopping in the same three minutes with no station contended,
 // so the placement called that feasible and reported `spread: 0` — a plan where everything
@@ -224,7 +240,7 @@ const handsPull = (busy, from, to) => {
 // A pause is an authored permission to leave the food OFF its station, with a
 // bounded wait before the next step. Unannotated recipes remain contiguous.
 // Pack finishing blocks first, then fit earlier prep around the other dishes.
-function placePhases(rs, activeMin, T, kitchen, orderIdx) {
+function placePhases(rs, activeMin, T, kitchen, orderIdx, budget, allowance) {
   const queue = (orderIdx || rs.map((_, i) => i)).map((ri, priority) => {
     const r = rs[ri], blocks = [[]];
     r.steps.forEach((_, i) => {
@@ -239,12 +255,19 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx) {
   // Explore alternative ready blocks when a finishing step leaves too little room
   // for its predecessor. A greedy finish-first pass can strand hot food behind
   // another dish even though moving that dish's whole finishing block would fit.
-  let budget = 10000;
+  let remaining = allowance;
+  const spend = () => {
+    if (remaining <= 0 || budget.remaining <= 0) return false;
+    remaining--; budget.remaining--;
+    return true;
+  };
   function search(pending, placed) {
     if (!pending.length) return placed;
-    if (--budget < 0) return null;
+    if (!spend()) return null;
     const candidates = [...pending].sort((a, b) => urgency(b) - urgency(a) || a.priority - b.priority);
+    const placements = [];
     for (const candidate of candidates) {
+      if (!spend()) return null;
       const { r, blocks, b, end, priority } = candidate;
       const result = { ...placed, events: [...placed.events], holds: [...placed.holds], hands: [...placed.hands] };
       const indices = blocks[b];
@@ -253,8 +276,10 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx) {
       let start = end - duration;
       let fit = false;
       for (let guard = 0; guard < 1000 && start >= lower - 1e-8; guard++) {
+        if (!spend()) return null;
         let at = start, pull = 0;
         for (const i of indices) {
+          if (!spend()) return null;
           const m = r.meta[i] || {}, len = stepCost(m, activeMin);
           const station = stationPull(result.holds, m.station, at, at + len, kitchen) || 0;
           const cook = needsHands(m) ? handsPull(result.hands, at, at + len) || 0 : 0;
@@ -266,7 +291,9 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx) {
         if (!pull) { fit = true; break; }
         start -= pull;
       }
-      if (!fit) continue;
+      // Existing reservations only grow. If any ready block cannot fit now,
+      // placing another block first cannot rescue this branch.
+      if (!fit) return null;
       let at = start;
       for (const i of indices) {
         const m = r.meta[i] || {}, len = stepCost(m, activeMin);
@@ -275,6 +302,10 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx) {
         result.events.push({ ...evt(r, i, at), _end: at + len });
         at += len;
       }
+      placements.push({ candidate, result, start });
+    }
+    for (const { candidate, result, start } of placements) {
+      const { r, blocks, b, priority } = candidate;
       const next = pending.filter(item => item !== candidate);
       if (b > 0) next.push({ r, blocks, b: b - 1, end: start, priority });
       const solution = search(next, result);
@@ -429,11 +460,17 @@ function bestPlacement(rs, activeMin, T, kitchen) {
 // Live replans keep absolute resource reservations and use the placement below.
 function phaseSchedule(rs, activeMin, kitchen) {
   if (!rs.some(r => r.meta.some(pauseOf)) || kitchen?.liveHolds?.length || rs.some(r => r.readyAt > 0)) return null;
-  const horizon = rs.reduce((n, r) => n + durationOf(r, activeMin) + r.meta.reduce((a, m) => a + pauseOf(m), 0), 0);
+  const horizon = rs.reduce((n, r) => n + durationOf(r, activeMin) + r.steps.reduce((a, _, i) => a + pauseOf(r.meta[i]), 0), 0);
   const orders = rs.length <= 4 ? permutationsOf(rs.length) : rotationsOf(rs.length);
+  if (!orders.length) orders.push(rs.map((_, i) => i));
+  const budget = { remaining: BS_ORCH.phaseSearchMax };
   let best = null;
-  for (const order of orders.length ? orders : [rs.map((_, i) => i)]) {
-    const plan = placePhases(rs, activeMin, horizon, kitchen, order);
+  for (const [i, order] of orders.entries()) {
+    if (budget.remaining <= 0) break;
+    // Reserve a fair share for later orders so one difficult branch cannot
+    // exhaust every alternative. Unspent work remains available to later orders.
+    const allowance = Math.ceil(budget.remaining / (orders.length - i));
+    const plan = placePhases(rs, activeMin, horizon, kitchen, order, budget, allowance);
     if (!plan) continue;
     const first = Math.min(...plan.events.map(e => e.at));
     const ends = rs.map(r => Math.max(...plan.events.filter(e => e.iid === r.iid).map(e => e._end)));
@@ -442,7 +479,20 @@ function phaseSchedule(rs, activeMin, kitchen) {
     if (!best || spread < best.spread || (spread === best.spread && duration < best.duration))
       best = { ...plan, spread, duration, events: plan.events.map(e => ({ ...e, at: e.at - first, _end: e._end - first })) };
   }
-  return best;
+  // Exhausting phase search must not launch the older factorial order search.
+  // One contiguous placement at the serial bound is always feasible; it can
+  // still overlap passive work, and coordinated/exact describe it honestly.
+  if (!best) {
+    const bound = rs.reduce((n, r) => n + durationOf(r, activeMin), 0);
+    const fallback = placeAt(rs, activeMin, bound, kitchen);
+    const events = fallback.feasible ? fallback.placed : serialTimeline(rs, activeMin).map(e => ({ ...e, _end: e.at + stepCost(e, activeMin) }));
+    const first = Math.min(...events.map(e => e.at));
+    const ready = serveDetails(events).ready.map(d => d.readyAt);
+    best = { events: events.map(e => ({ ...e, at: e.at - first, _end: e._end - first })),
+      spread: Math.max(...ready) - Math.min(...ready), duration: bound - first,
+      byStation: fallback.pulledByStation, byCook: fallback.pulledByCook };
+  }
+  return { ...best, searchWork: BS_ORCH.phaseSearchMax - budget.remaining };
 }
 
 function serveDetails(placed) {
@@ -459,17 +509,22 @@ function serveDetails(placed) {
 }
 
 function serveTimeline(rs, activeMin, serveAt, kitchen) {
+  if (!timingInRange(rs, activeMin, serveAt)) return invalidServe();
   const phases = phaseSchedule(rs, activeMin, kitchen);
   if (phases) {
     const earliest = phases.duration;
     const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
     const T = Math.max(wanted, earliest);
-    const placed = phases.events.map(e => ({ ...e, at: e.at + T - earliest, _end: e._end + T - earliest }));
+    const offset = T - earliest;
+    const placed = phases.events.map(e => ({ ...e, at: e.at + offset, _end: e._end + offset }));
+    if (![T, earliest, phases.spread].every(Number.isFinite)
+      || placed.some(e => !Number.isFinite(e.at) || !Number.isFinite(e._end))) return invalidServe();
     return {
       timeline: placed.map(({ _end, ...e }) => e).sort((a, b) => a.at - b.at || a.iid - b.iid),
       serveAt: T, earliestServe: earliest, spread: phases.spread, exact: false,
       issues: [...(wanted < earliest ? [BS_SERVE_ISSUE.TOO_SOON] : []), ...(phases.byStation ? [BS_SERVE_ISSUE.STATIONS] : []), ...(phases.byCook ? [BS_SERVE_ISSUE.COOK] : [])],
       estimated: assumesLengths(rs, activeMin), ...serveDetails(placed),
+      searchWork: phases.searchWork,
     };
   }
   const durs = rs.map((r) => durationOf(r, activeMin));
@@ -606,6 +661,9 @@ export function bsOrchestrate(recipes, opts = {}) {
   const MODES = [BS_COOK_MODE.TOGETHER, BS_COOK_MODE.SEQUENCE, BS_COOK_MODE.SERVE];
   const mode = MODES.includes(opts.mode) ? opts.mode : BS_COOK_MODE.AUTO;
   const rs = cleanRecipes(recipes);
+  if (!timingInRange(rs, activeMin, opts.serveAt)) return {
+    ...invalidServe(), serial: true, canInterleave: false, mode, reason: 'invalid-timing',
+  };
 
   // Interleaving needs ≥2 recipes AND at least one real passive window to host it.
   // ⚠ This is a fact about the DATA and is deliberately computed BEFORE `mode` is
@@ -620,6 +678,8 @@ export function bsOrchestrate(recipes, opts = {}) {
       timeline: sv.timeline, serial: false, canInterleave, mode, reason: null,
       serveAt: sv.serveAt, earliestServe: sv.earliestServe, spread: sv.spread, issues: sv.issues,
       exact: sv.exact, estimated: sv.estimated, coordinated: sv.coordinated, ready: sv.ready,
+      ...(sv.invalidTiming ? { invalidTiming: true } : {}),
+      ...(sv.searchWork != null ? { searchWork: sv.searchWork } : {}),
     };
   }
   if (mode === BS_COOK_MODE.SEQUENCE) {

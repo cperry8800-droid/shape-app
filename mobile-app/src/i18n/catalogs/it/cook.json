@@ -156,5 +156,7 @@
   "voice.playbackError": "Impossibile riprodurre la voce di Nora. Tocca per riprovare.",
   "voice.retry": "Riproduci voce",
   "prep.cannotCoordinate": "Questi passaggi non possono sovrapporsi con questa cucina. Scegli di cucinare separatamente o cambia piatti o attrezzatura.",
-  "prep.pauseOverdue": "La pausa prevista è stata superata: {titles}. Controlla questi piatti prima di continuare."
+  "prep.pauseOverdue": "La pausa prevista è stata superata: {titles}. Controlla questi piatti prima di continuare.",
+  "prep.pauseUpcoming": "{title} richiede attenzione entro le {time}. Il programma aggiornato supera il limite di questa pausa.",
+  "prep.invalidTiming": "I tempi di queste ricette sono troppo lunghi per pianificarli. Controlla le durate prima di iniziare."
 }

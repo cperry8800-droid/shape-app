@@ -156,5 +156,7 @@
   "voice.playbackError": "Nora’s audio could not play. Tap to try again.",
   "voice.retry": "Play voice",
   "prep.cannotCoordinate": "These steps cannot overlap with this kitchen setup. Choose Cook separately or change the dishes or equipment.",
-  "prep.pauseOverdue": "The planned pause has been exceeded: {titles}. Check these dishes before continuing."
+  "prep.pauseOverdue": "The planned pause has been exceeded: {titles}. Check these dishes before continuing.",
+  "prep.pauseUpcoming": "{title} needs attention by {time}. The updated schedule runs past this pause deadline.",
+  "prep.invalidTiming": "These recipe times are too large to schedule. Check the recipe durations before starting."
 }

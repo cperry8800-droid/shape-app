@@ -1229,6 +1229,20 @@ test('prep sheet: an uncoordinated serve plan cannot silently start as a separat
   assert.equal(s.buttons().find(b => b.label.startsWith('Start the session')).disabled, false);
 });
 
+test('prep sheet: unusable timing shows an explanation and blocks every cooking mode', () => {
+  const seed = { cookable: { title: 'Extreme recipe', servings: 1, ingredients: [], steps: ['Prep', 'Finish'],
+    stepMeta: [{ min: 1e308, maxPause: 1 }, { min: 1e308 }] } };
+  const program = [{ meals: [{ title: 'Greek yogurt power bowl', id: 'bowl', slot: 'Lunch' }] }];
+  const s = drive(MOD.BSPrepSession, { seed, program, onClose() {} });
+  s.click('Greek yogurt power bowl', pressable);
+  s.click('Merge the mise');
+  for (const choice of ['Cook to serve', 'Cook separately']) {
+    s.click(choice);
+    assert.match(s.text, /recipe times are too large to schedule/);
+    assert.equal(s.buttons().find(b => b.label.startsWith('Start the session')).disabled, true);
+  }
+});
+
 test('prep sheet: "cook at the same time" is not offered when it cannot weave', () => {
   const kitchen = { stove: 1, oven: 1, board: 1 };
 

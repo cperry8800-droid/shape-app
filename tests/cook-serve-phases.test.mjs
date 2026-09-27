@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bsOrchestrate, bsReplanCook } from '../mobile-app/src/services/cookOrchestrator.mjs';
+import { bsOrchestrate, bsReplanCook, BS_ORCH } from '../mobile-app/src/services/cookOrchestrator.mjs';
 import { bsCookableFromRecipe } from '../mobile-app/src/services/cookable.mjs';
 import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 
@@ -123,4 +123,52 @@ test('pulling a phase earlier respects live holds even when multiple holds share
   assert.equal(twoBoards.timeline[1].at, 3);
   const ownHold = bsReplanCook(earlyPhase, 1, [{ iid: 0, recipeStep: 0, station: 'off', endsAt: 8 * 60000 }], 0, 60000, kitchen);
   assert.equal(ownHold.timeline[2].at, 8, 'a dish must wait for its own hold even with free equipment');
+});
+
+test('phase search shares one work limit for four, six and ten dishes and returns complete feasible plans', () => {
+  for (const count of [4, 6, 10]) {
+    const input = Array.from({ length: count }, (_, i) => ({ ...recipes[i % recipes.length], key: `dish-${i}` }));
+    const result = bsOrchestrate(input, { mode: 'serve', kitchen });
+    assert.ok(result.searchWork > 0 && result.searchWork <= BS_ORCH.phaseSearchMax);
+    assert.equal(result.exact, false);
+    assert.equal(result.timeline.length, input.reduce((n, r) => n + r.steps.length, 0));
+    checkConstraints(result.timeline);
+  }
+});
+
+test('exhausted phase search falls back promptly without starting the factorial order search', () => {
+  const previous = BS_ORCH.phaseSearchMax;
+  BS_ORCH.phaseSearchMax = 1;
+  try {
+    const result = bsOrchestrate(recipes, { mode: 'serve', kitchen });
+    assert.equal(result.searchWork, 1);
+    assert.equal(result.exact, false);
+    assert.equal(result.coordinated, false, 'the fallback must not claim all dishes overlap');
+    assert.equal(result.timeline.length, recipes.reduce((n, r) => n + r.steps.length, 0));
+    checkConstraints(result.timeline);
+  } finally { BS_ORCH.phaseSearchMax = previous; }
+});
+
+test('extreme individual or aggregate timing metadata is rejected without publishing invalid times', () => {
+  const cases = [
+    { stepMeta: [{ min: 1e308, maxPause: 1 }, { min: 1e308 }] },
+    { stepMeta: [{ min: 1, maxPause: 1e308 }, { min: 1 }] },
+    { stepMeta: [{ min: 300000, maxPause: 1 }, { min: 300000 }] },
+  ];
+  for (const mode of ['serve', 'sequence', 'together', 'auto']) for (const metadata of cases) {
+    const result = bsOrchestrate([{ key: 'extreme', title: 'Extreme', steps: ['Prep', 'Finish'], ...metadata }], { mode });
+    assert.equal(result.invalidTiming, true);
+    assert.equal(result.coordinated, false);
+    assert.deepEqual(result.timeline, []);
+    for (const number of [result.serveAt, result.earliestServe, result.spread]) assert.ok(Number.isFinite(number));
+  }
+  assert.equal(bsOrchestrate(recipes, { mode: 'serve', serveAt: 1e308 }).invalidTiming, true);
+});
+
+test('unused timing metadata cannot overflow the phase horizon', () => {
+  const input = recipes.map(r => ({ ...r, stepMeta: [...r.stepMeta, { min: 1e308, maxPause: 1e308 }] }));
+  const result = bsOrchestrate(input, { mode: 'serve', kitchen });
+  assert.equal(result.coordinated, true);
+  assert.ok(Number.isFinite(result.serveAt));
+  checkConstraints(result.timeline);
 });
