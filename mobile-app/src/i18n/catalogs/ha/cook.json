@@ -150,5 +150,11 @@
   "roadmap.hide": "Ɓoye tsarin girki",
   "roadmap.duration": "Kimanin minti {n}",
   "roadmap.planned": "An shirya: {time}",
-  "roadmap.back": "Koma zuwa girki"
+  "roadmap.back": "Koma zuwa girki",
+  "voice.loading": "Ana loda muryar Nora…",
+  "voice.signIn": "Shiga da membobinci mai aiki don jin Nora.",
+  "voice.playbackError": "Ba a iya kunna muryar Nora ba. Taɓa don sake gwadawa.",
+  "voice.retry": "Kunna murya",
+  "prep.cannotCoordinate": "Ba za a iya yin waɗannan matakai a lokaci guda da wannan kayan girki ba. Zaɓi girki dabam ko sauya abinci ko kayan aiki.",
+  "prep.pauseOverdue": "An wuce hutun da aka tsara: {titles}. Duba waɗannan abinci kafin ci gaba."
 }

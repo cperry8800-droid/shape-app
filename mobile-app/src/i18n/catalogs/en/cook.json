@@ -150,5 +150,11 @@
   "roadmap.hide": "Hide roadmap",
   "roadmap.duration": "About {n} min",
   "roadmap.planned": "Planned {time}",
-  "roadmap.back": "Back to cooking"
+  "roadmap.back": "Back to cooking",
+  "voice.loading": "Loading Nora’s voice…",
+  "voice.signIn": "Sign in with an active membership to hear Nora.",
+  "voice.playbackError": "Nora’s audio could not play. Tap to try again.",
+  "voice.retry": "Play voice",
+  "prep.cannotCoordinate": "These steps cannot overlap with this kitchen setup. Choose Cook separately or change the dishes or equipment.",
+  "prep.pauseOverdue": "The planned pause has been exceeded: {titles}. Check these dishes before continuing."
 }

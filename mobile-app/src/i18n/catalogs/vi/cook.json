@@ -150,5 +150,11 @@
   "roadmap.hide": "Ẩn lộ trình",
   "roadmap.duration": "Khoảng {n} phút",
   "roadmap.planned": "Dự kiến {time}",
-  "roadmap.back": "Quay lại nấu ăn"
+  "roadmap.back": "Quay lại nấu ăn",
+  "voice.loading": "Đang tải giọng Nora…",
+  "voice.signIn": "Đăng nhập bằng gói thành viên đang hoạt động để nghe Nora.",
+  "voice.playbackError": "Không thể phát giọng Nora. Nhấn để thử lại.",
+  "voice.retry": "Phát giọng nói",
+  "prep.cannotCoordinate": "Các bước này không thể thực hiện đồng thời với thiết bị bếp này. Chọn nấu riêng hoặc thay đổi món ăn hay thiết bị.",
+  "prep.pauseOverdue": "Đã vượt quá thời gian nghỉ dự kiến: {titles}. Kiểm tra các món này trước khi tiếp tục."
 }

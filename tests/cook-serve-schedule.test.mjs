@@ -669,7 +669,12 @@ test('serve mode: the order search reaches a six-dish session', () => {
     'One-pan chicken and rice', 'Chickpea and spinach curry', 'Tempeh and broccoli teriyaki'].map((title) => {
     const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === title);
     assert.ok(r, `catalog no longer has "${title}" — repin this test, do not delete it`);
-    return { key: r.key || r.title, title: r.title, steps: r.steps, stepMeta: r.stepMeta };
+    // Keep the historical contiguous six-step fixture to isolate the order-search
+    // boundary. The catalog dahl now has timed stirring phases, tested separately.
+    const legacy = title === 'Red lentil and spinach dahl';
+    return { key: r.key || r.title, title: r.title,
+      steps: legacy ? ['Rinse', 'Soften onion', 'Toast spices', 'Add lentils', 'Cook', 'Finish'] : r.steps,
+      stepMeta: legacy ? [] : r.stepMeta };
   });
   const plan = bsOrchestrate(six, { mode: BS_COOK_MODE.SERVE });
   // ⚠ MEASURED on the current catalog: 111, and a single longest-first order ALSO reaches
@@ -1212,6 +1217,18 @@ const cookables = KITCHEN_DATA.SHAPE_KITCHEN_RECIPES
 // as "cook separately" and therefore the SAME minutes, while its row promised simultaneous
 // cooking. The engine had always NAMED the reason (BS_SERIAL_REASON.NO_WINDOW); nothing
 // read it, so the sheet offered a dead choice with no explanation.
+test('prep sheet: an uncoordinated serve plan cannot silently start as a separate cook', () => {
+  const program = [{ meals: ['Greek yogurt power bowl', 'Tempo turkey lettuce cups'].map((title, i) => ({ id: `no-window-${i}`, slot: 'Lunch', title, kcal: 500, p: 30, c: 40, f: 15 })) }];
+  const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+  for (const meal of program[0].meals) s.click(meal.title, pressable);
+  s.click('Merge the mise');
+  s.click('Cook to serve');
+  assert.ok(s.text.includes('These steps cannot overlap'));
+  assert.equal(s.buttons().find(b => b.label.startsWith('Start the session')).disabled, true);
+  s.click('Cook separately');
+  assert.equal(s.buttons().find(b => b.label.startsWith('Start the session')).disabled, false);
+});
+
 test('prep sheet: "cook at the same time" is not offered when it cannot weave', () => {
   const kitchen = { stove: 1, oven: 1, board: 1 };
 

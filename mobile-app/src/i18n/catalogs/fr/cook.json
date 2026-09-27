@@ -150,5 +150,11 @@
   "roadmap.hide": "Masquer le parcours",
   "roadmap.duration": "Environ {n} min",
   "roadmap.planned": "Prévu à {time}",
-  "roadmap.back": "Revenir à la préparation"
+  "roadmap.back": "Revenir à la préparation",
+  "voice.loading": "Chargement de la voix de Nora…",
+  "voice.signIn": "Connectez-vous avec un abonnement actif pour écouter Nora.",
+  "voice.playbackError": "Impossible de lire la voix de Nora. Appuyez pour réessayer.",
+  "voice.retry": "Écouter la voix",
+  "prep.cannotCoordinate": "Ces étapes ne peuvent pas se chevaucher avec cet équipement. Choisissez de cuisiner séparément ou changez les plats ou le matériel.",
+  "prep.pauseOverdue": "La pause prévue a été dépassée : {titles}. Vérifiez ces plats avant de continuer."
 }

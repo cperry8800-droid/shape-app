@@ -150,5 +150,11 @@
   "roadmap.hide": "Sembunyikan alur",
   "roadmap.duration": "Sekitar {n} menit",
   "roadmap.planned": "Direncanakan {time}",
-  "roadmap.back": "Kembali memasak"
+  "roadmap.back": "Kembali memasak",
+  "voice.loading": "Memuat suara Nora…",
+  "voice.signIn": "Masuk dengan keanggotaan aktif untuk mendengar Nora.",
+  "voice.playbackError": "Audio Nora tidak dapat diputar. Ketuk untuk mencoba lagi.",
+  "voice.retry": "Putar suara",
+  "prep.cannotCoordinate": "Langkah-langkah ini tidak dapat dilakukan bersamaan dengan peralatan dapur ini. Pilih memasak terpisah atau ubah hidangan atau peralatan.",
+  "prep.pauseOverdue": "Jeda yang direncanakan telah terlewati: {titles}. Periksa hidangan ini sebelum melanjutkan."
 }

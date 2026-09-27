@@ -150,5 +150,11 @@
   "roadmap.hide": "Ocultar roteiro",
   "roadmap.duration": "Cerca de {n} min",
   "roadmap.planned": "Previsto para {time}",
-  "roadmap.back": "Voltar ao preparo"
+  "roadmap.back": "Voltar ao preparo",
+  "voice.loading": "Carregando a voz da Nora…",
+  "voice.signIn": "Entre com uma assinatura ativa para ouvir a Nora.",
+  "voice.playbackError": "Não foi possível reproduzir o áudio da Nora. Toque para tentar novamente.",
+  "voice.retry": "Reproduzir voz",
+  "prep.cannotCoordinate": "Estas etapas não podem ocorrer ao mesmo tempo com esta cozinha. Escolha cozinhar separadamente ou altere os pratos ou equipamentos.",
+  "prep.pauseOverdue": "A pausa planejada foi excedida: {titles}. Verifique estes pratos antes de continuar."
 }

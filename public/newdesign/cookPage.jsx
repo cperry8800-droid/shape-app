@@ -10,7 +10,7 @@ function KitchenCookPage() {
       <a href="/recipes" style={{ display: 'inline-flex', minHeight: 44, alignItems: 'center' }}>← All recipes</a>
       <h1 style={{ fontFamily: "'Anybody', sans-serif", fontWeight: 500 }}>Let's cook.</h1>
       <p style={{ fontFamily: "'Schibsted Grotesk', sans-serif", lineHeight: 1.6 }}>Follow each step, use the timers, or choose several dishes and a serving time. The plan accounts for your burners, oven and preparation space.</p>
-      <iframe title="Shape cooking tutorial and meal planner" src={src} allow="microphone; screen-wake-lock" style={{ width: '100%', height: '85dvh', minHeight: 540, border: '1px solid rgba(30,42,38,.2)', display: 'block' }} />
+      <iframe title="Shape cooking tutorial and meal planner" src={src} allow="autoplay; microphone; screen-wake-lock" style={{ width: '100%', height: '85dvh', minHeight: 540, border: '1px solid rgba(30,42,38,.2)', display: 'block' }} />
       <a href={src} style={{ display: 'inline-flex', minHeight: 44, alignItems: 'center' }}>Open cooking full screen ↗</a>
     </main>
   </div>;

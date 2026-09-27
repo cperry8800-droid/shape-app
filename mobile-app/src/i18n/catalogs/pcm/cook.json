@@ -150,5 +150,11 @@
   "roadmap.hide": "Hide cooking plan",
   "roadmap.duration": "About {n} min",
   "roadmap.planned": "Plan na {time}",
-  "roadmap.back": "Go back to cooking"
+  "roadmap.back": "Go back to cooking",
+  "voice.loading": "Nora voice dey load…",
+  "voice.signIn": "Sign in with active membership to hear Nora.",
+  "voice.playbackError": "Nora voice no fit play. Tap make you try again.",
+  "voice.retry": "Play voice",
+  "prep.cannotCoordinate": "These steps no fit happen together with this kitchen setup. Choose to cook separately or change the dishes or equipment.",
+  "prep.pauseOverdue": "The planned break don pass: {titles}. Check these dishes before you continue."
 }

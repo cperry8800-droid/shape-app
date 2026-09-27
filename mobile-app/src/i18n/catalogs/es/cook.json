@@ -150,5 +150,11 @@
   "roadmap.hide": "Ocultar plan",
   "roadmap.duration": "Unos {n} min",
   "roadmap.planned": "Previsto a las {time}",
-  "roadmap.back": "Volver a cocinar"
+  "roadmap.back": "Volver a cocinar",
+  "voice.loading": "Cargando la voz de Nora…",
+  "voice.signIn": "Inicia sesión con una membresía activa para escuchar a Nora.",
+  "voice.playbackError": "No se pudo reproducir el audio de Nora. Toca para reintentar.",
+  "voice.retry": "Reproducir voz",
+  "prep.cannotCoordinate": "Estos pasos no pueden solaparse con esta cocina. Elige cocinar por separado o cambia los platos o el equipo.",
+  "prep.pauseOverdue": "Se ha superado la pausa prevista: {titles}. Revisa estos platos antes de continuar."
 }

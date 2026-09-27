@@ -97,7 +97,7 @@ const stationPull = (holds, station, from, to, kitchen) => {
   for (const t of points) {
     const busy = mine.reduce((n, h) => n + (h.from <= t && t < h.to ? 1 : 0), 0);
     // The proposal would be one more pan on that station at instant t.
-    if (busy + 1 > cap) return Math.max(1, to - t);
+    if (busy + 1 > cap) return Math.max(1e-8, to - t);
   }
   return null;
 };
@@ -162,7 +162,7 @@ const evt = (r, i, at) => {
   // SAME recipe share a display `recipe` key but must never cross-clear each
   // other's hold / merge their steps (CodeRabbit) — scheduling keys on `iid`,
   // `recipe` stays the catalog/display key the UI reads.
-  return { recipe: r.key, iid: r.iid, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null };
+  return { recipe: r.key, iid: r.iid, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null, ...(pauseOf(m) ? { maxPause: pauseOf(m) } : {}) };
 };
 
 // Serial: every recipe's steps in order, back-to-back. A passive step still
@@ -213,12 +213,77 @@ const durationOf = (r, activeMin) => r.steps.reduce((n, _s, i) => n + stepCost(r
 // so has always serialised the cook implicitly.
 const HANDS_CAPACITY = 1;
 const needsHands = (m) => m.passive !== true;
+const pauseOf = (m) => m?.passive !== true && typeof m?.maxPause === 'number' && Number.isFinite(m.maxPause) && m.maxPause > 0 ? m.maxPause : 0;
 const handsPull = (busy, from, to) => {
   const mine = busy.filter((h) => from < h.to && h.from < to);
   if (mine.length + 1 <= HANDS_CAPACITY) return null;
   // Pull the dish earlier by enough to finish this step before the earliest step it hits.
-  return Math.max(1, to - Math.min(...mine.map((h) => h.from)));
+  return Math.max(1e-8, to - Math.min(...mine.map((h) => h.from)));
 };
+
+// A pause is an authored permission to leave the food OFF its station, with a
+// bounded wait before the next step. Unannotated recipes remain contiguous.
+// Pack finishing blocks first, then fit earlier prep around the other dishes.
+function placePhases(rs, activeMin, T, kitchen, orderIdx) {
+  const queue = (orderIdx || rs.map((_, i) => i)).map((ri, priority) => {
+    const r = rs[ri], blocks = [[]];
+    r.steps.forEach((_, i) => {
+      blocks[blocks.length - 1].push(i);
+      if (pauseOf(r.meta[i]) && i < r.steps.length - 1) blocks.push([]);
+    });
+    return { r, blocks, b: blocks.length - 1, end: T, priority };
+  });
+  const result = { events: [], holds: [...(kitchen?.liveHolds || [])], hands: [], byStation: false, byCook: false };
+  const urgency = ({ r, blocks, b, end }) => b === blocks.length - 1 ? end
+    : end - pauseOf(r.meta[blocks[b].at(-1)]) - blocks[b].reduce((n, i) => n + stepCost(r.meta[i], activeMin), 0);
+  // Explore alternative ready blocks when a finishing step leaves too little room
+  // for its predecessor. A greedy finish-first pass can strand hot food behind
+  // another dish even though moving that dish's whole finishing block would fit.
+  let budget = 10000;
+  function search(pending, placed) {
+    if (!pending.length) return placed;
+    if (--budget < 0) return null;
+    const candidates = [...pending].sort((a, b) => urgency(b) - urgency(a) || a.priority - b.priority);
+    for (const candidate of candidates) {
+      const { r, blocks, b, end, priority } = candidate;
+      const result = { ...placed, events: [...placed.events], holds: [...placed.holds], hands: [...placed.hands] };
+      const indices = blocks[b];
+      const duration = indices.reduce((n, i) => n + stepCost(r.meta[i], activeMin), 0);
+      const lower = Math.max(r.readyAt || 0, b === blocks.length - 1 ? 0 : end - pauseOf(r.meta[indices.at(-1)]) - duration);
+      let start = end - duration;
+      let fit = false;
+      for (let guard = 0; guard < 1000 && start >= lower - 1e-8; guard++) {
+        let at = start, pull = 0;
+        for (const i of indices) {
+          const m = r.meta[i] || {}, len = stepCost(m, activeMin);
+          const station = stationPull(result.holds, m.station, at, at + len, kitchen) || 0;
+          const cook = needsHands(m) ? handsPull(result.hands, at, at + len) || 0 : 0;
+          if (station) result.byStation = true;
+          if (cook) result.byCook = true;
+          pull = Math.max(pull, station, cook);
+          at += len;
+        }
+        if (!pull) { fit = true; break; }
+        start -= pull;
+      }
+      if (!fit) continue;
+      let at = start;
+      for (const i of indices) {
+        const m = r.meta[i] || {}, len = stepCost(m, activeMin);
+        if (STATIONS_EXCLUSIVE.includes(m.station)) result.holds.push({ station: m.station, from: at, to: at + len });
+        if (needsHands(m)) result.hands.push({ from: at, to: at + len });
+        result.events.push({ ...evt(r, i, at), _end: at + len });
+        at += len;
+      }
+      const next = pending.filter(item => item !== candidate);
+      if (b > 0) next.push({ r, blocks, b: b - 1, end: start, priority });
+      const solution = search(next, result);
+      if (solution) return solution;
+    }
+    return null;
+  }
+  return search(queue, result);
+}
 
 function placeAt(rs, activeMin, T, kitchen, orderIdx) {
   // Place every dish to END at T, pulling a dish earlier when an exclusive station is
@@ -346,24 +411,67 @@ const permutationsOf = (n) => {
   return out;
 };
 
-// Can these dishes serve at T under ANY placement order? The first order that fits is taken.
-// Ranking the feasible orders by how tightly the dishes land was tried and removed: across
-// 15,652 catalog triples it never once chose differently from taking the first, so it was a
-// branch no input exercised and a claim nothing backed. If a case is ever found where the
-// orders genuinely differ in quality, rank them THEN, with that case pinned as the reason.
+// For contiguous recipes the first feasible ordering is sufficient.
 function bestPlacement(rs, activeMin, T, kitchen) {
-  const longestFirst = placeAt(rs, activeMin, T, kitchen);
-  if (longestFirst.feasible) return longestFirst;
-  let deficit = longestFirst.deficit;
-  for (const ord of permutationsOf(rs.length)) {
-    const r = placeAt(rs, activeMin, T, kitchen, ord);
-    if (r.feasible) return r;
-    deficit = Math.min(deficit, r.deficit);
+  const first = placeAt(rs, activeMin, T, kitchen);
+  if (first.feasible) return first;
+  let deficit = first.deficit;
+  for (const order of permutationsOf(rs.length)) {
+    const plan = placeAt(rs, activeMin, T, kitchen, order);
+    if (plan.feasible) return plan;
+    deficit = Math.min(deficit, plan.deficit);
   }
   return { feasible: false, deficit: Math.max(1, deficit) };
 }
 
+// Search phase orders once, independently of the chosen clock time. Repeating
+// this search for every minute of the earliest-time probe made planning sluggish.
+// Live replans keep absolute resource reservations and use the placement below.
+function phaseSchedule(rs, activeMin, kitchen) {
+  if (!rs.some(r => r.meta.some(pauseOf)) || kitchen?.liveHolds?.length || rs.some(r => r.readyAt > 0)) return null;
+  const horizon = rs.reduce((n, r) => n + durationOf(r, activeMin) + r.meta.reduce((a, m) => a + pauseOf(m), 0), 0);
+  const orders = rs.length <= 4 ? permutationsOf(rs.length) : rotationsOf(rs.length);
+  let best = null;
+  for (const order of orders.length ? orders : [rs.map((_, i) => i)]) {
+    const plan = placePhases(rs, activeMin, horizon, kitchen, order);
+    if (!plan) continue;
+    const first = Math.min(...plan.events.map(e => e.at));
+    const ends = rs.map(r => Math.max(...plan.events.filter(e => e.iid === r.iid).map(e => e._end)));
+    const spread = Math.max(...ends) - Math.min(...ends);
+    const duration = horizon - first;
+    if (!best || spread < best.spread || (spread === best.spread && duration < best.duration))
+      best = { ...plan, spread, duration, events: plan.events.map(e => ({ ...e, at: e.at - first, _end: e._end - first })) };
+  }
+  return best;
+}
+
+function serveDetails(placed) {
+  const dishes = new Map();
+  for (const e of placed) {
+    const previous = dishes.get(e.iid);
+    dishes.set(e.iid, { iid: e.iid, recipe: e.recipe, title: e.title,
+      start: Math.min(previous?.start ?? Infinity, e.at),
+      readyAt: Math.max(previous?.readyAt ?? 0, e._end) });
+  }
+  const ready = [...dishes.values()];
+  const coordinated = ready.length > 1 && ready.every(d => ready.some(other => other.iid !== d.iid && d.start < other.readyAt && other.start < d.readyAt));
+  return { ready, coordinated };
+}
+
 function serveTimeline(rs, activeMin, serveAt, kitchen) {
+  const phases = phaseSchedule(rs, activeMin, kitchen);
+  if (phases) {
+    const earliest = phases.duration;
+    const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
+    const T = Math.max(wanted, earliest);
+    const placed = phases.events.map(e => ({ ...e, at: e.at + T - earliest, _end: e._end + T - earliest }));
+    return {
+      timeline: placed.map(({ _end, ...e }) => e).sort((a, b) => a.at - b.at || a.iid - b.iid),
+      serveAt: T, earliestServe: earliest, spread: phases.spread, exact: false,
+      issues: [...(wanted < earliest ? [BS_SERVE_ISSUE.TOO_SOON] : []), ...(phases.byStation ? [BS_SERVE_ISSUE.STATIONS] : []), ...(phases.byCook ? [BS_SERVE_ISSUE.COOK] : [])],
+      estimated: assumesLengths(rs, activeMin), ...serveDetails(placed),
+    };
+  }
   const durs = rs.map((r) => durationOf(r, activeMin));
   const longest = durs.length ? Math.max(...durs) : 0;
 
@@ -412,7 +520,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
   const tooSoon = wanted < earliest;
   const asked = tooSoon ? earliest : wanted;
-  const attempt = asked === earliest ? feas : bestPlacement(rs, activeMin, asked, kitchen);
+  const attempt = bestPlacement(rs, activeMin, asked, kitchen);
   // ONE placement answers for everything below. `timeline`, `serveAt`, `spread` and
   // `issues` have to describe the SAME plan, or the sheet reports a schedule it is not
   // showing. Reading the earliest-time placement into a result placed at a later time
@@ -446,8 +554,8 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // should read the figure as a proof; the prep sheet read it as one anyway, so the engine
   // now says so in the result rather than in a comment.
   return {
-    timeline, serveAt: T, earliestServe: earliest, spread, issues,
-    exact: rs.length <= ORDER_SEARCH_MAX && !serialFallback,
+    timeline, serveAt: T, earliestServe: earliest, spread, issues, ...serveDetails(placed),
+    exact: rs.length <= ORDER_SEARCH_MAX && !serialFallback && !rs.some(r => r.meta.some(pauseOf)),
     estimated: assumesLengths(rs, activeMin),
   };
 }
@@ -511,7 +619,7 @@ export function bsOrchestrate(recipes, opts = {}) {
     return {
       timeline: sv.timeline, serial: false, canInterleave, mode, reason: null,
       serveAt: sv.serveAt, earliestServe: sv.earliestServe, spread: sv.spread, issues: sv.issues,
-      exact: sv.exact, estimated: sv.estimated,
+      exact: sv.exact, estimated: sv.estimated, coordinated: sv.coordinated, ready: sv.ready,
     };
   }
   if (mode === BS_COOK_MODE.SEQUENCE) {
@@ -624,11 +732,34 @@ export function bsReplanCook(timeline, cursor, timers, anchor, now, kitchen = {}
   const rest = timeline.slice(cursor);
   if (!rest.length) return { timeline, serveAt: now, spread: 0 };
   const live = (timers || []).filter(t => !t.soft && t.endsAt > now);
+  // A phase plan already contains bounded waits and attended returns. Repacking
+  // each remaining recipe as one contiguous block would destroy that weave at
+  // the very first Next tap. Keep its order and gaps, shifting only as needed
+  // for actual progress and live holds. Report missed pause deadlines explicitly.
+  if (timeline.some(e => pauseOf(e))) {
+    const elapsed = (now - anchor) / 60000;
+    const prefix = timeline.slice(0, cursor).map((e, i) => i === cursor - 1 ? { ...e, completedAt: elapsed } : e);
+    let shift = Math.max(0, elapsed - rest[0].at);
+    for (const e of rest) {
+      const at = anchor + (e.at + shift) * 60000;
+      const hold = bsCookBlockingHold(e, live, at, kitchen);
+      if (hold) shift += (hold.endsAt - at) / 60000;
+    }
+    const next = rest.map(e => ({ ...e, at: e.at + shift }));
+    const nextByDish = new Map();
+    for (const e of next) if (!nextByDish.has(e.iid)) nextByDish.set(e.iid, e);
+    const pauseOverdue = prefix.filter(e => pauseOf(e) && nextByDish.get(e.iid)?.stepIndex === e.stepIndex + 1
+      && nextByDish.get(e.iid).at > (e.completedAt ?? e.at + stepCost(e, BS_ORCH.activeStepMin)) + e.maxPause + 1e-8).map(e => e.title);
+    const details = serveDetails(next.map(e => ({ ...e, _end: e.at + stepCost(e, BS_ORCH.activeStepMin) })));
+    const ends = details.ready.map(d => d.readyAt);
+    return { timeline: [...prefix, ...next], serveAt: anchor + Math.max(...ends, ...live.map(t => (t.endsAt - anchor) / 60000)) * 60000,
+      spread: Math.max(...ends) - Math.min(...ends), pauseOverdue };
+  }
   const groups = new Map();
   rest.forEach(e => { if (!groups.has(e.iid)) groups.set(e.iid, []); groups.get(e.iid).push(e); });
   const rs = [...groups].map(([iid, events]) => ({
     iid, key: events[0].recipe, title: events[0].title, events,
-    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station })),
+    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station, maxPause: e.maxPause })),
     readyAt: Math.max(0, ...live.filter(t => t.iid === iid).map(t => (t.endsAt - now) / 60000)),
   }));
   const originalEnd = Math.max(...timeline.map(e => anchor + (e.at + (e.min || BS_ORCH.activeStepMin)) * 60000));

@@ -72,6 +72,9 @@ const sanitizeMeta = (m) => {
     min: min !== null && min > 0 ? min : null,
     passive: m.passive === true,
     station: BS_STATIONS.includes(m.station) ? m.station : null,
+    // A bounded pause follows attended work which explicitly leaves the food
+    // off the station. A passive timer alone is not permission to leave it there.
+    ...(m.passive !== true && typeof m.maxPause === 'number' && Number.isFinite(m.maxPause) && m.maxPause > 0 ? { maxPause: m.maxPause } : {}),
   };
 };
 

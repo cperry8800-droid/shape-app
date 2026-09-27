@@ -8047,6 +8047,55 @@ function BSCookProgress({ percent, rows, colors, accent, anchor, children }) {
 // (you didn't eat it — no award, doctrine §5), and the resume stamp is never
 // read or written (the single global resume key belongs to solo cooks; a prep
 // write would clobber an unrelated saved place).
+// Cooking narration shares one cancellation boundary across prep, steps and replies.
+function useBSCookVoice(text, allowed) {
+  const [readsOn, setReadsOn] = React.useState(() => { try { return localStorage.getItem('shape.cookReads') === '1'; } catch { return false; } });
+  const [voiceStatus, setVoiceStatus] = React.useState('idle');
+  const generation = React.useRef(0);
+  const lastText = React.useRef('');
+  const voiceCanSpeak = typeof window !== 'undefined' && typeof window.ShapeVoice?.speak === 'function';
+  const stopSpeak = React.useCallback(() => { generation.current++; try { window.ShapeVoice?.stop?.(); } catch {} }, []);
+  const speak = React.useCallback(async (value, retry = false) => {
+    if (!allowed || !voiceCanSpeak || !value) return;
+    lastText.current = String(value);
+    const request = ++generation.current;
+    setVoiceStatus('loading');
+    try {
+      const result = await (retry && window.ShapeVoice.retry
+        ? window.ShapeVoice.retry()
+        : window.ShapeVoice.speak(lastText.current, undefined, { force: true }));
+      if (request !== generation.current || result?.superseded) return;
+      setVoiceStatus(result?.ok ? 'idle' : (result?.reason || 'unavailable'));
+    } catch { if (request === generation.current) setVoiceStatus('unavailable'); }
+  }, [allowed, voiceCanSpeak]);
+  React.useEffect(() => {
+    if (readsOn && allowed && text) speak(text);
+    else setVoiceStatus('idle');
+    return stopSpeak;
+  }, [readsOn, allowed, text, speak, stopSpeak]);
+  const toggleReads = () => {
+    const next = !readsOn;
+    try { localStorage.setItem('shape.cookReads', next ? '1' : '0'); } catch {}
+    if (!next) stopSpeak();
+    setVoiceStatus('idle');
+    setReadsOn(next);
+  };
+  const retryVoice = () => speak(lastText.current || text, voiceStatus === 'playback_blocked');
+  return { readsOn, toggleReads, speak, stopSpeak, voiceCanSpeak, voiceStatus, retryVoice };
+}
+
+function BSCookVoiceStatus({ status, retry, style }) {
+  const tr = useShapeTr();
+  if (status === 'idle') return null;
+  return <div role="status" style={style}>
+    {status === 'loading' ? tr('cook:voice.loading', { defaultValue: 'Loading Nora’s voice…' })
+      : status === 'signed_out' || status === 'members'
+        ? tr('cook:voice.signIn', { defaultValue: 'Sign in with an active membership to hear Nora.' })
+        : tr('cook:voice.playbackError', { defaultValue: 'Nora’s audio could not play. Tap to try again.' })}
+    {status !== 'loading' && <button type="button" onClick={retry} style={{ color: 'inherit', background: 'transparent', border: '1px solid currentColor', borderRadius: 5, marginLeft: 8, padding: '8px 12px', minHeight: 44, cursor: 'pointer' }}>{tr('cook:voice.retry', { defaultValue: 'Play voice' })}</button>}
+  </div>;
+}
+
 function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () => {}, prep = null }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -8252,6 +8301,11 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     onLogged();
   };
 
+  const miseRows = [
+    ...cookable.ingredients.map((ing, i) => ({ key: 'ing-' + i, label: ing.m, qty: bsIngQtyLabel(t.isMetric, ing) })),
+    ...(cookable.prepNote ? [{ key: 'prep', label: cookable.prepNote, qty: tr('cook:mise.prepTag', { defaultValue: 'PREP' }) }] : []),
+  ];
+
   // ── Nora the sous-chef (spec 2026-07-21 §7) — voice is OPT-IN, default OFF.
   // NORA READS speaks each step aloud; a hold-to-talk mic runs LOCAL commands
   // first (next/back/repeat/skip/timer/how-long — no model round-trip) and
@@ -8265,38 +8319,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // the chat composer uses (fail-open: shows for members/coaches, hidden only
   // when memberAllowed is explicitly false — i.e. preview).
   const voiceMember = useBSCanChat();
-  const [readsOn, setReadsOn] = useStateBSC(() => { try { return localStorage.getItem('shape.cookReads') === '1'; } catch (e) { return false; } });
-  const [micState, setMicState] = useStateBSC('idle');   // idle | listening | thinking
-  const [micNote, setMicNote] = useStateBSC(null);       // { who:'you'|'nora', text } — honest status/answer line
-  const voiceCanSpeak = typeof window !== 'undefined' && !!(window.ShapeVoice && window.ShapeVoice.speak);
-  const voiceCanHear = typeof navigator !== 'undefined' && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && typeof window !== 'undefined' && !!window.MediaRecorder;
-  // Speak with force:true — the NORA READS opt-in IS the consent, so it plays
-  // even if the member's GLOBAL auto-speak pref is off. Auto-speak failures are
-  // SILENT (doctrine); only an explicit action would surface a reason.
-  const speak = React.useCallback((text) => { if (!voiceCanSpeak) return; try { window.ShapeVoice.speak(String(text || ''), undefined, { force: true }); } catch (e) {} }, [voiceCanSpeak]);
-  const stopSpeak = React.useCallback(() => { try { window.ShapeVoice?.stop?.(); } catch (e) {} }, []);
-  // Auto-speak the current step — keyed ONLY on step/phase/toggle, NEVER the 1s
-  // heartbeat, so a step is spoken once (not every second).
-  React.useEffect(() => {
-    if (!readsOn || phase !== 'method' || !hasMethod) return;
-    speak(steps[stepIdx]);
-    // Stop THIS step's audio when step/phase/reads changes away — advancing
-    // steps supersedes via speak()'s own stop, but LEAVING method (→ Plated, or
-    // Back to mise) fires no new speak, so the old step would keep reading over
-    // the new screen without this cleanup (Codex P2 #1805).
-    return () => stopSpeak();
-  }, [readsOn, phase, stepIdx, hasMethod]); // eslint-disable-line react-hooks/exhaustive-deps
-  const toggleReads = () => {
-    // Side effects live OUTSIDE the setState updater — Strict Mode dev runs
-    // functional updaters twice, so storage/audio in there can double-fire
-    // (CodeRabbit #1805). Speaking on toggle-ON belongs to the auto-speak
-    // effect ALONE (readsOn is in its deps): a second explicit speak() here
-    // would read the step twice.
-    const next = !readsOn;
-    try { localStorage.setItem('shape.cookReads', next ? '1' : '0'); } catch (e) {}
-    if (!next) stopSpeak();
-    setReadsOn(next);
-  };
+  const [micState, setMicState] = useStateBSC('idle');
+  const [micNote, setMicNote] = useStateBSC(null);
+  const voiceCanHear = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window !== 'undefined' && !!window.MediaRecorder;
+  const narration = loggedState ? '' : phase === 'mise'
+    ? [cookable.title, tr('cook:mise.title', { defaultValue: 'Get it on the board.' }), ...miseRows.map(r => [r.qty, r.label].filter(Boolean).join(' '))].join('. ')
+    : phase === 'method' && hasMethod ? steps[stepIdx] : '';
+  const { readsOn, toggleReads, speak, stopSpeak, voiceCanSpeak, voiceStatus, retryVoice } = useBSCookVoice(narration, voiceMember);
   // Execute a recognized local command. Returns true when handled; FALSE means
   // "not a command after all — hand the original transcript to Nora".
   const runCommand = (cmd) => {
@@ -8599,10 +8628,6 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       </div>
     </div>
   ));
-  const miseRows = [
-    ...cookable.ingredients.map((ing, i) => ({ key: 'ing-' + i, label: ing.m, qty: bsIngQtyLabel(t.isMetric, ing) })),
-    ...(cookable.prepNote ? [{ key: 'prep', label: cookable.prepNote, qty: tr('cook:mise.prepTag', { defaultValue: 'PREP' }) }] : []),
-  ];
   const miseDone = miseRows.filter((r) => checked[r.key]).length;
 
   // ── The band (shared chrome across every phase) ──
@@ -8738,6 +8763,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           )}
         </div>
       )}
+      <BSCookVoiceStatus status={voiceStatus} retry={retryVoice} style={{ position: 'relative', marginTop: 9, color: BAND.cream, fontFamily: t.DISPLAY, fontSize: 13 }} />
       {micNote && (
         <div aria-live="polite" style={{ position: 'relative', marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.4, color: micNote.who === 'you' ? BAND.dim : BAND.cream }}>
           <span style={{ ...bandEyebrow, fontSize: 7.5, color: micNote.who === 'you' ? BAND.dim35 : heat, marginRight: 6 }}>{micNote.who === 'you' ? tr('cook:voice.you', { defaultValue: 'You' }) : 'Nora'}</span>
@@ -9083,6 +9109,9 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   }, [timeline, recStats, doneByRecipe, timers, now]);
 
   const ev = timeline[cursor];
+  const voiceMember = useBSCanChat();
+  const narration = ev ? ev.title + '. ' + ev.text : '';
+  const { readsOn, toggleReads, voiceCanSpeak, voiceStatus, retryVoice } = useBSCookVoice(narration, voiceMember);
   // ⚠ THE SCHEDULE IS ONLY REAL IF SOMETHING ENFORCES IT. Every timeline event carries
   // `at` — the minute it is planned to begin — and in Serve mode a dish deliberately
   // starts LATE so it lands with everything else. The board previously rendered
@@ -9233,6 +9262,10 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
             <button onClick={onClose} style={{ ...quietBtn, color: BAND.cream, padding: 0, fontSize: 10 }}>✕ {tr('cook:prep.close', { defaultValue: 'Close' })}</button>
             <span style={{ ...bandEyebrow, fontSize: 10, color: heat }}>{tr('cook:prep.board', { defaultValue: 'The board' })}</span>
           </div>
+        {voiceMember && voiceCanSpeak && <div style={{ padding: '10px 18px', background: BAND.bg, color: BAND.cream }}>
+          <button type="button" onClick={toggleReads} aria-pressed={readsOn} style={{ ...quietBtn, color: readsOn ? heat : BAND.dim, border: '1px solid currentColor', borderRadius: 999, padding: '8px 12px' }}>{tr('cook:voice.reads', { defaultValue: 'Nora reads' })} · {readsOn ? tr('cook:voice.on', { defaultValue: 'on' }) : tr('cook:voice.off', { defaultValue: 'off' })}</button>
+          <BSCookVoiceStatus status={voiceStatus} retry={retryVoice} style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13 }} />
+        </div>}
           <BSCookProgress percent={visiblePct} rows={roadmap} colors={BAND} accent={heat} anchor={anchor}>
             {`${visiblePct}% ${tr('cook:doneLabel', { defaultValue: 'done' })}`}
           </BSCookProgress>
@@ -9307,6 +9340,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
               </div>
             )}
 
+            {livePlan?.pauseOverdue?.length > 0 && <div role="alert" style={{ marginTop: 12, color: BAND.cream, fontFamily: t.DISPLAY }}>{tr('cook:prep.pauseOverdue', { defaultValue: 'The planned pause has been exceeded: {titles}. Check these dishes before continuing.', titles: livePlan.pauseOverdue.join(', ') })}</div>}
             {serve && livePlan && <div style={{ ...bandEyebrow, marginTop: 16, color: BAND.dim }}>{tr('cook:prep.updatedFinish', { defaultValue: 'Updated finish: {time} · remaining dishes finish within {n} min', time: new Date(livePlan.serveAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), n: Math.ceil(livePlan.spread) })}</div>}
             <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>
@@ -9607,10 +9641,8 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // A cook choosing between two ways of spending their evening deserves the actual
   // figure, and the gap is often small (two stove dishes cannot overlap much).
   const orchSeq = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SEQUENCE, kitchen }), [orchInput, kitchen]);
-  // "All ready at once" is offerable for ANY two dishes — landing them together never
-  // needs a passive window, it just starts the shorter dish later. Only "as fast as
-  // possible" depends on there being a real window to hide work inside, which is why
-  // that is the one option that can be unavailable.
+  // Probe the actual serve plan: coordinated reports whether every dish overlaps
+  // another. A sequential result must not masquerade as Cook to serve.
   const orchServe = React.useMemo(() => bsOrchestrate(orchInput, { mode: BS_COOK_MODE.SERVE, kitchen }), [orchInput, kitchen]);
   // The "cook them at the same time" probe. Its own scheduler — the session length it
   // reports is not the serve plan's, so the option row must read this and not `orchServe`.
@@ -9723,7 +9755,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const minsLeftNow = () => Math.round((nowRef.current + chosenServe * 60000 - Date.now()) / 60000);
   // A serve time that cannot be met must not be startable. The engine would clamp to
   // the earliest and run a session for a table time the cook never chose.
-  const cannotStart = (multi && !choice) || (choice === BS_COOK_CHOICE.SERVE && serveTooSoon);
+  const cannotStart = (multi && !choice) || (choice === BS_COOK_CHOICE.SERVE && (serveTooSoon || orch.coordinated === false));
   const spanOf = (o) => (o.timeline.length
     ? Math.max(...o.timeline.map((e) => e.at + (e.min || BS_ORCH.activeStepMin)))
     : 0);
@@ -10145,6 +10177,8 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
                         </span>
                       ) : null}
                     </div>
+                    {orch.coordinated === false && <p role="status" style={{ fontFamily: t.DISPLAY, fontSize: 13, color: t.RUST }}>{tr('cook:prep.cannotCoordinate', { defaultValue: 'These steps cannot overlap with this kitchen setup. Choose Cook separately or change the dishes or equipment.' })}</p>}
+                    {(orch.ready || []).map(d => <div key={d.iid} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12 }}><span>{tr('cook:prep.ready', { defaultValue: '{title} ready', title: d.title })}</span><time style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{clockOf(d.readyAt)}</time></div>)}
                     {serveTooSoon ? (
                       <div style={{ marginTop: 7 }}>
                         <div style={{ fontFamily: t.MONO, fontSize: 8.5, lineHeight: 1.5, color: t.INK50 }}>
@@ -10215,9 +10249,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
                     const tone = dish % 2 === 0 ? t.INK : (t.isLight ? '#0a8f87' : heat);
                     return (
                       <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '4px 0', borderBottom: i === orch.timeline.length - 1 ? 0 : `1px solid ${bsTHexA(t.ACCENT, 0.14)}` }}>
-                        <span style={{ flexShrink: 0, minWidth: 34, fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{e.at}m</span>
-                        <span style={{ flexShrink: 0, maxWidth: 92, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tone }}>{e.title}</span>
-                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{e.text}</span>
+                        <span style={{ flexShrink: 0, minWidth: 34, fontFamily: t.MONO, fontSize: 9, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{choice === BS_COOK_CHOICE.SERVE ? clockOf(e.at) : `${e.at}m`}</span>
+                        <span style={{ flexShrink: 0, width: 100, whiteSpace: 'normal', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tone }}>{e.title}</span>
+                        <span style={{ flex: 1, minWidth: 0, lineHeight: 1.4, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{e.text}</span>
                         {e.min ? (
                           <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{`◷ ${e.min}m`}</span>
                         ) : null}

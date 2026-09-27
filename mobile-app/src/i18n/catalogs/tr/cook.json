@@ -150,5 +150,11 @@
   "roadmap.hide": "Planı gizle",
   "roadmap.duration": "Yaklaşık {n} dk",
   "roadmap.planned": "Planlanan saat: {time}",
-  "roadmap.back": "Pişirmeye dön"
+  "roadmap.back": "Pişirmeye dön",
+  "voice.loading": "Nora’nın sesi yükleniyor…",
+  "voice.signIn": "Nora’yı duymak için aktif üyeliğinizle giriş yapın.",
+  "voice.playbackError": "Nora’nın sesi çalınamadı. Tekrar denemek için dokunun.",
+  "voice.retry": "Sesi çal",
+  "prep.cannotCoordinate": "Bu adımlar bu mutfak düzeninde aynı anda yapılamaz. Ayrı pişirmeyi seçin veya yemekleri ya da ekipmanı değiştirin.",
+  "prep.pauseOverdue": "Planlanan mola aşıldı: {titles}. Devam etmeden önce bu yemekleri kontrol edin."
 }

@@ -150,5 +150,11 @@
   "roadmap.hide": "Ablauf ausblenden",
   "roadmap.duration": "Etwa {n} Min.",
   "roadmap.planned": "Geplant: {time}",
-  "roadmap.back": "Zurück zum Kochen"
+  "roadmap.back": "Zurück zum Kochen",
+  "voice.loading": "Noras Stimme wird geladen…",
+  "voice.signIn": "Melde dich mit einer aktiven Mitgliedschaft an, um Nora zu hören.",
+  "voice.playbackError": "Noras Audio konnte nicht abgespielt werden. Tippe, um es erneut zu versuchen.",
+  "voice.retry": "Stimme abspielen",
+  "prep.cannotCoordinate": "Diese Schritte können mit dieser Küchenausstattung nicht parallel laufen. Wähle getrenntes Kochen oder ändere Gerichte oder Geräte.",
+  "prep.pauseOverdue": "Die geplante Pause wurde überschritten: {titles}. Prüfe diese Gerichte, bevor du fortfährst."
 }

@@ -150,5 +150,11 @@
   "roadmap.hide": "Nascondi il percorso",
   "roadmap.duration": "Circa {n} min",
   "roadmap.planned": "Previsto alle {time}",
-  "roadmap.back": "Torna a cucinare"
+  "roadmap.back": "Torna a cucinare",
+  "voice.loading": "Caricamento della voce di Nora…",
+  "voice.signIn": "Accedi con un abbonamento attivo per ascoltare Nora.",
+  "voice.playbackError": "Impossibile riprodurre la voce di Nora. Tocca per riprovare.",
+  "voice.retry": "Riproduci voce",
+  "prep.cannotCoordinate": "Questi passaggi non possono sovrapporsi con questa cucina. Scegli di cucinare separatamente o cambia piatti o attrezzatura.",
+  "prep.pauseOverdue": "La pausa prevista è stata superata: {titles}. Controlla questi piatti prima di continuare."
 }
