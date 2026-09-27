@@ -9110,8 +9110,6 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
 
   const ev = timeline[cursor];
   const voiceMember = useBSCanChat();
-  const narration = ev ? ev.title + '. ' + ev.text : '';
-  const { readsOn, toggleReads, voiceCanSpeak, voiceStatus, retryVoice } = useBSCookVoice(narration, voiceMember);
   // ⚠ THE SCHEDULE IS ONLY REAL IF SOMETHING ENFORCES IT. Every timeline event carries
   // `at` — the minute it is planned to begin — and in Serve mode a dish deliberately
   // starts LATE so it lands with everything else. The board previously rendered
@@ -9246,6 +9244,12 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   const nextEv = timeline[cursor + 1];
   const waitingOn = bsCookBlockingHold(nextEv, running, now, kitchen);
   const occupied = bsCookBlockingHold(ev, running, now, kitchen);
+  // Narration follows the same gates as the action, including an explicit Start now.
+  const narration = ev && !notDue && !occupied ? ev.title + '. ' + ev.text : '';
+  const { readsOn, toggleReads, voiceCanSpeak, voiceStatus, retryVoice } = useBSCookVoice(narration, voiceMember);
+  const pauseOverdue = livePlan?.pauseDeadlines
+    ? livePlan.pauseDeadlines.filter(p => now > p.at).map(p => p.title) : (livePlan?.pauseOverdue || []);
+  const pauseUpcoming = (livePlan?.pauseDeadlines || []).filter(p => now <= p.at);
   // Active-step convenience timers (never on a window step — that has the real
   // hold); a chip hides while its own countdown runs.
   const evTms = ev && !isWindow && !bsFractionalDuration(ev.text) ? bsStepTimers(ev.text) : [];
@@ -9340,7 +9344,8 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
               </div>
             )}
 
-            {livePlan?.pauseOverdue?.length > 0 && <div role="alert" style={{ marginTop: 12, color: BAND.cream, fontFamily: t.DISPLAY }}>{tr('cook:prep.pauseOverdue', { defaultValue: 'The planned pause has been exceeded: {titles}. Check these dishes before continuing.', titles: livePlan.pauseOverdue.join(', ') })}</div>}
+            {pauseUpcoming.map((p, i) => <div key={i} role="alert" style={{ marginTop: 12, color: BAND.cream, fontFamily: t.DISPLAY }}>{tr('cook:prep.pauseUpcoming', { defaultValue: '{title} needs attention by {time}. The updated schedule runs past this pause deadline.', title: p.title, time: new Date(p.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) })}</div>)}
+            {pauseOverdue.length > 0 && <div role="alert" style={{ marginTop: 12, color: BAND.cream, fontFamily: t.DISPLAY }}>{tr('cook:prep.pauseOverdue', { defaultValue: 'The planned pause has been exceeded: {titles}. Check these dishes before continuing.', titles: pauseOverdue.join(', ') })}</div>}
             {serve && livePlan && <div style={{ ...bandEyebrow, marginTop: 16, color: BAND.dim }}>{tr('cook:prep.updatedFinish', { defaultValue: 'Updated finish: {time} · remaining dishes finish within {n} min', time: new Date(livePlan.serveAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }), n: Math.ceil(livePlan.spread) })}</div>}
             <div style={{ marginTop: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
               <button onClick={() => setCursor(Math.max(0, cursor - 1))} disabled={cursor === 0} style={{ ...quietBtn, opacity: cursor === 0 ? 0.4 : 1 }}>{tr('cook:back', { defaultValue: '← Back' })}</button>

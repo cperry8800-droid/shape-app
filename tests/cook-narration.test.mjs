@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { JSDOM } from 'jsdom';
 import { loadBroadsheet } from './helpers/broadsheet-mount.mjs';
 
-const { useBSCookVoice } = await loadBroadsheet('useBSCookVoice', React);
+const { useBSCookVoice, BSPrepCook } = await loadBroadsheet(['useBSCookVoice', 'BSPrepCook'], React);
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test' });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
@@ -59,6 +59,99 @@ test('persisted narration is silent when membership is unavailable', async () =>
   assert.equal(calls, 0);
   await React.act(async () => root.unmount());
   localStorage.clear();
+});
+
+test('the board waits to narrate until the scheduled step is due, and cancels while waiting for the next', async () => {
+  const realNow = Date.now;
+  const anchor = 1_000_000;
+  let now = anchor;
+  Date.now = () => now;
+  localStorage.setItem('shape.cookReads', '1');
+  const calls = [];
+  let stops = 0;
+  window.ShapeVoice = { speak: async text => { calls.push(text); return { ok: true }; }, stop() { stops++; } };
+  const root = createRoot(document.getElementById('root'));
+  const props = { items: [], anchor, serve: true, onClose() {}, onDone() {}, onRecipePrepped() {}, timeline: [
+    { iid: 0, recipe: 'a', title: 'A', stepIndex: 0, text: 'Chop.', at: 10, min: 2, station: 'board', maxPause: 3 },
+    { iid: 0, recipe: 'a', title: 'A', stepIndex: 1, text: 'Finish.', at: 15, min: 1, station: 'board' },
+  ] };
+  const render = () => React.act(async () => root.render(React.createElement(BSPrepCook, props)));
+  try {
+    await render();
+    assert.equal(calls.length, 0, 'persisted reads-on must stay silent before the scheduled start');
+    now = anchor + 10 * 60000;
+    await render();
+    assert.deepEqual(calls, ['A. Chop.']);
+    now += 1000;
+    await render();
+    assert.equal(calls.length, 1, 'the heartbeat must not repeat narration');
+    now = anchor + 12 * 60000;
+    const next = [...document.querySelectorAll('button')].find(b => b.textContent.startsWith('Next'));
+    const before = stops;
+    await React.act(async () => next.click());
+    assert.equal(calls.length, 1, 'the later continuation must not narrate immediately');
+    assert.ok(stops > before, 'moving into a wait cancels the previous clip');
+    now = anchor + 15 * 60000;
+    await render();
+    assert.deepEqual(calls, ['A. Chop.', 'A. Finish.']);
+  } finally {
+    await React.act(async () => root.unmount());
+    Date.now = realNow;
+    localStorage.clear();
+  }
+});
+
+test('Start now allows narration early, but cannot bypass an occupied station', async () => {
+  const realNow = Date.now;
+  const anchor = 1_000_000;
+  let now = anchor;
+  Date.now = () => now;
+  localStorage.setItem('shape.cookReads', '1');
+  const calls = [];
+  window.ShapeVoice = { speak: async text => { calls.push(text); return { ok: true }; }, stop() {} };
+  const root = createRoot(document.getElementById('root'));
+  const props = { items: [], anchor, serve: true, onClose() {}, onDone() {}, onRecipePrepped() {}, timeline: [
+    { iid: 0, recipe: 'a', title: 'A', stepIndex: 0, text: 'Chop.', at: 10, min: 2, station: 'board' },
+  ] };
+  try {
+    await React.act(async () => root.render(React.createElement(BSPrepCook, props)));
+    const start = [...document.querySelectorAll('button')].find(b => b.textContent === 'Start now');
+    await React.act(async () => start.click());
+    assert.deepEqual(calls, ['A. Chop.']);
+    calls.length = 0;
+    const initial = { jumpedAt: 0, timers: [{ id: 1, iid: 1, title: 'B', station: 'board', endsAt: anchor + 12 * 60000 }] };
+    await React.act(async () => root.render(React.createElement(BSPrepCook, { ...props, initial, key: 'blocked' })));
+    assert.equal(calls.length, 0, 'an early-start override must still respect live holds');
+    now = anchor + 12 * 60000;
+    await React.act(async () => root.render(React.createElement(BSPrepCook, { ...props, initial, key: 'blocked' })));
+    assert.deepEqual(calls, ['A. Chop.']);
+  } finally {
+    await React.act(async () => root.unmount());
+    Date.now = realNow;
+    localStorage.clear();
+  }
+});
+
+test('a future pause warning becomes overdue on the board clock without another Next tap', async () => {
+  const realNow = Date.now;
+  let now = 60000;
+  Date.now = () => now;
+  const root = createRoot(document.getElementById('root'));
+  const timeline = [{ iid: 0, recipe: 'a', title: 'A', stepIndex: 1, text: 'Finish.', at: 5, min: 1, station: 'board' }];
+  const props = { items: [], anchor: 0, serve: true, timeline, onClose() {}, onDone() {}, onRecipePrepped() {},
+    initial: { livePlan: { timeline, serveAt: 6 * 60000, spread: 0, pauseOverdue: [], pauseDeadlines: [{ title: 'A', at: 4 * 60000 }] } } };
+  try {
+    await React.act(async () => root.render(React.createElement(BSPrepCook, props)));
+    assert.match(document.body.textContent, /needs attention by/);
+    assert.doesNotMatch(document.body.textContent, /pause has been exceeded/);
+    now = 5 * 60000;
+    await React.act(async () => root.render(React.createElement(BSPrepCook, props)));
+    assert.doesNotMatch(document.body.textContent, /needs attention by/);
+    assert.match(document.body.textContent, /pause has been exceeded/);
+  } finally {
+    await React.act(async () => root.unmount());
+    Date.now = realNow;
+  }
 });
 
 const source = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');

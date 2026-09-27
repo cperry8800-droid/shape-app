@@ -86,3 +86,41 @@ test('late progress retains the weave and reports an exceeded pause', () => {
   assert.deepEqual(late.pauseOverdue, ['A']);
   assert.equal(late.timeline.at(-1).at, 10);
 });
+
+const earlyPhase = [
+  { iid: 0, recipe: 'a', title: 'A', stepIndex: 0, text: 'Take off heat', at: 0, min: 2, station: 'stove', maxPause: 3 },
+  { iid: 1, recipe: 'b', title: 'B', stepIndex: 0, text: 'Chop', at: 3, min: 2, station: 'board' },
+  { iid: 0, recipe: 'a', title: 'A', stepIndex: 1, text: 'Finish', at: 5, min: 1, station: 'stove' },
+];
+
+test('early completion pulls unfinished work forward to respect the actual pause deadline', () => {
+  const result = bsReplanCook(earlyPhase, 1, [], 0, 60000, kitchen);
+  assert.deepEqual(result.timeline.map(e => e.at), [0, 2, 4]);
+  assert.equal(result.timeline[0].completedAt, 1);
+  assert.deepEqual(result.pauseOverdue, []);
+  assert.deepEqual(result.pauseDeadlines, []);
+  checkConstraints(result.timeline.map((e, i) => i === 0 ? { ...e, min: 1 } : e));
+  assert.deepEqual(earlyPhase.map(e => e.at), [0, 3, 5], 'the original plan must not be mutated');
+});
+
+test('an early pull cannot start before now and warns of a future deadline, not an overdue pause', () => {
+  const events = earlyPhase.map((e, i) => i === 1 ? { ...e, at: 1, min: 4 } : e);
+  const result = bsReplanCook(events, 1, [], 0, 60000, kitchen);
+  assert.equal(result.timeline[1].at, 1);
+  assert.equal(result.timeline[2].at, 5);
+  assert.deepEqual(result.pauseOverdue, []);
+  assert.deepEqual(result.pauseDeadlines, [{ title: 'A', at: 4 * 60000 }]);
+});
+
+test('pulling a phase earlier respects live holds even when multiple holds share a station', () => {
+  const timers = [3, 4].map((min, i) => ({ iid: i + 2, station: 'board', endsAt: min * 60000 }));
+  const oneBoard = bsReplanCook(earlyPhase, 1, timers, 0, 60000, kitchen);
+  assert.equal(oneBoard.timeline[1].at, 4);
+  assert.equal(oneBoard.timeline[2].at, 6);
+  assert.deepEqual(oneBoard.pauseOverdue, []);
+  assert.deepEqual(oneBoard.pauseDeadlines, [{ title: 'A', at: 4 * 60000 }]);
+  const twoBoards = bsReplanCook(earlyPhase, 1, timers, 0, 60000, { ...kitchen, board: 2 });
+  assert.equal(twoBoards.timeline[1].at, 3);
+  const ownHold = bsReplanCook(earlyPhase, 1, [{ iid: 0, recipeStep: 0, station: 'off', endsAt: 8 * 60000 }], 0, 60000, kitchen);
+  assert.equal(ownHold.timeline[2].at, 8, 'a dish must wait for its own hold even with free equipment');
+});

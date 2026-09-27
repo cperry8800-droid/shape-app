@@ -735,25 +735,33 @@ export function bsReplanCook(timeline, cursor, timers, anchor, now, kitchen = {}
   // A phase plan already contains bounded waits and attended returns. Repacking
   // each remaining recipe as one contiguous block would destroy that weave at
   // the very first Next tap. Keep its order and gaps, shifting only as needed
-  // for actual progress and live holds. Report missed pause deadlines explicitly.
+  // for actual progress and live holds. Early completion can shorten a pause's
+  // deadline: pull the remaining weave forward only as far as those deadlines
+  // require, without moving work before now or through a live hold.
   if (timeline.some(e => pauseOf(e))) {
     const elapsed = (now - anchor) / 60000;
     const prefix = timeline.slice(0, cursor).map((e, i) => i === cursor - 1 ? { ...e, completedAt: elapsed } : e);
-    let shift = Math.max(0, elapsed - rest[0].at);
+    const nextByDish = new Map();
+    for (const e of rest) if (!nextByDish.has(e.iid)) nextByDish.set(e.iid, e);
+    const pauses = prefix.filter(e => pauseOf(e) && nextByDish.get(e.iid)?.stepIndex === e.stepIndex + 1)
+      .map(e => ({ event: e, deadline: (e.completedAt ?? e.at + stepCost(e, BS_ORCH.activeStepMin)) + e.maxPause }));
+    const pull = Math.min(0, ...pauses.map(p => p.deadline - nextByDish.get(p.event.iid).at));
+    let shift = Math.max(pull, elapsed - rest[0].at);
     for (const e of rest) {
-      const at = anchor + (e.at + shift) * 60000;
-      const hold = bsCookBlockingHold(e, live, at, kitchen);
-      if (hold) shift += (hold.endsAt - at) / 60000;
+      let hold;
+      while ((hold = bsCookBlockingHold(e, live, anchor + (e.at + shift) * 60000, kitchen))) {
+        // Keep advancing even if converting a fractional minute back to ms rounds down.
+        shift = Math.max(shift + 1e-9, (hold.endsAt - anchor) / 60000 - e.at);
+      }
     }
     const next = rest.map(e => ({ ...e, at: e.at + shift }));
-    const nextByDish = new Map();
-    for (const e of next) if (!nextByDish.has(e.iid)) nextByDish.set(e.iid, e);
-    const pauseOverdue = prefix.filter(e => pauseOf(e) && nextByDish.get(e.iid)?.stepIndex === e.stepIndex + 1
-      && nextByDish.get(e.iid).at > (e.completedAt ?? e.at + stepCost(e, BS_ORCH.activeStepMin)) + e.maxPause + 1e-8).map(e => e.title);
+    const pauseDeadlines = pauses.filter(p => nextByDish.get(p.event.iid).at + shift > p.deadline + 1e-8)
+      .map(p => ({ title: p.event.title, at: anchor + p.deadline * 60000 }));
+    const pauseOverdue = pauseDeadlines.filter(p => now > p.at).map(p => p.title);
     const details = serveDetails(next.map(e => ({ ...e, _end: e.at + stepCost(e, BS_ORCH.activeStepMin) })));
     const ends = details.ready.map(d => d.readyAt);
     return { timeline: [...prefix, ...next], serveAt: anchor + Math.max(...ends, ...live.map(t => (t.endsAt - anchor) / 60000)) * 60000,
-      spread: Math.max(...ends) - Math.min(...ends), pauseOverdue };
+      spread: Math.max(...ends) - Math.min(...ends), pauseOverdue, pauseDeadlines };
   }
   const groups = new Map();
   rest.forEach(e => { if (!groups.has(e.iid)) groups.set(e.iid, []); groups.get(e.iid).push(e); });
