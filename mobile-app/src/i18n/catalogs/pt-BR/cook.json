@@ -14,6 +14,8 @@
   "timer.dismiss": "Feito",
   "mise.eyebrow": "A mise",
   "mise.title": "Tudo na tábua.",
+  "mise.checkAllIngredients": "Marcar todos os ingredientes",
+  "mise.uncheckAllIngredients": "Desmarcar todos os ingredientes",
   "mise.prepTag": "PREP",
   "mise.none": "Esta não traz lista de ingredientes — cozinhe o prato que você já conhece.",
   "mise.noMethod": "Esta não traz método escrito — o prato do seu coach, a sua cozinha. Os timers e o registro estão prontos quando você estiver.",

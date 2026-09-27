@@ -14,6 +14,8 @@
   "timer.dismiss": "Xong",
   "mise.eyebrow": "Chuẩn bị",
   "mise.title": "Bày hết lên thớt.",
+  "mise.checkAllIngredients": "Đánh dấu tất cả nguyên liệu",
+  "mise.uncheckAllIngredients": "Bỏ đánh dấu tất cả nguyên liệu",
   "mise.prepTag": "CHUẨN BỊ",
   "mise.none": "Món này không có danh sách nguyên liệu — nấu món bạn đã quen.",
   "mise.noMethod": "Món này không có cách làm — đĩa của coach, căn bếp của bạn. Hẹn giờ và nhật ký luôn sẵn sàng.",

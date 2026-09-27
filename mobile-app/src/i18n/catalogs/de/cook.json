@@ -14,6 +14,8 @@
   "timer.dismiss": "Fertig",
   "mise.eyebrow": "Die Mise",
   "mise.title": "Alles aufs Brett.",
+  "mise.checkAllIngredients": "Alle Zutaten abhaken",
+  "mise.uncheckAllIngredients": "Alle Zutaten abwählen",
   "mise.prepTag": "PREP",
   "mise.none": "Keine Zutatenliste dabei — koch das Gericht, das du kennst.",
   "mise.noMethod": "Keine geschriebene Methode dabei — der Teller deines Coaches, deine Küche. Timer und Log stehen bereit.",

@@ -14,6 +14,8 @@
   "timer.dismiss": "Selesai",
   "mise.eyebrow": "Persiapan",
   "mise.title": "Siapkan semuanya.",
+  "mise.checkAllIngredients": "Centang semua bahan",
+  "mise.uncheckAllIngredients": "Hapus centang semua bahan",
   "mise.prepTag": "PREP",
   "mise.none": "Tidak ada daftar bahan — masak hidangan yang sudah kamu kenal.",
   "mise.noMethod": "Tidak ada metode tertulis — piring dari coach-mu, dapurmu. Timer dan log siap kapan pun kamu siap.",

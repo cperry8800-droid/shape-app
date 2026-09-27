@@ -8789,6 +8789,18 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
               </button>
             )}
             <div style={{ marginTop: 10 }}>
+              {cookable.ingredients.length > 0 && (
+                <button type="button" onClick={() => setChecked((m) => {
+                  const next = { ...m };
+                  const check = !cookable.ingredients.every((_, i) => m['ing-' + i]);
+                  cookable.ingredients.forEach((_, i) => { next['ing-' + i] = check; });
+                  return next;
+                })} style={{ ...quietBtn, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 5, padding: '10px 12px', marginBottom: 10 }}>
+                  {cookable.ingredients.every((_, i) => checked['ing-' + i])
+                    ? tr('cook:mise.uncheckAllIngredients', { defaultValue: 'Uncheck all ingredients' })
+                    : tr('cook:mise.checkAllIngredients', { defaultValue: 'Check all ingredients' })}
+                </button>
+              )}
               {miseRows.map((r) => (
                 <button key={r.key} onClick={() => setChecked((m) => ({ ...m, [r.key]: !m[r.key] }))} aria-pressed={!!checked[r.key]} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}`, padding: '11px 2px', cursor: 'pointer', minHeight: 44 }}>
                   <span aria-hidden style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1.5px solid ${checked[r.key] ? heat : t.RULE}`, background: checked[r.key] ? heat : 'transparent', color: '#04211c', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 800 }}>{checked[r.key] ? '✓' : ''}</span>
@@ -9943,6 +9955,18 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
           {head(sessionEyebrow, tr('cook:prep.miseTitle', { defaultValue: 'One board, everything.' }))}
           {seam}
           <div style={{ padding: `16px ${t.padX}px 24px` }}>
+            {mise.ingredients.length > 0 && (
+              <button type="button" onClick={() => setMiseChecked((m) => {
+                const next = { ...m };
+                const check = !mise.ingredients.every((_, i) => m['mi-' + i]);
+                mise.ingredients.forEach((_, i) => { next['mi-' + i] = check; });
+                return next;
+              })} style={{ ...quietBtn, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: 5, padding: '10px 12px', marginBottom: 10 }}>
+                {mise.ingredients.every((_, i) => miseChecked['mi-' + i])
+                  ? tr('cook:mise.uncheckAllIngredients', { defaultValue: 'Uncheck all ingredients' })
+                  : tr('cook:mise.checkAllIngredients', { defaultValue: 'Check all ingredients' })}
+              </button>
+            )}
             {mise.ingredients.map((r, i) => {
               const k = 'mi-' + i;
               return (

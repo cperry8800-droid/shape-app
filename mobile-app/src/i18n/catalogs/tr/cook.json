@@ -14,6 +14,8 @@
   "timer.dismiss": "Tamam",
   "mise.eyebrow": "Hazırlık",
   "mise.title": "Her şeyi tahtaya al.",
+  "mise.checkAllIngredients": "Tüm malzemeleri işaretle",
+  "mise.uncheckAllIngredients": "Tüm malzemelerin işaretini kaldır",
   "mise.prepTag": "HAZIRLIK",
   "mise.none": "Bu tarifte malzeme listesi yok — bildiğin tabağı pişir.",
   "mise.noMethod": "Bu tarifte yazılı yöntem yok — koçunun tabağı, senin mutfağın. Zamanlayıcılar ve kayıt hazır.",

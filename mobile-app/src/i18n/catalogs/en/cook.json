@@ -14,6 +14,8 @@
   "timer.dismiss": "Done",
   "mise.eyebrow": "The mise",
   "mise.title": "Get it on the board.",
+  "mise.checkAllIngredients": "Check all ingredients",
+  "mise.uncheckAllIngredients": "Uncheck all ingredients",
   "mise.prepTag": "PREP",
   "mise.none": "No ingredient list on this one — cook from the plate you know.",
   "mise.noMethod": "No written method on this one — your coach's plate, your kitchen. Timers and the log are ready when you are.",

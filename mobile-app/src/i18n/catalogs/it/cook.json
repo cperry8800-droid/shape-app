@@ -14,6 +14,8 @@
   "timer.dismiss": "Fatto",
   "mise.eyebrow": "La mise",
   "mise.title": "Tutto sul tagliere.",
+  "mise.checkAllIngredients": "Spunta tutti gli ingredienti",
+  "mise.uncheckAllIngredients": "Rimuovi tutte le spunte dagli ingredienti",
   "mise.prepTag": "PREP",
   "mise.none": "Niente lista ingredienti qui — cucina il piatto che conosci.",
   "mise.noMethod": "Niente metodo scritto qui — il piatto del tuo coach, la tua cucina. Timer e diario pronti quando lo sei tu.",

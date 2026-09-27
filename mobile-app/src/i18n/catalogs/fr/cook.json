@@ -14,6 +14,8 @@
   "timer.dismiss": "OK",
   "mise.eyebrow": "La mise en place",
   "mise.title": "Tout sur la planche.",
+  "mise.checkAllIngredients": "Cocher tous les ingrédients",
+  "mise.uncheckAllIngredients": "Décocher tous les ingrédients",
   "mise.prepTag": "PRÉP",
   "mise.none": "Pas de liste d'ingrédients ici — cuisinez le plat que vous connaissez.",
   "mise.noMethod": "Pas de méthode écrite ici — l'assiette de votre coach, votre cuisine. Minuteurs et journal sont prêts quand vous l'êtes.",
