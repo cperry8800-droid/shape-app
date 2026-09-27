@@ -77,6 +77,7 @@ async function mount(t,extra={}){
   await React.act(async()=>root.render(React.createElement(DbuBuilder,{template:t,clients:[],queue:[],live:false,ownerId:'coach-a',playlists:[],clips:[],dayTemplates:[{name:'Saved push day',day:DashBuilder.newDay('Push')}],onBack(){},onSaved(){},...extra})));
   // The drag/canvas regressions exercise the optional popped-out Planner editor.
   await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Planner').click());
+  await React.act(async()=>document.querySelector('.wg button.c:not(.rest)').click());
   await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pop out editor')?.click());
   return root;
 }
@@ -583,8 +584,6 @@ test('every site that sets a day weekday is one of nine, each safe for a stated 
     'DbuBuilder :: weekday: 0',
     // Guided/Editor adds a day using the same next-free-weekday helper.
     'DbuBuilder :: weekday:dbuNextFreeWeekday(w)',
-    // ＋ Add session in Sheet: next free.
-    'DbuSheet :: weekday: dbuNextFreeWeekday(w)',
     // addAt is reached from a REST cell, so that weekday is free by construction.
     'addAt :: weekday',
     // The rule itself: the move, and the swap that keeps the week a permutation.

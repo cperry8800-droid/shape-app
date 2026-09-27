@@ -29,7 +29,7 @@ globalThis.serif='serif';
 let root;afterEach(async()=>{if(root)await React.act(async()=>root.unmount());root=null;localStorage.clear();});
 const button=t=>[...document.querySelectorAll('button')].find(b=>b.textContent===t);
 const click=async t=>{assert.ok(button(t),'missing '+t);await React.act(async()=>button(t).click());};
-async function input(label,value){const el=document.querySelector('[aria-label="'+label+'"]');assert.ok(el,'missing '+label);await React.act(async()=>{Object.getOwnPropertyDescriptor(el.tagName==='SELECT'?window.HTMLSelectElement.prototype:window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));});}
+async function input(label,value){const el=document.querySelector('[aria-label="'+label+'"]') || [...document.querySelectorAll('label[for]')].find(el=>el.textContent===label)?.control;assert.ok(el,'missing '+label);await React.act(async()=>{Object.getOwnPropertyDescriptor(el.tagName==='SELECT'?window.HTMLSelectElement.prototype:window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));});}
 async function mount(Component,template,extra={}){root=createRoot(document.getElementById('root'));await React.act(async()=>root.render(React.createElement(Component,{template,clients:[],queue:[],lifecycle:[],live:true,ownerId:'coach-a',playlists:[],clips:[{name:'Squat demo',url:'https://shape.test/squat.mp4'}],dayTemplates:[],onBack(){},onSaved(){},...extra})));}
 function capture(){const writes=[];globalThis.fetch=async(url,opts)=>{const body=JSON.parse(opts.body);writes.push({method:opts.method,...body});return {ok:true,json:async()=>({plan:{...body,detail:{...body.detail,revision:1}}})};};return writes;}
 
@@ -108,4 +108,61 @@ test('the actual client preview offers safe coach demonstrations without autopla
   const video=document.querySelector('video');assert.equal(video.getAttribute('src'),'https://shape.test/squat.mp4');
   assert.equal(video.controls,true);assert.equal(video.autoplay,false);assert.equal(video.preload,'metadata');
   assert.equal(document.querySelectorAll('iframe').length,0);
+});
+
+test('switching Editor and Planner never stacks their workspaces, and keeps edits',async()=>{
+  const writes=capture();
+  await mount(DbuBuilder,{name:'Compact program',detail:{builder:DashBuilder.newProgram()}},{live:false});
+  await click('Editor');
+  assert.equal(document.querySelector('.wg').parentElement.parentElement.hidden,true);
+  await input('Day name','Edited day');
+  for(let i=0;i<3;i++){
+    await click('Planner');
+    assert.equal(document.querySelector('.wg').parentElement.parentElement.hidden,false);
+    assert.ok(!document.querySelector('.drawer'));
+    assert.equal(document.querySelector('.cb-choice .tb').hidden,false);
+    await click('Editor');
+    assert.equal(document.querySelector('.wg').parentElement.parentElement.hidden,true);
+    assert.equal(document.querySelector('#dbu-day-name').value,'Edited day');
+    assert.ok(!document.querySelector('.cb-choice .seg'));
+    assert.equal(document.querySelector('.cb-choice .tb').hidden,false);
+    assert.ok([...document.querySelectorAll('.cb-choice button')].some(b=>b.textContent==='＋ Add a day'));
+  }
+  await click('Arrange days & weeks');
+  assert.equal(document.querySelector('.cbuilder').dataset.layout,'planner');
+  assert.ok(!document.querySelector('.drawer'));
+});
+
+test('Planner day editing opens on demand and Escape closes it with focus returned',async()=>{
+  capture();await mount(DbuBuilder,{name:'Panel program',detail:{builder:DashBuilder.newProgram()}},{live:false});
+  await click('Planner');
+  const trigger=document.querySelector('.wg button.c:not(.rest)');
+  await React.act(async()=>{trigger.focus();trigger.click();});
+  const panel=document.querySelector('.is-sidepanel');
+  assert.ok(panel);assert.ok(document.activeElement===panel);
+  await input('Day name','Retained day');
+  await React.act(async()=>panel.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
+  assert.ok(!document.querySelector('.drawer'));assert.ok(document.activeElement===trigger);
+  await React.act(async()=>trigger.click());
+  assert.equal(document.querySelector('#dbu-day-name').value,'Retained day');
+  await click('Done');assert.ok(!document.querySelector('.drawer'));
+  await click('▤Sheet');
+  assert.ok(!document.querySelector('.drawer'));
+  const heading=document.querySelector('.sh button[title="Open Retained day"]');
+  await React.act(async()=>{heading.focus();heading.click();});
+  assert.ok(document.querySelector('.is-sidepanel'));
+});
+
+test('program and day videos stay distinct, collapsed and saved through layout changes',async()=>{
+  const doc=DashBuilder.newProgram();doc.video='https://shape.test/program.mp4';doc.weeks[0].days[0].video='https://shape.test/day.mp4';
+  const writes=capture();await mount(DbuBuilder,{name:'Video program',detail:{builder:doc}});
+  await click('Editor');
+  const details=[...document.querySelectorAll('details.cb-details')];
+  assert.equal(details.length,2);assert.ok(details.every(el=>!el.open));
+  assert.match(details[0].textContent,/entire program/);assert.match(details[1].textContent,/this day's workout/);
+  assert.ok(details.every(el=>el.querySelector('summary').textContent.includes('Video added')));
+  for(const layout of ['Planner','Editor'])await click(layout);
+  await input('Day name','With videos');await click('Save template');
+  assert.equal(writes.at(-1).detail.builder.video,doc.video);
+  assert.equal(writes.at(-1).detail.builder.weeks[0].days[0].video,doc.weeks[0].days[0].video);
 });
