@@ -21,7 +21,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  drive, pressable, count, loadBroadsheet, importSibling,
+  drive, pressable, count, textOf, loadBroadsheet, importSibling,
 } from './helpers/broadsheet-mount.mjs';
 
 const MOD = await loadBroadsheet(['BSRecipeBox', 'BSPrepSession', 'BSCookMode']);
@@ -76,13 +76,30 @@ const openAllCourses = (box) => {
 // ⚠ Scoped deliberately — the merged mise's INGREDIENT rows already name every
 // selected dish, so asserting a title against the whole page proves nothing about
 // the note's own attribution (a dropped attribution survives that assertion).
-function noteBlock(pageText, composed) {
-  const end = pageText.indexOf(composed);
-  if (end < 0) return null;
-  const start = pageText.lastIndexOf('ALLERGEN · ', end);
-  if (start < 0) return null;
-  return pageText.slice(start, end + composed.length);
+// The cook screens draw each note as its own box (the allergen and the ingredient, the
+// composed text, then the dishes it came from), so the block is read off that box's own
+// node rather than sliced out of the page text.
+function noteBlock(s, composed) {
+  const box = s.nodes().find((n) => n.type === 'div' && /\bwait\b/.test(String((n.props && n.props.className) || '')) && textOf(n).includes(composed));
+  return box ? textOf(box) : null;
 }
+// The note's head on the cook screens is `cook:ck.allergenIn` ("Gluten in the oats."). The
+// mount harness hands back a key's defaultValue WITHOUT interpolating it, so here the head
+// reads as its raw template: a stable marker that one note box printed.
+const NOTE_HEAD = '{allergen} in the {ingredient}.';
+// The oats' gluten note: its composed text is what a member reads, whatever the head says.
+const OATS_GLUTEN = () => SHAPE_KITCHEN_RECIPES.find((r) => r.title === OATS_A).allergenNotes.find((n) => n.allergen === 'gluten');
+const hasOatsNote = (text) => text.includes(bsAllergenNoteText(OATS_GLUTEN()));
+// Two or more dishes open the kitchen-and-timing screen first; one goes straight to its
+// ingredients.
+function toMise(s) {
+  if (s.buttons().some((b) => b.label.startsWith('Set up your kitchen'))) s.click('Set up your kitchen');
+  s.click('Next: ingredients');
+  return s;
+}
+// The percentage lives in the All steps sheet, opened from the "Ready around" button.
+const openSteps = (s) => s.click('', (n) => /\bfin\b/.test(String(n.props.className || '')));
+const pctOf = (text) => Number((text.match(/(\d+)% done/) || [])[1]);
 const NOTED = SHAPE_KITCHEN_RECIPES.filter((r) => (r.allergenNotes || []).length > 0);
 
 test('the catalog still carries restored claims — otherwise every assertion below is vacuous', () => {
@@ -200,7 +217,7 @@ const PROGRAM = [{
 function prepAtMise() {
   const s = drive(MOD.BSPrepSession, { program: PROGRAM, onClose() {} });
   for (const title of [OATS_A, OATS_B, BROTH]) s.click(title, pressable);
-  s.click('Merge the mise');
+  toMise(s);
   return s;
 }
 
@@ -217,19 +234,19 @@ test('cook mode: the note survives EVERY entry into cooking, not just the mise',
   assert.ok(c.steps.length > 0, `"${OATS_A}" has no method — it would not be a prep candidate at all`);
 
   const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
-  assert.ok(solo.text.includes('ALLERGEN · GLUTEN'), 'the solo mise lost its note');
+  assert.ok(hasOatsNote(solo.text), 'the solo mise lost its note');
 
   // Prep mode opens directly on `method`, skipping the mise entirely.
   const inPrep = drive(MOD.BSCookMode, {
     cookable: c, onClose() {}, prep: { index: 0, count: 1, onPrepped() {} },
   });
-  assert.ok(inPrep.text.includes('ALLERGEN · GLUTEN'),
+  assert.ok(hasOatsNote(inPrep.text),
     'prep mode opens on the method phase and shows no caveat — the member cooks the ambiguous ingredient blind');
 
   // Walking from the mise into the method must not drop it either.
   const walked = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   walked.click('Start cooking');
-  assert.ok(walked.text.includes('ALLERGEN · GLUTEN'),
+  assert.ok(hasOatsNote(walked.text),
     'the caveat vanished on entering the method phase');
 
   // ⚠ The merged BSPrepSession board is still required and is NOT made redundant by
@@ -242,7 +259,7 @@ test('cook mode: the caveat precedes the resume shortcut, which jumps past the m
   const r = SHAPE_KITCHEN_RECIPES.find((x) => x.title === OATS_A);
   const c = bsCookableFromRecipe(r);
   const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
-  const note = solo.text.indexOf('ALLERGEN · GLUTEN');
+  const note = solo.text.indexOf(bsAllergenNoteText(OATS_GLUTEN()));
   assert.ok(note >= 0, 'no caveat on the mise at all');
   const resume = solo.text.indexOf('Resume at step');
   if (resume >= 0) {
@@ -251,18 +268,18 @@ test('cook mode: the caveat precedes the resume shortcut, which jumps past the m
   // Whether or not this fixture carries a resume stamp, the method phase itself must
   // carry the caveat — that is what makes the resume path safe in either case.
   solo.click('Start cooking');
-  assert.ok(solo.text.includes('ALLERGEN · GLUTEN'), 'the method phase carries no caveat');
+  assert.ok(hasOatsNote(solo.text), 'the method phase carries no caveat');
 });
 
 test('prep session: the merged mise carries the selected recipes allergen notes', () => {
   const s = prepAtMise();
   // Guard the guard: prove we are ON the merged mise, with real content.
-  assert.ok(s.text.includes('One board, everything.'), 'the session never reached the merged mise');
-  assert.ok(s.text.includes('Start the session →'), 'the mise rendered without its start action');
+  assert.ok(s.text.includes('Get these out'), 'the session never reached the merged mise');
+  assert.ok(s.text.includes('Start cooking'), 'the mise rendered without its start action');
 
   const oats = SHAPE_KITCHEN_RECIPES.find((r) => r.title === OATS_A).allergenNotes[0];
   const broth = SHAPE_KITCHEN_RECIPES.find((r) => r.title === BROTH).allergenNotes[0];
-  assert.ok(s.text.includes('ALLERGEN · GLUTEN'), 'the merged mise carries no allergen eyebrow');
+  assert.ok(s.text.includes(NOTE_HEAD), 'the merged mise carries no allergen note head');
   // The full composed text, brands and all — the mise is where "buy the
   // certified one" is actionable, so it gets the same treatment the solo
   // cook's mise gets, not the row's certification-only clause.
@@ -278,18 +295,18 @@ test('prep session: identical notes de-duplicate and name every dish they came f
   const twin = SHAPE_KITCHEN_RECIPES.find((r) => r.title === OATS_B).allergenNotes[0];
   assert.deepEqual(twin, oats, 'the two oat notes differ — this de-duplication test is testing nothing');
   assert.equal(count(s.text, bsAllergenNoteText(oats)), 1, 'the shared oats note printed once per dish');
-  assert.equal(count(s.text, 'ALLERGEN · '), 2, 'the merged board did not collapse to one note per certification');
+  assert.equal(count(s.text, NOTE_HEAD), 2, 'the merged board did not collapse to one note per certification');
 
   // A merged board is otherwise silent about WHICH dish the caveat applies to —
   // and the attribution must live in the NOTE, not merely somewhere on the page.
-  const oatsBlock = noteBlock(s.text, bsAllergenNoteText(oats));
+  const oatsBlock = noteBlock(s, bsAllergenNoteText(oats));
   assert.ok(oatsBlock, 'could not isolate the oats note block');
   for (const title of [OATS_A, OATS_B]) {
     assert.ok(oatsBlock.includes(title), `the oats note itself does not name "${title}"`);
   }
   // Per-note, not a blanket list: the broth note names its own dish and only that.
   const broth = SHAPE_KITCHEN_RECIPES.find((r) => r.title === BROTH).allergenNotes[0];
-  const brothBlock = noteBlock(s.text, bsAllergenNoteText(broth));
+  const brothBlock = noteBlock(s, bsAllergenNoteText(broth));
   assert.ok(brothBlock, 'could not isolate the broth note block');
   assert.ok(brothBlock.includes(BROTH), `the broth note does not name "${BROTH}"`);
   assert.ok(!brothBlock.includes(OATS_A) && !brothBlock.includes(OATS_B),
@@ -304,9 +321,9 @@ test('prep session: a note-free board renders no note block and does not crash',
     program: [{ meals: [{ id: 'q1', slot: 'Dinner', title: plain.title }] }], onClose() {},
   });
   s.click(plain.title, pressable);
-  s.click('Merge the mise');
-  assert.ok(s.text.includes('One board, everything.'), 'the note-free session never reached the merged mise');
-  assert.ok(!s.text.includes('ALLERGEN'), `"${plain.title}" carries no notes but the board printed one`);
+  toMise(s);
+  assert.ok(s.text.includes('Get these out'), 'the note-free session never reached the merged mise');
+  assert.ok(!s.text.includes(NOTE_HEAD), `"${plain.title}" carries no notes but the board printed one`);
 });
 
 test('cook mode: a note-LESS cookable renders every phase without throwing', () => {
@@ -350,12 +367,12 @@ test('cook mode: the readout carries a percentage, weighted by minutes, and the 
   // figure and the overall figure are ONE number, and the old header printed it twice a
   // few lines apart; the readout carries it once and the step line keeps its "Step n of
   // m". Several dishes are the other case — the SESSION guard below.
-  assert.match(s.text, /Step \{n\} of \{m\}/, 'the step-by-step line must survive the readout');
-  const pct = Number((s.text.match(/(\d+)% done/) || [])[1]);
+  assert.match(s.text, /step \{n\} of \{m\}/i, 'the step-by-step line must survive the readout');
+  const pct = (openSteps(s), pctOf(s.text));
   assert.ok(Number.isFinite(pct), `no percentage in the readout - got: ${s.text.slice(0, 120)}`);
   // On the FIRST step nothing is done yet, so the honest figure is 0 — not "1 of 6".
   assert.equal(pct, 0, 'nothing is cooked yet, so the first step must read 0%');
-  assert.doesNotMatch(s.text, /Step \{n\} of \{m\} · \d+%/,
+  assert.doesNotMatch(s.text, /step \{n\} of \{m\} · \d+%/i,
     'a solo cook is shown the dish figure ONCE, in the readout — not again beside the step line');
 });
 
@@ -367,8 +384,8 @@ test('cook mode: the percentage is minutes done, not steps ticked', () => {
   const c = bsCookableFromRecipe(r);
   const s = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   s.click('Start cooking');
-  s.click('✓ Done');
-  const shown = Number((s.text.match(/(\d+)% done/) || [])[1]);
+  s.click('Done · next step');
+  const shown = (openSteps(s), pctOf(s.text));
   const stepPct = Math.round((1 / c.steps.length) * 100);
   assert.ok(Number.isFinite(shown), 'no percentage on step 2');
   assert.notEqual(shown, stepPct,
@@ -383,8 +400,8 @@ test('cook mode: overall % is the SESSION for several dishes, the dish for one -
 
   const solo = drive(MOD.BSCookMode, { cookable: c, onClose() {} });
   solo.click('Start cooking');
-  assert.match(solo.text, /Step \{n\} of \{m\}/, 'the step-by-step line must survive');
-  const soloOverall = Number((solo.text.match(/(\d+)% done/) || [])[1]);
+  assert.match(solo.text, /step \{n\} of \{m\}/i, 'the step-by-step line must survive');
+  const soloOverall = (openSteps(solo), pctOf(solo.text));
   assert.ok(Number.isFinite(soloOverall), `no overall % in the readout - got: ${solo.text.slice(0, 90)}`);
   assert.equal(soloOverall, 0, 'nothing is cooked yet');
 
@@ -396,9 +413,8 @@ test('cook mode: overall % is the SESSION for several dishes, the dish for one -
     cookable: c, onClose() {},
     prep: { index: 1, count: 3, onPrepped() {}, priorMins: 50, totalMins: 100 },
   });
-  const pct = Number((multi.text.match(/(\d+)% done/) || [])[1]);
+  assert.match(multi.text, /step \{n\} of \{m\}/i, 'the step-by-step line must survive in a session');
+  const pct = (openSteps(multi), pctOf(multi.text));
   assert.ok(Number.isFinite(pct), `no overall % in the readout - got: ${multi.text.slice(0, 90)}`);
   assert.equal(pct, 50, `50 of 100 minutes are behind us, so the session must read 50%, not ${pct}%`);
-  assert.match(multi.text, /Step \{n\} of \{m\} · \d+%/,
-    'the step-by-step line must carry the dish figure alongside the session figure');
 });

@@ -219,7 +219,9 @@ test('⚠ a member recipe titled like a catalog dish cooks THEIR method, not the
     // catalog twin was dropped outright).
     assert.match(s.text, new RegExp(COLLIDE.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     s.click(COLLIDE.title, pressable);
-    s.click('Merge the mise');
+    // One dish goes straight to its ingredients (a second dish would open the kitchen and
+    // timing screen first).
+    s.click('Next: ingredients');
     // THEIR ingredients are on the board.
     assert.match(s.text, /grandmother/i);
     assert.match(s.text, /flatbreads/i);

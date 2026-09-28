@@ -21,6 +21,17 @@ import {
 } from './helpers/broadsheet-mount.mjs';
 
 const MOD = await loadBroadsheet(['BSPrepCook', 'BSCookMode', 'BSPrepSession']);
+// The session's setup after the burners-and-tracks redraw: two or more dishes open the
+// kitchen-and-timing screen ("Set up your kitchen"), one goes straight to its ingredients;
+// the ingredients screen then starts the cook.
+function toSetup(s) {
+  if (s.buttons().some((b) => b.label.startsWith('Set up your kitchen'))) return s.click('Set up your kitchen');
+  return s.click('Next: ingredients');
+}
+function startSession(s) {
+  if (s.buttons().some((b) => b.label.startsWith('Next: ingredients'))) s.click('Next: ingredients');
+  return s.click('Start cooking');
+}
 const ORCH = await importSibling('..', 'services', 'cookOrchestrator.mjs');
 const { bsOrchestrate, BS_COOK_MODE, BS_ORCH } = ORCH;
 const { SHAPE_KITCHEN_RECIPES } = await importSibling('shapeKitchenData.js');
@@ -86,7 +97,7 @@ test('a late serve-mode hold replans immediately instead of waiting on the old d
     { recipe:'b', iid:1, title:'Salad', stepIndex:0, text:'Toss the salad now.', at:22, min:3, passive:false, station:'board' },
   ];
   const s = drive(MOD.BSPrepCook, { items:[], timeline, anchor:Date.now()-30*MIN, serve:true, kitchen:{stove:1,board:1}, onClose(){}, onRecipePrepped(){}, onDone(){} });
-  s.click('Start timer');
+  s.click('Start {t} timer');
   assert.ok(s.text.includes('Toss the salad now.'), 'the next actionable dish must replace the obsolete wait');
   assert.ok(s.text.includes('Updated finish:'), 'the revised finish must be visible');
 });
@@ -112,11 +123,11 @@ test('the board HOLDS a step that is not due yet, and says when it is', () => {
     onClose() {}, onRecipePrepped() {}, onDone() {},
   });
   const labels = s.buttons().map((b) => b.label).join(' | ');
-  assert.ok(/Starts in/.test(s.text), `no countdown on a step 45 minutes early — buttons: ${labels}`);
+  assert.ok(/The plan starts this at|In \{n\} min/.test(s.text), `no countdown on a step 45 minutes early — buttons: ${labels}`);
   // The advance actions must be ABSENT, not merely styled differently: a disabled-looking
   // button that still fires is the same defect wearing a hat.
   const live = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
-  assert.ok(!live.some((l) => /^Next|^Finish|^Start timer/.test(l)),
+  assert.ok(!live.some((l) => /^Done|^Start \{t\} timer/.test(l)),
     `a not-yet-due step still offers a live advance action: ${JSON.stringify(live)}`);
 });
 
@@ -128,9 +139,9 @@ test('the cook can overrule the plan for one step, and the board then obeys them
     onClose() {}, onRecipePrepped() {}, onDone() {},
   });
   s.click('Start now');
-  assert.ok(!/Starts in/.test(s.text), 'the countdown survived the override');
+  assert.ok(!/The plan starts this at/.test(s.text), 'the countdown survived the override');
   const live = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
-  assert.ok(live.some((l) => /^Next|^Finish|^Start timer/.test(l)),
+  assert.ok(live.some((l) => /^Done|^Start \{t\} timer/.test(l)),
     `overriding did not hand the step back: ${JSON.stringify(live)}`);
 });
 
@@ -195,8 +206,17 @@ const SEARED = {
   ],
   stepMeta: [null, null, null],
 };
+// The percentage the board SHOWS, read off its progress readout rather than the first "N%" in
+// the screen's text: a step's own text can carry a percentage ("2% milk"), and on a phone the
+// readout now sits below the step.
+// The figure lives in the All steps sheet, opened from the "Ready around" button (class
+// `fin`); the sheet is closed again so the cook carries on from where it was.
 const pctOf = (s) => {
-  const m = s.text.match(/(\d+)%/);
+  const fin = s.nodes().find((n) => n.type === 'button' && /\bfin\b/.test(String(n.props.className || '')));
+  if (!fin) return null;
+  s.click('', (n) => n === fin);
+  const m = s.text.match(/(\d+)% done/);
+  if (s.buttons().some((b) => b.label.startsWith('Back to cooking'))) s.click('Back to cooking');
   return m ? Number(m[1]) : null;
 };
 
@@ -206,15 +226,15 @@ test('a convenience timer on the CURRENT step never moves the board backward', (
     items: [], timeline: plan.timeline,
     onClose() {}, onRecipePrepped() {}, onDone() {},
   });
-  s.click('Next');                       // step 0 behind us — real, banked minutes
+  s.click('Done');                       // step 0 behind us — real, banked minutes
   const before = pctOf(s);
   assert.ok(Number.isFinite(before) && before > 0,
     `the board must have banked something before the timer starts, read ${before}%`);
   // Guard the guard: without a chip to press there is nothing under test here.
-  const chips = s.buttons().filter((b) => b.label.startsWith('◷'));
+  const chips = s.nodes().filter((n) => n.type === 'button' && n.props.className === 'tbtn');
   assert.ok(chips.length > 0, 'no convenience-timer chip on an active step that states a duration');
 
-  s.click('◷');
+  s.click('', (n) => n.props.className === 'tbtn');
   const after = pctOf(s);
   assert.equal(after, before,
     `starting an 8-minute convenience timer moved the board ${before}% -> ${after}%; a soft timer banks nothing and owes nothing`);
@@ -224,9 +244,9 @@ test('a convenience timer on the CURRENT step never moves the board backward', (
   // so deleting the `!soft` filter left this test green. Walk past the step with the chip
   // still running: the step banks its active minutes, and the convenience clock still owes
   // nothing, because it was never what those minutes measured.
-  if (s.buttons().some((b) => !b.disabled && b.label.startsWith('Next'))) {
+  if (s.buttons().some((b) => !b.disabled && b.label.startsWith('Done'))) {
     const banked = pctOf(s);
-    s.click('Next');
+    s.click('Done');
     const walked = pctOf(s);
     assert.ok(walked >= banked,
       `walking past a step with a convenience timer running moved the board ${banked}% -> ${walked}%; the chip is not the step's hold`);
@@ -251,9 +271,9 @@ test('a real HOLD still owes its minutes — the round-1 fix survives', () => {
   let guard = 0;
   while (guard++ < 12) {
     const labels = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
-    if (labels.some((l) => l.startsWith('Start timer'))) { atHold = pctOf(s); s.click('Start timer'); break; }
-    if (!labels.some((l) => l.startsWith('Next'))) break;
-    s.click('Next');
+    if (labels.some((l) => l.startsWith('Start {t} timer'))) { atHold = pctOf(s); s.click('Start {t} timer'); break; }
+    if (!labels.some((l) => l.startsWith('Done'))) break;
+    s.click('Done');
   }
   assert.ok(Number.isFinite(atHold), 'never reached a holding window — this plan cannot exercise the debit');
   const after = pctOf(s);
@@ -297,7 +317,7 @@ test('serve picker: choosing a table time renders, and says which DAY it landed 
   withClockAt(12, 0, () => {
     const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
     for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
-    s.click('Merge the mise');
+    toSetup(s);
     s.clickKey('serve');   // by key, not by label — the test is about the OPTION, not its wording
 
     assert.match(s.text, /On the table at/, 'the serve-time picker must render');
@@ -368,7 +388,7 @@ test('serve picker: the landing gap belongs to the plan being RUN, not the earli
 
     const s = drive(MOD.BSPrepSession, { program: PICKER_PROGRAM, onClose() {} });
     for (const m of PICKER_PROGRAM[0].meals) s.click(m.title, pressable);
-    s.click('Merge the mise');
+    toSetup(s);
     s.clickKey('serve');
 
     const times = s.nodes().filter((n) => n.type === 'input' && n.props.type === 'time');
@@ -543,18 +563,18 @@ test('solo cook: a chill still running is not progress you have banked', () => {
   // instead of quietly testing some other step.
   let guard = 0;
   while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
-    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('✓ Done'));
+    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('Done'));
     if (!next) break;
-    s.click('✓ Done');
+    s.click('Done');
   }
   assert.match(s.text, /Chill 30 minutes/, 'never reached the chill step — this recipe cannot exercise the debit');
 
-  const chip = s.buttons().find((b) => !b.disabled && b.label.startsWith('▸ Timer'));
+  const chip = s.nodes().find((n) => n.type === 'button' && n.props.className === 'tbtn' && !n.props.disabled);
   assert.ok(chip, `no countdown offered on the chill (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
-  assert.match(chip.label, /30 min/, `the chip under test reads "${chip.label}" — not the 30-minute chill`);
+  assert.match(chip.props['data-t'], /30 min/, `the chip under test reads "${chip.props['data-t']}" — not the 30-minute chill`);
 
   const before = pctOf(s);
-  s.click('▸ Timer');                      // the 30-minute chill goes on
+  s.click('', (n) => n.props.className === 'tbtn');                      // the 30-minute chill goes on
   // ⚠ BOTH ARMS. Merely STARTING the chill must move nothing: the cook is standing on
   // that step, its minutes were never credited, and debiting them walks the bar
   // backward — 23% to 0% here. That is the round-1 regression from the interleaved
@@ -564,7 +584,7 @@ test('solo cook: a chill still running is not progress you have banked', () => {
 
   // Mark it done while the clock is still running — the exact move that inflated it.
   // The last step's button reads "Plated", not "Done"; both are the same advance.
-  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('Done')));
   assert.ok(finish, 'no way to advance past the chill — the scenario cannot be reached');
   s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
   const after = pctOf(s);
@@ -607,16 +627,20 @@ test('prep board: a hold runs for the annotated window, not the parsed maximum',
   const s = drive(MOD.BSPrepCook, { items: [], timeline: plan.timeline, onClose() {}, onRecipePrepped() {}, onDone() {} });
 
   let guard = 0;
-  while (guard++ < 8 && !s.buttons().some((b) => !b.disabled && b.label.startsWith('Start timer'))) {
-    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('Next'));
+  while (guard++ < 8 && !s.buttons().some((b) => !b.disabled && b.label.startsWith('Start {t} timer'))) {
+    const next = s.buttons().find((b) => !b.disabled && b.label.startsWith('Done'));
     if (!next) break;
-    s.click('Next');
+    s.click('Done');
   }
-  assert.ok(s.buttons().some((b) => b.label.startsWith('Start timer')), 'never reached the window');
-  s.click('Start timer');
+  assert.ok(s.buttons().some((b) => b.label.startsWith('Start {t} timer')), 'never reached the window');
+  s.click('Start {t} timer');
 
-  const shown = s.text.match(/(\d+):(\d\d)/);
-  assert.ok(shown, `no countdown rendered after starting the hold — text was ${JSON.stringify(s.text.slice(0, 200))}`);
+  // ⚠ Read off the burner the hold is drawn on, not the first h:mm in the screen's text: the
+  // top bar leads with the "Ready around" wall-clock time, which is also h:mm and says nothing
+  // about the hold. The burner is the control carrying the countdown (and ✓ Done behind it).
+  const burner = s.nodes().find((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined && /\d+:\d\d/.test(textOf(n)));
+  assert.ok(burner, `no burner shows a countdown after starting the hold — text was ${JSON.stringify(s.text.slice(0, 200))}`);
+  const shown = textOf(burner).match(/(\d+):(\d\d)(?!.*\d:\d\d)/);
   const mins = Number(shown[1]) + (Number(shown[2]) > 0 ? 1 : 0);
   assert.equal(mins, 6, `the board counts down ${shown[0]}; the window is 6 min and only the PROSE says 8`);
 });
@@ -651,14 +675,14 @@ test('prep board: starting a hold the cursor still sits on does not move the boa
   let guard = 0;
   while (guard++ < 30) {
     const labels = s.buttons().filter((b) => !b.disabled).map((b) => b.label);
-    if (labels.some((l) => l.startsWith('Start timer'))) {
+    if (labels.some((l) => l.startsWith('Start {t} timer'))) {
       const before = pctOf(s);
-      s.click('Start timer');
+      s.click('Start {t} timer');
       moves.push({ before, after: pctOf(s) });
       continue;
     }
-    if (!labels.some((l) => l.startsWith('Next'))) break;
-    s.click('Next');
+    if (!labels.some((l) => l.startsWith('Done'))) break;
+    s.click('Done');
   }
   assert.ok(moves.length >= 2,
     `only ${moves.length} hold(s) reached; this plan has two and the second is the one that discriminates`);
@@ -736,15 +760,15 @@ test('prep session: finishing a dish hands its unfinished holds to the session',
   // Walk to the chill, put it on, then end the dish while it is still running.
   let guard = 0;
   while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
-    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('✓ Done'))) break;
-    s.click('✓ Done');
+    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('Done'))) break;
+    s.click('Done');
   }
   assert.match(s.text, /Chill 30 minutes/, 'never reached the chill — this recipe cannot exercise the handoff');
-  const chip = s.buttons().find((b) => !b.disabled && b.label.startsWith('▸ Timer'));
+  const chip = s.nodes().find((n) => n.type === 'button' && n.props.className === 'tbtn' && !n.props.disabled);
   assert.ok(chip, `no countdown offered on the chill (buttons: ${s.buttons().map((b) => b.label).join(' | ')})`);
-  s.click('▸ Timer');
+  s.click('', (n) => n.props.className === 'tbtn');
 
-  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('Done')));
   assert.ok(finish, 'no way to end the dish');
   s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
 
@@ -889,9 +913,9 @@ function wrapWithCarriedHold(hold) {
   const program = [{ meals: [{ id: 'w1', slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 }] }];
   const s = drive(MOD.BSPrepSession, { program, onClose() {} });
   s.click(r.title, pressable);
-  s.click('Merge the mise');
-  s.click('Start the session');
-  s.click('Start this recipe');
+  toSetup(s);
+  startSession(s);
+  s.click('Start this dish');
   const board = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
   assert.ok(board, 'the session never reached a cook surface that can hand a hold up');
   board.props.prep.onPrepped([hold]);
@@ -1032,15 +1056,15 @@ test('prep session: the prior-dish credit handed down is RAW — the debit is ne
     const creditAtSecondDish = (outstanding) => {
       const s = drive(MOD.BSPrepSession, { program, onClose() {} });
       for (const m of program[0].meals) s.click(m.title, pressable);
-      s.click('Merge the mise');
+      toSetup(s);
       s.clickKey('sequence');          // the serial path — the one that carries holds forward
-      s.click('Start the session');
-      s.click('Start this recipe');
+      startSession(s);
+      s.click('Start this dish');
       const first = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
       assert.ok(first, 'the session never reached a cook surface for the FIRST dish');
       first.props.prep.onPrepped(outstanding);
       s.render();
-      s.click('Start this recipe');
+      s.click('Start this dish');
       const second = s.nodes().find((n) => n.props && n.props.prep && typeof n.props.prep.onPrepped === 'function');
       assert.ok(second, 'the session never reached a cook surface for the SECOND dish');
       assert.equal(second.props.prep.index, 1, 'the session did not advance to the second dish');
@@ -1198,7 +1222,7 @@ test('the three cook options run three DIFFERENT schedulers', () => {
   const render = (choiceKey) => withClockAt(12, 0, () => {
     const s = drive(MOD.BSPrepSession, { program, onClose() {} });
     for (const m of program[0].meals) s.click(m.title, pressable);
-    s.click('Merge the mise');
+    toSetup(s);
     s.clickKey(choiceKey);
     return offsets(s.text);
   });
@@ -1236,12 +1260,12 @@ test('prep sheet: an uncoordinated serve plan cannot silently start as a separat
   const program = [{ meals: ['Greek yogurt power bowl', 'Tempo turkey lettuce cups'].map((title, i) => ({ id: `no-window-${i}`, slot: 'Lunch', title, kcal: 500, p: 30, c: 40, f: 15 })) }];
   const s = drive(MOD.BSPrepSession, { program, onClose() {} });
   for (const meal of program[0].meals) s.click(meal.title, pressable);
-  s.click('Merge the mise');
-  s.click('Cook to serve');
+  toSetup(s);
+  s.click('Ready at a set time');
   assert.ok(s.text.includes('These steps cannot overlap'));
-  assert.equal(s.buttons().find(b => b.label.startsWith('Start the session')).disabled, true);
-  s.click('Cook separately');
-  assert.equal(s.buttons().find(b => b.label.startsWith('Start the session')).disabled, false);
+  assert.equal(s.buttons().find(b => b.label.startsWith('Next: ingredients')).disabled, true);
+  s.click('One after another');
+  assert.equal(s.buttons().find(b => b.label.startsWith('Next: ingredients')).disabled, false);
 });
 
 test('prep sheet: unusable timing shows an explanation and blocks every cooking mode', () => {
@@ -1250,11 +1274,11 @@ test('prep sheet: unusable timing shows an explanation and blocks every cooking 
   const program = [{ meals: [{ title: 'Greek yogurt power bowl', id: 'bowl', slot: 'Lunch' }] }];
   const s = drive(MOD.BSPrepSession, { seed, program, onClose() {} });
   s.click('Greek yogurt power bowl', pressable);
-  s.click('Merge the mise');
+  toSetup(s);
   for (const choice of ['Cook to serve', 'Cook separately']) {
     s.click(choice);
     assert.match(s.text, /recipe times are too large to schedule/);
-    assert.equal(s.buttons().find(b => b.label.startsWith('Start the session')).disabled, true);
+    assert.equal(s.buttons().find(b => b.label.startsWith('Next: ingredients')).disabled, true);
   }
 });
 
@@ -1283,7 +1307,7 @@ test('prep sheet: "cook at the same time" is not offered when it cannot weave', 
     const program = [{ meals: rs.map((r, i) => ({ id: `p${i}`, slot: 'Lunch', title: r.title, kcal: 500, p: 30, c: 40, f: 15 })) }];
     const s = drive(MOD.BSPrepSession, { program, onClose() {} });
     for (const m of program[0].meals) s.click(m.title, pressable);
-    s.click('Merge the mise');
+    toSetup(s);
     const row = s.nodes().find((n) => String(n.key) === 'soonest' && n.props && n.props.onClick);
     assert.ok(row, 'no option row keyed "soonest" rendered');
     return { row, text: textOf(row) };
@@ -1365,14 +1389,14 @@ test('prep session: a hold that finishes BEFORE the handoff is still handed up',
 
   let guard = 0;
   while (guard++ < 8 && !/Chill 30 minutes/.test(s.text)) {
-    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('✓ Done'))) break;
-    s.click('✓ Done');
+    if (!s.buttons().some((b) => !b.disabled && b.label.startsWith('Done'))) break;
+    s.click('Done');
   }
   assert.match(s.text, /Chill 30 minutes/, 'never reached the chill');
-  assert.ok(s.buttons().some((b) => !b.disabled && b.label.startsWith('▸ Timer')), 'no countdown offered');
-  s.click('▸ Timer');
+  assert.ok(s.buttons().some((b) => !b.disabled && b.label.startsWith('Start timer · {t}')), 'no countdown offered');
+  s.click('', (n) => n.props.className === 'tbtn');
 
-  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('✓ Done')));
+  const finish = s.buttons().find((b) => !b.disabled && (b.label.startsWith('✓ Plated') || b.label.startsWith('Done')));
   assert.ok(finish, 'no way to end the dish');
   s.click(finish.label.startsWith('✓ Plated') ? '✓ Plated' : '✓ Done');
 

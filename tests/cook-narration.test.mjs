@@ -86,7 +86,7 @@ test('the board waits to narrate until the scheduled step is due, and cancels wh
     await render();
     assert.equal(calls.length, 1, 'the heartbeat must not repeat narration');
     now = anchor + 12 * 60000;
-    const next = [...document.querySelectorAll('button')].find(b => b.textContent.startsWith('Next'));
+    const next = [...document.querySelectorAll('button')].find(b => b.textContent.startsWith('Done · next'));
     const before = stops;
     await React.act(async () => next.click());
     assert.equal(calls.length, 1, 'the later continuation must not narrate immediately');
