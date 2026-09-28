@@ -391,8 +391,14 @@ test('serve picker: the landing gap belongs to the plan being RUN, not the earli
 
 test('serve mode: the earliest serve time is the earliest over placement ORDERS, not one order', () => {
   const plan = bsOrchestrate(OVEN_TRIO, { mode: BS_COOK_MODE.SERVE });
-  assert.equal(plan.earliestServe, 51,
-    `earliest serve is ${plan.earliestServe}; longest-first alone reports 57, and the plain interleaved plan already lands in 55`);
+  // ⚠ RE-PINNED 51 → 60 WHEN HANDS-ON STEPS STARTED CLAIMING THEIR STATION. The salmon's potatoes
+  // are in the oven from its step 1 ("roast 15 minutes") until its window ends, 21 minutes, and
+  // the halloumi holds it for 30: 51 minutes of one oven that the old figure let overlap, because
+  // only the 12-minute window claimed the oven at all. MEASURED: a single longest-first order
+  // reports 78 here and the plain interleaved plan lands in 69, so the order search still earns
+  // its keep on this set -- which is what this test is for.
+  assert.equal(plan.earliestServe, 60,
+    `earliest serve is ${plan.earliestServe}; longest-first alone reports 78, and the plain interleaved plan lands in 69`);
 
   // The schedule is re-derived from the RETURNED timeline, not taken on the engine's word.
   // An earlier version of this mode reported a plan with two pots on one stove as
@@ -416,12 +422,14 @@ test('serve mode: the earliest serve time is the earliest over placement ORDERS,
   assert.ok(Math.max(...Object.values(ends)) <= plan.earliestServe,
     'a dish finishing after the serve time is not a serve-together plan');
 
-  // 12 is not a recorded observation: enumerating every arrangement of these three dishes at
-  // T=51 gives 19 feasible ones, and 12 is the smallest spread any of them reaches. So the
-  // schedule this returns is the tightest available at the earliest time, and the assertion
-  // holds the QUALITY of the plan, not just its serve minute.
-  assert.equal(plan.spread, 12,
-    `spread ${plan.spread}; 12 is the tightest of the 19 arrangements that serve at 51`);
+  // 33 is not a recorded observation: enumerating every contiguous arrangement of these three
+  // dishes on the one-burner, one-oven kitchen (integer starts; each step holding its station,
+  // its second station and the cook for its own minutes) finds NONE below T=60 and exactly one at
+  // T=60, with a spread of 33. So 60 is the earliest serve these dishes allow and this is the
+  // only schedule that reaches it -- the assertion holds the plan, not just its minute. (It was
+  // 12 of 19 arrangements at T=51 before the oven was counted honestly.)
+  assert.equal(plan.spread, 33,
+    `spread ${plan.spread}; 33 is the only arrangement that serves at 60`);
 });
 
 const dishes = (titles) => titles.map((t) => {
@@ -677,16 +685,23 @@ test('serve mode: the order search reaches a six-dish session', () => {
       stepMeta: legacy ? [] : r.stepMeta };
   });
   const plan = bsOrchestrate(six, { mode: BS_COOK_MODE.SERVE });
-  // ⚠ MEASURED on the current catalog: 111, and a single longest-first order ALSO reaches
-  // 111 for this set. The old message here claimed the search beat a fixed order by 5
-  // minutes; the cook-windows catalog closed that gap, so repeating the claim would be
-  // asserting something no longer true of this fixture. What this test still earns is the
-  // SIX-dish case — the exhaustive order-search bound (BS_ORCH.orderSearchMax) — and that
-  // the plan it returns is actually feasible. The search-beats-one-order claim is pinned
-  // by "the earliest serve time is the earliest over placement ORDERS", which uses a set
-  // where the two still differ.
-  assert.equal(plan.earliestServe, 111,
+  // ⚠ MEASURED on the current catalog: 126, and a single longest-first order reaches 128. It was
+  // 111 until hands-on steps started claiming their burner: five of these six dishes cook on the
+  // hob, and between them they keep the one burner busy for 113 minutes (asserted below as a
+  // floor), which the old figure let them share. What this test earns is the SIX-dish case -- the
+  // exhaustive order-search bound (BS_ORCH.orderSearchMax) -- and that the plan it returns is
+  // actually feasible. The search-beats-one-order claim is pinned by "the earliest serve time is
+  // the earliest over placement ORDERS", which uses a set where the two differ by more.
+  assert.equal(plan.earliestServe, 126,
     `six dishes serve at ${plan.earliestServe}`);
+  // A floor derived from the data rather than typed: every minute a dish's food sits on the one
+  // burner is a minute no other dish can use it, so the serve time can never beat their sum.
+  const burnerMinutes = six.reduce((n, r) => n + r.steps.reduce((m, _s, i) => {
+    const x = (r.stepMeta || [])[i];
+    return m + (x && (x.station === 'stove' || (x.also || []).includes('stove')) ? (x.min > 0 ? x.min : BS_ORCH.activeStepMin) : 0);
+  }, 0), 0);
+  assert.equal(burnerMinutes, 113, 'the burner floor this comment quotes');
+  assert.ok(plan.earliestServe >= burnerMinutes, `served at ${plan.earliestServe}, under the ${burnerMinutes} burner-minutes these dishes need`);
   assert.equal(plan.exact, true,
     'six dishes sit ON the exhaustive bound — if this reports a sample, the bound moved');
 
@@ -1311,11 +1326,17 @@ test('prep sheet: the same-time option claims no optimum it never searched for',
     : null);
   const byTitle = (t) => cookables.find((r) => r.title === t);
 
-  const trio = ['One-pan chicken and rice', 'Greek yogurt power bowl', 'Catfish stew with brown rice'].map(byTitle);
-  if (trio.every(Boolean)) {
+  // ⚠ RE-PICKED when hands-on steps started claiming their burner: the old trio (chicken, yogurt
+  // bowl, catfish stew) now plans to 60 minutes in every order on one burner. This pair still does
+  // not -- 75 minutes as given, 72 the other way round -- and 102 of the catalog's 4,950 pairs
+  // stay order-sensitive, so the premise below is a property of the scheduler, not of one set.
+  const pair = ['One-pan chicken and rice', 'Braised chicken thighs with wilted spinach'].map(byTitle);
+  // A missing title must fail here, not skip the premise and pass on the copy check alone.
+  assert.ok(pair.every(Boolean), 'catalog no longer has this pair — repin this test, do not delete it');
+  {
     const perms = (a) => (a.length <= 1 ? [a] : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)]).map((r) => [x, ...r])));
-    const spans = perms(trio).map((o) => span(bsOrchestrate(o, { mode: BS_COOK_MODE.TOGETHER, kitchen }))).filter((x) => x != null);
-    const asGiven = span(bsOrchestrate(trio, { mode: BS_COOK_MODE.TOGETHER, kitchen }));
+    const spans = perms(pair).map((o) => span(bsOrchestrate(o, { mode: BS_COOK_MODE.TOGETHER, kitchen }))).filter((x) => x != null);
+    const asGiven = span(bsOrchestrate(pair, { mode: BS_COOK_MODE.TOGETHER, kitchen }));
     // This is the PREMISE of the copy change, pinned. If the scheduler ever becomes
     // order-insensitive the superlative would be earnable again, and this is what says so.
     assert.ok(Math.min(...spans) < asGiven,

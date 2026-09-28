@@ -78,6 +78,34 @@ const capacityOf = (station, kitchen) => {
   return Number.isFinite(n) && n >= 1 ? n : (BS_KITCHEN_DEFAULT[station] || 1);
 };
 
+// ⚠ A PAN STAYS WHERE ITS STEP LEFT IT. The planner used to let only a passive window hold a
+// station, so a hands-on step claimed nothing: on one burner, "cook at the same time" put the
+// steak hash's skillet on the stove while the chicken's covered pan was still on it. Claiming a
+// burner only DURING the step is not enough either -- it moves the same collision to the moment
+// the chicken's timer rings, when the hash goes on while the chicken is still in its pan waiting
+// for its next step to take it off. So the heat stations are STICKY: a dish holds the burner or
+// oven its step names from that step's start until its next step starts, and lets go at the end
+// of its last step or of a step the recipe says may wait off the heat (`maxPause`).
+//
+// The cutting board is deliberately not sticky: food is not left "on" it the way a pan is left
+// on a lit burner, and the one cook can only be at one board anyway.
+const STICKY = ['stove', 'oven'];
+
+// Every exclusive station a step names, WITH MULTIPLICITY. `also` is an optional list of extra
+// heat stations the same step uses at once: pasta boiling while its sauce simmers is
+// `{ station: 'stove', also: ['stove'] }`, a second burner; patties on the hob while wedges roast
+// is `{ station: 'stove', also: ['oven'] }`.
+const stepStations = (m) => [m && m.station, ...(m && Array.isArray(m.also) ? m.also : [])]
+  .filter((x) => STATIONS_EXCLUSIVE.includes(x));
+
+// The same claim as [station, units] pairs. A dish's own need is clamped to what the kitchen has:
+// a recipe written for two burners still gets cooked on one, a pan at a time, and refusing to
+// schedule it would be worse than the cook's own obvious workaround.
+const unitsOf = (m, kitchen) => {
+  const need = stepStations(m);
+  return [...new Set(need)].map((x) => [x, Math.min(need.filter((y) => y === x).length, capacityOf(x, kitchen))]);
+};
+
 // Is this station full for the window [from, to)? Measures PEAK SIMULTANEOUS occupancy
 // against the station's real capacity, and returns the backwards pull that clears the
 // first full instant, or null when there is room.
@@ -90,18 +118,27 @@ const capacityOf = (station, kitchen) => {
 //
 // Occupancy is piecewise-constant and only ever rises at a hold's START, so those
 // boundaries plus `from` are the only instants worth sampling.
-const stationPull = (holds, station, from, to, kitchen) => {
-  if (station == null || !STATIONS_EXCLUSIVE.includes(station)) return null;
+const stationPull = (holds, station, from, to, kitchen, units = 1) => {
+  if (station == null || !STATIONS_EXCLUSIVE.includes(station) || !(to > from)) return null;
   const mine = holds.filter((h) => h.station === station && from < h.to && h.from < to);
   if (!mine.length) return null;
   const cap = capacityOf(station, kitchen);
   const points = [from, ...mine.map((h) => h.from).filter((f) => f > from && f < to)].sort((a, b) => a - b);
   for (const t of points) {
     const busy = mine.reduce((n, h) => n + (h.from <= t && t < h.to ? 1 : 0), 0);
-    // The proposal would be one more pan on that station at instant t.
-    if (busy + 1 > cap) return Math.max(1e-8, to - t);
+    // The proposal would be `units` more pans on that station at instant t.
+    if (busy + units > cap) return Math.max(1e-8, to - t);
   }
   return null;
+};
+
+// The largest pull any of a step's stations asks for over [from, to), or 0.
+const stepPull = (holds, m, from, to, kitchen) =>
+  unitsOf(m, kitchen).reduce((most, [x, k]) => Math.max(most, stationPull(holds, x, from, to, kitchen, k) || 0), 0);
+
+// Reserve a step's stations for [from, to) -- one hold per pan.
+const pushHolds = (holds, m, from, to, kitchen) => {
+  for (const [x, k] of unitsOf(m, kitchen)) for (let j = 0; j < k; j++) holds.push({ station: x, from, to });
 };
 
 const posInt = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback);
@@ -164,7 +201,9 @@ const evt = (r, i, at) => {
   // SAME recipe share a display `recipe` key but must never cross-clear each
   // other's hold / merge their steps (CodeRabbit) — scheduling keys on `iid`,
   // `recipe` stays the catalog/display key the UI reads.
-  return { recipe: r.key, iid: r.iid, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null, ...(pauseOf(m) ? { maxPause: pauseOf(m) } : {}) };
+  const also = Array.isArray(m.also) ? m.also.filter((x) => STICKY.includes(x)) : [];
+  return { recipe: r.key, iid: r.iid, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null,
+    ...(also.length ? { also } : {}), ...(pauseOf(m) ? { maxPause: pauseOf(m) } : {}) };
 };
 
 // Serial: every recipe's steps in order, back-to-back. A passive step still
@@ -281,7 +320,7 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx, budget, allowance) {
         for (const i of indices) {
           if (!spend()) return null;
           const m = r.meta[i] || {}, len = stepCost(m, activeMin);
-          const station = stationPull(result.holds, m.station, at, at + len, kitchen) || 0;
+          const station = stepPull(result.holds, m, at, at + len, kitchen);
           const cook = needsHands(m) ? handsPull(result.hands, at, at + len) || 0 : 0;
           if (station) result.byStation = true;
           if (cook) result.byCook = true;
@@ -297,7 +336,7 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx, budget, allowance) {
       let at = start;
       for (const i of indices) {
         const m = r.meta[i] || {}, len = stepCost(m, activeMin);
-        if (STATIONS_EXCLUSIVE.includes(m.station)) result.holds.push({ station: m.station, from: at, to: at + len });
+        pushHolds(result.holds, m, at, at + len, kitchen);
         if (needsHands(m)) result.hands.push({ from: at, to: at + len });
         result.events.push({ ...evt(r, i, at), _end: at + len });
         at += len;
@@ -342,19 +381,26 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
     let start = T - dur;
     const release = r.readyAt || 0;
     if (start < release) return { feasible: false, deficit: release - start };
+    // A dish already sitting on a heat station -- a live replan, where the step it finished
+    // last left its pan there -- keeps that station from the moment it is free to carry on
+    // (`release`) until its first remaining step begins. Before `release` its own running
+    // timer is already a live hold, so only the tail is claimed here, and pulling the dish
+    // earlier shrinks that tail to nothing: a carry can never make a dish unplaceable.
+    const carry = Array.isArray(r.carry) && r.carry.length ? unitsOf({ also: r.carry }, kitchen) : [];
     let clash = 0;
     for (let guard = 0; guard <= rs.length * (r.steps.length + 1) + 8; guard++) {
       let at = start;
       clash = 0;
+      const byCarry = carry.reduce((most, [x, k]) => Math.max(most, stationPull(holds, x, release, start, kitchen, k) || 0), 0);
+      if (byCarry) { clash = byCarry; pulledByStation = true; }
       for (let i = 0; i < r.steps.length && !clash; i++) {
         const m = r.meta[i] || {};
         const len = stepCost(m, activeMin);
-        const st = m.station ?? null;
         // Both resources are tested and the LARGER pull taken, so one pass clears both
         // rather than ping-ponging the dish between a station and the cook. Each is also
         // recorded on its own, because "a station was busy" and "you were busy" are
         // different facts to report and only one of them is usually true.
-        const byStation = stationPull(holds, st, at, at + len, kitchen) || 0;
+        const byStation = stepPull(holds, m, at, at + len, kitchen);
         const byCook = needsHands(m) ? (handsPull(hands, at, at + len) || 0) : 0;
         const pull = Math.max(byStation, byCook);
         if (pull) {
@@ -376,11 +422,11 @@ function placeAt(rs, activeMin, T, kitchen, orderIdx) {
       return { feasible: false, deficit: Math.max(1, deficit) };
     }
     let at = start;
+    if (start > release) for (const [x, k] of carry) for (let j = 0; j < k; j++) holds.push({ station: x, from: release, to: start });
     for (let i = 0; i < r.steps.length; i++) {
       const m = r.meta[i] || {};
       const len = stepCost(m, activeMin);
-      const st = m.station ?? null;
-      if (st != null && STATIONS_EXCLUSIVE.includes(st)) holds.push({ station: st, from: at, to: at + len });
+      pushHolds(holds, m, at, at + len, kitchen);
       if (needsHands(m)) hands.push({ from: at, to: at + len });
       placed.push({ ...evt(r, i, at), _end: at + len });
       at += len;
@@ -459,7 +505,7 @@ function bestPlacement(rs, activeMin, T, kitchen) {
 // this search for every minute of the earliest-time probe made planning sluggish.
 // Live replans keep absolute resource reservations and use the placement below.
 function phaseSchedule(rs, activeMin, kitchen) {
-  if (!rs.some(r => r.meta.some(pauseOf)) || kitchen?.liveHolds?.length || rs.some(r => r.readyAt > 0)) return null;
+  if (!rs.some(r => r.meta.some(pauseOf)) || kitchen?.liveHolds?.length || rs.some(r => r.readyAt > 0 || r.carry?.length)) return null;
   const horizon = rs.reduce((n, r) => n + durationOf(r, activeMin) + r.steps.reduce((a, _, i) => a + pauseOf(r.meta[i]), 0), 0);
   const orders = rs.length <= 4 ? permutationsOf(rs.length) : rotationsOf(rs.length);
   if (!orders.length) orders.push(rs.map((_, i) => i));
@@ -692,11 +738,22 @@ export function bsOrchestrate(recipes, opts = {}) {
     };
   }
 
-  const st = rs.map((r) => ({ ...r, ptr: 0, freeAt: 0 }));
-  const holds = []; // { key, station, endAt } — running passive windows occupying a station
-  // Capacity-aware: a hob with four burners is busy only when four dishes are on it.
-  const stationBusy = (station) => station != null && STATIONS_EXCLUSIVE.includes(station)
-    && holds.filter((h) => h.station === station).length >= capacityOf(station, opts.kitchen);
+  // `on` is what a dish has on the heat right now, as [station, pans] pairs, and `onUntil` when
+  // it comes off by itself: the end of its last step, or of a step the recipe lets wait off the
+  // heat. Otherwise it is Infinity -- the pan stays until the dish's own next step moves it.
+  const st = rs.map((r) => ({ ...r, ptr: 0, freeAt: 0, on: [], onUntil: 0 }));
+  const holds = []; // { iid, station, endAt } — running passive windows (they gate the dish's own next step)
+  const kitchen = opts.kitchen;
+  const onHeat = (o, x) => (o.onUntil > now ? o.on.reduce((n, [y, k]) => n + (y === x ? k : 0), 0) : 0);
+  // Can dish `s` take every station its next step needs, right now? Capacity-aware: a hob with
+  // four burners is full only when four pans are on it. A dish's own pans are not in its way --
+  // the step that follows a sear on the same burner simply keeps it.
+  const fits = (s, m) => unitsOf(m, kitchen).every(([x, k]) => {
+    const busy = STICKY.includes(x)
+      ? st.reduce((n, o) => n + (o === s ? 0 : onHeat(o, x)), 0)
+      : holds.filter((h) => h.station === x).length;
+    return busy + k <= capacityOf(x, kitchen);
+  });
 
   const timeline = [];
   let now = 0;
@@ -723,7 +780,7 @@ export function bsOrchestrate(recipes, opts = {}) {
       for (let i = s.ptr; i < s.steps.length; i++) n += stepCost(s.meta[i], activeMin);
       return n;
     };
-    const readyNow = st.filter((s) => s.ptr < s.steps.length && now >= s.freeAt && !stationBusy((s.meta[s.ptr] || {}).station));
+    const readyNow = st.filter((s) => s.ptr < s.steps.length && now >= s.freeAt && fits(s, s.meta[s.ptr] || {}));
     const ready = readyNow.length
       ? readyNow.reduce((best, s) => (remaining(s) > remaining(best) ? s : best), readyNow[0])
       : undefined;
@@ -734,7 +791,17 @@ export function bsOrchestrate(recipes, opts = {}) {
       const nexts = [];
       for (const h of holds) nexts.push(h.endAt);
       for (const s of st) if (s.ptr < s.steps.length && s.freeAt > now) nexts.push(s.freeAt);
-      if (!nexts.length) break;
+      for (const s of st) if (Number.isFinite(s.onUntil) && s.onUntil > now) nexts.push(s.onUntil);
+      if (!nexts.length) {
+        // Nothing will ever free up: every dish still to go waits on a station another is sitting
+        // on, and none can let go first (one pan on the only burner waiting for the oven, the
+        // other dish in the only oven waiting for the burner). A cook would take one of them off
+        // the heat; this engine does not invent that move. One dish at a time never contends.
+        if (st.some((s) => s.ptr < s.steps.length)) {
+          return { timeline: serialTimeline(rs, activeMin), serial: true, canInterleave, mode, reason: BS_SERIAL_REASON.STATIONS };
+        }
+        break;
+      }
       now = Math.min(...nexts);
       continue;
     }
@@ -745,6 +812,11 @@ export function bsOrchestrate(recipes, opts = {}) {
     if (holds.some((h) => h.iid !== ready.iid)) interleaved = true; // acting while another instance holds a window
     timeline.push(evt(ready, i, now));
     ready.ptr++;
+    // Where this dish's food is from now on. It lets go at the end of this step only when there
+    // is no next step to take it off, or the recipe says it may wait off the heat.
+    const spent = window ? realMin(m) : stepCost(m, activeMin);
+    ready.on = unitsOf(m, kitchen).filter(([x]) => STICKY.includes(x));
+    ready.onUntil = (ready.ptr >= ready.steps.length || pauseOf(m)) ? now + spent : Infinity;
 
     if (window) {
       // Start the window: occupy the station + block this instance until it ends,
@@ -825,14 +897,33 @@ export function bsReplanCook(timeline, cursor, timers, anchor, now, kitchen = {}
   }
   const groups = new Map();
   rest.forEach(e => { if (!groups.has(e.iid)) groups.set(e.iid, []); groups.get(e.iid).push(e); });
+  // What each dish still has on the heat: the stations the last step it FINISHED put its food
+  // on, unless that step let it wait off the heat. Those pans stay until the dish's next step.
+  const lastDone = new Map();
+  for (const e of timeline.slice(0, cursor)) lastDone.set(e.iid, e);
+  const carryOf = (iid) => {
+    const e = lastDone.get(iid);
+    return e && !pauseOf(e) ? stepStations(e).filter((x) => STICKY.includes(x)) : [];
+  };
   const rs = [...groups].map(([iid, events]) => ({
     iid, key: events[0].recipe, title: events[0].title, events,
-    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station, maxPause: e.maxPause })),
+    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station, also: e.also, maxPause: e.maxPause })),
     readyAt: Math.max(0, ...live.filter(t => t.iid === iid).map(t => (t.endsAt - now) / 60000)),
+    carry: carryOf(iid),
   }));
   const originalEnd = Math.max(...timeline.map(e => anchor + (e.at + (e.min || BS_ORCH.activeStepMin)) * 60000));
   const requested = Math.max(0, ((targetAt || originalEnd) - now) / 60000, ...live.map(t => (t.endsAt - now) / 60000));
-  const plan = serveTimeline(rs, BS_ORCH.activeStepMin, requested, { ...kitchen, liveHolds: live.map(t => ({ station: t.station, from: 0, to: (t.endsAt - now) / 60000 })) });
+  const liveHolds = live.flatMap(t => [t.station, ...(Array.isArray(t.also) ? t.also : [])]
+    .map(station => ({ station, from: 0, to: (t.endsAt - now) / 60000 })));
+  const steps = rs.reduce((n, r) => n + r.steps.length, 0);
+  let plan = serveTimeline(rs, BS_ORCH.activeStepMin, requested, { ...kitchen, liveHolds });
+  // ⚠ A kitchen that is ALREADY over capacity -- two pans on one burner because the cook
+  // overruled the plan -- or two carried pans each waiting on the other's station cannot be
+  // placed around. Planning without the carries is the old behaviour and always places, which
+  // beats handing the board an empty remaining plan.
+  if (plan.timeline.length !== steps && rs.some(r => r.carry.length)) {
+    plan = serveTimeline(rs.map(r => ({ ...r, carry: [] })), BS_ORCH.activeStepMin, requested, { ...kitchen, liveHolds });
+  }
   const byId = new Map(rs.map(r => [r.iid, r]));
   const next = plan.timeline.map(e => ({ ...byId.get(e.iid).events[e.stepIndex], at: (now - anchor) / 60000 + e.at }));
   return { timeline: [...timeline.slice(0, cursor), ...next], serveAt: now + plan.serveAt * 60000, spread: plan.spread };
@@ -843,7 +934,11 @@ export function bsCookBlockingHold(event, timers, now, kitchen = {}) {
   const live = (timers || []).filter(t => !t.soft && t.endsAt > now);
   const own = live.find(t => t.iid === event.iid && t.recipeStep !== event.stepIndex);
   if (own) return own;
-  if (!STATIONS_EXCLUSIVE.includes(event.station)) return null;
-  const others = live.filter(t => t.iid !== event.iid && t.station === event.station);
-  return others.length >= capacityOf(event.station, kitchen) ? others.sort((a,b) => a.endsAt-b.endsAt)[0] : null;
+  // Every station the step needs, each against the pans other dishes' running timers keep there.
+  for (const [x, k] of unitsOf(event, kitchen)) {
+    const pans = (t) => [t.station, ...(Array.isArray(t.also) ? t.also : [])].filter((y) => y === x).length;
+    const others = live.filter(t => t.iid !== event.iid && pans(t) > 0);
+    if (others.reduce((n, t) => n + pans(t), 0) + k > capacityOf(x, kitchen)) return others.sort((a, b) => a.endsAt - b.endsAt)[0];
+  }
+  return null;
 }

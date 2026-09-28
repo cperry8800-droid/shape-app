@@ -65,6 +65,7 @@ const plainStepMeta = () => ({ min: null, passive: false, station: null });
 // OR a catalog `stepMeta[i]` overlay entry) into the canonical shape. `min` counts
 // only as a real positive number; `station` only when in BS_STATIONS; `passive`
 // only on an explicit `=== true`. Null/attacker-shaped input → null (drops out).
+const heatAlso = (v) => (Array.isArray(v) ? v.filter((x) => x === 'stove' || x === 'oven').slice(0, 4) : []);
 const sanitizeMeta = (m) => {
   if (!m || typeof m !== 'object') return null;
   const min = num(m.min);
@@ -72,6 +73,9 @@ const sanitizeMeta = (m) => {
     min: min !== null && min > 0 ? min : null,
     passive: m.passive === true,
     station: BS_STATIONS.includes(m.station) ? m.station : null,
+    // A second pan the same step keeps on the heat -- pasta boiling on one burner while the
+    // sauce simmers on another is `also: ['stove']`. Heat only: nothing else is ever held.
+    ...(heatAlso(m.also).length ? { also: heatAlso(m.also) } : {}),
     // A bounded pause follows attended work which explicitly leaves the food
     // off the station. A passive timer alone is not permission to leave it there.
     ...(m.passive !== true && typeof m.maxPause === 'number' && Number.isFinite(m.maxPause) && m.maxPause > 0 ? { maxPause: m.maxPause } : {}),

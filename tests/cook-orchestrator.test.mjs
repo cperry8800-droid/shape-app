@@ -99,8 +99,14 @@ test('bsHoldingAt: the roast holds during the rice detour, clears once we return
 test('duplicate recipe keys stay independent instances — no cross-clear (CodeRabbit)', () => {
   // Two selected instances of the same recipe share a display `key`.
   const dup = () => ({ key: 'same', title: 'Roast ×2', steps: ['Prep it.', 'Roast it 20 min.', 'Rest it.'], stepMeta: [A('board'), P(20, 'oven'), A('off')] });
-  const { timeline, serial } = bsOrchestrate([dup(), dup()], OPTS);
-  assert.equal(serial, false); // instance 1's board prep interleaves instance 0's roast
+  const { timeline, serial, reason } = bsOrchestrate([dup(), dup()], OPTS);
+  // ⚠ ONE OVEN, AND A ROAST STAYS IN IT UNTIL ITS OWN NEXT STEP TAKES IT OUT. This pair used to
+  // report an interleave: instance 1's roast went in at the moment instance 0's timer rang, and
+  // instance 0 "rested" during it -- which needs instance 0's tray out of the oven before any step
+  // had said to take it out. Now instance 0's rest (its tray leaving the oven) comes first, and
+  // nothing else overlaps, so the plan is honestly one after the other for want of a second oven.
+  assert.equal(serial, true);
+  assert.equal(reason, 'stations');
   const roasts = timeline.filter((e) => e.stepIndex === 1);
   assert.equal(roasts.length, 2);                 // BOTH instances roast (neither's hold cleared the other's)
   assert.notEqual(roasts[0].iid, roasts[1].iid);  // tracked as distinct instances
@@ -110,6 +116,9 @@ test('duplicate recipe keys stay independent instances — no cross-clear (CodeR
   // after the earlier one ends (station conflict actually enforced, not just ≠ start).
   const [r0, r1] = roasts[0].at <= roasts[1].at ? [roasts[0], roasts[1]] : [roasts[1], roasts[0]];
   assert.ok(r1.at >= r0.at + r0.min, `oven windows overlap: ${r0.at}+${r0.min} vs ${r1.at}`);
+  // …and the second tray goes in only once the first has come OUT: its rest has begun.
+  const out0 = timeline.find((e) => e.iid === r0.iid && e.stepIndex === 2);
+  assert.ok(r1.at >= out0.at, `the second roast went in at ${r1.at}, before the first came out at ${out0.at}`);
 });
 
 test('empty / junk input never throws → empty serial', () => {

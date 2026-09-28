@@ -9,7 +9,7 @@ import {
   SHAPE_KITCHEN_RECIPES,
   recipeNeeds, recipeMatchesDiet,
   _RECIPE_NOT_GF, _RECIPE_HAS_DAIRY, _RECIPE_MED,
-  _KITCHEN_STEP_META,
+  _KITCHEN_STEP_META, _KITCHEN_STEP_HEAT,
   _RECIPE_ALLERGEN_NOTES, bsAllergenNoteText,
 } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { bsStepTimers, BS_STATIONS } from '../mobile-app/src/services/cookable.mjs';
@@ -173,6 +173,19 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
       if (m == null) return;
       assert.ok(BS_STATIONS.includes(m.station), `${r.title} step ${i}: bad station "${m.station}"`);
       assert.equal(typeof m.passive, 'boolean', `${r.title} step ${i}: attendance must be explicit`);
+      if (m.also != null) {
+        assert.ok(Array.isArray(m.also) && m.also.length && m.also.every((x) => x === 'stove' || x === 'oven'),
+          `${r.title} step ${i}: \`also\` lists the extra burners or oven the step keeps busy, and nothing else`);
+      }
+      // A PLACE WITHOUT A DURATION. The burner-and-oven table (_KITCHEN_STEP_HEAT) records where a
+      // hands-on step's food is and deliberately states no time, so the clock charges it exactly
+      // what it charged before. That is the only honest shape a min-less entry can have: hands-on,
+      // and on the heat. A window with no stated minutes would be a hold of invented length.
+      if (m.min == null) {
+        assert.equal(m.passive, false, `${r.title} step ${i}: a window must state its minutes`);
+        assert.ok(m.station === 'stove' || m.station === 'oven', `${r.title} step ${i}: an entry with no minutes exists only to say the food is on the heat`);
+        return;
+      }
       assert.ok(Number.isFinite(m.min) && m.min > 0, `${r.title} step ${i}: invalid duration`);
       if (m.passive) assert.ok(m.min >= MIN_PASSIVE, `${r.title} step ${i}: passive window below the ${MIN_PASSIVE}-min floor`);
       if (m.maxPause != null) assert.ok(!m.passive && Number.isFinite(m.maxPause) && m.maxPause > 0, `${r.title} step ${i}: pause must follow attended work`);
@@ -192,6 +205,90 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
       assert.ok(stated.includes(m.min), `${r.title} step ${i}: min ${m.min} not stated in the step — "${r.steps[i].slice(0, 48)}…" states ${JSON.stringify(stated)}`);
     });
   }
+});
+
+// ── Where the food is: the burners and the oven a hands-on step keeps busy ─────────────
+// The planner keeps a burner or the oven taken from the step that puts a dish's food there until
+// that dish's next step (cookOrchestrator.mjs, STICKY), so a step left untagged is a pan the
+// planner cannot see -- the one-burner kitchen then gets two pans at once. These guard the table.
+test('catalog: the burner-and-oven table names real recipes and real steps, and never repeats a window', () => {
+  const byTitle = new Map(SHAPE_KITCHEN_RECIPES.map((r) => [r.title, r]));
+  for (const [title, steps] of Object.entries(_KITCHEN_STEP_HEAT)) {
+    const r = byTitle.get(title);
+    assert.ok(r, `burner-and-oven table references a title not in the catalog: "${title}"`);
+    for (const [k, where] of Object.entries(steps)) {
+      const i = Number(k);
+      assert.ok(Number.isInteger(i) && i >= 0 && i < r.steps.length, `${title}: step ${k} does not exist`);
+      assert.ok(Array.isArray(where) && where.length && where.every((x) => x === 'stove' || x === 'oven'),
+        `${title} step ${i}: a burner-and-oven entry lists 'stove' and 'oven' and nothing else`);
+      // Both tables describe the same step's place, and one of them would silently lose: a window
+      // that also keeps a second pan going says so itself, with `also`.
+      assert.ok(!(_KITCHEN_STEP_META[title] && _KITCHEN_STEP_META[title][i]),
+        `${title} step ${i}: tagged in both tables — put the extra station on the window's own \`also\``);
+      const m = r.stepMeta[i];
+      assert.ok(m && m.station === where[0] && m.passive === false && m.min == null,
+        `${title} step ${i}: the entry did not land on the recipe`);
+      assert.deepEqual(m.also || [], where.slice(1), `${title} step ${i}: the second station did not land`);
+    }
+  }
+});
+
+// A TRIPWIRE, not a proof: every step whose own words put food on the heat is tagged, or is named
+// here with the reason it is not. A new recipe -- or a new heat step in an old one -- fails until
+// somebody reads it and decides, which is the whole job: an untagged pan is invisible to the
+// planner, and the cost of that is two pans on one burner.
+test('catalog: every step that names heat is tagged with its station, or named here with why not', () => {
+  const HEAT = /\b(skillet|saucepan|wok|frying pan|griddle|grill pan|pot)\b|\bover (?:low|medium|medium-high|high)\b|\b(simmer|boil|saut[eé]|sear|stir-fry|pan-fry|bake|roast|broil|grill)(?:s|ed|ing)?\b/i;
+  const PREHEAT = 'heats an empty oven or grill: no food is on it yet, and oven temperature is not modelled';
+  const OFF = 'the food is already off the heat';
+  const SERVED = 'plates or serves: nothing is cooking any more';
+  const BEFORE = 'assembles before anything goes on the heat';
+  const PAST = 'names cooking that already happened ("roasted", "sautéed", "sear" as a reason)';
+  const APPLIANCE = 'a blender or food processor';
+  const NOT_HEAT = {
+    'Sheet-pan salmon, sweet potato and broccoli': { 5: SERVED },
+    'Steak and sweet potato hash': { 0: PAST },
+    'Shrimp and quinoa harvest bowl': { 4: SERVED },
+    'Black bean and sweet potato tacos': { 0: PREHEAT, 6: SERVED },
+    'Miso-glazed cod with greens': { 0: PREHEAT },
+    'Quinoa rainbow Buddha bowl': { 3: SERVED },
+    'Slow-simmered beef pot roast': { 5: OFF },
+    'Baked pork chops with peppers and onion': { 0: BEFORE },
+    'Black skillet beef with kale and red potatoes': { 6: SERVED },
+    'Grilled skirt steak with salsa criolla': { 2: PREHEAT },
+    'Shorba lamb and peanut soup': { 3: OFF },
+    'Roasting-pan chicken with potatoes and carrots': { 0: PREHEAT, 1: BEFORE },
+    'Herbed baked salmon with lemon': { 0: PREHEAT },
+    'Catfish stew with brown rice': { 0: BEFORE },
+    'Bell pepper and Vidalia onion strata': { 3: BEFORE },
+    'Swiss cheese and vegetable chowder': { 4: OFF },
+    'Sheet-pan cauliflower and black bean bake': { 4: OFF },
+    'Lentil and pearl barley soup': { 3: OFF, 4: SERVED },
+    'Pork tenderloin power bowl with quinoa': { 1: PREHEAT },
+    'Chicken cacciatore': { 0: BEFORE },
+    'Oven fish sticks with spinach basil dip': { 1: APPLIANCE },
+    'Butternut squash and ricotta pasta bake': { 3: APPLIANCE },
+    'Split pea soup with carrot and thyme': { 5: OFF },
+  };
+  const onHeat = (m) => !!m && (m.station === 'stove' || m.station === 'oven' || (m.also || []).length > 0);
+  const untagged = [];
+  const stale = [];
+  for (const r of SHAPE_KITCHEN_RECIPES) {
+    r.steps.forEach((text, i) => {
+      const excused = NOT_HEAT[r.title] && NOT_HEAT[r.title][i];
+      const tagged = onHeat((r.stepMeta || [])[i]);
+      if (HEAT.test(text) && !tagged && !excused) untagged.push(`${r.title} step ${i}: ${text.slice(0, 70)}…`);
+      // An excuse for a step that is tagged, or no longer names heat, is dead weight that would
+      // hide the next real miss behind it.
+      if (excused && (tagged || !HEAT.test(text))) stale.push(`${r.title} step ${i}`);
+    });
+  }
+  assert.deepEqual(untagged, [], `${untagged.length} step(s) name heat but claim no burner or oven`);
+  assert.deepEqual(stale, [], `${stale.length} excuse(s) no longer apply`);
+  // The pattern itself is probed, or a silent zero from it reads as a clean catalog.
+  assert.ok(HEAT.test('Sauté the onion over medium heat'), 'HEAT must read a hob step');
+  assert.ok(HEAT.test('Roast 20 minutes'), 'HEAT must read an oven step');
+  assert.ok(!HEAT.test('Whisk the dressing in a bowl'), 'HEAT must not read a cold step');
 });
 
 test('catalog: the interleave demo is real — oven, stove AND off windows all exist', () => {

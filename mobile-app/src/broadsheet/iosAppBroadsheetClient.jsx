@@ -9184,7 +9184,10 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
       // with no window at all.
       const holdMin = (cur.passive === true && cur.min > 0) ? cur.min : null;
       const secs = holdMin ? holdMin * 60 : tms[0].seconds;
-      queued = { id, stepIndex: cursor, recipeStep: cur.stepIndex, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, label: holdMin ? `${holdMin} min` : tms[0].label, endsAt: at + secs * 1000, total: secs };
+      // `also` is heat the window holds beyond its own station: a second pot still on a burner
+      // (the rice under the picadillo's simmer), or an oven a window counted as 'off' is still
+      // using. The replan and the wait gate both read it off this live timer.
+      queued = { id, stepIndex: cursor, recipeStep: cur.stepIndex, iid: cur.iid, recipeKey: cur.recipe, title: titleOf(cur.recipe, cur.title), station: cur.station, ...(Array.isArray(cur.also) && cur.also.length ? { also: cur.also } : {}), label: holdMin ? `${holdMin} min` : tms[0].label, endsAt: at + secs * 1000, total: secs };
       setTimers((arr) => (arr.some((x) => x.iid === cur.iid && x.stepIndex === cursor)
         ? arr
         : [...arr, queued]));

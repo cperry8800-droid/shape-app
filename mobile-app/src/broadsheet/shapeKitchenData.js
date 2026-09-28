@@ -1078,7 +1078,8 @@ export const _KITCHEN_STEP_META = {
   "Tuna niçoise bowl": {},
   "Roasted veg and halloumi traybake": { 2: { min: 20, passive: true, station: "oven" }, 3: { min: 10, passive: true, station: "oven" } },
   "Black-eyed pea and coconut curry": { 3: { min: 15, passive: true, station: "stove" } },
-  "Cauliflower steak, chimichurri": { 4: { min: 10, passive: true, station: "off" } },
+  // the chimichurri sits while the steaks are still in the oven from step 2 — the window names both.
+  "Cauliflower steak, chimichurri": { 4: { min: 10, passive: true, station: "off", also: ["oven"] } },
   "Creamy tomato and white bean pasta": { 1: { min: 8, passive: true, station: "stove" } },
   "Beef ragu rigatoni": { 3: { min: 20, passive: true, station: "stove" } },
   "Chickpea and spinach curry": { 4: { min: 15, passive: true, station: "stove" } },
@@ -1098,7 +1099,8 @@ export const _KITCHEN_STEP_META = {
   // the heat the moment the timer rings, and the lane shows no text to say so. Same shape as
   // the eggs and the potatoes; the separator is "and" rather than "then", which is exactly
   // how the previous sweep missed it. The roast is a real window.
-  "Lemon-herb chicken meal-prep box": { 2: { min: 16, passive: true, station: "oven" } },
+  // and the rice from step 1 is still on its burner while the tray roasts, so the roast holds both.
+  "Lemon-herb chicken meal-prep box": { 2: { min: 16, passive: true, station: "oven", also: ["stove"] } },
   // ── Overlay expansion ───────────────────────────────────────────────────
   // Without these, a two-dish Together session found no host window ~55% of the
   // time and the button rendered disabled. Same rules as above: every `min` is a
@@ -1163,7 +1165,8 @@ export const _KITCHEN_STEP_META = {
   // step 1 opens "Meanwhile" against step 0's un-annotated pasta boil — it IS the detour the
   // author scheduled, so it cannot also be a window hosting one. Found by the new gate, not
   // by review: the sweep that caught the others looked for "while" mid-sentence.
-  "Neapolitan tuna fettuccine with capers": { 2: { min: 5, passive: true, station: "stove" } },
+  // the fettuccine from step 0 is still boiling on its own burner while the sauce simmers.
+  "Neapolitan tuna fettuccine with capers": { 2: { min: 5, passive: true, station: "stove", also: ["stove"] } },
   "Cumin-lime shrimp over cauliflower rice": { 0: { min: 5, passive: true, station: "off" } },
   "Sharp cheddar baked macaroni": { 4: { min: 25, passive: true, station: "oven" }, 5: { min: 10, passive: true, station: "off" } },
   "Peppers stuffed with brown rice and beans": { 0: { min: 40, passive: true, station: "stove" }, 4: { min: 30, passive: true, station: "oven" } },
@@ -1211,9 +1214,121 @@ export const _KITCHEN_STEP_META = {
   "Cold black bean and brown rice salad": {},
   ...USDA2_STEP_META,
 };
+// ---------------------------------------------------------------------------
+// WHERE THE FOOD IS: the burners and the oven a HANDS-ON step keeps busy.
+//
+// The planner treats a burner or the oven as taken from the step that puts a dish's food there
+// until that dish's next step starts (cookOrchestrator.mjs, STICKY). Only windows used to claim a
+// station, so on the default one-burner kitchen "cook at the same time" put the steak hash's
+// skillet on the stove while the chicken's covered pan was still on it. This table is the other
+// half: the hands-on steps. It records a PLACE, never a duration -- `min` stays unset, so the
+// clock still charges these steps the assumed hands-on minutes exactly as before, and nothing
+// about the timing of a well-equipped kitchen moves.
+//
+// The rules the entries were read against, one step at a time:
+//   1. stove -- this dish has a pan or pot on a lit burner during the step.
+//   2. oven  -- this dish's food is in the oven or under the broiler. Preheating an EMPTY oven
+//      claims nothing: oven temperature is not modelled, and a shared oven at one temperature
+//      is a question this engine does not pretend to answer.
+//   3. a grill or grill pan claims the stove (the cautious reading, since most home cooks use
+//      the hob); a grill preheating in the background claims nothing.
+//   4. microwave, toaster, kettle and food processor claim nothing.
+//   5. two pieces of equipment at once -- pasta boiling beside its sauce, patties on the hob
+//      while wedges roast -- list the first and add the rest (`[S, S]`, `[S, O]`).
+//   6. a step that ends by taking the food off the heat still claims; the step after it does not.
+// A window that also keeps a second pan going says so itself (`also` in the table above), and a
+// step never appears in both tables -- the guard in tests/shape-kitchen-data.test.mjs checks it.
+// ---------------------------------------------------------------------------
+const S = 'stove', O = 'oven';
+const on = (where, ...steps) => Object.fromEntries(steps.map((i) => [i, where]));
+export const _KITCHEN_STEP_HEAT = {
+  "One-pan chicken and rice": on([S], 1, 2, 3),
+  "Tempo turkey lettuce cups": on([S], 1, 2, 3),
+  "Sheet-pan salmon, sweet potato and broccoli": on([O], 1, 2, 3),
+  "Steak and sweet potato hash": on([S], 1, 2, 3),
+  "Chickpea shakshuka": on([S], 0, 1, 3),
+  "Miso-glazed cod with greens": { 3: [O], 4: [S, O] },
+  "Tofu and edamame poke bowl": on([S], 1),
+  "Grilled chicken Caesar, lightened": on([S], 1),
+  "Beef and broccoli stir-fry": on([S], 2, 3, 4, 5),
+  "Tempeh and broccoli teriyaki": on([S], 1, 2, 3, 4),
+  "Tuna niçoise bowl": on([S], 0, 1, 2),
+  "Quinoa rainbow Buddha bowl": { 0: [O], 1: [O, S], 2: [O] },
+  "Turkey meatballs in marinara": { ...on([S], 2, 3), 4: [S, S] },
+  "Black-eyed pea and coconut curry": on([S], 0, 1, 2, 4),
+  "Cauliflower steak, chimichurri": on([O], 2, 3),
+  "Chicken pesto pasta": { 0: [S], 1: [S, S] },
+  "Garlic shrimp linguine": { ...on([S], 0, 1, 5), ...on([S, S], 2, 3, 4) },
+  "Lentil bolognese": { ...on([S], 0, 1, 2, 4), 3: [S, S] },
+  "Creamy tomato and white bean pasta": { ...on([S], 0, 2, 4), 3: [S, S] },
+  "Beef ragu rigatoni": { ...on([S], 0, 1, 2), 4: [S, S] },
+  "Chickpea and spinach curry": on([S], 0, 1, 2, 3),
+  "Crispy tofu grain bowl": on([S], 2),
+  "Harissa salmon with couscous": on([O], 1, 2, 3),
+  "Garlic shrimp and courgette noodles": on([S], 1, 2, 3, 4),
+  "Turkey chili verde": on([S], 0, 1, 2, 3, 4),
+  "Lemon-herb chicken meal-prep box": on([S], 1),
+  "Slow-simmered beef pot roast": on([S], 1, 2, 3, 4),
+  "Beef stroganoff with macaroni": on([S], 1, 2, 4, 5),
+  "Black skillet beef with kale and red potatoes": on([S], 3),
+  "Beef pozole with hominy": on([S], 0, 1, 2, 4),
+  "Skillet beef and cabbage": on([S], 1, 2, 3, 4),
+  "Ground beef and root vegetable stew": on([S], 0, 1, 2),
+  "Grilled skirt steak with salsa criolla": on([S], 3),
+  "Shorba lamb and peanut soup": on([S], 0, 4),
+  "Braised chicken thighs with wilted spinach": on([S], 1, 2, 4),
+  "Roasting-pan chicken with potatoes and carrots": on([O], 3, 4),
+  "Mango and peanut chicken wraps": on([S], 2),
+  "Apricot-lemon skillet chicken": on([S], 1, 2, 3),
+  "Asparagus and mandarin chicken rice bowl": on([S], 1, 2),
+  "Turkey tetrazzini bake": { ...on([S], 0, 1), 5: [O] },
+  "Chicken pozole with hominy and lime": on([S], 1, 2),
+  "Sizzling chicken and broccoli over brown rice": on([S], 1, 2, 3, 4),
+  "Herbed baked salmon with lemon": on([O], 4),
+  "Catfish stew with brown rice": on([S], 2, 3),
+  "Salmon and pineapple skewers over brown rice": on([S], 0, 1, 2, 3, 4),
+  "Chargrilled tilapia tacos with peach salsa": on([S], 1, 2, 3),
+  "Neapolitan tuna fettuccine with capers": { ...on([S], 0, 3, 4), 1: [S, S] },
+  "Cumin-lime shrimp over cauliflower rice": on([S], 1, 2, 3, 4),
+  "Bell pepper and Vidalia onion strata": { ...on([S], 0, 1), ...on([O], 4, 5) },
+  "Crisp black bean and cheese quesadillas": on([S], 3, 4),
+  "Sharp cheddar baked macaroni": on([S], 0, 2),
+  "Peppers stuffed with brown rice and beans": on([O], 5),
+  "Swiss cheese and vegetable chowder": on([S], 0, 2, 3),
+  "Layered cheddar potato gratin": { ...on([S], 1, 2), 5: [O] },
+  "Noodle-free potato and spinach lasagna": { ...on([S], 0, 1, 2, 3), 7: [O] },
+  "Charred corn and cornmeal patties": on([S], 3),
+  "Sweet potato and kidney bean chili": on([S], 0, 1, 2, 4),
+  "Lentil and pearl barley soup": on([S], 0),
+  "Curried butternut and chickpea stew": on([S], 0, 1, 2),
+  "Cold black bean and brown rice salad": on([S], 0),
+  "Crispy skillet rice with tofu and peas": on([S], 0, 4),
+  "Smoky lentil taco filling": { ...on([S], 1, 2, 3), 4: [S, S] },
+  "Skillet chickpeas with wilted spinach": on([S], 0, 1, 4),
+  "Sheet-pan roasted vegetables, lemon and herbs": on([O], 3, 4),
+  "Spring cabbage and artichoke soup": on([S], 0, 1, 2),
+  "Barley pilaf with mushrooms and celery": on([S], 0, 1, 2, 3),
+  "Maple banana oatmeal with walnuts": on([S], 0, 1, 2),
+  "Pork tenderloin power bowl with quinoa": on([S], 2, 3),
+  "Honey mustard pork chops": on([S], 2),
+  "Mushroom and steak fajitas": on([S], 2, 3, 4),
+  "Picadillo with brown rice": { ...on([S], 0, 5), ...on([S, S], 1, 2, 3) },
+  "Turkey and vegetable stir-fry": on([S], 0, 1, 2, 3, 4),
+  "Arroz con pollo with browned thighs": on([S], 1, 2, 3),
+  "Chicken cacciatore": on([S], 1, 2),
+  "Salmon burgers with sweet potato wedges": { ...on([O], 1, 2, 3), 4: [S, O] },
+  "Oven fish sticks with spinach basil dip": { 4: [O], 5: [S, O] },
+  "Tomato and garlic omelette with croutons": { 1: [O], ...on([S], 2, 3, 4) },
+  "Butternut squash and ricotta pasta bake": { 1: [O], 2: [S, O], 5: [O] },
+  "Split pea soup with carrot and thyme": on([S], 0, 1, 2, 3, 4),
+  "Cuban black beans over brown rice": on([S], 0, 1, 2),
+  "Curried quinoa with cauliflower and peas": on([S], 0, 1, 2, 3),
+};
+const heatMeta = (where) => ({ passive: false, station: where[0], ...(where.length > 1 ? { also: where.slice(1) } : {}) });
 for (const r of SHAPE_KITCHEN_RECIPES) {
   const m = _KITCHEN_STEP_META[r.title];
-  if (m) r.stepMeta = r.steps.map((_, i) => m[i] || null);
+  const heat = _KITCHEN_STEP_HEAT[r.title];
+  if (m || heat) r.stepMeta = r.steps.map((_, i) => (m && m[i]) || (heat && heat[i] ? heatMeta(heat[i]) : null));
 }
 
 // Certification-first wording. ⚠ The certification sentence is the safety-bearing
