@@ -181,8 +181,21 @@ export const bsSplitMethodProse = (text) => {
 // passing while silently ceasing to cover a unit added here, which is exactly
 // the kind of quietly-narrowed gate that guards nothing.
 export const BS_TIMER_UNITS = 'hours?|hrs?|minutes?|mins?|seconds?|secs?';
+// What may sit BETWEEN the number and its unit: nothing, whitespace, or ONE
+// continuation word with whitespace on both sides — "cook 5 more minutes",
+// "2 additional minutes", "10 extra mins", "a further 3 minutes". Without it
+// those steps had no timer at all while the same wait written "cook 5 minutes
+// more" had one. The word must be a whole word ("5 moreover minutes" does not
+// match) and a unit must follow it ("5 more servings" does not match).
+// Exported for the same reason as the units: any rule that looks for a stated
+// duration builds from this, so it cannot narrow silently while the parser widens.
+export const BS_TIMER_GAP = '(?:\\s+(?:more|additional|extra|further)\\s+|\\s*)';
+// The unit must END there: "Add 2 more minced shallots" would otherwise read
+// "min" out of "minced" and offer a 2-minute timer. Measured before adding it,
+// no step in any catalog puts a number before a word that merely starts with a
+// unit, so this refuses no real timer.
 const TIMER_RE = new RegExp(
-  `(\\d+(?:\\s*[–-]\\s*\\d+)?)\\s*(${BS_TIMER_UNITS})(\\s*\\/\\s*side|\\s+per\\s+side)?`,
+  `(\\d+(?:\\s*[–-]\\s*\\d+)?)${BS_TIMER_GAP}(${BS_TIMER_UNITS})(?![a-z])(\\s*\\/\\s*side|\\s+per\\s+side)?`,
   'gi',
 );
 const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 : 1);
@@ -194,6 +207,11 @@ const UNIT_SECONDS = (unit) => (/^h/i.test(unit) ? 3600 : /^m/i.test(unit) ? 60 
 // that (punctuation-splitting the step and hoping the pieces line up with the
 // timers); the match position is the only authority that cannot disagree with
 // the parser, because it IS the parser.
+// The span runs from the number through the unit, so a continuation word
+// ("5 more minutes") is INSIDE it: the word says how long, not what to do, and
+// a span is the duration's place in the step. Measured, starting the span at
+// the unit instead changes no label (the label builder already drops "more"),
+// so this is a statement of what the span means, not a label fix.
 const timerSpans = (text) => {
   const t = str(text);
   if (!t) return [];
@@ -220,6 +238,9 @@ const timerSpans = (text) => {
 // The public contract is {seconds, label} and is pinned by deepEqual in
 // tests/cookable.test.mjs — the spans stay internal so the shape can't drift.
 export const bsStepTimers = (text) => timerSpans(text).map(({ seconds, label }) => ({ seconds, label }));
+// Test surface only (the underscore says so): where each duration sits, so a
+// test can pin which words a span covers without widening bsStepTimers' shape.
+export const _bsTimerSpans = (text) => timerSpans(text).map(({ label, at, end }) => ({ label, at, end }));
 
 // ---------------------------------------------------------------------------
 // Step identity — "which timer is this?" and "what do I need HERE?"
@@ -267,7 +288,7 @@ const GIST_CLAUSE_RE = /[.;:!?](?=\s|$)|\s+[–—]\s+/;
 // ⚠ Plain concatenation, NOT a template literal: `\d` inside a template literal
 // collapses to a bare "d", which silently produced a regex that matched no
 // duration at all and sent every label back to the step's first clause.
-const GIST_DUR_RE = new RegExp('\\d+\\s*(?:' + BS_TIMER_UNITS + ')\\b', 'i');
+const GIST_DUR_RE = new RegExp('\\d+' + BS_TIMER_GAP + '(?:' + BS_TIMER_UNITS + ')\\b', 'i');
 
 // The recipe's own short name for an ingredient: its last two content words
 // ("chicken thigh, skin-on" -> "chicken thigh", "lean ground turkey" -> "turkey").

@@ -26,7 +26,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { bsStepTimers, bsFractionalDuration, BS_TIMER_UNITS, bsCookableFromRecipe } from '../mobile-app/src/services/cookable.mjs';
+import { bsStepTimers, bsFractionalDuration, BS_TIMER_UNITS, BS_TIMER_GAP, bsCookableFromRecipe } from '../mobile-app/src/services/cookable.mjs';
 import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -190,7 +190,10 @@ test('cook steps: a SCHEDULING note never carries a parseable duration', () => {
   // silently ceasing to cover a unit the parser had gained — the gate would
   // narrow with nothing failing, which is the exact failure mode this file
   // exists to prevent (see the "every source is read" guard above).
-  const SCHED = new RegExp(`\\d+\\s*(?:${BS_TIMER_UNITS})\\.?\\s+(?:before|after|ahead of|prior to)\\b`, 'i');
+  // The GAP between number and unit comes from the parser too: once "5 more
+  // minutes" became a timer, a gate that only knew "5 minutes" would wave
+  // "Eat 30 more min before training" through as a countdown.
+  const SCHED = new RegExp(`\\d+${BS_TIMER_GAP}(?:${BS_TIMER_UNITS})\\.?\\s+(?:before|after|ahead of|prior to)\\b`, 'i');
   const HOLDS = /\b(?:rest|stand|chill|refrigerate|freeze|cool|marinate|soak|steep|rise|proof|sit|hold|bake|roast|simmer|boil|steam|heat|cook|warm)\b[^.;]{0,40}$/i;
   const bad = ALL.filter((x) => {
     if (bsFractionalDuration(x.step)) return false;      // already flagged above
@@ -218,11 +221,13 @@ test('cook steps: a SCHEDULING note never carries a parseable duration', () => {
   // Both polarities are asserted so the rule can't silently widen either way.
   for (const s of ['Rest 10-15 minutes before slicing', 'Rest 10–15 minutes before slicing',
                    'Rest 10 - 15 minutes before slicing', 'Chill 30-45 min before serving',
-                   'Marinate 2-3 hours ahead of dinner', 'Eat 30 min prior to training']) {
+                   'Marinate 2-3 hours ahead of dinner', 'Eat 30 min prior to training',
+                   'Eat 30 more min before training', 'Chill 20 extra minutes before serving']) {
     assert.ok(SCHED.test(s), `ranged scheduling note should be flagged: ${s}`);
   }
   for (const s of ['sit 2 minutes to build a crust before breaking it apart',
-                   'Rest 10-15 minutes, then slice', 'Roast 30 minutes until golden']) {
+                   'Rest 10-15 minutes, then slice', 'Roast 30 minutes until golden',
+                   'Cook 5 more minutes until softened']) {
     assert.ok(!SCHED.test(s), `real wait must NOT be flagged as a schedule: ${s}`);
   }
 });
