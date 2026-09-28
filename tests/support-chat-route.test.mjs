@@ -154,8 +154,13 @@ test('every read tool schema is strict with no arguments, so nothing can be pass
 });
 
 test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows come back under the call id, and the reply is what the model said', async () => {
+  // ⚠ The route hands readTrainingPlan the REAL clock, and the read keeps only
+  // rows dated from this UTC week's Monday on. A hard-coded date falls out of
+  // that window the week after it was written, and the plan comes back empty.
+  // So the row is dated TODAY, by the reader's own day function.
+  const today = memberReads.isoDay(new Date());
   const tables = {
-    client_workouts: [{ id: 'w1', client_id: U, status: 'published', title: 'Upper body — push', trainer_id: 7, scheduled_date: '2026-09-23', created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: 'Bench press', sets: 4, reps: 6 }] } }],
+    client_workouts: [{ id: 'w1', client_id: U, status: 'published', title: 'Upper body — push', trainer_id: 7, scheduled_date: today, created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: 'Bench press', sets: 4, reps: 6 }] } }],
     client_meal_plans: [],
     trainers: [{ id: 7, name: 'Maya Okafor' }],
   };
@@ -171,8 +176,10 @@ test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows com
   assert.equal(fco.call_id, 'call_get_training_plan');
   const result = JSON.parse(fco.output);
   assert.equal(result.ok, true);
+  assert.equal(result.today, today, 'the route read the same day the fixture was dated from');
   assert.equal(result.training.coach, 'Maya Okafor');
   assert.equal(result.training.thisWeek[0].title, 'Upper body — push');
+  assert.deepEqual(result.training.todays, ['Upper body — push'], 'a row dated today is today\'s session');
   assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned' });
 });
 
@@ -182,7 +189,9 @@ test('a read that fails answers ok:false to the model — never an empty plan �
   const fco = c.ai[1].body.input.find((it) => it.type === 'function_call_output');
   assert.deepEqual(JSON.parse(fco.output), { ok: false });
   // A non-member whose model somehow emits a read call: members_only, no read.
-  const p = await loadRoute({ isMember: false, answers: [calls(call('get_week_summary', {})), say('x')], tables: { daily_health_snapshot: [{ user_id: U, snapshot_date: '2026-09-23', calories: 1 }] } });
+  // The row is dated today so it sits inside the 7-day window a leaked read
+  // would return. The guards below check the call log, not the result.
+  const p = await loadRoute({ isMember: false, answers: [calls(call('get_week_summary', {})), say('x')], tables: { daily_health_snapshot: [{ user_id: U, snapshot_date: memberReads.isoDay(new Date()), calories: 1 }] } });
   await p.mod.POST(post(ask('week?')));
   const fco2 = p.calls.ai[1].body.input.find((it) => it.type === 'function_call_output');
   assert.deepEqual(JSON.parse(fco2.output), { error: 'members_only' });
