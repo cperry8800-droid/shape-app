@@ -5,9 +5,12 @@
 - *"what can we built to make nora (dj) as fluid and interactive as possible with shape radio"*
 - On direction, the same day: *"make sure the club is club shape"*; *"we already have some audio made. nora will be matching what is playing on shape radio"*; *"yes the higgsfield tracks"*; *"you can keep it on next track"*.
 
-**Preview:** a working prototype, "Nora's Booth". The link is added here once it is published. It is
-not in the repo yet: it was built in the session scratchpad so the design could be judged before any
-of it is committed.
+**Preview:** a working prototype, "Nora's Booth":
+https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy (private to the owner until shared). It is not in
+the repo yet: it was built in the session scratchpad so the design could be judged before any of it
+is committed. It plays the labelled synthesized set until the owner's Higgsfield tracks can be
+fetched (this environment's network policy denies `d8j0ntlcm91z4.cloudfront.net`); the station
+mode that blends them is built and was run end to end on stand-in audio.
 
 **Status:** records only. This commit contains no code change, no migration and no PR. §3 is the
 plan. §6 lists the rulings the plan needs before a build.
@@ -68,8 +71,12 @@ The prototype answers the first ask end to end in a browser, on Club Shape.
 
 - **The venue is Club Shape.**
   - Outside: the Shape Sets background (`mobile-app/public/club-shape-bg.jpg`).
-  - Inside: the interior render (`public/newdesign/assets/club-shape-radio-bg.png`), with tiered
-    balconies, the oval skylight, the Shape-triangle portal and the LED wall behind the booth.
+  - Inside: the interior render (`public/newdesign/Firefly_now create what the interior would look
+    like. the main venue room with stage and dj.  934196.png`), with tiered balconies, gold-lit
+    palms, the oval skylight over the skyline, the portal and the LED wall behind the booth.
+  - ⚠ `public/newdesign/assets/club-shape-radio-bg.png` is the building's **exterior** (the facade
+    with the CLUB SHAPE sign), not the interior; it was briefly mislabelled as the interior while
+    this was built.
 - **The gear is two flagship-class media players and a four-channel mixer.** Their real
   proportions come from the CDJ-3000 / DJM-A9 industrial design, and the gear carries **no maker or
   model words**. The screens show a three-band waveform, a beat grid, BPM, and elapsed/remaining
