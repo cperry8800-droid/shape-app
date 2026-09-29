@@ -11,7 +11,7 @@ module rules (world frame, gear frame, brand rule, no `Math.random` / `Date.now`
 are in [`CONTRACT.md`](CONTRACT.md). Two known integration items are in
 [`INTEGRATION-NOTES.md`](INTEGRATION-NOTES.md).
 
-Live preview (private artifact, version 2): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy
+Live preview (private artifact, version 3): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy
 
 ## Layout
 
@@ -19,14 +19,15 @@ Live preview (private artifact, version 2): https://claude.ai/artifact/RUCmUSmsu
 |---|---|
 | `src/main.mjs` | The booth page: renderer, post (bloom), camera director, HUD, mix loop. Built to `pub/booth.js`. |
 | `src/noraPerformer.mjs` | Nora's body: springs for hands, groove, dip, sway, head; the skin-shader ceiling. |
-| `src/noraDirector.mjs` | Camera shots (panoramic, decks, mixer, face, shoulder…) and cut timing. |
+| `src/noraDirector.mjs` | Camera shots (panoramic, decks, mixer, face, shoulder, behind Nora, the drone glide…) and cut timing. |
 | `src/noraMix.mjs` | Pure mix planner: when to cue, blend and swap decks on bar boundaries. |
 | `src/deckAudio.mjs` | Two decks on Web Audio: synthesized example tracks, or real buffers. |
 | `src/trackAnalysis.mjs` | Tempo / beat grid / waveform from a decoded buffer. |
 | `src/cdj3000.mjs`, `src/djmMixer.mjs` | The gear (real dimensions, instanced LEDs, screen UI). |
-| `src/club.mjs`, `src/clubVenue.mjs` | Club Shape: venue, stage lights, LED wall, the crowd. |
-| `src/crowdAvatars.mjs` | Instanced crowd renderer (shader arm raise, per-person outfit/skin/hair tint). |
-| `src/crowd-bake.mjs` | Bakes the crowd figures from the VRM (CPU skinning + decimation) into `crowd.bin.txt`. |
+| `src/club.mjs`, `src/clubVenue.mjs` | Club Shape: venue, private balcony boxes, stage lights, lasers and blinders, LED wall, the crowd. |
+| `src/crowdAvatars.mjs` | Instanced crowd renderer (shader arm raise, per-person top/bottoms/shoe/skin/hair colours, eyes drawn in the shader, near/far/tiny/seated LODs). |
+| `src/crowd-bake.mjs` | Bakes the crowd figures from the VRM (CPU skinning + QEM decimation) into `crowd.bin.txt`. |
+| `src/meshDecimate.mjs` | Quadric-error mesh decimation used by the bake (tested in `test/meshDecimate.test.mjs`). |
 | `src/radioTempo.mjs`, `src/tempoBridge.mjs` | The app's tempo detector and its bridge. |
 | `src/*-test.mjs`, `dist/*.html` | Stand-alone test pages for each module (gear, mixer, club, venue, crowd, audio). |
 | `test/*.test.mjs` | Node tests (mix planner, deck audio, track analysis). |
@@ -42,7 +43,7 @@ deck renders bit-identically to it on the synthesized path.
 cd prototypes/nora-booth
 npm ci                                   # three 0.185.1, @pixiv/three-vrm 3.5.5, esbuild, playwright-core
 cp ../../public/nora/placeholder.vrm dist/nora.vrm
-node --test test/*.test.mjs              # 44 tests  (⚠ `node --test test/` fails: it treats the dir as a module)
+node --test test/*.test.mjs              # 48 tests  (⚠ `node --test test/` fails: it treats the dir as a module)
 ```
 
 ## Build
@@ -62,8 +63,9 @@ node crowd-bake.cjs http://127.0.0.1:8811/crowd-bake.html pub/crowd.bin.txt
 cp pub/crowd.bin.txt dist/           # the dev page loads it from beside booth.js
 ```
 
-The crowd bake outputs about 76 KB (≈101 KB as base64): near LOD body 2,778 tris, far 851; three
-hair lengths. `?diag=1` on the bake page prints a per-bone diagnostic instead of baking.
+The crowd bake (v2) outputs about 110 KB (≈146 KB as base64): body LODs near 2,349 tris, far 700,
+tiny 300 and a seated figure 360; three hair lengths per LOD; measured face data for the shader eyes.
+`?diag=1` on the bake page prints a per-bone diagnostic instead of baking (`node bake-diag.cjs <url> <out.json>`).
 
 Stand-in audio for station-mode tests only (never published):
 `mkdir -p fixture-site/tracks && node mkfix.cjs` writes four 60 s loops at known tempos.
@@ -76,6 +78,7 @@ node shot3.cjs "http://127.0.0.1:8813/index.html" /tmp/shot 1280 720 12000 wide,
 node shot4.cjs "http://127.0.0.1:8811/index.html?vrm=nora.vrm&autostart=1"   # a full mix, screenshot per phase
 node motion-sample.cjs "<url>" 400        # Nora's peak hand speed / acceleration
 node glinfo.cjs "<url>" 1280 720 high     # draw calls and triangles per frame
+./measure-all.sh http://127.0.0.1:8813 /tmp/m   # the whole before/after panel into one folder
 node phone-run.cjs "<url>" /tmp/phone.png # 390 px layout; do NOT pass &autostart=1 (it times out)
 ```
 
@@ -99,3 +102,5 @@ The preview artifact is `https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy`. A n
 - No "Pioneer", "CDJ", "DJM" or "rekordbox" text on the gear or screens.
 - The page is labelled a preview. The tempo is measured or reads "—". No listener counts.
 - No `Math.random()` / `Date.now()` in the pure modules (seeded PRNG; the caller passes `t`).
+- Stage flashes (blinders) never exceed once a beat, under 3 a second; reduced motion holds them steady.
+- The private boxes are scenery: no booking, prices or availability on screen until a real product exists.

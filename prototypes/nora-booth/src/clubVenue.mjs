@@ -24,6 +24,7 @@
 // from emissive colours above the booth's bloom threshold — zero dynamic lights of its own.
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { createAvatarCrowd } from './crowdAvatars.mjs';
 
 export const VENUE_DIMS = {
   FLOOR_Y: -0.66,
@@ -94,7 +95,7 @@ function superHalfZ(a, b, x, n = SUPER_N) {
   return b * Math.pow(1 - Math.pow(u, n), 1 / n);
 }
 
-export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false } = {}) {
+export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null } = {}) {
   void renderer;
   const LOW = quality === 'low';
   const rnd = mulberry32(seed);
@@ -186,7 +187,10 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
 
   // ── canvas textures ─────────────────────────────────────────────────
   // Lounge / restaurant glass: warm interior seen through black-framed glass. 1024 px = 12.8 m.
-  function loungeTexture() {
+  // Two uses: the BACK WALL of the side and far-end lounges (walls=true: no people, no frames — the
+  // guests, tables and window frames there are 3D), and the stage-end glass, which has no depth
+  // behind it (frames painted on; the guests are still not painted: nobody here is a picture).
+  function loungeTexture({ frames = true, neutral = false } = {}) {
     const W = 1024, H = 256;
     const c = makeCanvas(W, H), g = c.getContext('2d');
     const gr = g.createLinearGradient(0, 0, 0, H);
@@ -218,41 +222,14 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       rg.addColorStop(1, 'rgba(255,190,110,0)');
       g.fillStyle = rg; g.fillRect(x - 16, 3, 32, 32);
     }
-    // tables with lamps, and people (silhouettes against the warm room)
-    const dark = 'rgba(22,12,6,0.92)';
-    for (let x = 30 + rnd() * 40; x < W - 20; x += 70 + rnd() * 90) {
-      const ty = 186 + rnd() * 16;
-      const lg = g.createRadialGradient(x, ty - 14, 0, x, ty - 14, 26);
-      lg.addColorStop(0, 'rgba(255,236,190,0.95)'); lg.addColorStop(1, 'rgba(255,190,110,0)');
-      g.fillStyle = lg; g.fillRect(x - 26, ty - 40, 52, 52);
-      g.fillStyle = dark;
-      g.beginPath(); g.ellipse(x, ty, 26, 5, 0, 0, Math.PI * 2); g.fill();
-      g.fillRect(x - 2, ty, 4, 40);
-      // seated diners either side
-      for (const sx of [-1, 1]) if (rnd() < 0.8) {
-        const px = x + sx * (34 + rnd() * 8), py = ty - 4;
-        g.beginPath(); g.arc(px, py - 44, 8, 0, Math.PI * 2); g.fill();
-        g.beginPath(); g.roundRect ? g.roundRect(px - 11, py - 36, 22, 44, 8) : g.rect(px - 11, py - 36, 22, 44); g.fill();
-      }
+    // wall sconces: warm pools on the back wall at seated head height (the tables are 3D)
+    for (let x = 40 + rnd() * 40; x < W - 20; x += 70 + rnd() * 90) {
+      const ty = 168 + rnd() * 10;
+      const lg = g.createRadialGradient(x, ty, 0, x, ty, 30);
+      lg.addColorStop(0, 'rgba(255,236,190,0.9)'); lg.addColorStop(0.35, 'rgba(255,200,130,0.35)'); lg.addColorStop(1, 'rgba(255,190,110,0)');
+      g.fillStyle = lg; g.fillRect(x - 30, ty - 30, 60, 60);
     }
-    for (let k = 0; k < 16; k++) {           // standing guests
-      const px = rnd() * W, base = 236 + rnd() * 10, hgt = 104 + rnd() * 20;
-      g.fillStyle = dark;
-      g.beginPath(); g.arc(px, base - hgt, 9, 0, Math.PI * 2); g.fill();
-      g.beginPath(); g.roundRect ? g.roundRect(px - 13, base - hgt + 10, 26, hgt - 10, 9) : g.rect(px - 13, base - hgt + 10, 26, hgt - 10); g.fill();
-    }
-    for (let k = 0; k < 3; k++) {            // potted palms inside
-      const px = rnd() * W, base = 250;
-      g.strokeStyle = 'rgba(30,18,8,0.85)'; g.lineWidth = 4;
-      g.beginPath(); g.moveTo(px, base); g.lineTo(px + 3, base - 110); g.stroke();
-      g.lineWidth = 3;
-      for (let f = 0; f < 9; f++) {
-        const a = -Math.PI / 2 + (f - 4) * 0.36;
-        g.beginPath(); g.moveTo(px + 3, base - 110);
-        g.quadraticCurveTo(px + 3 + Math.cos(a) * 40, base - 110 + Math.sin(a) * 40 - 10, px + 3 + Math.cos(a) * 62, base - 110 + Math.sin(a) * 30 + 20);
-        g.stroke();
-      }
-    }
+    if (frames) {
     // black mullions + transom (1.6 m module) and a slight glass sheen
     g.fillStyle = 'rgba(6,5,4,0.95)';
     for (let x = 0; x <= W; x += 128) g.fillRect(x - 3, 0, 6, H);
@@ -262,6 +239,15 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       const x = rnd() * W;
       g.fillStyle = 'rgba(255,240,220,0.035)';
       g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 40, 0); g.lineTo(x - 60, H); g.lineTo(x - 100, H); g.fill();
+    }
+    }
+    if (neutral) {   // a warm-grey version: every private box tints it its own colour
+      const id = g.getImageData(0, 0, W, H), d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const l = 0.3 * d[i] + 0.55 * d[i + 1] + 0.15 * d[i + 2];
+        d[i] = l * 1.08 + (d[i] - l) * 0.15; d[i + 1] = l + (d[i + 1] - l) * 0.15; d[i + 2] = l * 0.9 + (d[i + 2] - l) * 0.15;
+      }
+      g.putImageData(id, 0, 0);
     }
     return tex(c, { repeat: true });
   }
@@ -389,7 +375,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     return tex(c);
   }
 
-  const loungeTex = loungeTexture();
+  const loungeTex = loungeTexture({ frames: false, neutral: true });   // the private boxes' back walls (tinted per box)
+  const loungeEndTex = loungeTexture({ frames: true });     // the stage-end glass (no room behind it)
   const leafTex = leafTexture();
   const barkTex = barkTexture();
   barkTex.repeat.set(2, 5);
@@ -400,7 +387,21 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
 
   // ── materials ───────────────────────────────────────────────────────
   const matStructure = own(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-  const matLounge = own(new THREE.MeshBasicMaterial({ map: loungeTex, vertexColors: true, color: new THREE.Color(1.02, 0.9, 0.78) }));
+  const matLounge = own(new THREE.MeshBasicMaterial({ map: loungeTex, vertexColors: true }));   // the boxes' back walls: each box's vertex colour is its tint
+  const matLoungeEnd = own(new THREE.MeshBasicMaterial({ map: loungeEndTex, vertexColors: true, color: new THREE.Color(1.02, 0.9, 0.78) }));
+  const matBoxes = own(new THREE.MeshBasicMaterial({ vertexColors: true }));          // the private boxes' furniture, partitions, frames
+  const matBoxGlow = own(new THREE.MeshBasicMaterial({ vertexColors: true }));        // their lamps and accent lines (HDR colours)
+  const sheenTex = (() => {
+    const c = makeCanvas(256, 64), g = c.getContext('2d');
+    g.clearRect(0, 0, 256, 64);
+    for (let k = 0; k < 5; k++) {
+      const x = rnd() * 256;
+      g.fillStyle = `rgba(255,245,230,${0.25 + rnd() * 0.35})`;
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 14, 0); g.lineTo(x - 26, 64); g.lineTo(x - 40, 64); g.fill();
+    }
+    return tex(c, { repeat: true });
+  })();
+  const matSheen = own(new THREE.MeshBasicMaterial({ map: sheenTex, color: new THREE.Color(0.07, 0.066, 0.06), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   const matGlass = own(new THREE.MeshBasicMaterial({ color: 0x5d7a8a, transparent: true, opacity: 0.045, depthWrite: false, side: THREE.DoubleSide }));
   const RAIL_BASE = hdr(0xffb46a, 1.5);
   const matRailLed = own(new THREE.MeshBasicMaterial({ color: RAIL_BASE.clone() }));
@@ -414,8 +415,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const matRed = own(new THREE.MeshBasicMaterial({ color: hdr(0xff2a1c, 2.2), fog: false }));
   const matCrown = own(new THREE.MeshBasicMaterial({ color: hdr(0xbfe4ff, 2.0), fog: false }));
   const matTrunk = own(new THREE.MeshBasicMaterial({ map: barkTex, vertexColors: true, color: new THREE.Color(0.72, 0.6, 0.46) }));
-  const matFrond = own(new THREE.MeshBasicMaterial({ map: leafTex, vertexColors: true, alphaTest: 0.32, side: THREE.DoubleSide, color: new THREE.Color(0.6, 0.44, 0.19) }));
-  const matBeam = own(new THREE.MeshBasicMaterial({ map: beamTex, color: new THREE.Color(0.62, 0.38, 0.14), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  const matFrond = own(new THREE.MeshBasicMaterial({ map: leafTex, vertexColors: true, alphaTest: 0.32, side: THREE.DoubleSide, color: new THREE.Color(0.34, 0.31, 0.15) }));   // deeper and greener than under ACES: Neutral keeps saturation, so the old gold read as neon yellow
+  const matBeam = own(new THREE.MeshBasicMaterial({ map: beamTex, color: new THREE.Color(0.5, 0.3, 0.11), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   const matGlow = own(new THREE.MeshBasicMaterial({ map: radialTex, color: new THREE.Color(0.9, 0.52, 0.2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   const matCandle = own(new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 1, 1) }));
   const matPeople = own(new THREE.MeshBasicMaterial({ vertexColors: true }));
@@ -591,32 +592,23 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const railLedMesh = mesh(merge(RL, 'railLeds'), matRailLed, 'venueRailLeds');
   void railLedMesh;
 
-  // ── 2. lounge glass (warm interiors behind the balconies) ─────────────
-  const W = [];
+  // ── 2. the lounges: real rooms behind the glass ─────────────────────────
+  // Each side and the far end has a 1.8 m deep lounge between the glass line (WIN_X / FAR_WIN_Z)
+  // and the outer wall. The warm interior is painted on the BACK wall, and the room in front of it
+  // is 3D: a banquette along the wall, tables with lamps, seated guests (the crowd bake's seated
+  // pose), window frames at the glass line and a faint glass sheen — so the rooms have parallax
+  // and nobody in them is a picture. The stage end has no depth behind its glass: there the frames
+  // are painted on, and nobody sits there.
+  const W = [], WE = [];
   const TEX_M = 12.8;  // metres per texture repeat
   const tierTone = [1.0, 0.93, 0.97, 0.9];
+  const BACK_X = X_OUT - 0.04, BACK_Z = Z_FAR + 0.04;
   TIERS.forEach((T, ti) => {
     const h = T.y1 - T.y0;
-    for (const s of [-1, 1]) {
-      const zs = [];
-      for (let k = 0; k <= 8; k++) zs.push(lerp(FAR_WIN_Z, END_WIN_Z, k / 8));
-      for (let k = 0; k < 8; k++) {
-        const za = zs[k], zb = zs[k + 1], len = zb - za;
-        const off = rnd();
-        const tone = tierTone[ti] * (0.82 + rnd() * 0.3);
-        if (s > 0) W.push(quad([WIN_X, T.y0, za], [0, 0, 1], [0, 1, 0], len, h, [off, 0, off + len / TEX_M, 1], [tone, tone, tone]));
-        else W.push(quad([-WIN_X, T.y0, zb], [0, 0, -1], [0, 1, 0], len, h, [off, 0, off + len / TEX_M, 1], [tone, tone, tone]));
-      }
-    }
-    for (let k = 0; k < 4; k++) {               // far wall
-      const xa = lerp(-WIN_X, WIN_X, k / 4), len = (2 * WIN_X) / 4;
-      const off = rnd(), tone = tierTone[ti] * (0.85 + rnd() * 0.3) * (ti === 0 && (k === 1 || k === 2) ? 1.12 : 1);
-      W.push(quad([xa, T.y0, FAR_WIN_Z], [1, 0, 0], [0, 1, 0], len, h, [off, 0, off + len / TEX_M, 1], [tone, tone, tone]));
-    }
     // stage end (glass faces −z): corners beside the portal, the band over it, full width at the top
     const endRun = (xa, xb, y0, y1, v0) => {
       const len = xb - xa, off = rnd(), tone = tierTone[ti] * (0.85 + rnd() * 0.25);
-      W.push(quad([xb, y0, END_WIN_Z], [-1, 0, 0], [0, 1, 0], len, y1 - y0, [off, v0, off + len / TEX_M, 1], [tone, tone, tone]));
+      WE.push(quad([xb, y0, END_WIN_Z], [-1, 0, 0], [0, 1, 0], len, y1 - y0, [off, v0, off + len / TEX_M, 1], [tone, tone, tone]));
     };
     if (ti < 3) {
       endRun(-WIN_X, -END_CORNER_X, T.y0, T.y1, 0);
@@ -626,6 +618,205 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       endRun(-WIN_X, WIN_X, T.y0, T.y1, 0);
     }
   });
+  mesh(merge(WE, 'loungeEnd'), matLoungeEnd, 'venueLoungeEnd');
+
+  // ── 2b. the private boxes ──────────────────────────────────────────────
+  // Every lounge bay is split into private boxes a party can take for the night: two per column bay
+  // down the sides (≈3.1 m wide), two per bay at the far end. Each box is its own room — a back wall
+  // in its own colour, a carpet, an accent light, partitions either side, and one of six furniture
+  // layouts in one of ten upholsteries — and no two boxes share the same colour + layout +
+  // upholstery. Most are taken (seated guests from the crowd bake, or standing at a bar); a few are
+  // dark and empty, waiting for a booking. All of it is geometry; nothing here is a picture.
+  const brnd = mulberry32(seed * 13 + 5);   // its own stream: adding a box never moves a palm
+  const BOX_TINTS = [
+    [1.0, 0.62, 0.3], [1.0, 0.8, 0.52], [1.0, 0.52, 0.32], [0.95, 0.5, 0.52], [0.9, 0.3, 0.26],   // amber · champagne · copper · rose · crimson
+    [0.42, 0.85, 0.55], [0.32, 0.8, 0.85], [0.45, 0.55, 1.0], [0.72, 0.5, 1.0], [0.92, 0.9, 0.86], // emerald · teal · midnight · violet · marble
+  ];
+  const UPHOLSTERY = [
+    [0.22, 0.03, 0.035], [0.03, 0.14, 0.07], [0.42, 0.36, 0.27], [0.03, 0.05, 0.14], [0.03, 0.026, 0.024],
+    [0.3, 0.17, 0.08], [0.36, 0.24, 0.04], [0.4, 0.2, 0.2], [0.03, 0.16, 0.16], [0.2, 0.19, 0.18],
+  ];
+  const WOODS = [[0.06, 0.035, 0.02], [0.4, 0.39, 0.37], [0.34, 0.23, 0.08], [0.015, 0.014, 0.014]];   // walnut · marble · brass · black
+  const ACCENTS = [[2.4, 1.6, 0.8], [2.2, 1.9, 1.5], [2.3, 0.9, 1.3], [0.7, 2.0, 2.1], [1.4, 1.0, 2.4], [2.4, 1.3, 0.5]];
+  const LAYOUTS = ['banquette', 'sofas', 'dining', 'bar', 'armchairs', 'daybed'];
+  // every (tint, layout, upholstery) once, shuffled; each box takes the next one whose tint differs from its neighbour's
+  const COMBOS = [];
+  for (let a = 0; a < BOX_TINTS.length; a++) for (let b = 0; b < LAYOUTS.length; b++) for (let c = 0; c < UPHOLSTERY.length; c++) COMBOS.push([a, b, c]);
+  for (let i = COMBOS.length - 1; i > 0; i--) { const j = Math.floor(brnd() * (i + 1)); [COMBOS[i], COMBOS[j]] = [COMBOS[j], COMBOS[i]]; }
+  let lastTint = -1;
+  const takeCombo = () => {
+    let i = COMBOS.findIndex((c) => c[0] !== lastTint);
+    if (i < 0) i = 0;
+    const c = COMBOS.splice(i, 1)[0];
+    lastTint = c[0];
+    return c;
+  };
+
+  const BOXES = [];   // { o:[x,y,z], th, w, d, h, tint, layout, uph, wood, accent, empty }
+  const DEPTH = BACK_X - WIN_X;   // ≈ 1.76 m
+  TIERS.forEach((T) => {
+    const h = T.y1 - T.y0;
+    for (const s of [-1, 1]) {
+      lastTint = -1;
+      for (let k = 0; k < 16; k++) {
+        const za = lerp(FAR_WIN_Z, END_WIN_Z, k / 16), zb = lerp(FAR_WIN_Z, END_WIN_Z, (k + 1) / 16);
+        BOXES.push({ o: [s * BACK_X, T.y0, (za + zb) / 2], th: -s * Math.PI / 2, w: zb - za, d: DEPTH, h, s, closeRight: (s > 0 && k === 15) || (s < 0 && k === 0) });
+      }
+    }
+    lastTint = -1;
+    for (let k = 0; k < 8; k++) {
+      // the outer boxes run into the corners, to the side walls
+      const xa = k === 0 ? -BACK_X : lerp(-WIN_X, WIN_X, k / 8), xb = k === 7 ? BACK_X : lerp(-WIN_X, WIN_X, (k + 1) / 8);
+      BOXES.push({ o: [(xa + xb) / 2, T.y0, BACK_Z], th: 0, w: xb - xa, d: FAR_WIN_Z - BACK_Z, h, s: 0 });
+    }
+  });
+  for (const B of BOXES) {
+    const [t, l, u] = takeCombo();
+    B.tint = BOX_TINTS[t]; B.layout = LAYOUTS[l]; B.uph = UPHOLSTERY[u];
+    B.wood = WOODS[Math.floor(brnd() * WOODS.length)];
+    B.accent = ACCENTS[Math.floor(brnd() * ACCENTS.length)];
+    B.empty = brnd() < 0.14;
+    B.bright = (B.empty ? 0.6 : 1.08) + brnd() * 0.36;   // an empty box is dimmed, not dark: it is still a room
+  }
+
+  const FURN = [], GLOW = [];
+  const LOUNGE_GUESTS = [];   // { x, y, z, ry, seat: { x, z, top } | undefined }
+  const bm = new THREE.Matrix4(), bR = new THREE.Matrix4(), bv = new THREE.Vector3();
+  BOXES.forEach((B) => {
+    const { w, d, h } = B;
+    bm.makeTranslation(B.o[0], B.o[1], B.o[2]).multiply(bR.makeRotationY(B.th));
+    const lightK = B.bright;
+    const L = [B.tint[0] * lightK, B.tint[1] * lightK, B.tint[2] * lightK];
+    // shade a piece in the box's own light: tops catch the room, fronts (toward the glass) a little
+    const shade = (base, lift = 0) => (x, y, z, nx, ny, nz) => {
+      let k = 0.32 + 0.6 * Math.max(0, ny) + 0.2 * Math.max(0, nz) + 0.08 * Math.abs(nx) + lift;
+      if (ny < -0.5) k = 0.12;
+      return [base[0] * L[0] * k * 1.6, base[1] * L[1] * k * 1.6, base[2] * L[2] * k * 1.6];
+    };
+    const P = []; // this box's pieces, local: x along the wall (u), y up, z out of the wall toward the glass (d)
+    const piece = (x0, x1, y0, y1, z0, z1, base, lift) => P.push(paint(box(x0, x1, y0, y1, z0, z1), shade(base, lift)));
+    const cyl = (x, z, r, y0, y1, base, seg = 10) => { const g = new THREE.CylinderGeometry(r, r, y1 - y0, seg, 1); g.translate(x, (y0 + y1) / 2, z); P.push(paint(g, shade(base))); };
+    const glowAt = (x, y, z, r, c) => { const g = new THREE.SphereGeometry(r, 8, 6); g.translate(x, y, z); GLOW.push(solid(g, c).applyMatrix4(bm)); };
+    // guests: local position, facing (local yaw: 0 = toward the glass), seated on a seat of height `top`
+    const guest = (u, dd, yawL, top) => {
+      if (B.empty) return;
+      bv.set(u, 0, dd).applyMatrix4(bm);
+      const g = { x: bv.x, y: B.o[1], z: bv.z, ry: B.th + yawL + (brnd() - 0.5) * 0.3 };
+      if (top != null) g.seat = { x: bv.x, z: bv.z, top: B.o[1] + top };
+      if (!LOW || brnd() < 0.55) LOUNGE_GUESTS.push(g);
+    };
+    const hw = w / 2;
+    // the room: back wall (painted interior, tinted), carpet, partitions, the accent line
+    {
+      const off = brnd();
+      const q = quad([-hw, 0, 0.01], [1, 0, 0], [0, 1, 0], w, h, [off, 0, off + w / TEX_M, 1], L);
+      W.push(q.applyMatrix4(bm));
+    }
+    piece(-hw, hw, 0, 0.012, 0, d, [B.uph[0] * 0.5 + 0.02, B.uph[1] * 0.5 + 0.018, B.uph[2] * 0.5 + 0.016], -0.2);
+    const wall = [0.05, 0.036, 0.026];
+    piece(-hw, -hw + 0.08, 0, h, 0, d, wall);
+    if (B.closeRight) piece(hw - 0.08, hw, 0, h, 0, d, wall);   // each run's last box closes its own end (the others share a neighbour's wall)
+    GLOW.push(solid(box(-hw + 0.1, hw - 0.1, h - 0.2, h - 0.16, 0.02, 0.06), B.accent.map((c) => c * (B.empty ? 0.25 : 1))).applyMatrix4(bm));
+    const lamp = B.empty ? [0.5, 0.3, 0.12] : [2.6, 1.6, 0.7];
+    switch (B.layout) {
+      case 'banquette': {
+        piece(-hw + 0.15, hw - 0.15, 0, 0.44, 0.04, 0.56, B.uph); piece(-hw + 0.15, hw - 0.15, 0.44, 0.95, 0.02, 0.18, B.uph, 0.1);
+        const n = Math.max(1, Math.round((w - 0.4) / 1.5));
+        for (let i = 0; i < n; i++) {
+          const u = -hw + 0.2 + (w - 0.4) * (i + 0.5) / n;
+          piece(u - 0.28, u + 0.28, 0.68, 0.72, 0.72, 1.18, B.wood); cyl(u, 0.95, 0.04, 0, 0.68, B.wood, 6);
+          glowAt(u, 0.8, 0.95, 0.045, lamp);
+          guest(u - 0.34, 0.24, 0, 0.44); if (brnd() < 0.7) guest(u + 0.34, 0.24, 0, 0.44);
+        }
+        break;
+      }
+      case 'sofas': {
+        piece(-hw + 0.15, -hw + 0.7, 0, 0.42, 0.2, 1.45, B.uph); piece(-hw + 0.12, -hw + 0.3, 0.42, 0.9, 0.2, 1.45, B.uph, 0.1);
+        piece(hw - 0.7, hw - 0.15, 0, 0.42, 0.2, 1.45, B.uph); piece(hw - 0.3, hw - 0.12, 0.42, 0.9, 0.2, 1.45, B.uph, 0.1);
+        piece(-0.45, 0.45, 0.34, 0.38, 0.45, 1.15, B.wood); cyl(0, 0.8, 0.12, 0, 0.34, B.wood, 8);
+        glowAt(0, 0.44, 0.8, 0.04, lamp);
+        guest(-hw + 0.38, 0.5, Math.PI / 2, 0.42); guest(-hw + 0.38, 1.12, Math.PI / 2, 0.42);
+        guest(hw - 0.38, 0.62, -Math.PI / 2, 0.42); if (brnd() < 0.6) guest(hw - 0.38, 1.18, -Math.PI / 2, 0.42);
+        break;
+      }
+      case 'dining': {
+        const tl = Math.min(w - 0.9, 2.3);
+        piece(-tl / 2, tl / 2, 0.72, 0.76, 0.62, 1.2, B.wood); cyl(-tl / 2 + 0.2, 0.91, 0.05, 0, 0.72, B.wood, 6); cyl(tl / 2 - 0.2, 0.91, 0.05, 0, 0.72, B.wood, 6);
+        const n = Math.max(2, Math.round(tl / 0.7));
+        for (let i = 0; i < n; i++) {
+          const u = -tl / 2 + tl * (i + 0.5) / n;
+          piece(u - 0.2, u + 0.2, 0.44, 0.48, 0.18, 0.56, B.uph); piece(u - 0.2, u + 0.2, 0.48, 0.95, 0.14, 0.2, B.uph, 0.1);
+          if (brnd() < 0.8) guest(u, 0.3, 0, 0.47);
+          glowAt(u, 0.82, 0.9, 0.03, lamp);
+        }
+        piece(-tl / 2 - 0.42, -tl / 2 - 0.04, 0.44, 0.48, 0.7, 1.1, B.uph); guest(-tl / 2 - 0.2, 0.9, Math.PI / 2, 0.47);
+        break;
+      }
+      case 'bar': {
+        piece(-hw + 0.2, hw - 0.2, 0, 1.05, 0.05, 0.5, B.wood); piece(-hw + 0.2, hw - 0.2, 1.05, 1.09, 0.02, 0.58, B.uph, 0.2);
+        for (let i = 0; i < 9; i++) glowAt(-hw + 0.35 + (w - 0.7) * brnd(), 1.45 + 0.35 * Math.floor(brnd() * 2), 0.06, 0.035, B.accent.map((c) => c * (B.empty ? 0.2 : 0.7)));
+        piece(-hw + 0.2, hw - 0.2, 1.3, 1.33, 0.0, 0.14, B.wood); piece(-hw + 0.2, hw - 0.2, 1.65, 1.68, 0.0, 0.14, B.wood);
+        cyl(hw * 0.4, 1.35, 0.26, 1.02, 1.06, B.wood, 12); cyl(hw * 0.4, 1.35, 0.04, 0, 1.02, B.wood, 6);
+        guest(-hw * 0.45, 0.85, Math.PI, null); guest(hw * 0.05, 0.86, Math.PI, null);
+        guest(hw * 0.4 - 0.4, 1.35, Math.PI / 2, null); if (brnd() < 0.6) guest(hw * 0.4 + 0.4, 1.35, -Math.PI / 2, null);
+        break;
+      }
+      case 'armchairs': {
+        const n = w > 2.8 ? 3 : 2;
+        for (let i = 0; i < n; i++) {
+          const u = -hw + w * (i + 0.5) / n;
+          piece(u - 0.34, u + 0.34, 0, 0.42, 0.72, 1.3, B.uph); piece(u - 0.34, u + 0.34, 0.42, 0.88, 0.66, 0.8, B.uph, 0.1);
+          piece(u - 0.38, u - 0.3, 0.42, 0.6, 0.72, 1.3, B.uph); piece(u + 0.3, u + 0.38, 0.42, 0.6, 0.72, 1.3, B.uph);
+          guest(u, 0.92, 0, 0.42);
+          if (i < n - 1) { const t = u + w / n / 2; cyl(t, 1.1, 0.15, 0.5, 0.53, B.wood, 10); cyl(t, 1.1, 0.03, 0, 0.5, B.wood, 6); glowAt(t, 0.6, 1.1, 0.035, lamp); }
+        }
+        break;
+      }
+      default: {   // daybed + poufs
+        piece(-hw + 0.25, hw - 0.25, 0, 0.36, 0.04, 0.95, B.uph); piece(-hw + 0.25, hw - 0.25, 0.36, 0.72, 0.02, 0.2, B.uph, 0.1);
+        for (let i = 0; i < 4; i++) piece(-hw + 0.4 + i * (w - 0.8) / 4, -hw + 0.4 + (i + 0.8) * (w - 0.8) / 4, 0.36, 0.52, 0.18, 0.3, B.wood, 0.3);
+        cyl(-0.5, 1.35, 0.22, 0, 0.38, B.uph, 12); cyl(0.5, 1.35, 0.22, 0, 0.38, B.uph, 12);
+        glowAt(0, 0.6, 0.12, 0.05, lamp);
+        guest(-0.55, 0.36, 0, 0.36); guest(0.45, 0.36, 0, 0.36); if (brnd() < 0.5) guest(0.5, 1.35, Math.PI, 0.38);
+      }
+    }
+    for (const g of P) FURN.push(g.applyMatrix4(bm));
+  });
+  mesh(merge(FURN, 'boxFurniture'), matBoxes, 'venuePrivateBoxes');
+  mesh(merge(GLOW, 'boxGlow'), matBoxGlow, 'venuePrivateBoxLights');
+
+  // window frames at the glass line: mullions every quarter bay, a transom and a sill (the columns
+  // stand on the bay lines)
+  {
+    const MF = [], cF = [0.02, 0.018, 0.015];
+    TIERS.forEach((T) => {
+      const h = T.y1 - T.y0, tY = T.y1 - 0.133 * h;
+      for (const s of [-1, 1]) {
+        for (let k = 1; k < 32; k++) if (k % 4) {
+          const z = lerp(FAR_WIN_Z, END_WIN_Z, k / 32);
+          MF.push(solid(box(s * (WIN_X - 0.04), s * (WIN_X + 0.04), T.y0, T.y1, z - 0.03, z + 0.03), cF));
+        }
+        MF.push(solid(box(s * (WIN_X - 0.03), s * (WIN_X + 0.03), tY, tY + 0.05, FAR_WIN_Z, END_WIN_Z), cF));
+        MF.push(solid(box(s * (WIN_X - 0.03), s * (WIN_X + 0.03), T.y0, T.y0 + 0.08, FAR_WIN_Z, END_WIN_Z), cF));
+      }
+      for (let k = 1; k < 16; k++) if (k % 4) {
+        const x = lerp(-WIN_X, WIN_X, k / 16);
+        MF.push(solid(box(x - 0.03, x + 0.03, T.y0, T.y1, FAR_WIN_Z - 0.04, FAR_WIN_Z + 0.04), cF));
+      }
+      MF.push(solid(box(-WIN_X, WIN_X, tY, tY + 0.05, FAR_WIN_Z - 0.03, FAR_WIN_Z + 0.03), cF));
+      MF.push(solid(box(-WIN_X, WIN_X, T.y0, T.y0 + 0.08, FAR_WIN_Z - 0.03, FAR_WIN_Z + 0.03), cF));
+    });
+    mesh(merge(MF, 'boxFrames'), matBoxes, 'venueBoxFrames');
+    // a faint sheen on the glass, so the rooms read as behind glass
+    const GS = [];
+    TIERS.forEach((T) => {
+      const h = T.y1 - T.y0, len = END_WIN_Z - FAR_WIN_Z;
+      GS.push(quad([WIN_X - 0.01, T.y0, END_WIN_Z], [0, 0, -1], [0, 1, 0], len, h, [0, 0, len / 6, 1]));
+      GS.push(quad([-WIN_X + 0.01, T.y0, FAR_WIN_Z], [0, 0, 1], [0, 1, 0], len, h, [0, 0, len / 6, 1]));
+      GS.push(quad([-WIN_X, T.y0, FAR_WIN_Z + 0.01], [1, 0, 0], [0, 1, 0], 2 * WIN_X, h, [0, 0, (2 * WIN_X) / 6, 1]));
+    });
+    mesh(merge(GS, 'boxSheen'), matSheen, 'venueBoxGlass', 3);
+  }
   mesh(merge(W, 'lounges'), matLounge, 'venueLounges');
 
   // ── 3. warm linear LEDs: ceiling + balcony soffits ─────────────────
@@ -990,6 +1181,17 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const imSofa = new THREE.InstancedMesh(sofaGeo, matSofa, SOFAS.length);
   imSofa.name = 'venueBooths';
   SOFAS.forEach((b, i) => { q.setFromEuler(e.set(0, b.ry, 0)); m4.compose(v3.set(b.x, FLOOR_Y, b.z), q, sc3.set(1, 1, 1)); imSofa.setMatrixAt(i, m4); });
+  // Each booth (its two sofas and its table) is its own private booth: its own upholstery, never the
+  // same as the booth beside it (a multiplier on the painted cream: cream · oxblood · emerald · navy ·
+  // tan · mustard · blush · teal · black · dove grey)
+  {
+    const BOOTH = [[1, 1, 1], [0.62, 0.1, 0.12], [0.12, 0.46, 0.26], [0.13, 0.2, 0.52], [0.95, 0.58, 0.24], [1.0, 0.8, 0.16], [1.0, 0.62, 0.6], [0.1, 0.52, 0.56], [0.13, 0.12, 0.13], [0.6, 0.6, 0.64]];
+    const order = BOOTH.map((_, i) => i);
+    const srnd = mulberry32(seed * 17 + 9);
+    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(srnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    const bc = new THREE.Color();
+    SOFAS.forEach((b, i) => { const c = BOOTH[order[Math.floor(i / 2) % order.length]]; imSofa.setColorAt(i, bc.setRGB(c[0], c[1], c[2])); });
+  }
   const imTable = new THREE.InstancedMesh(tableGeo, matTable, TABLES.length);
   imTable.name = 'venueTables';
   const imCandle = new THREE.InstancedMesh(candleGeo, matCandle, TABLES.length);
@@ -1049,12 +1251,15 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       d += (rnd() < 0.3 ? 1.6 + rnd() * 2.6 : 0.5 + rnd() * 0.35) * stepK;   // groups of friends, gaps between
     }
   }
-  // seated guests in the floor booths (lowered so they sit on the seat)
+  // seated guests in the floor booths (lowered so they sit on the seat): one or two a sofa
   for (const b of SOFAS) {
     if (rnd() < (LOW ? 0.35 : 0.6)) {
       const fx = Math.sin(b.ry), fz = Math.cos(b.ry);
-      const off = (rnd() - 0.5) * 1.2;
-      FIG.push({ x: b.x + fx * 0.3 + fz * off, y: FLOOR_Y - 0.36, z: b.z + fz * 0.3 - fx * off, ry: b.ry, sy: 0.92 });
+      const two = !LOW && rnd() < 0.45;
+      for (const off of two ? [-0.42 + (rnd() - 0.5) * 0.12, 0.42 + (rnd() - 0.5) * 0.12] : [(rnd() - 0.5) * 1.2]) {
+        FIG.push({ x: b.x + fx * 0.3 + fz * off, y: FLOOR_Y - 0.36, z: b.z + fz * 0.3 - fx * off, ry: b.ry + (rnd() - 0.5) * 0.35, sy: 0.92,
+          seat: { x: b.x + fx * 0.2 + fz * off, z: b.z + fz * 0.2 - fx * off } });
+      }
     }
   }
   const imFig = new THREE.InstancedMesh(figGeo, matPeople, FIG.length);
@@ -1067,6 +1272,39 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     imFig.setColorAt(i, figC.setScalar(0.75 + rnd() * 0.5));
   });
   imFig.instanceMatrix.needsUpdate = true; imFig.computeBoundingSphere(); group.add(imFig);
+
+  // ── 9b. the same people as avatars: the crowd bake, shared with the dance floor ─────
+  // The boxes above are the fallback (they show until the baked figures arrive, and stay if the
+  // pack cannot be fetched). Standing on the rails: the `far` figure (`tiny` on phones); in the
+  // booths: the seated pose, sat on the seat (its thighs at the seat's top, 0.42 m).
+  let venueCrowd = null, venueDisposed = false;
+  const crowdRnd = mulberry32(seed * 7 + 3);   // its own stream: the venue's layout never depends on when the pack arrives
+  if (crowdPack) Promise.resolve(crowdPack).then((pack) => {
+    if (venueDisposed || !pack || !pack.geos) return;
+    const stand = LOW ? 'tiny' : 'far';
+    if (!pack.geos[`body:${stand}`] || !pack.geos['body:seat']) return;   // an older pack: keep the boxes
+    const seatY = (pack.header.seat && pack.header.seat.seatY) || 0.5;
+    const ALL = FIG.concat(LOUNGE_GUESTS);   // the rails, the booths and the private boxes
+    const people = ALL.map((f) => ({ lod: f.seat ? 1 : 0 }));
+    const lodCount = [0, 0];
+    for (const p of people) p.idx = lodCount[p.lod]++;
+    venueCrowd = createAvatarCrowd({ THREE, pack, people, lodCount, rnd: crowdRnd, lods: [stand, 'seat'],
+      stageFalloff: 1e4, name: 'venueCrowd', bob: RM ? 0 : 0.03 });
+    const vs = venueCrowd.height / 1.68;
+    ALL.forEach((f, i) => {
+      const p = people[i];
+      q.setFromEuler(e.set(0, f.ry, 0));
+      const k = (f.seat ? 0.97 : f.sy || 1) * (0.94 + crowdRnd() * 0.1) / vs;
+      if (f.seat) m4.compose(v3.set(f.seat.x, (f.seat.top != null ? f.seat.top : FLOOR_Y + 0.42) - seatY * k, f.seat.z), q, sc3.set(k, k, k));
+      else m4.compose(v3.set(f.x, f.y, f.z), q, sc3.set(k, k, k));
+      venueCrowd.setPerson(p, m4, 0, 0);
+    });
+    venueCrowd.commit();
+    // backlit by the warm lounge glass, a little of the atrium's light on the front
+    venueCrowd.setLight(new THREE.Color(0.55, 0.32, 0.14), new THREE.Color(0.05, 0.045, 0.042), new THREE.Color(0.05, 0.03, 0.014));
+    group.add(venueCrowd.group);
+    group.remove(imFig);
+  }).catch(() => { /* the club already reports a missing pack; the boxes stay */ });
 
   // ── 10. the hall floor (under the stage module's dance floor) ──────────
   {
@@ -1114,6 +1352,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
 
     U.uTime.value = t;
     U.uKick.value = envKick * (RM ? 0 : 1);
+    if (venueCrowd) venueCrowd.setBeat(envKick * (RM ? 0 : 1), RM ? 0 : t);
 
     // aviation lights: a slow soft blink (≈ 0.6 Hz), steady in reduced motion
     const blink = RM ? 0.7 : 0.25 + 0.75 * Math.pow(Math.max(0, Math.sin(t * Math.PI * 1.2)), 3);
@@ -1132,6 +1371,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   }
 
   function dispose() {
+    venueDisposed = true;
+    if (venueCrowd) { venueCrowd.dispose(); venueCrowd = null; }
     if (group.parent) group.parent.remove(group);
     group.clear();
     for (const im of [imTrunk, imFrond, imBeam, imSofa, imTable, imCandle, imHalo, imDisc, imFig]) im.dispose();

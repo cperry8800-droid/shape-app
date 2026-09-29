@@ -36,10 +36,67 @@ export const SHOTS = {
   profile:   { label: 'Profile',   bars: 4,  weight: 2, handheld: 0.006, fov: 30 },
   crane:     { label: 'Crane',     bars: 8,  weight: 1, handheld: 0.000, fov: 42 },
   face:      { label: 'Nora',      bars: 4,  weight: 1, handheld: 0.005, fov: 28 },
+  behind:    { label: 'Behind Nora', bars: 8, weight: 2, handheld: 0.004, fov: 54 },
+  drone:     { label: 'Drone',     bars: 40, weight: 1, handheld: 0.0015, fov: 58 },
 };
 export const SHOT_IDS = Object.keys(SHOTS);
 
 const HINT_TO_SHOT = { screen: 'screen', jog: 'jog', mixer: 'mixer', wide: 'wide' };
+
+// ── the drone: one continuous flight through the whole club ─────────────────────────────
+// Off Nora, back over the crowd looking down the room, across to the left balconies and along
+// the second tier beside the rail (the guests and the private boxes), up past the third tier to
+// the skylight ring for the view all the way back to the far end, over the far half, down the
+// right side to the back of the dance floor, and a low skim over the heads home to the booth. A closed loop, so a held Drone shot flies it again without a
+// jump. Heights clear the floor palms' crowns (≈7 m); the balcony pass stays 2 m inside the rails
+// and 1.7 m above the tier's floor. Club frame: stage at +z, crowd from z −1.8 to −34, balconies
+// at |x| ≥ 10.5 on tiers y = 3.6 / 7.6 / 11.6, ceiling 15.5, far wall z −46.
+const DRONE = [
+  { p: [0.0, 2.75, -3.8], t: [0.0, 1.45, 0.4] },      // on Nora (above the raised hands, ≈2.2 m)
+  { p: [0.9, 3.4, -11.0], t: [0.0, 2.2, -30.0] },     // back over the crowd, down the room
+  { p: [-3.4, 7.4, -21.0], t: [-10.0, 8.6, -30.0] },  // climbing toward the left balconies
+  { p: [-8.4, 9.4, -27.0], t: [-10.2, 8.8, -10.0] },  // tier two, beside the rail, looking along it
+  { p: [-8.4, 9.6, -12.0], t: [-10.0, 8.8, 4.0] },    // cruising the boxes toward the stage
+  { p: [-5.8, 12.6, -5.0], t: [-1.5, 8.5, -30.0] },   // climbing past tier three, turning back
+  { p: [0.0, 13.8, -8.5], t: [0.0, 4.5, -45.0] },     // under the skylight: the whole club, all the way back
+  { p: [3.6, 13.2, -25.0], t: [0.0, 3.0, -45.0] },    // over the far half
+  { p: [8.3, 9.6, -31.0], t: [10.0, 8.6, -12.0] },    // down to the right balconies, looking back to the stage
+  { p: [3.0, 4.2, -33.5], t: [0.0, 2.2, 0.4] },       // down to the back of the dance floor, turning to the stage
+  { p: [1.0, 2.6, -25.0], t: [0.0, 1.9, 0.4] },       // the skim: just over the heads (raised hands reach ≈2.2 m)…
+  { p: [-0.7, 2.55, -15.0], t: [0.0, 1.8, 0.4] },     // …the whole length of the crowd…
+  { p: [-0.3, 2.6, -8.0], t: [0.0, 1.6, 0.4] },       // …up to the booth
+];
+function catmull(a, b, c, d, u) {
+  const u2 = u * u, u3 = u2 * u;
+  return 0.5 * (2 * b + (c - a) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (3 * b - a - 3 * c + d) * u3);
+}
+function droneRaw(k, u, key, out) {   // segment k (closed), local u
+  const n = DRONE.length, A = DRONE[(k - 1 + n) % n][key], B = DRONE[k % n][key], C = DRONE[(k + 1) % n][key], D = DRONE[(k + 2) % n][key];
+  for (let i = 0; i < 3; i++) out[i] = catmull(A[i], B[i], C[i], D[i], u);
+  return out;
+}
+// Arc-length table, so the drone flies at an even speed (a raw spline crawls on short legs and
+// races on long ones).
+const DRONE_LUT = (() => {
+  const n = DRONE.length, steps = 64, pts = [], tmp = [0, 0, 0];
+  for (let k = 0; k < n; k++) for (let i = 0; i < steps; i++) pts.push([k, i / steps, ...droneRaw(k, i / steps, 'p', tmp)]);
+  pts.push([n, 0, ...droneRaw(0, 0, 'p', tmp)]);
+  const cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][2] - pts[i - 1][2], pts[i][3] - pts[i - 1][3], pts[i][4] - pts[i - 1][4]));
+  return { pts, cum, total: cum[cum.length - 1] };
+})();
+function droneAt(u, P, T) {
+  const L = DRONE_LUT, want = (((u % 1) + 1) % 1) * L.total;
+  let lo = 0, hi = L.cum.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (L.cum[m] <= want) lo = m; else hi = m; }
+  const f = (want - L.cum[lo]) / Math.max(1e-6, L.cum[hi] - L.cum[lo]);
+  const a = L.pts[lo], b = L.pts[hi];
+  const ga = a[0] + a[1], gb = (b[0] + b[1]) || DRONE.length;   // global spline parameter
+  const g = ga + (gb - ga) * f, k = Math.floor(g) % DRONE.length, lu = g - Math.floor(g);
+  const p = droneRaw(k, lu, 'p', [0, 0, 0]), t = droneRaw(k, lu, 't', [0, 0, 0]);
+  P.x = p[0]; P.y = p[1]; P.z = p[2]; T.x = t[0]; T.y = t[1]; T.z = t[2];
+}
+export const _droneForTest = { DRONE, droneAt, total: DRONE_LUT.total };
 
 /**
  * Evaluate one shot at progress u (0..1) and absolute time t.
@@ -120,6 +177,19 @@ export function evalShot(id, u, t, ctx, out) {
     case 'crane': {
       P.x = lerp(-3.2, -1.6, e); P.y = lerp(2.0, 3.7, e); P.z = lerp(-3.8, -2.6, e);
       T.x = 0; T.y = 1.15; T.z = 0.35;
+      break;
+    }
+    case 'behind': {
+      // Behind her and a little above her head, looking out at the crowd: the back of her head and
+      // shoulders at the bottom of the frame, the dance floor filling it, the balconies at the top.
+      // In front of the LED wall (z 2.0), so the wall lights her from behind. The aim sits low
+      // enough that her head (≈27° below the lens) stays in frame at this lens.
+      P.x = lerp(-0.32, 0.32, e); P.y = 2.2 + 0.06 * Math.sin(u * Math.PI); P.z = 1.45;
+      T.x = lerp(-1.4, 1.4, e); T.y = -0.6; T.z = -12;
+      break;
+    }
+    case 'drone': {
+      droneAt(u, P, T);
       break;
     }
     case 'face': {

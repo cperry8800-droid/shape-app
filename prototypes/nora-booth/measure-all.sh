@@ -10,6 +10,7 @@ run "glinfo low wide" node "$H/glinfo.cjs" "$U/index.html?q=low" 1280 720 wide
 run "shots high" node "$H/shot3.cjs" "$U/index.html" "$O/hi" 1280 720 16000 club,wide,shoulder,jog,mixer,profile,face,panorama
 run "shots low" node "$H/shot3.cjs" "$U/index.html?q=low" "$O/lo" 1280 720 16000 wide,face
 run "shots live" node "$H/shot3.cjs" "$U/index.html?autostart=1&synth=1" "$O/live" 1280 720 22000 wide,jog,face
-run "motion" node "$H/motion-sample.cjs" "$U/index.html?autostart=1&synth=1" 400
+run "motion" node "$H/motion-sample.cjs" "$U/index.html?autostart=1&synth=1" 120
 run "phone" node "$H/phone-run.cjs" "$U/index.html" "$O/phone"
+run "hand" node "$H/handprobe.cjs" "$U/index.html" "$O/hand" jog,mixer,face
 echo DONE >> "$O/log.txt"

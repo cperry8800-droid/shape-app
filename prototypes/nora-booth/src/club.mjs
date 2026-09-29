@@ -878,6 +878,153 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     intensity: 0.5,
   }));
 
+  // ── lasers and blinders: the light show off the stage ─────────────────
+  // Two laser units at the top corners of the portal throw thin coloured beams out over the room —
+  // a fan that tilts with the bar, spinning tunnels down the club, sweeps up the balconies — each
+  // beam running until it meets a wall, the ceiling or the floor. They swell with the level, pulse
+  // on the beat and go wide on the drop. A row of blinders on the stage lip hits on the kick during
+  // a drop (once a beat: under three flashes a second). Reduced motion: slow lasers, no flashes.
+  const LZ_UNITS = [{ x: -4.9, side: -1 }, { x: 4.9, side: 1 }].map((u) => ({ ...u, pos: new THREE.Vector3(u.x, PORTAL.top - 0.55, PORTAL.z0 - 0.2) }));
+  const LZ_N = low ? 6 : 12;
+  const LZ_COUNT = LZ_UNITS.length * LZ_N;
+  const lzGeo = own(new THREE.InstancedBufferGeometry());
+  lzGeo.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, 0, 1, 0, 0, -1, 1, 0, 1, 1, 0], 3));
+  lzGeo.setIndex([0, 1, 2, 2, 1, 3]);
+  const lzOrigin = new Float32Array(LZ_COUNT * 3), lzDir = new Float32Array(LZ_COUNT * 3), lzLen = new Float32Array(LZ_COUNT), lzCol = new Float32Array(LZ_COUNT * 3);
+  const lzAttr = (a, n) => { const b = new THREE.InstancedBufferAttribute(a, n); b.setUsage(THREE.DynamicDrawUsage); return b; };
+  lzGeo.setAttribute('iOrigin', lzAttr(lzOrigin, 3)); lzGeo.setAttribute('iDir', lzAttr(lzDir, 3));
+  lzGeo.setAttribute('iLen', lzAttr(lzLen, 1)); lzGeo.setAttribute('iColor', lzAttr(lzCol, 3));
+  lzGeo.instanceCount = LZ_COUNT;
+  const lzU = { uTime: { value: 0 }, uFogDensity: { value: FOG_DENSITY }, uWidth: { value: 0.0013 } };
+  const matLaser = own(new THREE.ShaderMaterial({
+    uniforms: lzU, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: /* glsl */`
+      attribute vec3 iOrigin; attribute vec3 iDir; attribute float iLen; attribute vec3 iColor;
+      uniform float uWidth;
+      varying vec3 vColor; varying float vT; varying float vSide; varying float vDepth;
+      void main() {
+        float t = position.y, side = position.x;
+        vec3 P = iOrigin + iDir * iLen * t;
+        vec3 toCam = cameraPosition - P; float dist = length(toCam);
+        vec3 across = normalize(cross(iDir, toCam / max(dist, 1e-4)));
+        P += across * side * (0.006 + dist * uWidth);   // a couple of pixels wide at any distance
+        vT = t; vSide = side; vColor = iColor;
+        vec4 mv = viewMatrix * vec4(P, 1.0); vDepth = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */`
+      uniform float uTime; uniform float uFogDensity;
+      varying vec3 vColor; varying float vT; varying float vSide; varying float vDepth;
+      void main() {
+        float core = exp(-vSide * vSide * 5.0);
+        float fall = 0.45 + 0.55 * exp(-vT * 2.4);
+        float fog = exp(-uFogDensity * uFogDensity * vDepth * vDepth * 0.45);
+        float nearFade = smoothstep(0.25, 1.4, vDepth);
+        float grain = 0.82 + 0.18 * sin(vT * 150.0 - uTime * 7.0);
+        gl_FragColor = vec4(vColor * core * fall * fog * nearFade * grain, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  }));
+  const imLaser = new THREE.Mesh(lzGeo, matLaser);
+  imLaser.name = 'lasers'; imLaser.frustumCulled = false; imLaser.renderOrder = 11;
+  group.add(imLaser);
+  // the laser units themselves: small black boxes with a coloured aperture
+  {
+    const parts = LZ_UNITS.map((u) => boxAt(THREE, u.x - 0.18, u.x + 0.18, u.pos.y - 0.08, u.pos.y + 0.1, u.pos.z - 0.12, u.pos.z + 0.16));
+    mesh(merge(parts), matFixture, 'laserUnits');
+  }
+  // Where a beam leaves the room: the inside of the hall (walls x ±13.9, floor, ceiling 15.4, far wall z −45.9).
+  function roomExit(o, d) {
+    let tMax = 80;
+    const lim = [[-13.9, 13.9], [FLOOR_Y, 15.4], [-45.9, 6.0]];
+    for (let a = 0; a < 3; a++) {
+      const oc = a === 0 ? o.x : a === 1 ? o.y : o.z, dc = a === 0 ? d.x : a === 1 ? d.y : d.z;
+      if (Math.abs(dc) < 1e-6) continue;
+      const tt = ((dc > 0 ? lim[a][1] : lim[a][0]) - oc) / dc;
+      if (tt > 0) tMax = Math.min(tMax, tt);
+    }
+    return tMax;
+  }
+  const LZ_MAGENTA = new THREE.Color(1.0, 0.16, 0.72), LZ_GREEN = new THREE.Color(0.16, 1.0, 0.36);
+  let lzGain = 0;
+  const lzD = new THREE.Vector3(), lzC = new THREE.Color();
+  function updateLasers(dt, t) {
+    const bp = beatPosAt(t);
+    const slow = reduced ? 0.2 : 1;
+    const mode = (Math.floor(state.bar / 8) + 1) % 3;
+    const lvl = levelNorm();
+    const drop = dropS;
+    // present from the first note, strong on the drop; a slow idle fan before the set starts
+    const want = Math.max(0.28, 0.35 + 0.5 * lvl) * (1 + 0.9 * drop);
+    lzGain += (want - lzGain) * Math.min(1, dt * 2.5);
+    const frac = bp - Math.floor(bp);
+    const pulse = reduced ? 1 : 0.62 + 0.38 * Math.exp(-frac * 5.0);
+    const palette = [accentC, LZ_GREEN, LZ_MAGENTA, hotC];
+    let k = 0;
+    for (const unit of LZ_UNITS) {
+      const s = unit.side;
+      const colA = palette[(Math.floor(state.bar / 8) + (s > 0 ? 0 : (drop > 0.5 ? 2 : 0))) % palette.length];
+      for (let i = 0; i < LZ_N; i++, k++) {
+        const f = LZ_N > 1 ? i / (LZ_N - 1) : 0.5;      // 0..1 across the fan
+        const ph = t * slow;
+        if (drop > 0.5 || mode === 0) {
+          // the fan: a sheet of beams crossing the room from each corner, tilting with the bar
+          const a = -s * 0.22 + (f - 0.5) * (drop > 0.5 ? 1.25 : 0.9);
+          const e = -0.06 + 0.13 * Math.sin(ph * 0.9 + bp * Math.PI * 0.25 * slow);
+          lzD.set(Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e));
+        } else if (mode === 1) {
+          // the tunnel: a spinning cone of beams down the length of the club
+          const r = 2 * Math.PI * f + ph * 0.7 * s;
+          lzD.set(Math.cos(r) * 0.2 - s * 0.08, Math.sin(r) * 0.14 - 0.02, -1);
+        } else {
+          // the sweep: beams climbing the balconies on their own side, chasing back down the room
+          const z = -6 - 36 * f, y = 2.5 + 11 * (0.5 + 0.5 * Math.sin(ph * 1.1 - f * 2.5));
+          lzD.set(s * 10.4 - unit.pos.x, y - unit.pos.y, z - unit.pos.z);
+        }
+        lzD.normalize();
+        lzOrigin[k * 3] = unit.pos.x; lzOrigin[k * 3 + 1] = unit.pos.y; lzOrigin[k * 3 + 2] = unit.pos.z;
+        lzDir[k * 3] = lzD.x; lzDir[k * 3 + 1] = lzD.y; lzDir[k * 3 + 2] = lzD.z;
+        lzLen[k] = roomExit(unit.pos, lzD);
+        lzC.copy(colA).multiplyScalar(lzGain * pulse * 2.2);
+        lzCol[k * 3] = lzC.r; lzCol[k * 3 + 1] = lzC.g; lzCol[k * 3 + 2] = lzC.b;
+      }
+    }
+    for (const n of ['iOrigin', 'iDir', 'iLen', 'iColor']) lzGeo.attributes[n].needsUpdate = true;
+    lzU.uTime.value = t;
+  }
+
+  // blinders: a row of warm lamps on the stage lip
+  const BL_X = low ? [-3.6, -1.2, 1.2, 3.6] : [-4.4, -2.9, -1.45, 1.45, 2.9, 4.4];
+  const blBodyGeo = own(new THREE.BoxGeometry(0.34, 0.2, 0.14));
+  const blFaceGeo = own(new THREE.CircleGeometry(0.08, 14));
+  const imBlBody = new THREE.InstancedMesh(blBodyGeo, matFixture, BL_X.length);
+  const matBlinder = own(new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  const imBlFace = new THREE.InstancedMesh(blFaceGeo, matBlinder, BL_X.length * 2);
+  imBlBody.name = 'blinderBodies'; imBlFace.name = 'blinders';
+  {
+    const m = new THREE.Matrix4(), one = new THREE.Vector3(1, 1, 1);
+    const qBody = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, 0, 0));            // tipped up toward the crowd
+    const qFace = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, Math.PI, 0, 'YXZ')); // lens facing −z, tipped up
+    BL_X.forEach((x, i) => {
+      const z = stageFrontZ(x) + 0.14, y = STAGE_Y + 0.12;
+      imBlBody.setMatrixAt(i, m.compose(new THREE.Vector3(x, y, z), qBody, one));
+      for (let j = 0; j < 2; j++) {
+        imBlFace.setMatrixAt(i * 2 + j, m.compose(new THREE.Vector3(x + (j - 0.5) * 0.17, y + 0.005, z - 0.075), qFace, one));
+        imBlFace.setColorAt(i * 2 + j, new THREE.Color(0.3, 0.18, 0.08));
+      }
+    });
+  }
+  group.add(imBlBody, imBlFace);
+  const BL_WARM = new THREE.Color(1.0, 0.72, 0.42);
+  function updateBlinders() {
+    // on the kick during a drop; a steady filament glow otherwise
+    const hit = reduced ? dropS * 0.35 : dropS * kickS * kickS;
+    const k = 0.25 + 9.0 * hit;
+    for (let i = 0; i < BL_X.length * 2; i++) imBlFace.setColorAt(i, tmpC.copy(BL_WARM).multiplyScalar(k));
+    imBlFace.instanceColor.needsUpdate = true;
+  }
+
   // ── crowd ────────────────────────────────────────────────────────────
   // Two levels of detail sharing one rim-lit material: full figures near the stage,
   // simple silhouettes further back (the establishing shot sees hundreds of them).
@@ -1049,15 +1196,17 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const fill = new THREE.SpotLight(0xc4d8ff, 7, 0, 0.5, 1.0, 2);
   fill.position.set(2.7, 1.8, -2.8);
   fill.target.position.set(0, 1.45, 0.32);
-  // The rims' cones hold her head and shoulders and fall off before the table: from 3 m behind her,
-  // the decks sit ~0.26 rad below her head, so a 0.2 rad cone keeps coloured light off the gear
-  // (a 0.34 rad cone put an amber hotspot on the platter and an olive cast on the mixer).
-  const rimL = new THREE.SpotLight(accentC.clone(), 30, 0, 0.2, 0.6, 2);
-  rimL.position.set(-2.4, 2.25, 2.0);
-  rimL.target.position.set(0, 1.62, 0.36);
-  const rimR = new THREE.SpotLight(hotC.clone(), 17, 0, 0.2, 0.6, 2);
-  rimR.position.set(2.4, 2.25, 2.0);
-  rimR.target.position.set(0, 1.62, 0.36);
+  // The rims cross behind her, so each one's beam carries on past her head onto the OPPOSITE deck:
+  // measured, the amber rim was most of the light on the left platter (it turned the gunmetal bronze).
+  // So they sit at head height and aim almost level: past her head the beam passes over the table,
+  // and a 0.15 rad cone (≈0.44 m at her head) holds the head and shoulders and ends ≈0.19 rad above
+  // the far deck.
+  const rimL = new THREE.SpotLight(accentC.clone(), 30, 0, 0.15, 0.55, 2);
+  rimL.position.set(-2.4, 1.95, 2.0);
+  rimL.target.position.set(0, 1.68, 0.36);
+  const rimR = new THREE.SpotLight(hotC.clone(), 17, 0, 0.15, 0.55, 2);
+  rimR.position.set(2.4, 1.95, 2.0);
+  rimR.target.position.set(0, 1.68, 0.36);
   // hair light: from the portal truss, a cone just wide enough for her head and shoulders
   const top = new THREE.SpotLight(iceC.clone(), 48, 0, 0.075, 0.6, 2);
   top.position.set(0, FX_Y - 0.3, TRUSS.z);
@@ -1089,9 +1238,13 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     const w = new THREE.Mesh(wg, wm); w.position.set(0, 4.0, 2.1); w.rotation.y = Math.PI; es.add(w);
     // warm gold balcony bands down both sides
     const bg = new THREE.PlaneGeometry(40, 0.8); tmp.push(bg);
-    // the balconies' gold in reflections: 1.1 (was 1.6) — under Neutral tone mapping a 1.6 gold turned the
-    // gunmetal gear bronze wherever it faced the side walls
-    const gold = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb866).multiplyScalar(1.1), side: THREE.DoubleSide }); tmp.push(gold);
+    // the balconies' gold in reflections: 0.7 (was 1.6) — under Neutral tone mapping a strong gold turned the
+    // gunmetal gear bronze: the plates are rough metal, so they average the whole environment, and the
+    // gold bands were most of it. A dim cool ceiling (below) is the rest of the room they average.
+    const gold = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb866).multiplyScalar(0.7), side: THREE.DoubleSide }); tmp.push(gold);
+    { const cg = new THREE.PlaneGeometry(30, 60); tmp.push(cg);
+      const cm = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.22, 0.26), side: THREE.DoubleSide }); tmp.push(cm);
+      const c = new THREE.Mesh(cg, cm); c.rotation.x = Math.PI / 2; c.position.set(0, 13.5, -18); es.add(c); }
     for (const side of [-1, 1]) for (const y of [2.2, 5.6, 9.6]) {
       const s = new THREE.Mesh(bg, gold); s.position.set(side * 10.8, y, -20); s.rotation.y = Math.PI / 2; es.add(s);
     }
@@ -1272,14 +1425,16 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       tmpM.compose(f.pivot, tmpQ2, tmpS.set(1, 1, 1));
       imHead.setMatrixAt(k, tmpM);
       imLens.setMatrixAt(k, tmpM);
-      tmpC.copy(beamWhite).multiplyScalar(0.8 + 2.4 * f.intensity);
+      // the section's colour: white, the brand accent, the hot tone; on the drop the pairs alternate
+      const bc = drop > 0.5 ? (k % 2 ? accentC : hotC) : [beamWhite, accentC, hotC][mode];
+      tmpC.copy(bc).multiplyScalar(0.8 + 2.4 * f.intensity);
       imLens.setColorAt(k, tmpC);
       // beam from the lens face along the aim
       const R = BEAM_LEN * Math.tan(BEAM_HALF);
       tmpQ.setFromUnitVectors(DOWN, d);
       tmpM.compose(tmpV.copy(f.pivot).addScaledVector(d, 0.15), tmpQ, tmpS.set(R, BEAM_LEN, R));
       imBeam.setMatrixAt(k, tmpM);
-      beamColor[k * 3] = beamWhite.r; beamColor[k * 3 + 1] = beamWhite.g; beamColor[k * 3 + 2] = beamWhite.b;
+      beamColor[k * 3] = bc.r; beamColor[k * 3 + 1] = bc.g; beamColor[k * 3 + 2] = bc.b;
       beamInt[k] = f.intensity;
     }
     imFxBody.instanceMatrix.needsUpdate = true;
@@ -1291,6 +1446,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     beamGeo.attributes.aIntensity.needsUpdate = true;
     beamU.uTime.value = t;
     beamU.uFogDensity.value = wallU.uFogDensity.value;
+    lzU.uFogDensity.value = wallU.uFogDensity.value;
 
     // the wash rides an inner beam onto the crowd
     const f = mh[Math.floor(NF / 2) - 1];
@@ -1398,6 +1554,8 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     updateBeat(t);
     updateWall(dt, t);
     updateHeads(dt, t);
+    updateLasers(dt, t);
+    updateBlinders();
     updateCrowd(dt, t);
     updateLights(dt, t);
   }
@@ -1412,7 +1570,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       attachedScene = null;
     }
     if (envRT) { envRT.dispose(); envRT = null; }
-    [imFxBody, imHead, imLens, imBeam, imBars, ...imBody, ...imArm].forEach((m) => m.dispose());
+    [imFxBody, imHead, imLens, imBeam, imBars, imBlBody, imBlFace, ...imBody, ...imArm].forEach((m) => m.dispose());
     [hemi, key, top, wallLight, wash].forEach((l) => l.dispose && l.dispose());
     for (const d of disposables) if (d && d.dispose) d.dispose();
     disposables.length = 0;
