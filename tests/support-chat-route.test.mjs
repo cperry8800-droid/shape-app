@@ -100,39 +100,18 @@ const post = (body, headers = {}) => new Request('https://x/api/support/chat', {
 const ask = (text) => ({ messages: [{ role: 'user', content: text }] });
 const toolNames = (body) => (body.tools || []).map((t) => t.name);
 
-const READ_NAMES = ['get_training_plan', 'get_recent_workouts', 'get_week_summary', 'get_habits', 'get_coaching', 'get_reminders', 'get_points'];
-
-// ⚠ "TODAY" AND "THIS WEEK" RUN AT A PINNED INSTANT, NEVER AT THE WALL CLOCK. The route
-// reads the clock with a bare `new Date()` (the readers' `now`, the facts block's "today"),
-// and the member readers bucket by UTC calendar day and a Monday-start UTC week (the header
-// of memberReads.mjs). A fixture dated with a literal went stale when the calendar moved on:
-// '2026-09-23' was "this week" when the lookup test was written (2026-09-21) and was not from
-// 2026-09-28, so `thisWeek` came back empty and the coach name undefined. A fixture built
-// from its own `new Date()` is not safe either: `loadRoute` compiles the route between the
-// fixture's clock read and the route's, and the two can straddle UTC midnight. So a test that
-// depends on "today" pins ONE instant and derives its fixture dates FROM it, through the
-// readers' own day function.
-//
-// Pinning `Date.now` alone would not reach the route: an argument-less `new Date()` reads the
-// system clock itself and never calls `Date.now`. So the constructor is swapped for the length
-// of the call. The route runs in this realm (`loadRealModule` evaluates it with
-// `new Function`), so its bare `Date` resolves to the swap.
-//
-// The instant is built from LOCAL components, a Wednesday at local noon, so it sits mid-week
-// wherever the suite runs: the readers' UTC day is Tuesday, Wednesday or Thursday from UTC−12
-// to UTC+14, all inside the same Monday-start UTC week.
-const PINNED_AT = new Date(2026, 8, 23, 12, 0, 0, 0).getTime();
-async function atPinnedClock(fn, at = PINNED_AT) {
-  const RealDate = globalThis.Date;
-  globalThis.Date = new Proxy(RealDate, {
-    // `new Date()` with no arguments is the wall-clock read; every other form passes through.
-    construct: (target, args, newTarget) => Reflect.construct(target, args.length ? args : [at], newTarget),
-    // `Date()` called as a function is a clock read too.
-    apply: () => new RealDate(at).toString(),
-    get: (target, key, receiver) => (key === 'now' ? () => at : Reflect.get(target, key, receiver)),
-  });
-  try { return await fn(at); } finally { globalThis.Date = RealDate; }
+// ⚠ ONE CLOCK READ FOR THE FIXTURE AND THE ROUTE. A test that dates its
+// fixture from the clock reads it once, and the route reads it again later,
+// after loading. A run that crosses UTC midnight between the two reads
+// dates the fixture one day and the route the next. This freezes Date at the
+// real current instant for the rest of the test (the test context restores
+// it), so both reads see the same moment and the date is still today's.
+function pinToday(t) {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  return memberReads.isoDay(new Date());
 }
+
+const READ_NAMES = ['get_training_plan', 'get_recent_workouts', 'get_week_summary', 'get_habits', 'get_coaching', 'get_reminders', 'get_points'];
 
 test('⚠ WHO GETS WHAT: an anonymous caller gets the base tools on the PUBLIC model; a member gets the read tools on the pin; a coach also gets the lookups', async () => {
   const anon = await loadRoute({ user: null });
@@ -185,18 +164,20 @@ test('every read tool schema is strict with no arguments, so nothing can be pass
   }
 });
 
-test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows come back under the call id, and the reply is what the model said', async () => {
-  // Dated TODAY in the readers' own basis (the UTC day of the pinned instant), so the workout
-  // is on this week's plan, and today's, whatever the real date or the machine's timezone.
-  const day = memberReads.isoDay(PINNED_AT);
+test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows come back under the call id, and the reply is what the model said', async (t) => {
+  // ⚠ The route hands readTrainingPlan the REAL clock, and the read keeps only
+  // rows dated from this UTC week's Monday on. A hard-coded date falls out of
+  // that window the week after it was written, and the plan comes back empty.
+  // So the row is dated TODAY, on a clock pinned for the route as well.
+  const today = pinToday(t);
   const tables = {
-    client_workouts: [{ id: 'w1', client_id: U, status: 'published', title: 'Upper body — push', trainer_id: 7, scheduled_date: day, created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: 'Bench press', sets: 4, reps: 6 }] } }],
+    client_workouts: [{ id: 'w1', client_id: U, status: 'published', title: 'Upper body — push', trainer_id: 7, scheduled_date: today, created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: 'Bench press', sets: 4, reps: 6 }] } }],
     client_meal_plans: [],
     trainers: [{ id: 7, name: 'Maya Okafor' }],
   };
   const answers = [calls(call('get_training_plan', {})), say('Today is Upper body — push: bench press 4 × 6, from Maya.')];
   const { mod, calls: c } = await loadRoute({ tables, answers });
-  const res = await atPinnedClock(() => mod.POST(post(ask("what's on today?"))));
+  const res = await mod.POST(post(ask("what's on today?")));
   const out = await res.json();
   assert.equal(c.ai.length, 2, 'one round to ask, one to answer');
   const second = c.ai[1].body.input;
@@ -206,14 +187,10 @@ test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows com
   assert.equal(fco.call_id, 'call_get_training_plan');
   const result = JSON.parse(fco.output);
   assert.equal(result.ok, true);
-  // The pin reached the reader: its "today" and week are the pinned instant's, not the wall
-  // clock's. Without this, a pin that stopped reaching the route would still pass in any week
-  // that happens to contain the fixture's day.
-  assert.equal(result.today, day);
-  assert.equal(result.weekStart, memberReads.weekStartISO(day));
+  assert.equal(result.today, today, 'the route read the same day the fixture was dated from');
   assert.equal(result.training.coach, 'Maya Okafor');
   assert.equal(result.training.thisWeek[0].title, 'Upper body — push');
-  assert.deepEqual(result.training.todays, ['Upper body — push']);
+  assert.deepEqual(result.training.todays, ['Upper body — push'], 'a row dated today is today\'s session');
   assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned' });
 });
 
@@ -223,7 +200,9 @@ test('a read that fails answers ok:false to the model — never an empty plan �
   const fco = c.ai[1].body.input.find((it) => it.type === 'function_call_output');
   assert.deepEqual(JSON.parse(fco.output), { ok: false });
   // A non-member whose model somehow emits a read call: members_only, no read.
-  const p = await loadRoute({ isMember: false, answers: [calls(call('get_week_summary', {})), say('x')], tables: { daily_health_snapshot: [{ user_id: U, snapshot_date: '2026-09-23', calories: 1 }] } });
+  // The row is dated today so it sits inside the 7-day window a leaked read
+  // would return. The guards below check the call log, not the result.
+  const p = await loadRoute({ isMember: false, answers: [calls(call('get_week_summary', {})), say('x')], tables: { daily_health_snapshot: [{ user_id: U, snapshot_date: memberReads.isoDay(new Date()), calories: 1 }] } });
   await p.mod.POST(post(ask('week?')));
   const fco2 = p.calls.ai[1].body.input.find((it) => it.type === 'function_call_output');
   assert.deepEqual(JSON.parse(fco2.output), { error: 'members_only' });
@@ -316,16 +295,14 @@ test('Cook Mode still carries NO tools and NO read tools, on the public model fo
   assert.equal(b.model, ai.aiPublicModel());
 });
 
-test('member facts carry today\'s habit completion now (the context line nothing populated before)', async () => {
-  // Done TODAY in the route's own basis (the UTC day of the pinned instant). Built from a
-  // separate `new Date()`, this completion was read against the route's LATER clock read, and a
-  // run straddling UTC midnight counted it as yesterday's: "0 of 2".
+test('member facts carry today\'s habit completion now (the context line nothing populated before)', async (t) => {
+  const today = pinToday(t); // the route counts completions whose done_on is ITS today
   const tables = {
     user_habits: [{ id: 'h1', user_id: U, archived_at: null }, { id: 'h2', user_id: U, archived_at: null }, { id: 'h3', user_id: U, archived_at: '2026-01-01T00:00:00Z' }],
-    user_habit_completions: [{ user_id: U, habit_id: 'h1', done_on: memberReads.isoDay(PINNED_AT) }],
+    user_habit_completions: [{ user_id: U, habit_id: 'h1', done_on: today }],
   };
   const { mod, calls: c } = await loadRoute({ tables });
-  await atPinnedClock(() => mod.POST(post(ask('hi'))));
+  await mod.POST(post(ask('hi')));
   const facts = c.ai[0].body.input.find((it) => it.role === 'system' && /FACTS ABOUT THIS MEMBER/.test(it.content));
   assert.ok(facts, 'a member gets the facts block');
   assert.match(facts.content, /Habits today: 1 of 2 done/);
