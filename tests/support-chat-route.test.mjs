@@ -100,6 +100,17 @@ const post = (body, headers = {}) => new Request('https://x/api/support/chat', {
 const ask = (text) => ({ messages: [{ role: 'user', content: text }] });
 const toolNames = (body) => (body.tools || []).map((t) => t.name);
 
+// ⚠ ONE CLOCK READ FOR THE FIXTURE AND THE ROUTE. A test that dates its
+// fixture from the clock reads it once, and the route reads it again later,
+// after loading. A run that crosses UTC midnight between the two reads
+// dates the fixture one day and the route the next. This freezes Date at the
+// real current instant for the rest of the test (the test context restores
+// it), so both reads see the same moment and the date is still today's.
+function pinToday(t) {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  return memberReads.isoDay(new Date());
+}
+
 const READ_NAMES = ['get_training_plan', 'get_recent_workouts', 'get_week_summary', 'get_habits', 'get_coaching', 'get_reminders', 'get_points'];
 
 test('⚠ WHO GETS WHAT: an anonymous caller gets the base tools on the PUBLIC model; a member gets the read tools on the pin; a coach also gets the lookups', async () => {
@@ -153,9 +164,14 @@ test('every read tool schema is strict with no arguments, so nothing can be pass
   }
 });
 
-test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows come back under the call id, and the reply is what the model said', async () => {
+test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows come back under the call id, and the reply is what the model said', async (t) => {
+  // ⚠ The route hands readTrainingPlan the REAL clock, and the read keeps only
+  // rows dated from this UTC week's Monday on. A hard-coded date falls out of
+  // that window the week after it was written, and the plan comes back empty.
+  // So the row is dated TODAY, on a clock pinned for the route as well.
+  const today = pinToday(t);
   const tables = {
-    client_workouts: [{ id: 'w1', client_id: U, status: 'published', title: 'Upper body — push', trainer_id: 7, scheduled_date: '2026-09-23', created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: 'Bench press', sets: 4, reps: 6 }] } }],
+    client_workouts: [{ id: 'w1', client_id: U, status: 'published', title: 'Upper body — push', trainer_id: 7, scheduled_date: today, created_at: '2026-09-01T00:00:00Z', payload: { exercises: [{ name: 'Bench press', sets: 4, reps: 6 }] } }],
     client_meal_plans: [],
     trainers: [{ id: 7, name: 'Maya Okafor' }],
   };
@@ -171,8 +187,10 @@ test('⚠ A LOOKUP RUNS: the model asks for the plan, the member\'s own rows com
   assert.equal(fco.call_id, 'call_get_training_plan');
   const result = JSON.parse(fco.output);
   assert.equal(result.ok, true);
+  assert.equal(result.today, today, 'the route read the same day the fixture was dated from');
   assert.equal(result.training.coach, 'Maya Okafor');
   assert.equal(result.training.thisWeek[0].title, 'Upper body — push');
+  assert.deepEqual(result.training.todays, ['Upper body — push'], 'a row dated today is today\'s session');
   assert.deepEqual(out, { reply: 'Today is Upper body — push: bench press 4 × 6, from Maya.', source: 'ai', actions: [], model: 'pinned' });
 });
 
@@ -182,7 +200,9 @@ test('a read that fails answers ok:false to the model — never an empty plan �
   const fco = c.ai[1].body.input.find((it) => it.type === 'function_call_output');
   assert.deepEqual(JSON.parse(fco.output), { ok: false });
   // A non-member whose model somehow emits a read call: members_only, no read.
-  const p = await loadRoute({ isMember: false, answers: [calls(call('get_week_summary', {})), say('x')], tables: { daily_health_snapshot: [{ user_id: U, snapshot_date: '2026-09-23', calories: 1 }] } });
+  // The row is dated today so it sits inside the 7-day window a leaked read
+  // would return. The guards below check the call log, not the result.
+  const p = await loadRoute({ isMember: false, answers: [calls(call('get_week_summary', {})), say('x')], tables: { daily_health_snapshot: [{ user_id: U, snapshot_date: memberReads.isoDay(new Date()), calories: 1 }] } });
   await p.mod.POST(post(ask('week?')));
   const fco2 = p.calls.ai[1].body.input.find((it) => it.type === 'function_call_output');
   assert.deepEqual(JSON.parse(fco2.output), { error: 'members_only' });
@@ -275,10 +295,11 @@ test('Cook Mode still carries NO tools and NO read tools, on the public model fo
   assert.equal(b.model, ai.aiPublicModel());
 });
 
-test('member facts carry today\'s habit completion now (the context line nothing populated before)', async () => {
+test('member facts carry today\'s habit completion now (the context line nothing populated before)', async (t) => {
+  const today = pinToday(t); // the route counts completions whose done_on is ITS today
   const tables = {
     user_habits: [{ id: 'h1', user_id: U, archived_at: null }, { id: 'h2', user_id: U, archived_at: null }, { id: 'h3', user_id: U, archived_at: '2026-01-01T00:00:00Z' }],
-    user_habit_completions: [{ user_id: U, habit_id: 'h1', done_on: new Date().toISOString().slice(0, 10) }],
+    user_habit_completions: [{ user_id: U, habit_id: 'h1', done_on: today }],
   };
   const { mod, calls: c } = await loadRoute({ tables });
   await mod.POST(post(ask('hi')));
