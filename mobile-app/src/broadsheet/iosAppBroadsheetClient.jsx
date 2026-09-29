@@ -43,8 +43,8 @@ import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSpl
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
-import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, bsProgressPct } from '../services/cookOrchestrator.mjs';
-import { bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsDishColor, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
+import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
+import { bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -8134,9 +8134,11 @@ const BS_CK_CSS = `
 .bsck .cC .brd{grid-column:1/3;grid-row:3;border-radius:14px;border:2px dashed var(--zone);display:flex;align-items:center;gap:10px;padding:0 12px;font:600 13px/1.2 var(--f-b);color:var(--gl-dim);text-align:left;min-width:0}
 .bsck .cC .brd.on{border-style:solid;border-color:#34d6c5;color:var(--gl-ink);background:rgba(52,214,197,.08)}
 .bsck .cC .brd .n{margin-left:auto;font-size:18px;font-weight:700;color:#34d6c5}
-.bsck .cC .rst{grid-column:3;grid-row:3;border-radius:14px;border:2px dashed var(--zone);display:flex;align-items:center;justify-content:center;gap:8px;font:600 13px/1.2 var(--f-b);color:var(--gl-dim);min-width:0}
+.bsck .cC .rst{grid-column:3;grid-row:3;border-radius:14px;border:2px dashed var(--zone);display:flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;text-align:center;font:600 13px/1.2 var(--f-b);color:var(--gl-dim);min-width:0}
 .bsck .cC .rst.on{border-style:solid;border-color:#cfc6b4;color:var(--gl-ink)}
 .bsck .cC .rst .n{font-size:17px;font-weight:700;color:#cfc6b4}
+.bsck.web .cC .rst.on{flex-direction:column;gap:4px}
+.bsck.web .cC .rst.on > span:first-child{max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .bsck .cC .card{flex:1;min-height:0;margin-top:12px;background:var(--p2);border-radius:26px 26px 0 0;display:flex;flex-direction:column;box-shadow:0 -1px 0 var(--hair)}
 .bsck .cC .card .in{flex:1;min-height:0;overflow:auto;padding:18px 22px 8px;display:flex;flex-direction:column;gap:12px}
 .bsck .cC .where{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font:600 14px/1.2 var(--f-b);color:var(--i70)}
@@ -8490,17 +8492,34 @@ function bsCkVars(t) {
 // platform, and never the window: in the desktop phone preview the window is wide and the
 // phone is not. A phone is `dev`; from 760px it is the website layout (`web emb` inside the
 // website's Cook page and on a tablet, `web full` from 1180px). No ResizeObserver (tests, an
-// old WebView) → the phone layout. `dep` re-attaches the watch when the screen's root is
-// swapped out.
-function useBSCkLayout(ref, dep) {
+// old WebView) → the phone layout.
+// ⚠ The watch FOLLOWS THE NODE, checked after every commit, because the node is replaced
+// under the hook: the shell looks its portal target up on every render, and on the website's
+// own cooking page `#bs-phone-surface` is created by the very render that first draws the
+// shell — so render one portals into <body>, render two into the surface, and React remounts
+// the node. A watch bound once at mount kept measuring the detached first node, which reads
+// 0 wide, so every website cook screen stayed in the phone layout. The same happens when a
+// session hands its screen to the board and takes it back.
+function useBSCkLayout(ref) {
   const [w, setW] = React.useState(0);
+  const watch = React.useRef({ el: null, ro: null });
   React.useEffect(() => {
     const el = ref.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver((entries) => { setW(Math.round(entries[0]?.contentRect?.width || 0)); });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [dep]);
+    const cur = watch.current;
+    if (el === cur.el) return;
+    if (cur.ro) cur.ro.disconnect();
+    cur.el = el;
+    cur.ro = null;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    cur.ro = new ResizeObserver((entries) => { setW(Math.round(entries[0]?.contentRect?.width || 0)); });
+    cur.ro.observe(el);
+  });
+  React.useEffect(() => () => {
+    const cur = watch.current;
+    if (cur.ro) cur.ro.disconnect();
+    cur.ro = null;
+    cur.el = null;
+  }, []);
   const web = w >= 760;
   const full = w >= 1180;
   return { w, web, full, emb: web && !full, cls: web ? (full ? 'web full' : 'web emb') : 'dev' };
@@ -8718,16 +8737,35 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
   const playX = fit ? W - 12 : 24 + nm * ppm;
   const x = (m) => playX + (m - nm) * ppm;
   // Ruler: wall-clock marks every 5 minutes, thinned when the cook is long enough that five
-  // minutes is too narrow for its label.
-  const step = [5, 10, 15, 20, 30, 60].find((s) => s * ppm >= 44) || 60;
+  // minutes is too narrow for its label (whole hours past an hour, so a long braise still
+  // reads). The loop walks MARK TO MARK and stops at the right edge: at least 44px apart, so it
+  // can never draw more than the width holds, whatever the recipe claims its length is (a
+  // step authored at 1e308 minutes once turned a minute-by-minute walk into a frozen page).
+  const step = [5, 10, 15, 20, 30, 60].find((s) => s * ppm >= 44) || Math.ceil(44 / ppm / 60) * 60;
   const hasClock = Number.isFinite(anchor);
   const base = hasClock ? new Date(anchor).getMinutes() : 0;
+  // The playhead's own label sits beside its line — to the right while cooking, to the left
+  // once plated — so a ruler time that would run under either is left out, never drawn half
+  // hidden. Widths are estimated from the text, so a longer word in another language keeps
+  // its room.
+  const phText = fit ? tr('cook:ck.plated', { defaultValue: 'Plated' }) : tr('cook:ck.now', { defaultValue: 'Now' });
+  const phW = String(phText).length * 7 + 8;
+  const blockL = fit ? playX - 5 - phW : playX - 3;
+  const blockR = fit ? playX + 3 : playX + 5 + phW;
   const marks = [];
-  for (let m = 0; m <= S + 1; m++) {
-    if (hasClock ? (((base + m) % step) + step) % step !== 0 : m % step !== 0) continue;
-    const X = x(m);
-    if (X < -2 || X > W - 30 || Math.abs(X - playX) < 34) continue;
-    marks.push(<React.Fragment key={m}><i style={{ left: X }} /><b style={{ left: X }}>{hasClock ? bsCkClockShort(anchor + m * 60000) : `${m}`}</b></React.Fragment>);
+  if (Number.isFinite(step) && step > 0 && Number.isFinite(S) && ppm > 0) {
+    const m0 = hasClock ? (((step - (base % step)) % step) + step) % step : 0;
+    for (let m = m0, n = 0; m <= S + 1 && n < 200; m += step, n++) {
+      const X = x(m);
+      if (!Number.isFinite(X)) break;
+      const at = anchor + m * 60000;
+      if (hasClock && !Number.isFinite(new Date(at).getTime())) break;
+      const text = hasClock ? bsCkClockShort(at) : `${m}`;
+      const lw = String(text).length * 6.6 + 2;
+      if (X + 4 + lw > W) break;
+      if (X < -2 || (X + 4 < blockR + 4 && X + 4 + lw > blockL - 4)) continue;
+      marks.push(<React.Fragment key={m}><i style={{ left: X }} /><b style={{ left: X }}>{text}</b></React.Fragment>);
+    }
   }
   const fx = x(S);
   const open = () => { if (onOpen) onOpen(); };
@@ -8758,7 +8796,7 @@ function bsCkTracks({ tr, lanes, nowMin, span, width, anchor, colorOf, timerOf =
           </div>
         ))}
         {fx > 0 && fx < W ? <span className="flag" style={{ left: fx }} /> : null}
-        <span className={`ph${fit ? ' end' : ''}`} style={{ left: playX }}><b>{fit ? tr('cook:ck.plated', { defaultValue: 'Plated' }) : tr('cook:ck.now', { defaultValue: 'Now' })}</b></span>
+        <span className={`ph${fit ? ' end' : ''}`} style={{ left: playX }}><b>{phText}</b></span>
       </div>
     </div>
   );
@@ -8769,7 +8807,9 @@ function bsCkWhere({ tr, color, name, stepNo, of, place, onSkip }) {
   return (
     <div className="where">
       <span className="dot" style={{ '--c': color }} />
-      <span><b>{name}</b>{stepNo ? ` · ${tr('cook:ck.stepOf', { defaultValue: 'step {n} of {m}', n: stepNo, m: of })}` : ''}{place ? ` · ${place}` : ''}</span>
+      {/* "step 2 of 6" and "on burner 2" each stay whole: a long dish name wraps before them,
+          never through them. */}
+      <span><b>{name}</b>{stepNo ? <span style={{ whiteSpace: 'nowrap' }}>{` · ${tr('cook:ck.stepOf', { defaultValue: 'step {n} of {m}', n: stepNo, m: of })}`}</span> : ''}{place ? <span style={{ whiteSpace: 'nowrap' }}>{` · ${place}`}</span> : ''}</span>
       {onSkip ? <button type="button" className="skipb" onClick={onSkip}>{tr('cook:skip', { defaultValue: 'Skip' })}</button> : null}
     </div>
   );
@@ -9116,6 +9156,13 @@ function bsCkAllergen({ tr, key, note, from = null }) {
 // its station, so a one-dish cook draws the same way several dishes do. Nothing is invented:
 // a step with no station is not placed on the stove, and a step with no length is drawn as
 // an estimate. `iid` / `recipe` name the dish when several are laid end to end.
+// A dish's own hue: its Shape Kitchen card's colour, found by the catalog title the cookable
+// carries. Only `recipeTitle` is trusted — a member's own recipe may share a catalog dish's
+// name, and it then gets a colour of the fixed set rather than someone else's card.
+const BS_HERO_BY_TITLE = new Map(SHAPE_KITCHEN_RECIPES.map((r) => [String(r.title || '').trim().toLowerCase(), r.hero]));
+const bsCookableHue = (c) => bsHeroHue(BS_HERO_BY_TITLE.get(String((c && c.recipeTitle) || '').trim().toLowerCase()));
+// The colours of every dish of a cook, in dish order, for this paper.
+const bsCookColors = (cookables, t) => bsDishColors((cookables || []).map(bsCookableHue), t.isLight, t.PAPER2);
 function bsCkSoloTimeline(cookable, iid = 0, recipe = 'solo') {
   const steps = (cookable && cookable.steps) || [];
   const meta = (cookable && cookable.stepMeta) || [];
@@ -9181,11 +9228,15 @@ function bsCkKit({ tr, kitchen, max, onStation }) {
         <span className="kov">{ovens > 1 ? tr('cook:ck.ovenN', { defaultValue: 'Oven ×{n}', n: ovens }) : tr('cook:ck.oven', { defaultValue: 'Oven' })}</span>
       </div>
       {lbl(tr('cook:ck.kitCount', { defaultValue: '{b} burners, {o} ovens', b: burners, o: ovens }))}
+      {/* The preview's one row: two burner buttons and ONE oven button. Every kitchen has an
+          oven to plan with, so the oven button adds the second one of a double oven, and once
+          there is more than one it takes one away. */}
       <div className="kbtns">
         <button type="button" disabled={burners <= 1} onClick={() => onStation('stove', burners - 1)}>{tr('cook:ck.lessBurner', { defaultValue: '− Burner' })}</button>
         <button type="button" disabled={burners >= max} onClick={() => onStation('stove', burners + 1)}>{tr('cook:ck.moreBurner', { defaultValue: '+ Burner' })}</button>
-        <button type="button" disabled={ovens <= 1} onClick={() => onStation('oven', ovens - 1)}>{tr('cook:ck.lessOven', { defaultValue: '− Oven' })}</button>
-        <button type="button" disabled={ovens >= max} onClick={() => onStation('oven', ovens + 1)}>{tr('cook:ck.moreOven', { defaultValue: '+ Oven' })}</button>
+        {ovens > 1
+          ? <button type="button" onClick={() => onStation('oven', ovens - 1)}>{tr('cook:ck.lessOven', { defaultValue: '− Oven' })}</button>
+          : <button type="button" disabled={ovens >= max} onClick={() => onStation('oven', ovens + 1)}>{tr('cook:ck.moreOven', { defaultValue: '+ Oven' })}</button>}
       </div>
     </div>
   );
@@ -9595,7 +9646,9 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   // ── The cook: every dish of the session on one timeline, so the tracks and the stove read
   // the same plan the list of steps does ──
   const dishIid = inPrep ? prep.index : 0;
-  const dishColor = (i) => bsDishColor(Number.isFinite(i) ? i : 0, t.isLight, t.PAPER2);
+  const colorList = inPrep && Array.isArray(prep.items) && prep.items.length ? prep.items : [{ key: 'solo', cookable }];
+  const dishColors = React.useMemo(() => bsCookColors(colorList.map((it) => it.cookable), t), [inPrep ? prep.items : cookable, t.isLight, t.PAPER2]);
+  const dishColor = (i) => dishColors[Number.isFinite(i) ? i : 0] || dishColors[0];
   const seq = React.useMemo(() => {
     const list = inPrep && Array.isArray(prep.items) && prep.items.length ? prep.items : [{ key: 'solo', cookable }];
     const tl = []; let base = 0;
@@ -9709,7 +9762,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     const reads = voiceCanSpeak ? { on: voiceMember && readsOn, onClick: voiceMember ? toggleReads : () => say(signInNora) } : null;
     const leave = { kind: 'close', label: phase === 'method' ? tr('cook:ck.leave', { defaultValue: 'Leave cooking' }) : tr('cook:ck.close', { defaultValue: 'Close' }), onClick: exitCook };
     if (phase === 'mise') return bsCkTop({ tr, c: true, left: leave, title: bsCkShort(cookable.title), reads });
-    if (phase === 'plated') return bsCkTop({ tr, left: leave, title: tierQuick ? tr('cook:quick.eyebrow', { defaultValue: 'Quick cook' }) : tr('cook:ck.kitchenOff', { defaultValue: 'Kitchen off' }), reads });
+    if (phase === 'plated') return bsCkTop({ tr, left: leave, title: tierQuick ? tr('cook:quick.eyebrow', { defaultValue: 'Quick cook' }) : timers.length ? tr('cook:ck.timersOn', { defaultValue: 'Timers running' }) : tr('cook:ck.kitchenOff', { defaultValue: 'Kitchen off' }), reads });
     return bsCkTop({ tr, left: leave, finish: { at: finishAt, onOpen: () => setSheet('steps') }, tracks: { on: tracksOn, onClick: toggleTracks }, reads });
   })();
 
@@ -9795,12 +9848,12 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         the session's debit is already zero for an expired hold and clearing it moves no
         figure this screen does not own. */}
     {carriedAll.filter((h) => !(h.endsAt > now)).map((h) => bsCkAlarm({
-      tr, key: `cr${h.cid || h.id}`,
+      tr, key: `carried-${h.cid || h.id}`,
       place: h.station && h.passive ? stationName(h.station) : null,
       subject: h.station && h.passive ? bsCkShort(h.dish || '') : `${bsCkShort(h.dish || '')} · ${h.gist || h.label}`,
       onDone: () => prep.onCarriedDone?.(h.cid || h.id),
     }))}
-    {carriedAll.filter((h) => h.endsAt > now && !h.station).map((h) => bsCkWait({ key: `cw${h.cid || h.id}`, secs: leftOf(h), children: `${bsCkShort(h.dish || '')} · ${h.gist || h.label}` }))}
+    {carriedAll.filter((h) => h.endsAt > now && !h.station).map((h) => bsCkWait({ key: `carried-${h.cid || h.id}`, secs: leftOf(h), children: `${bsCkShort(h.dish || '')} · ${h.gist || h.label}` }))}
     {selHold ? bsCkWait({
       key: 'sel', secs: leftOf(selHold),
       children: tr('cook:ck.holdNote', { defaultValue: '{title} is cooking. Ready early? Tap Done.', title: bsCkShort(cookable.title) }),
@@ -9851,7 +9904,13 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 
   // ── The plate ──
   const showStove = hasMethod && !tierQuick;
-  const hobOff = showStove ? bsCkHob({ tr, occ: bsCkHobOff(kitchenDraw) }) : null;
+  // The plated stove is the cook screen's own reading with no step in front of the cook: every
+  // burner off, unless a timer the cook started still holds one (a roast still in the oven, a
+  // chill still counting) — then that zone stays lit with its countdown. A picture here, not a
+  // button: each timer has its own Done in the card below.
+  const hobPlated = showStove ? bsCkHob({ tr, occ }) : null;
+  // "Every burner is off" is said only while the drawing above it agrees.
+  const heatRunning = ['stove', 'oven'].some((st) => (occ[st] || []).length > 0);
   const logRow = bsCkLogRow({ tr, key: 'log', title: cookable.title, macros: mac, logged: loggedState, onLog: kcalKnown ? logIt : null });
   const afterLog = loggedState ? (
     <div className="lrow">
@@ -9862,6 +9921,20 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     </div>
   ) : null;
   const tip = cookable.tip ? <p className="note">{cookable.tip}</p> : null;
+  // A countdown still going when the dish is plated (a chill, a rest) stays in view with its own
+  // Done, and one that runs out here rings here: plating early must not hide a timer.
+  const platedRunning = phase === 'plated' && timers.length ? [
+    ...rung.map((x) => bsCkAlarm({
+      tr, key: `pa${x.id}`,
+      place: isHold(x) ? stationName(stationOf(x.stepIdx)) : null,
+      subject: isHold(x) ? bsCkShort(cookable.title) : timerName(x),
+      onDone: () => dismissTimer(x.id),
+    })),
+    ...running.map((x) => bsCkWait({
+      key: `pr${x.id}`, secs: leftOf(x), children: timerName(x),
+      action: { label: tr('cook:timer.dismiss', { defaultValue: 'Done' }), onClick: () => dismissTimer(x.id) },
+    })),
+  ] : null;
   const quickNote = tierQuick ? <p className="note">{tr('cook:quick.note', { defaultValue: 'No method or ingredient list rides this meal — cook it your way, log it when it lands.' })}</p> : null;
   const doneBtn = (h) => <button type="button" className="btn-q" onClick={finishCook} style={{ minHeight: h }}>{tr('cook:plated.done', { defaultValue: 'Done' })}</button>;
   const platedScreen = layout.web
@@ -9869,26 +9942,26 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       ? (<>
         {tracksFor(true)}
         <div className="main">
-          <div className="hobw">{hobOff}</div>
+          <div className="hobw">{hobPlated}</div>
           <div className="card"><div className="in bsck-scroll" style={{ justifyContent: 'center', gap: 18 }}>
             <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-            <p className="note" style={{ margin: '-6px 0 4px', fontSize: 17 }}>{kcalKnown ? tr('cook:ck.burnersOffLog', { defaultValue: 'Every burner is off. Log what you ate.' }) : tr('cook:ck.burnersOff', { defaultValue: 'Every burner is off.' })}</p>
-            {logRow}{afterLog}{tip}{doneBtn(56)}
+            {heatRunning ? null : <p className="note" style={{ margin: '-6px 0 4px', fontSize: 17 }}>{kcalKnown ? tr('cook:ck.burnersOffLog', { defaultValue: 'Every burner is off. Log what you ate.' }) : tr('cook:ck.burnersOff', { defaultValue: 'Every burner is off.' })}</p>}
+            {platedRunning}{logRow}{afterLog}{tip}{doneBtn(56)}
           </div></div>
         </div>
       </>)
       : (
         <div className="wplated bsck-scroll">
           <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-          {quickNote}{logRow}{afterLog}{tip}{doneBtn(56)}
+          {quickNote}{platedRunning}{logRow}{afterLog}{tip}{doneBtn(56)}
         </div>
       ))
     : (<>
-      {hobOff}
+      {hobPlated}
       {showStove ? tracksFor(true) : null}
       <div className="pg bsck-scroll" style={{ paddingTop: showStove ? 16 : 6 }}>
         <h1 className="h1" style={{ fontSize: 40 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-        {quickNote}{logRow}{afterLog}{tip}{doneBtn(52)}
+        {quickNote}{platedRunning}{logRow}{afterLog}{tip}{doneBtn(52)}
       </div>
     </>);
 
@@ -10207,7 +10280,11 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   // A dish keeps one colour everywhere — its dot on the card, its lane on the tracks, its dot
   // in the list of every step, and the one it had on the setup screens — keyed on the dish's
   // place in the plan, and drawn for the surface it sits on so it reads on every paper.
-  const colorOfIid = (iid) => bsDishColor(typeof iid === 'number' ? iid : (laneOrder.get(iid) ?? 0), t.isLight, t.PAPER2);
+  const dishColors = React.useMemo(() => bsCookColors((items || []).map((it) => it && it.cookable), t), [items, t.isLight, t.PAPER2]);
+  const colorOfIid = (iid) => {
+    const i = typeof iid === 'number' ? iid : (laneOrder.get(iid) ?? 0);
+    return dishColors[i] || bsCookColors([null], t)[0];
+  };
   const leftOf = (x) => Math.max(0, Math.ceil((x.endsAt - now) / 1000));
   // The playhead never runs past the step in front of the cook: a cook running late is still
   // standing at that step, so it stays under the playhead instead of sliding behind it.
@@ -10488,7 +10565,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // early return, so a session that hands the screen to the board renders the same hooks.
   const rootRef = React.useRef(null);
   useBSCkCss();
-  const layout = useBSCkLayout(rootRef, stage === 'cook');
+  const layout = useBSCkLayout(rootRef);
   useBSCkMore(rootRef);
   const [sheet, setSheet] = useStateBSC(null);   // null | 'exit' | 'steps'
   const [toast, setToast] = useStateBSC(null);
@@ -10633,7 +10710,8 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const ordered = React.useMemo(() => resuming?.items || bsPrepOrder(selected), [selected, resuming]);
   // A dish's colour is its place in cooking order — the planner's own index — so the picker's
   // tracks, the timings, the ingredient groups, the stove and the cook all agree.
-  const colorOf = (i) => bsDishColor(Number.isFinite(i) ? i : 0, t.isLight, t.PAPER2);
+  const dishColors = React.useMemo(() => bsCookColors(ordered.map((it) => it.cookable), t), [ordered, t.isLight, t.PAPER2]);
+  const colorOf = (i) => dishColors[Number.isFinite(i) ? i : 0] || bsCookColors([null], t)[0];
   // Minutes per dish in cooking order, so a dish-by-dish walk can still report where the
   // WHOLE session stands. Same weighting as everywhere else: a 30-minute braise is not
   // one sixth of an evening just because it is one of six steps.
@@ -10784,6 +10862,19 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     () => (choice ? bsOrchestrate(orchInput, engineOptsFor(choice)) : orchAuto),
     [orchInput, choice, orchAuto, kitchen, chosenServe, runServeAt],
   );
+  // Why a set-time plan cannot land the dishes together, said as the real reason. MEASURED
+  // over the catalog's 4,950 dish pairs: with one burner, 2,730 are refused, and in 2,726 of
+  // them the COOK is part of the reason (one pair of hands: a dish's hands-on steps can only
+  // hide inside another dish's hands-off time). Equipment is part of it in 1,594, and more
+  // burners or ovens would fix 830. So "add a burner" is offered only when a plan with every
+  // burner and oven the steppers allow would actually work; otherwise the reason is the cook.
+  const serveNeedsRoom = React.useMemo(() => {
+    if (choice !== BS_COOK_CHOICE.SERVE || orch.coordinated !== false || orch.invalidTiming) return false;
+    if (!(orch.issues || []).includes(BS_SERVE_ISSUE.STATIONS)) return false;
+    const roomy = { ...kitchen, stove: BS_KITCHEN_MAX, oven: BS_KITCHEN_MAX };
+    if (roomy.stove === kitchen.stove && roomy.oven === kitchen.oven) return false;
+    return bsOrchestrate(orchInput, { ...engineOptsFor(choice), kitchen: roomy }).coordinated !== false;
+  }, [orch, choice, orchInput, kitchen, chosenServe, runServeAt]);
   // How far apart the food still lands, when the kitchen cannot do better. Said plainly
   // rather than hidden: a promise of "at once" that quietly means 26 minutes apart is
   // worse than the honest number.
@@ -11167,7 +11258,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
         <button type="button" onClick={() => { setServeMins(earliestServe); setServeSlipped(false); }}>{tr('cook:prep.useEarliest', { defaultValue: 'Use {t}', t: bsCkClockShort(nowRef.current + earliestServe * 60000) })}</button>
       </div>
     ) : null}
-    {orch.coordinated === false && !orch.invalidTiming ? <p className="warn" role="status">{tr('cook:prep.cannotCoordinate', { defaultValue: 'These steps cannot overlap with this kitchen setup. Choose Cook separately or change the dishes or equipment.' })}</p> : null}
+    {orch.coordinated === false && !orch.invalidTiming ? <p className="warn" role="status">{serveNeedsRoom
+      ? tr('cook:ck.serveNeedsRoom', { defaultValue: 'Your kitchen as set can’t hold both at once, so they can’t be ready together. Add a burner or oven if you have one, or cook them one after another.' })
+      : tr('cook:ck.serveNeedsHands', { defaultValue: 'Both dishes need your hands at the same time, so they can’t be ready together. Cook them one after another instead.' })}</p> : null}
     {serveReady && (orch.ready || []).length ? (
       <p className="note">{(orch.ready || []).map((d) => `${tr('cook:prep.ready', { defaultValue: '{title} ready', title: bsCkShort(d.title) })} ${bsCkClockShort(nowRef.current + d.readyAt * 60000)}`).join(' · ')}</p>
     ) : null}
@@ -11348,12 +11441,12 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // station counts down on its burner.
   const holdRows = (<>
     {carried.filter((h) => !(h.endsAt > sessionNow)).map((h) => bsCkAlarm({
-      tr, key: `cr${h.cid || h.id}`,
+      tr, key: `carried-${h.cid || h.id}`,
       place: h.station && h.passive ? stationName(h.station) : null,
       subject: h.station && h.passive ? bsCkShort(h.dish || '') : `${bsCkShort(h.dish || '')} · ${h.gist || h.label}`,
       onDone: () => onCarriedDone(h.cid || h.id),
     }))}
-    {carried.filter((h) => h.endsAt > sessionNow && !h.station).map((h) => bsCkWait({ key: `cw${h.cid || h.id}`, secs: leftOf(h), children: `${bsCkShort(h.dish || '')} · ${h.gist || h.label}` }))}
+    {carried.filter((h) => h.endsAt > sessionNow && !h.station).map((h) => bsCkWait({ key: `carried-${h.cid || h.id}`, secs: leftOf(h), children: `${bsCkShort(h.dish || '')} · ${h.gist || h.label}` }))}
     {wrapHolds.filter((h) => !(h.endsAt > sessionNow)).map((h, i) => bsCkAlarm({
       tr, key: `wr${h.id ?? i}`, place: h.station ? stationName(h.station) : null, subject: bsCkShort(h.title || ''),
       onDone: () => setWrapHolds((arr) => arr.filter((x) => x !== h)),

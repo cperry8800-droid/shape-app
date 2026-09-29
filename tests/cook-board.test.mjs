@@ -6,8 +6,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsEventMinutes,
-  bsDishColor, bsInkOn, bsContrast, BS_DISH_MIN_CONTRAST, BS_HOB_MAX,
+  bsDishColor, bsDishColors, bsHeroHue, bsColorGap, BS_DISH_COLORS, BS_DISH_MIN_GAP, bsInkOn, bsContrast, BS_DISH_MIN_CONTRAST, BS_HOB_MAX,
 } from '../mobile-app/src/services/cookBoard.mjs';
+import { SHAPE_KITCHEN_RECIPES } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { BS_ORCH } from '../mobile-app/src/services/cookOrchestrator.mjs';
 
 const MIN = 60000;
@@ -147,6 +148,69 @@ test('dish colours read on every paper the app ships, and the text on them reads
   }
   // Order is identity: the same index is the same colour on the same paper.
   assert.equal(bsDishColor(7, false, '#181612'), bsDishColor(1, false, '#181612'));
+});
+
+// The papers, READ from the theme source so a paper added later is covered with nobody
+// remembering these tests exist.
+const PAPERS = (() => {
+  const src = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheet.jsx', import.meta.url), 'utf8');
+  return [...src.matchAll(/^\s*(\w+):\s*\{\s*paper: '(#[0-9a-f]{6})', paper2: '(#[0-9a-f]{6})'.*?light: (true|false)/gim)]
+    .map((m) => ({ name: m[1], paper: m[2], paper2: m[3], light: m[4] === 'true' }));
+})();
+const hueOf = (title) => bsHeroHue((SHAPE_KITCHEN_RECIPES.find((r) => r.title === title) || {}).hero);
+
+test('a dish wears its own card\'s hue, as the approved preview drew it', () => {
+  // The preview's pair: the steak hash in its card's red, the chicken in its card's amber —
+  // on the dark paper exactly the colours the preview showed, since both already read there.
+  const steak = hueOf('Steak and sweet potato hash');
+  const chicken = hueOf('One-pan chicken and rice');
+  assert.equal(steak, '#c95a3c');
+  assert.equal(chicken, '#e8b06a');
+  const dark = PAPERS.find((p) => !p.light);
+  assert.ok(dark, 'the theme has no dark paper — this test cannot run');
+  assert.deepEqual(bsDishColors([steak, chicken], false, dark.paper2), ['#c95a3c', '#e8b06a']);
+  // On a light paper the same hues, darkened only as far as it takes to read.
+  const light = PAPERS.find((p) => p.light);
+  const [s2, c2] = bsDishColors([steak, chicken], true, light.paper2);
+  assert.notEqual(s2, c2);
+  assert.ok(bsColorGap(s2, BS_DISH_COLORS.light[0]) > 0 && bsColorGap(s2, steak) < bsColorGap(s2, '#1d6a96'),
+    `the steak lost its own hue on ${light.name}: ${s2}`);
+  // A card with no colour in it has no hue to wear.
+  assert.equal(bsHeroHue('linear-gradient(135deg, #1a1612 0%, #1a1612 100%)'), null);
+  assert.equal(bsHeroHue(undefined), null);
+});
+
+test('two dishes never share a colour: a hue too close to one already on screen takes the fixed set', () => {
+  const chicken = hueOf('One-pan chicken and rice');
+  const salmon = hueOf('Sheet-pan salmon, sweet potato and broccoli');
+  assert.ok(chicken && salmon, 'catalog no longer has these two — repin this test, do not delete it');
+  assert.ok(bsColorGap(chicken, salmon) < BS_DISH_MIN_GAP, 'guard the guard: these two card hues must be near-identical');
+  for (const p of PAPERS) {
+    const cs = bsDishColors([chicken, salmon, null, null], p.light, p.paper2);
+    for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) {
+      assert.ok(bsColorGap(cs[i], cs[j]) >= BS_DISH_MIN_GAP, `${p.name}: dishes ${i} and ${j} read alike (${cs[i]} / ${cs[j]})`);
+    }
+  }
+  // A dish with no card (a member's own recipe) takes the fixed set; the same list gives the
+  // same colours every time, so a dish keeps its colour from setup through the cook.
+  const bone = PAPERS.find((p) => p.light);
+  assert.deepEqual(bsDishColors([null], bone.light, bone.paper2), [bsDishColor(0, bone.light, bone.paper2)]);
+  assert.deepEqual(bsDishColors([chicken, salmon], bone.light, bone.paper2), bsDishColors([chicken, salmon], bone.light, bone.paper2));
+});
+
+test('every catalog dish\'s colour reads on every paper, and so does the number printed on it', () => {
+  const hues = SHAPE_KITCHEN_RECIPES.map((r) => bsHeroHue(r.hero)).filter(Boolean);
+  assert.ok(hues.length >= 90, `read only ${hues.length} card hues from the catalog`);
+  assert.ok(PAPERS.length >= 18, `read only ${PAPERS.length} papers from the theme; the pattern has drifted`);
+  for (const p of PAPERS) {
+    for (const surface of [p.paper, p.paper2]) {
+      for (const h of hues) {
+        const [c] = bsDishColors([h], p.light, surface);
+        assert.ok(bsContrast(c, surface) >= BS_DISH_MIN_CONTRAST, `${p.name} ${surface}: ${h} → ${c} is ${bsContrast(c, surface).toFixed(2)}:1`);
+        assert.ok(bsContrast(c, bsInkOn(c)) >= 4.5, `${p.name}: text on ${c} (from ${h}) reads ${bsContrast(c, bsInkOn(c)).toFixed(2)}:1`);
+      }
+    }
+  }
 });
 
 test('lanes carry each step\'s recipe step, which a replan does not renumber', () => {

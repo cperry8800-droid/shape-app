@@ -46,33 +46,78 @@ export function bsInkOn(hex) {
   return bsContrast(hex, '#0f0e0c') >= bsContrast(hex, '#ffffff') ? '#0f0e0c' : '#ffffff';
 }
 
-// Dish colours, assigned by the order dishes first appear on the board. A fixed set rather
-// than one drawn from each recipe, because a member's own recipe has no card art to draw
-// from, and two dishes must never share a colour on one screen. Dark papers start from the
-// light set and light papers from the dark set; then, because the app ships eighteen papers
-// and a fixed colour cannot hold 3:1 against all of them (measured: two of the light set
-// fell to 2.9:1 on Manila), the colour is walked toward black or white until it reads
-// against the surface it is actually drawn on.
+// Dish colours. A dish wears its own recipe card's hue, as the approved preview drew it
+// (`bsDishColors`); this fixed set is for a dish with no card art (a member's own recipe) and
+// for one whose hue would sit too close to a dish already on the screen, because two dishes
+// must never share a colour on one screen. Dark papers start from the light set and light
+// papers from the dark set; then, because the app ships eighteen papers and a fixed colour
+// cannot hold 3:1 against all of them (measured: two of the light set fell to 2.9:1 on
+// Manila), every colour is walked toward black or white until it reads against the surface
+// it is actually drawn on, and until the step number printed on it reads too.
 export const BS_DISH_COLORS = {
   dark: ['#e8b06a', '#7cc4f0', '#b8a0f5', '#8fd07a', '#f29a8c', '#e3d46b'],
   light: ['#8a5a14', '#1d6a96', '#6546ab', '#3b7329', '#a4402f', '#6c5f10'],
 };
 export const BS_DISH_MIN_CONTRAST = 3.2;
+const BS_DISH_INK_CONTRAST = 4.5;
+const HEX6 = /^#[0-9a-f]{6}$/i;
 const mix = (hex, to, k) => '#' + [0, 1, 2].map((i) => {
   const a = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16), b = parseInt(to.slice(1 + i * 2, 3 + i * 2), 16);
   return Math.round(a + (b - a) * k).toString(16).padStart(2, '0');
 }).join('');
-export function bsDishColor(i, isLight, surface) {
+// `base` overrides the fixed set: a recipe's own hue, walked for contrast the same way.
+export function bsDishColor(i, isLight, surface, base = null) {
   const set = isLight ? BS_DISH_COLORS.light : BS_DISH_COLORS.dark;
   const n = set.length;
-  const base = set[((Number.isFinite(i) ? Math.floor(i) : 0) % n + n) % n];
-  if (!/^#[0-9a-f]{6}$/i.test(String(surface))) return base;
+  const from = HEX6.test(String(base)) ? String(base).toLowerCase() : set[((Number.isFinite(i) ? Math.floor(i) : 0) % n + n) % n];
+  if (!HEX6.test(String(surface))) return from;
   const toward = isLight ? '#000000' : '#ffffff';
   for (let k = 0; k <= 1.0001; k += 0.04) {
-    const c = k === 0 ? base : mix(base, toward, k);
-    if (bsContrast(c, surface) >= BS_DISH_MIN_CONTRAST) return c;
+    const c = k === 0 ? from : mix(from, toward, k);
+    if (bsContrast(c, surface) >= BS_DISH_MIN_CONTRAST && bsContrast(c, bsInkOn(c)) >= BS_DISH_INK_CONTRAST) return c;
   }
-  return mix(base, toward, 1);
+  return mix(from, toward, 1);
+}
+
+// A recipe card's own hue: the brightest stop of its gradient (the dark ink every card fades
+// into is not a hue). The preview's rule; null for a card with no colour in it.
+export function bsHeroHue(hero) {
+  const stops = (String(hero || '').match(/#[0-9a-f]{6}/gi) || []).filter((c) => c.toLowerCase() !== '#1a1612');
+  if (!stops.length) return null;
+  return stops.reduce((a, b) => (bsLuminance(b) > bsLuminance(a) ? b : a)).toLowerCase();
+}
+
+// How far apart two colours look ("redmean", a cheap stand-in for a perceptual difference).
+// Two oranges from two card gradients land near 30; the closest pair of the fixed set, 49.
+export function bsColorGap(a, b) {
+  if (!HEX6.test(String(a)) || !HEX6.test(String(b))) return Infinity;
+  const r1 = channel(a, 0) * 255, r2 = channel(b, 0) * 255;
+  const dR = r1 - r2, dG = (channel(a, 1) - channel(b, 1)) * 255, dB = (channel(a, 2) - channel(b, 2)) * 255;
+  const rm = (r1 + r2) / 2;
+  return Math.sqrt((2 + rm / 256) * dR * dR + 4 * dG * dG + (2 + (255 - rm) / 256) * dB * dB);
+}
+export const BS_DISH_MIN_GAP = 45;
+
+// Every dish's colour for one screen, in dish order: its own hue when it has one that reads
+// apart from the dishes before it, otherwise the next colour of the fixed set that does. The
+// same list of dishes on the same paper always gives the same colours, so a dish keeps its
+// colour from the setup screens through the cook.
+export function bsDishColors(hues, isLight, surface) {
+  const list = Array.isArray(hues) ? hues : [];
+  const out = [];
+  const apart = (c) => out.every((o) => bsColorGap(o, c) >= BS_DISH_MIN_GAP);
+  let next = 0;
+  const n = BS_DISH_COLORS.dark.length;
+  list.forEach((hue, i) => {
+    const own = HEX6.test(String(hue)) ? bsDishColor(i, isLight, surface, hue) : null;
+    if (own && apart(own)) { out.push(own); return; }
+    for (let k = 0; k < n; k++) {
+      const c = bsDishColor(next + k, isLight, surface);
+      if (apart(c)) { out.push(c); next = next + k + 1; return; }
+    }
+    out.push(bsDishColor(i, isLight, surface));
+  });
+  return out;
 }
 
 // One lane per dish INSTANCE (`iid`), in the order dishes first appear. Two copies of one
