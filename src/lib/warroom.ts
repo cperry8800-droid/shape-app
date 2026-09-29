@@ -574,6 +574,41 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Cook redesign "burners and tracks" — SHIPPED 2026-09-29 (#2179 -> 478acee). No migration, no route',
+      items: [
+        { label: 'The cook screens on the app and the website are concept D: the stove on top, a track per dish under it, and the step card and controls pinned. The one-dish walkthrough, the multi-dish board and the session setup all use it', status: 'done' },
+        { label: 'The planner never books two steps on one burner or the oven. Across 4,950 dish pairs on one burner, double-bookings went 2,067 -> 0 in Together/Auto and 1,233 -> 0 in Serve', status: 'done' },
+        { label: 'A step that needs more pans than the kitchen has is planned one dish after the other, never split. 855 pairs hold such a step, and 418 of them had been offered as "together"', status: 'done' },
+        { label: '"Cook 5 more minutes" gets a timer; exactly 2 of the 1,306 catalog steps changed', status: 'done' },
+        { label: 'Serve refusals name the real reason: "Add a burner or oven" appears only when a roomier kitchen would actually work', status: 'done' },
+        { label: 'Every running timer has a Done on the step card; the stove drawing makes only a burner or the oven a button', status: 'done' },
+        { label: 'Focus: a cook sheet takes focus, everything beside it is inert, Tab wraps, and focus returns to the opener on close. In the website\'s iframe the cook layer does not trap Tab', status: 'done' },
+        { label: 'The website\'s cook screens no longer stick in the phone layout, and each dish keeps a distinct colour past six dishes', status: 'done' },
+        { label: 'Review: Copilot, three rounds, six findings, all fixed. The last head (506633f) merged with no external review, because Copilot was over its quota, on the owner\'s "merge it"; it is covered by 7 tests and an 11/11 mutation round', status: 'done' },
+        { label: 'OWNER CALL — should the kitchen default to 4 burners? Serve refuses 3,022 of 4,950 pairs on 1 burner, 2,051 on 2 and 1,946 on 4', status: 'pending' },
+        { label: 'OWNER CALL — should Serve allow "ready within N minutes"? Of the pairs it refuses on 1 burner, 52 would land within 10 minutes and 534 within 15', status: 'pending' },
+        { label: 'DESIGN CALL — give each dish a second encoding (a pattern or a letter) beside its colour', status: 'pending' },
+        { label: 'On-device pass: no one has cooked a two-dish session on a phone with this build', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Support-chat test fix and its review — SHIPPED 2026-09-29 (#2178 -> 641a03d; reviewed on #2180, closed unmerged)',
+      items: [
+        { label: 'The support-chat route test stopped rotting with the calendar: its plan fixture is dated from the clock, and pinToday freezes Date once per test so a run that crosses midnight cannot split the day', status: 'done' },
+        { label: '#2178 merged before any review. #2180 reproduced the merged diff for review: CodeRabbit approved 641a03d with no findings and Copilot found nothing', status: 'done' },
+        { label: 'Delete the branches review/2178-base and review/2178-head with the delete-branches workflow (this container\'s git proxy refuses ref deletion). Both still exist', status: 'pending' },
+        { label: 'Run the fast-clock census as a standing guard, so the normal suite would catch a removed clock pin', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Code review — Copilot is the fallback when CodeRabbit does not answer (owner, 2026-09-29)',
+      items: [
+        { label: 'Owner ruling on #2179: run CodeRabbit first; if it does not answer, run Copilot. Do not merge a head that was not properly reviewed unless the owner says so. The merge gate is still CI green on the final head and not a draft', status: 'done' },
+        { label: 'Copilot\'s review quota ran out on 2026-09-29: it declined #2179\'s last head twice and #2182 once. Check the account\'s Copilot plan if its reviews should keep running', status: 'manual' },
+        { label: 'CodeRabbit, measured over all 83 triggers since 09-01: no reply only where its automatic notice came late or never (#2160, #2179, #2178). After the notice, 14 long review triggers were answered as chat, while all 11 of 221 characters or fewer were read as commands. So: wait for the notice, post the bare "@coderabbitai full review", and put the brief in the PR description', status: 'done' },
+      ],
+    },
+    {
       section: 'Website dashboard paper-token layer — PRs 1–2 SHIPPED 2026-09-22 (#2142 -> 956e71c). Seven of nine remain. No migration, no route, no data change',
       items: [
         { label: '✓ THE LAYER. public/newdesign/dash.css declares 13 colour tokens on :root, each with an -rgb twin, and 676 literals across the dashboard modules and the shared shell become var(--sh-x, <today\'s literal>). A render no-op BY CONSTRUCTION: on the ~39 pages that never load dash.css the fallback IS the colour, and on the ~34 that do the declaration and the fallback agree. Measured after: 676 sites over 20 tokens, 0 mismatches — and that equality is asserted by a guard now, because it is the property the whole layer rests on and nothing was checking it', status: 'done' },
