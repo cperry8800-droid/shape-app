@@ -255,7 +255,10 @@ function uvRemap(g, cell) {
 }
 
 // ── The factory ─────────────────────────────────────────────────────────────
-export function createCDJ({ THREE, deckNumber = 1, accent = '#34d6c5', textureScale = 1, screenFps = 20 } = {}) {
+export function createCDJ({ THREE, deckNumber = 1, accent = '#34d6c5', textureScale = 1, screenFps = 20, finish = 'physical' } = {}) {
+  // finish 'physical' (desktop): clear-coated gloss plastic, a brushed jog rim, glass screens.
+  // finish 'standard' (phones): the plain MeshStandard materials, so the phone tier pays nothing.
+  const PHYS = finish === 'physical';
   if (!THREE) throw new Error('createCDJ: pass { THREE }');
   const ts = Math.max(0.25, Math.min(2, Number(textureScale) || 1));
   const rand = mulberry32(0x5eed + (deckNumber | 0) * 7919);
@@ -654,10 +657,17 @@ export function createCDJ({ THREE, deckNumber = 1, accent = '#34d6c5', textureSc
   // Near-black painted chassis; dark anodised (gunmetal) top plate; satin
   // rubber caps. Albedos are real-world dark — the club's lights make the
   // highlights, the gear itself never glows except where an LED does.
-  const mBody = keep(new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 0.68, metalness: 0.1 }));
-  const mPlate = keep(new THREE.MeshStandardMaterial({ color: 0x24272b, roughness: 0.56, metalness: 0.55 }));
-  const mDecal = keep(new THREE.MeshStandardMaterial({ map: atlasTex, roughness: 0.58, metalness: 0.45 }));
-  const mGloss = keep(new THREE.MeshStandardMaterial({ color: 0x040405, roughness: 0.2, metalness: 0.2 }));
+  // On the desktop tier the chassis is satin paint under a thin clear coat, the gloss parts (jog well,
+  // screen bezel, rear panel) are black plastic with a sharp clear coat that picks up the LED wall,
+  // and the anodised top plate is a touch smoother so the room's light slides across it.
+  const mBody = keep(PHYS
+    ? new THREE.MeshPhysicalMaterial({ color: 0x0a0a0b, roughness: 0.6, metalness: 0.05, clearcoat: 0.3, clearcoatRoughness: 0.35 })
+    : new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 0.68, metalness: 0.1 }));
+  const mPlate = keep(new THREE.MeshStandardMaterial({ color: 0x24272b, roughness: PHYS ? 0.46 : 0.56, metalness: PHYS ? 0.62 : 0.55 }));
+  const mDecal = keep(new THREE.MeshStandardMaterial({ map: atlasTex, roughness: PHYS ? 0.5 : 0.58, metalness: PHYS ? 0.5 : 0.45 }));
+  const mGloss = keep(PHYS
+    ? new THREE.MeshPhysicalMaterial({ color: 0x040405, roughness: 0.34, metalness: 0.0, clearcoat: 1.0, clearcoatRoughness: 0.06 })
+    : new THREE.MeshStandardMaterial({ color: 0x040405, roughness: 0.2, metalness: 0.2 }));
   const mMetal = keep(new THREE.MeshStandardMaterial({ color: 0x80848a, roughness: 0.34, metalness: 1.0 }));
   const mCaps = keep(new THREE.MeshStandardMaterial({ map: atlasTex, roughness: 0.8, metalness: 0.0, emissive: 0xffffff }));
   mCaps.onBeforeCompile = (sh) => {
@@ -720,6 +730,8 @@ export function createCDJ({ THREE, deckNumber = 1, accent = '#34d6c5', textureSc
   const mScreen = keep(new THREE.MeshPhysicalMaterial({
     color: 0x000000, roughness: 0.07, metalness: 0.0, specularIntensity: 0.5,
     emissive: 0xffffff, emissiveMap: screenTex, emissiveIntensity: 1.25,
+    // the cover glass: a second, sharper reflection of the room over the panel
+    clearcoat: PHYS ? 1.0 : 0.0, clearcoatRoughness: 0.03,
   }));
   const screenGeom = keep(new THREE.PlaneGeometry(SCR_W, SCR_D).rotateX(-Math.PI / 2));
   const screen = new THREE.Mesh(screenGeom, mScreen);
@@ -756,7 +768,11 @@ export function createCDJ({ THREE, deckNumber = 1, accent = '#34d6c5', textureSc
   }
   const rimGeom = keep(mergeGeometries(rimParts, false));
   rimParts.forEach((g) => g.dispose());
-  const mRim = keep(new THREE.MeshStandardMaterial({ color: 0x5d6168, roughness: 0.3, metalness: 1.0 }));
+  // Brushed aluminium, brushed around the rim: anisotropy runs along the cylinder's u (the
+  // circumference), so a highlight stretches around the platter instead of sitting as a dot.
+  const mRim = keep(PHYS
+    ? new THREE.MeshPhysicalMaterial({ color: 0x80858d, roughness: 0.3, metalness: 1.0, anisotropy: 0.8, anisotropyRotation: 0 })
+    : new THREE.MeshStandardMaterial({ color: 0x5d6168, roughness: 0.3, metalness: 1.0 }));
   const rim = new THREE.Mesh(rimGeom, mRim);
   rim.castShadow = true; rim.receiveShadow = true;
   platter.add(rim);
@@ -770,7 +786,9 @@ export function createCDJ({ THREE, deckNumber = 1, accent = '#34d6c5', textureSc
   platterTex.anisotropy = 8;
   const topGeom = keep(new THREE.RingGeometry(R_HUB - 0.0004, R_PLAT - 0.0019, 120, 2).rotateX(-Math.PI / 2));
   // RingGeometry UVs are planar over the OUTER radius — exactly what the canvas assumes.
-  const mTop = keep(new THREE.MeshStandardMaterial({ map: platterTex, roughness: 0.5, metalness: 0.45 }));
+  const mTop = keep(PHYS
+    ? new THREE.MeshPhysicalMaterial({ map: platterTex, roughness: 0.5, metalness: 0.45, clearcoat: 0.18, clearcoatRoughness: 0.4 })
+    : new THREE.MeshStandardMaterial({ map: platterTex, roughness: 0.5, metalness: 0.45 }));
   const top = new THREE.Mesh(topGeom, mTop);
   top.position.y = PLAT_Y;
   top.receiveShadow = true;
@@ -785,6 +803,7 @@ export function createCDJ({ THREE, deckNumber = 1, accent = '#34d6c5', textureSc
   const mJog = keep(new THREE.MeshPhysicalMaterial({
     color: 0x000000, roughness: 0.08, metalness: 0.0, specularIntensity: 0.5,
     emissive: 0xffffff, emissiveMap: jogTex, emissiveIntensity: 1.2,
+    clearcoat: PHYS ? 1.0 : 0.0, clearcoatRoughness: 0.03,
   }));
   const jogGeom = keep(new THREE.CircleGeometry(R_DISP, 64).rotateX(-Math.PI / 2));
   const jogDisp = new THREE.Mesh(jogGeom, mJog);

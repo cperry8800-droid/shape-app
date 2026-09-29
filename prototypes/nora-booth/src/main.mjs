@@ -37,8 +37,14 @@ const canvas = document.getElementById('stage');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: QUALITY === 'high', powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, QUALITY === 'high' ? 2 : 1.5));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+// Tone mapping. ACES pushed every bright skin highlight toward a hue-shifted grey-white and
+// crushed the dark room; Khronos PBR Neutral keeps hues true up to the highlights (skin stays
+// skin under three stage lights) and AgX rolls a hot coloured light off to white gracefully.
+// ?tm=agx|neutral|aces switches for comparison; the exposure is per operator, tuned by eye.
+const TONE = { neutral: [THREE.NeutralToneMapping, 0.92], agx: [THREE.AgXToneMapping, 1.18], aces: [THREE.ACESFilmicToneMapping, 1.05] };
+const [toneOp, toneExp] = TONE[Q.get('tm')] || TONE.neutral;
+renderer.toneMapping = toneOp;
+renderer.toneMappingExposure = Q.get('exp') ? +Q.get('exp') : toneExp;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.03, 80);
 camera.position.set(0, 1.8, -5.5);
@@ -46,7 +52,15 @@ camera.position.set(0, 1.8, -5.5);
 let composer = null, bloom = null;
 function setupPost() {
   if (QUALITY !== 'high') return;
-  composer = new EffectComposer(renderer);
+  // ⚠ MSAA. The composer renders the scene into its own half-float target, and that target had no
+  // samples — so the renderer's `antialias: true` did nothing on the high tier (measured with
+  // rtprobe.cjs: no multisampled renderbuffer was ever allocated). Every thin edge — rails, faders,
+  // the crowd's silhouettes — was aliased. The composer ping-pongs between its two targets across
+  // passes AND frames, so both carry the samples.
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: Q.get('msaa') === '0' ? 0 : 4 });
+  rt.texture.name = 'booth.post';
+  composer = new EffectComposer(renderer, rt);
   composer.addPass(new RenderPass(scene, camera));
   // ⚠ SANITIZE BEFORE BLOOM. Bloom blurs, so ONE NaN or Infinity pixel anywhere in the
   // frame (a zero-length normal in some shader, an emissive that overflows the half-float
@@ -59,7 +73,12 @@ function setupPost() {
     fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (any(isnan(c)) || any(isinf(c))) c = vec4(0.0, 0.0, 0.0, 1.0); gl_FragColor = min(c, vec4(32.0)); }',
   }));
   if (Q.get('post') !== 'nobloom') {
-    bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.55, 0.5, 0.82);
+    // The glow already ran at half the drawing buffer (EffectComposer.setSize → UnrealBloomPass.setSize
+    // halves it; measured 640×360 at 1280×720 — the 256×256 in the constructor is overwritten on the
+    // first resize). What made the halos read soft and blocky was the weighting: radius 0.5 gives the
+    // two coarsest mips (80×45 and 40×23, bilinearly upsampled) as much weight as the fine ones. A
+    // tighter radius keeps the glow on the fine mips, so a lit edge gets a crisp halo instead of a smear.
+    bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.22, 0.85);
     composer.addPass(bloom);
   }
   composer.addPass(new OutputPass());
@@ -70,7 +89,7 @@ function resize() {
   const w = canvas.clientWidth || innerWidth, h = canvas.clientHeight || innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
-  if (composer) { composer.setSize(w, h); if (bloom) bloom.resolution.set(w / 2, h / 2); }
+  if (composer) composer.setSize(w, h); // sizes every pass, bloom included (it halves what it is given)
 }
 addEventListener('resize', resize);
 
@@ -81,10 +100,11 @@ scene.add(club.group);
 // Club Shape itself: the atrium, balconies, palms, lounges and the skylight ring.
 const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack });
 scene.add(venue.group);
-const decks = [1, 2].map((n) => createCDJ({ THREE, deckNumber: n, accent: ACCENT, textureScale: QUALITY === 'high' ? 1 : 0.75 }));
+const FINISH = QUALITY === 'high' ? 'physical' : 'standard';
+const decks = [1, 2].map((n) => createCDJ({ THREE, deckNumber: n, accent: ACCENT, textureScale: QUALITY === 'high' ? 1 : 0.75, finish: FINISH }));
 const DECK_X = [-0.391, 0.391];
 decks.forEach((d, i) => { d.group.position.set(DECK_X[i], TABLE_Y, FRONT_Z - CDJ_DIMS.d / 2); scene.add(d.group); });
-const mixer = createMixer({ THREE, accent: ACCENT });
+const mixer = createMixer({ THREE, accent: ACCENT, finish: FINISH });
 mixer.group.position.set(0, TABLE_Y, FRONT_Z - DJM_DIMS.d / 2);
 scene.add(mixer.group);
 
@@ -248,7 +268,7 @@ function onNora(gltf) {
   VRMUtils.rotateVRM0(vrm);
   scene.add(vrm.scene);
   if (window.__hideNora) vrm.scene.visible = false;
-  nora = new NoraPerformer({ THREE, vrm, height: 1.7, stand: { x: 0, y: club.standY || 0, z: 0.36 } });
+  nora = new NoraPerformer({ THREE, vrm, height: 1.7, stand: { x: 0, y: club.standY || 0, z: 0.36 }, quality: QUALITY, ceiling: Q.get('ceil') === '1' });
   nora.attach(scene);
   document.body.classList.add('nora-ready');
 }
@@ -562,3 +582,16 @@ if (Q.get('mode')) setMode(Q.get('mode'));
 if (Q.get('autostart')) startSet();
 requestAnimationFrame(frame);
 window.__booth = { director, renderer, club, venue, scene, camera, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
+
+// Debug: the first thing a camera ray hits among Nora and the gear (handprobe.cjs uses it to sample
+// only pixels that are actually her skin). Cheap: it tests only the foreground, never the crowd.
+{
+  const rc = new THREE.Raycaster();
+  window.__booth.raycast = (x, y) => {
+    rc.setFromCamera({ x, y }, camera);
+    const list = [...decks.map((d) => d.group), mixer.group];
+    if (nora) list.push(nora.vrm.scene);
+    const h = rc.intersectObjects(list, true).find((i) => i.object.visible);
+    return h ? h.object : null;
+  };
+}

@@ -1027,24 +1027,50 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     }).catch((e) => { console.warn('[club] crowd avatars unavailable, keeping silhouettes', e); });
   }
 
-  // ── lights (four of our own + a hemisphere fill) ─────────────────────
-  const hemi = new THREE.HemisphereLight(0x1b2438, 0x0b0806, 0.5);
-  // key: warm-neutral, from the house side high up, onto the booth and the DJ
-  const key = new THREE.SpotLight(0xffead6, 60, 0, 0.3, 0.75, 2); // 150 lit her skin past the 0.82 bloom threshold
-  key.position.set(0.5, 5.4, -3.8);
-  key.target.position.set(0, 1.15, 0.1);
-  // top/back light: cool white from the portal truss onto the DJ's head and shoulders
-  const top = new THREE.SpotLight(iceC.clone(), 80, 0, 0.32, 0.8, 2);
+  // ── lights: a key, a fill, two coloured rims, a hair light, the screen, a wash ─────
+  // The old rig lit the booth mostly from one cool spot straight down from the truss (top, driven at
+  // 160–230 in updateLights, ~3× the key). Every horizontal surface at the decks faced it square on —
+  // which is exactly what the backs of her hands are — so her hands blew out to white and a shader
+  // clamp had to hold them down. This is a portrait rig instead: a warm key from the house side,
+  // high and to her right, a soft cool fill low from the other side, and two rims behind her, low,
+  // in the two deck colours (teal left, amber right), which draw her silhouette against the dark
+  // stage without landing flat on the gear. The truss light survives only as a narrow hair light on
+  // her crown. Physically based units (candela, inverse-square).
+  const hotC = hotFor(THREE, accent);
+  const hemi = new THREE.HemisphereLight(0x1b2438, 0x0b0806, 0.32);
+  // ⚠ The key is aimed at her face and kept narrow, on purpose. The backs of her hands and the gear's
+  // top plates are both horizontal and sit side by side, so any light that makes the gear bright makes
+  // her hands several times brighter (skin's albedo is ~0.6, the gear's 0.02–0.15). The gear reads by
+  // its reflections, LEDs and screens instead; the key only grazes the table. A warm key across the
+  // table turned the gunmetal plates olive-tan (measured in the jog shot), so it is near-neutral too.
+  const key = new THREE.SpotLight(0xfff0e2, 70, 0, 0.17, 0.75, 2);
+  key.position.set(-1.9, 4.3, -3.3);
+  key.target.position.set(0, 1.48, 0.33);
+  const fill = new THREE.SpotLight(0xc4d8ff, 7, 0, 0.5, 1.0, 2);
+  fill.position.set(2.7, 1.8, -2.8);
+  fill.target.position.set(0, 1.45, 0.32);
+  // The rims' cones hold her head and shoulders and fall off before the table: from 3 m behind her,
+  // the decks sit ~0.26 rad below her head, so a 0.2 rad cone keeps coloured light off the gear
+  // (a 0.34 rad cone put an amber hotspot on the platter and an olive cast on the mixer).
+  const rimL = new THREE.SpotLight(accentC.clone(), 30, 0, 0.2, 0.6, 2);
+  rimL.position.set(-2.4, 2.25, 2.0);
+  rimL.target.position.set(0, 1.62, 0.36);
+  const rimR = new THREE.SpotLight(hotC.clone(), 17, 0, 0.2, 0.6, 2);
+  rimR.position.set(2.4, 2.25, 2.0);
+  rimR.target.position.set(0, 1.62, 0.36);
+  // hair light: from the portal truss, a cone just wide enough for her head and shoulders
+  const top = new THREE.SpotLight(iceC.clone(), 48, 0, 0.075, 0.6, 2);
   top.position.set(0, FX_Y - 0.3, TRUSS.z);
-  top.target.position.set(0, 1.3, 0.25);
+  top.target.position.set(0, 1.62, 0.36);
   // the screen itself lights the stage and the front of the crowd
-  const wallLight = new THREE.RectAreaLight(iceC.clone(), 1.0, WALL.w, WALL.h); // 2.5 lit the backs of her hands past the bloom threshold
+  const wallLight = new THREE.RectAreaLight(iceC.clone(), 0.8, WALL.w, WALL.h);
   wallLight.position.set(0, WALL.y0 + WALL.h / 2, WALL.z - 0.05);
   wallLight.lookAt(0, WALL.y0 + WALL.h / 2, -5);
   // one wash riding a centre beam onto the crowd
   const wash = new THREE.SpotLight(0xffffff, 0, 0, 0.18, 0.6, 2);
-  hemi.name = 'clubHemi'; key.name = 'clubKey'; top.name = 'clubTop'; wallLight.name = 'clubScreenLight'; wash.name = 'clubWash';
-  group.add(hemi, key, key.target, top, top.target, wallLight, wash, wash.target);
+  hemi.name = 'clubHemi'; key.name = 'clubKey'; fill.name = 'clubFill'; rimL.name = 'clubRimL'; rimR.name = 'clubRimR';
+  top.name = 'clubTop'; wallLight.name = 'clubScreenLight'; wash.name = 'clubWash';
+  group.add(hemi, key, key.target, fill, fill.target, rimL, rimL.target, rimR, rimR.target, top, top.target, wallLight, wash, wash.target);
 
   // ── atmosphere (fog, background, environment) ────────────────────────
   const fog = new THREE.FogExp2(FOG_COLOR, FOG_DENSITY);
@@ -1063,7 +1089,9 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     const w = new THREE.Mesh(wg, wm); w.position.set(0, 4.0, 2.1); w.rotation.y = Math.PI; es.add(w);
     // warm gold balcony bands down both sides
     const bg = new THREE.PlaneGeometry(40, 0.8); tmp.push(bg);
-    const gold = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb866).multiplyScalar(1.6), side: THREE.DoubleSide }); tmp.push(gold);
+    // the balconies' gold in reflections: 1.1 (was 1.6) — under Neutral tone mapping a 1.6 gold turned the
+    // gunmetal gear bronze wherever it faced the side walls
+    const gold = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb866).multiplyScalar(1.1), side: THREE.DoubleSide }); tmp.push(gold);
     for (const side of [-1, 1]) for (const y of [2.2, 5.6, 9.6]) {
       const s = new THREE.Mesh(bg, gold); s.position.set(side * 10.8, y, -20); s.rotation.y = Math.PI / 2; es.add(s);
     }
@@ -1105,6 +1133,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   let dropS = 0;
   let kickS = 0; // the kick as the room shows it (softened under reduced motion)
 
+  const crowdBackC = new THREE.Color(0xffc890).multiplyScalar(0.022); // linear: the lounges' amber, dim
   const tmpM = new THREE.Matrix4();
   const tmpQ = new THREE.Quaternion();
   const tmpQ2 = new THREE.Quaternion();
@@ -1318,7 +1347,9 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     }
     if (avatars) {
       avatars.commit();
-      avatars.setLight(tmpC.copy(iceC).multiplyScalar(0.18 + 0.22 * lvl + 0.18 * kickS + 0.12 * drop), tmpC2.copy(iceC).multiplyScalar(0.006 + 0.01 * lvl));
+      // back light: the room's warm balcony and lounge glow falls on the crowd from behind, so a
+      // crowd seen from the house reads as shoulders and heads, not a black mass. Steady, not on the beat.
+      avatars.setLight(tmpC.copy(iceC).multiplyScalar(0.18 + 0.22 * lvl + 0.18 * kickS + 0.12 * drop), tmpC2.copy(iceC).multiplyScalar(0.006 + 0.01 * lvl), crowdBackC);
     } else {
       for (let l = 0; l < 2; l++) {
         imBody[l].instanceMatrix.needsUpdate = true;
@@ -1333,8 +1364,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   function updateLights(dt, t) {
     const lvl = levelNorm();
     const k = kickS;
-    wallLight.intensity = 1.6 + 2.0 * lvl + 1.6 * k;
-    top.intensity = 160 + 70 * k;
+    // The screen and the rims breathe with the music; the key and fill hold still (a portrait light
+    // that pumps reads as a flicker on her face). Nothing here moves faster than the beat.
+    wallLight.intensity = 0.7 + 0.9 * lvl + 0.6 * k;
+    rimL.intensity = 28 + 12 * lvl + 8 * k;
+    rimR.intensity = 16 + 7 * lvl + 5 * k;    // amber blooms sooner than teal at the same power
+    top.intensity = 44 + 16 * k;
     matLedWhite.color.copy(iceC).multiplyScalar(1.5 + 0.7 * k);
     matFascia.emissiveIntensity = 1.0 + 0.45 * k;
     // portal bars: steady white, lifting on the kick; on the drop the two sides trade

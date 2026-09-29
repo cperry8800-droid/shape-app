@@ -51,7 +51,29 @@ function spring1(st, target, dt, omega) {
  * Swap MToon for physically-based materials so club lighting reads as skin, cloth and hair.
  * Returns a restore() that puts the original materials back (the booth can toggle looks).
  */
-export function applyStageLook(THREE, root, { outfit = 0x16181b, hairTint = null } = {}) {
+// Skin's light wraps a little past the terminator and warms as it goes (light scatters under skin);
+// a hard Lambert cut-off is one of the things that reads as plastic. Applied to the diffuse term of
+// every direct light (spots, points); specular keeps its own hard dotNL.
+function wrapDiffuse(THREE, wrap, tint) {
+  const chunk = THREE.ShaderChunk.lights_physical_pars_fragment;
+  const line = 'reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseContribution );';
+  if (chunk.split(line).length !== 2) return null; // three moved the line: skip the effect, never break the shader
+  const t = tint.map((v) => v.toFixed(3)).join(', ');
+  return chunk.replace(line, [
+    'float noraNL = dot( geometryNormal, directLight.direction );',
+    'vec3 noraIrr = saturate( ( noraNL + ' + wrap.toFixed(3) + ' ) / ' + (1 + wrap).toFixed(3) + ' ) * directLight.color;',
+    '#ifdef USE_SHEEN',
+    '  noraIrr *= sheenEnergyComp;',
+    '#endif',
+    'noraIrr *= mix( vec3( ' + t + ' ), vec3( 1.0 ), smoothstep( -0.15, 0.45, noraNL ) );',
+    'reflectedLight.directDiffuse += noraIrr * BRDF_Lambert( material.diffuseContribution );',
+  ].join('\n'));
+}
+
+export function applyStageLook(THREE, root, { outfit = 0x16181b, hairTint = null, quality = 'high', ceiling = false } = {}) {
+  const hi = quality !== 'low';
+  const skinChunk = wrapDiffuse(THREE, 0.32, [1.0, 0.6, 0.5]);
+  const clothChunk = wrapDiffuse(THREE, 0.18, [1.0, 1.0, 1.0]);
   const saved = [];
   root.traverse((obj) => {
     if (!obj.isMesh) return;
@@ -64,10 +86,13 @@ export function applyStageLook(THREE, root, { outfit = 0x16181b, hairTint = null
     const isSkin = /SKIN/i.test(name);
     const isHair = /HAIR/i.test(name);
     const isEye = /EYE|FACE_?(Eyeline|Brow)|Eyeline|Brow|Highlight/i.test(name);
-    const m = new THREE.MeshStandardMaterial({
+    // High tier: physical materials for the sheen (soft grazing light on skin peach-fuzz, hair and
+    // cotton). The phone tier keeps MeshStandard, so it pays nothing for this batch.
+    const Mat = hi && (isSkin || isHair || isCloth) ? THREE.MeshPhysicalMaterial : THREE.MeshStandardMaterial;
+    const m = new Mat({
       map: surface.map || null,
       color: new THREE.Color(1, 1, 1),
-      roughness: isSkin ? 0.52 : isHair ? 0.42 : isCloth ? 0.86 : 0.7,
+      roughness: isSkin ? 0.56 : isHair ? 0.42 : isCloth ? 0.86 : 0.7,
       metalness: 0,
       transparent: !!surface.transparent,
       alphaTest: surface.alphaTest || 0,
@@ -79,6 +104,11 @@ export function applyStageLook(THREE, root, { outfit = 0x16181b, hairTint = null
     if (isHair && hairTint != null) m.color.setHex(hairTint);
     if (isSkin) { m.color.setRGB(0.72, 0.56, 0.47); } // the texture is anime-pale (~0.95): pull it down to a real skin albedo so a club key light doesn't blow it out to white under bloom
     if (isEye) { m.roughness = 0.3; }
+    if (m.isMeshPhysicalMaterial) {
+      if (isSkin) { m.specularIntensity = 0.6; m.sheen = 0.45; m.sheenRoughness = 0.55; m.sheenColor = new THREE.Color(0.95, 0.62, 0.5); }
+      if (isHair) { m.sheen = 0.14; m.sheenRoughness = 0.45; m.sheenColor = new THREE.Color(0.4, 0.28, 0.2); m.roughness = 0.5; } // more sheen read as blonde under the rims from behind
+      if (isCloth) { m.sheen = 0.6; m.sheenRoughness = 0.75; m.sheenColor = new THREE.Color(0.3, 0.31, 0.34); }
+    }
     // A soft ceiling on Nora's own brightness. The club's key, top and screen lights stack on the
     // backs of her hands and her crown, and anything above the bloom threshold (0.82) turns into a
     // white glow — which is what made her read as a lit mannequin. Past a knee (0.55) the
@@ -87,12 +117,17 @@ export function applyStageLook(THREE, root, { outfit = 0x16181b, hairTint = null
     // this bright, so a hand on the jog under three stage lights came out mannequin-white even
     // when clamped — the brightest skin is pulled toward the skin albedo instead, so it stays a
     // pale tan. Hair and eyes keep their hue (no pull), or the eye whites would go pink.
+    // ⚠ RETIRED BY THE 2026-09-29 RELIGHT, kept behind { ceiling: true } for comparison: once the
+    // truss light stopped landing square on the backs of her hands, her skin sits well under the bloom
+    // threshold without a clamp (measured with handprobe.cjs), and a clamp flattens real highlights.
     const warm = isSkin ? 0.65 : 0.0;
+    const wrapChunk = isSkin ? skinChunk : isCloth ? clothChunk : null;
     m.onBeforeCompile = (sh) => {
-      sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
+      if (wrapChunk) sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_pars_fragment>', wrapChunk);
+      if (ceiling) sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
         '#include <opaque_fragment>\n{ float noraL = dot(gl_FragColor.rgb, vec3(0.2126, 0.7152, 0.0722)); if (noraL > 0.55) { float noraK = 0.55 + (noraL - 0.55) * 0.15; vec3 noraC = gl_FragColor.rgb * (noraK / noraL); float noraW = smoothstep(0.55, 1.3, noraL) * ' + warm.toFixed(2) + '; noraC = mix(noraC, vec3(0.76, 0.59, 0.50) * (noraK / 0.62), noraW); gl_FragColor.rgb = noraC; } }');
     };
-    m.customProgramCacheKey = () => 'noraStageCeil5-' + warm;
+    m.customProgramCacheKey = () => 'noraStage6-' + (ceiling ? 'ceil' + warm : 'free') + (wrapChunk ? (isSkin ? '-wS' : '-wC') : '');
     m.name = name + '_stage';
     saved.push([obj, orig, obj.geometry.groups.slice()]);
     obj.material = m;
@@ -170,7 +205,7 @@ export class NoraPerformer {
    * @param {number} [o.height]   target standing height in metres
    * @param {{x:number,y:number,z:number}} [o.stand]  floor position of the hips' projection
    */
-  constructor({ THREE, vrm, height = 1.7, stand = { x: 0, y: 0, z: 0.36 }, look = 'stage', headphones = true }) {
+  constructor({ THREE, vrm, height = 1.7, stand = { x: 0, y: 0, z: 0.36 }, look = 'stage', headphones = true, quality = 'high', ceiling = false }) {
     this.THREE = THREE;
     this.vrm = vrm;
     const h = vrm.humanoid;
@@ -185,7 +220,7 @@ export class NoraPerformer {
     vrm.scene.rotation.y = Math.PI;            // VRM1 fronts +Z; the DJ faces −Z (the crowd)
     vrm.scene.position.set(stand.x, stand.y, stand.z);
     this.stand = stand;
-    this._restoreLook = look === 'stage' ? applyStageLook(THREE, vrm.scene) : null;
+    this._restoreLook = look === 'stage' ? applyStageLook(THREE, vrm.scene, { quality, ceiling }) : null;
     this.headphones = headphones ? buildHeadphones(THREE, head, this.scale) : null;
 
     // Rest bone lengths (normalized rig, pre-scale), read once.

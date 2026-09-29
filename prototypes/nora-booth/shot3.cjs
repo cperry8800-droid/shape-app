@@ -7,8 +7,8 @@ const { chromium } = require('playwright-core');
   const errs=[]; p.on('pageerror', e => errs.push('PAGEERROR '+String(e))); p.on('console', m => { if (m.type()==='error' || m.type()==='warning') errs.push(m.type()+': '+m.text().slice(0,300)); });
   await p.goto(url); await p.waitForTimeout(+wait||8000);
   const list = (modes||'').split(',').filter(Boolean);
-  if (!list.length) { await p.screenshot({ path: out + '.png' }); }
-  for (const m of list) { await p.evaluate((m)=>window.__booth && window.__booth.setMode(m), m); await p.waitForTimeout(1800); await p.screenshot({ path: `${out}-${m}.png` }); }
+  if (!list.length) { await p.screenshot({ path: out + '.png', timeout: 240000 }); }
+  for (const m of list) { await p.evaluate((m)=>window.__booth && window.__booth.setMode(m), m); await p.waitForTimeout(1800); await p.screenshot({ path: `${out}-${m}.png`, timeout: 240000 }); }
   const info = await p.evaluate(()=>({ frames: window.__frames, bar: window.__booth && window.__booth.bar, shot: window.__booth && window.__booth.director.shot, gl: window.__booth && window.__booth.renderer && { calls: window.__booth.renderer.info.render.calls, tris: window.__booth.renderer.info.render.triangles, geos: window.__booth.renderer.info.memory.geometries }, crowd: window.__booth && window.__booth.club && window.__booth.club.crowdCount }));
   console.log(JSON.stringify({ info, errs: errs.filter(e=>!/favicon|404/.test(e)).slice(0,12) }));
   await b.close();

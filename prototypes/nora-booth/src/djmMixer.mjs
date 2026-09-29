@@ -170,8 +170,9 @@ function merge(parts) {
  * carry matte bodies, white indicator paint (with a faint luminous glow so it reads in a dark
  * club), bare-metal parts and per-instance LED emission (instance colour → emissive).
  */
-function makeCtrlMaterial(THREE, { color, roughness, metalness, paint = '#f3f3ee', paintGlow = 0, flutes = 0 }) {
-  const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
+function makeCtrlMaterial(THREE, { color, roughness, metalness, paint = '#f3f3ee', paintGlow = 0, flutes = 0, clearcoat = 0, clearcoatRoughness = 0.1 }) {
+  // A clear coat needs MeshPhysical; without one the cheaper MeshStandard is used (the phone tier).
+  const m = clearcoat > 0 ? new THREE.MeshPhysicalMaterial({ color, roughness, metalness, clearcoat, clearcoatRoughness }) : new THREE.MeshStandardMaterial({ color, roughness, metalness });
   const uPaint = { value: new THREE.Color(paint) };
   const uPaintGlow = { value: paintGlow };
   const fl = flutes > 0;
@@ -629,7 +630,8 @@ function beatFraction(b) {
  * update(dt, t): meter ballistics + peak hold, LED blink on the beat, BEAT FX screen redraw
  *   (only on change, ≤ 20 fps). Knob / fader transforms and anchors move inside set().
  */
-export function createMixer({ THREE, accent = '#34d6c5', textureScale = 1 }) {
+export function createMixer({ THREE, accent = '#34d6c5', textureScale = 1, finish = 'physical' }) {
+  const PHYS = finish === 'physical'; // desktop: clear-coated body and fader caps; phones: MeshStandard
   const group = new THREE.Group();
   group.name = 'djmMixer';
   const owned = { geos: [], mats: [], texs: [], canvases: [] };
@@ -650,9 +652,9 @@ export function createMixer({ THREE, accent = '#34d6c5', textureScale = 1 }) {
   };
 
   // ── Materials ──
-  const matBody = own('mats', makeCtrlMaterial(THREE, { color: '#0c0d0f', roughness: 0.58, metalness: 0.3, paint: '#cfd2d6' }));
+  const matBody = own('mats', makeCtrlMaterial(THREE, { color: '#0c0d0f', roughness: 0.58, metalness: 0.3, paint: '#cfd2d6', clearcoat: PHYS ? 0.25 : 0, clearcoatRoughness: 0.3 }));
   const matKnob = own('mats', makeCtrlMaterial(THREE, { color: '#0e0f11', roughness: 0.66, metalness: 0.0, paintGlow: 0.3, flutes: 30 }));
-  const matCap = own('mats', makeCtrlMaterial(THREE, { color: '#101113', roughness: 0.36, metalness: 0.08, paintGlow: 0.3, paint: '#d8dadd' }));
+  const matCap = own('mats', makeCtrlMaterial(THREE, { color: '#101113', roughness: 0.4, metalness: 0.0, paintGlow: 0.3, paint: '#d8dadd', clearcoat: PHYS ? 0.9 : 0, clearcoatRoughness: 0.08 }));
   const matButton = own('mats', makeCtrlMaterial(THREE, { color: '#0e0f11', roughness: 0.72, metalness: 0.0 }));
   const matMeter = own('mats', new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
 
