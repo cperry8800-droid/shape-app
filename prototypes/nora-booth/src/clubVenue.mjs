@@ -14,7 +14,8 @@
 //   hall          z +6 (stage-end wall) … −46 (far wall), balcony inner faces x = ±10.5,
 //                 outer walls x = ±14, balcony floors y = 3.6 / 7.6 / 11.6,
 //                 ceiling soffit underside y = 15.5
-//   skylight      centred (0, 15.5, −18), semi-axes 8 (x) × 13 (z)
+//   skylight      centred (0, 15.5, −13), semi-axes 8.4 (x) × 12.5 (z): toward the stage half of the room,
+//                 as in the owner's reference, so from the back of the hall the whole oval is in frame
 //   stage portal  x ±5.5, deck → y ≈ 8.8, z +2.0 … +3.2 (kept clear)
 //   floor lounges x ±7 … ±10.5, z −6 … −44 ; dance-floor crowd x ±7, z −1.8 … −34
 //
@@ -25,6 +26,8 @@
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createAvatarCrowd } from './crowdAvatars.mjs';
+import { palmTrunk, palmFronds, palmBeam } from './palmGeometry.mjs';
+import { boxGrid, lightGrid, directAt, directAll, bakeMesh, bounceField, gridQuad } from './lightBake.mjs';
 
 export const VENUE_DIMS = {
   FLOOR_Y: -0.66,
@@ -34,7 +37,7 @@ export const VENUE_DIMS = {
   Z_FAR: -46,
   LEVELS: [3.6, 7.6, 11.6],
   CEIL_Y: 15.5,
-  SKYLIGHT: { x: 0, y: 15.5, z: -18, a: 8, b: 13 },
+  SKYLIGHT: { x: 0, y: 15.5, z: -13, a: 8.4, b: 12.5 },
   PORTAL: { x: 5.5, top: 8.8, z0: 2.0, z1: 3.2 },
 };
 
@@ -95,7 +98,9 @@ function superHalfZ(a, b, x, n = SUPER_N) {
   return b * Math.pow(1 - Math.pow(u, n), 1 / n);
 }
 
-export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null } = {}) {
+export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null, now = null } = {}) {
+  const clock = typeof now === 'function' ? now : () => 0;   // injected by the caller, for the bake's timings
+  const bakeMs = { boxes: 0, structure: 0, floor: 0 };
   void renderer;
   const LOW = quality === 'low';
   const rnd = mulberry32(seed);
@@ -122,6 +127,35 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
     return g;
   }
+  // A box whose faces are cut into cells of about `cell` metres, so the light bake has vertices to
+  // put its pools on (a 50 m slab as 24 vertices would take one colour end to end).
+  function boxSeg(x0, x1, y0, y1, z0, z1, cell) {
+    const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0), d = Math.abs(z1 - z0);
+    const g = new THREE.BoxGeometry(w, h, d, Math.max(1, Math.ceil(w / cell)), 1, Math.max(1, Math.ceil(d / cell)));
+    g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    return g;
+  }
+  // A flat quad cut into cells (lightBake.gridQuad), with UVs remapped to [u0,v0,u1,v1] and a colour.
+  function gridGeo(o, u, v, w, h, cell, rgb, uv = [0, 0, 1, 1]) {
+    const Q = gridQuad(o, u, v, w, h, cell);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(Q.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(Q.nrm, 3));
+    const [u0, v0, u1, v1] = uv;
+    const uvs = new Float32Array(Q.uv.length);
+    for (let i = 0; i < Q.uv.length; i += 2) { uvs[i] = u0 + (u1 - u0) * Q.uv[i]; uvs[i + 1] = v0 + (v1 - v0) * Q.uv[i + 1]; }
+    g.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    const c = new Float32Array(Q.pos.length);
+    for (let i = 0; i < c.length; i += 3) { c[i] = rgb[0]; c[i + 1] = rgb[1]; c[i + 2] = rgb[2]; }
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    g.setIndex(Q.idx);
+    return g;
+  }
+  // The architecture's solid boxes (slabs, kerbs, columns, walls), for the bake's shadows and AO.
+  const ARCH = [];
+  const occ = (g) => { g.computeBoundingBox(); const b = g.boundingBox; ARCH.push([b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z]); return g; };
+  const BAKE_CELL = LOW ? 1.0 : 0.5;   // metres between the structure's baked vertices
+
   // A quad from origin o along u (width w) and v (height h); normal = u × v. UVs given.
   function quad(o, u, v, w, h, uv = [0, 0, 1, 1], rgb = [1, 1, 1]) {
     const p = [
@@ -194,23 +228,26 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     const W = 1024, H = 256;
     const c = makeCanvas(W, H), g = c.getContext('2d');
     const gr = g.createLinearGradient(0, 0, 0, H);
-    gr.addColorStop(0.0, 'rgb(34,20,9)');
-    gr.addColorStop(0.07, 'rgb(96,58,22)');
-    gr.addColorStop(0.13, 'rgb(214,150,70)');
-    gr.addColorStop(0.3, 'rgb(150,88,32)');
-    gr.addColorStop(0.7, 'rgb(92,52,18)');
-    gr.addColorStop(1.0, 'rgb(40,22,8)');
+    // A dim room: the warmth is in the small sources (the downlight row, the sconces, the lamps in
+    // front of it), not a lit wall. The old gradient peaked at 214/150/70 and every box read as a
+    // bright shop window; the reference's lounges are dark rooms with pools of lamplight.
+    gr.addColorStop(0.0, 'rgb(12,8,5)');
+    gr.addColorStop(0.07, 'rgb(34,21,10)');
+    gr.addColorStop(0.13, 'rgb(96,62,30)');
+    gr.addColorStop(0.3, 'rgb(40,24,11)');
+    gr.addColorStop(0.7, 'rgb(24,14,7)');
+    gr.addColorStop(1.0, 'rgb(11,7,4)');
     g.fillStyle = gr; g.fillRect(0, 0, W, H);
     // back-wall slats / shelving glow bands
     for (let x = 0; x < W; x += 6 + Math.floor(rnd() * 10)) {
-      g.fillStyle = `rgba(255,${170 + Math.floor(rnd() * 50)},${80 + Math.floor(rnd() * 40)},${0.05 + rnd() * 0.08})`;
+      g.fillStyle = `rgba(255,${170 + Math.floor(rnd() * 50)},${80 + Math.floor(rnd() * 40)},${0.015 + rnd() * 0.03})`;
       g.fillRect(x, 40, 2 + rnd() * 3, 110);
     }
     for (let k = 0; k < 5; k++) {           // bars / back-lit shelves
       const x = rnd() * W, w = 90 + rnd() * 160, y = 95 + rnd() * 30;
       const bg = g.createLinearGradient(0, y - 12, 0, y + 14);
       bg.addColorStop(0, 'rgba(255,196,110,0)');
-      bg.addColorStop(0.5, 'rgba(255,214,140,0.55)');
+      bg.addColorStop(0.5, 'rgba(255,214,140,0.22)');
       bg.addColorStop(1, 'rgba(255,196,110,0)');
       g.fillStyle = bg; g.fillRect(x, y - 12, w, 26);
     }
@@ -252,69 +289,27 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     return tex(c, { repeat: true });
   }
 
-  // Palm frond: rachis along u, leaflets fanning to both sides (white; tinted by vertex colour).
-  function leafTexture() {
-    const W = 256, H = 64;
-    const c = makeCanvas(W, H), g = c.getContext('2d');
-    g.clearRect(0, 0, W, H);
-    g.lineCap = 'round';
-    for (let x = 6; x < W - 4; x += 4.8) {
-      const t = x / W;
-      const len = 30 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.02 + 0.06)), 0.55);
-      for (const sy of [-1, 1]) {
-        const tone = 225 + Math.floor(rnd() * 30);
-        g.strokeStyle = `rgb(255,${tone},${Math.floor(tone * 0.72)})`;
-        g.lineWidth = 2.6;
-        g.beginPath();
-        g.moveTo(x, 32);
-        g.quadraticCurveTo(x + len * 0.35, 32 + sy * len * 0.6, x + len * 0.72, 32 + sy * len);
-        g.stroke();
-      }
-    }
-    g.strokeStyle = 'rgb(255,236,190)'; g.lineWidth = 3.5;
-    g.beginPath(); g.moveTo(0, 32); g.lineTo(W, 32); g.stroke();
-    return tex(c);
-  }
-
+  // Palm bark: the ring scars of a date palm — a band every ring, the old leaf bases between them in
+  // an offset diamond pattern, fibre streaks. Grey-brown and bright enough to take the vertex
+  // colour's gold (the trunk's light is baked into its vertices, strongest at the lamp).
   function barkTexture() {
     const W = 64, H = 128;
     const c = makeCanvas(W, H), g = c.getContext('2d');
-    g.fillStyle = 'rgb(186,136,74)'; g.fillRect(0, 0, W, H);
-    g.strokeStyle = 'rgb(64,40,18)'; g.lineWidth = 2.2;
-    for (let y = 0, r = 0; y < H + 10; y += 9, r++) {
-      for (let x = (r % 2) * 8 - 8; x < W + 16; x += 16) {
-        g.beginPath(); g.moveTo(x - 8, y); g.quadraticCurveTo(x, y + 7, x + 8, y); g.stroke();
-      }
+    g.fillStyle = 'rgb(170,146,112)'; g.fillRect(0, 0, W, H);
+    for (let k = 0; k < 90; k++) {                       // fibre streaks
+      const x = rnd() * W, y = rnd() * H, l = 4 + rnd() * 10;
+      g.strokeStyle = `rgba(${rnd() < 0.5 ? '90,70,48' : '210,186,150'},${0.2 + rnd() * 0.25})`; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 2, y + l); g.stroke();
+    }
+    for (let y = 0, r = 0; y < H + 16; y += 16, r++) {
+      // the ring: a dark groove with a lit lip above it
+      g.fillStyle = 'rgba(64,48,30,0.7)'; g.fillRect(0, y, W, 2);
+      g.fillStyle = 'rgba(214,194,160,0.25)'; g.fillRect(0, y - 2, W, 2);
+      // the old leaf bases: offset scallops between the rings
+      g.strokeStyle = 'rgba(70,52,32,0.75)'; g.lineWidth = 1.6;
+      for (let x = (r % 2) * 8 - 8; x < W + 16; x += 16) { g.beginPath(); g.moveTo(x - 8, y + 3); g.quadraticCurveTo(x, y + 13, x + 8, y + 3); g.stroke(); }
     }
     return tex(c, { repeat: true });
-  }
-
-  function radialTexture() {
-    const S = 64;
-    const c = makeCanvas(S, S), g = c.getContext('2d');
-    const rg = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-    rg.addColorStop(0, 'rgba(255,255,255,1)');
-    rg.addColorStop(0.25, 'rgba(255,255,255,0.55)');
-    rg.addColorStop(0.6, 'rgba(255,255,255,0.14)');
-    rg.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = rg; g.fillRect(0, 0, S, S);
-    return tex(c, { srgb: false });
-  }
-
-  // Uplight: bright at the foot, fading up, soft across.
-  function beamTexture() {
-    const W = 32, H = 128;
-    const c = makeCanvas(W, H), g = c.getContext('2d');
-    const img = g.createImageData(W, H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const v = 1 - y / (H - 1);            // canvas top = far end of the beam
-      const u = (x + 0.5) / W - 0.5;
-      const k = Math.pow(1 - v, 1.8) * Math.exp(-(u * u) / (2 * 0.18 * 0.18 * (0.4 + v)));
-      const i = (y * W + x) * 4;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = Math.round(255 * k); img.data[i + 3] = 255;
-    }
-    g.putImageData(img, 0, 0);
-    return tex(c, { srgb: false });
   }
 
   // City tower windows: 16 columns × 32 floors per tile.
@@ -341,54 +336,21 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     return tex(c, { repeat: true });
   }
 
-  // Floor: dark polished stone, warm spill from the lounge glass and the booth candles.
-  function floorTexture() {
-    const W = 256, H = 512;
-    const c = makeCanvas(W, H), g = c.getContext('2d');
-    g.fillStyle = 'rgb(3,3,5)'; g.fillRect(0, 0, W, H);
-    const X = (x) => ((x + 14) / 28) * W;
-    const Z = (z) => ((z + 46) / 52) * H;      // canvas top = far wall (z −46)
-    for (const s of [-1, 1]) {
-      const x0 = X(s * WIN_X), x1 = X(s * 6.5);
-      const lg = g.createLinearGradient(x0, 0, x1, 0);
-      lg.addColorStop(0, 'rgba(120,72,30,0.55)');
-      lg.addColorStop(0.35, 'rgba(70,40,16,0.25)');
-      lg.addColorStop(1, 'rgba(40,22,8,0)');
-      g.fillStyle = lg;
-      g.fillRect(Math.min(x0, x1), Z(-44.2), Math.abs(x1 - x0), Z(5.95) - Z(-44.2));
-    }
-    // far-wall spill
-    const fg = g.createLinearGradient(0, Z(-44.2), 0, Z(-36));
-    fg.addColorStop(0, 'rgba(120,72,30,0.5)'); fg.addColorStop(1, 'rgba(60,34,12,0)');
-    g.fillStyle = fg; g.fillRect(X(-12.2), Z(-44.2), X(12.2) - X(-12.2), Z(-36) - Z(-44.2));
-    // candle pools under the booths
-    for (const s of [-1, 1]) for (let z = -9; z > -43; z -= 3) {
-      const cx = X(s * 8.8), cz = Z(z), r = 14;
-      const rg = g.createRadialGradient(cx, cz, 0, cx, cz, r);
-      rg.addColorStop(0, 'rgba(140,86,34,0.5)'); rg.addColorStop(1, 'rgba(140,86,34,0)');
-      g.fillStyle = rg; g.fillRect(cx - r, cz - r, 2 * r, 2 * r);
-    }
-    // stone joints
-    g.strokeStyle = 'rgba(40,36,34,0.35)'; g.lineWidth = 1;
-    for (let x = -14; x <= 14; x += 1.5) { g.beginPath(); g.moveTo(X(x), 0); g.lineTo(X(x), H); g.stroke(); }
-    for (let z = -46; z <= 6; z += 1.5) { g.beginPath(); g.moveTo(0, Z(z)); g.lineTo(W, Z(z)); g.stroke(); }
-    return tex(c);
-  }
+  // Floor: dark polished stone. Its warm pools (the booth candles, the lounge glass, the downlights
+  // under the balconies) are baked into this canvas once the light list exists — see the bake below.
+  const floorCanvas = makeCanvas(LOW ? 128 : 256, LOW ? 256 : 512);
 
   const loungeTex = loungeTexture({ frames: false, neutral: true });   // the private boxes' back walls (tinted per box)
   const loungeEndTex = loungeTexture({ frames: true });     // the stage-end glass (no room behind it)
-  const leafTex = leafTexture();
   const barkTex = barkTexture();
-  barkTex.repeat.set(2, 5);
-  const radialTex = radialTexture();
-  const beamTex = beamTexture();
+  barkTex.repeat.set(2, 1);   // the trunk's v runs 0…12 over its 3 m (a ring every 0.25 m)
   const cityTex = cityTexture();
-  const floorTex = floorTexture();
+  const floorTex = tex(floorCanvas);
 
   // ── materials ───────────────────────────────────────────────────────
   const matStructure = own(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
   const matLounge = own(new THREE.MeshBasicMaterial({ map: loungeTex, vertexColors: true }));   // the boxes' back walls: each box's vertex colour is its tint
-  const matLoungeEnd = own(new THREE.MeshBasicMaterial({ map: loungeEndTex, vertexColors: true, color: new THREE.Color(1.02, 0.9, 0.78) }));
+  const matLoungeEnd = own(new THREE.MeshBasicMaterial({ map: loungeEndTex, vertexColors: true, color: new THREE.Color(0.62, 0.52, 0.44) }));
   const matBoxes = own(new THREE.MeshBasicMaterial({ vertexColors: true }));          // the private boxes' furniture, partitions, frames
   const matBoxGlow = own(new THREE.MeshBasicMaterial({ vertexColors: true }));        // their lamps and accent lines (HDR colours)
   const sheenTex = (() => {
@@ -402,11 +364,32 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     return tex(c, { repeat: true });
   })();
   const matSheen = own(new THREE.MeshBasicMaterial({ map: sheenTex, color: new THREE.Color(0.07, 0.066, 0.06), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  const matGlass = own(new THREE.MeshBasicMaterial({ color: 0x5d7a8a, transparent: true, opacity: 0.045, depthWrite: false, side: THREE.DoubleSide }));
-  const RAIL_BASE = hdr(0xffb46a, 1.5);
-  const matRailLed = own(new THREE.MeshBasicMaterial({ color: RAIL_BASE.clone() }));
-  const matCeilLed = own(new THREE.MeshBasicMaterial({ color: hdr(0xffd3a0, 1.25) }));
-  const RING_BASE = hdr(0xd8ecff, 1.6);
+  // balcony glass: a faint blue-grey body and an additive sheen, so it reads as glass from every tier
+  const matGlass = own(new THREE.MeshBasicMaterial({ color: 0x566a7c, transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide }));
+  const matRailSheen = own(new THREE.MeshBasicMaterial({ map: sheenTex, color: new THREE.Color(0.05, 0.056, 0.064), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  // dark stone for the balcony fascias: grey-navy with faint veins (its light is baked into the vertices)
+  const stoneTex = (() => {
+    const W = 512, H = 64, c = makeCanvas(W, H), g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, H);
+    gr.addColorStop(0, 'rgb(40,42,50)'); gr.addColorStop(1, 'rgb(28,30,37)');
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    for (let k = 0; k < 40; k++) {
+      const x = rnd() * W, y = rnd() * H;
+      g.strokeStyle = `rgba(${rnd() < 0.7 ? '120,124,136' : '14,15,18'},${0.08 + rnd() * 0.14})`; g.lineWidth = 0.6 + rnd() * 1.2;
+      g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 30 + rnd() * 60, y + (rnd() - 0.5) * 30, x + 60 + rnd() * 90, y + (rnd() - 0.5) * 40, x + 120 + rnd() * 120, y + (rnd() - 0.5) * 50); g.stroke();
+    }
+    for (let x = 0; x <= W; x += 128) { g.fillStyle = 'rgba(8,9,11,0.8)'; g.fillRect(x, 0, 1.5, H); }   // panel joints every 0.8 m
+    return tex(c, { repeat: true });
+  })();
+  const matStone = own(new THREE.MeshBasicMaterial({ map: stoneTex, vertexColors: true }));
+  // ⚠ Both materials take vertex colour now. The slab underline and the soffit lines were painted
+  // 0.55 and 0.8 grey, but the materials had no vertexColors, so every line burned at the full
+  // HDR orange (1.5×) and the balconies read as stacks of neon stripes. The colours are per line now:
+  // a warm handrail strip just over the bloom threshold, a cool dim reveal under each slab.
+  const RAIL_BASE = new THREE.Color(1, 1, 1);
+  const matRailLed = own(new THREE.MeshBasicMaterial({ color: RAIL_BASE.clone(), vertexColors: true }));
+  const matCeilLed = own(new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true }));
+  const RING_BASE = hdr(0xe4f1ff, 1.75);   // thin and crisp: brightness on a hairline, not a band
   const matRing = own(new THREE.MeshBasicMaterial({ color: RING_BASE.clone(), vertexColors: true, side: THREE.DoubleSide }));
   const HALO_BASE = new THREE.Color(1, 1, 1);
   const matHalo = own(new THREE.MeshBasicMaterial({ vertexColors: true, color: HALO_BASE.clone(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
@@ -414,10 +397,14 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const matTower = own(new THREE.MeshBasicMaterial({ map: cityTex, vertexColors: true, fog: false }));
   const matRed = own(new THREE.MeshBasicMaterial({ color: hdr(0xff2a1c, 2.2), fog: false }));
   const matCrown = own(new THREE.MeshBasicMaterial({ color: hdr(0xbfe4ff, 2.0), fog: false }));
-  const matTrunk = own(new THREE.MeshBasicMaterial({ map: barkTex, vertexColors: true, color: new THREE.Color(0.72, 0.6, 0.46) }));
-  const matFrond = own(new THREE.MeshBasicMaterial({ map: leafTex, vertexColors: true, alphaTest: 0.32, side: THREE.DoubleSide, color: new THREE.Color(0.34, 0.31, 0.15) }));   // deeper and greener than under ACES: Neutral keeps saturation, so the old gold read as neon yellow
-  const matBeam = own(new THREE.MeshBasicMaterial({ map: beamTex, color: new THREE.Color(0.5, 0.3, 0.11), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  const matGlow = own(new THREE.MeshBasicMaterial({ map: radialTex, color: new THREE.Color(0.9, 0.52, 0.2), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  const matTrunk = own(new THREE.MeshBasicMaterial({ map: barkTex, vertexColors: true }));
+  // The fronds are geometry (palmGeometry.mjs): no texture, no alpha test. A leaflet's front face is
+  // its upper surface — dark green in the room's light; seen from below it shows its underside,
+  // gold where the planter's lamp reaches it (aUnder), which is what makes an uplit palm read gold.
+  const matFrond = own(new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  const PALM_GOLD = new THREE.Color(0.62, 0.4, 0.14);
+  // the planter lamp's beam: an open 3D cone, additive, its vertex colour the fade
+  const matBeam = own(new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(0.045, 0.03, 0.012), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   const matCandle = own(new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 1, 1) }));
   const matPeople = own(new THREE.MeshBasicMaterial({ vertexColors: true }));
   const matSofa = own(new THREE.MeshBasicMaterial({ vertexColors: true }));
@@ -444,8 +431,11 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   };
   matPeople.customProgramCacheKey = () => 'clubVenue-people';
   matFrond.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = U.uTime; sh.uniforms.uSway = U.uSway;
-    sh.vertexShader = 'uniform float uTime;\nuniform float uSway;\nattribute float aFlex;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    sh.uniforms.uTime = U.uTime; sh.uniforms.uSway = U.uSway; sh.uniforms.uGold = { value: PALM_GOLD };
+    sh.fragmentShader = 'uniform vec3 uGold;\nvarying float vUnder;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      if (!gl_FrontFacing) diffuseColor.rgb = diffuseColor.rgb * 0.6 + uGold * vUnder;`);
+    sh.vertexShader = 'uniform float uTime;\nuniform float uSway;\nattribute float aFlex;\nattribute float aUnder;\nvarying float vUnder;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      vUnder = aUnder;
       #ifdef USE_INSTANCING
         float fPh = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.21;
       #else
@@ -456,15 +446,17 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       transformed.z += cos(uTime * 0.53 + fPh * 1.3) * 0.05 * fk;
       transformed.y += sin(uTime * 0.9 + fPh * 0.7) * 0.03 * fk;`);
   };
-  matFrond.customProgramCacheKey = () => 'clubVenue-frond';
+  matFrond.customProgramCacheKey = () => 'clubVenue-frond-3d';
 
   // ── colour palette (baked light) ────────────────────────────────────
   const C_DARK = [0.01, 0.012, 0.017];
   const C_WALL = [0.008, 0.01, 0.015];
   const C_EDGE = [0.02, 0.018, 0.018];
-  const C_WALKWAY = [0.07, 0.046, 0.026];
-  const C_SOFFIT_RAIL = [0.03, 0.022, 0.016];
-  const C_SOFFIT_WALL = [0.13, 0.075, 0.034];
+  // Dark stone and glass in deep navy-black; the warm pools on it come from the light bake
+  // (bakeVenueLight), never from a painted gradient.
+  const C_WALKWAY = [0.026, 0.026, 0.031];
+  const C_SOFFIT_RAIL = [0.016, 0.017, 0.022];
+  const C_SOFFIT_WALL = [0.03, 0.025, 0.024];
   const C_COLUMN = [0.012, 0.011, 0.01];
   const C_POST = [0.03, 0.03, 0.034];
   const C_CEIL = [0.006, 0.008, 0.013];
@@ -479,23 +471,23 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   };
   for (const L of LEVELS) {
     for (const s of [-1, 1]) {
-      S.push(paint(box(s * X_IN, s * X_OUT, L - SLAB_T, L, Z_FAR, Z_STAGE), slabPaint((x) => Math.abs(x) - X_IN, X_OUT - X_IN)));
+      S.push(paint(occ(boxSeg(s * X_IN, s * X_OUT, L - SLAB_T, L, Z_FAR, Z_STAGE, BAKE_CELL)), slabPaint((x) => Math.abs(x) - X_IN, X_OUT - X_IN)));
     }
     // far-end wrap
-    S.push(paint(box(-X_IN, X_IN, L - SLAB_T, L, Z_FAR, FAR_RAIL_Z), slabPaint((x, y, z) => FAR_RAIL_Z - z, FAR_RAIL_Z - Z_FAR)));
+    S.push(paint(occ(boxSeg(-X_IN, X_IN, L - SLAB_T, L, Z_FAR, FAR_RAIL_Z, BAKE_CELL)), slabPaint((x, y, z) => FAR_RAIL_Z - z, FAR_RAIL_Z - Z_FAR)));
   }
   // stage end: the corner tiers beside the portal (L1, L2) and a full bridge at L3
   for (const L of [LEVELS[0], LEVELS[1]]) for (const s of [-1, 1]) {
-    S.push(paint(box(s * END_CORNER_X, s * X_IN, L - SLAB_T, L, END_RAIL_Z, Z_STAGE), slabPaint((x, y, z) => z - END_RAIL_Z, Z_STAGE - END_RAIL_Z)));
+    S.push(paint(occ(boxSeg(s * END_CORNER_X, s * X_IN, L - SLAB_T, L, END_RAIL_Z, Z_STAGE, BAKE_CELL)), slabPaint((x, y, z) => z - END_RAIL_Z, Z_STAGE - END_RAIL_Z)));
   }
-  S.push(paint(box(-X_IN, X_IN, LEVELS[2] - SLAB_T, LEVELS[2], END_RAIL_Z, Z_STAGE), slabPaint((x, y, z) => z - END_RAIL_Z, Z_STAGE - END_RAIL_Z)));
+  S.push(paint(occ(boxSeg(-X_IN, X_IN, LEVELS[2] - SLAB_T, LEVELS[2], END_RAIL_Z, Z_STAGE, BAKE_CELL)), slabPaint((x, y, z) => z - END_RAIL_Z, Z_STAGE - END_RAIL_Z)));
   // lintel over the portal zone between the openings band and the L2 corner slabs
-  S.push(solid(box(-END_CORNER_X, END_CORNER_X, VENUE_DIMS.PORTAL.top, 9.0, END_WIN_Z - 0.05, Z_STAGE), C_EDGE));
+  S.push(solid(occ(box(-END_CORNER_X, END_CORNER_X, VENUE_DIMS.PORTAL.top, 9.0, END_WIN_Z - 0.05, Z_STAGE)), C_EDGE));
 
   // end walls (dark, behind the glass), ceiling
-  S.push(solid(box(-X_OUT, X_OUT, FLOOR_Y, CEIL_Y, Z_STAGE, Z_STAGE + 0.3), C_WALL));
-  S.push(solid(box(-X_OUT, X_OUT, FLOOR_Y, CEIL_Y, Z_FAR - 0.3, Z_FAR), C_WALL));
-  for (const s of [-1, 1]) S.push(solid(box(s * X_OUT, s * (X_OUT + 0.3), FLOOR_Y, CEIL_Y + 2.2, Z_FAR, Z_STAGE), C_WALL));
+  S.push(solid(occ(box(-X_OUT, X_OUT, FLOOR_Y, CEIL_Y, Z_STAGE, Z_STAGE + 0.3)), C_WALL));
+  S.push(solid(occ(box(-X_OUT, X_OUT, FLOOR_Y, CEIL_Y, Z_FAR - 0.3, Z_FAR)), C_WALL));
+  for (const s of [-1, 1]) S.push(solid(occ(box(s * X_OUT, s * (X_OUT + 0.3), FLOOR_Y, CEIL_Y + 2.2, Z_FAR, Z_STAGE)), C_WALL));
 
   const SEG = LOW ? 72 : 128;
   const sk = SKYLIGHT;
@@ -511,8 +503,10 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     return out;
   };
   {
+    // The ceiling over the atrium carries the skylight's hole; the strips over the balconies are cut
+    // into cells so the top tier's palms can throw their gold pools up onto them (the bake).
     const shape = new THREE.Shape();
-    shape.moveTo(-X_OUT, Z_FAR); shape.lineTo(X_OUT, Z_FAR); shape.lineTo(X_OUT, Z_STAGE); shape.lineTo(-X_OUT, Z_STAGE); shape.closePath();
+    shape.moveTo(-X_IN, FAR_RAIL_Z); shape.lineTo(X_IN, FAR_RAIL_Z); shape.lineTo(X_IN, END_RAIL_Z); shape.lineTo(-X_IN, END_RAIL_Z); shape.closePath();
     const hole = new THREE.Path();
     const hp = loop(A0 + 0.02, B0 + 0.02, 0).map((p) => new THREE.Vector2(p[0], p[2]));
     hole.setFromPoints(hp.reverse());
@@ -521,11 +515,15 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     ceil.rotateX(Math.PI / 2);
     ceil.translate(0, CEIL_Y, 0);
     S.push(solid(ceil, C_CEIL));
+    const strip = (x0, x1, z0, z1) => S.push(gridGeo([x0, CEIL_Y, z0], [1, 0, 0], [0, 0, 1], x1 - x0, z1 - z0, BAKE_CELL, C_CEIL));
+    for (const s of [-1, 1]) strip(s > 0 ? X_IN : -X_OUT, s > 0 ? X_OUT : -X_IN, Z_FAR, Z_STAGE);
+    strip(-X_IN, X_IN, Z_FAR, FAR_RAIL_Z);
+    strip(-X_IN, X_IN, END_RAIL_Z, Z_STAGE);
   }
   // the dropped oval frame: underside annulus, inner rim (up into the sky), outer lip
-  const cFrameIn = [0.06, 0.078, 0.1], cFrameOut = [0.022, 0.027, 0.036];
+  const cFrameIn = [0.03, 0.038, 0.05], cFrameOut = [0.014, 0.017, 0.024];
   S.push(loopStrip(loop(A0, B0, FRAME_Y), loop(A1, B1, FRAME_Y), cFrameIn, cFrameOut));
-  S.push(loopStrip(loop(A0, B0, FRAME_Y), loop(A0, B0, RIM_TOP), [0.1, 0.125, 0.16], [0.03, 0.04, 0.055]));
+  S.push(loopStrip(loop(A0, B0, FRAME_Y + 0.24), loop(A0, B0, RIM_TOP), [0.03, 0.038, 0.05], [0.012, 0.016, 0.024]));
   S.push(loopStrip(loop(A1, B1, FRAME_Y), loop(A1, B1, CEIL_Y + 0.01), cFrameOut, C_CEIL));
 
   // structural columns in the lounge glass line
@@ -534,18 +532,18 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     for (const s of [-1, 1]) {
       for (let k = 0; k <= 8; k++) {
         const z = lerp(FAR_WIN_Z, END_WIN_Z, k / 8);
-        S.push(paint(box(s * (WIN_X - 0.25), s * (WIN_X + 0.25), T.y0, T.y1, z - 0.25, z + 0.25), colPaint([-s, 0])));
+        S.push(paint(occ(box(s * (WIN_X - 0.25), s * (WIN_X + 0.25), T.y0, T.y1, z - 0.25, z + 0.25)), colPaint([-s, 0])));
       }
     }
     for (let k = 1; k < 4; k++) {
       const x = lerp(-WIN_X, WIN_X, k / 4);
-      S.push(paint(box(x - 0.25, x + 0.25, T.y0, T.y1, FAR_WIN_Z - 0.25, FAR_WIN_Z + 0.25), colPaint([0, 1])));
+      S.push(paint(occ(box(x - 0.25, x + 0.25, T.y0, T.y1, FAR_WIN_Z - 0.25, FAR_WIN_Z + 0.25)), colPaint([0, 1])));
     }
   });
   for (const s of [-1, 1]) for (const T of TIERS.slice(0, 3)) {
-    S.push(paint(box(s * END_CORNER_X - 0.25, s * END_CORNER_X + 0.25, T.y0, Math.min(T.y1, T === TIERS[2] ? 9.0 : T.y1), END_WIN_Z - 0.25, Z_STAGE), colPaint([0, -1])));
+    S.push(paint(occ(box(s * END_CORNER_X - 0.25, s * END_CORNER_X + 0.25, T.y0, Math.min(T.y1, T === TIERS[2] ? 9.0 : T.y1), END_WIN_Z - 0.25, Z_STAGE)), colPaint([0, -1])));
   }
-  for (const x of [-6.1, 0, 6.1]) S.push(paint(box(x - 0.25, x + 0.25, TIERS[3].y0, TIERS[3].y1, END_WIN_Z - 0.25, Z_STAGE), colPaint([0, -1])));
+  for (const x of [-6.1, 0, 6.1]) S.push(paint(occ(box(x - 0.25, x + 0.25, TIERS[3].y0, TIERS[3].y1, END_WIN_Z - 0.25, Z_STAGE)), colPaint([0, -1])));
   // far-wall entrance frame (ground level, centre)
   S.push(solid(box(-2.9, 2.9, 2.35, 2.75, FAR_WIN_Z, FAR_WIN_Z + 0.35), C_EDGE));
   for (const s of [-1, 1]) S.push(solid(box(s * 2.9 - 0.2, s * 2.9 + 0.2, FLOOR_Y, 2.75, FAR_WIN_Z, FAR_WIN_Z + 0.35), C_EDGE));
@@ -564,33 +562,87 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   }
   RAILS.push({ a: [-X_IN, END_RAIL_Z], b: [X_IN, END_RAIL_Z], y: LEVELS[2], face: [0, -1] });
 
+  // ── the balcony fronts: frameless glass on a stone kerb, a lit handrail ───────────
+  // As in the reference: a dark stone fascia over the slab edge rising into a low kerb, a continuous
+  // frameless glass balustrade set into it (no posts; faint joints every 1.5 m and a sheen, so the
+  // glass reads as glass), a slim dark handrail with a warm LED line under its atrium edge, and
+  // downlights in the soffit above every walkway (their pools on the floor come from the light bake).
   const G = [];      // rail glass
-  const RL = [];     // rail LEDs (handrails, slab-edge underlines, lounge-edge floor strip)
+  const GR = [];     // the glass sheen (additive)
+  const FS = [];     // stone fascia faces (textured)
+  const RL = [];     // LED lines (handrails, slab-edge underlines, lounge-edge floor strip)
+  const DOWN = [];   // soffit downlight lenses
+  const DOWNLIGHTS = [];   // { p:[x,y,z] } — light sources for the bake
+  const KERB_H = 0.14;
+  // a box along a run between two offsets measured INTO the balcony from the edge line (face is outward)
+  const alongBox = (r, o0, o1, y0, y1) => {
+    const ix = -r.face[0], iz = -r.face[1];
+    const xs = [r.a[0] + ix * o0, r.a[0] + ix * o1, r.b[0] + ix * o0, r.b[0] + ix * o1];
+    const zs = [r.a[1] + iz * o0, r.a[1] + iz * o1, r.b[1] + iz * o0, r.b[1] + iz * o1];
+    return box(Math.min(...xs), Math.max(...xs), y0, y1, Math.min(...zs), Math.max(...zs));
+  };
+  // a vertical quad along a run, offset (into the balcony) and facing the atrium
+  const alongQuad = (r, off, y0, y1, uvScale, rgb) => {
+    let a = r.a, b = r.b;
+    let ux = b[0] - a[0], uz = b[1] - a[1];
+    const L = Math.hypot(ux, uz); ux /= L; uz /= L;
+    if (-uz * r.face[0] + ux * r.face[1] < 0) { [a, b] = [b, a]; ux = -ux; uz = -uz; }   // normal = u × up must face the atrium
+    const o = [a[0] - r.face[0] * off, y0, a[1] - r.face[1] * off];
+    return quad(o, [ux, 0, uz], [0, 1, 0], L, y1 - y0, [0, 0, L / uvScale, 1], rgb);
+  };
   for (const r of RAILS) {
     const dx = r.b[0] - r.a[0], dz = r.b[1] - r.a[1];
     const len = Math.hypot(dx, dz);
-    const u = [dx / len, 0, dz / len];
-    G.push(quad([r.a[0], r.y, r.a[1]], u, [0, 1, 0], len, RAIL_H));
-    // handrail LED + slab-edge underline (thin boxes along the run)
-    const hw = 0.035;
-    const x0 = Math.min(r.a[0], r.b[0]) - (dx === 0 ? hw : 0), x1 = Math.max(r.a[0], r.b[0]) + (dx === 0 ? hw : 0);
-    const z0 = Math.min(r.a[1], r.b[1]) - (dz === 0 ? hw : 0), z1 = Math.max(r.a[1], r.b[1]) + (dz === 0 ? hw : 0);
-    RL.push(solid(box(x0, x1, r.y + RAIL_H - 0.02, r.y + RAIL_H + 0.035, z0, z1), [1, 1, 1]));
-    RL.push(solid(box(x0, x1, r.y - SLAB_T - 0.01, r.y - SLAB_T + 0.035, z0, z1), [0.55, 0.55, 0.55]));
-    // posts every ~2 m
-    const n = Math.max(1, Math.round(len / 2));
-    for (let i = 0; i <= n; i++) {
+    // the kerb the glass stands in, and its stone face over the slab edge
+    S.push(solid(occ(alongBox(r, 0, 0.12, r.y, r.y + KERB_H)), [0.02, 0.021, 0.026]));
+    FS.push(alongQuad(r, -0.004, r.y - SLAB_T - 0.02, r.y + KERB_H, 3.2, [0.4, 0.4, 0.43]));
+    // the glass, set 4 cm in from the face, from the kerb to the handrail
+    G.push(alongQuad(r, 0.04, r.y + KERB_H, r.y + RAIL_H - 0.03, 1, [1, 1, 1]));
+    GR.push(alongQuad(r, 0.036, r.y + KERB_H, r.y + RAIL_H - 0.03, 6, [1, 1, 1]));
+    // the handrail: a slim dark cap on the glass
+    S.push(solid(alongBox(r, 0.005, 0.075, r.y + RAIL_H - 0.035, r.y + RAIL_H + 0.01), [0.028, 0.027, 0.03]));
+    // the LED line under its atrium-side lip, and a cool hairline under the slab edge
+    RL.push(solid(alongBox(r, 0.0, 0.012, r.y + RAIL_H - 0.05, r.y + RAIL_H - 0.035), [1.05, 0.76, 0.46]));
+    RL.push(solid(alongBox(r, 0.02, 0.05, r.y - SLAB_T - 0.035, r.y - SLAB_T - 0.02), [0.07, 0.1, 0.15]));
+    // glass joints every 1.5 m (frameless: a faint seam, no post)
+    const n = Math.max(1, Math.round(len / 1.5));
+    for (let i = 1; i < n; i++) {
       const px = r.a[0] + (dx * i) / n, pz = r.a[1] + (dz * i) / n;
-      S.push(solid(box(px - 0.025, px + 0.025, r.y, r.y + RAIL_H - 0.02, pz - 0.025, pz + 0.025), C_POST));
+      const jr = { a: [px - (dx / len) * 0.006, pz - (dz / len) * 0.006], b: [px + (dx / len) * 0.006, pz + (dz / len) * 0.006], face: r.face };
+      S.push(solid(alongBox(jr, 0.035, 0.045, r.y + KERB_H, r.y + RAIL_H - 0.035), [0.035, 0.04, 0.05]));
+    }
+    // downlights in the soffit of the slab ABOVE this walkway (the tier's own ceiling)
+    if (r.nocrowd) continue;
+    const ceilY = r.y === LEVELS[2] ? CEIL_Y : r.y + (LEVELS[1] - LEVELS[0]) - SLAB_T;
+    const nd = Math.max(1, Math.round(len / 2.4));
+    for (let i = 0; i < nd; i++) {
+      const t = (i + 0.5) / nd;
+      const px = r.a[0] + dx * t - r.face[0] * 0.85, pz = r.a[1] + dz * t - r.face[1] * 0.85;
+      const lens = new THREE.CylinderGeometry(0.055, 0.055, 0.012, 10, 1);
+      lens.translate(px, ceilY - 0.008, pz);
+      DOWN.push(solid(lens, [2.1, 1.62, 1.1]));
+      DOWNLIGHTS.push({ p: [px, ceilY - 0.03, pz] });
     }
   }
+  // ground-floor downlights in the L1 soffit, over the walk between the booths and the lounge glass
+  for (const s of [-1, 1]) for (let z = -41.6; z < 4.6; z += 2.4) {
+    const px = s * (X_IN + 0.85), ceilY = LEVELS[0] - SLAB_T;
+    const lens = new THREE.CylinderGeometry(0.055, 0.055, 0.012, 10, 1);
+    lens.translate(px, ceilY - 0.008, z);
+    DOWN.push(solid(lens, [2.1, 1.62, 1.1]));
+    DOWNLIGHTS.push({ p: [px, ceilY - 0.03, z] });
+  }
   // floor-level lounge edge strip (the line of warm light at the foot of the booth backs)
-  for (const s of [-1, 1]) RL.push(solid(box(s * 6.9 - 0.03, s * 6.9 + 0.03, FLOOR_Y + 0.005, FLOOR_Y + 0.04, -43.6, -6.4), [0.7, 0.7, 0.7]));
+  for (const s of [-1, 1]) RL.push(solid(box(s * 6.9 - 0.03, s * 6.9 + 0.03, FLOOR_Y + 0.005, FLOOR_Y + 0.04, -43.6, -6.4), [0.5, 0.36, 0.22]));
 
-  mesh(merge(S, 'structure'), matStructure, 'venueStructure');
+  const structGeo = merge(S, 'structure');
+  mesh(structGeo, matStructure, 'venueStructure');
   mesh(merge(G, 'glass'), matGlass, 'venueRailGlass', 2);
+  mesh(merge(GR, 'glassSheen'), matRailSheen, 'venueRailSheen', 3);
+  const fasciaMesh = mesh(merge(FS, 'fascia'), matStone, 'venueBalconyFascia');
   const railLedMesh = mesh(merge(RL, 'railLeds'), matRailLed, 'venueRailLeds');
   void railLedMesh;
+  mesh(merge(DOWN, 'downlights'), matCeilLed, 'venueDownlights');
 
   // ── 2. the lounges: real rooms behind the glass ─────────────────────────
   // Each side and the far end has a 1.8 m deep lounge between the glass line (WIN_X / FAR_WIN_Z)
@@ -628,16 +680,23 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   // upholstery. Most are taken (seated guests from the crowd bake, or standing at a bar); a few are
   // dark and empty, waiting for a booking. All of it is geometry; nothing here is a picture.
   const brnd = mulberry32(seed * 13 + 5);   // its own stream: adding a box never moves a palm
+  // Warm and muted: every box is a lamplit room, and the differences between them are the kind a
+  // room's wall and lamp make (amber, champagne, rose, smoke), never a colour chart. The old set ran
+  // to emerald, teal, violet and crimson at full strength, and the balconies read as a row of
+  // coloured shop windows — the reference is a dark atrium with warm pools behind the glass.
   const BOX_TINTS = [
-    [1.0, 0.62, 0.3], [1.0, 0.8, 0.52], [1.0, 0.52, 0.32], [0.95, 0.5, 0.52], [0.9, 0.3, 0.26],   // amber · champagne · copper · rose · crimson
-    [0.42, 0.85, 0.55], [0.32, 0.8, 0.85], [0.45, 0.55, 1.0], [0.72, 0.5, 1.0], [0.92, 0.9, 0.86], // emerald · teal · midnight · violet · marble
+    [1.0, 0.64, 0.34], [1.0, 0.82, 0.58], [1.0, 0.56, 0.36], [0.96, 0.62, 0.56], [0.86, 0.5, 0.34],   // amber · champagne · copper · rose · bronze
+    [0.72, 0.78, 0.62], [0.62, 0.72, 0.78], [0.66, 0.66, 0.8], [0.8, 0.64, 0.72], [0.92, 0.88, 0.8],  // sage · smoke · slate · mauve · marble
   ];
+  // upholstery the way a lamplit room shows it: oxblood, bottle green, cream, ink, black, cognac,
+  // ochre, dusty rose, deep teal, dove — each dark and low in chroma (the old set was saturated
+  // enough to read as green and blue blocks from the far end of the atrium)
   const UPHOLSTERY = [
-    [0.22, 0.03, 0.035], [0.03, 0.14, 0.07], [0.42, 0.36, 0.27], [0.03, 0.05, 0.14], [0.03, 0.026, 0.024],
-    [0.3, 0.17, 0.08], [0.36, 0.24, 0.04], [0.4, 0.2, 0.2], [0.03, 0.16, 0.16], [0.2, 0.19, 0.18],
+    [0.12, 0.035, 0.035], [0.035, 0.07, 0.045], [0.36, 0.32, 0.26], [0.035, 0.04, 0.07], [0.03, 0.026, 0.024],
+    [0.2, 0.12, 0.065], [0.22, 0.16, 0.06], [0.24, 0.14, 0.13], [0.035, 0.075, 0.075], [0.18, 0.17, 0.16],
   ];
   const WOODS = [[0.06, 0.035, 0.02], [0.4, 0.39, 0.37], [0.34, 0.23, 0.08], [0.015, 0.014, 0.014]];   // walnut · marble · brass · black
-  const ACCENTS = [[2.4, 1.6, 0.8], [2.2, 1.9, 1.5], [2.3, 0.9, 1.3], [0.7, 2.0, 2.1], [1.4, 1.0, 2.4], [2.4, 1.3, 0.5]];
+  const ACCENTS = [[1.5, 1.0, 0.52], [1.4, 1.22, 0.96], [1.4, 0.82, 0.7], [0.9, 1.1, 1.3], [1.3, 1.1, 0.8], [1.55, 0.86, 0.36]];   // warm white · champagne · blush · ice · linen · amber
   const LAYOUTS = ['banquette', 'sofas', 'dining', 'bar', 'armchairs', 'daybed'];
   // every (tint, layout, upholstery) once, shuffled; each box takes the next one whose tint differs from its neighbour's
   const COMBOS = [];
@@ -676,7 +735,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     B.wood = WOODS[Math.floor(brnd() * WOODS.length)];
     B.accent = ACCENTS[Math.floor(brnd() * ACCENTS.length)];
     B.empty = brnd() < 0.14;
-    B.bright = (B.empty ? 0.6 : 1.08) + brnd() * 0.36;   // an empty box is dimmed, not dark: it is still a room
+    B.bright = (B.empty ? 0.2 : 0.42) + brnd() * 0.16;   // a dim room lit by its lamps (the bake adds their pools); an empty box is darker, not black
   }
 
   const FURN = [], GLOW = [];
@@ -706,18 +765,21 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       if (!LOW || brnd() < 0.55) LOUNGE_GUESTS.push(g);
     };
     const hw = w / 2;
-    // the room: back wall (painted interior, tinted), carpet, partitions, the accent line
-    {
-      const off = brnd();
-      const q = quad([-hw, 0, 0.01], [1, 0, 0], [0, 1, 0], w, h, [off, 0, off + w / TEX_M, 1], L);
-      W.push(q.applyMatrix4(bm));
-    }
+    // This box's own lights, in its local frame: each lamp, and the accent strip under the ceiling.
+    // They are baked into this box's wall and furniture only (below), so no box lights its neighbour.
+    const BL = [];
+    const lamp = B.empty ? [0.4, 0.24, 0.1] : [3.2, 1.9, 0.8];
+    const lampAt = (x, y, z, r) => { glowAt(x, y, z, r, lamp); if (!B.empty) BL.push({ p: [x, y, z], c: [0.26, 0.15, 0.064], r0: 0.14, range: 2.4, shadow: false }); };
+    // the room: back wall (painted interior, tinted, cut into cells for the lamps' pools), carpet,
+    // partitions, the accent line
+    const off = brnd();
+    const wallG = gridGeo([-hw, 0, 0.01], [1, 0, 0], [0, 1, 0], w, h, LOW ? 0.8 : 0.4, L.map((c) => c * 0.72), [off, 0, off + w / TEX_M, 1]);
     piece(-hw, hw, 0, 0.012, 0, d, [B.uph[0] * 0.5 + 0.02, B.uph[1] * 0.5 + 0.018, B.uph[2] * 0.5 + 0.016], -0.2);
     const wall = [0.05, 0.036, 0.026];
     piece(-hw, -hw + 0.08, 0, h, 0, d, wall);
     if (B.closeRight) piece(hw - 0.08, hw, 0, h, 0, d, wall);   // each run's last box closes its own end (the others share a neighbour's wall)
     GLOW.push(solid(box(-hw + 0.1, hw - 0.1, h - 0.2, h - 0.16, 0.02, 0.06), B.accent.map((c) => c * (B.empty ? 0.25 : 1))).applyMatrix4(bm));
-    const lamp = B.empty ? [0.5, 0.3, 0.12] : [2.6, 1.6, 0.7];
+    for (const u of [-0.6, 0, 0.6]) BL.push({ p: [u * hw, h - 0.24, 0.14], c: B.accent.map((c) => c * (B.empty ? 0.012 : 0.05)), r0: 0.3, range: 2.4, shadow: false });
     switch (B.layout) {
       case 'banquette': {
         piece(-hw + 0.15, hw - 0.15, 0, 0.44, 0.04, 0.56, B.uph); piece(-hw + 0.15, hw - 0.15, 0.44, 0.95, 0.02, 0.18, B.uph, 0.1);
@@ -725,7 +787,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
         for (let i = 0; i < n; i++) {
           const u = -hw + 0.2 + (w - 0.4) * (i + 0.5) / n;
           piece(u - 0.28, u + 0.28, 0.68, 0.72, 0.72, 1.18, B.wood); cyl(u, 0.95, 0.04, 0, 0.68, B.wood, 6);
-          glowAt(u, 0.8, 0.95, 0.045, lamp);
+          lampAt(u, 0.8, 0.95, 0.045);
           guest(u - 0.34, 0.24, 0, 0.44); if (brnd() < 0.7) guest(u + 0.34, 0.24, 0, 0.44);
         }
         break;
@@ -734,7 +796,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
         piece(-hw + 0.15, -hw + 0.7, 0, 0.42, 0.2, 1.45, B.uph); piece(-hw + 0.12, -hw + 0.3, 0.42, 0.9, 0.2, 1.45, B.uph, 0.1);
         piece(hw - 0.7, hw - 0.15, 0, 0.42, 0.2, 1.45, B.uph); piece(hw - 0.3, hw - 0.12, 0.42, 0.9, 0.2, 1.45, B.uph, 0.1);
         piece(-0.45, 0.45, 0.34, 0.38, 0.45, 1.15, B.wood); cyl(0, 0.8, 0.12, 0, 0.34, B.wood, 8);
-        glowAt(0, 0.44, 0.8, 0.04, lamp);
+        lampAt(0, 0.44, 0.8, 0.04);
         guest(-hw + 0.38, 0.5, Math.PI / 2, 0.42); guest(-hw + 0.38, 1.12, Math.PI / 2, 0.42);
         guest(hw - 0.38, 0.62, -Math.PI / 2, 0.42); if (brnd() < 0.6) guest(hw - 0.38, 1.18, -Math.PI / 2, 0.42);
         break;
@@ -747,7 +809,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
           const u = -tl / 2 + tl * (i + 0.5) / n;
           piece(u - 0.2, u + 0.2, 0.44, 0.48, 0.18, 0.56, B.uph); piece(u - 0.2, u + 0.2, 0.48, 0.95, 0.14, 0.2, B.uph, 0.1);
           if (brnd() < 0.8) guest(u, 0.3, 0, 0.47);
-          glowAt(u, 0.82, 0.9, 0.03, lamp);
+          lampAt(u, 0.82, 0.9, 0.03);
         }
         piece(-tl / 2 - 0.42, -tl / 2 - 0.04, 0.44, 0.48, 0.7, 1.1, B.uph); guest(-tl / 2 - 0.2, 0.9, Math.PI / 2, 0.47);
         break;
@@ -768,7 +830,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
           piece(u - 0.34, u + 0.34, 0, 0.42, 0.72, 1.3, B.uph); piece(u - 0.34, u + 0.34, 0.42, 0.88, 0.66, 0.8, B.uph, 0.1);
           piece(u - 0.38, u - 0.3, 0.42, 0.6, 0.72, 1.3, B.uph); piece(u + 0.3, u + 0.38, 0.42, 0.6, 0.72, 1.3, B.uph);
           guest(u, 0.92, 0, 0.42);
-          if (i < n - 1) { const t = u + w / n / 2; cyl(t, 1.1, 0.15, 0.5, 0.53, B.wood, 10); cyl(t, 1.1, 0.03, 0, 0.5, B.wood, 6); glowAt(t, 0.6, 1.1, 0.035, lamp); }
+          if (i < n - 1) { const t = u + w / n / 2; cyl(t, 1.1, 0.15, 0.5, 0.53, B.wood, 10); cyl(t, 1.1, 0.03, 0, 0.5, B.wood, 6); lampAt(t, 0.6, 1.1, 0.035); }
         }
         break;
       }
@@ -776,10 +838,17 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
         piece(-hw + 0.25, hw - 0.25, 0, 0.36, 0.04, 0.95, B.uph); piece(-hw + 0.25, hw - 0.25, 0.36, 0.72, 0.02, 0.2, B.uph, 0.1);
         for (let i = 0; i < 4; i++) piece(-hw + 0.4 + i * (w - 0.8) / 4, -hw + 0.4 + (i + 0.8) * (w - 0.8) / 4, 0.36, 0.52, 0.18, 0.3, B.wood, 0.3);
         cyl(-0.5, 1.35, 0.22, 0, 0.38, B.uph, 12); cyl(0.5, 1.35, 0.22, 0, 0.38, B.uph, 12);
-        glowAt(0, 0.6, 0.12, 0.05, lamp);
+        lampAt(0, 0.6, 0.12, 0.05);
         guest(-0.55, 0.36, 0, 0.36); guest(0.45, 0.36, 0, 0.36); if (brnd() < 0.5) guest(0.5, 1.35, Math.PI, 0.38);
       }
     }
+    const tb0 = clock();
+    const LGb = lightGrid(BL, 2);
+    for (const g of [wallG, ...P]) {
+      bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array, LG: LGb, OG: null, aoRays: 0, albedo: 0.45, neutral: 0.3 });
+    }
+    bakeMs.boxes += clock() - tb0;
+    W.push(wallG.applyMatrix4(bm));
     for (const g of P) FURN.push(g.applyMatrix4(bm));
   });
   mesh(merge(FURN, 'boxFurniture'), matBoxes, 'venuePrivateBoxes');
@@ -821,7 +890,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
 
   // ── 3. warm linear LEDs: ceiling + balcony soffits ─────────────────
   const CL = [];
-  const ceilLine = (x, z0, z1) => { if (z1 - z0 > 0.2) CL.push(solid(box(x - 0.045, x + 0.045, CEIL_Y - 0.035, CEIL_Y - 0.005, z0, z1), [1, 1, 1])); };
+  // dim warm lines: they draw the ceiling's perspective toward the stage without lighting it
+  const ceilLine = (x, z0, z1) => { if (z1 - z0 > 0.2) CL.push(solid(box(x - 0.03, x + 0.03, CEIL_Y - 0.03, CEIL_Y - 0.005, z0, z1), [0.1, 0.082, 0.064])); };
   for (const s of [-1, 1]) {
     for (const x of [8.9, 9.8, 11.2, 11.9]) {
       const zin = superHalfZ(A1, B1, x);
@@ -841,13 +911,13 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     for (const d of [0.4, 1.15]) {
       for (const s of [-1, 1]) {
         const x = s * (X_IN + d);
-        CL.push(solid(box(x - 0.04, x + 0.04, y - 0.03, y, FAR_RAIL_Z - d - 0.04, END_RAIL_Z + d + 0.04), [0.8, 0.8, 0.8]));
+        CL.push(solid(box(x - 0.04, x + 0.04, y - 0.03, y, FAR_RAIL_Z - d - 0.04, END_RAIL_Z + d + 0.04), [0.14, 0.115, 0.09]));
       }
       const zf = FAR_RAIL_Z - d;
-      CL.push(solid(box(-X_IN - d, X_IN + d, y - 0.03, y, zf - 0.04, zf + 0.04), [0.8, 0.8, 0.8]));
+      CL.push(solid(box(-X_IN - d, X_IN + d, y - 0.03, y, zf - 0.04, zf + 0.04), [0.14, 0.115, 0.09]));
       const ze = END_RAIL_Z + d;
-      if (L === LEVELS[2]) CL.push(solid(box(-X_IN - d, X_IN + d, y - 0.03, y, ze - 0.04, ze + 0.04), [0.8, 0.8, 0.8]));
-      else for (const s of [-1, 1]) CL.push(solid(box(Math.min(s * END_CORNER_X, s * (X_IN + d)), Math.max(s * END_CORNER_X, s * (X_IN + d)), y - 0.03, y, ze - 0.04, ze + 0.04), [0.8, 0.8, 0.8]));
+      if (L === LEVELS[2]) CL.push(solid(box(-X_IN - d, X_IN + d, y - 0.03, y, ze - 0.04, ze + 0.04), [0.14, 0.115, 0.09]));
+      else for (const s of [-1, 1]) CL.push(solid(box(Math.min(s * END_CORNER_X, s * (X_IN + d)), Math.max(s * END_CORNER_X, s * (X_IN + d)), y - 0.03, y, ze - 0.04, ze + 0.04), [0.14, 0.115, 0.09]));
     }
   }
   mesh(merge(CL, 'ceilLeds'), matCeilLed, 'venueCeilingLeds');
@@ -884,17 +954,22 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   }
   const RAD = LOW ? 4 : 6;
   const ringMesh = mesh(merge([
-    superTube(A0 + 0.06, B0 + 0.06, FRAME_Y - 0.06, 0.1, [1.0, 1.0, 1.0], RAD),
-    superTube(A0 + 0.5, B0 + 0.5, FRAME_Y - 0.04, 0.055, [0.72, 0.86, 1.0], RAD),
-    superTube(A1 - 0.08, B1 - 0.08, FRAME_Y - 0.03, 0.045, [0.5, 0.64, 0.8], RAD),
+    // One crisp white-blue line on the opening's edge and a hairline outside it. The old three
+    // tubes (10, 5.5 and 4.5 cm) plus a 4 m additive halo read as a wide glowing band; the
+    // reference's ring is a thin LED line.
+    // the frame's inner face, lit: a crisp band 26 cm tall facing into the opening
+    loopStrip(loop(A0 + 0.004, B0 + 0.004, FRAME_Y - 0.02), loop(A0 + 0.004, B0 + 0.004, FRAME_Y + 0.24), [0.5, 0.58, 0.7], [0.5, 0.58, 0.7]),
+    superTube(A0 + 0.05, B0 + 0.05, FRAME_Y - 0.05, 0.034, [1.0, 1.0, 1.0], RAD),
+    superTube(A0 + 0.42, B0 + 0.42, FRAME_Y - 0.03, 0.016, [0.62, 0.78, 1.0], RAD),
   ], 'ring'), matRing, 'venueSkylightRing');
   void ringMesh;
   {
     // additive halo: bright at the ring, fading onto the frame and the ceiling
-    const inA = loop(A0 - 0.35, B0 - 0.35, FRAME_Y - 0.08);
-    const midA = loop(A0 + 0.3, B0 + 0.3, FRAME_Y - 0.08);
-    const outA = loop(A1 + 2.6, B1 + 2.6, FRAME_Y - 0.08);
-    const cMid = [0.045, 0.06, 0.085];
+    // a narrow halo: the ring's light on the frame just around it, gone within a metre
+    const inA = loop(A0 - 0.12, B0 - 0.12, FRAME_Y - 0.08);
+    const midA = loop(A0 + 0.12, B0 + 0.12, FRAME_Y - 0.08);
+    const outA = loop(A0 + 1.1, B0 + 1.1, FRAME_Y - 0.08);
+    const cMid = [0.03, 0.042, 0.062];
     mesh(merge([loopStrip(inA, midA, [0, 0, 0], cMid), loopStrip(midA, outA, cMid, [0, 0, 0])], 'halo'), matHalo, 'venueSkylightHalo', 3);
   }
 
@@ -955,28 +1030,31 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const REDS = [], CROWNS = [];
   {
     const T = [];
-    const NT = LOW ? 26 : 46;
+    const NT = LOW ? 34 : 64;
     const towers = [];
     const place = (x, z, w, d, h) => {
       for (const t of towers) if (Math.abs(t.x - x) < (t.w + w) / 2 + 2 && Math.abs(t.z - z) < (t.d + d) / 2 + 2) return false;
       towers.push({ x, z, w, d, h });
       return true;
     };
+    // A distant city: the towers stand further out and lower than they did (r 34–48 m, up to 72 m
+    // tall), so through the skylight they are a skyline along the bottom of the opening under a
+    // starry sky, as in the reference, instead of three facades filling it.
     // landmark: the tall spire tower behind the stage end, where the skylight looks
-    place(-6, 30, 12, 12, 64);
-    place(14, 26, 11, 9, 52);
-    place(-24, 22, 10, 12, 47);
+    place(-5, 52, 9, 9, 31);
+    place(14, 50, 8, 8, 36);
+    place(-22, 44, 7, 9, 30);
     for (let tries = 0; tries < 900 && towers.length < NT; tries++) {
       // half the city in the sector the establishing shot looks through (+Z), half all round
-      const ang = tries % 2 === 0 ? (rnd() - 0.5) * 2.2 : rnd() * Math.PI * 2;
-      const r = 34 + rnd() * 14;
+      const ang = tries % 3 !== 2 ? (rnd() - 0.5) * 0.95 : rnd() * Math.PI * 2;
+      const r = 56 + rnd() * 30;
       const x = Math.sin(ang) * r, z = sk.z + Math.cos(ang) * r;
       if (Math.abs(x) < 20 && z > Z_FAR - 6 && z < Z_STAGE + 8) continue;
-      const w = 6 + rnd() * 8, d = 6 + rnd() * 8;
-      const h = 30 + Math.pow(rnd(), 1.3) * 42;
+      const w = 3.5 + rnd() * 6, d = 3.5 + rnd() * 6;
+      const h = 22 + Math.pow(rnd(), 1.2) * 21;   // tall enough to clear the skylight's far rim from the establishing shot
       place(x, z, w, d, h);
     }
-    const TW = 25.6, TH = 83.2;   // one texture tile: 32 columns × 64 floors
+    const TW = 12, TH = 40;   // one texture tile: 32 columns × 64 floors (smaller windows: a city further off)
     const addBox = (x, z, w, d, y0, y1, bright, tint) => {
       const g = box(x - w / 2, x + w / 2, y0, y1, z - d / 2, z + d / 2);
       const p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
@@ -995,22 +1073,22 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     };
     towers.sort((a, b) => b.h - a.h);
     towers.forEach((t, i) => {
-      const bright = 0.5 + rnd() * 0.45;
+      const bright = 0.26 + rnd() * 0.3;   // a city at night far off: dim, sparse windows
       const tint = rnd() < 0.25 ? [0.78, 0.88, 1.05] : [1, 1, 1];
       const setback = rnd() < 0.45 && t.h > 36;
       const h0 = setback ? t.h * (0.62 + rnd() * 0.15) : t.h;
       addBox(t.x, t.z, t.w, t.d, -1, h0, bright, tint);
       let top = h0, tw = t.w, td = t.d;
       if (setback) { tw = t.w * 0.68; td = t.d * 0.68; addBox(t.x, t.z, tw, td, h0, t.h, bright * 1.05, tint); top = t.h; }
-      if (i === 0 || (t.x === -6 && t.z === 30)) {
+      if (t.x === -5 && t.z === 52) {
         // the spire
-        const cone = new THREE.ConeGeometry(Math.min(tw, td) * 0.32, 22, 6);
-        cone.translate(t.x, top + 11, t.z);
+        const cone = new THREE.ConeGeometry(Math.min(tw, td) * 0.32, 9, 6);
+        cone.translate(t.x, top + 4.5, t.z);
         const cc = new Float32Array(cone.attributes.position.count * 3).fill(0.03);
         cone.setAttribute('color', new THREE.BufferAttribute(cc, 3));
         T.push(cone);
-        CROWNS.push(box(t.x - 0.12, t.x + 0.12, top, top + 20.5, t.z - Math.min(tw, td) * 0.33 - 0.05, t.z - Math.min(tw, td) * 0.33 + 0.1));
-        REDS.push(box(t.x - 0.45, t.x + 0.45, top + 21.6, top + 22.5, t.z - 0.45, t.z + 0.45));
+        CROWNS.push(box(t.x - 0.08, t.x + 0.08, top, top + 5, t.z - Math.min(tw, td) * 0.33 - 0.05, t.z - Math.min(tw, td) * 0.33 + 0.1));
+        REDS.push(box(t.x - 0.35, t.x + 0.35, top + 8.9, top + 9.6, t.z - 0.35, t.z + 0.35));
       }
       if (i < 7) {
         // red aviation lights on the tallest roofs
@@ -1036,75 +1114,28 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   const crownMesh = mesh(merge(CROWNS, 'crowns'), matCrown, 'venueTowerCrowns');
   crownMesh.frustumCulled = false;
 
-  // ── 7. palms (instanced: trunk+planter, fronds, uplight beams) ─────────────
-  // Template: planter at y 0…0.45, trunk to ≈3.4, crown at CROWN; scaled per instance.
-  const CROWN = [0.22, 3.42, 0];
-  const trunkGeo = (() => {
-    const planter = new THREE.CylinderGeometry(0.42, 0.34, 0.45, 10, 1);
-    planter.translate(0, 0.225, 0);
-    paint(planter, (x, y) => (y > 0.44 ? [0.32, 0.2, 0.09] : [0.05, 0.044, 0.04]));
-    const trunk = new THREE.CylinderGeometry(0.11, 0.19, 3.0, 7, 8, true);
-    trunk.translate(0, 1.9, 0);
-    const p = trunk.attributes.position;
-    for (let i = 0; i < p.count; i++) { const t = (p.getY(i) - 0.4) / 3; p.setX(i, p.getX(i) + 0.22 * t * t); }
-    trunk.computeVertexNormals();
-    paint(trunk, (x, y) => mix3([1.0, 0.74, 0.38], [0.6, 0.4, 0.19], clamp((y - 0.4) / 3, 0, 1)));
-    const bulb = new THREE.SphereGeometry(0.2, 7, 5);
-    bulb.scale(1, 1.3, 1); bulb.translate(CROWN[0], CROWN[1], CROWN[2]);
-    solid(bulb, [0.46, 0.32, 0.14]);
-    return merge([planter, trunk, bulb], 'trunk');
-  })();
-  const frondGeo = (() => {
-    const P = [], UVs = [], Cs = [], F = [], I = [];
-    const NF = LOW ? 11 : 14, SS = LOW ? 4 : 6;
-    for (let f = 0; f < NF; f++) {
-      const az = (f / NF) * Math.PI * 2 + (rnd() - 0.5) * 0.45;
-      const young = f % 5 === 0;
-      const a0 = young ? 0.95 + rnd() * 0.35 : 0.12 + rnd() * 0.62;
-      const Lf = (young ? 1.15 : 1.6) + rnd() * 0.45;
-      const droop = young ? 0.45 : 1.3 + rnd() * 0.9;
-      const Wd = (young ? 0.5 : 0.8) * (0.85 + rnd() * 0.3);
-      const dir = [Math.sin(az), Math.cos(az)], side = [Math.cos(az), -Math.sin(az)];
-      let hx = 0, hy = 0;
-      const base = P.length / 3;
-      for (let i = 0; i <= SS; i++) {
-        const s = i / SS;
-        if (i > 0) { const ang = a0 - droop * Math.pow((i - 0.5) / SS, 1.4); hx += (Math.cos(ang) * Lf) / SS; hy += (Math.sin(ang) * Lf) / SS; }
-        const hw = 0.5 * Wd * Math.pow(Math.sin(Math.PI * Math.min(1, 0.1 + s * 0.95)), 0.6);
-        const cx = CROWN[0] + dir[0] * hx, cz = CROWN[2] + dir[1] * hx;
-        for (let j = -1; j <= 1; j++) {
-          const lat = j * hw;
-          P.push(cx + side[0] * lat, CROWN[1] + hy - Math.abs(j) * 0.35 * hw, cz + side[1] * lat);
-          UVs.push(s, (j + 1) / 2);
-          const b = (1.0 - 0.82 * Math.pow(s, 0.7)) * (j === 0 ? 1 : 0.75);
-          Cs.push(b, b * 0.94, b * 0.82);
-          F.push(s);
-        }
-        if (i > 0) {
-          const r0 = base + (i - 1) * 3, r1 = base + i * 3;
-          for (let j = 0; j < 2; j++) I.push(r0 + j, r1 + j, r1 + j + 1, r0 + j, r1 + j + 1, r0 + j + 1);
-        }
-      }
-    }
+  // ── 7. palms (instanced: trunk + planter, 3D fronds, the uplight cone) ─────────────
+  // Built by palmGeometry.mjs from the plant's own parts: a ringed trunk, a rachis per frond and
+  // folded leaflets down both sides. Nothing here is a leaf card or an alpha-tested picture.
+  const PQ = LOW ? 'low' : 'high';
+  const palmGeo = (B, extra = false) => {
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(UVs, 2));
-    g.setAttribute('color', new THREE.Float32BufferAttribute(Cs, 3));
-    g.setAttribute('aFlex', new THREE.Float32BufferAttribute(F, 1));
-    g.setIndex(I);
-    g.computeVertexNormals();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(B.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(B.nrm, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(B.col, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(B.uv, 2));
+    if (extra) { g.setAttribute('aFlex', new THREE.Float32BufferAttribute(B.flex, 1)); g.setAttribute('aUnder', new THREE.Float32BufferAttribute(B.under, 1)); }
+    g.setIndex(B.idx);
     return own(g);
-  })();
-  const beamGeo = (() => {
-    const a = quad([-0.7, 0.4, 0], [1, 0, 0], [0, 1, 0], 1.4, 3.4, [0, 0, 1, 1]);
-    const b = quad([0, 0.4, -0.7], [0, 0, 1], [0, 1, 0], 1.4, 3.4, [0, 0, 1, 1]);
-    return merge([a, b], 'beam');
-  })();
+  };
+  const trunkGeo = palmGeo(palmTrunk(PQ));
+  const frondGeo = palmGeo(palmFronds(mulberry32(seed * 29 + 3), PQ), true);
+  const beamGeo = palmGeo(palmBeam(PQ));
 
   const PALMS = [];   // { x, y, z, s }
-  // floor: between the booth bays
-  const floorPalmZ = LOW ? [-13.5, -25.5, -37.5] : [-10.5, -16.5, -22.5, -28.5, -34.5, -40.5];
-  for (const s of [-1, 1]) for (const z of floorPalmZ) PALMS.push({ x: s * 8.8, y: FLOOR_Y, z, s: 1.62 + rnd() * 0.22 });
+  // No palms on the floor: the reference's floor is the crowd and the sunken booths either side, and
+  // the old row of floor palms (twelve, 7 m tall) stood in front of the booths from every angle. The
+  // palms live on the balconies, along the rails, uplit gold.
   // balconies
   const balZ = LOW ? [-36, -22, -8] : [-38, -30.5, -23, -15.5, -8, -0.5];
   for (const L of LEVELS) for (const s of [-1, 1]) for (const z of balZ) {
@@ -1123,7 +1154,6 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   imTrunk.name = 'venuePalmTrunks'; imFrond.name = 'venuePalmFronds'; imBeam.name = 'venuePalmUplights';
   imBeam.renderOrder = 4;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v3 = new THREE.Vector3(), sc3 = new THREE.Vector3();
-  const GLOWS = [];   // flat glow pools: { x, y, z, r }
   PALMS.forEach((p, i) => {
     e.set((rnd() - 0.5) * 0.08, rnd() * Math.PI * 2, (rnd() - 0.5) * 0.08);
     q.setFromEuler(e);
@@ -1132,7 +1162,6 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     e.set(0, e.y, 0); q.setFromEuler(e);
     m4.compose(v3.set(p.x, p.y, p.z), q, sc3.set(p.s, p.s, p.s));
     imBeam.setMatrixAt(i, m4);
-    GLOWS.push({ x: p.x, y: p.y + 0.02, z: p.z, r: 1.15 * p.s, k: 0.8 });
   });
   for (const im of [imTrunk, imFrond, imBeam]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
 
@@ -1145,7 +1174,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       box(-L2, -L2 + 0.16, 0, 0.62, 0, 0.75),  // arms
       box(L2 - 0.16, L2, 0, 0.62, 0, 0.75),
     ];
-    const cream = [0.43, 0.355, 0.265];
+    const cream = [0.2, 0.17, 0.13];   // cream in a dark room: the candle between the sofas lights them (the bake)
     for (const g of parts) paint(g, (x, y, z, nx, ny, nz) => {
       let k = 0.34 + 0.52 * Math.max(0, ny) + 0.22 * Math.max(0, nz) + 0.05 * Math.abs(nx);
       if (ny < -0.5) k = 0.12;
@@ -1158,16 +1187,23 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     const base = new THREE.CylinderGeometry(0.22, 0.26, 0.03, 12, 1); base.translate(0, 0.015, 0);
     const ped = new THREE.CylinderGeometry(0.05, 0.06, 0.5, 8, 1); ped.translate(0, 0.28, 0);
     const top = new THREE.CylinderGeometry(0.42, 0.42, 0.045, 18, 1); top.translate(0, 0.55, 0);
-    solid(base, [0.03, 0.025, 0.02]); solid(ped, [0.06, 0.045, 0.03]);
-    paint(top, (x, y, z, nx, ny) => (ny > 0.5 ? [0.16, 0.11, 0.07] : [0.4, 0.28, 0.12]));
+    // dark walnut: the candle's pool (baked below) is what makes the top read, not a pale paint
+    solid(base, [0.02, 0.016, 0.012]); solid(ped, [0.035, 0.026, 0.018]);
+    paint(top, (x, y, z, nx, ny) => (ny > 0.5 ? [0.045, 0.03, 0.019] : [0.1, 0.07, 0.034]));
     return merge([base, ped, top], 'table');
   })();
   const candleGeo = own(new THREE.CylinderGeometry(0.035, 0.04, 0.12, 8, 1));
-  const haloGeo = (() => {
-    const a = quad([-0.24, -0.24, 0], [1, 0, 0], [0, 1, 0], 0.48, 0.48);
-    const b = quad([0, -0.24, -0.24], [0, 0, 1], [0, 1, 0], 0.48, 0.48);
-    return merge([a, b], 'candleHalo');
-  })();
+  // The candle's light is baked: into the table top and the two sofas of its booth (here, in the
+  // templates' own frames — every booth is the same arrangement) and into the floor around it (the
+  // floor bake below). The old additive halo and the flat glow disc under each table are gone: they
+  // read as bright blobs on the tables, and the reference's candles are small points of light.
+  const CANDLE_LIGHT = { c: [0.55, 0.33, 0.13], r0: 0.12, range: 3.2 };
+  {
+    const bake1 = (g, p, albedo, k = 1, r0 = CANDLE_LIGHT.r0) => bakeMesh({ pos: g.attributes.position.array, nrm: g.attributes.normal.array, col: g.attributes.color.array,
+      LG: lightGrid([{ p, c: CANDLE_LIGHT.c.map((c) => c * k), r0, range: CANDLE_LIGHT.range, shadow: false }], 2), OG: null, aoRays: 0, albedo, neutral: 0.2 });
+    bake1(sofaGeo, [0, 0.72, 1.6], 0.38);             // the sofa faces its table 1.6 m away (+z local)
+    bake1(tableGeo, [0, 0.72, 0], 0.45, 0.07, 0.24);   // the flame sits on the table: a warm top, not a white disc
+  }
 
   const bayZ = [];
   for (let k = 0; k < 12; k++) if (!LOW || k % 2 === 0) bayZ.push(-9 - k * 3);
@@ -1185,7 +1221,9 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   // same as the booth beside it (a multiplier on the painted cream: cream · oxblood · emerald · navy ·
   // tan · mustard · blush · teal · black · dove grey)
   {
-    const BOOTH = [[1, 1, 1], [0.62, 0.1, 0.12], [0.12, 0.46, 0.26], [0.13, 0.2, 0.52], [0.95, 0.58, 0.24], [1.0, 0.8, 0.16], [1.0, 0.62, 0.6], [0.1, 0.52, 0.56], [0.13, 0.12, 0.13], [0.6, 0.6, 0.64]];
+    // muted, as the reference's sunken booths are: cream · ivory · taupe · charcoal · oxblood · navy ·
+    // forest · camel · slate · dove (the old set ran to mustard, teal and blush at full strength)
+    const BOOTH = [[1, 1, 1], [0.92, 0.9, 0.86], [0.62, 0.55, 0.48], [0.16, 0.16, 0.17], [0.42, 0.14, 0.13], [0.16, 0.2, 0.34], [0.18, 0.27, 0.2], [0.74, 0.54, 0.34], [0.36, 0.4, 0.44], [0.66, 0.66, 0.66]];
     const order = BOOTH.map((_, i) => i);
     const srnd = mulberry32(seed * 17 + 9);
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(srnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
@@ -1196,30 +1234,89 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   imTable.name = 'venueTables';
   const imCandle = new THREE.InstancedMesh(candleGeo, matCandle, TABLES.length);
   imCandle.name = 'venueCandles';
-  const imHalo = new THREE.InstancedMesh(haloGeo, matGlow, TABLES.length);
-  imHalo.name = 'venueCandleHalos'; imHalo.renderOrder = 5;
   const CANDLE_C = new THREE.Color(2.8, 1.7, 0.72);
   TABLES.forEach((tb, i) => {
     q.set(0, 0, 0, 1);
     m4.compose(v3.set(tb.x, FLOOR_Y, tb.z), q, sc3.set(1, 1, 1)); imTable.setMatrixAt(i, m4);
     m4.compose(v3.set(tb.x, FLOOR_Y + 0.635, tb.z), q, sc3.set(1, 1, 1)); imCandle.setMatrixAt(i, m4);
-    m4.compose(v3.set(tb.x, FLOOR_Y + 0.66, tb.z), q, sc3.set(1, 1, 1)); imHalo.setMatrixAt(i, m4);
     imCandle.setColorAt(i, CANDLE_C);
-    GLOWS.push({ x: tb.x, y: FLOOR_Y + 0.576, z: tb.z, r: 0.62, k: 1 });
   });
-  for (const im of [imSofa, imTable, imCandle, imHalo]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
+  for (const im of [imSofa, imTable, imCandle]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
   if (imCandle.instanceColor) imCandle.instanceColor.setUsage(THREE.DynamicDrawUsage);
 
-  // flat glow pools (candles on tables, uplights at palm planters)
-  const discGeo = (() => { const g = new THREE.PlaneGeometry(2, 2); g.rotateX(-Math.PI / 2); return own(g); })();
-  const imDisc = new THREE.InstancedMesh(discGeo, matGlow, GLOWS.length);
-  imDisc.name = 'venueGlowPools'; imDisc.renderOrder = 5;
-  const discC = new THREE.Color();
-  GLOWS.forEach((gl, i) => {
-    q.set(0, 0, 0, 1); m4.compose(v3.set(gl.x, gl.y, gl.z), q, sc3.set(gl.r, 1, gl.r)); imDisc.setMatrixAt(i, m4);
-    imDisc.setColorAt(i, discC.setScalar(gl.k));
-  });
-  imDisc.instanceMatrix.needsUpdate = true; imDisc.computeBoundingSphere(); group.add(imDisc);
+  // ── 8b. the light bake: every small source in the room, baked into the vertices once ─────
+  // The reference is lit by small warm sources — soffit downlights, the lamps behind the lounge glass,
+  // the palms' uplights, the booth candles — and the dark stone around them is lit only where they
+  // reach. lightBake.mjs computes that once, here, into the structure's vertex colours and the floor's
+  // canvas: direct light with inverse-square falloff, shadow rays against the architecture's boxes,
+  // a little ambient occlusion in the corners, and one bounce off the lit walkways. The runtime cost
+  // is nothing (the colours are ordinary vertex attributes) and the download is nothing (it runs on
+  // load, from the same code).
+  const LIGHTS = [];
+  // soffit downlights: a warm spot straight down, a tight cone, so each leaves its own pool
+  for (const d of DOWNLIGHTS) LIGHTS.push({ p: d.p, c: [1.7, 1.25, 0.8], r0: 0.3, range: 5.2, dir: [0, -1, 0], cos0: 0.95, cos1: 0.8, self: 0.08 });
+  // the palms' planter lamps, straight up: the gold pool on the soffit (or the ceiling) above each
+  for (const pm of PALMS) {
+    const k = pm.s * pm.s;
+    LIGHTS.push({ p: [pm.x, pm.y + 0.45 * pm.s, pm.z], c: [3.4 * k, 2.15 * k, 0.86 * k], r0: 0.4, range: 6.5, dir: [0, 1, 0], cos0: 0.74, cos1: 0.18, self: 0.2 });
+  }
+  // each private box's glow through its glass: a broad warm source at the glass line, facing out
+  for (const Bx of BOXES) {
+    const Lc = Bx.tint.map((c) => c * Bx.bright * 2.1);
+    const y = Bx.o[1] + 1.35;
+    if (Bx.s) LIGHTS.push({ p: [Bx.s * (WIN_X - 0.35), y, Bx.o[2]], c: Lc, r0: 1.1, range: 5.6, dir: [-Bx.s, 0, 0], cos0: 0.05, cos1: -0.4 });
+    else LIGHTS.push({ p: [Bx.o[0], y, FAR_WIN_Z + 0.35], c: Lc, r0: 1.1, range: 5.6, dir: [0, 0, 1], cos0: 0.05, cos1: -0.4 });
+  }
+  // the booth candles (their pool on the floor; the sofas and table tops are baked above)
+  for (const tb of TABLES) LIGHTS.push({ p: [tb.x, FLOOR_Y + 0.72, tb.z], c: CANDLE_LIGHT.c, r0: CANDLE_LIGHT.r0, range: CANDLE_LIGHT.range });
+  // what blocks them: the architecture, and on the floor the booths' sofas and table tops
+  const FLOOR_OCC = [];
+  for (const b of SOFAS) {
+    const s = Math.sign(b.x), inner = Math.abs(b.x) < 8.8;
+    const xBack = inner ? b.x - s * 0.22 : b.x + s * 0.22, xSeat = inner ? b.x + s * 0.75 : b.x - s * 0.75;
+    FLOOR_OCC.push([Math.min(xBack, b.x), FLOOR_Y, b.z - 1, Math.max(xBack, b.x), FLOOR_Y + 0.95, b.z + 1]);
+    FLOOR_OCC.push([Math.min(b.x, xSeat), FLOOR_Y, b.z - 1, Math.max(b.x, xSeat), FLOOR_Y + 0.42, b.z + 1]);
+  }
+  for (const tb of TABLES) FLOOR_OCC.push([tb.x - 0.4, FLOOR_Y + 0.555, tb.z - 0.4, tb.x + 0.4, FLOOR_Y + 0.6, tb.z + 0.4]);
+  const ts0 = clock();
+  const OG = boxGrid([...ARCH, ...FLOOR_OCC], 1.5);
+  const LG = lightGrid(LIGHTS, 3);
+  {
+    // the structure: direct light first (reused), one bounce off the lit up-facing surfaces, then AO
+    const pa = structGeo.attributes.position.array, na = structGeo.attributes.normal.array, ca = structGeo.attributes.color;
+    const D = directAll(pa, na, LG, OG);
+    const samples = [];
+    for (let i = 0; i < pa.length / 3; i++) {
+      const e = D[i * 3] + D[i * 3 + 1] + D[i * 3 + 2];
+      if (na[i * 3 + 1] > 0.5 && e > 0.003) samples.push({ p: [pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]], n: [0, 1, 0], rad: [D[i * 3] * 0.3, D[i * 3 + 1] * 0.28, D[i * 3 + 2] * 0.26] });
+    }
+    const BF = bounceField(samples, { cell: 1.0, radius: 3.8, gain: 0.55 });
+    bakeMesh({ pos: pa, nrm: na, col: ca.array, LG, OG, direct: D, bounce: BF, aoRays: LOW ? 3 : 5, aoLen: 1.0, aoStrength: 0.8, albedo: 0.42, neutral: 0.65 });
+    ca.needsUpdate = true;
+  }
+  const tf0 = clock();
+  bakeMs.structure = tf0 - ts0;
+  {
+    // the floor: dark polished stone, its pools baked texel by texel, then the stone's joints
+    const g = floorCanvas.getContext('2d'), FW = floorCanvas.width, FH = floorCanvas.height;
+    const img = g.createImageData(FW, FH), E = [0, 0, 0];
+    const base = [0.0011, 0.0011, 0.0016], alb = [0.2, 0.17, 0.15];
+    const enc = (v) => { v = clamp(v, 0, 1); return Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)); };
+    for (let py = 0; py < FH; py++) for (let px = 0; px < FW; px++) {
+      const x = -X_OUT + ((px + 0.5) / FW) * 2 * X_OUT, z = Z_FAR + ((py + 0.5) / FH) * (Z_STAGE - Z_FAR);
+      directAt(x, FLOOR_Y + 0.01, z, 0, 1, 0, LG, OG, E);
+      const o = (py * FW + px) * 4;
+      img.data[o] = enc(base[0] + alb[0] * E[0]); img.data[o + 1] = enc(base[1] + alb[1] * E[1]); img.data[o + 2] = enc(base[2] + alb[2] * E[2]); img.data[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    const X = (x) => ((x + X_OUT) / (2 * X_OUT)) * FW, Z = (z) => ((z - Z_FAR) / (Z_STAGE - Z_FAR)) * FH;
+    g.strokeStyle = 'rgba(40,36,34,0.3)'; g.lineWidth = LOW ? 0.5 : 1;
+    for (let x = -X_OUT; x <= X_OUT; x += 1.5) { g.beginPath(); g.moveTo(X(x), 0); g.lineTo(X(x), FH); g.stroke(); }
+    for (let z = Z_FAR; z <= Z_STAGE; z += 1.5) { g.beginPath(); g.moveTo(0, Z(z)); g.lineTo(FW, Z(z)); g.stroke(); }
+    floorTex.needsUpdate = true;
+  }
+  bakeMs.floor = clock() - tf0;
+  const bakeStats = { ms: bakeMs, lights: LIGHTS.length, occluders: OG.boxes.length, structureVerts: structGeo.attributes.position.count, floorTexels: floorCanvas.width * floorCanvas.height };
 
   // ── 9. people: silhouettes on the balcony rails + guests in the booths ─────
   const figGeo = (() => {
@@ -1301,7 +1398,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     });
     venueCrowd.commit();
     // backlit by the warm lounge glass, a little of the atrium's light on the front
-    venueCrowd.setLight(new THREE.Color(0.55, 0.32, 0.14), new THREE.Color(0.05, 0.045, 0.042), new THREE.Color(0.05, 0.03, 0.014));
+    venueCrowd.setLight(new THREE.Color(0.3, 0.19, 0.1), new THREE.Color(0.035, 0.034, 0.036), new THREE.Color(0.04, 0.026, 0.014));
     group.add(venueCrowd.group);
     group.remove(imFig);
   }).catch(() => { /* the club already reports a missing pack; the boxes stay */ });
@@ -1375,11 +1472,11 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     if (venueCrowd) { venueCrowd.dispose(); venueCrowd = null; }
     if (group.parent) group.parent.remove(group);
     group.clear();
-    for (const im of [imTrunk, imFrond, imBeam, imSofa, imTable, imCandle, imHalo, imDisc, imFig]) im.dispose();
+    for (const im of [imTrunk, imFrond, imBeam, imSofa, imTable, imCandle, imFig]) im.dispose();
     for (const d of disposables) if (d && typeof d.dispose === 'function') d.dispose();
     disposables.length = 0;
   }
 
   update(0, 0);
-  return { group, set, update, dispose, dims: VENUE_DIMS };
+  return { group, set, update, dispose, dims: VENUE_DIMS, bakeStats };
 }

@@ -46,7 +46,7 @@ const [toneOp, toneExp] = TONE[Q.get('tm')] || TONE.neutral;
 renderer.toneMapping = toneOp;
 renderer.toneMappingExposure = Q.get('exp') ? +Q.get('exp') : toneExp;
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(38, 1, 0.03, 80);
+const camera = new THREE.PerspectiveCamera(38, 1, 0.03, 150);   // far 150: the skyline stands 50–76 m out from the skylight
 camera.position.set(0, 1.8, -5.5);
 
 let composer = null, bloom = null;
@@ -98,7 +98,11 @@ const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-
 const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION });
 scene.add(club.group);
 // Club Shape itself: the atrium, balconies, palms, lounges and the skylight ring.
-const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack });
+// The venue bakes its lighting on load (lightBake.mjs); how long that takes is timed here, since the
+// venue module itself reads no clock. window.__booth.venueMs reports it.
+const venueT0 = performance.now();
+const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now() });
+const venueMs = performance.now() - venueT0;
 scene.add(venue.group);
 const FINISH = QUALITY === 'high' ? 'physical' : 'standard';
 const decks = [1, 2].map((n) => createCDJ({ THREE, deckNumber: n, accent: ACCENT, textureScale: QUALITY === 'high' ? 1 : 0.75, finish: FINISH }));
@@ -581,7 +585,7 @@ resize();
 if (Q.get('mode')) setMode(Q.get('mode'));
 if (Q.get('autostart')) startSet();
 requestAnimationFrame(frame);
-window.__booth = { director, renderer, club, venue, scene, camera, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
+window.__booth = { director, renderer, club, venue, venueMs, scene, camera, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
 
 // Debug: the first thing a camera ray hits among Nora and the gear (handprobe.cjs uses it to sample
 // only pixels that are actually her skin). Cheap: it tests only the foreground, never the crowd.

@@ -45,7 +45,7 @@ export const CLUB_DIMS = {
   PORTAL: { x: 5.5, top: 8.8, z0: 1.9, z1: 3.2 },
   // the stage deck: back edge, where the sides turn into the rounded front, and its apex
   STAGE: { x: 5.5, back: 3.2, sideZ: 0.6, frontZ: -1.45 },
-  CROWD: { x: 7.0, z0: -1.8, z1: -34.0 },
+  CROWD: { x: 7.0, z0: -1.8, z1: -38.0 },
 };
 
 const { FLOOR_Y, STAGE_Y, STAND_Y, TABLE_Y, BOOTH, WALL, PORTAL, STAGE, CROWD } = CLUB_DIMS;
@@ -946,7 +946,10 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     }
     return tMax;
   }
-  const LZ_MAGENTA = new THREE.Color(1.0, 0.16, 0.72), LZ_GREEN = new THREE.Color(0.16, 1.0, 0.36);
+  // Crossing white beams, as in the reference: cool white and ice most of the time, the teal accent
+  // only now and then. The old palette cycled teal, green, magenta and amber at 2.2× and the room
+  // read as a laser show with a club around it; teal no longer dominates.
+  const LZ_WHITE = new THREE.Color(0.9, 0.94, 1.0), LZ_ICE = new THREE.Color(0.62, 0.8, 1.0);
   let lzGain = 0;
   const lzD = new THREE.Vector3(), lzC = new THREE.Color();
   function updateLasers(dt, t) {
@@ -956,11 +959,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     const lvl = levelNorm();
     const drop = dropS;
     // present from the first note, strong on the drop; a slow idle fan before the set starts
-    const want = Math.max(0.28, 0.35 + 0.5 * lvl) * (1 + 0.9 * drop);
+    const want = Math.max(0.07, 0.07 + 0.22 * lvl) * (1 + 1.4 * drop);
     lzGain += (want - lzGain) * Math.min(1, dt * 2.5);
     const frac = bp - Math.floor(bp);
     const pulse = reduced ? 1 : 0.62 + 0.38 * Math.exp(-frac * 5.0);
-    const palette = [accentC, LZ_GREEN, LZ_MAGENTA, hotC];
+    // teal only on the drop: off it the beams are white and ice
+    const palette = drop > 0.5 ? [LZ_WHITE, LZ_ICE, LZ_WHITE, accentC] : [LZ_WHITE, LZ_ICE, LZ_WHITE, LZ_ICE];
     let k = 0;
     for (const unit of LZ_UNITS) {
       const s = unit.side;
@@ -986,7 +990,9 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
         lzOrigin[k * 3] = unit.pos.x; lzOrigin[k * 3 + 1] = unit.pos.y; lzOrigin[k * 3 + 2] = unit.pos.z;
         lzDir[k * 3] = lzD.x; lzDir[k * 3 + 1] = lzD.y; lzDir[k * 3 + 2] = lzD.z;
         lzLen[k] = roomExit(unit.pos, lzD);
-        lzC.copy(colA).multiplyScalar(lzGain * pulse * 2.2);
+        // off the drop, only every other beam of the fan is lit: fewer, finer lines
+        const on = drop > 0.5 || (i & 1) === 0 ? 1 : 0;
+        lzC.copy(colA).multiplyScalar(lzGain * pulse * 1.5 * on);
         lzCol[k * 3] = lzC.r; lzCol[k * 3 + 1] = lzC.g; lzCol[k * 3 + 2] = lzC.b;
       }
     }
@@ -1079,15 +1085,19 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   matCrowd.customProgramCacheKey = () => 'club-shape-crowd-rim-v3';
 
   const people = [];
-  const lodCount = [0, 0];
+  // Desktop high packs the floor as the reference does, shoulder to shoulder back to the far booths:
+  // a third level of detail (the pack's `tiny` figure, ≈430 triangles with hair) takes the back of
+  // the room. The low tier (and every phone) keeps today's two levels and today's count.
+  const LODS = low ? ['near', 'far'] : ['near', 'far', 'tiny'];
+  const lodCount = LODS.map(() => 0);
   {
     // jittered rows from the stage lip back, spacing growing with depth (denser at the
     // front); a lane is left where the director's WIDE camera travels.
-    const NEAR_Z = -8.0;
-    const nearC = [], farC = [];
+    const NEAR_Z = -8.0, FAR_Z = -19.0;
+    const nearC = [], farC = [], tinyC = [];
     let z = CROWD.z0 - 0.05;
     while (z > CROWD.z1) {
-      const s = 0.48 + 0.024 * (-z + CROWD.z0);
+      const s = low ? 0.48 + 0.024 * (-z + CROWD.z0) : 0.44 + 0.009 * (-z + CROWD.z0);
       for (let x = -CROWD.x + rnd() * s * 0.5; x <= CROWD.x; x += s) {
         const px = x + (rnd() - 0.5) * s * 0.7, pz = z + (rnd() - 0.5) * s * 0.55;
         if (Math.abs(px) > CROWD.x || pz > CROWD.z0) continue;
@@ -1097,14 +1107,14 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
         const ax = -0.6, az = -6.2, bx = 0.35, bz = -4.7;
         const k = clamp(((px - ax) * (bx - ax) + (pz - az) * (bz - az)) / ((bx - ax) ** 2 + (bz - az) ** 2), 0, 1);
         if (Math.hypot(px - (ax + k * (bx - ax)), pz - (az + k * (bz - az))) < 0.45) continue;
-        (pz > NEAR_Z ? nearC : farC).push([px, pz]);
+        (pz > NEAR_Z ? nearC : pz > FAR_Z || low ? farC : tinyC).push([px, pz]);
       }
       z -= s;
     }
     const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-    shuffle(nearC); shuffle(farC);
-    const caps = low ? [150, 200] : [300, 400];
-    [nearC, farC].forEach((cand, lod) => {
+    shuffle(nearC); shuffle(farC); shuffle(tinyC);
+    const caps = low ? [150, 200] : [300, 520, 1500];
+    (low ? [nearC, farC] : [nearC, farC, tinyC]).forEach((cand, lod) => {
       const N = Math.min(cand.length, caps[lod]);
       for (let i = 0; i < N; i++) {
         const [x, zz] = cand[i];
@@ -1124,6 +1134,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     });
   }
   const NP = people.length;
+  // The cylinder fallback only has two levels; the `tiny` back rows appear with the avatars.
   const imBody = [
     new THREE.InstancedMesh(bodyNearGeo, matCrowd, Math.max(1, lodCount[0])),
     new THREE.InstancedMesh(bodyFarGeo, matCrowd, Math.max(1, lodCount[1])),
@@ -1145,6 +1156,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   {
     const c = new THREE.Color();
     people.forEach((p) => {
+      if (p.lod > 1) return;
       c.setRGB(p.tone, p.tone * 1.0, p.tone * 1.12);
       imBody[p.lod].setColorAt(p.idx, c);
       imArm[p.lod].setColorAt(p.idx * 2, c);
@@ -1167,7 +1179,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   if (crowdPack) {
     crowdPack.then((pack) => {
       if (disposed) return;
-      avatars = createAvatarCrowd({ THREE, pack, people, lodCount, rnd });
+      avatars = createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods: LODS, stageFalloff: low ? 13 : 17 });
       group.add(avatars.group);
       for (const m of [...imBody, ...imArm]) { group.remove(m); m.dispose(); }
       updateCrowd(0, lastT);
@@ -1244,13 +1256,13 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     const gold = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb866).multiplyScalar(0.7), side: THREE.DoubleSide }); tmp.push(gold);
     { const cg = new THREE.PlaneGeometry(30, 60); tmp.push(cg);
       const cm = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 0.22, 0.26), side: THREE.DoubleSide }); tmp.push(cm);
-      const c = new THREE.Mesh(cg, cm); c.rotation.x = Math.PI / 2; c.position.set(0, 13.5, -18); es.add(c); }
+      const c = new THREE.Mesh(cg, cm); c.rotation.x = Math.PI / 2; c.position.set(0, 13.5, -13); es.add(c); }
     for (const side of [-1, 1]) for (const y of [2.2, 5.6, 9.6]) {
       const s = new THREE.Mesh(bg, gold); s.position.set(side * 10.8, y, -20); s.rotation.y = Math.PI / 2; es.add(s);
     }
     // the ice ring of the skylight overhead
     const rg = new THREE.TorusGeometry(1, 0.03, 6, 48); tmp.push(rg);
-    const ring = new THREE.Mesh(rg, wm); ring.scale.set(8, 13, 1); ring.rotation.x = Math.PI / 2; ring.position.set(0, 15.2, -18); es.add(ring);
+    const ring = new THREE.Mesh(rg, wm); ring.scale.set(8.4, 12.5, 1); ring.rotation.x = Math.PI / 2; ring.position.set(0, 15.2, -13); es.add(ring);
     const pmrem = new THREE.PMREMGenerator(renderer);
     envRT = pmrem.fromScene(es, 0.04);
     pmrem.dispose();
@@ -1425,8 +1437,10 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       tmpM.compose(f.pivot, tmpQ2, tmpS.set(1, 1, 1));
       imHead.setMatrixAt(k, tmpM);
       imLens.setMatrixAt(k, tmpM);
-      // the section's colour: white, the brand accent, the hot tone; on the drop the pairs alternate
-      const bc = drop > 0.5 ? (k % 2 ? accentC : hotC) : [beamWhite, accentC, hotC][mode];
+      // white beams, as in the reference: cool white in two of three sections, the brand accent in the
+      // third; on the drop the pairs alternate white and accent (the amber section is gone: under the
+      // venue's warm light it read as a gold wash, not a beam)
+      const bc = drop > 0.5 ? (k % 2 ? accentC : beamWhite) : [beamWhite, beamWhite, accentC][mode];
       tmpC.copy(bc).multiplyScalar(0.8 + 2.4 * f.intensity);
       imLens.setColorAt(k, tmpC);
       // beam from the lens face along the aim
@@ -1475,6 +1489,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       tmpQ.setFromEuler(tmpE);
       tmpS.set(p.s * p.w, p.s, p.s * p.w);
       tmpM.compose(tmpV.set(p.x, y, p.z), tmpQ, tmpS);
+      if (!avatars && p.lod > 1) continue;   // the back rows have no fallback silhouette
       if (!avatars) imBody[p.lod].setMatrixAt(p.idx, tmpM);
       // hands: a few always up for the hype, most of the room on the drop
       const wantUp = (p.hype > 0.93 ? 1 : 0) || (drop > 0.5 && p.hype > 0.3) ? 1 : 0;
@@ -1505,7 +1520,9 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       avatars.commit();
       // back light: the room's warm balcony and lounge glow falls on the crowd from behind, so a
       // crowd seen from the house reads as shoulders and heads, not a black mass. Steady, not on the beat.
-      avatars.setLight(tmpC.copy(iceC).multiplyScalar(0.18 + 0.22 * lvl + 0.18 * kickS + 0.12 * drop), tmpC2.copy(iceC).multiplyScalar(0.006 + 0.01 * lvl), crowdBackC);
+      // front light: the stage's white wash on heads and shoulders (the reference's crowd is dark
+      // clothes lit from the stage), a little fill so faces toward the stage are not black
+      avatars.setLight(tmpC.copy(iceC).multiplyScalar(0.26 + 0.26 * lvl + 0.18 * kickS + 0.12 * drop), tmpC2.copy(iceC).multiplyScalar(0.014 + 0.016 * lvl), crowdBackC);
     } else {
       for (let l = 0; l < 2; l++) {
         imBody[l].instanceMatrix.needsUpdate = true;

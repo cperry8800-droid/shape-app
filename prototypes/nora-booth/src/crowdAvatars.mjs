@@ -80,11 +80,13 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods = [
     const r = rnd();
     if (!Number.isInteger(p.hair)) p.hair = r < 0.42 ? 0 : r < 0.72 ? 1 : 2; // a caller may pre-assign (the line-up page does)
     p.hidx = hairCount[p.lod][p.hair]++;
-    p.outfit = rnd() < 0.55 ? pick(rnd, TOPS_DARK) : pick(rnd, TOPS_COLOUR);
+    p.outfit = rnd() < 0.8 ? pick(rnd, TOPS_DARK) : pick(rnd, TOPS_COLOUR);   // a club crowd at night: mostly dark
     p.lower = pick(rnd, BOTTOMS);
     p.shoe = rnd() < 0.3 ? 1 : 0;             // white trainers or dark shoes
     p.skin = Math.pow(rnd(), 0.8);            // 0 light → 1 deep
-    p.hairC = rnd() < 0.08 ? HAIRS[7] : HAIRS[Math.floor(rnd() * 7)];   // platinum is rare
+    // mostly dark hair (the first five), some mid-brown and auburn, platinum rare
+    const hr = rnd();
+    p.hairC = hr < 0.03 ? HAIRS[7] : hr < 0.15 ? HAIRS[5 + Math.floor(rnd() * 2)] : HAIRS[Math.floor(rnd() * 5)];
   }
 
   // ── material: parts tint + arm raise + the stage rim + drawn eyes ─────────────────────

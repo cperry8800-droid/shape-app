@@ -74,7 +74,7 @@ const venue = new THREE.Group();
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(28, 52), dark);
   ceil.rotation.x = Math.PI / 2; ceil.position.set(0, 15.5, -20); venue.add(ceil);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 6, 96), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xbfe6ff).multiplyScalar(2.5) }));
-  ring.scale.set(8, 13, 1); ring.rotation.x = Math.PI / 2; ring.position.set(0, 15.45, -18); venue.add(ring);
+  ring.scale.set(8.4, 12.5, 1); ring.rotation.x = Math.PI / 2; ring.position.set(0, 15.45, -13); venue.add(ring);
 }
 // ?venue=real → the real Club Shape hall (clubVenue.mjs) instead of the stand-in
 let realVenue = null;

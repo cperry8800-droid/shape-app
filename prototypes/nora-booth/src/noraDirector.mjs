@@ -26,6 +26,7 @@ const lerp = (a, b, u) => a + (b - a) * u;
 // camera-shake amplitude in metres (close shots shake less, like a stabilised rig).
 export const SHOTS = {
   club:      { label: 'Club Shape', bars: 8, weight: 2, handheld: 0.006, fov: 50 },
+  atrium:    { label: 'Atrium',    bars: 16, weight: 2, handheld: 0.0, fov: 54 },
   wide:      { label: 'Wide',      bars: 8,  weight: 3, handheld: 0.010, fov: 38 },
   panorama:  { label: 'Panorama',  bars: 16, weight: 3, handheld: 0.004, fov: 40 },
   overhead:  { label: 'Overhead',  bars: 4,  weight: 2, handheld: 0.003, fov: 46 },
@@ -117,6 +118,17 @@ export function evalShot(id, u, t, ctx, out) {
       // Aimed high enough that the skylight ring and the skyline sit across the top of the
       // frame the way they do in the owner's interior reference; the stage lands in the lower third.
       T.x = 0; T.y = 6.2; T.z = 0.5;
+      break;
+    }
+    case 'atrium': {
+      // The reference frame: the owner's photoreal Club Shape render, shot from high at the back of
+      // the room and dead centre — the oval skylight across the top, the three balcony tiers down
+      // both sides, the sofa booths in the lower corners, the crowd filling the middle and the
+      // stage portal small and central at the far end. Just in front of the far tier-two rail
+      // (z −42.5), level with the gap between tiers two and three, so nothing structural sits in
+      // front of the lens. A barely-there push, no handheld: an establishing plate.
+      P.x = 0; P.y = lerp(10.1, 9.8, e); P.z = lerp(-41.8, -40.8, e);
+      T.x = 0; T.y = lerp(5.9, 5.7, e); T.z = 2.0;
       break;
     }
     case 'wide': {
