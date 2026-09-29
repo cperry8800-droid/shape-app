@@ -79,7 +79,7 @@ const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-
 const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION });
 scene.add(club.group);
 // Club Shape itself: the atrium, balconies, palms, lounges and the skylight ring.
-const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION });
+const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack });
 scene.add(venue.group);
 const decks = [1, 2].map((n) => createCDJ({ THREE, deckNumber: n, accent: ACCENT, textureScale: QUALITY === 'high' ? 1 : 0.75 }));
 const DECK_X = [-0.391, 0.391];
@@ -561,4 +561,4 @@ resize();
 if (Q.get('mode')) setMode(Q.get('mode'));
 if (Q.get('autostart')) startSet();
 requestAnimationFrame(frame);
-window.__booth = { director, renderer, club, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
+window.__booth = { director, renderer, club, venue, scene, camera, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };

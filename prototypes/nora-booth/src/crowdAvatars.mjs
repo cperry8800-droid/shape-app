@@ -52,16 +52,19 @@ const HAIRS = [[0.03, 0.02, 0.014], [0.05, 0.03, 0.018], [0.09, 0.05, 0.028], [0
  * @param {Array}  o.people     the club's people (x, z, yaw, lod, idx, s, w …); this module adds hair/outfit/skin
  * @param {number[]} o.lodCount people per level of detail
  * @param {() => number} o.rnd  seeded
+ * @param {string[]} [o.lods]   the pack's level-of-detail names, index = person.lod (default near, far)
+ * @param {number} [o.stageFalloff]  metres over which the stage light fades toward the house (e = 2.72×)
+ * @param {string} [o.name]     the group's name
  */
-export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd }) {
+export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd, lods = ['near', 'far'], stageFalloff = 13, name = 'crowdAvatars' }) {
   const group = new THREE.Group();
-  group.name = 'crowdAvatars';
+  group.name = name;
   const disposables = [];
   const own = (x) => { disposables.push(x); return x; };
   const { header, geos } = pack;
 
   // ── who wears what ─────────────────────────────────────────────────────────────────────
-  const hairCount = [[0, 0, 0], [0, 0, 0]];
+  const hairCount = lods.map(() => [0, 0, 0]);
   for (const p of people) {
     const r = rnd();
     if (!Number.isInteger(p.hair)) p.hair = r < 0.42 ? 0 : r < 0.72 ? 1 : 2; // a caller may pre-assign (the line-up page does)
@@ -74,6 +77,7 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd }) {
   // ── material: parts tint + arm raise + the stage rim ───────────────────────────────────
   const uni = {
     uRim: { value: new THREE.Color(0, 0, 0) }, uFill: { value: new THREE.Color(0, 0, 0) },
+    uBack: { value: new THREE.Color(0, 0, 0) }, uStageFall: { value: stageFalloff },
     uPivotL: { value: new THREE.Vector3().fromArray(header.pivot.L) }, uPivotR: { value: new THREE.Vector3().fromArray(header.pivot.R) },
     uDebug: { value: 0 }, // 1: paint the arm weights (red = left, green = right) — the line-up page's ?w=1
   };
@@ -110,7 +114,7 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd }) {
       ].join('\n'))
       .replace('#include <project_vertex>', '#include <project_vertex>\nvStageZ = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).z;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRim; uniform vec3 uFill; uniform float uDebug;\nvarying float vPart; varying float vSkin; varying vec3 vOutfit; varying vec3 vHair; varying float vStageZ; varying vec2 vArmW;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim; uniform vec3 uFill; uniform vec3 uBack; uniform float uStageFall; uniform float uDebug;\nvarying float vPart; varying float vSkin; varying vec3 vOutfit; varying vec3 vHair; varying float vStageZ; varying vec2 vArmW;')
       .replace('#include <color_fragment>', [
         '#include <color_fragment>',
         '{ vec3 skin = mix(vec3(0.62, 0.44, 0.34), vec3(0.16, 0.09, 0.06), vSkin);',
@@ -120,15 +124,20 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd }) {
       ].join('\n'))
       .replace('#include <emissivemap_fragment>', [
         '#include <emissivemap_fragment>',
-        '{ float stageK = exp((vStageZ - 1.5) / 13.0);',
+        '{ float stageK = exp((vStageZ - 1.5) / uStageFall);',
         '  float rimF = 1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0);',
         '  vec3 toStage = normalize((viewMatrix * vec4(0.0, 0.35, 1.0, 0.0)).xyz);',
         '  float face = dot(normal, toStage);',
         '  float lit = 0.3 + 0.7 * smoothstep(-0.25, 0.6, face);',
-        '  totalEmissiveRadiance += (uRim * pow(rimF, 4.0) * lit + uFill * max(face, 0.0) * max(face, 0.0)) * stageK; }',
+        '  totalEmissiveRadiance += (uRim * pow(rimF, 4.0) * lit + uFill * max(face, 0.0) * max(face, 0.0)) * stageK;',
+        // the back light: from behind each person (the house side, away from the stage) — the
+        // shoulders, crown and the back of the head catch it, so a crowd seen from the house is not a
+        // black mass. Not attenuated by the stage falloff: it belongs to the room, not the stage.
+        '  float back = max(-face, 0.0); float up = max(dot(normal, (viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz), 0.0);',
+        '  totalEmissiveRadiance += uBack * (0.35 * back + 0.65 * back * pow(rimF, 2.0) + 0.25 * up * back); }',
       ].join('\n'));
   };
-  mat.customProgramCacheKey = () => 'club-shape-avatar-crowd-v3';
+  mat.customProgramCacheKey = () => 'club-shape-avatar-crowd-v4';
 
   // ── geometries + instanced meshes ──────────────────────────────────────────────────────
   function geometryFor(name, cap) {
@@ -149,7 +158,7 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd }) {
     geo.setAttribute('iSkin', mk(1));
     return geo;
   }
-  const LOD = ['near', 'far'];
+  const LOD = lods;
   const body = LOD.map((l, i) => {
     const m = new THREE.InstancedMesh(geometryFor(`body:${l}`, lodCount[i]), mat, Math.max(1, lodCount[i]));
     m.name = `crowdBody:${l}`; m.count = lodCount[i]; m.frustumCulled = false;
@@ -180,7 +189,7 @@ export function createAvatarCrowd({ THREE, pack, people, lodCount, rnd }) {
     for (const m of body) { m.instanceMatrix.needsUpdate = true; m.geometry.attributes.iRaise.needsUpdate = true; }
     for (const row of hair) for (const m of row) m.instanceMatrix.needsUpdate = true;
   }
-  function setLight(rim, fill) { uni.uRim.value.copy(rim); uni.uFill.value.copy(fill); }
+  function setLight(rim, fill, back = null) { uni.uRim.value.copy(rim); uni.uFill.value.copy(fill); if (back) uni.uBack.value.copy(back); }
   function setDebug(on) { uni.uDebug.value = on ? 1 : 0; }
   function dispose() {
     for (const m of [...body, ...hair.flat()]) m.dispose();

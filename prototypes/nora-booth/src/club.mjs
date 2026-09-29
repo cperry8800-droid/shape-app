@@ -1014,8 +1014,11 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   let disposed = false;
   let lastT = 0; // the last update() clock, so the freshly-arrived crowd is posed to the same beat
   const fetchFn = fetchImpl || (typeof fetch === 'function' ? fetch : null);
-  if (crowdUrl && fetchFn) {
-    loadCrowdPack(crowdUrl, fetchFn).then((pack) => {
+  // One fetch of the baked figures, shared: the venue builds its balcony audience from the same pack.
+  const crowdPack = crowdUrl && fetchFn ? loadCrowdPack(crowdUrl, fetchFn) : null;
+  if (crowdPack) crowdPack.catch(() => {}); // the rejection is handled below; keep it off the console twice
+  if (crowdPack) {
+    crowdPack.then((pack) => {
       if (disposed) return;
       avatars = createAvatarCrowd({ THREE, pack, people, lodCount, rnd });
       group.add(avatars.group);
@@ -1393,6 +1396,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     background,
     get environment() { return envRT ? envRT.texture : null; },
     get crowdCount() { return NP; },
+    crowdPack, // Promise<pack> | null — the baked avatar figures (crowdAvatars.decodeCrowdPack)
     attach,
     set,
     update,
