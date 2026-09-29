@@ -742,7 +742,10 @@ several are marked SHIPPED in their own text.
   [`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md): what she is today, the booth
   prototype, a five-phase plan (the booth · following what is actually playing · provider
   precision · performance · interactivity) and ten owner rulings. Phase 1 is the booth; Phase 2
-  onward goes live only once a real station provider is signed.
+  onward goes live only once a real station provider is signed. The prototype source is in
+  [`prototypes/nora-booth/`](../prototypes/nora-booth/README.md), and the next step (the owner's
+  *"how do we improve the graphics?"*) is planned in [`HANDOFF-2026-09-29.md`](HANDOFF-2026-09-29.md).
+  All of it is on branch `claude/wonderful-fermi-leqky3`, which is not merged yet.
 - **Shape Radio page redesign — the owner picked D · The Signal Field (2026-09-14); THE NEXT BUILD.**
   Code-level brief: [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md)
   — four PRs, every line reference verified against `main` = `2d49f60`; read it before touching the

@@ -6,9 +6,10 @@
 - On direction, the same day: *"make sure the club is club shape"*; *"we already have some audio made. nora will be matching what is playing on shape radio"*; *"yes the higgsfield tracks"*; *"you can keep it on next track"*.
 
 **Preview:** a working prototype, "Nora's Booth":
-https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy (private to the owner until shared). It is not in
-the repo yet: it was built in the session scratchpad so the design could be judged before any of it
-is committed. It plays the labelled synthesized set until the owner's Higgsfield tracks can be
+https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy (private to the owner until shared). It was built
+in the session scratchpad so the design could be judged before any of it was committed. ⚠ **Its source
+is in [`prototypes/nora-booth/`](../prototypes/nora-booth/README.md) now** (moved 2026-09-29 so
+another session can continue it; nothing there is imported by the app). It plays the labelled synthesized set until the owner's Higgsfield tracks can be
 fetched (this environment's network policy denies `d8j0ntlcm91z4.cloudfront.net`); the station
 mode that blends them is built and was run end to end on stand-in audio.
 

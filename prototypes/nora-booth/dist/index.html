@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nora's Booth</title>
+<style>
+:root{--bg:#07080a;--ink:#f2ede4;--dim:rgba(242,237,228,.62);--line:rgba(242,237,228,.16);--accent:#34d6c5;--chip:#101216}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:"Schibsted Grotesk",system-ui,sans-serif;overflow:hidden}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:fixed;left:16px;right:16px;pointer-events:none;display:flex;justify-content:space-between;gap:12px}
+.top{top:14px}.bottom{bottom:14px;flex-direction:column;align-items:stretch}
+.tag{font:600 11px/1.3 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase}
+.brand b{color:var(--accent)} .brand .sub{color:var(--dim);margin-top:4px;max-width:340px;letter-spacing:.08em}
+.np{text-align:right}.np .t{font:500 15px/1.2 "Schibsted Grotesk",sans-serif;letter-spacing:0;text-transform:none;margin-top:3px}
+.bpm{font:800 30px/1 "Doto",ui-monospace,monospace;color:var(--accent);margin-top:6px;font-variation-settings:'ROND' 100}
+.row{display:flex;gap:8px;overflow-x:auto;pointer-events:auto;padding-bottom:2px;scrollbar-width:none}.row::-webkit-scrollbar{display:none}
+button{font:600 11px/1 "JetBrains Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:3px;padding:10px 12px;white-space:nowrap;cursor:pointer;min-height:36px}
+button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#06231f;border-color:var(--accent)}
+body.live #start{display:none}
+.actions{margin-top:8px}
+#shotname{color:var(--accent)}
+</style></head>
+<body>
+<canvas id="stage" aria-label="Nora DJing in Club Shape — a live 3D booth"></canvas>
+<div class="hud top">
+  <div class="brand tag"><div>▸◂ <b>NORA</b> · CLUB SHAPE</div><div class="sub">Preview · example set — the music is synthesized in your browser and Nora's mix is choreographed on its beat</div></div>
+  <div class="np tag"><div>Now playing · <span id="shotname"></span></div><div class="t" id="np">Tap Start to hear Nora mix</div><div class="bpm" id="bpm">—</div><div id="bar"></div></div>
+</div>
+<div class="hud bottom">
+  <div class="row" id="shots" role="group" aria-label="Camera"></div>
+  <div class="row actions"><button class="primary" id="start">▶ Start the set</button><button id="next">Next track ⇄</button><button id="hype">Hype ↑</button><button id="style">Edit: cuts</button></div>
+</div>
+<script type="module" src="booth.js"></script>
+</body></html>
