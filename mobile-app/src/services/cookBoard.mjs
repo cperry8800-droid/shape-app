@@ -279,3 +279,20 @@ export function bsHobOccupancy({ timeline, cursor = 0, timers = [], now = Date.n
   }
   return { burners: shown.stove, ovens: shown.oven, stove: slots.stove, oven: slots.oven, board: slots.board, off: slots.off, overflow, where };
 }
+
+// The running holds the stove drawing offers as buttons: a burner or the oven, still counting,
+// with a timer id (a hold handed up from an earlier dish has none, and stays a picture). The
+// board, the resting spot, a "+N", and a pan past the burners drawn are pictures too, so a timer
+// there has no Done on the stove, and the card has to carry it. One answer for both, so the
+// drawing and the card can never disagree about which timers the cook can reach.
+export function bsHobTappable(occ) {
+  const ids = new Set();
+  for (const st of ['stove', 'oven']) {
+    // Only a hold carries a timer id: the step in front of the cook and a pan still on the heat
+    // have none, so the id alone decides it.
+    for (const o of (occ && occ[st]) || []) {
+      if (o && !o.up && o.timerId != null) ids.add(o.timerId);
+    }
+  }
+  return ids;
+}

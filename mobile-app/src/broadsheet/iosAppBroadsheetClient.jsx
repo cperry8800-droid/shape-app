@@ -44,7 +44,7 @@ import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
-import { bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
+import { bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
 import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFocus.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
@@ -8700,7 +8700,10 @@ function bsCkHob({ tr, occ, selected = null, onZone = null, nowText = null }) {
         : [<b key="b">{name}</b>, <small key="s">{tr('cook:ck.onHeat', { defaultValue: 'On the heat' })}</small>];
     return React.createElement(as, { className: 'in', ...extra }, ...kids);
   };
-  const live = (o) => !!(o && o.kind === 'hold' && !o.up && onZone && o.timerId != null);
+  // A zone is a button exactly when bsHobTappable says so, the same answer the card uses to
+  // decide which running timers it must carry a Done for.
+  const tappable = onZone ? bsHobTappable(occ) : new Set();
+  const live = (o) => !!(o && o.timerId != null && tappable.has(o.timerId));
   const zoneAria = (label, o) => (o.kind === 'hold'
     ? tr('cook:ck.zoneHold', { defaultValue: '{place}: {title}, {time} left. Tap if it is ready early.', place: label, title: o.title, time: bsCkMmss(o.left) })
     : `${label}: ${o.title}`);
@@ -9858,7 +9861,11 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
 
   // ── The cook screen ──
   const hob = bsCkHob({ tr, occ, selected: selHold ? selHold.id : null, onZone: (id) => setSelectedHold(selectedHold === id ? null : id) });
-  const softRunning = running.filter((x) => !stationOf(x.stepIdx));
+  // Every running countdown the stove does not offer as a button gets its Done here: one with
+  // no station, and one the stove only draws (resting, the board, a "+N", a pan past the
+  // burners shown). Without this a resting timer had no Done at all until it ran out.
+  const onHob = bsHobTappable(occ);
+  const cardRunning = running.filter((x) => !onHob.has(x.id));
   const cardInner = phase === 'method' && hasMethod && (<>
     {!resumeSaved ? <p className="warn" role="alert">{tr('cook:recovery.unavailable', { defaultValue: 'Progress recovery is unavailable on this device. Keep this screen open.' })}</p> : null}
     {bsCkWhere({ tr, color: dishColor(dishIid), name: bsCkShort(cookable.title), stepNo: stepIdx + 1, of: steps.length, place, onSkip: () => advance(true) })}
@@ -9898,7 +9905,8 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           : bsCkTimerBtn({ tr, key: `c${i}`, label: tm.label, onClick: () => startTimer(tm, stepTimers.length, i) })))}
       </div>
     ) : null}
-    {softRunning.map((x) => bsCkWait({ key: `s${x.id}`, secs: leftOf(x), children: timerName(x),
+    {cardRunning.map((x) => bsCkWait({ key: `s${x.id}`, secs: leftOf(x),
+      children: stationOf(x.stepIdx) ? `${stationName(stationOf(x.stepIdx))} · ${timerName(x)}` : timerName(x),
       action: { label: tr('cook:timer.dismiss', { defaultValue: 'Done' }), onClick: () => dismissTimer(x.id) } }))}
     {/* Only what THIS step reaches for; the full list belongs to the ingredient screen. */}
     {stepIngs.length > 0 ? (
@@ -10324,7 +10332,11 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   const finishAt = bsCookFinishAt({ anchor, now, timeline, cursor, serveAt: serve && livePlan ? livePlan.serveAt : null });
   const selHold = running.find((x) => !x.soft && x.id === selectedHold) || null;
   const blocker = occupied || (waitingOn && !serve ? waitingOn : null);
-  const softRunning = running.filter((x) => x.soft);
+  // Every running countdown the stove does not offer as a button gets its Done on the card: a
+  // convenience countdown, and a hold the stove only draws (resting, the board, a "+N", a pan
+  // past the burners shown). The blocker already carries its own Done, so it is not repeated.
+  const onHob = bsHobTappable(occ);
+  const cardRunning = running.filter((x) => (x.soft || !onHob.has(x.id)) && !(blocker && blocker.id === x.id));
   const lane = ev ? lanes.find((l) => l.iid === (ev.iid ?? ev.recipe)) : null;
   const block = lane ? lane.blocks.find((b) => b.idx === cursor) : null;
   const place = occ.where
@@ -10440,7 +10452,8 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     {softChips.length > 0 ? (
       <div className="tbtns">{softChips.map((tm, i) => bsCkTimerBtn({ tr, key: `c${i}`, label: tm.label, onClick: () => startSoftTimer(tm), disabled: notDue || !!occupied }))}</div>
     ) : null}
-    {softRunning.map((x) => bsCkWait({ key: `s${x.id}`, secs: leftOf(x), children: `${bsCkShort(x.title)}${x.label ? ` · ${x.label}` : ''}`,
+    {cardRunning.map((x) => bsCkWait({ key: `s${x.id}`, secs: leftOf(x),
+      children: x.soft || !stationName(x.station) ? `${bsCkShort(x.title)}${x.label ? ` · ${x.label}` : ''}` : `${stationName(x.station)} · ${bsCkShort(x.title)}`,
       action: { label: tr('cook:timer.dismiss', { defaultValue: 'Done' }), onClick: () => dismiss(x.id) } }))}
     {stepIngs.length > 0 ? (
       <div className="ings" aria-label={tr('cook:ings.step', { defaultValue: 'For this step' })}>
