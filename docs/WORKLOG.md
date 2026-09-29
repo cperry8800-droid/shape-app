@@ -758,6 +758,45 @@ several are marked SHIPPED in their own text.
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-09-29 — A support-chat test that rotted with the calendar, a clock race under it, and a merge before any review
+
+- **Merged [#2178](https://github.com/cperry8800-droid/shape-app/pull/2178) as `641a03d`**, final head `20665d9`; the merged tree is byte-identical to it (tree `f3cf5b1` on both). Test-only: `tests/support-chat-route.test.mjs`. No app code, no migration.
+- **The rot.** Test 3 (*"⚠ A LOOKUP RUNS"*) had failed on `main` since 2026-09-28 with `training.coach` reading `undefined`.
+  - Its `client_workouts` row was dated `2026-09-23`. The route hands `readTrainingPlan` the real clock (`route.ts:1033`), and the read keeps only rows dated from the current UTC week's Monday (`memberReads.mjs:157`).
+  - On Monday 09-28 the row fell out of that window, so the trainer lookup never ran.
+  - The row is dated today now. Two assertions were added: the route read the same day the fixture used, and the row is today's session.
+  - The non-member week-summary row is dated today too. Its guards check the call log, so it could not rot, but it is now a row a leaked read would actually return.
+- ⚠ **DATING A FIXTURE FROM THE CLOCK IS NOT ENOUGH WHEN THE ROUTE READS THE CLOCK AGAIN.**
+  - The fixture's read and the route's are about **90 ms** apart (measured, mostly loading the route). A run that crosses UTC midnight between them dates the fixture one day and the route the next.
+  - ⚠ **I first reported this as a Sunday→Monday edge. It was any midnight**, because of the two day assertions I had just added. The habit-facts test had the same daily race since it was written.
+  - `pinToday(t)` freezes `Date` at the real current instant with `t.mock.timers`, the pattern two other test files already use. The test context restores the real clock.
+- ⚠ **THE TWO TESTS WERE FOUND BY A CENSUS, NOT BY READING.** A preloaded clock that runs one simulated day per real millisecond makes any test that reads the clock twice fail on every run.
+  - On the first commit exactly two tests failed (17/19). With the pin it was 19/19 from four start instants.
+  - ⚠ **A removed pin is invisible to the normal suite.** Mutations that remove it, never freeze, or mock timers but not `Date` were caught only on the fast clock. On the real clock the race needs a midnight inside a ~90 ms window.
+- **Verified:**
+  - `npm test` **4767/4767** on both commits.
+  - A clock sweep (Monday 00:00Z · a Wednesday · Sunday 23:59Z · 2026-12-31 · 2027-03-14 · 2028-02-29) passes 19/19. As a control, the original fixture passes with the clock inside its own week and fails on today's.
+  - **5/5, then 9/9 mutations killed**, sanity green on both clocks at both ends.
+  - All four required checks green on `20665d9`, and again on `641a03d` after the merge.
+- ⚠ **I MERGED BEFORE ANY REAL REVIEW, AND THE OWNER HAD NOT SAID MERGE.**
+  - Codex refused on its usage limit, and CodeRabbit never responded (below).
+  - I asked the owner *"merge now or wait?"*. The answer was *"run Copilot"*, and Copilot's overview came back *"approval recommended, findings: none"* with no line comments.
+  - I took that, plus an earlier *"do the same process"*, as the go-ahead and squash-merged. The owner's *"wait to merge"* arrived after the merge had gone through.
+  - *A pending question is answered only by an answer to it*, and an overview with no line comments is not a review round.
+- **The recovery was a review-only reproduction, [#2180](https://github.com/cperry8800-droid/shape-app/pull/2180)**, the #2133/#2134 approach. Its head `review/2178-head` is `641a03d` and its base `review/2178-base` is `2b5b788`, the squash commit's parent, so the PR diff is the merged diff.
+  - CodeRabbit **APPROVED** `641a03d` with no actionable comments: Merge Risk Minimal, coverage pinned to `641a03d`, status *"Review completed"*.
+  - Copilot reviewed it twice (once on its own when the PR opened, once re-run on the owner's word): approval recommended, no findings, no threads.
+  - Nothing to fix, so #2180 was closed unmerged.
+- ⚠ **CODERABBIT WAS SILENT ON #2178, AND THE TRIGGER WAS NOT THE CAUSE.** For about 15 minutes it posted no automatic notice when the PR opened (on #2177 that came 8 s after opening), no reply to two `full review` triggers, and no commit status.
+  - The notice depends only on the PR-open event, so its absence meant CodeRabbit was not seeing the repo, whatever a trigger said.
+  - It answered on #2180, opened at 11:45Z: the notice in 9 s, and the trigger acknowledged as a command in 10 s.
+  - Cause not established: `status.coderabbit.ai` is blocked by this environment's egress proxy.
+  - **The tell is cheap: no automatic notice within a minute of opening means don't wait on a trigger.**
+- **A Copilot review is one tool call**, `mcp__github__request_copilot_review`. On #2180 it ran as a `copilot-pull-request-reviewer` Actions job (about 1.5 min) and posted a COMMENTED overview, never an approval.
+- ⚠ **REGISTERED, NOT DONE:**
+  - `review/2178-base` and `review/2178-head` need removing through the `delete-branches` workflow, since this environment's git proxy refuses ref deletion.
+  - The fast-clock run as a standing guard, so the normal suite could catch a removed pin.
+
 ### 2026-09-23 — The session player and the builder's legacy reader keep a hold or a distance whole, and a swap brings its own prescription
 
 - **Merged [#2159](https://github.com/cperry8800-droid/shape-app/pull/2159) as `3dc82ec`**, final head `5b86e08`; the merged tree is **byte-identical** to it (tree `a2aadc0` on both, since `main` had not moved). It closes the last two readers #2155 registered: the session player's scheme fallback and the website builder's legacy block reader. No migration, no route, no i18n key.
