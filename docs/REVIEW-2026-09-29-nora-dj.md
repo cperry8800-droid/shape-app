@@ -103,6 +103,45 @@ The prototype answers the first ask end to end in a browser, on Club Shape.
 - **"Next track ⇄" stays, deliberately.** In the preview it skips between Shape's own tracks. It
   must **never** appear on the licensed station (§5).
 
+### 2b. Second pass, same day (owner: *"make her movements more fluid, relaxed, and also make the crowd have the same avatar design. Not look like stick figures"*)
+
+The preview at the link above is **version 2**. Same scratchpad build, same file path; nothing in
+the repo changed.
+
+- **The crowd is made of Nora's own avatar design.** Her VRM is posed once (arms hanging, a soft
+  elbow, looking up at the stage), skinned on the CPU, and decimated by vertex clustering into a
+  near figure (2,778 triangles) and a far one (851), plus hair in three lengths (as modelled · a bob
+  · a crop). Every person gets their own outfit, skin tone and hair colour through instanced
+  attributes, and their arms raise on the drop in the vertex shader — a rotation about the baked
+  shoulder pivot, weighted per vertex, so a raise is a movement and not a swap of meshes. 697
+  people (350 on a phone) in **eight draw calls**; the scene reads **1.75 M triangles a frame** at
+  high quality and **0.93 M** at low, which is where the phone budget will have to be watched.
+  - ⚠ **The first bake had wings for sleeves and blades for arms, and both were one omission.**
+    The sleeves hang off the VRM's `J_Aim_*` (aim) bones and the forearm skin off `J_Roll_*` (roll)
+    bones, all driven by node constraints that `humanoid.update()` alone never runs — so the bake
+    left both in the T-pose while the arm bones dropped. The bake runs `vrm.update()` now, the
+    way the performer does. Two more things a source read would not have caught, found by
+    rendering a line-up: the MToon **"(Outline)"** material groups are the same triangles twice,
+    and blending rest and raised **positions** under a 150° raise drags every half-weighted
+    shoulder vertex through the pivot (the weight scales the *angle* now).
+  - Skin under the top and the shorts is dropped at bake time rather than tucked, or a coarse
+    cloth shell shows a warm patch of body through the shirt.
+- **Nora's motion is springs, not lerps.** Her groove is a raised-cosine dip on the beat through a
+  critically damped spring, with sway, breath, a slow drift, a shoulder shrug on the headphone
+  lift, and a head that follows what she is doing through its own springs. Her hands travel to a
+  control on a softer spring (a reach takes ~0.45 s), with the wrist's **speed capped at 1.4 m/s
+  and its acceleration at 14 m/s²**, and the lift off the gear is smoothed. Measured on the right
+  hand over five seconds of the set: peak speed 1.95 → 1.42 m/s, peak acceleration 34 → 22 m/s²
+  (the residual is the hand's own rotation about the wrist); hips and head unchanged.
+- **Her hands under the stage lights.** Three lights stack on the backs of her hands on the decks
+  and the tone-mapper greys anything that bright to a mannequin white; the skin ceiling is a soft
+  knee now with a pull toward the skin albedo on the brightest skin only, so a hand on the jog is a
+  pale tan. Hair and eyes are not pulled (the eye whites would go pink). The deck's screen
+  underglow point lights are off — a point light a few centimetres under a hand cannot be tamed.
+- **Registered, not done:** the far crowd is dark from behind on the rear balconies (the venue's
+  fill does not reach it); the crowd's hair is a coarse helmet at the near level of detail; the
+  phone triangle budget above is a measurement, not a target that has been hit.
+
 ## 3. The plan: what to build
 
 ### Phase 1 · The booth (the owner's first ask; the prototype exists)
