@@ -160,6 +160,11 @@ changelog whenever something ships.
   the existing thread instead. ⚠ **A second round is not free diligence, it is a second bill**,
   and the fix round's own diff can be covered by the same comment if you write it properly the
   first time.
+  ⚠ **MEASURED 2026-09-29: FRONT-LOAD THE PR DESCRIPTION, NOT THE TRIGGER COMMENT.** Long trigger
+  comments were answered as chat 14 times after the notice, so the round never started, while all
+  11 answered `full review` triggers of 221 characters or fewer were read as commands. The
+  owner's point stands: one round, with everything in it. Only where the brief goes has changed;
+  see the 09-29 banner below.
   ⚠ **AND READ THE HEAD A ROUND COVERS BEFORE ACTING ON IT.** #2053's submitted review carried
   `sourceCommitId = coveredCommitId` = the FIRST head, so three of its six comments described
   code a later commit had already replaced. Acting on them would have redone finished work — and
@@ -173,11 +178,16 @@ changelog whenever something ships.
   a requested run is one tool call, `mcp__github__request_copilot_review`. It posts its findings as
   line threads under a COMMENTED overview whose own `commit_id` names the head it read, and it never
   approves. ⚠ **It has a per-account review quota, and a head past it gets no review at all:**
-  #2179's `506633f` was declined twice and merged on the owner's *"merge it"*. ⚠ **Wait for
-  CodeRabbit's own automatic notice before triggering it.** No trigger posted before that notice has
-  been answered; the 2026-09-29 #2179 changelog entry has the cases. The merge gate is unchanged (CI
-  green on the final head, not a draft), and a head without a review is not merged unless the owner
-  says so.
+  #2179's `506633f` was declined twice and merged on the owner's *"merge it"*, and #2182 was
+  declined the same day. ⚠ **Wait for CodeRabbit's own automatic notice, then post the bare
+  command.** Measured 2026-09-29 over all 83 triggers since 09-01: a trigger got no reply only on
+  the three PRs whose notice came late or never (#2160 after 122 s, #2179 after 644 s, #2178
+  never), and 4 of the 6 posted before a notice were still answered. Separately, 14 review
+  triggers posted after the notice were answered as chat, and no review command ran. All 11
+  answered `full review` triggers of 221 characters or fewer were read as commands, so put the
+  brief in the PR description and keep the trigger to `@coderabbitai full review`. The
+  2026-09-29 #2179 changelog entry has the cases. The merge gate is unchanged (CI green on the
+  final head, not a draft), and a head without a review is not merged unless the owner says so.
   ⚠ **THE REVIEWER SYSTEM — CURRENT AS OF 2026-09-21. CODERABBIT, FOR NOW.** Owner, 2026-09-21,
   after Codex had refused every trigger of the day on its usage limit (#2126 · #2127 · #2130 ·
   #2131 · #2132 · #2133 · #2134, the one permitted retry included): ***"Use coderabbit for
@@ -203,7 +213,9 @@ changelog whenever something ships.
   **and** the head's CodeRabbit commit status before waiting on a review. Triggers of 221, 642
   and 942 characters were read as commands; 1,555 and 4,404 were answered as chat. Length fits all
   five, and so does a numbered list: both chat ones had one, and none of the three commands did.
-  Neither is proven. **The yield on the day it was
+  Neither is proven. ⚠ **MEASURED 2026-09-29 OVER ALL 83 TRIGGERS SINCE 09-01: A LIST DOES NOT
+  SEPARATE THEM (23 commands had one), AND LENGTH ONLY DOES AT THE SHORT END** (see the 09-29
+  banner above). **The yield on the day it was
   ruled: #2133 (21 files) returned three findings and #2134 (17 files) one — every one real,
   every one fixed in #2135 — including a High that my own adversarial read had missed** (the
   no-key fallback handing the app example coaches with no listing behind them). The round on #2135 itself
@@ -807,11 +819,13 @@ Append new entries at the top, under this note.
   - Copilot declined it twice on the account's review quota (*"the user who requested the review has reached their quota limit"*): its own run on the push at 13:27Z, and one requested with `mcp__github__request_copilot_review` at 13:34Z.
   - The owner had said *"dont merge if not properly reviewed"*, so I held the PR and reported the gap. The owner ruled *"merge it"*, and #2179 merged at 13:50Z.
   - That commit is covered by my own read of it, its 7 new tests (`tests/cook-hob-reach.test.mjs`) and an 11/11 mutation round. The PR body said so.
-- ⚠ **CODERABBIT HAS NEVER ANSWERED A TRIGGER POSTED BEFORE ITS OWN NOTICE ON THAT PR.**
-  - #2179's trigger went out 3.5 min after the PR opened. CodeRabbit's automatic under-10-stars notice arrived 7 min after that: 10.7 min after opening, and 3 s after the second push. The trigger never got a reply.
-  - The same held for #2160's first trigger and #2178's two (no notice came for 15 minutes). The triggers posted after the notice were read as commands (#2160's second, and #2180's, sent 54 s after the notice and answered in 10 s).
-  - #2179's trigger was 242 characters with no list, so length is not the explanation #2160 left open.
-  - **Wait for the notice, then trigger.** No trigger was re-sent here after the notice, because Copilot was already reviewing.
+- ⚠ **CODERABBIT DID NOT ANSWER #2179'S TRIGGER, AND MY FIRST EXPLANATION DID NOT SURVIVE THE FULL COUNT.**
+  - #2179's trigger (242 characters) went out 3.5 min after the PR opened. CodeRabbit's automatic notice came 10.7 min after opening, and the trigger never got a reply.
+  - From #2160, #2178 and #2179 alone, the first draft of this entry said a trigger posted before the notice is never answered. Counting all 83 triggers on 53 PRs since 09-01, 4 of the 6 posted before a notice were answered: #2026 as chat (same second as its notice), #2035 and #2037 as commands (4 s early), and #2158 with a full review (77 s early). *Three cases are not a rule.*
+  - What the unanswered ones share is a slow notice. It came 122 s after opening on #2160 and 644 s on #2179, and #2178 never got one. On 49 of the other 50 PRs it came within 14 s; the exception, #2158 at 96 s, still answered its early trigger. So a missing notice means CodeRabbit is behind: wait for it before triggering.
+  - A reply is still not a review. After the notice, 64 triggers opening with `@coderabbitai full review` (or `review`) got a reply: 50 were read as commands and 14 were answered as chat. *"Please"*, a question mark, a numbered list, a heading and length did not separate them, except at the short end: all 11 answered `full review` triggers of 221 characters or fewer, before or after a notice, were read as commands. Longer ones went either way, from a 286-character chat to a 6,866-character command.
+  - Each of the four times a shorter `full review` trigger followed a chat reply (#2028, #2150, #2155, #2163), it was read as a command. The two longer follow-ups (#2053, #2142) were answered as chat again.
+  - **Wait for the notice, post the bare `@coderabbitai full review`, and put the brief in the PR description.** No trigger was re-sent on #2179 after its notice, because Copilot was already reviewing.
 - ⚠ **FOUR COMMITS SKIPPED THE PRE-COMMIT GATE (`SKIP_VERIFY=1`), AND THE PR BODY GAVE ONE REASON WHERE THERE WERE TWO.** It said all four skipped because of the stale support-chat test; the commit messages say otherwise for one of them.
   - `9f88b9a`, `a12a8a1` and `64b13f2` skipped it because `main`'s support-chat test had gone stale (fixed separately as #2178), so the hook's `npm test` failed on a test this branch did not touch. Each was verified by hand, with that one known failure.
   - `f03616b` skipped it as work in progress: `tests/cook-serve-schedule.test.mjs` was still being moved onto the new labels, and `64b13f2` finished the move (it passes there).
