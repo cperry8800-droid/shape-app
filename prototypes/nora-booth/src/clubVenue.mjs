@@ -28,6 +28,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createAvatarCrowd } from './crowdAvatars.mjs';
 import { palmTrunk, palmFronds, palmBeam } from './palmGeometry.mjs';
 import { boxGrid, lightGrid, directAt, directAll, bakeMesh, bounceField, gridQuad } from './lightBake.mjs';
+import { createArenaStage, ARENA_DIMS } from './arenaStage.mjs';
 
 export const VENUE_DIMS = {
   FLOOR_Y: -0.66,
@@ -46,9 +47,8 @@ const SLAB_T = 0.45;          // balcony slab thickness
 const WIN_X = 12.2;           // lounge glass line on the sides
 const FAR_RAIL_Z = -42.5;     // far-end balcony edge
 const FAR_WIN_Z = -44.2;      // far-end lounge glass
-const END_RAIL_Z = 3.0;       // stage-end balcony edge (behind the portal's back at 3.2… kept off it)
+const END_RAIL_Z = 3.0;       // where the atrium ceiling meets the strip over the stage (the stage end has no balcony now)
 const END_WIN_Z = 5.95;       // stage-end lounge glass
-const END_CORNER_X = 6.8;     // stage-end corner tiers start here (portal is ±5.5)
 const RAIL_H = 1.05;
 const SUPER_N = 2.5;          // skylight superellipse exponent: an oval that reads as a rounded rectangle
 // Tiers: floor → slab above, and the top tier to the ceiling.
@@ -98,7 +98,7 @@ function superHalfZ(a, b, x, n = SUPER_N) {
   return b * Math.pow(1 - Math.pow(u, n), 1 / n);
 }
 
-export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null, now = null } = {}) {
+export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high', reducedMotion = false, crowdPack = null, now = null, accent = '#34d6c5' } = {}) {
   const clock = typeof now === 'function' ? now : () => 0;   // injected by the caller, for the bake's timings
   const bakeMs = { boxes: 0, structure: 0, floor: 0 };
   void renderer;
@@ -476,13 +476,8 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     // far-end wrap
     S.push(paint(occ(boxSeg(-X_IN, X_IN, L - SLAB_T, L, Z_FAR, FAR_RAIL_Z, BAKE_CELL)), slabPaint((x, y, z) => FAR_RAIL_Z - z, FAR_RAIL_Z - Z_FAR)));
   }
-  // stage end: the corner tiers beside the portal (L1, L2) and a full bridge at L3
-  for (const L of [LEVELS[0], LEVELS[1]]) for (const s of [-1, 1]) {
-    S.push(paint(occ(boxSeg(s * END_CORNER_X, s * X_IN, L - SLAB_T, L, END_RAIL_Z, Z_STAGE, BAKE_CELL)), slabPaint((x, y, z) => z - END_RAIL_Z, Z_STAGE - END_RAIL_Z)));
-  }
-  S.push(paint(occ(boxSeg(-X_IN, X_IN, LEVELS[2] - SLAB_T, LEVELS[2], END_RAIL_Z, Z_STAGE, BAKE_CELL)), slabPaint((x, y, z) => z - END_RAIL_Z, Z_STAGE - END_RAIL_Z)));
-  // lintel over the portal zone between the openings band and the L2 corner slabs
-  S.push(solid(occ(box(-END_CORNER_X, END_CORNER_X, VENUE_DIMS.PORTAL.top, 9.0, END_WIN_Z - 0.05, Z_STAGE)), C_EDGE));
+  // stage end: open from the floor to the ceiling. The corner tiers that stood beside the portal and
+  // the top-tier bridge over it are gone; the arena stage's LED wall fills that whole end now.
 
   // end walls (dark, behind the glass), ceiling
   S.push(solid(occ(box(-X_OUT, X_OUT, FLOOR_Y, CEIL_Y, Z_STAGE, Z_STAGE + 0.3)), C_WALL));
@@ -540,10 +535,6 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       S.push(paint(occ(box(x - 0.25, x + 0.25, T.y0, T.y1, FAR_WIN_Z - 0.25, FAR_WIN_Z + 0.25)), colPaint([0, 1])));
     }
   });
-  for (const s of [-1, 1]) for (const T of TIERS.slice(0, 3)) {
-    S.push(paint(occ(box(s * END_CORNER_X - 0.25, s * END_CORNER_X + 0.25, T.y0, Math.min(T.y1, T === TIERS[2] ? 9.0 : T.y1), END_WIN_Z - 0.25, Z_STAGE)), colPaint([0, -1])));
-  }
-  for (const x of [-6.1, 0, 6.1]) S.push(paint(occ(box(x - 0.25, x + 0.25, TIERS[3].y0, TIERS[3].y1, END_WIN_Z - 0.25, Z_STAGE)), colPaint([0, -1])));
   // far-wall entrance frame (ground level, centre)
   S.push(solid(box(-2.9, 2.9, 2.35, 2.75, FAR_WIN_Z, FAR_WIN_Z + 0.35), C_EDGE));
   for (const s of [-1, 1]) S.push(solid(box(s * 2.9 - 0.2, s * 2.9 + 0.2, FLOOR_Y, 2.75, FAR_WIN_Z, FAR_WIN_Z + 0.35), C_EDGE));
@@ -553,14 +544,11 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   // Balcony railings (a run from a to b at level y, facing = unit vector toward the atrium).
   const RAILS = [];
   for (const L of LEVELS) {
-    for (const s of [-1, 1]) RAILS.push({ a: [s * X_IN, FAR_RAIL_Z], b: [s * X_IN, END_RAIL_Z], y: L, face: [-s, 0] });
+    // every tier runs on past the stage's LED wall to the end wall
+    const zEnd = END_WIN_Z - 0.05;
+    for (const s of [-1, 1]) RAILS.push({ a: [s * X_IN, FAR_RAIL_Z], b: [s * X_IN, zEnd], y: L, face: [-s, 0] });
     RAILS.push({ a: [-X_IN, FAR_RAIL_Z], b: [X_IN, FAR_RAIL_Z], y: L, face: [0, 1] });
   }
-  for (const L of [LEVELS[0], LEVELS[1]]) for (const s of [-1, 1]) {
-    RAILS.push({ a: [s * X_IN, END_RAIL_Z], b: [s * END_CORNER_X, END_RAIL_Z], y: L, face: [0, -1] });
-    RAILS.push({ a: [s * END_CORNER_X, END_RAIL_Z], b: [s * END_CORNER_X, Z_STAGE], y: L, face: [-s, 0], nocrowd: true });
-  }
-  RAILS.push({ a: [-X_IN, END_RAIL_Z], b: [X_IN, END_RAIL_Z], y: LEVELS[2], face: [0, -1] });
 
   // ── the balcony fronts: frameless glass on a stone kerb, a lit handrail ───────────
   // As in the reference: a dark stone fascia over the slab edge rising into a low kerb, a continuous
@@ -662,13 +650,9 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       const len = xb - xa, off = rnd(), tone = tierTone[ti] * (0.85 + rnd() * 0.25);
       WE.push(quad([xb, y0, END_WIN_Z], [-1, 0, 0], [0, 1, 0], len, y1 - y0, [off, v0, off + len / TEX_M, 1], [tone, tone, tone]));
     };
-    if (ti < 3) {
-      endRun(-WIN_X, -END_CORNER_X, T.y0, T.y1, 0);
-      endRun(END_CORNER_X, WIN_X, T.y0, T.y1, 0);
-      if (ti === 2) endRun(-END_CORNER_X, END_CORNER_X, 9.0, T.y1, (9.0 - T.y0) / h);
-    } else {
-      endRun(-WIN_X, WIN_X, T.y0, T.y1, 0);
-    }
+    // only the ends of the side balconies, beside the stage's LED wall (which runs up to the ceiling)
+    endRun(-WIN_X, -ARENA_DIMS.HALF_W - 0.12, T.y0, T.y1, 0);
+    endRun(ARENA_DIMS.HALF_W + 0.12, WIN_X, T.y0, T.y1, 0);
   });
   mesh(merge(WE, 'loungeEnd'), matLoungeEnd, 'venueLoungeEnd');
 
@@ -915,9 +899,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       }
       const zf = FAR_RAIL_Z - d;
       CL.push(solid(box(-X_IN - d, X_IN + d, y - 0.03, y, zf - 0.04, zf + 0.04), [0.14, 0.115, 0.09]));
-      const ze = END_RAIL_Z + d;
-      if (L === LEVELS[2]) CL.push(solid(box(-X_IN - d, X_IN + d, y - 0.03, y, ze - 0.04, ze + 0.04), [0.14, 0.115, 0.09]));
-      else for (const s of [-1, 1]) CL.push(solid(box(Math.min(s * END_CORNER_X, s * (X_IN + d)), Math.max(s * END_CORNER_X, s * (X_IN + d)), y - 0.03, y, ze - 0.04, ze + 0.04), [0.14, 0.115, 0.09]));
+
     }
   }
   mesh(merge(CL, 'ceilLeds'), matCeilLed, 'venueCeilingLeds');
@@ -1095,14 +1077,6 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
         REDS.push(box(t.x - tw / 2 + 0.2, t.x - tw / 2 + 1.0, top, top + 0.8, t.z - td / 2 + 0.2, t.z - td / 2 + 1.0));
         REDS.push(box(t.x + tw / 2 - 1.0, t.x + tw / 2 - 0.2, top, top + 0.8, t.z + td / 2 - 1.0, t.z + td / 2 - 0.2));
       }
-      if (i % 5 === 1) {
-        // ice-blue crown ribbon (the venue's light-ribbon language on the skyline)
-        const y = top - 0.9, e = 0.12;
-        CROWNS.push(box(t.x - tw / 2 - e, t.x + tw / 2 + e, y, y + 0.35, t.z - td / 2 - e, t.z - td / 2 + e));
-        CROWNS.push(box(t.x - tw / 2 - e, t.x + tw / 2 + e, y, y + 0.35, t.z + td / 2 - e, t.z + td / 2 + e));
-        CROWNS.push(box(t.x - tw / 2 - e, t.x - tw / 2 + e, y, y + 0.35, t.z - td / 2 - e, t.z + td / 2 + e));
-        CROWNS.push(box(t.x + tw / 2 - e, t.x + tw / 2 + e, y, y + 0.35, t.z - td / 2 - e, t.z + td / 2 + e));
-      }
     });
     // the ConeGeometry has uv + normal; give every part the same attribute set
     for (const g of T) if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
@@ -1144,8 +1118,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     PALMS.push({ x: s * 11.45, y: L, z: z + (rnd() - 0.5) * 1.2, s: Math.min(0.84, (room - 0.55) / 4.2) * (0.92 + rnd() * 0.08) });
   }
   for (const L of LEVELS) for (const s of LOW ? [1] : [-1, 1]) PALMS.push({ x: s * 7.6, y: L, z: -43.45, s: 0.8 });
-  for (const s of [-1, 1]) PALMS.push({ x: s * 8.4, y: LEVELS[2], z: 4.5, s: 0.8 });
-  if (!LOW) for (const L of [LEVELS[0], LEVELS[1]]) for (const s of [-1, 1]) PALMS.push({ x: s * 9.4, y: L, z: 4.55, s: 0.78 });
+
 
   const NP = PALMS.length;
   const imTrunk = new THREE.InstancedMesh(trunkGeo, matTrunk, NP);
@@ -1244,6 +1217,10 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   for (const im of [imSofa, imTable, imCandle]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
   if (imCandle.instanceColor) imCandle.instanceColor.setUsage(THREE.DynamicDrawUsage);
 
+  // ── 8a. the main stage at arena scale (arenaStage.mjs): LED wall, wings, the mark, runway, rig ─
+  const arena = createArenaStage({ THREE, quality, reducedMotion: RM, accent, mergeGeometries });
+  group.add(arena.group);
+
   // ── 8b. the light bake: every small source in the room, baked into the vertices once ─────
   // The reference is lit by small warm sources — soffit downlights, the lamps behind the lounge glass,
   // the palms' uplights, the booth candles — and the dark stone around them is lit only where they
@@ -1262,10 +1239,15 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   }
   // each private box's glow through its glass: a broad warm source at the glass line, facing out
   for (const Bx of BOXES) {
-    const Lc = Bx.tint.map((c) => c * Bx.bright * 2.1);
+    const Lc = Bx.tint.map((c) => c * Bx.bright * 1.4);
     const y = Bx.o[1] + 1.35;
     if (Bx.s) LIGHTS.push({ p: [Bx.s * (WIN_X - 0.35), y, Bx.o[2]], c: Lc, r0: 1.1, range: 5.6, dir: [-Bx.s, 0, 0], cos0: 0.05, cos1: -0.4 });
     else LIGHTS.push({ p: [Bx.o[0], y, FAR_WIN_Z + 0.35], c: Lc, r0: 1.1, range: 5.6, dir: [0, 0, 1], cos0: 0.05, cos1: -0.4 });
+  }
+  // the stage's LED wall: a broad wash toward the room on the balcony ends beside the stage, warm
+  // low (its horizon) and cool high (its sky), as the wall's content is
+  for (const x of [-8, -4, 0, 4, 8]) for (const [y, c] of [[2.5, [0.3, 0.2, 0.11]], [7.5, [0.26, 0.2, 0.16]], [12.5, [0.12, 0.2, 0.3]]]) {
+    LIGHTS.push({ p: [x, y, ARENA_DIMS.BACK_Z - 0.2], c, r0: 2.2, range: 10, dir: [0, 0, -1], cos0: 0.15, cos1: -0.3, shadow: false });
   }
   // the booth candles (their pool on the floor; the sofas and table tops are baked above)
   for (const tb of TABLES) LIGHTS.push({ p: [tb.x, FLOOR_Y + 0.72, tb.z], c: CANDLE_LIGHT.c, r0: CANDLE_LIGHT.r0, range: CANDLE_LIGHT.range });
@@ -1291,7 +1273,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
       if (na[i * 3 + 1] > 0.5 && e > 0.003) samples.push({ p: [pa[i * 3], pa[i * 3 + 1], pa[i * 3 + 2]], n: [0, 1, 0], rad: [D[i * 3] * 0.3, D[i * 3 + 1] * 0.28, D[i * 3 + 2] * 0.26] });
     }
     const BF = bounceField(samples, { cell: 1.0, radius: 3.8, gain: 0.55 });
-    bakeMesh({ pos: pa, nrm: na, col: ca.array, LG, OG, direct: D, bounce: BF, aoRays: LOW ? 3 : 5, aoLen: 1.0, aoStrength: 0.8, albedo: 0.42, neutral: 0.65 });
+    bakeMesh({ pos: pa, nrm: na, col: ca.array, LG, OG, direct: D, bounce: BF, aoRays: LOW ? 3 : 5, aoLen: 1.0, aoStrength: 0.8, albedo: 0.4, neutral: 0.4 });
     ca.needsUpdate = true;
   }
   const tf0 = clock();
@@ -1429,6 +1411,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     if (Number.isFinite(b.high)) st.high = clamp(b.high, 0, 1);
     if (Number.isFinite(state.kick)) st.kick = clamp(state.kick, 0, 1);
     if (Number.isFinite(state.drop)) st.drop = clamp(state.drop, 0, 1);
+    arena.set(state);
   }
 
   // smooth, bounded pseudo-noise for candle flicker (no randomness at runtime)
@@ -1450,6 +1433,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     U.uTime.value = t;
     U.uKick.value = envKick * (RM ? 0 : 1);
     if (venueCrowd) venueCrowd.setBeat(envKick * (RM ? 0 : 1), RM ? 0 : t);
+    arena.update(dt, t);
 
     // aviation lights: a slow soft blink (≈ 0.6 Hz), steady in reduced motion
     const blink = RM ? 0.7 : 0.25 + 0.75 * Math.pow(Math.max(0, Math.sin(t * Math.PI * 1.2)), 3);
@@ -1473,6 +1457,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
     if (group.parent) group.parent.remove(group);
     group.clear();
     for (const im of [imTrunk, imFrond, imBeam, imSofa, imTable, imCandle, imFig]) im.dispose();
+    arena.dispose();
     for (const d of disposables) if (d && typeof d.dispose === 'function') d.dispose();
     disposables.length = 0;
   }

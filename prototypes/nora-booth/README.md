@@ -11,7 +11,7 @@ module rules (world frame, gear frame, brand rule, no `Math.random` / `Date.now`
 are in [`CONTRACT.md`](CONTRACT.md). Two known integration items are in
 [`INTEGRATION-NOTES.md`](INTEGRATION-NOTES.md).
 
-Live preview (private artifact, version 3): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy
+Live preview (private artifact): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy
 
 ## Layout
 
@@ -24,13 +24,16 @@ Live preview (private artifact, version 3): https://claude.ai/artifact/RUCmUSmsu
 | `src/deckAudio.mjs` | Two decks on Web Audio: synthesized example tracks, or real buffers. |
 | `src/trackAnalysis.mjs` | Tempo / beat grid / waveform from a decoded buffer. |
 | `src/cdj3000.mjs`, `src/djmMixer.mjs` | The gear (real dimensions, instanced LEDs, screen UI). |
-| `src/club.mjs`, `src/clubVenue.mjs` | Club Shape: venue, private balcony boxes, stage lights, lasers and blinders, LED wall, the crowd. |
+| `src/club.mjs`, `src/clubVenue.mjs` | Club Shape: venue, private balcony boxes, glass balcony fronts, stage lights, lasers and blinders, the crowd. |
+| `src/arenaStage.mjs` | The arena main stage: a floor-to-ceiling LED wall (shader content), tiered wings with LED risers, the ▸ ◂ mark as uplit sculptures, a runway and B-stage, a truss rig with spots, moving-head beams and line arrays. |
+| `src/lightBake.mjs` | The load-time light bake: direct light with shadows, AO and one bounce into vertex colours and the floor texture. |
+| `src/palmGeometry.mjs` | The 3D palms (trunk and fronds), uplit gold. |
 | `src/crowdAvatars.mjs` | Instanced crowd renderer (shader arm raise, per-person top/bottoms/shoe/skin/hair colours, eyes drawn in the shader, near/far/tiny/seated LODs). |
 | `src/crowd-bake.mjs` | Bakes the crowd figures from the VRM (CPU skinning + QEM decimation) into `crowd.bin.txt`. |
 | `src/meshDecimate.mjs` | Quadric-error mesh decimation used by the bake (tested in `test/meshDecimate.test.mjs`). |
 | `src/radioTempo.mjs`, `src/tempoBridge.mjs` | The app's tempo detector and its bridge. |
 | `src/*-test.mjs`, `dist/*.html` | Stand-alone test pages for each module (gear, mixer, club, venue, crowd, audio). |
-| `test/*.test.mjs` | Node tests (mix planner, deck audio, track analysis). |
+| `test/*.test.mjs` | Node tests (mix planner, deck audio, track analysis, decimation, the light bake, the arena stage). |
 | `*.cjs` | Headless Chromium harnesses (screenshots, motion sampling, draw calls, the crowd bake). |
 | `pub/index.html` | The published page's HTML. |
 
@@ -43,7 +46,7 @@ deck renders bit-identically to it on the synthesized path.
 cd prototypes/nora-booth
 npm ci                                   # three 0.185.1, @pixiv/three-vrm 3.5.5, esbuild, playwright-core
 cp ../../public/nora/placeholder.vrm dist/nora.vrm
-node --test test/*.test.mjs              # 48 tests  (⚠ `node --test test/` fails: it treats the dir as a module)
+node --test test/*.test.mjs              # 61 tests  (⚠ `node --test test/` fails: it treats the dir as a module)
 ```
 
 ## Build

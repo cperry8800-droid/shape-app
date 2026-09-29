@@ -101,7 +101,7 @@ scene.add(club.group);
 // The venue bakes its lighting on load (lightBake.mjs); how long that takes is timed here, since the
 // venue module itself reads no clock. window.__booth.venueMs reports it.
 const venueT0 = performance.now();
-const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now() });
+const venue = createVenue({ THREE, renderer, seed: 11, quality: QUALITY, reducedMotion: REDUCED_MOTION, crowdPack: club.crowdPack, now: () => performance.now(), accent: ACCENT });
 const venueMs = performance.now() - venueT0;
 scene.add(venue.group);
 const FINISH = QUALITY === 'high' ? 'physical' : 'standard';

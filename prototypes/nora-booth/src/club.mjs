@@ -7,10 +7,15 @@
 //   stage deck   y = STAGE_Y (−0.18)  — a raised deck with a rounded, LED-lined front
 //   DJ riser     y = STAND_Y ( 0.00)  — the DJ's feet (exported as club.standY)
 //   booth table  y = 0.92             — flight case, x ±0.75, z −0.40 … +0.22
-//   the PORTAL   — a black monolith, x ±5.5, from the deck to y 8.8, face z 1.9 … 3.2,
-//                  holding a 7.2 × 4.2 m dot-matrix LED screen (face z 2.0) and a top truss
+//   the SCREEN   — Club Shape's dot-matrix artwork (the square, the mark, CLUB SHAPE, the
+//                  spectrum), 14.4 × 8.4 m, drawn additively onto the arena stage's LED wall on
+//                  that wall's own 75 mm dot grid, so the stage end is one large screen
+//                  (arenaStage.mjs). The black portal that framed a smaller screen is gone; the
+//                  top truss hangs from the roof in front of the wall. PORTAL stays in CLUB_DIMS
+//                  as the stage's old footprint (x ±5.5, to y 8.8, z 1.9 … 3.2): the stage-edge
+//                  LEDs end on it and the lasers are placed by it.
 //
-// This module owns the STAGE end only: the portal, the screen, the stage deck, the booth,
+// This module owns the STAGE end only: the screen artwork, the stage deck, the booth,
 // the beams, the crowd and a floor under the crowd. The hall itself (walls, balconies,
 // palms, lounges, ceiling, skylight, skyline) is clubVenue.mjs.
 //
@@ -31,6 +36,7 @@
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
+import { ARENA_DIMS } from './arenaStage.mjs';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 export const CLUB_DIMS = {
@@ -39,9 +45,10 @@ export const CLUB_DIMS = {
   STAND_Y: 0.0,
   TABLE_Y: 0.92,
   BOOTH: { x0: -0.75, x1: 0.75, z0: -0.40, z1: 0.22 },
-  // the LED screen: its face plane, size and bottom edge (just above the DJ's head)
-  WALL: { z: 2.0, w: 7.2, h: 4.2, y0: 1.9 },
-  // the black proscenium around the screen
+  // the screen artwork on the arena's LED wall (face z 5.5): its plane, size and bottom edge. The
+  // edges sit on the wall's 75 mm dot grid (−7.2 = −96 dots, 1.05 = 14 dots) so the dots coincide.
+  WALL: { z: 5.44, w: 14.4, h: 8.4, y0: 1.05 },
+  // the stage's keep-clear footprint (it was a black portal around a smaller screen)
   PORTAL: { x: 5.5, top: 8.8, z0: 1.9, z1: 3.2 },
   // the stage deck: back edge, where the sides turn into the rounded front, and its apex
   STAGE: { x: 5.5, back: 3.2, sideZ: 0.6, frontZ: -1.45 },
@@ -53,8 +60,8 @@ const FOG_COLOR = 0x070a12;
 const FOG_DENSITY = 0.012;
 const BG_COLOR = 0x05070c;
 
-// LED screen matrix: round dots on a 37.5 mm pitch, 192 × 112 (fine enough to carry the
-// wordmark; the shader resolves a dot to its area coverage once it drops under ~2 px).
+// LED screen matrix: 192 × 112 dots over WALL (a 75 mm pitch, the arena wall's own), fine enough
+// to carry the wordmark; the shader resolves a dot to its area coverage once it drops under ~2 px.
 const WALL_COLS = 192;
 const WALL_ROWS = 112;
 const SPEC_TEX = 32;           // spectrum texture width (bars used: SPEC_BARS)
@@ -460,9 +467,9 @@ void main() {
   float cellPx = 1.0 / max(fwidth(cell.x), 1e-4);
   dotMask = mix(0.4536, dotMask, smoothstep(1.4, 3.0, cellPx));
 
-  // ── the idle field: every dot faintly on, shimmering ──────────────────
-  float shimmer = 0.6 + 0.4 * sin(uTime * 1.3 + hash(id) * 6.2831);
-  vec3 col = uIceDeep * (0.022 + 0.04 * uLevel) * shimmer;
+  // Drawn additively on the arena's LED wall, whose content is the idle field: nothing is added
+  // where the artwork and the spectrum are off, so no edge of this panel shows.
+  vec3 col = vec3(0.0);
 
   // ── dim mirrored spectrum, bass at the centre, rising from the base ───
   float halfC = uGrid.x * 0.5;
@@ -501,11 +508,10 @@ void main() {
   }
 
   col *= dotMask;
-  // the PCB between the dots is not pure black
-  col += vec3(0.004, 0.0045, 0.006) * (1.0 - dotMask);
 
+  // additive: fog only takes light away (the wall underneath carries the fog colour)
   float fogF = exp(-uFogDensity * uFogDensity * vDepth * vDepth);
-  gl_FragColor = vec4(mix(uFogColor, col, fogF), 1.0);
+  gl_FragColor = vec4(col * fogF, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -592,7 +598,6 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const matChrome = own(new THREE.MeshStandardMaterial({ color: 0xd4d7dc, roughness: 0.16, metalness: 1.0 }));
   const matCarpet = own(new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.97, metalness: 0.0 }));
   const matStageDeck = own(new THREE.MeshStandardMaterial({ color: 0x08090b, roughness: 0.28, metalness: 0.25 }));
-  const matMonolith = own(new THREE.MeshStandardMaterial({ color: 0x060709, roughness: 0.36, metalness: 0.35 }));
   const matTruss = own(new THREE.MeshStandardMaterial({ color: 0x1d1f23, roughness: 0.38, metalness: 0.85 }));
   const floorRough = own(floorRoughnessTexture(THREE, rnd));
   floorRough.repeat.set(4, 10);
@@ -602,9 +607,8 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const matSpeaker = own(new THREE.MeshStandardMaterial({ color: 0x5a5a60, roughness: 0.75, metalness: 0.3, map: grille }));
   const matCabinet = own(new THREE.MeshStandardMaterial({ color: 0x0e0e10, roughness: 0.7, metalness: 0.1 }));
   const matFixture = own(new THREE.MeshStandardMaterial({ color: 0x141418, roughness: 0.45, metalness: 0.5 }));
-  // emissive "lines": white LED (stage edge, portal bars, booth underglow) + a small teal accent
+  // emissive "lines": white LED (stage edge, booth underglow) + a small teal accent
   const matLedWhite = own(new THREE.MeshBasicMaterial({ color: iceC.clone().multiplyScalar(2.4) }));
-  const matReveal = own(new THREE.MeshBasicMaterial({ color: iceC.clone().multiplyScalar(0.9) }));
   const matAccentStrip = own(new THREE.MeshBasicMaterial({ color: accentC.clone().multiplyScalar(1.6) }));
   const fascia = fasciaTextures(THREE, rnd);
   own(fascia.map); own(fascia.emissiveMap);
@@ -770,56 +774,29 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     uSweep: { value: 0 }, uSweepDiv: { value: 1 }, uMotion: { value: 1 }, uTime: { value: 0 },
     uFogColor: { value: new THREE.Color(FOG_COLOR) }, uFogDensity: { value: FOG_DENSITY },
   };
-  const matWall = own(new THREE.ShaderMaterial({ uniforms: wallU, vertexShader: WALL_VERT, fragmentShader: WALL_FRAG }));
+  const matWall = own(new THREE.ShaderMaterial({
+    uniforms: wallU, vertexShader: WALL_VERT, fragmentShader: WALL_FRAG,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
   {
     const g = new THREE.PlaneGeometry(WALL.w, WALL.h);
     g.rotateY(Math.PI); // face −Z, toward the DJ and the crowd
-    mesh(g, matWall, 'ledWall').position.set(0, WALL.y0 + WALL.h / 2, WALL.z);
+    const m = mesh(g, matWall, 'ledWall');
+    m.position.set(0, WALL.y0 + WALL.h / 2, WALL.z);
+    m.renderOrder = 2;   // after the arena wall it lights
   }
 
-  // ── the PORTAL: a black monolith proscenium around the screen ────────
-  const openX = WALL.w / 2 + 0.02, openY0 = WALL.y0 - 0.02, openY1 = WALL.y0 + WALL.h + 0.02;
-  {
-    const P = PORTAL, r = 0.04;
-    mesh(merge([
-      boxAt(THREE, -P.x, -openX, STAGE_Y, P.top, P.z0, P.z1, r),          // left pillar
-      boxAt(THREE, openX, P.x, STAGE_Y, P.top, P.z0, P.z1, r),            // right pillar
-      boxAt(THREE, -openX - 0.05, openX + 0.05, openY1, P.top, P.z0, P.z1, r), // header
-      boxAt(THREE, -openX - 0.05, openX + 0.05, STAGE_Y, openY0, P.z0, P.z1, r), // plinth behind the booth
-      boxAt(THREE, -openX, openX, openY0, openY1, WALL.z + 0.01, P.z1),  // back of the screen recess
-    ]), matMonolith, 'portal');
-    // a thin white reveal around the screen opening, just proud of the portal face
-    const zf = P.z0 - 0.006, t = 0.022;
-    mesh(merge([
-      boxAt(THREE, -openX - t, openX + t, openY1, openY1 + t, zf - 0.006, zf),
-      boxAt(THREE, -openX - t, openX + t, openY0 - t, openY0, zf - 0.006, zf),
-      boxAt(THREE, -openX - t, -openX, openY0, openY1, zf - 0.006, zf),
-      boxAt(THREE, openX, openX + t, openY0, openY1, zf - 0.006, zf),
-    ]), matReveal, 'portalReveal');
-  }
-
-  // vertical white light bars on the pillars, two either side of the stage
-  const BAR_X = [-5.0, -4.1, 4.1, 5.0];
-  const barGeo = own(new THREE.BoxGeometry(0.032, 8.1, 0.03));
-  const imBars = new THREE.InstancedMesh(barGeo, own(new THREE.MeshBasicMaterial({ color: 0xffffff })), BAR_X.length);
-  imBars.name = 'portalBars';
-  {
-    const m = new THREE.Matrix4();
-    BAR_X.forEach((x, i) => {
-      m.makeTranslation(x, STAGE_Y + 0.35 + 8.1 / 2, PORTAL.z0 - 0.018);
-      imBars.setMatrixAt(i, m);
-      imBars.setColorAt(i, iceC);
-    });
-    group.add(imBars);
-  }
-
-  // the top truss box across the front of the portal (the beams hang from it)
+  // the top truss over the booth (the moving heads and Nora's hair light hang from it), flown from
+  // the roof on two chain hoists in front of the screen
   const TRUSS = { y: 8.42, z: 1.62, x: 6.0, size: 0.4 };
   {
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     const parts = [trussGeometry(THREE, V(-TRUSS.x, TRUSS.y, TRUSS.z), V(TRUSS.x, TRUSS.y, TRUSS.z), TRUSS.size, 0.028, 0.011)];
-    // two hanger plates tying it to the portal header
-    for (const x of [-3.0, 3.0]) parts.push(boxAt(THREE, x - 0.1, x + 0.1, TRUSS.y - 0.05, TRUSS.y + 0.05, TRUSS.z, PORTAL.z0));
+    const roof = ARENA_DIMS.TOP_Y + 0.3;
+    for (const x of [-3.0, 3.0]) {
+      parts.push(boxAt(THREE, x - 0.012, x + 0.012, TRUSS.y + TRUSS.size / 2, roof, TRUSS.z - 0.012, TRUSS.z + 0.012));
+      parts.push(boxAt(THREE, x - 0.07, x + 0.07, TRUSS.y + TRUSS.size / 2 + 0.3, TRUSS.y + TRUSS.size / 2 + 0.52, TRUSS.z - 0.06, TRUSS.z + 0.06));   // the hoist
+    }
     mesh(merge(parts), matTruss, 'topTruss');
   }
 
@@ -879,7 +856,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   }));
 
   // ── lasers and blinders: the light show off the stage ─────────────────
-  // Two laser units at the top corners of the portal throw thin coloured beams out over the room —
+  // Two laser units at the ends of the top truss throw thin coloured beams out over the room —
   // a fan that tilts with the bar, spinning tunnels down the club, sweeps up the balconies — each
   // beam running until it meets a wall, the ceiling or the floor. They swell with the level, pulse
   // on the beat and go wide on the drop. A row of blinders on the stage lip hits on the kick during
@@ -1101,8 +1078,10 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       for (let x = -CROWD.x + rnd() * s * 0.5; x <= CROWD.x; x += s) {
         const px = x + (rnd() - 0.5) * s * 0.7, pz = z + (rnd() - 0.5) * s * 0.55;
         if (Math.abs(px) > CROWD.x || pz > CROWD.z0) continue;
-        // keep off the stage front
+        // keep off the stage front, the runway and the round B-stage at its end (arenaStage.mjs)
         if (Math.abs(px) < STAGE.x + 0.4 && pz > stageFrontZ(Math.min(Math.abs(px), STAGE.x)) - 0.35) continue;
+        if (Math.abs(px) < ARENA_DIMS.RUNWAY.x + 0.4 && pz > ARENA_DIMS.RUNWAY.z1 - 0.3) continue;
+        if (Math.hypot(px, pz - ARENA_DIMS.BSTAGE.z) < ARENA_DIMS.BSTAGE.r + 0.45) continue;
         // the WIDE camera path (−0.6,−6.2) → (0.35,−4.7): keep 0.45 m clear
         const ax = -0.6, az = -6.2, bx = 0.35, bz = -4.7;
         const k = clamp(((px - ax) * (bx - ax) + (pz - az) * (bz - az)) / ((bx - ax) ** 2 + (bz - az) ** 2), 0, 1);
@@ -1223,10 +1202,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   const top = new THREE.SpotLight(iceC.clone(), 48, 0, 0.075, 0.6, 2);
   top.position.set(0, FX_Y - 0.3, TRUSS.z);
   top.target.position.set(0, 1.62, 0.36);
-  // the screen itself lights the stage and the front of the crowd
-  const wallLight = new THREE.RectAreaLight(iceC.clone(), 0.8, WALL.w, WALL.h);
-  wallLight.position.set(0, WALL.y0 + WALL.h / 2, WALL.z - 0.05);
-  wallLight.lookAt(0, WALL.y0 + WALL.h / 2, -5);
+  // the screen lights the stage and the front of the crowd: a panel the size and place of the old
+  // portal screen, 1.7 m behind Nora (her back light is tuned to it; the wall is further back)
+  const SL = { z: 2.0, w: 7.2, h: 4.2, y0: 1.9 };
+  const wallLight = new THREE.RectAreaLight(iceC.clone(), 0.8, SL.w, SL.h);
+  wallLight.position.set(0, SL.y0 + SL.h / 2, SL.z - 0.05);
+  wallLight.lookAt(0, SL.y0 + SL.h / 2, -5);
   // one wash riding a centre beam onto the crowd
   const wash = new THREE.SpotLight(0xffffff, 0, 0, 0.18, 0.6, 2);
   hemi.name = 'clubHemi'; key.name = 'clubKey'; fill.name = 'clubFill'; rimL.name = 'clubRimL'; rimR.name = 'clubRimR';
@@ -1545,17 +1526,6 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     top.intensity = 44 + 16 * k;
     matLedWhite.color.copy(iceC).multiplyScalar(1.5 + 0.7 * k);
     matFascia.emissiveIntensity = 1.0 + 0.45 * k;
-    // portal bars: steady white, lifting on the kick; on the drop the two sides trade
-    // brightness once a beat (never faster than the beat; not under reduced motion)
-    const bp = beatPosAt(t);
-    const odd = Math.floor(bp) % 2;
-    for (let j = 0; j < BAR_X.length; j++) {
-      let v = 0.9 + 0.3 * k + 0.12 * lvl; // just over the bloom threshold: they glow without veiling the frame
-      if (!reduced && dropS > 0.5) v *= (j < 2) === (odd === 0) ? 1.25 : 0.7;
-      tmpC.copy(iceC).multiplyScalar(v);
-      imBars.setColorAt(j, tmpC);
-    }
-    imBars.instanceColor.needsUpdate = true;
   }
 
   function update(dt = 1 / 60, t = 0) {
@@ -1587,7 +1557,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
       attachedScene = null;
     }
     if (envRT) { envRT.dispose(); envRT = null; }
-    [imFxBody, imHead, imLens, imBeam, imBars, imBlBody, imBlFace, ...imBody, ...imArm].forEach((m) => m.dispose());
+    [imFxBody, imHead, imLens, imBeam, imBlBody, imBlFace, ...imBody, ...imArm].forEach((m) => m.dispose());
     [hemi, key, top, wallLight, wash].forEach((l) => l.dispose && l.dispose());
     for (const d of disposables) if (d && d.dispose) d.dispose();
     disposables.length = 0;
