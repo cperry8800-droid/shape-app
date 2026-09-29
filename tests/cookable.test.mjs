@@ -9,6 +9,9 @@ import {
   bsCookableFromText,
   bsSplitMethodProse,
   bsStepTimers,
+  _bsTimerSpans,
+  bsStepGists,
+  bsStepGist,
   bsAuthorStep,
   bsCookSlug,
   bsCookKey,
@@ -122,6 +125,72 @@ test('timer parser: minutes/seconds/ranges/per-side; artifacts dropped', () => {
   assert.ok(range[0].label.includes('18'));
   assert.deepEqual(bsStepTimers('Fork through and serve.'), []);
   assert.deepEqual(bsStepTimers(null), []);
+});
+
+test('timer parser: "N more minutes" is a timer, and the continuation word never reaches the label', () => {
+  // One continuation word may sit between the number and the unit. Before, these
+  // steps had no timer at all while "cook 5 minutes more" had one.
+  assert.deepEqual(bsStepTimers('Cook 5 more minutes until softened.'), [{ seconds: 300, label: '5 min' }]);
+  assert.deepEqual(bsStepTimers('Simmer 2 additional minutes.'), [{ seconds: 120, label: '2 min' }]);
+  assert.deepEqual(bsStepTimers('Roast 10 extra mins, then rest.'), [{ seconds: 600, label: '10 min' }]);
+  assert.deepEqual(bsStepTimers('Cook for a further 3 minutes.'), [{ seconds: 180, label: '3 min' }]);
+  assert.deepEqual(bsStepTimers('Braise 1 more hour, covered.'), [{ seconds: 3600, label: '1 hr' }]);
+  assert.deepEqual(bsStepTimers('Whisk 30 more seconds.'), [{ seconds: 30, label: '30 sec' }]);
+  assert.deepEqual(bsStepTimers('Cook 5 More Minutes.'), [{ seconds: 300, label: '5 min' }]);
+  // Per-side and ranges keep their qualifiers through the filler.
+  assert.deepEqual(bsStepTimers('Sear 2 more minutes per side.'), [{ seconds: 120, label: '2 min per side' }]);
+  assert.deepEqual(bsStepTimers('Sear 2 extra min/side.'), [{ seconds: 120, label: '2 min per side' }]);
+  assert.deepEqual(bsStepTimers('Simmer 5–10 more minutes.'), [{ seconds: 300, label: '5–10 min' }]);
+  // The shipped curry-hash step, the one this was found on.
+  assert.deepEqual(bsStepTimers('Add the onion, bell pepper, garlic powder and smoked paprika; cook 5 more minutes until softened and caramelised. Scrape the hash onto a plate.'),
+    [{ seconds: 300, label: '5 min' }]);
+});
+
+test('timer parser: a filler word with no unit after it, or a word that only starts with a unit, is not a timer', () => {
+  for (const t of ['Add 5 more servings of rice.', 'Stir in 2 extra tablespoons of oil.', 'Crack in 3 more eggs.',
+    'Fold in 2 additional cups of spinach.', 'Cook 5 moreover minutes.', 'Serve 4 further portions.']) {
+    assert.deepEqual(bsStepTimers(t), [], `not a timer: ${t}`);
+  }
+  // "min" inside "minced", with and without the filler, and the other units' prefixes.
+  for (const t of ['Add 2 minced garlic cloves.', 'Add 2 more minced garlic cloves.', 'Use 3 hrsomething.', 'Add 4 secondary herbs.']) {
+    assert.deepEqual(bsStepTimers(t), [], `a word that starts with a unit is not a unit: ${t}`);
+  }
+  // Control: the boundary still lets the real forms through.
+  assert.deepEqual(bsStepTimers('Toast 2 min, then add 3 minced cloves.'), [{ seconds: 120, label: '2 min' }]);
+  assert.deepEqual(bsStepTimers('Sear 3 min/side.'), [{ seconds: 180, label: '3 min per side' }]);
+});
+
+test('timer spans: the continuation word sits INSIDE the span, and so never reaches the label', () => {
+  // A span is the duration's place in the step; "more" says how long, not what
+  // to do. Measured, starting the span at the unit changes no label (the label
+  // builder drops "more" anyway), so this pins what a span MEANS.
+  const t = 'Add the peppers; cook 5 more minutes until softened.';
+  const [s] = _bsTimerSpans(t);
+  assert.equal(t.slice(s.at, s.end), '5 more minutes');
+  const [r] = _bsTimerSpans('Simmer 5–10 extra mins per side.');
+  assert.equal('Simmer 5–10 extra mins per side.'.slice(r.at, r.end), '5–10 extra mins per side');
+  // Control: the plain form's span is unchanged.
+  const plain = 'Cook 5 minutes until softened.';
+  const [p] = _bsTimerSpans(plain);
+  assert.equal(plain.slice(p.at, p.end), '5 minutes');
+  // And the label is the action, never the filler.
+  for (const step of [t, 'Simmer 2 additional minutes.', 'Roast 10 extra mins, then rest.', 'Cook a further 3 minutes.']) {
+    const gists = bsStepGists(step, [{ m: 'bell pepper' }]);
+    assert.ok(gists.length > 0, `${step}: no label at all, so the check below would pass on nothing`);
+    for (const g of gists) {
+      assert.doesNotMatch(String(g), /\b(?:more|additional|extra|further)\b/i, `${step} -> ${g}`);
+    }
+  }
+});
+
+test('timer label fallback: with no duration given, the clause stating "N more minutes" is still the timed one', () => {
+  // bsStepGist falls back to "the first clause stating a duration" when it is not
+  // told which timer it is labelling. That rule builds from the same gap as the
+  // parser, or it would skip "cook 5 more minutes" and label the step by its
+  // opening clause instead.
+  assert.equal(bsStepGist('Warm the pan. Add the onion and cook 5 more minutes until soft.', [{ m: 'onion' }]), 'onion');
+  // Control: the plain form reads the same clause.
+  assert.equal(bsStepGist('Warm the pan. Add the onion and cook 5 minutes until soft.', [{ m: 'onion' }]), 'onion');
 });
 
 test('structured step objects pass through their text (PR D forward-compat)', () => {

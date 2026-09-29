@@ -5,6 +5,9 @@ const rowState = (done, skipped, current, holds, now) => ({
   current,
   done,
   remaining: Math.max(0, ...holds.map(h => (h.endsAt - now) / 60000)),
+  // A timer that has finished and not been acknowledged: the list says "Time's up" for it,
+  // the same as the card, until the cook taps Done.
+  rang: holds.some(h => !(h.endsAt > now)),
 });
 
 // Read-only projections: opening the roadmap never moves a cursor or starts a timer.
@@ -16,7 +19,7 @@ export function bsSoloRoadmap(cookable, { phase, stepIdx, visited = {}, skippedS
     const saved = here ? { visited, skippedSteps } : prep?.progress?.[item.key];
     const holds = here ? timers : (prep?.carried || []).filter(h => h.dishIndex === dishIndex);
     return item.cookable.steps.map((text, i) => ({
-      id: `${item.key}:${i}`, dish: item.cookable.title, step: i + 1, text,
+      id: `${item.key}:${i}`, dish: item.cookable.title, dishIndex, step: i + 1, text,
       min: stepMinutes(item.cookable.stepMeta?.[i]),
       timed: Number.isFinite(item.cookable.stepMeta?.[i]?.min) && item.cookable.stepMeta[i].min > 0,
       ...rowState(!!saved?.visited?.[i], !!saved?.skippedSteps?.[i], here && phase === 'method' && i === stepIdx,
@@ -25,13 +28,18 @@ export function bsSoloRoadmap(cookable, { phase, stepIdx, visited = {}, skippedS
   });
 }
 
-export function bsBoardRoadmap(timeline, cursor, timers = [], now = Date.now()) {
-  return timeline.map((event, i) => ({
-    id: `${event.iid}:${event.stepIndex}`, dish: event.title, step: event.stepIndex + 1,
-    text: event.text, min: stepMinutes(event), timed: Number.isFinite(event.min) && event.min > 0, at: event.at, station: event.station,
-    ...rowState(i < cursor, false, i === cursor, timers.filter(h => !h.soft && h.iid === event.iid &&
-      (h.recipeStep != null ? h.recipeStep === event.stepIndex : h.stepIndex === i)), now),
-  }));
+// `skipped` holds the `iid:stepIndex` of each step the cook skipped (the same key the board
+// remembers a started timer by), so the list says Skipped rather than Done for it.
+export function bsBoardRoadmap(timeline, cursor, timers = [], now = Date.now(), skipped = null) {
+  return timeline.map((event, i) => {
+    const sk = i < cursor && !!(skipped && typeof skipped.has === 'function' && skipped.has(`${event.iid}:${event.stepIndex}`));
+    return {
+      id: `${event.iid}:${event.stepIndex}`, dish: event.title, iid: event.iid, step: event.stepIndex + 1,
+      text: event.text, min: stepMinutes(event), timed: Number.isFinite(event.min) && event.min > 0, at: event.at, station: event.station,
+      ...rowState(i < cursor && !sk, sk, i === cursor, timers.filter(h => !h.soft && h.iid === event.iid &&
+        (h.recipeStep != null ? h.recipeStep === event.stepIndex : h.stepIndex === i)), now),
+    };
+  });
 }
 
 export function bsRoadmapPercent(rows) {

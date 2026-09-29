@@ -202,18 +202,19 @@ test('the picker says what a SECOND dish buys, at one dish and not at two', () =
   const s = drive(MOD.BSPrepSession, { program: PROGRAM, seed: { cookable: SEED }, onClose() {} });
   assert.equal(ticked(s).length, 1);
   assert.match(s.text, /Tick another dish/, 'the nudge is shown at exactly one dish');
-  assert.doesNotMatch(s.text, /How these are timed/, 'and the "next" line is not, yet');
+  assert.doesNotMatch(s.text, /Shape fits them together/, 'and the "next" line is not, yet');
 
   s.click(COOKABLES[1].title, pressable);
   assert.equal(ticked(s).length, 2);
   assert.doesNotMatch(s.text, /Tick another dish/, 'the nudge retires once it has been taken');
-  assert.match(s.text, /How these are timed/, 'and the choice that is coming is named');
+  assert.match(s.text, /Shape fits them together/, 'and the choice that is coming is named');
+  assert.ok(s.buttons().some((b) => b.label.startsWith('Set up your kitchen')), 'the next step is the kitchen and its timing');
 
   // ⚠ NO FIGURES ON EITHER LINE, and that is the point rather than an omission.
   // The three options can only be COSTED once the kitchen is known, which is the
   // mise's question; a minute quoted here would advertise a schedule nothing has
   // planned. Asserted as an absence so a later "helpful" addition fails.
-  assert.doesNotMatch(s.text, /How these are timed[^.]*\d+\s*min/,
+  assert.doesNotMatch(s.text, /fits them together[^.]*\d+\s*min/,
     'the picker must not quote minutes it has not planned');
 });
 

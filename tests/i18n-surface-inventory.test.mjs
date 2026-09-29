@@ -389,9 +389,8 @@ const PARTIAL = new Set([
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
   'Client::BSClientLibrary', 'Client::BSLibraryDetail',
   'Client::BSClientFeed', 'Client::BSClientHome', 'Client::BSClientTrain',
-  'Client::BSCookMode',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
-  'Client::BSMealPreview', 'Client::BSPostCommentsSheet', 'Client::BSPrepSession',
+  'Client::BSMealPreview', 'Client::BSPostCommentsSheet',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists', 'Client::BSScoreStandingChart',
   'Client::BSShapeKitchenRecipe', 'Client::BSSignalCoachProfile',
   // ⚠ BSSettings IS PARTIAL, TO THIS WALK, OVER A FORMAT EXAMPLE — 388 tr() calls
@@ -761,7 +760,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // the deltas would not have come to exactly the five the deletion accounts for.
   // BSClientTrain's "Open session" is now localized: partial copy falls by one.
   // New editor/player labels are catalogued in all 13 locales (parity checked).
-  assert.equal(partStrings, 219, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // Burners and tracks (2026-09-28): the cook screens were redrawn as the approved preview
+  // and every string on BSCookMode and BSPrepSession is keyed (`cook:ck.*`), so the one
+  // unkeyed string each still carried is gone and both leave PARTIAL for fully covered.
+  // partStrings 219 -> 217, part.length 38 -> 36; noneStrings and none.length unchanged.
+  assert.equal(partStrings, 217, 'the partial surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -794,7 +797,7 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // needs a token/label split across the data file, which is its own change.
   // Registered, not smuggled in.
   assert.equal(noneStrings, 738, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
-  assert.equal(part.length, 38, 'partial-surface count moved — regenerate PARTIAL and the record');
+  assert.equal(part.length, 36, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 90, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.

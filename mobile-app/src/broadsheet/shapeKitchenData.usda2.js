@@ -556,7 +556,8 @@ export const USDA2_STEP_META = {
   // aromatics softening in UNCOVERED fat need moving or they catch. Same class as the
   // soffritto dropped last round; the method gate misses these because the prose says
   // "cook the onion" rather than naming a technique at all.
-  "Picadillo with brown rice": { 4: { min: 15, passive: true, station: "stove" } },
+  // the rice from step 0 is still cooking on its own burner under the simmer, so the window holds both.
+  "Picadillo with brown rice": { 4: { min: 15, passive: true, station: "stove", also: ["stove"] } },
   "Arroz con pollo with browned thighs": { 4: { min: 20, passive: true, station: "stove" }, 5: { min: 20, passive: true, station: "stove" }, 6: { min: 5, passive: true, station: "off" } },
   // step 4 rests off the heat "then spoon the thickened sauce over each piece" — a terminal
   // hold hides its instruction like any other, because the wrap carries only the countdown.

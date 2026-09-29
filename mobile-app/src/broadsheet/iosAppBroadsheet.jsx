@@ -452,8 +452,11 @@ function isNativeBSApp() {
 }
 
 function getTargetScroller(eventTarget) {
-  const targetScroller = eventTarget?.closest?.('.bs-scroll');
+  const targetScroller = eventTarget?.closest?.('.bs-scroll, .bsck-scroll');
   if (targetScroller) return targetScroller;
+  // A full-screen layer (the cook screens) owns every touch on it: a drag on its fixed parts
+  // must not scroll the page underneath.
+  if (eventTarget?.closest?.('[data-bs-layer]')) return null;
   return document.querySelector('.bs-scroll');
 }
 
