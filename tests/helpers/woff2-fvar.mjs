@@ -76,7 +76,7 @@ export function woff2Table(buf, want) {
   return null;
 }
 
-// fvar, per the OpenType spec: an 16-byte header then axisCount records of
+// fvar, per the OpenType spec: a 16-byte header then axisCount records of
 // axisSize bytes, each opening with its four-character tag.
 export function fvarAxes(tbl) {
   assert.ok(tbl && tbl.length >= 16, 'fvar table is missing or truncated');

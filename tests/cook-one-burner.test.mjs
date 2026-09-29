@@ -37,9 +37,13 @@ const heatOf = (m) => [m && m.station, ...((m && m.also) || [])].filter((x) => H
 // (`truth[iid][stepIndex]`). A dish takes the stations its step names when the step starts,
 // keeps them until its next step starts, and lets go at the end of its last step or of a
 // step the recipe says can wait off the heat (`maxPause`). A step's second pan (`also`) is a
-// second span; a dish never needs more pans than the kitchen has, so its own count is clamped.
-// Returns { station: [{iid,from,to}] }.
-function occupancy(timeline, truth, kitchen = BS_KITCHEN_DEFAULT) {
+// second span, counted in full. Returns { station: [{iid,from,to}] }.
+//
+// ⚠ IT USED TO CLAMP A DISH'S OWN PANS TO THE KITCHEN, exactly as the engine did ("a dish never
+// needs more pans than the kitchen has"), so the checker shared the engine's blind spot: a pasta
+// pot and its sauce pan on the one burner read as ONE pan, and every "never two pans on a burner"
+// assertion in this file passed over nine catalog recipes that need two (Copilot, round 1).
+function occupancy(timeline, truth) {
   const byDish = new Map();
   for (const e of timeline) {
     if (!byDish.has(e.iid)) byDish.set(e.iid, []);
@@ -55,7 +59,7 @@ function occupancy(timeline, truth, kitchen = BS_KITCHEN_DEFAULT) {
       const to = released ? e.at + stepMin(e) : next.at;
       const need = heatOf(m);
       for (const s of new Set(need)) {
-        const pans = Math.min(need.filter((x) => x === s).length, kitchen[s] || 1);
+        const pans = need.filter((x) => x === s).length;
         for (let j = 0; j < pans; j++) spans[s].push({ iid, from: e.at, to });
       }
     });
@@ -134,7 +138,7 @@ const W = (min, station, extra = {}) => ({ min, passive: true, station, ...extra
 const dish = (key, steps) => ({ key, title: key, steps: steps.map(([t]) => t), stepMeta: steps.map(([, m]) => m) });
 const find = (plan, title, step) => plan.timeline.find((e) => e.title === title && e.stepIndex === step);
 const withinCapacity = (plan, set, kitchen) => {
-  const spans = occupancy(plan.timeline, set.map((r) => r.stepMeta), kitchen);
+  const spans = occupancy(plan.timeline, set.map((r) => r.stepMeta));
   return peak(spans.stove) <= kitchen.stove && peak(spans.oven) <= kitchen.oven;
 };
 
@@ -197,6 +201,86 @@ test('serve mode counts every pan a step keeps on the heat', () => {
   }
 });
 
+// The pasta pot and its sauce pan at once, then a salad that soaks: the smallest pair where only
+// the kitchen stands between the two dishes and a weave.
+const pastaTwoPans = () => dish('Pasta', [['Chop the garlic.', H('board')], ['Boil the pasta and simmer the sauce 12 minutes.', W(12, 'stove', { also: ['stove'] })], ['Toss and serve.', H(null)]]);
+const soakedSalad = () => dish('Salad', [['Soak the onion 10 minutes.', W(10, 'off')], ['Toss the salad.', H('board')], ['Serve.', H(null)]]);
+const endOf = (plan) => Math.max(...plan.timeline.map((e) => e.at + stepMin(e)));
+
+test('a step that needs more burners than the kitchen has is refused, never shrunk to fit', () => {
+  // The engine used to count the pasta's two pans as one on a one-burner hob and weave around it.
+  // No placement holds two pans on one burner, so the modes that promise coordination say so,
+  // and one dish after another -- the recipes as written -- is still planned in full.
+  const set = [pastaTwoPans(), soakedSalad()];
+  const one = { ...BS_KITCHEN_DEFAULT };
+  for (const mode of [BS_COOK_MODE.TOGETHER, BS_COOK_MODE.AUTO]) {
+    const plan = bsOrchestrate(set, { mode, kitchen: one });
+    assert.equal(plan.timeline.length, 6, `${mode}: every step is still planned`);
+    assert.equal(plan.canInterleave, true, `${mode}: the recipes could weave, so only the kitchen stops it`);
+    assert.equal(plan.serial, true, `${mode}: one dish at a time`);
+    assert.equal(plan.reason, 'stations', `${mode}: and the kitchen is named as the reason`);
+  }
+  const serve = bsOrchestrate(set, { mode: BS_COOK_MODE.SERVE, kitchen: one });
+  assert.equal(serve.timeline.length, 6, 'serve: every step is still planned');
+  assert.equal(serve.coordinated, false, 'serve: not offered as landing together');
+  assert.deepEqual(serve.issues, ['stations'], 'serve: the kitchen, and only the kitchen, is the reason');
+  assert.equal(serve.earliestServe, 34, 'serve: the two dishes end to end (18 + 16 minutes)');
+  assert.equal(endOf(serve), serve.serveAt, 'serve: the plan ends when it says it does');
+  const later = bsOrchestrate(set, { mode: BS_COOK_MODE.SERVE, kitchen: one, serveAt: 90 });
+  assert.equal(later.serveAt, 90, 'a later serve time is kept');
+  assert.equal(endOf(later), 90, 'and the plan is moved to finish at it');
+  const early = bsOrchestrate(set, { mode: BS_COOK_MODE.SERVE, kitchen: one, serveAt: 20 });
+  assert.deepEqual(early.issues, ['too-soon', 'stations'], 'too soon is still said, beside the kitchen');
+  assert.equal(early.serveAt, 34);
+  assert.equal(bsOrchestrate(set, { mode: BS_COOK_MODE.SEQUENCE, kitchen: one }).timeline.length, 6, 'one after another is planned as before');
+  // Control: two burners hold both pans, and the same pair weaves and serves together.
+  const two = { ...one, stove: 2 };
+  assert.equal(bsOrchestrate(set, { mode: BS_COOK_MODE.TOGETHER, kitchen: two }).serial, false, 'two burners: the pair cooks at the same time');
+  assert.notEqual(bsOrchestrate(set, { mode: BS_COOK_MODE.SERVE, kitchen: two }).coordinated, false, 'two burners: and can land together');
+});
+
+test('the check can fail: planned as one pan, the pasta puts two on the one burner', () => {
+  // Plan the pasta as though its step needed one burner -- the old clamp, in effect -- then read
+  // where the food really was. Without this, a checker that never counts the second pan would pass
+  // the catalog sweep below for exactly the reason the clamp did.
+  const set = [pastaTwoPans(), soakedSalad()];
+  const asOne = set.map((r) => ({ ...r, stepMeta: r.stepMeta.map((m) => (m && m.also ? { ...m, also: undefined } : m)) }));
+  const plan = bsOrchestrate(asOne, { mode: BS_COOK_MODE.TOGETHER, kitchen: BS_KITCHEN_DEFAULT });
+  assert.ok(peak(occupancy(plan.timeline, truthFor(set)).stove) >= 2, 'the second pan is on the one burner');
+});
+
+test('the live gate: a step the kitchen cannot hold waits only for other dishes, and still checks every station', () => {
+  const now = 1_000_000;
+  const one = { ...BS_KITCHEN_DEFAULT };
+  const needsTwo = { iid: 0, stepIndex: 0, station: 'stove', also: ['stove'] };
+  assert.equal(bsCookBlockingHold(needsTwo, [], now, one), null, 'nobody else is on the burner, and waiting would not make room');
+  const pan = { iid: 1, recipeStep: 0, station: 'stove', endsAt: now + 600000 };
+  assert.equal(bsCookBlockingHold(needsTwo, [pan], now, one), pan, 'another dish on the one burner is in the way');
+  const roast = { iid: 2, recipeStep: 0, station: 'oven', endsAt: now + 600000 };
+  assert.equal(bsCookBlockingHold({ ...needsTwo, also: ['stove', 'oven'] }, [roast], now, one), roast,
+    'the burner it cannot fit does not stop the check from reaching the oven');
+});
+
+test('live replan: a remaining step the kitchen cannot hold still leaves a whole plan, after the running timers', () => {
+  const anchor = 1_000_000;
+  const now = anchor + 2 * 60000;
+  const ev = (iid, title, stepIndex, at, meta) => ({ recipe: title, iid, title, stepIndex, text: `${title} ${stepIndex}`, at, ...meta });
+  const timeline = [
+    ev(0, 'Salad', 0, 0, { min: 10, passive: true, station: 'off' }),
+    ev(1, 'Pasta', 0, 0, { min: null, passive: false, station: 'board' }),
+    ev(1, 'Pasta', 1, 3, { min: 12, passive: true, station: 'stove', also: ['stove'] }),
+    ev(0, 'Salad', 1, 15, { min: null, passive: false, station: 'board' }),
+    ev(1, 'Pasta', 2, 18, { min: null, passive: false, station: null }),
+  ];
+  const soaking = [{ iid: 0, recipeStep: 0, station: 'off', endsAt: now + 8 * 60000 }];
+  const out = bsReplanCook(timeline, 2, soaking, anchor, now, BS_KITCHEN_DEFAULT);
+  assert.equal(out.timeline.length, 5, 'every remaining step is still there');
+  const nowMin = (now - anchor) / 60000;
+  const rest = out.timeline.slice(2);
+  assert.deepEqual(rest.map((e) => `${e.title} ${e.stepIndex}`).sort(), ['Pasta 1', 'Pasta 2', 'Salad 1']);
+  assert.ok(rest.every((e) => e.at >= nowMin + 8 - 1e-9), `nothing starts before the soak ends: ${JSON.stringify(rest.map((e) => [e.title, e.stepIndex, e.at]))}`);
+});
+
 test('the live board gate counts every station a step needs, and every pan a running timer holds', () => {
   const now = 1_000_000;
   const two = { stove: 2, oven: 1, board: 1 };
@@ -230,26 +314,56 @@ test('live replan: a pan left on the burner by the last finished step keeps it u
 test('every catalog pair, every mode, on the one-burner kitchen: never two pans on a burner or two dishes in the oven', () => {
   // The rule checked where it is used, not on a hand-picked pair: 4,950 pairs, three modes. Before
   // hands-on steps claimed their station, 2,067 pairs double-booked in "cook at the same time".
+  // ⚠ Nine recipes have a step that needs two burners AT ONCE, and no plan can put that on one
+  // burner. For every pair holding one of them the promise checked is the refusal: "at the same
+  // time" falls back to one at a time, serving together is refused for the kitchen's sake, and no
+  // two dishes ever cook at once -- so the planner adds nothing to the one recipe's own two pans.
+  // The count is pinned, so a checker gone blind again (the old clamp) cannot quietly empty it.
   const all = SHAPE_KITCHEN_RECIPES.map((r) => {
     const c = bsCookableFromRecipe(r);
     return { key: 'catalog-' + bsCookSlug(r.title), title: c.title, steps: c.steps, stepMeta: c.stepMeta };
   });
   const kitchen = { ...BS_KITCHEN_DEFAULT };
   const span = (p) => Math.max(...p.timeline.map((e) => e.at + stepMin(e)));
+  const tooBig = (set) => set.some((r) => r.stepMeta.some((m) => {
+    const need = heatOf(m);
+    return HEAT.some((s) => need.filter((x) => x === s).length > kitchen[s]);
+  }));
+  const dishesOverlap = (p) => {
+    const spans = new Map();
+    for (const e of p.timeline) {
+      const [from, to] = spans.get(e.iid) || [Infinity, -Infinity];
+      spans.set(e.iid, [Math.min(from, e.at), Math.max(to, e.at + stepMin(e))]);
+    }
+    const all = [...spans.values()];
+    return all.some((a, x) => all.some((b, y) => x !== y && a[0] < b[1] - 1e-9 && b[0] < a[1] - 1e-9));
+  };
   const bad = [];
   let pairs = 0;
+  let refused = 0;
   for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
     pairs++;
     const set = [all[i], all[j]];
     const steps = set.reduce((n, r) => n + r.steps.length, 0);
     const sequence = bsOrchestrate(set, { mode: BS_COOK_MODE.SEQUENCE, kitchen });
+    const big = tooBig(set);
+    if (big) refused++;
     for (const mode of [BS_COOK_MODE.TOGETHER, BS_COOK_MODE.AUTO, BS_COOK_MODE.SERVE]) {
       const plan = bsOrchestrate(set, { mode, kitchen });
       if (plan.timeline.length !== steps) { bad.push(`${mode} ${set[0].title} + ${set[1].title}: ${plan.timeline.length} of ${steps} steps`); continue; }
+      if (big) {
+        const refusal = mode === BS_COOK_MODE.SERVE
+          ? plan.coordinated === false && (plan.issues || []).includes('stations')
+          : plan.serial === true && plan.reason === (plan.canInterleave ? 'stations' : 'no-window');
+        if (!refusal) bad.push(`${mode} ${set[0].title} + ${set[1].title}: planned around a step one burner cannot hold ${JSON.stringify({ serial: plan.serial, reason: plan.reason, coordinated: plan.coordinated, issues: plan.issues })}`);
+        if (dishesOverlap(plan)) bad.push(`${mode} ${set[0].title} + ${set[1].title}: two dishes cook at once around a step one burner cannot hold`);
+        continue;
+      }
       if (!withinCapacity(plan, set, kitchen)) bad.push(`${mode} ${set[0].title} + ${set[1].title}`);
       if (mode === BS_COOK_MODE.TOGETHER && span(plan) > span(sequence)) bad.push(`together runs longer than one after another: ${set[0].title} + ${set[1].title}`);
     }
   }
   assert.equal(pairs, 4950, 'the whole catalog, paired');
+  assert.equal(refused, 855, 'the pairs holding a step one burner cannot take (nine recipes)');
   assert.deepEqual(bad.slice(0, 10), [], `${bad.length} plan(s) break the kitchen`);
 });

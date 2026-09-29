@@ -45,6 +45,7 @@ import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from
 import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileStartLine, bsProfileLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
+import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFocus.mjs';
 import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotRepeats, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
@@ -2410,6 +2411,7 @@ function BSCookWithDoor({ cookable, mine = false, tone = null }) {
   return (
     <button
       type="button"
+      data-bsck-door="with"
       onClick={() => {
         try { window.dispatchEvent(new CustomEvent('shape:cookWith', { detail: { cookable, mine } })); } catch (e) {}
       }}
@@ -2573,7 +2575,7 @@ function BSLibraryDetail({ item, onBack, myDoc = null }) {
           ) : null}
           {mineCookable && mineCookable.steps.length ? (
             <div style={{ padding: `16px ${t.padX}px 0` }}>
-              <button type="button" onClick={() => setCooking(true)} style={{ width: '100%', padding: '15px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+              <button type="button" data-bsck-door="cook" onClick={() => setCooking(true)} style={{ width: '100%', padding: '15px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
                 {tr('cook:cta', { defaultValue: 'Cook this' })} →
               </button>
               <BSCookWithDoor cookable={mineCookable} mine tone={teal} />
@@ -6886,7 +6888,7 @@ function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
           meal can't normalize at all (null cookable — nothing to walk). */}
       {cookable && (
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button type="button" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(teal, 0.5)}`, borderLeft: `3px solid ${teal}`, borderRadius: 5, background: bsTHexA(teal, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+        <button type="button" data-bsck-door="cook" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(teal, 0.5)}`, borderLeft: `3px solid ${teal}`, borderRadius: 5, background: bsTHexA(teal, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
           <span style={{ textAlign: 'left', minWidth: 0 }}>
             <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cook:cta.eyebrow', { defaultValue: 'Guided · step by step' })}</span>
             <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>{tr('cook:cta', { defaultValue: 'Cook this' })}</span>
@@ -8048,6 +8050,7 @@ const BS_CK_CSS = `
   --i85:rgba(var(--irgb),.85);--i70:rgba(var(--irgb),.70);--i50:rgba(var(--irgb),.50);--i30:rgba(var(--irgb),.28);
   --rule:rgba(var(--irgb),var(--ra));--hair:rgba(var(--irgb),var(--ha))}
 .bsck *{box-sizing:border-box}
+.bsck:focus,.bsck .sheet:focus{outline:none}
 :where(.bsck) button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 :where(.bsck) input{font:inherit;color:inherit}
 .bsck .n{font-family:var(--f-n);font-variation-settings:'ROND' 100;font-variant-numeric:tabular-nums;font-weight:900!important}
@@ -8543,6 +8546,29 @@ function useBSCkMore(ref) {
     }
   });
 }
+// Focus for one cook screen: moved in when it opens, held while it or a sheet over it is open,
+// and given back when it closes. The rules, and the reasons for each, are in cookFocus.mjs.
+// ⚠ WHAT HAD FOCUS IS READ WHILE THE SCREEN FIRST RENDERS, NOT IN AN EFFECT. A cook screen
+// replaces the page that opened it, so by the time any effect runs the "Cook this" button is
+// gone and focus has already fallen to <body>. The first render is the last moment that button
+// is still on the page, and reading it there changes nothing.
+function useBSCkFocus(rootRef) {
+  const owner = React.useRef(null);
+  if (owner.current == null) owner.current = bsCkFocusOwner(typeof document !== 'undefined' ? document : null);
+  const live = React.useRef({ root: null, rootHold: null, sheet: null, sheetHold: null, sheetOwner: null });
+  // After every commit, like the layout watch: the node is replaced under this hook (the
+  // website's first render portals into <body>, and a prep session hands its screen to a dish).
+  React.useLayoutEffect(() => { bsCkModalSync(live.current, rootRef.current); });
+  React.useEffect(() => () => {
+    const doc = typeof document !== 'undefined' ? document : null;
+    bsCkModalSync(live.current, null);
+    // ⚠ GIVEN BACK A MICROTASK LATER, once every closing cook screen has let go of the app: a
+    // dish's screen and the prep session around it close together, and the door they return to
+    // stays inert until the last of them releases it.
+    const back = owner.current;
+    Promise.resolve().then(() => bsCkGiveBack(back, { doc }));
+  }, []);
+}
 
 // Monochrome line icons on a 24-unit grid (the house rule for anything new: no emoji).
 const BS_CK_ICONS = {
@@ -8609,7 +8635,7 @@ const bsCkFit = (text) => { const n = String(text || '').length; return n > 150 
 function bsCkShell({ t, rootRef, layout, label, children }) {
   const native = typeof document !== 'undefined' && !!document.documentElement?.classList?.contains('is-native-app');
   const node = (
-    <div ref={rootRef} className={`bsck ${layout.cls}`} data-bs-noswipe="" data-bs-layer="cook" role="dialog" aria-modal="true" aria-label={label}
+    <div ref={rootRef} className={`bsck ${layout.cls}`} data-bs-noswipe="" data-bs-layer="cook" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
       style={{ position: 'absolute', inset: 0, zIndex: 99990, ...bsCkVars(t), ...(native ? { '--bsck-top-floor': '32px' } : null) }}>
       <div className="app cC cD">{children}</div>
     </div>
@@ -8893,8 +8919,8 @@ function bsCkUpNext({ tr, name = null, text }) {
 // is a panel in the corner rather than a bottom sheet.
 function bsCkSheet({ title, headRight = null, onClose, children }) {
   return (<>
-    <div className="sheet-scrim" onClick={onClose} aria-hidden="true" />
-    <div className="sheet" role="dialog" aria-modal="true" aria-label={title} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
+    <div className="sheet-scrim" data-bsck-scrim="" onClick={onClose} aria-hidden="true" />
+    <div className="sheet" data-bsck-sheet="" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="grab" aria-hidden="true" />
       <div className="sh-h"><h3>{title}</h3>{headRight}</div>
       <div className="sh-b bsck-scroll">{children}</div>
@@ -8910,8 +8936,9 @@ function bsCkExitSheet({ tr, message, onStay, onLeave }) {
     children: (<>
       <p className="lead2">{message}</p>
       <div className="stk">
-        {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-        <button type="button" className="btn-p" onClick={onStay} autoFocus>{tr('cook:ck.keepCooking', { defaultValue: 'Keep cooking' })}</button>
+        {/* ⚠ NOT autoFocus: React would focus it during the commit, before the sheet can read which
+            control opened it, and closing the sheet would have nowhere to give focus back to. */}
+        <button type="button" className="btn-p" onClick={onStay} data-bsck-initial="">{tr('cook:ck.keepCooking', { defaultValue: 'Keep cooking' })}</button>
         <button type="button" className="btn-q" onClick={onLeave} style={{ minHeight: 56 }}>{tr('cook:exit.confirm', { defaultValue: 'Leave' })}</button>
       </div>
       <p className="fine">{tr('cook:ck.alertsNeedApp', { defaultValue: 'Timer alerts need the app open.' })}</p>
@@ -9424,6 +9451,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   useBSCkCss();
   const layout = useBSCkLayout(rootRef);
   useBSCkMore(rootRef);
+  useBSCkFocus(rootRef);
   const [sheet, setSheet] = useStateBSC(null);              // null | 'exit' | 'steps'
   const [toast, setToast] = useStateBSC(null);
   const [tracksOn, setTracksOn] = useStateBSC(bsCkTracksPref);
@@ -10263,6 +10291,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   useBSCkCss();
   const layout = useBSCkLayout(rootRef);
   useBSCkMore(rootRef);
+  useBSCkFocus(rootRef);
   const [sheet, setSheet] = useStateBSC(null);              // null | 'exit' | 'steps'
   const [toast, setToast] = useStateBSC(null);              // { text }
   const [tracksOn, setTracksOn] = useStateBSC(bsCkTracksPref);
@@ -10567,6 +10596,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   useBSCkCss();
   const layout = useBSCkLayout(rootRef);
   useBSCkMore(rootRef);
+  useBSCkFocus(rootRef);
   const [sheet, setSheet] = useStateBSC(null);   // null | 'exit' | 'steps'
   const [toast, setToast] = useStateBSC(null);
   React.useEffect(() => {
@@ -10863,11 +10893,13 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     [orchInput, choice, orchAuto, kitchen, chosenServe, runServeAt],
   );
   // Why a set-time plan cannot land the dishes together, said as the real reason. MEASURED
-  // over the catalog's 4,950 dish pairs: with one burner, 2,730 are refused, and in 2,726 of
-  // them the COOK is part of the reason (one pair of hands: a dish's hands-on steps can only
-  // hide inside another dish's hands-off time). Equipment is part of it in 1,594, and more
-  // burners or ovens would fix 830. So "add a burner" is offered only when a plan with every
-  // burner and oven the steppers allow would actually work; otherwise the reason is the cook.
+  // over the catalog's 4,950 dish pairs: with one burner, 3,022 are refused. The engine names
+  // the COOK in 2,166 of them (one pair of hands: a dish's hands-on steps can only hide inside
+  // another dish's hands-off time) and the kitchen in 2,019, and more burners or ovens would
+  // fix 1,122. 855 of the pairs hold a step that needs two burners at once, which one burner
+  // can never hold, so the engine names the kitchen alone for those and leaves this check to
+  // find out whether room would be enough. "Add a burner" is offered only when a plan with
+  // every burner and oven the steppers allow would actually work; otherwise it is the cook.
   const serveNeedsRoom = React.useMemo(() => {
     if (choice !== BS_COOK_CHOICE.SERVE || orch.coordinated !== false || orch.invalidTiming) return false;
     if (!(orch.issues || []).includes(BS_SERVE_ISSUE.STATIONS)) return false;
@@ -11657,7 +11689,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
       {/* Cook Mode door — the doing-surface over the reading view below. */}
       {cookable && (
       <div style={{ padding: `18px ${t.padX}px 0` }}>
-        <button type="button" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 5, background: bsTHexA(t.ACCENT, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+        <button type="button" data-bsck-door="cook" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(t.ACCENT, 0.5)}`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 5, background: bsTHexA(t.ACCENT, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
           <span style={{ textAlign: 'left', minWidth: 0 }}>
             <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cook:cta.eyebrow', { defaultValue: 'Guided · step by step' })}</span>
             <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>{tr('cook:cta', { defaultValue: 'Cook this' })}</span>
@@ -13536,7 +13568,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, initi
         </button>
         {/* PREP THE WEEK (PR C) — the Sunday-ritual door. Optional always: the
             menu + shop list are complete without it. */}
-        <button type="button" onClick={() => openPrep()} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
+        <button type="button" data-bsck-door="prep" onClick={() => openPrep()} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', textAlign: 'left' }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.isLight ? '#0a8f87' : t.ACCENT }}>{tr('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
           <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
           <span style={{ color: t.ACCENT, fontWeight: 700, fontSize: 13 }}>→</span>
@@ -33617,7 +33649,7 @@ function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recip
         {/* PREP THE WEEK door (PR C) — shopping done, cooking next. Optional
             always; renders only where the host wired the session. */}
         {onPrep && (
-          <button type="button" onClick={onPrep} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
+          <button type="button" data-bsck-door="prep" onClick={onPrep} style={{ marginTop: 12, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', textAlign: 'left' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{trG('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
             <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)' }} />
             <span style={{ color: accent, fontWeight: 700, fontSize: 13 }}>→</span>

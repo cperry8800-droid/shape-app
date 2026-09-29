@@ -98,6 +98,20 @@ export function bsColorGap(a, b) {
 }
 export const BS_DISH_MIN_GAP = 45;
 
+// Past the fixed set: more hues, a golden-angle step apart round the wheel, each walked for
+// contrast like any other colour. The same sequence every time, so a list of dishes keeps its
+// colours.
+const hslHex = (h, s, l) => {
+  const a = s * Math.min(l, 1 - l);
+  const f = (k0) => {
+    const k = (k0 + h / 30) % 12;
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+};
+const extraDishColor = (k, isLight, surface) =>
+  bsDishColor(0, isLight, surface, hslHex((k * 137.508) % 360, isLight ? 0.6 : 0.7, isLight ? 0.32 : 0.7));
+
 // Every dish's colour for one screen, in dish order: its own hue when it has one that reads
 // apart from the dishes before it, otherwise the next colour of the fixed set that does. The
 // same list of dishes on the same paper always gives the same colours, so a dish keeps its
@@ -106,7 +120,9 @@ export function bsDishColors(hues, isLight, surface) {
   const list = Array.isArray(hues) ? hues : [];
   const out = [];
   const apart = (c) => out.every((o) => bsColorGap(o, c) >= BS_DISH_MIN_GAP);
+  const nearest = (c) => Math.min(...out.map((o) => bsColorGap(o, c)));
   let next = 0;
+  const extra = [];
   const n = BS_DISH_COLORS.dark.length;
   list.forEach((hue, i) => {
     const own = HEX6.test(String(hue)) ? bsDishColor(i, isLight, surface, hue) : null;
@@ -115,7 +131,19 @@ export function bsDishColors(hues, isLight, surface) {
       const c = bsDishColor(next + k, isLight, surface);
       if (apart(c)) { out.push(c); next = next + k + 1; return; }
     }
-    out.push(bsDishColor(i, isLight, surface));
+    // ⚠ PAST THE FIXED SET. This used to fall back to the fixed colour at the dish's own index,
+    // so a seventh dish wore the first dish's colour exactly -- and nothing caps a session at six
+    // (a week's prep runs past it). The extra hues are tried next, and when none reads apart from
+    // every dish already on screen the farthest of them is taken, so no two dishes share a colour
+    // outright (Copilot, round 1). The name on each lane and burner stays the dish's identity:
+    // past a handful of dishes, colour alone could never carry it.
+    // Four extra hues for every dish so far. MEASURED on every paper: sixteen near-identical
+    // cards all read apart with four, where two per dish left 3 pairs alike and one left 25.
+    // Sized by the dish's place, not the whole list, so adding a dish never recolours the ones
+    // before it.
+    while (extra.length < 4 * (i + 1)) extra.push(extraDishColor(extra.length, isLight, surface));
+    const pool = extra.slice(0, 4 * (i + 1));
+    out.push(pool.find(apart) || pool.reduce((best, c) => (nearest(c) > nearest(best) ? c : best)));
   });
   return out;
 }

@@ -198,6 +198,45 @@ test('two dishes never share a colour: a hue too close to one already on screen 
   assert.deepEqual(bsDishColors([chicken, salmon], bone.light, bone.paper2), bsDishColors([chicken, salmon], bone.light, bone.paper2));
 });
 
+test('past the fixed set, no two dishes share a colour: a week of prep, on every paper', () => {
+  // Nothing caps a session at six dishes (a week's prep runs past it), and the fallback used to
+  // hand the seventh the first dish's colour exactly -- and, where a card hue had taken a fixed
+  // slot, repeat one with fewer dishes than that (Copilot, round 1).
+  assert.ok(PAPERS.length >= 18, `read only ${PAPERS.length} papers from the theme; the pattern has drifted`);
+  const chicken = hueOf('One-pan chicken and rice');
+  assert.ok(chicken, 'catalog no longer has the chicken — repin this test, do not delete it');
+  for (const p of PAPERS) {
+    for (const surface of [p.paper, p.paper2]) {
+      const fixed = [0, 1, 2, 3, 4, 5].map((i) => bsDishColor(i, p.light, surface));
+      // The seventh dish with no card: not a copy of any fixed colour, where it used to be the first.
+      const seven = bsDishColors(Array(7).fill(null), p.light, surface);
+      assert.ok(!fixed.includes(seven[6]), `${p.name} ${surface}: the seventh dish wears a fixed colour again (${seven[6]})`);
+      // Twelve dishes, and seven and sixteen near-identical cards: every pair still reads apart.
+      for (const list of [Array(12).fill(null), Array(7).fill(chicken), Array(16).fill(chicken)]) {
+        const cs = bsDishColors(list, p.light, surface);
+        for (let i = 0; i < cs.length; i++) {
+          assert.ok(bsContrast(cs[i], surface) >= BS_DISH_MIN_CONTRAST, `${p.name} ${surface}: dish ${i} (${cs[i]}) does not read on the paper`);
+          assert.ok(bsContrast(cs[i], bsInkOn(cs[i])) >= 4.5, `${p.name}: the number on dish ${i} (${cs[i]}) does not read`);
+          for (let j = i + 1; j < cs.length; j++) {
+            assert.ok(bsColorGap(cs[i], cs[j]) >= BS_DISH_MIN_GAP, `${p.name} ${surface}: dishes ${i} and ${j} of ${cs.length} read alike (${cs[i]} / ${cs[j]})`);
+          }
+        }
+        assert.deepEqual(bsDishColors(list, p.light, surface), cs, `${p.name}: the same dishes give the same colours`);
+      }
+    }
+  }
+  // Far past what reads apart, still no colour worn twice -- and adding a dish never recolours
+  // the ones before it, so a dish keeps its colour when the cook adds another.
+  for (const p of [PAPERS.find((x) => x.light), PAPERS.find((x) => !x.light)]) {
+    const list = Array.from({ length: 40 }, (_, i) => (i % 3 ? null : chicken));
+    const forty = bsDishColors(list, p.light, p.paper2);
+    assert.equal(new Set(forty).size, 40, `${p.name}: forty dishes, forty colours`);
+    for (const k of [7, 13, 25, 39]) {
+      assert.deepEqual(bsDishColors(list.slice(0, k), p.light, p.paper2), forty.slice(0, k), `${p.name}: dish ${k + 1} recoloured the ones before it`);
+    }
+  }
+});
+
 test('every catalog dish\'s colour reads on every paper, and so does the number printed on it', () => {
   const hues = SHAPE_KITCHEN_RECIPES.map((r) => bsHeroHue(r.hero)).filter(Boolean);
   assert.ok(hues.length >= 90, `read only ${hues.length} card hues from the catalog`);
