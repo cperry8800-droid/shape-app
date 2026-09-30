@@ -72,5 +72,9 @@ export default {
     { name: 'an interrupted final sanity run reads as a red tree, not as an interrupt', file: 'scripts/mutate.mjs',
       find: 'if (interrupted) throw new Error(`interrupted by ${interrupted} during the final sanity run — the tree was already restored; the round did not finish`);',
       replace: '' },
+    // A restore that stops at the first failing file leaves a LATER mutated file on disk
+    // while the error names only the earlier one (CodeRabbit, #2188).
+    { name: 'a restore stops at the first file that fails', file: 'scripts/mutate.mjs',
+      find: "failures.push(`${f}: ${e instanceof Error ? e.message : e}`);", replace: 'throw e;' },
   ],
 };

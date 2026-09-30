@@ -275,11 +275,20 @@ export async function runMutations(spec, { root = process.cwd(), exec = defaultE
   // Rule 2: snapshot bytes.
   const snap = new Map(files.map((f) => [f, fs.readFileSync(path.resolve(root, f))]));
   const restoreAll = () => {
+    // Attempt EVERY file before failing: the mutated one can sit after a file that will
+    // not restore, and stopping at the first error would leave it mutated on disk while
+    // the error names only the other file (CodeRabbit, #2188).
+    const failures = [];
     for (const [f, buf] of snap) {
-      const p = path.resolve(root, f);
-      fs.writeFileSync(p, buf);
-      if (Buffer.compare(fs.readFileSync(p), buf) !== 0) throw new Error(`restore of ${f} did not verify byte for byte`);
+      try {
+        const p = path.resolve(root, f);
+        fs.writeFileSync(p, buf);
+        if (Buffer.compare(fs.readFileSync(p), buf) !== 0) throw new Error('did not verify byte for byte');
+      } catch (e) {
+        failures.push(`${f}: ${e instanceof Error ? e.message : e}`);
+      }
     }
+    if (failures.length) throw new Error(`restore failed for ${failures.length} file(s) — every other target was still restored; inspect \`git status\` before doing anything else:\n  ${failures.join('\n  ')}`);
   };
   const uninstall = installRestoreOnSignal(restoreAll, proc, { abort });
 

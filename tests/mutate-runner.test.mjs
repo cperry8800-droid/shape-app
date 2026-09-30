@@ -351,6 +351,31 @@ test('no signal handler outlives the round — finished, or refused on a red bas
   assert.equal(b.handlers.size, 0, 'a refused round leaves none behind');
 });
 
+test('a restore that fails on one file still restores every other target, and the error names the one that failed', async () => {
+  const dir = scratch();
+  fs.writeFileSync(path.join(dir, 'other.mjs'), 'export const X = 1;\n');
+  const spec = {
+    test: SPEC.test,
+    mutations: [
+      { name: 'first', file: 'lib.mjs', find: 'LIMIT = 10', replace: 'LIMIT = 11' },
+      { name: 'second', file: 'other.mjs', find: 'X = 1', replace: 'X = 2' },
+    ],
+  };
+  // Run 1 is the sanity run, 2 the first mutation, 3 the second: while the SECOND file is
+  // mutated, the FIRST becomes a directory, so writing it back fails (EISDIR, even as root).
+  let calls = 0;
+  const exec = () => {
+    calls++;
+    if (calls === 3) { fs.rmSync(path.join(dir, 'lib.mjs')); fs.mkdirSync(path.join(dir, 'lib.mjs')); }
+    return GREEN;
+  };
+  await assert.rejects(
+    runMutations(spec, { root: dir, exec, proc: fakeProc().proc, log: () => {}, allowDirty: true }),
+    (e) => /restore failed for 1 file\(s\)/.test(e.message) && /lib\.mjs: EISDIR/.test(e.message) && !/other\.mjs:/.test(e.message),
+  );
+  assert.equal(fs.readFileSync(path.join(dir, 'other.mjs'), 'utf8'), 'export const X = 1;\n', 'the mutated file after the broken one was still restored');
+});
+
 // ── the CLI path: loadSpec, exit codes, the dirty-tree refusal ────────────────
 
 import { execSync, spawn } from 'node:child_process';
