@@ -38,14 +38,12 @@ test('nothing lands on Nora: the booth zone (|x| < 1.6, −0.8 < z < 1.9, above 
       assert.ok(b.min.y > 8.5, `${name} hangs at ${b.min.y.toFixed(2)}`);   // the rig is overhead, above the portal
       continue;
     }
-    // the runway's merged box reaches back under the deck's nose; it never rises above the deck
-    if (name === 'arenaRunway' || name === 'arenaRunwayLines') { assert.ok(b.max.y <= ARENA_DIMS.DECK_Y + 0.01, name); continue; }
     if (name === 'arenaLedWall' || name === 'arenaWallFrame') { assert.ok(b.min.z >= ARENA_DIMS.BACK_Z - 0.01, name); continue; }
   }
   // every other vertex: none inside the zone (a merged mesh's box spans the gap between the wings)
   const v = new THREE.Vector3();
   a.group.traverse((o) => {
-    if (!o.isMesh || o.isInstancedMesh || /Truss|Spot|MovingHeads|Runway|LedWall|WallFrame/.test(o.name)) return;
+    if (!o.isMesh || o.isInstancedMesh || /Truss|Spot|MovingHeads|LedWall|WallFrame/.test(o.name)) return;
     const p = o.geometry.attributes.position;
     for (let i = 0; i < p.count; i++) {
       v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
@@ -55,19 +53,44 @@ test('nothing lands on Nora: the booth zone (|x| < 1.6, −0.8 < z < 1.9, above 
   a.dispose();
 });
 
-test('the mark: ▸ at +x on the top step, ◂ at −x raised by 20/44 of its height, both pointing in', () => {
-  const a = build('high');
-  const faces = a.group.getObjectByName('arenaMarkFaces');
-  const p = faces.geometry.attributes.position;
-  let maxL = -Infinity, maxR = -Infinity, minXL = Infinity, maxXR = -Infinity;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i);
-    if (x > 0) { maxL = Math.max(maxL, y); minXL = Math.min(minXL, x); }
-    else { maxR = Math.max(maxR, y); maxXR = Math.max(maxXR, x); }
+test('no runway and no statues: the crowd runs to the stage lip, and the mark is only on the screen', () => {
+  // the owner: "remove this walk way in front of stage", "remove the outside 2 large triangles"
+  for (const q of ['high', 'low']) {
+    const a = build(q);
+    const names = [];
+    a.group.traverse((o) => { if (o.isMesh) names.push(o.name); });
+    assert.ok(!names.some((n) => /Runway|BStage|Mark/i.test(n)), `${q}: ${names.join(' ')}`);
+    assert.equal(ARENA_DIMS.RUNWAY, undefined);
+    assert.equal(ARENA_DIMS.BSTAGE, undefined);
+    // nothing of the stage reaches out past the deck's nose into the crowd
+    const { all } = boundsOf(a.group);
+    const floor = new THREE.Box3(new THREE.Vector3(-6, ARENA_DIMS.FLOOR_Y, -40), new THREE.Vector3(6, ARENA_DIMS.DECK_Y + 0.5, -1.5));
+    a.group.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh) return;
+      const bb = new THREE.Box3().setFromObject(o);
+      assert.ok(!bb.intersectsBox(floor), `${o.name} reaches the dance floor: z ${bb.min.z.toFixed(2)}`);
+    });
+    assert.ok(all.max.z <= 5.99);
+    a.dispose();
   }
-  assert.ok(Math.abs(maxR - maxL - 6.2 * 20 / 44) < 1e-3, `lift ${(maxR - maxL).toFixed(3)}`);
-  assert.ok(minXL > 5.4 && maxXR < -5.4, 'the tips reach the portal edge and no further');
-  a.dispose();
+});
+
+test('no stairs on the sides: the wings are a flat deck, and the wall is the only LED', () => {
+  // the owner: "remove the stairs on the sides of the stage"
+  for (const q of ['high', 'low']) {
+    const a = build(q);
+    const wall = a.group.getObjectByName('arenaLedWall');
+    const led = [];
+    a.group.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && o.material === wall.material) led.push(o.name); });
+    assert.deepEqual(led, ['arenaLedWall'], `${q}: LED surfaces ${led.join(' ')}`);
+    a.group.updateMatrixWorld(true);
+    // nothing on the wings stands above the deck: the tallest thing out there is its own top
+    for (const name of ['arenaWings', 'arenaWingLines', 'arenaParCans', 'arenaParLenses']) {
+      const b = new THREE.Box3().setFromObject(a.group.getObjectByName(name));
+      assert.ok(b.max.y <= ARENA_DIMS.DECK_Y + 0.001, `${q}: ${name} rises to ${b.max.y.toFixed(2)}`);
+    }
+    a.dispose();
+  }
 });
 
 test('phones pay less: fewer beams and par cans, no truss lacing', () => {

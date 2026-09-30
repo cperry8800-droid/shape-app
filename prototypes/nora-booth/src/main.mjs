@@ -10,6 +10,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
 
 import { createCDJ, CDJ_DIMS } from './cdj3000.mjs';
@@ -22,6 +23,7 @@ import { analyzeTrack, bufferWaveform } from './trackAnalysis.mjs';
 import { NoraPerformer } from './noraPerformer.mjs';
 import { NoraDirector, SHOTS, SHOT_IDS } from './noraDirector.mjs';
 import { createTempoTracker } from './tempoBridge.mjs';
+import { createCinematic } from './cinematic.mjs';
 
 const Q = new URLSearchParams(location.search);
 const ACCENT = '#34d6c5';
@@ -49,9 +51,35 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.03, 150);   // far 150: the skyline stands 50–76 m out from the skylight
 camera.position.set(0, 1.8, -5.5);
 
+// Reduced motion is read before the post chain is built (the cinematic grain holds still under it).
+const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// The cinematic tier (cinematic.mjs): light shafts off the screen, depth of field set per shot,
+// anamorphic streaks, a film finish and 2.39:1 bars. On by default on the high tier (desktops), the
+// owner's word: "as cinematic as possible". ?cine=0 turns it all off for comparison, ?bars=0 keeps the
+// rest without the bars. Phones (the low tier) never run it.
+const CINE = QUALITY === 'high' && Q.get('cine') !== '0';
+let cine = null;
+
 let composer = null, bloom = null;
 function setupPost() {
   if (QUALITY !== 'high') return;
+  if (CINE) {
+    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+    cine = createCinematic({ THREE, Pass, FullScreenQuad, scene, camera, samples: Q.get('msaa') === '0' ? 0 : 4, reducedMotion: REDUCED_MOTION, bars: Q.get('bars') !== '0' });
+    // the scene renders into the cinematic pass's own MSAA target (with depth); the composer's
+    // ping-pong targets only carry full-screen passes, so they need no samples of their own
+    const rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType });
+    rt.texture.name = 'booth.post';
+    composer = new EffectComposer(renderer, rt);
+    composer.addPass(cine.passes.scene);     // the scene + sanitize (NaN/Inf to black, HDR clamped)
+    composer.addPass(cine.passes.focus);     // light shafts, then depth of field
+    if (Q.get('post') !== 'nobloom') { bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.22, 0.85); composer.addPass(bloom); }
+    composer.addPass(cine.passes.streaks);   // anamorphic streaks on the brightest lights
+    composer.addPass(new OutputPass());      // tone mapping + sRGB
+    composer.addPass(cine.passes.film);      // grade, fringing, vignette, grain (display-referred)
+    return;
+  }
   // ⚠ MSAA. The composer renders the scene into its own half-float target, and that target had no
   // samples — so the renderer's `antialias: true` did nothing on the high tier (measured with
   // rtprobe.cjs: no multisampled renderbuffer was ever allocated). Every thin edge — rails, faders,
@@ -94,7 +122,6 @@ function resize() {
 addEventListener('resize', resize);
 
 // ── World ───────────────────────────────────────────────────────────────────
-const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const club = createClub({ THREE, renderer, seed: 7, accent: ACCENT, quality: QUALITY, reducedMotion: REDUCED_MOTION });
 scene.add(club.group);
 // Club Shape itself: the atrium, balconies, palms, lounges and the skylight ring.
@@ -570,6 +597,12 @@ function frame() {
   const shotLabel = ((SHOTS[director.shot] || {}).label || '').toUpperCase();
   $shot.textContent = director.mode === 'free' ? 'LOOK AROUND' : director.mode === 'auto' ? `AUTO · ${shotLabel}` : shotLabel;
 
+  if (cine) {
+    // focus on what the shot is looking at (the orbit's target when the user is steering)
+    const T = director.mode === 'free' ? orbit.target : camOut && camOut.target;
+    const focus = T ? camera.position.distanceTo(T) : 6;
+    cine.update({ dt, shot: director.mode === 'free' ? 'free' : director.shot, focus, level: bands.level, drop });
+  }
   if (composer) composer.render(); else renderer.render(scene, camera);
   window.__frames = (window.__frames || 0) + 1;
 }
@@ -585,7 +618,7 @@ resize();
 if (Q.get('mode')) setMode(Q.get('mode'));
 if (Q.get('autostart')) startSet();
 requestAnimationFrame(frame);
-window.__booth = { director, renderer, club, venue, venueMs, scene, camera, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
+window.__booth = { director, renderer, club, venue, venueMs, scene, camera, cine, get composer() { return composer; }, get nora() { return nora; }, get ms() { return window.__ms; }, get bar() { return barNow(); }, scheduleMix: () => scheduleMix(barNow()), setMode };
 
 // Debug: the first thing a camera ray hits among Nora and the gear (handprobe.cjs uses it to sample
 // only pixels that are actually her skin). Cheap: it tests only the foreground, never the crowd.

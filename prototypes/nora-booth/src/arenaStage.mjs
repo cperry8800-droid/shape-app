@@ -1,31 +1,28 @@
 // arenaStage.mjs — Club Shape's main stage at arena scale, built around Nora's booth.
 //
 // The owner's photo is an arena production: a wall of LED behind everything, a tiered stage whose
-// step faces are LED too, a thrust runway into the crowd, a truss rig overhead full of moving heads
-// and spots, hanging speaker arrays, and two giant figures standing either side. This is that, in
-// Club Shape's own terms:
+// step faces are LED too, a truss rig overhead full of moving heads and spots, and hanging speaker
+// arrays. This is that, in Club Shape's own terms:
 //
 //   backdrop     one LED wall across the whole stage end, floor to ceiling (≈20.6 × 15.3 m), its
 //                content drawn by a shader — a dawn over a dark sea: a sun rising just over the
 //                booth's portal, slow rays, ridges either side, ribbons of teal and ice high up, the
 //                sun's reflection breaking into dashes below — on a visible dot pitch, so it reads
 //                as a screen, not a sky
-//   wings        the deck widened to the balconies either side, a row of par cans along its lip,
-//                and four steps rising to the wall on each side whose risers are the same LED
-//   the mark     where the photo has two statues, Club Shape has its mark: the two triangles of
-//                public/logo-triangles-only.svg as sculptures, each pointing in at the booth, the
-//                right one raised as it is in the logo — ▸ ◂ around the screen
-//   runway       a thrust from the deck's nose into the crowd, lit edges and step lines, ending in a
-//                round platform
+//   wings        the deck widened to the balconies either side, a row of par cans along its lip
 //   rig          a truss grid over the stage and the front of the crowd: moving heads throwing
 //                narrow white beams that sweep on the bar, a row of spots, two line arrays
 //
-// Nora's booth and her lights (club.mjs) are untouched. The black portal that framed a smaller
-// screen in front of this wall is gone: club.mjs now draws its Club Shape artwork (the square, the
-// mark, CLUB SHAPE and the spectrum) additively onto this wall, on its dot grid, so the whole stage
-// end is one screen. Everything is geometry and shaders —
-// no textures, no pictures. The flashes rule holds: nothing here flashes; the wall and the beams
-// swell with the level and lift gently on the kick.
+// The runway into the crowd, the two giant ▸ ◂ statues either side of the screen and the four
+// LED-faced steps that rose to the wall on each wing are gone (the owner's word: "remove this walk
+// way in front of stage", "remove the outside 2 large triangles", "remove the stairs on the sides
+// of the stage"); the mark lives on the screen now, over CLUB SHAPE, the crowd runs up to the
+// stage lip, and the wall stands on a flat deck from balcony to balcony.
+//
+// Nora's booth and her lights (club.mjs) are untouched. club.mjs draws its artwork (the mark over
+// CLUB SHAPE, and the spectrum) additively onto this wall, on its dot grid, so the whole stage end is
+// one screen. Everything is geometry and shaders — no textures, no pictures. The flashes rule holds:
+// nothing here flashes; the wall and the beams swell with the level and lift gently on the kick.
 
 export const ARENA_DIMS = {
   DECK_Y: -0.18,           // the club's stage height (CLUB_DIMS.STAGE_Y)
@@ -34,8 +31,6 @@ export const ARENA_DIMS = {
   HALF_W: 10.3,            // the wall and the wings reach this far each side (balconies start at 10.5)
   TOP_Y: 15.1,             // just under the ceiling (15.5): the stage end has no top-tier bridge now
   WING_FRONT_Z: 0.6,       // the club deck's sides turn into its rounded nose here
-  RUNWAY: { x: 1.1, z0: -1.2, z1: -6.8 },
-  BSTAGE: { z: -7.9, r: 1.5 },
   TRUSS: { y: 13.0, z0: -3.0, z1: 4.6, zMid: 0.8, size: 0.46 },
 };
 const D = ARENA_DIMS;
@@ -50,8 +45,8 @@ const LED_VERT = /* glsl */`
     vW = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
-// The content is a function of the wall's own coordinates (metres), so it carries on across the
-// tier risers in front of the wall as a real production's content does across its stage fronts.
+// The content is a function of the wall's own coordinates (metres), so anything drawn over it on
+// the same grid (club.mjs's artwork) lands on the same dots.
 const LED_FRAG = /* glsl */`
   uniform float uTime, uLevel, uKick, uMotion, uGain;
   uniform vec3 uIce, uAccent;
@@ -108,9 +103,6 @@ const LED_FRAG = /* glsl */`
       float streak = exp(-pow(p.x / (1.6 + d * 0.25), 2.0));
       float dash = smoothstep(0.55, 0.9, 0.5 + 0.5 * sin(p.y * 9.0 + sin(p.x * 3.0 + t * 0.8) * 1.2 + t * 0.6));
       col += vec3(1.3, 0.7, 0.3) * streak * dash * exp(-d * 0.9);
-      // a slow teal chase along the lowest band: the stage's risers (not behind the booth)
-      float ch = pow(0.5 + 0.5 * sin(p.x * 0.8 - t * 0.9 + floor(p.y / 0.5) * 1.3), 8.0);
-      col += uAccent * ch * smoothstep(3.2, 0.5, p.y) * smoothstep(4.6, 5.6, abs(p.x)) * (0.35 + 0.35 * uLevel);
     }
     col *= uGain * (1.0 + 0.12 * uKick);
     // the LED: round dots on a 75 mm pitch, dark seams between 0.5 m modules. Once a dot is under
@@ -144,14 +136,18 @@ const BEAM_VERT = /* glsl */`
     vDepth = -mv.z;
     gl_Position = projectionMatrix * mv;
   }`;
+// A narrow "sharpy" beam: a hard bright core and a little glow round it, smooth along its length (no
+// ripple: any periodic brightness along a beam near the bloom threshold blooms into a row of blobs,
+// and the beam reads as a string of beads). It fades out within a few metres of the camera, so a
+// beam crossing close to a lens is a faint streak, not a wall of light across the frame.
 const BEAM_FRAG = /* glsl */`
   uniform float uFog;
   varying vec3 vC; varying float vL; varying float vEdge; varying float vDepth;
   void main() {
-    float core = pow(vEdge, 2.2);
+    float core = pow(vEdge, 7.0) * 1.6 + pow(vEdge, 2.0) * 0.12;
     float along = pow(1.0 - vL, 1.6) * (0.35 + 0.65 * exp(-vL * 3.0));
     float fog = exp(-uFog * uFog * vDepth * vDepth * 0.4);
-    float near = smoothstep(0.3, 2.0, vDepth);
+    float near = smoothstep(2.0, 7.0, vDepth);
     gl_FragColor = vec4(vC * core * along * fog * near, 1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -220,14 +216,11 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
     uIce: { value: iceC.clone() }, uAccent: { value: accentC.clone() },
   };
   const matLed = own(new THREE.ShaderMaterial({ uniforms: ledU, vertexShader: LED_VERT, fragmentShader: LED_FRAG }));
-  const matDark = own(new THREE.MeshBasicMaterial({ vertexColors: true }));          // deck, steps, cabinets (their tone is baked in the colour)
+  const matDark = own(new THREE.MeshBasicMaterial({ vertexColors: true }));          // deck, cabinets (their tone is baked in the colour)
   const matGlow = own(new THREE.MeshBasicMaterial({ vertexColors: true }));          // LED lines, lenses (HDR colours, the bloom takes them)
   const matTruss = own(new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.4, metalness: 0.85 }));
-  const MARK_BASE = new THREE.Color(1, 1, 1);
-  // double-sided: ◂ is ▸ mirrored, so its triangles wind the other way
-  const matMark = own(new THREE.MeshBasicMaterial({ vertexColors: true, color: MARK_BASE.clone(), side: THREE.DoubleSide }));
 
-  const C_DECK = [0.012, 0.013, 0.016], C_DECK_TOP = [0.02, 0.021, 0.025], C_STEP = [0.016, 0.017, 0.02];
+  const C_DECK = [0.012, 0.013, 0.016], C_DECK_TOP = [0.02, 0.021, 0.025];
   const C_LINE = [2.2, 2.35, 2.6], C_LINE_DIM = [0.55, 0.6, 0.7], C_PAR = [2.6, 2.4, 2.1];
 
   // ── 1. the LED wall ─────────────────────────────────────────────────────────────────────
@@ -247,12 +240,12 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
     ], 'wallFrame'), matDark, 'arenaWallFrame');
   }
 
-  // ── 2. the wings, the steps and their LED risers ────────────────────────────────────────
+  // ── 2. the wings: a flat deck from the booth's sides to the balconies ───────────────────
+  // Nothing stands on it. The tiered steps that rose to the wall here, LED risers and all, are gone
+  // on the owner's word ("remove the stairs on the sides of the stage"): the wall meets the deck.
   const WING_X0 = 5.55;
-  const STEP_H = 0.5, STEP_D = 0.75, STEP_Z0 = 2.4, NSTEP = 4;
-  const STEP_TOP = D.DECK_Y + STEP_H * NSTEP;
   {
-    const S = [], L = [], R = [];   // structure, LED lines, LED risers
+    const S = [], L = [];   // structure, LED lines
     for (const s of [-1, 1]) {
       const xa = s * WING_X0, xb = s * D.HALF_W, x0 = Math.min(xa, xb), x1 = Math.max(xa, xb);
       S.push(box(x0, x1, D.FLOOR_Y, D.DECK_Y, D.WING_FRONT_Z, D.BACK_Z, C_DECK));
@@ -260,28 +253,14 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
       // the deck's lip: a white line along its top edge and a dim one at the floor
       L.push(box(x0, x1, D.DECK_Y - 0.05, D.DECK_Y - 0.03, D.WING_FRONT_Z - 0.012, D.WING_FRONT_Z - 0.004, C_LINE));
       L.push(box(x0, x1, D.FLOOR_Y + 0.03, D.FLOOR_Y + 0.045, D.WING_FRONT_Z - 0.012, D.WING_FRONT_Z - 0.004, C_LINE_DIM));
-      // the steps up to the wall
-      for (let k = 0; k < NSTEP; k++) {
-        const z0 = STEP_Z0 + STEP_D * k, y0 = D.DECK_Y + STEP_H * k, y1 = y0 + STEP_H;
-        S.push(box(x0, x1, y0, y1, z0, D.BACK_Z, C_STEP));
-        // the riser's face: LED, a hair in front of the step
-        const rg = new THREE.PlaneGeometry(x1 - x0, STEP_H - 0.04);
-        rg.rotateY(Math.PI);
-        rg.translate((x0 + x1) / 2, (y0 + y1) / 2 - 0.01, z0 - 0.006);
-        R.push(rg);
-        // a white nosing line on each step
-        L.push(box(x0, x1, y1 - 0.02, y1, z0 - 0.02, z0 - 0.004, C_LINE));
-      }
     }
     // the deck behind the portal (hidden from the floor, seen from the balconies and the drone)
     S.push(box(-WING_X0, WING_X0, D.FLOOR_Y, D.DECK_Y, 3.2, D.BACK_Z, C_DECK));
     mesh(merge(S, 'wings'), matDark, 'arenaWings');
     mesh(merge(L, 'wingLines'), matGlow, 'arenaWingLines');
-    const rgm = own(mergeGeometries(R, false)); R.forEach((g) => g.dispose());
-    mesh(rgm, matLed, 'arenaLedRisers');
   }
 
-  // par cans along the wings' lip, aimed up at the steps
+  // par cans along the wings' lip, aimed up at the wall
   const PARS = [];
   for (const s of [-1, 1]) for (let x = WING_X0 + 0.45; x < D.HALF_W - 0.2; x += LOW ? 1.2 : 0.8) PARS.push(s * x);
   {
@@ -300,86 +279,7 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
     body.dispose(); lens.dispose();
   }
 
-  // ── 3. the mark: ▸ ◂ — the logo's two triangles, standing either side of the screen ────
-  // logo-triangles-only.svg: bottom-left (72,38)(72,82)(105,60) points right; top-right
-  // (128,18)(128,62)(95,40) points left, 20 of its 44 units higher. From the floor, facing the
-  // stage, the room's +x is on the left, so ▸ stands at +x and points in (toward −x), ◂ at −x.
-  const MARK = { h: 6.2, depth: 6.2 * 33 / 44, z0: 4.3, z1: 4.8, x: 10.15, lift: 6.2 * 20 / 44 };
-  {
-    const parts = [];
-    const tri = (s, y0) => {
-      // base edge vertical at x = s·MARK.x, tip at s·(MARK.x − depth), mid-height
-      const bx = s * MARK.x, tx = s * (MARK.x - MARK.depth), ym = y0 + MARK.h / 2;
-      const shape = new THREE.Shape();
-      shape.moveTo(bx, y0); shape.lineTo(tx, ym); shape.lineTo(bx, y0 + MARK.h); shape.closePath();
-      const body = new THREE.ExtrudeGeometry(shape, { depth: MARK.z1 - MARK.z0, bevelEnabled: false });
-      body.translate(0, 0, MARK.z0);
-      parts.push(tint(body, [0.008, 0.009, 0.012]));
-      // the face (toward the room), lit as a sculpture is: warm gold where the par cans hit its
-      // foot, falling off up its height to a cool dusk at the top; a bright band round the edge,
-      // softer across the middle, darker at the heart so it keeps its depth.
-      const O = [[bx, y0], [tx, ym], [bx, y0 + MARK.h]];
-      const cx = (O[0][0] + O[1][0] + O[2][0]) / 3, cy = (O[0][1] + O[1][1] + O[2][1]) / 3;
-      const I = O.map(([x, y]) => [cx + (x - cx) * 0.8, cy + (y - cy) * 0.8]);
-      const zf = MARK.z0 - 0.01, pos = [], col = [];
-      const WARM = [2.0, 0.95, 0.3], ICE = [0.45, 0.72, 1.0];
-      const lit = (y, k) => { const f = clamp((y - y0) / MARK.h, 0, 1), up = Math.exp(-2.2 * f); return WARM.map((w, c) => (w * up + ICE[c] * 0.35 * f) * k); };
-      const push = (p, k) => { pos.push(p[0], p[1], zf); col.push(...lit(p[1], k)); };
-      const edge = 1.0, inner = 0.4, core = 0.16;
-      for (let i = 0; i < 3; i++) {
-        const j = (i + 1) % 3;
-        push(O[i], edge); push(O[j], edge); push(I[j], inner);
-        push(O[i], edge); push(I[j], inner); push(I[i], inner);
-      }
-      push(I[0], inner); push(I[1], inner); push(I[2], inner);
-      push([cx, cy], core); push(I[0], inner); push(I[1], inner);
-      const fg = new THREE.BufferGeometry();
-      fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      fg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-      fg.setAttribute('normal', new THREE.Float32BufferAttribute(new Array(pos.length).fill(0).map((_, k) => (k % 3 === 2 ? -1 : 0)), 3));
-      fg.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
-      faces.push(fg);
-      // crisp white edges
-      for (let i = 0; i < 3; i++) {
-        const a = O[i], b = O[(i + 1) % 3];
-        edges.push(rod(new THREE.Vector3(a[0], a[1], zf - 0.02), new THREE.Vector3(b[0], b[1], zf - 0.02), 0.024, 6, [1.5, 1.6, 1.8]));
-      }
-    };
-    const faces = [], edges = [];
-    tri(1, STEP_TOP);                         // ▸ at +x, on the top step
-    tri(-1, STEP_TOP + MARK.lift);            // ◂ at −x, raised as in the logo…
-    // …on a plinth
-    parts.push(box(-D.HALF_W + 0.1, -(MARK.x - 2.2), STEP_TOP, STEP_TOP + MARK.lift, MARK.z0 - 0.05, MARK.z1 + 0.2, C_STEP));
-    mesh(merge(parts, 'markBodies'), matDark, 'arenaMarkBodies');
-    mesh(merge(faces, 'markFaces'), matMark, 'arenaMarkFaces', 1);
-    mesh(merge(edges, 'markEdges'), matGlow, 'arenaMarkEdges', 1);
-  }
-
-  // ── 4. the runway and the B-stage ───────────────────────────────────────────────────────
-  {
-    const R = D.RUNWAY, S = [], L = [];
-    S.push(box(-R.x, R.x, D.FLOOR_Y, D.DECK_Y, R.z1, R.z0, C_DECK));
-    S.push(box(-R.x, R.x, D.DECK_Y - 0.004, D.DECK_Y, R.z1, R.z0, C_DECK_TOP));
-    const disc = new THREE.CylinderGeometry(D.BSTAGE.r, D.BSTAGE.r, D.DECK_Y - D.FLOOR_Y, LOW ? 28 : 48, 1);
-    disc.translate(0, (D.DECK_Y + D.FLOOR_Y) / 2, D.BSTAGE.z);
-    S.push(tint(disc, C_DECK));
-    for (const s of [-1, 1]) {
-      // edge lines along both sides of the runway, top and foot
-      L.push(box(s * R.x - 0.012, s * R.x + 0.012, D.DECK_Y - 0.05, D.DECK_Y - 0.03, R.z1, R.z0, C_LINE));
-      L.push(box(s * R.x - 0.012, s * R.x + 0.012, D.FLOOR_Y + 0.03, D.FLOOR_Y + 0.045, R.z1, R.z0, C_LINE_DIM));
-    }
-    // step lines across the top, the photo's lit treads
-    for (let z = R.z0 - 0.6; z > R.z1 + 0.2; z -= 0.9) L.push(box(-R.x + 0.08, R.x - 0.08, D.DECK_Y, D.DECK_Y + 0.004, z - 0.015, z + 0.015, C_LINE_DIM));
-    // the B-stage's rim
-    const ring = new THREE.TorusGeometry(D.BSTAGE.r + 0.005, 0.012, 4, LOW ? 40 : 72);
-    ring.rotateX(Math.PI / 2);
-    ring.translate(0, D.DECK_Y - 0.04, D.BSTAGE.z);
-    L.push(tint(ring, C_LINE));
-    mesh(merge(S, 'runway'), matDark, 'arenaRunway');
-    mesh(merge(L, 'runwayLines'), matGlow, 'arenaRunwayLines');
-  }
-
-  // ── 5. the rig: a truss grid, spots, moving heads and their beams, two line arrays ──────
+  // ── 3. the rig: a truss grid, spots, moving heads and their beams, two line arrays ──────
   const T = D.TRUSS;
   {
     const parts = [];
@@ -458,7 +358,10 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
     mesh(merge(heads, 'movingHeads'), matDark, 'arenaMovingHeads');
   }
   const NB = MH.length;
-  const beamGeo = own(new THREE.CylinderGeometry(0.06, 1, 1, LOW ? 10 : 16, 1, true));
+  const BEAM_LEN = 24, BEAM_HALF = 0.009;   // ≈1° across: narrow sharpy beams (were 4°, a 1.7 m wash at the floor)
+  const BEAM_R = Math.tan(BEAM_HALF) * BEAM_LEN, LENS_R = 0.07;
+  // the cone's apex is the lens (radius LENS_R once scaled by BEAM_R), so a beam leaves a real lens
+  const beamGeo = own(new THREE.CylinderGeometry(LENS_R / BEAM_R, 1, 1, LOW ? 10 : 16, 1, true));
   beamGeo.translate(0, -0.5, 0);   // apex at the origin, the beam along −y
   const beamCol = new Float32Array(NB * 3);
   const beamColAttr = new THREE.InstancedBufferAttribute(beamCol, 3);
@@ -476,7 +379,6 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
   let envL = 0, envK = 0, envD = 0;
   const dir = new THREE.Vector3(), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), scl = new THREE.Vector3();
   const down = new THREE.Vector3(0, -1, 0), white = new THREE.Color(0.86, 0.93, 1.0), cTmp = new THREE.Color();
-  const BEAM_LEN = 24, BEAM_HALF = 0.035;
 
   function set(s = {}) {
     if (s.reducedMotion !== undefined) { RM = !!s.reducedMotion; ledU.uMotion.value = RM ? 0.25 : 1; }
@@ -494,7 +396,6 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
     envK += (kT - envK) * (1 - Math.exp(-dt / (kT > envK ? 0.06 : 0.25)));
     envD += (st.drop - envD) * (1 - Math.exp(-dt / 1.2));
     ledU.uTime.value = t; ledU.uLevel.value = envL; ledU.uKick.value = envK;
-    matMark.color.copy(MARK_BASE).multiplyScalar(0.75 + 0.35 * envL + 0.15 * envK + 0.15 * envD);
 
     // the beams: three looks, changing every eight bars; wider and quicker on the drop
     const slow = RM ? 0.2 : 1, ts = t * slow;
@@ -510,8 +411,7 @@ export function createArenaStage({ THREE, quality = 'high', reducedMotion = fals
       if (m.row === 1) tilt *= 0.8;
       dir.set(Math.sin(pan) * Math.sin(tilt), -Math.cos(tilt), -Math.cos(pan) * Math.sin(tilt)).normalize();
       q.setFromUnitVectors(down, dir);
-      const w = Math.tan(BEAM_HALF) * BEAM_LEN;
-      m4.compose(pos.set(m.x, m.y - 0.18, m.z), q, scl.set(w, BEAM_LEN, w));
+      m4.compose(pos.set(m.x, m.y - 0.18, m.z), q, scl.set(BEAM_R, BEAM_LEN, BEAM_R));
       imBeams.setMatrixAt(k, m4);
       cTmp.copy(drop && k % 3 === 0 ? accentC : white).multiplyScalar(gain);
       beamCol[k * 3] = cTmp.r; beamCol[k * 3 + 1] = cTmp.g; beamCol[k * 3 + 2] = cTmp.b;

@@ -1217,7 +1217,7 @@ export function createVenue({ THREE, renderer = null, seed = 11, quality = 'high
   for (const im of [imSofa, imTable, imCandle]) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); group.add(im); }
   if (imCandle.instanceColor) imCandle.instanceColor.setUsage(THREE.DynamicDrawUsage);
 
-  // ── 8a. the main stage at arena scale (arenaStage.mjs): LED wall, wings, the mark, runway, rig ─
+  // ── 8a. the main stage at arena scale (arenaStage.mjs): LED wall, wings, rig ──────────────────
   const arena = createArenaStage({ THREE, quality, reducedMotion: RM, accent, mergeGeometries });
   group.add(arena.group);
 
