@@ -1,0 +1,15 @@
+# Build output and generated assets — rebuild with the commands in README.md.
+node_modules
+dist/*.js
+dist/*.mjs
+dist/*.json
+dist/*.vrm
+dist/mixer-shots/
+pub/booth.js
+pub/*.txt
+dist/*.txt
+pubsite/
+fixture-site/
+shots-*/
+*.png
+diag.json

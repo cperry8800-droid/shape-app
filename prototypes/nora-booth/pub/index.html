@@ -1,0 +1,87 @@
+<title>Nora's Booth</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:ROND,wght@0..100,100..900&family=JetBrains+Mono:wght@500;600;700&family=Schibsted+Grotesk:wght@400;500;600&display=swap">
+<style>
+/* One deliberate look: a dark club. Every colour is a token here; there is no light variant. */
+:root{
+  --bg:#07080a; --ink:#f2ede4; --dim:rgba(242,237,228,.66); --faint:rgba(242,237,228,.42);
+  --line:rgba(242,237,228,.16); --chip:rgba(14,16,20,.78); --accent:#34d6c5; --accent-ink:#06231f;
+  --scrim:linear-gradient(180deg,rgba(7,8,10,.72),rgba(7,8,10,0));
+  --scrim-up:linear-gradient(0deg,rgba(7,8,10,.8),rgba(7,8,10,0));
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+  font-family:"Schibsted Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif}
+#stage{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--bg)}
+.hud{position:fixed;left:0;right:0;padding-inline:16px;pointer-events:none;display:flex;gap:12px}
+.top{top:0;padding-top:calc(env(safe-area-inset-top,0px) + 14px);padding-bottom:28px;justify-content:space-between;background:var(--scrim)}
+.bottom{bottom:0;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);padding-top:28px;flex-direction:column;background:var(--scrim-up)}
+.tag{font:600 11px/1.35 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase}
+.brand{min-width:0}
+.brand b{color:var(--accent);font-weight:700}
+.station-note{display:none} body.station .station-note{display:inline} body.station .synth-note{display:none}
+.brand .short{display:none;color:var(--dim);margin-top:5px;letter-spacing:.1em}
+.brand .sub{color:var(--dim);margin-top:5px;max-width:36ch;letter-spacing:.06em;text-transform:none;font-weight:500}
+.np{text-align:right;min-width:0;flex:0 1 auto}
+.np .k{color:var(--faint)}
+.np .t{font:600 15px/1.2 "Schibsted Grotesk",system-ui,sans-serif;letter-spacing:0;text-transform:none;margin-top:3px;color:var(--ink)}
+.np .a{font:400 13px/1.2 "Schibsted Grotesk",system-ui,sans-serif;letter-spacing:0;text-transform:none;color:var(--dim)}
+.read{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;margin-top:8px}
+.bpm{font:900 30px/1 "Doto",ui-monospace,monospace;font-variation-settings:'ROND' 100;color:var(--accent);font-variant-numeric:tabular-nums}
+.read .u{color:var(--faint)}
+#bar{color:var(--faint);margin-top:4px;font-variant-numeric:tabular-nums}
+.camline{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.camline .k{color:var(--faint)} #shotname{color:var(--accent)}
+.camline .hint{color:var(--faint);text-transform:none;letter-spacing:.02em;font-weight:500}
+.row{display:flex;gap:8px;overflow-x:auto;pointer-events:auto;padding-bottom:2px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.row::-webkit-scrollbar{display:none}
+.actions{margin-top:8px}
+button{font:600 11px/1 "JetBrains Mono",ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:3px;padding:10px 12px;
+  white-space:nowrap;cursor:pointer;min-height:36px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+button:hover{border-color:rgba(242,237,228,.34)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+body.live #start{display:none}
+body:not(.live) #next,body:not(.live) #hype{opacity:.55}
+#loading{position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;transition:opacity .6s}
+#loading .tag{color:var(--dim)}
+body.nora-ready #loading{opacity:0}
+@media (max-width:560px){ .brand .sub{display:none} .brand .short{display:block} .np .a{display:none} .bpm{font-size:24px} .camline .hint{display:none} }
+@media (prefers-reduced-motion:reduce){ #loading{transition:none} }
+</style>
+
+<canvas id="stage" aria-label="Nora DJing in a 3D club booth: two media players and a four-channel mixer on an arena stage with a floor-to-ceiling LED wall, a truss of moving lights and a laser show, private balcony boxes and a crowd"></canvas>
+<div id="loading"><div class="tag">Loading Nora…</div></div>
+
+<div class="hud top">
+  <div class="brand tag">
+    <div>▸◂ <b>NORA</b> · CLUB SHAPE</div>
+    <div class="sub"><span class="synth-note">Preview · example set. The tracks are fictional and synthesized in your browser, and Nora's mix is choreographed on their beat. This is not the Shape Radio stream.</span><span class="station-note">Preview · Shape Radio's own tracks, blended back to back the way the station's automation will, with Nora performing each blend. Not the live stream.</span></div>
+    <div class="short"><span class="synth-note">Preview · example set</span><span class="station-note">Preview · Shape Radio tracks</span></div>
+  </div>
+  <div class="np tag">
+    <div class="k">On the decks</div>
+    <div class="t" id="np">Tap Start to hear Nora mix</div>
+    <div class="a" id="npa"></div>
+    <div class="read"><span class="bpm" id="bpm">—</span><span class="u">BPM · measured</span></div>
+    <div id="bar"></div>
+  </div>
+</div>
+
+<div class="hud bottom">
+  <div class="camline tag"><span class="k">Camera</span><span id="shotname">AUTO</span><span class="hint">· drag to look around</span></div>
+  <div class="row" id="shots" role="group" aria-label="Camera angle"></div>
+  <div class="row actions">
+    <button class="primary" id="start">▶ Start the set</button>
+    <button id="next">Next track ⇄</button>
+    <button id="hype">Hype ↑</button>
+    <button id="style">Edit: cuts</button>
+  </div>
+</div>
+
+<script type="module" src="booth.js"></script>

@@ -748,6 +748,21 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
+- **Nora as the account-setup assistant — owner, 2026-09-29, deferred on their word.** *"I also want
+  to make Nora pop up when you are going through creating an account, that can fill evreything out
+  for you, regading application etc. and also setup your account for you. Maybe save this for the
+  next task, right now we can focus on Nora and shape radio"*. Nora appears during sign-up and the
+  coach application, fills the forms from a conversation, and sets the account up. Not scoped yet;
+  the current Nora work is [`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md).
+- **Nora as a DJ on Shape Radio — reviewed and planned 2026-09-29.**
+  [`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md): what she is today, the booth
+  prototype, a five-phase plan (the booth · following what is actually playing · provider
+  precision · performance · interactivity) and ten owner rulings. Phase 1 is the booth; Phase 2
+  onward goes live only once a real station provider is signed. The prototype source is in
+  [`prototypes/nora-booth/`](../prototypes/nora-booth/README.md), and the next step (the owner's
+  *"how do we improve the graphics?"*) is planned in [`HANDOFF-2026-09-29.md`](HANDOFF-2026-09-29.md);
+  the latest state is [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md). Open as PR #2189
+  (`claude/busy-albattani-7vrmq0`), not merged.
 - **Shape Radio page redesign — the owner picked D · The Signal Field (2026-09-14); THE NEXT BUILD.**
   Code-level brief: [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md)
   — four PRs, every line reference verified against `main` = `2d49f60`; read it before touching the
