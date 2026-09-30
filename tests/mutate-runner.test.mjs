@@ -271,9 +271,89 @@ test('a signal during a run kills the run first, restores the tree, and stops th
   assert.equal(runs, 2, 'no further mutation ran after the signal');
 });
 
+// ── a signal OUTSIDE the mutation loop ────────────────────────────────────────
+// Every run is detached, so Ctrl-C reaches the runner and not the suite. The restore
+// handler exists only while a mutation is on disk, which left the two sanity runs — the
+// first starts before it is installed, the second after it is removed — able to end the
+// runner and orphan a hung suite (CodeRabbit, #2188). Each gets an abort-only handler.
+
+const GREEN = '# tests 2\n# pass 2\n# fail 0\n';
+const ONE = { test: SPEC.test, mutations: [SPEC.mutations[0]] };
+function fakeProc() {
+  const handlers = new Map();
+  const killed = [];
+  return { handlers, killed, proc: { pid: 99, on: (s, h) => handlers.set(s, h), off: (s) => handlers.delete(s), kill: (p, s) => killed.push(s) } };
+}
+// An exec whose Nth call stays in flight until the runner aborts it (or 3 s pass, so a
+// runner that never aborts cannot hang the test); every other call answers green at once.
+function hangingExec(nth, onStart) {
+  const seen = { calls: 0, aborted: false };
+  const exec = (cmd, cwd, { signal }) => {
+    seen.calls++;
+    if (seen.calls !== nth) return GREEN;
+    onStart();
+    return new Promise((resolve) => {
+      const t = setTimeout(() => resolve(''), 3000);
+      signal.addEventListener('abort', () => { seen.aborted = true; clearTimeout(t); resolve({ output: '', timedOut: false }); }, { once: true });
+    });
+  };
+  return { exec, seen };
+}
+
+test('a signal during the SANITY run before the round kills that run and stops with nothing mutated', async () => {
+  const dir = scratch();
+  const { handlers, killed, proc } = fakeProc();
+  let started;
+  const inFlight = new Promise((r) => { started = r; });
+  const { exec, seen } = hangingExec(1, started);
+  const round = runMutations(ONE, { root: dir, exec, proc, log: () => {}, allowDirty: true });
+  round.catch(() => {}); // asserted below; keeps an early rejection from being unhandled
+  await inFlight;
+  assert.equal(typeof handlers.get('SIGINT'), 'function', 'a handler is installed while the first sanity run is in flight');
+  handlers.get('SIGINT')('SIGINT');
+  await assert.rejects(round, /interrupted by SIGINT during the sanity run — nothing was mutated/);
+  assert.equal(seen.aborted, true, 'the in-flight sanity run was aborted');
+  assert.deepEqual(killed, ['SIGINT'], 'the signal is re-raised once');
+  assert.equal(seen.calls, 1, 'no mutation ran');
+  assert.equal(handlers.size, 0, 'no handler is left behind');
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB);
+});
+
+test('a signal during the FINAL sanity run kills that run too — the tree was already restored', async () => {
+  const dir = scratch();
+  const { handlers, killed, proc } = fakeProc();
+  let started;
+  const inFlight = new Promise((r) => { started = r; });
+  const { exec, seen } = hangingExec(3, started); // 1 sanity before · 2 the mutation · 3 sanity after
+  const round = runMutations(ONE, { root: dir, exec, proc, log: () => {}, allowDirty: true });
+  round.catch(() => {});
+  await inFlight;
+  assert.equal(typeof handlers.get('SIGTERM'), 'function', 'a handler is installed while the final sanity run is in flight');
+  handlers.get('SIGTERM')('SIGTERM');
+  await assert.rejects(round, /interrupted by SIGTERM during the final sanity run — the tree was already restored/);
+  assert.equal(seen.aborted, true, 'the in-flight sanity run was aborted');
+  assert.deepEqual(killed, ['SIGTERM'], 'the signal is re-raised once');
+  assert.equal(seen.calls, 3);
+  assert.equal(handlers.size, 0, 'no handler is left behind');
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB, 'the target is byte-identical');
+});
+
+test('no signal handler outlives the round — finished, or refused on a red baseline', async () => {
+  const dir = scratch();
+  const a = fakeProc();
+  const seenDuring = [];
+  const exec = () => { seenDuring.push(a.handlers.size); return GREEN; };
+  await runMutations(ONE, { root: dir, exec, proc: a.proc, log: () => {}, allowDirty: true });
+  assert.deepEqual(seenDuring, [3, 3, 3], 'every run — both sanity runs and the mutation run — has a handler installed');
+  assert.equal(a.handlers.size, 0, 'a finished round leaves none behind');
+  const b = fakeProc();
+  await assert.rejects(runMutations(ONE, { root: dir, exec: () => '# tests 1\n# pass 0\n# fail 1\n', proc: b.proc, log: () => {}, allowDirty: true }), /sanity run is not green/);
+  assert.equal(b.handlers.size, 0, 'a refused round leaves none behind');
+});
+
 // ── the CLI path: loadSpec, exit codes, the dirty-tree refusal ────────────────
 
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 const CLI = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'mutate.mjs');
 
 function cli(args, cwd) {
@@ -378,4 +458,40 @@ test('the spawned test command runs without the hook\'s repo-locating GIT_* vari
   catch (e) { r = { code: e.status, out: `${e.stdout || ''}${e.stderr || ''}` }; }
   assert.equal(r.code, 0, `the suite saw a leaked GIT_DIR (sanity before failed): ${r.out}`);
   assert.match(r.out, /sanity before — pass 1 \/ fail 0/);
+});
+
+// ── a real signal against a real detached suite ───────────────────────────────
+
+const alive = (pid) => {
+  try { process.kill(pid, 0); } catch { return false; }
+  // A killed process nobody has reaped yet is a zombie: gone for our purposes.
+  try { return !/^\d+ \(.*\) [ZX]/.test(fs.readFileSync(`/proc/${pid}/stat`, 'utf8')); } catch { return true; }
+};
+const until = async (cond, ms) => {
+  const end = Date.now() + ms;
+  while (Date.now() < end) { if (cond()) return true; await new Promise((r) => setTimeout(r, 25)); }
+  return cond();
+};
+
+test('a real SIGINT during the first sanity run kills the detached suite instead of orphaning it', async () => {
+  const dir = scratch();
+  const pidFile = path.join(dir, 'suite.pid');
+  // The "suite": records its pid, then never finishes — a wedged test file.
+  fs.writeFileSync(path.join(dir, 'hang.mjs'), `import fs from 'node:fs';\nfs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));\nsetInterval(() => {}, 1000);\n`);
+  fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify({ test: 'node hang.mjs', mutations: [SPEC.mutations[0]] }));
+  const runner = spawn(process.execPath, [CLI, '--spec', 'spec.json', '--allow-dirty'], { cwd: dir, env: withoutRepoEnv(), stdio: 'ignore' });
+  let pid = 0;
+  try {
+    assert.ok(await until(() => fs.existsSync(pidFile) && (pid = Number(fs.readFileSync(pidFile, 'utf8'))) > 0, 15_000), 'the suite started');
+    assert.ok(alive(pid), 'the suite is running');
+    const exited = new Promise((resolve) => runner.once('exit', (code, signal) => resolve({ code, signal })));
+    runner.kill('SIGINT');
+    const ended = await Promise.race([exited, new Promise((r) => setTimeout(() => r(null), 15_000))]);
+    assert.ok(ended, 'the runner exited after SIGINT');
+    assert.equal(ended.signal, 'SIGINT', 'the signal is re-raised, so the exit status is the signal\'s');
+    assert.ok(await until(() => !alive(pid), 5_000), 'the detached suite died with the runner instead of running on, orphaned');
+  } finally {
+    if (pid && alive(pid)) { try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } }
+    try { runner.kill('SIGKILL'); } catch { /* gone */ }
+  }
 });

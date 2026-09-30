@@ -24,7 +24,10 @@
 //      made Ctrl-C during a test run a no-op — the mutated file stayed on disk
 //      until the run ended, which for a hung run was never. On a signal the
 //      in-flight run is killed FIRST (its whole process group), then the tree is
-//      restored, then the signal is re-raised.
+//      restored, then the signal is re-raised. The two SANITY runs have nothing to
+//      restore, but they are detached too, so they get the same handler in its
+//      abort-only form — otherwise a signal that ends the runner leaves a hung suite
+//      running with no parent (CodeRabbit, #2188).
 //   3. An anchor must occur EXACTLY once in the file, or the mutation is reported
 //      as SKIP with the count — never relocated, never applied to the first match.
 //   4. A mutation must be proven to have LANDED (the bytes on disk equal the
@@ -249,8 +252,20 @@ export async function runMutations(spec, { root = process.cwd(), exec = defaultE
     const output = typeof r === 'string' ? r : (r && r.output) || '';
     return { tap: parseTap(output), timedOut: Boolean(r && typeof r === 'object' && r.timedOut) };
   };
+  // ⚠ Every run is DETACHED (its own process group), so Ctrl-C in a terminal reaches this
+  // process and NOT the run: a signal that ends the runner leaves the suite orphaned, and
+  // for a hung suite that is forever. The restore handler only exists while a mutation is
+  // on disk, so the two SANITY runs — the first starts before it is installed, the second
+  // after it is removed — were the gap (CodeRabbit, #2188). Outside the mutation loop there is
+  // nothing to restore, so they get the abort-only form: kill the in-flight run, re-raise.
+  const runGuarded = async () => {
+    const uninstallAbortOnly = installRestoreOnSignal(() => {}, proc, { abort });
+    try { return await runTest(); } finally { uninstallAbortOnly(); }
+  };
   // Rule 1: sanity BEFORE the snapshot, so a broken tree cannot become a baseline.
-  const { tap: before, timedOut: beforeTimedOut } = await runTest();
+  const { tap: before, timedOut: beforeTimedOut } = await runGuarded();
+  // An interrupted run has no summary; report the interrupt, not "the tree is not green".
+  if (interrupted) throw new Error(`interrupted by ${interrupted} during the sanity run — nothing was mutated`);
   if (beforeTimedOut) throw new Error(`sanity run on the untouched tree did not finish inside ${runTimeout} ms — the suite hangs before any mutation; fix the tree first`);
   if (!before || before.fail > 0 || before.pass < 1) {
     throw new Error(`sanity run is not green on the untouched tree (${before ? `pass ${before.pass} / fail ${before.fail}` : 'no # pass/# fail summary'}) — fix the tree first; nothing was mutated`);
@@ -309,7 +324,8 @@ export async function runMutations(spec, { root = process.cwd(), exec = defaultE
     uninstall();
   }
 
-  const { tap: after, timedOut: afterTimedOut } = await runTest();
+  const { tap: after, timedOut: afterTimedOut } = await runGuarded();
+  if (interrupted) throw new Error(`interrupted by ${interrupted} during the final sanity run — the tree was already restored; the round did not finish`);
   const restoredOk = files.every((f) => Buffer.compare(fs.readFileSync(path.resolve(root, f)), snap.get(f)) === 0);
   const count = (v) => results.filter((r) => r.verdict === v).length;
   const summary = {
