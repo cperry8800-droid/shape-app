@@ -697,6 +697,14 @@ changelog whenever something ships.
   `.claude/settings.json`); **on your own machine run `git config core.hooksPath
   .githooks` once** to enable it locally. CI (`ci.yml`) still runs the full builds on
   PRs into `main` / pushes to `main`+`staging` as the hard gate.
+- **Mutation rounds use ONE runner — never a throwaway script:**
+  `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs`. Every
+  defect the ad-hoc runners shipped (a restore outside a `finally`, an already-mutated
+  file snapshotted as the baseline, an anchor silently relocated to a nearby match, a
+  verdict read off a pipeline's exit status) is a rule the runner enforces and
+  `tests/mutate-runner.test.mjs` drives. Check the spec in beside the PR and paste its
+  summary line; a survivor is a guard gap (fix the test) or a proven no-op (mark it
+  `expectSurvive` with the proof in the spec).
 
 ## Architecture map (mobile broadsheet)
 

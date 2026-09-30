@@ -1,0 +1,253 @@
+// scripts/mutate.mjs is the one mutation-test runner. Each rule in its header is a
+// defect an ad-hoc runner shipped in this repo; each is driven here — the pure
+// pieces directly, and the whole run end to end against a throwaway module in a
+// temp directory, with the real `node --test` as the test command.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { parseTap, planMutation, classify, normalizeSpec, installRestoreOnSignal, runMutations } from '../scripts/mutate.mjs';
+
+// ── pure pieces ───────────────────────────────────────────────────────────────
+
+test('parseTap reads the suite\'s own summary and takes the LAST one', () => {
+  assert.deepEqual(parseTap('ok 1 - a\n# tests 3\n# pass 3\n# fail 0\n'), { tests: 3, pass: 3, fail: 0 });
+  assert.deepEqual(parseTap('# pass 1\n# fail 1\n…\n# tests 4\n# pass 4\n# fail 0\n'), { tests: 4, pass: 4, fail: 0 });
+  assert.equal(parseTap('Error: Cannot find module\n'), null, 'no summary is null, never a pass');
+  assert.equal(parseTap(''), null);
+  assert.equal(parseTap('# passed 3\n# failed 0'), null, 'near-misses do not count');
+});
+
+test('planMutation requires the anchor exactly once and a real change', () => {
+  assert.deepEqual(planMutation('a b c', 'b', 'B'), { ok: true, out: 'a B c' });
+  assert.equal(planMutation('a b b', 'b', 'B').ok, false);
+  assert.equal(planMutation('a b b', 'b', 'B').count, 2);
+  assert.equal(planMutation('a b', 'z', 'B').count, 0);
+  assert.match(planMutation('a b', 'b', 'b').reason, /identical/);
+  assert.equal(planMutation('a b', '', 'B').ok, false);
+  // `$&`-style tokens in the replacement are literal, not regex back-references.
+  assert.equal(planMutation('x = 1', '1', '$& + $1').out, 'x = $& + $1');
+});
+
+test('classify: a red suite is a kill, a green one survives, no summary is a kill with no result', () => {
+  assert.equal(classify({ pass: 3, fail: 1 }), 'killed');
+  assert.equal(classify({ pass: 4, fail: 0 }), 'survived');
+  assert.equal(classify(null), 'killed:no-result');
+  assert.equal(classify({ pass: 0, fail: 0 }), 'killed:no-result', 'a suite that ran nothing proved nothing');
+  assert.equal(classify({ pass: 4, fail: 0 }, true), 'no-op');
+  assert.equal(classify({ pass: 3, fail: 1 }, true), 'unexpected-kill');
+  assert.equal(classify(null, true), 'unexpected-kill');
+});
+
+test('normalizeSpec refuses the shapes that would run nothing or run the wrong thing', () => {
+  const ok = { test: 'node --test x', mutations: [{ name: 'a', file: 'f', find: 'x', replace: 'y' }] };
+  assert.equal(normalizeSpec(ok).mutations[0].expectSurvive, false);
+  assert.throws(() => normalizeSpec({ ...ok, test: '' }), /spec.test/);
+  assert.throws(() => normalizeSpec({ ...ok, mutations: [] }), /non-empty/);
+  assert.throws(() => normalizeSpec({ ...ok, mutations: [{ name: 'a', file: 'f', find: 'x' }] }), /"replace" must be a string/);
+  assert.throws(() => normalizeSpec({ ...ok, mutations: [ok.mutations[0], ok.mutations[0]] }), /unique/);
+});
+
+test('installRestoreOnSignal restores FIRST, then uninstalls itself and re-raises the signal', () => {
+  const calls = [];
+  const handlers = new Map();
+  const proc = {
+    pid: 4242,
+    on: (s, h) => handlers.set(s, h),
+    off: (s) => { calls.push(`off:${s}`); handlers.delete(s); },
+    kill: (pid, sig) => calls.push(`kill:${pid}:${sig}`),
+  };
+  const uninstall = installRestoreOnSignal(() => calls.push('restore'), proc);
+  assert.deepEqual([...handlers.keys()], ['SIGINT', 'SIGTERM', 'SIGHUP']);
+  handlers.get('SIGTERM')('SIGTERM');
+  assert.equal(calls[0], 'restore', 'the restore runs before anything else');
+  assert.ok(calls.includes('kill:4242:SIGTERM'), 'the signal is re-raised so the default exit status holds');
+  assert.equal(handlers.size, 0, 'handlers are removed so the re-raised signal is not caught again');
+  // A restore that throws still re-raises (the finally), so a broken restore cannot swallow Ctrl-C.
+  const calls2 = [];
+  const proc2 = { pid: 1, on: (s, h) => handlers.set(s, h), off: () => {}, kill: (p, s) => calls2.push(s) };
+  installRestoreOnSignal(() => { throw new Error('boom'); }, proc2);
+  assert.throws(() => handlers.get('SIGINT')('SIGINT'), /boom/);
+  assert.deepEqual(calls2, ['SIGINT']);
+  uninstall();
+});
+
+// ── end to end, against a throwaway module with the real node --test ──────────
+
+const LIB = `export function add(a, b) {
+  if (a === undefined) return NaN; // never reached by the tests: a documented no-op
+  return a + b;
+}
+export const LIMIT = 10;
+`;
+const LIB_TEST = `import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { add, LIMIT } from './lib.mjs';
+test('adds', () => { assert.equal(add(1, 2), 3); });
+test('limit', () => { assert.equal(LIMIT, 10); });
+`;
+
+function scratch() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mutate-runner-'));
+  fs.writeFileSync(path.join(dir, 'lib.mjs'), LIB);
+  fs.writeFileSync(path.join(dir, 'lib.test.mjs'), LIB_TEST);
+  return dir;
+}
+const SPEC = {
+  test: 'node --test lib.test.mjs',
+  mutations: [
+    { name: 'add subtracts', file: 'lib.mjs', find: 'return a + b;', replace: 'return a - b;' },
+    { name: 'limit moves', file: 'lib.mjs', find: 'LIMIT = 10', replace: 'LIMIT = 11' },
+    { name: 'guard is dead code', file: 'lib.mjs', find: 'return NaN;', replace: 'return 0;', expectSurvive: true },
+    { name: 'anchor absent', file: 'lib.mjs', find: 'return a * b;', replace: 'return 0;' },
+    { name: 'anchor twice', file: 'lib.mjs', find: 'return', replace: 'RETURN' },
+    { name: 'syntax error', file: 'lib.mjs', find: 'export const LIMIT', replace: 'export const const LIMIT' },
+  ],
+};
+
+test('end to end: kills, a documented no-op, two skips, a crash — and the tree comes back byte for byte', () => {
+  const dir = scratch();
+  const lines = [];
+  const { results, summary } = runMutations(SPEC, { root: dir, log: (l) => lines.push(l), allowDirty: true });
+  const by = Object.fromEntries(results.map((r) => [r.name, r.verdict]));
+  assert.equal(by['add subtracts'], 'killed');
+  assert.equal(by['limit moves'], 'killed');
+  assert.equal(by['guard is dead code'], 'no-op');
+  assert.equal(by['anchor absent'], 'skipped');
+  assert.equal(by['anchor twice'], 'skipped');
+  assert.equal(by['syntax error'], 'killed', 'a module that no longer parses fails the suite, which is a kill');
+  assert.equal(summary.killed, 3);
+  assert.equal(summary.noop, 1);
+  assert.equal(summary.skipped, 2);
+  assert.equal(summary.survived, 0);
+  assert.equal(summary.restoredOk, true);
+  assert.deepEqual(summary.sanityAfter, { tests: 2, pass: 2, fail: 0 });
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB, 'the target is byte-identical after the round');
+  assert.match(lines.find((l) => l.startsWith('SKIP') && l.includes('anchor twice')), /occurs 2 times/, 'a skip names the count; it is never relocated');
+  assert.ok(lines.some((l) => l.startsWith('mutate: sanity before')));
+});
+
+test('a genuine guard gap is reported as SURVIVED, and --only narrows the round', () => {
+  const dir = scratch();
+  // Drop the LIMIT test so a LIMIT mutation has nothing to catch it.
+  fs.writeFileSync(path.join(dir, 'lib.test.mjs'), LIB_TEST.replace(/test\('limit'.*\n/, ''));
+  const { results, summary } = runMutations(SPEC, { root: dir, log: () => {}, allowDirty: true, only: 'limit' });
+  assert.equal(results.length, 1);
+  assert.equal(results[0].verdict, 'survived');
+  assert.equal(summary.survived, 1);
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB);
+});
+
+test('a documented no-op that starts getting KILLED is flagged, not silently counted as a kill', () => {
+  const dir = scratch();
+  const spec = { ...SPEC, mutations: [{ name: 'now caught', file: 'lib.mjs', find: 'return a + b;', replace: 'return a - b;', expectSurvive: true }] };
+  const { results, summary } = runMutations(spec, { root: dir, log: () => {}, allowDirty: true });
+  assert.equal(results[0].verdict, 'unexpected-kill');
+  assert.equal(summary.unexpectedKill, 1);
+});
+
+test('sanity gate: a red baseline aborts BEFORE any mutation and touches no file', () => {
+  const dir = scratch();
+  fs.writeFileSync(path.join(dir, 'lib.test.mjs'), LIB_TEST.replace('add(1, 2), 3', 'add(1, 2), 4'));
+  const before = fs.statSync(path.join(dir, 'lib.mjs')).mtimeMs;
+  // Assert on the parsed counts, not only the sentence: a run that produced NO
+  // summary would throw the same sentence for a different reason.
+  assert.throws(() => runMutations(SPEC, { root: dir, log: () => {}, allowDirty: true }), /sanity run is not green .*pass 1 \/ fail 1/);
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB);
+  assert.equal(fs.statSync(path.join(dir, 'lib.mjs')).mtimeMs, before, 'the file was never written');
+});
+
+test('a test command that produces no summary at all is a red baseline, not a green one', () => {
+  const dir = scratch();
+  const spec = { ...SPEC, test: 'node -e "console.log(1)"' };
+  assert.throws(() => runMutations(spec, { root: dir, log: () => {}, allowDirty: true }), /no # pass\/# fail summary/);
+});
+
+test('the verdict is read from the summary, never from an exit status', () => {
+  // An exec that exits 0 but prints a red summary (the `| tail` trap) is still a kill.
+  const dir = scratch();
+  // Call 1 = sanity before (green), call 2 = the mutation (red), call 3 = sanity after (green).
+  let calls = 0;
+  const exec = () => (++calls === 2 ? '# tests 2\n# pass 1\n# fail 1\n' : '# tests 2\n# pass 2\n# fail 0\n');
+  const spec = { ...SPEC, mutations: [SPEC.mutations[0]] };
+  const { results } = runMutations(spec, { root: dir, exec, log: () => {}, allowDirty: true });
+  assert.equal(results[0].verdict, 'killed');
+  assert.equal(calls, 3, 'sanity before, the mutation, sanity after — and nothing else');
+});
+
+test('a mutation is restored even when the test command throws mid-round', () => {
+  const dir = scratch();
+  let n = 0;
+  const exec = () => { n++; if (n === 2) throw new Error('runner died'); return '# tests 2\n# pass 2\n# fail 0\n'; };
+  const spec = { ...SPEC, mutations: [SPEC.mutations[0]] };
+  assert.throws(() => runMutations(spec, { root: dir, exec, log: () => {}, allowDirty: true }), /runner died/);
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB, 'the finally restored the file');
+});
+
+test('a missing target file is refused before anything runs', () => {
+  const dir = scratch();
+  const spec = { ...SPEC, mutations: [{ ...SPEC.mutations[0], file: 'nope.mjs' }] };
+  assert.throws(() => runMutations(spec, { root: dir, log: () => {}, allowDirty: true }), /does not exist/);
+});
+
+// ── the CLI path: loadSpec, exit codes, the dirty-tree refusal ────────────────
+
+import { execSync } from 'node:child_process';
+const CLI = path.resolve(import.meta.dirname ?? path.dirname(new URL(import.meta.url).pathname), '..', 'scripts', 'mutate.mjs');
+
+function cli(args, cwd) {
+  try {
+    return { code: 0, out: execSync(`node ${JSON.stringify(CLI)} ${args}`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) };
+  } catch (e) {
+    return { code: e.status, out: `${e.stdout || ''}${e.stderr || ''}` };
+  }
+}
+
+test('CLI: a .mjs spec and a .json spec both run; exit 0 with survivors reported, 1 under --fail-on-survivor, 2 on a bad spec', () => {
+  const dir = scratch();
+  const one = { test: SPEC.test, mutations: [SPEC.mutations[0]] };
+  fs.writeFileSync(path.join(dir, 'spec.mjs'), `export default ${JSON.stringify(one)};\n`);
+  fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify(one));
+  let r = cli('--spec spec.mjs --allow-dirty', dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /KILLED\s+add subtracts/);
+  r = cli('--spec spec.json --allow-dirty', dir);
+  assert.equal(r.code, 0, r.out);
+
+  // A survivor: exit 0 by default (reported), 1 under --fail-on-survivor.
+  fs.writeFileSync(path.join(dir, 'lib.test.mjs'), LIB_TEST.replace(/test\('limit'.*\n/, ''));
+  const surv = { test: SPEC.test, mutations: [SPEC.mutations[1]] };
+  fs.writeFileSync(path.join(dir, 'surv.json'), JSON.stringify(surv));
+  r = cli('--spec surv.json --allow-dirty', dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /survivors \(1\)/);
+  r = cli('--spec surv.json --allow-dirty --fail-on-survivor', dir);
+  assert.equal(r.code, 1, r.out);
+
+  assert.equal(cli('--spec missing.json', dir).code, 2);
+  assert.equal(cli('', dir).code, 2, 'no --spec is a usage error');
+  fs.writeFileSync(path.join(dir, 'bad.json'), JSON.stringify({ test: 'x' }));
+  r = cli('--spec bad.json --allow-dirty', dir);
+  assert.equal(r.code, 2);
+  assert.match(r.out, /non-empty array/);
+});
+
+test('CLI: refuses a dirty target file in a git checkout unless --allow-dirty', () => {
+  const dir = scratch();
+  const git = (c) => execSync(`git -c user.email=t@t -c user.name=t ${c}`, { cwd: dir, stdio: 'ignore' });
+  git('init -q');
+  git('add .');
+  git('commit -qm init');
+  fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify({ test: SPEC.test, mutations: [SPEC.mutations[0]] }));
+  // Clean tree: runs without the flag.
+  assert.equal(cli('--spec spec.json', dir).code, 0);
+  // Dirty target: refused, and the uncommitted edit is left exactly as it was.
+  fs.appendFileSync(path.join(dir, 'lib.mjs'), '// local edit\n');
+  const r = cli('--spec spec.json', dir);
+  assert.equal(r.code, 2);
+  assert.match(r.out, /dirty tree/);
+  assert.ok(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8').endsWith('// local edit\n'));
+  assert.equal(cli('--spec spec.json --allow-dirty', dir).code, 0);
+});
