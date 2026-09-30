@@ -23,17 +23,26 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const SRC = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
-const raw = readFileSync(SRC, 'utf8');
-const src = stripComments(raw);
+// Two sources: the page (BSIntegrationsPage + BSReconcile) moved out of
+// iosAppBroadsheetClient.jsx into its own module on 2026-09-30; the Settings door
+// (BSSettings) stayed. sliceComponent looks in both and requires a name to be
+// declared in EXACTLY one — a second copy is the extraction being undone by hand,
+// and this guard would otherwise slice whichever copy it met first.
+const SOURCES = {
+  page: 'mobile-app/src/broadsheet/BSIntegrationsPage.jsx',
+  client: 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
+};
+const srcs = Object.fromEntries(Object.entries(SOURCES).map(([k, p]) => [k, stripComments(readFileSync(p, 'utf8'))]));
 
 // Slice the component so a match elsewhere in a 30k-line file cannot stand in for
 // the code under test.
 function sliceComponent(name) {
+  const hits = Object.entries(srcs).filter(([, s]) => s.includes(`function ${name}(`));
+  assert.equal(hits.length, 1, `${name} must be declared in exactly one of ${Object.keys(SOURCES).join(' / ')} — found in: ${hits.map(([k]) => k).join(', ') || 'none'}`);
+  const src = hits[0][1];
   const start = src.indexOf(`function ${name}(`);
-  assert.ok(start > -1, `${name} not found — the guard is aimed at nothing`);
   const after = src.slice(start + 10);
-  const nextIdx = after.search(/\nfunction [A-Za-z]/);
+  const nextIdx = after.search(/\n(?:export )?function [A-Za-z]/);
   return after.slice(0, nextIdx === -1 ? undefined : nextIdx);
 }
 

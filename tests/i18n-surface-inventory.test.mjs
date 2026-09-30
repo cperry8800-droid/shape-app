@@ -345,7 +345,11 @@ const UNCOVERED = new Set([
   'Client::BSNotifications', 'Client::BSNotifyPrefs',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProfileIdentityHead', 'Client::BSProgChart',
-  'Client::BSRecipePreview', 'Client::BSReconcile',
+  'Client::BSRecipePreview',
+  // ⚠ BSReconcile MOVED FILES 2026-09-30 (iosAppBroadsheetClient.jsx → BSIntegrationsPage.jsx)
+  // with the integrations page it belongs to. Same 13 strings, still no translator;
+  // the key follows the file because this walk keys on File::Component.
+  'BSIntegrationsPage::BSReconcile',
   'Client::BSRecordTrace', 'Client::BSReminderManager', 'Client::BSSaveButton',
   'Client::BSScoreCardDark', 'Client::BSSdTrace', 'Client::BSSearchCorner',
   'Client::BSSessionsScreen', 'Client::BSSleepHistory', 'Client::BSStepGoalSheet',
