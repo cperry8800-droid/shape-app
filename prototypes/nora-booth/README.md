@@ -56,6 +56,9 @@ node --test test/*.test.mjs              # 61 tests  (⚠ `node --test test/` fa
 npx esbuild src/main.mjs --bundle --format=esm --target=es2020 --outfile=dist/booth.js
 npx esbuild src/main.mjs --bundle --minify --format=esm --target=es2020 --outfile=pub/booth.js
 
+# the Shape logo on the stage screen: public/SHAPE-logo-teal-white.png sampled onto the LED dots
+node logo-mask.cjs ../../public/SHAPE-logo-teal-white.png src/shapeLogoMask.mjs 168
+
 # the VRM, base64'd (the artifact host will not serve .vrm)
 base64 -w0 dist/nora.vrm > pub/nora.vrm.txt
 
