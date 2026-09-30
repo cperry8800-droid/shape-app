@@ -1,0 +1,512 @@
+// The per-client overview a coach reads — one client's identity, care team,
+// sessions, plans, share-gated rollups, sleep/vitals, and the R4 legs the roster
+// columns and the signals engine consume.
+//
+// Lifted verbatim out of /api/clients/[id]/shared-overview (2026-09-30) so that
+// the single GET and the batched POST (/api/clients/shared-overview, one request
+// for a whole roster) run the SAME reads under the SAME caller-scoped client. The
+// body below is the route's, line for line; only the frame changed. Authz is
+// still RLS: every read runs as the caller, so a client they are not linked to
+// simply reads empty — the batch route adds no reach a single request lacked.
+//
+// ⚠ A FAILED READ IS NEVER AN EMPTY ONE. Several legs OMIT their key on a read
+// error (`logs`, `program`, `lastContact`) so a consumer can tell an empty window
+// from an unreadable one; keep that when editing here — it is the contract both
+// routes ship.
+
+import type { createClient } from '@/lib/supabase/server';
+import { readinessFromSeries } from '@/lib/recovery-readiness';
+import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
+import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg } from '@/lib/coach-client-legs.mjs';
+
+export type OverviewClient = Awaited<ReturnType<typeof createClient>>;
+export type SharedOverviewMe = { trainerId: number | null; nutritionistId: number | null };
+
+// The batched route's cap — one roster page. An unbounded list would let one
+// request fan a coach's whole history of reads out on the server instead of the
+// client; the dashboard chunks at the same number. Lives here rather than in the
+// route file because an App Router route may export only its handler set (an
+// exported helper fails the build's typegen — measured on the recipe-photo route).
+export const BATCH_MAX_IDS = 50;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validate + dedupe a batch body's id list: UUIDs only, at least one, at most the cap. */
+export function parseBatchIds(input: unknown): { ok: true; ids: string[] } | { ok: false; error: string } {
+  if (!input || typeof input !== 'object' || !Array.isArray((input as { ids?: unknown }).ids)) {
+    return { ok: false, error: 'Body must be { ids: string[] }.' };
+  }
+  const raw = (input as { ids: unknown[] }).ids;
+  const ids: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string' || !UUID.test(v)) return { ok: false, error: 'Every id must be a UUID.' };
+    const id = v.toLowerCase();
+    if (!ids.includes(id)) ids.push(id);
+  }
+  if (ids.length === 0) return { ok: false, error: 'ids is empty.' };
+  if (ids.length > BATCH_MAX_IDS) return { ok: false, error: `At most ${BATCH_MAX_IDS} ids per request.` };
+  return { ok: true, ids };
+}
+
+/** The caller's own provider row ids, so the payload can label "me" vs the counterpart. */
+export async function resolveMe(supabase: OverviewClient, userId: string): Promise<SharedOverviewMe> {
+  // Identify the caller's role(s) so the UI can label things correctly.
+  const [trainerRow, nutriRow] = await Promise.all([
+    supabase.from('trainers').select('id').eq('owner_id', userId).maybeSingle(),
+    supabase.from('nutritionists').select('id').eq('owner_id', userId).maybeSingle(),
+  ]);
+  return {
+    trainerId: trainerRow.data?.id ?? null,
+    nutritionistId: nutriRow.data?.id ?? null,
+  };
+}
+
+/** One client's overview, exactly what GET /api/clients/[id]/shared-overview returns. */
+export async function buildSharedOverview(supabase: OverviewClient, { clientId, me }: { clientId: string; me: SharedOverviewMe }) {
+  const myTrainerId = me.trainerId;
+  const myNutritionistId = me.nutritionistId;
+
+  // Client identity — name + avatar only.
+  //
+  // ⚠ Deliberately NOT a `profiles` table read. This page is opened by the
+  // client themselves AND by their coach, and a coach may legitimately be
+  // reviewing a client whose subscription has just LAPSED — outside the
+  // active/trialing coach policy. get_display_names covers all three cases with
+  // one round trip and cannot return email/phone/DOB/stripe_customer_id.
+  const { data: identityRows, error: identityError } = await supabase.rpc('get_display_names', { p_ids: [clientId] });
+  if (identityError) {
+    // A silent fall-through here renders plausible copy — the exact failure this
+    // PR exists to stop. The likeliest cause is a deploy-order mismatch:
+    // 2026-08-04 applied before this code shipped, or 2026-08-03 not applied.
+    console.warn('[shape-app] shared-overview: get_display_names failed — client identity is null:', identityError.message);
+  }
+  const identity = ((identityRows ?? []) as { user_id: string; full_name: string | null; avatar_url: string | null }[])[0] ?? null;
+  const clientProfile = identity
+    ? { id: identity.user_id, full_name: identity.full_name, avatar_url: identity.avatar_url }
+    : null;
+
+  // Active subscriptions on this client that the CALLER can read -- which is only the caller's
+  // OWN. ⚠ The comment here used to read "RLS lets shared coaches read their counterpart's row by
+  // design (both providers want to see the team)". That is FALSE, and it is why the Care Team was
+  // always just "me": RLS on `subscriptions` is client-reads-own + provider-reads-own with NO
+  // cross-provider clause. Verified against production by impersonation (real owner 1 row, a
+  // different coach 0, control 21 both). The counterpart half now comes from a projecting definer
+  // -- see 2026-08-10-shared-clients-roster.sql for why a definer and not a new RLS policy.
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('provider_role, provider_id, status, current_period_end')
+    .eq('client_id', clientId)
+    .in('status', ['active', 'trialing']);
+
+  const trainerIds = (subs ?? []).filter(s => s.provider_role === 'trainer').map(s => s.provider_id);
+  const nutriIds = (subs ?? []).filter(s => s.provider_role === 'nutritionist').map(s => s.provider_id);
+
+  // ⚠ `avatar_url` is NOT selected here any more, and that was a SECOND bug that emptied this
+  // list on its own: the column exists on NEITHER trainers nor nutritionists (it lives on
+  // `profiles`). PostgREST 400s an unknown column, the error was dropped with `?? []`, and even
+  // the caller's OWN care-team entry vanished. Providers have no avatar column; the UI falls back
+  // to initials.
+  const [trainersRes, nutriRes, cpRes] = await Promise.all([
+    trainerIds.length
+      ? supabase.from('trainers').select('id, name, owner_id').in('id', trainerIds)
+      : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null }> }),
+    nutriIds.length
+      ? supabase.from('nutritionists').select('id, name, owner_id').in('id', nutriIds)
+      : Promise.resolve({ data: [] as Array<{ id: number; name: string; owner_id: string | null }> }),
+    supabase.rpc('get_my_shared_clients', { p_client_id: clientId }),
+  ]);
+
+  // A failed counterpart read drops every co-coach from Care Team while the rest of the page
+  // renders normally — an incomplete team presented as a complete one, which is the exact
+  // silent-failure shape /api/me/shared-clients was changed to stop doing. This route cannot
+  // answer 500 for it (one leg of a whole-page payload), so it degrades LOUDLY instead: the
+  // partial flag rides out with the data so the surface can say the team may be incomplete
+  // rather than quietly showing a short list.
+  const careTeamPartial = Boolean(cpRes.error);
+  if (cpRes.error) console.error('[shared-overview] get_my_shared_clients failed:', cpRes.error.message);
+
+  const trainers = (trainersRes.data ?? []).map(t => ({
+    role: 'trainer' as const,
+    providerId: t.id,
+    name: t.name,
+    avatarUrl: null as string | null,
+    userId: t.owner_id,
+    isMe: myTrainerId === t.id,
+  }));
+  const nutritionists = (nutriRes.data ?? []).map(n => ({
+    role: 'nutritionist' as const,
+    providerId: n.id,
+    name: n.name,
+    avatarUrl: null as string | null,
+    userId: n.owner_id,
+    isMe: myNutritionistId === n.id,
+  }));
+
+  // The definer already excludes the caller's own provider rows (and a dual-role coach's second
+  // row), so these can never duplicate the entries above.
+  const counterparts = ((cpRes.data ?? []) as Array<{
+    counterpart_user_id: string;
+    counterpart_role: 'trainer' | 'nutritionist';
+    counterpart_provider_id: number;
+    counterpart_name: string | null;
+  }>).map(c => ({
+    role: c.counterpart_role,
+    providerId: c.counterpart_provider_id,
+    name: c.counterpart_name ?? 'Coach',
+    avatarUrl: null as string | null,
+    userId: c.counterpart_user_id,
+    isMe: false,
+  }));
+
+  const careTeam = [...trainers, ...nutritionists, ...counterparts];
+
+  // Sessions window: 30d back, 60d ahead.
+  const now = new Date();
+  const from = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const to = new Date(now.getTime() + 60 * 86_400_000).toISOString();
+
+  const { data: sessionRows } = await supabase
+    .from('sessions')
+    .select('id, scheduled_at, duration_min, type, status, topic, provider_id, provider_role')
+    .eq('client_id', clientId)
+    .in('status', ['confirmed', 'requested', 'completed'])
+    .gte('scheduled_at', from)
+    .lte('scheduled_at', to)
+    .order('scheduled_at', { ascending: true });
+
+  const trainerNameById = new Map<number, string>();
+  for (const t of trainers) trainerNameById.set(t.providerId, t.name);
+  const nutriNameById = new Map<number, string>();
+  for (const n of nutritionists) nutriNameById.set(n.providerId, n.name);
+
+  const sessions = (sessionRows ?? []).map(r => {
+    const coachName = r.provider_role === 'trainer'
+      ? trainerNameById.get(r.provider_id) || 'Trainer'
+      : nutriNameById.get(r.provider_id) || 'Nutritionist';
+    return {
+      id: r.id,
+      at: r.scheduled_at,
+      durationMin: r.duration_min,
+      type: r.type,
+      status: r.status,
+      topic: r.topic,
+      providerRole: r.provider_role,
+      coachName,
+    };
+  });
+
+  // Active program assignments per provider. RLS (shared_coach_reads_*) lets
+  // the counterpart read assigned/active/paused rows + their template header.
+  const { data: assignments } = await supabase
+    .from('coach_program_assignments')
+    .select('id, status, provider_role, provider_id, program_template_id, created_at, updated_at, notes')
+    .eq('client_id', clientId)
+    .in('status', ['assigned', 'active', 'paused'])
+    .order('updated_at', { ascending: false })
+    .limit(20);
+
+  const templateIds = [...new Set((assignments ?? []).map(a => a.program_template_id))];
+  const { data: templates, error: templatesErr } = templateIds.length
+    ? await supabase
+        .from('coach_program_templates')
+        .select('id, title, goal, level, duration_weeks, days_per_week')
+        .in('id', templateIds)
+    : { data: [] as Array<{ id: string; title: string; goal: string | null; level: string | null; duration_weeks: number | null; days_per_week: number | null }>, error: null };
+  if (templatesErr) console.error('[shared-overview] program templates read failed:', templatesErr.message);
+  const templateById = new Map<string, { title: string; goal: string | null; level: string | null; durationWeeks: number | null; daysPerWeek: number | null }>();
+  for (const t of templates ?? []) {
+    templateById.set(t.id, {
+      title: t.title,
+      goal: t.goal,
+      level: t.level,
+      durationWeeks: t.duration_weeks,
+      daysPerWeek: t.days_per_week,
+    });
+  }
+  // Pick the most-recent assignment per (role, providerId) so the UI shows
+  // one current plan per coach rather than a long history.
+  const seen = new Set<string>();
+  const plans = (assignments ?? [])
+    .map(a => {
+      const key = `${a.provider_role}|${a.provider_id}`;
+      if (seen.has(key)) return null;
+      seen.add(key);
+      const tpl = templateById.get(a.program_template_id);
+      const coachName = a.provider_role === 'trainer'
+        ? trainerNameById.get(a.provider_id) || 'Trainer'
+        : nutriNameById.get(a.provider_id) || 'Nutritionist';
+      return {
+        assignmentId: a.id,
+        status: a.status,
+        providerRole: a.provider_role as 'trainer' | 'nutritionist',
+        providerId: a.provider_id,
+        coachName,
+        updatedAt: a.updated_at,
+        notes: a.notes,
+        template: tpl ? {
+          id: a.program_template_id,
+          title: tpl.title,
+          goal: tpl.goal,
+          level: tpl.level,
+          durationWeeks: tpl.durationWeeks,
+          daysPerWeek: tpl.daysPerWeek,
+        } : null,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  // The client's goals — only when they've left sharing on (the RPC gates on
+  // is_coach_on_client + the `share` flag, using this coach's session).
+  // Live KPI + strength rollups ride alongside (each gated on is_coach_on_client),
+  // plus the check-in kit: latest weekly check-ins, girth measurements, progress
+  // photos, and the health profile (PAR-Q screening — never share-gated).
+  const [
+    { data: goals }, { data: stats }, { data: lifts },
+    { data: checkins, error: checkinsError }, { data: measurements }, { data: progressPhotos }, { data: healthProfile },
+    { data: cycle },
+    { data: prep },
+    { data: programRow },
+    { data: convoRows, error: convoErr },
+    { data: scoreHistory },
+  ] = await Promise.all([
+    supabase.rpc('get_client_goals', { p_user_id: clientId }),
+    supabase.rpc('get_client_stats', { p_user_id: clientId }),
+    supabase.rpc('get_client_lifts', { p_user_id: clientId }),
+    supabase.rpc('get_client_checkins', { p_user_id: clientId, p_limit: 4 }),
+    supabase.rpc('get_client_measurements', { p_user_id: clientId }),
+    supabase.rpc('get_client_progress_photos', { p_user_id: clientId, p_limit: 12 }),
+    supabase.rpc('get_client_health_profile', { p_user_id: clientId }),
+    // The cycle — share-gated: get_client_cycle gates on is_coach_on_client AND
+    // the member's optIn AND share, all inside the definer (the get_client_goals
+    // precedent above). Returns null / { share:false } / { share:true, starts }
+    // raw; the mobile Case File + PR D's web page derive the phase client-side.
+    supabase.rpc('get_client_cycle', { p_user_id: clientId }),
+    // Meal prep (PR C) — coach-link-gated definer returning ONLY the compact
+    // { count, lastAt, days } over the 4-day-fresh entries, or null (absence —
+    // never a padlock). Pre-migration the RPC 404s and the leg reads null.
+    supabase.rpc('get_client_meal_prep', { p_user_id: clientId }),
+    // client_programs: coach-readable by RLS — carries the pro-set goals
+    // (detail.goals, the Goals-page store) and the program phases.
+    supabase.from('client_programs').select('training_phase, nutrition_phase, detail').eq('user_id', clientId).maybeSingle(),
+    // Last contact (R4) — the caller's OWN direct thread with this client.
+    // `conversations` is participant-scoped by RLS, so a coach reads only
+    // threads they are in; the leg then narrows to their own provider id.
+    supabase.from('conversations').select('provider_role, provider_id, last_message_at').eq('client_id', clientId).eq('kind', 'direct'),
+    // (the error is read alongside the data below — a failed read must not ship
+    //  as "you have never messaged this client")
+    // Weekly Shape Score + the member's streak (R4). `score_ledger` and
+    // `workout_sessions` are owner-scoped, so this is the ONE leg that needs a
+    // definer: 2026-09-09-client-score-history-coach-read.sql. Pre-migration
+    // the RPC 404s, the leg reads null, and the column keeps its honest
+    // "Not shared" — the get_client_meal_prep precedent above.
+    supabase.rpc('get_client_score_history', { p_user_id: clientId }),
+  ]);
+  const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
+
+  // Objective sleep for the coach (share-gated like the other reads — the
+  // providers_read_subscriber_snapshots RLS policy lets an active coach read
+  // this client's snapshot rows directly under their own session).
+  // Newest-first then reverse to chronological: a client with >30 snapshot rows
+  // must keep their RECENT sleep (an ascending limit(30) would return the OLDEST
+  // 30 and report stale latest/avg7/trend).
+  // select('*') (not an explicit column list) so the route keeps working before the
+  // sleep-detail migration is applied — PostgREST 400s the WHOLE query on an unknown
+  // explicit column, which would null out the coach's sleep view entirely.
+  // ⚠ The ceiling is applied IN THE QUERY, not only in JS below. A post-fetch
+  // filter cannot undo crowding: `.limit(30)` is evaluated first, so future-dated
+  // rows would consume slots in the window and the real days they displaced are
+  // simply absent from the response — dropping them afterwards leaves the coach a
+  // SHORTER real history, silently. The JS filter is kept as defence in depth (a
+  // stale schema cache or a widened select must not reopen it).
+  const snapCeiling = vitalsCeilingISO();
+  const { data: snapRowsDesc, error: snapErr } = await supabase
+    .from('daily_health_snapshot')
+    .select('*')
+    .eq('user_id', clientId)
+    .lte('snapshot_date', snapCeiling)
+    .order('snapshot_date', { ascending: false })
+    .limit(30);
+  // A snapshot dated in the FUTURE is never a current readout. `/api/client/checkin`
+  // takes the day from the REQUEST, so a row can carry any syntactically valid
+  // `YYYY-MM-DD` — including 2099-01-01. Such a row is newest-first, so it would be
+  // served indefinitely as `latest`, as the member's current RESTED rating, and as the
+  // 7D vitals average, and it crowds real days out of the 30-row fetch. Dropping it at
+  // the ONE place every leg reads from (rather than per-leg) is why `rested`, the
+  // device sleep fields, readiness and `vitals` are all covered by this single filter;
+  // `bsVitalsLeg` keeps its own ceiling because that module is exported and tested
+  // independently. The ceiling is TOMORROW, not today, because `snapshot_date` is the
+  // member's LOCAL day and a member ahead of UTC legitimately writes one — the same
+  // one-day boundary tolerance the vitals window already documents. Comparison is
+  // lexicographic against ISO `YYYY-MM-DD`, which is exact.
+  // ⚠ An ERROR and an empty table both arrive as no rows, and the R4 `logs` leg
+  // turns the second into the positive claim "this member logged nothing". Keep
+  // them apart at the read: every other leg here degrades to a quiet absence,
+  // but that one has a sentence attached to it.
+  const snapReadFailed = Boolean(snapErr);
+  if (snapErr) console.error('[shared-overview] daily_health_snapshot read failed:', snapErr.message);
+  const snapRows = (snapRowsDesc ?? [])
+    .filter((r) => {
+      const day = (r as Record<string, unknown>).snapshot_date;
+      return typeof day !== 'string' || day <= snapCeiling;
+    })
+    .slice()
+    .reverse();
+  const num = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : null);
+  const colSeries = (key: string) => snapRows
+    .filter((r) => (r as Record<string, unknown>)[key] != null)
+    .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>)[key]) }));
+  // Filter to rows that actually carry a sleep_hours value, then source BOTH the
+  // hours and the recovery trio (efficiency/RHR/HRV) + the stage detail from the
+  // SAME latest sleep row — RHR/HRV/stages are measured during that night's sleep,
+  // so they belong to the night `latest` reports, not a newer snapshot that may lack sleep.
+  const sleepRows = (snapRows ?? []).filter((r) => (r as Record<string, unknown>).sleep_hours != null);
+  const sl = sleepRows.map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: Number((r as Record<string, unknown>).sleep_hours) }));
+  const lastSleep = sleepRows[sleepRows.length - 1] as Record<string, unknown> | undefined;
+  // The member-ENTERED rating rides its own series (see `rested` below). Built
+  // from snapRows rather than colSeries(), which drops only null: an empty
+  // string would survive it and Number('') is a finite 0, fabricating a 0/10
+  // rating for a member who never rated. `num()` is the route's own absence
+  // rule and refuses both.
+  const restedSeries = snapRows
+    .map((r) => ({ date: (r as Record<string, string>).snapshot_date, value: num((r as Record<string, unknown>).sleep_quality) }))
+    .filter((p): p is { date: string; value: number } => p.value != null);
+  // ⚠ `.slice(-7)` is the last 7 LOGGED nights, not the last 7 DAYS — and both
+  // surfaces render this as "7-DAY AVG". A member who logs sleep three times a
+  // week would have a fortnight averaged under a 7-day label. Windowed on the
+  // date first (the rule `bsVitalsLeg` already applies), THEN capped at 7, so a
+  // duplicated date cannot widen the average it claims to be.
+  const sleepCutoff = vitalsCutoffISO();
+  const sleep7 = sl.filter((p) => typeof p.date === 'string' && p.date >= sleepCutoff).slice(-7);
+  const last7 = sleep7.map((p) => p.value);
+  // Recovery readiness (0-100) from tonight's signals vs a trailing baseline.
+  const readiness = readinessFromSeries({
+    sleep: sl,
+    sleepEfficiency: colSeries('sleep_efficiency_pct'),
+    restingHr: colSeries('resting_hr'),
+    hrv: colSeries('hrv_ms'),
+    recovery: colSeries('recovery_score'),
+  });
+  const stageMin = lastSleep ? { deep: num(lastSleep.sleep_deep_min), rem: num(lastSleep.sleep_rem_min), light: num(lastSleep.sleep_light_min), awake: num(lastSleep.sleep_awake_min) } : null;
+  const hasStages = !!(stageMin && (stageMin.deep != null || stageMin.rem != null || stageMin.light != null));
+  // The leg exists when EITHER series has data. Gating it on `sl.length` alone
+  // meant a member who rates how rested they feel but syncs no wearable got
+  // `sleep: null`, so the rating could not reach either case file — the exact
+  // member the RESTED fix below is for. Every device field is independently
+  // null-guarded, so a rating-only leg carries the rating and nothing else;
+  // consumers key their "device-synced" heading on real device data, never on
+  // this object merely existing.
+  const sleep = (sl.length || restedSeries.length) ? {
+    latest: sl.length ? sl[sl.length - 1].value : null,
+    avg7: last7.length ? Math.round((last7.reduce((a, b) => a + b, 0) / last7.length) * 10) / 10 : null,
+    series7: sleep7,
+    efficiency: lastSleep && lastSleep.sleep_efficiency_pct != null ? Math.round(Number(lastSleep.sleep_efficiency_pct)) : null,
+    rhr: lastSleep && lastSleep.resting_hr != null ? Math.round(Number(lastSleep.resting_hr)) : null,
+    hrv: lastSleep && lastSleep.hrv_ms != null ? Math.round(Number(lastSleep.hrv_ms)) : null,
+    // RESTED is the member's own morning 1-10 rating, NOT a measured sleep
+    // metric — /api/client/checkin accepts it with no sleep hours at all, so it
+    // must come from ITS OWN series. Reading it off `lastSleep` (which is
+    // filtered to rows carrying sleep_hours) either hid a rating the member
+    // really gave or showed an older night's rating as if it were the latest.
+    rested: restedSeries.length ? Math.round(restedSeries[restedSeries.length - 1].value) : null,
+    latency: lastSleep ? num(lastSleep.sleep_latency_min) : null,
+    respiratory: lastSleep ? num(lastSleep.respiratory_rate) : null,
+    stages: hasStages ? stageMin : null,
+    readiness: readiness ? readiness.score : null,
+    readinessLabel: readiness ? readiness.band.label : null,
+  } : null;
+
+  // DAILY check-in vitals (spec §3B) — energy / hunger / hydration off the
+  // SAME 30-row snapshot window the sleep leg reads. These are the member's
+  // daily gauges (daily_health_snapshot.energy/hunger/hydration_l), a
+  // DIFFERENT source from the WEEKLY client_checkins.ratings the `checkins`
+  // leg above carries — the two must never be conflated. Per-metric honesty:
+  // each sub-leg exists ONLY when this client has real logged values for THAT
+  // metric (absence stays absent — never Number(null) → 0), and the 7-day
+  // window is seven CALENDAR days (today − 6 … today, UTC, inclusive) — NOT the
+  // 7 most recent populated rows, which for a sparse logger would serve a
+  // reading from weeks ago under a cell labeled "7D".
+  // Derivation lives in the pure, tested bsVitals (src/lib/vitals-leg.mjs).
+  const vitals = bsVitals(snapRows as Array<Record<string, unknown>>);
+
+  // ── The legs the roster columns and the signals engine read (review
+  // 2026-09-09, R4). Until these existed, `_dashRecordFromLive` set six fields
+  // to null, so the trainer roster's SCORE / PROGRAM / STREAK / LAST CONTACT
+  // columns read "Not shared" on every live row and most of the twelve engine
+  // rules could not fire — a real roster showed a sliver of what the demo did.
+  //
+  // Derivation lives in the pure, tested src/lib/coach-client-legs.mjs; every
+  // leg is null when its source is absent, never a zero or a stand-in.
+  //
+  // ⚠ `mine` IS THE CALLER'S PROVIDER ID FOR THIS CLIENT, NOT THEIR ROLE.
+  // `shared_coach_reads_assignments` hands every linked coach EVERY row, so a
+  // role-only filter attributes a predecessor's or the counterpart's block to
+  // the caller; and a coach who merely OWNS a trainer row is not this client's
+  // trainer. `isMe` is set against the client's own linked coaches above, which
+  // is exactly the link the legs need.
+  const mine = {
+    trainer: trainers.find((t) => t.isMe)?.providerId ?? null,
+    nutritionist: nutritionists.find((n) => n.isMe)?.providerId ?? null,
+  };
+  // ⚠ THE SAME THREE-STATE RULE AS `logs` BELOW, and for the same reason: this
+  // leg's empty value is the POSITIVE claim "you have never messaged them"
+  // ("Never" in the LAST CONTACT column), so a failed read that yields no rows
+  // would assert it about every client on the roster. Omitted on error, which
+  // the column renders as its honest "Not shared".
+  if (convoErr) console.error('[shared-overview] conversations read failed:', convoErr.message);
+  const lastContact = convoErr ? undefined : bsLastContactLeg(convoRows ?? [], mine);
+  // Likewise: an unreadable TEMPLATE makes bsProgramLeg return null, which the
+  // roster renders as "Not set" — "this client has no program" — for clients who
+  // all have one. `templatesErr` is the only thing that can tell them apart.
+  const program = templatesErr ? undefined : bsProgramLeg(assignments ?? [], templateById, mine, Date.now());
+
+  // Food logging off the SAME 30-row snapshot window every other leg reads —
+  // the last logged day (which `get_client_stats` has never carried), the
+  // calendar-week count, and the last few days themselves for the drawer.
+  //
+  // ⚠ A FAILED READ MUST NOT SHIP AS AN EMPTY ONE. `logs: null` on a response
+  // that carries the key means "this member logged nothing", and the drawer
+  // says so in as many words. A PostgREST error or a stale schema cache also
+  // yields no rows — so when the read itself failed the key is OMITTED and the
+  // drawer keeps its "isn't shared to the web yet", which is then the truth.
+  const logs = snapReadFailed ? undefined : bsLogsLeg(snapRows as Array<Record<string, unknown>>, Date.now());
+
+  // The coach's own nutrition targets. Without these the ledger and protein
+  // rules skip every live client — they need value AND target.
+  const nutritionTargets = bsNutritionTargets(programDetail);
+
+
+  return {
+    client: clientProfile
+      ? { id: clientProfile.id, name: (clientProfile.full_name ?? '').trim() || 'Client', avatarUrl: clientProfile.avatar_url }
+      : { id: clientId, name: 'Client', avatarUrl: null },
+    me: { trainerId: myTrainerId, nutritionistId: myNutritionistId },
+    careTeam,
+    // true = the counterpart read failed, so careTeam may be missing co-coaches. Never omit
+    // this on the assumption the list is complete; an absent flag means "known complete".
+    careTeamPartial,
+    sessions,
+    plans,
+    goals: goals ?? null,
+    stats: stats ?? null,
+    lifts: lifts ?? null,
+    checkins: checkinsError ? null : (checkins ?? []),
+    measurements: measurements ?? [],
+    progressPhotos: progressPhotos ?? [],
+    healthProfile: healthProfile ?? null,
+    cycle: cycle ?? null,
+    prep: prep ?? null,
+    coachGoals: Array.isArray(programDetail.goals) ? programDetail.goals : null,
+    programPhases: programRow
+      ? { training: programRow.training_phase ?? null, nutrition: programRow.nutrition_phase ?? null }
+      : null,
+    sleep,
+    vitals,
+    // R4 legs — each null when its source is absent (never a zero). `logs` is
+    // OMITTED entirely when the snapshot read failed, so the client can tell an
+    // empty window from an unreadable one.
+    ...(lastContact === undefined ? {} : { lastContact }),
+    ...(program === undefined ? {} : { program }),
+    ...(logs === undefined ? {} : { logs }),
+    nutritionTargets,
+    scoreHistory: scoreHistory ?? null,
+  };
+}

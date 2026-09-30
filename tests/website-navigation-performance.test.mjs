@@ -103,7 +103,11 @@ test('initial SDK event and same-account token refresh do not discard the cookie
 
 function dashboardHarness(fetch) {
   const text = source('public/newdesign/dashData.jsx');
-  const block = text.slice(text.indexOf('const DASH_CACHE_TTL'), text.indexOf('// Run tasks'));
+  // The block ends where the roster mapper's comment begins; it used to end at the
+  // per-client pool, which the batched roster read replaced (2026-09-30).
+  const end = text.indexOf('// Map one roster row');
+  assert.ok(end > 0, 'dashData.jsx no longer carries the roster-mapper comment this slice ends on');
+  const block = text.slice(text.indexOf('const DASH_CACHE_TTL'), end);
   return new Function('fetch', block + '\nreturn { read: _dashJson, cache: _dashCache };')(fetch);
 }
 

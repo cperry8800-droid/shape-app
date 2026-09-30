@@ -154,9 +154,10 @@ function CoachSettingsPage({ role }) {
   const card = role === "nutritionist" ? nutriPayoutCard : trainerPayoutCard;
   // ⚠ THE TWO LIGHTWEIGHT HOOKS, NOT THE WHOLE DASHBOARD PIPELINE. This page reads
   // `tuning.refused` and nothing else off the engine, but `useDashboard` fetches the
-  // roster and the dashboard and then issues one /shared-overview per roster member —
+  // roster and the dashboard and then reads every roster member's overview (one
+  // /shared-overview GET per member until 2026-09-30, one batched POST per 50 since) —
   // so opening Settings on a 100-client practice cost about a hundred API calls to
-  // edit a number. `useCoachThresholds` is literally the hook `useDashboard` uses for
+  // edit a number, and would still cost the whole roster read. `useCoachThresholds` is literally the hook `useDashboard` uses for
   // `tuning`, so this is the same value with none of the fan-out.
   const tuning = useCoachThresholds(role);
   // ⚠ PERSISTENCE KEYS ON AUTHENTICATION, NOT ON THE ROSTER. The roster's `source` is

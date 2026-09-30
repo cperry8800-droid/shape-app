@@ -7,8 +7,9 @@
 //
 // Source resolution (the UI never knows which it got):
 //   1. LIVE — roster from /api/{role}/clients, then per-client enrichment from
-//      /api/clients/{id}/shared-overview (share-gated RPCs), fetched through a
-//      small concurrency pool with a 60s module cache, plus ONE read of the
+//      POST /api/clients/shared-overview (the single /api/clients/{id}/
+//      shared-overview body, batched: one request per 50 clients, share-gated
+//      RPCs) with a 60s module cache keyed per client, plus ONE read of the
 //      coach's own notes doc for the whole roster. Fields the APIs still don't
 //      expose (goal phase, milestones) stay null — the signal engine skips
 //      rules with missing inputs, so a live account never gets a false alarm
@@ -21,7 +22,6 @@
 // Requires dashSignals.js to be loaded first (plain <script src="dashSignals.js">).
 
 const DASH_CACHE_TTL = 60 * 1000;
-const DASH_POOL_SIZE = 4;
 const _dashCache = new Map(); // key -> { at, data }
 
 async function _dashJson(url) {
@@ -49,18 +49,74 @@ async function _dashJson(url) {
   return entry.pending;
 }
 
-// Run tasks through a fixed-size pool so a 30-client roster doesn't fire 30
-// parallel requests. Each task failure resolves null (enrichment is optional).
-async function _dashPool(items, worker, size = DASH_POOL_SIZE) {
-  const out = new Array(items.length).fill(null);
-  let i = 0;
-  const lane = async () => {
-    while (i < items.length) {
-      const idx = i++;
-      try { out[idx] = await worker(items[idx], idx); } catch (e) { out[idx] = null; }
+// The per-client overviews for a roster, in ONE request per DASH_BATCH_MAX
+// clients (POST /api/clients/shared-overview) instead of one GET per client.
+// Until 2026-09-30 this was a 4-wide pool over the single route: a 30-client
+// roster cost 30 requests and 30 auth round trips, and the page's enrichment
+// finished when the slowest lane did.
+//
+// Each result lands in _dashCache under the client's SINGLE-route key, so the
+// drawer's per-client read, the refresh event's per-client invalidation and the
+// `lastProgressRead` stamp keep working unchanged — the cache does not know or
+// care which request filled an entry. A client whose entry is still fresh is
+// served from the cache and not re-requested.
+//
+// ⚠ A CLIENT THE BATCH COULD NOT BUILD RESOLVES null, EXACTLY AS A FAILED SINGLE
+// READ DID, and is NOT cached: the route lists it under `failed` and omits it
+// from `results`, and the roster row renders "unavailable". Caching a null would
+// make one transient failure stick for a minute; treating an absent result as an
+// empty overview would make it the claim "nothing shared".
+const DASH_BATCH_URL = "/api/clients/shared-overview";
+const DASH_BATCH_MAX = 50; // the route's own cap (BATCH_MAX_IDS in src/lib/shared-overview.ts)
+const _dashBatchInFlight = new Map(); // sorted ids key -> pending promise, so two mounts share one POST
+function _dashOverviewKey(id) { return "/api/clients/" + encodeURIComponent(id) + "/shared-overview"; }
+function _dashFetchOverviewBatch(ids) {
+  const key = ids.slice().sort().join(",");
+  const hit = _dashBatchInFlight.get(key);
+  if (hit) return hit;
+  const pending = (async () => {
+    try {
+      const res = await fetch(DASH_BATCH_URL, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      return data && data.results && typeof data.results === "object" ? data.results : {};
+    } finally {
+      _dashBatchInFlight.delete(key);
     }
-  };
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, lane));
+  })();
+  _dashBatchInFlight.set(key, pending);
+  return pending;
+}
+async function _dashOverviews(ids) {
+  const out = new Array(ids.length).fill(null);
+  const missing = []; // [index, id]
+  ids.forEach((id, i) => {
+    if (!id) return;
+    const hit = _dashCache.get(_dashOverviewKey(id));
+    if (hit && !hit.pending && Date.now() - hit.at < DASH_CACHE_TTL) out[i] = hit.data;
+    else missing.push([i, id]);
+  });
+  const chunks = [];
+  for (let i = 0; i < missing.length; i += DASH_BATCH_MAX) chunks.push(missing.slice(i, i + DASH_BATCH_MAX));
+  await Promise.all(chunks.map(async (chunk) => {
+    let results;
+    try { results = await _dashFetchOverviewBatch(chunk.map(([, id]) => id)); } catch (e) { return; }
+    const at = Date.now();
+    for (const [i, id] of chunk) {
+      // The route keys its results by the id as it validated it (lower-cased); a
+      // roster id is already lower-case, so the second look is belt and braces.
+      const has = (k) => Object.prototype.hasOwnProperty.call(results, k);
+      const data = has(id) ? results[id] : has(String(id).toLowerCase()) ? results[String(id).toLowerCase()] : null;
+      if (data == null) continue;
+      _dashCache.set(_dashOverviewKey(id), { at, data });
+      out[i] = data;
+    }
+  }));
   return out;
 }
 
@@ -410,7 +466,7 @@ function useDashboard(role) {
   React.useEffect(() => {
     const refresh = (event) => {
       const id = event.detail && event.detail.clientId;
-      if (id) _dashCache.delete("/api/clients/" + encodeURIComponent(id) + "/shared-overview");
+      if (id) _dashCache.delete(_dashOverviewKey(id));
       else _dashCache.clear();
       setRefreshKey((v) => v + 1);
     };
@@ -468,20 +524,18 @@ function useDashboard(role) {
         const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null, undefined, { state: "loading", checkedAt: lastProgressRead.current.get(row.id) || null }));
         if (on) setState({ loading: false, clients: base, source: "live", today });
         const rows = roster.clients || [];
-        // The per-client overviews and the ONE notes doc resolve together — the
-        // notes read is a single round trip for the whole roster, so it must not
-        // sit behind the pool.
+        // The per-client overviews (one batched request per 50 clients) and the
+        // ONE notes doc resolve together — the notes read is a single round trip
+        // for the whole roster, so it must not sit behind the overviews.
         const [overviews, notes] = await Promise.all([
-          _dashPool(rows, (row) =>
-            row.id ? _dashJson("/api/clients/" + encodeURIComponent(row.id) + "/shared-overview") : null
-          ),
+          _dashOverviews(rows.map((row) => row.id)),
           notesPromise,
         ]);
         if (!on) return;
         setState({
           loading: false,
           clients: rows.map((row, i) => {
-            const cached = _dashCache.get("/api/clients/" + encodeURIComponent(row.id) + "/shared-overview");
+            const cached = _dashCache.get(_dashOverviewKey(row.id));
             if (overviews[i] && cached) lastProgressRead.current.set(row.id, new Date(cached.at).toISOString());
             return _dashRecordFromLive(row, overviews[i], notes, { state: overviews[i] ? "ready" : "unavailable", checkedAt: lastProgressRead.current.get(row.id) || null });
           }),
