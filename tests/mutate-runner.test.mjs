@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseTap, planMutation, classify, normalizeSpec, installRestoreOnSignal, runMutations } from '../scripts/mutate.mjs';
+import { parseTap, planMutation, classify, normalizeSpec, installRestoreOnSignal, runMutations, withoutRepoEnv, REPO_ENV_KEYS } from '../scripts/mutate.mjs';
 
 // ── pure pieces ───────────────────────────────────────────────────────────────
 
@@ -325,7 +325,9 @@ test('CLI: a .mjs spec and a .json spec both run; exit 0 with survivors reported
 
 test('CLI: refuses a dirty target file in a git checkout unless --allow-dirty', async () => {
   const dir = scratch();
-  const git = (c) => execSync(`git -c user.email=t@t -c user.name=t ${c}`, { cwd: dir, stdio: 'ignore' });
+  // Without the repo-locating variables: run under a pre-commit hook they would point this
+  // throwaway `git init` at the real repository (see REPO_ENV_KEYS in the runner).
+  const git = (c) => execSync(`git -c user.email=t@t -c user.name=t ${c}`, { cwd: dir, env: withoutRepoEnv(), stdio: 'ignore' });
   git('init -q');
   git('add .');
   git('commit -qm init');
@@ -339,4 +341,41 @@ test('CLI: refuses a dirty target file in a git checkout unless --allow-dirty', 
   assert.match(r.out, /dirty tree/);
   assert.ok(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8').endsWith('// local edit\n'));
   assert.equal(cli('--spec spec.json --allow-dirty', dir).code, 0);
+});
+
+test('the runner finds its repository from cwd, not from GIT_* inherited from a hook', async () => {
+  // The pure rule.
+  assert.deepEqual(Object.keys(withoutRepoEnv({ GIT_DIR: '/x', GIT_INDEX_FILE: '/y', GIT_COMMON_DIR: '/z', PATH: '/bin', GIT_AUTHOR_NAME: 'a' })).sort(), ['GIT_AUTHOR_NAME', 'PATH'],
+    'the repo-locating variables go; identity and everything else stays');
+  for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']) assert.ok(REPO_ENV_KEYS.includes(k), `${k} must be stripped`);
+  // End to end: the way a hook exports it. The dirty-tree refusal must still see the
+  // SCRATCH repo (and refuse), not the decoy GIT_DIR points at.
+  const dir = scratch();
+  const decoy = fs.mkdtempSync(path.join(os.tmpdir(), 'mutate-decoy-'));
+  execSync('git init -q --bare', { cwd: decoy, env: withoutRepoEnv(), stdio: 'ignore' });
+  const clean = withoutRepoEnv();
+  const git = (c) => execSync(`git -c user.email=t@t -c user.name=t ${c}`, { cwd: dir, env: clean, stdio: 'ignore' });
+  git('init -q'); git('add .'); git('commit -qm init');
+  fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify({ test: SPEC.test, mutations: [SPEC.mutations[0]] }));
+  fs.appendFileSync(path.join(dir, 'lib.mjs'), '// local edit\n');
+  let r;
+  try { r = { code: 0, out: execSync(`node ${JSON.stringify(CLI)} --spec spec.json`, { cwd: dir, env: { ...clean, GIT_DIR: decoy }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; }
+  catch (e) { r = { code: e.status, out: `${e.stdout || ''}${e.stderr || ''}` }; }
+  assert.equal(r.code, 2, `the dirty scratch repo must be refused even with GIT_DIR pointing elsewhere; got ${r.code}: ${r.out}`);
+  assert.match(r.out, /dirty tree/);
+  // And the decoy was never touched.
+  assert.equal(execSync('git rev-parse --is-bare-repository', { cwd: decoy, env: clean, encoding: 'utf8' }).trim(), 'true');
+});
+
+test('the spawned test command runs without the hook\'s repo-locating GIT_* variables', () => {
+  const dir = scratch();
+  const decoy = fs.mkdtempSync(path.join(os.tmpdir(), 'mutate-decoy-'));
+  // A "suite" that reports green only when GIT_DIR is absent from its environment.
+  const probe = `node -e "const ok=!process.env.GIT_DIR&&!process.env.GIT_INDEX_FILE;console.log('# tests 1\\n# pass '+(ok?1:0)+'\\n# fail '+(ok?0:1))"`;
+  fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify({ test: probe, mutations: [SPEC.mutations[0]] }));
+  let r;
+  try { r = { code: 0, out: execSync(`node ${JSON.stringify(CLI)} --spec spec.json --allow-dirty`, { cwd: dir, env: { ...withoutRepoEnv(), GIT_DIR: decoy, GIT_INDEX_FILE: path.join(decoy, 'index') }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) }; }
+  catch (e) { r = { code: e.status, out: `${e.stdout || ''}${e.stderr || ''}` }; }
+  assert.equal(r.code, 0, `the suite saw a leaked GIT_DIR (sanity before failed): ${r.out}`);
+  assert.match(r.out, /sanity before — pass 1 \/ fail 0/);
 });

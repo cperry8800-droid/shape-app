@@ -46,5 +46,11 @@ export default {
     // accepted; no test here can make it do that, so it is a documented no-op.
     { name: 'landed check removed', file: 'scripts/mutate.mjs', expectSurvive: true,
       find: `if (fs.readFileSync(p, 'utf8') !== plan.out) throw new Error(\`mutation "\${m.name}" did not land on disk\`);`, replace: '' },
+    { name: 'git status inherits GIT_* from the hook (acts on the committing repo)', file: 'scripts/mutate.mjs',
+      find: "{ cwd: root, env: withoutRepoEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }",
+      replace: "{ cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }" },
+    { name: 'the spawned test command inherits GIT_* from the hook', file: 'scripts/mutate.mjs',
+      find: '  const env = withoutRepoEnv();\n',
+      replace: '  const env = { ...process.env };\n' },
   ],
 };

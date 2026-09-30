@@ -159,6 +159,21 @@ function killTree(child) {
   try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } }
 }
 
+// ⚠ The variables that tell git WHICH repository to act on. A pre-commit hook runs
+// with GIT_DIR / GIT_INDEX_FILE (and, in a linked worktree, GIT_COMMON_DIR) exported,
+// and a child that inherits them acts on the COMMITTING repository whatever its cwd:
+// the runner's own e2e test did a throwaway `git init && git add . && git commit` and
+// it landed in the real repo — a stray "init" commit on the worktree's branch, and
+// `git init` under a GIT_DIR with no work tree flips core.bare to true, after which the
+// main checkout answers "this operation must be run in a work tree". The runner's git
+// call and every command it spawns run without them; a repo is found from cwd alone.
+export const REPO_ENV_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_PREFIX', 'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_NAMESPACE'];
+export function withoutRepoEnv(env = process.env) {
+  const out = { ...env };
+  for (const k of REPO_ENV_KEYS) delete out[k];
+  return out;
+}
+
 function defaultExec(cmd, cwd, { timeoutMs = DEFAULT_TIMEOUT_MS, signal = null } = {}) {
   // ⚠ Strip NODE_TEST_* from the child's environment. When this runner is itself
   // started from inside `node --test` (its own e2e test does exactly that), the
@@ -166,7 +181,7 @@ function defaultExec(cmd, cwd, { timeoutMs = DEFAULT_TIMEOUT_MS, signal = null }
   // reports to the parent over a pipe instead of printing its TAP summary — so
   // parseTap sees nothing and every mutation reads as "no result". Measured:
   // the same command prints `# pass 1` from a shell and nothing under the parent.
-  const env = { ...process.env };
+  const env = withoutRepoEnv();
   for (const k of Object.keys(env)) if (k.startsWith('NODE_TEST_')) delete env[k];
   return new Promise((resolve) => {
     const child = spawn(cmd, { cwd, env, shell: true, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -191,7 +206,7 @@ function defaultExec(cmd, cwd, { timeoutMs = DEFAULT_TIMEOUT_MS, signal = null }
 
 function gitDirty(root, files) {
   try {
-    const out = execSync(`git status --porcelain -- ${files.map((f) => JSON.stringify(f)).join(' ')}`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = execSync(`git status --porcelain -- ${files.map((f) => JSON.stringify(f)).join(' ')}`, { cwd: root, env: withoutRepoEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     return out.trim().split('\n').filter(Boolean);
   } catch {
     return null; // not a git checkout — nothing to refuse on
