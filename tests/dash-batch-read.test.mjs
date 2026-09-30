@@ -25,7 +25,7 @@ function harness(fetch) {
   const end = SRC.indexOf('// Map one roster row');
   assert.ok(start > 0 && end > start, 'the cache block anchors moved');
   const block = SRC.slice(start, end);
-  return new Function('fetch', block + '\nreturn { overviews: _dashOverviews, cache: _dashCache, key: _dashOverviewKey, MAX: DASH_BATCH_MAX, TTL: DASH_CACHE_TTL };')(fetch);
+  return new Function('fetch', block + '\nreturn { overviews: _dashOverviews, cache: _dashCache, key: _dashOverviewKey, inFlight: _dashBatchInFlight, MAX: DASH_BATCH_MAX, TTL: DASH_CACHE_TTL };')(fetch);
 }
 // A fetch that answers the batch route: `results` for the ids it is asked for,
 // minus `omit`; records every call.
@@ -50,6 +50,7 @@ test('a roster of three is ONE POST, and every result lands under its client\'s 
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], { url: '/api/clients/shared-overview', method: 'POST', credentials: 'same-origin', contentType: 'application/json', ids: ['c1', 'c2', 'c3'] });
   assert.deepEqual(out.map((o) => o && o.client.id), ['c1', 'c2', 'c3']);
+  assert.equal(h.inFlight.size, 0, 'the in-flight table is emptied on a finished request');
   for (const id of ids(3)) {
     const entry = h.cache.get(h.key(id));
     assert.ok(entry && typeof entry.at === 'number' && entry.data.client.id === id, `${id} is not cached under ${h.key(id)}`);
@@ -102,12 +103,66 @@ test('two mounts asking for the same roster at once share ONE request', async ()
   assert.deepEqual(b.map((o) => o.client.id), ['c1', 'c2']);
 });
 
+// ⚠ A REFRESH MUST BEAT A READ ALREADY ON THE WIRE. The per-client read this replaced
+// guarded it (`_dashJson` only writes while its entry is still the one in the cache), and
+// the batch had lost that: a `shape:coach-progress-refresh` for one client, dispatched while
+// a batch containing it was in flight, was swallowed — the next read re-used the pre-refresh
+// request, and its answer was cached under a fresh `at` that `lastProgressRead` then stamped
+// as a read that never happened. The listener's whole effect is to delete the entry.
+test('a refresh during an in-flight batch is not lost: the next read issues its own request, and the stale answer is not cached', async () => {
+  const releases = [];
+  const calls = [];
+  const fetch = async (url, init) => {
+    const asked = JSON.parse(init.body).ids;
+    const version = calls.push(asked); // 1 = the read already on the wire, 2 = the read after the refresh
+    await new Promise((resolve) => releases.push(resolve));
+    const results = {};
+    for (const id of asked) results[id] = { client: { id }, version };
+    return { ok: true, status: 200, json: async () => ({ me: null, results, failed: [] }) };
+  };
+  const h = harness(fetch);
+  const before = h.overviews(['c1', 'c2']);            // POST 1 goes out
+  await Promise.resolve();
+  assert.equal(calls.length, 1);
+  h.cache.delete(h.key('c2'));                         // what the refresh listener does for c2
+  const after = h.overviews(['c1', 'c2']);             // the reload the refresh triggers
+  assert.equal(calls.length, 2, 'the read after the refresh must issue its own request, not re-use the one already on the wire');
+
+  releases[0]();                                       // the pre-refresh answer lands FIRST
+  const stale = await before;
+  assert.equal(stale[1].version, 1, 'the earlier caller still gets the answer it asked for');
+  const c2 = h.cache.get(h.key('c2'));
+  assert.ok(!c2 || c2.data === undefined, 'the pre-refresh answer must not repopulate the entry the refresh deleted');
+
+  releases[1]();                                       // then the post-refresh answer
+  const fresh = await after;
+  assert.equal(fresh[1].version, 2);
+  assert.equal(h.cache.get(h.key('c2')).data.version, 2, 'the cache ends holding the post-refresh read');
+  assert.equal(h.cache.get(h.key('c1')).data.version, 2, 'and the newer request owns c1 too');
+  assert.equal(h.inFlight.size, 0);
+});
+
+test('with nothing refreshed, a second caller still shares the request already on the wire (the marks stay intact)', async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const { fetch, calls } = scripted({ gate });
+  const h = harness(fetch);
+  const p1 = h.overviews(ids(2));
+  await Promise.resolve();
+  const p2 = h.overviews(ids(2));
+  release();
+  await Promise.all([p1, p2]);
+  assert.equal(calls.length, 1);
+  assert.ok(h.cache.get(h.key('c1')).data && h.cache.get(h.key('c2')).data, 'the shared answer is cached once, for both');
+});
+
 test('a non-OK response yields nulls, caches nothing, does not throw — and the next call retries', async () => {
   const s = scripted({ status: 500 });
   const h = harness(s.fetch);
   const out = await h.overviews(ids(2));
   assert.deepEqual(out, [null, null]);
-  assert.equal(h.cache.size, 0);
+  assert.equal(h.cache.size, 0, 'the marks a failed request left in the cache are taken back');
+  assert.equal(h.inFlight.size, 0, 'the in-flight table is emptied on a failed request');
   // The in-flight entry was cleared, so a later call issues a new request rather than
   // re-using the failed promise.
   await h.overviews(ids(2));

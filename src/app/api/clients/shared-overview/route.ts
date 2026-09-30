@@ -11,11 +11,20 @@
 // a client the coach is not linked to reads empty here exactly as it did on the
 // single route — the batch adds no reach a single request lacked.
 //
-// ⚠ FAILURES ARE PER CLIENT AND NAMED. One client's read throwing must not take
-// the other 29 down with it, and it must not ship as an empty overview either
-// (an empty overview is the positive claim "nothing shared"). A client whose
-// build threw is listed in `failed` and absent from `results`; the dashboard
-// renders that row as "unavailable", the same state a failed single GET produced.
+// ⚠ FAILURES ARE PER CLIENT AND NAMED — WHEN A BUILD THROWS. One client's build
+// throwing must not take the other 29 down with it, and it must not ship as an
+// empty overview either (an empty overview is the positive claim "nothing
+// shared"). A client whose build threw is listed in `failed` and absent from
+// `results`; the dashboard renders that row as "unavailable", the same state a
+// failed single GET produced.
+//
+// ⚠ WHAT `failed` DOES NOT COVER. supabase-js does not throw on a failed read: a
+// PostgREST error or a network failure comes back as `{ data: null, error }`. Such a
+// read degrades its own section exactly as it does on the single route — the lifted
+// body is unchanged, and several legs OMIT their key so a consumer can tell an
+// unreadable window from an empty one — but a build whose core reads ALL failed
+// still returns a hollow overview, not a `failed` entry. Changing that would change
+// the single route too, so it is left as a registered follow-up, not done here.
 //
 // ⚠ THE CAP IS THE POOL'S REASON FOR EXISTING. Fifty ids is one roster page; an
 // unbounded list would let one request fan a coach's whole history of reads out
@@ -59,6 +68,9 @@ export async function POST(req: Request) {
   const lane = async () => {
     while (next < wanted.ids.length) {
       const id = wanted.ids[next++];
+      // A coach who navigated away leaves nobody to read the answer: stop building. Every
+      // requested id still lands in exactly one of `results` / `failed`.
+      if (req.signal?.aborted) { failed.push(id); continue; }
       try {
         results[id] = await buildSharedOverview(supabase, { clientId: id, me });
       } catch (e) {

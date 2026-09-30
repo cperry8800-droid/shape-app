@@ -68,13 +68,28 @@ async function _dashJson(url) {
 // empty overview would make it the claim "nothing shared".
 const DASH_BATCH_URL = "/api/clients/shared-overview";
 const DASH_BATCH_MAX = 50; // the route's own cap (BATCH_MAX_IDS in src/lib/shared-overview.ts)
-const _dashBatchInFlight = new Map(); // sorted ids key -> pending promise, so two mounts share one POST
+const _dashBatchInFlight = new Map(); // sorted ids key -> { pending, marks }, so two mounts share one POST
 function _dashOverviewKey(id) { return "/api/clients/" + encodeURIComponent(id) + "/shared-overview"; }
+// ⚠ A REFRESH MUST BEAT A READ THAT IS ALREADY ON THE WIRE. The per-client read this
+// replaced guarded exactly that (`_dashJson`: "a refresh can delete/replace the entry
+// while this request is running — never let the old response repopulate that
+// invalidated cache"), and the batch has to keep the same two promises:
+//  1. Every id in a request is MARKED in the cache before the request goes out, and a
+//     result is written only while its client's entry is still that mark. A refresh
+//     (`shape:coach-progress-refresh`) deletes the entry, so the answer it raced is
+//     dropped instead of re-cached under a fresh `at` — which `lastProgressRead` would
+//     then stamp as a read that never happened.
+//  2. A caller shares the request already in flight ONLY while every mark it left is
+//     still in the cache. After a refresh they are not, so that caller issues its own
+//     request and gets a read that starts after the refresh, not the pre-refresh one.
 function _dashFetchOverviewBatch(ids) {
   const key = ids.slice().sort().join(",");
-  const hit = _dashBatchInFlight.get(key);
-  if (hit) return hit;
-  const pending = (async () => {
+  const live = _dashBatchInFlight.get(key);
+  if (live && ids.every((id) => _dashCache.get(_dashOverviewKey(id)) === live.marks.get(id))) return live;
+  const marks = new Map(ids.map((id) => [id, {}]));
+  for (const id of ids) _dashCache.set(_dashOverviewKey(id), marks.get(id));
+  const record = { marks };
+  record.pending = (async () => {
     try {
       const res = await fetch(DASH_BATCH_URL, {
         method: "POST",
@@ -85,12 +100,16 @@ function _dashFetchOverviewBatch(ids) {
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
       return data && data.results && typeof data.results === "object" ? data.results : {};
+    } catch (error) {
+      // Take back only the marks that are still ours: an entry a refresh or a newer read replaced is theirs.
+      for (const id of ids) { const k = _dashOverviewKey(id); if (_dashCache.get(k) === marks.get(id)) _dashCache.delete(k); }
+      throw error;
     } finally {
-      _dashBatchInFlight.delete(key);
+      if (_dashBatchInFlight.get(key) === record) _dashBatchInFlight.delete(key);
     }
   })();
-  _dashBatchInFlight.set(key, pending);
-  return pending;
+  _dashBatchInFlight.set(key, record);
+  return record;
 }
 async function _dashOverviews(ids) {
   const out = new Array(ids.length).fill(null);
@@ -104,16 +123,20 @@ async function _dashOverviews(ids) {
   const chunks = [];
   for (let i = 0; i < missing.length; i += DASH_BATCH_MAX) chunks.push(missing.slice(i, i + DASH_BATCH_MAX));
   await Promise.all(chunks.map(async (chunk) => {
+    const batch = _dashFetchOverviewBatch(chunk.map(([, id]) => id));
     let results;
-    try { results = await _dashFetchOverviewBatch(chunk.map(([, id]) => id)); } catch (e) { return; }
+    try { results = await batch.pending; } catch (e) { return; }
     const at = Date.now();
     for (const [i, id] of chunk) {
+      const key = _dashOverviewKey(id);
       // The route keys its results by the id as it validated it (lower-cased); a
       // roster id is already lower-case, so the second look is belt and braces.
       const has = (k) => Object.prototype.hasOwnProperty.call(results, k);
       const data = has(id) ? results[id] : has(String(id).toLowerCase()) ? results[String(id).toLowerCase()] : null;
-      if (data == null) continue;
-      _dashCache.set(_dashOverviewKey(id), { at, data });
+      // Still this request's mark? If a refresh or a newer read replaced it, the entry is theirs.
+      const mine = _dashCache.get(key) === batch.marks.get(id);
+      if (data == null) { if (mine) _dashCache.delete(key); continue; }
+      if (mine) _dashCache.set(key, { at, data });
       out[i] = data;
     }
   }));

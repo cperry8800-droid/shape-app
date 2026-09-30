@@ -36,14 +36,17 @@ export function parseBatchIds(input: unknown): { ok: true; ids: string[] } | { o
     return { ok: false, error: 'Body must be { ids: string[] }.' };
   }
   const raw = (input as { ids: unknown[] }).ids;
-  const ids: string[] = [];
+  const seen = new Set<string>();
   for (const v of raw) {
     if (typeof v !== 'string' || !UUID.test(v)) return { ok: false, error: 'Every id must be a UUID.' };
-    const id = v.toLowerCase();
-    if (!ids.includes(id)) ids.push(id);
+    seen.add(v.toLowerCase());
+    // The cap is on DISTINCT ids, so refuse the moment there are too many. A body of
+    // nothing but distinct ids fits ~25,000 UUIDs under the 1 MB body limit; scanning
+    // them all with a linear duplicate check cost over a second before the 400.
+    if (seen.size > BATCH_MAX_IDS) return { ok: false, error: `At most ${BATCH_MAX_IDS} ids per request.` };
   }
+  const ids = Array.from(seen);
   if (ids.length === 0) return { ok: false, error: 'ids is empty.' };
-  if (ids.length > BATCH_MAX_IDS) return { ok: false, error: `At most ${BATCH_MAX_IDS} ids per request.` };
   return { ok: true, ids };
 }
 

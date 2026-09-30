@@ -183,6 +183,88 @@ test('the body is validated: shape, UUIDs, emptiness and the cap — and duplica
   assert.deepEqual(Object.keys(r.body.results), [A]);
 });
 
+// ── concurrency, the caller going away, and the cost of refusing a huge list ─────────
+// The route's four lanes are what keep the database load equal to the old client pool's:
+// fifty builds must never run at once. A fake that answers immediately cannot show that, so
+// every build is held at its first read, and the test counts how many are waiting there.
+function gated(db) {
+  const real = db.rpc.bind(db);
+  const g = { inFlight: 0, peak: 0, started: [] };
+  const gate = new Promise((resolve) => { g.release = resolve; });
+  db.rpc = async (name, args) => {
+    if (name !== 'get_display_names') return real(name, args);
+    g.inFlight++;
+    g.peak = Math.max(g.peak, g.inFlight);
+    g.started.push(args.p_ids[0]);
+    await gate;
+    g.inFlight--;
+    return real(name, args);
+  };
+  // Wait until `n` builds are parked at the gate, then give any straggler the chance to start.
+  g.settle = async (n) => {
+    const deadline = Date.now() + 5000;
+    while (g.started.length < n && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+    for (let i = 0; i < 25; i++) await new Promise((r) => setImmediate(r));
+  };
+  return g;
+}
+
+test('fifty ids build four at a time — never more — and every one still lands in results', async () => {
+  const db = fixture();
+  const g = gated(db);
+  const { batch } = await loadRoutes(db);
+  const fifty = Array.from({ length: 50 }, (_, i) => uuid(i + 1));
+  const pending = batch.POST(post(fifty));
+  await g.settle(4);
+  assert.equal(g.started.length, 4, 'exactly the four lanes are running while the gate is closed');
+  assert.equal(g.peak, 4);
+  g.release();
+  const r = await json(await pending);
+  assert.equal(r.status, 200);
+  assert.equal(Object.keys(r.body.results).length, 50);
+  assert.deepEqual(r.body.failed, []);
+  assert.ok(g.peak <= 4, `peak concurrent builds was ${g.peak}`);
+});
+
+test('a batch whose caller has gone away stops building, and every id still lands in exactly one of results / failed', async () => {
+  const db = fixture();
+  const g = gated(db);
+  const { batch } = await loadRoutes(db);
+  const many = Array.from({ length: 12 }, (_, i) => uuid(i + 1));
+  const ac = new AbortController();
+  const req = new Request('https://x/api/clients/shared-overview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ids: many }), signal: ac.signal });
+  const pending = batch.POST(req);
+  await g.settle(4);
+  ac.abort();
+  g.release();
+  const r = await json(await pending);
+  assert.equal(r.status, 200);
+  assert.equal(g.started.length, 4, 'no build may start after the caller went away');
+  const named = [...Object.keys(r.body.results), ...r.body.failed].sort();
+  assert.deepEqual(named, [...many].sort(), 'each requested id is in results or failed, once');
+  assert.equal(r.body.failed.length, 8);
+});
+
+test('an oversized list is refused as soon as it is over the cap: the rest of it is never read', async () => {
+  const { lib } = await loadRoutes(fixture());
+  // 51 distinct ids, then 49 more the scan must never touch. (A Proxy sees every element read.)
+  const all = Array.from({ length: 100 }, (_, i) => uuid(i + 1));
+  let touchedPastTheCap = 0;
+  const watched = new Proxy(all, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string' && /^\d+$/.test(prop) && Number(prop) >= 51) touchedPastTheCap++;
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+  const p = lib.parseBatchIds({ ids: watched });
+  assert.equal(p.ok, false);
+  assert.match(p.error, /50/);
+  assert.equal(touchedPastTheCap, 0, 'the scan went on past the 51st distinct id — a 1 MB body of UUIDs would cost a second of CPU before the 400');
+  // The cap is on DISTINCT ids: fifty-one entries over fifty ids are fine.
+  const dup = [...Array.from({ length: 50 }, (_, i) => uuid(i + 1)), uuid(1)];
+  assert.equal(lib.parseBatchIds({ ids: dup }).ok, true);
+});
+
 test('the route file exports only its handler set — a helper export fails the App Router build typegen', () => {
   const src = stripComments(fs.readFileSync(join(ROOT, 'src/app/api/clients/shared-overview/route.ts'), 'utf8'));
   const exported = [...src.matchAll(/^export (?:const|async function|function) (\w+)/gm)].map((m) => m[1]).sort();
