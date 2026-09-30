@@ -235,6 +235,12 @@ async function startSet() {
   audio.play(0, { atBar: 0, fromBar: deckFrom[0] });
   deckStartBar[0] = 0;
   liveDeck = 0;
+  // The bar clock just restarted from 0 (it ran on the silent wall clock before the tap), so the
+  // director's shot and the hype window, both counted in bars, restart with it. Without this a
+  // shot begun at silent bar 40 would not be due until bar 48 of the set.
+  director.shotStartBar = Math.floor(Math.max(0, barNow()));
+  director.shotStartT = nowSec();
+  hypeUntil = -1;
   document.body.classList.add('live');
   startSet._busy = false;
 }
@@ -252,7 +258,9 @@ function loadNext(deck, { first = false } = {}) {
   nextTrackIdx++;
   audio.load(deck, spec);
   deckFrom[deck] = 0;
-  deckTrack[deck] = { spec, wave: trackWaveform(spec, spec.bars || BARS_PER_TRACK + MIX_BARS * 2) };
+  // The synthesized fallback keeps the generator's six titles, so "Next track" visibly changes,
+  // and says what it is where the artist would be: the HUD already says the tracks are fictional.
+  deckTrack[deck] = { spec: { name: spec.name, artist: 'Synthesized example', key: spec.key }, wave: trackWaveform(spec, spec.bars || BARS_PER_TRACK + MIX_BARS * 2) };
 }
 
 // Where the station blends out of the live track: at the track's own measured mix-out bar,
@@ -320,7 +328,7 @@ if (/\.txt$/.test(vrmUrl)) {
 }
 
 // ── Director + free camera ──────────────────────────────────────────────────
-const director = new NoraDirector({ seed: 11, style: Q.get('style') === 'glide' ? 'glide' : 'cut' });
+const director = new NoraDirector({ seed: 11, style: Q.get('style') === 'glide' ? 'glide' : 'cut', reducedMotion: REDUCED_MOTION });
 const orbit = new OrbitControls(camera, canvas);
 orbit.enabled = false;
 orbit.target.set(0, 1.15, 0.2);
@@ -548,7 +556,7 @@ function frame() {
       playing, jogAngle: jogAngle[d],
       jogTouch: !!(ms.jogTouch && ms.jogTouch[d]),
       tempo: 0, onAir: playing && mixerState.ch[d + 1].fader > 0.05,
-      padsLit: ['#e33', '#fa0', '#3c3', '#3cf', null, '#a4f', null, '#fff'],
+      padsLit: [null, null, null, null, null, null, null, null],   // no cue data in the contract: nothing is lit or labelled until there is
       screen: deckScreen(d, bar),
     });
     decks[d].update(dt, t);
@@ -579,7 +587,7 @@ function frame() {
     if (performance.now() - lastUser > 12000 && !Q.get('mode')) setMode('auto');
   } else {
     const ctx = { head: A.head, jog: A.jog, screen: A.screen, mixer: A.mixer, deck: liveDeck, lookSide: lookSide,
-      incoming: plan ? plan.toDeck : null, hint: ms ? ms.camHint : null, drop: drop > 0.5, kick: audio ? kick : 0 };
+      incoming: plan ? plan.toDeck : null, hint: ms ? ms.camHint : null, drop: drop > 0.5, kick: audio && !REDUCED_MOTION ? kick : 0 };
     camOut = director.update(t, bar, ctx, secPerBar(), dt);
     camera.position.set(camOut.pos.x, camOut.pos.y, camOut.pos.z);
     camera.lookAt(camOut.target.x, camOut.target.y, camOut.target.z);

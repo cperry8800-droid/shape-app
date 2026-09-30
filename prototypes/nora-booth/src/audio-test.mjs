@@ -6,7 +6,7 @@
 //  E. trackWaveform() against the measured per-16th band energy
 //  F. the realtime scheduler on a live AudioContext, with a blocked main thread
 import { createDeckAudio, trackWaveform, describeTrack, DEMO_TRACKS } from './deckAudio.mjs';
-import { createTempoDetector, tempoEnergyFromBins } from '/home/user/shape-app/public/newdesign/radioTempo.mjs';
+import { createTempoDetector, tempoEnergyFromBins } from './radioTempo.mjs';
 
 const SR = 44100;
 const BPM = 124;

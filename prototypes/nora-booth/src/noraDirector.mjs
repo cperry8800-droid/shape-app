@@ -214,8 +214,9 @@ export function evalShot(id, u, t, ctx, out) {
     }
     default: return evalShot('wide', u, t, ctx, out);
   }
-  // Handheld: a sum of incommensurate sines, not noise — deterministic and smooth.
-  const h = s.handheld;
+  // Handheld: a sum of incommensurate sines, not noise — deterministic and smooth. Off under
+  // reduced motion: a locked-off camera is what that preference asks for.
+  const h = ctx.reducedMotion ? 0 : s.handheld;
   if (h) {
     P.x += h * (Math.sin(t * 1.3) * 0.6 + Math.sin(t * 2.9 + 1.1) * 0.4);
     P.y += h * (Math.sin(t * 1.7 + 0.5) * 0.5 + Math.sin(t * 3.7) * 0.3);
@@ -230,10 +231,13 @@ export class NoraDirector {
    * @param {number} [o.seed]
    * @param {'cut'|'glide'} [o.style]  'cut' = hard cuts on the bar (music-video),
    *        'glide' = the camera travels between shots over one beat (smoother, calmer)
+   * @param {boolean} [o.reducedMotion]  prefers-reduced-motion: no handheld sway, and the
+   *        caller passes no kick, so no zoom punch either
    */
-  constructor({ seed = 11, style = 'cut' } = {}) {
+  constructor({ seed = 11, style = 'cut', reducedMotion = false } = {}) {
     this.seed = seed;
     this.style = style;
+    this.reducedMotion = !!reducedMotion;
     this.mode = 'auto';          // 'auto' | a shot id (locked) | 'free' (the user is orbiting)
     this.shot = 'club';          // open on the room, like walking in
     this.shotStartBar = 0;
@@ -308,6 +312,7 @@ export class NoraDirector {
       this._cut(this.mode, whole, t, false);
     }
     const u = clamp((bar - this.shotStartBar) / this.shotBars, 0, 1);
+    if (this.reducedMotion && !ctx.reducedMotion) ctx = { ...ctx, reducedMotion: true };
     const out = evalShot(this.shot, u, t, ctx, this._out);
     if (this._blend < 1) {
       // A glide takes half a bar (one beat pair) of real time, whatever the frame rate.

@@ -1,13 +1,3 @@
-# ⚠ OWNERSHIP UPDATE (17:12, club added 17:20) — READ BEFORE ANYTHING ELSE
-src/noraMix.mjs, test/noraMix.test.mjs, src/deckAudio.mjs AND src/club.mjs are being built RIGHT NOW by a
-dedicated builder in a second lane (to cut wall-clock time). If YOUR task is the noraMix, the
-deckAudio or the club task, you are now that module's REVIEWER, not its author: do NOT create, overwrite or
-edit those files. If they exist, run their verification (node --test test/ for noraMix; the
-audio-test page for deckAudio; render club-test for club), and report every defect you find in knownIssues with evidence.
-If they do not exist yet, report "not yet built by the owning lane" and stop.
-(The dedicated lane's own builders ARE the authors — this note does not apply to them; their
-prompt says "OWNING LANE".)
-
 # Nora's Booth — module contract (prototype, 2026-09-29)
 
 Everything is plain ES modules that import `three` (0.185.1) and nothing app-specific.

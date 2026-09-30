@@ -8,8 +8,7 @@ Nora's own VRM, a camera director and a beat-matched two-deck mix.
 plan for moving it into `public/newdesign/` and the app is in
 [`docs/REVIEW-2026-09-29-nora-dj.md`](../../docs/REVIEW-2026-09-29-nora-dj.md) (§ Phase 1). The
 module rules (world frame, gear frame, brand rule, no `Math.random` / `Date.now` in pure modules)
-are in [`CONTRACT.md`](CONTRACT.md). Two known integration items are in
-[`INTEGRATION-NOTES.md`](INTEGRATION-NOTES.md).
+are in [`CONTRACT.md`](CONTRACT.md).
 
 Live preview (private artifact): https://claude.ai/artifact/RUCmUSmsu4W68dqzneoUqy
 
@@ -48,7 +47,7 @@ deck renders bit-identically to it on the synthesized path.
 cd prototypes/nora-booth
 npm ci                                   # three 0.185.1, @pixiv/three-vrm 3.5.5, esbuild, playwright-core
 cp ../../public/nora/placeholder.vrm dist/nora.vrm
-node --test test/*.test.mjs              # 69 tests  (⚠ `node --test test/` fails: it treats the dir as a module)
+node --test test/*.test.mjs              # 76 tests  (⚠ `node --test test/` fails: it treats the dir as a module)
 ```
 
 ## Build
@@ -95,7 +94,8 @@ node phone-run.cjs "<url>" /tmp/phone.png # 390 px layout; do NOT pass &autostar
   meta. Served raw, a phone-sized page lays out at 980 px, so `phone-run.cjs` must load a copy
   wrapped in `<!doctype html>…<meta name="viewport" content="width=device-width,initial-scale=1">`.
 
-- Chromium lives at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in the cloud container.
+- Chromium lives at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` in the cloud container;
+  every harness takes `CHROME_PATH=<binary>` to run elsewhere.
   It renders with SwiftShader at 1–3 fps, so every check here is **headless and software-rendered**;
   none of it says anything about a real phone's frame rate.
 - Read pixels from the screenshot PNG. The canvas has no `preserveDrawingBuffer`, so a canvas

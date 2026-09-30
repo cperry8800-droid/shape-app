@@ -2,7 +2,7 @@
 const { chromium } = require('playwright-core');
 (async () => {
   const [,, port, out, w, h, views, extra] = process.argv;
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const b = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   for (const view of views.split(',')) {
     const p = await b.newPage({ viewport: { width: +w, height: +h } });
     const errs = [];

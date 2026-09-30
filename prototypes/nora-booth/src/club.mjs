@@ -39,6 +39,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
 import { ARENA_DIMS } from './arenaStage.mjs';
 import { CLUB_SHAPE_MASK } from './clubShapeMask.mjs';
+import { createFlashGate } from './flashGate.mjs';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 export const CLUB_DIMS = {
@@ -967,9 +968,13 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   }
   group.add(imBlBody, imBlFace);
   const BL_WARM = new THREE.Color(1.0, 0.72, 0.42);
-  function updateBlinders() {
-    // on the kick during a drop; a steady filament glow otherwise
-    const hit = reduced ? dropS * 0.35 : dropS * kickS * kickS;
+  // The kick envelope follows the music, and a track with a kick on every 16th would strobe the
+  // rack. The gate lets one flash through per beat at most, and never more than three a second.
+  const blinderGate = createFlashGate({ minGap: 1 / 3, decay: 0.1 });
+  function updateBlinders(dt, t) {
+    // on the kick during a drop, once a beat at most; a steady filament glow otherwise
+    const flash = blinderGate.step(dt, t, kickS, beatPeriod);
+    const hit = reduced ? dropS * 0.35 : dropS * flash;
     const k = 0.25 + 9.0 * hit;
     for (let i = 0; i < BL_X.length * 2; i++) imBlFace.setColorAt(i, tmpC.copy(BL_WARM).multiplyScalar(k));
     imBlFace.instanceColor.needsUpdate = true;
@@ -1509,7 +1514,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     updateWall(dt, t);
     updateHeads(dt, t);
     updateLasers(dt, t);
-    updateBlinders();
+    updateBlinders(dt, t);
     updateCrowd(dt, t);
     updateLights(dt, t);
   }

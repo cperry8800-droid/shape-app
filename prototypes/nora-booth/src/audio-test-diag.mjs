@@ -1,5 +1,5 @@
 import { createDeckAudio, DEMO_TRACKS } from './deckAudio.mjs';
-import { createTempoDetector, tempoEnergyFromBins, tempoOnsets } from '/home/user/shape-app/public/newdesign/radioTempo.mjs';
+import { createTempoDetector, tempoEnergyFromBins, tempoOnsets } from './radioTempo.mjs';
 const SR = 44100, BPM = 124, BAR = 240 / BPM, BEAT = 60 / BPM, T0 = 0.05;
 async function run(spec, fromBar, mute, bars = 16) {
   const secs = T0 + bars * BAR + 0.3;

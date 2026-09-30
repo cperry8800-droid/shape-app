@@ -752,8 +752,9 @@ several are marked SHIPPED in their own text.
   precision · performance · interactivity) and ten owner rulings. Phase 1 is the booth; Phase 2
   onward goes live only once a real station provider is signed. The prototype source is in
   [`prototypes/nora-booth/`](../prototypes/nora-booth/README.md), and the next step (the owner's
-  *"how do we improve the graphics?"*) is planned in [`HANDOFF-2026-09-29.md`](HANDOFF-2026-09-29.md).
-  All of it is on branch `claude/wonderful-fermi-leqky3`, which is not merged yet.
+  *"how do we improve the graphics?"*) is planned in [`HANDOFF-2026-09-29.md`](HANDOFF-2026-09-29.md);
+  the latest state is [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md). Open as PR #2189
+  (`claude/busy-albattani-7vrmq0`), not merged.
 - **Shape Radio page redesign — the owner picked D · The Signal Field (2026-09-14); THE NEXT BUILD.**
   Code-level brief: [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md)
   — four PRs, every line reference verified against `main` = `2d49f60`; read it before touching the

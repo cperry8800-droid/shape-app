@@ -1318,12 +1318,6 @@ function drawMainScreen(ctx, SW, SH, state, deckNumber, accent, t) {
     } else {
       ctx.fillStyle = '#1b1e24'; ctx.fillRect(12, omid - 1, 1000, 2);
     }
-    // hot cue markers on the overview (evenly placed by pad index — no cue data in the contract)
-    for (let i = 0; i < 8; i++) {
-      const c = state.padsLit[i]; if (!c) continue;
-      const x = 12 + 1000 * ((i + 0.6) / 9);
-      ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x - 6, oy); ctx.lineTo(x + 6, oy); ctx.lineTo(x, oy + 9); ctx.closePath(); ctx.fill();
-    }
     const px = 12 + 1000 * ph;
     ctx.fillStyle = '#ffffff'; ctx.fillRect(px - 1, oy - 2, 3, oh + 4);
   } else {
