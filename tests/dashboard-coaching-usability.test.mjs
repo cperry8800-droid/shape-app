@@ -48,12 +48,15 @@ test('the live mapper distinguishes a pending overview from a failed read', () =
 test('dashboard retry refetches a failed overview and keeps the time of its last successful read', async () => {
   let release, fail = false, overviewCalls = 0, latest;
   window.shapeDb = { getSession: async () => ({}), getUserGoals: async () => ({}) };
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = async (url, init) => {
     if (url.endsWith('/shared-overview')) {
       overviewCalls++;
       if (fail) throw new Error('offline');
       const data = await new Promise((resolve) => { release = resolve; });
-      return { ok: true, json: async () => data };
+      // The roster reads its overviews in ONE POST { ids } and gets { results: { <id>: overview }, failed: [] }
+      // back; a client absent from `results` is a client the batch could not build.
+      const ids = JSON.parse(init.body).ids;
+      return { ok: true, json: async () => ({ results: Object.fromEntries(ids.map((id) => [id, data])), failed: [] }) };
     }
     const data = url.endsWith('/clients') ? { isTrainer: true, clients: [{ id: 'one', name: 'Client One' }] } : { isTrainer: true, kpis: {} };
     return { ok: true, json: async () => data };
