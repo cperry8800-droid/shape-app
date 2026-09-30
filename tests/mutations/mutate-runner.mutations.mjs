@@ -8,6 +8,7 @@
 // the test) or a proven no-op (mark it expectSurvive with the proof in `why`).
 export default {
   test: 'node --test tests/mutate-runner.test.mjs',
+  timeoutMs: 120_000,
   mutations: [
     { name: 'sanity gate removed', file: 'scripts/mutate.mjs',
       find: "if (!before || before.fail > 0 || before.pass < 1) {", replace: 'if (false) {' },
@@ -22,11 +23,23 @@ export default {
     { name: 'NODE_TEST_* env is inherited by the child', file: 'scripts/mutate.mjs',
       find: "for (const k of Object.keys(env)) if (k.startsWith('NODE_TEST_')) delete env[k];", replace: '' },
     { name: 'sanity after the round is skipped', file: 'scripts/mutate.mjs',
-      find: 'const after = runTest();', replace: 'const after = before;' },
+      find: 'const { tap: after, timedOut: afterTimedOut } = await runTest();', replace: 'const after = before, afterTimedOut = false;' },
     { name: 'dirty tree is not refused', file: 'scripts/mutate.mjs',
       find: 'if (dirty && dirty.length) {', replace: 'if (false) {' },
     { name: 'signal handler kills before restoring', file: 'scripts/mutate.mjs',
-      find: 'try { restore(); } finally {', replace: 'try { proc.kill(proc.pid, sig); restore(); } finally {' },
+      find: '      if (abort) abort(sig);\n      restore();\n    } finally {', replace: '      proc.kill(proc.pid, sig);\n      if (abort) abort(sig);\n      restore();\n    } finally {' },
+    { name: 'signal handler does not abort the in-flight run', file: 'scripts/mutate.mjs',
+      find: '      if (abort) abort(sig);\n      restore();', replace: '      restore();' },
+    { name: 'the round goes on after a signal', file: 'scripts/mutate.mjs',
+      find: 'if (interrupted) throw new Error(`interrupted by ${interrupted} — the tree was restored; the round did not finish`);', replace: '' },
+    { name: 'a timed-out run is classified like any other', file: 'scripts/mutate.mjs',
+      find: "const verdict = run.timedOut ? 'timeout' : classify(tap, m.expectSurvive);", replace: 'const verdict = classify(tap, m.expectSurvive);' },
+    // Removing the timeout makes the spin test's inner run hang, so the suite
+    // itself hangs: this mutation is caught by THIS round's own timeout and is
+    // reported as TIMEOUT rather than KILLED — which is the rule working, not a
+    // gap. `timeoutMs` below bounds that wait.
+    { name: 'the per-run timeout never fires', file: 'scripts/mutate.mjs',
+      find: 'const timer = timeoutMs ? setTimeout(', replace: 'const timer = false ? setTimeout(' },
     { name: 'expectSurvive kill reported as a plain kill', file: 'scripts/mutate.mjs',
       find: "if (tap.fail > 0) return expectSurvive ? 'unexpected-kill' : 'killed';", replace: "if (tap.fail > 0) return 'killed';" },
     // The landed check can only fire when the filesystem lies about a write it

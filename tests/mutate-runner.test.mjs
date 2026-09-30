@@ -65,6 +65,13 @@ test('installRestoreOnSignal restores FIRST, then uninstalls itself and re-raise
   assert.equal(calls[0], 'restore', 'the restore runs before anything else');
   assert.ok(calls.includes('kill:4242:SIGTERM'), 'the signal is re-raised so the default exit status holds');
   assert.equal(handlers.size, 0, 'handlers are removed so the re-raised signal is not caught again');
+  // With an in-flight run to kill: abort FIRST (so the run stops touching the
+  // tree), then restore, then the signal is re-raised.
+  const order = [];
+  const proc3 = { pid: 7, on: (s, h) => handlers.set(s, h), off: () => {}, kill: (p, s) => order.push(`kill:${s}`) };
+  installRestoreOnSignal(() => order.push('restore'), proc3, { abort: (sig) => order.push(`abort:${sig}`) });
+  handlers.get('SIGHUP')('SIGHUP');
+  assert.deepEqual(order, ['abort:SIGHUP', 'restore', 'kill:SIGHUP']);
   // A restore that throws still re-raises (the finally), so a broken restore cannot swallow Ctrl-C.
   const calls2 = [];
   const proc2 = { pid: 1, on: (s, h) => handlers.set(s, h), off: () => {}, kill: (p, s) => calls2.push(s) };
@@ -107,10 +114,10 @@ const SPEC = {
   ],
 };
 
-test('end to end: kills, a documented no-op, two skips, a crash — and the tree comes back byte for byte', () => {
+test('end to end: kills, a documented no-op, two skips, a crash — and the tree comes back byte for byte', async () => {
   const dir = scratch();
   const lines = [];
-  const { results, summary } = runMutations(SPEC, { root: dir, log: (l) => lines.push(l), allowDirty: true });
+  const { results, summary } = await runMutations(SPEC, { root: dir, log: (l) => lines.push(l), allowDirty: true });
   const by = Object.fromEntries(results.map((r) => [r.name, r.verdict]));
   assert.equal(by['add subtracts'], 'killed');
   assert.equal(by['limit moves'], 'killed');
@@ -129,67 +136,139 @@ test('end to end: kills, a documented no-op, two skips, a crash — and the tree
   assert.ok(lines.some((l) => l.startsWith('mutate: sanity before')));
 });
 
-test('a genuine guard gap is reported as SURVIVED, and --only narrows the round', () => {
+test('a genuine guard gap is reported as SURVIVED, and --only narrows the round', async () => {
   const dir = scratch();
   // Drop the LIMIT test so a LIMIT mutation has nothing to catch it.
   fs.writeFileSync(path.join(dir, 'lib.test.mjs'), LIB_TEST.replace(/test\('limit'.*\n/, ''));
-  const { results, summary } = runMutations(SPEC, { root: dir, log: () => {}, allowDirty: true, only: 'limit' });
+  const { results, summary } = await runMutations(SPEC, { root: dir, log: () => {}, allowDirty: true, only: 'limit' });
   assert.equal(results.length, 1);
   assert.equal(results[0].verdict, 'survived');
   assert.equal(summary.survived, 1);
   assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB);
 });
 
-test('a documented no-op that starts getting KILLED is flagged, not silently counted as a kill', () => {
+test('a documented no-op that starts getting KILLED is flagged, not silently counted as a kill', async () => {
   const dir = scratch();
   const spec = { ...SPEC, mutations: [{ name: 'now caught', file: 'lib.mjs', find: 'return a + b;', replace: 'return a - b;', expectSurvive: true }] };
-  const { results, summary } = runMutations(spec, { root: dir, log: () => {}, allowDirty: true });
+  const { results, summary } = await runMutations(spec, { root: dir, log: () => {}, allowDirty: true });
   assert.equal(results[0].verdict, 'unexpected-kill');
   assert.equal(summary.unexpectedKill, 1);
 });
 
-test('sanity gate: a red baseline aborts BEFORE any mutation and touches no file', () => {
+test('sanity gate: a red baseline aborts BEFORE any mutation and touches no file', async () => {
   const dir = scratch();
   fs.writeFileSync(path.join(dir, 'lib.test.mjs'), LIB_TEST.replace('add(1, 2), 3', 'add(1, 2), 4'));
   const before = fs.statSync(path.join(dir, 'lib.mjs')).mtimeMs;
   // Assert on the parsed counts, not only the sentence: a run that produced NO
   // summary would throw the same sentence for a different reason.
-  assert.throws(() => runMutations(SPEC, { root: dir, log: () => {}, allowDirty: true }), /sanity run is not green .*pass 1 \/ fail 1/);
+  await assert.rejects(runMutations(SPEC, { root: dir, log: () => {}, allowDirty: true }), /sanity run is not green .*pass 1 \/ fail 1/);
   assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB);
   assert.equal(fs.statSync(path.join(dir, 'lib.mjs')).mtimeMs, before, 'the file was never written');
 });
 
-test('a test command that produces no summary at all is a red baseline, not a green one', () => {
+test('a test command that produces no summary at all is a red baseline, not a green one', async () => {
   const dir = scratch();
   const spec = { ...SPEC, test: 'node -e "console.log(1)"' };
-  assert.throws(() => runMutations(spec, { root: dir, log: () => {}, allowDirty: true }), /no # pass\/# fail summary/);
+  await assert.rejects(runMutations(spec, { root: dir, log: () => {}, allowDirty: true }), /no # pass\/# fail summary/);
 });
 
-test('the verdict is read from the summary, never from an exit status', () => {
+test('the verdict is read from the summary, never from an exit status', async () => {
   // An exec that exits 0 but prints a red summary (the `| tail` trap) is still a kill.
   const dir = scratch();
   // Call 1 = sanity before (green), call 2 = the mutation (red), call 3 = sanity after (green).
   let calls = 0;
   const exec = () => (++calls === 2 ? '# tests 2\n# pass 1\n# fail 1\n' : '# tests 2\n# pass 2\n# fail 0\n');
   const spec = { ...SPEC, mutations: [SPEC.mutations[0]] };
-  const { results } = runMutations(spec, { root: dir, exec, log: () => {}, allowDirty: true });
+  const { results } = await runMutations(spec, { root: dir, exec, log: () => {}, allowDirty: true });
   assert.equal(results[0].verdict, 'killed');
   assert.equal(calls, 3, 'sanity before, the mutation, sanity after — and nothing else');
 });
 
-test('a mutation is restored even when the test command throws mid-round', () => {
+test('a mutation is restored even when the test command throws mid-round', async () => {
   const dir = scratch();
   let n = 0;
   const exec = () => { n++; if (n === 2) throw new Error('runner died'); return '# tests 2\n# pass 2\n# fail 0\n'; };
   const spec = { ...SPEC, mutations: [SPEC.mutations[0]] };
-  assert.throws(() => runMutations(spec, { root: dir, exec, log: () => {}, allowDirty: true }), /runner died/);
+  await assert.rejects(runMutations(spec, { root: dir, exec, log: () => {}, allowDirty: true }), /runner died/);
   assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB, 'the finally restored the file');
 });
 
-test('a missing target file is refused before anything runs', () => {
+test('a missing target file is refused before anything runs', async () => {
   const dir = scratch();
   const spec = { ...SPEC, mutations: [{ ...SPEC.mutations[0], file: 'nope.mjs' }] };
-  assert.throws(() => runMutations(spec, { root: dir, log: () => {}, allowDirty: true }), /does not exist/);
+  await assert.rejects(runMutations(spec, { root: dir, log: () => {}, allowDirty: true }), /does not exist/);
+});
+
+// A lib whose test HANGS once SPIN flips: the sanity run is green, the mutation
+// turns the suite into a top-level await that never settles.
+const SPIN_LIB = 'export const SPIN = false;\nexport const N = 1;\n';
+const SPIN_TEST = `import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { SPIN, N } from './lib.mjs';
+// ⚠ A never-settling promise alone does NOT hang: with nothing else on the event
+// loop the process just exits (the file then fails as "no tests ran", i.e. a KILL).
+// A pending timer is what makes the run genuinely hang until it is killed.
+if (SPIN) await new Promise((r) => setTimeout(r, 120_000));
+test('n', () => { assert.equal(N, 1); });
+`;
+function spinScratch() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mutate-runner-spin-'));
+  fs.writeFileSync(path.join(dir, 'lib.mjs'), SPIN_LIB);
+  fs.writeFileSync(path.join(dir, 'lib.test.mjs'), SPIN_TEST);
+  return dir;
+}
+const SPIN_SPEC = { test: 'node --test lib.test.mjs', timeoutMs: 1500, mutations: [
+  { name: 'spin', file: 'lib.mjs', find: 'SPIN = false', replace: 'SPIN = true' },
+  { name: 'n moves', file: 'lib.mjs', find: 'N = 1;', replace: 'N = 2;' },
+] };
+
+test('a run that outlives the timeout is killed and reported as TIMEOUT — never as a kill — and the round goes on', async () => {
+  const dir = spinScratch();
+  const lines = [];
+  const t0 = Date.now();
+  const { results, summary } = await runMutations(SPIN_SPEC, { root: dir, log: (l) => lines.push(l), allowDirty: true });
+  const by = Object.fromEntries(results.map((r) => [r.name, r.verdict]));
+  assert.equal(by.spin, 'timeout');
+  assert.equal(by['n moves'], 'killed', 'the mutation after the hung one still ran');
+  assert.equal(summary.timedOut, 1);
+  assert.equal(summary.killed, 1, 'a timeout is not counted as a kill');
+  assert.equal(summary.restoredOk, true);
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), SPIN_LIB);
+  assert.ok(Date.now() - t0 < 30_000, `the hung run was killed at the timeout (took ${Date.now() - t0} ms)`);
+  assert.match(lines.find((l) => l.startsWith('TIMEOUT')), /hung past 1500 ms/);
+});
+
+test('a signal during a run kills the run first, restores the tree, and stops the round', async () => {
+  const dir = scratch();
+  const handlers = new Map();
+  const killed = [];
+  const proc = { pid: 99, on: (s, h) => handlers.set(s, h), off: (s) => handlers.delete(s), kill: (p, s) => killed.push(s) };
+  let seenAbort = false;
+  let runs = 0;
+  let releaseFirst;
+  const firstRunStarted = new Promise((r) => { releaseFirst = r; });
+  // Sanity runs answer at once; the first MUTATION run stays in flight until the
+  // signal aborts it (or 3 s pass, so a runner that never aborts cannot hang this test).
+  const exec = (cmd, cwd, { signal }) => {
+    runs++;
+    if (runs !== 2) return '# tests 2\n# pass 2\n# fail 0\n';
+    releaseFirst();
+    return new Promise((resolve) => {
+      const t = setTimeout(() => resolve(''), 3000);
+      signal.addEventListener('abort', () => { seenAbort = true; clearTimeout(t); resolve({ output: '', timedOut: false }); }, { once: true });
+    });
+  };
+  const round = runMutations(SPEC, { root: dir, exec, proc, log: () => {}, allowDirty: true });
+  round.catch(() => {}); // asserted below; this keeps an early rejection from being unhandled
+  await firstRunStarted;
+  // The mutation is on disk while its run is in flight …
+  assert.notEqual(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB);
+  handlers.get('SIGTERM')('SIGTERM');
+  await assert.rejects(round, /interrupted by SIGTERM/);
+  assert.equal(seenAbort, true, 'the in-flight run was aborted');
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB, '… and restored by the time the round rejects');
+  assert.deepEqual(killed, ['SIGTERM'], 'the signal is re-raised once');
+  assert.equal(runs, 2, 'no further mutation ran after the signal');
 });
 
 // ── the CLI path: loadSpec, exit codes, the dirty-tree refusal ────────────────
@@ -205,7 +284,7 @@ function cli(args, cwd) {
   }
 }
 
-test('CLI: a .mjs spec and a .json spec both run; exit 0 with survivors reported, 1 under --fail-on-survivor, 2 on a bad spec', () => {
+test('CLI: a .mjs spec and a .json spec both run; exit 0 with survivors reported, 1 under --fail-on-survivor, 2 on a bad spec', async () => {
   const dir = scratch();
   const one = { test: SPEC.test, mutations: [SPEC.mutations[0]] };
   fs.writeFileSync(path.join(dir, 'spec.mjs'), `export default ${JSON.stringify(one)};\n`);
@@ -227,6 +306,16 @@ test('CLI: a .mjs spec and a .json spec both run; exit 0 with survivors reported
   assert.equal(r.code, 1, r.out);
 
   assert.equal(cli('--spec missing.json', dir).code, 2);
+  // --timeout: a bad value is a usage error; a hung run is reported and, under
+  // --fail-on-survivor, is not a clean round.
+  assert.equal(cli('--spec spec.json --allow-dirty --timeout nope', dir).code, 2);
+  const sdir = spinScratch();
+  fs.writeFileSync(path.join(sdir, 'spin.json'), JSON.stringify({ test: SPIN_SPEC.test, mutations: [SPIN_SPEC.mutations[0]] }));
+  r = cli('--spec spin.json --allow-dirty --timeout 1500', sdir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /TIMEOUT\s+spin/);
+  assert.match(r.out, /TIMED OUT/);
+  assert.equal(cli('--spec spin.json --allow-dirty --timeout 1500 --fail-on-survivor', sdir).code, 1);
   assert.equal(cli('', dir).code, 2, 'no --spec is a usage error');
   fs.writeFileSync(path.join(dir, 'bad.json'), JSON.stringify({ test: 'x' }));
   r = cli('--spec bad.json --allow-dirty', dir);
@@ -234,7 +323,7 @@ test('CLI: a .mjs spec and a .json spec both run; exit 0 with survivors reported
   assert.match(r.out, /non-empty array/);
 });
 
-test('CLI: refuses a dirty target file in a git checkout unless --allow-dirty', () => {
+test('CLI: refuses a dirty target file in a git checkout unless --allow-dirty', async () => {
   const dir = scratch();
   const git = (c) => execSync(`git -c user.email=t@t -c user.name=t ${c}`, { cwd: dir, stdio: 'ignore' });
   git('init -q');
