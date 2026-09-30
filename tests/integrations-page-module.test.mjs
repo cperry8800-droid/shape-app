@@ -9,8 +9,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import { stripComments } from './helpers/strip-comments.mjs';
 import { loadBroadsheet, drive } from './helpers/broadsheet-mount.mjs';
+import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const NEW = 'mobile-app/src/broadsheet/BSIntegrationsPage.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
@@ -28,11 +30,35 @@ test('the module exports the two components and declares them nowhere else', () 
   }
 });
 
-test('no window global is read at module top — every read is inside a component body', () => {
-  // A top-level `const { … } = window` (single- or multi-line) is the defect.
-  assert.doesNotMatch(page, /^const\s*\{[^}]*\}\s*=\s*window\b/m, 'a top-level window destructure captures undefined for anything the client module exposes later');
-  assert.doesNotMatch(page, /^(?:const|let|var)\s+\w+\s*=\s*window\./m, 'a top-level window read is the same defect in another spelling');
-  // And each component opens by naming the globals it uses.
+// ⚠ THE RULE IS PINNED BY EVALUATING THE MODULE, NOT BY A PATTERN OVER ITS SOURCE. The first
+// version of this guard was two regexes over the text (`^const { … } = window`, `^const x =
+// window.`) plus a render of BSIntegrationsPage, and a top-level read spelled any other way —
+// `typeof window !== 'undefined' ? window.BSDetailHeader : null`, `window?.X`, an IIFE, a
+// helper called at load — that only BSReconcile consumed passed all of it (measured by the
+// Fable review: 13/13 green, and React #130 on the coach's Reconcile sheet). BSReconcile is
+// the component the coach module reads off window, so it is the one that matters most.
+// Evaluating the module alone under a `window` that records every property read catches every
+// spelling: the module is a static import, so whatever it reads while evaluating is read
+// BEFORE the client module has published anything.
+test('evaluating the module by itself reads NO window global, whatever the spelling', async () => {
+  const reads = [];
+  const recorder = new Proxy({}, {
+    get: (_t, prop) => { reads.push(String(prop)); return undefined; },
+    has: (_t, prop) => { reads.push(String(prop)); return false; },
+  });
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  Object.defineProperty(globalThis, 'window', { value: recorder, configurable: true, writable: true });
+  let mod;
+  try {
+    mod = await loadRealModule(path.resolve(NEW));
+  } finally {
+    if (saved) Object.defineProperty(globalThis, 'window', saved); else delete globalThis.window;
+  }
+  assert.deepEqual(Object.keys(mod).sort(), [...EXPORTED].sort(), 'the module evaluated but did not export what the client module imports');
+  assert.deepEqual(reads, [], `the module read window.${reads.join(', window.')} while it was being evaluated — that runs before the client module has published its globals, so it captures undefined (React #130 on first open)`);
+});
+
+test('each component opens by naming the window globals it uses, at call time', () => {
   for (const n of EXPORTED) {
     const re = new RegExp(`^export function ${n}\\([^)]*\\) \\{\\n  const \\{ ([^}]+) \\} = window;`, 'm');
     const m = re.exec(page);
@@ -101,4 +127,12 @@ test('the page renders through the client module, with its window globals resolv
   // The intro copy is a CHILD of the page (drive walks children, not props like
   // `trailing`), and it reaches the tree only through the module's own tr() fallback.
   assert.match(d.text, /Connect health, activity, and music platforms/, 'the intro did not render through the translator fallback');
+
+  // BSReconcile is the component the COACH module reads off window, and it takes its header
+  // from the same late-published global: it is rendered too, or a read that only it makes
+  // could never fail here.
+  const rec = drive(BSReconcile, { onBack() {}, clientId: 'c1' });
+  const recNodes = rec.nodes();
+  assert.ok(recNodes.every((n) => n.type !== undefined), 'BSReconcile rendered an element with an undefined type — a window global was read before the client module published it');
+  assert.ok(recNodes.some((n) => n.type === globalThis.window.BSDetailHeader), "the reconcile sheet's header is not the client module's own BSDetailHeader");
 });

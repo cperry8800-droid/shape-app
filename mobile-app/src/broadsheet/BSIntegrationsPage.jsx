@@ -8,11 +8,13 @@ import React from 'react';
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP. This file is a
 // static import of the client module, so it evaluates BEFORE that module's body
-// runs — and BSDetailHeader / BSPage are only put on window BY that body. A
-// top-level `const { BSDetailHeader } = window` here would capture undefined
-// and render React error #130 on first open. Each component names the globals
-// it needs on its first line instead. The chrome's globals (useBS, BSPage…) are
-// read the same way for uniformity.
+// runs — and BSDetailHeader is only put on window BY that body (its own
+// Object.assign(window, …)). A top-level `const { BSDetailHeader } = window` here
+// would capture undefined and render React error #130 on first open. Each
+// component names the globals it needs on its first line instead. The chrome's
+// globals (useBS, BSPage, BSEyebrow, BSSection, BSFooter) are published earlier, by
+// the chrome module, which the app entry imports before any role bundle loads; they
+// are read the same way for uniformity, not because they are hazardous.
 
 const { useState } = React;
 

@@ -18,30 +18,23 @@ const presetReact = require_('next/dist/compiled/babel/preset-react');
 const presetTs = require_('next/dist/compiled/babel/preset-typescript');
 const commonjs = require_('next/dist/compiled/babel/plugin-transform-modules-commonjs');
 
-// Modules being compiled right now, by absolute path. A relative import that
-// lands on one of them is an IMPORT CYCLE, and without this set the loader
-// recurses forever: A imports B, B imports A, and each level re-compiles A from
-// scratch (measured on the client module: ~5 s of Babel per level, no error,
-// no end). A harness that compiles the root module itself registers it here
-// with markInFlight so a sibling importing the root fails at once rather than
-// after re-compiling it.
-const IN_FLIGHT = new Set();
-export function markInFlight(absPath) {
-  IN_FLIGHT.add(absPath);
-  return () => IN_FLIGHT.delete(absPath);
+// The chain of modules being compiled on THIS import path. A relative import that lands on
+// one of its own ancestors is an IMPORT CYCLE, and without the check the loader recurses
+// forever: A imports B, B imports A, and each level re-compiles A from scratch (measured on
+// the client module: ~5 s of Babel per level, no error, no end).
+// ⚠ THE CHAIN TRAVELS WITH THE CALL (`ancestors`), NOT IN A MODULE-LEVEL SET. A global set of
+// "modules compiling right now" read two CONCURRENT loads of the same file — or a diamond
+// whose two arms load in parallel — as a cycle, because one load's marker was still up when
+// the other arrived (and the client module's 5 s synchronous compile made that easy to hit).
+// A harness that compiles the root module itself (broadsheet-mount.mjs) passes
+// `ancestors: [root]` to the loads it starts, so a sibling that imports the root back fails
+// at once instead of after re-compiling all 38k lines of it.
+export async function loadRealModule(srcPath, { registry = new Map(), appendExports = '', typescript = false, ancestors = [] } = {}) {
+  if (ancestors.includes(srcPath)) throw new Error(`import cycle: ${[...ancestors, srcPath].join(' -> ')}`);
+  return loadRealModuleInner(srcPath, { registry, appendExports, typescript, ancestors: [...ancestors, srcPath] });
 }
 
-export async function loadRealModule(srcPath, { registry = new Map(), appendExports = '', typescript = false } = {}) {
-  if (IN_FLIGHT.has(srcPath)) throw new Error(`import cycle: ${srcPath} is already being compiled (${[...IN_FLIGHT].join(' -> ')})`);
-  const unmark = markInFlight(srcPath);
-  try {
-    return await loadRealModuleInner(srcPath, { registry, appendExports, typescript });
-  } finally {
-    unmark();
-  }
-}
-
-async function loadRealModuleInner(srcPath, { registry, appendExports, typescript }) {
+async function loadRealModuleInner(srcPath, { registry, appendExports, typescript, ancestors }) {
   const dir = dirname(srcPath);
   const srcRequire = createRequire(pathToFileURL(srcPath));
   // import.meta.env is Vite's build-time injection; substitute like the bundler.
@@ -67,7 +60,7 @@ async function loadRealModuleInner(srcPath, { registry, appendExports, typescrip
       // Shipping components may compose other JSX modules. Compile those too;
       // share bare dependency overrides (not relative paths, whose base moved).
       registry.set(spec, /\.[jt]sx$/.test(spec)
-        ? await loadRealModule(join(dir, spec), { registry: new Map([...registry].filter(([name]) => !name.startsWith('.') && !name.startsWith('/'))), typescript: /\.tsx$/.test(spec) })
+        ? await loadRealModule(join(dir, spec), { registry: new Map([...registry].filter(([name]) => !name.startsWith('.') && !name.startsWith('/'))), typescript: /\.tsx$/.test(spec), ancestors })
         : await import(pathToFileURL(join(dir, spec)).href));
     } else {
       // Bare specifier: resolve as CJS from the source file's node_modules.

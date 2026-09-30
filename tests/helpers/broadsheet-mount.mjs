@@ -17,7 +17,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { bsSdUnitizeText, bsSdUnitizeLabel, bsSdMeasure } from '../../mobile-app/src/services/sessionLedger.mjs';
-import { loadRealModule, markInFlight } from './load-real-module.mjs';
+import { loadRealModule } from './load-real-module.mjs';
 
 const require_ = createRequire(import.meta.url);
 const babel = require_('next/dist/compiled/babel/core');
@@ -123,11 +123,9 @@ export async function loadBroadsheet(exportNames, reactImpl = SHIM) {
   });
   const specs = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
   const registry = new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]);
-  // The client module is compiled HERE, not by loadRealModule, so it has to be
-  // registered as in flight by hand — or a sibling that imports it back would
+  // The client module is compiled HERE, not by loadRealModule, so the siblings it
+  // loads are handed it as their ancestor — or a sibling that imports it back would
   // have the loader re-compile all 38k lines and recurse until killed.
-  const unmark = markInFlight(SRC);
-  try {
   for (const spec of specs) {
     if (registry.has(spec)) continue;
     // A bare specifier is a PACKAGE, not a sibling file. Joining it onto the source
@@ -145,12 +143,9 @@ export async function loadBroadsheet(exportNames, reactImpl = SHIM) {
     // relative paths from the sibling's own directory).
     registry.set(spec, isRelative
       ? (/\.jsx$/.test(spec)
-        ? await loadRealModule(join(SRC_DIR, spec), { registry: new Map([['react', reactImpl], ['react-dom', registry.get('react-dom')]]) })
+        ? await loadRealModule(join(SRC_DIR, spec), { registry: new Map([['react', reactImpl], ['react-dom', registry.get('react-dom')]]), ancestors: [SRC] })
         : await import(pathToFileURL(join(SRC_DIR, spec)).href))
       : await import(spec));
-  }
-  } finally {
-    unmark();
   }
   const mod = { exports: {} };
   const req = (spec) => {
