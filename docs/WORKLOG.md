@@ -709,7 +709,16 @@ changelog whenever something ships.
 ## Architecture map (mobile broadsheet)
 
 - `mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx` — client app (home, eat,
-  train, logger, chat, settings). Biggest file (~9.7k lines).
+  train, logger, chat, settings). Biggest file — **~38k lines, measured 2026-09-30**
+  (the "~9.7k" this line carried was fourteen months stale). It shrinks one feature
+  at a time: when a PR already touches a self-contained screen, carve it out as a
+  real ES import. `BSIntegrationsPage.jsx` (2026-09-30, −459 lines) is the pattern
+  and `tests/integrations-page-module.test.mjs` pins its rules — every window global
+  read **at call time inside the component** (a static import evaluates before the
+  client module's body has exposed anything, so a top-level read is React #130), its
+  own `useShapeTr()` copy (the i18n ratchet only recognises a translator bound that
+  way), no import back into the client module, and the client module keeps
+  re-exposing on `window` whatever the pros module reads there.
   - `BSLogMealFlow` — the meal logger (Adjust / Photo / Search / Voice tabs +
     ingredient editor). Delivers a note/memo/photo via `sendMealNote()`.
   - `BSClientEat` — eat/calendar page (meals, swap, grocery views).

@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 // The SAME constant the component imports — asserting against a literal here
 // would let the two drift apart while both sides stayed green.
 import { BS_SESSION_MINUTES_CEILING, bsClassifySession, bsDurationFacts } from '../public/newdesign/progressionGuardrail.mjs';
+import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const require_ = createRequire(import.meta.url);
 const babel = require_('next/dist/compiled/babel/core');
@@ -122,7 +123,12 @@ async function loadModule(reactImpl = React) {
   ]);
   for (const spec of specs) {
     if (registry.has(spec)) continue;
-    registry.set(spec, await import(pathToFileURL(join(dir, spec)).href));
+    // A relative `.jsx` sibling is a feature carved out of the client module
+    // (BSIntegrationsPage.jsx, 2026-09-30); Node cannot import one, so it is compiled
+    // through the real-module loader with this suite's own `react` shared down.
+    registry.set(spec, /\.jsx$/.test(spec)
+      ? await loadRealModule(join(dir, spec), { registry: new Map([...registry].filter(([n]) => !n.startsWith('.') && !n.startsWith('/'))) })
+      : await import(pathToFileURL(join(dir, spec)).href));
   }
 
   const mod = { exports: {} };

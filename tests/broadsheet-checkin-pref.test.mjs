@@ -19,6 +19,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { dailyCheckinOn } from '../src/lib/ai/notifications.mjs';
+import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -94,7 +95,12 @@ async function loadModule() {
   ]);
   for (const spec of specs) {
     if (registry.has(spec)) continue;
-    registry.set(spec, await import(pathToFileURL(join(dir, spec)).href));
+    // A relative `.jsx` sibling is a feature carved out of the client module
+    // (BSIntegrationsPage.jsx, 2026-09-30); Node cannot import one, so it is compiled
+    // through the real-module loader with this suite's own `react` shared down.
+    registry.set(spec, /\.jsx$/.test(spec)
+      ? await loadRealModule(join(dir, spec), { registry: new Map([...registry].filter(([n]) => !n.startsWith('.') && !n.startsWith('/'))) })
+      : await import(pathToFileURL(join(dir, spec)).href));
   }
   const mod = { exports: {} };
   const req = (spec) => {

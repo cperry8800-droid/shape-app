@@ -17,6 +17,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { bsSdUnitizeText, bsSdUnitizeLabel, bsSdMeasure } from '../../mobile-app/src/services/sessionLedger.mjs';
+import { loadRealModule, markInFlight } from './load-real-module.mjs';
 
 const require_ = createRequire(import.meta.url);
 const babel = require_('next/dist/compiled/babel/core');
@@ -122,6 +123,11 @@ export async function loadBroadsheet(exportNames, reactImpl = SHIM) {
   });
   const specs = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
   const registry = new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]);
+  // The client module is compiled HERE, not by loadRealModule, so it has to be
+  // registered as in flight by hand — or a sibling that imports it back would
+  // have the loader re-compile all 38k lines and recurse until killed.
+  const unmark = markInFlight(SRC);
+  try {
   for (const spec of specs) {
     if (registry.has(spec)) continue;
     // A bare specifier is a PACKAGE, not a sibling file. Joining it onto the source
@@ -129,9 +135,22 @@ export async function loadBroadsheet(exportNames, reactImpl = SHIM) {
     // missing file rather than "this component now imports a package the harness has
     // not been told about".
     const isRelative = spec.startsWith('.') || spec.startsWith('/');
+    // A relative `.jsx` sibling is a feature carved OUT of the client module (the
+    // first one landed 2026-09-30, BSIntegrationsPage.jsx). Node cannot import a
+    // `.jsx` file, so it is compiled through the same Babel pipeline by the real-
+    // module loader, with THIS harness's React shim as its `react` — the sibling's
+    // hooks must land in the same render context as the client module's, or a
+    // component rendered from the client module would call a different useState.
+    // Only the bare-specifier overrides are shared down (the loader re-resolves
+    // relative paths from the sibling's own directory).
     registry.set(spec, isRelative
-      ? await import(pathToFileURL(join(SRC_DIR, spec)).href)
+      ? (/\.jsx$/.test(spec)
+        ? await loadRealModule(join(SRC_DIR, spec), { registry: new Map([['react', reactImpl], ['react-dom', registry.get('react-dom')]]) })
+        : await import(pathToFileURL(join(SRC_DIR, spec)).href))
       : await import(spec));
+  }
+  } finally {
+    unmark();
   }
   const mod = { exports: {} };
   const req = (spec) => {
