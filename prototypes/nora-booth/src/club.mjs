@@ -7,20 +7,21 @@
 //   stage deck   y = STAGE_Y (−0.18)  — a raised deck with a rounded, LED-lined front
 //   DJ riser     y = STAND_Y ( 0.00)  — the DJ's feet (exported as club.standY)
 //   booth table  y = 0.92             — flight case, x ±0.75, z −0.40 … +0.22
-//   the SCREEN   — Club Shape's dot-matrix artwork (the square, the mark, CLUB SHAPE, the
-//                  spectrum), 14.4 × 8.4 m, drawn additively onto the arena stage's LED wall on
+//   the SCREEN   — the Shape logo (teal ▸, white ◂, the SHAPE wordmark) and a spectrum in dots,
+//                  14.4 × 8.4 m, drawn additively onto the arena stage's LED wall on
 //                  that wall's own 75 mm dot grid, so the stage end is one large screen
 //                  (arenaStage.mjs). The black portal that framed a smaller screen is gone; the
 //                  top truss hangs from the roof in front of the wall. PORTAL stays in CLUB_DIMS
 //                  as the stage's old footprint (x ±5.5, to y 8.8, z 1.9 … 3.2): the stage-edge
-//                  LEDs end on it and the lasers are placed by it.
+//                  LEDs end on it.
 //
 // This module owns the STAGE end only: the screen artwork, the stage deck, the booth,
 // the beams, the crowd and a floor under the crowd. The hall itself (walls, balconies,
 // palms, lounges, ceiling, skylight, skyline) is clubVenue.mjs.
 //
-// The module builds everything from primitives and small canvas textures — no assets,
-// no Math.random (a seeded PRNG), no clock (the caller passes t).
+// The module builds everything from primitives and small canvas textures (its one asset is the Shape
+// logo, pre-sampled into LED dots in shapeLogoMask.mjs), with no Math.random (a seeded PRNG) and no
+// clock (the caller passes t).
 //
 // It also owns the room's atmosphere: on the first update() it finds the Scene it was
 // added to and, if the scene has none of its own, installs a FogExp2 haze, a matching
@@ -37,6 +38,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { loadCrowdPack, createAvatarCrowd } from './crowdAvatars.mjs';
 import { ARENA_DIMS } from './arenaStage.mjs';
+import { SHAPE_LOGO_MASK } from './shapeLogoMask.mjs';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 export const CLUB_DIMS = {
@@ -125,19 +127,6 @@ function drawMark(g, cx, cy, h) {
   }
 }
 
-const FONT_STACK = '"Helvetica Neue", "Inter", Roboto, "Liberation Sans", Arial, sans-serif';
-
-/** Letter-spaced text drawn glyph by glyph (canvas letterSpacing is not everywhere). */
-function spacedText(g, text, cx, baseline, spacing) {
-  const widths = [...text].map((ch) => g.measureText(ch).width);
-  const total = widths.reduce((a, b) => a + b, 0) + spacing * (text.length - 1);
-  let x = cx - total / 2;
-  g.textAlign = 'left';
-  g.textBaseline = 'alphabetic';
-  [...text].forEach((ch, i) => { g.fillText(ch, x, baseline); x += widths[i] + spacing; });
-  return total;
-}
-
 // ── canvas textures ─────────────────────────────────────────────────────────
 
 function makeCanvas(w, h) {
@@ -151,48 +140,23 @@ function makeCanvas(w, h) {
  * inside it and the letter-spaced wordmark CLUB SHAPE under it. Drawn at 4× and box-filtered
  * down so a stroke thinner than a dot still lands as a partial (dimmer) dot, not a gap.
  */
+// The screen's artwork: the Shape logo (public/SHAPE-logo-teal-white.png, sampled onto the dots by
+// logo-mask.cjs into shapeLogoMask.mjs), centred across the screen and set high, so the sun on the
+// arena wall rises just over it and the crowd sees it clear of Nora. One texel per dot:
+// r = the white parts (the ◂ chevron, the SHAPE wordmark), g = the teal ▸. Row 0 is the BOTTOM row.
 function screenMaskTexture(THREE, cols, rows) {
-  const S = 4, W = cols * S, H = rows * S; // 768 × 448
-  const c = makeCanvas(W, H);
-  const g = c.getContext('2d', { willReadFrequently: true });
-  g.fillStyle = '#000';
-  g.fillRect(0, 0, W, H);
-  g.fillStyle = '#fff';
-  const px = (n) => n * S;
-  // square outline, one dot wide, snapped to the dot grid
-  const side = 60, sx = Math.round((cols - side) / 2), sy = 9;
-  g.fillRect(px(sx), px(sy), px(side), px(1));
-  g.fillRect(px(sx), px(sy + side - 1), px(side), px(1));
-  g.fillRect(px(sx), px(sy), px(1), px(side));
-  g.fillRect(px(sx + side - 1), px(sy), px(1), px(side));
-  // the Shape mark, centred in the square
-  drawMark(g, px(sx + side / 2), px(sy + side / 2), px(36));
-  // the wordmark: light weight, wide tracking, ~14 dots cap height
-  const capDots = 14;
-  let fs = Math.round(px(capDots) / 0.72);
-  g.font = `300 ${fs}px ${FONT_STACK}`;
-  let spacing = fs * 0.42;
-  const word = 'CLUB SHAPE';
-  const maxW = px(cols) * 0.86;
-  let w = [...word].reduce((a, ch) => a + g.measureText(ch).width, 0) + spacing * (word.length - 1);
-  if (w > maxW) { const k = maxW / w; fs = Math.floor(fs * k); spacing *= k; g.font = `300 ${fs}px ${FONT_STACK}`; }
-  const top = sy + side + 9; // rows
-  spacedText(g, word, W / 2, px(top) + fs * 0.72, spacing);
-
-  // box-filter down to one value per dot; DataTexture row 0 is the BOTTOM row
-  const img = g.getImageData(0, 0, W, H).data;
-  const out = new Uint8Array(cols * rows);
-  for (let r = 0; r < rows; r++) {
-    for (let q = 0; q < cols; q++) {
-      let s = 0;
-      for (let yy = 0; yy < S; yy++) {
-        const row = (r * S + yy) * W;
-        for (let xx = 0; xx < S; xx++) s += img[(row + q * S + xx) * 4];
-      }
-      out[(rows - 1 - r) * cols + q] = Math.round(s / (S * S));
-    }
+  const L = SHAPE_LOGO_MASK, top = 8;
+  const q0 = Math.floor((cols - L.cols) / 2);
+  const out = new Uint8Array(cols * rows * 4);
+  for (let r = 0; r < L.rows; r++) for (let q = 0; q < L.cols; q++) {
+    const row = top + r, col = q0 + q;
+    if (row >= rows || col < 0 || col >= cols) continue;
+    const i = r * L.cols + q, o = ((rows - 1 - row) * cols + col) * 4;
+    out[o] = parseInt(L.white[i], 16) * 17;
+    out[o + 1] = parseInt(L.teal[i], 16) * 17;
+    out[o + 3] = 255;
   }
-  const t = new THREE.DataTexture(out, cols, rows, THREE.RedFormat, THREE.UnsignedByteType);
+  const t = new THREE.DataTexture(out, cols, rows, THREE.RGBAFormat, THREE.UnsignedByteType);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.generateMipmaps = false;
   t.needsUpdate = true;
@@ -435,11 +399,11 @@ void main() {
 // behind it; the kick lifts the whole panel; on the drop a beat-locked sweep crosses it.
 const WALL_FRAG = /* glsl */`
 uniform sampler2D uSpec;   // x = bar index from the centre; r = level, g = peak
-uniform sampler2D uMask;   // the artwork, one texel per dot
+uniform sampler2D uMask;   // the Shape logo, one texel per dot: r = white parts, g = the teal ▸
 uniform vec2 uGrid;        // cols, rows
 uniform vec3 uIce;         // cool white / ice blue
 uniform vec3 uIceDeep;
-uniform vec3 uTint;        // the accent, a light tint on the spectrum only
+uniform vec3 uTint;        // the accent: the logo's teal ▸, and a light tint on the spectrum
 uniform float uKick;
 uniform float uLevel;
 uniform float uBeat;       // continuous beat position
@@ -492,12 +456,14 @@ void main() {
     }
   }
 
-  // ── the artwork on top: square, mark, CLUB SHAPE ──────────────────────
-  float m = texture2D(uMask, (id + 0.5) / uGrid).r;
-  m = smoothstep(0.1, 0.62, m);
+  // ── the Shape logo on top: the teal ▸, the white ◂ and SHAPE ─────────
+  vec4 mk = texture2D(uMask, (id + 0.5) / uGrid);
+  float mw = smoothstep(0.1, 0.62, mk.r), mt = smoothstep(0.1, 0.62, mk.g);
   float breath = 0.94 + 0.06 * sin(uTime * 0.7);
-  vec3 art = uIce * (1.2 * breath + 0.45 * uKick * uMotion + 0.15 * uLevel);
-  col = mix(col, art, m);
+  float lift = 1.2 * breath + 0.45 * uKick * uMotion + 0.15 * uLevel;
+  col = mix(col, uIce * lift, mw);
+  col = mix(col, uTint * lift * 1.6, mt);
+  float m = max(mw, mt);
 
   // ── the drop: a beat-locked sweep across the dots (≤ 3 per second) ────
   if (uSweep > 0.0) {
@@ -786,9 +752,10 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     m.renderOrder = 2;   // after the arena wall it lights
   }
 
-  // the top truss over the booth (the moving heads and Nora's hair light hang from it), flown from
-  // the roof on two chain hoists in front of the screen
-  const TRUSS = { y: 8.42, z: 1.62, x: 6.0, size: 0.4 };
+  // the top truss over the booth (the moving heads, the lasers and Nora's hair light hang from it),
+  // flown from the roof on two chain hoists in front of the screen. At 10.4 m it clears the Shape
+  // logo on the screen (whose top is at 8.85 m) from the floor and from the atrium.
+  const TRUSS = { y: 10.4, z: 1.62, x: 6.0, size: 0.4 };
   {
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     const parts = [trussGeometry(THREE, V(-TRUSS.x, TRUSS.y, TRUSS.z), V(TRUSS.x, TRUSS.y, TRUSS.z), TRUSS.size, 0.028, 0.011)];
@@ -856,12 +823,12 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   }));
 
   // ── lasers and blinders: the light show off the stage ─────────────────
-  // Two laser units at the ends of the top truss throw thin coloured beams out over the room —
+  // Two laser units under the top truss throw thin coloured beams out over the room —
   // a fan that tilts with the bar, spinning tunnels down the club, sweeps up the balconies — each
   // beam running until it meets a wall, the ceiling or the floor. They swell with the level, pulse
   // on the beat and go wide on the drop. A row of blinders on the stage lip hits on the kick during
   // a drop (once a beat: under three flashes a second). Reduced motion: slow lasers, no flashes.
-  const LZ_UNITS = [{ x: -4.9, side: -1 }, { x: 4.9, side: 1 }].map((u) => ({ ...u, pos: new THREE.Vector3(u.x, PORTAL.top - 0.55, PORTAL.z0 - 0.2) }));
+  const LZ_UNITS = [{ x: -4.9, side: -1 }, { x: 4.9, side: 1 }].map((u) => ({ ...u, pos: new THREE.Vector3(u.x, TRUSS.y - TRUSS.size / 2 - 0.12, TRUSS.z - 0.15) }));
   const LZ_N = low ? 6 : 12;
   const LZ_COUNT = LZ_UNITS.length * LZ_N;
   const lzGeo = own(new THREE.InstancedBufferGeometry());
@@ -1199,7 +1166,9 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
   rimR.position.set(2.4, 1.95, 2.0);
   rimR.target.position.set(0, 1.68, 0.36);
   // hair light: from the portal truss, a cone just wide enough for her head and shoulders
-  const top = new THREE.SpotLight(iceC.clone(), 48, 0, 0.075, 0.6, 2);
+  // (the truss flies at 10.4 m now: 8.4 m from her head against 6.4 m when it hung at 8.42, so the
+  // power scales by (8.37 / 6.41)² ≈ 1.7 and the cone narrows by 6.41 / 8.37 to light the same spot)
+  const top = new THREE.SpotLight(iceC.clone(), 82, 0, 0.0574, 0.6, 2);
   top.position.set(0, FX_Y - 0.3, TRUSS.z);
   top.target.position.set(0, 1.62, 0.36);
   // the screen lights the stage and the front of the crowd: a panel the size and place of the old
@@ -1523,7 +1492,7 @@ export function createClub({ THREE, renderer = null, seed = 7, accent = '#34d6c5
     wallLight.intensity = 0.7 + 0.9 * lvl + 0.6 * k;
     rimL.intensity = 28 + 12 * lvl + 8 * k;
     rimR.intensity = 16 + 7 * lvl + 5 * k;    // amber blooms sooner than teal at the same power
-    top.intensity = 44 + 16 * k;
+    top.intensity = (44 + 16 * k) * 1.7;
     matLedWhite.color.copy(iceC).multiplyScalar(1.5 + 0.7 * k);
     matFascia.emissiveIntensity = 1.0 + 0.45 * k;
   }
