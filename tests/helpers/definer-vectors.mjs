@@ -1,0 +1,231 @@
+// Vectors for the SECURITY DEFINER model: a few lines of SQL and what Postgres does with them.
+//
+// ⚠ EVERY `expect` HERE IS POSTGRES'S ANSWER, NOT AN ASSUMPTION. Each vector was run ONCE, on
+// 2026-09-30, on a throwaway local PostgreSQL 16.13 cluster set up like Supabase (roles anon,
+// authenticated and service_role, and `alter default privileges in schema public grant all on
+// functions to anon, authenticated, service_role`), and the resulting has_function_privilege,
+// prosecdef and proconfig were read back and compared with the model's, field for field.
+// The harness is not checked in (it needs a local server), so re-run the vectors against one if a
+// rule changes; an expectation edited to match the model would defeat the point.
+// That run found a real defect in the first draft: a single flat default ACL read
+// `alter default privileges in schema public revoke ... from public` as closing the door, and
+// Postgres keeps PUBLIC's EXECUTE (it lives in the GLOBAL layer, which an `in schema` revoke
+// cannot touch). The vector below named "in-schema revoke cannot remove PUBLIC" is that finding.
+//
+// A vector is { name, why, sources: [{ file, sql } | { file, migration }], expect, absent }.
+// `expect` is keyed by `name(input types)` in the spelling Postgres prints, and holds only the
+// fields the vector is about. `absent` lists keys that must not exist afterwards. A source with
+// `migration` is the real file of that name from supabase-migrations/, so a vector can drive the
+// shipped pg_temp sweep rather than a paraphrase of it.
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+const fn = (name, args = '', attrs = 'security definer') =>
+  `create function public.${name}(${args}) returns int language sql ${attrs} as $$ select 1 $$;`;
+const src = (sql, file = 'v.sql') => [{ file, sql }];
+
+export const SEMANTIC_VECTORS = [
+  // ── The default ACL and what each revoke does to it ────────────────────────
+  { name: 'a new function is executable by anon and authenticated',
+    why: 'Supabase grants EXECUTE on every new function to anon and authenticated explicitly, and PUBLIC holds it too',
+    sources: src(fn('f1')),
+    expect: { 'f1()': { anon: true, authenticated: true, service_role: true, definer: true, trigger: false, config: null } } },
+  { name: 'revoke from PUBLIC alone leaves anon executable (the league finding)',
+    why: 'the explicit anon entry is a separate row of the ACL; `from public` removes only the implicit one',
+    sources: src(`${fn('f2')}\nrevoke all on function public.f2() from public;`),
+    expect: { 'f2()': { anon: true, authenticated: true } } },
+  { name: 'revoke from PUBLIC and anon closes anon and leaves authenticated',
+    why: 'the shape every lockdown migration should have had',
+    sources: src(`${fn('f3')}\nrevoke all on function public.f3() from public, anon;`),
+    expect: { 'f3()': { anon: false, authenticated: true, service_role: true } } },
+  { name: 'revoke from anon alone leaves anon executable through PUBLIC',
+    why: 'anon can execute when EITHER its own entry or PUBLIC holds the privilege, which is what has_function_privilege reports',
+    sources: src(`${fn('f4')}\nrevoke execute on function public.f4() from anon;`),
+    expect: { 'f4()': { anon: true, authenticated: true } } },
+  { name: 'revoke from authenticated alone leaves authenticated executable through PUBLIC',
+    why: 'the mirror of the anon case, on the other client role',
+    sources: src(`${fn('f5')}\nrevoke execute on function public.f5() from authenticated;`),
+    expect: { 'f5()': { anon: true, authenticated: true } } },
+  { name: 'revoke from PUBLIC, anon and authenticated closes both client roles and keeps service_role',
+    why: 'service_role holds its own entry, which none of the three revokes touches',
+    sources: src(`${fn('f6')}\nrevoke all on function public.f6() from public, anon, authenticated;`),
+    expect: { 'f6()': { anon: false, authenticated: false, service_role: true } } },
+  { name: 'a grant to anon after the revoke reopens it',
+    why: 'the ACL is cumulative: statement order decides',
+    sources: src(`${fn('f7')}\nrevoke all on function public.f7() from public, anon;\ngrant execute on function public.f7() to anon;`),
+    expect: { 'f7()': { anon: true } } },
+  { name: 'a grant to PUBLIC reopens both client roles',
+    why: 'PUBLIC is a grantee like any other',
+    sources: src(`${fn('f8')}\nrevoke all on function public.f8() from public, anon, authenticated;\ngrant execute on function public.f8() to public;`),
+    expect: { 'f8()': { anon: true, authenticated: true } } },
+  { name: 'WITH GRANT OPTION grants the privilege',
+    why: 'the option changes who can re-grant, not whether the grantee can execute',
+    sources: src(`${fn('f8b')}\nrevoke all on function public.f8b() from public, anon;\ngrant execute on function public.f8b() to anon with grant option;`),
+    expect: { 'f8b()': { anon: true } } },
+  { name: 'REVOKE GRANT OPTION FOR is not a revoke',
+    why: 'it removes the right to re-grant and leaves the privilege standing; PUBLIC is revoked first so anon\'s own entry is the only thing holding it open',
+    sources: src(`${fn('f9')}\nrevoke all on function public.f9() from public;\nrevoke grant option for execute on function public.f9() from anon;`),
+    expect: { 'f9()': { anon: true } } },
+  { name: 'a grant to anon and then a revoke from anon leaves anon executable through PUBLIC',
+    why: 'the revoke removes anon\'s own entry and nothing else, and the default PUBLIC entry still lets anon execute (measured on PostgreSQL 16.13: proacl {=X/postgres,postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres} has no anon entry and has_function_privilege reports true)',
+    sources: src(`${fn('f9c')}\ngrant execute on function public.f9c() to anon;\nrevoke execute on function public.f9c() from anon;`),
+    expect: { 'f9c()': { anon: true, authenticated: true } } },
+  { name: 'a quoted role name is the same role',
+    why: '"anon" and anon are one identifier',
+    sources: src(`${fn('f9b')}\nrevoke all on function public.f9b() from public, "anon";`),
+    expect: { 'f9b()': { anon: false } } },
+
+  // ── Replace, drop, recreate: statement order decides ───────────────────────
+  { name: 'CREATE OR REPLACE keeps the ACL',
+    why: 'a replace edits the body and attributes and leaves the grants where they were',
+    sources: src(`${fn('f10')}\nrevoke all on function public.f10() from public, anon;\ncreate or replace function public.f10() returns int language sql security definer as $$ select 2 $$;`),
+    expect: { 'f10()': { anon: false, authenticated: true } } },
+  { name: 'DROP then CREATE resets the ACL to the default',
+    why: 'a new function is a new ACL; this is how a lockdown is silently undone by a later migration',
+    sources: src(`${fn('f11')}\nrevoke all on function public.f11() from public, anon;\ndrop function public.f11();\n${fn('f11')}`),
+    expect: { 'f11()': { anon: true } } },
+  { name: 'a DROP earlier in a file does not remove a function the file then creates',
+    why: 'the per-file regex model deleted the function because a drop appeared in the same file, whatever came after it',
+    sources: src(`drop function if exists public.f12();\n${fn('f12')}`),
+    expect: { 'f12()': { anon: true } } },
+  { name: 'a DROP after the CREATE removes it',
+    why: 'the other half of the order rule',
+    sources: src(`${fn('f13')}\ndrop function public.f13();`),
+    expect: {}, absent: ['f13()'] },
+  { name: 'a replace with a different argument list is a NEW function and the old one stays',
+    why: 'identity is the input argument types; the new overload gets the default ACL',
+    sources: src(`${fn('f14', 'p int')}\nrevoke all on function public.f14(int) from public, anon;\ncreate or replace function public.f14(p text) returns int language sql security definer as $$ select 1 $$;`),
+    expect: { 'f14(integer)': { anon: false }, 'f14(text)': { anon: true } } },
+  { name: 'dropping one overload keeps the other',
+    why: 'a drop names a signature',
+    sources: src(`${fn('f15', 'p int')}\n${fn('f15', 'p text')}\ndrop function public.f15(int);`),
+    expect: { 'f15(text)': { anon: true } }, absent: ['f15(integer)'] },
+  { name: 'a multi-function DROP removes each named function',
+    why: 'one statement, several targets',
+    sources: src(`${fn('f16a')}\n${fn('f16b', 'p int')}\ndrop function public.f16a(), public.f16b(int);`),
+    expect: {}, absent: ['f16a()', 'f16b(integer)'] },
+  { name: 'a multi-function REVOKE applies to each named function',
+    why: 'one statement, several targets',
+    sources: src(`${fn('f17a')}\n${fn('f17b', 'p int')}\nrevoke all on function public.f17a(), public.f17b(int) from public, anon;`),
+    expect: { 'f17a()': { anon: false }, 'f17b(integer)': { anon: false } } },
+  { name: 'a bare function name resolves when it is unique',
+    why: 'Postgres accepts `on function public.f` without an argument list',
+    sources: src(`${fn('f18', 'p int')}\nrevoke all on function public.f18 from public, anon;`),
+    expect: { 'f18(integer)': { anon: false } } },
+  { name: 'argument types resolve through their aliases',
+    why: 'int, integer, timestamptz, varchar and a typmod are spellings, not different functions; a mismatch would strand the revoke on a function that does not exist',
+    sources: src(`${fn('f19', 'p_a int, p_b timestamptz, p_c numeric(10,2), p_d text[], p_e double precision, p_f timestamp with time zone default now(), p_g character varying(20) default \'x\'')}\nrevoke all on function public.f19(integer, timestamp with time zone, numeric, text[], float8, timestamptz, varchar) from public, anon;`),
+    expect: { 'f19(integer,timestamp with time zone,numeric,text[],double precision,timestamp with time zone,character varying)': { anon: false } } },
+  { name: 'OUT parameters are not part of the identity',
+    why: 'a function is called and dropped by its input types',
+    sources: src(`create function public.f20(p_a int, out p_b int) language sql security definer as $$ select 1 $$;\nrevoke all on function public.f20(integer) from public, anon;`),
+    expect: { 'f20(integer)': { anon: false } } },
+
+  // ── ON ALL FUNCTIONS IN SCHEMA, and ALTER DEFAULT PRIVILEGES ────────────────
+  { name: 'ON ALL FUNCTIONS IN SCHEMA is a snapshot of the functions that exist',
+    why: 'a function created after it gets the default ACL again',
+    sources: src(`${fn('f21a')}\nrevoke execute on all functions in schema public from public, anon;\n${fn('f21b')}`),
+    expect: { 'f21a()': { anon: false }, 'f21b()': { anon: true } } },
+  { name: 'in-schema revoke cannot remove PUBLIC from the default ACL',
+    why: 'PUBLIC lives in the GLOBAL default layer; an `in schema` revoke edits only the schema layer, so the function stays executable by anon through PUBLIC',
+    sources: src(`alter default privileges in schema public revoke execute on functions from public, anon;\n${fn('f22')}`),
+    expect: { 'f22()': { anon: true, authenticated: true } } },
+  { name: 'a global revoke from PUBLIC alone leaves the schema-level anon grant',
+    why: 'anon lives in the schema layer, which a global revoke cannot touch',
+    sources: src(`alter default privileges revoke execute on functions from public;\n${fn('f23')}`),
+    expect: { 'f23()': { anon: true, authenticated: true } } },
+  { name: 'a global revoke from PUBLIC plus an in-schema revoke from anon closes anon',
+    why: 'the two layers together',
+    sources: src(`alter default privileges revoke execute on functions from public;\nalter default privileges in schema public revoke execute on functions from anon;\n${fn('f24')}`),
+    expect: { 'f24()': { anon: false, authenticated: true } } },
+  { name: 'a global revoke from anon alone changes nothing',
+    why: 'anon is granted at schema level and through PUBLIC',
+    sources: src(`alter default privileges revoke execute on functions from anon;\n${fn('f25')}`),
+    expect: { 'f25()': { anon: true } } },
+  { name: 'default privileges reach only functions created afterwards',
+    why: 'they are read when a function is created, never applied to existing ones',
+    sources: src(`${fn('f26a')}\nalter default privileges revoke execute on functions from public;\nalter default privileges in schema public revoke execute on functions from anon;\n${fn('f26b')}`),
+    expect: { 'f26a()': { anon: true }, 'f26b()': { anon: false } } },
+  { name: 'default privileges set FOR another role do not reach functions postgres creates',
+    why: 'they apply to objects that role creates; the global PUBLIC revoke first leaves the schema-level anon grant as the only thing holding anon open',
+    sources: src(`alter default privileges revoke execute on functions from public;\nalter default privileges for role anon in schema public revoke execute on functions from anon;\n${fn('f27')}`),
+    expect: { 'f27()': { anon: true } } },
+  { name: 'default privileges on tables do not touch functions',
+    why: 'the object class is part of the statement',
+    sources: src(`alter default privileges in schema public revoke all on tables from anon;\n${fn('f28')}`),
+    expect: { 'f28()': { anon: true } } },
+
+  // ── The definer flag and the pin ────────────────────────────────────────────
+  { name: 'SET search_path in CREATE is stored as written',
+    why: 'the pin is read from the latest definition',
+    sources: src(fn('f30', '', 'security definer set search_path = public, pg_temp')),
+    expect: { 'f30()': { config: 'public, pg_temp', definer: true } } },
+  { name: 'ALTER FUNCTION SET search_path writes the config and nothing else',
+    why: 'the shape of the league lockdown and of the sweep',
+    sources: src(`${fn('f31')}\nrevoke all on function public.f31() from public, anon;\nalter function public.f31() set search_path = public, pg_temp;`),
+    expect: { 'f31()': { config: 'public, pg_temp', anon: false, definer: true } } },
+  { name: 'a quoted search_path list is ONE element',
+    why: '`set search_path to \'public, pg_temp\'` stores a single schema named `public, pg_temp`, which does not exist',
+    sources: src(fn('f32', '', `security definer set search_path to 'public, pg_temp'`)),
+    expect: { 'f32()': { config: '"public, pg_temp"' } } },
+  { name: 'pg_temp listed first is stored first',
+    why: 'position is the fix, so the model reads the LAST element as the pin',
+    sources: src(fn('f33', '', 'security definer set search_path = pg_temp, public')),
+    expect: { 'f33()': { config: 'pg_temp, public' } } },
+  { name: 'a replace that omits SET removes the config',
+    why: 'a replace replaces every attribute, so re-declaring a pinned function without the clause un-pins it',
+    sources: src(`${fn('f34', '', 'security definer set search_path = public, pg_temp')}\ncreate or replace function public.f34() returns int language sql security definer as $$ select 1 $$;`),
+    expect: { 'f34()': { config: null, definer: true } } },
+  { name: 'ALTER FUNCTION RESET search_path removes the config',
+    why: 'the inverse of the alter',
+    sources: src(`${fn('f35', '', 'security definer set search_path = public, pg_temp')}\nalter function public.f35() reset search_path;`),
+    expect: { 'f35()': { config: null } } },
+  { name: 'ALTER FUNCTION SECURITY INVOKER clears the definer flag',
+    why: 'an invoker runs with the caller\'s rights and drops out of the audit',
+    sources: src(`${fn('f36')}\nalter function public.f36() security invoker;`),
+    expect: { 'f36()': { definer: false } } },
+  { name: 'ALTER FUNCTION SECURITY DEFINER sets the flag',
+    why: 'the reverse: a function can become a definer without being recreated',
+    sources: src(`${fn('f37', '', 'security invoker')}\nalter function public.f37() security definer;`),
+    expect: { 'f37()': { definer: true } } },
+  { name: 'a replace that omits SECURITY DEFINER makes the function an invoker',
+    why: 'the definer flag comes from the LATEST definition',
+    sources: src(`${fn('f38')}\ncreate or replace function public.f38() returns int language sql as $$ select 1 $$;`),
+    expect: { 'f38()': { definer: false } } },
+  { name: 'a function returning trigger, and one returning event_trigger, are trigger functions',
+    why: 'PostgREST cannot call them as RPCs, so they are outside the anon audit',
+    sources: src(`create function public.f39() returns trigger language plpgsql security definer as $$ begin return new; end $$;\ncreate function public.f39e() returns event_trigger language plpgsql security definer as $$ begin null; end $$;`),
+    expect: { 'f39()': { trigger: true, definer: true }, 'f39e()': { trigger: true, definer: true } } },
+
+  // ── The shipped sweep ───────────────────────────────────────────────────────
+  { name: 'the pg_temp sweep pins what exists when it runs and nothing after',
+    why: 'the real 2026-08-09 file: it appends pg_temp to every definer that already has a search_path without one, and a function created or replaced after it is not pinned by it',
+    sources: [
+      { file: '2026-08-08-a.sql', sql: [
+        fn('s1', '', 'security definer set search_path = public'),
+        fn('s2', '', 'security definer set search_path = public, pg_temp'),
+        fn('s4', '', 'security invoker set search_path = public'),
+        fn('s7', '', 'security definer set search_path = public, extensions'),
+        fn('s8', '', 'security definer set search_path = public'),
+      ].join('\n') },
+      { file: '2026-08-09-definer-pg-temp-sweep.sql', migration: '2026-08-09-definer-pg-temp-sweep.sql' },
+      { file: '2026-08-10-b.sql', sql: [
+        fn('s6', '', 'security definer set search_path = public'),
+        'create or replace function public.s8() returns int language sql security definer set search_path = public as $$ select 2 $$;',
+      ].join('\n') },
+    ],
+    expect: {
+      's1()': { config: 'public, pg_temp', definer: true },
+      's2()': { config: 'public, pg_temp' },
+      's4()': { config: 'public', definer: false },
+      's6()': { config: 'public' },
+      's7()': { config: 'public, extensions, pg_temp' },
+      's8()': { config: 'public' },
+    } },
+];
+
+/** Resolve a vector's sources to { file, sql }, reading `migration` sources from `dir`. */
+export function vectorSources(vector, dir = 'supabase-migrations') {
+  return vector.sources.map((s) => ({ file: s.file, sql: s.sql ?? fs.readFileSync(path.join(dir, s.migration), 'utf8') }));
+}
