@@ -827,6 +827,25 @@ Everything older, newest-first: [2026-09](WORKLOG-ARCHIVE-2026-09.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-03 — The mutation runner can fail a round that skipped a mutation, and the booth's preview is re-measured
+
+- **Merged [#2198](https://github.com/cperry8800-droid/shape-app/pull/2198) as `2067e07`**, final head `3fc21cf`; the merged tree is byte-identical to it (tree `afb0df6` on both). Seven files. **No migration, no route, no app code.**
+- **The #2189 records.** Its changelog entry, written after its merge; the preview republished as version 6, byte-identical to a fresh build of `main`; the booth re-measured at 1280×720 (high 153, high `?cine=0` 143, low 123 draw calls, about one fewer each, which is the stairs' LED riser mesh); `glinfo.cjs` waiting up to 3 minutes for the cinematic tier's page load; and the #2189 review round checked in as `tests/mutations/nora-flash-gate.mutations.mjs`, 6/6.
+- **`--fail-on-skipped`** (CodeRabbit asked; owner: *"Do this task here"*). `scripts/mutate.mjs` exits 1 when any mutation could not be applied. Before, a skip never changed the exit status, even under `--fail-on-survivor`, so a spec whose anchors had drifted could exit 0 having tested nothing.
+  - `--fail-on-survivor` is unchanged, and the two flags combine.
+  - A round with skips lists each one with `planMutation`'s own reason: an anchor that does not occur exactly once, an empty anchor, or a replacement identical to its anchor.
+  - The runner convention at the head of this file now passes the flag.
+- **Review.** Codex refused on its usage limit when the PR opened. CodeRabbit's automatic notice came 11 s after opening, and the bare trigger was read as a command: **one round on `8422a61`**, one trivial finding, the flag above. I first queued it as its own task; the owner asked for it here. Copilot reviewed each push on its own:
+  - `8422a61`: one low, a mutation named the opposite of what it does. Renamed.
+  - `5082060`: none.
+  - `0a352c4`: two low, both right. My new note and the docs called every skip a drifted anchor. Fixed in `3fc21cf`.
+  - `3fc21cf`: none. Every thread was answered and resolved, and CodeRabbit was not re-triggered.
+  - ⚠ **My own re-read caught a false line in my own records before any reviewer did**: the "run the measurement panel alone" note named a phone check that never ran beside the measurement. Corrected in `5082060`.
+- ⚠ **The web build failed once on `3fc21cf`**: `next build` could not download the Inter font from Google Fonts (56 identical module-not-found errors, nothing the diff touches). Its one re-run passed.
+- **Verified:** `npm test` **4929/4929** through the pre-commit hook; the runner's own round under the flag **killed 30, survived 0, skipped 0**, with the one no-op and the one timeout its spec documents; all four required checks green on `3fc21cf`.
+- **Written after the merge**, per the 2026-09-11 rule. Records-only, so no review round.
+- **REGISTERED, NOT FIXED:** the three older specs' headers (`batched-overview`, `heavy-assets`, `integrations-page-module`) still show the run command without the flag; the convention above has it. The `worklog-archive.mjs` idempotency fix registered by #2186 is still open.
+
 ### 2026-09-30 — Nora's booth reaches `main`, and its one review round caught a strobe and a frozen camera
 
 - **Merged [#2189](https://github.com/cperry8800-droid/shape-app/pull/2189) as `ad61bb3`**, final head `8c4cea0`; the merged tree is byte-identical to it (tree `215ea2a` on both). It is the booth prototype's first merge: `prototypes/nora-booth/` plus its review, plan and handoffs under `docs/`, 16 commits and 108 files. Nothing in the app or the website imports it. **No migration, no route, no i18n key.**
