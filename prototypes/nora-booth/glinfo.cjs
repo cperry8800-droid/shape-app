@@ -4,7 +4,9 @@ const { chromium } = require('playwright-core');
   const [,, url, w, h, mode] = process.argv;
   const b = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader','--enable-unsafe-swiftshader','--autoplay-policy=no-user-gesture-required'] });
   const p = await b.newPage({ viewport: { width: +w, height: +h } });
-  await p.goto(url); await p.waitForTimeout(12000);
+  // Measured 2026-10-03: the high tier's page load runs past Playwright's 30 s default in
+  // SwiftShader, even with nothing else running, so wait up to 3 minutes for it.
+  await p.goto(url, { timeout: 180000 }); await p.waitForTimeout(12000);
   if (mode) await p.evaluate((m) => window.__booth.setMode(m), mode);
   await p.waitForTimeout(2000);
   const r = await p.evaluate(() => new Promise((res) => {

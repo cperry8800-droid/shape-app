@@ -770,8 +770,9 @@ several are marked SHIPPED in their own text.
   onward goes live only once a real station provider is signed. The prototype source is in
   [`prototypes/nora-booth/`](../prototypes/nora-booth/README.md), and the next step (the owner's
   *"how do we improve the graphics?"*) is planned in [`HANDOFF-2026-09-29.md`](HANDOFF-2026-09-29.md);
-  the latest state is [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md). Open as PR #2189
-  (`claude/busy-albattani-7vrmq0`), not merged.
+  the latest state is [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md). Merged as
+  [#2189](https://github.com/cperry8800-droid/shape-app/pull/2189) on 2026-09-30; the preview is
+  version 6.
 - **Shape Radio page redesign — the owner picked D · The Signal Field (2026-09-14); THE NEXT BUILD.**
   Code-level brief: [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md)
   — four PRs, every line reference verified against `main` = `2d49f60`; read it before touching the
@@ -823,6 +824,29 @@ Everything older, newest-first: [2026-09](WORKLOG-ARCHIVE-2026-09.md) ·
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-09-30 — Nora's booth reaches `main`, and its one review round caught a strobe and a frozen camera
+
+- **Merged [#2189](https://github.com/cperry8800-droid/shape-app/pull/2189) as `ad61bb3`**, final head `8c4cea0`; the merged tree is byte-identical to it (tree `215ea2a` on both). It is the booth prototype's first merge: `prototypes/nora-booth/` plus its review, plan and handoffs under `docs/`, 16 commits and 108 files. Nothing in the app or the website imports it. **No migration, no route, no i18n key.**
+- **The 09-30 session's five stage notes from the owner**, each detailed in [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md):
+  - thin moving-head beams with no brightness ripple, because bloom turned the ripple into beads over the screen;
+  - the runway and B-stage removed, so the crowd fills to the stage lip;
+  - the Shape mark's ▸◂ above **CLUB SHAPE** on the LED wall, the letters rebuilt from the wordmark's own strokes (S H A P E match the PNG at IoU ≥ 0.9) and snapped to 12 dots;
+  - a cinematic tier on desktop only (`src/cinematic.mjs`: light shafts off the wall, per-shot depth of field, anamorphic streaks, a film finish and 2.39:1 bars; `?cine=0` turns it off);
+  - the side stairs removed, so the wall stands on a flat deck.
+- **Review.** Codex refused on its usage limit when the PR opened. Copilot declined twice on the account's review quota. CodeRabbit's first trigger was refused as rate-limited; the second, once the hour's slot reopened, ran on `b2f7484` and returned **12 findings: 11 fixed in `7e48d9f` and 1 answered another way**. Every thread was answered and resolved, and the round was not re-triggered (owner: *"ok only 1 code review"*).
+  - ⚠ **The blinders could strobe.** They followed the kick envelope, so a kick on every 16th would have flashed them four times a beat, past the rule that nothing flashes faster than once a beat. `src/flashGate.mjs` is a pure gate: one flash per beat at most, never more than three a second, one per kick edge.
+  - ⚠ **The camera froze after a long wait before the tap.** `startSet` restarted the bar clock at 0 without telling the director, so a shot begun at silent bar 40 was not due until bar 48 of the set. The director's shot and the hype window are rebased at the tap.
+  - Also fixed: reduced motion now reaches the camera (no handheld sway, no kick zoom); the CDJ hot-cue pads and markers were drawn from no cue data; the synthesized fallback showed an invented artist (it reads *Synthesized example*, and the generator's titles stay so "Next track ⇄" visibly changes); the package test script, two absolute container import paths, a stale multi-agent banner at the top of `CONTRACT.md`, a wholly stale `INTEGRATION-NOTES.md` (removed) and the stale branch name in this file's Open work.
+  - Answered another way: the 29 Chromium harnesses take `CHROME_PATH` as an override instead of a shared launch helper, because each carries its own launch arguments and Playwright's own browsers are not installed here.
+- **Verified:** the prototype suite **76/76**; root `npm test` **4857/4857** through the pre-commit hook; all four required checks green on `8c4cea0`. The review fixes' mutation round was 4/4 at the time. It is checked in as `tests/mutations/nora-flash-gate.mutations.mjs` and was re-run through the shared runner on 2026-10-03: **6/6 killed**, the tree restored byte-identical.
+- **Follow-up, 2026-10-03.** The preview was republished as **version 6** (no side stairs, the flash gate, the review fixes), and the published build was re-measured at 1280×720 in the wide shot:
+  - high with the cinematic chain **153 / 2.80 M**, high with `?cine=0` **143 / 2.80 M**, low **123 / 1.14 M** (draw calls / triangles), about one draw call under the 09-30 figures each, which is the stairs' LED riser mesh;
+  - the 390 px phone layout has no horizontal overflow, the set starts and plays, and there are no page errors.
+  - ⚠ **The checked-in harness could not measure the cinematic tier here.** Its page load ran past Playwright's 30 s default in SwiftShader even with nothing else running, so `glinfo.cjs` now waits up to 3 minutes for it.
+  - ⚠ **The handoff's "run the measurement panel alone" lesson, re-learned.** Run beside a phone check and a mutation round, both high runs timed out.
+- **Written after the merge**, per the 2026-09-11 rule. The owner had deferred it during the PR (*"dont worry about worklog right now"*).
+- ⚠ **REGISTERED, NOT FIXED:** no real GPU or phone has run the cinematic tier; the HUD's top-left note runs past the top letterbox bar; *"LOADING NORA…"* sits over the screen's mark until her model arrives; a `reading 'bars'` page error was seen once and not chased (owner: *"just forget it"*); the LED wall has one scene.
 
 ### 2026-09-30 — The auto-loaded changelog gets a size cap, and the review that cleared it was the third reviewer asked
 
