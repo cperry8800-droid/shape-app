@@ -19,7 +19,12 @@
 // function, and the live diff reads signatures so an overload cannot hide behind an allow-listed name.
 // The block after "The second Copilot round" answers its findings on 7f61b58: the capture query reads
 // window functions, the lexer reads standard_conforming_strings from tokens, DROP ... CASCADE and
-// RENAME / SET SCHEMA are refused, and the NULL guard reads every spelling of a cast. Each replacement is a mutation that CHANGES behaviour: a replacement that
+// RENAME / SET SCHEMA are refused, and the NULL guard reads every spelling of a cast.
+// The block after "The third Copilot round" answers its findings on e0ecb1c: a quoted lowercase name is
+// the same name, escape strings are decoded the way Postgres decodes them (UESCAPE is refused), the
+// name given to set_config must be one whole literal and is read in every statement, a coalesce in
+// executable code needs an earlier reject, the left operand of a comparison has no lookback limit, and
+// a trigger function counts toward an overload. Each replacement is a mutation that CHANGES behaviour: a replacement that
 // evaluates to the same thing (`[] && has ? ...` did) is a survivor caused by the spec, not a gap.
 const TEST = 'node --test tests/definer-grants.test.mjs tests/definer-live-agreement.test.mjs tests/definer-live-diff.test.mjs';
 const MODEL = 'tests/helpers/definer-model.mjs';
@@ -243,7 +248,7 @@ export default {
     { name: 'NULL-logic: the function\'s parameter names are not recorded', file: MODEL,
       find: "paramNames: params.filter((x) => x.mode !== 'out' && x.name).map((x) => x.name),", replace: 'paramNames: [],' },
     { name: 'NULL-logic: a coalesce subject is flagged even when a reject stands', file: MODEL,
-      find: 'if (rejects.length === 0) flags.push({ ...s, reason: `\\`${s.text}\\` takes the subject', replace: 'if (true) flags.push({ ...s, reason: `\\`${s.text}\\` takes the subject' },
+      find: 'if (initializer ? rejects.length === 0 : !(firstReject < s.at)) {', replace: 'if (true) {' },
     { name: 'NULL-logic: a reject counts wherever it stands (its position is ignored)', file: MODEL,
       find: '} else if (!(firstReject < s.at)) {', replace: '} else if (rejects.length === 0) {' },
     { name: 'NULL-logic: an and-ed NULL test counts as a reject', file: MODEL,
@@ -331,7 +336,7 @@ export default {
     { name: 'every set_config is refused, not only the role and the search_path', file: MODEL,
       find: "if (name === 'search_path' || name === 'role' || name === 'session_authorization') return name;", replace: 'return name;' },
     { name: 'a set_config with an argument the model cannot read is trusted', file: MODEL,
-      find: "if (first.k !== 'string') return '<not a literal>';", replace: "if (first.k !== 'string') continue;" },
+      find: "if (first.k !== 'string' || !isPunct(tokens[i + 3], ',')) return '<not a literal>';", replace: "if (first.k !== 'string' || !isPunct(tokens[i + 3], ',')) continue;" },
 
     // ── Finding 4: same-day ordering, complete and measured ──
     { name: 'ORDER: the pr-wall surface-before-units constraint is removed', file: MODEL,
@@ -343,9 +348,9 @@ export default {
     { name: 'ORDER: a contradiction between constraints settles silently', file: MODEL,
       find: 'if (++passes > constraints.length) throw new Error(', replace: 'if (++passes > constraints.length) return sorted; else throw new Error(' },
     { name: 'ORDER: a same-day pair that differs only in search_path counts as identical', file: MODEL,
-      find: 'tokenFingerprint(tokenize(p.body ?? \'\', \'body\')), p.searchPath, p.definer,', replace: 'tokenFingerprint(tokenize(p.body ?? \'\', \'body\')), p.definer,' },
+      find: 'tokenFingerprint(tokenize(p.body ?? \'\', \'body\', { settings: false })), p.searchPath, p.definer,', replace: 'tokenFingerprint(tokenize(p.body ?? \'\', \'body\', { settings: false })), p.definer,' },
     { name: 'ORDER: a same-day pair is compared on raw body text (a comment makes it differ)', file: MODEL,
-      find: "JSON.stringify([tokenFingerprint(tokenize(p.body ?? '', 'body')), p.searchPath,", replace: "JSON.stringify([p.body, p.searchPath," },
+      find: "JSON.stringify([tokenFingerprint(tokenize(p.body ?? '', 'body', { settings: false })), p.searchPath,", replace: "JSON.stringify([p.body, p.searchPath," },
     { name: 'ORDER: same-day pairs are drawn across days', file: MODEL,
       find: 'for (const f of files) byDate.set(migrationDate(f), [...(byDate.get(migrationDate(f)) ?? []), f]);', replace: "for (const f of files) byDate.set('all', [...(byDate.get('all') ?? []), f]);" },
     { name: 'ORDER: a constraint orders only two files it names directly (no chains)', file: MODEL,
@@ -450,17 +455,20 @@ export default {
     { name: 'DIFF: an overload does not fail the verdict', file: DIFF,
       find: '|| d.doubleListed.length || d.overloaded.length) return 1;', replace: '|| d.doubleListed.length) return 1;' },
     { name: 'DIFF: the same signature listed twice counts as an overload', file: DIFF,
-      find: 'bySig.set(r.identity_args, (bySig.get(r.identity_args) ?? false) || r.anon_executable === true);',
-      replace: 'bySig.set(`${r.identity_args}#${bySig.size}`, r.anon_executable === true);' },
+      find: 'bySig.set(r.identity_args, { anon: seen.anon || r.anon_executable === true, trigger: seen.trigger || r.is_trigger === true });',
+      replace: 'bySig.set(`${r.identity_args}#${bySig.size}`, { anon: r.anon_executable === true, trigger: r.is_trigger === true });' },
     { name: 'DIFF: every signature of an overload is marked anon-executable', file: DIFF,
-      find: 'bySig.set(r.identity_args, (bySig.get(r.identity_args) ?? false) || r.anon_executable === true);',
-      replace: 'bySig.set(r.identity_args, true);' },
-    { name: 'DIFF: a trigger function counts toward an overload', file: DIFF,
-      find: 'for (const r of definers) {', replace: 'for (const r of all) {' },
+      find: 'anon: seen.anon || r.anon_executable === true', replace: 'anon: true' },
+    { name: 'DIFF: trigger functions are left out of overload detection', file: DIFF,
+      find: 'for (const r of all) {\n    const bySig = sigsByName.get(r.proname) ?? new Map();', replace: 'for (const r of definers) {\n    const bySig = sigsByName.get(r.proname) ?? new Map();' },
+    { name: 'DIFF: the trigger flag of a signature is not kept', file: DIFF,
+      find: 'trigger: seen.trigger || r.is_trigger === true', replace: 'trigger: false' },
     { name: 'DIFF: the report has no OVERLOADED section', file: DIFF,
       find: 'if (d.overloaded.length) {', replace: 'if (false) {' },
     { name: 'DIFF: the report does not mark the anon-executable signature', file: DIFF,
-      find: "${x.anon ? ' [anon-executable]' : ''}", replace: '' },
+      find: "${x.trigger ? ' [trigger]' : x.anon ? ' [anon-executable]' : ''}", replace: "${x.trigger ? ' [trigger]' : ''}" },
+    { name: 'DIFF: the report does not mark a trigger signature', file: DIFF,
+      find: "${x.trigger ? ' [trigger]' : x.anon ? ' [anon-executable]' : ''}", replace: "${x.anon ? ' [anon-executable]' : ''}" },
 
     // ── The second Copilot round (on 7f61b58): window functions, the lexer's setting, DDL that changes
     //    identities, and every spelling of a cast ──
@@ -475,7 +483,7 @@ export default {
       find: "const hit = turnsOffConformingStrings(out.slice(stmtFrom));",
       replace: "const hit = /standard_conforming_strings\\s*(?:=|\\bto\\b)\\s*(?:off|'off'|false|0)\\b/i.test(sql.slice(out[stmtFrom]?.start ?? 0, i + 1)) ? out[out.length - 1] : null;" },
     { name: 'SCS: set_config is not read', file: SCAN,
-      find: "if (t.k === 'word' && t.v === 'set_config' && toks[i + 1]?.k === 'punct' && toks[i + 1].v === '(' && isNameOf(toks[i + 2], SCS)) {", replace: 'if (false) {' },
+      find: "if (nameIs(t, 'set_config') && toks[i + 1]?.k === 'punct' && toks[i + 1].v === '(') {", replace: 'if (false) {' },
     { name: 'SCS: a set_config value it cannot read is let through', file: SCAN,
       find: 'if (off === true || off === null) return toks[i];', replace: 'if (off === true) return toks[i];' },
     { name: 'SCS: a set_config value that is not a whole literal argument is treated as readable', file: SCAN,
@@ -543,6 +551,58 @@ export default {
     { name: 'CAST: a NULL test through a cast is not a reject', file: MODEL,
       find: "return n > 0 && isWord(a[n], 'is') && isWord(a[n + 1], 'null') && a.length === n + 2;", replace: "return n === 5 && isWord(a[n], 'is') && isWord(a[n + 1], 'null') && a.length === n + 2;" },
     { name: 'CAST: a left operand is only looked for a few tokens back', file: MODEL,
-      find: "for (let s = j; s >= 0 && j - s < 96; s--)", replace: "for (let s = j; s >= 0 && j - s < 6; s--)" },
+      find: 'for (let s = j; s >= 0; s--) if (callerOperandEnd(t, s, aliases) === j) return s;', replace: 'for (let s = j; s >= 0 && j - s < 96; s--) if (callerOperandEnd(t, s, aliases) === j) return s;' },
+
+    // ── The third Copilot round (on e0ecb1c): quoted names, escape decoding, the whole-argument name,
+    //    a coalesce in executable code, an unbounded lookback, and trigger functions in the overloads ──
+    { name: 'NAME: a quoted set_config is not the built-in (model)', file: MODEL,
+      find: "if (!nameIs(tokens[i], 'set_config') || !isPunct(tokens[i + 1], '(')) continue;", replace: "if (!isWord(tokens[i], 'set_config') || !isPunct(tokens[i + 1], '(')) continue;" },
+    { name: 'NAME: a quoted auth.uid() is not the caller', file: MODEL,
+      find: "nameIs(t[i], 'auth') && isPunct(t[i + 1], '.') && nameIs(t[i + 2], 'uid')", replace: "isWord(t[i], 'auth') && isPunct(t[i + 1], '.') && isWord(t[i + 2], 'uid')" },
+    { name: 'NAME: a quoted GUC name in a DO block is not read', file: MODEL,
+      find: "inner.filter((t) => t.k === 'word' || t.k === 'qident')", replace: "inner.filter((t) => t.k === 'word')" },
+    { name: 'NAME: nameIs ignores quoted identifiers', file: SCAN,
+      find: "export const nameIs = (t, v) => !!t && (t.k === 'word' || t.k === 'qident') && t.v === v;", replace: "export const nameIs = (t, v) => !!t && t.k === 'word' && t.v === v;" },
+    { name: 'NAME: nameIs reads any case of a quoted identifier as the built-in', file: SCAN,
+      find: "export const nameIs = (t, v) => !!t && (t.k === 'word' || t.k === 'qident') && t.v === v;", replace: "export const nameIs = (t, v) => !!t && (t.k === 'word' || t.k === 'qident') && String(t.v).toLowerCase() === v;" },
+    { name: 'NAME: the lexer reads only an unquoted set_config', file: SCAN,
+      find: "if (nameIs(t, 'set_config') && toks[i + 1]?.k === 'punct' && toks[i + 1].v === '(') {", replace: "if (t.k === 'word' && t.v === 'set_config' && toks[i + 1]?.k === 'punct' && toks[i + 1].v === '(') {" },
+    // set_config: the name is the whole first argument, and the call is read in every statement.
+    { name: 'SETCONFIG: the name need not be the whole first argument', file: MODEL,
+      find: "|| !isPunct(tokens[i + 3], ',')) return '<not a literal>';", replace: ") return '<not a literal>';" },
+    { name: 'SETCONFIG: set_config is read only in DML statements', file: MODEL,
+      find: "if (!(head === 'create' && objectWord(t) === 'function')) {", replace: 'if (DML.has(head)) {' },
+    { name: 'SETCONFIG: a CREATE FUNCTION definition is scanned too', file: MODEL,
+      find: "if (!(head === 'create' && objectWord(t) === 'function')) {", replace: 'if (true) {' },
+    { name: 'SETCONFIG: a function body is lexed with the setting check', file: MODEL,
+      find: "return tokenize(fn.body ?? '', `${fn.name} body`, { settings: false });", replace: "return tokenize(fn.body ?? '', `${fn.name} body`);" },
+    // Escape strings decode the way Postgres decodes them.
+    { name: 'DECODE: octal escapes are not decoded', file: SCAN,
+      find: 'const digits = oct ?? hex ?? u4 ?? u8;', replace: 'const digits = hex ?? u4 ?? u8;' },
+    { name: 'DECODE: hex escapes are not decoded', file: SCAN,
+      find: 'const digits = oct ?? hex ?? u4 ?? u8;', replace: 'const digits = oct ?? u4 ?? u8;' },
+    { name: 'DECODE: \\u escapes are not decoded', file: SCAN,
+      find: 'const digits = oct ?? hex ?? u4 ?? u8;', replace: 'const digits = oct ?? hex ?? u8;' },
+    { name: 'DECODE: \\U escapes are not decoded', file: SCAN,
+      find: 'const digits = oct ?? hex ?? u4 ?? u8;', replace: 'const digits = oct ?? hex ?? u4;' },
+    { name: 'DECODE: octal digits are read as hex', file: SCAN,
+      find: 'parseInt(digits, oct !== undefined ? 8 : 16)', replace: 'parseInt(digits, 16)' },
+    { name: 'DECODE: a doubled quote is not collapsed in an E string', file: SCAN,
+      find: `if (m === "''") return "'";`, replace: `if (m === "''") return m;` },
+    { name: 'DECODE: an E string is decoded as a plain one', file: SCAN,
+      find: `decode(sql.slice(j, end), "'", low === 'e' ? 'escape' : 'plain')`, replace: `decode(sql.slice(j, end), "'", 'plain')` },
+    { name: 'DECODE: a U& literal is decoded as a plain one', file: SCAN,
+      find: "if (mode === 'plain') return inner.split(quote + quote).join(quote);", replace: "if (mode !== 'escape') return inner.split(quote + quote).join(quote);" },
+    { name: 'DECODE: UESCAPE after a U& literal is accepted', file: SCAN,
+      find: "if (low === 'uescape' && out[out.length - 1]?.uni) fail(", replace: 'if (false) fail(' },
+    { name: 'DECODE: UESCAPE after a U& identifier is accepted', file: SCAN,
+      find: 'out[out.length - 1].uni = true;', replace: `if (quote === "'") out[out.length - 1].uni = true;` },
+    // A coalesce in executable code needs an EARLIER reject.
+    { name: 'GUARD: a coalesce in executable code is cleared by a reject that comes later', file: MODEL,
+      find: 'if (initializer ? rejects.length === 0 : !(firstReject < s.at)) {', replace: 'if (rejects.length === 0) {' },
+    { name: 'GUARD: a coalesce initializer needs an earlier reject too', file: MODEL,
+      find: 'if (initializer ? rejects.length === 0 : !(firstReject < s.at)) {', replace: 'if (!(firstReject < s.at)) {' },
+    { name: 'GUARD: every coalesce counts as a DECLARE initializer', file: MODEL,
+      find: 'const initializer = beginAt > 0 && s.at < beginAt;', replace: 'const initializer = true;' },
   ],
 };

@@ -129,7 +129,7 @@ test('B, X, N and U& literals are ONE string token each, and a semicolon inside 
   one("b'1'", "b'1'", '1');
   one("X'1F;'", "X'1F;'", '1F;');
   one("N'it''s;'", "N'it''s;'", "it's;");
-  one("U&'d\\0061t\\+000061;'", "U&'d\\0061t\\+000061;'", 'd\\0061t\\+000061;');
+  one("U&'d\\0061t\\+000061;'", "U&'d\\0061t\\+000061;'", 'data;'); // \0061 and \+000061 are both the letter a
   one("u&'a'", "u&'a'", 'a');
   one('U&"i;d"', 'U&"i;d"', 'i;d', 'qident');
   // Measured on PostgreSQL 16.13: in a U& literal a backslash is the Unicode escape character and
@@ -149,6 +149,30 @@ test('B, X, N and U& literals are ONE string token each, and a semicolon inside 
     assert.equal(splitStatements(sql, 't.sql').length, 2, lit);
     assert.ok(replayOne(sql).fns.has('public.after_lit()'), lit);
   }
+});
+
+test('escape strings are decoded the way Postgres decodes them, so a name written with escapes still compares equal', () => {
+  const v = (sql) => { const t = tokenize(sql, 't.sql'); assert.equal(t.length, 1, sql); return t[0].v; };
+  // Each of these is `search_path` on PostgreSQL 16.13 (`select <literal>`).
+  for (const lit of ["E'\\x73earch_path'", "E'\\163earch_path'", "E'\\u0073earch_path'", "E'\\U00000073earch_path'", "E'search\\137path'", "e'\\x73\\x65arch_path'", "U&'\\0073earch_path'", "U&'\\+000073earch_path'"]) assert.equal(v(lit), 'search_path', lit);
+  assert.equal(v("E'a\\nb\\tc\\rd\\be\\ff'"), 'a\nb\tc\rd\be\ff');
+  assert.equal(v("E'it\\'s'"), "it's");
+  assert.equal(v("E'it''s'"), "it's");
+  assert.equal(v("E'a\\\\b'"), 'a\\b');
+  assert.equal(v("E'a''\\'b'"), "a''b");
+  assert.equal(v("E'\\x4'"), '\x04', 'one hex digit is enough');
+  assert.equal(v("E'\\1'"), '\x01', 'so is one octal digit');
+  assert.equal(v("E'\\q'"), 'q', 'any other character stands for itself');
+  // U&: a doubled backslash is one backslash, and a U& identifier decodes too.
+  assert.equal(v("U&'a\\\\b'"), 'a\\b');
+  const id = tokenize('U&"\\0061uth"', 't.sql');
+  assert.deepEqual([id[0].k, id[0].v], ['qident', 'auth']);
+  // A plain string keeps its backslash.
+  assert.equal(v("'\\x73'"), '\\x73');
+  // UESCAPE changes the escape character, so it is refused rather than decoded under the wrong one.
+  assert.throws(() => tokenize("select U&'!0073earch_path' UESCAPE '!';", 'f.sql'), /f\.sql:1: UESCAPE changes what every escape/);
+  assert.throws(() => tokenize("select U&\"!0061uth\" /* c */ UESCAPE '!';", 'f.sql'), /UESCAPE changes what every escape/);
+  assert.doesNotThrow(() => tokenize("select 'uescape'; select uescape from t;", 'f.sql'), 'the word on its own is only a word');
 });
 
 test('a doubled quote is an escaped quote in a string and in a quoted identifier', () => {
@@ -193,6 +217,10 @@ test('standard_conforming_strings is read from tokens: a comment cannot hide it 
   refused("select set_config('standard_conforming_strings', 'off', false);");
   refused("select set_config('Standard_Conforming_Strings', 'false', true);");
   refused('select set_config($$standard_conforming_strings$$, $$off$$, true);');
+  refused("select pg_catalog.\"set_config\"('standard_conforming_strings', 'off', false);"); // a quoted lowercase name is the built-in
+  refused("select \"pg_catalog\".\"set_config\"('standard_conforming_strings', 'off', false);");
+  refused("select set_config(E'\\x73tandard_conforming_strings', 'off', false);");
+  refused("select set_config(U&'\\0073tandard_conforming_strings', 'off', false);");
   refused("select set_config('standard_conforming_strings', current_setting('x'), false);"); // a value it cannot read counts
   refused("select set_config('standard_conforming_strings', 'o' || 'ff', false);"); // and so does one assembled from parts
   // It is read before the NEXT statement is lexed, so the message is the refusal and not the
@@ -210,7 +238,27 @@ test('standard_conforming_strings is read from tokens: a comment cannot hide it 
   accepted('reset standard_conforming_strings;');
   accepted("select set_config('standard_conforming_strings', 'on', false);");
   accepted("select set_config('statement_timeout', 'off', false);");
+  accepted("select pg_catalog.\"SET_CONFIG\"('standard_conforming_strings', 'off', false);"); // a different (nonexistent) function: not the built-in
+  // A name that is not one literal is no business of the lexer's: the model refuses every such set_config.
+  accepted("select set_config('standard_' || 'conforming_strings', 'off', false);");
+  accepted("select set_config(current_setting('x'), 'off', false);");
   accepted("select current_setting('standard_conforming_strings');");
+});
+
+test('a function body is lexed without the setting check: it runs when the function is called, not while the file is read', () => {
+  const body = "select set_config('standard_conforming_strings', 'off', false)";
+  assert.throws(() => tokenize(body, 'f.sql'), /standard_conforming_strings is turned off/, 'as a statement it changes how the rest of the file is lexed');
+  assert.doesNotThrow(() => tokenize(body, 'f.sql', { settings: false }));
+  const m = replayOne(`create function public.sets_it() returns text language sql security definer set search_path = public, pg_temp as $$ ${body} $$;`);
+  assert.deepEqual(messages(m), []);
+  assert.doesNotThrow(() => M.bodyTokens([...m.fns.values()][0]));
+});
+
+test('a CREATE FUNCTION whose definition mentions set_config outside its body is not a set_config statement', () => {
+  // The default runs when the function is called, not when it is created.
+  const m = replayOne("create function public.f(p text default set_config('search_path', 'private', false)) returns int language sql as $$ select 1 $$;");
+  assert.deepEqual(messages(m), []);
+  assert.ok(m.fns.has('public.f(text)'));
 });
 
 test('argument lists read as Postgres identifies them', () => {
@@ -379,6 +427,25 @@ const UNMODELLED = [
   ['a DO block with a bare SET SESSION ROLE', 'do $$ begin set session role anon; end $$;', 'unmodelled DO block'],
   ['a DO block with a bare SET LOCAL ROLE', 'do $$ begin set local role anon; end $$;', 'unmodelled DO block'],
   ['a DO block with a bare RESET ROLE', 'do $$ begin reset role; end $$;', 'unmodelled DO block'],
+  // The same call, spelled so that a word-by-word comparison misses it. Each takes effect on PostgreSQL 16.13,
+  // except inside a materialized view, where Postgres runs the query as a restricted operation and discards
+  // the change (measured); that one is refused anyway, because refusing costs less than telling them apart.
+  ['set_config through a quoted function name', "select pg_catalog.\"set_config\"('search_path', 'private', false);", 'unmodelled statement'],
+  ['set_config through two quoted names', "select \"pg_catalog\".\"set_config\"('search_path', 'private', false);", 'unmodelled statement'],
+  ['set_config on a name written with hex escapes', "select set_config(E'\\x73earch_path', 'private', false);", 'unmodelled statement'],
+  ['set_config on a name written with octal escapes', "select set_config(E'\\163earch_path', 'private', false);", 'unmodelled statement'],
+  ['set_config on a name written with U& escapes', "select set_config(U&'\\0073earch_path', 'private', false);", 'unmodelled statement'],
+  ['set_config on a name built from two literals', "select set_config('search_' || 'path', 'private', false);", 'unmodelled statement'],
+  ['set_config on a name that is cast', "select set_config('search_path'::text, 'private', false);", 'unmodelled statement'],
+  ['set_config inside CREATE TABLE AS (it runs now)', "create table public.t2 as select set_config('search_path', 'private', false);", 'unmodelled statement'],
+  ['set_config inside CREATE MATERIALIZED VIEW (refused although Postgres discards the change there)', "create materialized view public.mv as select set_config('role', 'anon', false);", 'unmodelled statement'],
+  ['set_config inside INSERT ... SELECT', "insert into public.t select set_config('search_path', 'private', false);", 'unmodelled statement'],
+  ['a DO block calling set_config through a quoted function name', "do $$ begin perform pg_catalog.\"set_config\"('search_path', 'private', false); end $$;", 'unmodelled DO block'],
+  ['a DO block calling set_config on an escaped name', "do $$ begin perform set_config(E'\\x73earch_path', 'private', false); end $$;", 'unmodelled DO block'],
+  ['a DO block calling set_config on a name built from parts', "do $$ begin perform set_config('search_' || 'path', 'private', false); end $$;", 'unmodelled DO block'],
+  ['a DO block with a quoted SET search_path', 'do $$ begin set "search_path" to private; end $$;', 'unmodelled DO block'],
+  ['a DO block with a quoted SET role', 'do $$ begin set "role" to anon; end $$;', 'unmodelled DO block'],
+  ['a DO block with a quoted upper-case SET search_path', 'do $$ begin set "SEARCH_PATH" to private; end $$;', 'unmodelled DO block'],
   // DDL that is irrelevant until it can change which functions exist or what a later GRANT must call them.
   ['DROP TABLE ... CASCADE', 'drop table public.t cascade;', 'unmodelled statement'],
   ['DROP TABLE IF EXISTS ... CASCADE', 'drop table if exists public.t cascade;', 'unmodelled statement'],
@@ -592,6 +659,8 @@ test('a DO block that only talks about the search_path, or sets a harmless param
     ['a message that spells out set_config, SET search_path and SET ROLE', "do $$ begin raise notice 'set search_path to private; set_config(''search_path'', ''x'', false); set role anon'; end $$;"],
     ['a column whose name starts with schema', "do $$ begin update public.t set schema_name = 'x' where id = 1; end $$;"],
     ['a column whose name starts with search_path', "do $$ begin update public.t set search_path_hint = 'x'; end $$;"],
+    ['a function whose name only contains set_config', "do $$ begin perform public.my_set_config_helper('x'); end $$;"],
+    ['set_config with a quoted name of another case (a different function)', "do $$ begin perform pg_catalog.\"SET_CONFIG\"('search_path', 'private', false); end $$;"],
     ['a variable called role_name', "do $$ declare role_name text; begin role_name := 'anon'; end $$;"],
   ]) {
     const m = replayOne(`${sql}\n${AFTER}`);
@@ -1249,6 +1318,15 @@ const NULL_LOGIC = [
   ['an alias assigned from (select auth.uid())', plpg('if p_id <> v_me then return null; end if; return null;', { declare: 'v_me uuid := (select auth.uid());' }), ['not-equal']],
   ['negated equality through a qualified cast', plpg(`if not (auth.uid()::pg_catalog.uuid = p_id or public.is_coach_on_client(p_id)) then ${RAISE} end if; return null;`), ['negated-equality']],
   ['a coalesce with a qualified cast on the caller', plpg('return null;', { declare: 'v uuid := coalesce(p_id, auth.uid()::pg_catalog.uuid);' }), ['subject-coalesce']],
+  ['"auth"."uid"() with both names quoted', plpg('if "auth"."uid"() <> p_id then return null; end if; return null;'), ['not-equal']],
+  ['auth."uid"() with one name quoted', plpg('if auth."uid"() <> p_id then return null; end if; return null;'), ['not-equal']],
+  ['"auth".uid() with the schema quoted', plpg('if p_id <> "auth".uid() then return null; end if; return null;'), ['not-equal']],
+  ['a schema written with a U& escape', plpg('if U&"\\0061uth".uid() <> p_id then return null; end if; return null;'), ['not-equal']],
+  ['sixty parentheses around the caller put it more than a hundred tokens from the operator', plpg(`if ${'('.repeat(60)}auth.uid()${')'.repeat(60)} <> p_id then return null; end if; return null;`), ['not-equal']],
+  ['a cast chain of forty casts is one operand', plpg(`if auth.uid()${'::text'.repeat(40)} <> p_id::text then return null; end if; return null;`), ['not-equal']],
+  ['a coalesce in executable code BEFORE a later reject: the reject cannot protect what already ran', plpg(`v := coalesce(p_id, auth.uid()); if auth.uid() is null then ${RAISE} end if; return null;`, { declare: 'v uuid;' }), ['subject-coalesce']],
+  ['a coalesce in executable code with no reject at all', plpg('v := coalesce(p_id, auth.uid()); return null;', { declare: 'v uuid;' }), ['subject-coalesce']],
+  ['a coalesce in executable code AFTER an earlier reject is cleared', plpg(`if auth.uid() is null then ${RAISE} end if; v := coalesce(p_id, auth.uid()); return null;`, { declare: 'v uuid;' }), []],
   ['a NULL test through a cast is a reject', plpg(`if auth.uid()::text is null then ${RAISE} end if; if p_id::text <> auth.uid()::text then return null; end if; return null;`), []],
   ['is distinct from through a qualified cast is NULL-safe', plpg(`if p_id is distinct from auth.uid()::pg_catalog.uuid then ${RAISE} end if; return null;`), []],
   ['a group that does more than hold the caller is not the caller', plpg("if (auth.uid()::text || 'x') <> p_id::text then return null; end if; return null;"), []],

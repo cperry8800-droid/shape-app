@@ -19,15 +19,22 @@
 //                             one token each, prefix included (measured on PostgreSQL 16.13: in
 //                             `U&'a\'` the backslash is a Unicode escape character, NOT a quote
 //                             escape, so the literal ends at the second quote; only `E` honours
-//                             a backslash before a quote). The value of a `U&` literal is its
-//                             undecoded text: only where it ENDS matters here.
+//                             a backslash before a quote). VALUES are decoded as Postgres decodes them,
+//                             because the model compares them with names (`set_config(E'\x73earch_path',
+//                             ...)` IS the search_path): an `E` literal reads \b \f \n \r \t, octal,
+//                             \xhh, \uXXXX and \UXXXXXXXX; a `U&` literal or identifier reads \XXXX,
+//                             \+XXXXXX and \\. `UESCAPE`, which changes the escape character, is refused.
 //   dollar-quoted bodies      `$tag$ ... $tag$` with ANY tag, including none. The opener
 //                             cannot CONTINUE an identifier: `$` is legal inside one, so
 //                             `foo$tag$` is a single word to Postgres.
 // WHAT IT REFUSES rather than guesses: an unterminated comment, literal or dollar quote, and
-// `standard_conforming_strings = off`, which would change what a backslash means in every
-// ordinary literal after it. A lexer that finished cleanly on text it misread is a silent
-// all-clear, so anything it cannot COMPLETE is an error naming the file and line.
+// `standard_conforming_strings = off` (read from tokens, per statement, so a comment cannot hide it:
+// `set ... /* c */ = off`, `set_config('standard_conforming_strings', 'off', ...)` and a quoted
+// `pg_catalog."set_config"` all count), which would change what a backslash means in every ordinary
+// literal after it. That check is for statements that run while the file is read; a function body
+// runs later, and `tokenize(sql, file, { settings: false })` lexes one without it. A lexer that
+// finished cleanly on text it misread is a silent all-clear, so anything it cannot COMPLETE is an
+// error naming the file and line.
 
 const IDENT_START = /[A-Za-z_\u0080-\uFFFF]/;
 const IDENT_CONT = /[A-Za-z0-9_$\u0080-\uFFFF]/;
@@ -43,7 +50,7 @@ const isDigit = (ch) => ch !== undefined && ch >= '0' && ch <= '9';
  *   dollar   v is the text between the delimiters; `tag` is the delimiter's name ('' for $$)
  *   num, param, punct   v is the source text (punct is always ONE character)
  */
-export function tokenize(sql, file = '<sql>') {
+export function tokenize(sql, file = '<sql>', { settings = true } = {}) {
   const out = [];
   const n = sql.length;
   let i = 0;
@@ -60,6 +67,7 @@ export function tokenize(sql, file = '<sql>') {
   // unterminated string further down turns into.
   let stmtFrom = 0;
   const checkConformingStrings = () => {
+    if (!settings) return; // a function body runs when the function is CALLED, not while the file is read
     const hit = turnsOffConformingStrings(out.slice(stmtFrom));
     stmtFrom = out.length;
     if (hit) fail('standard_conforming_strings is turned off, which changes what every quote means; refusing to lex', hit.line);
@@ -79,10 +87,29 @@ export function tokenize(sql, file = '<sql>') {
     }
     return fail(`unterminated ${what}`, startLine);
   };
-  const decode = (raw, quote, backslash) => {
-    const body = raw.slice(1, -1).split(quote + quote).join(quote);
-    if (!backslash) return body;
-    return body.replace(/\\(.)/gs, (_, c) => ({ n: '\n', t: '\t', r: '\r', b: '\b', f: '\f' }[c] ?? c));
+  // `plain` is '...' and "..." (a doubled quote is one quote). `escape` is E'...', which reads what Postgres
+  // reads: \b \f \n \r \t, octal (\o \oo \ooo), hex (\xh \xhh), \uXXXX and \UXXXXXXXX, any other
+  // character as itself, and a doubled quote as one quote; so E'\x73earch_path' IS search_path, and a name
+  // compared against it would not match if only the backslash were dropped. `unicode` is U&'...' and
+  // U&"...", whose default escape is a backslash: \XXXX, \+XXXXXX and \\. UESCAPE, which changes the
+  // escape character, is refused where it appears, so no value here is ever decoded under the wrong one.
+  const decode = (raw, quote, mode = 'plain') => {
+    const inner = raw.slice(1, -1);
+    if (mode === 'plain') return inner.split(quote + quote).join(quote);
+    if (mode === 'escape') {
+      return inner.replace(/''|\\(?:([0-7]{1,3})|x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([\s\S]))/g, (m, oct, hex, u4, u8, ch) => {
+        if (m === "''") return "'";
+        const digits = oct ?? hex ?? u4 ?? u8;
+        if (digits === undefined) return { b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' }[ch] ?? ch;
+        const code = parseInt(digits, oct !== undefined ? 8 : 16);
+        return code <= 0x10ffff ? String.fromCodePoint(code) : m; // out of range: Postgres refuses the statement
+      });
+    }
+    return inner.split(quote + quote).join(quote).replace(/\\(?:(\\)|([0-9A-Fa-f]{4})|\+([0-9A-Fa-f]{6}))/g, (m, bs, u4, u6) => {
+      if (bs) return '\\';
+      const code = parseInt(u4 ?? u6, 16);
+      return code <= 0x10ffff ? String.fromCodePoint(code) : m;
+    });
   };
 
   while (i < n) {
@@ -114,12 +141,12 @@ export function tokenize(sql, file = '<sql>') {
 
     if (c === '"') {
       const end = readQuoted(i, '"', false, 'quoted identifier');
-      push('qident', decode(sql.slice(i, end), '"', false), start, end, startLine);
+      push('qident', decode(sql.slice(i, end), '"'), start, end, startLine);
       countLines(i, end); i = end; continue;
     }
     if (c === "'") {
       const end = readQuoted(i, "'", false, 'string literal');
-      push('string', decode(sql.slice(i, end), "'", false), start, end, startLine);
+      push('string', decode(sql.slice(i, end), "'"), start, end, startLine);
       countLines(i, end); i = end; continue;
     }
 
@@ -147,15 +174,17 @@ export function tokenize(sql, file = '<sql>') {
       // A one-letter prefix directly against a quote is part of the literal, not a word.
       if (sql[j] === "'" && (low === 'e' || low === 'b' || low === 'x' || low === 'n')) {
         const end = readQuoted(j, "'", low === 'e', 'string literal');
-        push('string', decode(sql.slice(j, end), "'", low === 'e'), start, end, startLine);
+        push('string', decode(sql.slice(j, end), "'", low === 'e' ? 'escape' : 'plain'), start, end, startLine);
         countLines(i, end); i = end; continue;
       }
       if (low === 'u' && sql[j] === '&' && (sql[j + 1] === "'" || sql[j + 1] === '"')) {
         const quote = sql[j + 1];
         const end = readQuoted(j + 1, quote, false, quote === "'" ? 'string literal' : 'quoted identifier');
-        push(quote === "'" ? 'string' : 'qident', decode(sql.slice(j + 1, end), quote, false), start, end, startLine);
+        push(quote === "'" ? 'string' : 'qident', decode(sql.slice(j + 1, end), quote, 'unicode'), start, end, startLine);
+        out[out.length - 1].uni = true;
         countLines(i, end); i = end; continue;
       }
+      if (low === 'uescape' && out[out.length - 1]?.uni) fail('UESCAPE changes what every escape in a U& literal means; refusing to lex', startLine);
       push('word', low, start, j, startLine);
       i = j; continue;
     }
@@ -179,6 +208,12 @@ export function tokenize(sql, file = '<sql>') {
   checkConformingStrings();
   return out;
 }
+
+/**
+ * True when t names `v`: the unquoted word (already folded to lower case) or a quoted identifier spelled
+ * exactly `v`, which Postgres resolves to the same name (`pg_catalog."set_config"(...)` is the built-in).
+ */
+export const nameIs = (t, v) => !!t && (t.k === 'word' || t.k === 'qident') && t.v === v;
 
 const SCS = 'standard_conforming_strings';
 const lowerV = (t) => String(t?.v ?? '').toLowerCase();
@@ -206,7 +241,14 @@ function turnsOffConformingStrings(toks) {
       const assign = (toks[i + 1]?.k === 'punct' && toks[i + 1].v === '=') || (toks[i + 1]?.k === 'word' && toks[i + 1].v === 'to');
       if (afterSet && assign && isOffValue(toks[i + 2]) === true) return toks[i];
     }
-    if (t.k === 'word' && t.v === 'set_config' && toks[i + 1]?.k === 'punct' && toks[i + 1].v === '(' && isNameOf(toks[i + 2], SCS)) {
+    if (nameIs(t, 'set_config') && toks[i + 1]?.k === 'punct' && toks[i + 1].v === '(') {
+      // Only a name that is ONE whole literal is read here. `'standard_' || 'conforming_strings'` and
+      // `'standard_conforming_strings'::text` start with a literal and say something else, and a name that
+      // is no literal at all could be anything: the model refuses every such set_config as an unmodelled
+      // statement (setConfigTarget), which is loud, so the lexer need not throw for them as well.
+      const arg = toks[i + 2];
+      const wholeName = ['string', 'dollar'].includes(arg?.k) && toks[i + 3]?.k === 'punct' && toks[i + 3].v === ',';
+      if (!wholeName || lowerV(arg) !== SCS) continue;
       const comma = toks[i + 3]?.k === 'punct' && toks[i + 3].v === ',';
       // A value is readable only when it is the WHOLE argument: `current_setting('x')` starts with a word
       // and `'o' || 'ff'` with a string, and neither says what the setting becomes.

@@ -64,7 +64,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { splitStatements, tokenize } from './sql-scan.mjs';
+import { splitStatements, tokenize, nameIs } from './sql-scan.mjs';
 
 // ── Roles and the default ACL ────────────────────────────────────────────────
 
@@ -497,7 +497,7 @@ export function parseCreateFunction(tokens) {
  * The definition of a function as a later CREATE OR REPLACE would change it: the code of the body
  * (comments and whitespace are not code), the search_path, the security mode and the language.
  */
-const definitionKey = (p) => JSON.stringify([tokenFingerprint(tokenize(p.body ?? '', 'body')), p.searchPath, p.definer, p.invoker, p.trigger, p.language]);
+const definitionKey = (p) => JSON.stringify([tokenFingerprint(tokenize(p.body ?? '', 'body', { settings: false })), p.searchPath, p.definer, p.invoker, p.trigger, p.language]);
 
 /**
  * Every pair of migration files dated the same day that both CREATE one function, as
@@ -758,10 +758,9 @@ export function parseAlterDefaultPrivileges(tokens) {
 //     of these. `set local` lasts only the transaction, which a migration may span, so it counts.
 //     The patterns read WORDS, so a column named `role`, `schema` or `search_path` in an UPDATE's
 //     SET list reads as the statement and is refused too: that over-flags, on purpose, because
-//     telling a column from a parameter takes a parser. A documented inert entry cannot excuse it
-//     (those excuse dynamic SQL only); the way out is to run the UPDATE outside the DO block, or to
-//     quote the column (`set "role" = ...`), which is not a word to this scan. No block in the tree
-//     is affected;
+//     telling a column from a parameter takes a parser, and a quoted name counts too (`set "role" to
+//     anon` works). A documented inert entry cannot excuse it (those excuse dynamic SQL only); the way
+//     out is to run the UPDATE outside the DO block. No block in the tree is affected;
 //   * ANY `execute` is an effect. Dynamic SQL is text the block assembles when it runs, and a scan
 //     of the string literals it happens to contain cannot say what it assembles. Each of these
 //     read as inert to such a scan, and each changes who can execute what: an `execute` whose text
@@ -817,7 +816,10 @@ export function classifyDoBlock(tokens) {
   if (lang !== 'plpgsql') return { ...opaque, tag, why: `it is written in ${lang}, which the model cannot read` };
   const inner = tokenize(body.v, 'do-block');
   const dynamic = inner.some((t) => isWord(t, 'execute'));
-  const code = inner.filter((t) => t.k === 'word').map((t) => t.v).join(' ');
+  // Words, and quoted identifiers: `set "search_path" to private` and `set "role" to anon` work (measured on
+  // PostgreSQL 16.13), because quoting does not change a setting's name. A setting's name is case-insensitive
+  // and the patterns below are too, so `set "SEARCH_PATH" to private` reads the same way.
+  const code = inner.filter((t) => t.k === 'word' || t.k === 'qident').map((t) => String(t.v)).join(' ');
   // set_config is a function call, so it is read from the tokens (its first argument is a string
   // literal, which `code` leaves out), the way the top-level path reads it.
   const cfg = setConfigTarget(inner);
@@ -894,9 +896,11 @@ const CREATE_MODIFIERS = new Set(['or', 'replace', 'unique', 'temp', 'temporary'
  */
 function setConfigTarget(tokens) {
   for (let i = 0; i + 2 < tokens.length; i++) {
-    if (!isWord(tokens[i], 'set_config') || !isPunct(tokens[i + 1], '(')) continue;
+    if (!nameIs(tokens[i], 'set_config') || !isPunct(tokens[i + 1], '(')) continue;
     const first = tokens[i + 2];
-    if (first.k !== 'string') return '<not a literal>';
+    // The name counts only as the WHOLE first argument: `'search_' || 'path'` and `'search_path'::text` start
+    // with a string literal and mean something else (both take effect: measured on PostgreSQL 16.13).
+    if (first.k !== 'string' || !isPunct(tokens[i + 3], ',')) return '<not a literal>';
     const name = first.v.toLowerCase();
     if (name === 'search_path' || name === 'role' || name === 'session_authorization') return name;
   }
@@ -1098,6 +1102,17 @@ export function applyStatement(model, stmt) {
   const head = isWord(t[0]) ? t[0].v : null;
   if (head === null) return reject(model, stmt, 'unmodelled statement', 'does not start with a keyword');
 
+  // A set_config call runs when the statement does, whatever the statement is: `create table t as select
+  // set_config('search_path', 'private', false)` changes the session as surely as a bare SELECT. A function's
+  // body is one dollar token and is not read here, since it runs when the function is called.
+  if (!(head === 'create' && objectWord(t) === 'function')) {
+    const cfg = setConfigTarget(t);
+    if (cfg !== null) {
+      const same = { search_path: '`set search_path`', role: '`set role`', session_authorization: '`set session authorization`' }[cfg] ?? '`set role` or `set search_path`';
+      return reject(model, stmt, 'unmodelled statement', `set_config(${cfg}) does what ${same} does, from inside a statement, and the model fails both of those`);
+    }
+  }
+
   if (head === 'create') {
     const obj = objectWord(t);
     if (obj === 'function') { bump(model, 'create-function'); return applyCreate(model, stmt); }
@@ -1163,14 +1178,7 @@ export function applyStatement(model, stmt) {
     bump(model, 'ignored:set'); return;
   }
   if (TXN.has(head)) { bump(model, 'ignored:txn'); return; }
-  if (DML.has(head)) {
-    const cfg = setConfigTarget(t);
-    if (cfg !== null) {
-      const same = { search_path: '`set search_path`', role: '`set role`', session_authorization: '`set session authorization`' }[cfg] ?? '`set role` or `set search_path`';
-      return reject(model, stmt, 'unmodelled statement', `set_config(${cfg}) does what ${same} does, from inside a query, and the model fails both of those`);
-    }
-    bump(model, `ignored:${head}`); return;
-  }
+  if (DML.has(head)) { bump(model, `ignored:${head}`); return; }
   return reject(model, stmt, 'unmodelled statement', `${head.toUpperCase()} is not a known-irrelevant statement (add it to IRRELEVANT in tests/helpers/definer-model.mjs if it cannot change a function's ACL, definer flag or search_path, or model it)`);
 }
 
@@ -1247,7 +1255,7 @@ export function overloads(model) {
 
 /** Code tokens of a function body: comments are gone and strings are single `string` tokens. */
 export function bodyTokens(fn) {
-  return tokenize(fn.body ?? '', `${fn.name} body`);
+  return tokenize(fn.body ?? '', `${fn.name} body`, { settings: false });
 }
 
 /** True when the body CALLS `name(`, bare or `public.`-qualified, in code position. */
@@ -1262,7 +1270,7 @@ export function bodyCalls(fn, name) {
 }
 
 /** True when t[i..i+5) is the call `auth.uid()`. */
-const isCallerCall = (t, i) => isWord(t[i], 'auth') && isPunct(t[i + 1], '.') && isWord(t[i + 2], 'uid') && isPunct(t[i + 3], '(') && isPunct(t[i + 4], ')');
+const isCallerCall = (t, i) => nameIs(t[i], 'auth') && isPunct(t[i + 1], '.') && nameIs(t[i + 2], 'uid') && isPunct(t[i + 3], '(') && isPunct(t[i + 4], ')');
 
 /** True when the body evaluates `auth.uid()` in code position (not in a comment or a string). */
 export function bodyUsesAuthUid(fn) {
@@ -1309,8 +1317,9 @@ export const bodyFingerprint = (fn) => tokenFingerprint(bodyTokens(fn));
 // reached the comparison after it and returned the other user's row). Only the branch's FIRST
 // statement is read, so `return query ...; return;` reads as not leaving and is flagged: that over-
 // flags a real reject, and the acknowledgement is how one is accepted. A comparison needs a reject
-// before it; a subject-coalesce needs one anywhere in the body (the coalesce usually sits in the
-// DECLARE section, ahead of `begin`).
+// before it. A subject-coalesce in the DECLARE section (an initializer, ahead of `begin`) needs one
+// anywhere in the body, because it is the USE of the variable that a reject has to come before, which
+// this does not track; a subject-coalesce in executable code needs one before it, like a comparison.
 //
 // NOT flagged, on purpose: `is distinct from` and `coalesce(auth.uid(), '0000...'::uuid)`, which are
 // NULL-safe, and `x = auth.uid()` in a positive filter, where NULL drops the row.
@@ -1402,7 +1411,8 @@ function callerOperandAt(t, i, aliases) {
 
 /** Index where the caller operand ENDING at t[j] starts, or -1. */
 function callerOperandStartEndingAt(t, j, aliases) {
-  for (let s = j; s >= 0 && j - s < 96; s--) if (callerOperandEnd(t, s, aliases) === j) return s;
+  // No cutoff: a left operand wrapped in enough parentheses starts as far back as it likes.
+  for (let s = j; s >= 0; s--) if (callerOperandEnd(t, s, aliases) === j) return s;
   return -1;
 }
 
@@ -1540,10 +1550,19 @@ export function nullLogicFlags(fn) {
   const sites = nullBlindSites(t, src, aliases, new Set(fn.paramNames ?? []));
   const rejects = nullRejects(t, aliases);
   const firstReject = rejects.length ? Math.min(...rejects) : Infinity;
+  const beginAt = t.findIndex((x) => isWord(x, 'begin'));
   const flags = [];
   for (const s of sites) {
     if (s.kind === 'subject-coalesce') {
-      if (rejects.length === 0) flags.push({ ...s, reason: `\`${s.text}\` takes the subject from a caller-supplied parameter and falls back to auth.uid(), which is NULL for anon; with no \`if auth.uid() is null then raise\` reject in the body, a signed-out caller is whoever the parameter names` });
+      // A coalesce in the DECLARE section is an initializer: it runs before any reject can, and what matters
+      // is that the body rejects a signed-out caller before it uses the variable, so a reject anywhere in the
+      // body clears it. One in executable code (after the first `begin`) takes its subject at that point, so
+      // only a reject BEFORE it protects it, as for a comparison.
+      const initializer = beginAt > 0 && s.at < beginAt;
+      if (initializer ? rejects.length === 0 : !(firstReject < s.at)) {
+        const where = initializer ? 'in the body' : 'before it';
+        flags.push({ ...s, reason: `\`${s.text}\` takes the subject from a caller-supplied parameter and falls back to auth.uid(), which is NULL for anon; with no \`if auth.uid() is null then raise\` reject ${where}, a signed-out caller is whoever the parameter names` });
+      }
     } else if (!(firstReject < s.at)) {
       const what = s.kind === 'not-equal' ? `\`${s.text}\`` : `\`${s.text}\` (under NOT)`;
       flags.push({ ...s, reason: `${what} is NULL for anon, so the guard is skipped: no \`if auth.uid() is null then raise\` reject comes before it` });

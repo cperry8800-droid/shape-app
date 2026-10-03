@@ -81,16 +81,19 @@ export function diffLive(rows, allow) {
   // signature. The function this check exists to catch is one made outside the migrations, and it
   // can be an overload of an allow-listed name: counted by name it would inherit that entry's
   // classification without anyone having read it. The static audit refuses overloads in the model;
-  // this is the same refusal for the live catalog, which the model cannot see.
+  // this is the same refusal for the live catalog, which the model cannot see. It reads EVERY definer,
+  // trigger functions included: the pin findings are by name too, so an unpinned plain function that
+  // shares a name with a registered trigger function would inherit that registration just the same.
   const sigsByName = new Map();
-  for (const r of definers) {
+  for (const r of all) {
     const bySig = sigsByName.get(r.proname) ?? new Map();
-    bySig.set(r.identity_args, (bySig.get(r.identity_args) ?? false) || r.anon_executable === true);
+    const seen = bySig.get(r.identity_args) ?? { anon: false, trigger: false };
+    bySig.set(r.identity_args, { anon: seen.anon || r.anon_executable === true, trigger: seen.trigger || r.is_trigger === true });
     sigsByName.set(r.proname, bySig);
   }
   const overloaded = [...sigsByName]
     .filter(([, bySig]) => bySig.size > 1)
-    .map(([name, bySig]) => ({ name, sigs: [...bySig].map(([args, anon]) => ({ args, anon })).sort((a, b) => (a.args < b.args ? -1 : 1)) }))
+    .map(([name, bySig]) => ({ name, sigs: [...bySig].map(([args, v]) => ({ args, anon: v.anon, trigger: v.trigger })).sort((a, b) => (a.args < b.args ? -1 : 1)) }))
     .sort((a, b) => (a.name < b.name ? -1 : 1));
   return {
     definers: names(definers.map((r) => r.proname)).length,
@@ -127,7 +130,7 @@ export function report(d, { strict = false } = {}) {
   if (d.doubleListed.length) out.push('', `In both entries and registeredFindings (a finding must not also be an entry): ${d.doubleListed.join(', ')}`);
   if (d.overloaded.length) {
     out.push('', 'OVERLOADED (one name, several signatures). The allow-list is by NAME, so one entry would vouch for every signature, including one made outside the migrations that nobody has read:');
-    for (const o of d.overloaded) out.push(`  ${o.name}: ${o.sigs.map((x) => `(${x.args})${x.anon ? ' [anon-executable]' : ''}`).join(' and ')}`);
+    for (const o of d.overloaded) out.push(`  ${o.name}: ${o.sigs.map((x) => `(${x.args})${x.trigger ? ' [trigger]' : x.anon ? ' [anon-executable]' : ''}`).join(' and ')}`);
     out.push('Rename or drop the extra signature. The migrations hold no overload, and tests/definer-grants.test.mjs fails on one.');
   }
   if (d.unregisteredPins.length) {

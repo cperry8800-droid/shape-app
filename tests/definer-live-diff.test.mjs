@@ -122,7 +122,7 @@ test('an overload of an allow-listed name is reported and fails the verdict, how
   // migrations shares its name. Counted by name it is "mine, accounted for", exit 0.
   const d = diffLive([sig('p_id uuid', true), sig('p_id uuid, p_other text', true)], allow());
   assert.deepEqual(d.unaccounted, [], 'by name nothing is unaccounted: that is the hole');
-  assert.deepEqual(d.overloaded, [{ name: 'mine', sigs: [{ args: 'p_id uuid', anon: true }, { args: 'p_id uuid, p_other text', anon: true }] }]);
+  assert.deepEqual(d.overloaded, [{ name: 'mine', sigs: [{ args: 'p_id uuid', anon: true, trigger: false }, { args: 'p_id uuid, p_other text', anon: true, trigger: false }] }]);
   assert.equal(verdict(d), 1);
   // One signature, the same name: nothing to report.
   const one = diffLive([sig('p_id uuid', true)], allow());
@@ -137,13 +137,24 @@ test('an overload of an allow-listed name is reported and fails the verdict, how
   assert.equal(verdict(diffLive([sig('a int', false), sig('b int', false)], allow())), 1);
 });
 
-test('what is not an overload: the same signature twice, a trigger function, a non-definer, another schema', () => {
+test('what is not an overload: the same signature twice, a non-definer, another schema', () => {
   const sig = (args, extra = {}) => row('mine', true, true, { identity_args: args, ...extra });
   assert.deepEqual(diffLive([sig('p_id uuid'), sig('p_id uuid')], allow()).overloaded, [], 'one signature listed twice is one function');
-  assert.deepEqual(diffLive([sig('p_id uuid'), sig('x int', { is_trigger: true })], allow()).overloaded, [], 'a trigger function is outside anon accounting, so it shares nothing');
   assert.deepEqual(diffLive([sig('p_id uuid'), sig('x int', { prosecdef: false })], allow()).overloaded, [], 'an invoker function is not a definer');
   assert.deepEqual(diffLive([sig('p_id uuid'), sig('x int', { nspname: 'extra' })], allow()).overloaded, [], 'another schema is another function');
-  assert.equal(verdict(diffLive([sig('p_id uuid'), sig('x int', { is_trigger: true })], allow())), 0);
+});
+
+test('a trigger function that shares a name with another definer is an overload too: the pin findings are by name', () => {
+  // `loose` is a registered PIN finding. An unpinned plain function that shares its name would inherit that
+  // registration and pass, exactly as an anon-executable overload inherits an allow-list entry.
+  const trigger = row('loose', false, false, { is_trigger: true, identity_args: '' });
+  const plain = row('loose', false, false, { identity_args: 'p_id uuid' });
+  const d = diffLive([trigger, plain], allow());
+  assert.deepEqual(d.unregisteredPins, [], 'by name the pin is registered: that is the hole');
+  assert.deepEqual(d.overloaded, [{ name: 'loose', sigs: [{ args: '', anon: false, trigger: true }, { args: 'p_id uuid', anon: false, trigger: false }] }]);
+  assert.equal(verdict(d), 1);
+  assert.match(report(d), /\n  loose: \(\) \[trigger\] and \(p_id uuid\)\n/);
+  assert.deepEqual(diffLive([trigger], allow()).overloaded, [], 'one trigger function alone is not an overload');
 });
 
 test('the report names every signature of an overloaded name, marks the open ones, and says what to do', () => {
