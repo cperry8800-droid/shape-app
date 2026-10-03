@@ -10,12 +10,15 @@
 // Exit status:
 //   0  every anon-executable non-trigger definer is an allow-list entry or a registered finding,
 //      and every unpinned definer (trigger functions included) is a registered pin finding
-//   1  something is not accounted for (the names are printed with what to do about each)
+//   1  something is not accounted for (the names are printed with what to do about each), or a name
+//      has more than one signature: the allow-list is by NAME, so an overload made outside the
+//      migrations would otherwise inherit the entry of the function it shares a name with
 //   2  the input is not usable: not JSON, not rows, no rows, or the wrong columns. An empty or
 //      malformed capture is NOT a pass, because "nothing to check" and "nothing wrong" read the
-//      same to a script that only counts problems. A capture with no `is_trigger` or no
-//      `pg_temp_pinned` column (an older query's output) is refused for the same reason: without
-//      them it cannot say which rows are triggers or which are pinned, and would pass as clean.
+//      same to a script that only counts problems. A capture with no `is_trigger`, `pg_temp_pinned`
+//      or `identity_args` column (an older query's output) is refused for the same reason: without
+//      them it cannot say which rows are triggers, which are pinned or which are overloads of one
+//      name, and would pass as clean.
 //
 // `--strict` also exits 1 on STALE entries (an entry or finding the live catalog no longer
 // supports), which is how a fixed finding gets cleaned out of the list.
@@ -48,8 +51,8 @@ export function parseRows(text) {
   if (!Array.isArray(v)) throw new Error('expected a JSON array of rows (the `rows` cell of scripts/definer-live-check.sql)');
   if (v.length === 0) throw new Error('no rows: the query returned no SECURITY DEFINER functions, so nothing was checked');
   v.forEach((r, i) => {
-    if (!r || typeof r.proname !== 'string' || typeof r.anon_executable !== 'boolean' || typeof r.is_trigger !== 'boolean' || typeof r.pg_temp_pinned !== 'boolean') {
-      throw new Error(`row ${i} lacks \`proname\` (text) or one of \`anon_executable\`, \`is_trigger\`, \`pg_temp_pinned\` (booleans): was this the output of the current scripts/definer-live-check.sql? It reads every definer now, triggers included, and marks them`);
+    if (!r || typeof r.proname !== 'string' || typeof r.identity_args !== 'string' || typeof r.anon_executable !== 'boolean' || typeof r.is_trigger !== 'boolean' || typeof r.pg_temp_pinned !== 'boolean') {
+      throw new Error(`row ${i} lacks \`proname\` or \`identity_args\` (text) or one of \`anon_executable\`, \`is_trigger\`, \`pg_temp_pinned\` (booleans): was this the output of the current scripts/definer-live-check.sql? It reads every definer now, triggers included, marks them, and lists each signature`);
     }
   });
   return v;
@@ -74,6 +77,21 @@ export function diffLive(rows, allow) {
   const anon = definers.filter((r) => r.anon_executable);
   const anonNames = new Set(anon.map((r) => r.proname));
   const unpinned = names(all.filter((r) => r.pg_temp_pinned === false).map((r) => r.proname));
+  // The allow-list and everything above are by NAME, which is sound only while a name is ONE
+  // signature. The function this check exists to catch is one made outside the migrations, and it
+  // can be an overload of an allow-listed name: counted by name it would inherit that entry's
+  // classification without anyone having read it. The static audit refuses overloads in the model;
+  // this is the same refusal for the live catalog, which the model cannot see.
+  const sigsByName = new Map();
+  for (const r of definers) {
+    const bySig = sigsByName.get(r.proname) ?? new Map();
+    bySig.set(r.identity_args, (bySig.get(r.identity_args) ?? false) || r.anon_executable === true);
+    sigsByName.set(r.proname, bySig);
+  }
+  const overloaded = [...sigsByName]
+    .filter(([, bySig]) => bySig.size > 1)
+    .map(([name, bySig]) => ({ name, sigs: [...bySig].map(([args, anon]) => ({ args, anon })).sort((a, b) => (a.args < b.args ? -1 : 1)) }))
+    .sort((a, b) => (a.name < b.name ? -1 : 1));
   return {
     definers: names(definers.map((r) => r.proname)).length,
     triggerDefiners: names(all.filter((r) => r.is_trigger === true).map((r) => r.proname)).length,
@@ -84,15 +102,16 @@ export function diffLive(rows, allow) {
     // In both lists at once is a mistake in the file, not in the database; say so here too.
     doubleListed: names([...entries].filter((n) => findings.has(n))),
     stale: names([...entries, ...findings].filter((n) => !anonNames.has(n))),
+    overloaded,
     unpinned,
     unregisteredPins: unpinned.filter((n) => !pinFindings.has(n)),
     stalePins: names([...pinFindings].filter((n) => !unpinned.includes(n))),
   };
 }
 
-/** Exit status for a diff: 1 for anything unaccounted (and, with strict, anything stale). */
+/** Exit status for a diff: 1 for anything unaccounted or overloaded (and, with strict, anything stale). */
 export function verdict(d, { strict = false } = {}) {
-  if (d.unaccounted.length || d.unregisteredPins.length || d.doubleListed.length) return 1;
+  if (d.unaccounted.length || d.unregisteredPins.length || d.doubleListed.length || d.overloaded.length) return 1;
   if (strict && (d.stale.length || d.stalePins.length)) return 1;
   return 0;
 }
@@ -106,6 +125,11 @@ export function report(d, { strict = false } = {}) {
     out.push('', 'Fix each with `revoke execute on function public.<name>(<args>) from public, anon;`, or classify it in tests/fixtures/definer-anon-allowlist.json (revoking from PUBLIC alone leaves the explicit anon grant standing).');
   }
   if (d.doubleListed.length) out.push('', `In both entries and registeredFindings (a finding must not also be an entry): ${d.doubleListed.join(', ')}`);
+  if (d.overloaded.length) {
+    out.push('', 'OVERLOADED (one name, several signatures). The allow-list is by NAME, so one entry would vouch for every signature, including one made outside the migrations that nobody has read:');
+    for (const o of d.overloaded) out.push(`  ${o.name}: ${o.sigs.map((x) => `(${x.args})${x.anon ? ' [anon-executable]' : ''}`).join(' and ')}`);
+    out.push('Rename or drop the extra signature. The migrations hold no overload, and tests/definer-grants.test.mjs fails on one.');
+  }
   if (d.unregisteredPins.length) {
     out.push('', 'search_path does not end in pg_temp, and is not a registered pin finding:');
     for (const n of d.unregisteredPins) out.push(`  ${n}`);

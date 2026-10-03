@@ -13,7 +13,10 @@
 // checker, note floors and the grant-then-revoke site, `execute` in DO blocks and the documented
 // inert / sweep fingerprints, `set search_path`, the same-day ordering constraints and their
 // completeness test, the one pin/anon scope, the strict capture-day window, unknown grantees and
-// the prefixed literals. Each replacement is a mutation that CHANGES behaviour: a replacement that
+// the prefixed literals. The block after "The review round of 2026-10-03" answers Copilot's four
+// findings on the first push: ON PROCEDURE and ON ALL PROCEDURES are not functions, a DO block that
+// changes the search_path or the role without `execute`, RETURN NEXT and RETURN QUERY do not leave a
+// function, and the live diff reads signatures so an overload cannot hide behind an allow-listed name. Each replacement is a mutation that CHANGES behaviour: a replacement that
 // evaluates to the same thing (`[] && has ? ...` did) is a survivor caused by the spec, not a gap.
 const TEST = 'node --test tests/definer-grants.test.mjs tests/definer-live-agreement.test.mjs tests/definer-live-diff.test.mjs';
 const MODEL = 'tests/helpers/definer-model.mjs';
@@ -182,13 +185,13 @@ export default {
 
     // ── The diff script ────────────────────────────────────────────────────────
     { name: 'an unaccounted anon-executable definer does not fail the run', file: DIFF,
-      find: 'if (d.unaccounted.length || d.unregisteredPins.length || d.doubleListed.length) return 1;', replace: 'if (false) return 1;' },
+      find: 'if (d.unaccounted.length || d.unregisteredPins.length || d.doubleListed.length || d.overloaded.length) return 1;', replace: 'if (false) return 1;' },
     { name: 'registered findings do not count as accounted for', file: DIFF,
       find: 'const findings = new Set((allow.registeredFindings ?? []).map((f) => f.name));', replace: 'const findings = new Set();' },
     { name: 'an empty capture is accepted as a pass', file: DIFF,
       find: "if (v.length === 0) throw new Error('no rows: the query returned no SECURITY DEFINER functions, so nothing was checked');", replace: '' },
     { name: 'a malformed row is accepted', file: DIFF,
-      find: "if (!r || typeof r.proname !== 'string' || typeof r.anon_executable !== 'boolean' || typeof r.is_trigger !== 'boolean' || typeof r.pg_temp_pinned !== 'boolean') {", replace: 'if (false) {' },
+      find: "if (!r || typeof r.proname !== 'string' || typeof r.identity_args !== 'string' || typeof r.anon_executable !== 'boolean' || typeof r.is_trigger !== 'boolean' || typeof r.pg_temp_pinned !== 'boolean') {", replace: 'if (false) {' },
     { name: 'trigger rows are counted as definers', file: DIFF,
       find: 'const definers = all.filter((r) => r.is_trigger !== true);', replace: 'const definers = all;' },
     { name: '--strict does not fail on stale entries', file: DIFF,
@@ -252,7 +255,7 @@ export default {
     { name: 'NULL-logic: a raise notice counts as leaving', file: MODEL,
       find: "(isWord(first, 'raise') && !isWord(t[j + 2], 'notice', 'warning', 'info', 'log', 'debug'))", replace: "isWord(first, 'raise')" },
     { name: 'NULL-logic: any IF holding the NULL test counts, whatever its branch does', file: MODEL,
-      find: "if (isWord(first, 'return') || (isWord(first, 'raise') && !isWord(t[j + 2], 'notice', 'warning', 'info', 'log', 'debug'))) out.push(i);", replace: 'out.push(i);' },
+      find: "if ((isWord(first, 'return') && !isWord(t[j + 2], 'next', 'query')) || (isWord(first, 'raise') && !isWord(t[j + 2], 'notice', 'warning', 'info', 'log', 'debug'))) out.push(i);", replace: 'out.push(i);' },
     { name: 'NULL-logic: an elsif reject counts', file: MODEL,
       find: "    if (!isWord(t[i], 'if')) continue; // (an `if` after `end`", replace: "    if (!isWord(t[i], 'if', 'elsif')) continue; // (an `if` after `end`" },
     { name: 'NULL-logic: the body fingerprint is over the raw text, so a comment re-opens it', file: MODEL,
@@ -395,5 +398,66 @@ export default {
       find: 'if (sql[j + 1] === quote) { j++; continue; }', replace: 'if (false) { j++; continue; }' },
     { name: 'LEXER: a backslash escapes the quote inside a B, X or N literal', file: SCAN,
       find: "const end = readQuoted(j, \"'\", low === 'e', 'string literal');", replace: "const end = readQuoted(j, \"'\", true, 'string literal');" },
+
+    // ── The review round of 2026-10-03 (Copilot, on 738364f): one or more mutations per rule ──
+    // ON PROCEDURE / ON ALL PROCEDURES are not functions; ROUTINE and ALL ROUTINES are.
+    { name: 'ACL: ON ALL PROCEDURES IN SCHEMA is read as ON ALL FUNCTIONS again', file: MODEL,
+      find: "target = routines === 'procedures' ? { kind: 'other', what: 'all procedures in schema' } : { kind: 'all-functions', schemas };",
+      replace: "target = { kind: 'all-functions', schemas };" },
+    { name: 'ACL: ON ALL ROUTINES IN SCHEMA is read as procedures only (reaches no function)', file: MODEL,
+      find: "target = routines === 'procedures' ?", replace: "target = routines !== 'functions' ?" },
+    { name: 'ACL: ON PROCEDURE is applied to the function it names', file: MODEL,
+      find: "target = kw.v === 'procedure' ? { kind: 'other', what: 'procedure' } : { kind: 'function', routineWord: kw.v, refs };",
+      replace: "target = { kind: 'function', routineWord: kw.v, refs };" },
+    { name: 'ACL: ON ROUTINE is read as a procedure (reaches no function)', file: MODEL,
+      find: "target = kw.v === 'procedure' ?", replace: "target = kw.v !== 'function' ?" },
+    // A DO block that changes the search_path or the role without `execute`.
+    { name: 'DO: set_config is not read inside a DO block', file: MODEL,
+      find: 'const cfg = setConfigTarget(inner);', replace: 'const cfg = null;' },
+    { name: 'DO: a set_config whose parameter name cannot be read is treated as harmless', file: MODEL,
+      find: "const cfgHit = cfg === null ? null : cfg === '<not a literal>'",
+      replace: "const cfgHit = cfg === null || cfg === '<not a literal>' ? null : cfg === '<not a literal>'" },
+    { name: 'DO: set_config of the role is treated as harmless', file: MODEL,
+      find: "const cfgHit = cfg === null ? null : cfg === '<not a literal>'",
+      replace: "const cfgHit = cfg === null || cfg === 'role' ? null : cfg === '<not a literal>'" },
+    { name: 'DO: SET SCHEMA is not read', file: MODEL,
+      find: '(?:search_path|schema)\\b/i },', replace: '(?:search_path)\\b/i },' },
+    { name: 'DO: a bare SET search_path is not read (RESET still is)', file: MODEL,
+      find: "{ label: 'SET search_path / SET SCHEMA', re: /\\b(?:set|reset)", replace: "{ label: 'SET search_path / SET SCHEMA', re: /\\b(?:setx|reset)" },
+    { name: 'DO: RESET search_path is not read (SET still is)', file: MODEL,
+      find: "{ label: 'SET search_path / SET SCHEMA', re: /\\b(?:set|reset)", replace: "{ label: 'SET search_path / SET SCHEMA', re: /\\b(?:set|resetx)" },
+    { name: 'DO: SET LOCAL search_path is not read', file: MODEL,
+      find: '(?:(?:local|session)\\s+)?(?:search_path|schema)', replace: '(?:(?:session)\\s+)?(?:search_path|schema)' },
+    { name: 'DO: SET SESSION ROLE is not read (the pattern allows only LOCAL)', file: MODEL,
+      find: '(?:(?:local|session)\\s+)?role\\b/i },', replace: '(?:(?:local)\\s+)?role\\b/i },' },
+    { name: 'DO: a set_config in code position can be excused by a documented inert entry', file: MODEL,
+      find: 'staticEffect: !!hit, tag, fingerprint: tokenFingerprint(inner), why };',
+      replace: 'staticEffect: !!FN_EFFECT_PATTERNS.find((p) => p.re.test(code)), tag, fingerprint: tokenFingerprint(inner), why };' },
+    { name: 'DO: the reason for a set_config block is not the one written for it', file: MODEL,
+      find: 'const why = hit ? (hit.phrase ?? ', replace: 'const why = hit ? (' },
+    // RETURN NEXT and RETURN QUERY do not leave a set-returning function.
+    { name: 'NULL: return next counts as leaving', file: MODEL,
+      find: "!isWord(t[j + 2], 'next', 'query')", replace: "!isWord(t[j + 2], 'query')" },
+    { name: 'NULL: return query counts as leaving', file: MODEL,
+      find: "!isWord(t[j + 2], 'next', 'query')", replace: "!isWord(t[j + 2], 'next')" },
+    { name: 'NULL: every return counts as leaving (the first rule)', file: MODEL,
+      find: "(isWord(first, 'return') && !isWord(t[j + 2], 'next', 'query'))", replace: "isWord(first, 'return')" },
+    // The live diff reads signatures, because the allow-list is by name.
+    { name: 'DIFF: parseRows does not require identity_args', file: DIFF,
+      find: "typeof r.identity_args !== 'string' || ", replace: '' },
+    { name: 'DIFF: an overload does not fail the verdict', file: DIFF,
+      find: '|| d.doubleListed.length || d.overloaded.length) return 1;', replace: '|| d.doubleListed.length) return 1;' },
+    { name: 'DIFF: the same signature listed twice counts as an overload', file: DIFF,
+      find: 'bySig.set(r.identity_args, (bySig.get(r.identity_args) ?? false) || r.anon_executable === true);',
+      replace: 'bySig.set(`${r.identity_args}#${bySig.size}`, r.anon_executable === true);' },
+    { name: 'DIFF: every signature of an overload is marked anon-executable', file: DIFF,
+      find: 'bySig.set(r.identity_args, (bySig.get(r.identity_args) ?? false) || r.anon_executable === true);',
+      replace: 'bySig.set(r.identity_args, true);' },
+    { name: 'DIFF: a trigger function counts toward an overload', file: DIFF,
+      find: 'for (const r of definers) {', replace: 'for (const r of all) {' },
+    { name: 'DIFF: the report has no OVERLOADED section', file: DIFF,
+      find: 'if (d.overloaded.length) {', replace: 'if (false) {' },
+    { name: 'DIFF: the report does not mark the anon-executable signature', file: DIFF,
+      find: "${x.anon ? ' [anon-executable]' : ''}", replace: '' },
   ],
 };

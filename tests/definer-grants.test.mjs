@@ -325,6 +325,21 @@ const UNMODELLED = [
   ['a DO block with no readable body', 'do language plpgsql;', 'unmodelled DO block'],
   ['undocumented dynamic SQL, even when it only revokes a table column', "do $$ begin execute format('revoke all (%I) on table public.t from public, anon', 'c'); end $$;", 'unmodelled DO block'],
   ['undocumented dynamic SQL that looks harmless', "do $$ begin execute 'select 1'; end $$;", 'unmodelled DO block'],
+  // A DO block changes the session's search_path or role WITHOUT `execute`. Each of these was
+  // measured on PostgreSQL 16.13: the function created after the block landed in `private`, or
+  // current_user became anon. A scan for `execute` and function statements read every one as inert.
+  ['a DO block calling set_config on the search_path through PERFORM', "do $$ begin perform set_config('search_path', 'private', false); end $$;", 'unmodelled DO block'],
+  ['a DO block calling set_config on the search_path through SELECT INTO', "do $$ declare v text; begin select set_config('search_path', 'private', false) into v; end $$;", 'unmodelled DO block'],
+  ['a DO block calling set_config on the role', "do $$ begin perform set_config('role', 'anon', false); end $$;", 'unmodelled DO block'],
+  ['a DO block calling set_config with a name it cannot read', "do $$ begin perform set_config(current_setting('x'), 'private', false); end $$;", 'unmodelled DO block'],
+  ['a DO block calling set_config with a dollar-quoted name', 'do $$ begin perform set_config($q$search_path$q$, $q$private$q$, false); end $$;', 'unmodelled DO block'],
+  ['a DO block with a bare SET search_path', 'do $$ begin set search_path to private; end $$;', 'unmodelled DO block'],
+  ['a DO block with SET LOCAL search_path', 'do $$ begin set local search_path to private; end $$;', 'unmodelled DO block'],
+  ['a DO block with RESET search_path', 'do $$ begin reset search_path; end $$;', 'unmodelled DO block'],
+  ['a DO block with SET SCHEMA', "do $$ begin set schema 'private'; end $$;", 'unmodelled DO block'],
+  ['a DO block with a bare SET SESSION ROLE', 'do $$ begin set session role anon; end $$;', 'unmodelled DO block'],
+  ['a DO block with a bare SET LOCAL ROLE', 'do $$ begin set local role anon; end $$;', 'unmodelled DO block'],
+  ['a DO block with a bare RESET ROLE', 'do $$ begin reset role; end $$;', 'unmodelled DO block'],
   // The search_path decides which schema every later UNQUALIFIED name resolves in.
   ['SET search_path', 'set search_path to private;', 'unmodelled statement'],
   ['SET search_path with =', 'set search_path = private;', 'unmodelled statement'],
@@ -518,6 +533,64 @@ test('a documented sweep is keyed by its fingerprint too: an edited block is unm
   const edited = text.slice(0, tok.start) + tok.raw.replace("'alter function %I.%I(%s) set search_path to %s'", "'alter function %I.%I(%s) set search_path to %s, extra'") + text.slice(tok.end);
   assert.notEqual(edited, text);
   assert.equal(M.replay([{ file: sweep.file, sql: edited }]).unmodelled.length, 1, 'a real edit to the sweep re-opens it');
+});
+
+test('a DO block that only talks about the search_path, or sets a harmless parameter, is still inert', () => {
+  // The other half of the rule: what makes a block an effect is a STATEMENT, not a word.
+  for (const [what, sql] of [
+    ['set_config of an unrelated parameter', "do $$ begin perform set_config('statement_timeout', '5s', false); end $$;"],
+    ['a message that spells out set_config, SET search_path and SET ROLE', "do $$ begin raise notice 'set search_path to private; set_config(''search_path'', ''x'', false); set role anon'; end $$;"],
+    ['a column whose name starts with schema', "do $$ begin update public.t set schema_name = 'x' where id = 1; end $$;"],
+    ['a column whose name starts with search_path', "do $$ begin update public.t set search_path_hint = 'x'; end $$;"],
+    ['a variable called role_name', "do $$ declare role_name text; begin role_name := 'anon'; end $$;"],
+  ]) {
+    const m = replayOne(`${sql}\n${AFTER}`);
+    assert.deepEqual(messages(m), [], what);
+    assert.equal(m.counts['do:inert'], 1, what);
+  }
+});
+
+test('a documented inert entry never excuses a change of the search_path or the role in code position', () => {
+  for (const sql of [
+    "do $$ begin perform set_config('search_path', 'private', false); execute 'select 1'; end $$;",
+    "do $$ begin set search_path to private; execute 'select 1'; end $$;",
+    "do $$ begin set session role anon; execute 'select 1'; end $$;",
+  ]) {
+    const [stmt] = splitStatements(sql, 'x.sql');
+    const c = M.classifyDoBlock(stmt.tokens);
+    assert.equal(c.dynamic, true, sql);
+    assert.equal(c.staticEffect, true, `${sql}: a statement in code position, which no inert entry may excuse`);
+    const entry = [{ file: 'x.sql', fingerprint: c.fingerprint, reads: 'a test entry that documents exactly this block as inert' }];
+    const refused = M.replay([{ file: 'x.sql', sql }], { doInert: entry });
+    assert.equal(refused.unmodelled.length, 1, sql);
+    assert.match(refused.unmodelled[0].message, /^unmodelled DO block: x\.sql:1 /);
+  }
+});
+
+test('the reason a DO block is refused says what it changes', () => {
+  const why = (sql) => M.classifyDoBlock(splitStatements(sql, 'x.sql')[0].tokens).why;
+  assert.equal(why("do $$ begin perform set_config('search_path', 'private', false); end $$;"), "it calls set_config('search_path'), which changes the schema every later unqualified name resolves in");
+  assert.equal(why("do $$ begin perform set_config('role', 'anon', false); end $$;"), "it calls set_config('role'), which changes who the session runs as");
+  assert.equal(why("do $$ begin perform set_config(current_setting('x'), 'y', false); end $$;"), 'it calls set_config with a parameter name the model cannot read, which could be the search_path or the role');
+  assert.equal(why('do $$ begin set search_path to private; end $$;'), 'it has a SET search_path / SET SCHEMA statement in code position');
+  assert.equal(why('do $$ begin set session role anon; end $$;'), 'it has a SET ROLE statement in code position');
+});
+
+test('GRANT/REVOKE targets: PROCEDURE and ALL PROCEDURES are not functions; FUNCTION, ROUTINE, ALL FUNCTIONS and ALL ROUTINES are', () => {
+  const target = (sql) => M.parseAclStatement(splitStatements(sql, 'x.sql')[0].tokens).target;
+  assert.equal(target('revoke all on procedure public.p() from anon;').kind, 'other');
+  assert.equal(target('revoke all on all procedures in schema public from anon;').kind, 'other');
+  assert.equal(target('revoke all on function public.f() from anon;').kind, 'function');
+  assert.equal(target('revoke all on routine public.f() from anon;').kind, 'function');
+  assert.equal(target('revoke all on all functions in schema public from anon;').kind, 'all-functions');
+  assert.equal(target('revoke all on all routines in schema public from anon;').kind, 'all-functions');
+});
+
+test('a PROCEDURE reference leaves no orphan and no unmodelled entry: it is not about a function', () => {
+  const m = replayOne(`revoke all on procedure public.never_made() from public, anon;\nrevoke all on all procedures in schema public from public, anon;\n${AFTER}`);
+  assert.deepEqual(messages(m), []);
+  assert.deepEqual(m.orphans, []);
+  assert.equal(m.counts['acl:other-object'], 2);
 });
 
 test('a DO block whose only strings mention a function statement is still inert: strings are not scanned', () => {
@@ -1082,6 +1155,11 @@ const NULL_LOGIC = [
   ['a coalesce of two parameters names no caller', plpg('return null;', { args: 'p_id uuid, p_other uuid', declare: 'v uuid := coalesce(p_id, p_other);' }), []],
   ['a coalesce of the caller with a literal is no parameter', plpg('return null;', { declare: "v uuid := coalesce(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid);" }), []],
   // ── a reject that does not count ──
+  ['return query does not leave: the NULL branch appends a row and the comparison after it still runs', plpg('if auth.uid() is null then return query select 1; end if; if p_id <> auth.uid() then return; end if; return query select 2;'), ['not-equal']],
+  ['return next does not leave either', plpg('if auth.uid() is null then return next r; end if; if p_id <> auth.uid() then return; end if; return;', { declare: 'r int;' }), ['not-equal']],
+  ['RETURN QUERY in capitals is read the same way', plpg('if auth.uid() is null then RETURN QUERY select 1; end if; if p_id <> auth.uid() then return; end if; return;'), ['not-equal']],
+  ['a bare return in a set-returning body is a reject', plpg('if auth.uid() is null then return; end if; if p_id <> auth.uid() then return; end if; return query select 2;'), []],
+  ['return query first and a bare return after it reads as not leaving (a documented over-flag: only the first statement is read)', plpg('if auth.uid() is null then return query select 1; return; end if; if p_id <> auth.uid() then return; end if; return;'), ['not-equal']],
   ['a reject AFTER the comparison', plpg(`if p_id <> auth.uid() then return null; end if; if auth.uid() is null then ${RAISE} end if; return null;`), ['not-equal']],
   ['raise notice does not leave', plpg("if auth.uid() is null then raise notice 'x'; end if; if p_id <> auth.uid() then return null; end if; return null;"), ['not-equal']],
   ['an and-ed NULL test is conditional, so not a reject', plpg(`if p_id is not null and auth.uid() is null then ${RAISE} end if; if p_id <> auth.uid() then return null; end if; return null;`), ['not-equal']],

@@ -6,7 +6,10 @@
 // functions to anon, authenticated, service_role`), and the resulting has_function_privilege,
 // prosecdef and proconfig were read back and compared with the model's, field for field.
 // The harness is not checked in (it needs a local server), so re-run the vectors against one if a
-// rule changes; an expectation edited to match the model would defeat the point.
+// rule changes; an expectation edited to match the model would defeat the point. The five vectors on
+// PROCEDURE, ROUTINE and ALL PROCEDURES|ROUTINES (added in the review round of 2026-10-03, which
+// found the model reading `all procedures` as `all functions`) were measured the same way, on a
+// fresh PostgreSQL 16.13 cluster with the same Supabase-like roles and default privileges.
 // That run found a real defect in the first draft: a single flat default ACL read
 // `alter default privileges in schema public revoke ... from public` as closing the door, and
 // Postgres keeps PUBLIC's EXECUTE (it lives in the GLOBAL layer, which an `in schema` revoke
@@ -127,6 +130,26 @@ export const SEMANTIC_VECTORS = [
     why: 'a function created after it gets the default ACL again',
     sources: src(`${fn('f21a')}\nrevoke execute on all functions in schema public from public, anon;\n${fn('f21b')}`),
     expect: { 'f21a()': { anon: false }, 'f21b()': { anon: true } } },
+  { name: 'ON ALL PROCEDURES IN SCHEMA never reaches a function',
+    why: 'PROCEDURES means procedures only: after the revoke the function is still executable by anon and authenticated (has_function_privilege on PostgreSQL 16.13), where the same statement on ROUTINES closes anon',
+    sources: src(`${fn('f31')}\nrevoke all on all procedures in schema public from public, anon;`),
+    expect: { 'f31()': { anon: true, authenticated: true } } },
+  { name: 'ON ALL ROUTINES IN SCHEMA reaches functions',
+    why: 'ROUTINES is functions and procedures together, so it closes anon on a function just as ON ALL FUNCTIONS does (measured on PostgreSQL 16.13)',
+    sources: src(`${fn('f32')}\nrevoke all on all routines in schema public from public, anon;`),
+    expect: { 'f32()': { anon: false, authenticated: true } } },
+  { name: 'a grant ON ALL PROCEDURES does not reopen a closed function',
+    why: 'the grant reaches procedures only, so a function closed by an earlier revoke stays closed to anon (measured on PostgreSQL 16.13)',
+    sources: src(`${fn('f33')}\nrevoke all on function public.f33() from public, anon;\ngrant execute on all procedures in schema public to public, anon;`),
+    expect: { 'f33()': { anon: false, authenticated: true } } },
+  { name: 'ON PROCEDURE naming a function applies nothing',
+    why: 'Postgres refuses the whole statement ("public.f34() is not a procedure") and leaves the ACL as it was, so the function is still executable by anon (measured on PostgreSQL 16.13)',
+    sources: src(`${fn('f34')}\nrevoke all on procedure public.f34() from public, anon;`),
+    expect: { 'f34()': { anon: true, authenticated: true } } },
+  { name: 'ON ROUTINE naming a function closes it',
+    why: 'ROUTINE accepts a function, so the revoke applies and anon loses it (measured on PostgreSQL 16.13)',
+    sources: src(`${fn('f35')}\nrevoke all on routine public.f35() from public, anon;`),
+    expect: { 'f35()': { anon: false, authenticated: true } } },
   { name: 'in-schema revoke cannot remove PUBLIC from the default ACL',
     why: 'PUBLIC lives in the GLOBAL default layer; an `in schema` revoke edits only the schema layer, so the function stays executable by anon through PUBLIC',
     sources: src(`alter default privileges in schema public revoke execute on functions from public, anon;\n${fn('f22')}`),

@@ -28,12 +28,15 @@
 // modelled here or FAILS the model with an `unmodelled ...` entry. Silence is how this class of
 // defect survives, so an unknown shape is never skipped:
 //   modelled   CREATE [OR REPLACE] FUNCTION · DROP FUNCTION · ALTER FUNCTION (security, SET/RESET)
-//              GRANT/REVOKE on FUNCTION/ROUTINE/PROCEDURE and ON ALL FUNCTIONS IN SCHEMA, to the
+//              GRANT/REVOKE on FUNCTION/ROUTINE and ON ALL FUNCTIONS|ROUTINES IN SCHEMA, to the
 //              roles the model tracks · ALTER DEFAULT PRIVILEGES (functions) · the documented DO sweeps
-//   ignored    GRANT/REVOKE on tables, sequences, schemas and columns; DDL on tables, indexes,
+//   ignored    GRANT/REVOKE on tables, sequences, schemas, columns and PROCEDURES (a procedure is
+//              not a function: Postgres refuses `on procedure f()` for one, and ALL PROCEDURES IN
+//              SCHEMA never reaches one, so neither can change a function's ACL); DDL on tables, indexes,
 //              policies, triggers, sequences, views and publications; DML; transaction control;
 //              COMMENT; SET/RESET of anything but the role and the search_path; DO blocks with no
-//              `execute` and no function statement in code position; the documented inert DO blocks.
+//              `execute`, no function statement and no search_path or role change in code position;
+//              the documented inert DO blocks.
 //              Each ignored head is an explicit entry in IRRELEVANT, DML or TXN below, or one of the
 //              COMMENT / SET / DO branches of applyStatement: a head in none of them fails.
 //   fails      role membership grants; a function GRANT/REVOKE (or ALTER DEFAULT PRIVILEGES) that
@@ -43,9 +46,11 @@
 //              and `set session authorization`; top-level `set|reset search_path` and its synonyms
 //              `set schema` and `select set_config('search_path' | 'role', ...)`, which change the
 //              schema every later unqualified name resolves in, or who runs it; and ANY DO block
-//              that runs dynamic SQL (`execute`), is written in another language, or has a function
-//              statement in code position, unless it is a documented sweep or a documented inert
-//              block. An opaque block is opaque, whatever its string literals say.
+//              that runs dynamic SQL (`execute`), is written in another language, or has in code
+//              position a function statement or a change of the search_path or the role (`set`,
+//              `reset` or `set_config` of them, or `set_config` of a name it cannot read), unless
+//              it is a documented sweep or a documented inert block. An opaque block is opaque,
+//              whatever its string literals say.
 //
 // WHAT NO STATIC READ CAN SEE, so it is out of scope by construction: a function that itself
 // runs dynamic GRANT/REVOKE and is then CALLED by a migration, a privilege changed by hand in
@@ -556,7 +561,11 @@ function readRoles(tokens, i) {
  * Parse a GRANT or REVOKE. Returns
  *   { verb, grantOptionOnly, privs, target: { kind: 'function', refs } | { kind: 'all-functions', schemas }
  *                                         | { kind: 'other', what } | { kind: 'membership' }, roles }
- * or throws a string reason.
+ * or throws a string reason. `other` is anything that cannot change a function's ACL, a PROCEDURE
+ * (`on procedure f()`, `on all procedures in schema`) included: Postgres reads PROCEDURE as procedures
+ * only, so after `revoke all on all procedures in schema public from public, anon` a function is
+ * still executable by anon, and `on procedure f()` naming a function is an error that applies nothing
+ * (both measured on PostgreSQL 16.13). `routine` and `functions` DO reach functions.
  */
 export function parseAclStatement(tokens) {
   const verb = tokens[0].v;
@@ -595,8 +604,9 @@ export function parseAclStatement(tokens) {
         if (isPunct(tokens[i], ',')) { i++; continue; }
         break;
       }
-      target = { kind: 'function', routineWord: kw.v, refs };
+      target = kw.v === 'procedure' ? { kind: 'other', what: 'procedure' } : { kind: 'function', routineWord: kw.v, refs };
     } else if (isWord(kw, 'all') && isWord(tokens[i + 1], 'functions', 'procedures', 'routines') && isWord(tokens[i + 2], 'in') && isWord(tokens[i + 3], 'schema')) {
+      const routines = tokens[i + 1].v;
       i += 4;
       const schemas = [];
       for (;;) {
@@ -606,7 +616,7 @@ export function parseAclStatement(tokens) {
         if (isPunct(tokens[i], ',')) { i++; continue; }
         break;
       }
-      target = { kind: 'all-functions', schemas };
+      target = routines === 'procedures' ? { kind: 'other', what: 'all procedures in schema' } : { kind: 'all-functions', schemas };
     } else {
       // Anything else is a privilege on a non-function object. Skip its name list up to TO/FROM.
       const what = isWord(kw, 'all') ? `all ${tokens[i + 1]?.v} in schema` : (isWord(kw) && OBJECT_KINDS.has(kw.v) ? kw.v : 'table');
@@ -735,6 +745,19 @@ export function parseAlterDefaultPrivileges(tokens) {
 // and nothing more:
 //   * a function statement in CODE position is an effect (the patterns below). A guard block that
 //     merely MENTIONS `grant` in an error message is not a statement, so strings are not scanned;
+//   * so is a change of the search_path or the role in code position, with no `execute` needed:
+//     `perform set_config('search_path', 'private', false)`, a bare `set search_path to private;`
+//     and `set schema 'private'` each leave the session resolving later unqualified names in
+//     another schema, and `set session role anon` leaves it running as anon (all measured on
+//     PostgreSQL 16.13, inside a DO block). `set_config` of any other parameter is harmless and
+//     stays inert; `set_config` of a name the model cannot read is not, because it could be one
+//     of these. `set local` lasts only the transaction, which a migration may span, so it counts.
+//     The patterns read WORDS, so a column named `role`, `schema` or `search_path` in an UPDATE's
+//     SET list reads as the statement and is refused too: that over-flags, on purpose, because
+//     telling a column from a parameter takes a parser. A documented inert entry cannot excuse it
+//     (those excuse dynamic SQL only); the way out is to run the UPDATE outside the DO block, or to
+//     quote the column (`set "role" = ...`), which is not a word to this scan. No block in the tree
+//     is affected;
 //   * ANY `execute` is an effect. Dynamic SQL is text the block assembles when it runs, and a scan
 //     of the string literals it happens to contain cannot say what it assembles. Each of these
 //     read as inert to such a scan, and each changes who can execute what: an `execute` whose text
@@ -750,7 +773,8 @@ const FN_EFFECT_PATTERNS = [
   { label: 'ALTER FUNCTION / DEFAULT PRIVILEGES', re: /\balter\s+(?:function|procedure|routine|default\s+privileges)\b/i },
   { label: 'CREATE FUNCTION', re: /\bcreate\s+(?:or\s+replace\s+)?(?:function|procedure)\b/i },
   { label: 'DROP of something functions depend on', re: /\bdrop\s+(?:function|procedure|routine|schema|type|extension|owned)\b/i },
-  { label: 'SET ROLE', re: /\b(?:set|reset)\s+(?:local\s+)?role\b/i },
+  { label: 'SET ROLE', re: /\b(?:set|reset)\s+(?:(?:local|session)\s+)?role\b/i },
+  { label: 'SET search_path / SET SCHEMA', re: /\b(?:set|reset)\s+(?:(?:local|session)\s+)?(?:search_path|schema)\b/i },
   { label: 'SET SESSION AUTHORIZATION', re: /\bset\s+session\s+authorization\b/i },
 ];
 
@@ -767,7 +791,8 @@ export function tokenFingerprint(tokens) {
  * What a DO statement can do, for its tokens:
  *   effect          it can change a function, so it must be documented or it fails
  *   dynamic         it runs `execute`
- *   staticEffect    a function statement in code position (a documented inert entry cannot excuse this)
+ *   staticEffect    a function statement, or a change of the search_path or role, in code position (a
+ *                   documented inert entry cannot excuse this)
  *   tag             the dollar tag ('' for `$$`) or '' for a quoted body
  *   fingerprint     of the block's own code tokens (null when there is no readable body)
  *   why             one line saying what made it an effect, for the failure message
@@ -789,8 +814,14 @@ export function classifyDoBlock(tokens) {
   const inner = tokenize(body.v, 'do-block');
   const dynamic = inner.some((t) => isWord(t, 'execute'));
   const code = inner.filter((t) => t.k === 'word').map((t) => t.v).join(' ');
-  const hit = FN_EFFECT_PATTERNS.find((p) => p.re.test(code));
-  const why = hit ? `it has a ${hit.label} statement in code position` : dynamic ? 'it runs dynamic SQL (`execute`), which a static read cannot resolve' : null;
+  // set_config is a function call, so it is read from the tokens (its first argument is a string
+  // literal, which `code` leaves out), the way the top-level path reads it.
+  const cfg = setConfigTarget(inner);
+  const cfgHit = cfg === null ? null : cfg === '<not a literal>'
+    ? { phrase: 'it calls set_config with a parameter name the model cannot read, which could be the search_path or the role' }
+    : { phrase: `it calls set_config('${cfg}'), which changes ${cfg === 'search_path' ? 'the schema every later unqualified name resolves in' : 'who the session runs as'}` };
+  const hit = FN_EFFECT_PATTERNS.find((p) => p.re.test(code)) ?? cfgHit;
+  const why = hit ? (hit.phrase ?? `it has a ${hit.label} statement in code position`) : dynamic ? 'it runs dynamic SQL (`execute`), which a static read cannot resolve' : null;
   return { effect: dynamic || !!hit, dynamic, staticEffect: !!hit, tag, fingerprint: tokenFingerprint(inner), why };
 }
 
@@ -1245,8 +1276,14 @@ export const bodyFingerprint = (fn) => tokenFingerprint(bodyTokens(fn));
 //     if auth.uid() is null [or ...] then raise exception ...;   -- or `return ...`
 // where the NULL test is a whole disjunct of the condition (an `and`-ed test is conditional, so it is
 // not a reject), the statement is an `if` (an `elsif` is conditional too), and its branch really
-// leaves (a `raise notice` does not). A comparison needs a reject before it; a subject-coalesce needs
-// one anywhere in the body (the coalesce usually sits in the DECLARE section, ahead of `begin`).
+// leaves: a `raise notice` does not, and neither do `return next` and `return query`, which append
+// rows to a set-returning function's result and carry on with the next statement (measured on
+// PostgreSQL 16.13: as anon with no JWT, a body whose NULL branch ran `return query select -1` still
+// reached the comparison after it and returned the other user's row). Only the branch's FIRST
+// statement is read, so `return query ...; return;` reads as not leaving and is flagged: that over-
+// flags a real reject, and the acknowledgement is how one is accepted. A comparison needs a reject
+// before it; a subject-coalesce needs one anywhere in the body (the coalesce usually sits in the
+// DECLARE section, ahead of `begin`).
 //
 // NOT flagged, on purpose: `is distinct from` and `coalesce(auth.uid(), '0000...'::uuid)`, which are
 // NULL-safe, and `x = auth.uid()` in a positive filter, where NULL drops the row.
@@ -1410,7 +1447,7 @@ function nullRejects(t, aliases) {
     };
     if (!disjuncts.some(isNullTest)) continue;
     const first = t[j + 1];
-    if (isWord(first, 'return') || (isWord(first, 'raise') && !isWord(t[j + 2], 'notice', 'warning', 'info', 'log', 'debug'))) out.push(i);
+    if ((isWord(first, 'return') && !isWord(t[j + 2], 'next', 'query')) || (isWord(first, 'raise') && !isWord(t[j + 2], 'notice', 'warning', 'info', 'log', 'debug'))) out.push(i);
   }
   return out;
 }

@@ -41,6 +41,11 @@
 --                             This applies to trigger definers too.
 --   is_trigger = true         the function returns trigger or event_trigger. Its anon_executable is
 --                             ignored (it cannot be called as an RPC); its pin is not.
+--   identity_args             the argument list as Postgres prints it. A NAME that appears with more
+--                             than one of these (among the non-trigger rows) fails the diff: the
+--                             allow-list is by name, so an overload made outside the migrations would
+--                             inherit the entry of the function it shares a name with. The diff
+--                             refuses a capture that lacks this column.
 --   authenticated_executable  informational: signed-in callers.
 --
 -- This statement only reads pg_proc and pg_namespace and calls has_function_privilege.

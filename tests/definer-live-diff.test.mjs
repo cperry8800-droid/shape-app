@@ -22,7 +22,7 @@ const allow = () => ({
   registeredFindings: [{ name: 'known_open' }],
   registeredPinFindings: [{ name: 'loose' }],
 });
-const row = (proname, anon, pinned = true, extra = {}) => ({ proname, is_trigger: false, anon_executable: anon, pg_temp_pinned: pinned, ...extra });
+const row = (proname, anon, pinned = true, extra = {}) => ({ proname, identity_args: '', is_trigger: false, anon_executable: anon, pg_temp_pinned: pinned, ...extra });
 
 test('parseRows takes the array, a one-cell wrapper, a bare-string cell, or the single-key object', () => {
   const rows = [row('a', true), row('b', false)];
@@ -43,6 +43,16 @@ test('parseRows refuses input that would read as a pass by accident', () => {
   assert.throws(() => parseRows(JSON.stringify([{ proname: 'a' }])), /row 0 lacks/, 'a row without anon_executable is not a capture of the query');
   assert.throws(() => parseRows(JSON.stringify([{ ...row('a', true), anon_executable: 'true' }])), /row 0 lacks/, 'a string is not a boolean');
   assert.throws(() => parseRows(JSON.stringify([row('a', true), { anon_executable: true }])), /row 1 lacks/);
+});
+
+test('parseRows refuses a capture that does not list each signature', () => {
+  // Without `identity_args` every overload of a name looks like the same function, which is exactly
+  // how an overload made outside the migrations would pass as the allow-listed one beside it.
+  const without = (r, key) => Object.fromEntries(Object.entries(r).filter(([k]) => k !== key));
+  assert.throws(() => parseRows(JSON.stringify([without(row('a', true), 'identity_args')])), /row 0 lacks .*identity_args.*current scripts\/definer-live-check\.sql/s);
+  assert.throws(() => parseRows(JSON.stringify([{ ...row('a', true), identity_args: null }])), /row 0 lacks .*identity_args/s, 'null is not text');
+  assert.throws(() => parseRows(JSON.stringify([{ ...row('a', true), identity_args: 7 }])), /row 0 lacks .*identity_args/s, 'a number is not text');
+  assert.deepEqual(parseRows(JSON.stringify([row('a', true)])).map((r) => r.identity_args), [''], 'the empty string is a real signature: a function with no arguments');
 });
 
 test('parseRows refuses a capture that cannot say which rows are triggers or which are pinned', () => {
@@ -102,6 +112,47 @@ test('the same name twice is one function in the diff', () => {
   const d = diffLive([row('brand_new', true), row('brand_new', true)], allow());
   assert.deepEqual(d.unaccounted, ['brand_new']);
   assert.equal(d.anonExecutable, 1);
+});
+
+// ── Overloads: the allow-list is by NAME, the catalog is by signature ────────
+
+test('an overload of an allow-listed name is reported and fails the verdict, however the entry reads', () => {
+  const sig = (args, anon) => row('mine', anon, true, { identity_args: args });
+  // The hole this closes: `mine` is an allow-listed entry, and a second signature made outside the
+  // migrations shares its name. Counted by name it is "mine, accounted for", exit 0.
+  const d = diffLive([sig('p_id uuid', true), sig('p_id uuid, p_other text', true)], allow());
+  assert.deepEqual(d.unaccounted, [], 'by name nothing is unaccounted: that is the hole');
+  assert.deepEqual(d.overloaded, [{ name: 'mine', sigs: [{ args: 'p_id uuid', anon: true }, { args: 'p_id uuid, p_other text', anon: true }] }]);
+  assert.equal(verdict(d), 1);
+  // One signature, the same name: nothing to report.
+  const one = diffLive([sig('p_id uuid', true)], allow());
+  assert.deepEqual(one.overloaded, []);
+  assert.equal(verdict(one), 0);
+  // Only the EXTRA signature is open to anon: the allow-listed name still reads as anon-executable.
+  const quiet = diffLive([sig('p_id uuid', false), sig('p_id uuid, p_other text', true)], allow());
+  assert.deepEqual(quiet.unaccounted, []);
+  assert.deepEqual(quiet.overloaded[0].sigs.map((x) => x.anon), [false, true], 'each signature keeps its own anon flag');
+  assert.equal(verdict(quiet), 1);
+  // Neither signature is open to anon, and it is still an overload: the allow-list cannot say which.
+  assert.equal(verdict(diffLive([sig('a int', false), sig('b int', false)], allow())), 1);
+});
+
+test('what is not an overload: the same signature twice, a trigger function, a non-definer, another schema', () => {
+  const sig = (args, extra = {}) => row('mine', true, true, { identity_args: args, ...extra });
+  assert.deepEqual(diffLive([sig('p_id uuid'), sig('p_id uuid')], allow()).overloaded, [], 'one signature listed twice is one function');
+  assert.deepEqual(diffLive([sig('p_id uuid'), sig('x int', { is_trigger: true })], allow()).overloaded, [], 'a trigger function is outside anon accounting, so it shares nothing');
+  assert.deepEqual(diffLive([sig('p_id uuid'), sig('x int', { prosecdef: false })], allow()).overloaded, [], 'an invoker function is not a definer');
+  assert.deepEqual(diffLive([sig('p_id uuid'), sig('x int', { nspname: 'extra' })], allow()).overloaded, [], 'another schema is another function');
+  assert.equal(verdict(diffLive([sig('p_id uuid'), sig('x int', { is_trigger: true })], allow())), 0);
+});
+
+test('the report names every signature of an overloaded name, marks the open ones, and says what to do', () => {
+  const sig = (args, anon) => row('mine', anon, true, { identity_args: args });
+  const text = report(diffLive([sig('p_id uuid', false), sig('p_id uuid, p_other text', true)], allow()));
+  assert.match(text, /OVERLOADED \(one name, several signatures\)/);
+  assert.match(text, /\n  mine: \(p_id uuid\) and \(p_id uuid, p_other text\) \[anon-executable\]\n/);
+  assert.match(text, /Rename or drop the extra signature/);
+  assert.doesNotMatch(report(diffLive([row('mine', true)], allow())), /OVERLOADED/);
 });
 
 test('an entry the live catalog no longer supports is stale, and fails only under --strict', () => {
@@ -189,6 +240,13 @@ test('the CLI: the checked-in allow-list accepts the live capture, and rejects a
   assert.equal(leak.status, 1);
   assert.match(leak.stderr, /1 UNACCOUNTED/);
   assert.match(leak.stderr, /league_style_leak/);
+  // The hole, end to end: an allow-listed, anon-executable name with a second signature that the
+  // migrations do not hold. By name it is "accounted for"; it must fail.
+  const hidden = LIVE.anonExecutable[0];
+  const overloaded = cli(JSON.stringify([...rows.map((r) => (r.proname === hidden ? { ...r, identity_args: 'p_id uuid' } : r)), row(hidden, true, true, { identity_args: 'p_id uuid, p_other text' })]));
+  assert.equal(overloaded.status, 1, 'an overload of an allow-listed name fails the run, end to end');
+  assert.match(overloaded.stderr, new RegExp(`OVERLOADED[^]*${hidden}: \\(p_id uuid\\) \\[anon-executable\\] and \\(p_id uuid, p_other text\\) \\[anon-executable\\]`));
+  assert.match(overloaded.stderr, /0 UNACCOUNTED/, 'and by name nothing is unaccounted, which is why it needs its own check');
   const loose = cli(JSON.stringify([...rows, row('an_unpinned_trigger', false, false, { is_trigger: true })]));
   assert.equal(loose.status, 1, 'an unpinned TRIGGER definer fails the run, end to end');
   assert.match(loose.stderr, /search_path does not end in pg_temp[^]*an_unpinned_trigger/);
