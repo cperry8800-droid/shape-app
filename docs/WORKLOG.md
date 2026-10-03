@@ -844,7 +844,7 @@ Append new entries at the top, under this note.
   - high with the cinematic chain **153 / 2.80 M**, high with `?cine=0` **143 / 2.80 M**, low **123 / 1.14 M** (draw calls / triangles), about one draw call under the 09-30 figures each, which is the stairs' LED riser mesh;
   - the 390 px phone layout has no horizontal overflow, the set starts and plays, and there are no page errors.
   - ⚠ **The checked-in harness could not measure the cinematic tier here.** Its page load ran past Playwright's 30 s default in SwiftShader even with nothing else running, so `glinfo.cjs` now waits up to 3 minutes for it.
-  - ⚠ **The handoff's "run the measurement panel alone" lesson, re-learned.** Run beside a phone check and a mutation round, both high runs timed out.
+  - ⚠ **The handoff's "run the measurement panel alone" lesson, re-learned.** The high tier without the chain timed out at page load while a second browser started beside it; alone it loaded within the default and measured.
 - **Written after the merge**, per the 2026-09-11 rule. The owner had deferred it during the PR (*"dont worry about worklog right now"*).
 - ⚠ **REGISTERED, NOT FIXED:** no real GPU or phone has run the cinematic tier; the HUD's top-left note runs past the top letterbox bar; *"LOADING NORA…"* sits over the screen's mark until her model arrives; a `reading 'bars'` page error was seen once and not chased (owner: *"just forget it"*); the LED wall has one scene.
 

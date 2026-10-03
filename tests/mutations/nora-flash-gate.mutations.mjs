@@ -16,7 +16,7 @@ export default {
     { name: 'the beat period is ignored: only the 1/3 s floor holds', file: 'prototypes/nora-booth/src/flashGate.mjs',
       find: 'const wait = Math.max(gap > 0 ? gap : 0, minGap) * 0.98;',
       replace: 'const wait = minGap * 0.98;' },
-    { name: 'the gate never re-arms on release: a held kick re-fires every beat', file: 'prototypes/nora-booth/src/flashGate.mjs',
+    { name: 'the gate stays armed while the kick is held: a held kick re-fires every beat', file: 'prototypes/nora-booth/src/flashGate.mjs',
       find: '      armed = !hit;',
       replace: '      armed = true;' },
     { name: 'the flash never decays', file: 'prototypes/nora-booth/src/flashGate.mjs',
