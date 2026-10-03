@@ -39,7 +39,11 @@
 //              the documented inert DO blocks.
 //              Each ignored head is an explicit entry in IRRELEVANT, DML or TXN below, or one of the
 //              COMMENT / SET / DO branches of applyStatement: a head in none of them fails.
-//   fails      role membership grants; a function GRANT/REVOKE (or ALTER DEFAULT PRIVILEGES) that
+//   fails      DROP TABLE|VIEW|SEQUENCE ... CASCADE (it also drops every function whose argument or
+//              result type is the row type, and recreating one gives it the default ACL again) and
+//              ALTER TABLE|VIEW|SEQUENCE|TYPE|DOMAIN ... RENAME TO or SET SCHEMA (they change a type
+//              name that a later GRANT or REVOKE on a function must spell); role membership grants;
+//              a function GRANT/REVOKE (or ALTER DEFAULT PRIVILEGES) that
 //              names a role the model does not track, because Postgres refuses the WHOLE statement
 //              for a role that does not exist; CREATE/DROP/ALTER of schemas, roles, extensions,
 //              procedures, aggregates and types; ALTER FUNCTION OWNER/RENAME/SET SCHEMA; `set role`
@@ -867,6 +871,17 @@ const IRRELEVANT = {
   alter: new Set(['table', 'policy', 'sequence', 'index', 'publication', 'view', 'type', 'domain']),
   drop: new Set(['table', 'index', 'policy', 'trigger', 'sequence', 'view', 'publication']),
 };
+// DDL that is irrelevant UNTIL it carries one of these. CASCADE on a table or a view also drops every
+// function whose argument or result type is its row type (measured on PostgreSQL 16.13: `drop table t
+// cascade` dropped uses_tt(tt), while a plain `drop table t` was refused), and the function made again
+// afterwards has the default ACL, which a replay that kept the old one would read as still closed.
+// A RENAME TO or SET SCHEMA changes a type name that a later GRANT or REVOKE on a function spells, so the
+// replay would look the function up under a name it no longer has (Postgres: `type "public.tt2" does not
+// exist`). RENAME COLUMN, RENAME CONSTRAINT and `RENAME a TO b` are about columns and stay ignored.
+const CASCADE_DROPS = new Set(['table', 'view', 'sequence']);
+const IDENTITY_ALTERS = new Set(['table', 'view', 'sequence', 'type', 'domain']);
+const renamesOrMoves = (t) => t.some((x, i) => (isWord(x, 'rename') && isWord(t[i + 1], 'to')) || (isWord(x, 'set') && isWord(t[i + 1], 'schema')));
+
 const DML = new Set(['insert', 'update', 'delete', 'select', 'with', 'values', 'truncate', 'lock', 'notify', 'analyze', 'vacuum', 'refresh', 'listen', 'unlisten', 'explain']);
 const TXN = new Set(['begin', 'start', 'commit', 'end', 'rollback', 'abort', 'savepoint', 'release', 'show']);
 const CREATE_MODIFIERS = new Set(['or', 'replace', 'unique', 'temp', 'temporary', 'unlogged', 'global', 'local', 'recursive', 'materialized', 'constraint']);
@@ -1092,14 +1107,24 @@ export function applyStatement(model, stmt) {
   if (head === 'drop') {
     const obj = isWord(t[1]) ? t[1].v : null;
     if (obj === 'function') { bump(model, 'drop-function'); return applyDrop(model, stmt); }
-    if (IRRELEVANT.drop.has(obj)) { bump(model, `ignored:drop ${obj}`); return; }
+    if (IRRELEVANT.drop.has(obj)) {
+      if (CASCADE_DROPS.has(obj) && t.some((x) => isWord(x, 'cascade'))) {
+        return reject(model, stmt, 'unmodelled statement', `DROP ${obj.toUpperCase()} ... CASCADE also drops every function whose argument or result type is its row type, and a function made again afterwards has the default ACL, which this replay would not see`);
+      }
+      bump(model, `ignored:drop ${obj}`); return;
+    }
     return reject(model, stmt, 'unmodelled statement', `DROP ${(obj ?? '?').toUpperCase()} can remove functions or change who may run them`);
   }
   if (head === 'alter') {
     const obj = isWord(t[1]) ? t[1].v : null;
     if (obj === 'function') { bump(model, 'alter-function'); return applyAlter(model, stmt); }
     if (obj === 'default' && isWord(t[2], 'privileges')) { bump(model, 'alter-default-privileges'); return applyDefaultPrivileges(model, stmt); }
-    if (IRRELEVANT.alter.has(obj)) { bump(model, `ignored:alter ${obj}`); return; }
+    if (IRRELEVANT.alter.has(obj)) {
+      if (IDENTITY_ALTERS.has(obj) && renamesOrMoves(t)) {
+        return reject(model, stmt, 'unmodelled statement', `ALTER ${obj.toUpperCase()} ... RENAME TO or SET SCHEMA changes a type name that a later GRANT or REVOKE on a function spells, so this replay would look the function up under a name it no longer has`);
+      }
+      bump(model, `ignored:alter ${obj}`); return;
+    }
     return reject(model, stmt, 'unmodelled statement', `ALTER ${(obj ?? '?').toUpperCase()} is not a known-irrelevant statement (add it to IRRELEVANT in tests/helpers/definer-model.mjs if it cannot change a function's ACL, definer flag or search_path, or model it)`);
   }
   if (head === 'grant' || head === 'revoke') return applyAcl(model, stmt);
@@ -1264,8 +1289,10 @@ export const bodyFingerprint = (fn) => tokenFingerprint(bodyTokens(fn));
 //
 // FLAGGED, over the body's CODE tokens (comments and strings are not code):
 //   not-equal          `x <> auth.uid()` or `x != auth.uid()`, either operand order. An operand may be
-//                      auth.uid(), `(auth.uid())`, `(select auth.uid())`, any of them cast to a type,
-//                      or a variable assigned directly from it (`v_me uuid := auth.uid();`).
+//                      auth.uid(), `(auth.uid())`, `(select auth.uid())`, `cast(auth.uid() as type)`,
+//                      any of them followed by `::type` casts (qualified, array, multi-word and
+//                      parameterised types: `::pg_catalog.uuid`, `::uuid[]`, `::character varying(36)`),
+//                      in any nesting, or a variable assigned directly from one (`v_me uuid := auth.uid();`).
 //   negated-equality   `not (... = auth.uid() ...)` and `not x = auth.uid()`: NOT NULL is NULL.
 //                      Subqueries and function calls are skipped: `not exists (select ... = auth.uid())`
 //                      is NULL-safe because EXISTS is never NULL.
@@ -1289,17 +1316,22 @@ export const bodyFingerprint = (fn) => tokenFingerprint(bodyTokens(fn));
 // NULL-safe, and `x = auth.uid()` in a positive filter, where NULL drops the row.
 // WHAT IT CANNOT SEE: a caller uid reached through any other expression (`lower(auth.uid()::text)`),
 // a NULL-blind guard built on a helper that itself returns NULL, an alias assigned any way but
-// `v := auth.uid();` (a plpgsql `=` assignment, `select auth.uid() into v`), an ordering comparison
+// `v := auth.uid();` (a cast or parentheses around the call are read; a plpgsql `=` assignment and
+// `select auth.uid() into v` are not), a cast to a type of a shape the scan does not read (interval
+// fields, `national character`), an ordering comparison
 // (`<`, `>=`) under NOT, and whether the reject dominates the comparison (one nested in a branch
 // that may not run still counts). It is a tripwire, with a written, fingerprinted acknowledgement
 // for the exceptions, not a proof. A body it flags is fixed with an explicit reject first; a
 // function that has to stay reachable is a registered finding until then.
 
-/** Variables assigned DIRECTLY from auth.uid() (`v_me uuid := auth.uid();`, `v_me := auth.uid();`). */
+/** Variables assigned DIRECTLY from auth.uid() (`v_me uuid := auth.uid();`, `v_me := (select auth.uid())::uuid;`). */
 function callerAliases(t) {
   const names = new Set();
-  for (let i = 1; i + 7 < t.length; i++) {
-    if (!(isPunct(t[i], ':') && isPunct(t[i + 1], '=') && isCallerCall(t, i + 2) && isPunct(t[i + 7], ';'))) continue;
+  const none = new Set();
+  for (let i = 1; i < t.length; i++) {
+    if (!(isPunct(t[i], ':') && isPunct(t[i + 1], '='))) continue;
+    const end = callerOperandEnd(t, i + 2, none);
+    if (end < 0 || !isPunct(t[end + 1], ';')) continue;
     let s = i - 1;
     while (s >= 0 && !isPunct(t[s], ';') && !isWord(t[s], 'declare', 'begin', 'then', 'else', 'loop')) s--;
     if (isName(t[s + 1])) names.add(t[s + 1].v);
@@ -1307,26 +1339,70 @@ function callerAliases(t) {
   return names;
 }
 
-/** Length of the caller operand that STARTS at t[i], or 0: auth.uid(), (auth.uid()), (select auth.uid()), or an alias. */
-function callerOperandAt(t, i, aliases) {
-  if (isCallerCall(t, i)) return 5;
-  if (isPunct(t[i], '(')) {
-    if (isCallerCall(t, i + 1) && isPunct(t[i + 6], ')')) return 7;
-    if (isWord(t[i + 1], 'select') && isCallerCall(t, i + 2) && isPunct(t[i + 7], ')')) return 8;
-    return 0;
+/**
+ * Last token index of the type that starts at t[i] (just after `::` or `as`), or -1. It reads what a cast
+ * to a type can look like: `uuid`, `pg_catalog.uuid`, `"uuid"`, `character varying`, `double precision`,
+ * `varchar(36)`, `timestamp(3) with time zone`, and any array suffix (`[]`, `[3]`, `array`, `array[3]`). A
+ * type of another shape is read as far as it still looks like a name, which at worst leaves the operand
+ * unrecognised and never matches a wrong one.
+ */
+export function castTypeEnd(t, i) {
+  if (!isName(t[i])) return -1;
+  let e = i;
+  while (isPunct(t[e + 1], '.') && isName(t[e + 2])) e += 2;
+  const w = t[i].k === 'word' && e === i ? t[i].v : null;
+  if (w === 'double' && isWord(t[e + 1], 'precision')) e++;
+  else if ((w === 'character' || w === 'char' || w === 'bit') && isWord(t[e + 1], 'varying')) e++;
+  if (isPunct(t[e + 1], '(')) { const g = readGroup(t, e + 1); if (!g) return -1; e = g.next - 1; }
+  if ((w === 'timestamp' || w === 'time') && isWord(t[e + 1], 'with', 'without') && isWord(t[e + 2], 'time') && isWord(t[e + 3], 'zone')) e += 3;
+  for (;;) {
+    if (isPunct(t[e + 1], '[')) { const g = readGroup(t, e + 1); if (!g) return -1; e = g.next - 1; continue; }
+    if (isWord(t[e + 1], 'array')) { e++; continue; }
+    return e;
   }
-  if (t[i]?.k === 'word' && aliases.has(t[i].v) && !isPunct(t[i + 1], '.') && !isPunct(t[i + 1], '(') && !isPunct(t[i - 1], '.')) return 1;
-  return 0;
 }
 
-/** Index where the caller operand ENDING at t[j] starts (a trailing `::type` cast allowed), or -1. */
-function callerOperandStartEndingAt(t, j, aliases) {
-  let e = j;
-  if (isWord(t[e]) && isPunct(t[e - 1], ':') && isPunct(t[e - 2], ':')) e -= 3;
-  for (const len of [5, 7, 8, 1]) {
-    const s = e - len + 1;
-    if (s >= 0 && callerOperandAt(t, s, aliases) === len) return s;
+/**
+ * Last token index of the caller operand that STARTS at t[i], or -1. An operand is auth.uid(), or a variable
+ * assigned directly from it (an alias), either of those in parentheses (`(auth.uid())`, `(select auth.uid())`)
+ * or inside `cast(... as type)`, with any number of `::type` suffixes after it, in any nesting. A cast leaves
+ * a NULL as a NULL, so it hides nothing and must not stop the operand being seen.
+ */
+function callerOperandEnd(t, i, aliases) {
+  let e = -1;
+  if (isCallerCall(t, i)) e = i + 4;
+  else if (isPunct(t[i], '(')) {
+    const g = readGroup(t, i);
+    if (!g) return -1;
+    const inner = callerOperandEnd(t, isWord(t[i + 1], 'select') ? i + 2 : i + 1, aliases);
+    if (inner !== g.next - 2) return -1; // the operand must fill the group
+    e = g.next - 1;
+  } else if (isWord(t[i], 'cast') && isPunct(t[i + 1], '(') && !isPunct(t[i - 1], '.')) {
+    const g = readGroup(t, i + 1);
+    if (!g) return -1;
+    const inner = callerOperandEnd(t, i + 2, aliases);
+    if (inner < 0 || !isWord(t[inner + 1], 'as') || castTypeEnd(t, inner + 2) !== g.next - 2) return -1;
+    e = g.next - 1;
+  } else if (t[i]?.k === 'word' && aliases.has(t[i].v) && !isPunct(t[i + 1], '.') && !isPunct(t[i + 1], '(') && !isPunct(t[i - 1], '.')) {
+    e = i;
+  } else return -1;
+  while (isPunct(t[e + 1], ':') && isPunct(t[e + 2], ':')) {
+    const te = castTypeEnd(t, e + 3);
+    if (te < 0) break;
+    e = te;
   }
+  return e;
+}
+
+/** Length of the caller operand that STARTS at t[i], casts included, or 0. */
+function callerOperandAt(t, i, aliases) {
+  const e = callerOperandEnd(t, i, aliases);
+  return e < 0 ? 0 : e - i + 1;
+}
+
+/** Index where the caller operand ENDING at t[j] starts, or -1. */
+function callerOperandStartEndingAt(t, j, aliases) {
+  for (let s = j; s >= 0 && j - s < 96; s--) if (callerOperandEnd(t, s, aliases) === j) return s;
   return -1;
 }
 
@@ -1408,7 +1484,7 @@ function nullBlindSites(t, src, aliases, params) {
       const g = readGroup(t, i + 1);
       if (!g) continue;
       const args = splitTopLevel(g.inner);
-      const isCaller = (a) => { const n = callerOperandAt(a, 0, aliases); return n > 0 && (n === a.length || (a.length === n + 3 && isPunct(a[n], ':') && isPunct(a[n + 1], ':'))); };
+      const isCaller = (a) => { const n = callerOperandAt(a, 0, aliases); return n > 0 && n === a.length; };
       const usesParam = (a) => a.some((x, k) => x.k === 'param' || (x.k === 'word' && params.has(x.v) && !isPunct(a[k - 1], '.') && !isPunct(a[k + 1], '(')));
       if (args.some(isCaller) && args.some((a) => !isCaller(a) && usesParam(a))) sites.push({ kind: 'subject-coalesce', at: i, text: text(i, g.next - 1) });
     }

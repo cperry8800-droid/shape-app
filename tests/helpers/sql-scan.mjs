@@ -52,9 +52,18 @@ export function tokenize(sql, file = '<sql>') {
   const push = (k, v, start, end, startLine) => out.push({ k, v, raw: sql.slice(start, end), start, end, line: startLine });
   const countLines = (from, to) => { for (let p = from; p < to; p++) if (sql[p] === '\n') line++; };
 
-  if (/standard_conforming_strings\s*(?:=|\bto\b)\s*(?:off|'off'|false|0)\b/i.test(sql.replace(/--[^\n]*/g, ''))) {
-    fail('standard_conforming_strings is turned off, which changes what every quote means; refusing to lex');
-  }
+  // standard_conforming_strings = off changes what a backslash in a plain string means, so every
+  // literal after it would be cut in the wrong place. It is read from TOKENS, at the end of each
+  // statement: a comment between the words (`set standard_conforming_strings /* x */ = off`) cannot
+  // hide it, the same words inside a comment, a string or a dollar body cannot trigger it, and it is
+  // read before the NEXT statement is lexed, so the refusal is the message and not whatever an
+  // unterminated string further down turns into.
+  let stmtFrom = 0;
+  const checkConformingStrings = () => {
+    const hit = turnsOffConformingStrings(out.slice(stmtFrom));
+    stmtFrom = out.length;
+    if (hit) fail('standard_conforming_strings is turned off, which changes what every quote means; refusing to lex', hit.line);
+  };
 
   // `'...'` from the opening quote at `q`. Returns the index just past the closing quote.
   const readQuoted = (q, quote, backslash, what) => {
@@ -164,9 +173,49 @@ export function tokenize(sql, file = '<sql>') {
     }
 
     push('punct', c, start, i + 1, startLine);
+    if (c === ';') checkConformingStrings();
     i++;
   }
+  checkConformingStrings();
   return out;
+}
+
+const SCS = 'standard_conforming_strings';
+const lowerV = (t) => String(t?.v ?? '').toLowerCase();
+const isNameOf = (t, name) => !!t && ['word', 'qident', 'string', 'dollar'].includes(t.k) && lowerV(t) === name;
+/** Postgres reads a boolean setting from `false`, `no`, `off` and `0` and their unique prefixes (`f`, `n`, `of`). */
+const isOffValue = (t) => {
+  if (!t || !['word', 'string', 'num'].includes(t.k)) return null; // unreadable: the caller decides
+  const s = lowerV(t);
+  const prefix = (word, min) => s.length >= min && word.startsWith(s);
+  return s === '0' || prefix('false', 1) || prefix('no', 1) || prefix('off', 2);
+};
+
+/**
+ * The token that turns standard_conforming_strings off in one statement's tokens, or null:
+ *   SET [SESSION | LOCAL] standard_conforming_strings { = | TO } off | false | no | 0 (quoted or not)
+ *   set_config('standard_conforming_strings', 'off' | ..., is_local)
+ * A value that is not a literal (`set_config('standard_conforming_strings', current_setting('x'), false)`)
+ * cannot be read, so it counts: this is a refusal, and a wrong refusal costs less than a wrong lexing.
+ */
+function turnsOffConformingStrings(toks) {
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (isNameOf(t, SCS) && (t.k === 'word' || t.k === 'qident')) {
+      const afterSet = (toks[i - 1]?.k === 'word' && toks[i - 1].v === 'set') || (['session', 'local'].includes(toks[i - 1]?.v) && toks[i - 2]?.k === 'word' && toks[i - 2].v === 'set');
+      const assign = (toks[i + 1]?.k === 'punct' && toks[i + 1].v === '=') || (toks[i + 1]?.k === 'word' && toks[i + 1].v === 'to');
+      if (afterSet && assign && isOffValue(toks[i + 2]) === true) return toks[i];
+    }
+    if (t.k === 'word' && t.v === 'set_config' && toks[i + 1]?.k === 'punct' && toks[i + 1].v === '(' && isNameOf(toks[i + 2], SCS)) {
+      const comma = toks[i + 3]?.k === 'punct' && toks[i + 3].v === ',';
+      // A value is readable only when it is the WHOLE argument: `current_setting('x')` starts with a word
+      // and `'o' || 'ff'` with a string, and neither says what the setting becomes.
+      const whole = comma && toks[i + 5]?.k === 'punct' && (toks[i + 5].v === ',' || toks[i + 5].v === ')');
+      const off = whole ? isOffValue(toks[i + 4]) : null;
+      if (off === true || off === null) return toks[i];
+    }
+  }
+  return null;
 }
 
 /**

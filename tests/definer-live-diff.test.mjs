@@ -155,6 +155,16 @@ test('the report names every signature of an overloaded name, marks the open one
   assert.doesNotMatch(report(diffLive([row('mine', true)], allow())), /OVERLOADED/);
 });
 
+test('the capture query reads plain AND window functions, not plain ones only', () => {
+  // A SECURITY DEFINER window function can be created in SQL or plpgsql (prokind 'w', prosecdef true:
+  // measured on PostgreSQL 16.13), and the static audit reads every non-trigger definer. A query that
+  // filtered `prokind = 'f'` would leave a live-only one out of the capture that is the authority.
+  const sql = fs.readFileSync(join(ROOT, 'scripts/definer-live-check.sql'), 'utf8').replace(/--[^\n]*/g, '');
+  assert.match(sql, /\bp\.prokind\s+in\s*\(\s*'f'\s*,\s*'w'\s*\)/i);
+  assert.doesNotMatch(sql, /\bprokind\s*=\s*'f'/i);
+  assert.match(sql, /\bp\.prosecdef\b/, 'and it still reads definers only');
+});
+
 test('an entry the live catalog no longer supports is stale, and fails only under --strict', () => {
   const d = diffLive([row('mine', true)], allow()); // `both` and `known_open` are not anon live
   assert.deepEqual(d.stale, ['both', 'known_open']);

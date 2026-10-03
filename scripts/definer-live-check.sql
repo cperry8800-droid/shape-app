@@ -68,7 +68,11 @@ with d as (
             limit 1) as val
   ) sp
   where n.nspname = 'public'
-    and p.prokind = 'f'
+    -- Plain AND WINDOW functions (prokind f and w). A SECURITY DEFINER window function can be created
+    -- in SQL or plpgsql (measured on PostgreSQL 16.13: prokind 'w', prosecdef true), and the static
+    -- audit reads every non-trigger definer, so the live scope must too. Procedures and aggregates
+    -- are not functions to this audit: the model refuses CREATE PROCEDURE and CREATE AGGREGATE.
+    and p.prokind in ('f', 'w')
     and p.prosecdef
 )
 select coalesce(json_agg(to_jsonb(d) order by d.proname, d.identity_args), '[]'::json) as rows

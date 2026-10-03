@@ -174,6 +174,45 @@ test('input the lexer cannot complete is an error that names the file and line',
   assert.throws(() => tokenize("set standard_conforming_strings = off; select 'a\\b';", 'f.sql'), /standard_conforming_strings/);
 });
 
+test('standard_conforming_strings is read from tokens: a comment cannot hide it and inert text cannot trigger it', () => {
+  const refused = (sql) => assert.throws(() => tokenize(sql, 'f.sql'), /^Error: f\.sql:\d+: standard_conforming_strings is turned off/, sql);
+  const accepted = (sql) => assert.doesNotThrow(() => tokenize(sql, 'f.sql'), sql);
+  // The bypass: a comment between the words kept the old text pattern from seeing the setting.
+  refused('set standard_conforming_strings /* gap */ = off;');
+  refused('set standard_conforming_strings = /* gap */ off;');
+  refused("set /* gap */ standard_conforming_strings to 'off';");
+  refused('set standard_conforming_strings -- gap\n = off;');
+  // Every spelling of off, every way to say set, and the missing semicolon.
+  for (const v of ['off', "'off'", 'false', "'false'", 'no', 'n', 'of', 'f', '0', "'0'"]) refused(`set standard_conforming_strings = ${v};`);
+  refused("set standard_conforming_strings to 'off';");
+  refused('set local standard_conforming_strings to off;');
+  refused('set session standard_conforming_strings = off;');
+  refused('set "standard_conforming_strings" = off;');
+  refused('SET STANDARD_CONFORMING_STRINGS = OFF;');
+  refused('set standard_conforming_strings = off');
+  refused("select set_config('standard_conforming_strings', 'off', false);");
+  refused("select set_config('Standard_Conforming_Strings', 'false', true);");
+  refused('select set_config($$standard_conforming_strings$$, $$off$$, true);');
+  refused("select set_config('standard_conforming_strings', current_setting('x'), false);"); // a value it cannot read counts
+  refused("select set_config('standard_conforming_strings', 'o' || 'ff', false);"); // and so does one assembled from parts
+  // It is read before the NEXT statement is lexed, so the message is the refusal and not the
+  // unterminated string that the standard reading makes of `'it\'s'` further down.
+  assert.throws(() => tokenize("set standard_conforming_strings = off;\nselect 'it\\'s';", 'f.sql'), /standard_conforming_strings is turned off/);
+  // Text that only MENTIONS it is not the setting.
+  accepted('/* set standard_conforming_strings = off */ select 1;');
+  accepted('-- set standard_conforming_strings = off\nselect 1;');
+  accepted("select 'set standard_conforming_strings = off';");
+  accepted('select "standard_conforming_strings";');
+  accepted('do $$ begin raise notice $n$standard_conforming_strings = off$n$; end $$;');
+  // And the settings that do not turn it off.
+  accepted('set standard_conforming_strings = on;');
+  accepted('set standard_conforming_strings to default;');
+  accepted('reset standard_conforming_strings;');
+  accepted("select set_config('standard_conforming_strings', 'on', false);");
+  accepted("select set_config('statement_timeout', 'off', false);");
+  accepted("select current_setting('standard_conforming_strings');");
+});
+
 test('argument lists read as Postgres identifies them', () => {
   const tokens = tokenize("(p_a int, timestamptz, \"p b\" numeric(10,2), text[], double precision, p_x timestamp with time zone default now(), variadic int[], out z text, p_c character varying(20) = 'x')");
   const inner = tokens.slice(1, -1);
@@ -340,6 +379,17 @@ const UNMODELLED = [
   ['a DO block with a bare SET SESSION ROLE', 'do $$ begin set session role anon; end $$;', 'unmodelled DO block'],
   ['a DO block with a bare SET LOCAL ROLE', 'do $$ begin set local role anon; end $$;', 'unmodelled DO block'],
   ['a DO block with a bare RESET ROLE', 'do $$ begin reset role; end $$;', 'unmodelled DO block'],
+  // DDL that is irrelevant until it can change which functions exist or what a later GRANT must call them.
+  ['DROP TABLE ... CASCADE', 'drop table public.t cascade;', 'unmodelled statement'],
+  ['DROP TABLE IF EXISTS ... CASCADE', 'drop table if exists public.t cascade;', 'unmodelled statement'],
+  ['DROP VIEW ... CASCADE', 'drop view public.v cascade;', 'unmodelled statement'],
+  ['DROP SEQUENCE ... CASCADE', 'drop sequence public.s cascade;', 'unmodelled statement'],
+  ['ALTER TABLE ... RENAME TO', 'alter table public.t rename to u;', 'unmodelled statement'],
+  ['ALTER TABLE ... SET SCHEMA', 'alter table public.t set schema other;', 'unmodelled statement'],
+  ['ALTER VIEW ... RENAME TO', 'alter view public.v rename to w;', 'unmodelled statement'],
+  ['ALTER SEQUENCE ... SET SCHEMA', 'alter sequence public.s set schema other;', 'unmodelled statement'],
+  ['ALTER TYPE ... RENAME TO', 'alter type public.t rename to u;', 'unmodelled statement'],
+  ['ALTER DOMAIN ... SET SCHEMA', 'alter domain public.d set schema other;', 'unmodelled statement'],
   // The search_path decides which schema every later UNQUALIFIED name resolves in.
   ['SET search_path', 'set search_path to private;', 'unmodelled statement'],
   ['SET search_path with =', 'set search_path = private;', 'unmodelled statement'],
@@ -584,6 +634,55 @@ test('GRANT/REVOKE targets: PROCEDURE and ALL PROCEDURES are not functions; FUNC
   assert.equal(target('revoke all on routine public.f() from anon;').kind, 'function');
   assert.equal(target('revoke all on all functions in schema public from anon;').kind, 'all-functions');
   assert.equal(target('revoke all on all routines in schema public from anon;').kind, 'all-functions');
+});
+
+test('DDL that cannot change which functions exist or what they are called is still ignored', () => {
+  for (const [what, sql] of [
+    ['DROP TABLE without CASCADE (Postgres refuses it while a function depends on the row type)', 'drop table public.t;'],
+    ['DROP INDEX ... CASCADE', 'drop index public.i cascade;'],
+    ['DROP TRIGGER ... CASCADE', 'drop trigger tg on public.t cascade;'],
+    ['DROP POLICY ... CASCADE', 'drop policy p on public.t cascade;'],
+    ['ALTER TABLE ... RENAME COLUMN', 'alter table public.t rename column a to b;'],
+    ['ALTER TABLE ... RENAME a TO b (a column)', 'alter table public.t rename a to b;'],
+    ['ALTER TABLE ... RENAME CONSTRAINT', 'alter table public.t rename constraint c1 to c2;'],
+    ['ALTER TABLE ... ALTER COLUMN schema SET DEFAULT', 'alter table public.t alter column schema set default 1;'],
+    ['ALTER TABLE ... SET (fillfactor)', 'alter table public.t set (fillfactor = 70);'],
+    ['ALTER TYPE ... ADD VALUE', "alter type public.t add value 'x';"],
+    ['ALTER INDEX ... RENAME TO (an index is not a type)', 'alter index public.i rename to j;'],
+    ['ALTER POLICY ... RENAME TO', 'alter policy p on public.t rename to q;'],
+  ]) {
+    const m = replayOne(`${sql}\n${AFTER}`);
+    assert.deepEqual(messages(m), [], what);
+  }
+});
+
+test('DROP TABLE ... CASCADE is refused because the replay would keep a function that Postgres dropped', () => {
+  // Measured on PostgreSQL 16.13: `drop table t cascade` drops f(t), and the f made again afterwards has
+  // the default ACL (open to anon). Ignoring the DROP leaves the first f standing, closed by its revoke,
+  // so the replay would report the new f as closed.
+  const m = replayOne([
+    'create table public.t (a int);',
+    'create function public.f(p public.t) returns int language sql security definer as $$ select 1 $$;',
+    'revoke all on function public.f(public.t) from public, anon;',
+    'drop table public.t cascade;',
+    'create table public.t (a int);',
+    'create function public.f(p public.t) returns int language sql security definer as $$ select 1 $$;',
+  ].join('\n'));
+  assert.equal(m.unmodelled.length, 1);
+  assert.match(m.unmodelled[0].message, /^unmodelled statement: t\.sql:4 DROP TABLE \.\.\. CASCADE also drops every function whose argument or result type is its row type/);
+});
+
+test('castTypeEnd: what a type after :: or AS can look like, and where it stops', () => {
+  const last = (sql) => { const t = tokenize(sql, 't.sql'); return { t, end: M.castTypeEnd(t, 0) }; };
+  for (const ty of ['uuid', 'pg_catalog.uuid', '"uuid"', 'public."My Type"', 'character varying', 'character varying(36)', 'varchar(36)', 'char varying(2)', 'bit varying(8)', 'double precision', 'numeric(10, 2)', 'timestamp(3) with time zone', 'timestamp without time zone', 'time with time zone', 'uuid[]', 'uuid[][]', 'int[3]', 'int array', 'int array[3]', 'character varying(36)[]', 'pg_catalog.text[]']) {
+    const { t, end } = last(ty);
+    assert.equal(end, t.length - 1, `${ty}: the whole input is one type`);
+  }
+  for (const [sql, stop] of [['uuid <> x', 0], ['uuid)', 0], ['uuid and p', 0], ['text, y', 0], ['pg_catalog.uuid = x', 2], ['character varying <> x', 1], ['uuid[] <> x', 2], ['timestamp(3) with time zone and x', 6], ['double precision = 1', 1]]) {
+    assert.equal(last(sql).end, stop, `${sql}: the type ends at token ${stop}`);
+  }
+  assert.equal(last('1').end, -1, 'a number is not a type');
+  assert.equal(last('(').end, -1, 'neither is a bracket');
 });
 
 test('a PROCEDURE reference leaves no orphan and no unmodelled entry: it is not about a function', () => {
@@ -1131,6 +1230,28 @@ const NULL_LOGIC = [
   ['a positional parameter in the coalesce', plpg('return null;', { args: 'uuid', declare: 'v uuid := coalesce($1, auth.uid());' }), ['subject-coalesce']],
   ['a coalesce and a comparison together (get_health_sources itself)', plpg('if v <> auth.uid() and not public.is_coach_on_client(v) then return null; end if; return null;', { declare: 'v uuid := coalesce(p_id, auth.uid());' }), ['not-equal', 'subject-coalesce']],
   ['a comparison in a language sql body, where no reject can be written', sqlBody('select 1 where p_id <> auth.uid()'), ['not-equal']],
+  // ── casts: every spelling of a cast leaves a NULL as a NULL, so none of them hides the comparison ──
+  // (syntax only: these bodies are read, never run)
+  ['a cast to a schema-qualified type on the left', plpg('if auth.uid()::pg_catalog.uuid <> p_id then return null; end if; return null;'), ['not-equal']],
+  ['a cast to an array type', plpg('if auth.uid()::uuid[] <> p_ids then return null; end if; return null;', { args: 'p_ids uuid[]' }), ['not-equal']],
+  ['a cast to the array keyword form', plpg('if auth.uid()::uuid array <> p_ids then return null; end if; return null;', { args: 'p_ids uuid[]' }), ['not-equal']],
+  ['a cast to a multi-word type', plpg('if auth.uid()::character varying <> p_id::text then return null; end if; return null;'), ['not-equal']],
+  ['a cast to a type with a modifier', plpg('if auth.uid()::varchar(36) <> p_id::text then return null; end if; return null;'), ['not-equal']],
+  ['a chain of casts', plpg('if auth.uid()::text::uuid <> p_id then return null; end if; return null;'), ['not-equal']],
+  ['cast(auth.uid() as type) on the left', plpg('if cast(auth.uid() as uuid) <> p_id then return null; end if; return null;'), ['not-equal']],
+  ['cast(auth.uid() as a qualified type) on the left', plpg('if cast(auth.uid() as pg_catalog.text) <> p_id::text then return null; end if; return null;'), ['not-equal']],
+  ['a long cast() as the left operand', plpg('if cast(auth.uid() as character varying(36)) <> p_id::text then return null; end if; return null;'), ['not-equal']],
+  ['cast(auth.uid() as type) on the right', plpg('if p_id <> cast(auth.uid() as uuid) then return null; end if; return null;'), ['not-equal']],
+  ['a parenthesised cast', plpg('if (auth.uid()::text) <> p_id::text then return null; end if; return null;'), ['not-equal']],
+  ['parentheses inside parentheses', plpg('if ((auth.uid())) <> p_id then return null; end if; return null;'), ['not-equal']],
+  ['a cast followed by more condition is not swallowed', plpg('if auth.uid()::text <> p_id::text and p_id is not null then return null; end if; return null;'), ['not-equal']],
+  ['an alias assigned through a cast', plpg('if p_id <> v_me then return null; end if; return null;', { declare: 'v_me uuid := auth.uid()::uuid;' }), ['not-equal']],
+  ['an alias assigned from (select auth.uid())', plpg('if p_id <> v_me then return null; end if; return null;', { declare: 'v_me uuid := (select auth.uid());' }), ['not-equal']],
+  ['negated equality through a qualified cast', plpg(`if not (auth.uid()::pg_catalog.uuid = p_id or public.is_coach_on_client(p_id)) then ${RAISE} end if; return null;`), ['negated-equality']],
+  ['a coalesce with a qualified cast on the caller', plpg('return null;', { declare: 'v uuid := coalesce(p_id, auth.uid()::pg_catalog.uuid);' }), ['subject-coalesce']],
+  ['a NULL test through a cast is a reject', plpg(`if auth.uid()::text is null then ${RAISE} end if; if p_id::text <> auth.uid()::text then return null; end if; return null;`), []],
+  ['is distinct from through a qualified cast is NULL-safe', plpg(`if p_id is distinct from auth.uid()::pg_catalog.uuid then ${RAISE} end if; return null;`), []],
+  ['a group that does more than hold the caller is not the caller', plpg("if (auth.uid()::text || 'x') <> p_id::text then return null; end if; return null;"), []],
   // ── cleared: an explicit reject comes first ──
   ['a reject that raises, then the comparison', plpg(`if auth.uid() is null then ${RAISE} end if; if p_id <> auth.uid() then return null; end if; return null;`), []],
   ['a reject that returns', plpg('if auth.uid() is null then return null; end if; if p_id <> auth.uid() then return null; end if; return null;'), []],
