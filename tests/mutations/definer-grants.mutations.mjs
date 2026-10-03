@@ -24,8 +24,13 @@
 // the same name, escape strings are decoded the way Postgres decodes them (UESCAPE is refused), the
 // name given to set_config must be one whole literal and is read in every statement, a coalesce in
 // executable code needs an earlier reject, the left operand of a comparison has no lookback limit, and
-// a trigger function counts toward an overload. Each replacement is a mutation that CHANGES behaviour: a replacement that
-// evaluates to the same thing (`[] && has ? ...` did) is a survivor caused by the spec, not a gap.
+// a trigger function counts toward an overload.
+// The block after "The fourth Copilot round" answers its findings on bfbd341: the allow-list reads its own keys
+// only (a function called `constructor`), the schema layers have no prototype, a quoted type name is never a
+// built-in alias, a quoted variable or parameter is the same name for the NULL guard, a dollar-quote tag has no
+// length limit, and ALTER DEFAULT PRIVILEGES has no PROCEDURES form. Each replacement is a mutation that CHANGES
+// behaviour: a replacement that evaluates to the same thing (`[] && has ? ...` did) is a survivor caused by the
+// spec, not a gap.
 const TEST = 'node --test tests/definer-grants.test.mjs tests/definer-live-agreement.test.mjs tests/definer-live-diff.test.mjs';
 const MODEL = 'tests/helpers/definer-model.mjs';
 const SCAN = 'tests/helpers/sql-scan.mjs';
@@ -172,7 +177,7 @@ export default {
       find: 'for (let i = 0; i < t.length; i++) if (isCallerCall(t, i)) return true;',
       replace: "if (/auth\\s*\\.\\s*uid\\s*\\(\\s*\\)/i.test(fn.body ?? '')) return true;" },
     { name: 'a same-named helper in another schema counts as the coach helper', file: MODEL,
-      find: "if (isPunct(t[i - 1], '.')) { if (isWord(t[i - 2], 'public')) return true; continue; }",
+      find: "if (isPunct(t[i - 1], '.')) { if (nameIs(t[i - 2], 'public')) return true; continue; }",
       replace: "if (isPunct(t[i - 1], '.')) { return true; }" },
 
     // ── The live comparison ────────────────────────────────────────────────────
@@ -244,7 +249,7 @@ export default {
     { name: 'NULL-logic: any coalesce holding the caller is a subject (no parameter needed)', file: MODEL,
       find: 'args.some((a) => !isCaller(a) && usesParam(a))', replace: 'args.some((a) => !isCaller(a))' },
     { name: 'NULL-logic: a positional parameter ($1) is not a parameter', file: MODEL,
-      find: "a.some((x, k) => x.k === 'param' || (x.k === 'word'", replace: "a.some((x, k) => (x.k === 'word'" },
+      find: "a.some((x, k) => x.k === 'param' || (isName(x)", replace: "a.some((x, k) => (isName(x)" },
     { name: 'NULL-logic: the function\'s parameter names are not recorded', file: MODEL,
       find: "paramNames: params.filter((x) => x.mode !== 'out' && x.name).map((x) => x.name),", replace: 'paramNames: [],' },
     { name: 'NULL-logic: a coalesce subject is flagged even when a reject stands', file: MODEL,
@@ -604,5 +609,49 @@ export default {
       find: 'if (initializer ? rejects.length === 0 : !(firstReject < s.at)) {', replace: 'if (!(firstReject < s.at)) {' },
     { name: 'GUARD: every coalesce counts as a DECLARE initializer', file: MODEL,
       find: 'const initializer = beginAt > 0 && s.at < beginAt;', replace: 'const initializer = true;' },
+
+    // ── The fourth Copilot round (on bfbd341): own keys, no prototype, quoted types, variables and
+    //    parameters, long dollar tags, and the PROCEDURES default-privilege form ──
+    { name: 'PROTO: the allow-list is searched with `in`, so Object.prototype members count as entries', file: ALLOW,
+      find: 'const inEntries = Object.hasOwn(entries, name);', replace: 'const inEntries = name in entries;' },
+    { name: 'PROTO: the schema layers are a plain object (a schema called __proto__ writes into Object.prototype)', file: MODEL,
+      find: 'schemas: Object.assign(Object.create(null), { public: { public: false, anon: true, authenticated: true, service_role: true } }),',
+      replace: 'schemas: { public: { public: false, anon: true, authenticated: true, service_role: true } },' },
+    { name: 'TYPE: a quoted type name loses its quotes, so it folds like an alias', file: MODEL,
+      find: "if (t?.k === 'qident') { words.push(`\"${t.v.replace(/\"/g, '\"\"')}\"`); continue; }",
+      replace: "if (t?.k === 'qident') { words.push(t.v); continue; }" },
+    { name: 'TYPE: a quote inside a quoted type name is not doubled', file: MODEL,
+      find: "if (t?.k === 'qident') { words.push(`\"${t.v.replace(/\"/g, '\"\"')}\"`); continue; }",
+      replace: "if (t?.k === 'qident') { words.push(`\"${t.v}\"`); continue; }" },
+    { name: 'TYPE: a quoted type name is dropped from the type', file: MODEL,
+      find: "if (t?.k === 'qident') { words.push(`\"${t.v.replace(/\"/g, '\"\"')}\"`); continue; }",
+      replace: "if (t?.k === 'qident') continue;" },
+    { name: 'TYPE: the public./pg_catalog. qualifier is no longer dropped', file: MODEL,
+      find: ".replace(/^(?:public|pg_catalog)\\./, '');\n  base = TYPE_ALIASES", replace: ";\n  base = TYPE_ALIASES" },
+    { name: 'NAME: a quoted helper call is not a call', file: MODEL,
+      find: "if (!nameIs(t[i], name) || !isPunct(t[i + 1], '(')) continue;", replace: "if (!isWord(t[i], name) || !isPunct(t[i + 1], '(')) continue;" },
+    { name: 'NAME: a quoted public. qualifier on a helper call is not public', file: MODEL,
+      find: "if (nameIs(t[i - 2], 'public')) return true; continue; }", replace: "if (isWord(t[i - 2], 'public')) return true; continue; }" },
+    { name: 'NAME: a quoted variable is not a caller alias', file: MODEL,
+      find: "} else if (isName(t[i]) && aliases.has(t[i].v) &&", replace: "} else if (t[i]?.k === 'word' && aliases.has(t[i].v) &&" },
+    { name: 'NAME: a quoted parameter is not a subject', file: MODEL,
+      find: "(isName(x) && params.has(x.v) &&", replace: "(x.k === 'word' && params.has(x.v) &&" },
+    { name: 'NAME: a quoted variable matches under any case (a folded V_Me is not "V_Me")', file: MODEL,
+      find: "} else if (isName(t[i]) && aliases.has(t[i].v) &&", replace: "} else if (isName(t[i]) && [...aliases].some((a) => a.toLowerCase() === t[i].v.toLowerCase()) &&" },
+    { name: 'LEX: a dollar-quote tag is read out of the next 200 characters', file: SCAN,
+      find: 'const m = DOLLAR_OPEN.exec(sql);', replace: 'const m = (DOLLAR_OPEN.lastIndex = 0, DOLLAR_OPEN.exec(sql.slice(i, i + 200)));' },
+    { name: 'LEX: a dollar-quote tag is capped at 100 characters', file: SCAN,
+      find: 'const DOLLAR_OPEN = /\\$([A-Za-z_\\u0080-\\uFFFF][A-Za-z0-9_\\u0080-\\uFFFF]*)?\\$/y;',
+      replace: 'const DOLLAR_OPEN = /\\$([A-Za-z_\\u0080-\\uFFFF][A-Za-z0-9_\\u0080-\\uFFFF]{0,99})?\\$/y;' },
+    { name: 'ADP: ALTER DEFAULT PRIVILEGES accepts ON PROCEDURES (Postgres: a syntax error) and ignores it', file: MODEL,
+      find: "if (!['functions', 'routines', 'tables', 'sequences', 'types', 'schemas'].includes(objects)) throw", replace: "if (!['functions', 'routines', 'tables', 'sequences', 'types', 'schemas', 'procedures'].includes(objects)) throw" },
+    { name: 'PROTO: the multi-word type table is a plain object, so a parameter called constructor crashes', file: MODEL,
+      find: "(MULTIWORD.get(toks[0].v) ?? []).includes(toks[1].v)", replace: "(Object.fromEntries(MULTIWORD)[toks[0].v] ?? []).includes(toks[1].v)" },
+    { name: 'SETTING: a function SET clause compares the setting name case-sensitively', file: MODEL,
+      find: "const name = q.parts.join('.').toLowerCase();\n  let j = q.next;", replace: "const name = q.parts.join('.');\n  let j = q.next;" },
+    { name: 'SETTING: ALTER FUNCTION RESET compares the setting name case-sensitively', file: MODEL,
+      find: "if (q.parts.join('.').toLowerCase() === 'search_path') actions.push({ op: 'search_path', value: null });", replace: "if (q.parts.join('.') === 'search_path') actions.push({ op: 'search_path', value: null });" },
+    { name: 'ADP: ON ROUTINES is not read as functions', file: MODEL,
+      find: "if (!['functions', 'routines'].includes(a.objects)) return; // tables, sequences, types, schemas", replace: "if (!['functions'].includes(a.objects)) return; // tables, sequences, types, schemas" },
   ],
 };

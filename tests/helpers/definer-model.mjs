@@ -8,6 +8,14 @@
 // scripts/definer-live-check.sql reads and tests/definer-live-agreement.test.mjs compares
 // against. Where the two disagree the disagreement is named, never smoothed.
 //
+// ⚠ A TRIPWIRE FOR ACCIDENTS, NOT A PARSER, AND NOT PROOF AGAINST A MIGRATION WRITTEN TO EVADE IT. SQL has
+// more spellings than any token-level reader covers, and each review of this file found another that it
+// read wrongly: a quoted name that is the same name, an escape string that spells a setting, a type that is
+// literally called `int`, a dollar-quote tag past 200 characters, a function called `constructor`. Each is
+// closed now and pinned by a test that fails without the fix, and the next one exists too. That is why the
+// authority is the live catalog, which reads pg_proc and has no spelling to get wrong, and why every shape
+// this model cannot read FAILS the run instead of being skipped.
+//
 // THE RULES IT APPLIES, each a fact about Postgres that a per-file regex pass got wrong:
 //   * A new function gets the DEFAULT ACL. On Supabase that is EXECUTE for PUBLIC (Postgres's
 //     own default) AND, explicitly, for anon, authenticated and service_role, because the
@@ -45,7 +53,8 @@
 //              name that a later GRANT or REVOKE on a function must spell); role membership grants;
 //              a function GRANT/REVOKE (or ALTER DEFAULT PRIVILEGES) that
 //              names a role the model does not track, because Postgres refuses the WHOLE statement
-//              for a role that does not exist; CREATE/DROP/ALTER of schemas, roles, extensions,
+//              for a role that does not exist; ALTER DEFAULT PRIVILEGES on an object class Postgres
+//              has no form for (`on procedures`: one default covers functions and procedures); CREATE/DROP/ALTER of schemas, roles, extensions,
 //              procedures, aggregates and types; ALTER FUNCTION OWNER/RENAME/SET SCHEMA; `set role`
 //              and `set session authorization`; top-level `set|reset search_path` and its synonyms
 //              `set schema` and `select set_config('search_path' | 'role', ...)`, which change the
@@ -96,9 +105,12 @@ const unknownRoles = (roles) => roles.filter((r) => !ACL_ROLES.includes(r) && !I
  * `revoke ... from anon` removes nothing either (anon lives in the schema layer). A model that
  * kept one flat default read the first of these as closing the door. It does not.
  */
+// `schemas` is keyed by a schema NAME from the SQL, so it has no prototype: on a plain object a schema called
+// `__proto__` would hand `alter default privileges in schema __proto__ ...` Object.prototype itself to write the
+// grant into, and `constructor` or `toString` would read as a layer nobody made.
 export const supabaseDefaults = () => ({
   global: { public: true, anon: false, authenticated: false, service_role: false },
-  schemas: { public: { public: false, anon: true, authenticated: true, service_role: true } },
+  schemas: Object.assign(Object.create(null), { public: { public: false, anon: true, authenticated: true, service_role: true } }),
 });
 
 const unionAcl = (...layers) => Object.fromEntries(ACL_ROLES.map((r) => [r, layers.some((l) => l && l[r])]));
@@ -296,6 +308,15 @@ const TYPE_ALIASES = new Map([
  * One parameter's type in the spelling Postgres prints for an identity: aliases folded, type
  * modifiers dropped (`numeric(10,2)` is `numeric`, which is how the function is identified),
  * the `public.`/`pg_catalog.` qualifier dropped, array markers kept.
+ *
+ * A QUOTED name is never an alias. `int` is the grammar's spelling of int4, but `"int"` is a type that is
+ * literally called int, and `public."int"` is a user type, not the built-in; `"char"` is the internal one-byte
+ * type, which is not `char` (bpchar) either. Folding them would make a second signature look like the first, so
+ * `create or replace` of the user-typed function would overwrite the built-in-typed one in the model instead
+ * of showing as the overload it is. A quoted name is kept as written, IN its quotes (a doubled quote inside
+ * stays doubled), so no alias key and no other canonical text can equal it. At worst two spellings of one
+ * built-in (`"int4"` and `int4`) read as two signatures, which fails loudly as an overload or an orphan and
+ * hides nothing.
  */
 export function canonType(tokens) {
   const words = [];
@@ -306,19 +327,25 @@ export function canonType(tokens) {
     if (isPunct(t, '[')) { const g = readGroup(tokens, i); arr++; i = g ? g.next - 1 : tokens.length; continue; }
     if (isWord(t, 'array')) { arr++; continue; }
     if (isPunct(t, '.')) { words.push('.'); continue; }
-    if (isName(t)) words.push(t.v);
+    if (t?.k === 'qident') { words.push(`"${t.v.replace(/"/g, '""')}"`); continue; }
+    if (isWord(t)) words.push(t.v);
   }
-  let base = words.join(' ').replace(/ ?\. ?/g, '.').replace(/^(?:public|pg_catalog)\./, '');
+  // Joined by hand, not by a regex over the joined text: a quoted name may hold ` . ` and must stay as written.
+  let base = '';
+  for (const w of words) base += w === '.' || base === '' || base.endsWith('.') ? w : ` ${w}`;
+  base = base.replace(/^(?:public|pg_catalog)\./, '');
   base = TYPE_ALIASES.get(base) ?? base;
   return base + '[]'.repeat(arr);
 }
 
 // A word that opens a multi-word type name. `double precision` is a TYPE, not a parameter
 // called `double`; the second word is what tells them apart.
-const MULTIWORD = {
+// A Map, not an object: it is looked up by a PARAMETER NAME from the SQL, and `constructor` or `__proto__` (valid
+// unquoted names) would otherwise find Object.prototype's members and crash the read of a valid function.
+const MULTIWORD = new Map(Object.entries({
   double: ['precision'], character: ['varying'], national: ['character', 'char'], bit: ['varying'],
   timestamp: ['with', 'without'], time: ['with', 'without'], interval: ['year', 'month', 'day', 'hour', 'minute', 'second', 'to'],
-};
+}));
 
 /** [{ mode, name, type }] for the tokens inside a parameter list's parentheses. */
 export function parseParams(inner) {
@@ -336,7 +363,7 @@ export function parseParams(inner) {
     toks = toks.slice(0, cut);
     let name = null;
     if (toks.length >= 2 && isName(toks[0]) && !isPunct(toks[1], '.') && !isPunct(toks[1], '(') && !isPunct(toks[1], '[')
-        && !(toks[0].k === 'word' && (MULTIWORD[toks[0].v] || []).includes(toks[1].v))) {
+        && !(toks[0].k === 'word' && (MULTIWORD.get(toks[0].v) ?? []).includes(toks[1].v))) {
       name = toks[0].v;
       toks = toks.slice(1);
     }
@@ -387,7 +414,9 @@ function readSetValues(tokens, i) {
 function readSetClause(tokens, i) {
   const q = readQName(tokens, i + 1);
   if (!q) return null;
-  const name = q.parts.join('.');
+  // A setting's name is case-insensitive and quoting does not change it (measured on PostgreSQL 16.13: `set
+  // "SEARCH_PATH" = public, pg_temp` stores `search_path=public, pg_temp`, and `reset "SEARCH_PATH"` removes it).
+  const name = q.parts.join('.').toLowerCase();
   let j = q.next;
   if (isWord(tokens[j], 'from') && isWord(tokens[j + 1], 'current')) return { name, fromCurrent: true, values: null, next: j + 2 };
   if (!(isWord(tokens[j], 'to') || isPunct(tokens[j], '='))) return null;
@@ -683,7 +712,7 @@ export function parseAlterFunction(tokens) {
       if (isWord(tokens[p + 1], 'all')) { actions.push({ op: 'reset-all' }); p += 2; continue; }
       const q = readQName(tokens, p + 1);
       if (!q) throw 'unreadable RESET';
-      if (q.parts.join('.') === 'search_path') actions.push({ op: 'search_path', value: null });
+      if (q.parts.join('.').toLowerCase() === 'search_path') actions.push({ op: 'search_path', value: null });
       p = q.next; continue;
     }
     if (t.v === 'owner' || t.v === 'rename' || t.v === 'depends' || t.v === 'no') throw `ALTER FUNCTION ... ${t.v.toUpperCase()} is not modelled`;
@@ -734,7 +763,11 @@ export function parseAlterDefaultPrivileges(tokens) {
   else for (;;) { if (!isWord(tokens[i])) break; privs.push(tokens[i].v); i++; if (isPunct(tokens[i], ',')) { i++; continue; } break; }
   if (!isWord(tokens[i], 'on')) throw 'expected ON';
   const objects = tokens[i + 1]?.v;
-  if (!['functions', 'routines', 'tables', 'sequences', 'types', 'schemas', 'procedures'].includes(objects)) throw `unrecognised object class ${objects}`;
+  // No `procedures`: Postgres has no such form here (`alter default privileges ... grant execute on procedures`
+  // is a syntax error on 16.13; FUNCTIONS and ROUTINES are the same word, and one default covers both). A
+  // migration holding it never ran, so reading it as a change to the function defaults would model an ACL the
+  // database never had. It is refused as an unmodelled statement instead.
+  if (!['functions', 'routines', 'tables', 'sequences', 'types', 'schemas'].includes(objects)) throw `unrecognised object class ${objects}`;
   i += 2;
   const toWord = verb === 'grant' ? 'to' : 'from';
   if (!isWord(tokens[i], toWord)) throw `expected ${toWord.toUpperCase()}`;
@@ -1068,7 +1101,7 @@ function applyAcl(model, stmt) {
 function applyDefaultPrivileges(model, stmt) {
   let a;
   try { a = parseAlterDefaultPrivileges(stmt.tokens); } catch (e) { return reject(model, stmt, 'unmodelled grant statement', String(e)); }
-  if (!['functions', 'routines', 'procedures'].includes(a.objects)) return; // tables, sequences, types, schemas
+  if (!['functions', 'routines'].includes(a.objects)) return; // tables, sequences, types, schemas
   const badPriv = a.privs.filter((x) => x !== 'execute' && x !== 'all');
   if (badPriv.length) return reject(model, stmt, 'unmodelled grant statement', `privilege ${badPriv.join(',')} on functions`);
   const badRoles = unknownRoles(a.roles);
@@ -1258,12 +1291,12 @@ export function bodyTokens(fn) {
   return tokenize(fn.body ?? '', `${fn.name} body`, { settings: false });
 }
 
-/** True when the body CALLS `name(`, bare or `public.`-qualified, in code position. */
+/** True when the body CALLS `name(`, bare or `public.`-qualified, in code position (a quoted lower-case name is the same call). */
 export function bodyCalls(fn, name) {
   const t = bodyTokens(fn);
   for (let i = 0; i < t.length; i++) {
-    if (!isWord(t[i], name) || !isPunct(t[i + 1], '(')) continue;
-    if (isPunct(t[i - 1], '.')) { if (isWord(t[i - 2], 'public')) return true; continue; }
+    if (!nameIs(t[i], name) || !isPunct(t[i + 1], '(')) continue;
+    if (isPunct(t[i - 1], '.')) { if (nameIs(t[i - 2], 'public')) return true; continue; }
     return true;
   }
   return false;
@@ -1301,12 +1334,16 @@ export const bodyFingerprint = (fn) => tokenFingerprint(bodyTokens(fn));
 //                      any of them followed by `::type` casts (qualified, array, multi-word and
 //                      parameterised types: `::pg_catalog.uuid`, `::uuid[]`, `::character varying(36)`),
 //                      in any nesting, or a variable assigned directly from one (`v_me uuid := auth.uid();`).
+//                      Names are compared as Postgres compares them: a quoted lower-case name is the same
+//                      variable or parameter (`"v_me"` is `v_me`), a quoted name of another case is its own
+//                      (`"V_Me"` is not `v_me`, and a bare `V_Me` folds to `v_me`, so it is not `"V_Me"`).
 //   negated-equality   `not (... = auth.uid() ...)` and `not x = auth.uid()`: NOT NULL is NULL.
 //                      Subqueries and function calls are skipped: `not exists (select ... = auth.uid())`
 //                      is NULL-safe because EXISTS is never NULL.
 //   subject-coalesce   `coalesce(p_user_id, auth.uid())`, either order: the subject is chosen by a
-//                      caller-supplied PARAMETER, so the body must reject a signed-out caller before it
-//                      trusts the subject, whether or not it compares anything afterwards.
+//                      caller-supplied PARAMETER (`$1` and a quoted `"p_user_id"` included), so the body must
+//                      reject a signed-out caller before it trusts the subject, whether or not it compares
+//                      anything afterwards.
 // A flag is CLEARED by an explicit reject that comes EARLIER in the body:
 //     if auth.uid() is null [or ...] then raise exception ...;   -- or `return ...`
 // where the NULL test is a whole disjunct of the condition (an `and`-ed test is conditional, so it is
@@ -1392,7 +1429,7 @@ function callerOperandEnd(t, i, aliases) {
     const inner = callerOperandEnd(t, i + 2, aliases);
     if (inner < 0 || !isWord(t[inner + 1], 'as') || castTypeEnd(t, inner + 2) !== g.next - 2) return -1;
     e = g.next - 1;
-  } else if (t[i]?.k === 'word' && aliases.has(t[i].v) && !isPunct(t[i + 1], '.') && !isPunct(t[i + 1], '(') && !isPunct(t[i - 1], '.')) {
+  } else if (isName(t[i]) && aliases.has(t[i].v) && !isPunct(t[i + 1], '.') && !isPunct(t[i + 1], '(') && !isPunct(t[i - 1], '.')) {
     e = i;
   } else return -1;
   while (isPunct(t[e + 1], ':') && isPunct(t[e + 2], ':')) {
@@ -1495,7 +1532,7 @@ function nullBlindSites(t, src, aliases, params) {
       if (!g) continue;
       const args = splitTopLevel(g.inner);
       const isCaller = (a) => { const n = callerOperandAt(a, 0, aliases); return n > 0 && n === a.length; };
-      const usesParam = (a) => a.some((x, k) => x.k === 'param' || (x.k === 'word' && params.has(x.v) && !isPunct(a[k - 1], '.') && !isPunct(a[k + 1], '(')));
+      const usesParam = (a) => a.some((x, k) => x.k === 'param' || (isName(x) && params.has(x.v) && !isPunct(a[k - 1], '.') && !isPunct(a[k + 1], '(')));
       if (args.some(isCaller) && args.some((a) => !isCaller(a) && usesParam(a))) sites.push({ kind: 'subject-coalesce', at: i, text: text(i, g.next - 1) });
     }
   }

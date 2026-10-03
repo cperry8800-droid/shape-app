@@ -24,7 +24,8 @@
 //                             ...)` IS the search_path): an `E` literal reads \b \f \n \r \t, octal,
 //                             \xhh, \uXXXX and \UXXXXXXXX; a `U&` literal or identifier reads \XXXX,
 //                             \+XXXXXX and \\. `UESCAPE`, which changes the escape character, is refused.
-//   dollar-quoted bodies      `$tag$ ... $tag$` with ANY tag, including none. The opener
+//   dollar-quoted bodies      `$tag$ ... $tag$` with ANY tag, of any length (Postgres sets no limit; measured with
+//                             tags of 20,000 characters), including none. The opener
 //                             cannot CONTINUE an identifier: `$` is legal inside one, so
 //                             `foo$tag$` is a single word to Postgres.
 // WHAT IT REFUSES rather than guesses: an unterminated comment, literal or dollar quote, and
@@ -41,6 +42,7 @@ const IDENT_CONT = /[A-Za-z0-9_$\u0080-\uFFFF]/;
 const isIdentStart = (ch) => ch !== undefined && IDENT_START.test(ch);
 const isIdentCont = (ch) => ch !== undefined && IDENT_CONT.test(ch);
 const isDigit = (ch) => ch !== undefined && ch >= '0' && ch <= '9';
+const DOLLAR_OPEN = /\$([A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/y;
 
 /**
  * Tokens: { k, v, raw, start, end, line }.
@@ -151,7 +153,10 @@ export function tokenize(sql, file = '<sql>', { settings = true } = {}) {
     }
 
     if (c === '$') {
-      const m = /^\$([A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/.exec(sql.slice(i, i + 200));
+      // A sticky match at `i`, so the tag may be any length: Postgres puts no limit on a dollar-quote delimiter,
+      // and a cap here would leave a longer one unrecognised, its body lexed as top-level SQL.
+      DOLLAR_OPEN.lastIndex = i;
+      const m = DOLLAR_OPEN.exec(sql);
       if (m) {
         const close = sql.indexOf(m[0], i + m[0].length);
         if (close === -1) fail(`unterminated dollar-quoted string ${m[0]}`, startLine);

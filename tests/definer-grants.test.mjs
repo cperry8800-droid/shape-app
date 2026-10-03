@@ -117,6 +117,28 @@ test('a `$tag$` cannot open a dollar quote from inside an identifier', () => {
   assert.ok(replayOne(sql).fns.has('public.after_ident()'));
 });
 
+test('a dollar-quote tag has no length limit, so a long delimiter still hides its body from the statement scan', () => {
+  // Measured on PostgreSQL 16.13: a tag of 10, 198, 199, 200, 201, 1,000 and 20,000 characters all delimit a string.
+  // The lexer once read the tag out of the next 200 characters, so one past 198 was no delimiter at all and the
+  // text inside it was lexed as top-level SQL: the `revoke` below would then have been applied to the model.
+  for (const len of [1, 10, 198, 199, 200, 201, 400, 5000]) {
+    const tag = 'a'.repeat(len);
+    const sql = `select $${tag}$ x; revoke all on function public.f() from anon; y $${tag}$;\n${fnSql('after_long')}`;
+    const toks = tokenize(sql, 't.sql');
+    const doll = toks.filter((t) => t.k === 'dollar' && t.tag !== ''); // (the function after it has its own `$$` body)
+    assert.equal(doll.length, 1, `tag of ${len}: one tagged dollar token, got ${toks.map((x) => x.k).join(',')}`);
+    assert.equal(doll[0].tag.length, len);
+    assert.ok(!toks.some((t) => t.k === 'word' && t.v === 'revoke'), `tag of ${len}: the revoke inside the string must not be code`);
+    const m = replayOne(sql);
+    assert.deepEqual(messages(m), [], `tag of ${len}`);
+    assert.deepEqual(m.orphans, [], `tag of ${len}: the revoke was not read, so it names no missing function`);
+    assert.ok(m.fns.has('public.after_long()'), `tag of ${len}: the statement after it is read`);
+  }
+  assert.throws(() => tokenize(`select $${'b'.repeat(300)}$ never closed`, 'f.sql'), /f\.sql:1: unterminated dollar-quoted string/, 'a long tag is still refused when it never closes');
+  const m = tokenize(`select $${'c'.repeat(300)}$ one $${'c'.repeat(299)}$ two $${'c'.repeat(300)}$;`, 't.sql').filter((t) => t.k === 'dollar');
+  assert.equal(m.length, 1, 'only the SAME delimiter closes it: a tag one letter shorter is text');
+});
+
 test('B, X, N and U& literals are ONE string token each, and a semicolon inside one never splits', () => {
   const one = (src, raw, value, kind = 'string') => {
     const toks = tokenize(src, 't.sql');
@@ -272,6 +294,71 @@ test('argument lists read as Postgres identifies them', () => {
   );
 });
 
+test('a parameter named like an Object.prototype member is a parameter, not a crash', () => {
+  for (const name of ['constructor', '__proto__', '"toString"', '"valueOf"', '"hasOwnProperty"']) {
+    const m = replayOne(`create function public.f(${name} text) returns int language sql security definer as $$ select 1 $$;`);
+    assert.deepEqual(messages(m), [], name);
+    assert.deepEqual([...m.fns.keys()], ['public.f(text)'], name);
+  }
+  // And the multi-word types that make a first word a type, not a name, still do.
+  assert.deepEqual([...replayOne('create function public.f(double precision, character varying, timestamp with time zone) returns int language sql security definer as $$ select 1 $$;').fns.keys()], ['public.f(double precision,character varying,timestamp with time zone)']);
+});
+
+test('a setting name is case-insensitive in a function definition: a quoted "SEARCH_PATH" is the search_path (measured on 16.13)', () => {
+  const create = (setting) => `create function public.f() returns int language sql security definer ${setting} as $$ select 1 $$;`;
+  const pathOf = (sql) => [...replayOne(sql).fns.values()][0].searchPath;
+  // Controls: the unquoted spellings, which fold.
+  assert.deepEqual(pathOf(create('set search_path = public, pg_temp')), ['public', 'pg_temp']);
+  assert.deepEqual(pathOf(create('set SEARCH_PATH = public, pg_temp')), ['public', 'pg_temp']);
+  // A quoted one, in any case, is the same setting.
+  assert.deepEqual(pathOf(create('set "SEARCH_PATH" = public, pg_temp')), ['public', 'pg_temp']);
+  assert.deepEqual(pathOf(create('set "Search_Path" to public')), ['public']);
+  // ALTER FUNCTION: a quoted SET replaces the path and a quoted RESET removes it, so neither leaves the old pin standing.
+  const base = create('set search_path = public, pg_temp');
+  const after = (alter) => pathOf(`${base}\n${alter}`);
+  assert.deepEqual(after('alter function public.f() set "Search_Path" = public;'), ['public'], 'a quoted SET replaces it');
+  assert.equal(after('alter function public.f() reset "SEARCH_PATH";'), null, 'a quoted RESET removes it');
+  assert.equal(after('alter function public.f() reset SEARCH_PATH;'), null, 'control: unquoted');
+  assert.deepEqual(after('alter function public.f() reset "other_setting";'), ['public', 'pg_temp'], 'control: another setting leaves the path alone');
+  assert.deepEqual(after('alter function public.f() set "Other_Setting" = 1;'), ['public', 'pg_temp'], 'control: another setting leaves the path alone');
+});
+
+test('argument types: a quoted name is a name, never a built-in alias', () => {
+  const type = (t) => M.parseParams(tokenize(`(${t})`).slice(1, -1))[0].type;
+  // Controls: the unquoted spellings fold, as before.
+  assert.equal(type('int'), 'integer');
+  assert.equal(type('public.int'), 'integer');
+  assert.equal(type('pg_catalog.int4'), 'integer');
+  assert.equal(type('char'), 'character');
+  assert.equal(type('varchar(20)'), 'character varying');
+  assert.equal(type('timestamptz'), 'timestamp with time zone');
+  assert.equal(type('int[]'), 'integer[]');
+  // A quoted one is a type that is literally called that: `"int"` is not int4, `public."int"` is a user type, and
+  // `"char"` is the internal one-byte type, which is not char (bpchar).
+  assert.equal(type('"int"'), '"int"');
+  assert.equal(type('public."int"'), '"int"');
+  assert.equal(type('"char"'), '"char"');
+  assert.equal(type('"int"[]'), '"int"[]');
+  assert.equal(type('public."varchar"(20)'), '"varchar"');
+  assert.equal(type('"My Type"'), '"My Type"');
+  assert.equal(type('"a""b"'), '"a""b"', 'a quote inside the name is doubled, so no name can spell another canonical text');
+  assert.equal(type('"a . b"'), '"a . b"', 'spaces and dots inside a quoted name are part of it');
+  assert.notEqual(type('"a . b"'), type('"a.b"'), 'two different quoted names are two different types');
+  assert.equal(type('public . pg_catalog . "x y"'), 'pg_catalog."x y"', 'spacing around a qualifier dot is not part of the name');
+  for (const quoted of ['"int"', 'public."int"', '"char"', '"int4"', '"timestamptz"']) {
+    assert.ok(!['integer', 'character', 'timestamp with time zone'].includes(type(quoted)), `${quoted} must not read as a built-in`);
+  }
+});
+
+test('a function typed by a quoted name is another signature, not a replacement of the built-in-typed one', () => {
+  const m = replayOne(`create function public.f(p int) returns int language sql security definer as $$ select 1 $$;\ncreate or replace function public.f(p public."int") returns int language sql security definer as $$ select 2 $$;`);
+  assert.deepEqual([...m.fns.keys()].sort(), ['public.f("int")', 'public.f(integer)'], 'two functions, as in Postgres');
+  assert.deepEqual(M.overloads(m).map((o) => [o.name, o.sigs.length]), [['f', 2]], 'so the overload is reported and nothing is conflated');
+  // The same pair spelled the same way is one function that create-or-replace replaces, as before.
+  const same = replayOne(`create function public.f(p int) returns int language sql security definer as $$ select 1 $$;\ncreate or replace function public.f(p integer) returns int language sql security definer as $$ select 2 $$;`);
+  assert.deepEqual([...same.fns.keys()], ['public.f(integer)']);
+});
+
 // ── 2. The model's rules, one vector each ────────────────────────────────────
 
 test('the vectors are well formed', () => {
@@ -372,6 +459,9 @@ const UNMODELLED = [
   ['a privilege other than EXECUTE on a function', 'grant usage on function public.f() to anon;', 'unmodelled grant statement'],
   ['an ACL statement it cannot read', 'grant execute on function to anon;', 'unmodelled grant statement'],
   ['ALTER DEFAULT PRIVILEGES on an object class it does not know', 'alter default privileges in schema public grant execute on widgets to anon;', 'unmodelled grant statement'],
+  ['ALTER DEFAULT PRIVILEGES ... GRANT ON PROCEDURES (a syntax error in Postgres 16: there is no such form)', 'alter default privileges in schema public grant execute on procedures to anon;', 'unmodelled grant statement'],
+  ['ALTER DEFAULT PRIVILEGES ... REVOKE ON PROCEDURES', 'alter default privileges in schema public revoke execute on procedures from anon;', 'unmodelled grant statement'],
+  ['a global ALTER DEFAULT PRIVILEGES ... ON PROCEDURES', 'alter default privileges revoke all on procedures from public;', 'unmodelled grant statement'],
   ['CREATE SCHEMA', 'create schema extra;', 'unmodelled statement'],
   ['DROP SCHEMA', 'drop schema extra cascade;', 'unmodelled statement'],
   ['ALTER SCHEMA', 'alter schema public rename to pub;', 'unmodelled statement'],
@@ -486,6 +576,21 @@ for (const [name, sql, prefix] of UNMODELLED) {
     assert.ok(model.fns.has('public.after_it()'), 'the model goes on after a shape it cannot read');
   });
 }
+
+test('ALTER DEFAULT PRIVILEGES: FUNCTIONS and ROUTINES are the same word and both change the default; PROCEDURES is refused and changes nothing', () => {
+  // Measured on PostgreSQL 16.13: `... on functions` and `... on routines` give the same new-function ACL, and
+  // `... on procedures` is `syntax error at or near "procedures"` (one default covers functions and procedures).
+  const after = (sql) => { const m = replayOne(`alter default privileges revoke execute on functions from public;\n${sql}\n${fnSql('after_dp')}`); return m; };
+  for (const noun of ['functions', 'routines']) {
+    const m = after(`alter default privileges in schema public revoke execute on ${noun} from anon;`);
+    assert.deepEqual(messages(m), [], noun);
+    assert.equal(M.anonExecutable(m.fns.get('public.after_dp()')), false, `${noun}: the default for anon is closed`);
+  }
+  const refused = after('alter default privileges in schema public revoke execute on procedures from anon;');
+  assert.equal(refused.unmodelled.length, 1);
+  assert.match(refused.unmodelled[0].why, /unrecognised object class procedures/);
+  assert.equal(M.anonExecutable(refused.fns.get('public.after_dp()')), true, 'the refused statement is not applied, so the Supabase default for anon stands');
+});
 
 test('the real pg_temp sweep in a file the model does not know is an unmodelled DO block', () => {
   const sweep = fs.readFileSync(join(DIR, '2026-08-09-definer-pg-temp-sweep.sql'), 'utf8');
@@ -1166,6 +1271,45 @@ test('checker: an anon-executable definer with no entry is reported, with the ga
   assert.match(check((a) => { a.registeredFindings = []; })[0], /missing from the allow-list: openf .* no gate at all/);
 });
 
+test('checker: a definer named like an Object.prototype member is not classified by inheritance', () => {
+  // `name in entries` is true for everything on Object.prototype, so a function called constructor (or __proto__,
+  // or, quoted, toString) read as already classified. Each is a valid function name, and the entries come from JSON.
+  const create = (n) => `create function public.${n}() returns int language sql security definer set search_path = public, pg_temp as $$ select auth.uid() is null $$;`;
+  const allowing = (bare) => JSON.parse(`{ "entries": { ${JSON.stringify(bare)}: { "class": "self-gated-auth-uid", "note": "Returns whether the caller is signed out." } }, "registeredFindings": [], "registeredPinFindings": [] }`);
+  for (const [spelled, bare] of [['constructor', 'constructor'], ['__proto__', '__proto__'], ['"toString"', 'toString'], ['"valueOf"', 'valueOf'], ['"hasOwnProperty"', 'hasOwnProperty'], ['"isPrototypeOf"', 'isPrototypeOf']]) {
+    const m = replayOne(create(spelled));
+    const bare0 = checkAllowlist(m, JSON.parse('{ "entries": {}, "registeredFindings": [], "registeredPinFindings": [] }'));
+    assert.equal(bare0.length, 1, `${bare}: ${bare0.join(' | ')}`);
+    assert.match(bare0[0], new RegExp(`^missing from the allow-list: ${bare} is anon-executable and shows auth\\.uid\\(\\)`), `${bare} with no entry is missing, not inherited`);
+    assert.deepEqual(checkAllowlist(m, allowing(bare)), [], `${bare} with its own entry is accepted: the own key still counts`);
+  }
+  // The pin and finding lists are arrays, and entries are walked by their own keys: nothing else is keyed by a name.
+});
+
+test('a schema called __proto__ or constructor cannot reach Object.prototype or read as a layer nobody made', () => {
+  const polluted = () => ['public', 'anon', 'authenticated', 'service_role'].filter((r) => Object.prototype[r] !== undefined);
+  try {
+    const m = replayOne([
+      'alter default privileges in schema "__proto__" grant execute on functions to anon;',
+      'alter default privileges in schema constructor grant execute on functions to authenticated;',
+      'create function "__proto__".f() returns int language sql security definer as $$ select 1 $$;',
+      'create function constructor.g() returns int language sql security definer as $$ select 1 $$;',
+      'create function plain.h() returns int language sql security definer as $$ select 1 $$;',
+      'create function toString.k() returns int language sql security definer as $$ select 1 $$;',
+    ].join('\n'));
+    assert.deepEqual(polluted(), [], 'Object.prototype was written into');
+    assert.deepEqual(messages(m), []);
+    const acl = (key) => m.fns.get(key).acl;
+    assert.deepEqual(acl('__proto__.f()'), { public: true, anon: true, authenticated: false, service_role: false }, 'the grant lands on the schema it names');
+    assert.deepEqual(acl('constructor.g()'), { public: true, anon: false, authenticated: true, service_role: false });
+    assert.deepEqual(acl('plain.h()'), { public: true, anon: false, authenticated: false, service_role: false }, 'a schema with no layer gets the global default only');
+    assert.deepEqual(acl('tostring.k()'), { public: true, anon: false, authenticated: false, service_role: false }, 'toString folds to tostring, and no layer exists for it');
+    assert.deepEqual(M.supabaseDefaultAcl(), { public: true, anon: true, authenticated: true, service_role: true }, 'public is untouched');
+  } finally {
+    for (const r of polluted()) delete Object.prototype[r]; // a failing run must not poison every later test in this process
+  }
+});
+
 test('checker: an entry for a function that is not anon-executable is stale', () => {
   assert.match(check((a) => { a.entries.nowhere = { class: 'self-gated-auth-uid', note: 'A function that does not exist any more.' }; })[0], /^stale: nowhere /);
   assert.match(check((a) => { a.entries.trg = { class: 'self-gated-auth-uid', note: 'A trigger function is outside the audit.' }; })[0], /^stale: trg /);
@@ -1268,6 +1412,13 @@ test('body checks read code, not comments or strings, and see through spacing', 
   assert.equal(M.bodyCalls(body('select other.is_coach_on_client(x)'), 'is_coach_on_client'), false);
   assert.equal(M.bodyCalls(body('select is_coach_on_client'), 'is_coach_on_client'), false);
   assert.equal(M.bodyCalls(body('select 1 -- is_coach_on_client(x)'), 'is_coach_on_client'), false);
+  // A quoted lower-case name is the same function; a quoted name of another case is a different one.
+  assert.equal(M.bodyCalls(body('select "is_coach_on_client"(x)'), 'is_coach_on_client'), true);
+  assert.equal(M.bodyCalls(body('select public."is_coach_on_client"(x)'), 'is_coach_on_client'), true);
+  assert.equal(M.bodyCalls(body('select "public"."is_coach_on_client"(x)'), 'is_coach_on_client'), true);
+  assert.equal(M.bodyCalls(body('select "Is_Coach_On_Client"(x)'), 'is_coach_on_client'), false);
+  assert.equal(M.bodyCalls(body('select "other".is_coach_on_client(x)'), 'is_coach_on_client'), false);
+  assert.equal(M.bodyCalls(body('select "Public".is_coach_on_client(x)'), 'is_coach_on_client'), false);
 });
 
 // ── The NULL-logic guard ─────────────────────────────────────────────────────
@@ -1290,12 +1441,26 @@ const NULL_LOGIC = [
   ['a cast on the caller as the LEFT operand', plpg('if auth.uid()::text <> p_id::text then return null; end if; return null;'), ['not-equal']],
   ['x <> v_me, where v_me is declared as auth.uid() (an alias)', plpg('if p_id <> v_me then return null; end if; return null;', { declare: 'v_me uuid := auth.uid();' }), ['not-equal']],
   ['an alias assigned in the body', plpg('v_me := auth.uid(); if p_id <> v_me then return null; end if; return null;', { declare: 'v_me uuid;' }), ['not-equal']],
+  ['x <> "v_me", where "v_me" is declared quoted as auth.uid() (a quoted lower-case name is the same variable)', plpg('if p_id <> "v_me" then return null; end if; return null;', { declare: '"v_me" uuid := auth.uid();' }), ['not-equal']],
+  ['"v_me" <> x, the quoted alias as the LEFT operand', plpg('if "v_me" <> p_id then return null; end if; return null;', { declare: '"v_me" uuid := auth.uid();' }), ['not-equal']],
+  ['an alias declared quoted and compared bare is the same variable', plpg('if p_id <> v_me then return null; end if; return null;', { declare: '"v_me" uuid := auth.uid();' }), ['not-equal']],
+  ['an alias declared bare and compared quoted is the same variable', plpg('if p_id <> "v_me" then return null; end if; return null;', { declare: 'v_me uuid := auth.uid();' }), ['not-equal']],
+  ['a mixed-case quoted alias, compared with the same quoted name', plpg('if p_id <> "V_Me" then return null; end if; return null;', { declare: '"V_Me" uuid := auth.uid();' }), ['not-equal']],
+  ['a quoted alias assigned in the body', plpg('"v_me" := auth.uid(); if p_id <> "v_me" then return null; end if; return null;', { declare: '"v_me" uuid;' }), ['not-equal']],
+  ['a quoted alias under NOT', plpg(`if not ("v_me" = p_id) then ${RAISE} end if; return null;`, { declare: '"v_me" uuid := auth.uid();' }), ['negated-equality']],
+  ['a mixed-case quoted alias compared bare is a DIFFERENT name (Postgres folds V_Me to v_me), so it is not the caller', plpg('if p_id <> V_Me then return null; end if; return null;', { declare: '"V_Me" uuid := auth.uid();' }), []],
+  ['a quoted variable that is not assigned from auth.uid() is no alias', plpg('if p_id <> "v_other" then return null; end if; return null;', { declare: '"v_other" uuid := p_id; "v_me" uuid := auth.uid();' }), []],
   ['not (auth.uid() = x or helper): NOT NULL is NULL (the set_program_detail shape)', plpg(`if not (auth.uid() = p_id or public.is_coach_on_client(p_id)) then ${RAISE} end if; return null;`), ['negated-equality']],
   ['not x = auth.uid(), unparenthesised', plpg(`if not p_id = auth.uid() then ${RAISE} end if; return null;`), ['negated-equality']],
   ['not ((x = auth.uid()) or helper), one group deeper', plpg(`if not ((p_id = auth.uid()) or public.is_coach_on_client(p_id)) then ${RAISE} end if; return null;`), ['negated-equality']],
   ['coalesce(param, auth.uid()) as the subject, with no reject anywhere', plpg('return null;', { declare: 'v uuid := coalesce(p_id, auth.uid());' }), ['subject-coalesce']],
   ['coalesce(auth.uid(), param): anon becomes whoever the parameter names', plpg('return null;', { declare: 'v uuid := coalesce(auth.uid(), p_id);' }), ['subject-coalesce']],
   ['a cast on the parameter inside the coalesce', plpg('return null;', { declare: 'v uuid := coalesce(p_id::uuid, auth.uid());' }), ['subject-coalesce']],
+  ['coalesce("p_id", auth.uid()): a quoted parameter is the same parameter', plpg('return null;', { declare: 'v uuid := coalesce("p_id", auth.uid());' }), ['subject-coalesce']],
+  ['coalesce(auth.uid(), "p_id"), the other order', plpg('return null;', { declare: 'v uuid := coalesce(auth.uid(), "p_id");' }), ['subject-coalesce']],
+  ['a parameter declared quoted, used bare', plpg('return null;', { args: '"p_id" uuid', declare: 'v uuid := coalesce(p_id, auth.uid());' }), ['subject-coalesce']],
+  ['a mixed-case quoted parameter, used with the same quoted name', plpg('return null;', { args: '"P_Id" uuid', declare: 'v uuid := coalesce("P_Id", auth.uid());' }), ['subject-coalesce']],
+  ['a quoted parameter in a coalesce in executable code', plpg('return (select 1 where coalesce("p_id", auth.uid()) is not null)::int::text::jsonb;'), ['subject-coalesce']],
   ['a positional parameter in the coalesce', plpg('return null;', { args: 'uuid', declare: 'v uuid := coalesce($1, auth.uid());' }), ['subject-coalesce']],
   ['a coalesce and a comparison together (get_health_sources itself)', plpg('if v <> auth.uid() and not public.is_coach_on_client(v) then return null; end if; return null;', { declare: 'v uuid := coalesce(p_id, auth.uid());' }), ['not-equal', 'subject-coalesce']],
   ['a comparison in a language sql body, where no reject can be written', sqlBody('select 1 where p_id <> auth.uid()'), ['not-equal']],
@@ -1352,6 +1517,8 @@ const NULL_LOGIC = [
   ['<= and >= are not <>', plpg('if p_id::text <= auth.uid()::text or p_id::text >= auth.uid()::text then return null; end if; return null;'), []],
   ['a mention in a comment or a string is not code', plpg("-- if p_id <> auth.uid() then\n raise notice 'p_id <> auth.uid() and not (x = auth.uid())'; return null;"), []],
   ['a coalesce of two parameters names no caller', plpg('return null;', { args: 'p_id uuid, p_other uuid', declare: 'v uuid := coalesce(p_id, p_other);' }), []],
+  ['a mixed-case quoted parameter used bare is a different name, so it is no parameter', plpg('return null;', { args: '"P_Id" uuid', declare: 'v uuid := coalesce(P_Id, auth.uid());' }), []],
+  ['a quoted name that is not a parameter is no subject', plpg('return null;', { args: 'p_other uuid', declare: 'v uuid := coalesce("p_id", auth.uid());' }), []],
   ['a coalesce of the caller with a literal is no parameter', plpg('return null;', { declare: "v uuid := coalesce(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid);" }), []],
   // ── a reject that does not count ──
   ['return query does not leave: the NULL branch appends a row and the comparison after it still runs', plpg('if auth.uid() is null then return query select 1; end if; if p_id <> auth.uid() then return; end if; return query select 2;'), ['not-equal']],

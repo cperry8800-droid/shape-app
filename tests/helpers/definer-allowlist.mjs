@@ -117,7 +117,9 @@ export function checkAllowlist(model, allow) {
   const entryNames = Object.keys(entries);
 
   for (const name of reachable) {
-    const inEntries = name in entries;
+    // An OWN key only: `name in entries` is also true for everything on Object.prototype, so an anon-executable
+    // function called `constructor`, `toString` or `valueOf` (all valid function names) would count as classified.
+    const inEntries = Object.hasOwn(entries, name);
     const inFindings = findingNames.includes(name);
     if (!inEntries && !inFindings) {
       const skipped = nullLogicFlags(byName.get(name)).flags;
