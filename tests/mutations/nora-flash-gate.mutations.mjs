@@ -2,7 +2,7 @@
 // rule (prototypes/nora-booth, PR #2189's review round). Four of these were run by hand in that
 // round (4/4); this spec adds two more, and through the shared runner all six are killed. Run
 // from the repo root:
-//   node scripts/mutate.mjs --spec tests/mutations/nora-flash-gate.mutations.mjs
+//   node scripts/mutate.mjs --spec tests/mutations/nora-flash-gate.mutations.mjs --fail-on-skipped
 // The gate is pure (no clock, no randomness), so the test drives it with synthetic kick
 // trains; each mutation below breaks one clause of the rule "nothing flashes faster than
 // once a beat, never more than three a second, one flash per kick edge".

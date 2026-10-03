@@ -51,6 +51,7 @@
 //   node scripts/mutate.mjs --spec <file> --only <substring-of-name>
 //   node scripts/mutate.mjs --spec <file> --allow-dirty     # skip the git dirty-tree refusal
 //   node scripts/mutate.mjs --spec <file> --fail-on-survivor    # a survivor OR a timeout exits 1
+//   node scripts/mutate.mjs --spec <file> --fail-on-skipped     # a skipped mutation (rule 3) exits 1
 //   node scripts/mutate.mjs --spec <file> --timeout 600000      # per-run timeout in ms
 //
 // Spec shape:
@@ -64,8 +65,9 @@
 //   };
 //
 // Exit codes: 0 done (survivors are reported, not fatal, unless --fail-on-survivor
-// gives 1); 2 harness failure (sanity red, a mutation that did not land, a restore
-// that did not verify, an unreadable spec).
+// gives 1; skips likewise, unless --fail-on-skipped gives 1 — the two flags are
+// independent and combine); 2 harness failure (sanity red, a mutation that did not
+// land, a restore that did not verify, an unreadable spec).
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -365,7 +367,7 @@ export async function loadSpec(specPath) {
 export async function main(argv = process.argv.slice(2)) {
   const arg = (flag) => { const i = argv.indexOf(flag); return i >= 0 ? argv[i + 1] : null; };
   const specPath = arg('--spec');
-  if (!specPath) { console.error('usage: node scripts/mutate.mjs --spec <file> [--only <name>] [--allow-dirty] [--fail-on-survivor] [--timeout <ms>]'); return 2; }
+  if (!specPath) { console.error('usage: node scripts/mutate.mjs --spec <file> [--only <name>] [--allow-dirty] [--fail-on-survivor] [--fail-on-skipped] [--timeout <ms>]'); return 2; }
   let timeoutMs = null;
   if (arg('--timeout') != null) {
     timeoutMs = Number(arg('--timeout'));
@@ -386,7 +388,14 @@ export async function main(argv = process.argv.slice(2)) {
     if (summary.timedOut) {
       console.log(`\n${summary.timedOut} mutation(s) TIMED OUT — the suite hung instead of failing; a guard that hangs is a harness defect, not a kill.`);
     }
-    return argv.includes('--fail-on-survivor') && (survivors.length || summary.timedOut) ? 1 : 0;
+    if (summary.skipped) {
+      console.log(`\n${summary.skipped} mutation(s) SKIPPED — an anchor no longer occurs exactly once, so the round never tested them; update the spec:`);
+      for (const s of results.filter((r) => r.verdict === 'skipped')) console.log(`  · ${s.name}  [${s.file}]`);
+    }
+    // The two flags are independent: a skip is not a survivor, and a survivor is not a skip.
+    const failOnSurvivor = argv.includes('--fail-on-survivor') && (survivors.length || summary.timedOut);
+    const failOnSkipped = argv.includes('--fail-on-skipped') && summary.skipped > 0;
+    return failOnSurvivor || failOnSkipped ? 1 : 0;
   } catch (e) {
     console.error(`mutate: ${e.message}`);
     return 2;

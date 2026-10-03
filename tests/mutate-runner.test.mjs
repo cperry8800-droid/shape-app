@@ -428,6 +428,33 @@ test('CLI: a .mjs spec and a .json spec both run; exit 0 with survivors reported
   assert.match(r.out, /non-empty array/);
 });
 
+test('CLI: a skipped mutation exits 0 and is listed by default, 1 under --fail-on-skipped; --fail-on-survivor does not cover skips', () => {
+  const dir = scratch();
+  // One mutation that runs (and is killed) and one whose anchor is not in the file.
+  const skippy = { test: SPEC.test, mutations: [SPEC.mutations[0], SPEC.mutations[3]] };
+  assert.equal(SPEC.mutations[3].name, 'anchor absent', 'the fixture this test leans on moved');
+  fs.writeFileSync(path.join(dir, 'skip.json'), JSON.stringify(skippy));
+  let r = cli('--spec skip.json --allow-dirty', dir);
+  assert.equal(r.code, 0, `a skip is reported, not fatal, by default\n${r.out}`);
+  assert.match(r.out, /killed 1 .* skipped 1 /);
+  assert.match(r.out, /1 mutation\(s\) SKIPPED/, 'the round says what it did not test');
+  assert.match(r.out, /· anchor absent {2}\[lib\.mjs\]/, 'and names it');
+  r = cli('--spec skip.json --allow-dirty --fail-on-skipped', dir);
+  assert.equal(r.code, 1, `one skip fails the round under --fail-on-skipped\n${r.out}`);
+  r = cli('--spec skip.json --allow-dirty --fail-on-survivor', dir);
+  assert.equal(r.code, 0, `--fail-on-survivor is unchanged: a skip is not a survivor\n${r.out}`);
+  r = cli('--spec skip.json --allow-dirty --fail-on-survivor --fail-on-skipped', dir);
+  assert.equal(r.code, 1, `the two flags combine\n${r.out}`);
+
+  // No skip: the flag changes nothing, and nothing is listed.
+  const clean = { test: SPEC.test, mutations: [SPEC.mutations[0]] };
+  fs.writeFileSync(path.join(dir, 'clean.json'), JSON.stringify(clean));
+  r = cli('--spec clean.json --allow-dirty --fail-on-skipped', dir);
+  assert.equal(r.code, 0, `a round with no skip passes under --fail-on-skipped\n${r.out}`);
+  assert.doesNotMatch(r.out, /SKIPPED/);
+  assert.equal(fs.readFileSync(path.join(dir, 'lib.mjs'), 'utf8'), LIB, 'the target is byte-identical after every run');
+});
+
 test('CLI: refuses a dirty target file in a git checkout unless --allow-dirty', async () => {
   const dir = scratch();
   // Without the repo-locating variables: run under a pre-commit hook they would point this

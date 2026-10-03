@@ -3,8 +3,9 @@
 // Convention from here on: a PR's mutation round is a checked-in spec under
 // tests/mutations/<subject>.mutations.mjs (this directory is NOT matched by
 // `npm test`'s tests/**/*.test.mjs glob, so specs never run as tests). Run it with
-//   node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs
-// and paste the summary line into the PR. A survivor is either a guard gap (fix
+//   node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped
+// and paste the summary line into the PR. `--fail-on-skipped` makes a spec whose anchors
+// have drifted exit 1 instead of reporting a round that never ran some of its mutations. A survivor is either a guard gap (fix
 // the test) or a proven no-op (mark it expectSurvive with the proof in `why`).
 export default {
   test: 'node --test tests/mutate-runner.test.mjs',
@@ -76,5 +77,23 @@ export default {
     // while the error names only the earlier one (CodeRabbit, #2188).
     { name: 'a restore stops at the first file that fails', file: 'scripts/mutate.mjs',
       find: "failures.push(`${f}: ${e instanceof Error ? e.message : e}`);", replace: 'throw e;' },
+    // --fail-on-skipped (CodeRabbit, #2198): a skip fails the round only under the flag, the
+    // flag changes nothing on a round with no skip, and --fail-on-survivor still ignores skips.
+    { name: 'skip flag: --fail-on-skipped never fires', file: 'scripts/mutate.mjs',
+      find: "const failOnSkipped = argv.includes('--fail-on-skipped') && summary.skipped > 0;",
+      replace: 'const failOnSkipped = false;' },
+    { name: 'skip flag: one skip is tolerated', file: 'scripts/mutate.mjs',
+      find: 'summary.skipped > 0', replace: 'summary.skipped > 1' },
+    { name: 'skip flag: a round with no skip fails too', file: 'scripts/mutate.mjs',
+      find: 'summary.skipped > 0', replace: 'summary.skipped >= 0' },
+    { name: 'skip flag: --fail-on-survivor also fails on a skip', file: 'scripts/mutate.mjs',
+      find: "const failOnSurvivor = argv.includes('--fail-on-survivor') && (survivors.length || summary.timedOut);",
+      replace: "const failOnSurvivor = argv.includes('--fail-on-survivor') && (survivors.length || summary.timedOut || summary.skipped);" },
+    { name: 'skip flag: the two flags must both fire', file: 'scripts/mutate.mjs',
+      find: 'return failOnSurvivor || failOnSkipped ? 1 : 0;', replace: 'return failOnSurvivor && failOnSkipped ? 1 : 0;' },
+    { name: 'skip flag: the skipped note is never printed', file: 'scripts/mutate.mjs',
+      find: '    if (summary.skipped) {', replace: '    if (false) {' },
+    { name: 'skip flag: the note names no mutation', file: 'scripts/mutate.mjs',
+      find: "for (const s of results.filter((r) => r.verdict === 'skipped')) console.log(", replace: "for (const s of []) console.log(" },
   ],
 };
