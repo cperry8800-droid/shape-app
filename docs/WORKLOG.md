@@ -704,8 +704,9 @@ changelog whenever something ships.
   verdict read off a pipeline's exit status) is a rule the runner enforces and
   `tests/mutate-runner.test.mjs` drives. Check the spec in beside the PR and paste its
   summary line; a survivor is a guard gap (fix the test) or a proven no-op (mark it
-  `expectSurvive` with the proof in the spec). A skip means an anchor no longer occurs
-  exactly once, so that mutation never ran; `--fail-on-skipped` makes it exit 1 (#2198).
+  `expectSurvive` with the proof in the spec). A skip is a mutation that could not be
+  applied, most often an anchor that no longer occurs exactly once, so it never ran;
+  `--fail-on-skipped` makes any skip exit 1 (#2198).
 
 ## Architecture map (mobile broadsheet)
 

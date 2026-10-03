@@ -4,8 +4,9 @@
 // tests/mutations/<subject>.mutations.mjs (this directory is NOT matched by
 // `npm test`'s tests/**/*.test.mjs glob, so specs never run as tests). Run it with
 //   node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped
-// and paste the summary line into the PR. `--fail-on-skipped` makes a spec whose anchors
-// have drifted exit 1 instead of reporting a round that never ran some of its mutations. A survivor is either a guard gap (fix
+// and paste the summary line into the PR. `--fail-on-skipped` makes a round exit 1 when a
+// mutation could not be applied (a drifted anchor, say), instead of reporting a round that
+// never ran it. A survivor is either a guard gap (fix
 // the test) or a proven no-op (mark it expectSurvive with the proof in `why`).
 export default {
   test: 'node --test tests/mutate-runner.test.mjs',
@@ -95,5 +96,7 @@ export default {
       find: '    if (summary.skipped) {', replace: '    if (false) {' },
     { name: 'skip flag: the note names no mutation', file: 'scripts/mutate.mjs',
       find: "for (const s of results.filter((r) => r.verdict === 'skipped')) console.log(", replace: "for (const s of []) console.log(" },
+    { name: 'skip flag: the note drops each skip\'s reason', file: 'scripts/mutate.mjs',
+      find: '[${s.file}] — ${s.detail}`);', replace: '[${s.file}]`);' },
   ],
 };

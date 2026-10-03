@@ -438,13 +438,22 @@ test('CLI: a skipped mutation exits 0 and is listed by default, 1 under --fail-o
   assert.equal(r.code, 0, `a skip is reported, not fatal, by default\n${r.out}`);
   assert.match(r.out, /killed 1 .* skipped 1 /);
   assert.match(r.out, /1 mutation\(s\) SKIPPED/, 'the round says what it did not test');
-  assert.match(r.out, /· anchor absent {2}\[lib\.mjs\]/, 'and names it');
+  assert.match(r.out, /· anchor absent {2}\[lib\.mjs\] — anchor occurs 0 times/, 'and names it, with its reason');
   r = cli('--spec skip.json --allow-dirty --fail-on-skipped', dir);
   assert.equal(r.code, 1, `one skip fails the round under --fail-on-skipped\n${r.out}`);
   r = cli('--spec skip.json --allow-dirty --fail-on-survivor', dir);
   assert.equal(r.code, 0, `--fail-on-survivor is unchanged: a skip is not a survivor\n${r.out}`);
   r = cli('--spec skip.json --allow-dirty --fail-on-survivor --fail-on-skipped', dir);
   assert.equal(r.code, 1, `the two flags combine\n${r.out}`);
+
+  // A skip is any mutation that could not be applied, not only a drifted anchor: a
+  // replacement identical to its anchor fails the round too, and is listed with its own reason.
+  const same = { test: SPEC.test, mutations: [SPEC.mutations[0], { name: 'changes nothing', file: 'lib.mjs', find: 'LIMIT = 10', replace: 'LIMIT = 10' }] };
+  fs.writeFileSync(path.join(dir, 'same.json'), JSON.stringify(same));
+  r = cli('--spec same.json --allow-dirty --fail-on-skipped', dir);
+  assert.equal(r.code, 1, `an identical replacement is a skip\n${r.out}`);
+  assert.match(r.out, /· changes nothing {2}\[lib\.mjs\] — replacement is identical to the anchor/);
+  assert.doesNotMatch(r.out, /anchor occurs/, 'its reason is its own, not anchor drift');
 
   // No skip: the flag changes nothing, and nothing is listed.
   const clean = { test: SPEC.test, mutations: [SPEC.mutations[0]] };
