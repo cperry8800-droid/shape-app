@@ -67,8 +67,11 @@
 //
 // WHAT NO STATIC READ CAN SEE, so it is out of scope by construction: a function that itself
 // runs dynamic GRANT/REVOKE and is then CALLED by a migration, a privilege changed by hand in
-// the dashboard, and anything the platform does (the event-trigger function rls_auto_enable
-// exists live and in no migration). The live comparison is what finds those.
+// the dashboard, whether a schema named in `alter default privileges ... in schema` or in
+// `grant ... on all functions in schema` exists (Postgres refuses the whole statement for one that
+// does not; the model applies it to the schemas it knows), and anything the platform does (the
+// event-trigger function rls_auto_enable exists live and in no migration). The live comparison is
+// what finds those.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -475,8 +478,13 @@ export function parseCreateFunction(tokens) {
           if (isPunct(tokens[p], '(') || isPunct(tokens[p], '[')) { const gg = readGroup(tokens, p); if (!gg) throw 'unbalanced return type'; p = gg.next; } else p++;
         }
         const q2 = readQName(tokens, start);
-        const last = q2 ? q2.parts[q2.parts.length - 1] : '';
-        out.trigger = !!q2 && q2.next === p && (last === 'trigger' || last === 'event_trigger');
+        const parts = q2 ? q2.parts : [];
+        const last = parts[parts.length - 1] ?? '';
+        // Only the pseudo-types are trigger returns, and they live in pg_catalog: unqualified (which resolves there
+        // first) or `pg_catalog.`-qualified. `public.trigger` or `public."event_trigger"` is an ordinary type with
+        // that name, so a function returning one is an ordinary RPC and stays in the audit.
+        const pseudo = parts.length === 1 || (parts.length === 2 && parts[0] === 'pg_catalog');
+        out.trigger = !!q2 && q2.next === p && pseudo && (last === 'trigger' || last === 'event_trigger');
         break;
       }
       case 'language': out.language = tokens[p + 1]?.v ?? null; p += 2; break;
@@ -673,7 +681,15 @@ export function parseAclStatement(tokens) {
   while (i < tokens.length) {
     if (isWord(tokens[i], 'with') && isWord(tokens[i + 1], 'grant') && isWord(tokens[i + 2], 'option')) { i += 3; continue; }
     if (isWord(tokens[i], 'with') && isWord(tokens[i + 1], 'admin', 'inherit', 'set')) throw 'role option clause';
-    if (isWord(tokens[i], 'granted') && isWord(tokens[i + 1], 'by')) { const g = readRoles(tokens, i + 2); if (!g) throw 'unreadable GRANTED BY'; i = g.next; continue; }
+    if (isWord(tokens[i], 'granted') && isWord(tokens[i + 1], 'by')) {
+      const g = readRoles(tokens, i + 2);
+      if (!g) throw 'unreadable GRANTED BY';
+      // Measured on PostgreSQL 16.13: the grantor must be the current user (`grantor must be current user`
+      // otherwise), and migrations run as postgres. Any other grantor means Postgres refuses the whole statement,
+      // so the model must not apply it.
+      if (g.roles.some((r) => r !== 'postgres')) throw `GRANTED BY ${g.roles.join(', ')}: Postgres refuses a grantor that is not the current user (postgres, for a migration), so the statement is not applied`;
+      i = g.next; continue;
+    }
     if (isWord(tokens[i]) && ROLE_NOISE.has(tokens[i].v)) { i++; continue; }
     throw `unexpected trailing ${tokens[i].raw}`;
   }
@@ -1106,6 +1122,11 @@ function applyDefaultPrivileges(model, stmt) {
   if (badPriv.length) return reject(model, stmt, 'unmodelled grant statement', `privilege ${badPriv.join(',')} on functions`);
   const badRoles = unknownRoles(a.roles);
   if (badRoles.length) return reject(model, stmt, 'unmodelled grant statement', unknownRoleReason(a.verb, badRoles));
+  // The FOR ROLE list is checked too: Postgres refuses the whole statement for a role that does not exist
+  // (measured on 16.13: `for role postgres, nonexistent_role` is `role "nonexistent_role" does not exist`), so a
+  // list that names `postgres` and something the model does not know must not be applied.
+  const badFor = a.forRoles === null ? [] : unknownRoles(a.forRoles);
+  if (badFor.length) return reject(model, stmt, 'unmodelled grant statement', unknownRoleReason('alter default privileges for role', badFor));
   // Migrations run as `postgres`, which owns every function they create. A default set for
   // another role never reaches them. `in schema` edits that schema's layer, and no `in schema`
   // edits the global one (see supabaseDefaults for why the difference decides the result).
@@ -1363,24 +1384,33 @@ export const bodyFingerprint = (fn) => tokenFingerprint(bodyTokens(fn));
 // WHAT IT CANNOT SEE: a caller uid reached through any other expression (`lower(auth.uid()::text)`),
 // a NULL-blind guard built on a helper that itself returns NULL, an alias assigned any way but
 // `v := auth.uid();` (a cast or parentheses around the call are read; a plpgsql `=` assignment and
-// `select auth.uid() into v` are not), a cast to a type of a shape the scan does not read (interval
+// `select auth.uid() into v` are not), a variable that is reassigned to something else after it held the
+// caller (it reads as the caller from its FIRST assignment on: the position is read, the flow is not),
+// a cast to a type of a shape the scan does not read (interval
 // fields, `national character`), an ordering comparison
 // (`<`, `>=`) under NOT, and whether the reject dominates the comparison (one nested in a branch
 // that may not run still counts). It is a tripwire, with a written, fingerprinted acknowledgement
 // for the exceptions, not a proof. A body it flags is fixed with an explicit reject first; a
 // function that has to stay reachable is a registered finding until then.
 
-/** Variables assigned DIRECTLY from auth.uid() (`v_me uuid := auth.uid();`, `v_me := (select auth.uid())::uuid;`). */
+/**
+ * Variables assigned DIRECTLY from auth.uid() (`v_me uuid := auth.uid();`, `v_me := (select auth.uid())::uuid;`),
+ * each with the source offset from which it holds the caller: the end of its FIRST such assignment. Position
+ * matters: a variable that held something else when an earlier `if v_me is null then return` ran is not the caller
+ * there, so that check is no reject and a comparison before the assignment is no caller comparison. The position
+ * is a SOURCE OFFSET (a token's `start`), not an index, because the readers below also work on slices of the
+ * token list (one disjunct of an IF condition, one argument of a coalesce), where an index starts again at 0.
+ */
 function callerAliases(t) {
-  const names = new Set();
-  const none = new Set();
+  const names = new Map();
+  const none = new Map();
   for (let i = 1; i < t.length; i++) {
     if (!(isPunct(t[i], ':') && isPunct(t[i + 1], '='))) continue;
     const end = callerOperandEnd(t, i + 2, none);
     if (end < 0 || !isPunct(t[end + 1], ';')) continue;
     let s = i - 1;
     while (s >= 0 && !isPunct(t[s], ';') && !isWord(t[s], 'declare', 'begin', 'then', 'else', 'loop')) s--;
-    if (isName(t[s + 1])) names.add(t[s + 1].v);
+    if (isName(t[s + 1]) && !names.has(t[s + 1].v)) names.set(t[s + 1].v, t[end + 1].start);
   }
   return names;
 }
@@ -1429,7 +1459,7 @@ function callerOperandEnd(t, i, aliases) {
     const inner = callerOperandEnd(t, i + 2, aliases);
     if (inner < 0 || !isWord(t[inner + 1], 'as') || castTypeEnd(t, inner + 2) !== g.next - 2) return -1;
     e = g.next - 1;
-  } else if (isName(t[i]) && aliases.has(t[i].v) && !isPunct(t[i + 1], '.') && !isPunct(t[i + 1], '(') && !isPunct(t[i - 1], '.')) {
+  } else if (isName(t[i]) && (aliases.get(t[i].v) ?? Infinity) < t[i].start && !isPunct(t[i + 1], '.') && !isPunct(t[i + 1], '(') && !isPunct(t[i - 1], '.')) {
     e = i;
   } else return -1;
   while (isPunct(t[e + 1], ':') && isPunct(t[e + 2], ':')) {

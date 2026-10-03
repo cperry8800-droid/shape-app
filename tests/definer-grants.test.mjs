@@ -294,6 +294,68 @@ test('argument lists read as Postgres identifies them', () => {
   );
 });
 
+test('only the pg_catalog pseudo-types make a trigger function: a type called trigger in another schema is an ordinary RPC', () => {
+  const create = (ret) => `create function public.f() returns ${ret} language plpgsql security definer as $$ begin return null; end $$;`;
+  const model = (ret) => replayOne(create(ret));
+  // The pseudo-types, unqualified (which resolves to pg_catalog first), qualified, quoted, in any case.
+  for (const ret of ['trigger', 'TRIGGER', '"trigger"', 'pg_catalog.trigger', 'pg_catalog."trigger"', 'event_trigger', 'pg_catalog.event_trigger']) {
+    const m = model(ret);
+    assert.equal(m.fns.get('public.f()').trigger, true, ret);
+    assert.deepEqual(M.definerRpcFns(m), [], `${ret}: nothing can call it as an RPC, so it is outside the audit`);
+  }
+  // A type with that name anywhere else, a differently-cased quoted name and an array are not.
+  for (const ret of ['public.trigger', 'public."trigger"', 'public."event_trigger"', 'other.event_trigger', '"Trigger"', 'trigger[]']) {
+    const m = model(ret);
+    assert.equal(m.fns.get('public.f()').trigger, false, ret);
+    assert.deepEqual(M.definerRpcFns(m).map((f) => f.name), ['f'], `${ret}: an ordinary RPC, so it stays in the audit`);
+  }
+});
+
+test('a quoted "public" is the PUBLIC pseudo-role and a quoted "PUBLIC" is no role (both measured on PostgreSQL 16.13)', () => {
+  // On 16.13 `revoke all on function f() from "public"` removed the PUBLIC entry from the function's ACL, exactly as the
+  // unquoted word does, and `from "PUBLIC"` was `role "PUBLIC" does not exist`.
+  const run = (stmt) => replayOne(`${fnSql('f')}\n${stmt}`);
+  const quoted = run('revoke all on function public.f() from "public";');
+  assert.deepEqual(messages(quoted), []);
+  assert.deepEqual(quoted.fns.get('public.f()').acl, { public: false, anon: true, authenticated: true, service_role: true }, 'PUBLIC is removed, anon keeps its own grant');
+  assert.equal(run('revoke all on function public.f() from public;').fns.get('public.f()').acl.public, false, 'control: the unquoted word');
+  assert.equal(M.anonExecutable(run('revoke all on function public.f() from "public", anon;').fns.get('public.f()')), false, 'both gone: closed');
+  const wrongCase = run('revoke all on function public.f() from "PUBLIC", anon;');
+  assert.equal(wrongCase.unmodelled.length, 1);
+  assert.match(wrongCase.unmodelled[0].why, /names "PUBLIC", which is not a role the model tracks/);
+  assert.equal(M.anonExecutable(wrongCase.fns.get('public.f()')), true, 'Postgres refuses the whole statement, so nothing is revoked');
+});
+
+test('GRANTED BY must name the current user (postgres, for a migration): any other grantor is a statement Postgres refuses, so it is not applied', () => {
+  // Measured on 16.13: `granted by anon` is `grantor must be current user`; `granted by <the current user>` works.
+  const run = (stmt) => replayOne(`${fnSql('f')}\n${stmt}`);
+  const ok = run('revoke all on function public.f() from public, anon granted by postgres;');
+  assert.deepEqual(messages(ok), []);
+  assert.equal(M.anonExecutable(ok.fns.get('public.f()')), false, 'the current user as grantor revokes as usual');
+  assert.deepEqual(messages(run('grant execute on function public.f() to anon granted by "postgres";')), []);
+  for (const grantor of ['authenticated', 'anon', 'service_role', 'current_user', 'some_role']) {
+    const m = run(`revoke all on function public.f() from public, anon granted by ${grantor};`);
+    assert.equal(m.unmodelled.length, 1, grantor);
+    assert.match(m.unmodelled[0].why, /GRANTED BY .*: Postgres refuses a grantor that is not the current user/, grantor);
+    assert.equal(M.anonExecutable(m.fns.get('public.f()')), true, `${grantor}: the refused statement closes nothing`);
+  }
+});
+
+test('ALTER DEFAULT PRIVILEGES: every role in FOR ROLE must exist, so a list with one the model does not know is refused whole', () => {
+  // Measured on 16.13: `for role <the current user>, nonexistent_role` is `role "nonexistent_role" does not exist`, and
+  // nothing is applied. The model read `postgres` in the list and applied the change.
+  const run = (forRole) => replayOne(`alter default privileges ${forRole} in schema public revoke execute on functions from anon;\nalter default privileges revoke execute on functions from public;\n${fnSql('after_fr')}`);
+  const refused = run('for role postgres, nonexistent_role');
+  assert.equal(refused.unmodelled.length, 1);
+  assert.match(refused.unmodelled[0].why, /ALTER DEFAULT PRIVILEGES FOR ROLE names "nonexistent_role", which is not a role the model tracks/);
+  assert.equal(M.anonExecutable(refused.fns.get('public.after_fr()')), true, 'the refused statement is not applied: anon keeps the Supabase default');
+  const applied = run('for role postgres');
+  assert.deepEqual(messages(applied), []);
+  assert.equal(M.anonExecutable(applied.fns.get('public.after_fr()')), false, 'control: a list of known roles that includes postgres is applied');
+  assert.equal(M.anonExecutable(run('for role postgres, anon').fns.get('public.after_fr()')), false, 'control: two known roles');
+  assert.equal(M.anonExecutable(run('for role anon').fns.get('public.after_fr()')), true, 'control: a default set for another role never reaches what postgres creates');
+});
+
 test('a parameter named like an Object.prototype member is a parameter, not a crash', () => {
   for (const name of ['constructor', '__proto__', '"toString"', '"valueOf"', '"hasOwnProperty"']) {
     const m = replayOne(`create function public.f(${name} text) returns int language sql security definer as $$ select 1 $$;`);
@@ -1448,6 +1510,11 @@ const NULL_LOGIC = [
   ['a mixed-case quoted alias, compared with the same quoted name', plpg('if p_id <> "V_Me" then return null; end if; return null;', { declare: '"V_Me" uuid := auth.uid();' }), ['not-equal']],
   ['a quoted alias assigned in the body', plpg('"v_me" := auth.uid(); if p_id <> "v_me" then return null; end if; return null;', { declare: '"v_me" uuid;' }), ['not-equal']],
   ['a quoted alias under NOT', plpg(`if not ("v_me" = p_id) then ${RAISE} end if; return null;`, { declare: '"v_me" uuid := auth.uid();' }), ['negated-equality']],
+  ['a NULL test on a variable BEFORE it is assigned from auth.uid() is no reject: it held another value then', plpg('if v_me is null then return null; end if; v_me := auth.uid(); if p_id <> v_me then return null; end if; return null;', { declare: 'v_me uuid := p_id;' }), ['not-equal']],
+  ['a NULL test on the alias AFTER its assignment is a reject', plpg(`v_me := auth.uid(); if v_me is null then ${RAISE} end if; if p_id <> v_me then return null; end if; return null;`, { declare: 'v_me uuid;' }), []],
+  ['a comparison with a variable BEFORE it is assigned from auth.uid() reads another value, so it is no caller comparison', plpg('if p_id <> v_me then return null; end if; v_me := auth.uid(); return null;', { declare: 'v_me uuid := p_id;' }), []],
+  ['an alias in a coalesce AFTER its assignment is the caller', plpg('v_me := auth.uid(); return (select coalesce(p_id, v_me) is not null)::int::text::jsonb;', { declare: 'v_me uuid;' }), ['subject-coalesce']],
+  ['an alias in a coalesce BEFORE its assignment is not the caller yet', plpg('perform coalesce(p_id, v_me); v_me := auth.uid(); return null;', { declare: 'v_me uuid := p_id;' }), []],
   ['a mixed-case quoted alias compared bare is a DIFFERENT name (Postgres folds V_Me to v_me), so it is not the caller', plpg('if p_id <> V_Me then return null; end if; return null;', { declare: '"V_Me" uuid := auth.uid();' }), []],
   ['a quoted variable that is not assigned from auth.uid() is no alias', plpg('if p_id <> "v_other" then return null; end if; return null;', { declare: '"v_other" uuid := p_id; "v_me" uuid := auth.uid();' }), []],
   ['not (auth.uid() = x or helper): NOT NULL is NULL (the set_program_detail shape)', plpg(`if not (auth.uid() = p_id or public.is_coach_on_client(p_id)) then ${RAISE} end if; return null;`), ['negated-equality']],
