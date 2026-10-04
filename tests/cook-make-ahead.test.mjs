@@ -207,15 +207,16 @@ test('a plan with a make-ahead dish never claims its serve time is the proven ea
 test('setting the oats aside does not widen the order search of a big session', () => {
   // Seven dishes search by rotation; six search every order. Splitting the oats off a seven-
   // dish session used to plan the other six exhaustively: ~0.1 s became ~3.8 s per plan, and
-  // the setup screen plans several times per change.
+  // the setup screen plans several times per change. Held on the planner's own count of the
+  // placements it tried, not a stopwatch (review): 979 here, against 67,053 for the same six
+  // dishes searched exhaustively.
   const set = ['Barley pilaf with mushrooms and celery', 'Tofu and edamame poke bowl', OATS, 'Chickpea shakshuka',
     'Tempeh and broccoli teriyaki', 'Miso-glazed cod with greens', 'Steak and sweet potato hash'].map(cook);
   for (const c of set) assert.ok(c.steps && c.steps.length, `${c.key} is not in the catalog`);
-  const t0 = performance.now();
   const plan = bsOrchestrate(set, { mode: 'serve', kitchen: k1 });
-  const ms = performance.now() - t0;
   assert.equal(plan.exact, false);
-  assert.ok(ms < 1500, `a seven-dish plan with the oats took ${Math.round(ms)} ms`);
+  assert.equal(typeof plan.placements, 'number', 'the planner stopped reporting its search cost');
+  assert.ok(plan.placements > 0 && plan.placements < 10000, `a seven-dish plan with the oats tried ${plan.placements} placements`);
 });
 
 test('the website finished screen does not ask a make-ahead dish to log what it ate', () => {
@@ -225,4 +226,61 @@ test('the website finished screen does not ask a make-ahead dish to log what it 
   const notes = client.match(/\{kcalKnown[^?]*\? tr\('cook:ck\.burnersOffLog'/g) || [];
   assert.equal(notes.length, 1, 'expected the one wide finished-screen note');
   assert.match(notes[0], /\{kcalKnown && !finishesLater \? tr\('cook:ck\.burnersOffLog'/, 'a jar for the morning is told to log what it ate');
+});
+
+test('the wrap names the dishes that finished, not the first ones in plan order', () => {
+  // The board finishes dishes in whatever order the cook does them (review): the wrap read the
+  // first N dishes of the plan, so oats finished before the shakshuka showed the shakshuka's
+  // tip and none of the oats' morning steps.
+  const program = [{ meals: [
+    { id: 's1', slot: 'Dinner', title: 'Chickpea shakshuka', kcal: 430, p: 22, c: 30, f: 20 },
+    { id: 'o1', slot: 'Breakfast', title: OATS, kcal: 420, p: 20, c: 55, f: 12 },
+  ] }];
+  const s = drive(MOD.BSPrepSession, { program, onClose() {} });
+  s.click('Chickpea shakshuka', pressable);
+  s.click(OATS, pressable);
+  if (s.buttons().some((b) => b.label.startsWith('Set up your kitchen'))) s.click('Set up your kitchen');
+  if (s.buttons().some((b) => b.label.startsWith('Next: ingredients'))) s.click('Next: ingredients');
+  s.click('Start cooking');
+  const board = s.nodes().find((n) => n.props && typeof n.props.onRecipePrepped === 'function' && Array.isArray(n.props.items));
+  assert.ok(board, `the session did not hand the screen to the board: ${s.buttons().map((b) => b.label).join(' | ')}`);
+  const oats = board.props.items.find((it) => it.cookable.title === OATS);
+  const shakshuka = board.props.items.find((it) => it.cookable.title === 'Chickpea shakshuka');
+  assert.ok(board.props.items.indexOf(shakshuka) < board.props.items.indexOf(oats), 'guard the guard: the oats must not be first in plan order');
+  board.props.onRecipePrepped(oats);
+  board.props.onDone([], null);
+  s.render();
+  assert.match(s.text, /When you’re ready to eat/, 'the finished oats lost their morning steps');
+  const tip = raw('Chickpea shakshuka').tip;
+  if (tip) assert.ok(!s.text.includes(tip), 'the unfinished shakshuka\'s tip is on the wrap');
+});
+
+test('the voice switch still flips when storage refuses the write', () => {
+  // Private mode or a full quota makes setItem throw (review); the switch snapped back to
+  // whatever storage still said.
+  const store = new Map();
+  const real = globalThis.localStorage;
+  let refuse = true;
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => { if (refuse) throw new Error('QuotaExceededError'); store.set(k, String(v)); },
+    removeItem: (k) => store.delete(k), clear: () => store.clear(),
+  };
+  const realVoice = globalThis.ShapeVoice;
+  globalThis.ShapeVoice = { speak: async () => ({ ok: true }), stop() {} };
+  try {
+    const s = drive(MOD.BSPrepSession, { program: [{ meals: [{ id: 'o1', slot: 'Breakfast', title: OATS, kcal: 420, p: 20, c: 55, f: 12 }] }], onClose() {} });
+    const sw = () => s.nodes().find((n) => n.type === 'button' && n.props.role === 'switch');
+    assert.ok(sw(), 'no voice switch on the session screen');
+    assert.equal(sw().props['aria-checked'], false);
+    sw().props.onClick(); s.render();
+    assert.equal(sw().props['aria-checked'], true, 'the switch snapped back after a refused write');
+    refuse = false;
+    sw().props.onClick(); s.render();
+    assert.equal(sw().props['aria-checked'], false);
+    assert.equal(store.get('shape.cookReads'), '0', 'a write that succeeds is stored again');
+  } finally {
+    globalThis.localStorage = real;
+    globalThis.ShapeVoice = realVoice;
+  }
 });

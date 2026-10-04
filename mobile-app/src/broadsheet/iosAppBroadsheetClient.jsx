@@ -8002,9 +8002,15 @@ function useBSPrepEntries() {
 // render (a test or another tab can change storage without an event) and announced when it
 // changes, so the one-dish screen, the board and the session setup can never disagree.
 const BS_COOK_READS_KEY = 'shape.cookReads';
-const bsCookReadsGet = () => { try { return localStorage.getItem(BS_COOK_READS_KEY) === '1'; } catch (e) { return false; } };
+// Set only when storage refused the write (private mode, a full quota): the switch then
+// holds for this page instead of snapping back to whatever storage still says.
+let bsCookReadsUnsaved = null;
+const bsCookReadsGet = () => {
+  if (bsCookReadsUnsaved !== null) return bsCookReadsUnsaved;
+  try { return localStorage.getItem(BS_COOK_READS_KEY) === '1'; } catch (e) { return false; }
+};
 function bsCookReadsSet(on) {
-  try { localStorage.setItem(BS_COOK_READS_KEY, on ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem(BS_COOK_READS_KEY, on ? '1' : '0'); bsCookReadsUnsaved = null; } catch (e) { bsCookReadsUnsaved = !!on; }
   // window.Event, not the bare global: the same constructor in a browser, and the one a
   // test DOM's dispatchEvent accepts.
   try { window.dispatchEvent(new window.Event('shape:cookreads')); } catch (e) {}
@@ -10700,6 +10706,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const [miseChecked, setMiseChecked] = useStateBSC({});
   const [cookIdx, setCookIdx] = useStateBSC(0);
   const [doneEntries, setDoneEntries] = useStateBSC([]);
+  // Which dishes are finished, by key: the board can finish a later dish first, so the first
+  // N in plan order is not the set that is done.
+  const [doneKeys, setDoneKeys] = useStateBSC([]);
   const [saveFailed, setSaveFailed] = useStateBSC(false);
   const [wrapHolds, setWrapHolds] = useStateBSC([]);   // still-running terminal holds at Finish (board → wrap)
   const [dishProgress, setDishProgress] = useStateBSC({});
@@ -11090,6 +11099,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
       preppedAt: Date.now(),
     };
     setDoneEntries((a) => [...a, entry]);
+    setDoneKeys((k) => (k.includes(it.key) ? k : [...k, it.key]));
     try {
       const p = window.ShapeMealPrep?.record?.([entry]);
       if (p && p.then) p.then((r) => { if (!r || !r.ok) setSaveFailed(true); }).catch(() => setSaveFailed(true));
@@ -11278,8 +11288,8 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     const rc = resumeCandidate;
     setResuming(rc); setSessionAnchor(rc.anchor); setKitchen(rc.kitchen || {});
     setCookMode(rc.serve ? BS_COOK_CHOICE.SERVE : BS_COOK_CHOICE.SOONEST);
-    if (rc.phase === 'wrap') { setWrapHolds(rc.timers); setFinishedBoard(rc); setDoneEntries(rc.items); setStage('wrap'); }
-    else { setDoneEntries(rc.items.filter(it => rc.recorded.includes(it.key))); setStage('cook'); }
+    if (rc.phase === 'wrap') { setWrapHolds(rc.timers); setFinishedBoard(rc); setDoneEntries(rc.items); setDoneKeys(rc.items.map((it) => it.key)); setStage('wrap'); }
+    else { setDoneEntries(rc.items.filter(it => rc.recorded.includes(it.key))); setDoneKeys(rc.items.filter(it => rc.recorded.includes(it.key)).map((it) => it.key)); setStage('cook'); }
   };
   const resumeBox = resumeCandidate ? bsCkWait({
     key: 'resume', icon: 'timer', solid: true,
@@ -11690,8 +11700,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     else say(tr('cook:ck.logFailed', { defaultValue: 'Could not log it. Sign in, then try again.' }));
   };
   const wrapDays = [...new Set(doneEntries.map((e) => BS_PREP_DAY_LABELS[e.dayIdx]).filter(Boolean))];
-  const tips = [...new Set(ordered.slice(0, doneEntries.length >= ordered.length ? ordered.length : doneEntries.length).map((x) => x.cookable.tip).filter(Boolean))];
-  const wrapLater = bsCkLater({ tr, dishes: ordered.slice(0, doneEntries.length >= ordered.length ? ordered.length : doneEntries.length).map((x) => x.cookable), named: true });
+  const doneDishes = ordered.filter((x) => doneKeys.includes(x.key));
+  const tips = [...new Set(doneDishes.map((x) => x.cookable.tip).filter(Boolean))];
+  const wrapLater = bsCkLater({ tr, dishes: doneDishes.map((x) => x.cookable), named: true });
   const finishSession = () => { if (!wrapCounting) { try { window.localStorage.removeItem(BS_BATCH_KEY); } catch (e) {} } onClose(); };
   const wrapHead = wrapCounting
     ? tr('cook:prep.timersStillRunning', { defaultValue: 'Final timers are still running' })

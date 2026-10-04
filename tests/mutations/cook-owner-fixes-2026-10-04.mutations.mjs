@@ -230,5 +230,22 @@ export default {
     { name: 'bsCkLater draws its list without the heading', file: CLIENT,
       find: "      <div className=\"grp\">{tr('cook:ck.laterHead', { defaultValue: 'When you’re ready to eat' })}</div>\n",
       replace: '' },
+
+    // ── CodeRabbit's round on 9068f58 ─────────────────────────────────────────────────────
+    { name: 'review-2: a refused storage write drops the switch value', file: CLIENT,
+      find: 'catch (e) { bsCookReadsUnsaved = !!on; }',
+      replace: 'catch (e) {}' },
+    { name: 'review-2: the switch reads storage past a refused write', file: CLIENT,
+      find: '  if (bsCookReadsUnsaved !== null) return bsCookReadsUnsaved;\n',
+      replace: '' },
+    { name: 'review-2: the wrap reads the first N dishes in plan order', file: CLIENT,
+      find: 'const doneDishes = ordered.filter((x) => doneKeys.includes(x.key));',
+      replace: 'const doneDishes = ordered.slice(0, doneKeys.length);' },
+    { name: 'review-2: a finished dish is not recorded by key', file: CLIENT,
+      find: '    setDoneKeys((k) => (k.includes(it.key) ? k : [...k, it.key]));\n',
+      replace: '' },
+    { name: 'review-2: the planner stops counting its placements', file: ORCH,
+      find: '  placeCount++;\n',
+      replace: '' },
   ],
 };

@@ -750,8 +750,10 @@ const finishCookable = (c) => {
   // for the Kitchen; enforced STRUCTURALLY here for authored sources (coach
   // meal methods, PR E — CodeRabbit): the window drops to a plain step, the
   // honest text stays, nothing fabricates a walk-away.
+  // A make-ahead mark (and its derived finishesLater) is never rewritten here: it is how the
+  // cook screens know tonight's cook ends, whatever else the entry carries.
   const lastMeta = c.stepMeta[c.steps.length - 1];
-  if (lastMeta && lastMeta.passive === true && lastMeta.station != null && lastMeta.station !== 'off') {
+  if (lastMeta && lastMeta.makeAhead !== true && lastMeta.passive === true && lastMeta.station != null && lastMeta.station !== 'off') {
     c.stepMeta[c.steps.length - 1] = plainStepMeta();
   }
   if (c.steps.length > 0) c.tier = c.fromPlan ? BS_COOK_TIERS.PROSE : BS_COOK_TIERS.STEPS;

@@ -378,7 +378,11 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx, budget, allowance) {
   return search(queue, result);
 }
 
+// Every placement tried, so a serve plan can report what its order search cost (`placements`)
+// and a test can hold that number without a stopwatch.
+let placeCount = 0;
 function placeAt(rs, activeMin, T, kitchen, orderIdx) {
+  placeCount++;
   // Place every dish to END at T, pulling a dish earlier when an exclusive station is
   // already held OR the cook is already busy. Returns feasible:false when a dish still clashes after being pulled
   // all the way to t=0 — that is not a schedule to be shown, it is proof that T is too
@@ -669,6 +673,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen, breadth = rs.length) {
       searchWork: phases.searchWork,
     };
   }
+  const placedBefore = placeCount;
   const durs = rs.map((r) => durationOf(r, activeMin));
   const longest = durs.length ? Math.max(...durs) : 0;
 
@@ -754,6 +759,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen, breadth = rs.length) {
     timeline, serveAt: T, earliestServe: earliest, spread, issues, ...serveDetails(placed),
     exact: breadth <= ORDER_SEARCH_MAX && !serialFallback && !rs.some(r => r.meta.some(pauseOf)),
     estimated: assumesLengths(rs, activeMin),
+    placements: placeCount - placedBefore,
   };
 }
 
@@ -822,6 +828,7 @@ export function bsOrchestrate(recipes, opts = {}) {
       exact: sv.exact, estimated: sv.estimated, coordinated: sv.coordinated, ready: sv.ready,
       ...(sv.invalidTiming ? { invalidTiming: true } : {}),
       ...(sv.searchWork != null ? { searchWork: sv.searchWork } : {}),
+      ...(sv.placements != null ? { placements: sv.placements } : {}),
     };
   }
   if (mode === BS_COOK_MODE.SEQUENCE) {
