@@ -209,5 +209,9 @@
   "ck.ingredients": "Ingredientes",
   "ck.timersOn": "Temporizadores en marcha",
   "ck.serveNeedsRoom": "Tal como está configurada tu cocina, no caben los dos a la vez, así que no pueden estar listos juntos. Añade un fuego o un horno si tienes uno, o cocínalos uno tras otro.",
-  "ck.serveNeedsHands": "Los dos platos necesitan tus manos en el mismo momento, así que no pueden estar listos juntos. Mejor cocínalos uno tras otro."
+  "ck.serveNeedsHands": "Los dos platos necesitan tus manos en el mismo momento, así que no pueden estar listos juntos. Mejor cocínalos uno tras otro.",
+  "ck.serveNeedsRoomMany": "Tal como está configurada tu cocina, no caben todos a la vez, así que no pueden estar todos listos juntos. Añade un fuego o un horno si tienes uno, o cocínalos uno tras otro.",
+  "ck.serveNeedsHandsMany": "Estos platos necesitan tus manos en el mismo momento, así que no pueden estar todos listos juntos. Mejor cocínalos uno tras otro.",
+  "ck.readsOnToast": "La voz de Nora está activada. Leerá cada paso en voz alta.",
+  "ck.readsOffToast": "La voz de Nora está desactivada. Los pasos siguen en pantalla."
 }

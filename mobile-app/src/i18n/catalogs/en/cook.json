@@ -209,5 +209,9 @@
   "ck.ingredients": "Ingredients",
   "ck.timersOn": "Timers running",
   "ck.serveNeedsRoom": "Your kitchen as set can’t hold both at once, so they can’t be ready together. Add a burner or oven if you have one, or cook them one after another.",
-  "ck.serveNeedsHands": "Both dishes need your hands at the same time, so they can’t be ready together. Cook them one after another instead."
+  "ck.serveNeedsHands": "Both dishes need your hands at the same time, so they can’t be ready together. Cook them one after another instead.",
+  "ck.serveNeedsRoomMany": "Your kitchen as set can’t hold all of them at once, so they can’t all be ready together. Add a burner or oven if you have one, or cook them one after another.",
+  "ck.serveNeedsHandsMany": "These dishes need your hands at the same time, so they can’t all be ready together. Cook them one after another instead.",
+  "ck.readsOnToast": "Nora’s voice is on. She’ll read each step aloud.",
+  "ck.readsOffToast": "Nora’s voice is off. The steps stay on screen."
 }

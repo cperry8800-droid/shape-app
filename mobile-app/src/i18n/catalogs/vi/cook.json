@@ -209,5 +209,9 @@
   "ck.ingredients": "Nguyên liệu",
   "ck.timersOn": "Hẹn giờ đang chạy",
   "ck.serveNeedsRoom": "Với thiết lập hiện tại, bếp của bạn không đủ cho cả hai món một lúc, nên không thể cùng xong một lượt. Hãy thêm một bếp hoặc lò nướng nếu bạn có, hoặc nấu lần lượt từng món.",
-  "ck.serveNeedsHands": "Cả hai món đều cần đôi tay của bạn vào cùng một thời điểm, nên không thể cùng xong một lượt. Thay vào đó, hãy nấu lần lượt từng món."
+  "ck.serveNeedsHands": "Cả hai món đều cần đôi tay của bạn vào cùng một thời điểm, nên không thể cùng xong một lượt. Thay vào đó, hãy nấu lần lượt từng món.",
+  "ck.serveNeedsRoomMany": "Với thiết lập hiện tại, bếp của bạn không đủ cho tất cả các món một lúc, nên không thể cùng xong một lượt. Hãy thêm một bếp hoặc lò nướng nếu bạn có, hoặc nấu lần lượt từng món.",
+  "ck.serveNeedsHandsMany": "Các món này đều cần đôi tay của bạn vào cùng một thời điểm, nên không thể cùng xong một lượt. Thay vào đó, hãy nấu lần lượt từng món.",
+  "ck.readsOnToast": "Giọng của Nora đã bật. Cô ấy sẽ đọc to từng bước.",
+  "ck.readsOffToast": "Giọng của Nora đã tắt. Các bước vẫn hiển thị trên màn hình."
 }

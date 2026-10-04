@@ -509,17 +509,25 @@ const permutationsOf = (n) => {
   return out;
 };
 
-// For contiguous recipes the first feasible ordering is sufficient.
+// The first feasible ordering whose dishes overlap; failing that, the first feasible one.
+// ⚠ FIRST-FIT ALONE TURNED A LATER SERVE TIME INTO A REFUSAL. Measured on the catalog:
+// chickpea shakshuka + tempeh teriyaki planned together at 42-44 min and were refused from
+// 45, because at 45 the default order still fits but no longer overlaps, and the search
+// stopped there while another order overlapped. A plan that fits but does not overlap is
+// the one-after-the-other answer the sheet refuses, so it is kept only as the fallback.
 function bestPlacement(rs, activeMin, T, kitchen) {
   const first = placeAt(rs, activeMin, T, kitchen);
-  if (first.feasible) return first;
-  let deficit = first.deficit;
+  if (first.feasible && serveDetails(first.placed).coordinated) return first;
+  let fit = first.feasible ? first : null;
+  let deficit = first.feasible ? Infinity : first.deficit;
   for (const order of permutationsOf(rs.length)) {
     const plan = placeAt(rs, activeMin, T, kitchen, order);
-    if (plan.feasible) return plan;
-    deficit = Math.min(deficit, plan.deficit);
+    if (plan.feasible) {
+      if (serveDetails(plan.placed).coordinated) return plan;
+      if (!fit) fit = plan;
+    } else deficit = Math.min(deficit, plan.deficit);
   }
-  return { feasible: false, deficit: Math.max(1, deficit) };
+  return fit || { feasible: false, deficit: Math.max(1, deficit) };
 }
 
 // Search phase orders once, independently of the chosen clock time. Repeating
@@ -543,8 +551,15 @@ function phaseSchedule(rs, activeMin, kitchen) {
     const ends = rs.map(r => Math.max(...plan.events.filter(e => e.iid === r.iid).map(e => e._end)));
     const spread = Math.max(...ends) - Math.min(...ends);
     const duration = horizon - first;
-    if (!best || spread < best.spread || (spread === best.spread && duration < best.duration))
-      best = { ...plan, spread, duration, events: plan.events.map(e => ({ ...e, at: e.at - first, _end: e._end - first })) };
+    // ⚠ AN ORDER WHOSE DISHES OVERLAP BEATS A SMALLER GAP. Ranking by gap alone returned a
+    // plan the sheet refuses while an accepted one was in hand: oats + yogurt bowl + dahl
+    // searched six orders, four overlapped, and the 17-min gap that did not was returned
+    // over a 21-min gap that did. Across oats + any two catalog dishes on one burner this
+    // turns 40 of 43 "need your hands" refusals into plans.
+    const together = serveDetails(plan.events).coordinated;
+    if (!best || (together && !best.together)
+      || (together === best.together && (spread < best.spread || (spread === best.spread && duration < best.duration))))
+      best = { ...plan, together, spread, duration, events: plan.events.map(e => ({ ...e, at: e.at - first, _end: e._end - first })) };
   }
   // Exhausting phase search must not launch the older factorial order search.
   // One contiguous placement at the serial bound is always feasible; it can

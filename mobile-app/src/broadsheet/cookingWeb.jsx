@@ -20,6 +20,10 @@ await Promise.all([
 ]);
 await import('./iosAppBroadsheetClient.jsx');
 await window.ShapeAuth?.getCurrentSession?.().catch(() => null);
+// Nora's voice and mic are for signed-in members. The app shell sets this flag; this page
+// never loads the shell, and an unset flag reads as a member, so a signed-out visitor could
+// turn Nora on and get an error instead of being told to sign in.
+window.ShapeCanChat = !!window.ShapeAuth?.getCachedState?.()?.user?.id;
 const { BSProvider, BSRadioProvider, BSSheetProvider, BSToastHost, BSConfirmHost, BSCookMode, BSPrepSession } = window;
 const params = new URLSearchParams(location.search);
 const slug = params.get('r');

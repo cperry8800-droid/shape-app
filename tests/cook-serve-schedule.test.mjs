@@ -155,6 +155,40 @@ test('the cook can overrule the plan for one step, and the board then obeys them
     `overriding did not hand the step back: ${JSON.stringify(live)}`);
 });
 
+test('a step that is only waiting on the plan puts Start now on the primary, never a dead button', () => {
+  // Owner, 2026-10-04: "now not letting me continue or press next". The only Start now sat in
+  // the wait above the step, which a long card scrolls out of view, under a pale primary.
+  const plan = servePlan(45);
+  const s = drive(MOD.BSPrepCook, {
+    items: [], timeline: plan.timeline, anchor: Date.now(),
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  const primary = () => s.nodes().find((n) => n.type === 'button' && n.props.className === 'btn-p');
+  assert.equal(textOf(primary()).trim(), 'Start now');
+  assert.ok(!primary().props.disabled, 'the primary is pale on a step the cook may start');
+  primary().props.onClick();
+  s.render();
+  assert.ok(!/The plan starts this at/.test(s.text), 'the primary did not start the step');
+  assert.match(textOf(primary()).trim(), /^Done|^Start \{t\} timer/);
+  assert.ok(!primary().props.disabled);
+});
+
+test('Start now is not offered over a wait the cook cannot overrule', () => {
+  // A station still held by another dish is a real wait: the primary stays shut, and it does
+  // not say Start now, which would only flip it to a different dead button.
+  const anchor = Date.now();
+  const s = drive(MOD.BSPrepCook, {
+    items: [], anchor, serve: true, kitchen: { stove: 1, oven: 1, board: 1 },
+    timeline: [{ iid: 0, recipe: 'a', title: 'A', stepIndex: 0, text: 'Chop.', at: 10, min: 2, station: 'board' }],
+    initial: { timers: [{ id: 1, iid: 1, title: 'B', station: 'board', endsAt: anchor + 30 * MIN }] },
+    onClose() {}, onRecipePrepped() {}, onDone() {},
+  });
+  const primary = s.nodes().find((n) => n.type === 'button' && n.props.className === 'btn-p');
+  assert.match(s.text, /Wait for the/, 'the fixture lost its blocking hold');
+  assert.notEqual(textOf(primary).trim(), 'Start now');
+  assert.ok(primary.props.disabled, 'an occupied station left the primary live');
+});
+
 test('the gate opens once the planned minute actually arrives', () => {
   const plan = servePlan(45);
   // Same plan, but the session began 46 minutes ago — step one is due.

@@ -209,5 +209,9 @@
   "ck.ingredients": "Ingredients",
   "ck.timersOn": "Timers dey run",
   "ck.serveNeedsRoom": "Di way you set your kitchen, e no fit carry di two one time, so dem no fit ready together. Add burner or oven if you get one, or cook dem one afta di oda.",
-  "ck.serveNeedsHands": "Di two dishes need your hand for di same time, so dem no fit ready together. Cook dem one afta di oda instead."
+  "ck.serveNeedsHands": "Di two dishes need your hand for di same time, so dem no fit ready together. Cook dem one afta di oda instead.",
+  "ck.serveNeedsRoomMany": "Di way you set your kitchen, e no fit carry all of dem one time, so dem no fit all ready together. Add burner or oven if you get one, or cook dem one afta di oda.",
+  "ck.serveNeedsHandsMany": "Dis dishes need your hand for di same time, so dem no fit all ready together. Cook dem one afta di oda instead.",
+  "ck.readsOnToast": "Nora voice don on. She go read every step loud.",
+  "ck.readsOffToast": "Nora voice don off. Di steps go still dey for screen."
 }

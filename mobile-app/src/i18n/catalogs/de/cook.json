@@ -209,5 +209,9 @@
   "ck.ingredients": "Zutaten",
   "ck.timersOn": "Timer laufen",
   "ck.serveNeedsRoom": "So wie deine Küche eingestellt ist, haben nicht beide Gerichte auf einmal Platz, also können sie nicht zusammen fertig werden. Füge eine Kochstelle oder einen Ofen hinzu, falls vorhanden, oder koche sie eins nach dem anderen.",
-  "ck.serveNeedsHands": "Beide Gerichte brauchen deine Hände zur selben Zeit, also können sie nicht zusammen fertig werden. Koche sie stattdessen eins nach dem anderen."
+  "ck.serveNeedsHands": "Beide Gerichte brauchen deine Hände zur selben Zeit, also können sie nicht zusammen fertig werden. Koche sie stattdessen eins nach dem anderen.",
+  "ck.serveNeedsRoomMany": "So wie deine Küche eingestellt ist, haben nicht alle Gerichte auf einmal Platz, also können sie nicht alle zusammen fertig werden. Füge eine Kochstelle oder einen Ofen hinzu, falls vorhanden, oder koche sie eins nach dem anderen.",
+  "ck.serveNeedsHandsMany": "Diese Gerichte brauchen deine Hände zur selben Zeit, also können sie nicht alle zusammen fertig werden. Koche sie stattdessen eins nach dem anderen.",
+  "ck.readsOnToast": "Noras Stimme ist an. Sie liest jeden Schritt vor.",
+  "ck.readsOffToast": "Noras Stimme ist aus. Die Schritte bleiben auf dem Bildschirm."
 }
