@@ -213,5 +213,6 @@
   "ck.serveNeedsRoomMany": "Dengan pengaturan sekarang, dapurmu tidak cukup untuk semuanya sekaligus, jadi tidak bisa siap serempak. Tambah tungku atau oven kalau kamu punya, atau masak satu per satu.",
   "ck.serveNeedsHandsMany": "Hidangan-hidangan ini butuh tanganmu di saat yang sama, jadi tidak bisa siap serempak semuanya. Masak satu per satu saja.",
   "ck.readsOnToast": "Suara Nora aktif. Ia akan membacakan setiap langkah.",
-  "ck.readsOffToast": "Suara Nora nonaktif. Langkah-langkahnya tetap di layar."
+  "ck.readsOffToast": "Suara Nora nonaktif. Langkah-langkahnya tetap di layar.",
+  "ck.laterHead": "Saat kamu siap makan"
 }

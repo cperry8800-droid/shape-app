@@ -38,7 +38,7 @@ import { bsCookResumeStamp, bsCookResumeValid, bsCookSessionState } from '../ser
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
-import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsCookableFromMemberRecipe, bsStepTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsCookableFromMemberRecipe, bsStepTimers, bsOfferedTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSplitPaste, bsNewRecipeId, bsMyRecipeIdFrom, bsIsMyRecipeId } from '../services/clientRecipes.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
@@ -8491,6 +8491,9 @@ const BS_CK_CSS = `
 .bsck .sheet ol.steps .ch{font:600 13px/1.3 var(--f-b);white-space:nowrap;color:var(--i50)}
 .bsck .sheet ol.steps .ch.a{color:var(--a)}.bsck .sheet ol.steps .ch.d{color:var(--i70)}.bsck .sheet ol.steps .ch.u{color:var(--am)}
 .bsck .sheet .sh-h .el{font:600 14px/1 var(--f-b);color:var(--i50)}
+.bsck .later{display:grid;gap:8px}
+.bsck .later .lt{display:block;font:700 15px/1.3 var(--f-b);margin-bottom:4px}
+.bsck .later ol{margin:0;padding-left:22px;display:grid;gap:6px;font:500 15px/1.45 var(--f-b);color:var(--i85)}
 .bsck .sheet .sh-r{display:flex;align-items:center;gap:6px;flex:none}
 .bsck .sheet .shx{width:44px;height:44px;margin:-8px -12px -8px 0;border-radius:12px;display:grid;place-items:center;color:var(--i70);flex:none}
 .bsck .sheet .shx:hover{background:var(--hair);color:var(--i)}
@@ -8992,6 +8995,23 @@ function bsCkFoot({ tr, up, mic = null, back = null, primary }) {
 function bsCkUpNext({ tr, name = null, text }) {
   return <>{tr('cook:ck.next', { defaultValue: 'Next' })} · <b>{name ? `${name}: ` : ''}{text}</b></>;
 }
+// The steps a make-ahead dish leaves for another day (overnight oats' morning), shown where
+// tonight's cook ends. `named` titles each dish, for a session that cooked several.
+function bsCkLater({ tr, dishes, named = false }) {
+  const withLater = (dishes || []).filter((c) => c && Array.isArray(c.laterSteps) && c.laterSteps.length);
+  if (!withLater.length) return null;
+  return (
+    <div className="later">
+      <div className="grp">{tr('cook:ck.laterHead', { defaultValue: 'When you’re ready to eat' })}</div>
+      {withLater.map((c, k) => (
+        <div key={k}>
+          {named ? <b className="lt">{bsCkShort(c.title)}</b> : null}
+          <ol>{c.laterSteps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // A sheet over the cook screen: a scrim, a grab bar, a title with a small ×, and a body. On
 // the website it is a panel in the corner rather than a bottom sheet. The × closes it as the
@@ -9288,6 +9308,7 @@ function bsCkSoloTimeline(cookable, iid = 0, recipe = 'solo') {
       passive: m.passive === true, station: m.station || null,
       ...(Array.isArray(m.also) && m.also.length ? { also: m.also } : {}),
       ...(typeof m.maxPause === 'number' ? { maxPause: m.maxPause } : null),
+      ...(m.makeAhead === true ? { makeAhead: true } : null),
     };
     at += min || BS_ORCH.activeStepMin;
     return e;
@@ -9655,7 +9676,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     ? [cookable.title, tr('cook:ck.getOut', { defaultValue: 'Get these out' }), ...miseRows.map((r) => [r.amt, r.label].filter(Boolean).join(' '))].join('. ')
     : phase === 'method' && hasMethod ? steps[stepIdx] : '';
   const { readsOn, toggleReads, speak, stopSpeak, voiceCanSpeak, voiceStatus, retryVoice } = useBSCookVoice(narration, voiceMember);
-  const stepTimers = hasMethod && phase === 'method' && !bsFractionalDuration(steps[stepIdx]) ? bsStepTimers(steps[stepIdx]) : [];
+  const stepTimers = hasMethod && phase === 'method' ? bsOfferedTimers(steps[stepIdx], (cookable.stepMeta || [])[stepIdx]) : [];
   const running = timers.filter((x) => now < x.endsAt);
   // A local command runs first (no model round-trip); FALSE means "not a command after all —
   // hand the words to Nora".
@@ -10000,12 +10021,15 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     ) : null}
     {allergenBoxes}
   </>);
+  // A dish finished another day (overnight oats) ends tonight in the fridge, not on a plate.
+  const finishesLater = !!(cookable.laterSteps && cookable.laterSteps.length);
+  const plateLabel = finishesLater ? tr('cook:ck.doneFinish', { defaultValue: 'Done · finish' }) : tr('cook:ck.donePlate', { defaultValue: 'Done · plate it' });
   const primaryLabel = !lastStep
     ? tr('cook:ck.doneNext', { defaultValue: 'Done · next step' })
     : inPrep
       ? (nextItem ? tr('cook:ck.doneNextDish', { defaultValue: 'Done · next dish' })
-        : prep.cookNow ? tr('cook:ck.donePlate', { defaultValue: 'Done · plate it' }) : tr('cook:ck.doneFinish', { defaultValue: 'Done · finish' }))
-      : tr('cook:ck.donePlate', { defaultValue: 'Done · plate it' });
+        : prep.cookNow ? plateLabel : tr('cook:ck.doneFinish', { defaultValue: 'Done · finish' }))
+      : plateLabel;
   const foot = phase === 'method' && hasMethod && bsCkFoot({
     tr,
     up: !lastStep ? bsCkUpNext({ tr, text: steps[stepIdx + 1] })
@@ -10041,6 +10065,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     </div>
   ) : null;
   const tip = cookable.tip ? <p className="note">{cookable.tip}</p> : null;
+  const later = bsCkLater({ tr, dishes: [cookable] });
   // A countdown still going when the dish is plated (a chill, a rest) stays in view with its own
   // Done, and one that runs out here rings here: plating early must not hide a timer.
   const platedRunning = phase === 'plated' && timers.length ? [
@@ -10066,14 +10091,14 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
           <div className="card"><div className="in bsck-scroll" style={{ justifyContent: 'center', gap: 18 }}>
             <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
             {heatRunning ? null : <p className="note" style={{ margin: '-6px 0 4px', fontSize: 17 }}>{kcalKnown ? tr('cook:ck.burnersOffLog', { defaultValue: 'Every burner is off. Log what you ate.' }) : tr('cook:ck.burnersOff', { defaultValue: 'Every burner is off.' })}</p>}
-            {platedRunning}{logRow}{afterLog}{tip}{doneBtn(56)}
+            {platedRunning}{logRow}{afterLog}{later}{tip}{doneBtn(56)}
           </div></div>
         </div>
       </>)
       : (
         <div className="wplated bsck-scroll">
           <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-          {quickNote}{platedRunning}{logRow}{afterLog}{tip}{doneBtn(56)}
+          {quickNote}{platedRunning}{logRow}{afterLog}{later}{tip}{doneBtn(56)}
         </div>
       ))
     : (<>
@@ -10081,7 +10106,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       {showStove ? tracksFor(true) : null}
       <div className="pg bsck-scroll" style={{ paddingTop: showStove ? 16 : 6 }}>
         <h1 className="h1" style={{ fontSize: 40 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-        {quickNote}{platedRunning}{logRow}{afterLog}{tip}{doneBtn(52)}
+        {quickNote}{platedRunning}{logRow}{afterLog}{later}{tip}{doneBtn(52)}
       </div>
     </>);
 
@@ -10368,7 +10393,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   const pauseUpcoming = (livePlan?.pauseDeadlines || []).filter(p => now <= p.at);
   // Active-step convenience timers (never on a window step — that has the real
   // hold); a chip hides while its own countdown runs.
-  const evTms = ev && !isWindow && !bsFractionalDuration(ev.text) ? bsStepTimers(ev.text) : [];
+  const evTms = ev && !isWindow ? bsOfferedTimers(ev.text, ev) : [];
   const softChips = evTms.slice(0, 2).filter((tm) => !running.some((x) => x.soft && x.iid === ev.iid && x.stepIndex === cursor && x.label === tm.label));
   const roadmap = bsBoardRoadmap(timeline, cursor, timers, now, skippedRef.current);
   const visiblePct = bsVisibleCookPercent(boardPct, roadmap);
@@ -11663,6 +11688,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   };
   const wrapDays = [...new Set(doneEntries.map((e) => BS_PREP_DAY_LABELS[e.dayIdx]).filter(Boolean))];
   const tips = [...new Set(ordered.slice(0, doneEntries.length >= ordered.length ? ordered.length : doneEntries.length).map((x) => x.cookable.tip).filter(Boolean))];
+  const wrapLater = bsCkLater({ tr, dishes: ordered.slice(0, doneEntries.length >= ordered.length ? ordered.length : doneEntries.length).map((x) => x.cookable), named: true });
   const finishSession = () => { if (!wrapCounting) { try { window.localStorage.removeItem(BS_BATCH_KEY); } catch (e) {} } onClose(); };
   const wrapHead = wrapCounting
     ? tr('cook:prep.timersStillRunning', { defaultValue: 'Final timers are still running' })
@@ -11680,6 +11706,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
       tr, key: `log${it.key}`, title: it.cookable.title, macros: it.cookable.macros, logged: !!logged[it.key],
       onLog: it.cookable.macros && it.cookable.macros.kcal != null ? () => logDish(it) : null, color: multi ? colorOf(i) : null,
     })) : null}
+    {wrapLater}
     {tips.length ? (<>
       {!cookNow ? <div className="grp">{tr('cook:prep.storage', { defaultValue: 'Storage' })}</div> : null}
       {tips.map((tip, i) => <p key={i} className="note">{tip}</p>)}

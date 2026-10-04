@@ -183,6 +183,7 @@ const realMin = (m) => (m && typeof m.min === 'number' && Number.isFinite(m.min)
 // reads "or cover and refrigerate up to 4 hours before drinking" in a TEN-MINUTE smoothie as a
 // four-hour step, and misses "simmer uncovered for one hour" entirely because the number is
 // spelled out. A parsed duration is not authored data and this engine does not schedule on it.
+// (That smoothie step is now marked make-ahead, so neither side reads its four hours.)
 const stepCost = (m, activeMin) => realMin(m) ?? activeMin;
 
 // Does a plan REST ON ASSUMPTIONS? A step with no authored duration costs the injected
@@ -201,7 +202,7 @@ const stepCost = (m, activeMin) => realMin(m) ?? activeMin;
 // recipes rather than 71 - a signal, and still an honest one.
 const ESTIMATE_SLACK_MIN = 15;
 const shortfallOf = (r, activeMin) => r.steps.reduce((n, text, i) => {
-  if (realMin(r.meta[i]) != null) return n;
+  if (realMin(r.meta[i]) != null || r.meta[i]?.makeAhead === true) return n;
   const mins = bsStepTimers(String(text || '')).reduce((a, t) => a + t.seconds, 0) / 60;
   return n + Math.max(0, Math.round(mins) - activeMin);
 }, 0);
@@ -224,7 +225,8 @@ const evt = (r, i, at) => {
   // `recipe` stays the catalog/display key the UI reads.
   const also = Array.isArray(m.also) ? m.also.filter((x) => STICKY.includes(x)) : [];
   return { recipe: r.key, iid: r.iid, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null,
-    ...(also.length ? { also } : {}), ...(pauseOf(m) ? { maxPause: pauseOf(m) } : {}) };
+    ...(also.length ? { also } : {}), ...(pauseOf(m) ? { maxPause: pauseOf(m) } : {}),
+    ...(m.makeAhead === true ? { makeAhead: true } : {}), ...(m.finishesLater === true ? { finishesLater: true } : {}) };
 };
 
 // Serial: every recipe's steps in order, back-to-back. A passive step still
@@ -552,10 +554,9 @@ function phaseSchedule(rs, activeMin, kitchen) {
     const spread = Math.max(...ends) - Math.min(...ends);
     const duration = horizon - first;
     // ⚠ AN ORDER WHOSE DISHES OVERLAP BEATS A SMALLER GAP. Ranking by gap alone returned a
-    // plan the sheet refuses while an accepted one was in hand: oats + yogurt bowl + dahl
-    // searched six orders, four overlapped, and the 17-min gap that did not was returned
-    // over a 21-min gap that did. Across oats + any two catalog dishes on one burner this
-    // turns 40 of 43 "need your hands" refusals into plans.
+    // plan the sheet refuses while an accepted one was in hand: measured (before overnight oats
+    // became make-ahead) on oats + yogurt bowl + dahl, six orders searched, four overlapped,
+    // and the 17-min gap that did not was returned over a 21-min gap that did.
     const together = serveDetails(plan.events).coordinated;
     if (!best || (together && !best.together)
       || (together === best.together && (spread < best.spread || (spread === best.spread && duration < best.duration))))
@@ -615,8 +616,27 @@ function serveOneAtATime(rs, activeMin, serveAt, kitchen) {
   };
 }
 
+// A dish that is finished another day (overnight oats: into the fridge tonight, eaten in the
+// morning) is not landed with dinner. It is made first, end to end, and the rest are served
+// together after it.
+const finishesLaterDish = (r) => (r.meta || []).some((m) => m && m.finishesLater === true);
 function serveTimeline(rs, activeMin, serveAt, kitchen) {
   if (!timingInRange(rs, activeMin, serveAt)) return invalidServe();
+  const ahead = rs.filter(finishesLaterDish);
+  if (ahead.length) {
+    const tonight = rs.filter((r) => !finishesLaterDish(r));
+    const pre = serialTimeline(ahead, activeMin);
+    const preLen = ahead.reduce((n, r) => n + durationOf(r, activeMin), 0);
+    const want = Number.isFinite(serveAt) && serveAt > 0 ? Math.max(1e-6, serveAt - preLen) : serveAt;
+    const sv = tonight.length ? serveTimeline(tonight, activeMin, want, kitchen)
+      : { timeline: [], serveAt: 0, earliestServe: 0, spread: 0, issues: [], exact: true, estimated: false, ready: [], coordinated: true };
+    if (sv.invalidTiming) return sv;
+    return { ...sv,
+      timeline: [...pre, ...sv.timeline.map((e) => ({ ...e, at: e.at + preLen }))],
+      serveAt: sv.serveAt + preLen, earliestServe: sv.earliestServe + preLen,
+      ready: (sv.ready || []).map((d) => ({ ...d, start: d.start + preLen, readyAt: d.readyAt + preLen })),
+      coordinated: tonight.length < 2 ? !overCapacity(tonight, kitchen) : sv.coordinated };
+  }
   // ⚠ A STEP THE KITCHEN CANNOT HOLD IS REFUSED HERE, BEFORE ANY PLACEMENT. Two burners' worth
   // of pans on a one-burner hob has no placement: pulling the dish earlier never clears it, and
   // the search below would walk to its bound and hand back nothing. Reserving what the kitchen
@@ -976,7 +996,8 @@ export function bsReplanCook(timeline, cursor, timers, anchor, now, kitchen = {}
   };
   const rs = [...groups].map(([iid, events]) => ({
     iid, key: events[0].recipe, title: events[0].title, events,
-    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station, also: e.also, maxPause: e.maxPause })),
+    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station, also: e.also, maxPause: e.maxPause,
+      ...(e.makeAhead ? { makeAhead: true } : {}), ...(e.finishesLater ? { finishesLater: true } : {}) })),
     readyAt: Math.max(0, ...live.filter(t => t.iid === iid).map(t => (t.endsAt - now) / 60000)),
     carry: carryOf(iid),
   }));

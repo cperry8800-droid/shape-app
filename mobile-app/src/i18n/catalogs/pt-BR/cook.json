@@ -213,5 +213,6 @@
   "ck.serveNeedsRoomMany": "Do jeito que sua cozinha está configurada, não cabem todos de uma vez, então não podem ficar todos prontos juntos. Adicione uma boca ou um forno se você tiver, ou cozinhe um depois do outro.",
   "ck.serveNeedsHandsMany": "Esses pratos precisam das suas mãos ao mesmo tempo, então não podem ficar todos prontos juntos. Em vez disso, cozinhe um depois do outro.",
   "ck.readsOnToast": "A voz de Nora está ativada. Ela vai ler cada etapa em voz alta.",
-  "ck.readsOffToast": "A voz de Nora está desativada. As etapas continuam na tela."
+  "ck.readsOffToast": "A voz de Nora está desativada. As etapas continuam na tela.",
+  "ck.laterHead": "Na hora de comer"
 }

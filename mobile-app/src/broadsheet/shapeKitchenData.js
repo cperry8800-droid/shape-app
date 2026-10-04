@@ -986,6 +986,9 @@ export const SHAPE_KITCHEN_RECIPES = [..._SHAPE_KITCHEN_RECIPES_AUTHORED, ...USD
 // step's own stated duration (bsStepTimers) so authored metadata can't drift.
 //   station: 'oven' | 'stove' | 'board' | 'off'   ('off' = rest/chill/marinate —
 //   ties up no equipment, so it never conflicts). Keyed title → { stepIndex: meta }.
+//   { makeAhead: true } alone marks the step where tonight's cook ENDS because the dish is
+//   finished another day (into the fridge overnight, or a storage limit like "keeps 4
+//   hours"): no hold, no timer, and any steps after it are kept for later, never waited on.
 // An annotation declares "this recipe's NEXT step waits for the hold" — the
 // board's wait gate blocks same-recipe continuation while the window runs. So a
 // window whose next step is authored CONCURRENT with it ("While it roasts, make
@@ -1086,7 +1089,12 @@ export const _KITCHEN_STEP_META = {
   // step 0 hid "cut into cubes and toss with the cornstarch" behind its 10-minute press — the next
   // step adds "the tofu" to hot oil expecting a starch coat nobody was told to apply. Split.
   "Crispy tofu grain bowl": { 0: { min: 10, passive: true, station: "off" } },
-  "Overnight oats, three ways": { 1: { min: 240, passive: true, station: "off" } },
+  // ⚠ MAKE-AHEAD, NOT A HOLD: "chill at least 4 hours or overnight" ends tonight's cook. It was a
+  // 240-minute 'off' hold, which put a four-hour countdown on the board and scheduled the
+  // morning steps four hours into the session (owner, 2026-10-04: "these timers seem
+  // unnecessary"). bsCookableFromRecipe cuts the method here and keeps the morning steps as
+  // `laterSteps`.
+  "Overnight oats, three ways": { 1: { makeAhead: true } },
   // step 2 opens "While it roasts" — the author already scheduled it against step 1's roast, so
   // it is the detour, not a host for one. Same reason four other recipes correctly carry none.
   "Harissa salmon with couscous": {},
@@ -1212,6 +1220,9 @@ export const _KITCHEN_STEP_META = {
   "Acorn squash stuffed with cinnamon apples": { 1: { min: 5, passive: true, station: "off" } },
   // its only window, and it hid "season through" behind an hour of chilling.
   "Cold black bean and brown rice salad": {},
+  // "or cover and refrigerate up to 4 hours before drinking" is a storage limit, not a wait,
+  // and it offered "Start 4 hr timer" on the last step of a ten-minute smoothie.
+  "Papaya banana batido": { 4: { makeAhead: true } },
   ...USDA2_STEP_META,
 };
 // ---------------------------------------------------------------------------

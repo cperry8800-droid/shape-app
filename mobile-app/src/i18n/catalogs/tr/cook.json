@@ -213,5 +213,6 @@
   "ck.serveNeedsRoomMany": "Mutfağın şu anki ayarlarla hepsine birden yetmiyor, bu yüzden hepsi birlikte hazır olamaz. Varsa bir ocak gözü ya da fırın ekle veya yemekleri birbiri ardına pişir.",
   "ck.serveNeedsHandsMany": "Bu yemekler aynı anda ellerine ihtiyaç duyuyor, bu yüzden hepsi birlikte hazır olamaz. Bunun yerine yemekleri birbiri ardına pişir.",
   "ck.readsOnToast": "Nora’nın sesi açık. Her adımı sesli okuyacak.",
-  "ck.readsOffToast": "Nora’nın sesi kapalı. Adımlar ekranda kalır."
+  "ck.readsOffToast": "Nora’nın sesi kapalı. Adımlar ekranda kalır.",
+  "ck.laterHead": "Yemeye hazır olduğunda"
 }
