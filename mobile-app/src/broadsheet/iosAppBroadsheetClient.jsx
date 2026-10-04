@@ -10358,6 +10358,10 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   // The one primary action and every reason it cannot be taken yet. Each reason is also said
   // on the card (the wait above the step), so a pale button is never left unexplained.
   const primaryBlocked = !ev || !!occupied || notDue || (!windowStart && !!waitingOn && !serve);
+  // A step the plan starts later is the one wait the cook may overrule. The wait above the
+  // step offers Start now, but a long card scrolls that out of view and left a pale button
+  // with nothing to press, so the primary offers it too when it is the only reason.
+  const startEarly = !!ev && notDue && !occupied && !(!windowStart && !!waitingOn && !serve);
   const skipBlocked = !ev || (!!waitingOn && !serve);
   const primaryAction = () => { if (windowStart) startAndGo(); else advance(); };
   const dueAt = ev && typeof anchor === 'number' ? anchor + (ev.at || 0) * 60000 : null;
@@ -10479,7 +10483,10 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
       onUp: voiceMember ? talk.micEnd : () => {},
     } : null,
     back: { onClick: () => setCursor(Math.max(0, cursor - 1)), disabled: cursor === 0 },
-    primary: <button type="button" className="btn-p" onClick={primaryAction} disabled={primaryBlocked}>{primaryLabel}</button>,
+    // One element either way, so a keyboard cook keeps focus on it after Start now.
+    primary: <button type="button" className="btn-p" onClick={startEarly ? () => setJumpedAt(cursor) : primaryAction} disabled={!startEarly && primaryBlocked}>
+      {startEarly ? tr('cook:prep.startNow', { defaultValue: 'Start now' }) : primaryLabel}
+    </button>,
   });
 
   const top = bsCkTop({
