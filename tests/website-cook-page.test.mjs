@@ -55,10 +55,14 @@ test('on the website the cook layer signs in with the website session', () => {
   assert.equal((backend.match(/storageKey:/g) || []).length, 1);
 });
 
-test('a signed-out visitor on the website is not shown Nora as on', () => {
+test('a signed-out visitor on the website is not shown Nora as on, and the page never waits long to paint', () => {
   const web = read('mobile-app/src/broadsheet/cookingWeb.jsx');
-  const session = web.indexOf('await window.ShapeAuth?.getCurrentSession?.()');
-  const flag = web.indexOf('window.ShapeCanChat = !!window.ShapeAuth?.getCachedState?.()?.user?.id;');
+  const boot = web.indexOf('const boot = Promise.resolve(window.ShapeAuth?.getCurrentSession?.()).catch(() => null);');
+  const race = web.indexOf('await Promise.race([boot, new Promise((resolve) => setTimeout(resolve, 2500))]);');
+  const flag = web.indexOf('window.ShapeCanChat = signedIn();');
+  const later = web.indexOf("boot.then(() => {\n  window.ShapeCanChat = signedIn();\n  try { window.dispatchEvent(new Event('shape:canchat'));");
   const render = web.indexOf('createRoot(');
-  assert.ok(session > 0 && flag > session && flag < render, 'ShapeCanChat must be set from the session before the first render');
+  assert.ok(boot > 0 && race > boot && flag > race && later > flag && render > later,
+    'ShapeCanChat is set before the first render, the render waits at most 2.5 s on the session, and a late session still reaches the switch');
+  assert.match(web, /const signedIn = \(\) => !!window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.user\?\.id;/);
 });

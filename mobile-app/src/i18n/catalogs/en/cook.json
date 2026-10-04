@@ -214,5 +214,6 @@
   "ck.serveNeedsHandsMany": "These dishes need your hands at the same time, so they can’t all be ready together. Cook them one after another instead.",
   "ck.readsOnToast": "Nora’s voice is on. She’ll read each step aloud.",
   "ck.readsOffToast": "Nora’s voice is off. The steps stay on screen.",
-  "ck.laterHead": "When you’re ready to eat"
+  "ck.laterHead": "When you’re ready to eat",
+  "plated.later": "Made ahead."
 }

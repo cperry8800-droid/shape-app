@@ -499,9 +499,12 @@ const rotationsOf = (n) => {
   return out;
 };
 
-const permutationsOf = (n) => {
+// `breadth` is the dish count the search is sized for. It is the session's whole count even
+// when a make-ahead dish has been set aside: splitting one off a seven-dish session must not
+// push the other six into the exhaustive search (measured: ~0.1 s became ~3.8 s per plan).
+const permutationsOf = (n, breadth = n) => {
   if (n < 2) return [];
-  if (n > ORDER_SEARCH_MAX) return rotationsOf(n);
+  if (breadth > ORDER_SEARCH_MAX) return rotationsOf(n);
   const out = [];
   const walk = (left, acc) => {
     if (!left.length) { out.push(acc); return; }
@@ -517,12 +520,12 @@ const permutationsOf = (n) => {
 // 45, because at 45 the default order still fits but no longer overlaps, and the search
 // stopped there while another order overlapped. A plan that fits but does not overlap is
 // the one-after-the-other answer the sheet refuses, so it is kept only as the fallback.
-function bestPlacement(rs, activeMin, T, kitchen) {
+function bestPlacement(rs, activeMin, T, kitchen, breadth = rs.length) {
   const first = placeAt(rs, activeMin, T, kitchen);
   if (first.feasible && serveDetails(first.placed).coordinated) return first;
   let fit = first.feasible ? first : null;
   let deficit = first.feasible ? Infinity : first.deficit;
-  for (const order of permutationsOf(rs.length)) {
+  for (const order of permutationsOf(rs.length, breadth)) {
     const plan = placeAt(rs, activeMin, T, kitchen, order);
     if (plan.feasible) {
       if (serveDetails(plan.placed).coordinated) return plan;
@@ -535,10 +538,10 @@ function bestPlacement(rs, activeMin, T, kitchen) {
 // Search phase orders once, independently of the chosen clock time. Repeating
 // this search for every minute of the earliest-time probe made planning sluggish.
 // Live replans keep absolute resource reservations and use the placement below.
-function phaseSchedule(rs, activeMin, kitchen) {
+function phaseSchedule(rs, activeMin, kitchen, breadth = rs.length) {
   if (!rs.some(r => r.meta.some(pauseOf)) || kitchen?.liveHolds?.length || rs.some(r => r.readyAt > 0 || r.carry?.length)) return null;
   const horizon = rs.reduce((n, r) => n + durationOf(r, activeMin) + r.steps.reduce((a, _, i) => a + pauseOf(r.meta[i]), 0), 0);
-  const orders = rs.length <= 4 ? permutationsOf(rs.length) : rotationsOf(rs.length);
+  const orders = breadth <= 4 ? permutationsOf(rs.length) : rotationsOf(rs.length);
   if (!orders.length) orders.push(rs.map((_, i) => i));
   const budget = { remaining: BS_ORCH.phaseSearchMax };
   let best = null;
@@ -620,7 +623,7 @@ function serveOneAtATime(rs, activeMin, serveAt, kitchen) {
 // morning) is not landed with dinner. It is made first, end to end, and the rest are served
 // together after it.
 const finishesLaterDish = (r) => (r.meta || []).some((m) => m && m.finishesLater === true);
-function serveTimeline(rs, activeMin, serveAt, kitchen) {
+function serveTimeline(rs, activeMin, serveAt, kitchen, breadth = rs.length) {
   if (!timingInRange(rs, activeMin, serveAt)) return invalidServe();
   const ahead = rs.filter(finishesLaterDish);
   if (ahead.length) {
@@ -628,14 +631,18 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
     const pre = serialTimeline(ahead, activeMin);
     const preLen = ahead.reduce((n, r) => n + durationOf(r, activeMin), 0);
     const want = Number.isFinite(serveAt) && serveAt > 0 ? Math.max(1e-6, serveAt - preLen) : serveAt;
-    const sv = tonight.length ? serveTimeline(tonight, activeMin, want, kitchen)
+    const sv = tonight.length ? serveTimeline(tonight, activeMin, want, kitchen, breadth)
       : { timeline: [], serveAt: 0, earliestServe: 0, spread: 0, issues: [], exact: true, estimated: false, ready: [], coordinated: true };
     if (sv.invalidTiming) return sv;
     return { ...sv,
       timeline: [...pre, ...sv.timeline.map((e) => ({ ...e, at: e.at + preLen }))],
       serveAt: sv.serveAt + preLen, earliestServe: sv.earliestServe + preLen,
       ready: (sv.ready || []).map((d) => ({ ...d, start: d.start + preLen, readyAt: d.readyAt + preLen })),
-      coordinated: tonight.length < 2 ? !overCapacity(tonight, kitchen) : sv.coordinated };
+      coordinated: tonight.length < 2 ? !overCapacity(tonight, kitchen) : sv.coordinated,
+      // Made first, end to end, is one plan that works, not a proof of the earliest: its
+      // hands-on steps could often hide inside a dinner dish's hold (measured: chicken + oats
+      // + salmon serves at 39, this says 45). So the sheet says "the earliest we searched".
+      exact: false };
   }
   // ⚠ A STEP THE KITCHEN CANNOT HOLD IS REFUSED HERE, BEFORE ANY PLACEMENT. Two burners' worth
   // of pans on a one-burner hob has no placement: pulling the dish earlier never clears it, and
@@ -645,7 +652,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // kitchen, with STATIONS naming it as the reason -- which is what lets the sheet say "add a
   // burner", and a bigger kitchen really does fix it.
   if (overCapacity(rs, kitchen)) return serveOneAtATime(rs, activeMin, serveAt, kitchen);
-  const phases = phaseSchedule(rs, activeMin, kitchen);
+  const phases = phaseSchedule(rs, activeMin, kitchen, breadth);
   if (phases) {
     const earliest = phases.duration;
     const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
@@ -673,10 +680,10 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // on one stove for the same 18 minutes -- reported as spread 8 with issues:['stations'],
   // so it read as handled rather than impossible.
   let earliest = longest;
-  let feas = bestPlacement(rs, activeMin, earliest, kitchen);
+  let feas = bestPlacement(rs, activeMin, earliest, kitchen, breadth);
   for (let guard = 0; guard < BS_ORCH.serveSearchMax && !feas.feasible; guard++) {
     earliest += feas.deficit;
-    feas = bestPlacement(rs, activeMin, earliest, kitchen);
+    feas = bestPlacement(rs, activeMin, earliest, kitchen, breadth);
   }
   // ⚠ THE GUARD ABOVE BOUNDS ITERATIONS, NOT MINUTES, and each step advances by the real
   // shortfall -- which MEASURED on two n-step hands-on dishes is exactly one step per
@@ -704,13 +711,13 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   if (!feas.feasible) {
     serialFallback = true;
     earliest = durs.reduce((sum, d) => sum + d, 0) + Math.max(0, ...rs.map(r => r.readyAt || 0), ...(kitchen?.liveHolds || []).map(h => h.to));
-    feas = bestPlacement(rs, activeMin, earliest, kitchen);
+    feas = bestPlacement(rs, activeMin, earliest, kitchen, breadth);
   }
 
   const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
   const tooSoon = wanted < earliest;
   const asked = tooSoon ? earliest : wanted;
-  const attempt = bestPlacement(rs, activeMin, asked, kitchen);
+  const attempt = bestPlacement(rs, activeMin, asked, kitchen, breadth);
   // ONE placement answers for everything below. `timeline`, `serveAt`, `spread` and
   // `issues` have to describe the SAME plan, or the sheet reports a schedule it is not
   // showing. Reading the earliest-time placement into a result placed at a later time
@@ -745,7 +752,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // now says so in the result rather than in a comment.
   return {
     timeline, serveAt: T, earliestServe: earliest, spread, issues, ...serveDetails(placed),
-    exact: rs.length <= ORDER_SEARCH_MAX && !serialFallback && !rs.some(r => r.meta.some(pauseOf)),
+    exact: breadth <= ORDER_SEARCH_MAX && !serialFallback && !rs.some(r => r.meta.some(pauseOf)),
     estimated: assumesLengths(rs, activeMin),
   };
 }

@@ -175,9 +175,9 @@ test('browser-blocked server audio retries from the same clip and stop releases 
     pause() {}
   }
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null;
-    const apiBaseUrl='https://api.test', state={session:{access_token:'test'}};
+    const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:false,tone:'supportive',voice:'auto'});
-    ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
     return {speak:speakVoice,retry:retryVoice,stop:stopVoice};`;
   const backend = new Function('fetch', 'Audio', 'URL', code)(
     async () => { fetches++; return { ok: true, blob: async () => new Blob(['voice']) }; },
@@ -315,11 +315,12 @@ test('with Nora\'s voice off she does not speak her answers or a repeat either',
 
 test('speakVoice hands back when her clip ends, and a stop ends it too', async () => {
   let audio;
-  class Audio { constructor() { audio = this; } play() { return Promise.resolve(); } pause() {} }
+  const audios = [];
+  class Audio { constructor() { audio = this; audios.push(this); } play() { return Promise.resolve(); } pause() {} }
   const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null;
-    const apiBaseUrl='https://api.test', state={session:{access_token:'test'}};
+    const apiBaseUrl='https://api.test', state={session:{access_token:'test'}}, supabase=null;
     const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
-    ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')} ${lift('retryVoice')}
     return {speak:speakVoice,retry:retryVoice,stop:stopVoice};`;
   const backend = new Function('fetch', 'Audio', 'URL', code)(
     async () => ({ ok: true, blob: async () => new Blob(['voice']) }),
@@ -337,4 +338,48 @@ test('speakVoice hands back when her clip ends, and a stop ends it too', async (
   const fourth = await backend.speak('Serve', undefined, { force: true });
   assert.equal(await settled(third.ended), true, 'a newer speak must end the older clip');
   assert.equal(await settled(fourth.ended), false, 'the newer clip ended with the older one');
+  // The older clip's own `ended` (or `error`) can still arrive after a newer speak took over,
+  // and it must not settle the newer clip, which is still sounding.
+  assert.equal(audios.length, 4, 'expected one Audio per spoken clip');
+  audios[2].onended();
+  assert.equal(await settled(fourth.ended), false, "the older clip's late end settled the newer clip");
+  audios[3].onerror();
+  assert.equal(await settled(fourth.ended), true, 'the newer clip failing never settled it');
+});
+
+test('Nora asks with the token as of now, not the one cached when the page opened', async () => {
+  // A website session refreshes about hourly; the cook page cached the token it booted with, so
+  // a long cook sent an expired one and Nora answered "sign in" (review, 2026-10-04).
+  const sent = [];
+  class Audio { play() { return Promise.resolve(); } pause() {} }
+  let stored = { access_token: 'fresh', user: { id: 'u1' } };
+  const code = `let _voiceGen=0, _voiceAudio=null, _voiceUrl=null, _voiceAbort=null, _voiceEnded=null, _voiceEnd=null;
+    const apiBaseUrl='https://api.test', state={user:{id:'u1'}, session:{access_token:'stale', user:{id:'u1'}}};
+    const readVoicePrefs=()=>({enabled:true,tone:'supportive',voice:'auto'});
+    ${lift('liveAccessToken')} ${lift('settleVoiceEnd')} ${lift('stopVoice')} ${lift('speakVoice')}
+    return {speak:speakVoice, state};`;
+  const supabase = { auth: { getSession: async () => ({ data: { session: stored } }) } };
+  const backend = new Function('fetch', 'Audio', 'URL', 'supabase', code)(
+    async (url, init) => { sent.push(init.headers.Authorization); return { ok: true, blob: async () => new Blob(['v']) }; },
+    Audio, { createObjectURL: () => 'blob:t', revokeObjectURL() {} }, supabase);
+  assert.equal((await backend.speak('Chop', undefined, { force: true })).ok, true);
+  assert.deepEqual(sent, ['Bearer fresh'], 'the request rode the token cached at boot');
+  assert.equal(backend.state.session.access_token, 'fresh', 'the cache was not brought up to date');
+  // Another account in storage (signed in elsewhere) is not borrowed: the cached one stands.
+  stored = { access_token: 'other', user: { id: 'u2' } };
+  await backend.speak('Stir', undefined, { force: true });
+  assert.equal(sent.at(-1), 'Bearer fresh');
+  // No session anywhere: signed out, and no request.
+  stored = null; backend.state.session = null;
+  assert.deepEqual(await backend.speak('Plate', undefined, { force: true }), { ok: false, reason: 'signed_out' });
+  assert.equal(sent.length, 2);
+});
+
+test('the cached token follows a refresh, here or in another client on the same key', () => {
+  const backend = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
+  assert.match(backend, /supabase\.auth\.onAuthStateChange\(\(event, session\) => \{\s*if \(event === 'TOKEN_REFRESHED' && session && state\.user && session\.user && session\.user\.id === state\.user\.id\) state\.session = session;/);
+  for (const fn of ['askSupportBot', 'transcribeTo']) {
+    const at = backend.indexOf(`function ${fn}(`);
+    assert.match(backend.slice(at, at + 1200), /const token = await liveAccessToken\(\);/, `${fn} still reads the boot token`);
+  }
 });

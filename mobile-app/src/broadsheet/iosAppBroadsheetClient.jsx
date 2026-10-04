@@ -8158,7 +8158,7 @@ const BS_CK_CSS = `
 .bsck .cC .fin{justify-self:center;display:flex;align-items:baseline;gap:8px;font:600 13px/1 var(--f-b);color:var(--i50)}
 .bsck .cC .fin .n{font-size:22px;font-weight:700;color:var(--i)}
 .bsck .cC .spk{color:var(--i50)}
-.bsck .cC .spk.on{color:var(--a);background:color-mix(in srgb,var(--a) 16%,transparent)}
+.bsck .cC .spk.on{color:var(--a);box-shadow:inset 0 0 0 1.5px var(--a)}
 .bsck .cC .spk .lb,.bsck .cC .spk .st{display:none}
 .bsck .ibtn:focus-visible{outline:2px solid var(--a);outline-offset:2px}
 .bsck .cC .hob{position:relative;margin:0 12px;border-radius:22px;background:linear-gradient(160deg,#1b1a18 0%,var(--glass) 45%,#0e0d0c 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(255,255,255,.05);padding:14px;display:grid;grid-template-columns:1fr 1fr 1.08fr;grid-template-rows:118px 118px 58px;gap:10px;flex:none;color:var(--gl-ink)}
@@ -8267,9 +8267,10 @@ const BS_CK_CSS = `
    AA as text on these papers, so it marks only the icon, the border and the tint. */
 .bsck.web .cC .top,.bsck.web .cD .dtop{grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr)}
 .bsck.web .cC .top > :last-child{justify-self:end}
+.bsck.web .cC .top > .fin{min-width:0;max-width:100%;overflow:hidden}
 .bsck.web .cC .spk{width:auto;display:inline-flex;align-items:center;gap:8px;padding:0 14px 0 10px;border:1.5px solid var(--rule);font:600 14px/1 var(--f-b);white-space:nowrap;color:var(--i70)}
 .bsck.web .cC .spk .ico{color:var(--i50)}
-.bsck.web .cC .spk.on{color:var(--i);border-color:var(--a)}
+.bsck.web .cC .spk.on{color:var(--i);border-color:var(--a);box-shadow:none}
 .bsck.web .cC .spk.on .ico{color:var(--a)}
 .bsck.web .cC .spk .lb,.bsck.web .cC .spk .st{display:inline}
 .bsck.web .cC .spk .st::before{content:"·";margin-right:8px;opacity:.6}
@@ -8494,6 +8495,7 @@ const BS_CK_CSS = `
 .bsck .later{display:grid;gap:8px}
 .bsck .later .lt{display:block;font:700 15px/1.3 var(--f-b);margin-bottom:4px}
 .bsck .later ol{margin:0;padding-left:22px;display:grid;gap:6px;font:500 15px/1.45 var(--f-b);color:var(--i85)}
+.bsck .later li::marker{font:600 15px/1.45 var(--f-b);font-variant-numeric:normal;letter-spacing:0}
 .bsck .sheet .sh-r{display:flex;align-items:center;gap:6px;flex:none}
 .bsck .sheet .shx{width:44px;height:44px;margin:-8px -12px -8px 0;border-radius:12px;display:grid;place-items:center;color:var(--i70);flex:none}
 .bsck .sheet .shx:hover{background:var(--hair);color:var(--i)}
@@ -10066,6 +10068,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   ) : null;
   const tip = cookable.tip ? <p className="note">{cookable.tip}</p> : null;
   const later = bsCkLater({ tr, dishes: [cookable] });
+  const platedTitle = finishesLater ? tr('cook:plated.later', { defaultValue: 'Made ahead.' }) : tr('cook:plated.title', { defaultValue: 'Plated.' });
   // A countdown still going when the dish is plated (a chill, a rest) stays in view with its own
   // Done, and one that runs out here rings here: plating early must not hide a timer.
   const platedRunning = phase === 'plated' && timers.length ? [
@@ -10089,24 +10092,24 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         <div className="main">
           <div className="hobw">{hobPlated}</div>
           <div className="card"><div className="in bsck-scroll" style={{ justifyContent: 'center', gap: 18 }}>
-            <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-            {heatRunning ? null : <p className="note" style={{ margin: '-6px 0 4px', fontSize: 17 }}>{kcalKnown ? tr('cook:ck.burnersOffLog', { defaultValue: 'Every burner is off. Log what you ate.' }) : tr('cook:ck.burnersOff', { defaultValue: 'Every burner is off.' })}</p>}
-            {platedRunning}{logRow}{afterLog}{later}{tip}{doneBtn(56)}
+            <h1 className="h1" style={{ fontSize: 64 }}>{platedTitle}</h1>
+            {heatRunning ? null : <p className="note" style={{ margin: '-6px 0 4px', fontSize: 17 }}>{kcalKnown && !finishesLater ? tr('cook:ck.burnersOffLog', { defaultValue: 'Every burner is off. Log what you ate.' }) : tr('cook:ck.burnersOff', { defaultValue: 'Every burner is off.' })}</p>}
+            {platedRunning}{logRow}{afterLog}{tip}{later}{doneBtn(56)}
           </div></div>
         </div>
       </>)
       : (
         <div className="wplated bsck-scroll">
-          <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-          {quickNote}{platedRunning}{logRow}{afterLog}{later}{tip}{doneBtn(56)}
+          <h1 className="h1" style={{ fontSize: 64 }}>{platedTitle}</h1>
+          {quickNote}{platedRunning}{logRow}{afterLog}{tip}{later}{doneBtn(56)}
         </div>
       ))
     : (<>
       {hobPlated}
       {showStove ? tracksFor(true) : null}
       <div className="pg bsck-scroll" style={{ paddingTop: showStove ? 16 : 6 }}>
-        <h1 className="h1" style={{ fontSize: 40 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-        {quickNote}{platedRunning}{logRow}{afterLog}{later}{tip}{doneBtn(52)}
+        <h1 className="h1" style={{ fontSize: 40 }}>{platedTitle}</h1>
+        {quickNote}{platedRunning}{logRow}{afterLog}{tip}{later}{doneBtn(52)}
       </div>
     </>);
 
@@ -11706,11 +11709,11 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
       tr, key: `log${it.key}`, title: it.cookable.title, macros: it.cookable.macros, logged: !!logged[it.key],
       onLog: it.cookable.macros && it.cookable.macros.kcal != null ? () => logDish(it) : null, color: multi ? colorOf(i) : null,
     })) : null}
-    {wrapLater}
     {tips.length ? (<>
       {!cookNow ? <div className="grp">{tr('cook:prep.storage', { defaultValue: 'Storage' })}</div> : null}
       {tips.map((tip, i) => <p key={i} className="note">{tip}</p>)}
     </>) : null}
+    {wrapLater}
     {saveFailed ? <p className="note">{tr('cook:prep.notSaved', { defaultValue: "Sign in to keep your prep — these stamps won't survive this session." })}</p> : null}
     <button type="button" className="btn-q" onClick={finishSession} style={{ minHeight: big ? 56 : 52 }}>{tr('cook:prep.done', { defaultValue: 'Done' })}</button>
   </>);

@@ -189,6 +189,39 @@ test('Start now is not offered over a wait the cook cannot overrule', () => {
   assert.ok(primary.props.disabled, 'an occupied station left the primary live');
 });
 
+test("the session setup's voice switch says what it just did, both ways", () => {
+  // The setup screens read nothing aloud, so the toast is the only sign the switch did
+  // anything there; it must name the state the switch moved TO. A remembered setting needs a
+  // store, and Node's global has none, so one is lent for this test and taken back.
+  const store = new Map();
+  const had = { ls: Object.getOwnPropertyDescriptor(globalThis, 'localStorage'), voice: globalThis.ShapeVoice, chat: globalThis.ShapeCanChat };
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true,
+    value: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => { store.set(k, String(v)); }, removeItem: (k) => { store.delete(k); } } });
+  globalThis.ShapeVoice = { speak() {}, stop() {} };
+  globalThis.ShapeCanChat = true;
+  try {
+    const r = SHAPE_KITCHEN_RECIPES.find((x) => bsCookableFromRecipe(x));
+    const s = drive(MOD.BSPrepSession, { program: [{ meals: [{ id: 'v1', slot: 'Lunch', title: r.title }] }], onClose() {} });
+    const sw = () => s.nodes().find((n) => n.type === 'button' && n.props.role === 'switch');
+    assert.ok(sw(), 'the session setup draws no voice switch');
+    assert.equal(sw().props['aria-checked'], false);
+    sw().props.onClick();
+    s.render();
+    assert.equal(store.get('shape.cookReads'), '1');
+    assert.equal(sw().props['aria-checked'], true);
+    assert.match(s.text, /Nora’s voice is on/, 'turning her on said something else');
+    sw().props.onClick();
+    s.render();
+    assert.equal(store.get('shape.cookReads'), '0');
+    assert.equal(sw().props['aria-checked'], false);
+    assert.match(s.text, /Nora’s voice is off/, 'turning her off said something else');
+  } finally {
+    if (had.ls) Object.defineProperty(globalThis, 'localStorage', had.ls); else delete globalThis.localStorage;
+    if (had.voice === undefined) delete globalThis.ShapeVoice; else globalThis.ShapeVoice = had.voice;
+    if (had.chat === undefined) delete globalThis.ShapeCanChat; else globalThis.ShapeCanChat = had.chat;
+  }
+});
+
 test('the gate opens once the planned minute actually arrives', () => {
   const plan = servePlan(45);
   // Same plan, but the session began 46 minutes ago — step one is due.

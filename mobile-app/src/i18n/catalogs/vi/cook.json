@@ -214,5 +214,6 @@
   "ck.serveNeedsHandsMany": "Các món này đều cần đôi tay của bạn vào cùng một thời điểm, nên không thể cùng xong một lượt. Thay vào đó, hãy nấu lần lượt từng món.",
   "ck.readsOnToast": "Giọng của Nora đã bật. Cô ấy sẽ đọc to từng bước.",
   "ck.readsOffToast": "Giọng của Nora đã tắt. Các bước vẫn hiển thị trên màn hình.",
-  "ck.laterHead": "Khi bạn sẵn sàng ăn"
+  "ck.laterHead": "Khi bạn sẵn sàng ăn",
+  "plated.later": "Đã chuẩn bị sẵn."
 }

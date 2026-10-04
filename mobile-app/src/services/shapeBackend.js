@@ -125,6 +125,33 @@ function demoProfile(overrides = {}) {
   };
 }
 
+// ⚠ THE CACHED TOKEN GOES STALE: state.session is the copy taken when a session was read,
+// and supabase-js replaces the session object when it refreshes (about hourly), so every
+// Bearer request below kept sending the expired one. On the website's cook page that turned
+// Nora silent mid-cook with "sign in". Two layers keep it current: this listener (a refresh
+// by this client, or by another client on the same storage key via its BroadcastChannel,
+// lands here), and liveAccessToken() at call time for the requests a cook makes.
+if (supabase) {
+  try {
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session && state.user && session.user && session.user.id === state.user.id) state.session = session;
+    });
+  } catch (e) {}
+}
+// The access token as of NOW: getSession() returns the stored session, refreshing it first
+// when it is about to expire. Falls back to the cached copy when there is no client or the
+// stored session belongs to another account.
+async function liveAccessToken() {
+  if (supabase) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const s = data && data.session;
+      if (s && s.access_token && (!state.user || (s.user && s.user.id === state.user.id))) { state.session = s; return s.access_token; }
+    } catch (e) {}
+  }
+  return (state.session && state.session.access_token) || null;
+}
+
 function setCached(next = {}) {
   const prevUid = (state.user && state.user.id) || null;
   const prevName = (state.profile && state.profile.full_name) || null;
@@ -4294,7 +4321,8 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 async function askSupportBot(messages, tone, extra = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
-  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const token = await liveAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   const body = { messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive', surface: 'app' };
   if (extra.cookContext) body.cookContext = extra.cookContext;
   if (extra.voice === true) body.voice = true;
@@ -4342,7 +4370,8 @@ async function transcribeTo(path, blob, { filename, signal, language, context })
   if (lang) fd.append('language', lang);
   if (context) fd.append('context', String(context));
   const headers = {};
-  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const token = await liveAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${apiBaseUrl || ''}${path}`, { method: 'POST', headers, body: fd, credentials: 'same-origin', signal });
   const payload = await res.json().catch(() => ({}));
   return {
@@ -7997,13 +8026,15 @@ async function speakVoice(text, toneOverride, opts = {}) {
   const tone = toneOverride || prefs.tone;
   stopVoice();                 // supersedes any prior speak (bumps _voiceGen)
   const myGen = _voiceGen;     // this call's generation, captured after the bump
-  if (!apiBaseUrl || !state.session?.access_token) return { ok: false, reason: 'signed_out' };
+  const token = apiBaseUrl ? await liveAccessToken() : null;
+  if (myGen !== _voiceGen) return { ok: false, superseded: true };
+  if (!apiBaseUrl || !token) return { ok: false, reason: 'signed_out' };
   const ctrl = new AbortController();
   _voiceAbort = ctrl;
   try {
     const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
       signal: ctrl.signal,
     });

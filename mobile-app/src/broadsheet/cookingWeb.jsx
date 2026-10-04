@@ -19,11 +19,20 @@ await Promise.all([
   import('./iosAppBroadsheetHabits.jsx'),
 ]);
 await import('./iosAppBroadsheetClient.jsx');
-await window.ShapeAuth?.getCurrentSession?.().catch(() => null);
+// Signed in with the website's session (shapeBackend.js), hydrating it reads the profile and
+// bridges the session to the API, two round trips with no timeout. Nothing here needs them
+// before the first paint, so the page waits a moment for them and then renders anyway.
+const signedIn = () => !!window.ShapeAuth?.getCachedState?.()?.user?.id;
+const boot = Promise.resolve(window.ShapeAuth?.getCurrentSession?.()).catch(() => null);
+await Promise.race([boot, new Promise((resolve) => setTimeout(resolve, 2500))]);
 // Nora's voice and mic are for signed-in members. The app shell sets this flag; this page
 // never loads the shell, and an unset flag reads as a member, so a signed-out visitor could
 // turn Nora on and get an error instead of being told to sign in.
-window.ShapeCanChat = !!window.ShapeAuth?.getCachedState?.()?.user?.id;
+window.ShapeCanChat = signedIn();
+boot.then(() => {
+  window.ShapeCanChat = signedIn();
+  try { window.dispatchEvent(new Event('shape:canchat')); } catch { /* listeners re-read on mount */ }
+});
 const { BSProvider, BSRadioProvider, BSSheetProvider, BSToastHost, BSConfirmHost, BSCookMode, BSPrepSession } = window;
 const params = new URLSearchParams(location.search);
 const slug = params.get('r');

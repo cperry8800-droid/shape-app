@@ -214,5 +214,6 @@
   "ck.serveNeedsHandsMany": "Esses pratos precisam das suas mãos ao mesmo tempo, então não podem ficar todos prontos juntos. Em vez disso, cozinhe um depois do outro.",
   "ck.readsOnToast": "A voz de Nora está ativada. Ela vai ler cada etapa em voz alta.",
   "ck.readsOffToast": "A voz de Nora está desativada. As etapas continuam na tela.",
-  "ck.laterHead": "Na hora de comer"
+  "ck.laterHead": "Na hora de comer",
+  "plated.later": "Preparado com antecedência."
 }
