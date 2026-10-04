@@ -217,3 +217,12 @@ test('setting the oats aside does not widen the order search of a big session', 
   assert.equal(plan.exact, false);
   assert.ok(ms < 1500, `a seven-dish plan with the oats took ${Math.round(ms)} ms`);
 });
+
+test('the website finished screen does not ask a make-ahead dish to log what it ate', () => {
+  // That note is drawn only beside the stove in the wide layout, which the driven harness does
+  // not render, so the walkthrough above cannot see it (a mutation round found the gap).
+  const client = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+  const notes = client.match(/\{kcalKnown[^?]*\? tr\('cook:ck\.burnersOffLog'/g) || [];
+  assert.equal(notes.length, 1, 'expected the one wide finished-screen note');
+  assert.match(notes[0], /\{kcalKnown && !finishesLater \? tr\('cook:ck\.burnersOffLog'/, 'a jar for the morning is told to log what it ate');
+});
