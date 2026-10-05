@@ -237,16 +237,26 @@ test('a metric reader’s pace figure is compared against a metric trace', () =>
   assert.ok(Math.abs(fixed.frac - imp.frac) < 0.02, `metric ${fixed.frac} vs imperial ${imp.frac}`);
 });
 
-test('only the /mi pace form is converted, so rides and swims are left alone', () => {
-  // ⚠ MEASURED, NOT ASSUMED: `bsSdUnitizeText` leaves 'mph' and '/100m' untouched
-  // (mph is not in its unit list and the pace rule matches only /mi and /km), so
-  // a ride's and a swim's figures are ALREADY in their traces' units. Converting
-  // those traces would create the very mismatch this function exists to remove.
-  assert.equal(bsSdUnitizeText('19.3 mph', METRIC), '19.3 mph');
-  assert.equal(bsSdUnitizeText('1:42/100m', METRIC), '1:42/100m');
+test('every trace follows its converted figure: runs, rides and swims', () => {
+  // ⚠ THIS USED TO PIN RIDES AND SWIMS AS UNCONVERTED, and that was the defect.
+  // A metric member read "19.3 mph" beside kilometres, and an imperial one read
+  // a swim's "1:42/100m" under a title in miles. Both figures convert now, so
+  // their traces must convert with them or the chart disagrees with its number.
+  assert.equal(bsSdUnitizeText('19.3 mph', METRIC), '31.1 km/h');
+  assert.equal(bsSdUnitizeText('1:42/100m', IMPERIAL), '1:33/100yd');
+  // A ride's trace is mph: it becomes km/h exactly when its figure did.
   const ride = [17.2, 28.4], swim = [108, 93];
-  assert.deepEqual(bsSdPaceTraceIn(ride, '19.3 mph'), ride);
-  assert.deepEqual(bsSdPaceTraceIn(swim, '1:42/100m'), swim);
+  assert.deepEqual(bsSdPaceTraceIn(ride, '19.3 mph'), ride, 'an mph figure leaves an mph trace alone');
+  const rideKm = bsSdPaceTraceIn(ride, '31.1 km/h');
+  assert.ok(Math.abs(rideKm[0] - 17.2 * 1.609344) < 1e-9 && Math.abs(rideKm[1] - 28.4 * 1.609344) < 1e-9, `ride trace ${rideKm}`);
+  // A swim's trace is seconds per 100 m: per 100 yd is 0.9144 of it.
+  assert.deepEqual(bsSdPaceTraceIn(swim, '1:42/100m'), swim, 'a /100m figure leaves the trace alone');
+  const swimYd = bsSdPaceTraceIn(swim, '1:33/100yd');
+  assert.ok(Math.abs(swimYd[0] - 108 * 0.9144) < 1e-9 && Math.abs(swimYd[1] - 93 * 0.9144) < 1e-9, `swim trace ${swimYd}`);
+  // And the needle agrees across systems, to within the figure's own rounding.
+  const met = bsSdNeedle('31.1 km/h', rideKm, 'speed');
+  const imp = bsSdNeedle('19.3 mph', ride, 'speed');
+  if (met && imp) assert.ok(Math.abs(met.frac - imp.frac) < 0.02, `metric ${met.frac} vs imperial ${imp.frac}`);
   // A figure still in miles is never converted…
   assert.deepEqual(bsSdPaceTraceIn(DREW_PACE, '8:42/mi'), DREW_PACE);
   // …and one already in kilometres IS.

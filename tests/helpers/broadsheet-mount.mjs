@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import { bsSdUnitizeText, bsSdUnitizeLabel, bsSdMeasure } from '../../mobile-app/src/services/sessionLedger.mjs';
+import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../../mobile-app/src/services/sessionLedger.mjs';
 import { loadRealModule } from './load-real-module.mjs';
 
 const require_ = createRequire(import.meta.url);
@@ -48,7 +48,8 @@ export const THEME = new Proxy({
   // Pinned to IMPERIAL to match `isMetric: false` above, so a suite asserting on
   // '245 lb' keeps asserting on the unit it was written for.
   unitPrefs: IMPERIAL_PREFS,
-  uText: (text) => bsSdUnitizeText(text, IMPERIAL_PREFS),
+  uText: (text, opts) => bsSdUnitizeText(text, IMPERIAL_PREFS, opts),
+  uStat: (label, value, opts) => bsSdUnitizeStat(label, value, IMPERIAL_PREFS, opts),
   uLabel: (unit) => bsSdUnitizeLabel(unit, IMPERIAL_PREFS),
   uMeasure: (value, unit) => bsSdMeasure(value, unit, IMPERIAL_PREFS),
 }, { get: (t, k) => (k in t ? t[k] : '#000'), has: () => true });

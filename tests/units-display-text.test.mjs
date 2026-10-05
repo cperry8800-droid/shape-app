@@ -191,3 +191,100 @@ test('the coach body chart converts the series before deriving anything from it'
   assert.match(src, /const bwWeeks = bwSeriesDisp\.length/,
     'the week count is taken over a different series than the figures');
 });
+
+// ── One system per post: swims, speed, elevation, stride ────────────────────
+// ⚠ THE OWNER'S SCREENSHOT, 2026-10-05: a swim read "Masters swim · 1.2 mi" over
+// a "2,000 m" plate and a "1:42/100m" pace. The title's km was on the whitelist
+// and the plate's metres were not, so one card quoted two systems. These pin
+// that every figure on a post lands in the reader's.
+import { bsSdUnitizeStat, bsSdElevTraceIn } from '../mobile-app/src/services/sessionLedger.mjs';
+
+const SWIM = { sport: 'swim' };
+
+test('a swim reads in the pool unit of the reader\'s system, title and plate alike', () => {
+  // Imperial: yards, and the title says the same distance as the plate.
+  assert.equal(bsSdUnitizeText('Masters swim · 2 km', LB, SWIM), 'Masters swim · 2,187 yd');
+  assert.equal(bsSdUnitizeStat('Distance', '2,000 m', LB, SWIM), '2,187 yd');
+  // Metric: metres, and a kilometre title becomes metres too, so the two match.
+  assert.equal(bsSdUnitizeText('Masters swim · 2 km', KG, SWIM), 'Masters swim · 2,000 m');
+  assert.equal(bsSdUnitizeStat('Distance', '2,000 m', KG, SWIM), '2,000 m');
+  // A swim stored in miles (the importers' format) lands in the pool unit too.
+  assert.equal(bsSdUnitizeStat('Distance', '1.24 mi', KG, SWIM), '1,996 m');
+  assert.equal(bsSdUnitizeStat('Distance', '2,187 yd', KG, SWIM), '2,000 m');
+});
+
+test('a swim pace is per 100 of the pool unit, both ways, and round-trips', () => {
+  // 100 yd is 91.44 m, so a pace per 100 yd is 0.9144 of the pace per 100 m.
+  assert.equal(bsSdUnitizeText('1:42/100m', LB), '1:33/100yd');
+  assert.equal(bsSdUnitizeText('1:33/100yd', KG), '1:42/100m');
+  assert.equal(bsSdUnitizeText(bsSdUnitizeText('1:42/100m', LB), KG), '1:42/100m');
+  assert.equal(bsSdUnitizeText('1:42/100m', KG), '1:42/100m', 'already metric');
+  // The distance rule never reads the 100 of a pace as a distance.
+  assert.equal(bsSdUnitizeText('1:42/100m', LB, SWIM), '1:33/100yd');
+});
+
+test('⚠ A BARE `m` IS ALSO MINUTES, so it is only ever metres in a swim, and never after an hour', () => {
+  for (const prefs of [LB, KG]) {
+    assert.equal(bsSdUnitizeStat('Time', '1h 05m', prefs, SWIM), '1h 05m');
+    assert.equal(bsSdUnitizeStat('Sleep', '8h 10m', prefs), '8h 10m');
+    assert.equal(bsSdUnitizeStat('Time', '34 min', prefs, SWIM), '34 min');
+    // Outside a swim, a bare `m` is left alone whatever it means.
+    assert.equal(bsSdUnitizeText('Ran 400 m repeats', prefs), 'Ran 400 m repeats');
+  }
+  // In a swim, a split length is a distance.
+  assert.equal(bsSdUnitizeText('500m splits', LB, SWIM), '547 yd splits');
+});
+
+test('speed converts with the distance setting, and keeps one decimal', () => {
+  assert.equal(bsSdUnitizeStat('Avg speed', '19.3 mph', KG), '31.1 km/h');
+  assert.equal(bsSdUnitizeStat('Avg speed', '31.1 km/h', LB), '19.3 mph');
+  assert.equal(bsSdUnitizeText('19.3 mph', LB), '19.3 mph');
+  // ⚠ The distance rule must not read the "km" of "km/h" as a distance.
+  assert.equal(bsSdUnitizeText('31.1 km/h', KG), '31.1 km/h');
+});
+
+test('elevation: feet convert in free text, metres only where the label says elevation', () => {
+  assert.equal(bsSdUnitizeStat('Elevation', '540 ft', KG), '165 m');
+  assert.equal(bsSdUnitizeStat('Elevation', '1,240 ft', KG), '378 m');
+  assert.equal(bsSdUnitizeText('+12 ft', KG), '+3.7 m');
+  assert.equal(bsSdUnitizeStat('Elev gain', '165 m', LB), '541 ft');
+  assert.equal(bsSdUnitizeStat('Elevation', '540 ft', LB), '540 ft', 'already imperial');
+  // A metre figure under any other label is not assumed to be a height.
+  assert.equal(bsSdUnitizeStat('Pool', '25 m', LB), '25 m');
+});
+
+test('a stride converts at the precision it is written in', () => {
+  assert.equal(bsSdUnitizeStat('Stride', '1.18 m', LB), '3.9 ft');
+  assert.equal(bsSdUnitizeStat('Stride', '3.9 ft', KG), '1.19 m');
+  assert.equal(bsSdUnitizeStat('Stride', '1.18 m', KG), '1.18 m');
+});
+
+test('the new families are idempotent, so a re-render does not drift', () => {
+  const once = (x, p, o) => bsSdUnitizeText(x, p, o);
+  for (const [x, p, o] of [['Masters swim · 2 km', LB, SWIM], ['19.3 mph', KG], ['540 ft', KG], ['1:42/100m', LB], ['40 yd sled push', KG]]) {
+    assert.equal(once(once(x, p, o), p, o), once(x, p, o), `drifted: ${x}`);
+  }
+});
+
+test('context that is not an object is ignored, so Array.map(uText) still works', () => {
+  // map passes (value, index, array); an index must not read as swim context.
+  assert.deepEqual(['2 km', '9:30/mi'].map((x, i) => bsSdUnitizeText(x, LB, i)), ['1.2 mi', '9:30/mi']);
+  assert.equal(bsSdUnitizeText('2 km', LB, { sport: 'run' }), '1.2 mi');
+});
+
+test('yards outside a swim become metres for a metric reader', () => {
+  assert.equal(bsSdUnitizeText('40 yd sled push', KG), '36.6 m sled push');
+  assert.equal(bsSdUnitizeText('40 yd sled push', LB), '40 yd sled push');
+});
+
+test('the elevation trace follows its figure, and the reader when there is none', () => {
+  assert.deepEqual(bsSdElevTraceIn([100, 200], '540 ft'), { trace: [100, 200], unit: 'ft' });
+  const m = bsSdElevTraceIn([100, 200], '165 m');
+  assert.equal(m.unit, 'm');
+  assert.ok(Math.abs(m.trace[0] - 30.48) < 1e-9 && Math.abs(m.trace[1] - 60.96) < 1e-9);
+  // No figure: the reader's setting decides, since nothing can disagree.
+  assert.equal(bsSdElevTraceIn([100], null, true).unit, 'm');
+  assert.equal(bsSdElevTraceIn([100], null, false).unit, 'ft');
+  // A figure wins over the setting.
+  assert.equal(bsSdElevTraceIn([100], '540 ft', true).unit, 'ft');
+});

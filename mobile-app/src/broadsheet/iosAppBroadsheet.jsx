@@ -1,6 +1,6 @@
 import React from 'react';
 import { bsSwipeIntent } from '../services/swipeIntent.mjs';
-import { bsSdUnitizeText, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
+import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../services/sessionLedger.mjs';
 // iosAppBroadsheet.jsx — Shared tokens, primitives, theme context for the
 // Broadsheet redesign of the Shape iOS app.
 //
@@ -393,7 +393,12 @@ function bsUnitFormatters(system) {
     // matched, and why `in` is deliberately excluded). Prefer a real numeric
     // converter above wherever the number is still in hand; reach for these
     // when it is not.
-    uText: (text) => bsSdUnitizeText(text, { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi' }),
+    // `opts` is optional context — `{ sport }` — so a swim reads in the pool
+    // unit of the reader's system. Callers that pass only the text are unchanged.
+    uText: (text, opts) => bsSdUnitizeText(text, { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi' }, opts),
+    // A [label, value] stat: the label can say a bare `m` is an elevation or a
+    // stride, which free text never can.
+    uStat: (label, value, opts) => bsSdUnitizeStat(label, value, { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi' }, opts),
     uLabel: (unit) => bsSdUnitizeLabel(unit, { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi' }),
     unitPrefs: { weight: metric ? 'kg' : 'lb', distance: metric ? 'km' : 'mi', length: metric ? 'cm' : 'in' },
     // A number plus a separate unit FIELD — no prose to be careful about, so

@@ -9,7 +9,7 @@ import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/r
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsIsTimedReps } from '../services/workoutSession.mjs';
 import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
-import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn } from '../services/sessionLedger.mjs';
+import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
 import { bsHomeSlateSort } from '../services/homeSlate.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
@@ -16184,6 +16184,18 @@ function bsActivityFromPost(p) {
     const L = Array.isArray(p.labels) ? p.labels : [];
     statsRow = [[L[0] || 'Stat', p.statA], [L[1] || '', p.statB], [L[2] || '', p.statC]].filter((r) => r[1]);
   }
+  // ⚠ A SWIM'S DISTANCE FROM THE METRES IT WAS MEASURED IN. Importers write
+  // every distance as miles to two places ('1.24 mi'), which is 8 m of
+  // rounding: converted for a reader it showed a 2,000 m swim as "1,996 m" or
+  // "2,182 yd". The provider's own metres ride on the post, so a swim's
+  // Distance is stated from them, and the reader's units are applied after.
+  const swimMetres = (/swim/i.test(String(p.workout || '')) && Number(rm.distanceMeter) > 0) ? Math.round(Number(rm.distanceMeter)) : null;
+  if (swimMetres != null) {
+    const exact = `${String(swimMetres).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} m`;
+    const fix = (rows) => (Array.isArray(rows) ? rows.map((r) => (/^distance$/i.test(String(r[0]).trim()) ? [r[0], exact, ...r.slice(2)] : r)) : rows);
+    fullStats = fix(fullStats);
+    statsRow = fix(statsRow);
+  }
   // Milestones carry NO stat row — THE APPOINTMENTS block is the card body
   // (a stamp + headline, not numbers); the generic fallback would fabricate
   // an "Activity" stat.
@@ -20831,6 +20843,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   const elevStat = allStats.find(([k]) => elevRe.test(k)) || null;
   const hasCadGraph = Array.isArray(d.cadenceTrace) && d.cadenceTrace.length > 1;
   const hasElevGraph = Array.isArray(d.elevTrace) && d.elevTrace.length > 1;
+  // ⚠ THE ELEVATION CHART IN THE FIGURE'S UNIT. The trace is stored in feet and
+  // the chart was labelled "ft" for every reader, so a metric member read
+  // "+165 m gain" over a profile in feet. Converted once here; the chart, the
+  // board's tiles and the splits' climb column all read this one decision.
+  const elevIn = bsSdElevTraceIn(d.elevTrace, elevStat ? elevStat[1] : null, !!(t.unitPrefs && t.unitPrefs.distance === 'km'));
   // The top "Summary" holds EVERY scalar that doesn't have its own chart — no
   // orphan stats in a bottom grid. Excluded only: cadence/elevation when they
   // HAVE a chart (shown as that chart's chip) + best-pace/top-speed (the primary
@@ -20866,16 +20883,33 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // provider's own row or `Split N`, and `rawSplits` wins anyway), which is why
   // the guard is on the demo corpus — `tests/session-splits-per-mile.test.mjs`
   // fails on a range label rather than this function learning to unpick one.
-  const paceData = bsPaceSplits({
+  const paceDataRaw = bsPaceSplits({
     providerSplits: (Array.isArray(d.rawSplits) && d.rawSplits.length)
       ? d.rawSplits // raw {label,pace,hr,elevation} — uncapped, full columns
       : (d.breakdown && /split|mile|lap/i.test(String(d.breakdown.label || '')) && Array.isArray(d.breakdown.rows))
-        ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|\bm\b/.test(String(r[2])) ? r[2] : undefined }))
+        // ⚠ A BREAKDOWN ARRIVES ALREADY CONVERTED for the reader ('+3.7 m'), while
+        // provider splits and the trace are in feet — and the climb column below
+        // converts feet once. Stated in feet here, so no climb is converted twice.
+        ? d.breakdown.rows.map((r) => ({ label: r[0], pace: r[1], hr: /bpm/.test(String(r[2])) ? r[2] : undefined, elevation: /ft|\bm\b/.test(String(r[2])) ? bsSdUnitizeStat('Elevation', r[2], { weight: 'lb', distance: 'mi' }) : undefined }))
         : null,
     paceTrace: Array.isArray(d.paceTrace) ? d.paceTrace : null,
     hrTrace: d.trace, cadenceTrace: d.cadenceTrace, elevTrace: d.elevTrace,
     distanceMi, sport,
   });
+  // ⚠ EVERY SPLIT IN THE READER'S UNITS. A provider's splits are stored as
+  // written ('8:42/mi', '+12 ft') and the trace-derived ones are labelled in the
+  // trace's own units, so a metric member read /mi splits under a /km average.
+  // Labels go through the same converter as the stats (with the sport, so a
+  // swim's splits read per 100 of the pool unit); climbs are stored in feet.
+  // The bars are relative to each other, so nothing else about them changes.
+  const paceData = paceDataRaw ? {
+    ...paceDataRaw,
+    splits: paceDataRaw.splits.map((x) => ({
+      ...x,
+      paceLabel: x.paceLabel ? t.uText(x.paceLabel, { sport }) : x.paceLabel,
+      elevDelta: (elevIn.unit === 'm' && x.elevDelta != null) ? Math.round(x.elevDelta * 0.3048) : x.elevDelta,
+    })),
+  } : null;
   const hasSplitsPage = !!(paceData && paceData.splits.length > 1);
   const surface = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null);
   const view = (
@@ -20998,7 +21032,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
                        returns `empty` rather than an instrument reading nothing. */
                     detailCtx={{
                       hrTrace: d.trace, paceTrace: paceTraceIn, cadenceTrace: d.cadenceTrace,
-                      elevTrace: d.elevTrace, powerTrace: d.powerTrace, zones: d.zones,
+                      elevTrace: elevIn.trace, powerTrace: d.powerTrace, zones: d.zones,
                       splits: paceData ? paceData.splits : null,
                       // ⚠ SET ROWS ONLY WHEN THE BREAKDOWN IS SET-SHAPED — the
                       // rule is `bsIbSetRowsFor`'s and is driven by a test, because
@@ -21154,7 +21188,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && hasElevGraph && (
           <>
             {secHead(tr('session:chart.elevation', { defaultValue: 'Elevation' }), elevStat ? headChip(tr('session:chart.gainValue', { defaultValue: '+{value} gain', value: elevStat[1] })) : null)}
-            <BSSdTrace vals={d.elevTrace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distanceMi={distanceMi} unit="ft" />
+            <BSSdTrace vals={elevIn.trace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distanceMi={distanceMi} unit={elevIn.unit} />
           </>
         )}
         {/* COMMENTS PAGE — reactions summary (likes open their own sheet) + the
@@ -21449,11 +21483,15 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // converts. The member's own note (`a.body`) deliberately does NOT: rewriting
     // someone's own words is a different act from converting a figure the app
     // itself composed, and it is not what a unit preference asks for.
-    const title = t.uText(a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title));
+    // The post's sport, read once: it picks the reaction verb below, and it is
+    // the context every unit conversion on this card takes, so a swim's title,
+    // plate, pace and splits all read in the pool unit of the reader's system.
+    const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
+    const uCtx = { sport: _rawType };
+    const title = t.uText(a.real ? a.title : (a.kind === 'pr' ? `${a.lift} — new PR` : a.kind === 'run' ? 'Long run' : a.title), uCtx);
     // Reaction verb — DISPLAY ONLY, mapped from the post's activity type; the
     // tally stays one unified count. PR/milestone (a new-best delta, or the demo
     // 'pr' kind) reads "Beast" over the base type. Unknown → "Props".
-    const _rawType = a.activityType || (a.real ? (a.workout || a.typeLabel) : (a.kind === 'run' ? 'run' : a.kind === 'workout' ? 'strength' : a.kind));
     const actType = bsReactionType(_rawType, { isPR: a.real ? (!!a.delta || a.pr === true) : a.kind === 'pr' });
     const cheer = bsReactionVerb(actType);
     // ⚠ EVERY MEASUREMENT ON THIS CARD IS TEXT BY THE TIME IT ARRIVES, so the
@@ -21469,11 +21507,15 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     // prescription. It is converted FIELD BY FIELD instead: `plan` is a load and
     // carries a unit, `rest`/`dur` are durations and `rpe` is a rating, so only
     // the first has anything for the converter to do.
+    // ⚠ EACH VALUE GOES THROUGH WITH ITS LABEL AND THE POST'S SPORT. The label
+    // is what lets an elevation or a stride written in metres convert (a bare
+    // `m` in free text could be minutes), and the sport is what makes a swim's
+    // "2,000 m" and its title's "2 km" land in the same unit.
     const uMeta = (m) => ((m && typeof m === 'object' && !Array.isArray(m))
-      ? { ...m, plan: m.plan == null ? m.plan : t.uText(m.plan) }
-      : t.uText(m));
+      ? { ...m, plan: m.plan == null ? m.plan : t.uText(m.plan, uCtx) }
+      : t.uText(m, uCtx));
     const uStats = (rows) => (Array.isArray(rows)
-      ? rows.map((r) => (Array.isArray(r) ? [r[0], t.uText(r[1]), ...r.slice(2).map(uMeta)] : r))
+      ? rows.map((r) => (Array.isArray(r) ? [r[0], t.uStat(r[0], r[1], uCtx), ...r.slice(2).map(uMeta)] : r))
       : rows);
     const statsRaw = a.real ? a.statsRow
       : Array.isArray(a.stats) ? a.stats
@@ -21597,7 +21639,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       // The breakdown's rows are set-by-set text ('245 lb × 3'), so they carry
       // units too — converted here rather than on the detail page, so the page
       // and the card it opened from quote the same figures.
-      breakdown: a.breakdown ? { ...a.breakdown, rows: uStats(a.breakdown.rows) } : null,
+      // The breakdown's own label is app-formatted too ('500m splits'), so it
+      // converts with the rows under it.
+      breakdown: a.breakdown ? { ...a.breakdown, label: t.uText(a.breakdown.label, uCtx), rows: uStats(a.breakdown.rows) } : null,
       zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, rawSplits: a.rawSplits || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
