@@ -94,6 +94,10 @@ const hasOatsNote = (text) => text.includes(bsAllergenNoteText(OATS_GLUTEN()));
 // ingredients.
 function toMise(s) {
   if (s.buttons().some((b) => b.label.startsWith('Set up your kitchen'))) s.click('Set up your kitchen');
+  // Nothing is chosen for the cook when the dishes cannot be cooked together (owner ruling,
+  // 2026-08-18). This set could only because the overnight oats' 4-hour chill was its one
+  // hands-off window; that chill is make-ahead now, so the cook picks.
+  if (s.buttons().find((b) => b.label.startsWith('Next: ingredients'))?.disabled) s.click('One after another');
   s.click('Next: ingredients');
   return s;
 }

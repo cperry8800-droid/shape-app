@@ -698,13 +698,15 @@ changelog whenever something ships.
   .githooks` once** to enable it locally. CI (`ci.yml`) still runs the full builds on
   PRs into `main` / pushes to `main`+`staging` as the hard gate.
 - **Mutation rounds use ONE runner — never a throwaway script:**
-  `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs`. Every
+  `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped`. Every
   defect the ad-hoc runners shipped (a restore outside a `finally`, an already-mutated
   file snapshotted as the baseline, an anchor silently relocated to a nearby match, a
   verdict read off a pipeline's exit status) is a rule the runner enforces and
   `tests/mutate-runner.test.mjs` drives. Check the spec in beside the PR and paste its
   summary line; a survivor is a guard gap (fix the test) or a proven no-op (mark it
-  `expectSurvive` with the proof in the spec).
+  `expectSurvive` with the proof in the spec). A skip is a mutation that could not be
+  applied, most often an anchor that no longer occurs exactly once, so it never ran;
+  `--fail-on-skipped` makes any skip exit 1 (#2198).
 
 ## Architecture map (mobile broadsheet)
 
@@ -757,6 +759,13 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
+- **Night-before prep reminders — owner, 2026-10-04; reviewed, waiting on the owner's decisions.** *"if anything that needs to be
+  prepped the night before, that should be a notification to the user to remind them if it is part of a meal plan"*, then *"we
+  should look into that more actually, regarding prepping, how that shows and how the user gets notified"*. The review (where
+  things stand, sketches, three ways to remind, seven decisions) is https://claude.ai/artifact/VeUyVhgjsuBDqm8v6XstYE. Measured
+  there: only *Overnight oats, three ways* must be prepped the night before; meal plans name a meal by title only; no prep
+  reminder exists; a tapped meal notification opens nothing; production had 0 push devices and 0 published meal plans. The
+  proposal is an hourly server reminder at 7 pm local plus an Eat *"Tonight · for tomorrow"* plate, as its own PR. Nothing built.
 - **Nora as the account-setup assistant — owner, 2026-09-29, deferred on their word.** *"I also want
   to make Nora pop up when you are going through creating an account, that can fill evreything out
   for you, regading application etc. and also setup your account for you. Maybe save this for the
@@ -770,8 +779,9 @@ several are marked SHIPPED in their own text.
   onward goes live only once a real station provider is signed. The prototype source is in
   [`prototypes/nora-booth/`](../prototypes/nora-booth/README.md), and the next step (the owner's
   *"how do we improve the graphics?"*) is planned in [`HANDOFF-2026-09-29.md`](HANDOFF-2026-09-29.md);
-  the latest state is [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md). Open as PR #2189
-  (`claude/busy-albattani-7vrmq0`), not merged.
+  the latest state is [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md). Merged as
+  [#2189](https://github.com/cperry8800-droid/shape-app/pull/2189) on 2026-09-30; the preview is
+  version 6.
 - **Shape Radio page redesign — the owner picked D · The Signal Field (2026-09-14); THE NEXT BUILD.**
   Code-level brief: [`BUILD-2026-09-14-radio-signal-field.md`](BUILD-2026-09-14-radio-signal-field.md)
   — four PRs, every line reference verified against `main` = `2d49f60`; read it before touching the
@@ -823,6 +833,96 @@ Everything older, newest-first: [2026-09](WORKLOG-ARCHIVE-2026-09.md) ·
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-10-05 — Nora is heard on the website cook page, her voice is a real switch, the cook page loses its box, and overnight oats stop running a 4-hour timer
+
+- **Merged [#2200](https://github.com/cperry8800-droid/shape-app/pull/2200) as `a42519b`**, final head `2839b3e`; the merged tree is byte-identical to it (tree `faf44b8` on both, since `main` had not moved). 34 files, seven commits. **No migration, no new route.** Nine owner requests about the cook screens, in one PR as asked (*"do all of them in one PR"*). The website and the app share these screens, so each fix lands in both (*"make sure these issues are not on app cooking module as well"*).
+- **The website cook page** (`cookPage.jsx`, `Cook.html`).
+  - The `/m/?cooking=1` iframe fills the screen under the site header, with no box (*"just have it be on the screen"*). The page uses the cook layer's own bone paper (`#ece4d3`), and `main.jsx` paints the iframe bone before the cook layer mounts.
+  - **← All recipes** is an ink link with a drawn arrow, a 44 px target and `:focus-visible`.
+  - **Open cooking full screen ↗** is gone.
+  - The floating chat launcher is hidden on this page, because it sat over the pinned Done button. Its `<script>` tag stays, since `dobGate.js` is injected against it.
+- ⚠ **NORA WAS NEVER HEARD ON THE WEBSITE, BECAUSE THE COOK LAYER WAS SIGNED OUT.** The cook layer is the app inside the website's iframe. It read the app's own Supabase token (`sb-<ref>-auth-token`), and the website's is `shape.auth`, so a member signed in on the website was signed out inside the cook layer.
+  - Production evidence: Vercel's runtime logs showed **zero `/api/ai/speak` requests in 7 days** while the cooking bundle was being served.
+  - On `?cooking=1` (web only, never native) the app client now uses `storageKey: 'shape.auth'`, so the cook layer is one more client of the website session, like a second website tab. Both sides are on supabase-js ≥ 2.107, whose refresh coordination is lockless.
+  - `state.session` was the boot copy and never followed a refresh. A `TOKEN_REFRESHED` listener keeps it current, and `liveAccessToken()` reads the token at call time for Nora's voice, ask and transcribe.
+  - *"Nora is reading this step"* was drawn for `idle` too. `speakVoice` now returns an `ended` promise that settles on end, error, stop or supersession, and the line shows only while loading or playing. A sign-in refusal no longer offers a useless *Play voice*.
+  - `cookingWeb.jsx` paints after at most 2.5 s instead of waiting on the session bridge and profile reads.
+- **Nora's voice is one on/off switch** (*"make sure this is a toggle option"*). It is a single shared setting (`useSyncExternalStore` over `shape.cookReads`), so the one-dish screen, the board and the session setup cannot disagree. It is `role="switch"` with `aria-checked`. The website reads **Nora's voice · On/Off**; a phone shows the icon, dim when off and ringed in the accent when on (a fill dropped the icon under 3:1). Off means silent everywhere: her answers to the mic and to *repeat* show as text.
+- **The cook sheets get a 44 px ×** (*"need a small x button"*), in `bsCkSheet`, so All steps and *Leave the cook?* both have one. It never takes first focus, and focus returns to the opener.
+- **The board's primary button reads *Start now*** when a step is waiting only on the plan's clock (*"not letting me continue or press next"*). Before, it stood pale, and the only *Start now* was in a wait row a long card scrolled out of view. A real wait, a station still held, keeps the button shut.
+- ⚠ **"BOTH DISHES NEED YOUR HANDS" WAS PARTLY THE PLANNER'S FAULT.** `bestPlacement` returned the first order that fit at the serve time, overlapping or not, so a *later* serve time could turn a plan that lands together into a refusal. **253 of the 1,928 catalog pairs** that land together at their earliest time were refused at some later time; now **0**, and the all-pairs sweep is a test (`tests/cook-serve-overlap.test.mjs`). `phaseSchedule` ranked by gap alone, so overlapping orders now come first. Three or more dishes get their own wording instead of *"Both"*.
+  - Not changed, an owner call: pesto pasta + cauliflower steak is still refused, because the overlay costs the cauliflower's *"Roast 25 minutes"* as 3 minutes of hands-on work (its next step is the author's *"Meanwhile…"*).
+- ⚠ **THE OVERNIGHT OATS RAN A 240-MINUTE HOLD.** *"Chill at least 4 hours or overnight"* drew a `239:37` countdown, scheduled the morning steps four hours into the session, and put every finish figure four hours out (*"About 248 min left"*).
+  - A catalog overlay can now mark a step `{ makeAhead: true }`. `bsCookableFromRecipe` ends tonight's method there and keeps the rest as `laterSteps`. Only the overlay is read, so a coach's or member's inline step cannot carry the mark.
+  - `bsOfferedTimers` offers no countdown on a make-ahead step; Serve makes such a dish first and lands dinner on time (`exact: false`); the last step reads **Done · finish**, the screen **Made ahead.**, and the morning steps follow under **When you're ready to eat**.
+  - The batido's *"refrigerate up to 4 hours"*, a storage limit, is make-ahead too.
+  - A catalog guard fails on any off-heat wait over an hour unless it is make-ahead or named as a tonight wait with its reason. The 60-minute waits a cook really sits through tonight are kept.
+- **i18n:** six new `cook` keys × 13 locales (`ck.serveNeedsRoomMany`, `ck.serveNeedsHandsMany`, `ck.readsOnToast`, `ck.readsOffToast`, `ck.laterHead`, `plated.later`).
+- **Review.** Codex refused on its usage limit when the PR opened, and Copilot declined on its quota on all three pushed heads (`9068f58`, `726ca05`, `2839b3e`). CodeRabbit's automatic notice came within seconds; the bare trigger was rate-limited, and the round then ran on `9068f58`: **five findings, four fixed in `726ca05` and one withdrawn by CodeRabbit** on measured runtime. Every thread was answered and resolved, and CodeRabbit confirmed each fix on its thread.
+  - The voice switch could not turn on when `localStorage.setItem` threw. An in-memory value now holds it.
+  - ⚠ **The wrap named the first dishes in plan order, not the ones that finished.** The board can finish a later dish first. `doneKeys` is recorded in `writeEntry` and restored on resume.
+  - `finishCookable` now exempts a make-ahead step from its terminal rewrite, so the mark cannot be lost if the entry ever becomes passive.
+  - A stopwatch assertion became a count: `serveTimeline` reports `placements`, 979 for the 7-dish set with the oats against 67,053 searched exhaustively, and the test holds `0 < placements < 10000`.
+  - Withdrawn: sampling the all-pairs sweep. The file runs in about 3.7 s, and it is the guard that measured the defect.
+- ⚠ **THE FIRST ROUND NEVER REVIEWED THE FINAL HEAD, AND THE OWNER ASKED FOR IT.** Its fixes were confirmed thread by thread, but CodeRabbit's status on `726ca05` read *"Review skipped"*. On the owner's *"make sure codereview is run on 2200"*, one more bare trigger went out a day later, inside the hour's included review: **2 findings on `726ca05`, both real, both reproduced by a failing test and fixed in `2839b3e`**.
+  - A Serve plan made only of made-ahead dishes lost *"too soon"* once the offset was added: with no dish left for tonight there was no inner plan to carry it. It is judged on the whole plan now, and dinner's own flag is replaced rather than doubled.
+  - The website cook layer read a session still loading at 2.5 s as signed out, because the user is cached only after the profile reads. A member on a slow connection was told to sign in until it finished. It reads as a member until the session settles.
+  - Six mutations, all killed. ⚠ **One survived the first run, and it was the test's fault:** it read the flag after `await`, by which time the page's own catch-up write had replaced the first one. The test now records every write.
+  - ⚠ **`2839b3e` itself had no full review.** CodeRabbit confirmed both fixes on their threads; the commit is otherwise covered by its tests, the mutations and my own reread. The owner ruled *"merge it when CI is green"*, and it merged with every required check green on that head.
+- **My own adversarial round before the trigger** found five more, all fixed in `590682c`: the stale token; the blocking first paint; the make-ahead serve time claiming to be proven earliest; a 7-dish plan with the oats taking ~3.8 s instead of ~0.1 s; and a long French title running under the switch at 760 px. The on-state contrast was fixed too.
+- **Verified:** `npm test` **5371/5371** on the final head, through the pre-commit gate on every commit; all required checks green on `2839b3e`. Mutation rounds through the shared runner (`tests/mutations/cook-owner-fixes-2026-10-04.mutations.mjs`, `--fail-on-skipped`): **57/57** on `617aeaf`, after eight first-run survivors were closed as real gaps; **67 of 68** on `590682c`, the one survivor a real gap (the wide layout's *Log what you ate* note) closed in `9068f58` and then killed; **5/5** on the first round's fixes in `726ca05`; and **6/6** on the second round's in `2839b3e`. Driven in Chromium, signed out: `Cook.html?mode=together` at 1440 / 1280 / 768 / 390 / 320 with no horizontal scroll; the switch at 1280 and 390; the × on both sheets with focus return; oats + shakshuka Together at 25 min with no `240` / `239:` anywhere; zero page errors.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT FIXED:**
+  - The finished oats screen still offers *Log it* tonight for a breakfast eaten tomorrow. Owner call.
+  - Coach-written *"chill 4 hours"* steps and member imports can still produce long holds, since the mark is read from the catalog overlay only.
+  - `bsCkMmss` prints a timer over an hour as minutes (`119:59`).
+  - The sheet scrim stops at the iframe edge, and the page's *← All recipes* and the cook bar's × are two exits to /recipes, one above the other.
+  - The pesto + cauliflower pair above. ⚠ **Serve stays exact, by the owner's ruling** (*"serve is so dishes finish together"*): it will not offer *"ready within N minutes"*, which closes the call #2179 registered. Night-before prep is to become a reminder instead; the review is https://claude.ai/artifact/VeUyVhgjsuBDqm8v6XstYE, nothing built yet.
+  - *"1 burners, 1 ovens"* should be singular. Pre-existing.
+  - ⚠ **NO ON-ACCOUNT PASS.** Supabase is unreachable from the build box, so nobody has yet heard Nora on the website signed in. The honest check is the owner opening a recipe's cook page signed in, with the switch on.
+
+### 2026-10-03 — The mutation runner can fail a round that skipped a mutation, and the booth's preview is re-measured
+
+- **Merged [#2198](https://github.com/cperry8800-droid/shape-app/pull/2198) as `2067e07`**, final head `3fc21cf`; the merged tree is byte-identical to it (tree `afb0df6` on both). Seven files. **No migration, no route, no app code.**
+- **The #2189 records.** Its changelog entry, written after its merge; the preview republished as version 6, byte-identical to a fresh build of `main`; the booth re-measured at 1280×720 (high 153, high `?cine=0` 143, low 123 draw calls, about one fewer each, which is the stairs' LED riser mesh); `glinfo.cjs` waiting up to 3 minutes for the cinematic tier's page load; and the #2189 review round checked in as `tests/mutations/nora-flash-gate.mutations.mjs`, 6/6.
+- **`--fail-on-skipped`** (CodeRabbit asked; owner: *"Do this task here"*). `scripts/mutate.mjs` exits 1 when any mutation could not be applied. Before, a skip never changed the exit status, even under `--fail-on-survivor`, so a spec whose anchors had drifted could exit 0 having tested nothing.
+  - `--fail-on-survivor` is unchanged, and the two flags combine.
+  - A round with skips lists each one with `planMutation`'s own reason: an anchor that does not occur exactly once, an empty anchor, or a replacement identical to its anchor.
+  - The runner convention at the head of this file now passes the flag.
+- **Review.** Codex refused on its usage limit when the PR opened. CodeRabbit's automatic notice came 11 s after opening, and the bare trigger was read as a command: **one round on `8422a61`**, one trivial finding, the flag above. I first queued it as its own task; the owner asked for it here. Copilot reviewed each push on its own:
+  - `8422a61`: one low, a mutation named the opposite of what it does. Renamed.
+  - `5082060`: none.
+  - `0a352c4`: two low, both right. My new note and the docs called every skip a drifted anchor. Fixed in `3fc21cf`.
+  - `3fc21cf`: none. Every thread was answered and resolved, and CodeRabbit was not re-triggered.
+  - ⚠ **My own re-read caught a false line in my own records before any reviewer did**: the "run the measurement panel alone" note named a phone check that never ran beside the measurement. Corrected in `5082060`.
+- ⚠ **The web build failed once on `3fc21cf`**: `next build` could not download the Inter font from Google Fonts (56 identical module-not-found errors, nothing the diff touches). Its one re-run passed.
+- **Verified:** `npm test` **4929/4929** through the pre-commit hook; the runner's own round under the flag **killed 30, survived 0, skipped 0**, with the one no-op and the one timeout its spec documents; all four required checks green on `3fc21cf`.
+- **Written after the merge**, per the 2026-09-11 rule. Records-only, so no review round.
+- **REGISTERED, NOT FIXED:** the three older specs' headers (`batched-overview`, `heavy-assets`, `integrations-page-module`) still show the run command without the flag; the convention above has it. The `worklog-archive.mjs` idempotency fix registered by #2186 is still open.
+
+### 2026-09-30 — Nora's booth reaches `main`, and its one review round caught a strobe and a frozen camera
+
+- **Merged [#2189](https://github.com/cperry8800-droid/shape-app/pull/2189) as `ad61bb3`**, final head `8c4cea0`; the merged tree is byte-identical to it (tree `215ea2a` on both). It is the booth prototype's first merge: `prototypes/nora-booth/` plus its review, plan and handoffs under `docs/`, 16 commits and 108 files. Nothing in the app or the website imports it. **No migration, no route, no i18n key.**
+- **The 09-30 session's five stage notes from the owner**, each detailed in [`HANDOFF-2026-09-30.md`](HANDOFF-2026-09-30.md):
+  - thin moving-head beams with no brightness ripple, because bloom turned the ripple into beads over the screen;
+  - the runway and B-stage removed, so the crowd fills to the stage lip;
+  - the Shape mark's ▸◂ above **CLUB SHAPE** on the LED wall, the letters rebuilt from the wordmark's own strokes (S H A P E match the PNG at IoU ≥ 0.9) and snapped to 12 dots;
+  - a cinematic tier on desktop only (`src/cinematic.mjs`: light shafts off the wall, per-shot depth of field, anamorphic streaks, a film finish and 2.39:1 bars; `?cine=0` turns it off);
+  - the side stairs removed, so the wall stands on a flat deck.
+- **Review.** Codex refused on its usage limit when the PR opened. Copilot declined twice on the account's review quota. CodeRabbit's first trigger was refused as rate-limited; the second, once the hour's slot reopened, ran on `b2f7484` and returned **12 findings: 11 fixed in `7e48d9f` and 1 answered another way**. Every thread was answered and resolved, and the round was not re-triggered (owner: *"ok only 1 code review"*).
+  - ⚠ **The blinders could strobe.** They followed the kick envelope, so a kick on every 16th would have flashed them four times a beat, past the rule that nothing flashes faster than once a beat. `src/flashGate.mjs` is a pure gate: one flash per beat at most, never more than three a second, one per kick edge.
+  - ⚠ **The camera froze after a long wait before the tap.** `startSet` restarted the bar clock at 0 without telling the director, so a shot begun at silent bar 40 was not due until bar 48 of the set. The director's shot and the hype window are rebased at the tap.
+  - Also fixed: reduced motion now reaches the camera (no handheld sway, no kick zoom); the CDJ hot-cue pads and markers were drawn from no cue data; the synthesized fallback showed an invented artist (it reads *Synthesized example*, and the generator's titles stay so "Next track ⇄" visibly changes); the package test script, two absolute container import paths, a stale multi-agent banner at the top of `CONTRACT.md`, a wholly stale `INTEGRATION-NOTES.md` (removed) and the stale branch name in this file's Open work.
+  - Answered another way: the 29 Chromium harnesses take `CHROME_PATH` as an override instead of a shared launch helper, because each carries its own launch arguments and Playwright's own browsers are not installed here.
+- **Verified:** the prototype suite **76/76**; root `npm test` **4857/4857** through the pre-commit hook; all four required checks green on `8c4cea0`. The review fixes' mutation round was 4/4 at the time. It is checked in as `tests/mutations/nora-flash-gate.mutations.mjs` and was re-run through the shared runner on 2026-10-03: **6/6 killed**, the tree restored byte-identical.
+- **Follow-up, 2026-10-03.** The preview was republished as **version 6** (no side stairs, the flash gate, the review fixes), and the published build was re-measured at 1280×720 in the wide shot:
+  - high with the cinematic chain **153 / 2.80 M**, high with `?cine=0` **143 / 2.80 M**, low **123 / 1.14 M** (draw calls / triangles), about one draw call under the 09-30 figures each, which is the stairs' LED riser mesh;
+  - the 390 px phone layout has no horizontal overflow, the set starts and plays, and there are no page errors.
+  - ⚠ **The checked-in harness could not measure the cinematic tier here.** Its page load ran past Playwright's 30 s default in SwiftShader even with nothing else running, so `glinfo.cjs` now waits up to 3 minutes for it.
+  - ⚠ **The handoff's "run the measurement panel alone" lesson, re-learned.** The high tier without the chain timed out at page load while a second browser started beside it; alone it loaded within the default and measured.
+- **Written after the merge**, per the 2026-09-11 rule. The owner had deferred it during the PR (*"dont worry about worklog right now"*).
+- ⚠ **REGISTERED, NOT FIXED:** no real GPU or phone has run the cinematic tier; the HUD's top-left note runs past the top letterbox bar; *"LOADING NORA…"* sits over the screen's mark until her model arrives; a `reading 'bars'` page error was seen once and not chased (owner: *"just forget it"*); the LED wall has one scene.
 
 ### 2026-09-30 — The auto-loaded changelog gets a size cap, and the review that cleared it was the third reviewer asked
 

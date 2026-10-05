@@ -183,6 +183,7 @@ const realMin = (m) => (m && typeof m.min === 'number' && Number.isFinite(m.min)
 // reads "or cover and refrigerate up to 4 hours before drinking" in a TEN-MINUTE smoothie as a
 // four-hour step, and misses "simmer uncovered for one hour" entirely because the number is
 // spelled out. A parsed duration is not authored data and this engine does not schedule on it.
+// (That smoothie step is now marked make-ahead, so neither side reads its four hours.)
 const stepCost = (m, activeMin) => realMin(m) ?? activeMin;
 
 // Does a plan REST ON ASSUMPTIONS? A step with no authored duration costs the injected
@@ -201,7 +202,7 @@ const stepCost = (m, activeMin) => realMin(m) ?? activeMin;
 // recipes rather than 71 - a signal, and still an honest one.
 const ESTIMATE_SLACK_MIN = 15;
 const shortfallOf = (r, activeMin) => r.steps.reduce((n, text, i) => {
-  if (realMin(r.meta[i]) != null) return n;
+  if (realMin(r.meta[i]) != null || r.meta[i]?.makeAhead === true) return n;
   const mins = bsStepTimers(String(text || '')).reduce((a, t) => a + t.seconds, 0) / 60;
   return n + Math.max(0, Math.round(mins) - activeMin);
 }, 0);
@@ -224,7 +225,8 @@ const evt = (r, i, at) => {
   // `recipe` stays the catalog/display key the UI reads.
   const also = Array.isArray(m.also) ? m.also.filter((x) => STICKY.includes(x)) : [];
   return { recipe: r.key, iid: r.iid, title: r.title, stepIndex: i, text: r.steps[i], at, min, passive, station: m.station ?? null,
-    ...(also.length ? { also } : {}), ...(pauseOf(m) ? { maxPause: pauseOf(m) } : {}) };
+    ...(also.length ? { also } : {}), ...(pauseOf(m) ? { maxPause: pauseOf(m) } : {}),
+    ...(m.makeAhead === true ? { makeAhead: true } : {}), ...(m.finishesLater === true ? { finishesLater: true } : {}) };
 };
 
 // Serial: every recipe's steps in order, back-to-back. A passive step still
@@ -376,7 +378,11 @@ function placePhases(rs, activeMin, T, kitchen, orderIdx, budget, allowance) {
   return search(queue, result);
 }
 
+// Every placement tried, so a serve plan can report what its order search cost (`placements`)
+// and a test can hold that number without a stopwatch.
+let placeCount = 0;
 function placeAt(rs, activeMin, T, kitchen, orderIdx) {
+  placeCount++;
   // Place every dish to END at T, pulling a dish earlier when an exclusive station is
   // already held OR the cook is already busy. Returns feasible:false when a dish still clashes after being pulled
   // all the way to t=0 — that is not a schedule to be shown, it is proof that T is too
@@ -497,9 +503,12 @@ const rotationsOf = (n) => {
   return out;
 };
 
-const permutationsOf = (n) => {
+// `breadth` is the dish count the search is sized for. It is the session's whole count even
+// when a make-ahead dish has been set aside: splitting one off a seven-dish session must not
+// push the other six into the exhaustive search (measured: ~0.1 s became ~3.8 s per plan).
+const permutationsOf = (n, breadth = n) => {
   if (n < 2) return [];
-  if (n > ORDER_SEARCH_MAX) return rotationsOf(n);
+  if (breadth > ORDER_SEARCH_MAX) return rotationsOf(n);
   const out = [];
   const walk = (left, acc) => {
     if (!left.length) { out.push(acc); return; }
@@ -509,26 +518,34 @@ const permutationsOf = (n) => {
   return out;
 };
 
-// For contiguous recipes the first feasible ordering is sufficient.
-function bestPlacement(rs, activeMin, T, kitchen) {
+// The first feasible ordering whose dishes overlap; failing that, the first feasible one.
+// ⚠ FIRST-FIT ALONE TURNED A LATER SERVE TIME INTO A REFUSAL. Measured on the catalog:
+// chickpea shakshuka + tempeh teriyaki planned together at 42-44 min and were refused from
+// 45, because at 45 the default order still fits but no longer overlaps, and the search
+// stopped there while another order overlapped. A plan that fits but does not overlap is
+// the one-after-the-other answer the sheet refuses, so it is kept only as the fallback.
+function bestPlacement(rs, activeMin, T, kitchen, breadth = rs.length) {
   const first = placeAt(rs, activeMin, T, kitchen);
-  if (first.feasible) return first;
-  let deficit = first.deficit;
-  for (const order of permutationsOf(rs.length)) {
+  if (first.feasible && serveDetails(first.placed).coordinated) return first;
+  let fit = first.feasible ? first : null;
+  let deficit = first.feasible ? Infinity : first.deficit;
+  for (const order of permutationsOf(rs.length, breadth)) {
     const plan = placeAt(rs, activeMin, T, kitchen, order);
-    if (plan.feasible) return plan;
-    deficit = Math.min(deficit, plan.deficit);
+    if (plan.feasible) {
+      if (serveDetails(plan.placed).coordinated) return plan;
+      if (!fit) fit = plan;
+    } else deficit = Math.min(deficit, plan.deficit);
   }
-  return { feasible: false, deficit: Math.max(1, deficit) };
+  return fit || { feasible: false, deficit: Math.max(1, deficit) };
 }
 
 // Search phase orders once, independently of the chosen clock time. Repeating
 // this search for every minute of the earliest-time probe made planning sluggish.
 // Live replans keep absolute resource reservations and use the placement below.
-function phaseSchedule(rs, activeMin, kitchen) {
+function phaseSchedule(rs, activeMin, kitchen, breadth = rs.length) {
   if (!rs.some(r => r.meta.some(pauseOf)) || kitchen?.liveHolds?.length || rs.some(r => r.readyAt > 0 || r.carry?.length)) return null;
   const horizon = rs.reduce((n, r) => n + durationOf(r, activeMin) + r.steps.reduce((a, _, i) => a + pauseOf(r.meta[i]), 0), 0);
-  const orders = rs.length <= 4 ? permutationsOf(rs.length) : rotationsOf(rs.length);
+  const orders = breadth <= 4 ? permutationsOf(rs.length) : rotationsOf(rs.length);
   if (!orders.length) orders.push(rs.map((_, i) => i));
   const budget = { remaining: BS_ORCH.phaseSearchMax };
   let best = null;
@@ -543,8 +560,14 @@ function phaseSchedule(rs, activeMin, kitchen) {
     const ends = rs.map(r => Math.max(...plan.events.filter(e => e.iid === r.iid).map(e => e._end)));
     const spread = Math.max(...ends) - Math.min(...ends);
     const duration = horizon - first;
-    if (!best || spread < best.spread || (spread === best.spread && duration < best.duration))
-      best = { ...plan, spread, duration, events: plan.events.map(e => ({ ...e, at: e.at - first, _end: e._end - first })) };
+    // ⚠ AN ORDER WHOSE DISHES OVERLAP BEATS A SMALLER GAP. Ranking by gap alone returned a
+    // plan the sheet refuses while an accepted one was in hand: measured (before overnight oats
+    // became make-ahead) on oats + yogurt bowl + dahl, six orders searched, four overlapped,
+    // and the 17-min gap that did not was returned over a 21-min gap that did.
+    const together = serveDetails(plan.events).coordinated;
+    if (!best || (together && !best.together)
+      || (together === best.together && (spread < best.spread || (spread === best.spread && duration < best.duration))))
+      best = { ...plan, together, spread, duration, events: plan.events.map(e => ({ ...e, at: e.at - first, _end: e._end - first })) };
   }
   // Exhausting phase search must not launch the older factorial order search.
   // One contiguous placement at the serial bound is always feasible; it can
@@ -600,8 +623,37 @@ function serveOneAtATime(rs, activeMin, serveAt, kitchen) {
   };
 }
 
-function serveTimeline(rs, activeMin, serveAt, kitchen) {
+// A dish that is finished another day (overnight oats: into the fridge tonight, eaten in the
+// morning) is not landed with dinner. It is made first, end to end, and the rest are served
+// together after it.
+const finishesLaterDish = (r) => (r.meta || []).some((m) => m && m.finishesLater === true);
+function serveTimeline(rs, activeMin, serveAt, kitchen, breadth = rs.length) {
   if (!timingInRange(rs, activeMin, serveAt)) return invalidServe();
+  const ahead = rs.filter(finishesLaterDish);
+  if (ahead.length) {
+    const tonight = rs.filter((r) => !finishesLaterDish(r));
+    const pre = serialTimeline(ahead, activeMin);
+    const preLen = ahead.reduce((n, r) => n + durationOf(r, activeMin), 0);
+    const want = Number.isFinite(serveAt) && serveAt > 0 ? Math.max(1e-6, serveAt - preLen) : serveAt;
+    const sv = tonight.length ? serveTimeline(tonight, activeMin, want, kitchen, breadth)
+      : { timeline: [], serveAt: 0, earliestServe: 0, spread: 0, issues: [], exact: true, estimated: false, ready: [], coordinated: true };
+    if (sv.invalidTiming) return sv;
+    // "Too soon" is judged again on the whole plan: with no dish left for tonight there is no
+    // inner plan to carry it, and the asked time has to clear the made-ahead dishes as well.
+    const earliestAll = sv.earliestServe + preLen;
+    const wantedAll = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliestAll;
+    return { ...sv,
+      issues: [...(wantedAll < earliestAll ? [BS_SERVE_ISSUE.TOO_SOON] : []),
+        ...(sv.issues || []).filter((x) => x !== BS_SERVE_ISSUE.TOO_SOON)],
+      timeline: [...pre, ...sv.timeline.map((e) => ({ ...e, at: e.at + preLen }))],
+      serveAt: sv.serveAt + preLen, earliestServe: sv.earliestServe + preLen,
+      ready: (sv.ready || []).map((d) => ({ ...d, start: d.start + preLen, readyAt: d.readyAt + preLen })),
+      coordinated: tonight.length < 2 ? !overCapacity(tonight, kitchen) : sv.coordinated,
+      // Made first, end to end, is one plan that works, not a proof of the earliest: its
+      // hands-on steps could often hide inside a dinner dish's hold (measured: chicken + oats
+      // + salmon serves at 39, this says 45). So the sheet says "the earliest we searched".
+      exact: false };
+  }
   // ⚠ A STEP THE KITCHEN CANNOT HOLD IS REFUSED HERE, BEFORE ANY PLACEMENT. Two burners' worth
   // of pans on a one-burner hob has no placement: pulling the dish earlier never clears it, and
   // the search below would walk to its bound and hand back nothing. Reserving what the kitchen
@@ -610,7 +662,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // kitchen, with STATIONS naming it as the reason -- which is what lets the sheet say "add a
   // burner", and a bigger kitchen really does fix it.
   if (overCapacity(rs, kitchen)) return serveOneAtATime(rs, activeMin, serveAt, kitchen);
-  const phases = phaseSchedule(rs, activeMin, kitchen);
+  const phases = phaseSchedule(rs, activeMin, kitchen, breadth);
   if (phases) {
     const earliest = phases.duration;
     const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
@@ -627,6 +679,7 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
       searchWork: phases.searchWork,
     };
   }
+  const placedBefore = placeCount;
   const durs = rs.map((r) => durationOf(r, activeMin));
   const longest = durs.length ? Math.max(...durs) : 0;
 
@@ -638,10 +691,10 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // on one stove for the same 18 minutes -- reported as spread 8 with issues:['stations'],
   // so it read as handled rather than impossible.
   let earliest = longest;
-  let feas = bestPlacement(rs, activeMin, earliest, kitchen);
+  let feas = bestPlacement(rs, activeMin, earliest, kitchen, breadth);
   for (let guard = 0; guard < BS_ORCH.serveSearchMax && !feas.feasible; guard++) {
     earliest += feas.deficit;
-    feas = bestPlacement(rs, activeMin, earliest, kitchen);
+    feas = bestPlacement(rs, activeMin, earliest, kitchen, breadth);
   }
   // ⚠ THE GUARD ABOVE BOUNDS ITERATIONS, NOT MINUTES, and each step advances by the real
   // shortfall -- which MEASURED on two n-step hands-on dishes is exactly one step per
@@ -669,13 +722,13 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   if (!feas.feasible) {
     serialFallback = true;
     earliest = durs.reduce((sum, d) => sum + d, 0) + Math.max(0, ...rs.map(r => r.readyAt || 0), ...(kitchen?.liveHolds || []).map(h => h.to));
-    feas = bestPlacement(rs, activeMin, earliest, kitchen);
+    feas = bestPlacement(rs, activeMin, earliest, kitchen, breadth);
   }
 
   const wanted = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliest;
   const tooSoon = wanted < earliest;
   const asked = tooSoon ? earliest : wanted;
-  const attempt = bestPlacement(rs, activeMin, asked, kitchen);
+  const attempt = bestPlacement(rs, activeMin, asked, kitchen, breadth);
   // ONE placement answers for everything below. `timeline`, `serveAt`, `spread` and
   // `issues` have to describe the SAME plan, or the sheet reports a schedule it is not
   // showing. Reading the earliest-time placement into a result placed at a later time
@@ -710,8 +763,9 @@ function serveTimeline(rs, activeMin, serveAt, kitchen) {
   // now says so in the result rather than in a comment.
   return {
     timeline, serveAt: T, earliestServe: earliest, spread, issues, ...serveDetails(placed),
-    exact: rs.length <= ORDER_SEARCH_MAX && !serialFallback && !rs.some(r => r.meta.some(pauseOf)),
+    exact: breadth <= ORDER_SEARCH_MAX && !serialFallback && !rs.some(r => r.meta.some(pauseOf)),
     estimated: assumesLengths(rs, activeMin),
+    placements: placeCount - placedBefore,
   };
 }
 
@@ -780,6 +834,7 @@ export function bsOrchestrate(recipes, opts = {}) {
       exact: sv.exact, estimated: sv.estimated, coordinated: sv.coordinated, ready: sv.ready,
       ...(sv.invalidTiming ? { invalidTiming: true } : {}),
       ...(sv.searchWork != null ? { searchWork: sv.searchWork } : {}),
+      ...(sv.placements != null ? { placements: sv.placements } : {}),
     };
   }
   if (mode === BS_COOK_MODE.SEQUENCE) {
@@ -961,7 +1016,8 @@ export function bsReplanCook(timeline, cursor, timers, anchor, now, kitchen = {}
   };
   const rs = [...groups].map(([iid, events]) => ({
     iid, key: events[0].recipe, title: events[0].title, events,
-    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station, also: e.also, maxPause: e.maxPause })),
+    steps: events.map(e => e.text), meta: events.map(e => ({ min: e.min, passive: e.passive, station: e.station, also: e.also, maxPause: e.maxPause,
+      ...(e.makeAhead ? { makeAhead: true } : {}), ...(e.finishesLater ? { finishesLater: true } : {}) })),
     readyAt: Math.max(0, ...live.filter(t => t.iid === iid).map(t => (t.endsAt - now) / 60000)),
     carry: carryOf(iid),
   }));

@@ -38,6 +38,9 @@ if (Capacitor.isNativePlatform()) {
 }
 
 if (!Capacitor.isNativePlatform() && new URLSearchParams(location.search).get('cooking') === '1') {
+  // The website frames this on the cook layer's own bone paper; the app's default page
+  // colour would flash as a lighter panel until the cook layer mounts.
+  try { document.documentElement.style.background = document.body.style.background = '#ece4d3'; } catch (e) {}
   await import('./broadsheet/cookingWeb.jsx');
 } else {
   await import('./broadsheet/index.jsx');

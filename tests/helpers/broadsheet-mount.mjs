@@ -106,6 +106,8 @@ export const SHIM = {
     return ctx.cells[i];
   },
   useEffect() {}, useLayoutEffect() {}, useInsertionEffect() {},
+  // Each render is a fresh call, so the store is read now; nothing subscribes.
+  useSyncExternalStore(subscribe, getSnapshot) { return getSnapshot(); },
   useMemo(fn) { return fn(); },
   useCallback(fn) { return fn; },
   useId() { return 'test-id'; },
