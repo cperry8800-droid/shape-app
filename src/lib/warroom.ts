@@ -576,6 +576,87 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Night-before prep reminders — SHIPPED 2026-10-05 (#2202 -> f2a8aa9). One migration (applied), one cron route',
+      items: [
+        { label: 'One rule for the server and the app (mobile-app/src/services/prepAhead.mjs): which planned meals need prepping tonight, batched over the days one prep keeps (the oats keep 3, so Sunday covers Mon to Wed). A made-ahead meal counts as prepped only when a prep covers it on its own day', status: 'done' },
+        { label: '/api/cron/prep-reminders, hourly: one reminder at 7 pm in each member\'s zone, through createPreferredNotification, so mute and the new Prep reminders switch apply. Quiet hours keep the row and drop the push. It scans every published plan by a cursor, a failed read sends nothing, and it reports owed, sent and truncated', status: 'done' },
+        { label: 'One reminder per member per evening: data.dedupe plus the unique index notifications_dedupe_uidx. The owner applied the migration on 2026-10-05, and production reads the index as unique, valid and ready', status: 'done' },
+        { label: 'createPreferredNotification, which the waitlist invite and join routes use too, now sends nothing when it cannot read the member\'s preferences (it used to send on the defaults, which push), emails only once its row is stored, and reports whether it stored the row', status: 'done' },
+        { label: 'The app: a "Tonight · for tomorrow" card on Eat from 3 pm, "Not prepped last night" in the morning, and a finish screen that records the prep for the planned days instead of offering "Log it". The switch is in the app\'s and the website\'s settings, and a tapped reminder opens the cook screen', status: 'done' },
+        { label: 'Review: two CodeRabbit rounds, every finding fixed or withdrawn. npm test 5407/5407; the mutation round killed 55 of 55 on the final head', status: 'done' },
+        { label: 'On-device pass: no phone has received a prep reminder push. Production had 0 registered push devices on 2026-10-05', status: 'manual' },
+        { label: 'OWNER — check the 7 pm reminder on a real account: publish a meal plan with the overnight oats for a test member, then look for the reminder and the Eat card the evening before. Production had 0 published meal plans when this shipped', status: 'manual' },
+        { label: 'Phase 2, not started: a nutritionist\'s "prep the night before" tick on any meal, a reminder time the member chooses, members planning tomorrow\'s meals, and a morning swap', status: 'pending' },
+        { label: 'The reminder text is English only, like every server-written notification: the notifications table has no locale to write in. The app\'s card is translated', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Cook fixes: Nora heard on the website, a real voice switch, Serve stops refusing plans that work — SHIPPED 2026-10-05 (#2200 -> a42519b). No migration, no route',
+      items: [
+        { label: 'Nora was never heard on the website: the cook layer inside the website\'s iframe was signed out (zero /api/ai/speak requests in 7 days). It now shares the website\'s session and reads the token at call time', status: 'done' },
+        { label: 'Nora\'s voice is one on/off switch shared by every cook screen. The cook page has no box, "← All recipes" is an ink link with a 44 px target, "Open cooking full screen" is gone, and the cook sheets have a 44 px close button', status: 'done' },
+        { label: 'The board\'s main button reads "Start now" when a step waits only on the plan\'s clock, so the cook is never stuck', status: 'done' },
+        { label: 'Serve took the first order that fit the serve time, so 253 of 1,928 catalog pairs were refused at a later serve time although they could land together. Now 0, and the all-pairs sweep is a test', status: 'done' },
+        { label: 'The overnight oats no longer run a 240-minute countdown: a make-ahead step ends tonight\'s method, and the morning steps follow under "When you\'re ready to eat"', status: 'done' },
+        { label: 'Owner ruling 2026-10-04: Serve stays exact ("serve is so dishes finish together"); it will not offer "ready within N minutes". Night-before prep became a reminder instead (#2202)', status: 'done' },
+        { label: 'Review: CodeRabbit, two rounds (five findings on the first, four fixed and one withdrawn; two on the second, both fixed). npm test 5371/5371', status: 'done' },
+        { label: 'OWNER — open a recipe\'s cook page signed in, with Nora\'s voice on, and confirm she is heard. No signed-in pass has run: Supabase is unreachable from the build box', status: 'manual' },
+        { label: 'OWNER CALL NEEDED — pesto pasta with cauliflower steak is still refused, because the catalog costs the cauliflower\'s "Roast 25 minutes" as 3 minutes of hands-on work', status: 'pending' },
+        { label: 'Coach-written "chill 4 hours" steps and member imports can still produce long holds: the make-ahead mark is read from the catalog overlay only', status: 'pending' },
+        { label: 'Small: a timer over an hour prints as minutes (119:59); "1 burners, 1 ovens" should be singular; the sheet scrim stops at the iframe edge', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Security: SECURITY DEFINER functions a signed-out caller can run — AUDIT SHIPPED 2026-10-03 (#2197 -> ada962b). Six findings open',
+      items: [
+        { label: 'A static tripwire (tests/definer-grants.test.mjs) replays the migrations through a model of Postgres privileges and fails on a new anon-executable SECURITY DEFINER function that is not classified or registered. A read-only live check agrees with it on 136 of 136 definers', status: 'done' },
+        { label: 'OWNER CALL NEEDED — get_health_sources: any user\'s health observations (sleep, recovery, HRV, heart rate, steps and more) can be read by a signed-out caller who passes that user\'s id. Still executable by anon in production on 2026-10-05. The fix is a migration', status: 'pending' },
+        { label: 'OWNER CALL NEEDED — get_follow_list: any user\'s followers and followees (name, role, date), whatever their profile visibility says, readable without an account. Still executable by anon in production on 2026-10-05', status: 'pending' },
+        { label: 'OWNER CALL NEEDED — get_active_now and get_active_activities: who is mid-workout or cooking right now, with names and avatars, readable without an account, with no per-member opt-out. Still executable by anon in production on 2026-10-05', status: 'pending' },
+        { label: 'OWNER CALL NEEDED — shape_leaderboard and shape_profile_visibility are callable without an account: the leaderboard\'s names and points, and any user\'s visibility setting. Still executable by anon in production on 2026-10-05', status: 'pending' },
+        { label: 'save_workout_session is pinned to search_path public without pg_temp; a later migration should re-pin it', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Mutation runner: one shared runner with checked-in specs — SHIPPED 2026-09-30 and 2026-10-03 (#2188 -> e9bddaa, #2198 -> 2067e07)',
+      items: [
+        { label: 'scripts/mutate.mjs replaces the throwaway scripts: a sanity run before and after, every file restored byte for byte in a finally and on a signal, an anchor that must occur exactly once, and the verdict read from the suite\'s own summary', status: 'done' },
+        { label: '--fail-on-skipped makes a round that could not apply a mutation exit 1, so a spec whose anchors drifted can no longer pass having tested nothing. The house convention passes it', status: 'done' },
+        { label: 'Three older specs (batched-overview, heavy-assets, integrations-page-module) still show the run command without --fail-on-skipped in their headers', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Nora\'s booth on Shape Radio — SHIPPED 2026-09-30 (#2189 -> ad61bb3); preview version 6 on 2026-10-03',
+      items: [
+        { label: 'The booth prototype (prototypes/nora-booth/) reached main: CLUB SHAPE on the LED wall, a clear stage, thin beams and a cinematic tier on desktop. Nothing in the app or the website imports it', status: 'done' },
+        { label: 'Review: CodeRabbit, 12 findings, 11 fixed and 1 answered. The blinders could strobe faster than once a beat (now gated), and the camera froze after a long wait before the tap', status: 'done' },
+        { label: 'On-device pass: no real GPU or phone has run the cinematic tier', status: 'manual' },
+        { label: 'The HUD\'s top-left note runs past the top letterbox bar; "LOADING NORA…" sits over the screen\'s mark until her model arrives; the LED wall has one scene', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Repo and speed: the Integrations page carved out, roster reads batched, 485 MB of unused binaries trimmed — SHIPPED 2026-09-30 (#2190 -> 12fa78b, #2191 -> f9422e2, #2192 -> 3cdbac5)',
+      items: [
+        { label: 'BSIntegrationsPage moved out of the 38k-line client module into its own ES import, the pattern later extractions follow. Behaviour is unchanged', status: 'done' },
+        { label: 'The coach roster reads each client\'s shared overview in one POST per 50 clients (/api/clients/shared-overview) instead of one GET per client. A client whose read fails is named, never shown as empty', status: 'done' },
+        { label: '324 tracked files (485 MB) that nothing served or read were removed, and a test fails on a new heavy binary nothing references', status: 'done' },
+        { label: 'OWNER CALL NEEDED — 41 of the removed files (32 distinct, 134 MB: eight Firefly renders, beat-6 to beat-9.mp4, page-background variants) have no other copy. They stay in git history; keep them there or restore them', status: 'pending' },
+      ],
+    },
+    {
+      section: 'The auto-loaded changelog gets a size cap — SHIPPED 2026-09-30 (#2186 -> 2908baf)',
+      items: [
+        { label: 'docs/WORKLOG.md keeps the newest entries live and scripts/worklog-archive.mjs moves the rest into monthly archives byte for byte. tests/worklog-size.test.mjs fails past 15 entries or 256 KB. The file went from about 290k tokens to about 35k', status: 'done' },
+        { label: 'The archive\'s writes are not a transaction: an interrupted run can leave entries in both places. The script should refuse to move a block the archive already holds', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Dependency updates — MERGED 2026-10-05 (#2193, #2194, #2195, #2196)',
+      items: [
+        { label: 'gradle/actions/setup-gradle 6.3.0 -> 6.4.0 and actions/setup-java 6.0.0 -> 6.0.1 in the Android workflow; 12 web dependencies and 14 mobile dependencies updated', status: 'done' },
+      ],
+    },
+    {
       section: 'Cook redesign "burners and tracks" — SHIPPED 2026-09-29 (#2179 -> 478acee). No migration, no route',
       items: [
         { label: 'The cook screens on the app and the website are concept D: the stove on top, a track per dish under it, and the step card and controls pinned. The one-dish walkthrough, the multi-dish board and the session setup all use it', status: 'done' },
@@ -588,7 +669,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'The website\'s cook screens no longer stick in the phone layout, and each dish keeps a distinct colour past six dishes', status: 'done' },
         { label: 'Review: Copilot, three rounds, six findings, all fixed. The last head (506633f) merged with no external review, because Copilot was over its quota, on the owner\'s "merge it"; it is covered by 7 tests and an 11/11 mutation round', status: 'done' },
         { label: 'OWNER CALL — should the kitchen default to 4 burners? Serve refuses 3,022 of 4,950 pairs on 1 burner, 2,051 on 2 and 1,946 on 4', status: 'pending' },
-        { label: 'OWNER CALL — should Serve allow "ready within N minutes"? Of the pairs it refuses on 1 burner, 52 would land within 10 minutes and 534 within 15', status: 'pending' },
+        { label: 'RULED 2026-10-04 — Serve stays exact and will not offer "ready within N minutes" (owner: "serve is so dishes finish together"). Night-before prep became a reminder instead (#2202). Of the pairs it refuses on 1 burner, 52 would land within 10 minutes and 534 within 15', status: 'done' },
         { label: 'DESIGN CALL — give each dish a second encoding (a pattern or a letter) beside its colour', status: 'pending' },
         { label: 'On-device pass: no one has cooked a two-dish session on a phone with this build', status: 'manual' },
       ],

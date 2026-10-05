@@ -759,13 +759,11 @@ last-reviewed **2026-06** and re-check it against the changelog before acting �
 several are marked SHIPPED in their own text.
 
 ### Next up (planned)
-- **Night-before prep reminders — owner, 2026-10-04; reviewed, waiting on the owner's decisions.** *"if anything that needs to be
-  prepped the night before, that should be a notification to the user to remind them if it is part of a meal plan"*, then *"we
-  should look into that more actually, regarding prepping, how that shows and how the user gets notified"*. The review (where
-  things stand, sketches, three ways to remind, seven decisions) is https://claude.ai/artifact/VeUyVhgjsuBDqm8v6XstYE. Measured
-  there: only *Overnight oats, three ways* must be prepped the night before; meal plans name a meal by title only; no prep
-  reminder exists; a tapped meal notification opens nothing; production had 0 push devices and 0 published meal plans. The
-  proposal is an hourly server reminder at 7 pm local plus an Eat *"Tonight · for tomorrow"* plate, as its own PR. Nothing built.
+- **Night-before prep reminders — SHIPPED 2026-10-05 as [#2202](https://github.com/cperry8800-droid/shape-app/pull/2202); Phase 2 is next.**
+  The owner took the review's suggestions (https://claude.ai/artifact/VeUyVhgjsuBDqm8v6XstYE): a 7 pm reminder in the member's zone,
+  a *Tonight · for tomorrow* card on Eat, and a finish screen that records the prep; the changelog entry has the detail. Phase 2,
+  not started: a nutritionist's *"prep the night before"* tick on any meal, a reminder time the member chooses, members planning
+  tomorrow's meals, and a morning swap. Push delivery is unproven (0 push devices in production).
 - **Nora as the account-setup assistant — owner, 2026-09-29, deferred on their word.** *"I also want
   to make Nora pop up when you are going through creating an account, that can fill evreything out
   for you, regading application etc. and also setup your account for you. Maybe save this for the
@@ -833,6 +831,36 @@ Everything older, newest-first: [2026-09](WORKLOG-ARCHIVE-2026-09.md) ·
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-10-05 — Night-before prep reminders: a 7 pm reminder, a card on Eat, and a made-ahead finish that records the prep
+
+- **Merged [#2202](https://github.com/cperry8800-droid/shape-app/pull/2202) as `f2a8aa9`**, final head `28ce669`. `main` had moved by two Dependabot workflow bumps (`android-build.yml`), so the merged tree is not the head's; **the PR's diff is byte-identical on the new base**, checked by diffing `7171a77..28ce669` against `49e8bce..f2a8aa9`. 33 files, one migration (applied), one new cron route. The owner's ruling: *"serve is so dishes finish together. if anything that needs to be prepped the night before, that should be a notification to the user to remind them if it is part of a meal plan"*, then *"go with your suggestions for the prep reminders"*, from the review at https://claude.ai/artifact/VeUyVhgjsuBDqm8v6XstYE. **Serve is unchanged.**
+- **One rule for the server and the app**, `mobile-app/src/services/prepAhead.mjs` (no React, no window, no clock):
+  - which planned meals need prepping tonight: a catalog recipe whose method is cut at a `makeAhead` step **and** has steps for later (the overnight oats; the batido's storage limit does not qualify);
+  - batched over the days one prep keeps (`keepsDays` on the mark; the oats keep 3, so Sunday covers Mon–Wed), minus days a prep covers or an earlier reminder named;
+  - ⚠ **a made-ahead meal counts as prepped only when a prep covers it ON ITS DAY.** The PREPPED stamp's title match would have called Thursday's oats prepped by Sunday's batch, so Thursday's reminder would never have gone out. A record covers a meal by `mealId` (else title) and either its `forDate` or a prep made before that day within `keeps` days.
+- **The reminder**, `/api/cron/prep-reminders`, hourly:
+  - at 7 pm in each member's zone (`client_profiles.timezone`, else `notification_settings.tz`, else UTC), one `meal_prep` notification through `createPreferredNotification`, so mute and the new *Prep reminders* switch apply; inside quiet hours the row lands with no push (a new `quiet` flag);
+  - it scans **every** published plan by a cursor on `id` (500 a page, ids and dates only), picks each member's newest by `created_at`, reads payloads only for the members due, and reports a 50,000-row ceiling as `truncated: true`;
+  - one reminder per member per evening: `data.dedupe = prep:<member's date>` and the partial unique index `notifications_dedupe_uidx` (`supabase-migrations/2026-10-05-notifications-dedupe.sql`), **run by the owner and checked in production: unique, valid, ready**;
+  - ⚠ a read that fails returns 500 and sends nothing, never "nothing prepped";
+  - it reports `{ ok, owed, sent, truncated }`.
+- ⚠ **SHARED HELPER, CHANGED FOR ITS WAITLIST CALLERS TOO.** `createPreferredNotification` now sends **nothing** when it cannot read the member's mute or per-type preferences (it sent on the defaults, which push), emails only once its row is stored, and resolves whether it stored the row; `createNotification` resolves the same, and logs a duplicate the index rejected as info. Checked in production first that both preference tables and every selected column exist, so the fail-closed rule does not silence everyone.
+- **The app**: a *Tonight · for tomorrow* card on Eat from 3 pm (Start / Already done); *Not prepped last night* on a made-ahead meal until its time; Home's stamp on the same rule; the finish screen records the prep for the planned days instead of offering *Log it* (*Prepped for tomorrow.*), with *Try again* when the save fails, including when the prep owed tonight could not be read. This closes the item #2200 registered.
+- **Taps**: one router, `bsRouteNotification`, for the in-app list and a tapped push (`push.js` now listens for taps; a tap before the shell mounts is kept on `window.__bsPushRoute`). `prep:<recipe>` opens the cook screen; the website's bell opens its cook page. The *Prep reminders* switch is in both settings screens.
+- **i18n:** 13 `cook` keys × 13 locales.
+- **Review: two CodeRabbit rounds, every finding fixed or withdrawn.** Codex refused on its usage limit; Copilot declined every head on the account's quota.
+  - **Round one, on `0f33c27`** (one trigger, 2 s after the automatic notice): three inline findings and two from its security summary, all real, all fixed in `c5fddf1`. ⚠ **The plan scan read the newest 5,000 rows**, so members past the cap were silently skipped. A test fixture was a UTC instant and failed under Auckland and Kiritimati (reproduced). An assertion message said the opposite of its check. **Failed preference reads sent on the defaults**, and **overlapping runs could send twice** with an email that left no row.
+  - **The last review, on `c5fddf1`, at the owner's request.** The first trigger was refused as rate-limited (no seat, nothing billed); the second, at the reopened slot, ran. Three findings: ⚠ **a failed read before the save was saved by title** while saying *Saved as prepped* (fixed, `28ce669`); `owed` counted unstored notifications (fixed: `sent`); build the index concurrently (**withdrawn by CodeRabbit** on the evidence: already applied, 0 rows, and the SQL editor cannot run `concurrently` in a transaction). Every thread answered and resolved; CodeRabbit confirmed each fix.
+- **Found by the gate, not a reviewer:** the repo-wide `tests/capped-reads.test.mjs` flagged the scan's ascending page as a capped read keeping the oldest rows. It is a page of a walk to the end of the table: marked `capped-read-ok:` and registered as that guard's sixth exemption. And `normalizeZone` / `localHour` built an `Intl` formatter per member (~8 s of a 50,000-member run in the test); both now run once per zone.
+- ⚠ **A crashed `git diff` left a stale `.git/index.lock`.** The stop hook's `git diff --quiet` died with a bus error while the mutation runner was rewriting a file (git mmaps the working tree), and the next commit failed with exit 128. No git process held it; the lock was empty; removed, `git fsck` clean.
+- **Verified:** `npm test` **5407/5407** through the pre-commit gate on `28ce669`; all required checks green on it. Mutation rounds through the shared runner (`tests/mutations/prep-reminders-2026-10-05.mutations.mjs`, `--fail-on-skipped`): **34/34** on `0f33c27`, **51/51** on `c5fddf1`, and **55/55** on `28ce669` (sanity 84/84 after, the tree restored byte-identical). ⚠ One survived the first run on the first head, a gap in the test: *"the notification zone is not a fallback"* lived because Accra is UTC+0; a Lagos member now kills it. Driven in Chromium with a faked session and a pinned clock (card, Already done, Start → *Prepped for tomorrow.*, the morning marks, a simulated push tap; 320 and 390 px, no overflow, zero page errors).
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - Push delivery is unproven: production has 0 push devices.
+  - The reminder's text is English only (the notifications table carries no locale); the app's card is translated.
+  - Phase 2, by plan: a nutritionist's *"prep the night before"* tick on any meal, a time the member chooses, members planning tomorrow's meals, and a morning swap.
+  - ⚠ **NO ON-ACCOUNT PASS.** No signed-in member with a published plan has received the 7 pm reminder; production had 0 published meal plans when this was built.
 
 ### 2026-10-05 — Nora is heard on the website cook page, her voice is a real switch, the cook page loses its box, and overnight oats stop running a 4-hour timer
 
