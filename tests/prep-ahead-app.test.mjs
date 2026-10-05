@@ -103,6 +103,28 @@ test('a save that fails says so, and Try again saves it', async () => {
   } finally { await s.unmount(); }
 });
 
+test('a read that fails before the save is a failed save, not a save by title', async () => {
+  signedIn(true);
+  const realNow = Date.now;
+  Date.now = () => SUNDAY_NOON;
+  const saved = [];
+  let readsFail = true;
+  window.ShapePlan = { get: async () => (readsFail ? null : { meals: { hasPlan: true, days: WEEK } }) };
+  window.shapeDb = { getUserGoals: async () => ({}) };
+  window.ShapeMealPrep = { record: async (entries) => { saved.push(entries); return { ok: true }; }, entries: async () => [] };
+  const s = await mount(MOD.BSCookMode, { cookable: oats(), prepGroup: null, onClose() {} });
+  try {
+    await finishOats(s);
+    assert.deepEqual(saved, [], 'saved by title on a read that failed');
+    assert.match(s.text(), /The prep was not saved\./);
+    assert.match(s.text(), /Made ahead\./);
+    readsFail = false;
+    await s.click('Try again');
+    assert.deepEqual(saved[0].map((e) => e.forDate), ['2026-10-05', '2026-10-06', '2026-10-07']);
+    assert.match(s.text(), /Prepped for tomorrow\./);
+  } finally { await s.unmount(); Date.now = realNow; }
+});
+
 test("the cook screen a reminder opens reads what is owed tonight, and records it", async () => {
   signedIn(true);
   const realNow = Date.now;

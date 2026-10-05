@@ -68,11 +68,14 @@ function escapeHtml(s: string): string {
 // `quiet` is the caller's word that the recipient is inside their quiet hours (a scheduled send
 // that knows their zone): the row still lands in the app, but nothing is pushed or emailed, and
 // if the app channel is off too nothing is written.
+// Resolves true when the notification row was stored, false when nothing was (muted, the type
+// off, preferences unreadable, the insert failed or was a duplicate).
 export async function createPreferredNotification(
   admin: SupabaseClient,
   n: NewNotification & { type: string; quiet?: boolean },
-): Promise<void> {
-  if (!n.userId || !n.title) return;
+): Promise<boolean> {
+  if (!n.userId || !n.title) return false;
+  let stored = false;
   try {
     const [settingsRes, prefsRes] = await Promise.all([
       admin.from('notification_settings').select('muted').eq('user_id', n.userId).maybeSingle(),
@@ -83,16 +86,16 @@ export async function createPreferredNotification(
     // is sent, and the skip is logged.
     if (settingsRes.error || prefsRes.error) {
       console.error('[notify] could not read preferences; not sending:', n.type, (settingsRes.error || prefsRes.error)?.message);
-      return;
+      return false;
     }
-    if ((settingsRes.data as { muted?: boolean } | null)?.muted === true) return;
+    if ((settingsRes.data as { muted?: boolean } | null)?.muted === true) return false;
     const overrides: Record<string, boolean> = {};
     for (const row of (prefsRes.data ?? []) as { channel: string; enabled: boolean }[]) {
       overrides[row.channel] = !!row.enabled;
     }
     const channels = channelsForType({ matrix: { [n.type]: overrides } }, n.type);
     if (n.quiet) { channels.push = false; channels.email = false; }
-    if (!channels.inapp && !channels.push && !channels.email) return;
+    if (!channels.inapp && !channels.push && !channels.email) return false;
     // Email cooldown: one email per (recipient, type) per hour, checked BEFORE
     // the insert below (which would otherwise count itself). Event loops (e.g.
     // scripted waitlist join→withdraw→join) can fire the bell/push row per
@@ -107,7 +110,7 @@ export async function createPreferredNotification(
         .eq('user_id', n.userId).eq('type', n.type).gte('created_at', since);
       if (error || (count ?? 1) > 0) allowEmail = false;
     }
-    const stored = await createNotification(admin, {
+    stored = await createNotification(admin, {
       userId: n.userId, type: n.type, title: n.title, body: n.body, route: n.route,
       data: { ...(n.data ?? {}), channels },
     });
@@ -125,7 +128,9 @@ export async function createPreferredNotification(
         });
       }
     }
+    return stored;
   } catch (err) {
     console.error('[notify] preferred notification failed:', err);
+    return stored;
   }
 }

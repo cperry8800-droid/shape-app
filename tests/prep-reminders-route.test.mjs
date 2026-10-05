@@ -29,7 +29,7 @@ const forDate = (user, dates) => ({ user_id: user, kind: 'meal_prep', data: { en
   mealId: `live-${i}-0`, recipeTitle: OATS, forDate: d, preppedAt: NOW - 3600000,
 })) } });
 
-async function run(t, tables, { fail = [], secret = SECRET, failPayloads = false, zoneOf = null } = {}) {
+async function run(t, tables, { fail = [], secret = SECRET, failPayloads = false, zoneOf = null, stored = () => true } = {}) {
   t.mock.timers.enable({ apis: ['Date'], now: NOW });
   process.env.CRON_SECRET = SECRET;
   const db = fakeSupabase({ tables, fail });
@@ -69,7 +69,7 @@ async function run(t, tables, { fail = [], secret = SECRET, failPayloads = false
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/supabase/admin', { createAdminClient: () => db }],
-      ['@/lib/notify', { createPreferredNotification: async (_admin, n) => { sent.push(n); } }],
+      ['@/lib/notify', { createPreferredNotification: async (_admin, n) => { sent.push(n); return stored(n); } }],
       ['@/lib/time', time],
       ['@/lib/ai/notifications.mjs', notifyLayer],
     ]),
@@ -119,7 +119,7 @@ test('at 7 pm in their own zone, a member whose plan has the oats tomorrow gets 
   assert.equal(status, 200);
   assert.deepEqual(sent.map((n) => n.userId).sort(), ['ann', 'cat', 'hal', 'ivy'],
     'ben is at 3 pm and dan at 8:30 pm; dee prepped; eve was told on Saturday; fay swapped the oats out; gus has no published plan');
-  assert.deepEqual(body, { ok: true, owed: 4, truncated: false });
+  assert.deepEqual(body, { ok: true, owed: 4, sent: 4, truncated: false });
   const ann = sent.find((n) => n.userId === 'ann');
   assert.equal(ann.type, 'meal_prep');
   assert.equal(ann.title, `Prep tonight: ${OATS}`);
@@ -131,6 +131,12 @@ test('at 7 pm in their own zone, a member whose plan has the oats tomorrow gets 
   assert.equal(ann.quiet, false);
   // Cat's zone comes from her notification settings, and 7 pm is inside her quiet hours.
   assert.equal(sent.find((n) => n.userId === 'cat').quiet, true);
+});
+
+test('owed counts the members a reminder was owed to, sent only those whose notification was stored', async (t) => {
+  // Cat's was not stored (muted, the switch off, unreadable preferences or a duplicate).
+  const { body } = await run(t, TABLES(), { stored: (n) => n.userId !== 'cat' });
+  assert.deepEqual(body, { ok: true, owed: 4, sent: 3, truncated: false });
 });
 
 test("the evening key the reminder carries is the one the migration's unique index holds", () => {
@@ -162,7 +168,7 @@ test('the scan reads every page: a member whose plan sorts past the first 1,000 
   });
   assert.equal(status, 200);
   assert.deepEqual(sent.map((n) => n.userId), ['ann']);
-  assert.deepEqual(body, { ok: true, owed: 1, truncated: false });
+  assert.deepEqual(body, { ok: true, owed: 1, sent: 1, truncated: false });
   const pages = calls.filter((c) => c.table === 'client_meal_plans' && c.select === 'id, client_id, created_at');
   assert.equal(pages.length, 3, 'three pages of 500 for 1,201 plans');
   assert.ok(pages.every((c) => c.limit === 500), 'each page is held under PostgREST\'s 1000-row cap');
@@ -175,7 +181,7 @@ test('at its ceiling the scan stops and says so, instead of reading as a complet
   t.mock.method(console, 'error', (...args) => { logged.push(args.join(' ')); });
   const { status, body, sent, calls } = await run(t, { client_meal_plans: plans }, { zoneOf: (id) => (id === 'ann' ? 'UTC' : 'America/New_York') });
   assert.equal(status, 200);
-  assert.deepEqual(body, { ok: true, owed: 1, truncated: true });
+  assert.deepEqual(body, { ok: true, owed: 1, sent: 1, truncated: true });
   assert.deepEqual(sent.map((n) => n.userId), ['ann'], 'a member read before the ceiling is still reminded');
   assert.equal(calls.filter((c) => c.table === 'client_meal_plans' && c.select === 'id, client_id, created_at').length, 100);
   assert.ok(logged.some((l) => l.includes('50000-row ceiling')), 'the ceiling is logged');
@@ -187,7 +193,7 @@ test('only the cron secret runs it, and no plans means nothing owed', async (t) 
   assert.deepEqual(denied.sent, []);
   t.mock.timers.reset();
   const empty = await run(t, { client_meal_plans: [] });
-  assert.deepEqual(empty.body, { ok: true, owed: 0, truncated: false });
+  assert.deepEqual(empty.body, { ok: true, owed: 0, sent: 0, truncated: false });
 });
 
 test('inside quiet hours the reminder still lands in the app, with no push', async () => {

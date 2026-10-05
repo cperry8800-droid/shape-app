@@ -58,7 +58,7 @@ test('a preference read that fails sends nothing, rather than sending on the def
   ]) {
     emails.length = 0;
     const { client, inserted } = admin({ ...failed });
-    await notify.createPreferredNotification(client, PREP);
+    assert.equal(await notify.createPreferredNotification(client, PREP), false);
     assert.deepEqual(inserted, [], 'written on preferences it could not read');
     assert.deepEqual(emails, []);
   }
@@ -71,7 +71,7 @@ test('a muted member, or one with the type turned off, gets nothing', async () =
     { prefs: { data: [{ channel: 'inapp', enabled: false }, { channel: 'push', enabled: false }], error: null } },
   ]) {
     const { client, inserted } = admin(opts);
-    await notify.createPreferredNotification(client, PREP);
+    assert.equal(await notify.createPreferredNotification(client, PREP), false);
     assert.deepEqual(inserted, []);
   }
 });
@@ -80,12 +80,12 @@ test('no row, no email: an email goes out only once its notification is stored',
   quietLogs(t);
   emails.length = 0;
   const failed = admin({ prefs: EMAIL_ON, insertError: { message: 'insert failed' } });
-  await notify.createPreferredNotification(failed.client, PREP);
+  assert.equal(await notify.createPreferredNotification(failed.client, PREP), false, 'a failed insert reads as stored');
   assert.equal(failed.inserted.length, 1);
   assert.deepEqual(emails, [], 'emailed with no row to record it');
 
   const stored = admin({ prefs: EMAIL_ON });
-  await notify.createPreferredNotification(stored.client, PREP);
+  assert.equal(await notify.createPreferredNotification(stored.client, PREP), true);
   assert.equal(emails.length, 1, 'the control: a stored row is emailed');
   assert.equal(emails[0].to, 'member@example.com');
 });

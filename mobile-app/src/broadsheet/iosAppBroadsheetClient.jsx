@@ -9514,6 +9514,9 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
       let group = prepGroup && Array.isArray(prepGroup.meals) && prepGroup.meals.length ? prepGroup : null;
       if (!group) {
         const gs = await bsLoadPrepTonight();
+        // ⚠ A read that failed (null) is not "nothing owed": saving by title would tell the
+        // member the prep is saved while tomorrow's card stays. Fail, and Try again reloads.
+        if (gs === null) { setPrepSave('failed'); return; }
         group = Array.isArray(gs) ? gs.find((g) => g.slug === slug) || null : null;
       }
       // Nothing on the plan is owed it: a record by title (and meal, when it came from one),

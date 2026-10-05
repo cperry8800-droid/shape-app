@@ -140,7 +140,7 @@ async function handle(request: Request) {
     // Reported, never swallowed: the members past the ceiling get no reminder this hour.
     console.error(`[shape] prep reminders: plan scan stopped at its ${PLAN_MAX_ROWS}-row ceiling; members past it are not reminded`);
   }
-  if (!newest.size) return NextResponse.json({ ok: true, owed: 0, truncated });
+  if (!newest.size) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
 
   // Each member's zone: the one the app saves on every open, else their notification zone.
   const ids = [...newest.keys()];
@@ -174,7 +174,7 @@ async function handle(request: Request) {
     return hourIn.get(tz);
   };
   const due = ids.filter((id) => hourOf(zoneOf.get(id) || 'UTC') === PREP_HOUR);
-  if (!due.length) return NextResponse.json({ ok: true, owed: 0, truncated });
+  if (!due.length) return NextResponse.json({ ok: true, owed: 0, sent: 0, truncated });
 
   const since = new Date(now - REMINDED_DAYS * 86400000).toISOString();
   const [planRows, goals, earlier] = await Promise.all([
@@ -190,9 +190,10 @@ async function handle(request: Request) {
   const payloadOf = new Map<string, unknown>();
   for (const r of planRows) payloadOf.set(String(r.id), r.payload);
 
-  // Members a reminder was owed to. A muted member, or one with Prep reminders off, is counted
-  // and then skipped inside createPreferredNotification.
+  // `owed`: members a reminder was owed to. `sent`: those whose notification was stored, so a
+  // muted member, Prep reminders off, unreadable preferences or a duplicate are owed, not sent.
   let owed = 0;
+  let sent = 0;
   for (const userId of due) {
     try {
       const tz = zoneOf.get(userId) || 'UTC';
@@ -227,7 +228,7 @@ async function handle(request: Request) {
         quietStart: typeof q.quiet_start === 'number' ? q.quiet_start : undefined,
         quietEnd: typeof q.quiet_end === 'number' ? q.quiet_end : undefined,
       });
-      await createPreferredNotification(admin, {
+      const stored = await createPreferredNotification(admin, {
         userId,
         type: 'meal_prep',
         title: text.title,
@@ -245,12 +246,13 @@ async function handle(request: Request) {
         },
       });
       owed += 1;
+      if (stored) sent += 1;
     } catch (err) {
       console.error('[shape] prep reminder failed:', userId, err);
     }
   }
 
-  return NextResponse.json({ ok: true, owed, truncated });
+  return NextResponse.json({ ok: true, owed, sent, truncated });
 }
 
 export async function GET(request: Request) {

@@ -140,6 +140,18 @@ export default {
     { name: 'review: the evening key is not per evening', file: ROUTE,
       find: '          dedupe: `prep:${today}`,',
       replace: "          dedupe: 'prep'," },
+    { name: 'review: every owed member counts as sent', file: ROUTE,
+      find: '      if (stored) sent += 1;',
+      replace: '      sent += 1;' },
+    { name: 'review: a muted member reads as stored', file: 'src/lib/notify.ts',
+      find: '    if ((settingsRes.data as { muted?: boolean } | null)?.muted === true) return false;',
+      replace: '    if ((settingsRes.data as { muted?: boolean } | null)?.muted === true) return true;' },
+    { name: 'review: a failed insert reads as sent', file: 'src/lib/notify.ts',
+      find: '    return stored;\n  } catch',
+      replace: '    return true;\n  } catch' },
+    { name: 'review: a read that fails before the save is saved by title', file: CLIENT,
+      find: "        if (gs === null) { setPrepSave('failed'); return; }\n",
+      replace: '' },
 
     // ── Taps ────────────────────────────────────────────────────────────────────────────
     { name: 'a prep route naming no recipe opens the cook screen', file: CLIENT,
