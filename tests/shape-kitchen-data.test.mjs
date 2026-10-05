@@ -171,9 +171,12 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
     assert.equal(r.stepMeta.length, r.steps.length, `${r.title}: stepMeta not index-aligned with steps`);
     r.stepMeta.forEach((m, i) => {
       if (m == null) return;
-      // A make-ahead mark ends tonight's cook there; it carries no time, station or window.
+      // A make-ahead mark ends tonight's cook there; it carries no time, station or window,
+      // only how many days one prep keeps.
       if (m.makeAhead === true) {
-        assert.deepEqual(Object.keys(m), ['makeAhead'], `${r.title} step ${i}: a make-ahead mark carries nothing else`);
+        const extra = Object.keys(m).filter((k) => k !== 'makeAhead');
+        assert.ok(extra.every((k) => k === 'keepsDays'), `${r.title} step ${i}: a make-ahead mark carries ${extra.join(', ')}`);
+        if ('keepsDays' in m) assert.ok(Number.isInteger(m.keepsDays) && m.keepsDays >= 1 && m.keepsDays <= 7, `${r.title} step ${i}: keepsDays ${m.keepsDays}`);
         return;
       }
       assert.ok(BS_STATIONS.includes(m.station), `${r.title} step ${i}: bad station "${m.station}"`);

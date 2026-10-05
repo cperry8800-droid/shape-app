@@ -215,5 +215,18 @@
   "ck.readsOnToast": "Suara Nora aktif. Ia akan membacakan setiap langkah.",
   "ck.readsOffToast": "Suara Nora nonaktif. Langkah-langkahnya tetap di layar.",
   "ck.laterHead": "Saat kamu siap makan",
-  "plated.later": "Sudah disiapkan."
+  "plated.later": "Sudah disiapkan.",
+  "prepAhead.kicker": "Malam ini · untuk besok",
+  "prepAhead.makeOne": "Siapkan malam ini supaya siap.",
+  "prepAhead.makeMany": "Satu kali siap malam ini cukup untuk setiap hari yang tercantum.",
+  "prepAhead.start": "Mulai",
+  "prepAhead.done": "Sudah selesai",
+  "prepAhead.savedToast": "Disimpan sebagai sudah disiapkan.",
+  "prepAhead.failed": "Persiapan tidak tersimpan.",
+  "prepAhead.retry": "Coba lagi",
+  "prepAhead.saving": "Menyimpan sebagai sudah disiapkan…",
+  "prepAhead.savedFor": "Disimpan sebagai sudah disiapkan untuk {days}. Tidak ada yang dicatat sebagai sudah dimakan.",
+  "prepAhead.saved": "Disimpan sebagai sudah disiapkan. Tidak ada yang dicatat sebagai sudah dimakan.",
+  "prepAhead.notPrepped": "Belum disiapkan semalam",
+  "plated.prepped": "Sudah disiapkan untuk besok."
 }

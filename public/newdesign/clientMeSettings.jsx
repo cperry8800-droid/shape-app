@@ -929,6 +929,8 @@ const NP_TYPES = [
   ["streak_broken", "Streak restarts", "A gentle nudge — never shaming"],
   ["waitlist_invite", "Waitlist invites", "When a coach has room for you"],
   ["habit_reminder", "Habit reminders", "Set per-habit on the app's Habits page"],
+  // The night-before prep reminder (src/app/api/cron/prep-reminders), sent at 7 pm local.
+  ["meal_prep", "Prep reminders", "The night before a meal that needs it"],
 ];
 
 function NotificationDashboard({ signedIn }) {

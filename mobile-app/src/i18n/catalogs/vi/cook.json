@@ -215,5 +215,18 @@
   "ck.readsOnToast": "Giọng của Nora đã bật. Cô ấy sẽ đọc to từng bước.",
   "ck.readsOffToast": "Giọng của Nora đã tắt. Các bước vẫn hiển thị trên màn hình.",
   "ck.laterHead": "Khi bạn sẵn sàng ăn",
-  "plated.later": "Đã chuẩn bị sẵn."
+  "plated.later": "Đã chuẩn bị sẵn.",
+  "prepAhead.kicker": "Tối nay · cho ngày mai",
+  "prepAhead.makeOne": "Chuẩn bị tối nay để món sẵn sàng.",
+  "prepAhead.makeMany": "Một lần chuẩn bị tối nay đủ cho mọi ngày đã liệt kê.",
+  "prepAhead.start": "Bắt đầu",
+  "prepAhead.done": "Đã làm rồi",
+  "prepAhead.savedToast": "Đã lưu là đã chuẩn bị.",
+  "prepAhead.failed": "Chưa lưu được phần chuẩn bị.",
+  "prepAhead.retry": "Thử lại",
+  "prepAhead.saving": "Đang lưu là đã chuẩn bị…",
+  "prepAhead.savedFor": "Đã lưu là đã chuẩn bị cho {days}. Chưa ghi nhận là đã ăn.",
+  "prepAhead.saved": "Đã lưu là đã chuẩn bị. Chưa ghi nhận là đã ăn.",
+  "prepAhead.notPrepped": "Tối qua chưa chuẩn bị",
+  "plated.prepped": "Đã chuẩn bị cho ngày mai."
 }

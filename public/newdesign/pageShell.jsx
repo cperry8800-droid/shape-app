@@ -438,6 +438,8 @@ function dashInboxHref(n, role) {
     const shell = role === "trainer" ? "TrainerApp.html" : "NutritionistApp.html";
     return (typeof window !== "undefined" && window.__shapeCoachShell ? "" : shell) + "#client/" + encodeURIComponent(String(id));
   }
+  // The night-before prep reminder ("prep:<recipe>") opens the website's cook page on that recipe.
+  if (n.route.startsWith("prep:") && n.route.length > 5) return "/newdesign/Cook.html?r=" + encodeURIComponent(n.route.slice(5));
   if (!Object.prototype.hasOwnProperty.call(DASH_INBOX_ROUTES, n.route)) return null;
   const target = DASH_INBOX_ROUTES[n.route];
   // In-shell this is a hash switch; from a marketing page it is a real navigation.

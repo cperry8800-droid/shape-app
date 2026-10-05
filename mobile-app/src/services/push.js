@@ -107,6 +107,19 @@ export async function registerPush() {
       } catch (e) { /* best-effort */ }
     });
 
+    // A tapped push opens the screen it is about (owner, 2026-10-05: the night-before prep
+    // reminder opens its recipe's cook screen). The client shell routes it with the same map as
+    // the in-app list (bsRouteNotification). A tap that wakes the app before the shell has
+    // mounted leaves the route on window, and the shell reads it once when it mounts.
+    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      const route = action && action.notification && action.notification.data && action.notification.data.route;
+      if (typeof route !== 'string' || !route) return;
+      try {
+        window.__bsPushRoute = route;
+        window.dispatchEvent(new CustomEvent('shape:pushRoute', { detail: { route } }));
+      } catch (e) { /* no window to route in */ }
+    });
+
     PushNotifications.addListener('registrationError', (err) => {
       console.warn('[push] registration error', err);
       registered = false;

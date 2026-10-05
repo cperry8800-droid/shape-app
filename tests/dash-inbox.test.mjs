@@ -120,6 +120,15 @@ test('a route with no website destination is NOT clickable', () => {
   assert.equal(A.dashInboxHref({ route: 'checkin' }, 'client'), 'ClientDashboard.html');
 });
 
+test('a night-before prep reminder opens the cook page on its recipe', () => {
+  // The reminder's route is `prep:<recipe slug>` (src/app/api/cron/prep-reminders); the
+  // website's cook page reads the same slug from ?r= (cookingWeb.jsx, bsCookSlug).
+  assert.equal(A.dashInboxHref({ route: 'prep:overnight-oats-three-ways' }, 'client'), '/newdesign/Cook.html?r=overnight-oats-three-ways');
+  // the slug is encoded, so one carrying & or # cannot add a parameter or a hash
+  assert.equal(A.dashInboxHref({ route: 'prep:a&mode=x#y' }, 'client'), '/newdesign/Cook.html?r=a%26mode%3Dx%23y');
+  assert.equal(A.dashInboxHref({ route: 'prep:' }, 'client'), null, 'a reminder naming no recipe linked anyway');
+});
+
 test("a coach's client notice needs an id AND a coach role", () => {
   const n = (data) => ({ route: 'client', data });
   assert.equal(A.dashInboxHref(n({}), 'trainer'), null, 'no client id, but it linked anyway');

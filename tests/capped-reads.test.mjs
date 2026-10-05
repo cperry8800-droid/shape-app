@@ -14,12 +14,14 @@
 //   · and the calendar dropped every UNDATED workout — the "Home shows my plan but the
 //     calendar is empty" defect that file's own comment says was already fixed once.
 //
-// ⚠ AND ASCENDING IS NOT ALWAYS WRONG, which is why this is not a blanket rule. Five reads
+// ⚠ AND ASCENDING IS NOT ALWAYS WRONG, which is why this is not a blanket rule. Six reads
 // are correct as they stand: a window already bounded to the future (radio rooms, the
 // trainer adjust plan), a deterministic "the account's primary provider row" (lead boosts,
-// Stripe Connect), and an incremental message poll, where the OLDEST rows after `since`
-// are the ones that close the gap. Each says so at the site with a `capped-read-ok:`
-// marker, so the exemption is a decision somebody wrote down rather than a silent pass.
+// Stripe Connect), an incremental message poll, where the OLDEST rows after `since`
+// are the ones that close the gap, and the prep reminders' plan scan, a cursor walk that pages
+// on to the end of the table (its limit is a page, not a cap; 2026-10-05, #2202). Each says so
+// at the site with a `capped-read-ok:` marker, so the exemption is a decision somebody wrote
+// down rather than a silent pass.
 //
 // The corpus is DERIVED from the route files, so a query added later is covered with
 // nobody remembering this test exists. Run: node --test
@@ -86,13 +88,14 @@ test('every capped read keeps the NEWEST rows, or says at the site why it must n
   );
 });
 
-test('the exemptions are the five that were checked, and each is deliberate', () => {
+test('the exemptions are the six that were checked, and each is deliberate', () => {
   // ⚠ NOT AN ALLOWLIST THE GUARD ENFORCES — it enforces the marker. This asserts the
   // marker has not been sprinkled around to quiet the sweep: a sixth one is a decision
   // somebody has to make, and making it means coming here.
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'conversations/[id]/messages/route.ts',
+    'cron/prep-reminders/route.ts',
     'lead-boosts/route.ts',
     'radio/rooms/route.ts',
     'stripe/connect-account/route.ts',

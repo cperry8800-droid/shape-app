@@ -215,5 +215,18 @@
   "ck.readsOnToast": "Nora’s voice is on. She’ll read each step aloud.",
   "ck.readsOffToast": "Nora’s voice is off. The steps stay on screen.",
   "ck.laterHead": "When you’re ready to eat",
-  "plated.later": "Made ahead."
+  "plated.later": "Made ahead.",
+  "prepAhead.kicker": "Tonight · for tomorrow",
+  "prepAhead.makeOne": "Prep it tonight so it is ready.",
+  "prepAhead.makeMany": "One batch tonight covers each day listed.",
+  "prepAhead.start": "Start",
+  "prepAhead.done": "Already done",
+  "prepAhead.savedToast": "Saved as prepped.",
+  "prepAhead.failed": "The prep was not saved.",
+  "prepAhead.retry": "Try again",
+  "prepAhead.saving": "Saving it as prepped…",
+  "prepAhead.savedFor": "Saved as prepped for {days}. Nothing is logged as eaten.",
+  "prepAhead.saved": "Saved as prepped. Nothing is logged as eaten.",
+  "prepAhead.notPrepped": "Not prepped last night",
+  "plated.prepped": "Prepped for tomorrow."
 }
