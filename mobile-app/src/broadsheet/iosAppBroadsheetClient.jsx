@@ -21549,7 +21549,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const heroStat = stats[_primIdx] || null;
     const secStats = stats.filter((_, i) => i !== _primIdx);
     const detailsOpen = !!actDetailsOpen[key];
-    const prDelta = a.real ? (a.delta || null) : null;     // only when a prior best is on the post
+    // Only when a prior best is on the post. The gain is a figure too ('+10 lb',
+    // '-0:06/mi'), so it reads in the reader's units like everything else here.
+    const prDelta = a.real ? (a.delta ? t.uText(String(a.delta), uCtx) : null) : null;
     const isWall = variant === 'wall';
     // ── What the wall's plate says ABOUT the record ────────────────────────
     // The pill names the measure and the figure. A stamped PR says so outright;

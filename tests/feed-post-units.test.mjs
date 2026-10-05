@@ -244,3 +244,16 @@ test('a breakdown row is not a stat: a movement named "climb" or "stride" keeps 
   card.nodes().find((n) => n.props && n.props['aria-label'] === 'Open session details').props.onClick();
   assert.deepEqual(captured.breakdown.rows.map((r) => r[1]), ['6 × 200 m', '4 × 80 m', '2 × 400 m'], 'a set row was read as a stat');
 });
+
+test('a real PR\'s gain reads in the member\'s units, in the pill and on the card', () => {
+  // ⚠ The delta was drawn as stored ("+10 lb") beside a converted load.
+  const a = bsActivityFromPost({
+    id: 'p3', workout: 'strength', status: 'Bench press', hasRealStats: true, delta: '+10 lb',
+    workoutStats: [{ label: 'Load', value: '225 lb' }, { label: 'Reps', value: '5 × 5' }], rawMetrics: {},
+  });
+  assert.equal(a.delta, '+10 lb', 'the fixture lost its delta');
+  const wall = render(a, KG, 'wall');
+  assert.match(wall, /\+4\.5 kg/, `the gain stayed in pounds: ${wall.slice(0, 200)}`);
+  assert.doesNotMatch(wall, /\d\s*lb\b/, 'a pound figure survived on a metric card');
+  assert.match(render(a, LB, 'feed'), /\+10 lb/, 'an imperial reader keeps pounds');
+});
