@@ -55,14 +55,56 @@ test('on the website the cook layer signs in with the website session', () => {
   assert.equal((backend.match(/storageKey:/g) || []).length, 1);
 });
 
-test('a signed-out visitor on the website is not shown Nora as on, and the page never waits long to paint', () => {
+// The page's own boot lines, run as written against a session we release by hand. Every write
+// to ShapeCanChat is recorded: `firstPaint` is the one made before the render is asked for,
+// `after` the last once the session has settled. Reading the flag after `await` instead sees
+// the catch-up write too when the session is already settled, and loses the first one.
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+async function bootCanChat({ user, late = false, fails = false }) {
   const web = read('mobile-app/src/broadsheet/cookingWeb.jsx');
-  const boot = web.indexOf('const boot = Promise.resolve(window.ShapeAuth?.getCurrentSession?.()).catch(() => null);');
-  const race = web.indexOf('await Promise.race([boot, new Promise((resolve) => setTimeout(resolve, 2500))]);');
-  const flag = web.indexOf('window.ShapeCanChat = signedIn();');
-  const later = web.indexOf("boot.then(() => {\n  window.ShapeCanChat = signedIn();\n  try { window.dispatchEvent(new Event('shape:canchat'));");
-  const render = web.indexOf('createRoot(');
-  assert.ok(boot > 0 && race > boot && flag > race && later > flag && render > later,
-    'ShapeCanChat is set before the first render, the render waits at most 2.5 s on the session, and a late session still reaches the switch');
+  const from = web.indexOf('const signedIn = ');
+  const to = web.indexOf('\n});\n', web.indexOf('boot.then(')) + 4;
+  assert.ok(from > 0 && to > from && web.indexOf('createRoot(') > to, 'the boot lines moved after the first render');
+  let cached = {};
+  let release;
+  // getCurrentSession caches the user only once its profile reads finish, then resolves.
+  const session = new Promise((resolve, reject) => {
+    release = () => { cached = fails ? {} : { user }; if (fails) reject(new Error('offline')); else resolve(cached); };
+  });
+  const events = [];
+  const writes = [];
+  const window = {
+    ShapeAuth: { getCachedState: () => cached, getCurrentSession: () => session },
+    dispatchEvent: (e) => events.push(e.type),
+    set ShapeCanChat(v) { writes.push(v); },
+    get ShapeCanChat() { return writes[writes.length - 1]; },
+  };
+  let timeUp = null;
+  const fakeTimeout = (fn, ms) => { assert.equal(ms, 2500); timeUp = fn; };
+  if (!late) release();
+  const painted = new AsyncFunction('window', 'setTimeout', 'Event', web.slice(from, to))(window, fakeTimeout, class { constructor(type) { this.type = type; } });
+  await new Promise((r) => setImmediate(r));
+  if (late) timeUp();
+  await painted;
+  if (late) release();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(writes.length, 2, `one write before the render and one when the session settles: ${JSON.stringify(writes)}`);
+  return { firstPaint: writes[0], after: writes[1], events };
+}
+
+test('a signed-out visitor on the website is not shown Nora as on, and the page never waits long to paint', async () => {
+  const member = { id: 'u1' };
+  // Loaded within the 2.5 s: the answer is the session's.
+  assert.deepEqual(await bootCanChat({ user: member }), { firstPaint: true, after: true, events: ['shape:canchat'] });
+  assert.deepEqual(await bootCanChat({ user: null }), { firstPaint: false, after: false, events: ['shape:canchat'] });
+  assert.deepEqual(await bootCanChat({ user: member, fails: true }), { firstPaint: false, after: false, events: ['shape:canchat'] });
+  // CodeRabbit, on the final head: a session still loading at 2.5 s is not "signed out". It
+  // reads as a member until it settles, and only then can it say otherwise.
+  assert.deepEqual(await bootCanChat({ user: member, late: true }), { firstPaint: true, after: true, events: ['shape:canchat'] },
+    'a member whose session loads slowly is told to sign in');
+  assert.deepEqual(await bootCanChat({ user: null, late: true }), { firstPaint: true, after: false, events: ['shape:canchat'] },
+    'a session that settles signed out never reaches the switch');
+  assert.deepEqual(await bootCanChat({ user: member, late: true, fails: true }), { firstPaint: true, after: false, events: ['shape:canchat'] });
+  const web = read('mobile-app/src/broadsheet/cookingWeb.jsx');
   assert.match(web, /const signedIn = \(\) => !!window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.user\?\.id;/);
 });

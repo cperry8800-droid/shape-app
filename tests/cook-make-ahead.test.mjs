@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { SHAPE_KITCHEN_RECIPES, _KITCHEN_STEP_HEAT } from '../mobile-app/src/broadsheet/shapeKitchenData.js';
 import { bsCookableFromRecipe, bsOfferedTimers, bsStepTimers } from '../mobile-app/src/services/cookable.mjs';
-import { bsOrchestrate } from '../mobile-app/src/services/cookOrchestrator.mjs';
+import { BS_SERVE_ISSUE, bsOrchestrate } from '../mobile-app/src/services/cookOrchestrator.mjs';
 import { bsPrepEstimate } from '../mobile-app/src/services/mealPrep.mjs';
 import { drive, loadBroadsheet, pressable, textOf } from './helpers/broadsheet-mount.mjs';
 
@@ -115,6 +115,28 @@ test('a later table time still lands dinner on it, after the oats are made', () 
   const starts = (key) => plan.timeline.filter((e) => e.recipe === key).map((e) => e.at);
   assert.equal(Math.min(...starts(dinner.key)), ready.start, 'the board and the ready line disagree on when dinner starts');
   assert.ok(Math.max(...starts(OATS)) < ready.start, 'dinner starts before the oats are in the fridge');
+});
+
+// CodeRabbit, on the final head: with only made-ahead dishes there is no inner plan to carry
+// "too soon", so a table time inside the oats' own five minutes came back with no issue at all.
+test('a table time too soon for the made-ahead dishes says so, with dinner or without', () => {
+  const TOO_SOON = BS_SERVE_ISSUE.TOO_SOON;
+  const soonCount = (plan) => (plan.issues || []).filter((x) => x === TOO_SOON).length;
+  const oats = cook(OATS);
+  const alone = bsOrchestrate([oats], { mode: 'serve', kitchen: k1 }).earliestServe;
+  assert.ok(alone > 1, `the oats take no time: ${alone}`);
+  assert.equal(soonCount(bsOrchestrate([oats], { mode: 'serve', kitchen: k1, serveAt: alone - 1 })), 1,
+    'a time before the oats can be made is not called too soon');
+  assert.equal(soonCount(bsOrchestrate([oats], { mode: 'serve', kitchen: k1, serveAt: alone })), 0);
+  const dinner = cook('Chickpea shakshuka');
+  const both = bsOrchestrate([oats, dinner], { mode: 'serve', kitchen: k1 }).earliestServe;
+  for (const at of [1, alone - 1, alone + 1, both - 1]) {
+    assert.equal(soonCount(bsOrchestrate([oats, dinner], { mode: 'serve', kitchen: k1, serveAt: at })), 1, `serve at ${at} of ${both}`);
+  }
+  for (const at of [both, both + 10]) {
+    assert.equal(soonCount(bsOrchestrate([oats, dinner], { mode: 'serve', kitchen: k1, serveAt: at })), 0, `serve at ${at} of ${both}`);
+  }
+  assert.equal(soonCount(bsOrchestrate([oats, dinner], { mode: 'serve', kitchen: k1 })), 0, 'no table time asked is never too soon');
 });
 
 test('the planner carries the make-ahead mark onto the step it schedules', () => {

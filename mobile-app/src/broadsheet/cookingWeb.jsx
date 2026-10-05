@@ -23,12 +23,15 @@ await import('./iosAppBroadsheetClient.jsx');
 // bridges the session to the API, two round trips with no timeout. Nothing here needs them
 // before the first paint, so the page waits a moment for them and then renders anyway.
 const signedIn = () => !!window.ShapeAuth?.getCachedState?.()?.user?.id;
-const boot = Promise.resolve(window.ShapeAuth?.getCurrentSession?.()).catch(() => null);
+let settled = false;
+const boot = Promise.resolve(window.ShapeAuth?.getCurrentSession?.()).catch(() => null).finally(() => { settled = true; });
 await Promise.race([boot, new Promise((resolve) => setTimeout(resolve, 2500))]);
 // Nora's voice and mic are for signed-in members. The app shell sets this flag; this page
 // never loads the shell, and an unset flag reads as a member, so a signed-out visitor could
-// turn Nora on and get an error instead of being told to sign in.
-window.ShapeCanChat = signedIn();
+// turn Nora on and get an error instead of being told to sign in. The user is cached only
+// once the profile reads finish, so a session still loading is not an answer yet: it reads as
+// a member until it settles. A visitor with no stored session settles at once.
+window.ShapeCanChat = settled ? signedIn() : true;
 boot.then(() => {
   window.ShapeCanChat = signedIn();
   try { window.dispatchEvent(new Event('shape:canchat')); } catch { /* listeners re-read on mount */ }

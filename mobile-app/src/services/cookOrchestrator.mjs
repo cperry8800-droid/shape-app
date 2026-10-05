@@ -638,7 +638,13 @@ function serveTimeline(rs, activeMin, serveAt, kitchen, breadth = rs.length) {
     const sv = tonight.length ? serveTimeline(tonight, activeMin, want, kitchen, breadth)
       : { timeline: [], serveAt: 0, earliestServe: 0, spread: 0, issues: [], exact: true, estimated: false, ready: [], coordinated: true };
     if (sv.invalidTiming) return sv;
+    // "Too soon" is judged again on the whole plan: with no dish left for tonight there is no
+    // inner plan to carry it, and the asked time has to clear the made-ahead dishes as well.
+    const earliestAll = sv.earliestServe + preLen;
+    const wantedAll = Number.isFinite(serveAt) && serveAt > 0 ? serveAt : earliestAll;
     return { ...sv,
+      issues: [...(wantedAll < earliestAll ? [BS_SERVE_ISSUE.TOO_SOON] : []),
+        ...(sv.issues || []).filter((x) => x !== BS_SERVE_ISSUE.TOO_SOON)],
       timeline: [...pre, ...sv.timeline.map((e) => ({ ...e, at: e.at + preLen }))],
       serveAt: sv.serveAt + preLen, earliestServe: sv.earliestServe + preLen,
       ready: (sv.ready || []).map((d) => ({ ...d, start: d.start + preLen, readyAt: d.readyAt + preLen })),
