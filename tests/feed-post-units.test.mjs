@@ -214,14 +214,33 @@ test('a breakdown\'s climbs are converted once, not twice', () => {
   const run = {
     kind: 'workout', typeLabel: 'Run', activityType: 'run', who: 'Hill Runner', role: 'Client', city: 'Test', tier: 'BASE', ago: '1h',
     body: '', title: 'Hill run · 3 mi', stats: [['Distance', '3 mi'], ['Avg pace', '8:00/mi'], ['Time', '24:00']],
-    breakdown: { label: 'Mile splits', rows: [['Mile 1', '8:10/mi', '+100 ft'], ['Mile 2', '7:50/mi', '-40 ft'], ['Mile 3', '8:00/mi', '+20 ft']] },
+    breakdown: { label: 'Mile splits', rows: [['Mile 1', '8:10/mi', '+100 ft'], ['Mile 2', '7:50/mi', '-40 ft'], ['Mile 3', '8:00/mi', '+20 ft'], ['Mile 4', '8:05/mi', '+12 ft']] },
     kudos: 0, replies: 0,
   };
   const metric = pageEntries(run, KG);
   assert.ok(metric.includes('+30'), `a 100 ft climb should read +30 (m): ${metric.filter((e) => /^[+-]\d+$/.test(e)).join(' ')}`);
   assert.ok(!metric.includes('+9'), 'the climb was converted twice');
+  // A small climb keeps the decimal the card writes it with ("+3.7 m"), not "4".
+  assert.ok(metric.includes('+3.7'), 'a 12 ft climb lost its decimal in the split table');
   const imperial = pageEntries(run, LB);
   assert.ok(imperial.includes('+100'), 'an imperial reader keeps feet');
   // And the splits' paces are in the reader's units.
   assert.ok(metric.some((e) => /\/km$/.test(e)) && !metric.some((e) => /\/mi$/.test(e)), 'a split pace stayed in /mi');
+});
+
+test('a breakdown row is not a stat: a movement named "climb" or "stride" keeps its unit', () => {
+  // ⚠ FOUND IN REVIEW (Fable, #2205): breakdown rows went through the stat
+  // converter, whose label rules read the MOVEMENT NAME as a stat label, so
+  // "Hill climb · 6 × 200 m" became "656 ft" beside "Flat · 2 × 400 m".
+  const session = {
+    kind: 'workout', typeLabel: 'Run', activityType: 'run', who: 'Track Runner', role: 'Client', city: 'Test', tier: 'BASE', ago: '1h',
+    body: '', title: 'Hill session', stats: [['Distance', '5 mi'], ['Time', '45:00']],
+    breakdown: { label: 'Working sets', rows: [['Hill climb', '6 × 200 m', 'RPE 8'], ['Stride outs', '4 × 80 m', 'RPE 6'], ['Flat', '2 × 400 m', 'RPE 7']] },
+    kudos: 0, replies: 0,
+  };
+  let captured = null;
+  const ctx = { ...ctxFor(LB), setActivityDetail: (d) => { captured = d; } };
+  const card = drive(BSActivityCard, { a: session, ctx, isLast: true, pagePad: 0, variant: 'feed' });
+  card.nodes().find((n) => n.props && n.props['aria-label'] === 'Open session details').props.onClick();
+  assert.deepEqual(captured.breakdown.rows.map((r) => r[1]), ['6 × 200 m', '4 × 80 m', '2 × 400 m'], 'a set row was read as a stat');
 });

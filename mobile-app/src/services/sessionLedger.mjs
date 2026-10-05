@@ -238,7 +238,9 @@ export function bsSdUnitizeText(text, prefs, opts) {
     const n = Number(num.replace(/,/g, ''));
     if (!Number.isFinite(n)) return m;
     const conv = want.distance === 'km' ? n * SD_MI_TO_KM : n / SD_MI_TO_KM;
-    return `${conv.toFixed(1)} ${want.distance === 'km' ? 'km/h' : 'mph'}`;
+    const fixed = conv.toFixed(1);
+    const shown = num.includes(',') ? fixed.replace(/^(\d+)/, (w) => w.replace(/\B(?=(\d{3})+(?!\d))/g, ',')) : fixed;
+    return `${shown} ${want.distance === 'km' ? 'km/h' : 'mph'}`;
   });
 
   // Elevation in feet → metres. `ft` is unambiguous, so this is safe in free
@@ -254,7 +256,7 @@ export function bsSdUnitizeText(text, prefs, opts) {
   if (swim && pool) {
     // ⚠ A BARE `m` IS ALSO MINUTES ("1h 05m"), so it is read as metres only in a
     // swim, never straight after an hour, and never as the denominator of a pace.
-    out = out.replace(/(?<![\w/.,:])(?<!\dh\s{0,2})(\d[\d,]*(?:\.\d+)?)(\s*)(km|mi|m|yds?)(?![\w/-])/gi, (m, num, gap, unit) => {
+    out = out.replace(/(?<![\w/.,:])(?<!\d\s{0,3}h\s{0,3})(\d[\d,]*(?:\.\d+)?)(\s*)(km|mi|m|yds?)(?![\w/-])/gi, (m, num, gap, unit) => {
       const u = unit.toLowerCase();
       const src = u === 'yds' ? 'yd' : u;
       if (src === pool) return m;
@@ -331,6 +333,10 @@ export function bsSdUnitizeText(text, prefs, opts) {
 // Everything else goes through `bsSdUnitizeText` with the same context.
 const SD_ELEV_LABEL = /elev|ascent|climb|altitude/i;
 const SD_STRIDE_LABEL = /stride/i;
+// ⚠ A TIME IS NEVER A SWIM DISTANCE. "45m" under Time or Duration is minutes,
+// and inside a swim the bare-`m` rule would have read it as 49 yd. A stat whose
+// label names a time converts without the swim context.
+const SD_TIME_LABEL = /time|duration|elapsed|moving|rest|sleep/i;
 
 export function bsSdUnitizeStat(label, value, prefs, opts) {
   if (value == null || value === '' || !prefs) return value;
@@ -346,6 +352,7 @@ export function bsSdUnitizeStat(label, value, prefs, opts) {
       return m;
     });
   }
+  if (SD_TIME_LABEL.test(l)) return bsSdUnitizeText(value, prefs);
   let v = String(value);
   if (SD_ELEV_LABEL.test(l) && dist === 'mi') {
     v = v.replace(/(?<![\w/.,:])(\d[\d,]*(?:\.\d+)?)\s*m(?![\w/-])/gi, (m, num) => {

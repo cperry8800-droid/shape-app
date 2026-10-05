@@ -20907,7 +20907,11 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
     splits: paceDataRaw.splits.map((x) => ({
       ...x,
       paceLabel: x.paceLabel ? t.uText(x.paceLabel, { sport }) : x.paceLabel,
-      elevDelta: (elevIn.unit === 'm' && x.elevDelta != null) ? Math.round(x.elevDelta * 0.3048) : x.elevDelta,
+      // Metres keep a decimal under ten, the way the card writes them, so a
+      // 12 ft climb reads "3.7" here and "+3.7 m" on the card, not "4".
+      elevDelta: (elevIn.unit === 'm' && x.elevDelta != null)
+        ? (Math.abs(x.elevDelta * 0.3048) < 10 ? Math.round(x.elevDelta * 3.048) / 10 : Math.round(x.elevDelta * 0.3048))
+        : x.elevDelta,
     })),
   } : null;
   const hasSplitsPage = !!(paceData && paceData.splits.length > 1);
@@ -21514,8 +21518,12 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
     const uMeta = (m) => ((m && typeof m === 'object' && !Array.isArray(m))
       ? { ...m, plan: m.plan == null ? m.plan : t.uText(m.plan, uCtx) }
       : t.uText(m, uCtx));
-    const uStats = (rows) => (Array.isArray(rows)
-      ? rows.map((r) => (Array.isArray(r) ? [r[0], t.uStat(r[0], r[1], uCtx), ...r.slice(2).map(uMeta)] : r))
+    // ⚠ ONLY A STAT'S FIRST CELL IS A STAT LABEL. A breakdown's first cell is a
+    // set or a movement ('Hill climb', 'Stride outs'), and reading it as a label
+    // turned "6 × 200 m" into "656 ft" beside a "Flat · 400 m" row. Breakdown
+    // rows pass `byLabel = false` and convert as text, with the sport.
+    const uStats = (rows, byLabel = true) => (Array.isArray(rows)
+      ? rows.map((r) => (Array.isArray(r) ? [r[0], byLabel ? t.uStat(r[0], r[1], uCtx) : t.uText(r[1], uCtx), ...r.slice(2).map(uMeta)] : r))
       : rows);
     const statsRaw = a.real ? a.statsRow
       : Array.isArray(a.stats) ? a.stats
@@ -21641,7 +21649,7 @@ function BSActivityCard({ a, ctx, hideAuthor = false, isLast = false, pagePad = 
       // and the card it opened from quote the same figures.
       // The breakdown's own label is app-formatted too ('500m splits'), so it
       // converts with the rows under it.
-      breakdown: a.breakdown ? { ...a.breakdown, label: t.uText(a.breakdown.label, uCtx), rows: uStats(a.breakdown.rows) } : null,
+      breakdown: a.breakdown ? { ...a.breakdown, label: t.uText(a.breakdown.label, uCtx), rows: uStats(a.breakdown.rows, false) } : null,
       zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, rawSplits: a.rawSplits || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });

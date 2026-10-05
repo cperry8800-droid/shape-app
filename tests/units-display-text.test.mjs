@@ -233,6 +233,14 @@ test('⚠ A BARE `m` IS ALSO MINUTES, so it is only ever metres in a swim, and n
   }
   // In a swim, a split length is a distance.
   assert.equal(bsSdUnitizeText('500m splits', LB, SWIM), '547 yd splits');
+  // ⚠ FOUND IN REVIEW (Fable, #2205): only "1h 05m" was guarded. A sub-hour time
+  // under a time label, and the spaced hour forms, read as yards.
+  for (const [label, v] of [['Time', '45m'], ['Duration', '45 m'], ['Moving time', '52 m'], ['Rest', '2 m'], ['Time', '1 h 05 m'], ['Time', '8h   10m']]) {
+    assert.equal(bsSdUnitizeStat(label, v, LB, SWIM), v, `${label} ${v} read as a distance`);
+  }
+  assert.equal(bsSdUnitizeText('1 h 05 m', LB, SWIM), '1 h 05 m');
+  // …while a time label still converts what it can (a swim pace).
+  assert.equal(bsSdUnitizeStat('Moving time', '1:42/100m', LB, SWIM), '1:33/100yd');
 });
 
 test('speed converts with the distance setting, and keeps one decimal', () => {
@@ -241,6 +249,8 @@ test('speed converts with the distance setting, and keeps one decimal', () => {
   assert.equal(bsSdUnitizeText('19.3 mph', LB), '19.3 mph');
   // ⚠ The distance rule must not read the "km" of "km/h" as a distance.
   assert.equal(bsSdUnitizeText('31.1 km/h', KG), '31.1 km/h');
+  // A grouped speed keeps its grouping, like every other family.
+  assert.equal(bsSdUnitizeText('1,000 mph', KG), '1,609.3 km/h');
 });
 
 test('elevation: feet convert in free text, metres only where the label says elevation', () => {

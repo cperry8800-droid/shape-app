@@ -256,7 +256,9 @@ test('every trace follows its converted figure: runs, rides and swims', () => {
   // And the needle agrees across systems, to within the figure's own rounding.
   const met = bsSdNeedle('31.1 km/h', rideKm, 'speed');
   const imp = bsSdNeedle('19.3 mph', ride, 'speed');
-  if (met && imp) assert.ok(Math.abs(met.frac - imp.frac) < 0.02, `metric ${met.frac} vs imperial ${imp.frac}`);
+  // A null needle would skip the comparison in silence, so it fails instead.
+  assert.ok(met && imp, `a needle went missing: metric ${JSON.stringify(met)} imperial ${JSON.stringify(imp)}`);
+  assert.ok(Math.abs(met.frac - imp.frac) < 0.02, `metric ${met.frac} vs imperial ${imp.frac}`);
   // A figure still in miles is never converted…
   assert.deepEqual(bsSdPaceTraceIn(DREW_PACE, '8:42/mi'), DREW_PACE);
   // …and one already in kilometres IS.
