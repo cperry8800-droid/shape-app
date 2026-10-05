@@ -215,5 +215,18 @@
   "ck.readsOnToast": "A voz de Nora está ativada. Ela vai ler cada etapa em voz alta.",
   "ck.readsOffToast": "A voz de Nora está desativada. As etapas continuam na tela.",
   "ck.laterHead": "Na hora de comer",
-  "plated.later": "Preparado com antecedência."
+  "plated.later": "Preparado com antecedência.",
+  "prepAhead.kicker": "Hoje à noite · para amanhã",
+  "prepAhead.makeOne": "Prepare hoje à noite para ficar pronto.",
+  "prepAhead.makeMany": "Um só preparo hoje à noite cobre todos os dias listados.",
+  "prepAhead.start": "Começar",
+  "prepAhead.done": "Já fiz",
+  "prepAhead.savedToast": "Salvo como preparado.",
+  "prepAhead.failed": "O preparo não foi salvo.",
+  "prepAhead.retry": "Tentar de novo",
+  "prepAhead.saving": "Salvando como preparado…",
+  "prepAhead.savedFor": "Salvo como preparado para {days}. Nada é registrado como comido.",
+  "prepAhead.saved": "Salvo como preparado. Nada é registrado como comido.",
+  "prepAhead.notPrepped": "Não foi preparado ontem à noite",
+  "plated.prepped": "Preparado para amanhã."
 }

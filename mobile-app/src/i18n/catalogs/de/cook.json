@@ -215,5 +215,18 @@
   "ck.readsOnToast": "Noras Stimme ist an. Sie liest jeden Schritt vor.",
   "ck.readsOffToast": "Noras Stimme ist aus. Die Schritte bleiben auf dem Bildschirm.",
   "ck.laterHead": "Wenn du essen möchtest",
-  "plated.later": "Vorbereitet."
+  "plated.later": "Vorbereitet.",
+  "prepAhead.kicker": "Heute Abend · für morgen",
+  "prepAhead.makeOne": "Bereite es heute Abend vor, dann ist es fertig.",
+  "prepAhead.makeMany": "Eine Zubereitung heute Abend reicht für alle genannten Tage.",
+  "prepAhead.start": "Starten",
+  "prepAhead.done": "Schon erledigt",
+  "prepAhead.savedToast": "Als vorbereitet gespeichert.",
+  "prepAhead.failed": "Die Vorbereitung wurde nicht gespeichert.",
+  "prepAhead.retry": "Erneut versuchen",
+  "prepAhead.saving": "Wird als vorbereitet gespeichert…",
+  "prepAhead.savedFor": "Als vorbereitet gespeichert für {days}. Nichts wird als gegessen erfasst.",
+  "prepAhead.saved": "Als vorbereitet gespeichert. Nichts wird als gegessen erfasst.",
+  "prepAhead.notPrepped": "Gestern Abend nicht vorbereitet",
+  "plated.prepped": "Für morgen vorbereitet."
 }

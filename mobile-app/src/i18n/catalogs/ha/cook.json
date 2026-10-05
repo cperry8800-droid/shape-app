@@ -215,5 +215,18 @@
   "ck.readsOnToast": "Muryar Nora a kunne take. Za ta karanta kowane mataki da babbar murya.",
   "ck.readsOffToast": "Muryar Nora a kashe take. Matakan za su ci gaba da kasancewa a allo.",
   "ck.laterHead": "Idan kana shirin ci",
-  "plated.later": "An shirya tun da wuri."
+  "plated.later": "An shirya tun da wuri.",
+  "prepAhead.kicker": "Yau da dare · don gobe",
+  "prepAhead.makeOne": "Shirya shi yau da dare don ya kasance a shirye.",
+  "prepAhead.makeMany": "Shiri ɗaya yau da dare ya isa kowace rana da aka lissafa.",
+  "prepAhead.start": "Fara",
+  "prepAhead.done": "An riga an yi",
+  "prepAhead.savedToast": "An adana a matsayin wanda aka shirya.",
+  "prepAhead.failed": "Ba a adana shirin ba.",
+  "prepAhead.retry": "Sake gwadawa",
+  "prepAhead.saving": "Ana adanawa a matsayin wanda aka shirya…",
+  "prepAhead.savedFor": "An adana a matsayin wanda aka shirya don {days}. Ba a rubuta komai a matsayin abin da aka ci ba.",
+  "prepAhead.saved": "An adana a matsayin wanda aka shirya. Ba a rubuta komai a matsayin abin da aka ci ba.",
+  "prepAhead.notPrepped": "Ba a shirya shi jiya da dare ba",
+  "plated.prepped": "An shirya don gobe."
 }

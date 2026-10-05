@@ -215,5 +215,18 @@
   "ck.readsOnToast": "Nora’nın sesi açık. Her adımı sesli okuyacak.",
   "ck.readsOffToast": "Nora’nın sesi kapalı. Adımlar ekranda kalır.",
   "ck.laterHead": "Yemeye hazır olduğunda",
-  "plated.later": "Önceden hazırlandı."
+  "plated.later": "Önceden hazırlandı.",
+  "prepAhead.kicker": "Bu akşam · yarın için",
+  "prepAhead.makeOne": "Hazır olması için bu akşam hazırla.",
+  "prepAhead.makeMany": "Bu akşam tek bir hazırlık listelenen her günü karşılar.",
+  "prepAhead.start": "Başla",
+  "prepAhead.done": "Zaten yaptım",
+  "prepAhead.savedToast": "Hazırlandı olarak kaydedildi.",
+  "prepAhead.failed": "Hazırlık kaydedilmedi.",
+  "prepAhead.retry": "Tekrar dene",
+  "prepAhead.saving": "Hazırlandı olarak kaydediliyor…",
+  "prepAhead.savedFor": "{days} için hazırlandı olarak kaydedildi. Hiçbir şey yenmiş olarak kaydedilmedi.",
+  "prepAhead.saved": "Hazırlandı olarak kaydedildi. Hiçbir şey yenmiş olarak kaydedilmedi.",
+  "prepAhead.notPrepped": "Dün akşam hazırlanmadı",
+  "plated.prepped": "Yarın için hazırlandı."
 }

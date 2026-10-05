@@ -58,9 +58,12 @@ function escapeHtml(s: string): string {
 // bell (inapp) and the push webhook (push) honor the toggles, and email goes out
 // when that channel is opted in. Requires the service-role client (cross-user
 // prefs read + email lookup). Same best-effort contract as createNotification.
+// `quiet` is the caller's word that the recipient is inside their quiet hours (a scheduled send
+// that knows their zone): the row still lands in the app, but nothing is pushed or emailed, and
+// if the app channel is off too nothing is written.
 export async function createPreferredNotification(
   admin: SupabaseClient,
-  n: NewNotification & { type: string },
+  n: NewNotification & { type: string; quiet?: boolean },
 ): Promise<void> {
   if (!n.userId || !n.title) return;
   try {
@@ -74,6 +77,7 @@ export async function createPreferredNotification(
       overrides[row.channel] = !!row.enabled;
     }
     const channels = channelsForType({ matrix: { [n.type]: overrides } }, n.type);
+    if (n.quiet) { channels.push = false; channels.email = false; }
     if (!channels.inapp && !channels.push && !channels.email) return;
     // Email cooldown: one email per (recipient, type) per hour, checked BEFORE
     // the insert below (which would otherwise count itself). Event loops (e.g.
@@ -89,7 +93,10 @@ export async function createPreferredNotification(
         .eq('user_id', n.userId).eq('type', n.type).gte('created_at', since);
       if (error || (count ?? 1) > 0) allowEmail = false;
     }
-    await createNotification(admin, { ...n, data: { ...(n.data ?? {}), channels } });
+    await createNotification(admin, {
+      userId: n.userId, type: n.type, title: n.title, body: n.body, route: n.route,
+      data: { ...(n.data ?? {}), channels },
+    });
     if (allowEmail) {
       const { data } = await admin.auth.admin.getUserById(n.userId);
       const email = data?.user?.email || '';

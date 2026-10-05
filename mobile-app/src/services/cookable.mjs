@@ -785,8 +785,11 @@ export const bsCookableFromRecipe = (recipe) => {
   // in the fridge; the steps after it are kept as `laterSteps` for when it is eaten. Read only
   // from the catalog's hand-checked overlay, never from an inline (coach or member) step,
   // which goes through sanitizeMeta and cannot carry the mark.
+  // A make-ahead mark may say how many days one prep keeps (`keepsDays`, 1-7), which the
+  // night-before reminder reads (prepAhead.mjs); anything else on the mark is dropped.
+  const keepsOf = (m) => (Number.isInteger(m.keepsDays) && m.keepsDays >= 1 && m.keepsDays <= 7 ? { keepsDays: m.keepsDays } : {});
   let stepMeta = overlay ? steps.map((_, i) => (overlay[i] && overlay[i].makeAhead === true
-    ? { ...plainStepMeta(), makeAhead: true }
+    ? { ...plainStepMeta(), makeAhead: true, ...keepsOf(overlay[i]) }
     : sanitizeMeta(overlay[i]) || inlineMeta[i])) : inlineMeta;
   let tonight = steps;
   let laterSteps = [];

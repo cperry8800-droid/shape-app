@@ -215,5 +215,18 @@
   "ck.readsOnToast": "Nora voice don on. She go read every step loud.",
   "ck.readsOffToast": "Nora voice don off. Di steps go still dey for screen.",
   "ck.laterHead": "When you ready to chop",
-  "plated.later": "E don ready for later."
+  "plated.later": "E don ready for later.",
+  "prepAhead.kicker": "Tonight · for tomorrow",
+  "prepAhead.makeOne": "Prepare am tonight make e ready.",
+  "prepAhead.makeMany": "One batch tonight go cover all the days wey dey list.",
+  "prepAhead.start": "Start",
+  "prepAhead.done": "I don do am",
+  "prepAhead.savedToast": "E don save as prepared.",
+  "prepAhead.failed": "The prep no save.",
+  "prepAhead.retry": "Try again",
+  "prepAhead.saving": "E dey save as prepared…",
+  "prepAhead.savedFor": "E don save as prepared for {days}. Nothing dey log as food wey you chop.",
+  "prepAhead.saved": "E don save as prepared. Nothing dey log as food wey you chop.",
+  "prepAhead.notPrepped": "You no prepare am last night",
+  "plated.prepped": "E don ready for tomorrow."
 }

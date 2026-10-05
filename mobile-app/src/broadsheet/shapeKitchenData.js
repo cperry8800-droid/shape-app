@@ -986,9 +986,12 @@ export const SHAPE_KITCHEN_RECIPES = [..._SHAPE_KITCHEN_RECIPES_AUTHORED, ...USD
 // step's own stated duration (bsStepTimers) so authored metadata can't drift.
 //   station: 'oven' | 'stove' | 'board' | 'off'   ('off' = rest/chill/marinate —
 //   ties up no equipment, so it never conflicts). Keyed title → { stepIndex: meta }.
-//   { makeAhead: true } alone marks the step where tonight's cook ENDS because the dish is
+//   { makeAhead: true } marks the step where tonight's cook ENDS because the dish is
 //   finished another day (into the fridge overnight, or a storage limit like "keeps 4
 //   hours"): no hold, no timer, and any steps after it are kept for later, never waited on.
+//   It may add `keepsDays` (a whole number of days, 1-7), how long one prep lasts, as the
+//   recipe's own text states it: the night-before reminder covers that many planned days
+//   with one prep (mobile-app/src/services/prepAhead.mjs). Without it, one prep is one day.
 // An annotation declares "this recipe's NEXT step waits for the hold" — the
 // board's wait gate blocks same-recipe continuation while the window runs. So a
 // window whose next step is authored CONCURRENT with it ("While it roasts, make
@@ -1093,8 +1096,8 @@ export const _KITCHEN_STEP_META = {
   // 240-minute 'off' hold, which put a four-hour countdown on the board and scheduled the
   // morning steps four hours into the session (owner, 2026-10-04: "these timers seem
   // unnecessary"). bsCookableFromRecipe cuts the method here and keeps the morning steps as
-  // `laterSteps`.
-  "Overnight oats, three ways": { 1: { makeAhead: true } },
+  // `laterSteps`. keepsDays 3 is the recipe's own tip: "they keep 3 days chilled".
+  "Overnight oats, three ways": { 1: { makeAhead: true, keepsDays: 3 } },
   // step 2 opens "While it roasts" — the author already scheduled it against step 1's roast, so
   // it is the detour, not a host for one. Same reason four other recipes correctly carry none.
   "Harissa salmon with couscous": {},
