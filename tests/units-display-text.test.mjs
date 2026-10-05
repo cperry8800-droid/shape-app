@@ -268,7 +268,10 @@ test('the new families are idempotent, so a re-render does not drift', () => {
 
 test('context that is not an object is ignored, so Array.map(uText) still works', () => {
   // map passes (value, index, array); an index must not read as swim context.
-  assert.deepEqual(['2 km', '9:30/mi'].map((x, i) => bsSdUnitizeText(x, LB, i)), ['1.2 mi', '9:30/mi']);
+  // ⚠ THE DISTANCE SITS AT A TRUTHY INDEX. At index 0 it proved nothing: a
+  // mutation reading any truthy context as a swim SURVIVED the first round.
+  assert.deepEqual(['9:30/mi', '2 km', '3.2 mi'].map((x, i) => bsSdUnitizeText(x, LB, i)), ['9:30/mi', '1.2 mi', '3.2 mi']);
+  assert.deepEqual(['5 km', '2 km'].map((x, i) => bsSdUnitizeText(x, KG, i)), ['5 km', '2 km']);
   assert.equal(bsSdUnitizeText('2 km', LB, { sport: 'run' }), '1.2 mi');
 });
 
