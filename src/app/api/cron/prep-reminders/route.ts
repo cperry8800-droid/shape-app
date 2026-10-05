@@ -50,6 +50,10 @@ const PREP_HOUR = 19;
 const REMINDED_DAYS = 9;
 // PostgREST takes `in` filters on the URL, so long id lists go in chunks.
 const CHUNK = 150;
+// The plan scan's page, held under PostgREST's "Max rows" cap (1000) so a short page means the
+// end of the table, and its ceiling, which bounds the run (maxDuration) and is reported when hit.
+const PLAN_PAGE = 500;
+const PLAN_MAX_ROWS = 50_000;
 const INDEX = bsMakeAheadIndex(SHAPE_KITCHEN_RECIPES);
 
 function safeEqual(a: string, b: string): boolean {
@@ -92,25 +96,54 @@ async function handle(request: Request) {
   const now = Date.now();
 
   // The newest published plan per member: the one /api/client/plan serves to Eat.
-  const { data: planRows, error: planError } = await admin
-    .from('client_meal_plans')
-    .select('client_id, payload, created_at')
-    .eq('status', 'published')
-    .order('created_at', { ascending: false })
-    .limit(5000);
-  if (planError) {
-    console.error('[shape] prep reminders: plan scan failed:', planError);
-    return NextResponse.json({ error: 'Could not read meal plans.' }, { status: 500 });
+  // ⚠ EVERY ROW, NOT THE FIRST 5,000. A capped read silently skips each member whose newest plan
+  // falls past the cap, and every older version counts against it (CodeRabbit, #2202). So the
+  // scan pages through the table, ids and dates only, and the payloads are read below for the
+  // members due this hour. It pages by a cursor on `id`, not by `range()`: an offset shifts when
+  // a row changes between pages and skips one (the guardrail-health cron says why at length).
+  // `id` is unique, so the cursor cannot repeat or skip a row; newest-per-member is decided here,
+  // by created_at, with the larger id breaking a tie.
+  const newest = new Map<string, { id: string; at: number }>();
+  let cursor = '';
+  let scanned = 0;
+  let truncated = false;
+  for (;;) {
+    let q = admin
+      .from('client_meal_plans')
+      .select('id, client_id, created_at')
+      .eq('status', 'published');
+    if (cursor) q = q.gt('id', cursor);
+    // capped-read-ok: not a cap that keeps the first rows. Each page is one step of a cursor walk
+    // that reads on to the end of the table (or to the ceiling, which is reported), and `id` is a
+    // random uuid, so ascending only fixes the walk's direction.
+    const { data, error } = await q.order('id', { ascending: true }).limit(PLAN_PAGE);
+    if (error) {
+      console.error('[shape] prep reminders: plan scan failed:', error);
+      return NextResponse.json({ error: 'Could not read meal plans.' }, { status: 500 });
+    }
+    const page = (data ?? []) as Row[];
+    for (const r of page) {
+      const client = typeof r.client_id === 'string' ? r.client_id : '';
+      const id = typeof r.id === 'string' ? r.id : '';
+      const at = Date.parse(String(r.created_at));
+      if (!client || !id || !Number.isFinite(at)) continue;
+      const seen = newest.get(client);
+      if (!seen || at > seen.at || (at === seen.at && id > seen.id)) newest.set(client, { id, at });
+    }
+    scanned += page.length;
+    const last = page.length ? page[page.length - 1].id : null;
+    if (page.length < PLAN_PAGE || typeof last !== 'string') break;
+    if (scanned >= PLAN_MAX_ROWS) { truncated = true; break; }
+    cursor = last;
   }
-  const plans = new Map<string, unknown>();
-  for (const r of (planRows ?? []) as Row[]) {
-    const id = typeof r.client_id === 'string' ? r.client_id : '';
-    if (id && !plans.has(id)) plans.set(id, r.payload);
+  if (truncated) {
+    // Reported, never swallowed: the members past the ceiling get no reminder this hour.
+    console.error(`[shape] prep reminders: plan scan stopped at its ${PLAN_MAX_ROWS}-row ceiling; members past it are not reminded`);
   }
-  if (!plans.size) return NextResponse.json({ ok: true, owed: 0 });
+  if (!newest.size) return NextResponse.json({ ok: true, owed: 0, truncated });
 
   // Each member's zone: the one the app saves on every open, else their notification zone.
-  const ids = [...plans.keys()];
+  const ids = [...newest.keys()];
   const [profiles, settings] = await Promise.all([
     readIn(ids, (c) => admin.from('client_profiles').select('user_id, timezone').in('user_id', c)),
     readIn(ids, (c) => admin.from('notification_settings').select('user_id, tz, quiet_start, quiet_end').in('user_id', c)),
@@ -119,26 +152,43 @@ async function handle(request: Request) {
     console.error('[shape] prep reminders: could not read zones');
     return NextResponse.json({ error: 'Could not read time zones.' }, { status: 500 });
   }
+  // normalizeZone and localHour each build an Intl formatter, so each runs once per distinct
+  // zone, not once per member.
+  const zoneCache = new Map<string, string | null>();
+  const zone = (raw: unknown) => {
+    const k = String(raw ?? '');
+    if (!zoneCache.has(k)) zoneCache.set(k, normalizeZone(raw));
+    return zoneCache.get(k) ?? null;
+  };
   const zoneOf = new Map<string, string>();
-  for (const r of profiles) { const z = normalizeZone(r.timezone); if (z) zoneOf.set(String(r.user_id), z); }
+  for (const r of profiles) { const z = zone(r.timezone); if (z) zoneOf.set(String(r.user_id), z); }
   const quietOf = new Map<string, Row>();
   for (const r of settings) {
     quietOf.set(String(r.user_id), r);
-    const z = normalizeZone(r.tz);
+    const z = zone(r.tz);
     if (z && !zoneOf.has(String(r.user_id))) zoneOf.set(String(r.user_id), z);
   }
-  const due = ids.filter((id) => localHour(new Date(now), zoneOf.get(id) || 'UTC') === PREP_HOUR);
-  if (!due.length) return NextResponse.json({ ok: true, owed: 0 });
+  const hourIn = new Map<string, number>();
+  const hourOf = (tz: string) => {
+    if (!hourIn.has(tz)) hourIn.set(tz, localHour(new Date(now), tz));
+    return hourIn.get(tz);
+  };
+  const due = ids.filter((id) => hourOf(zoneOf.get(id) || 'UTC') === PREP_HOUR);
+  if (!due.length) return NextResponse.json({ ok: true, owed: 0, truncated });
 
   const since = new Date(now - REMINDED_DAYS * 86400000).toISOString();
-  const [goals, earlier] = await Promise.all([
+  const [planRows, goals, earlier] = await Promise.all([
+    // A plan archived since the scan is not read: that member is skipped this hour.
+    readIn(due.map((id) => (newest.get(id) as { id: string }).id), (c) => admin.from('client_meal_plans').select('id, payload').in('id', c).eq('status', 'published')),
     readIn(due, (c) => admin.from('user_goals').select('user_id, kind, data').in('user_id', c).in('kind', ['client_meal_swaps', 'meal_prep'])),
     readIn(due, (c) => admin.from('notifications').select('user_id, data').in('user_id', c).eq('type', 'meal_prep').gte('created_at', since)),
   ]);
-  if (!goals || !earlier) {
-    console.error('[shape] prep reminders: could not read swaps, prep records or earlier reminders');
-    return NextResponse.json({ error: 'Could not read what was prepped.' }, { status: 500 });
+  if (!planRows || !goals || !earlier) {
+    console.error('[shape] prep reminders: could not read plans, swaps, prep records or earlier reminders');
+    return NextResponse.json({ error: 'Could not read what was planned or prepped.' }, { status: 500 });
   }
+  const payloadOf = new Map<string, unknown>();
+  for (const r of planRows) payloadOf.set(String(r.id), r.payload);
 
   // Members a reminder was owed to. A muted member, or one with Prep reminders off, is counted
   // and then skipped inside createPreferredNotification.
@@ -146,6 +196,7 @@ async function handle(request: Request) {
   for (const userId of due) {
     try {
       const tz = zoneOf.get(userId) || 'UTC';
+      const today = bsYmdIn(now, tz);
       const goal = (kind: string) => {
         const row = goals.find((g) => g.user_id === userId && g.kind === kind);
         return row && row.data && typeof row.data === 'object' ? (row.data as Row) : {};
@@ -156,14 +207,14 @@ async function handle(request: Request) {
           const f = r.data && typeof r.data === 'object' ? (r.data as Row).forMeals : null;
           return Array.isArray(f) ? f.filter((x): x is string => typeof x === 'string') : [];
         });
-      const payload = plans.get(userId);
+      const payload = payloadOf.get((newest.get(userId) as { id: string }).id);
       const days = payload && typeof payload === 'object' ? (payload as Row).days : null;
       const groups = bsPrepDueTonight({
         days,
         swaps: goal('client_meal_swaps'),
         entries: Array.isArray(goal('meal_prep').entries) ? goal('meal_prep').entries : [],
         reminded,
-        today: bsYmdIn(now, tz),
+        today,
         index: INDEX,
         dayOf: (ms: number) => bsYmdIn(ms, tz),
         now,
@@ -184,6 +235,10 @@ async function handle(request: Request) {
         route: bsPrepRoute(groups[0].slug),
         quiet,
         data: {
+          // One reminder per member per evening: with the unique index of
+          // supabase-migrations/2026-10-05-notifications-dedupe.sql, a second run that overlaps
+          // this one has its insert rejected, so it is neither pushed nor emailed.
+          dedupe: `prep:${today}`,
           // Read back by the next evenings' runs, so a day is never named twice.
           forMeals: groups.flatMap((g: { meals: { date: string; mealId: string }[] }) => g.meals.map((m) => `${m.date}|${m.mealId}`)),
           recipes: groups.map((g: { slug: string }) => g.slug),
@@ -195,7 +250,7 @@ async function handle(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, owed });
+  return NextResponse.json({ ok: true, owed, truncated });
 }
 
 export async function GET(request: Request) {

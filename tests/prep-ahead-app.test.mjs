@@ -30,8 +30,9 @@ const CLIENT = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadshe
 const oats = () => bsCookableFromRecipe(SHAPE_KITCHEN_RECIPES.find((r) => r.title === OATS));
 const meal = (date, dow) => ({ date, dow, mealId: `live-${dow}-0`, slot: 'BREAKFAST', title: OATS, slug: SLUG });
 const GROUP = { slug: SLUG, title: OATS, keeps: 3, meals: [meal('2026-10-05', 0), meal('2026-10-06', 1), meal('2026-10-07', 2)] };
-// Midday UTC on a Sunday: Sunday in any zone from UTC-11 to UTC+11, wherever the suite runs.
-const SUNDAY_NOON = Date.parse('2026-10-04T12:00:00Z');
+// Noon on Sunday 4 October 2026 in the zone the suite runs in. The app reads the device's own
+// calendar, so a fixed UTC instant would be Monday from UTC+12 on (Auckland is UTC+13 in October).
+const SUNDAY_NOON = new Date(2026, 9, 4, 12).getTime();
 const WEEK = [0, 1, 2, 3, 4, 5, 6].map((dow) => ({ dow, meals: [{ slot: 'BREAKFAST', title: OATS }] }));
 
 async function mount(Component, props) {
