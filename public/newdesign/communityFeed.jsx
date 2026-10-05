@@ -775,6 +775,81 @@ function cfFeedScope(role) {
   return ["COMMUNITY", mine, "SHAPE"];
 }
 
+// ── The reader's units ──────────────────────────────────────────────────────
+// ⚠ THE WEBSITE FEED DREW EVERY FIGURE EXACTLY AS IT WAS STORED. Importers write
+// miles, feet and mph, so a metric member read "8.4 mi" and "+412 ft" here while
+// the app showed them kilometres and metres, and a swim's title and plate could
+// quote two systems. The figures now go through the app's own converter
+// (`public/newdesign/unitText.mjs`, the module the app imports — one copy, so the
+// two surfaces cannot convert a figure differently), against the member's
+// Settings → Units (`client_settings.units`, which both surfaces write). Signed
+// out, or until the setting is read, the app's default applies: imperial.
+function cfUnitPrefs(units) {
+  return /metric/i.test(String(units || "")) ? { weight: "kg", distance: "km" } : { weight: "lb", distance: "mi" };
+}
+function cfLoadUnits(signedIn) {
+  const db = window.shapeDb;
+  const setting = (signedIn && db && typeof db.getUserGoals === "function")
+    ? Promise.resolve().then(() => db.getUserGoals("client_settings")).catch(() => null)
+    : Promise.resolve(null);
+  return Promise.all([import("/newdesign/unitText.mjs"), setting])
+    .then(([U, st]) => ({ U, prefs: cfUnitPrefs(st && st.units) }))
+    .catch(() => null);
+}
+
+// One post in the reader's units: its title, every stat (with its label), the
+// breakdown, the traces the session charts draw, the demo fields and the PR
+// delta. The member's own note (`body`) is never rewritten, which is the app's
+// rule too. Pure, so a test drives it with the real module.
+// ⚠ A BREAKDOWN ROW IS NOT A STAT: its first cell names a set or a split, not a
+// measure, so its values convert as text. Read as stats, a movement called "Hill
+// climb" turned "6 × 200 m" into feet (found in the app's review, #2205).
+function cfUnitizePost(p, U, prefs) {
+  if (!p || !U || !prefs) return p;
+  const s = p.session || null;
+  const sport = String((s && s.sport) || (p.kind === "run" ? "run" : "")).toLowerCase();
+  const ctx = { sport };
+  const text = (v) => (v == null || v === "" ? v : U.bsSdUnitizeText(String(v), prefs, ctx));
+  const stat = (row) => (Array.isArray(row) ? [row[0], U.bsSdUnitizeStat(row[0], row[1], prefs, ctx), ...row.slice(2)] : row);
+  let session = s;
+  if (s) {
+    const stats = Array.isArray(s.stats) ? s.stats.map(stat) : s.stats;
+    const all = Array.isArray(stats) ? stats : [];
+    const m = s.metrics || {};
+    // Each trace follows the figure its chart is headed by, exactly as the
+    // app's session page does — a pace chart in /mi under a /km figure would
+    // disagree with its own number.
+    const paceFig = all.find((r) => Array.isArray(r) && /pace|speed/i.test(String(r[0])));
+    const elevFig = all.find((r) => Array.isArray(r) && /elev|ascent|altitude|climb/i.test(String(r[0])));
+    const elevIn = U.bsSdElevTraceIn(Array.isArray(m.elevTrace) ? m.elevTrace : null, elevFig ? elevFig[1] : null, prefs.distance === "km");
+    session = {
+      ...s,
+      title: text(s.title),
+      stats,
+      breakdown: s.breakdown ? {
+        ...s.breakdown,
+        label: text(s.breakdown.label),
+        rows: Array.isArray(s.breakdown.rows) ? s.breakdown.rows.map((r) => (Array.isArray(r) ? [r[0], ...r.slice(1).map(text)] : r)) : s.breakdown.rows,
+      } : s.breakdown,
+      metrics: {
+        ...m,
+        paceTrace: U.bsSdPaceTraceIn(m.paceTrace, paceFig ? paceFig[1] : null),
+        elevTrace: Array.isArray(m.elevTrace) ? elevIn.trace : m.elevTrace,
+      },
+    };
+  }
+  return {
+    ...p,
+    title: text(p.title),
+    delta: text(p.delta),
+    load: text(p.load),
+    distance: text(p.distance),
+    pace: text(p.pace),
+    elev: (p.elev == null || p.elev === "") ? p.elev : U.bsSdUnitizeStat("Elevation", p.elev, prefs, ctx),
+    session,
+  };
+}
+
 function CommunityFeed() {
   const ME = { who: "Priya M.", role: "Hypertrophy · 2,140" };
   const [composerOpen, setComposerOpen] = React.useState(false);
@@ -928,6 +1003,9 @@ function CommunityFeed() {
   // out, true = measured signed in. Collapsing null into false would disable
   // posting for a signed-in member for as long as the read takes.
   const [signedIn, setSignedIn] = React.useState(null);
+  // The converter and the member's unit setting, once both have loaded. Until
+  // then a card renders its figures as stored.
+  const [units, setUnits] = React.useState(null);
 
   // Hydrate the live posts on top of the demo content. The /api/community/feed
   // endpoint returns rows from community_posts (newest first); we map each row
@@ -1097,6 +1175,7 @@ function CommunityFeed() {
       let uid = null;
       try { const sb = window.shapeDb && window.shapeDb.client; if (sb) { const { data } = await sb.auth.getUser(); uid = data && data.user && data.user.id; signedIn = !!uid; } } catch (e) {}
       setSignedIn(signedIn);
+      cfLoadUnits(signedIn).then((u) => { if (alive && u) setUnits(u); });
       let live = [];
       try {
         const r = await fetch('/api/community/feed' + (feedMode === 'following' ? '?mode=following' : ''), { credentials: 'same-origin' });
@@ -1356,7 +1435,12 @@ function CommunityFeed() {
     );
   }
 
-  function FeedItem({ p, onEdit, onDeleted }) {
+  function FeedItem({ p: stored, onEdit, onDeleted }) {
+    // ⚠ THE CARD DRAWS THE READER'S UNITS, NOT THE STORED ONES. `p` is the post
+    // as the reader sees it — the plate, the session page and the share card all
+    // read it — and `stored` is kept for the one place that must not convert: a
+    // repost, which writes the original back to the feed.
+    const p = React.useMemo(() => (units ? cfUnitizePost(stored, units.U, units.prefs) : stored), [stored, units]);
     // One model per card, both populations.
     const wall = cfWallModel(p);
     // ⚠ A DEMO RUN KEEPS ITS NAME IN `session.title` AND NOWHERE ELSE, so
@@ -1429,7 +1513,7 @@ function CommunityFeed() {
     const onRepost = async () => {
       if (!p.isLive || !p.id) { try { window.alert("Sample post — repost works on real posts."); } catch (e) {} return; }
       try {
-        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: p.title || "Repost", note: p.body || "", privacy: "public", metrics: { kind: "note", channel: CF_POST_CHANNEL, repostOf: { postId: p.id, who: p.who || "", title: p.title || "", body: String(p.body || "").slice(0, 240) } } }) });
+        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: stored.title || "Repost", note: stored.body || "", privacy: "public", metrics: { kind: "note", channel: CF_POST_CHANNEL, repostOf: { postId: p.id, who: p.who || "", title: p.title || "", body: String(p.body || "").slice(0, 240) } } }) });
         if (!res.ok) throw new Error("repost_failed");
         try { window.alert("Reposted to the feed"); } catch (e) {}
       } catch (e2) { try { window.alert("Could not repost."); } catch (e3) {} }
@@ -1510,7 +1594,7 @@ function CommunityFeed() {
             ⇄ REPOST
           </button>
           {p.isMe && p.isLive && p.id && onEdit && (
-            <button onClick={() => onEdit(p)} aria-label="Edit post"
+            <button onClick={() => onEdit(stored)} aria-label="Edit post"
               style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", background: "transparent", border: 0, padding: 0, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit" }}>
               ✎ EDIT
             </button>
@@ -1529,7 +1613,7 @@ function CommunityFeed() {
             </button>
           )}
         </div>
-        {sendOpen && <SendPostModal post={p} onClose={() => setSendOpen(false)} />}
+        {sendOpen && <SendPostModal post={stored} onClose={() => setSendOpen(false)} />}
         {sessionOpen && <SessionDetailsModal p={p} onClose={() => setSessionOpen(false)} onShareImage={canShareImage ? () => setShareOpen(true) : null} />}
         {shareOpen && <ShareChooserModal p={p} onShareLink={onShare} onClose={() => setShareOpen(false)} />}
 

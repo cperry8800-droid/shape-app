@@ -2,7 +2,9 @@
 // a feed swim read "Masters swim · 1.2 mi" over a "2,000 m" plate). Each mutation
 // breaks one clause of the fix; every one must be killed. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/feed-post-units-2026-10-05.mutations.mjs --fail-on-skipped
-const LEDGER = 'mobile-app/src/services/sessionLedger.mjs';
+// The converter moved to public/newdesign/unitText.mjs (#2205's follow-up, the
+// website feed), and sessionLedger.mjs re-exports it.
+const LEDGER = 'public/newdesign/unitText.mjs';
 const CARD = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const SPLITS = 'mobile-app/src/services/paceSplits.mjs';
 
