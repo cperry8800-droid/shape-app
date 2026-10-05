@@ -88,8 +88,23 @@ export function bsSdNeedle(value, trace, mode = 'pace') {
 //     would rewrite a hyphenated word.
 //   · a number that is already in the target unit is returned untouched, so a
 //     string can be passed through this repeatedly without drifting.
+//
+// ⚠ A POST'S FIGURES MUST ALL BE IN ONE SYSTEM, AND THEY WERE NOT. The list above
+// stopped at lb/kg and mi/km, so a swim read "Masters swim · 1.2 mi" over a
+// "2,000 m" plate and a "1:42/100m" pace, and a metric member saw "19.3 mph" and
+// "540 ft" beside kilometres. Three more families convert now:
+//   · speed: mph ↔ km/h, by the distance setting.
+//   · elevation: ft → m in free text. `ft` is unambiguous; a bare `m` is NOT
+//     ("8h 10m" is sleep), so metres convert back to feet only where the stat's
+//     own label says it is an elevation or a stride (`bsSdUnitizeStat`).
+//   · swims, when the caller passes `{ sport: 'swim' }`: every distance becomes
+//     the pool unit of the reader's system — yards or metres — and the pace is
+//     per 100 of it. A swim's title and its plate then state the same distance
+//     in the same unit, instead of one in miles and one in metres.
 const SD_LB_TO_KG = 0.45359237;
 const SD_MI_TO_KM = 1.609344;
+const SD_YD_TO_M = 0.9144;
+const SD_FT_TO_M = 0.3048;
 
 function sdUnitKind(u) {
   const v = String(u || '').toLowerCase();
@@ -137,38 +152,134 @@ export function bsSdConvertValue(value, from, to) {
 // says /km the trace is made /km, and the two cannot disagree in either
 // direction.
 //
-// ⚠ AND ONLY THE `/mi` FORM IS AFFECTED, WHICH IS WHY THIS IS NOT A BLANKET
-// CONVERSION. Measured through `bsSdUnitizeText`: '19.3 mph' and '1:42/100m'
-// come back unchanged, so a ride's and a swim's figures are already in the same
-// units as their traces — and neither carries a `/km` suffix, so neither can
-// reach the conversion below.
+// ⚠ EVERY TRACE IS STORED IN ONE UNIT, AND THE FIGURE NAMES THE ONE TO DRAW IN.
+// A run's trace is seconds per MILE, a ride's is MPH and a swim's is seconds
+// per 100 METRES. Each converts exactly when its figure has been converted:
+// '/km' (seconds per mile → per km), 'km/h' (mph → km/h) and '/100yd' (seconds
+// per 100 m → per 100 yd). A figure still in the trace's own unit leaves it as
+// it is, so neither direction of a unit flip can split a chart from its number.
 export function bsSdPaceTraceIn(trace, paceValue) {
   if (!Array.isArray(trace) || !trace.length) return trace;
-  // The trace is seconds per MILE. It needs converting exactly when the figure
-  // drawn above it has already been converted to kilometres.
-  if (!/\/\s*km\b/i.test(String(paceValue == null ? '' : paceValue))) return trace;
+  const fig = String(paceValue == null ? '' : paceValue);
   // Seconds per mile → seconds per km is a DIVISION: a mile is longer, so each
   // kilometre takes less time. The same rule, and the same constant, that
   // `bsSdUnitizeText` applies to the figure — stated once so they cannot drift.
+  const factor = /\/\s*km\b/i.test(fig) ? 1 / SD_MI_TO_KM
+    : /\d\s*(?:km\/h|kph)(?![\w-])/i.test(fig) ? SD_MI_TO_KM
+    // 100 yd is SHORTER than 100 m, so each one takes less time: a multiplication
+    // by 0.9144, the same rule the figure's own conversion applies.
+    : /\/\s*100\s*yds?(?![\w-])/i.test(fig) ? SD_YD_TO_M
+    : null;
+  if (factor == null) return trace;
   return trace.map((v) => {
     const n = Number(v);
-    return Number.isFinite(n) ? n / SD_MI_TO_KM : v;
+    return Number.isFinite(n) ? n * factor : v;
   });
+}
+
+// An elevation trace is stored in FEET. It is drawn in metres exactly when the
+// elevation figure above it says metres, and `unit` is the label to put on it.
+// A post with a trace but no elevation figure follows the reader's setting
+// (`metricIfNoFigure`), since there is no figure for the chart to disagree with.
+export function bsSdElevTraceIn(trace, elevValue, metricIfNoFigure = false) {
+  const hasFigure = /\d\s*(?:m|ft)(?![\w/-])/i.test(String(elevValue == null ? '' : elevValue));
+  const metres = hasFigure ? sdIsMetres(elevValue) : !!metricIfNoFigure;
+  const unit = metres ? 'm' : 'ft';
+  if (!Array.isArray(trace) || !trace.length || !metres) return { trace, unit };
+  return { trace: trace.map((v) => { const n = Number(v); return Number.isFinite(n) ? n * SD_FT_TO_M : v; }), unit };
+}
+
+function sdIsMetres(value) {
+  const v = String(value == null ? '' : value);
+  return /\d\s*m(?![\w/-])/i.test(v) && !/\d\s*ft(?![\w-])/i.test(v);
+}
+
+// Metres, rounded the way the kind of figure is written: whole above ten, one
+// decimal below, so 540 ft reads "165 m" and 8 ft reads "2.4 m".
+function sdFormatMetres(n, grouped) {
+  return sdFormatNumber(n, grouped, Math.abs(n) < 10 ? 1 : 0);
+}
+
+const SD_SWIM_TO_M = { km: 1000, mi: SD_MI_TO_KM * 1000, m: 1, yd: SD_YD_TO_M, yds: SD_YD_TO_M };
+
+// `opts` is optional context: `{ sport }`. A swim reads its distances in the
+// pool unit of the reader's system. Anything that is not a plain object (an
+// Array.map index, say) is ignored rather than read as context.
+function sdIsSwim(opts) {
+  return !!(opts && typeof opts === 'object' && /swim/i.test(String(opts.sport || '')));
 }
 
 // `prefs` is { weight: 'lb'|'kg', distance: 'mi'|'km' } — the reader's two
 // Settings units. Anything missing means "leave that family alone".
-export function bsSdUnitizeText(text, prefs) {
+export function bsSdUnitizeText(text, prefs, opts) {
   if (text == null || text === '') return text;
   const s = String(text);
   if (!prefs) return s;
   const want = { weight: sdUnitKind(prefs.weight).key, distance: sdUnitKind(prefs.distance).key };
+  const swim = sdIsSwim(opts);
+  // The pool unit of the reader's system: yards for miles, metres for km.
+  const pool = want.distance === 'mi' ? 'yd' : want.distance === 'km' ? 'm' : null;
 
-  // Pace first: "9:30/mi" is minutes-per-unit, so the SAME distance conversion
+  // Swim pace: seconds per 100 of the pool unit. 100 yd is 91.44 m, so a pace
+  // per 100 yd is the pace per 100 m times 0.9144, and back again.
+  let out = s.replace(/(\d{1,2}):([0-5]\d)\s*\/\s*100\s*(m|yds?)(?![\w-])/gi, (m, mm, ss, unit) => {
+    const src = unit.toLowerCase() === 'm' ? 'm' : 'yd';
+    if (!pool || pool === src) return m;
+    const secs = Number(mm) * 60 + Number(ss);
+    const total = Math.round(pool === 'yd' ? secs * SD_YD_TO_M : secs / SD_YD_TO_M);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}/100${pool}`;
+  });
+
+  // Speed. Before the distance rule, which would otherwise read the "km" of
+  // "km/h" as a distance. Speeds keep one decimal, the way they are written.
+  out = out.replace(/(\d[\d,]*(?:\.\d+)?)\s*(mph|km\/h|kph)(?![\w/-])/gi, (m, num, unit) => {
+    const src = unit.toLowerCase() === 'mph' ? 'mi' : 'km';
+    if (!want.distance || want.distance === src) return m;
+    const n = Number(num.replace(/,/g, ''));
+    if (!Number.isFinite(n)) return m;
+    const conv = want.distance === 'km' ? n * SD_MI_TO_KM : n / SD_MI_TO_KM;
+    const fixed = conv.toFixed(1);
+    const shown = num.includes(',') ? fixed.replace(/^(\d+)/, (w) => w.replace(/\B(?=(\d{3})+(?!\d))/g, ',')) : fixed;
+    return `${shown} ${want.distance === 'km' ? 'km/h' : 'mph'}`;
+  });
+
+  // Elevation in feet → metres. `ft` is unambiguous, so this is safe in free
+  // text; the reverse needs the stat's label (`bsSdUnitizeStat`).
+  if (want.distance === 'km') {
+    out = out.replace(/(?<![\w/.,:])(\d[\d,]*(?:\.\d+)?)(\s*)ft(?![\w-])/gi, (m, num, gap) => {
+      const n = Number(num.replace(/,/g, ''));
+      if (!Number.isFinite(n)) return m;
+      return `${sdFormatMetres(n * SD_FT_TO_M, num.includes(','))}${gap ? ' ' : ''}m`;
+    });
+  }
+
+  if (swim && pool) {
+    // ⚠ A BARE `m` IS ALSO MINUTES ("1h 05m"), so it is read as metres only in a
+    // swim, never straight after an hour, and never as the denominator of a pace.
+    out = out.replace(/(?<![\w/.,:])(?<!\d\s{0,3}h\s{0,3})(\d[\d,]*(?:\.\d+)?)(\s*)(km|mi|m|yds?)(?![\w/-])/gi, (m, num, gap, unit) => {
+      const u = unit.toLowerCase();
+      const src = u === 'yds' ? 'yd' : u;
+      if (src === pool) return m;
+      const n = Number(num.replace(/,/g, ''));
+      if (!Number.isFinite(n)) return m;
+      const metres = n * SD_SWIM_TO_M[src];
+      const conv = Math.round(pool === 'yd' ? metres / SD_YD_TO_M : metres);
+      return `${sdFormatNumber(conv, conv >= 1000, 0)} ${pool}`;
+    });
+  } else if (want.distance === 'km') {
+    // Yards outside a swim (a sled push, a field drill) → metres.
+    out = out.replace(/(?<![\w/.,:])(\d[\d,]*(?:\.\d+)?)(\s*)(yds?)(?![\w/-])/gi, (m, num, gap) => {
+      const n = Number(num.replace(/,/g, ''));
+      if (!Number.isFinite(n)) return m;
+      return `${sdFormatNumber(n * SD_YD_TO_M, num.includes(','), 1)}${gap ? ' ' : ''}m`;
+    });
+  }
+
+  // Pace: "9:30/mi" is minutes-per-unit, so the SAME distance conversion
   // applies to the denominator and therefore INVERTS — a faster-sounding number
   // per kilometre is the same speed. Converting it as a plain distance token
   // would have made every runner 60% faster on a unit flip.
-  let out = s.replace(/(\d{1,2}):([0-5]\d)\s*\/\s*(mi|km)(?![\w-])/gi, (m, mm, ss, unit) => {
+  out = out.replace(/(\d{1,2}):([0-5]\d)\s*\/\s*(mi|km)(?![\w-])/gi, (m, mm, ss, unit) => {
     const src = sdUnitKind(unit).key;
     if (!want.distance || want.distance === src) return m;
     const secs = Number(mm) * 60 + Number(ss);
@@ -211,6 +322,46 @@ export function bsSdUnitizeText(text, prefs) {
     return `${sdFormatNumber(conv, grouped, 1)}${spaced ? ' ' : ''}${target}`;
   });
   return out;
+}
+
+// A STAT IS A LABEL AND A VALUE, AND THE LABEL CAN SAY WHAT A BARE `m` MEANS.
+// In free text `m` is never read as metres outside a swim ("8h 10m" is sleep),
+// so an elevation or a stride written in metres would stay metric for an
+// imperial reader. Where the label names one, it converts:
+//   · Elevation / ascent / climb / altitude: metres → whole feet.
+//   · Stride: metres ↔ feet, kept to the precision a stride is written in.
+// Everything else goes through `bsSdUnitizeText` with the same context.
+const SD_ELEV_LABEL = /elev|ascent|climb|altitude/i;
+const SD_STRIDE_LABEL = /stride/i;
+// ⚠ A TIME IS NEVER A SWIM DISTANCE. "45m" under Time or Duration is minutes,
+// and inside a swim the bare-`m` rule would have read it as 49 yd. A stat whose
+// label names a time converts without the swim context.
+const SD_TIME_LABEL = /time|duration|elapsed|moving|rest|sleep/i;
+
+export function bsSdUnitizeStat(label, value, prefs, opts) {
+  if (value == null || value === '' || !prefs) return value;
+  const l = String(label == null ? '' : label);
+  const dist = sdUnitKind(prefs.distance).key;
+  if (SD_STRIDE_LABEL.test(l)) {
+    return String(value).replace(/(?<![\w/.,:])(\d+(?:\.\d+)?)\s*(m|ft)(?![\w/-])/i, (m, num, unit) => {
+      const n = Number(num);
+      const u = unit.toLowerCase();
+      if (!Number.isFinite(n)) return m;
+      if (dist === 'mi' && u === 'm') return `${(n / SD_FT_TO_M).toFixed(1)} ft`;
+      if (dist === 'km' && u === 'ft') return `${(n * SD_FT_TO_M).toFixed(2)} m`;
+      return m;
+    });
+  }
+  if (SD_TIME_LABEL.test(l)) return bsSdUnitizeText(value, prefs);
+  let v = String(value);
+  if (SD_ELEV_LABEL.test(l) && dist === 'mi') {
+    v = v.replace(/(?<![\w/.,:])(\d[\d,]*(?:\.\d+)?)\s*m(?![\w/-])/gi, (m, num) => {
+      const n = Number(num.replace(/,/g, ''));
+      if (!Number.isFinite(n)) return m;
+      return `${sdFormatNumber(n / SD_FT_TO_M, n / SD_FT_TO_M >= 1000, 0)} ft`;
+    });
+  }
+  return bsSdUnitizeText(v, prefs, opts);
 }
 
 // A bare unit label with no number beside it ("lb" under a big figure).

@@ -166,9 +166,16 @@ test('the unit converter carries the structured columns through, and converts th
   assert.ok(end > at, 'uStats no longer follows uMeta');
   const body = src.slice(at, end + tail.length);
   assert.ok(body.includes('uStats'), 'the lift missed uStats');
-  // A converter that shouts, so a cell that went through it is obvious.
-  const t = { uText: (x) => `«${String(x)}»` };
-  const { uStats } = new Function('t', `${body}\nreturn { uStats };`)(t);
+  // A converter that shouts, so a cell that went through it is obvious. The
+  // stat converter records the label and the context it was handed, because a
+  // value converted without them cannot tell a swim's metres from minutes.
+  const seen = [];
+  const t = {
+    uText: (x, o) => { seen.push(['text', o]); return `«${String(x)}»`; },
+    uStat: (label, x, o) => { seen.push(['stat', label, o]); return `«${String(x)}»`; },
+  };
+  const uCtx = { sport: 'strength' };
+  const { uStats } = new Function('t', 'uCtx', `${body}\nreturn { uStats };`)(t, uCtx);
   const [row] = uStats([['Set 1', '225 lb × 3', 'RPE 7 · rest 2:30', { rpe: 7, plan: '225 lb × 3', rest: '2:30', dur: '42s' }]]);
   assert.equal(typeof row[3], 'object', 'the meta was stringified');
   assert.equal(row[3].rpe, 7, 'the rating went through a text converter');
@@ -181,6 +188,11 @@ test('the unit converter carries the structured columns through, and converts th
   // And the parse on the far side still reads what came through.
   assert.equal(bsIbSetRow(row).rpe, 7);
   assert.equal(bsIbSetRow(row).plan, '«225 lb × 3»');
+  // ⚠ THE VALUE GOES THROUGH WITH ITS LABEL AND THE POST'S SPORT, and so does
+  // every other cell. Dropping either is how a swim's "2,000 m" stayed metric
+  // under an imperial title.
+  assert.ok(seen.some(([k, label, o]) => k === 'stat' && label === 'Set 1' && o === uCtx), 'the value lost its label or its context');
+  assert.ok(seen.filter(([k]) => k === 'text').every(([, o]) => o === uCtx), 'a cell was converted without the post\'s sport');
 });
 
 // ── the components, mounted ─────────────────────────────────────────────────

@@ -15,6 +15,13 @@ function parsePace(str) {
   const s = String(str == null ? '' : str).trim();
   const mph = s.match(/([\d.]+)\s*mph/i);
   if (mph) { const v = parseFloat(mph[1]); return (Number.isFinite(v) && v > 0) ? { cmp: 1000 / v, val: v, label: `${v.toFixed(1)} mph` } : null; }
+  // ⚠ A SPEED IN KM/H IS STILL A SPEED. A ride's breakdown reaches here already
+  // converted for a metric reader, and without this branch "31.1 km/h" fell to
+  // the bare-number path below, where LOWER reads FASTER — the fastest split
+  // ranked slowest. `cmp` only has to order one session's splits, so 1000/v
+  // serves km/h exactly as it serves mph.
+  const kmh = s.match(/([\d.]+)\s*(?:km\/h|kph)/i);
+  if (kmh) { const v = parseFloat(kmh[1]); return (Number.isFinite(v) && v > 0) ? { cmp: 1000 / v, val: v, label: `${v.toFixed(1)} km/h` } : null; }
   const mmss = s.match(/(\d+):(\d+)/);
   if (mmss) { const sec = (+mmss[1]) * 60 + (+mmss[2]); return sec > 0 ? { cmp: sec, val: sec, label: s } : null; }
   const bare = s.match(/[\d.]+/);
