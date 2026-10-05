@@ -403,6 +403,30 @@ test('mounted: Cook opens with focus inside, the sheets hold it, and closing giv
   await React.act(async () => root.unmount());
 });
 
+test('mounted: every cook sheet has a small × that closes it and gives focus back, without taking first focus', async () => {
+  // Owner, 2026-10-04: "need a small x button in top of box to close this out if user wants
+  // to" -- the All steps sheet closed only by its scrim, Escape, or a button at the foot of a
+  // long list.
+  reset('<div id="host"></div>');
+  const root = createRoot($('#host'));
+  await React.act(async () => root.render(h(Host)));
+  await press('#door');
+  for (const [door, first] of [['#ready', null], ['#leave', 'Keep cooking']]) {
+    await press(door);
+    const sheet = $('[data-bsck-sheet]');
+    const x = sheet.querySelector('.sh-h button[aria-label="Close"]');
+    assert.ok(x, `no × in the ${door} sheet header`);
+    assert.equal(x.hasAttribute('data-bsck-initial'), false, 'the × must not take the first focus');
+    if (first) assert.equal(doc.activeElement.textContent, first);
+    else assert.ok(doc.activeElement === sheet, 'opening still lands on the sheet, which announces its title');
+    x.focus();
+    await React.act(async () => x.click());
+    assert.ok($('[data-bsck-sheet]') === null, `the × did not close the ${door} sheet`);
+    assert.equal(doc.activeElement.id, door.slice(1), 'focus went back to what opened it');
+  }
+  await React.act(async () => root.unmount());
+});
+
 test('mounted: a prep session handing its screen to a dish keeps the app inert, and focus returns to its door', async () => {
   reset('<div id="host"></div>');
   const root = createRoot($('#host'));

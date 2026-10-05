@@ -44,7 +44,9 @@ function backend({ locale = 'de', token = 'tok' } = {}) {
     return { ok: true, status: 200, json: async () => ({ reply: 'hi', transcript: ' spoken ' }) };
   };
   const window = { ShapeVoice: { tone: () => 'supportive' }, ShapeLocale: { get: () => locale } };
-  const body = [lift(BACKEND, 'appLocaleCode'), lift(BACKEND, 'askSupportBot', 'async function'), lift(BACKEND, 'transcribeVoice', 'async function'), lift(BACKEND, 'transcribeNote', 'async function'), lift(BACKEND, 'transcribeTo', 'async function'), 'return { askSupportBot, transcribeVoice, transcribeNote };'].join('\n');
+  // The clients read the token as of now (liveAccessToken); with no Supabase client it is the
+  // cached session's, which is what this harness hands them.
+  const body = ['const supabase = null;', lift(BACKEND, 'liveAccessToken', 'async function'), lift(BACKEND, 'appLocaleCode'), lift(BACKEND, 'askSupportBot', 'async function'), lift(BACKEND, 'transcribeVoice', 'async function'), lift(BACKEND, 'transcribeNote', 'async function'), lift(BACKEND, 'transcribeTo', 'async function'), 'return { askSupportBot, transcribeVoice, transcribeNote };'].join('\n');
   // eslint-disable-next-line no-new-func
   const api = new Function('apiBaseUrl', 'state', 'window', 'fetch', 'FormData', body)('https://api.test', { session: token ? { access_token: token } : null }, window, fetch, FormData);
   return { api, calls };

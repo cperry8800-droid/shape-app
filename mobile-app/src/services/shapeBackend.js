@@ -60,6 +60,18 @@ const apiBaseUrl = _apiEnvBase
       : '');
 const providerApplicationFileBucket = 'provider-credentials';
 
+// ⚠ THE WEBSITE'S COOK PAGE RUNS THIS APP IN AN IFRAME (/m/?cooking=1), AND IT IS A
+// WEBSITE PAGE, SO IT SIGNS IN WITH THE WEBSITE'S SESSION. The website's client
+// (public/supabase.js) persists under 'shape.auth' and this one under its default
+// `sb-<ref>-auth-token`, in the same localStorage, so a member signed in on the website
+// opened the cook layer signed OUT here: Nora's voice answered "sign in" (or nothing
+// reached /api/ai/speak at all — production logged no request in a week). Sharing the key
+// makes the cook layer one more client of that session, exactly as a second website tab is
+// (supabase-js >= 2.107 coordinates refreshes across clients without a lock, and both
+// sides are past it). Native builds and the app at /m/ are untouched.
+const _webCooking = !_isNative && typeof window !== 'undefined' && (() => {
+  try { return new URLSearchParams(window.location.search).get('cooking') === '1'; } catch (e) { return false; }
+})();
 const authConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 const supabase = authConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
@@ -67,6 +79,7 @@ const supabase = authConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        ...(_webCooking ? { storageKey: 'shape.auth' } : {}),
       },
     })
   : null;
@@ -110,6 +123,33 @@ function demoProfile(overrides = {}) {
     shape_radio_enabled: true,
     profile_visibility: 'community',
   };
+}
+
+// ⚠ THE CACHED TOKEN GOES STALE: state.session is the copy taken when a session was read,
+// and supabase-js replaces the session object when it refreshes (about hourly), so every
+// Bearer request below kept sending the expired one. On the website's cook page that turned
+// Nora silent mid-cook with "sign in". Two layers keep it current: this listener (a refresh
+// by this client, or by another client on the same storage key via its BroadcastChannel,
+// lands here), and liveAccessToken() at call time for the requests a cook makes.
+if (supabase) {
+  try {
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session && state.user && session.user && session.user.id === state.user.id) state.session = session;
+    });
+  } catch (e) {}
+}
+// The access token as of NOW: getSession() returns the stored session, refreshing it first
+// when it is about to expire. Falls back to the cached copy when there is no client or the
+// stored session belongs to another account.
+async function liveAccessToken() {
+  if (supabase) {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const s = data && data.session;
+      if (s && s.access_token && (!state.user || (s.user && s.user.id === state.user.id))) { state.session = s; return s.access_token; }
+    } catch (e) {}
+  }
+  return (state.session && state.session.access_token) || null;
 }
 
 function setCached(next = {}) {
@@ -4281,7 +4321,8 @@ async function sendGroceryToInstacart({ items, title } = {}) {
 async function askSupportBot(messages, tone, extra = {}) {
   if (!apiBaseUrl) throw new Error('API backend URL is not configured. Set VITE_API_BASE_URL.');
   const headers = { 'Content-Type': 'application/json' };
-  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const token = await liveAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   const body = { messages: Array.isArray(messages) ? messages : [], tone: tone || (window.ShapeVoice && window.ShapeVoice.tone()) || 'supportive', surface: 'app' };
   if (extra.cookContext) body.cookContext = extra.cookContext;
   if (extra.voice === true) body.voice = true;
@@ -4329,7 +4370,8 @@ async function transcribeTo(path, blob, { filename, signal, language, context })
   if (lang) fd.append('language', lang);
   if (context) fd.append('context', String(context));
   const headers = {};
-  if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+  const token = await liveAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${apiBaseUrl || ''}${path}`, { method: 'POST', headers, body: fd, credentials: 'same-origin', signal });
   const payload = await res.json().catch(() => ({}));
   return {
@@ -7949,6 +7991,17 @@ let _voiceAbort = null;
 // off). Every stop AND every new speak bumps _voiceGen; a speak that finds its
 // captured gen superseded when its audio is ready bails without playing.
 let _voiceGen = 0;
+// When the clip in _voiceAudio stops sounding: it ended, failed, or was stopped.
+// speak() resolves as playback STARTS, so a caller that shows "Nora is reading"
+// needs this to know when to stop saying so. A paused clip never fires `ended`,
+// which is why stopVoice() settles it too. It never rejects.
+let _voiceEnded = null;
+let _voiceEnd = null;
+function settleVoiceEnd() {
+  const resolve = _voiceEnd;
+  _voiceEnd = null; _voiceEnded = null;
+  if (resolve) resolve();
+}
 function stopVoice() {
   _voiceGen++;
   try { if (_voiceAbort) _voiceAbort.abort(); } catch (e) {}
@@ -7956,6 +8009,7 @@ function stopVoice() {
   try { if (_voiceAudio) { _voiceAudio.pause(); } } catch (e) {}
   try { if (_voiceUrl) { URL.revokeObjectURL(_voiceUrl); } } catch (e) {}
   _voiceAudio = null; _voiceUrl = null;
+  settleVoiceEnd();
 }
 // Server voice ONLY. The old on-device speechSynthesis fallback (the robot) is
 // deliberately GONE — a failed/unavailable server voice returns an honest
@@ -7972,13 +8026,15 @@ async function speakVoice(text, toneOverride, opts = {}) {
   const tone = toneOverride || prefs.tone;
   stopVoice();                 // supersedes any prior speak (bumps _voiceGen)
   const myGen = _voiceGen;     // this call's generation, captured after the bump
-  if (!apiBaseUrl || !state.session?.access_token) return { ok: false, reason: 'signed_out' };
+  const token = apiBaseUrl ? await liveAccessToken() : null;
+  if (myGen !== _voiceGen) return { ok: false, superseded: true };
+  if (!apiBaseUrl || !token) return { ok: false, reason: 'signed_out' };
   const ctrl = new AbortController();
   _voiceAbort = ctrl;
   try {
     const res = await fetch(`${apiBaseUrl}/api/ai/speak`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ text: clean.slice(0, 2000), tone, voice: prefs.voice !== 'auto' ? prefs.voice : undefined }),
       signal: ctrl.signal,
     });
@@ -7989,9 +8045,15 @@ async function speakVoice(text, toneOverride, opts = {}) {
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    audio.onended = audio.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} };
     // Last-moment check: a stop() between the blob and playback still wins.
     if (myGen !== _voiceGen) { try { URL.revokeObjectURL(url); } catch (e) {} return { ok: false, superseded: true }; }
+    const ended = new Promise((resolve) => { _voiceEnd = resolve; });
+    _voiceEnded = ended;
+    audio.onended = audio.onerror = () => {
+      try { URL.revokeObjectURL(url); } catch (e) {}
+      // Only this clip's own end: a newer speak() has already settled this one.
+      if (_voiceEnded === ended) settleVoiceEnd();
+    };
     _voiceAudio = audio;
     _voiceUrl = url;   // so an INTERRUPTING stopVoice() can revoke it (revoking twice is a no-op)
     try {
@@ -8004,13 +8066,14 @@ async function speakVoice(text, toneOverride, opts = {}) {
       // leak, but only if a newer speak hasn't already taken over (CodeRabbit).
       try { URL.revokeObjectURL(url); } catch (e2) {}
       if (_voiceUrl === url) { _voiceAudio = null; _voiceUrl = null; }
+      if (_voiceEnded === ended) settleVoiceEnd();
       // A newer speak()/stop() pausing an unstarted play() rejects it — that's a
       // supersession, not a failure, so an explicit-Listen caller doesn't show a
       // spurious "unavailable" toast (adversarial review #1805).
       if (myGen !== _voiceGen) return { ok: false, superseded: true };
       return { ok: false, reason: 'unavailable' };
     }
-    return { ok: true, source: 'server' };
+    return { ok: true, source: 'server', ended };
   } catch (e) {
     // A stopVoice()/newer speak() aborted this fetch — that's a supersession, not
     // a real failure (so an explicit-Listen caller doesn't show an error).
@@ -8021,11 +8084,11 @@ async function speakVoice(text, toneOverride, opts = {}) {
   }
 }
 async function retryVoice() {
-  const audio = _voiceAudio, generation = _voiceGen;
+  const audio = _voiceAudio, generation = _voiceGen, ended = _voiceEnded || Promise.resolve();
   if (!audio) return { ok: false, reason: 'unavailable' };
   try {
     await audio.play();
-    return generation === _voiceGen ? { ok: true, source: 'server' } : { ok: false, superseded: true };
+    return generation === _voiceGen ? { ok: true, source: 'server', ended } : { ok: false, superseded: true };
   } catch (error) {
     if (generation !== _voiceGen) return { ok: false, superseded: true };
     return { ok: false, reason: error?.name === 'NotAllowedError' ? 'playback_blocked' : 'unavailable' };

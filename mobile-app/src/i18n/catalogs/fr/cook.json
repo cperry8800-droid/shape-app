@@ -209,5 +209,11 @@
   "ck.ingredients": "Ingrédients",
   "ck.timersOn": "Minuteurs en cours",
   "ck.serveNeedsRoom": "Telle qu’elle est réglée, votre cuisine ne peut pas accueillir les deux à la fois, donc ils ne peuvent pas être prêts ensemble. Ajoutez un feu ou un four si vous en avez un, ou cuisinez-les l’un après l’autre.",
-  "ck.serveNeedsHands": "Les deux plats ont besoin de vos mains au même moment, donc ils ne peuvent pas être prêts ensemble. Cuisinez-les plutôt l’un après l’autre."
+  "ck.serveNeedsHands": "Les deux plats ont besoin de vos mains au même moment, donc ils ne peuvent pas être prêts ensemble. Cuisinez-les plutôt l’un après l’autre.",
+  "ck.serveNeedsRoomMany": "Telle qu’elle est réglée, votre cuisine ne peut pas tous les accueillir à la fois, donc ils ne peuvent pas tous être prêts ensemble. Ajoutez un feu ou un four si vous en avez un, ou cuisinez-les l’un après l’autre.",
+  "ck.serveNeedsHandsMany": "Ces plats ont besoin de vos mains au même moment, donc ils ne peuvent pas tous être prêts ensemble. Cuisinez-les plutôt l’un après l’autre.",
+  "ck.readsOnToast": "La voix de Nora est activée. Elle lira chaque étape à voix haute.",
+  "ck.readsOffToast": "La voix de Nora est désactivée. Les étapes restent à l’écran.",
+  "ck.laterHead": "Au moment de manger",
+  "plated.later": "Préparé à l’avance."
 }

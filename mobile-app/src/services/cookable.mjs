@@ -238,6 +238,11 @@ const timerSpans = (text) => {
 // The public contract is {seconds, label} and is pinned by deepEqual in
 // tests/cookable.test.mjs — the spans stay internal so the shape can't drift.
 export const bsStepTimers = (text) => timerSpans(text).map(({ seconds, label }) => ({ seconds, label }));
+// The countdowns a cook screen OFFERS on a step: none on a make-ahead step (the dish goes in
+// the fridge and is finished another day, so "Start 4 hr timer" is not a thing to wait on)
+// and none on a step with a decimal (the mis-parse bsFractionalDuration guards). Otherwise
+// whatever the text states.
+export const bsOfferedTimers = (text, meta) => ((meta && meta.makeAhead === true) || bsFractionalDuration(text) ? [] : bsStepTimers(text));
 // Test surface only (the underscore says so): where each duration sits, so a
 // test can pin which words a span covers without widening bsStepTimers' shape.
 export const _bsTimerSpans = (text) => timerSpans(text).map(({ label, at, end }) => ({ label, at, end }));
@@ -745,8 +750,10 @@ const finishCookable = (c) => {
   // for the Kitchen; enforced STRUCTURALLY here for authored sources (coach
   // meal methods, PR E — CodeRabbit): the window drops to a plain step, the
   // honest text stays, nothing fabricates a walk-away.
+  // A make-ahead mark (and its derived finishesLater) is never rewritten here: it is how the
+  // cook screens know tonight's cook ends, whatever else the entry carries.
   const lastMeta = c.stepMeta[c.steps.length - 1];
-  if (lastMeta && lastMeta.passive === true && lastMeta.station != null && lastMeta.station !== 'off') {
+  if (lastMeta && lastMeta.makeAhead !== true && lastMeta.passive === true && lastMeta.station != null && lastMeta.station !== 'off') {
     c.stepMeta[c.steps.length - 1] = plainStepMeta();
   }
   if (c.steps.length > 0) c.tier = c.fromPlan ? BS_COOK_TIERS.PROSE : BS_COOK_TIERS.STEPS;
@@ -771,15 +778,36 @@ export const bsCookableFromRecipe = (recipe) => {
   // dropped, or a future empty catalog step could shift it off its step (audit).
   const rawLen = Array.isArray(recipe.steps) ? recipe.steps.length : 0;
   const overlay = Array.isArray(recipe.stepMeta) && steps.length === rawLen ? recipe.stepMeta : null;
-  const stepMeta = overlay ? steps.map((_, i) => sanitizeMeta(overlay[i]) || inlineMeta[i]) : inlineMeta;
+  // ⚠ A MAKE-AHEAD STEP ENDS TONIGHT'S COOK. "Lid it and chill at least 4 hours or
+  // overnight" was a 240-minute hold: a four-hour countdown on the board, the dish's morning
+  // steps scheduled four hours into the session, and every finish figure four hours out
+  // (owner, 2026-10-04: "these timers seem unnecessary"). The dish is done tonight once it is
+  // in the fridge; the steps after it are kept as `laterSteps` for when it is eaten. Read only
+  // from the catalog's hand-checked overlay, never from an inline (coach or member) step,
+  // which goes through sanitizeMeta and cannot carry the mark.
+  let stepMeta = overlay ? steps.map((_, i) => (overlay[i] && overlay[i].makeAhead === true
+    ? { ...plainStepMeta(), makeAhead: true }
+    : sanitizeMeta(overlay[i]) || inlineMeta[i])) : inlineMeta;
+  let tonight = steps;
+  let laterSteps = [];
+  const cut = stepMeta.findIndex((m) => m && m.makeAhead === true);
+  if (cut >= 0) {
+    tonight = steps.slice(0, cut + 1);
+    laterSteps = steps.slice(cut + 1);
+    stepMeta = stepMeta.slice(0, cut + 1);
+    // Derived, never authored: this dish is not eaten tonight, so Serve does not land it
+    // with dinner.
+    if (laterSteps.length) stepMeta[cut] = { ...stepMeta[cut], finishesLater: true };
+  }
   return finishCookable({
     title,
     sourceKind: 'recipe',
     servings: num(recipe.servings),
     macros: { kcal: num(recipe.kcal), p: num(macros.p), c: num(macros.c), f: num(macros.f) },
     ingredients: normalizeIngredients(recipe.ingredients),
-    steps,
+    steps: tonight,
     stepMeta,
+    ...(laterSteps.length ? { laterSteps } : {}),
     fromPlan: false,
     coach: str(recipe.by) ? { name: str(recipe.by), role: str(recipe.byRole) || '' } : null,
     tip: str(recipe.tip),

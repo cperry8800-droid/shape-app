@@ -171,6 +171,11 @@ test('catalog: stepMeta is aligned, valid, station-scoped, and HONEST (min state
     assert.equal(r.stepMeta.length, r.steps.length, `${r.title}: stepMeta not index-aligned with steps`);
     r.stepMeta.forEach((m, i) => {
       if (m == null) return;
+      // A make-ahead mark ends tonight's cook there; it carries no time, station or window.
+      if (m.makeAhead === true) {
+        assert.deepEqual(Object.keys(m), ['makeAhead'], `${r.title} step ${i}: a make-ahead mark carries nothing else`);
+        return;
+      }
       assert.ok(BS_STATIONS.includes(m.station), `${r.title} step ${i}: bad station "${m.station}"`);
       assert.equal(typeof m.passive, 'boolean', `${r.title} step ${i}: attendance must be explicit`);
       if (m.also != null) {
@@ -559,12 +564,12 @@ test('catalog: an annotated window never hides an instruction behind its timer',
 // those minutes overlap with its other work — a BACKGROUND hold, which this model cannot
 // express. Picadillo annotated its 45-minute rice that way: a recipe that calls itself 50
 // minutes read 79 on the board, and a two-dish session stopped interleaving altogether.
-// Three recipes trip the sum honestly, because their stated time is hands-on time and
+// Two recipes trip the sum honestly, because their stated time is hands-on time and
 // deliberately excludes a long chill. They are named with the reason rather than waved
-// through, so that a fourth cannot join them silently.
+// through, so that a third cannot join them silently. (Overnight oats was a third until its
+// 4-hour chill became make-ahead, 2026-10-04: no hold at all now.)
 test('catalog: hold minutes never outrun the recipe\'s own stated time', () => {
   const MAKE_AHEAD = {
-    'Overnight oats, three ways': 'the 4-hour chill IS the dish and was never part of "5 min"',
     'Date and almond energy bites': 'a terminal 30-minute set in the fridge, excluded from hands-on time',
     'Black skillet beef with kale and red potatoes': 'a 30-minute partial freeze before any cooking begins',
   };

@@ -38,7 +38,7 @@ import { bsCookResumeStamp, bsCookResumeValid, bsCookSessionState } from '../ser
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
 import { bsValidBarcode } from '../services/foodSearch.mjs';
-import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsCookableFromMemberRecipe, bsStepTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
+import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsCookableFromMemberRecipe, bsStepTimers, bsOfferedTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSplitPaste, bsNewRecipeId, bsMyRecipeIdFrom, bsIsMyRecipeId } from '../services/clientRecipes.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
 import { bsMergeMise, bsPrepOrder, bsPrepMatch, bsPrepWeekKey, bsScaleQty } from '../services/mealPrep.mjs';
@@ -7998,14 +7998,42 @@ function useBSPrepEntries() {
 // (you didn't eat it — no award, doctrine §5), and the resume stamp is never
 // read or written (the single global resume key belongs to solo cooks; a prep
 // write would clobber an unrelated saved place).
+// Nora's voice switch for every cook screen: one remembered setting, read fresh on every
+// render (a test or another tab can change storage without an event) and announced when it
+// changes, so the one-dish screen, the board and the session setup can never disagree.
+const BS_COOK_READS_KEY = 'shape.cookReads';
+// Set only when storage refused the write (private mode, a full quota): the switch then
+// holds for this page instead of snapping back to whatever storage still says.
+let bsCookReadsUnsaved = null;
+const bsCookReadsGet = () => {
+  if (bsCookReadsUnsaved !== null) return bsCookReadsUnsaved;
+  try { return localStorage.getItem(BS_COOK_READS_KEY) === '1'; } catch (e) { return false; }
+};
+function bsCookReadsSet(on) {
+  try { localStorage.setItem(BS_COOK_READS_KEY, on ? '1' : '0'); bsCookReadsUnsaved = null; } catch (e) { bsCookReadsUnsaved = !!on; }
+  // window.Event, not the bare global: the same constructor in a browser, and the one a
+  // test DOM's dispatchEvent accepts.
+  try { window.dispatchEvent(new window.Event('shape:cookreads')); } catch (e) {}
+}
+function bsCookReadsSub(fn) {
+  window.addEventListener('shape:cookreads', fn);
+  window.addEventListener('storage', fn);
+  return () => { window.removeEventListener('shape:cookreads', fn); window.removeEventListener('storage', fn); };
+}
+function useBSCookReads() { return React.useSyncExternalStore(bsCookReadsSub, bsCookReadsGet, () => false); }
+
 // Cooking narration shares one cancellation boundary across prep, steps and replies.
+// `voiceStatus`: 'idle' (nothing sounding), 'loading' (fetching her audio), 'playing', or a
+// failure reason. ⚠ 'idle' USED TO DRAW "Nora is reading this step": after a clip ended,
+// while a step was not due yet (no narration at all), and after a stop. The line was on
+// screen while she was silent, so it is now drawn only for 'loading' and 'playing'.
 function useBSCookVoice(text, allowed) {
-  const [readsOn, setReadsOn] = React.useState(() => { try { return localStorage.getItem('shape.cookReads') === '1'; } catch { return false; } });
+  const readsOn = useBSCookReads();
   const [voiceStatus, setVoiceStatus] = React.useState('idle');
   const generation = React.useRef(0);
   const lastText = React.useRef('');
   const voiceCanSpeak = typeof window !== 'undefined' && typeof window.ShapeVoice?.speak === 'function';
-  const stopSpeak = React.useCallback(() => { generation.current++; try { window.ShapeVoice?.stop?.(); } catch {} }, []);
+  const stopSpeak = React.useCallback(() => { generation.current++; try { window.ShapeVoice?.stop?.(); } catch {} setVoiceStatus('idle'); }, []);
   const speak = React.useCallback(async (value, retry = false) => {
     if (!allowed || !voiceCanSpeak || !value) return;
     lastText.current = String(value);
@@ -8015,8 +8043,14 @@ function useBSCookVoice(text, allowed) {
       const result = await (retry && window.ShapeVoice.retry
         ? window.ShapeVoice.retry()
         : window.ShapeVoice.speak(lastText.current, undefined, { force: true }));
-      if (request !== generation.current || result?.superseded) return;
-      setVoiceStatus(result?.ok ? 'idle' : (result?.reason || 'unavailable'));
+      if (request !== generation.current) return;
+      // Superseded by something outside this hook (another speak or a stop): nothing of ours
+      // is sounding, so the line must not stay up.
+      if (result?.superseded) { setVoiceStatus('idle'); return; }
+      if (!result?.ok) { setVoiceStatus(result?.reason || 'unavailable'); return; }
+      setVoiceStatus('playing');
+      await result.ended;
+      if (request === generation.current) setVoiceStatus('idle');
     } catch { if (request === generation.current) setVoiceStatus('unavailable'); }
   }, [allowed, voiceCanSpeak]);
   React.useEffect(() => {
@@ -8026,13 +8060,30 @@ function useBSCookVoice(text, allowed) {
   }, [readsOn, allowed, text, speak, stopSpeak]);
   const toggleReads = () => {
     const next = !readsOn;
-    try { localStorage.setItem('shape.cookReads', next ? '1' : '0'); } catch {}
     if (!next) stopSpeak();
     setVoiceStatus('idle');
-    setReadsOn(next);
+    bsCookReadsSet(next);
+    return next;
   };
   const retryVoice = () => speak(lastText.current || text, voiceStatus === 'playback_blocked');
   return { readsOn, toggleReads, speak, stopSpeak, voiceCanSpeak, voiceStatus, retryVoice };
+}
+// The voice switch the top bar draws, the same on every cook screen. A member flips it and is
+// told what changed (the setup screens read nothing aloud, so without the note the switch
+// would seem to do nothing there); anyone else is told how to hear her.
+function bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle, say }) {
+  if (!voiceCanSpeak) return null;
+  return {
+    on: voiceMember && readsOn,
+    onClick: voiceMember
+      ? () => {
+        const next = toggle();
+        say(next
+          ? tr('cook:ck.readsOnToast', { defaultValue: 'Nora’s voice is on. She’ll read each step aloud.' })
+          : tr('cook:ck.readsOffToast', { defaultValue: 'Nora’s voice is off. The steps stay on screen.' }));
+      }
+      : () => say(tr('cook:voice.signIn', { defaultValue: 'Sign in with an active membership to hear Nora.' })),
+  };
 }
 
 // ── Burners and tracks: the cook screens, drawn as the approved preview ─────────────────
@@ -8112,7 +8163,10 @@ const BS_CK_CSS = `
 .bsck .cC .top{height:60px;flex:none;display:grid;grid-template-columns:48px 1fr 48px;align-items:center;gap:8px;padding:0 10px}
 .bsck .cC .fin{justify-self:center;display:flex;align-items:baseline;gap:8px;font:600 13px/1 var(--f-b);color:var(--i50)}
 .bsck .cC .fin .n{font-size:22px;font-weight:700;color:var(--i)}
-.bsck .cC .spk.on{color:var(--a)}
+.bsck .cC .spk{color:var(--i50)}
+.bsck .cC .spk.on{color:var(--a);box-shadow:inset 0 0 0 1.5px var(--a)}
+.bsck .cC .spk .lb,.bsck .cC .spk .st{display:none}
+.bsck .ibtn:focus-visible{outline:2px solid var(--a);outline-offset:2px}
 .bsck .cC .hob{position:relative;margin:0 12px;border-radius:22px;background:linear-gradient(160deg,#1b1a18 0%,var(--glass) 45%,#0e0d0c 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),inset 0 0 0 1px rgba(255,255,255,.05);padding:14px;display:grid;grid-template-columns:1fr 1fr 1.08fr;grid-template-rows:118px 118px 58px;gap:10px;flex:none;color:var(--gl-ink)}
 .bsck .cC .z{position:relative;display:grid;place-items:center;text-align:center;border-radius:16px;cursor:default}
 .bsck .cC button.z{cursor:pointer}
@@ -8214,6 +8268,18 @@ const BS_CK_CSS = `
 .bsck .cC .btns{display:flex;gap:10px;flex-wrap:wrap}
 .bsck .cC .btns > .btn-q{flex:1 1 140px;min-height:52px}
 .bsck.web .cC .top{height:78px;padding:0 32px}
+/* On the website the voice switch carries its words, so the side columns grow to fit it; the
+   middle keeps whatever is left and still truncates. Ink for the words: the accent is under
+   AA as text on these papers, so it marks only the icon, the border and the tint. */
+.bsck.web .cC .top,.bsck.web .cD .dtop{grid-template-columns:minmax(max-content,1fr) minmax(0,auto) minmax(max-content,1fr)}
+.bsck.web .cC .top > :last-child{justify-self:end}
+.bsck.web .cC .top > .fin{min-width:0;max-width:100%;overflow:hidden}
+.bsck.web .cC .spk{width:auto;display:inline-flex;align-items:center;gap:8px;padding:0 14px 0 10px;border:1.5px solid var(--rule);font:600 14px/1 var(--f-b);white-space:nowrap;color:var(--i70)}
+.bsck.web .cC .spk .ico{color:var(--i50)}
+.bsck.web .cC .spk.on{color:var(--i);border-color:var(--a);box-shadow:none}
+.bsck.web .cC .spk.on .ico{color:var(--a)}
+.bsck.web .cC .spk .lb,.bsck.web .cC .spk .st{display:inline}
+.bsck.web .cC .spk .st::before{content:"·";margin-right:8px;opacity:.6}
 .bsck.web .cC .main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 520px;grid-template-rows:minmax(0,1fr);gap:32px;padding:10px 32px 32px}
 .bsck.web .cC .hob{margin:0;grid-template-rows:1fr 1fr 96px;gap:18px;padding:24px;height:100%}
 .bsck.web .cC .z .ring{max-width:190px;max-height:190px}
@@ -8432,6 +8498,14 @@ const BS_CK_CSS = `
 .bsck .sheet ol.steps .ch{font:600 13px/1.3 var(--f-b);white-space:nowrap;color:var(--i50)}
 .bsck .sheet ol.steps .ch.a{color:var(--a)}.bsck .sheet ol.steps .ch.d{color:var(--i70)}.bsck .sheet ol.steps .ch.u{color:var(--am)}
 .bsck .sheet .sh-h .el{font:600 14px/1 var(--f-b);color:var(--i50)}
+.bsck .later{display:grid;gap:8px}
+.bsck .later .lt{display:block;font:700 15px/1.3 var(--f-b);margin-bottom:4px}
+.bsck .later ol{margin:0;padding-left:22px;display:grid;gap:6px;font:500 15px/1.45 var(--f-b);color:var(--i85)}
+.bsck .later li::marker{font:600 15px/1.45 var(--f-b);font-variant-numeric:normal;letter-spacing:0}
+.bsck .sheet .sh-r{display:flex;align-items:center;gap:6px;flex:none}
+.bsck .sheet .shx{width:44px;height:44px;margin:-8px -12px -8px 0;border-radius:12px;display:grid;place-items:center;color:var(--i70);flex:none}
+.bsck .sheet .shx:hover{background:var(--hair);color:var(--i)}
+.bsck .sheet .shx:focus-visible{outline:2px solid var(--a);outline-offset:2px}
 .bsck .sheet .sh-h .el .nt{color:var(--i)}
 .bsck .sheet .lead2{margin:0 0 18px;font:500 16px/1.45 var(--f-b);color:var(--i85)}
 .bsck .sheet .fine{margin:14px 0 0;font:500 13px/1.4 var(--f-b);color:var(--i50)}
@@ -8664,9 +8738,17 @@ function bsCkTop({ tr, c = false, left, title = null, finish = null, tracks = nu
             <span className="lb">{tr('cook:ck.readyAround', { defaultValue: 'Ready around' })} {bsCkIco('list', true)}</span>
           </button>)
       : <span />;
+  // Nora's voice is an on/off switch, and says so: a screen reader hears "Nora's voice, switch,
+  // on", and the website draws the words beside the speaker. A phone keeps the icon alone, dim
+  // and struck through when off, tinted when on.
+  const voiceName = tr('settings:section.nora', { defaultValue: 'Nora’s voice' });
   const spk = reads
-    ? <button type="button" className={`ibtn spk${reads.on ? ' on' : ''}`} onClick={reads.onClick} aria-pressed={!!reads.on}
-        aria-label={tr('cook:ck.readsAria', { defaultValue: 'Nora reads each step aloud' })}>{bsCkIco(reads.on ? 'spk' : 'spkOff')}</button>
+    ? <button type="button" role="switch" aria-checked={!!reads.on} className={`ibtn spk${reads.on ? ' on' : ''}`} onClick={reads.onClick}
+        aria-label={voiceName} title={tr('cook:ck.readsAria', { defaultValue: 'Nora reads each step aloud' })}>
+        {bsCkIco(reads.on ? 'spk' : 'spkOff')}
+        <span className="lb" aria-hidden="true">{voiceName}</span>
+        <span className="st" aria-hidden="true">{reads.on ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}</span>
+      </button>
     : <span />;
   if (c) return <div className="top">{leftBtn}{mid}{spk}</div>;
   return (
@@ -8872,16 +8954,19 @@ function bsCkWait({ key, secs = null, children, action = null, solid = false, li
 }
 // Nora reading: the preview's line while she reads; when her voice fails, the reason and a
 // way to try again.
+// Only while her audio is loading or playing: nothing sounding means no line. A sign-in
+// refusal offers no retry, since playing again cannot sign anyone in.
 function bsCkReading({ tr, readsOn, status, retry }) {
-  if (!readsOn) return null;
-  if (status === 'idle' || status === 'loading') {
+  if (!readsOn || status === 'idle') return null;
+  if (status === 'loading' || status === 'playing') {
     return <span className="rdg" role="status"><span className="eq" aria-hidden="true"><i /><i /><i /><i /></span>{tr('cook:ck.reading', { defaultValue: 'Nora is reading this step' })}</span>;
+  }
+  if (status === 'signed_out' || status === 'members') {
+    return <span className="rdg err" role="status">{tr('cook:voice.signIn', { defaultValue: 'Sign in with an active membership to hear Nora.' })}</span>;
   }
   return (
     <span className="rdg err" role="status">
-      {status === 'signed_out' || status === 'members'
-        ? tr('cook:voice.signIn', { defaultValue: 'Sign in with an active membership to hear Nora.' })
-        : tr('cook:voice.playbackError', { defaultValue: 'Nora’s audio could not play. Tap to try again.' })}
+      {tr('cook:voice.playbackError', { defaultValue: 'Nora’s audio could not play. Tap to try again.' })}
       <button type="button" onClick={retry}>{tr('cook:voice.retry', { defaultValue: 'Play voice' })}</button>
     </span>
   );
@@ -8918,15 +9003,38 @@ function bsCkFoot({ tr, up, mic = null, back = null, primary }) {
 function bsCkUpNext({ tr, name = null, text }) {
   return <>{tr('cook:ck.next', { defaultValue: 'Next' })} · <b>{name ? `${name}: ` : ''}{text}</b></>;
 }
+// The steps a make-ahead dish leaves for another day (overnight oats' morning), shown where
+// tonight's cook ends. `named` titles each dish, for a session that cooked several.
+function bsCkLater({ tr, dishes, named = false }) {
+  const withLater = (dishes || []).filter((c) => c && Array.isArray(c.laterSteps) && c.laterSteps.length);
+  if (!withLater.length) return null;
+  return (
+    <div className="later">
+      <div className="grp">{tr('cook:ck.laterHead', { defaultValue: 'When you’re ready to eat' })}</div>
+      {withLater.map((c, k) => (
+        <div key={k}>
+          {named ? <b className="lt">{bsCkShort(c.title)}</b> : null}
+          <ol>{c.laterSteps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-// A sheet over the cook screen: a scrim, a grab bar, a title and a body. On the website it
-// is a panel in the corner rather than a bottom sheet.
-function bsCkSheet({ title, headRight = null, onClose, children }) {
+// A sheet over the cook screen: a scrim, a grab bar, a title with a small ×, and a body. On
+// the website it is a panel in the corner rather than a bottom sheet. The × closes it as the
+// scrim and Escape do; it never takes the first focus (`data-bsck-initial` stays the sheet's
+// own choice), so opening a sheet still announces its title.
+function bsCkSheet({ tr, title, headRight = null, onClose, children }) {
   return (<>
     <div className="sheet-scrim" data-bsck-scrim="" onClick={onClose} aria-hidden="true" />
     <div className="sheet" data-bsck-sheet="" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}>
       <div className="grab" aria-hidden="true" />
-      <div className="sh-h"><h3>{title}</h3>{headRight}</div>
+      <div className="sh-h"><h3>{title}</h3>
+        <div className="sh-r">{headRight}
+          <button type="button" className="shx" onClick={onClose} aria-label={tr('cook:ck.close', { defaultValue: 'Close' })}>{bsCkIco('close', true)}</button>
+        </div>
+      </div>
       <div className="sh-b bsck-scroll">{children}</div>
     </div>
   </>);
@@ -8935,6 +9043,7 @@ function bsCkSheet({ title, headRight = null, onClose, children }) {
 // not be), and timer alerts need the app open.
 function bsCkExitSheet({ tr, message, onStay, onLeave }) {
   return bsCkSheet({
+    tr,
     title: tr('cook:exit.title', { defaultValue: 'Leave the cook?' }),
     onClose: onStay,
     children: (<>
@@ -8961,6 +9070,7 @@ function bsCkStepsSheet({ tr, rows, pct, leftMin, finishAt, elapsed, multi, colo
     return <span className="ch">{tr('cook:roadmap.duration', { defaultValue: 'About {n} min', n: Math.max(1, Math.round(r.min || 1)) })}</span>;
   };
   return bsCkSheet({
+    tr,
     title: tr('cook:ck.allSteps', { defaultValue: 'All steps' }),
     headRight: elapsed != null ? <span className="el">{tr('cook:elapsed', { defaultValue: 'Cooking' })} <span className="nt">{bsCkMmss(elapsed)}</span></span> : null,
     onClose,
@@ -9206,6 +9316,7 @@ function bsCkSoloTimeline(cookable, iid = 0, recipe = 'solo') {
       passive: m.passive === true, station: m.station || null,
       ...(Array.isArray(m.also) && m.also.length ? { also: m.also } : {}),
       ...(typeof m.maxPause === 'number' ? { maxPause: m.maxPause } : null),
+      ...(m.makeAhead === true ? { makeAhead: true } : null),
     };
     at += min || BS_ORCH.activeStepMin;
     return e;
@@ -9573,7 +9684,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     ? [cookable.title, tr('cook:ck.getOut', { defaultValue: 'Get these out' }), ...miseRows.map((r) => [r.amt, r.label].filter(Boolean).join(' '))].join('. ')
     : phase === 'method' && hasMethod ? steps[stepIdx] : '';
   const { readsOn, toggleReads, speak, stopSpeak, voiceCanSpeak, voiceStatus, retryVoice } = useBSCookVoice(narration, voiceMember);
-  const stepTimers = hasMethod && phase === 'method' && !bsFractionalDuration(steps[stepIdx]) ? bsStepTimers(steps[stepIdx]) : [];
+  const stepTimers = hasMethod && phase === 'method' ? bsOfferedTimers(steps[stepIdx], (cookable.stepMeta || [])[stepIdx]) : [];
   const running = timers.filter((x) => now < x.endsAt);
   // A local command runs first (no model round-trip); FALSE means "not a command after all —
   // hand the words to Nora".
@@ -9595,7 +9706,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     if (phase !== 'method') return true; // back/skip/repeat/timer only apply mid-method — consume quietly
     if (cmd === 'skip') { advance(true); return true; }
     if (cmd === 'back') { back(); return true; }
-    if (cmd === 'repeat') { if (hasMethod) speak(steps[stepIdx]); return true; }
+    if (cmd === 'repeat') { if (hasMethod) { if (readsOn) speak(steps[stepIdx]); else noraSays(steps[stepIdx], false); } return true; }
     if (cmd === 'timer') {
       if (stepTimers[0]) startTimer(stepTimers[0], stepTimers.length, 0);
       else noraSays(tr('cook:voice.noTimer', { defaultValue: 'No timer on this step.' }), false);
@@ -9613,7 +9724,8 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     // targets; the sanitizer omits absent fields.
     macros: cookable.macros || undefined,
   });
-  const talk = useBSCookTalk({ tr, runCommand, context: talkContext, speak, stopSpeak });
+  // With Nora's voice off her answers stay on screen as text: the switch is whether she speaks.
+  const talk = useBSCookTalk({ tr, runCommand, context: talkContext, speak: readsOn ? speak : null, stopSpeak });
   // Logging stops all voice work (the generation bump supersedes anything in flight, so a
   // late answer cannot speak over the plate) and clears the bubble.
   React.useEffect(() => {
@@ -9791,7 +9903,7 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
   const nextItem = inPrep && prep.items ? prep.items[prep.index + 1] : null;
 
   const top = (() => {
-    const reads = voiceCanSpeak ? { on: voiceMember && readsOn, onClick: voiceMember ? toggleReads : () => say(signInNora) } : null;
+    const reads = bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle: toggleReads, say });
     const leave = { kind: 'close', label: phase === 'method' ? tr('cook:ck.leave', { defaultValue: 'Leave cooking' }) : tr('cook:ck.close', { defaultValue: 'Close' }), onClick: exitCook };
     if (phase === 'mise') return bsCkTop({ tr, c: true, left: leave, title: bsCkShort(cookable.title), reads });
     if (phase === 'plated') return bsCkTop({ tr, left: leave, title: tierQuick ? tr('cook:quick.eyebrow', { defaultValue: 'Quick cook' }) : timers.length ? tr('cook:ck.timersOn', { defaultValue: 'Timers running' }) : tr('cook:ck.kitchenOff', { defaultValue: 'Kitchen off' }), reads });
@@ -9917,12 +10029,15 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     ) : null}
     {allergenBoxes}
   </>);
+  // A dish finished another day (overnight oats) ends tonight in the fridge, not on a plate.
+  const finishesLater = !!(cookable.laterSteps && cookable.laterSteps.length);
+  const plateLabel = finishesLater ? tr('cook:ck.doneFinish', { defaultValue: 'Done · finish' }) : tr('cook:ck.donePlate', { defaultValue: 'Done · plate it' });
   const primaryLabel = !lastStep
     ? tr('cook:ck.doneNext', { defaultValue: 'Done · next step' })
     : inPrep
       ? (nextItem ? tr('cook:ck.doneNextDish', { defaultValue: 'Done · next dish' })
-        : prep.cookNow ? tr('cook:ck.donePlate', { defaultValue: 'Done · plate it' }) : tr('cook:ck.doneFinish', { defaultValue: 'Done · finish' }))
-      : tr('cook:ck.donePlate', { defaultValue: 'Done · plate it' });
+        : prep.cookNow ? plateLabel : tr('cook:ck.doneFinish', { defaultValue: 'Done · finish' }))
+      : plateLabel;
   const foot = phase === 'method' && hasMethod && bsCkFoot({
     tr,
     up: !lastStep ? bsCkUpNext({ tr, text: steps[stepIdx + 1] })
@@ -9958,6 +10073,8 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
     </div>
   ) : null;
   const tip = cookable.tip ? <p className="note">{cookable.tip}</p> : null;
+  const later = bsCkLater({ tr, dishes: [cookable] });
+  const platedTitle = finishesLater ? tr('cook:plated.later', { defaultValue: 'Made ahead.' }) : tr('cook:plated.title', { defaultValue: 'Plated.' });
   // A countdown still going when the dish is plated (a chill, a rest) stays in view with its own
   // Done, and one that runs out here rings here: plating early must not hide a timer.
   const platedRunning = phase === 'plated' && timers.length ? [
@@ -9981,24 +10098,24 @@ function BSCookMode({ cookable, onClose, onLogged = () => {}, onUnlogged = () =>
         <div className="main">
           <div className="hobw">{hobPlated}</div>
           <div className="card"><div className="in bsck-scroll" style={{ justifyContent: 'center', gap: 18 }}>
-            <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-            {heatRunning ? null : <p className="note" style={{ margin: '-6px 0 4px', fontSize: 17 }}>{kcalKnown ? tr('cook:ck.burnersOffLog', { defaultValue: 'Every burner is off. Log what you ate.' }) : tr('cook:ck.burnersOff', { defaultValue: 'Every burner is off.' })}</p>}
-            {platedRunning}{logRow}{afterLog}{tip}{doneBtn(56)}
+            <h1 className="h1" style={{ fontSize: 64 }}>{platedTitle}</h1>
+            {heatRunning ? null : <p className="note" style={{ margin: '-6px 0 4px', fontSize: 17 }}>{kcalKnown && !finishesLater ? tr('cook:ck.burnersOffLog', { defaultValue: 'Every burner is off. Log what you ate.' }) : tr('cook:ck.burnersOff', { defaultValue: 'Every burner is off.' })}</p>}
+            {platedRunning}{logRow}{afterLog}{tip}{later}{doneBtn(56)}
           </div></div>
         </div>
       </>)
       : (
         <div className="wplated bsck-scroll">
-          <h1 className="h1" style={{ fontSize: 64 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-          {quickNote}{platedRunning}{logRow}{afterLog}{tip}{doneBtn(56)}
+          <h1 className="h1" style={{ fontSize: 64 }}>{platedTitle}</h1>
+          {quickNote}{platedRunning}{logRow}{afterLog}{tip}{later}{doneBtn(56)}
         </div>
       ))
     : (<>
       {hobPlated}
       {showStove ? tracksFor(true) : null}
       <div className="pg bsck-scroll" style={{ paddingTop: showStove ? 16 : 6 }}>
-        <h1 className="h1" style={{ fontSize: 40 }}>{tr('cook:plated.title', { defaultValue: 'Plated.' })}</h1>
-        {quickNote}{platedRunning}{logRow}{afterLog}{tip}{doneBtn(52)}
+        <h1 className="h1" style={{ fontSize: 40 }}>{platedTitle}</h1>
+        {quickNote}{platedRunning}{logRow}{afterLog}{tip}{later}{doneBtn(52)}
       </div>
     </>);
 
@@ -10285,7 +10402,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   const pauseUpcoming = (livePlan?.pauseDeadlines || []).filter(p => now <= p.at);
   // Active-step convenience timers (never on a window step — that has the real
   // hold); a chip hides while its own countdown runs.
-  const evTms = ev && !isWindow && !bsFractionalDuration(ev.text) ? bsStepTimers(ev.text) : [];
+  const evTms = ev && !isWindow ? bsOfferedTimers(ev.text, ev) : [];
   const softChips = evTms.slice(0, 2).filter((tm) => !running.some((x) => x.soft && x.iid === ev.iid && x.stepIndex === cursor && x.label === tm.label));
   const roadmap = bsBoardRoadmap(timeline, cursor, timers, now, skippedRef.current);
   const visiblePct = bsVisibleCookPercent(boardPct, roadmap);
@@ -10358,6 +10475,10 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
   // The one primary action and every reason it cannot be taken yet. Each reason is also said
   // on the card (the wait above the step), so a pale button is never left unexplained.
   const primaryBlocked = !ev || !!occupied || notDue || (!windowStart && !!waitingOn && !serve);
+  // A step the plan starts later is the one wait the cook may overrule. The wait above the
+  // step offers Start now, but a long card scrolls that out of view and left a pale button
+  // with nothing to press, so the primary offers it too when it is the only reason.
+  const startEarly = !!ev && notDue && !occupied && !(!windowStart && !!waitingOn && !serve);
   const skipBlocked = !ev || (!!waitingOn && !serve);
   const primaryAction = () => { if (windowStart) startAndGo(); else advance(); };
   const dueAt = ev && typeof anchor === 'number' ? anchor + (ev.at || 0) * 60000 : null;
@@ -10381,7 +10502,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     if (cmd === 'next') { if (primaryBlocked) noraSays(blockedWhy); else primaryAction(); return true; }
     if (cmd === 'skip') { if (skipBlocked) noraSays(blockedWhy); else advance(undefined, true); return true; }
     if (cmd === 'back') { setCursor(Math.max(0, cursor - 1)); return true; }
-    if (cmd === 'repeat') { if (ev) speak(ev.text); return true; }
+    if (cmd === 'repeat') { if (ev) { if (readsOn) speak(ev.text); else noraSays(ev.text, false); } return true; }
     if (cmd === 'timer') {
       if (windowStart && !primaryBlocked) { startAndGo(); return true; }
       if (softChips[0] && !notDue && !occupied) { startSoftTimer(softChips[0]); return true; }
@@ -10401,7 +10522,8 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
       macros: (c && c.macros) || undefined,
     };
   };
-  const talk = useBSCookTalk({ tr, runCommand, context: talkContext, speak, stopSpeak });
+  // With Nora's voice off her answers stay on screen as text: the switch is whether she speaks.
+  const talk = useBSCookTalk({ tr, runCommand, context: talkContext, speak: readsOn ? speak : null, stopSpeak });
 
   const holdOf = (b, ln) => {
     const tm = timers.find((x) => !x.soft && x.iid === ln.iid && (x.recipeStep != null ? x.recipeStep === b.step : x.stepIndex === b.idx));
@@ -10479,7 +10601,10 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
       onUp: voiceMember ? talk.micEnd : () => {},
     } : null,
     back: { onClick: () => setCursor(Math.max(0, cursor - 1)), disabled: cursor === 0 },
-    primary: <button type="button" className="btn-p" onClick={primaryAction} disabled={primaryBlocked}>{primaryLabel}</button>,
+    // One element either way, so a keyboard cook keeps focus on it after Start now.
+    primary: <button type="button" className="btn-p" onClick={startEarly ? () => setJumpedAt(cursor) : primaryAction} disabled={!startEarly && primaryBlocked}>
+      {startEarly ? tr('cook:prep.startNow', { defaultValue: 'Start now' }) : primaryLabel}
+    </button>,
   });
 
   const top = bsCkTop({
@@ -10487,7 +10612,7 @@ function BSPrepCook({ items, timeline: plannedTimeline, anchor, kitchen = {}, se
     left: { kind: 'close', label: tr('cook:ck.leave', { defaultValue: 'Leave cooking' }), onClick: () => setSheet('exit') },
     finish: { at: finishAt, onOpen: () => setSheet('steps') },
     tracks: { on: tracksOn, onClick: toggleTracks },
-    reads: voiceCanSpeak ? { on: voiceMember && readsOn, onClick: voiceMember ? toggleReads : () => say(signInNora) } : null,
+    reads: bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle: toggleReads, say }),
   });
   const card = ev ? <div className="card"><div className="in bsck-scroll">{cardInner}</div>{foot}</div> : null;
   const overlays = (<>
@@ -10581,6 +10706,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   const [miseChecked, setMiseChecked] = useStateBSC({});
   const [cookIdx, setCookIdx] = useStateBSC(0);
   const [doneEntries, setDoneEntries] = useStateBSC([]);
+  // Which dishes are finished, by key: the board can finish a later dish first, so the first
+  // N in plan order is not the set that is done.
+  const [doneKeys, setDoneKeys] = useStateBSC([]);
   const [saveFailed, setSaveFailed] = useStateBSC(false);
   const [wrapHolds, setWrapHolds] = useStateBSC([]);   // still-running terminal holds at Finish (board → wrap)
   const [dishProgress, setDishProgress] = useStateBSC({});
@@ -10624,12 +10752,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
   // have changed it.
   const voiceMember = useBSCanChat();
   const voiceCanSpeak = typeof window !== 'undefined' && typeof window.ShapeVoice?.speak === 'function';
-  const readReads = () => { try { return localStorage.getItem('shape.cookReads') === '1'; } catch (e) { return false; } };
-  const [readsOn, setReadsOn] = useStateBSC(readReads);
-  React.useEffect(() => { if (stage !== 'cook') setReadsOn(readReads()); }, [stage]);
-  const toggleReads = () => { const next = !readsOn; try { localStorage.setItem('shape.cookReads', next ? '1' : '0'); } catch (e) {} setReadsOn(next); };
-  const signInNora = tr('cook:ck.signInNora', { defaultValue: 'Sign in with an active membership to talk to Nora.' });
-  const reads = voiceCanSpeak ? { on: voiceMember && readsOn, onClick: voiceMember ? toggleReads : () => say(signInNora) } : null;
+  const readsOn = useBSCookReads();
+  const toggleReads = () => { const next = !readsOn; if (!next) { try { window.ShapeVoice?.stop?.(); } catch (e) {} } bsCookReadsSet(next); return next; };
+  const reads = bsCkReadsProp({ tr, voiceCanSpeak, voiceMember, readsOn, toggle: toggleReads, say });
   // Log each dish at the end of a cook-together (share-by-choice stays with the one-dish cook).
   const [logged, setLogged] = useStateBSC({});
   const [logBusy, setLogBusy] = useStateBSC(null);
@@ -10974,6 +11099,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
       preppedAt: Date.now(),
     };
     setDoneEntries((a) => [...a, entry]);
+    setDoneKeys((k) => (k.includes(it.key) ? k : [...k, it.key]));
     try {
       const p = window.ShapeMealPrep?.record?.([entry]);
       if (p && p.then) p.then((r) => { if (!r || !r.ok) setSaveFailed(true); }).catch(() => setSaveFailed(true));
@@ -11162,8 +11288,8 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     const rc = resumeCandidate;
     setResuming(rc); setSessionAnchor(rc.anchor); setKitchen(rc.kitchen || {});
     setCookMode(rc.serve ? BS_COOK_CHOICE.SERVE : BS_COOK_CHOICE.SOONEST);
-    if (rc.phase === 'wrap') { setWrapHolds(rc.timers); setFinishedBoard(rc); setDoneEntries(rc.items); setStage('wrap'); }
-    else { setDoneEntries(rc.items.filter(it => rc.recorded.includes(it.key))); setStage('cook'); }
+    if (rc.phase === 'wrap') { setWrapHolds(rc.timers); setFinishedBoard(rc); setDoneEntries(rc.items); setDoneKeys(rc.items.map((it) => it.key)); setStage('wrap'); }
+    else { setDoneEntries(rc.items.filter(it => rc.recorded.includes(it.key))); setDoneKeys(rc.items.filter(it => rc.recorded.includes(it.key)).map((it) => it.key)); setStage('cook'); }
   };
   const resumeBox = resumeCandidate ? bsCkWait({
     key: 'resume', icon: 'timer', solid: true,
@@ -11304,9 +11430,14 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
         <button type="button" onClick={() => { setServeMins(earliestServe); setServeSlipped(false); }}>{tr('cook:prep.useEarliest', { defaultValue: 'Use {t}', t: bsCkClockShort(nowRef.current + earliestServe * 60000) })}</button>
       </div>
     ) : null}
-    {orch.coordinated === false && !orch.invalidTiming ? <p className="warn" role="status">{serveNeedsRoom
-      ? tr('cook:ck.serveNeedsRoom', { defaultValue: 'Your kitchen as set can’t hold both at once, so they can’t be ready together. Add a burner or oven if you have one, or cook them one after another.' })
-      : tr('cook:ck.serveNeedsHands', { defaultValue: 'Both dishes need your hands at the same time, so they can’t be ready together. Cook them one after another instead.' })}</p> : null}
+    {/* "Both" is only true of two dishes; three or more get their own words. */}
+    {orch.coordinated === false && !orch.invalidTiming ? <p className="warn" role="status">{ordered.length > 2
+      ? (serveNeedsRoom
+        ? tr('cook:ck.serveNeedsRoomMany', { defaultValue: 'Your kitchen as set can’t hold all of them at once, so they can’t all be ready together. Add a burner or oven if you have one, or cook them one after another.' })
+        : tr('cook:ck.serveNeedsHandsMany', { defaultValue: 'These dishes need your hands at the same time, so they can’t all be ready together. Cook them one after another instead.' }))
+      : serveNeedsRoom
+        ? tr('cook:ck.serveNeedsRoom', { defaultValue: 'Your kitchen as set can’t hold both at once, so they can’t be ready together. Add a burner or oven if you have one, or cook them one after another.' })
+        : tr('cook:ck.serveNeedsHands', { defaultValue: 'Both dishes need your hands at the same time, so they can’t be ready together. Cook them one after another instead.' })}</p> : null}
     {serveReady && (orch.ready || []).length ? (
       <p className="note">{(orch.ready || []).map((d) => `${tr('cook:prep.ready', { defaultValue: '{title} ready', title: bsCkShort(d.title) })} ${bsCkClockShort(nowRef.current + d.readyAt * 60000)}`).join(' · ')}</p>
     ) : null}
@@ -11569,7 +11700,9 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
     else say(tr('cook:ck.logFailed', { defaultValue: 'Could not log it. Sign in, then try again.' }));
   };
   const wrapDays = [...new Set(doneEntries.map((e) => BS_PREP_DAY_LABELS[e.dayIdx]).filter(Boolean))];
-  const tips = [...new Set(ordered.slice(0, doneEntries.length >= ordered.length ? ordered.length : doneEntries.length).map((x) => x.cookable.tip).filter(Boolean))];
+  const doneDishes = ordered.filter((x) => doneKeys.includes(x.key));
+  const tips = [...new Set(doneDishes.map((x) => x.cookable.tip).filter(Boolean))];
+  const wrapLater = bsCkLater({ tr, dishes: doneDishes.map((x) => x.cookable), named: true });
   const finishSession = () => { if (!wrapCounting) { try { window.localStorage.removeItem(BS_BATCH_KEY); } catch (e) {} } onClose(); };
   const wrapHead = wrapCounting
     ? tr('cook:prep.timersStillRunning', { defaultValue: 'Final timers are still running' })
@@ -11591,6 +11724,7 @@ function BSPrepSession({ program, onClose, seed = null, catalog = false }) {
       {!cookNow ? <div className="grp">{tr('cook:prep.storage', { defaultValue: 'Storage' })}</div> : null}
       {tips.map((tip, i) => <p key={i} className="note">{tip}</p>)}
     </>) : null}
+    {wrapLater}
     {saveFailed ? <p className="note">{tr('cook:prep.notSaved', { defaultValue: "Sign in to keep your prep — these stamps won't survive this session." })}</p> : null}
     <button type="button" className="btn-q" onClick={finishSession} style={{ minHeight: big ? 56 : 52 }}>{tr('cook:prep.done', { defaultValue: 'Done' })}</button>
   </>);

@@ -209,5 +209,11 @@
   "ck.ingredients": "Kayan haɗi",
   "ck.timersOn": "Agogunan ƙidaya suna aiki",
   "ck.serveNeedsRoom": "Yadda ka saita kicin ɗinka, ba zai iya ɗaukar duka biyu a lokaci guda ba, don haka ba za su iya shiryawa tare ba. Ƙara murhu ko tanda idan kana da ɗaya, ko ka dafa su ɗaya bayan ɗaya.",
-  "ck.serveNeedsHands": "Duka abinci biyun suna buƙatar hannayenka a lokaci guda, don haka ba za su iya shiryawa tare ba. A maimakon haka, ka dafa su ɗaya bayan ɗaya."
+  "ck.serveNeedsHands": "Duka abinci biyun suna buƙatar hannayenka a lokaci guda, don haka ba za su iya shiryawa tare ba. A maimakon haka, ka dafa su ɗaya bayan ɗaya.",
+  "ck.serveNeedsRoomMany": "Yadda ka saita kicin ɗinka, ba zai iya ɗaukar su duka a lokaci guda ba, don haka ba za su iya shiryawa tare duka ba. Ƙara murhu ko tanda idan kana da ɗaya, ko ka dafa su ɗaya bayan ɗaya.",
+  "ck.serveNeedsHandsMany": "Waɗannan abincin suna buƙatar hannayenka a lokaci guda, don haka ba za su iya shiryawa tare duka ba. A maimakon haka, ka dafa su ɗaya bayan ɗaya.",
+  "ck.readsOnToast": "Muryar Nora a kunne take. Za ta karanta kowane mataki da babbar murya.",
+  "ck.readsOffToast": "Muryar Nora a kashe take. Matakan za su ci gaba da kasancewa a allo.",
+  "ck.laterHead": "Idan kana shirin ci",
+  "plated.later": "An shirya tun da wuri."
 }

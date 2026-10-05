@@ -143,9 +143,11 @@ export const bsMergeMise = (items) => {
 export const bsPrepEstimate = (cookable) => {
   const steps = (cookable && cookable.steps) || [];
   let s = 0;
-  steps.forEach((st) => {
+  const meta = (cookable && cookable.stepMeta) || [];
+  steps.forEach((st, i) => {
     const text = typeof st === 'string' ? st : String(st && st.t || '');
-    bsStepTimers(text).forEach((tm) => { s += tm.seconds; });
+    // A make-ahead step's hours ("chill overnight") are not cooking time tonight.
+    if (!(meta[i] && meta[i].makeAhead === true)) bsStepTimers(text).forEach((tm) => { s += tm.seconds; });
     s += 45;
   });
   return s;
