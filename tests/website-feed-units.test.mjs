@@ -146,6 +146,16 @@ test('a live swim reads in the pool unit of the member\'s system', () => {
   assert.equal(met.title, 'Masters swim · 2,000 m');
 });
 
+test('a swim posted with only a title still reads in the pool unit', () => {
+  // No stats and no traces, so the website gives it no session; its sport is
+  // the post's own (`activity_type`), which is what the app reads too.
+  const swim = { kind: 'post', isLive: true, who: 'Lena', sport: 'swim', title: 'Pool · 2,000 m', body: 'Easy.', session: null };
+  assert.equal(cfUnitizePost(swim, U, LB).title, 'Pool · 2,187 yd');
+  assert.equal(cfUnitizePost(swim, U, KG).title, 'Pool · 2,000 m');
+  // The live mapper sets it, outside the session as well as inside.
+  assert.match(FEED, /\n {8}sport: p\.activity_type \|\| '',\n/, 'a live post no longer carries its sport outside its session');
+});
+
 test('a breakdown row is a set, not a stat: "Hill climb" keeps its metres', () => {
   const post = { kind: 'post', who: 'T', session: { sport: 'run', stats: [], metrics: {},
     breakdown: { label: 'Working sets', rows: [['Hill climb', '6 × 200 m', 'RPE 8'], ['Flat', '2 × 400 m', 'RPE 7']] } } };
@@ -188,6 +198,9 @@ test('the card draws the converted post, and writes only the stored one', () => 
   assert.match(item, /<ShareChooserModal p=\{p\}/);
   // …and every write sends what was stored, never the reader's conversion.
   assert.match(item, /title: stored\.title \|\| "Repost", note: stored\.body/);
+  // The quote a repost carries is stored too, so it keeps the author's words.
+  assert.match(item, /repostOf: \{ postId: p\.id, who: p\.who \|\| "", title: stored\.title \|\| "", body: String\(stored\.body \|\| ""\)/,
+    'the repost quote writes the reader\'s conversion');
   assert.match(item, /onEdit\(stored\)/);
   assert.match(item, /<SendPostModal post=\{stored\}/);
   assert.doesNotMatch(item, /onEdit\(p\)|SendPostModal post=\{p\}|title: p\.title \|\| "Repost"/);

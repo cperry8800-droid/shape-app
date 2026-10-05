@@ -807,7 +807,7 @@ function cfLoadUnits(signedIn) {
 function cfUnitizePost(p, U, prefs) {
   if (!p || !U || !prefs) return p;
   const s = p.session || null;
-  const sport = String((s && s.sport) || (p.kind === "run" ? "run" : "")).toLowerCase();
+  const sport = String((s && s.sport) || p.sport || (p.kind === "run" ? "run" : "")).toLowerCase();
   const ctx = { sport };
   const text = (v) => (v == null || v === "" ? v : U.bsSdUnitizeText(String(v), prefs, ctx));
   const stat = (row) => (Array.isArray(row) ? [row[0], U.bsSdUnitizeStat(row[0], row[1], prefs, ctx), ...row.slice(2)] : row);
@@ -1153,6 +1153,10 @@ function CommunityFeed() {
         video: (m && m.video_url) || null,
         isLive: true,
         session: hasSession ? { metrics: m, stats: wstats, sport: p.activity_type || '', title: p.title || 'Activity' } : null,
+        // The sport is the post's, not only its session's: a swim posted with a
+        // title and no stats still quotes pool metres, and the converter reads
+        // them as metres only inside a swim (the app reads `activity_type` too).
+        sport: p.activity_type || '',
         // Share-card pass-throughs (web-parity spec 2026-07-13): the raw
         // values the card model needs, all honest-absent — a post without
         // them shares a minimal card, never a fabricated one.
@@ -1438,8 +1442,9 @@ function CommunityFeed() {
   function FeedItem({ p: stored, onEdit, onDeleted }) {
     // ⚠ THE CARD DRAWS THE READER'S UNITS, NOT THE STORED ONES. `p` is the post
     // as the reader sees it — the plate, the session page and the share card all
-    // read it — and `stored` is kept for the one place that must not convert: a
-    // repost, which writes the original back to the feed.
+    // read it — and `stored` is kept for every place that writes the post
+    // somewhere: a repost (its title and the quote it carries), the edit sheet
+    // and a private send. Those keep what the author wrote.
     const p = React.useMemo(() => (units ? cfUnitizePost(stored, units.U, units.prefs) : stored), [stored, units]);
     // One model per card, both populations.
     const wall = cfWallModel(p);
@@ -1513,7 +1518,7 @@ function CommunityFeed() {
     const onRepost = async () => {
       if (!p.isLive || !p.id) { try { window.alert("Sample post — repost works on real posts."); } catch (e) {} return; }
       try {
-        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: stored.title || "Repost", note: stored.body || "", privacy: "public", metrics: { kind: "note", channel: CF_POST_CHANNEL, repostOf: { postId: p.id, who: p.who || "", title: p.title || "", body: String(p.body || "").slice(0, 240) } } }) });
+        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: stored.title || "Repost", note: stored.body || "", privacy: "public", metrics: { kind: "note", channel: CF_POST_CHANNEL, repostOf: { postId: p.id, who: p.who || "", title: stored.title || "", body: String(stored.body || "").slice(0, 240) } } }) });
         if (!res.ok) throw new Error("repost_failed");
         try { window.alert("Reposted to the feed"); } catch (e) {}
       } catch (e2) { try { window.alert("Could not repost."); } catch (e3) {} }
