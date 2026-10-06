@@ -8,6 +8,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { epleyE1rm } from '@/lib/e1rm';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { requireMembership } from '@/lib/require-membership';
+import { setLoadLb } from '@/lib/set-load';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -208,8 +209,11 @@ export async function GET(request: Request) {
     const p = (r.payload ?? {}) as Record<string, unknown>;
     // A null OR zero column means "not set" → fall back to the payload.
     const colLoad = Number(r.actual_load);
-    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
-    if (!Number.isFinite(load) || load <= 0) continue;
+    const typed = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
+    if (!Number.isFinite(typed) || typed <= 0) continue;
+    // Pounds before any comparison, as get_my_lift_prs does: 100 kg must beat 200 lb's
+    // loser, not lose to it. The PR is reported in pounds and the page converts it.
+    const load = Math.round(setLoadLb(typed, r.load_unit) * 10) / 10;
     const colReps = Number(r.actual_reps);
     const repsN = colReps > 0 ? colReps : pnum(p.actualReps ?? p.reps ?? p.actual_reps);
     const reps = Number.isFinite(repsN) ? Math.round(repsN) : null;
@@ -221,7 +225,7 @@ export async function GET(request: Request) {
         move: key,
         best: load,
         bestReps: reps,
-        unit: r.load_unit || 'lb',
+        unit: 'lb',
         bestAt: r.created_at,
         e1rm: null,
       });
@@ -273,8 +277,11 @@ export async function GET(request: Request) {
     if (r.completed === false) continue;
     const p = (r.payload ?? {}) as Record<string, unknown>;
     const colLoad = Number(r.actual_load);
-    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
-    if (!Number.isFinite(load) || load <= 0) continue;
+    const typed = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
+    if (!Number.isFinite(typed) || typed <= 0) continue;
+    // The series is pounds (the page labels it so and converts it): each set's load
+    // is converted before the week's top is taken.
+    const load = setLoadLb(typed, r.load_unit);
     const week = new Date(r.created_at);
     const day = week.getUTCDay();
     // Anchor each week to Monday for stability.
