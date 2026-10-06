@@ -17617,6 +17617,16 @@ function bsDemoCoachCustom(isNutri) {
   };
 }
 
+// A logged workout's distance as its stat label, in the reader's unit: "5.2K" for
+// kilometres (the label it has always had), "3.2 mi" for miles. No distance → null,
+// and the caller keeps its own label.
+function bsProfileDistLabel(t, km) {
+  const n = Number(km);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const m = t.uMeasure(Math.round(n * 10) / 10, 'km');
+  return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
+}
+
 function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -17912,11 +17922,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         if (Number.isFinite(km) && km > 0) bits.push(`${Math.round(km * 10) / 10} km`);
         if (Number.isFinite(min) && min > 0) bits.push(`${min} min`);
         if (Number.isFinite(kcal) && kcal > 0) bits.push(`${Math.round(kcal)} kcal`);
-        let metric = null;
-        if (Number.isFinite(km) && km > 0 && Number.isFinite(min) && min > 0) metric = [`${Math.round(km * 10) / 10}K`, `${min} min`];
+        let metric = null, distKm = null;
+        // The distance stat's LABEL is the distance itself ("5.2K"), and the card
+        // converts a stat's value, never its label, so the raw kilometres ride out
+        // of this effect and itToCard writes the label in the reader's unit.
+        if (Number.isFinite(km) && km > 0 && Number.isFinite(min) && min > 0) { metric = [`${Math.round(km * 10) / 10}K`, `${min} min`]; distKm = km; }
         else if (Number.isFinite(min) && min > 0) metric = ['Time', `${min} min`];
         else if (Number.isFinite(kcal) && kcal > 0) metric = ['Burn', `${Math.round(kcal)} kcal`];
-        return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, time: ago(a.started_at), hot: false, _at: a.started_at || '' };
+        return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, distKm, time: ago(a.started_at), hot: false, _at: a.started_at || '' };
       });
       // Real PRs (ShapeProgress.train) surfaced as feed items.
       const prs = (td && Array.isArray(td.prs)) ? td.prs : [];
@@ -17960,8 +17973,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     return {
       real: false, key: it._k || null, postId: null, who: name, role: 'Client', tier: tierKey, hot: isPr,
       kind: isPr ? 'pr' : 'workout', typeLabel: it.k || 'Workout', title: it.t || '', lift,
-      body: it.b || '', ago: it.time || '', city: '', activityType: '',
-      stats: it.metric ? [[it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
+      // Every item's line ("Best: 100 kg × 3", "5.2 km · 30 min") is built by the
+      // effect above, not written by the member, so it converts like the card's
+      // stats do. Converted HERE, at render, so a Settings flip reaches it.
+      body: tTheme.uText(it.b || ''), ago: it.time || '', city: '', activityType: '',
+      stats: it.metric ? [[bsProfileDistLabel(tTheme, it.distKm) || it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
     };
   };
   const feedEff = (() => {
@@ -18064,9 +18080,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
       const prs = climbProgress && Array.isArray(climbProgress.prs) ? climbProgress.prs : null;
       if (isSelf && prs && prs.length) {
         const pr = prs[0];
-        const unit = pr.unit || 'lb';
-        const now = `${Math.round(pr.best)} ${unit}${pr.bestReps ? ` × ${pr.bestReps}` : ''}`;
-        const tg = Math.round(pr.best * 1.1);
+        // A PR arrives in its set's own unit (the progress route keeps it, as
+        // get_my_lift_prs returns it), and the ridge reads in the member's setting.
+        // Converted here, at render, so a Settings flip reaches it without a remount.
+        const bestIn = tTheme.uMeasure(Number(pr.best), pr.unit || 'lb');
+        const unit = bestIn.unit || pr.unit || 'lb';
+        const bestN = Number(bestIn.value);
+        const now = `${Math.round(bestN)} ${unit}${pr.bestReps ? ` × ${pr.bestReps}` : ''}`;
+        const tg = Math.round(bestN * 1.1);
         const moveName = String(pr.move || 'Top lift').replace(/\b\w/g, (x) => x.toUpperCase());
         return { arc: [[moveName, tr('profile:terrain.logged', { defaultValue: 'Logged' }), 'start'], [tr('profile:ridge.now', { defaultValue: 'Now' }), now, 'now'], [tr('profile:ridge.target', { defaultValue: 'Target' }), `${tg} ${unit}`, 'target']], pct: 0.62, summit: `${tg} ${unit}` };
       }
@@ -29175,6 +29196,15 @@ function BSStrengthCard({ onOpen }) {
   );
 }
 
+// A week's volume (pounds, from /api/client/train) in the reader's unit, in the
+// Progress page's form: "9.1k lb" / "4.1k kg". No volume reads "—".
+function bsGoalVolume(t, lb) {
+  const n = Number(lb) || 0;
+  if (!n) return '—';
+  const m = t.uMeasure(n, 'lb');
+  return `${(Number(m.value) / 1000).toFixed(1)}k ${m.unit || 'lb'}`;
+}
+
 function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -29359,11 +29389,15 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         { l: tr('goal:week.sessions', { defaultValue: 'Sessions' }), v: `${thisWk}/${sessTarget || '—'}`, sub: sessTarget ? (thisWk >= sessTarget ? tr('goal:week.done', { defaultValue: 'done' }) : tr('goal:week.toGo', { defaultValue: '{count} to go', count: Math.max(0, sessTarget - thisWk) })) : tr('goal:week.setPlan', { defaultValue: 'set a plan' }) },
         { l: tr('goal:week.protein', { defaultValue: 'Protein days' }), v: `${adher}/7`, sub: proteinTgt ? tr('goal:week.proteinHit', { defaultValue: '≥{grams}g hit', grams: proteinTgt }) : tr('goal:week.proteinTracked', { defaultValue: 'days tracked' }) },
         { l: tr('goal:week.sleep', { defaultValue: 'Sleep' }), v: sleep ? `${sleep}h` : '—', sub: tr('goal:week.sleepSub', { defaultValue: 'avg · goal 7h' }) },
-        { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: vol7 ? `${Math.round(vol7 / 1000)}k` : '—', sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }) },
+        { l: tr('goal:week.volume', { defaultValue: '7d volume' }), v: '—', volLb: vol7, sub: tr('goal:week.volumeSub', { defaultValue: 'load lifted' }) },
       ]);
     }).catch(() => {});
     return () => { on = false; };
   }, [loggedIn, bsGoalProgram.detail, bsGoalProgram.trainingPhase, bsGoalProgram.nutritionPhase]);
+  // The volume row is pounds from /api/client/train, converted HERE at render: the
+  // effect above runs once per load, so converting there would hold the old unit
+  // after a Settings flip until a remount.
+  const liveWeekIn = liveWeek && liveWeek.map((w) => (w.volLb !== undefined ? { ...w, v: bsGoalVolume(t, w.volLb) } : w));
   const logWeighIn = (kg, bodyFat = null) => {
     const today = new Date().toISOString().slice(0, 10);
     // ⚠ THE DOCUMENT CANONICALISES ITSELF TO KILOGRAMS ON EVERY SAVE, START,
@@ -29528,7 +29562,7 @@ function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         onAddGoal={(tab) => { setListTab(tab); setEditing('new'); }}
         onEditGoal={(tab, i) => { setListTab(tab); setEditing(i); }}
         onEditHeadline={(tab) => setEditHeadline(tab)}
-        plans={livePlans} weekTargets={liveWeek} train={liveTrain} />
+        plans={livePlans} weekTargets={liveWeekIn} train={liveTrain} />
 
       {/* Share with coaches — applies to the whole ledger, so it lives on the
           COVER (a station page is one station's detail, not the whole record). */}
