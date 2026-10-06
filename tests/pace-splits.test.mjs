@@ -113,3 +113,54 @@ test('bsPaceSplits: absent columns stay absent (no fabricated hr/cadence)', () =
   assert.equal(r.splits[0].cadence, null);
   assert.equal(r.splits[0].elevDelta, null);
 });
+
+// ── splits are cut in the reader's unit ─────────────────────────────────────
+// ⚠ A split table never says "Mile 3" over a pace per km: an imperial reader's
+// splits are per mile, a metric reader's per kilometre.
+const trace30 = Array.from({ length: 30 }, (_, i) => 540 - i * 2);
+
+test('bsPaceSplits: a metric reader\'s trace splits are per kilometre', () => {
+  const r = bsPaceSplits({ paceTrace: trace30, unit: 'km', distance: 8.2, sport: 'run' });
+  assert.equal(r.source, 'trace');
+  assert.deepEqual(r.splits.map((s) => s.label), ['Km 1', 'Km 2', 'Km 3', 'Km 4', 'Km 5', 'Km 6', 'Km 7', 'Km 8']);
+  // A distance given in miles is read in the reader's unit too.
+  const fromMiles = bsPaceSplits({ paceTrace: trace30, unit: 'km', distanceMi: 5.1, sport: 'run' });
+  assert.equal(fromMiles.splits.length, 8);
+  assert.ok(fromMiles.splits.every((s) => /^Km \d+$/.test(s.label)));
+});
+
+test('bsPaceSplits: per-mile rows are re-cut per kilometre from the trace for a metric reader', () => {
+  const miles = [{ label: 'Mile 1', pace: '9:00/mi' }, { label: 'Mile 2', pace: '8:30/mi' }, { label: 'Mile 3', pace: '8:00/mi' }];
+  const km = bsPaceSplits({ providerSplits: miles, paceTrace: trace30, unit: 'km', distance: 4.8, sport: 'run' });
+  assert.equal(km.source, 'trace');
+  assert.deepEqual(km.splits.map((s) => s.label), ['Km 1', 'Km 2', 'Km 3', 'Km 4', 'Km 5']);
+  // ⚠ THE LABEL SAYS WHAT A ROW IS, NOT ITS PACE. A demo breakdown arrives with
+  // its paces already converted ('5:36/km') while its rows are still miles.
+  const converted = miles.map((r) => ({ ...r, pace: '5:36/km' }));
+  assert.equal(bsPaceSplits({ providerSplits: converted, paceTrace: trace30, unit: 'km', distance: 4.8, sport: 'run' }).source, 'trace');
+  // An imperial reader keeps the provider's own miles.
+  const mi = bsPaceSplits({ providerSplits: miles, paceTrace: trace30, unit: 'mi', distance: 3, sport: 'run' });
+  assert.equal(mi.source, 'provider');
+  assert.deepEqual(mi.splits.map((s) => s.label), ['Mile 1', 'Mile 2', 'Mile 3']);
+  // Per-km rows for an imperial reader are re-cut per mile the same way.
+  const kmRows = [{ label: 'Km 1', pace: '5:36/km' }, { label: 'Km 2', pace: '5:20/km' }];
+  assert.deepEqual(bsPaceSplits({ providerSplits: kmRows, paceTrace: trace30, unit: 'mi', distance: 3, sport: 'run' }).splits.map((s) => s.label), ['Mile 1', 'Mile 2', 'Mile 3']);
+});
+
+test('bsPaceSplits: with no trace to re-cut, the provider\'s rows stay', () => {
+  const miles = [{ label: 'Mile 1', pace: '9:00/mi' }, { label: 'Mile 2', pace: '8:30/mi' }];
+  const r = bsPaceSplits({ providerSplits: miles, unit: 'km', distance: 3.2, sport: 'run' });
+  assert.equal(r.source, 'provider');
+  assert.deepEqual(r.splits.map((s) => s.label), ['Mile 1', 'Mile 2']);
+});
+
+test('bsPaceSplits: laps say nothing about a unit, so they are never re-cut', () => {
+  const laps = [{ label: 'Lap 1', pace: '1:42/100m' }, { label: 'Lap 2', pace: '1:38/100m' }];
+  assert.equal(bsPaceSplits({ providerSplits: laps, paceTrace: trace30, unit: 'km', distance: 2, sport: 'swim' }).source, 'provider');
+});
+
+test('bsPaceSplits: with no distance there is no unit to cut by, so the buckets say "Split"', () => {
+  const r = bsPaceSplits({ paceTrace: trace30, unit: 'km', sport: 'swim' });
+  assert.equal(r.source, 'trace');
+  assert.ok(r.splits.length > 1 && r.splits.every((s, i) => s.label === `Split ${i + 1}`), r.splits.map((s) => s.label).join(','));
+});

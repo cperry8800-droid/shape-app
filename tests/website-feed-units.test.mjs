@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import * as U from '../public/newdesign/unitText.mjs';
+import * as S from '../public/newdesign/paceSplits.mjs';
 import * as Ledger from '../mobile-app/src/services/sessionLedger.mjs';
 
 const FEED = readFileSync('public/newdesign/communityFeed.jsx', 'utf8');
@@ -35,9 +36,13 @@ function lift(name) {
   return body;
 }
 // eslint-disable-next-line no-new-func
-const cfUnitizePost = new Function(`${lift('cfUnitizePost')}\nreturn cfUnitizePost;`)();
+const cfUnitizePost = new Function(`${lift('cfDistanceOf')}\n${lift('cfUnitizePost')}\nreturn cfUnitizePost;`)();
 // eslint-disable-next-line no-new-func
 const cfUnitPrefs = new Function(`${lift('cfUnitPrefs')}\nreturn cfUnitPrefs;`)();
+// eslint-disable-next-line no-new-func
+const cfDistanceOf = new Function(`${lift('cfDistanceOf')}\nreturn cfDistanceOf;`)();
+// What the page's loader hands the feed: the converter and the splits model.
+const UF = { ...U, ...S };
 
 // The website's demo posts, read out of the source as data.
 function demoFeed() {
@@ -217,7 +222,9 @@ test('a stat\'s label still decides what a bare metre is (elevation, stride)', (
 test('the feed reads the member\'s setting, and falls back to imperial when it cannot', async () => {
   // The loader, lifted and run against the real module: the page's absolute
   // path is pointed at the file, and `window.shapeDb` is a stub.
-  const src = lift('cfLoadUnits').replace('import("/newdesign/unitText.mjs")', `import(${JSON.stringify(pathToFileURL('public/newdesign/unitText.mjs').href)})`);
+  const src = lift('cfLoadUnits')
+    .replace('import("/newdesign/unitText.mjs")', `import(${JSON.stringify(pathToFileURL('public/newdesign/unitText.mjs').href)})`)
+    .replace('import("/newdesign/paceSplits.mjs")', `import(${JSON.stringify(pathToFileURL('public/newdesign/paceSplits.mjs').href)})`);
   assert.notEqual(src, lift('cfLoadUnits'), 'the loader no longer imports the shared module by its page path');
   // eslint-disable-next-line no-new-func
   const load = new Function('cfUnitPrefs', `${src}\nreturn cfLoadUnits;`)(cfUnitPrefs);
@@ -228,6 +235,7 @@ test('the feed reads the member\'s setting, and falls back to imperial when it c
     const signedIn = await load(true);
     assert.deepEqual(signedIn.prefs, KG, 'a metric member was given imperial');
     assert.equal(signedIn.U.bsSdUnitizeText, U.bsSdUnitizeText, 'the loader handed back a different converter');
+    assert.equal(signedIn.U.bsPaceSplits, S.bsPaceSplits, 'the loader did not hand the feed the splits model');
     assert.deepEqual(asked, ['client_settings']);
     assert.deepEqual((await load(false)).prefs, LB, 'signed out: the default, and the setting is not read');
     assert.deepEqual(asked, ['client_settings'], 'a signed-out visitor\'s settings were read');
@@ -236,4 +244,43 @@ test('the feed reads the member\'s setting, and falls back to imperial when it c
     globalThis.window = {};
     assert.deepEqual((await load(true)).prefs, LB, 'no database on the page: the default');
   } finally { globalThis.window = prev; }
+});
+
+// ── splits are cut in the reader's unit ─────────────────────────────────────
+// ⚠ The demo run's split strip said "Mile 1"–"Mile 8" over paces per km for a
+// metric reader. It is re-cut per kilometre from the run's own trace, by the
+// app's rule.
+test('the demo run\'s splits are per kilometre for a metric reader, per mile for an imperial one', () => {
+  const run = demoFeed().find((p) => p.session && p.session.breakdown && /mile/i.test(p.session.breakdown.label));
+  assert.ok(run, 'the demo run with mile splits is gone — re-anchor this test');
+  const km = cfUnitizePost(run, UF, KG).session.breakdown;
+  assert.equal(km.label, 'Km splits');
+  assert.deepEqual(km.rows.map((r) => r[0]), Array.from({ length: 14 }, (_, i) => `Km ${i + 1}`), '8.4 mi is 13.5 km: fourteen per-km splits');
+  assert.ok(km.rows.every((r) => /^\d+:\d{2}\/km$/.test(r[1])), `a split pace is not per km: ${km.rows.map((r) => r[1])}`);
+  assert.ok(km.rows.every((r) => /^\d+ bpm$/.test(r[2])), 'the split\'s heart rate is gone');
+  const mi = cfUnitizePost(run, UF, LB).session.breakdown;
+  assert.deepEqual(mi.rows, run.session.breakdown.rows, 'an imperial reader sees the authored mile splits');
+  assert.equal(mi.label, 'Mile splits');
+});
+
+test('every demo post, metric: no split is labelled in miles', () => {
+  for (const p of demoFeed()) {
+    const rows = (cfUnitizePost(p, UF, KG).session || {}).breakdown;
+    if (!rows || !Array.isArray(rows.rows)) continue;
+    assert.ok(rows.rows.every((r) => !/^(miles?|mi)\b/i.test(String(r[0]))), `${p.who}: ${rows.rows.map((r) => r[0])}`);
+  }
+});
+
+test('a distance is read in either unit the card shows it in', () => {
+  assert.deepEqual(cfDistanceOf('13.5 km'), { distance: 13.5, unit: 'km' });
+  assert.deepEqual(cfDistanceOf('8.4 mi'), { distance: 8.4, unit: 'mi' });
+  assert.deepEqual(cfDistanceOf('1,234.5 km'), { distance: 1234.5, unit: 'km' });
+  assert.equal(cfDistanceOf('2,000 m'), null, 'a swim\'s metres are not a distance to mark');
+  assert.equal(cfDistanceOf('2,187 yd'), null);
+  assert.equal(cfDistanceOf(null), null);
+  // The session charts read it, and mark it in its own unit.
+  assert.match(FEED, /const dist = cfDistanceOf\(distStat \? distStat\[1\] : null\);/);
+  assert.equal((FEED.match(/distance=\{distance\} distUnit=\{distUnit\}/g) || []).length, 5, 'a session chart is not given the distance in the shown unit');
+  assert.match(FEED, /\{mm\} \{distUnit \|\| "mi"\}<\/span>/);
+  assert.doesNotMatch(FEED, /distanceMi/, 'a chart still reads its distance in miles only');
 });

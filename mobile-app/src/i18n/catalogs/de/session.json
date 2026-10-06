@@ -12,6 +12,7 @@
   "chart.gpsNotRecordedAria": "GPS nicht aufgezeichnet",
   "chart.heartRate": "Herzfrequenz",
   "chart.mileLabel": "Mi {n}",
+  "chart.kmLabel": "Km {n}",
   "chart.pace": "Tempo",
   "chart.power": "Leistung",
   "chart.routeGps": "Route · GPS",

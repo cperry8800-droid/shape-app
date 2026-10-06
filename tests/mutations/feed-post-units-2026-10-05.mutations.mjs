@@ -6,7 +6,7 @@
 // website feed), and sessionLedger.mjs re-exports it.
 const LEDGER = 'public/newdesign/unitText.mjs';
 const CARD = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
-const SPLITS = 'mobile-app/src/services/paceSplits.mjs';
+const SPLITS = 'public/newdesign/paceSplits.mjs';
 
 export default {
   test: 'node --test tests/units-display-text.test.mjs tests/feed-post-units.test.mjs tests/instrument-tile-detail.test.mjs tests/instrument-board.test.mjs',

@@ -12,6 +12,7 @@
   "chart.gpsNotRecordedAria": "GPS không được ghi lại",
   "chart.heartRate": "Nhịp tim",
   "chart.mileLabel": "Mi {n}",
+  "chart.kmLabel": "Km {n}",
   "chart.pace": "Pace",
   "chart.power": "Công suất",
   "chart.routeGps": "Lộ trình · GPS",

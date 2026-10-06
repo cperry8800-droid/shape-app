@@ -68,7 +68,7 @@ function buildZonesFromDurations(m) {
   return null;
 }
 
-function WebAreaChart({ vals, color, invert, fmt, distanceMi, height }) {
+function WebAreaChart({ vals, color, invert, fmt, distance, distUnit, height }) {
   if (!Array.isArray(vals) || vals.length < 2) return null;
   const H = height || 110;
   const lo = Math.min(...vals), hi = Math.max(...vals), rng = (hi - lo) || 1, W = 100, top = 5, bot = 95, span = bot - top;
@@ -77,9 +77,9 @@ function WebAreaChart({ vals, color, invert, fmt, distanceMi, height }) {
   const gid = "wac-" + Math.random().toString(36).slice(2, 8);
   const fmtv = fmt || ((v) => "" + Math.round(v));
   const yT = [{ y: top, v: invert ? lo : hi }, { y: (top + bot) / 2, v: (lo + hi) / 2 }, { y: bot, v: invert ? hi : lo }];
-  const step = (distanceMi && distanceMi > 0) ? Math.max(1, Math.round(distanceMi / 5)) : 0;
+  const step = (distance && distance > 0) ? Math.max(1, Math.round(distance / 5)) : 0;
   const xT = [];
-  if (step) for (let mm = step; mm < distanceMi - 0.15; mm += step) xT.push(mm);
+  if (step) for (let mm = step; mm < distance - 0.15; mm += step) xT.push(mm);
   const mono = "'JetBrains Mono', monospace";
   return (
     <div style={{ paddingLeft: 36 }}>
@@ -88,12 +88,12 @@ function WebAreaChart({ vals, color, invert, fmt, distanceMi, height }) {
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: H, display: "block" }} aria-hidden>
           <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.34" /><stop offset="100%" stopColor={color} stopOpacity="0.03" /></linearGradient></defs>
           {yT.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.08)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
-          {xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.05)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
+          {xT.map((mm, i) => { const xp = (mm / distance) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.05)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
           <path d={line + " L" + W + " 100 L0 100 Z"} fill={"url(#" + gid + ")"} />
           <path d={line} fill="none" stroke={color} strokeWidth="1.4" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
         </svg>
       </div>
-      {xT.length > 0 && <div style={{ position: "relative", height: 14, marginTop: 4 }}>{xT.map((mm, i) => { const xp = (mm / distanceMi) * 100; return <span key={i} style={{ position: "absolute", left: xp + "%", top: 0, transform: "translateX(-50%)", fontFamily: mono, fontSize: 8.5, fontWeight: 600, color: "var(--sh-ink2, #a09b94)" }}>{mm} mi</span>; })}</div>}
+      {xT.length > 0 && <div style={{ position: "relative", height: 14, marginTop: 4 }}>{xT.map((mm, i) => { const xp = (mm / distance) * 100; return <span key={i} style={{ position: "absolute", left: xp + "%", top: 0, transform: "translateX(-50%)", fontFamily: mono, fontSize: 8.5, fontWeight: 600, color: "var(--sh-ink2, #a09b94)" }}>{mm} {distUnit || "mi"}</span>; })}</div>}
     </div>
   );
 }
@@ -131,7 +131,11 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
   const outputStats = [];
   const sumCols = summaryStats.length <= 3 ? (summaryStats.length || 1) : 2;
   const distStat = (heroStat && /dist/i.test(heroStat[0])) ? heroStat : allStats.find((st) => /dist/i.test(st[0]));
-  const distanceMi = (distStat && /mi/i.test(String(distStat[1]))) ? (parseFloat(String(distStat[1]).replace(/[^\d.]/g, "")) || null) : null;
+  // The distance in the unit the card SHOWS (the reader's: miles or kilometres).
+  // ⚠ It read miles only, so a metric member's "13.5 km" lost every marker.
+  const dist = cfDistanceOf(distStat ? distStat[1] : null);
+  const distUnit = dist ? dist.unit : null;
+  const distance = dist ? dist.distance : null;
   const ZC = ["#5b8def", "var(--sh-accent3, #34d6c5)", "#d8b25a", "#e8843c", "#e0463c"];
   const Eyebrow = ({ children, chip }) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "24px 0 12px" }}>
@@ -178,15 +182,15 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
         </>)}
         {paceTrace && (<>
           <Eyebrow chip={paceChipStat ? accentChip(paceCfg.chip + " " + paceChipStat[1]) : null}>{paceCfg.label}</Eyebrow>
-          <WebAreaChart vals={paceTrace} color={TEAL_BRIGHT} invert={paceCfg.invert} fmt={paceCfg.fmt} distanceMi={distanceMi} height={116} />
+          <WebAreaChart vals={paceTrace} color={TEAL_BRIGHT} invert={paceCfg.invert} fmt={paceCfg.fmt} distance={distance} distUnit={distUnit} height={116} />
         </>)}
         {powerTrace && (<>
           <Eyebrow>Power</Eyebrow>
-          <WebAreaChart vals={powerTrace} color="#d8b25a" fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={96} />
+          <WebAreaChart vals={powerTrace} color="#d8b25a" fmt={(v) => "" + Math.round(v)} distance={distance} distUnit={distUnit} height={96} />
         </>)}
         {(trace || (zones && zones.length > 0)) && (<>
           <Eyebrow>Heart rate</Eyebrow>
-          {trace && <WebAreaChart vals={trace} color={TEAL_BRIGHT} fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={116} />}
+          {trace && <WebAreaChart vals={trace} color={TEAL_BRIGHT} fmt={(v) => "" + Math.round(v)} distance={distance} distUnit={distUnit} height={116} />}
           {zones && zones.length > 0 && (
             <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 9 }}>
               {zones.map((z, i) => (
@@ -254,11 +258,11 @@ function SessionDetailsModal({ p, onClose, onShareImage }) {
         })()}
         {cadenceTrace && (<>
           <Eyebrow chip={cadStat ? greyChip("avg " + cadStat[1]) : null}>Cadence</Eyebrow>
-          <WebAreaChart vals={cadenceTrace} color={TEAL_BRIGHT} fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={92} />
+          <WebAreaChart vals={cadenceTrace} color={TEAL_BRIGHT} fmt={(v) => "" + Math.round(v)} distance={distance} distUnit={distUnit} height={92} />
         </>)}
         {elevTrace && (<>
           <Eyebrow chip={elevStat ? greyChip("+" + elevStat[1] + " gain") : null}>Elevation</Eyebrow>
-          <WebAreaChart vals={elevTrace} color="#8a93a0" fmt={(v) => "" + Math.round(v)} distanceMi={distanceMi} height={96} />
+          <WebAreaChart vals={elevTrace} color="#8a93a0" fmt={(v) => "" + Math.round(v)} distance={distance} distUnit={distUnit} height={96} />
         </>)}
         {outputStats.length > 0 && (<>
           <Eyebrow>Output</Eyebrow>
@@ -776,6 +780,13 @@ function cfFeedScope(role) {
 }
 
 // ── The reader's units ──────────────────────────────────────────────────────
+// A distance figure as the card shows it: { distance, unit } in miles or
+// kilometres, or null (a swim's metres or yards, or no figure at all).
+function cfDistanceOf(v) {
+  const m = String(v == null ? "" : v).match(/(\d[\d,]*(?:\.\d+)?)\s*(mi|km)\b/i);
+  const n = m ? parseFloat(m[1].replace(/,/g, "")) : NaN;
+  return n > 0 ? { distance: n, unit: m[2].toLowerCase() } : null;
+}
 // ⚠ THE WEBSITE FEED DREW EVERY FIGURE EXACTLY AS IT WAS STORED. Importers write
 // miles, feet and mph, so a metric member read "8.4 mi" and "+412 ft" here while
 // the app showed them kilometres and metres, and a swim's title and plate could
@@ -792,8 +803,9 @@ function cfLoadUnits(signedIn) {
   const setting = (signedIn && db && typeof db.getUserGoals === "function")
     ? Promise.resolve().then(() => db.getUserGoals("client_settings")).catch(() => null)
     : Promise.resolve(null);
-  return Promise.all([import("/newdesign/unitText.mjs"), setting])
-    .then(([U, st]) => ({ U, prefs: cfUnitPrefs(st && st.units) }))
+  // The converter and the splits model are the app's own modules; `U` carries both.
+  return Promise.all([import("/newdesign/unitText.mjs"), import("/newdesign/paceSplits.mjs"), setting])
+    .then(([T, S, st]) => ({ U: { ...T, ...S }, prefs: cfUnitPrefs(st && st.units) }))
     .catch(() => null);
 }
 
@@ -822,15 +834,33 @@ function cfUnitizePost(p, U, prefs) {
     const paceFig = all.find((r) => Array.isArray(r) && /pace|speed/i.test(String(r[0])));
     const elevFig = all.find((r) => Array.isArray(r) && /elev|ascent|altitude|climb/i.test(String(r[0])));
     const elevIn = U.bsSdElevTraceIn(Array.isArray(m.elevTrace) ? m.elevTrace : null, elevFig ? elevFig[1] : null, prefs.distance === "km");
+    let breakdown = s.breakdown ? {
+      ...s.breakdown,
+      label: text(s.breakdown.label),
+      rows: Array.isArray(s.breakdown.rows) ? s.breakdown.rows.map((r) => (Array.isArray(r) ? [r[0], ...r.slice(1).map(text)] : r)) : s.breakdown.rows,
+    } : s.breakdown;
+    // ⚠ A SPLIT TABLE IS CUT IN THE READER'S UNIT. A per-mile table read in
+    // kilometres said "Mile 3" over a pace per km; it is re-cut per kilometre from
+    // the session's own trace, by the app's rule (`bsPaceSplits`). With no trace
+    // there is nothing to re-cut, and the rows stay as they are.
+    if (U.bsPaceSplits && s.breakdown && Array.isArray(s.breakdown.rows) && /split|mile|lap/i.test(String(s.breakdown.label || ""))) {
+      const distFig = all.find((r) => Array.isArray(r) && /dist/i.test(String(r[0])));
+      const dist = cfDistanceOf(distFig ? distFig[1] : null);
+      const unit = prefs.distance === "km" ? "km" : "mi";
+      const cut = U.bsPaceSplits({
+        providerSplits: s.breakdown.rows.filter(Array.isArray).map((r) => ({ label: r[0], pace: r[1] })),
+        paceTrace: m.paceTrace, hrTrace: m.hrTrace, unit, distance: dist && dist.unit === unit ? dist.distance : null, sport,
+      });
+      if (cut.source === "trace") {
+        breakdown = { ...breakdown, label: unit === "km" ? "Km splits" : "Mile splits",
+          rows: cut.splits.map((x) => [x.label, text(x.paceLabel), x.hr != null ? x.hr + " bpm" : ""]) };
+      }
+    }
     session = {
       ...s,
       title: text(s.title),
       stats,
-      breakdown: s.breakdown ? {
-        ...s.breakdown,
-        label: text(s.breakdown.label),
-        rows: Array.isArray(s.breakdown.rows) ? s.breakdown.rows.map((r) => (Array.isArray(r) ? [r[0], ...r.slice(1).map(text)] : r)) : s.breakdown.rows,
-      } : s.breakdown,
+      breakdown,
       metrics: {
         ...m,
         paceTrace: U.bsSdPaceTraceIn(m.paceTrace, paceFig ? paceFig[1] : null),

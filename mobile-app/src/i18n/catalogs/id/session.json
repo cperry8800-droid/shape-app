@@ -12,6 +12,7 @@
   "chart.gpsNotRecordedAria": "GPS tidak tercatat",
   "chart.heartRate": "Detak jantung",
   "chart.mileLabel": "Mi {n}",
+  "chart.kmLabel": "Km {n}",
   "chart.pace": "Pace",
   "chart.power": "Daya",
   "chart.routeGps": "Rute · GPS",
