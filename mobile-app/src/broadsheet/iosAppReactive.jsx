@@ -281,7 +281,9 @@ function RadioHologramDJ({ enabled = true, color = '#0ac5a8' }) {
 
 // tint: a fixed hex pins every layer to one color (the Settings fx color
 // picker — 'cycle' passes null and keeps the drifting 18s palette).
-function RadioEffects({ mode = 'subtle', label = 'Shape Radio · 132', tint = null }) {
+// isLight: the paper under the overlay (the hologram prints as ink on light
+// paper). floor: CSS px the tab bar takes at the bottom (0 where there is none).
+function RadioEffects({ mode = 'subtle', label = 'Shape Radio · 132', tint = null, isLight = false, floor = 0 }) {
   const on = mode !== 'off';
   const { t } = useBeat(on);
   const color = tint || cycleColor(t, 18);
@@ -291,7 +293,7 @@ function RadioEffects({ mode = 'subtle', label = 'Shape Radio · 132', tint = nu
       <RadioBgBloom color={color} enabled={true} />
       <RadioEdgeGlow color={color} enabled={true} />
       <RadioDynamicIsland color={color} label={label} enabled={true} />
-      {(mode === 'immersive' || mode === 'hologram') && <RadioHologramDJ color={color} enabled={mode === 'hologram'} />}
+      {mode === 'hologram' && <RadioHologramDJ color={color} isLight={isLight} floor={floor} />}
     </>
   );
 }
