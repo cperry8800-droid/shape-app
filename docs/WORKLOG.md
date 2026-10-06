@@ -832,6 +832,85 @@ Everything older, newest-first: [2026-09](WORKLOG-ARCHIVE-2026-09.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-06 — Shape Radio's light effects follow the music: Immersive gets stage lights, Subtle an edge light
+
+- **Merged [#2208](https://github.com/cperry8800-droid/shape-app/pull/2208) as `b6bd1ad`**, final head `d55d7ed`; the merged tree is byte-identical to it (tree `17f133c` on both). 24 files. **No migration, no route**; one i18n key reworded in all 13 locales. The owner asked: *"we also need to improve the immersive selection, which is supposed to adjust the lighting with shape radio"*. They then picked **Stage lights** off the preview board (https://claude.ai/artifact/UUBU3wLmSvKSYJZJ9hznrE), and added *"light paper needs to be a little more visible"*, *"build it into the app. lets improve the subtle option as well"* and *"merge after any coderabbit fixes"*.
+- **What was wrong.** Every light effect ran on a fixed 132 BPM clock that never read the radio. Immersive drew the same three layers as Subtle; its *"button halos"* were never built.
+- **One reading of the music per frame**: `radioLight` in `iosAppReactive.jsx`, with the rules in the pure `mobile-app/src/services/radioLight.mjs`.
+  - **`measured`** (the analyser has data):
+    - a kick is bass at least 1.22× its slow average *and* at least 0.08 above it, with a 200 ms refractory window;
+    - a drop is a kick after at least 2.5 s without one, once 3 s of warm-up have passed.
+    - ⚠ **A loudness surge is not a drop.** Measured on the preview's example track, the breakdown's pad reads louder to a dB-scaled analyser than the drop after it.
+  - **`idle`** (an all-zero analyser): ⚠ **a stream we cannot read (no CORS, or no stream), never silence.** The lights breathe and claim no beat.
+  - **`demo`** (nothing playing, i.e. the Settings preview): a 132 BPM clock with a drop inside the 6 s.
+  - The analyser is read once a frame however many layers ask, and the reading starts over after a pause or a source switch.
+- **The layers** (`iosAppRadioLights.jsx`):
+  - **Bloom**, z 0.
+  - **Stage lights**, z 1, Immersive and Hologram only: four heads whose beams sweep, alternate on the kick and swing together on the drop, plus a wash from the top and a pool on the floor line.
+  - **Edge light**, z 9, every mode: a 2 px strip down each side and along the floor. ⚠ **Its glow stops 22 px in**, because a 44 px glow measurably dimmed Train's right-aligned figures.
+  - **Gels**: the tint plus the Radio page's hot partner. Light paper deepens each to 2.6:1 (`rlDeepen`). No `color-mix()`, which iOS 14 lacks.
+  - **Cost**: compositor-only writes, and the palette moves at most every 300 ms.
+  - The hologram DJ bobs on the music's kick.
+- ⚠ **THE OVERLAY CAN BE THE FIRST THING THAT ROUTES THE RADIO THROUGH WEBAUDIO.** `ShapeRadioLive.analyser()` wires the `<audio>` element into an AudioContext the first time anything asks; until now only the Radio page and Nora asked.
+  - Light effects default to **off**, so this reaches only members who opt in.
+  - It does extend the iOS questions to members who never open the Radio page: a context created outside a tap can stay suspended; background audio; a stream without `Access-Control-Allow-Origin` plays silent through WebAudio.
+  - Two comments that said nothing outside the Radio page reads the analyser were corrected.
+- **Stacked, then rebased.** It was opened on #2207's branch.
+  - `ci.yml` runs only on PRs into `main`, so the stacked head's CI came from a manual `workflow_dispatch`.
+  - CodeRabbit skips auto-review on a base other than `main`, so the bare trigger was the whole round.
+  - After #2207 merged, the three commits were rebased onto `main`, and the PR was retargeted **before** the push. The push's `synchronize` then ran CI against `main`. ⚠ **Retargeting alone runs nothing**: `ci.yml`'s `pull_request` trigger takes the default event types, and `edited` is not one of them.
+- **Review.** CodeRabbit ran one round on `2d0dc07`. Its notice came 7 s after the PR opened, and the bare trigger carried the command marker. Result: **APPROVED, no actionable comments**. Codex refused on its usage limit; Copilot declined on its quota. The rebased head's tree is byte-identical to the approved one.
+- ⚠ **THE MUTATION ROUND'S ONE SURVIVOR WAS A VACUOUS TEST.** The warm-up guard's test put its stray hit on the stream's first frame. That frame seeds the slow average, so the hit was never a kick, and the test passed without the warm-up. The hit lands at 200 ms now, and the test asserts it was counted.
+- **Verified:**
+  - `npm test` **5482/5482** through the pre-commit gate on each commit.
+  - Mutations through the shared runner (`tests/mutations/radio-lights-2026-10-06.mutations.mjs`, `--fail-on-skipped`): **24/24**. #2207's spec, re-run on this tree: 20 killed plus its one documented no-op.
+  - All required checks green on `d55d7ed`.
+  - Measured in a harness at 390×844:
+    - main-thread time is about 180 ms/s for Subtle, 215–242 for Immersive and 271–280 for Hologram, against 50 with no effects;
+    - text edges dimmed about 0, except Train's floor-line row (1.1–1.3%), a row the tab bar already cuts.
+  - Driven in the real app (Vite dev) with a fake 128 BPM analyser: the reading was `measured`, the kicks pulsed, the layers mounted at z 0/1/9, and there were no page errors.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - There is no production stream (`radio_station` provider `mock`, no `stream_url`), so in production the playing overlay reads `idle` until a real stream is signed.
+  - The WebAudio routing questions above need an on-device check before a real stream ships.
+  - The kick and drop thresholds were tuned on synthetic frames and one generated track, never a real station.
+  - ⚠ **NO ON-DEVICE PASS.** No phone has run either effect.
+
+### 2026-10-06 — The hologram DJ redrawn: a projected DJ at the booth, right of the text, lighter than the words it crosses
+
+- **Merged [#2207](https://github.com/cperry8800-droid/shape-app/pull/2207) as `2976f3e`**, final head `c6ccb47`; the merged tree is byte-identical to it (tree `5aa24c7` on both). 7 files. **No migration, no route, no i18n key.**
+  - The owner asked: *"need to improve the look of the hologram dj that appears when you turn on in settings on app"*. The preview board is https://claude.ai/artifact/HiVmupxDMuBp3NszPW2S7c.
+  - It was held on *"Hold it, Immersive separate"* while the Immersive work was built, then merged ahead of it (*"merge after any coderabbit fixes"*).
+- **What was wrong.** The Hologram light effect drew a filled silhouette over the lower 60% of every screen: a ball head, a lollipop hand, flat ellipse decks and a green wash. Cream vanished on light paper. It was also the costliest layer in the app: five masked SVG copies re-rasterised every frame, giving 38–49 fps in the harness.
+- **What it is now.** Four directions were drawn and judged: contour slices, dot matrix, a redrawn booth and a wireframe. The redrawn booth won and went through two review rounds of my own before the PR opened.
+  - A 3/4 DJ leans over the left deck, one hand at the headphone cup and the other on the jog. Two decks and a mixer stand in perspective, with a projector under the mixer.
+  - It reads as projected light: a bright rim over a near-transparent interior, slices drifting up, a cyan/magenta split on the kick, and glitch bursts at least 3.5 beats apart.
+  - It is right-aligned and stands on the tab bar.
+  - Light paper prints it as ink a step lighter than the text it crosses (the rim is capped at 5.2:1).
+  - It is static SVG moved by compositor-only transforms from one loop.
+- **Files and wiring:**
+  - `iosAppHologramDJ.jsx` is the component, and `services/hologramDj.mjs` the pure core (beat, glitch schedule, palette, geometry built on first mount).
+  - `RadioEffects` takes `isLight`, `floor` and `preview`.
+  - The live overlay passes the paper and the tab bar height: 64, or 0 on the calendar and cycle screens.
+  - The Settings preview passes `floor={0} preview`, for a paper-coloured glass at 1.15x.
+  - `bsFxTint` drops an accent that is not `#rrggbb`.
+- ⚠ **THE SECOND REVIEW ROUND'S DEFECT: FLOOR 0 ALONE SWITCHED ON THE PREVIEW GLASS.** The calendar and cycle screens have no tab bar, so their floor is 0, and they would have drawn a paper panel over the day list. A separate `preview` flag carries it now, and a mutation pins it.
+- **Review.** CodeRabbit ran one round on `c6ccb47`: **APPROVED, no actionable comments**, with Merge Risk Minimal pinned to `c6ccb47`. Codex refused on its usage limit; Copilot declined on its quota. The Docstring Coverage warning (38.64%) is left as it is, as on recent PRs.
+- **Verified:**
+  - `npm test` 5462/5462 through the gate on every commit.
+  - Mutations (`tests/mutations/hologram-dj-2026-10-06.mutations.mjs`): 20 killed, 1 no-op, 0 skipped. The no-op is proven: window 0's draw is already under the threshold, and the property is asserted.
+  - CI green on `c6ccb47`.
+  - Harness, the real overlay over screenshots of the real app:
+    - text edges dimmed on Home went from 3.6% / 3.3% (dark / light paper) to 0.0%;
+    - after: Train 0.4 / 0.5%, Eat 0.1%, Calendar 0.2%, Settings preview 0.7 / 0.6%;
+    - 60 fps on every screen.
+  - Driven in the real app: the preview works on both papers, clears after 6 s, has no duplicate SVG ids and takes no taps. The live overlay follows Home → Train.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - It has not run on a phone. Unmeasured in WKWebView and Android WebView: rotated composited layers, and the ~3 Hz palette repaint while the Cycle colour drifts. `clip-path: path(evenodd)` is feature-tested and falls back.
+  - The cue hand crosses Train's `90s` rest value (at most 0.5% of text edges dimmed).
+  - The figure is now a vignette (head about 37 px). One constant, `HOLO_RIG`, makes it bigger if the owner wants.
+
 ### 2026-10-05 — Night-before prep reminders: a 7 pm reminder, a card on Eat, and a made-ahead finish that records the prep
 
 - **Merged [#2202](https://github.com/cperry8800-droid/shape-app/pull/2202) as `f2a8aa9`**, final head `28ce669`. `main` had moved by two Dependabot workflow bumps (`android-build.yml`), so the merged tree is not the head's; **the PR's diff is byte-identical on the new base**, checked by diffing `7171a77..28ce669` against `49e8bce..f2a8aa9`. 33 files, one migration (applied), one new cron route. The owner's ruling: *"serve is so dishes finish together. if anything that needs to be prepped the night before, that should be a notification to the user to remind them if it is part of a meal plan"*, then *"go with your suggestions for the prep reminders"*, from the review at https://claude.ai/artifact/VeUyVhgjsuBDqm8v6XstYE. **Serve is unchanged.**
@@ -1111,245 +1190,4 @@ Append new entries at the top, under this note.
   - `bsRestSeconds` takes the first number-and-unit in a scheme, so the demo client's Farmer carry, `3 × 40m · 60s rest`, starts a **40-minute** rest timer: 40 metres read as 40 minutes. `3 × 45s · 30s rest` rests 45 s.
   - The builder's Sheet cell splits sets × reps on any `×` **or letter x**, so changing the sets of a `3 × max` row rewrites the reps to `ma`.
   - Both predate this PR. It changes neither reader, so neither is widened into it.
-
-### 2026-09-23 — The DOM-value guard reads the syntax tree: both compared values, split calls, and a trap on another receiver
-
-- **Merged [#2157](https://github.com/cperry8800-droid/shape-app/pull/2157) as `a7e2ea5`**, final head `2e37f4b`; the merged tree is **byte-identical** to it (tree `fee5531` on both, since `main` had not moved). Tests only: no app change, no migration, no route. It closes the gap #2154 registered: the guard read only the **first** argument of a call written on **one** line.
-- **How it reads now.** `tests/assert-dom-value.test.mjs` parses every test file with `@babel/parser` and checks **both** compared values of every equality assert: `equal`, `strictEqual`, `notEqual`, `notStrictEqual`, the four deep forms and `partialDeepStrictEqual`, plus node:test's `t.assert`.
-  - A split call is one node in the tree, so line layout cannot hide it.
-  - A comment or a string is not code to a parser. The fixtures no longer need to be assembled to stay out of the sweep.
-  - ⚠ **A file that does not parse fails the sweep.** Skipping it would report a clean file that was never read. All 327 files under `tests/` parsed at merge.
-  - At merge the sweep walked **10,215** equality asserts, re-measured on `a7e2ea5`. A floor of 5,000 fails the run if the walk stops recognising `assert`.
-- **What the first census found.** Before any conversion, the new reading flagged exactly three files:
-  - `error-boundary-mount.test.mjs:91` compared `document.getElementById('root')` as the **second** value, which the old reading could not see.
-  - `dob-gate-web` and `dashboard-coaching-usability` compared a query on **another receiver**: `doc.getElementById(...)` and `m.el.querySelector(...)`. Both return a live JSDOM node, so it is the same trap.
-  - ⚠ **So the four query methods now count on any receiver, not only `document.`**, which goes one step past the brief. The PR said so and offered the one-line revert.
-  - The 11 registered sites are unchanged (four files, all first-value and single-line), so the ratchet did not grow.
-- **Converted to `assert.ok(...)`, each with a message.** The three flagged sites, plus dob-gate-web's three `gateIn(doc)` comparisons. `gateIn` is a helper that returns a live node, which no reading of the syntax can see. They were converted because the change touched the file.
-- **What it still cannot see, in the header and pinned by fixtures:**
-  - a node returned by a helper other than `byText`, such as `find(...)`, `byAria(...)` or `gateIn(doc)`;
-  - a node held in a variable;
-  - a node reached through a pointer that is not on the list (`document.body`, `.firstChild`);
-  - values passed through a spread of anything but an array literal, and any argument after one.
-  - The tree records how a value is spelled, not what it is. Only a runtime check could see these.
-- **Review.**
-  - **Codex** auto-reviewed `24eaca4` when the PR opened and completed with **no findings**. Its usage limit had lifted.
-  - **CodeRabbit answered the one trigger as chat again**, not as a review. The reply opened with the *initiate chat* tip, and the commit status stayed at *Review skipped*.
-    - ⚠ **This trigger was 783 characters as posted, footer included, with no numbered list**, so neither length nor a list predicts the outcome. Commands so far: 221, 642 and 942 characters. Chat: 783, 1,555 and 4,404. Check the reply for the command marker and the commit status; nothing else tells you a review ran.
-  - The chat reply confirmed all five conversions keep their test's condition. It raised one point: `assert.equal(...[node, null])` hides both values behind a spread. That was fixed in `2e37f4b`, with fixtures, including one pinning that an opaque spread (`...args`) stays invisible.
-  - ⚠ **Both reviewers engaged `24eaca4`, which the owner's ruling says should not happen.** The trigger went out at PR open, five seconds before Codex's automatic review started.
-  - CodeRabbit was **not** triggered again, since a round is one trigger per PR. **So no external reviewer read `2e37f4b`**: the spread fix is covered by my own read and the mutation round below.
-- **Verified:**
-  - `npm test` **4581/4581** through the pre-commit gate, on both commits. The merged tree is the final head's, so that count is the merged tree's.
-  - All four required checks green on `2e37f4b`.
-  - **20 of 20 mutations killed**, with sanity green at both ends and five files restored byte for byte.
-    - Seven were sites. Each converted site was put back; a split call, a second-value node and a split second-value node were added; and one site was added to a registered file. Each failed the sweep and **named the file**.
-    - Thirteen broke the detector's own rules, and each failed the fixtures or the sweep.
-  - ⚠ **One mutation survived the first round, and it was a gap in the fixtures.** Reading an opaque spread's argument as a compared value changed nothing any fixture could see. The position of every argument after `...args` is unknown, so that is now pinned as a blind spot, and the header says so.
-
-### 2026-09-23 — The light paper's role colours reach AA, and 1,228 faint labels follow the paper
-
-- **Merged [#2160](https://github.com/cperry8800-droid/shape-app/pull/2160)** by the owner as merge commit `197cfad`, head `4f9acf7`. Every file the PR touched is **byte-identical** to that head on `main`; the only other files that moved are #2159's, and the two share none. Follows #2146. Owner: *"what do you suggest?"* → *"ok do it"*, on a proposal to darken the three role colours **on the white version only**, fix the faint teal and orange labels, ship one PR and send a side-by-side preview before merging (https://claude.ai/artifact/MKWo35sQapW2zW2n7wixvJ). `public/newdesign/` and four test files. **No migration, no route, no data change.**
-- **The role colours, light `:root` only.** The dark block and every `var()` fallback are unchanged, so the dark paper and the 39 pages without `dash.css` do not move. Ratios are on the card / the ground:
-  - teal (`--sh-accent`, `accent2`, `accent3`) `#0a8f87` → **`#0a7a72`**, 3.97 / 3.66 → 5.20 / 4.79;
-  - gold `#a07a2e` → **`#86662a`**, 3.95 / 3.64 → 5.32 / 4.90;
-  - rust `#c0533b` → **`#b24c36`**, 4.62 / 4.26 → 5.28 / 4.86;
-  - green `#3a7d2c` → **`#387a2b`**, 5.06 / 4.66 → 5.27 / 4.85.
-  - ⚠ **Two differ from the proposal, on measurement.** The proposed gold `#8a6a28` read **4.36:1 on its own gold tint**, and green, which was not in the proposal, read **4.41:1 on the resting fill**. A value that passes on white can still fail on the tint a chip is drawn on.
-- ⚠ **THE SCOPE GREW BECAUSE A BROWSER PROBE FOUND 1,244 SUB-AA TEXTS, AND THEY WERE ALL ONE CLASS: AN INK THAT DID NOT FOLLOW THE PAPER.** The probe composites each text over its real background chain in Chromium, ancestor opacity included, across the 39 dashboard pages (6,379 texts), on `main` and on the branch. It went **1,244 → 16**. The 16 left:
-  - 12 *Spotify* / *Apple Music* labels over playlist cover photos (the probe cannot see the photo, and the chip sits on a dark scrim);
-  - 2 Instacart brand colours;
-  - 2 disabled buttons, which AA exempts.
-  - The hover-only card chrome (drag, hide) is deliberately faded and not counted.
-- **The fixes:**
-  - **Faint ink-alpha text** (66 sites at 28–70% ink, plus the shared grey constants on Today, the client dashboard and Team) moves onto `--sh-ink2` / `--sh-ink3`.
-  - **Teal text on a teal wash** (48 sites) moves onto a new `--sh-accent-ink`. Its dark value *is* the accent, so the dark paper does not change there.
-  - **`dashClient`'s teal, red and grey, and the coach file's accent, rust and gold** (the owner's second ask) become tokens. The membership pill, CKTrend and the cycle strip compose their alphas through `ssAlpha`, so they leave the hex-append census (now 11 files, 34 sinks).
-  - **New text-only tokens**, each with a light value and each floored in tests: `--sh-accent-ink`, `--sh-ember`, `--sh-danger`, `--sh-sky`, `--sh-violet`, `--sh-gold2`, `--sh-spotify-ink`. Each dark value is the literal it replaced.
-  - **Button ink on a role fill** goes to `--sh-deep`; the fixed dark panels (the demo band, the playlist cover chips) take a fixed ink.
-  - The live console's Send button asks `clwInkOn(accent)`: `--sh-deep` on a token accent, near-black on a fixed one.
-  - **The wall plate's heat** moves onto `--sh-heat-*` tokens pinned to the **app's** values, so `community-wall-plate`'s parity test still holds.
-- ⚠ **THE DARK PAPER MOVED IN A FEW LISTED PLACES, AND EACH ONE IS A FIX.** All 39 dark pages were rendered before and after: identical layout, and no colour channel moves more than 48/255, except:
-  - the footer © line, 3.59 → 7.03:1;
-  - the coach file's readiness blue and amber, now the site's sky and gold;
-  - the live console's *Reconnecting…* line, cream → grey;
-  - the playlist cover chip, which was dark text on a dark chip and is now cream;
-  - message timestamps in your own bubbles, 50% → 100%.
-- **Guards** (`tests/newdesign-paper-pairs.test.mjs`):
-  - every role token clears 4.5:1 on the card, the ground, the resting fill and its own tint;
-  - `--sh-deep` clears 4.5:1 on each role fill;
-  - every new text-only token clears 4.5:1 on each surface it sits on;
-  - the pair walk now sees rgba dark panels, a fixed dark ink on a role fill, inks that arrive through a `...spread`, and teal text on a teal wash at 0.06 alpha or more. Each rule has its own guard-the-guard probe, and **the wash rule found six sites the sweep had missed**;
-  - `clwInkOn` is lifted and driven. A mutation replacing it with a constant **survived** until that test existed;
-  - the spotlight tour's light accents are derived from `:root` instead of typed.
-- ⚠ **THE ONE REVIEW FINDING WAS A GUARD THIS PR HAD MADE VACUOUS.** Codex auto-fired on PR open (it was not triggered) and returned **one P2, real**. The meal-plan phase colours became tokens (`var(--sh-gold, #d8a23a)`), and `tests/library-filters.test.mjs` parsed them as hex. That gives NaN channels, and `NaN < 4.5` is false, so **all three phase chips dropped out of the light and dark contrast checks with the suite green**.
-  - Fixed in `4f9acf7`. The test resolves each token against the paper block it is measuring (the fallback is the dark value and says nothing about the light paper), and `hex()` refuses anything that is not a 6-digit hex.
-  - Control, re-run rather than argued: the old test with the light `--sh-violet` set to `#ffffff` passes **41/41**; the fixed one fails on it at **4.10:1**. **4/4 mutations killed.**
-  - The other tests that parse a hex colour were checked for the same shape. The paper-pairs floors refuse a non-hex value outright, and the consent banner asserts `>= 4.5`, so a NaN there fails loudly rather than passing.
-  - *A test that parses a value is a claim about the value's shape.* Turning a literal into a token changed the shape, and nothing reported it.
-- ⚠ **NO CODERABBIT ROUND RAN.**
-  - The front-loaded trigger (about 2,500 characters, with a numbered list) was posted at 13:09:02, **before** CodeRabbit had posted its own skip notice at 13:10:49. It got **no reply at all**: no chat, no marker, no refusal. Whether the timing or the length is why is not known.
-  - A bare `@coderabbitai full review` at 13:23 **was** read as a command (it carries the `review command invocation` marker, and its reply quotes the earlier brief's four areas). It was refused: *"Action not completed — Review rate limited"*, with the included review 17 minutes out. The skip notice was edited in place into a *"Review limit reached"* notice at the same time.
-  - The owner then said *"run codex"* · *"1 round"* · *"just merge it"*, and merged. So the review here is **Codex's one round, my own read of the diff and the mutation rounds**. Codex was not re-triggered: its one round had already run and its one finding was fixed.
-- **Verified:** `npm test` **4582/4582** on the head and **4598/4598** on the merged tree (⚠ the +16 are #2159's tests, not this PR's) · `tsc --noEmit` 0 · the newdesign precompile check **73 pages, 0 errors** · zero CRLF drift across the 46 files · **25/25 mutations killed** (21 on the first head, 4 on the review fix), each proven to land, with sanity green at both ends and the tree restored on a signal. Every rejected value (`#8a6a28`, `#3a7d2c`, the builder teal, each reverted ink) was replayed as its own mutation · CI green on all required checks on `4f9acf7`.
-- ⚠ **REGISTERED, NOT FIXED:**
-  - **The app's light heat values** (`#0a8f87`, `#a07a2e` as small labels on the wall plate) are sub-AA. The plate matches the app by rule, so fixing them is an app-wide change and **an owner call**.
-  - Dark `--sh-ember` (`#d2693f`) and `--sh-violet` (`#8a5cf6`) read under 4.5:1 on the dark card. They are the literals they replaced, unchanged.
-  - The macro bar fills (`#7ed4ff` / `#f6c177` / `#ff8a6d`) are non-text marks.
-  - **No on-account pass.** Every reading is the signed-out demo state.
-
-### 2026-09-23 — A timed or distance rep value reads whole in outline text, and the rep total stops counting one
-
-- **Merged [#2155](https://github.com/cperry8800-droid/shape-app/pull/2155) as `c8e2849`**, final head `653be93`; the merged tree is **byte-identical** to it (tree `900b560` on both, since `main` had not moved). No migration, no route. It closes the item #2152 registered: the builder's own `Plank — 3 × 30s` read back as **30 reps with a load of `s`**.
-- **Where it showed.** `bsAssignExercise` reads outline text in a plan's public Listing preview and in a text-outline plan's member rows. Its plain pattern stopped at the first non-digit, so a single timed or distance value split in two: `Carry — 3 × 40 m · 32 kg` read as 40 reps with a load of `m · 32 kg`, and `Run — 3 × 1.5 km · RPE 7` as 1 rep with a load of `.5 km · RPE 7`.
-- **The rule.** A unit from one shared list, `BS_TIME_DISTANCE_SUFFIX` in `planOutline.mjs` (s, sec, second, min, minute, m, km, mi, yd, yard, and their plurals), right after the value is part of the reps. The value may carry a decimal (`1.5 km`) or be a range whose far end carries the unit (`30-45s`); the website's legacy reader already treated that range as one token.
-  - ⚠ **The unit must END the value**: the next character is the end, a space, ` · `, a comma or a semicolon. That keeps the load after it as the load, and keeps a word that only starts with a unit's letters (`sets`, `steps`, `max`, `mph`) out of the reps.
-  - A unit run into a list, a range or a rate (`30s/45s`, `30s-45s`, `10 m/s`) reads exactly as before. So does any value with no unit after it: the number is still matched by the old pattern, unchanged.
-- **One rule for two readers.** The member preview's rep total (`bsMoveTotalReps`) kept its own copy of the unit list. It reads the shared suffix now, and its refusal runs over the parser's own reps characters (`[\d–-]*`), so nothing the parser keeps whole is counted as reps.
-  - ⚠ **My own read of the first head found the gap, while the review slot was closed.** The parser kept `30-45s` whole, and the total still counted `3 × 30-45s` as **90 reps** and `3 × 250-500m` as 750, under a comment saying nothing the parser keeps whole is counted. The same function's ladder path already read a set of `30-45s` as no count. *A because-clause is a claim*, so it was measured against the parser before it was fixed.
-  - The class takes digits too, which made the old `\d` alternative redundant: a shorter match of the number ("3" of "30s") is refused by the same unit. It was removed rather than left reading as a guard.
-  - Against `main` over 37 schemes, exactly 10 totals change, each from a count to 0: five decimals with a unit and five unit-ended ranges. A range with no unit still counts its low end.
-- **A side effect that is also a fix.** A distance row with a weight ladder (`Carry — 3 × 40 m · 60/70/80 kg`) now reads back the same per-set targets as the structured delivery. Before, it read no ladder at all.
-- **Verified** on the final head, which the merged tree is byte-identical to:
-  - `npm test` **4581/4581** and the mobile build, through the pre-commit gate · `tsc --noEmit` **0** · the 13 suites that import the parser or the session module **326/326**, re-run on the merged tree.
-  - A 67-line corpus diff against `main`'s parser (a temporary copy beside the module, since deleted): exactly the 23 single timed or distance lines change, and the other 44 read the same. 32 lines are pinned to `main`'s readings in the tests.
-  - The builder round trip over 9 timed or distance rows, a range and a weight ladder among them, agrees with `repsLabel`, `loadLabel` and `exerciseFromRow`.
-  - **12 of 12, then 9 of 9 mutations killed**, with sanity green at both ends and the files restored byte for byte.
-- ⚠ **NO REVIEW RAN, AND THE OWNER CHOSE TO MERGE WITHOUT ONE.** Codex refused on its usage limit when the PR opened. Two CodeRabbit requests were posted, and neither ran:
-  - The first (1,555 characters, front-loaded, with a numbered list) was **answered as chat**. The reply opened with the *initiate chat* tip and carried no review-command marker. It did read the diff and tests on the final head and found nothing actionable on the three things asked, but a chat read is not a submitted review.
-  - The second, a bare command, carried the marker and was **refused**: the reply was edited to *"Action not completed — Review rate limited"*, the head's commit status read *"Review rate limited"*, and nothing was billed. The included review had gone to #2154 at 10:51Z.
-  - The owner asked *"do we need coderabbit review?"*. It is not part of the gate, which is CI green on the final head and not a draft. The owner then ruled *"merge"*, for this PR. A merged PR cannot be reviewed, so this diff has had my own read and the two mutation rounds, and no external review.
-- ⚠ **REGISTERED, NOT FIXED**, pinned in the tests as they read today so that fixing one is a deliberate change:
-  - A unit run into a list, range or rate (`30s/45s`, `30s-45s`, `10 m/s`); a range with spaces around its dash (`30 – 45 sec`) or a decimal on its near end (`1.5-2 km`); a per-side suffix (`10/side`, `30s/side`); `m:ss` (`1:30`); spelled-out distances the list does not name (`1 mile`, `400 meters`); a trailing period (`10 sec.`); a decimal comma (`1,5 km`).
-  - The website's `rowFromBlock` (`workoutDocument.js`) keeps time units but has no distance units, so a legacy outline block `Run — 3 × 400m` still opens in the builder as 400 reps. ⚠ **FIXED in [#2159](https://github.com/cperry8800-droid/shape-app/pull/2159)**: `rowFromBlock` takes the distance units now, so a `400m` block opens as `400m`, not 400 reps.
-  - The live player's `bsSessionMoves` still reads reps off a move's scheme line with the old plain pattern when the move carries no reps of its own. A swap override carries only `{ m, s }`. ⚠ **FIXED in [#2159](https://github.com/cperry8800-droid/shape-app/pull/2159)**: the player reads the scheme with the parser's own `bsPlainScheme`, and a swap whose scheme differs from the move's own clears the original's sets, reps, rest and per-set ladder (`bsApplyMoveSwap`), so the player runs the swap's scheme.
-
-### 2026-09-23 — The DOM-value guard learns `activeElement`, and thirteen node comparisons become boolean asserts
-
-- **Merged [#2154](https://github.com/cperry8800-droid/shape-app/pull/2154) as `e4504ff`**, final head `5b593f5`; the merged tree is **byte-identical** to it (tree `5313b79` on both, since `main` had not moved). Tests only: no app change, no migration, no route. It closes the blind spot #2150 queued as its own task; the wider one #2152 found is still open (below).
-- **Why the guard exists.** A failing `assert.equal` on a live DOM node formats the whole document, which takes over a minute. The runner then SIGKILLs the file, and every test below the failure silently never runs. `tests/assert-dom-value.test.mjs` keeps that shape out of the suite.
-- ⚠ **`.activeElement` WAS THE SHAPE IT MISSED, AND IT COST THE SAME MINUTE.** A failing focus check formats the document exactly as a query does. Measured twice in this wave: a mutation in the coach library filters turned a ~17 s run into a multi-minute stall, and one in the per-set ladder suite was SIGKILLed at 76 s. That second one was reported as a kill, which is the worse half: it proves the run stopped, not that the assertion fired.
-- **The pattern now counts a compared value ending in `.activeElement`** (`document.activeElement`, `doc.activeElement`, `win.document.activeElement`). New fixtures pin both sides: the shapes it must flag, and the ones it must not (`assert.ok(... === x)`, `document.activeElement.id`, `.getAttribute(...)`).
-- **The 11 sites it found are converted** to `assert.ok(a === b, msg)`, or `!==` where the old assert was `notEqual`. Each message is kept, and a site without one gained one: 8 in `dob-gate-web`, 3 in `dashboard-coaching-usability`. Both files use `node:assert/strict`, so the comparisons keep their meaning.
-- ⚠ **AND THE RATCHET SHRANK BY TWO MORE.** `dashboard-coaching-usability` sat in the guard's `KNOWN` list for a `parentElement` check and a dialog query, registered only because nobody was touching the file. This change touched it, so both were converted and the entry is gone. `KNOWN` now holds 11 sites in four files, and its comment says a change that touches one of them fixes its sites rather than leaving them registered.
-- **Verified:** `npm test` **4577/4577** through the pre-commit gate. A mutation round, with sanity green at both ends and all three files restored byte for byte:
-  - a converted `dob-gate-web` site put back fails, naming the file;
-  - the dashboard focus-return check put back fails, naming the file;
-  - `activeElement` dropped from the pattern fails its fixtures;
-  - the dialog query put back, in a file no longer registered, fails;
-  - the stale `KNOWN` entry left in place fails the both-direction count check;
-  - the reversed order, `assert.equal(first, doc.activeElement)`, **passes**, as the guard's header now says.
-- ⚠ **WHAT IT STILL CANNOT SEE.** It reads the **first** argument of a call written on **one line**, and its header says so. A read of every assertion in all 327 test files with `@babel/parser`, which sees split calls too, found no `activeElement` comparison the widened pattern misses and one node in the second argument: `tests/error-boundary-mount.test.mjs:91`. Closing that means reading both arguments from the syntax tree, which is its own change. ⚠ **CLOSED in [#2157](https://github.com/cperry8800-droid/shape-app/pull/2157)**: the guard reads both compared values from the syntax tree, split calls included, and that site compares a boolean now. ⚠ **And a node returned by a helper is invisible to any pattern.** It knows `byText(...)` by name; `find(...)` and `byAria(...)`, the shapes #2150 and #2152 hit, it cannot know. The header does not say this yet. ⚠ **It does since #2157**, and fixtures pin each blind spot it names.
-- **Review:** CodeRabbit, one front-loaded round, **no findings**. It APPROVED `5b593f5`, and its Merge Risk line (Minimal) names that same head. Its own census found zero guarded sites left in either converted file. Codex refused on its usage limit.
-
-### 2026-09-23 — A coach can write a ladder: per-set reps and weight on every surface, and a review round whose three findings were all real
-
-- **Merged [#2152](https://github.com/cperry8800-droid/shape-app/pull/2152) as `4ae7517`**, final head `c5df683`; the merged tree is **byte-identical** to it (tree `5a78a2f` on both, since `main` had not moved). Owner, on [#2147](https://github.com/cperry8800-droid/shape-app/pull/2147): *"i also should be able to customize as a coach the numbers of reps for each set and weight if I want to"*. The owner picked the **full ladder**: any row may carry optional per-set reps and weight, e.g. **Back squat 3 × 8/6/4 · 60/70/80 kg**. **RPE stays row-level**, by the owner's ruling on #2147. **No migration, no new route**: the ladder rides inside the existing `detail` jsonb.
-- **The model** (`public/newdesign/workoutDocument.js`): a row may carry `perSet: [{ reps, load }]`. A blank field inherits the row, and the unit is the row's `loadType`.
-  - `normalizePerSet` keeps at most `LADDER_MAX = 20` entries and trims trailing blanks. Entries past the set count are kept but not delivered, so lowering the sets and raising them again loses nothing the coach wrote.
-  - `ladder(row)` prints the compact form (`60/70/80 kg`) only when every set is a number in the row's unit, and the long form (`— / 70 kg / 80 kg`) otherwise, so a blank is never shown as a value. An explicit `0` means no weight.
-  - ⚠ **DELIVERY WRITES THE LADDER TWICE**: the written-out `reps`/`load` strings for every reader that only knows strings, and the resolved per-set labels (unit, no RPE) for the player.
-- **Every surface reads it.**
-  - **Website builder**: a per-set table in the day panel (`details`/`summary`) and a read-only Sheet cell that opens its day.
-  - **Mobile coach editor**: the same table, with 8 new `coach:workoutEditor.perSet*` keys in all 13 locales.
-  - **Delivery**: `/api/client/plan` validates the shape.
-  - **The member's player**: each set pre-fills its own target, and a set added past the ladder repeats the last target. Removing a set splices its entry, so every later set keeps its own target. A ladder gets no load suggestion, because the suggester reads the top set.
-  - **Everywhere else**: Nora; the preview's rep total; text outlines; unit conversion; and Adjust, which scales every set's weight and never the RPE.
-  - ⚠ **Also fixed**: the workout preview counted `3 × 30s` as **90 reps**. `bsRepCount` is one rule now, and a hold or a distance is not a count. ⚠ **Not all of them until [#2155](https://github.com/cperry8800-droid/shape-app/pull/2155)**: the scheme line still counted a unit-ended range (`3 × 30-45s` as 90) and a decimal distance (`3 × 1.5 km` as 3).
-- **Cache keys**: `workoutDocument.js` and `dashBuilderCore.js` are plain-script modules, so both hosts moved to `?v=20260923` and the guard floors were raised to match. `dashBuilder.jsx` is `text/babel` and is content-hashed at deploy.
-- **CodeRabbit ran one round, on `0fed2b5`. It returned three findings, all real.** Each was reproduced before it was fixed, and all three are fixed in `c5df683`. Every thread was answered and resolved, CodeRabbit confirmed each fix on its thread, and the round was not re-triggered. Codex refused on its usage limit when the PR opened.
-  - **The mobile table collapsed under the coach's hands.** A stored ladder's table was open only because the ladder existed, so emptying its last value unmounted the table and the focused field mid-keystroke. An edit now pins the table open, and so does Clear.
-  - **The Listing preview misread free-text reps.** The builder writes `3 × 8/6/AMRAP · 60 kg`, and the outline parser read it as 8 reps with a load of `/6/AMRAP · 60 kg`. A second recognizer, `bsTextRepLadder`, reads the builder's own shape: one value per set, none empty and none a weight. The run ends at ` · `, or at a comma or semicolon, where the numeric path also stops.
-    - ⚠ **The suggested remedy was declined, with the reason on the thread.** It was a token list of rep words, and free text cannot be enumerated. Its `/side` form could never produce a ladder anyway, because the set-count check splits on `/`.
-  - **Nora cut an eleven-set load at `152.`**, dropping its unit and RPE. `clipTarget` shortens at a set boundary now: `…` stands for the rest, and the unit and RPE stay. The caps stay at 40/64, because they bound the prompt.
-- **My own read found five more in the same areas**, all fixed in the same push:
-  - **The plan route cut an inherited label partway.** A set that inherits the row carries the row's own reps and load, which pass through whole, so a 24/40-character cap on the entry cut `12 each side, 3-sec pause` to `…3-sec paus`. It was the same class as Nora's cut, one layer over. The length cap is gone; the type checks and the 50-entry bound stay.
-  - **Clear removed itself and dropped keyboard focus to the page**, on both editors. Focus now goes to the table's own control.
-  - **The document saved per-set reps cut to 24 characters while neither field stopped there.** Both fields take `maxLength` from a shared `SET_REPS_MAX`.
-  - **The website labelled an unnamed row's fields `undefined set 1 reps`.**
-  - **A semicolon that ended the reps stayed at the front of the load** (`; rest 2 min`) on both ladder paths.
-  - Over 46 outline lines checked against `0fed2b5`, every numeric ladder and every non-ladder parses exactly as before, except that a load no longer starts with that semicolon.
-- ⚠ **THE TRAP #2150 RECORDED, WALKED INTO AGAIN: FIVE ASSERTIONS IN THE NEW UI SUITE COMPARED DOM NODES.** Two focus mutations therefore read as *killed* for the wrong reason. The node formatting stalled the run until the runner SIGKILLed it at 76 s, and the named assertion never reported. Only the log's `signal: 'SIGKILL'` gave it away.
-  - `tests/assert-dom-value.test.mjs` saw none of the five. It reads only the **first** value an assertion compares, and it recognises the `document.querySelector` family, parent and child pointers, `.closest()` and `byText()`.
-  - Four of mine put `document.activeElement` first and one put a helper's result (`byAria(...)`) first. The node each was compared against sat in the **second** position, where the guard does not look, even when it was a `document.querySelector(...)` call.
-  - That is wider than the blind spot #2150 queued as its own task: a node in the second argument is invisible as well. ⚠ **[#2154](https://github.com/cperry8800-droid/shape-app/pull/2154) closed the part #2150 queued**: the guard counts `.activeElement` now, and those 11 sites compare booleans. The second-argument half is still open, at `tests/error-boundary-mount.test.mjs:91`. ⚠ **CLOSED in [#2157](https://github.com/cperry8800-droid/shape-app/pull/2157)**, which reads both compared values from the syntax tree.
-  - All five now compare booleans (`assert.ok(a === b, msg)`), and both mutations die on their own assertions.
-  - *A kill by timeout is not a kill: it proves the run stopped, not that the guard fired.*
-- ⚠ **THE FIRST MUTATION ROUND ON THE FIXES HAD TWO SURVIVORS, AND BOTH WERE REAL GAPS IN MY GUARDS.**
-  - The builder fallback's restated 24-character cap had no vector that could drift. A long per-set reps value now runs through both implementations.
-  - An empty ladder value (`8//AMRAP`) was not among the refusals.
-  - Both are closed; the final round is **27 of 27**.
-- **Verified on the merged tree** (`4ae7517`, byte-identical to the head CI ran on):
-  - `npm test` **4577/4577** (40 new across the PR) · `tsc --noEmit` **0** · the newdesign precompile check **73 pages, 81 shared jsx, 0 errors** · all required checks green on `c5df683`.
-  - **79 mutations killed on the first head and 27 of 27 on the review-round fixes.** Each was proven to land, with sanity green at both ends and the tree restored byte for byte.
-  - A round trip over **14 ladder shapes**: the outline text reads back to the same per-set targets the structured delivery sends.
-  - **Driven in Chromium.** The website builder at 1440 and 390. The mobile editor through the real *Preview as · Trainer* path, in English at 320/375/390/430 and German at 320/390. After the review round, both editors again, the mobile editor at 320 and 390 and the website at 1440 and 390: a stored ladder, left and reopened from its draft, opens on its own; emptying its last value keeps the table and the focused field; Clear keeps the table and hands focus to its control; each reps field stops at 24. Zero page errors and no overflow throughout.
-- ⚠ **REGISTERED, NOT FIXED:**
-  - A single timed or distance value in outline text (`Plank — 3 × 30s`) still reads as **30 reps with a load of `s`**. The builder writes that line for a timed row, so a plan's Listing preview reads it that way too. It predates this PR (the older plain pattern), and the ladder readers need two or more values. ⚠ **FIXED in [#2155](https://github.com/cperry8800-droid/shape-app/pull/2155)**; see that entry.
-  - A hand-typed `3 × 8/6/AMRAP @ RPE 8` reads as a ladder whose last set is `AMRAP @ RPE 8`; the numeric path puts `@ RPE 8` in the load instead. Ending the free-text run at `@` would break the round trip for a coach who types `AMRAP @ RPE 9` into one set, which the builder writes verbatim. Before this PR the line read as 8 reps with a load of `/6/AMRAP @ RPE 8`.
-  - `dashBuilderCore.js`'s fallback restates the 24-character cap as a literal, because that host has no document module. A test vector now fails if the two drift apart.
-  - `3 × 10/10` (per side) is correctly not a ladder (two parts, three sets), and the older path still leaves a load of `/10 · 20 kg`. Separately, the generic unit rule converts `1/2 mi` to `1/3 km`. Both predate this PR.
-  - CodeRabbit's **Merge Risk line (Low) is pinned to `0fed2`**, the head before the fixes, by its own coverage payload, and it will read that way. *A verdict is only about the head it names.* Its Security Review passed; the Docstring Coverage warning (54.72%) is left, as on the last several PRs.
-- ⚠ **NO ON-ACCOUNT PASS.** Every reading here is the signed-out preview, stubbed stores and the jsdom harnesses. No signed-in coach has assigned a ladder and watched a member log it. The honest check is exactly that.
-
-### 2026-09-23 — The coach libraries get faceted filters and goal tags, and a review trigger that ran as a chat
-
-- **Merged [#2150](https://github.com/cperry8800-droid/shape-app/pull/2150) as `d0deb33`**, final head `b702810`; the merged tree is **byte-identical** to it (tree `26496e2` on both, since `main` had not moved). Owner: *"we need to think of better filter ideas for the workouts and meal plans"*, then the four sets they picked (*Programs, from existing data* · *Meal plans, from existing data* · *Programs: "In use"* · *Programs: goal tags*), *"B · The chamfered plate"* for the chips, and *"Workout tags only for now"*. `public/newdesign/` plus one new read-only route. **No migration.**
-- **Programs** (TrainerPrograms · TrainerApp `#programs`): search, plus menus for Type · Length · Days / week · Focus · Equipment · Status · **In use**. Every option shows how many programs it would leave, counted with the other menus and the search applied. An option that would leave nothing is dimmed and `aria-disabled`; one already chosen can always be switched off. OR within a menu, AND across menus.
-- **Goal tags**: a picker in the builder, under the program name, offering Shape's five goals plus any tag the coach has used before, and a box to type a new one (12 tags, 32 characters each). Saved as `builder.tags`, and a test pins that they survive both the save path's normalizer and the app's editor. A chip row on the library files by tag.
-- ⚠ **A LEGACY `goalTag` IS NEVER READ AS A TAG.** Every program has one because the builder filled it by default, not because anybody chose it. Reading it would have filed every program under *Strength*.
-- **In use** is `GET /api/coach/plans/usage?today=YYYY-MM-DD`: distinct clients per program among this coach's **published** sessions from the coach's own today onward. Registered on the War Room.
-  - ⚠ **An unread answer is not "nobody".** Until the read lands, and in the preview, the menu says why it cannot answer instead of offering an empty *No*.
-  - ⚠ **A capped read (5,000 rows) can only undercount**, so it may say *Yes* and never *No*: the *No* option leaves the bar, and a *No* chosen before a capped refresh stops filtering.
-  - A failed read is a 500 with Retry, never `{ usage: {} }`, because an empty map is the claim that nobody is on anything.
-  - `today` must be a real calendar day. `2026-02-30` has the right shape and Postgres throws on it, so a day that fails a round trip through a date falls back to the server's own.
-- **Focus and Equipment are read from each row's muscle and equipment.** All 75 listed moves answer both, and a guard fails, naming the move, if one is added with a muscle or piece of kit the maps do not cover. ⚠ A move the coach wrote themselves has neither recorded, so it adds no focus and blocks *Home* and *Bodyweight only*: calling a program home-friendly means knowing every move is.
-- **Meal plans** (NutritionistPlans · NutritionistApp `#plans`): search, plus Calories · Diet · Prep time · Day types, and a Phase chip row (Cut · Maintain · Build). ⚠ **No Status menu**: every meal plan is published, so it would have one live option.
-- ⚠ **DIET IS NEVER READ OFF AN UNKNOWN DISH'S NAME.** Each meal and approved alternate is looked up in Shape's food list by **name and ingredient list**, or as an approved swap. *"Dairy-free banana bread"* contains *"dairy"* and *"shellfish bisque"* contains *"fish"*, so a dish the nutritionist wrote, renamed or re-ingredienced, and any packaged food, is not checked, and the card says so (*"Contains dairy, gluten · the rest not checked"* or *"Allergens not checked"*). A plan clear of all of them reads *"None of the 7 allergens Shape checks"*, never *allergen-free*: sesame, for one, is not on the list, and the count is read from the list.
-- **Prep time** is the longest planned meal and says *"at least"* when a meal has no time recorded. **Calories** uses the plan's own daily target.
-- ⚠ **A SIGNED-IN NUTRITIONIST WITH NO WEBSITE PLANS WAS SHOWN SHAPE'S EXAMPLE PLANS AS THEIR OWN**, and a failed read did the same: `rows.length ? rows : demoMealTemplates()`. An empty library is empty now and says so, a failed read has Retry, and the examples appear only in the signed-out preview.
-  - Plans written in the app, which carry no website-builder document, were silently dropped. The page counts them and says where to find them.
-  - *Write plan* did nothing on an empty library. It opens a new plan in the client's phase.
-  - Coming back from the builder rereads the library, and another account closes the open plan, the assign sheet and the filters.
-- **The allergen sweep found four wrong entries in Shape's own food list**, because it reads each food's ingredients: overnight oats gain gluten (the oats in the protein pancakes already carried it), the 3-egg omelette + toast and the tuna wrap gain dairy (butter; Greek yogurt), and the egg-white veggie scramble gains dairy (feta). Trail mix, the protein bar and the sushi set are marked `packaged`, so a plan using one is never called free of anything. ⚠ The food picker reads an allergen off a food's **name** as well (*"veggie"* contains *"egg"*); no catalog name implies an allergen its tags lack today, and a new guard keeps it that way.
-- **The chips are B, the chamfered plate**, on every filter row of both pages: square-cornered, the house's clipped top-right corner, the diagonal hairline drawn along the cut so the outline stays closed. A tag's colour shows at rest as a tinted border. Selected, it is mixed into the ink: `--sh-tag-ink-mix` is 40% on the light paper and 65% on the dark, both measured at 4.5:1 or better, and the test reads the tokens out of `dash.css`.
-- ⚠ **ON A PHONE A MENU OPENED NEAR THE RIGHT EDGE RAN OFF SCREEN BY UP TO 513px AT 390 WIDE.** `dfbPopShift` slides every panel to stay inside a 16px gutter, the builder's tag picker included.
-- **Cache keys**: `dashBuilderCore.js` and `dashMealCore.js` go to `?v=20260922c` on their four hosts, and the module-key guard keeps a floor per module. `dashFilterBar.jsx` is a babel tag, so the deploy content-hashes it, and a load-order guard asserts every library host loads it before the library.
-- ⚠ **BOTH LIBRARY PAGES CLOSED A BUILDER THE COACH HAD JUST OPENED, IF THEY OPENED IT WHILE THE LIBRARY WAS STILL LOADING.** The first answer read as an account change (last owner `null`, new owner the coach). A `resolved` flag separates *"no answer yet"* from *"a different account"*. The meal page was rewritten here and owns the fix; the Programs page carried the identical line, and gets the same fix rather than leaving the twin shipping.
-- ⚠ **THE FIRST CODERABBIT TRIGGER RAN AS A CHAT, AND NO REVIEW RAN.** At 01:07Z the reply opened with the *initiate chat* tip, carried no review-command marker, submitted no review, and the summary comment kept its skip notice. One more trigger at 01:23Z was read as a command, and its reply carries the marker (`review command invocation`). **That second trigger is the round, not a second one**, since the first never ran. The two comments were **4,404 characters and 642**; whether the first one's length is why it was read as chat is not known. *A reply to a trigger is not a review.* After triggering, check the reply for the command marker; if it is missing, no review ran.
-- **Three findings, all real, all fixed**, both review threads answered and resolved, and CodeRabbit confirmed each fix on its thread.
-  - **The chat reply's one finding, fixed in `1124a5e` before the review ran**: the tag picker lacked the filter menu's keyboard contract. The panel has a stable id and the button sets `aria-controls` while open; focus moves to the first usable choice, and Escape hands it back to the button.
-  - **IME, fixed in `b702810`.** The New tag box and the picker's Escape leave an IME's own Enter and Escape alone, including Safari's `keyCode 229` form: WebKit ends the composition **before** the keydown for the Enter that confirms it, so `isComposing` already reads false there. The same thread's React Doctor note (13px text on mobile) is fixed too: the search box and the New tag box take a **16px floor on a coarse pointer**, because iOS Safari zooms the page on focus below that.
-  - **The cache-key test**, also `b702810`: it passed every host for a module with no `MIN` floor. It fails now.
-- ⚠ **CODERABBIT'S MERGE RISK LINE (LOW) IS PINNED TO `1124a` AND WILL READ THAT WAY**: its own coverage payload names the head **before** the two fixes. *A verdict is only about the head it names.* Its Security Review passed; the Docstring Coverage warning (46%) is left, as on the last several PRs. Codex refused on its usage limit.
-- ⚠ **TWELVE ASSERTIONS IN THE NEW UI SUITE COMPARED DOM NODES, AND ONE OF THEM STALLED A MUTATION RUN FOR MINUTES.** A failing `assert.equal` on a node formats the whole document. Four were `querySelector` results, which the repo's guard (`tests/assert-dom-value.test.mjs`) caught; the other eight (two `activeElement` focus checks and six `find()` results) it does not recognise. All twelve compare booleans now. The guard's blind spot also covers 11 older sites in two other files, queued as its own task rather than swept here. ⚠ **CLOSED in [#2154](https://github.com/cperry8800-droid/shape-app/pull/2154)**: the guard counts `.activeElement` now, and all 11 compare booleans. It still cannot see a node a helper returns, such as `find(...)`, the shape of this suite's other six. ⚠ The PR body's first count of these assertions was wrong and was re-derived before the merge. *A count nobody re-runs is a claim.*
-- **Verified on the merged tree** (`d0deb33`, byte-identical to the head CI ran on): `npm test` **4537/4537** · `tsc --noEmit` **0** · the newdesign precompile check **73 pages, 81 shared jsx, 0 errors** · all four required checks green on `b702810`. **71 of 71 mutations killed** (58 before the review, 13 on the review-round fixes), each proven to land, with sanity green at both ends and the tree restored byte for byte in a `finally` and on a signal. Driven in Chromium at 1440 and 390 on both papers: zero page errors, zero horizontal overflow, the chamfer checked at 10×, and every filter panel inside the 16px gutter at 320 · 390 · 768 · 1024 · 1440 on both libraries. The review fixes were driven too: under touch the two text boxes compute 16px and on a desktop 13px, and the picker's button names its panel with focus on the first choice.
-- ⚠ **REGISTERED, NOT FIXED:**
-  - The two older IME guards in `dashBuilder.jsx` (the exercise picker's and `DbuDialog`'s) read `isComposing` only, so Safari's `keyCode 229` Enter still reaches them. They predate this PR.
-  - The builder's own fields (`dbuField`) set 14px, so they zoom the page on focus on iOS as the search box did. Pre-existing.
-  - The meal card's phase eyebrow sets dark-paper colours as text on the light paper, so its contrast is low. Pre-existing since #2146. ⚠ **FIXED in [#2160](https://github.com/cperry8800-droid/shape-app/pull/2160)**: the phase colours are tokens now, and as eyebrow text on the light card they read 5.20–5.95:1.
-  - The meal builder cancels its pending autosave if the coach leaves within 1.2s of an edit. Pre-existing.
-  - On a phone the two filter rows take ~250px before the first card.
-- ⚠ **NO ON-ACCOUNT PASS.** Every signed-in reading here is a stubbed fetch. No real coach has filtered a real library, and the usage route has not run against real RLS. The honest check is the owner opening both libraries.
-
-### 2026-09-22 — RPE becomes its own axis, supersets pair under one key rule, the client preview moves, and a review round where three of five findings came from a stale instruction
-
-- **Merged [#2147](https://github.com/cperry8800-droid/shape-app/pull/2147) as `5fcfe96`**, final head `780a7ed`; the merged tree is **byte-identical** to it (`git diff 780a7ed 5fcfe96` is empty). Owner asks: *"i also should be able to customize as a coach the numbers of reps for each set and weight if I want to. Also make sure the superset fuction is working properly"* · *"if i want RPE, that should be a seperate drop down from KG or IBS"* · *"this client preview should be able to be moved around also"*. **Per-set reps and weight is NOT in this PR**: it waits on an owner ruling about how the member's card shows a ladder. **No migration, no new route.** ⚠ **SHIPPED 2026-09-23 as [#2152](https://github.com/cperry8800-droid/shape-app/pull/2152)**, the full ladder the owner picked: see the entry at the top of this changelog. Marked rather than rewritten, because a dated entry says what was true on its date.
-- **RPE is its own 1–10 select beside kg / lb / %, on both editors**, so a coach can write "100 kg · RPE 8". A stored `loadType: 'rpe'` row is migrated **on read** by `splitLegacyRpe`, which is why no migration was needed. `loadLabel` composes both axes, progression moves each on its own (`incRpe`), and the assignment snapshot and `/api/client/plan` carry `rpe` as a number, clamped to 1–10.
-- ⚠ **THE COMPOSED LABEL BROKE THE MEMBER'S LOAD BOX, AND ONLY DRIVING THE PLAYER SHOWED IT.** The session player pre-filled the box with the DISPLAY label, and `bsLoggedSet` records an actual load only when the box holds a bare weight. So a set quick-logged on a "100 kg · RPE 8" row saved **no load at all**, and the lift dropped out of the member's history with nothing on screen saying so. `bsLoadPrefill` hands the box the weight. The target line keeps the whole prescription, and a target effort is never entered as the member's own rating.
-- **One superset key rule** (`supersetKey`: strings trimmed and upper-cased, finite numbers as digits, anything else no group; restated as `DashSignals.groupKey` for pages that cannot import it) now governs storage, delivery, the A1/A2 labels and the player. ⚠ **A LIVE DEFECT:** the player's navigation compared a TRIMMED key and its rest decision the RAW one, so `'A'` and `'A '` sent the member to the partner and then made them sit a full rest. `bsSameGroup` answers both. The builder's fallback assignment also wrote the **label** into the key field.
-- **The client preview is draggable** through one `useDbuDrag` hook shared with the day panel. The same PR closed the four defects #2144's post-merge review confirmed: the grip could not start a drag; the day panel painted an unplaced first frame; a second finger could take over a drag; and rest-day overrides and extras' alternates never reached the nutritionist's own foods.
-- **Plain-script cache keys were bumped on every host**, with a derived guard (`tests/newdesign-module-keys.test.mjs`). #2144 had extended `dashMealCore.js` and left both hosts on a key three months older than the functions they call.
-- **CodeRabbit ran one round, on `400dec6`: five findings, two real and fixed, three refuted with evidence**, all five threads answered and resolved. Codex refused on its usage limit. ⚠ **THE FIRST TRIGGER NEVER RAN, AND THAT WAS NOT A PAID OVERFLOW.** Past the hourly slot the reply was *"Action not completed — Review rate limited"*, because usage-based billing needs an assigned seat and none is assigned. So the second trigger, posted when the slot reopened, was the round rather than a second one. This is now recorded at the source, in the reviewer conventions above.
-- ⚠ **THE CHAT REPLY IS NOT THE REVIEW.** Two minutes after the trigger, the bot's own reply read *"Full review complete … I found one blocking issue"*. The submitted review landed **fourteen minutes later** with `CHANGES_REQUESTED` and **five** inline findings. Acting on the chat reply would have merged past four of them. *Read the submitted review and its threads, not the first thing that says "complete".*
-- **Real (1):** an RPE change **erased an imported free-text load**. `loadLabel` returned `loadText` alone, so both editors cleared the text on any RPE change to make room, and "RPE 8" on an imported "bodyweight" row threw the coach's own instruction away. The label now states both ("bodyweight · RPE 8"). Only a new weight or unit clears the text, in both editors, and the builder's fallback label carries the same arm plus the document's zero check. A test runs the fallback in a bare global against the document over one vector set.
-- **Real (2):** `/api/client/plan` delivered the key as `String(e.group)`, so a stray boolean or object reached the member as a truthy key (`"false"`, `"[object Object]"`). **My own read had found it first**, which is why the trigger comment named it. Alongside it I found the player's "Superset · A" badge printing the raw key, so a legacy `"a "` read as typed and a whitespace key drew a badge over a move the player does not pair. Both go through the rule now (`supersetKey` in the route, `bsGroupKey` in the player).
-- ⚠ **THE THREE REFUTED FINDINGS HAD ONE CAUSE: THE REVIEWER'S OWN INSTRUCTIONS.** `.coderabbit.yaml` told it to *"Flag missing ?v= cache-bust bumps on edited referenced .jsx"*, which is the convention this file retired in July. `scripts/build-newdesign.mjs` rewrites every `text/babel` tag to `nd/<name>.js?v=<hash8 of the compiled output>` on every deploy. So it asked for hand bumps on `dashBuilder.jsx`, `dashClient.jsx` and `dashTrain.jsx` across eight hosts, and applying them would have been the churn this file warns against. **The instruction is corrected in the records PR** to the rule that actually holds: never flag a `text/babel` key; always flag an edited PLAIN module whose hosts keep an older key. *A stale instruction to a reviewer is a false finding waiting to be generated.*
-- ⚠ **`main` MOVED UNDER THE PR**, because #2146 (the paper switch) landed mid-round and touched 11 of the same files. There was one conflict: #2146 retired `dash-thin-scroll--ink`, and this branch had moved that same panel onto the drag hook. Main's class was kept with the hook's wiring. #2146's new paper guards passed on the merged tree, since the PR added no colour literal to the builder (checked by diff): every colour there reads the `DBU_*` constants #2146 had already tokenized.
-- **Verified on the merged tree** (`5fcfe96`, byte-identical to the head CI ran on): `npm test` **4452/4452** through the pre-commit gate · `tsc --noEmit` **0** · the newdesign precompile check **73 pages, 80 shared jsx, 0 errors** · mobile build clean · **zero CRLF drift** · all four required checks green on `780a7ed`. **40 mutations were caught across three rounds** (29 before the review, 11 on the fix commit). Each was proven to land, with sanity green at both ends and the tree restored. The first round's 2 survivors were real gaps in my own tests (a delivery test fed only pre-normalized rows; a display-only guard counted callbacks under JSX as display), closed and re-run to a kill. Per the one-round rule, the fix commit was not re-reviewed; it is covered by my own read plus those 11 mutations, and the PR says so.
-- ⚠ **REGISTERED, NOT FIXED:**
-  - An imported text that is itself an effort (`"RPE 7-8"`) plus an explicit RPE reads "RPE 7-8 · RPE 8". That is deliberate: the coach's own words stay until a new weight or unit replaces them.
-  - The preview card's secondary text was low-contrast on the white panel before #2146. It has not been re-measured since the paper switch.
-  - Filters and the chip restyle wait on the owner's pick from the filter board.
-- ⚠ **NO ON-ACCOUNT PASS.** Every reading here is the demo state or a stubbed store; no signed-in coach has prescribed "100 kg · RPE 8" and watched a member quick-log it.
 
