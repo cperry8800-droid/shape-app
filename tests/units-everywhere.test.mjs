@@ -30,7 +30,7 @@ const themeFor = (prefs) => new Proxy({}, {
 });
 let CURRENT = THEME;
 globalThis.useBS = () => CURRENT;
-const { BSClientProgress, BSTerrainProfile } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile']);
+const { BSClientProgress, BSTerrainProfile, bsProgressWeight } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile', 'bsProgressWeight']);
 const W = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetWidgets.jsx'), {
   registry: new Map([['react', SHIM]]),
   appendExports: 'export { WWeight, WBody, WMeasurements, WPR };',
@@ -76,6 +76,12 @@ test('the Progress page reads in the member\'s units on every tab', () => {
   assert.ok(overall.includes('−5.9 kg'), `bodyweight change: ${overall.filter((s) => /kg|lb/.test(s))}`);
   const lbOverall = drawn(BSClientProgress, { onBack() {}, initialTab: 'overall' }, LB);
   assert.ok(lbOverall.includes('Now 171 lb') && lbOverall.includes('−13 lb'), 'an imperial member sees the pounds as stored');
+  // The API sends bodyweight to 0.1 lb; pounds read whole, as they always have, and a
+  // converted kilogram figure keeps its decimal.
+  assert.deepEqual(bsProgressWeight(themeFor(LB), 171.4), { n: 171, unit: 'lb' });
+  assert.deepEqual(bsProgressWeight(themeFor(KG), 171.4), { n: 77.7, unit: 'kg' });
+  assert.deepEqual(bsProgressWeight(themeFor(KG), 80, 'kg'), { n: 80, unit: 'kg' });
+  assert.deepEqual(bsProgressWeight(themeFor(KG), 12, null), { n: 12, unit: null }, 'a row with no unit is shown as it came');
   const training = drawn(BSClientProgress, { onBack() {}, initialTab: 'training' }, KG);
   // 9,120 lb of volume is 4,137 kg; 38,450 lb is 17,441 kg.
   assert.ok(training.includes('4.1k kg') && training.includes('17.4k kg'), `volume: ${training.filter((s) => /k (kg|lb)/.test(s))}`);

@@ -11,9 +11,9 @@ export default {
   mutations: [
     // ── the Progress page ──
     { name: 'a Progress weight is shown as stored', file: CLIENT,
-      find: '    const m = t.uMeasure(v, unit);\n    const n = Number(m.value);',
-      replace: '    const m = { value: v, unit };\n    const n = Number(m.value);' },
-    { name: 'a converted pound figure keeps its decimals', file: CLIENT,
+      find: '  const m = t.uMeasure(v, unit);\n  const n = Number(m.value);',
+      replace: '  const m = { value: v, unit };\n  const n = Number(m.value);' },
+    { name: 'a pound figure keeps its decimals', file: CLIENT,
       find: "return { n: m.unit === 'lb' ? Math.round(n) : n, unit: m.unit || unit };",
       replace: "return { n, unit: m.unit || unit };" },
     { name: 'volume is printed in pounds whatever the setting', file: CLIENT,

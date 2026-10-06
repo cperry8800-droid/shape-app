@@ -12,7 +12,7 @@
 // These tests render the SHIPPED components (loadRealModule compiles the real
 // files) with the real converter, under both systems, and read what a person
 // would read. No figure is restated from the source.
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -84,6 +84,21 @@ async function setup() {
   return ctx;
 }
 
+// ⚠ A MOUNTED PAGE THAT IS NEVER UNMOUNTED KEEPS THE TEST PROCESS ALIVE (its timers
+// and subscriptions), so a test that fails before its own unmount turns a failure
+// into a HANG — measured in the mutation round, where the first mutation ran out the
+// runner's 400 s budget instead of failing. Every root is registered here and torn
+// down after the file, whatever happened to the test that mounted it.
+const LIVE_ROOTS = new Set();
+after(async () => {
+  for (const close of [...LIVE_ROOTS]) { try { await close(); } catch (e) { /* already gone */ } }
+});
+function track(React, root, el) {
+  const close = async () => { LIVE_ROOTS.delete(close); await React.act(async () => root.unmount()); el.remove(); };
+  LIVE_ROOTS.add(close);
+  return close;
+}
+
 // Mount a page in jsdom with its API answered from `payloads`, and let its effects run.
 async function mount(React, Page, payloads) {
   const { createRoot } = require('react-dom/client');
@@ -95,10 +110,11 @@ async function mount(React, Page, payloads) {
   };
   const el = document.createElement('div'); document.body.appendChild(el);
   const root = createRoot(el);
+  const close = track(React, root, el);
   await React.act(async () => root.render(React.createElement(Page)));
   await React.act(async () => { await new Promise((r) => setTimeout(r, 20)); });
   const text = el.textContent.replace(/\s+/g, ' ');
-  return { el, text, unmount: async () => { await React.act(async () => root.unmount()); el.remove(); globalThis.fetch = prev; } };
+  return { el, text, unmount: async () => { await close(); globalThis.fetch = prev; } };
 }
 
 // A unit word for the other system, anywhere in what is read.
@@ -150,12 +166,13 @@ test('the loader reads the signed-in member’s setting once, and never a signed
   const Probe = () => { const u = L.useDashUnits(); seen.push(u.ready + ':' + u.fmt(171, 'lb')); return null; };
   const el = document.createElement('div'); document.body.appendChild(el);
   const root = createRoot(el);
+  const close = track(React, root, el);
   await React.act(async () => root.render(React.createElement(React.Fragment, null, React.createElement(Probe), React.createElement(Probe))));
   await React.act(async () => { await L.dashLoadUnits(); });
   assert.equal(seen[0], 'false:171 lb', 'before the setting is read a figure shows as stored');
   assert.deepEqual(seen.slice(-2), ['true:77.6 kg', 'true:77.6 kg'], 'every component re-renders in the member’s units once the setting arrives');
   assert.deepEqual(asked, ['client_settings'], 'one read per page, shared by every component that asks');
-  await React.act(async () => root.unmount());
+  await close();
 
   // Signed out: nobody's settings are read, and the page shows the app default.
   asked.length = 0;
@@ -173,9 +190,10 @@ test('the loader reads the signed-in member’s setting once, and never a signed
   const Probe3 = () => { last = L3.useDashUnits().fmt(80, 'kg'); return null; };
   const el3 = document.createElement('div'); document.body.appendChild(el3);
   const root3 = createRoot(el3);
+  const close3 = track(React, root3, el3);
   await React.act(async () => root3.render(React.createElement(Probe3)));
   assert.equal(last, '176 lb');
-  await React.act(async () => root3.unmount());
+  await close3();
   delete window.shapeDb;
 });
 

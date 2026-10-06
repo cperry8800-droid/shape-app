@@ -37404,6 +37404,16 @@ function BSWeeklyReadoutCard({ isSelf }) {
   );
 }
 
+// A Progress-page weight in the member's unit, through the theme's converter.
+// `unit` defaults to the API's pounds; a row that names no unit (null) is shown as
+// it came, never assumed to be pounds. Pounds read as whole numbers, as they
+// always have; the API sends bodyweight to 0.1 lb.
+function bsProgressWeight(t, v, unit = 'lb') {
+  const m = t.uMeasure(v, unit);
+  const n = Number(m.value);
+  return { n: m.unit === 'lb' ? Math.round(n) : n, unit: m.unit || unit };
+}
+
 function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -37494,13 +37504,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   // MEMBER'S UNIT, the way the trend chart below already was. It printed a fixed
   // "lb" beside every one, so a metric member read "Now 171 lb" over a chart in kg.
   // One helper, so no two figures on the page can convert differently.
-  // `unit` defaults to the API's pounds; a row that names no unit (null) is
-  // shown as it came, never assumed to be pounds.
-  const wt = (v, unit = 'lb') => {
-    const m = t.uMeasure(v, unit);
-    const n = Number(m.value);
-    return { n: m.unit === 'lb' ? Math.round(n) : n, unit: m.unit || unit };
-  };
+  const wt = (v, unit = 'lb') => bsProgressWeight(t, v, unit);
   const kVol = (lb) => { const m = wt(Number(lb) || 0); return `${(m.n / 1000).toFixed(1)}k ${m.unit}`; };
 
   // ---------- OVERALL ----------
