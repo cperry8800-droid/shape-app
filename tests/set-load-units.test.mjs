@@ -117,8 +117,10 @@ test('a session\'s best set is the heaviest in pounds, and names its own unit', 
 
 test('the progress route ranks PRs in pounds and keeps the winning set\'s own load and unit', async () => {
   const sets = [
-    { move_name: 'Squat', actual_load: 200, actual_reps: 5, load_unit: 'lb', payload: {}, created_at: ago(3), completed: true },
-    { move_name: 'Squat', actual_load: 102.5, actual_reps: 5, load_unit: 'kg', payload: {}, created_at: ago(2), completed: true },
+    // Squat's first set is its best, so the unit it reports is the one set on first
+    // sight; Bench's best comes later, so its unit is the one a heavier set brings.
+    { move_name: 'Squat', actual_load: 102.5, actual_reps: 5, load_unit: 'kg', payload: {}, created_at: ago(3), completed: true },
+    { move_name: 'Squat', actual_load: 200, actual_reps: 5, load_unit: 'lb', payload: {}, created_at: ago(2), completed: true },
     { move_name: 'Bench', actual_load: 80, actual_reps: 3, load_unit: 'kg', payload: {}, created_at: ago(3), completed: true },
     { move_name: 'Bench', actual_load: 185, actual_reps: 3, load_unit: 'lb', payload: {}, created_at: ago(1), completed: true },
   ];
