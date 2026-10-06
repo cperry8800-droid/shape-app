@@ -176,14 +176,14 @@ const CLIENT = readFileSync(join(BROADSHEET, 'iosAppBroadsheetClient.jsx'), 'utf
 test('RadioEffects hands the paper, the floor and the preview flag to the hologram', () => {
   assert.match(REACTIVE, /import \{ RadioHologramDJ \} from '\.\/iosAppHologramDJ\.jsx';/);
   assert.doesNotMatch(REACTIVE, /function RadioHologramDJ/, 'the old in-file hologram is back');
-  assert.match(REACTIVE, /function RadioEffects\(\{[^}]*isLight = false, floor = 0, preview = false \}\)/);
-  assert.match(REACTIVE, /mode === 'hologram' && <RadioHologramDJ color=\{color\} isLight=\{isLight\} floor=\{floor\} preview=\{preview\} \/>/);
+  assert.match(REACTIVE, /function RadioEffects\(\{[^}]*isLight = false, floor = 0, preview = false, live = false \}\)/);
+  assert.match(REACTIVE, /mode === 'hologram' && <RadioHologramDJ color=\{color\} isLight=\{isLight\} floor=\{floor\} preview=\{preview\} sample=\{sample\} \/>/);
   assert.match(REACTIVE, /Object\.assign\(window, \{[^}]*RadioHologramDJ/, 'RadioHologramDJ is no longer exposed on window');
 });
 
 test('the live overlay stands on the tab bar where there is one, and on the edge where there is not', () => {
   assert.match(CLIENT, /function BSRadioFx\(\{ floor = 0 \}\)/);
-  assert.match(CLIENT, /<RadioEffects mode=\{r\.fxMode\} label=\{label\} tint=\{bsFxTint\(r\.fxColor, t\)\} isLight=\{!!t\.isLight\} floor=\{floor\} \/>/);
+  assert.match(CLIENT, /<RadioEffects mode=\{r\.fxMode\} label=\{label\} tint=\{bsFxTint\(r\.fxColor, t\)\} isLight=\{!!t\.isLight\} floor=\{floor\} live \/>/);
   const mounts = [...CLIENT.matchAll(/<BSRadioFx([^/]*)\/>/g)].map((m) => m[1].trim());
   // calendar and cycle (no tab bar) + the tabbed main screen
   assert.deepEqual(mounts.sort(), ['', '', 'floor={window.BS_TABBAR_H || 64}']);

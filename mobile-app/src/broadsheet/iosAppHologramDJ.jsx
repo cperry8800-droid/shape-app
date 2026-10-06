@@ -338,12 +338,18 @@ function holoVuPaths(G) {
   return holoVuD;
 }
 
-export function RadioHologramDJ({ enabled = true, color = '#0ac5a8', isLight = false, floor = 64, preview = false }) {
+// sample: the light effects' shared reading of the music (iosAppReactive.jsx).
+// When it follows real music, the DJ moves on the music's kicks instead of its
+// own 132 BPM clock; with nothing to read it stands easy. Without one (the
+// preview's demo, or no sample at all), the clock.
+export function RadioHologramDJ({ enabled = true, color = '#0ac5a8', isLight = false, floor = 64, preview = false, sample = null }) {
   const uid = React.useId().replace(/[^A-Za-z0-9_-]/g, '');
   const R = React.useRef({});
   const root = React.useRef(null);
   const tint = React.useRef(color);
   tint.current = color;
+  const sampleRef = React.useRef(sample);
+  sampleRef.current = sample;
   // one clock for the whole mount (a paper switch re-runs the effect; the beat must not restart)
   const t0 = React.useRef(null);
   if (t0.current === null) t0.current = performance.now();
@@ -390,11 +396,13 @@ export function RadioHologramDJ({ enabled = true, color = '#0ac5a8', isLight = f
         }
       }
       // motion: bob + shoulder roll on the kick, a slow sway (≤0.7°), head nod, scratch rock on 8ths
-      const kick = b.pulse;
-      const bob = 1.1 * (0.5 + 0.5 * Math.cos(2 * Math.PI * (b.phase - 0.06)));
+      const rd = sampleRef.current ? sampleRef.current(now) : null;
+      const music = !still && !!rd && rd.source !== 'demo';
+      const kick = music ? rd.kick : b.pulse;
+      const bob = music ? 1.1 * kick : 1.1 * (0.5 + 0.5 * Math.cos(2 * Math.PI * (b.phase - 0.06)));
       const sway = 0.7 * Math.sin(2 * Math.PI * b.bar);
       const roll = -0.9 * kick;
-      const nod = -3.4 * (0.5 + 0.5 * Math.cos(2 * Math.PI * (b.phase - 0.12)));
+      const nod = music ? -3.4 * kick : -3.4 * (0.5 + 0.5 * Math.cos(2 * Math.PI * (b.phase - 0.12)));
       const scratch = 7 * Math.sin(Math.PI * b.eighths);
       const g = still ? null : holoGlitchAt(ms);
       const jolt = g ? (g.dx > 0 ? 0.6 : -0.6) : 0;

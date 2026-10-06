@@ -402,11 +402,15 @@ function BSRadioFx({ floor = 0 }) {
   // ⚠ THE ISLAND CHIP NAMES THE STATION AND NOTHING ELSE. It read
   // `… · ${r.LIVE.bpm} BPM` off a typed-in 132 — a tempo nobody measured,
   // floated over the member's screen in the one place they cannot miss it. The
-  // measured tempo lives on the Radio page, off the analyser; this overlay has
-  // no analyser and no business quoting one. What is left is the station's own
-  // name, which is a fact about us. (Codex, P2 on #2076.)
+  // measured tempo lives on the Radio page, off the analyser. This overlay reads
+  // the analyser only to move its lights (kicks and drops, never a tempo), so it
+  // still has no business quoting one. What is left is the station's own name,
+  // which is a fact about us. (Codex, P2 on #2076.)
   const label = r.LIVE.show.toUpperCase();
-  return <RadioEffects mode={r.fxMode} label={label} tint={bsFxTint(r.fxColor, t)} isLight={!!t.isLight} floor={floor} />;
+  // live: this overlay only renders while the radio plays, so the lights read
+  // the station's own audio (and breathe when the stream cannot be read). The
+  // Settings preview below plays nothing and runs the demo beat instead.
+  return <RadioEffects mode={r.fxMode} label={label} tint={bsFxTint(r.fxColor, t)} isLight={!!t.isLight} floor={floor} live />;
 }
 
 // Inner wrapper so BSClientApp can access useBSSheet
@@ -36407,7 +36411,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           {[
             { k: 'off',       glyph: '○', lvl: 0, title: tr('settings:fx.modeOff', { defaultValue: 'Off' }),       sub: tr('settings:fx.subOff', { defaultValue: 'Clean · no animation' }) },
             { k: 'subtle',    glyph: '◐', lvl: 1, title: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),    sub: tr('settings:fx.subSubtle', { defaultValue: 'Edge glow · island EQ' }) },
-            { k: 'immersive', glyph: '◉', lvl: 2, title: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }), sub: tr('settings:fx.subImmersive', { defaultValue: 'Bg bloom · button halos' }) },
+            { k: 'immersive', glyph: '◉', lvl: 2, title: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }), sub: tr('settings:fx.subImmersive', { defaultValue: 'Stage lights · beams' }) },
             { k: 'hologram',  glyph: '⟠', lvl: 3, title: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),  sub: tr('settings:fx.subHologram', { defaultValue: 'DJ overlay · scanlines' }) },
           ].map(m => {
             const active = r.fxMode === m.k;
