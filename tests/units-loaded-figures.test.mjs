@@ -5,7 +5,8 @@
 // strength ridge printed the top PR as `${best} ${unit}` as stored, and the goal
 // page's "7d volume" printed /api/client/train's pounds as a bare "9k" whatever the
 // setting. And a PR item on the member's own profile feed carried its best as
-// "Best: 100 kg × 3" beside a stat the card does convert.
+// "Best: 100 kg × 3" beside a stat the card does convert, and a logged workout
+// read "5.2 km · 30 min" under a "5.2K" stat label whatever the setting.
 //
 // ⚠ ALL THREE ARRIVE THROUGH AN EFFECT, so these mount the shipped components with
 // a react impl whose effects run (the weekly-readout-surface pattern): the fetch →
@@ -100,12 +101,13 @@ const openTab = (d, key) => {
   tabs.props.onPick(key);
   d.render();
 };
-async function profile(prefs, { prs = [], trainPrs = [] } = {}) {
+async function profile(prefs, { prs = [], trainPrs = [], activities = [] } = {}) {
   signIn();
   globalThis.window.ShapeProgress = {
     progress: feed({ ok: true, prs }),
     train: feed({ prs: trainPrs }),
   };
+  globalThis.window.ShapeActivities = { list: feed({ activities }) };
   CURRENT = themeFor(prefs);
   const d = drive(BSTerrainProfile, { person: PERSON, isSelf: true, onBack() {}, onMessage() {} });
   await settle();
@@ -134,6 +136,32 @@ test('the profile\'s strength ridge reads the top PR in the member\'s unit, at r
   km.render();
   assert.ok(globalThis.window.ShapeProgress.progress.calls() > before, 'the re-render asked again and got nothing back');
   assert.match(km.text, /226 lb × 5/);
+  CURRENT = THEME;
+});
+
+const cards = (d) => d.nodes().filter((n) => n.type && n.type.name === 'BSActivityCard').map((n) => n.props.a);
+
+test('a workout on the member\'s own profile feed reads its distance in the member\'s unit', async () => {
+  // The card converts a stat's VALUE, never its label, and never the body; this
+  // item's label is the distance itself and its body is built by code.
+  const activities = [{ activity_type: 'run', title: 'Morning run', distance_km: 5.2, duration_min: 30, calories: 300, started_at: new Date().toISOString() }];
+  const mi = await profile(LB, { activities });
+  openTab(mi, 'activity');
+  const run = (d) => cards(d).find((a) => a.title === 'Morning run');
+  assert.ok(run(mi), `no workout card: ${JSON.stringify(cards(mi).map((a) => a.title))}`);
+  assert.equal(run(mi).body, '3.2 mi · 30 min · 300 kcal', 'the line converts the distance and leaves minutes and kcal alone');
+  assert.deepEqual(run(mi).stats, [['3.2 mi', '30 min']], 'the distance label converts');
+  const km = await profile(KG, { activities });
+  openTab(km, 'activity');
+  assert.equal(run(km).body, '5.2 km · 30 min · 300 kcal');
+  assert.deepEqual(run(km).stats, [['5.2K', '30 min']], 'kilometres keep the label they always had');
+  // Flip the setting with the workout already loaded: the card follows without a refetch.
+  const before = globalThis.window.ShapeActivities.list.freeze();
+  CURRENT = themeFor(LB);
+  km.render();
+  assert.ok(globalThis.window.ShapeActivities.list.calls() > before, 'the re-render asked again and got nothing back');
+  assert.deepEqual(run(km).stats, [['3.2 mi', '30 min']]);
+  assert.equal(run(km).body, '3.2 mi · 30 min · 300 kcal');
   CURRENT = THEME;
 });
 

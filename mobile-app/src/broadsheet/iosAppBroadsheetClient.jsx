@@ -17617,6 +17617,16 @@ function bsDemoCoachCustom(isNutri) {
   };
 }
 
+// A logged workout's distance as its stat label, in the reader's unit: "5.2K" for
+// kilometres (the label it has always had), "3.2 mi" for miles. No distance → null,
+// and the caller keeps its own label.
+function bsProfileDistLabel(t, km) {
+  const n = Number(km);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const m = t.uMeasure(Math.round(n * 10) / 10, 'km');
+  return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
+}
+
 function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -17912,11 +17922,14 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         if (Number.isFinite(km) && km > 0) bits.push(`${Math.round(km * 10) / 10} km`);
         if (Number.isFinite(min) && min > 0) bits.push(`${min} min`);
         if (Number.isFinite(kcal) && kcal > 0) bits.push(`${Math.round(kcal)} kcal`);
-        let metric = null;
-        if (Number.isFinite(km) && km > 0 && Number.isFinite(min) && min > 0) metric = [`${Math.round(km * 10) / 10}K`, `${min} min`];
+        let metric = null, distKm = null;
+        // The distance stat's LABEL is the distance itself ("5.2K"), and the card
+        // converts a stat's value, never its label, so the raw kilometres ride out
+        // of this effect and itToCard writes the label in the reader's unit.
+        if (Number.isFinite(km) && km > 0 && Number.isFinite(min) && min > 0) { metric = [`${Math.round(km * 10) / 10}K`, `${min} min`]; distKm = km; }
         else if (Number.isFinite(min) && min > 0) metric = ['Time', `${min} min`];
         else if (Number.isFinite(kcal) && kcal > 0) metric = ['Burn', `${Math.round(kcal)} kcal`];
-        return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, time: ago(a.started_at), hot: false, _at: a.started_at || '' };
+        return { k: type, t: a.title || `${type} session`, b: bits.length ? bits.join(' · ') : 'Logged.', metric, distKm, time: ago(a.started_at), hot: false, _at: a.started_at || '' };
       });
       // Real PRs (ShapeProgress.train) surfaced as feed items.
       const prs = (td && Array.isArray(td.prs)) ? td.prs : [];
@@ -17960,10 +17973,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     return {
       real: false, key: it._k || null, postId: null, who: name, role: 'Client', tier: tierKey, hot: isPr,
       kind: isPr ? 'pr' : 'workout', typeLabel: it.k || 'Workout', title: it.t || '', lift,
-      // A PR item's line ("Best: 100 kg × 3") is built by the effect above, not
-      // written by the member, so it converts like the card's stats do.
-      body: isPr ? tTheme.uText(it.b || '') : (it.b || ''), ago: it.time || '', city: '', activityType: '',
-      stats: it.metric ? [[it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
+      // Every item's line ("Best: 100 kg × 3", "5.2 km · 30 min") is built by the
+      // effect above, not written by the member, so it converts like the card's
+      // stats do. Converted HERE, at render, so a Settings flip reaches it.
+      body: tTheme.uText(it.b || ''), ago: it.time || '', city: '', activityType: '',
+      stats: it.metric ? [[bsProfileDistLabel(tTheme, it.distKm) || it.metric[0], it.metric[1]]] : [], likers: [], comments: [],
     };
   };
   const feedEff = (() => {
