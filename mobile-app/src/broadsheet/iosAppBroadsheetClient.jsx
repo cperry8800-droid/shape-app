@@ -17788,7 +17788,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const streakEff = (isSelf && realSig && realSig.streak != null) ? realSig.streak : (signedInSelf ? 0 : streak);
   const trajEff = (isSelf && realSig && realSig.traj && realSig.traj.length) ? realSig.traj : (signedInSelf ? [0, 0, 0, 0, 0, 0, 0] : traj);
   const weekEff = (isSelf && realSig && realSig.week && realSig.week.length) ? realSig.week : (signedInSelf ? [0, 0, 0, 0, 0, 0, 0] : week);
-  const trajDeltaLb = Math.round((trajEff[trajEff.length - 1] - trajEff[0]) || 0);
+  // The weight series is pounds (the progress API normalizes every weigh-in);
+  // the trajectory reads in the member's unit, like the Progress page.
+  const trajDeltaIn = tTheme.uMeasure((trajEff[trajEff.length - 1] - trajEff[0]) || 0, 'lb');
+  const trajDelta = trajDeltaIn.unit === 'lb' ? Math.round(Number(trajDeltaIn.value)) : Number(trajDeltaIn.value);
   // (Signed-out demo activities now come from the shared COMMUNITY_ACTIVITIES set,
   // filtered to this profile's owner — see feedEff below.)
   // Ridgeline hero fields (illustrative — wire to real program/coach/goal later).
@@ -18503,8 +18506,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                     <div style={{ flex: 'none' }}>
                       <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.trajectory', { defaultValue: 'Trajectory' })}</div>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 3 }}>
-                        <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{trajDeltaLb > 0 ? '+' : '−'}{Math.abs(trajDeltaLb)}</span>
-                        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>lb</span>
+                        <span style={{ fontFamily: SERIF, fontSize: 30, fontWeight: 700, color: INK, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>{trajDelta > 0 ? '+' : '−'}{Math.abs(trajDelta)}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 700, color: bsTHexA(INK, 0.55) }}>{trajDeltaIn.unit || 'lb'}</span>
                       </div>
                     </div>
                     <svg viewBox="0 0 150 34" width="150" height="34" style={{ flex: 1 }} aria-hidden>
@@ -37486,9 +37489,23 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
     </div>
   );
 
+  // ⚠ EVERY WEIGHT ON THIS PAGE ARRIVES IN POUNDS (/api/client/progress and
+  // /train normalize weigh-ins, loads and volume to lb) AND IS SHOWN IN THE
+  // MEMBER'S UNIT, the way the trend chart below already was. It printed a fixed
+  // "lb" beside every one, so a metric member read "Now 171 lb" over a chart in kg.
+  // One helper, so no two figures on the page can convert differently.
+  // `unit` defaults to the API's pounds; a row that names no unit (null) is
+  // shown as it came, never assumed to be pounds.
+  const wt = (v, unit = 'lb') => {
+    const m = t.uMeasure(v, unit);
+    const n = Number(m.value);
+    return { n: m.unit === 'lb' ? Math.round(n) : n, unit: m.unit || unit };
+  };
+  const kVol = (lb) => { const m = wt(Number(lb) || 0); return `${(m.n / 1000).toFixed(1)}k ${m.unit}`; };
+
   // ---------- OVERALL ----------
   const kpis = O.kpis || {};
-  const wc = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(Math.round(v)) + ' lb';
+  const wc = (v) => { if (v == null) return '—'; const m = wt(v); return (m.n > 0 ? '+' : m.n < 0 ? '−' : '') + Math.abs(m.n) + ' ' + m.unit; };
   // ⚠ THE SERIES AND ITS LABEL CONVERT TOGETHER OR NOT AT ALL. The tabs declare
   // their native unit — 'lb' for Weight and Strength, and a non-convertible
   // token ('bpm', '%', 'h', '/10') for the rest, which `uMeasure`/`uLabel` pass
@@ -37501,7 +37518,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const first = trendVals.length ? trendVals[0] : null;
   const delta = latest != null && first != null ? latest - first : null;
   const oRegs = [
-    { label: 'Bodyweight', value: wc(kpis.weightChange), sub: kpis.weightLatest != null ? `Now ${Math.round(kpis.weightLatest)} lb` : null },
+    { label: 'Bodyweight', value: wc(kpis.weightChange), sub: kpis.weightLatest != null ? `Now ${wt(kpis.weightLatest).n} ${wt(kpis.weightLatest).unit}` : null },
     { label: 'Body fat', value: kpis.bodyFatLatest != null ? kpis.bodyFatLatest.toFixed(1) + '%' : '—', sub: kpis.bodyFatFirst != null ? `From ${kpis.bodyFatFirst.toFixed(1)}%` : null },
     { label: 'Resting HR', value: kpis.restingHr != null ? kpis.restingHr + ' bpm' : '—', sub: kpis.restingHrDelta != null ? `${Math.abs(kpis.restingHrDelta)} vs prior wk` : null, glyph: kpis.restingHrDelta != null && kpis.restingHrDelta !== 0 ? (kpis.restingHrDelta < 0 ? '▾' : '▴') : null },
     { label: 'Sleep', value: kpis.sleepAvg != null ? kpis.sleepAvg + ' h' : '—', sub: '30-day avg' },
@@ -37602,7 +37619,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const tRegs = [
     { label: 'Workouts logged', value: String(ts.completedCount ?? 0) },
     { label: 'This week', value: String(ts.thisWeekCount ?? 0) },
-    { label: 'Volume 7d', value: ((ts.volume7dLb ?? 0) / 1000).toFixed(1) + 'k lb' },
+    { label: 'Volume 7d', value: kVol(ts.volume7dLb ?? 0) },
     { label: 'Avg RPE', value: ts.avgRpe != null ? String(ts.avgRpe) : '—' },
   ];
   const trainingView = (
@@ -37626,7 +37643,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
           ) : <BSTRedact INK={t.INK} label="Volume · nothing logged" />}
           <div style={{ display: 'flex', gap: 28, marginTop: 12, paddingTop: 11, borderTop: `1px solid ${hair}` }}>
             <BSTLedgerStat INK={t.INK} label="Streak" value={`${ts.currentStreak ?? 0}d`} seen={tVolSeen} figSize={18} />
-            <BSTLedgerStat INK={t.INK} label="Total vol" value={`${((ts.totalVolumeLb || 0) / 1000).toFixed(1)}k lb`} seen={tVolSeen} figSize={18} delay={90} />
+            <BSTLedgerStat INK={t.INK} label="Total vol" value={kVol(ts.totalVolumeLb || 0)} seen={tVolSeen} figSize={18} delay={90} />
             <BSTLedgerStat INK={t.INK} label="Avg RPE" value={String(ts.avgRpe ?? '—')} seen={tVolSeen} figSize={18} delay={180} />
           </div>
         </>
@@ -37635,10 +37652,10 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
           <span style={{ minWidth: 0 }}>
             <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{p.lift}</span>
-            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3 }}>was {p.prev}{p.unit}</span>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3 }}>was {wt(p.prev, p.unit || null).n}{wt(p.prev, p.unit || null).unit}</span>
           </span>
           {leader}
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{p.value} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{p.unit}</span></span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{wt(p.value, p.unit || null).n} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{wt(p.value, p.unit || null).unit}</span></span>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: bsTHexA(t.INK, 0.7), whiteSpace: 'nowrap' }}><span aria-hidden style={{ color: heat }}>▴</span> {Number(p.deltaPct).toFixed(1)}%</span>
         </div>
       )) : <BSTRedact INK={t.INK} label="PRs · not on record" />)}
@@ -37651,7 +37668,7 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
             <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK }}>{s.title}</span>
             {s.prCount > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.06em', color: bsTHexA(t.INK, 0.7) }}><span aria-hidden style={{ color: heat }}>▴</span> PR ×{s.prCount}</span>}
           </div>
-          <div style={{ display: 'flex', gap: 12, marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}><span>{s.durationMin}m</span>{s.volumeLb > 0 && <span>{(s.volumeLb / 1000).toFixed(1)}k lb</span>}<span>RPE {s.avgRpe}</span><span>{s.exercises} ex</span></div>
+          <div style={{ display: 'flex', gap: 12, marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}><span>{s.durationMin}m</span>{s.volumeLb > 0 && <span>{kVol(s.volumeLb)}</span>}<span>RPE {s.avgRpe}</span><span>{s.exercises} ex</span></div>
         </div>
       )) : <BSTRedact INK={t.INK} label="Sessions · none yet" />)}
     </div>

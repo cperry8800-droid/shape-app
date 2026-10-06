@@ -1377,6 +1377,113 @@ function useRememberedSet(store, key, max) {
 // rendered on pages that load NEITHER this file nor `dashToday.jsx` — so keeping the
 // derivation here made the card's own getters throw on ten of them and report the failure
 // as an em-dash. A pure derivation belongs with the data it derives from.
+
+// ── THE MEMBER'S UNITS (Settings → Units) ───────────────────────────────────
+// ⚠ THE DASHBOARDS PRINTED EVERY WEIGHT AND DISTANCE AS STORED. The APIs normalize
+// bodyweight, loads and volume to pounds (and a check-in carries its own unit), so a
+// metric member read "171 lb" here while the app showed them kilograms. Every
+// dashboard now reads `client_settings.units` (which the app and the website both
+// write) and converts through the app's own module, `/newdesign/unitText.mjs`, so
+// the two surfaces cannot convert a figure differently. Until the setting is read,
+// and for a signed-out preview, figures show as stored under the app's default,
+// imperial. One load per page, shared by every component that asks.
+const DASH_UNITS_IMPERIAL = { weight: "lb", distance: "mi", length: "in" };
+const DASH_UNITS_METRIC = { weight: "kg", distance: "km", length: "cm" };
+function dashUnitPrefs(units) { return /metric/i.test(String(units || "")) ? DASH_UNITS_METRIC : DASH_UNITS_IMPERIAL; }
+// The converter for a loaded module `U` and a setting. Pure, so a test drives it
+// with the real module. `measure` returns { value, unit }; `fmt` a "value unit"
+// string; `text` converts every figure in a string; `label` a bare unit.
+function dashUnitsApi(U, prefs) {
+  const p = prefs || DASH_UNITS_IMPERIAL;
+  const ready = !!U;
+  const measure = (v, unit) => {
+    if (!ready || v == null || v === "" || !Number.isFinite(Number(v))) return { value: v, unit };
+    const m = U.bsSdMeasure(Number(v), unit, p);
+    return { value: m.value, unit: m.unit || unit };
+  };
+  return {
+    ready, prefs: p, metric: p.weight === "kg",
+    measure,
+    fmt: (v, unit) => { const m = measure(v, unit); return m.value == null || m.value === "" ? "" : m.value + (m.unit ? " " + m.unit : ""); },
+    text: (s, opts) => (ready && s != null && s !== "" ? U.bsSdUnitizeText(String(s), p, opts) : s),
+    // A bare unit field. `bsSdMeasure` knows lengths too (the prose label refuses
+    // "in"), so it answers first and the label path takes what it does not know.
+    label: (unit) => {
+      if (!ready || !unit) return unit;
+      const m = U.bsSdMeasure(1, unit, p);
+      return m.unit && m.unit !== unit ? m.unit : U.bsSdUnitizeLabel(unit, p);
+    },
+  };
+}
+let _dashUnits = null;
+let _dashUnitsLoad = null;
+const _dashUnitsSubs = new Set();
+function dashLoadUnits() {
+  if (_dashUnitsLoad) return _dashUnitsLoad;
+  const setting = (async () => {
+    const db = window.shapeDb;
+    if (!db || typeof db.getUserGoals !== "function") return null;
+    try {
+      await dashDocBridge();
+      const u = db.getUser ? await db.getUser() : null;
+      if (!u || !u.id) return null; // signed out: never read anyone's settings
+      return await db.getUserGoals("client_settings");
+    } catch (e) { return null; } // a failed read falls back to the default, never breaks a page
+  })();
+  _dashUnitsLoad = Promise.all([import("/newdesign/unitText.mjs"), setting])
+    .then(([U, st]) => { _dashUnits = { U, prefs: dashUnitPrefs(st && st.units) }; })
+    .catch(() => { _dashUnits = null; })
+    .then(() => { _dashUnitsSubs.forEach((f) => { try { f(); } catch (e) {} }); return _dashUnits; });
+  return _dashUnitsLoad;
+}
+function useDashUnits() {
+  const [, bump] = React.useState(0);
+  React.useEffect(() => {
+    const f = () => bump((n) => n + 1);
+    _dashUnitsSubs.add(f);
+    dashLoadUnits();
+    return () => { _dashUnitsSubs.delete(f); };
+  }, []);
+  return dashUnitsApi(_dashUnits && _dashUnits.U, _dashUnits && _dashUnits.prefs);
+}
+// The engine's goal lines (`DashSignals.goalBrief`, a milestone's detail) open with the
+// distance still to go: "2.8 lb to “Goal weight”", "3 in away". Prose conversion refuses
+// a bare "in", because it is also a word, so that one head is converted from the
+// engine's own format, where it can only be a unit; everything else goes through `text`.
+const DASH_GOAL_HEAD = /^(\d+(?:\.\d+)?) (in|cm)(?= away\b| to “| from\b)/;
+function dashGoalText(s, units) {
+  if (!units || !units.ready || s == null || s === "") return s;
+  let out = String(s);
+  const head = out.match(DASH_GOAL_HEAD);
+  if (head) {
+    const m = units.measure(Number(head[1]), head[2]);
+    out = m.value + " " + m.unit + out.slice(head[0].length);
+  }
+  return units.text(out);
+}
+// One weigh-in in the reader's units, and the change between two. Each weigh-in
+// carries the unit it was logged in (a check-in can be either). When the two match,
+// the difference is taken in that unit and converted once, so rounding two converted
+// readings cannot move it; when they differ, the converted readings are subtracted.
+function dashWeighIn(w, units) {
+  if (!w || w.weight == null) return null;
+  return units.measure(Number(w.weight), w.unit || "lb");
+}
+function dashWeighInDelta(from, to, units) {
+  if (!from || !to) return null;
+  const uf = String(from.unit || "lb").toLowerCase(), ut = String(to.unit || "lb").toLowerCase();
+  const d = uf === ut
+    ? Number(units.measure(Number(to.weight) - Number(from.weight), to.unit || "lb").value)
+    : Number(dashWeighIn(to, units).value) - Number(dashWeighIn(from, units).value);
+  return Number.isFinite(d) ? Math.round(d * 10) / 10 : null;
+}
+// `DashSignals.buildMilestones` with every label and detail in the reader's units.
+function dashMilestonesIn(ms, units) {
+  if (!ms || !units || !units.ready) return ms;
+  const one = (m) => ({ ...m, label: units.text(m.label), detail: m.detail == null ? m.detail : dashGoalText(m.detail, units) });
+  return { ...ms, recent: (ms.recent || []).map(one), next: (ms.next || []).map(one) };
+}
+
 // ── The paper switch ─────────────────────────────────────────────────────────
 // Two papers in dash.css: `:root` is the light one (the default — the workout
 // builder's own palette) and `html[data-paper="dark"]` is the dashboard's previous
@@ -1465,4 +1572,4 @@ function useDashPaper() {
   return [paper, setPaperChoice, { kind }];
 }
 
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT });
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta });

@@ -107,6 +107,50 @@ const DPR_DEMO = (() => {
   };
 })();
 
+// ── The member's units ──────────────────────────────────────────────────────
+// ⚠ THIS PAGE PRINTED EVERY WEIGHT AS STORED: bodyweight and strength in pounds (the
+// progress API normalizes both), a check-in and a tape measurement in whatever unit
+// they were logged in. Each is converted ONCE, here, through `useDashUnits`
+// (dashData.jsx), and every card reads the converted copy, so no two can disagree.
+// A measurement converts per row, so a member who logged waist in inches one week and
+// centimetres the next compares like with like. Pure, so a test drives them.
+const DPR_LB_SERIES = ["weight", "strength"];
+function dprPointsIn(rows, unit, units) {
+  if (!Array.isArray(rows) || !units || !units.ready) return rows;
+  return rows.map((r) => {
+    if (!r || r.value == null || !isFinite(Number(r.value))) return r;
+    const m = units.measure(Number(r.value), r.unit || unit);
+    return { ...r, value: m.value, unit: m.unit };
+  });
+}
+function dprSeriesIn(series, units) {
+  if (!series || !units || !units.ready) return series;
+  const out = { ...series };
+  for (const k of DPR_LB_SERIES) if (Array.isArray(series[k])) out[k] = dprPointsIn(series[k], "lb", units);
+  return out;
+}
+function dprPrsIn(prs, units) {
+  if (!Array.isArray(prs) || !units || !units.ready) return prs;
+  return prs.map((p) => {
+    if (!p || !p.unit) return p;
+    const best = units.measure(p.best, p.unit);
+    return { ...p, best: best.value, e1rm: p.e1rm != null ? units.measure(p.e1rm, p.unit).value : p.e1rm, unit: best.unit };
+  });
+}
+function dprLiftsIn(lifts, units) {
+  if (!Array.isArray(lifts) || !units || !units.ready) return lifts;
+  return lifts.map((l) => {
+    if (!l || !l.unit) return l;
+    const u = l.unit, to = (v) => (v == null ? v : units.measure(v, u).value);
+    return {
+      ...l, unit: units.label(u),
+      currentE1rm: to(l.currentE1rm), bestE1rm: to(l.bestE1rm),
+      topSet: l.topSet ? { ...l.topSet, load: to(l.topSet.load) } : l.topSet,
+      series: Array.isArray(l.series) ? l.series.map((x) => (x && x.e1rm != null ? { ...x, e1rm: to(x.e1rm) } : x)) : l.series,
+    };
+  });
+}
+
 const DPR_TREND_TABS = [
   { k: "weight", label: "Weight", unit: "lb", color: "var(--sh-accent2, #0ac5a8)", fmt: (v) => Math.round(v) },
   { k: "bodyFat", label: "Body fat", unit: "%", color: "#7ed4ff", fmt: (v) => v.toFixed(1) },
@@ -298,7 +342,8 @@ function DprPhotoTile({ url, label, demo }) {
 
 // ── Milestone timeline: earned ✓ above, what's next ○ below ─────────────────
 function DprMilestoneTimeline({ rec }) {
-  const ms = DashSignals.buildMilestones(rec);
+  const units = useDashUnits();
+  const ms = dashMilestonesIn(DashSignals.buildMilestones(rec), units);
   if (!ms.recent.length && !ms.next.length) {
     return <DprCompareEmpty>Milestones land here as you log — streak landmarks, workout counts, PRs, and goal targets.</DprCompareEmpty>;
   }
@@ -396,6 +441,7 @@ function dprCheckinHistoryRows(kit) {
 
 function DprCheckinHistory({ kit }) {
   const [open, setOpen] = React.useState(null);
+  const units = useDashUnits();
   const rows = dprCheckinHistoryRows(kit);
   // One check-in means the form already shows everything there is — an empty
   // "what you've sent before" card would be a promise of history nobody has yet.
@@ -423,7 +469,7 @@ function DprCheckinHistory({ kit }) {
                   background: "transparent", border: 0, padding: "11px 2px", minHeight: 24, cursor: "pointer", textAlign: "left", color: INK }}>
                 <span style={{ fontFamily: DPR_MONO, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>Week of {wk(c.week_of)}</span>
                 <span style={{ fontFamily: DPR_MONO, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>
-                  {c.weight != null ? Number(c.weight).toLocaleString() + " " + (c.unit || "kg") + " · " : ""}
+                  {c.weight != null ? units.fmt(Number(c.weight), c.unit || "kg") + " · " : ""}
                   {said ? said + (said === 1 ? " note" : " notes") : "ratings only"} {isOpen ? "×" : "→"}
                 </span>
               </button>
@@ -449,13 +495,20 @@ function DprCheckinHistory({ kit }) {
   );
 }
 
-function DprCheckinForm({ kit, onSaved }) {
+function DprCheckinForm({ kit, onSaved, units }) {
   const cur = (kit.checkins || []).find((c) => String(c.week_of) === kit.weekOf);
+  // ⚠ THE FORM ASKED FOR KILOGRAMS AND CENTIMETRES WHATEVER THE MEMBER'S SETTING, so an
+  // imperial member had to convert before typing. It asks in their units now and sends
+  // the unit with each figure (the API stores lb/kg and in/cm as given). A week already
+  // saved pre-fills in their unit too. The page re-keys this form when the setting
+  // arrives, so a pre-fill is never computed in one system and labelled in the other.
+  const wUnit = units && units.metric ? "kg" : "lb";
+  const lUnit = units && units.metric ? "cm" : "in";
   const [ratings, setRatings] = React.useState((cur && cur.ratings) || {});
   const [wins, setWins] = React.useState((cur && cur.wins) || "");
   const [struggles, setStruggles] = React.useState((cur && cur.struggles) || "");
   const [question, setQuestion] = React.useState((cur && cur.question) || "");
-  const [weight, setWeight] = React.useState(cur && cur.weight != null ? String(cur.weight) : "");
+  const [weight, setWeight] = React.useState(cur && cur.weight != null && units ? String(units.measure(Number(cur.weight), cur.unit || "kg").value) : (cur && cur.weight != null ? String(cur.weight) : ""));
   const [meas, setMeas] = React.useState({});
   const [files, setFiles] = React.useState({});
   const [busy, setBusy] = React.useState(false);
@@ -464,11 +517,11 @@ function DprCheckinForm({ kit, onSaved }) {
   const submit = async () => {
     setBusy(true); setNote("");
     try {
-      const measurements = Object.entries(meas).filter(([, v]) => v).map(([site, v]) => ({ site, value: parseFloat(v), unit: "cm" }));
+      const measurements = Object.entries(meas).filter(([, v]) => v).map(([site, v]) => ({ site, value: parseFloat(v), unit: lUnit }));
       const res = await fetch("/api/client/checkin-kit", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "checkin", ratings, wins, struggles, question, weight: weight || null, unit: "kg", measurements, date: new Date().toLocaleDateString("en-CA") }),
+        body: JSON.stringify({ action: "checkin", ratings, wins, struggles, question, weight: weight || null, unit: wUnit, measurements, date: new Date().toLocaleDateString("en-CA") }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Could not save");
       for (const pose of ["front", "side", "back"]) {
@@ -510,12 +563,12 @@ function DprCheckinForm({ kit, onSaved }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "120px repeat(6, 1fr)", gap: 10, marginBottom: 16 }}>
         <div>
-          <div style={lbl}>Weight (kg)</div>
+          <div style={lbl}>Weight ({wUnit})</div>
           <input value={weight} onChange={(e) => setWeight(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="—" style={inStyle} />
         </div>
         {CK_SITES.map(([site, label]) => (
           <div key={site}>
-            <div style={lbl}>{label} (cm)</div>
+            <div style={lbl}>{label} ({lUnit})</div>
             <input value={meas[site] || ""} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); setMeas((m) => ({ ...m, [site]: v })); }} placeholder="—" style={inStyle} />
           </div>
         ))}
@@ -1006,6 +1059,7 @@ function ClientProgressPage() {
   const [strength, setStrength] = React.useState(null);
   const [source, setSource] = React.useState(null); // null=loading · 'live' · 'demo'
   const [reloadKey, setReloadKey] = React.useState(0);
+  const units = useDashUnits();
 
   React.useEffect(() => {
     let on = true;
@@ -1084,17 +1138,17 @@ function ClientProgressPage() {
 
   // ── Comparisons (live → honest states; demo dataset signed out) ──
   const weightCmp = live
-    ? dprCompare(progress && (progress.weightSeries || (progress.series && progress.series.weight)))
-    : dprCompare(DPR_DEMO.weightSeries);
+    ? dprCompare(dprPointsIn(progress && (progress.weightSeries || (progress.series && progress.series.weight)), "lb", units))
+    : dprCompare(dprPointsIn(DPR_DEMO.weightSeries, "lb", units));
   const measCmps = (() => {
-    if (!live) return DPR_DEMO.measurements.map((m) => ({ site: m.site, unit: m.unit, cmp: dprCompare(m.series) })).filter((m) => m.cmp);
+    if (!live) return DPR_DEMO.measurements.map((m) => ({ site: m.site, unit: units.ready ? units.label(m.unit) : m.unit, cmp: dprCompare(dprPointsIn(m.series, m.unit, units)) })).filter((m) => m.cmp);
     const bySite = new Map();
     ((kit && kit.measurements) || []).forEach((r) => {
       if (!bySite.has(r.site)) bySite.set(r.site, []);
-      bySite.get(r.site).push({ on: r.measured_on, value: Number(r.value), unit: r.unit });
+      bySite.get(r.site).push({ on: r.measured_on, value: Number(r.value), unit: r.unit || "cm" });
     });
     return [...bySite.entries()]
-      .map(([site, rows]) => ({ site, unit: (rows[0] && rows[0].unit) || "cm", cmp: dprCompare(rows) }))
+      .map(([site, rows]) => { const inUnits = dprPointsIn(rows, "cm", units); return { site, unit: (inUnits[0] && inUnits[0].unit) || "cm", cmp: dprCompare(inUnits) }; })
       .filter((m) => m.cmp)
       .slice(0, 6);
   })();
@@ -1124,19 +1178,24 @@ function ClientProgressPage() {
   // gauges: Energy/Hunger/Rested are self-reported health data, not estimates.
   // Empty is the honest answer — the chart then says "Log more … to draw this
   // trend." Matches the sibling `prs`/`lifts` lines directly below.
-  const series = live ? ((progress && progress.series) || {}) : DPR_DEMO.series;
+  const series = dprSeriesIn(live ? ((progress && progress.series) || {}) : DPR_DEMO.series, units);
   // Whether the route's history reads hit their cap — see dprDeltaLabel. Only ever true
   // on a live payload; the demo series is short by construction.
   const historyCapped = !!(live && progress && progress.historyCapped);
-  const prs = live ? ((progress && progress.prs) || []) : DPR_DEMO.prs;
-  const lifts = live ? ((strength && strength.lifts) || []) : DPR_DEMO.lifts;
+  const prs = dprPrsIn(live ? ((progress && progress.prs) || []) : DPR_DEMO.prs, units);
+  const lifts = dprLiftsIn(live ? ((strength && strength.lifts) || []) : DPR_DEMO.lifts, units);
   const availableTabs = DPR_TREND_TABS.filter((t) => (series[t.k] || []).length >= 2);
   // The default trend is Weight, but only the AVAILABLE tabs render as buttons —
   // so a member with data in some other series (a new account that checks in
   // daily but has never weighed in) would otherwise see no selected button over
   // an empty Weight chart. Fall back to the first tab that actually has data.
   const selectedTab = DPR_TREND_TABS.find((t) => t.k === trend) || DPR_TREND_TABS[0];
-  const activeTab = availableTabs.some((t) => t.k === selectedTab.k) ? selectedTab : (availableTabs[0] || selectedTab);
+  const resolvedTab = availableTabs.some((t) => t.k === selectedTab.k) ? selectedTab : (availableTabs[0] || selectedTab);
+  // A pound series reads in the member's unit (converted in `dprSeriesIn`); a metric
+  // bodyweight keeps one decimal, where pounds round to the whole number.
+  const activeTab = units.ready && DPR_LB_SERIES.includes(resolvedTab.k)
+    ? { ...resolvedTab, unit: units.label(resolvedTab.unit), fmt: units.metric && resolvedTab.k === "weight" ? (v) => (Math.round(v * 10) / 10).toFixed(1) : resolvedTab.fmt }
+    : resolvedTab;
   const activeWindow = DPR_WINDOWS.find((w) => w.v === trendWin) || DPR_WINDOWS[DPR_WINDOWS.length - 1];
   // ⚠ THE WINDOW IS APPLIED TO THE FULL SERIES, AND `availableTabs` IS NOT WINDOWED.
   // Hiding a tab because the CURRENT window is thin would make the buttons flicker in and
@@ -1220,11 +1279,11 @@ function ClientProgressPage() {
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <span className="dash-eyebrow">Weight · {weightCmp ? dprThenLabel(weightCmp) + " vs today" : "the comparison"}</span>
-          {fmtCmpDelta(weightCmp, "lb")}
+          {fmtCmpDelta(weightCmp, units.label("lb"))}
         </div>
         <div style={{ marginTop: 14 }}>
           {weightCmp
-            ? <DprThenNow then={weightCmp.then} now={weightCmp.now} unit="lb" fmt={(v) => Math.round(v * 10) / 10} />
+            ? <DprThenNow then={weightCmp.then} now={weightCmp.now} unit={units.label("lb")} fmt={(v) => Math.round(v * 10) / 10} />
             : <DprCompareEmpty>Two weigh-ins at least two weeks apart start this comparison — log one at your weekly check-in below.</DprCompareEmpty>}
         </div>
       </div>
@@ -1395,7 +1454,7 @@ function ClientProgressPage() {
       // is unobserved: expanding a history row would grow past the fitted height and
       // be clipped by item-content's overflow:hidden, silently.
       <div>
-        <DprCheckinForm kit={kit} onSaved={() => setReloadKey((k) => k + 1)} />
+        <DprCheckinForm key={"u-" + units.ready + "-" + units.prefs.weight} kit={kit} units={units} onSaved={() => setReloadKey((k) => k + 1)} />
         <DprCheckinHistory kit={kit} />
       </div>
     ) },

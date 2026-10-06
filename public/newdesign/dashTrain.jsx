@@ -237,6 +237,9 @@ function DtrNextWeekLocked({ coach, weekN }) {
 
 function DtrHistory({ sessions, prDates }) {
   const [open, setOpen] = React.useState(0);
+  // A prescription and a best carry their own unit ("6 @ 82.5 kg"); each reads in
+  // the member's (useDashUnits, dashData.jsx).
+  const units = useDashUnits();
   if (!sessions.length) return <div style={{ fontSize: 12.5, color: DTR_INK50 }}>No completed sessions yet — your first one starts the history.</div>;
   return (
     <div>
@@ -270,8 +273,8 @@ function DtrHistory({ sessions, prDates }) {
                   return (
                     <div key={j} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "5px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.04)" }}>
                       <span style={{ fontSize: 12.5 }}>{m.name}</span>
-                      <span style={{ fontFamily: DTR_MONO, fontSize: 9.5, color: DTR_INK50 }}>{m.setsPrescribed} × {m.target || "—"}</span>
-                      <span style={{ fontFamily: DTR_MONO, fontSize: 9.5, color: short ? "var(--sh-gold, #d8a23a)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{m.setsLogged}/{m.setsPrescribed} sets{m.best ? " · " + m.best : ""}</span>
+                      <span style={{ fontFamily: DTR_MONO, fontSize: 9.5, color: DTR_INK50 }}>{m.setsPrescribed} × {units.text(m.target) || "—"}</span>
+                      <span style={{ fontFamily: DTR_MONO, fontSize: 9.5, color: short ? "var(--sh-gold, #d8a23a)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{m.setsLogged}/{m.setsPrescribed} sets{m.best ? " · " + units.text(m.best) : ""}</span>
                     </div>
                   );
                 })}
@@ -692,6 +695,9 @@ function ClientWorkoutsPage() {
     return s;
   }, [live, prs]);
   const stats = live ? (train && train.stats) || {} : DTR_DEMO.stats;
+  // The training API states volume in pounds; it reads in the member's unit.
+  const units = useDashUnits();
+  const vol7 = stats.volume7dLb != null ? units.measure(Number(stats.volume7dLb), "lb") : null;
 
   const eyebrow = programName
     ? programName.toUpperCase() + (currentWeek && currentWeek.week != null ? " · WEEK " + currentWeek.week + (weeksTotal ? " OF " + weeksTotal : "") : "")
@@ -779,7 +785,7 @@ function ClientWorkoutsPage() {
       <div className="dash-plate dash-plate--tick" style={{ "--dac": DTR_GREEN, paddingLeft: 24 }}>
         <div className="dash-eyebrow" style={{ color: DTR_GREEN }}>Consistency · streaks &amp; wins</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12 }}>
-          {[[stats.thisWeekCount ?? "—", "This week"], [stats.completedCount ?? "—", "All-time sessions"], [stats.volume7dLb != null ? Math.round(stats.volume7dLb / 1000) + "k lb" : "—", "7-day volume"]].map(([k, l], i) => (
+          {[[stats.thisWeekCount ?? "—", "This week"], [stats.completedCount ?? "—", "All-time sessions"], [vol7 ? Math.round(Number(vol7.value) / 1000) + "k " + vol7.unit : "—", "7-day volume"]].map(([k, l], i) => (
             <div key={i}>
               <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1 }}>{k}</div>
               <div style={{ fontFamily: DTR_MONO, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: DTR_INK50, marginTop: 5 }}>{l}</div>

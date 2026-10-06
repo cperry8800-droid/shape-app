@@ -121,6 +121,37 @@ function lvMapPost(row) {
 // chrome — site Header + DashSidebar (pageShell/trainerDashboard globals, only
 // referenced when the prop is passed) — so the side nav stays present on the
 // dashboard Profile/Me pages. The living page then drops its own header/footer.
+// ── The member's own figures in their units (Settings → Units) ──────────────
+// `U` is `{ T: unitText.mjs, prefs }`, or null when it could not be read, in which
+// case every figure shows as it came. Pure, so a test drives them with the real module.
+//
+// This page also runs without dashData.jsx (four of its seven hosts), so it reads the
+// signed-in member's setting itself, by the same rule as dashData's `dashUnitPrefs`.
+// It is only called on the member's own profile. A failed read keeps the converter
+// on the app default, imperial; a failed module load shows every figure as stored.
+function lvLoadUnits() {
+  return Promise.all([
+    import("/newdesign/unitText.mjs"),
+    Promise.resolve().then(() => (window.shapeDb && window.shapeDb.getUserGoals ? window.shapeDb.getUserGoals("client_settings") : null)).catch(() => null),
+  ]).then(([T, s]) => ({ T, prefs: /metric/i.test(String((s && s.units) || "")) ? { weight: "kg", distance: "km", length: "cm" } : { weight: "lb", distance: "mi", length: "in" } })).catch(() => null);
+}
+// The last seven weigh-ins as a trajectory. The change is taken in the weigh-ins' own
+// unit when they share one and converted once, so rounding two converted readings
+// cannot move it.
+function lvTrajectory(wi, U) {
+  const last7 = wi.slice(-7);
+  const cv = (w) => (U ? U.T.bsSdMeasure(Number(w.weight), w.unit || "lb", U.prefs) : { value: Number(w.weight), unit: w.unit || "lb" });
+  const traj = last7.map((w) => Number(cv(w).value));
+  const a = last7[0], b = last7[last7.length - 1];
+  const same = String(a.unit || "lb").toLowerCase() === String(b.unit || "lb").toLowerCase();
+  const d = same ? Number(cv({ weight: Number(b.weight) - Number(a.weight), unit: b.unit }).value) : traj[traj.length - 1] - traj[0];
+  return { traj, trajDelta: (d > 0 ? "+" : d < 0 ? "−" : "±") + (Math.round(Math.abs(d) * 10) / 10) + " " + cv(b).unit };
+}
+// Key lifts arrive as [name, "245 lb"] (profile-stats).
+function lvLiftsIn(lifts, U) {
+  return U ? lifts.map((l) => (Array.isArray(l) ? [l[0], U.T.bsSdUnitizeText(String(l[1]), U.prefs)] : l)) : lifts;
+}
+
 function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
   const [st, setSt] = React.useState({ loading: true, status: "", row: null, isSelf: false, uid: null });
   const [follow, setFollow] = React.useState({ followers: 0, following: 0, isFollowing: false });
@@ -239,19 +270,19 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     let on = true;
     (async () => {
       const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-      const [dash, score, plan, stats] = await Promise.all([j("/api/client/dashboard"), j("/api/client/score"), j("/api/client/plan"), j("/api/client/profile-stats")]);
+      const [dash, score, plan, stats, U] = await Promise.all([j("/api/client/dashboard"), j("/api/client/score"), j("/api/client/plan"), j("/api/client/profile-stats"), lvLoadUnits()]);
       if (!on) return;
       const out = {};
       if (dash && dash.kpis && typeof dash.kpis.streak === "number") out.streak = dash.kpis.streak;
       if (score && typeof score.week_gain === "number") out.scoreWk = score.week_gain;
       // Real key lifts + discipline bars (self-scoped get_my_lifts via the route).
-      if (stats && Array.isArray(stats.lifts) && stats.lifts.length) out.lifts = stats.lifts;
+      if (stats && Array.isArray(stats.lifts) && stats.lifts.length) out.lifts = lvLiftsIn(stats.lifts, U);
       if (stats && Array.isArray(stats.disciplines) && stats.disciplines.length) out.disciplines = stats.disciplines;
       const wi = (dash && dash.goals && Array.isArray(dash.goals.weighIns)) ? dash.goals.weighIns.filter((w) => w && w.weight != null) : [];
       if (wi.length >= 2) {
-        out.traj = wi.slice(-7).map((w) => Number(w.weight));
-        const d = out.traj[out.traj.length - 1] - out.traj[0];
-        out.trajDelta = (d > 0 ? "+" : d < 0 ? "−" : "±") + (Math.round(Math.abs(d) * 10) / 10) + " " + (wi[wi.length - 1].unit || "lb");
+        const t = lvTrajectory(wi, U);
+        out.traj = t.traj;
+        out.trajDelta = t.trajDelta;
       }
       if (plan && plan.training && plan.training.hasPlan && Array.isArray(plan.training.workouts)) {
         const tpl = plan.training.workouts.map((w) => w.template).filter(Boolean);

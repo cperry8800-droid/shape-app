@@ -153,6 +153,11 @@ function DclRing({ pct, size = 92, stroke = 7, color = DCL_TEAL, children }) {
 // scheme, load, cue? } — cues render verbatim, grouped rows show A1/A2.
 function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHref = "ClientTrain.html", maxRows = 4, interactive = true }) {
   const ink50 = DCL_INK50;
+  // Each move's load carries the unit its coach wrote ("110 kg") and reads in the
+  // viewer's (useDashUnits, dashData.jsx): the member on their dashboard, the coach
+  // in the builder's preview. A host without dashData.jsx (a test harness, a future
+  // preview) shows the load as written; every page that ships the card loads it.
+  const units = typeof useDashUnits === "function" ? useDashUnits() : null;
   const mono = "'JetBrains Mono', monospace";
   if (!workout) return <div style={{ fontSize: 13, color: ink50, marginTop: 8 }}>Rest day — recovery counts. An easy walk keeps the streak alive.</div>;
   const rows = workout.exercises || [];
@@ -176,7 +181,7 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
             {e.video && <ShapeVideoPlayer value={e.video} title={e.name+' demonstration'}/>}
             {e.cue && <div style={{ fontSize: 11.5, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", marginTop: 3 }}>“{e.cue}”</div>}
           </div>
-          <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{e.load}</span>
+          <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{units ? units.text(e.load) : e.load}</span>
         </div>
       ))}
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
@@ -494,6 +499,7 @@ function ClientDashboardPage() {
   if (typeof useDashPaper === "function") useDashPaper();
   const { today: dash, clients, client: extras, source } = useDashboard("client");
   const live = !!dash;
+  const units = useDashUnits();
   const plan = extras && extras.plan;
   const nutrition = extras && extras.nutrition;
   const score = extras && extras.score;
@@ -606,9 +612,9 @@ function ClientDashboardPage() {
         : null)
     : DCL_DEMO.nextSession;
   // Milestones (step 9.1) — earned + what's next, derived from the self record.
-  const msFeed = live
+  const msFeed = dashMilestonesIn(live
     ? (selfRec ? DashSignals.buildMilestones(selfRec) : { recent: [], next: [] })
-    : DCL_DEMO.milestonesFeed;
+    : DCL_DEMO.milestonesFeed, units);
 
   const memberPill = live
     ? (membership ? (membership.active ? { text: "Membership · active", c: DCL_TEAL } : { text: "Membership · inactive", c: DCL_RED }) : { text: "Membership · —", c: DCL_INK50 })

@@ -126,10 +126,17 @@ const webCompiled = babel.transformSync(`${readFileSync(WEB_LIVE_SRC, 'utf8')}\n
 }).code;
 const Card = ({ children, style }) => React.createElement('div', { 'data-card': true, style }, children);
 const DashPage = ({ children }) => React.createElement('div', { 'data-dashpage': true }, children);
+// TrainerClient.html loads dashData.jsx before the page, which reads the coach's
+// units from it (`useDashUnits`). Its real converter is handed in, in the state it
+// has before the setting is read: every figure as stored.
+const dashDataCompiled = babel.transformSync(readFileSync(new URL('../public/newdesign/dashData.jsx', import.meta.url), 'utf8'), {
+  presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script',
+}).code;
+const { dashUnitsApi } = new Function('React', 'window', `${dashDataCompiled}\n;return { dashUnitsApi };`)(React, {});
 const { CoachClientDetailPage } = new Function(
-  'React', 'Card', 'DashPage', 'trainerNavItems', 'nutriNavItems', 'trainerPayoutCard', 'nutriPayoutCard',
+  'React', 'Card', 'DashPage', 'trainerNavItems', 'nutriNavItems', 'trainerPayoutCard', 'nutriPayoutCard', 'useDashUnits',
   `${webCompiled}\n;return { CoachClientDetailPage };`,
-)(React, Card, DashPage, () => [], () => [], null, null);
+)(React, Card, DashPage, () => [], () => [], null, null, () => dashUnitsApi(null, null));
 
 // ── vectors ─────────────────────────────────────────────────────────────────
 // ONE payload builder feeds BOTH surfaces, because both read the same route
