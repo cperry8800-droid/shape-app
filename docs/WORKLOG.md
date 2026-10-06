@@ -697,6 +697,11 @@ changelog whenever something ships.
   `.claude/settings.json`); **on your own machine run `git config core.hooksPath
   .githooks` once** to enable it locally. CI (`ci.yml`) still runs the full builds on
   PRs into `main` / pushes to `main`+`staging` as the hard gate.
+  ⚠ **SMALL COMMITS SKIP IT — owner, 2026-10-06:** *"skip pre commit test for small
+  commits"*. The hook's `npm test` is ~4 minutes, and the owner stopped an amend that
+  was waiting on it for a one-line change. Commit a small change with `SKIP_VERIFY=1`
+  after running the tests it can touch, and say in the PR what ran instead. CI still
+  runs everything on the PR.
 - **Mutation rounds use ONE runner — never a throwaway script:**
   `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped`. Every
   defect the ad-hoc runners shipped (a restore outside a `finally`, an already-mutated
@@ -831,6 +836,36 @@ Everything older, newest-first: [2026-09](WORKLOG-ARCHIVE-2026-09.md) ·
 [2026-06 → 2026-07](WORKLOG-ARCHIVE-2026-06-07.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
+
+### 2026-10-06 — The website splash is back, and the line under the mark is now "You don't climb alone."
+
+- **Merged [#2211](https://github.com/cperry8800-droid/shape-app/pull/2211) as `e33c24d`**, final head `287d704`; the merged tree is byte-identical to it (tree `ba9f255` on both). 3 files: `public/newdesign/index.html`, `tests/homepage-splash.test.mjs` and its mutation spec. **No migration, no route, no i18n key.**
+  - The owner asked: *"make sure the splash page is present on shape website"*, then *"i want to see a preview of splash page"* (https://claude.ai/artifact/WdbobeSTWLgqrb9SRRVemj, built from the real page), then *"i want to change that slogan or saying below logos"*.
+  - From five lines on the preview (*Take shape.* · *Your climb starts tonight/today.* · *Real coaching. Real community.* · *You don't climb alone.* · *Find your shape.*) they picked **"You don't climb alone."**, then *"Ship it"*.
+- **What was missing.** The homepage rebuild of 2026-09-11 (the climb, `c334ebc`) removed the splash ("The Census", `#shape-intro`) on the index review's H4: *"make the same mark-draw the hero's own load-in"*. The intro itself was gone from the site.
+- **What it is now.** The same intro: a seeded night sky, six stars at the mark's vertices, the strokes drawing them together, the triangles filling.
+  - It uses the page's teal `#34d6c5` and Doto (700 / ROND 30). The old splash used `#2ee0c4`, which the homepage's one-teal guard now forbids, and JetBrains Mono, which the page no longer loads.
+  - The code that swapped "Tonight," for "Today," by the visitor's clock went with the old line.
+- **When it plays** is the old rule: once per session on a fresh arrival, for 2.9 s or until a scroll, swipe, key or tap, and cut short when `/api/me` says signed in. It never plays under reduced motion, with `?home`, after a same-origin referrer, or on a second arrival. Two changes:
+  - A `#fragment` skips it. `end()` scrolls to the top, so the old overlay threw a deep link's section away.
+  - **`?splash` forces it**, which is how to see it on the live site: https://www.theshapecommunity.com/newdesign/index.html?splash
+- ⚠ **THE OLD OVERLAY COVERED THE WHOLE PAGE WITH JAVASCRIPT OFF.** It rendered by default and relied on its script to remove it. `#shape-intro` is `display:none` now, and the script's `.run` is what shows it.
+- ⚠ **WITHOUT A HOLD, THE CLIMB'S LOAD-IN WOULD HAVE PLAYED UNDER THE SPLASH.** The words widen and the route climbs from boot; by the climb's own easing the route is ~92% drawn at 2.9 s, so the visitor would have met its last frame.
+  - The splash sets `window.__shapeIntro` and fires `shape:intro-start` / `shape:intro-end`. While it runs the climb holds (words at 62, `prog=0`, the flag faint at the summit), and `start()` runs on the end.
+  - The mark glides onto the summit flag, but only once the climb has placed the flag and only if it is on screen; otherwise a plain fade.
+  - `reveal()` supersedes itself (`rv`), so a splash that starts again holds the words even mid-widening. The preview's Replay is the only caller of a second run today.
+- **Review: none, on the owner's word** (*"dont need a code review on PR"*). Codex fired on its own when the PR opened and completed with no findings; Copilot declined on its quota; CodeRabbit posted only its skip notice.
+- **Verified:**
+  - `npm test` **5508/5508** through the pre-commit gate on the first commit. The amend (one line) skipped the gate on the owner's word (*"skip pre commit test for small commits"*, now in the hook's bullet above), after the homepage tests passed 39/39.
+  - Mutations (`tests/mutations/homepage-splash-2026-10-06.mutations.mjs`, `--fail-on-skipped`): the first run killed 27 of 28. The survivor was an outer check in `reveal()`'s stagger timer that the per-frame check already covers; it was removed rather than marked. The second run killed **27/27**, restored byte-identical.
+  - All required checks green on `287d704`.
+  - Chromium at 1440×900 and 390×844: the splash, the hand-off at 3.5 s, the climb after it, zero page errors. All five candidate lines fit at 320 px.
+  - **Live:** the production deploy of `e33c24d` is READY on www.theshapecommunity.com. Its served homepage (fetched through the Vercel connector, since this environment's proxy denies the domain) opens `<body>` with the splash, carries the new line, and has the climb's hold.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - No phone has run it. The splash is drawn with CSS animations on a fixed overlay, and none of it was checked in WKWebView or Android WebView.
+  - The line is English only; the homepage has no i18n layer.
+  - The 2.9 s lock the index review's H4 objected to is back, by the owner's ruling.
 
 ### 2026-10-06 — Shape Radio's light effects follow the music: Immersive gets stage lights, Subtle an edge light
 
