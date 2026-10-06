@@ -80,8 +80,14 @@ test('no drop without a breakdown: steady music, a short gap, or a stream that s
   assert.deepEqual(run(kicks(128), 16).drops, [], 'steady kicks dropped');
   assert.deepEqual(run((t) => (t < 6000 || t >= 7500 ? kicks(128)(t) : pad()), 12).drops, [], 'a 1.5 s gap dropped');
   assert.deepEqual(run((t) => (t < 3500 ? pad() : kicks(128)(t)), 8).drops, [], 'the first kicks of a stream dropped');
-  // one stray hit as the stream opens, a gap, then the groove: still the stream's start
-  assert.deepEqual(run((t) => (t < 70 ? frame(230, 90, 60) : t < 2800 ? pad() : kicks(128)(t)), 8).drops, [], 'a stray first hit made the groove a drop');
+  // one stray hit as the stream opens, a gap, then the groove: still the stream's start.
+  // ⚠ The hit lands at 200 ms, AFTER the first frame: the first frame seeds the slow
+  // average, so a hit there is never a kick, and the gap it leaves is never a drop
+  // whatever the warm-up says. This one is a kick, 2.6 s before the groove.
+  const stray = (t) => (t >= 200 && t < 270 ? frame(230, 90, 60) : t < 2800 ? pad() : kicks(128)(t));
+  const strayRun = run(stray, 8);
+  assert.ok(strayRun.s.kicks > 1, 'the stray hit and the groove were not counted as kicks: this test proves nothing');
+  assert.deepEqual(strayRun.drops, [], 'a stray first hit made the groove a drop');
   // a louder section without a kick gap is not a drop either (the rule is not loudness)
   assert.deepEqual(run((t) => kicks(128, t < 10000 ? 0.45 : 1)(t), 16).drops, [], 'a loudness surge dropped');
 });

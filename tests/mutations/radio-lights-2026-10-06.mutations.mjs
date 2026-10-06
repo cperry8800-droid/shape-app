@@ -30,7 +30,7 @@ export default {
     { name: 'any kick is a drop: no breakdown needed', file: ENGINE,
       find: 't - lastKick >= RL_DROP_GAP_MS',
       replace: 't - lastKick >= 0' },
-    { name: 'no warm-up: a stream that opens mid-breakdown drops on its first groove', file: ENGINE,
+    { name: 'no warm-up: a stray hit in the first second makes the groove a drop', file: ENGINE,
       find: ' && t >= RL_DROP_WARMUP_MS',
       replace: '' },
     { name: 'an unreadable stream breathes a beat it cannot hear', file: ENGINE,
