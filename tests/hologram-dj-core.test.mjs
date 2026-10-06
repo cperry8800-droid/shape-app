@@ -61,7 +61,9 @@ test('the glitch never strobes: one 140 ms band at most, bursts at least 3.5 bea
   // WCAG 2.3.1: nothing may flash more than three times a second. A burst is a
   // band of the figure slipping sideways for 140 ms; the schedule keeps every
   // burst ~1.6 s from the next, measured here over ~2 hours of play.
-  assert.equal(C.holoGlitchAt(1000), null, 'a burst in the first two bars: the preview would open on a glitch');
+  // the Settings preview runs 6 s: its first two bars never glitch
+  assert.equal(C.holoGlitchWindow(0), null, 'a burst in the first two bars: the preview would open on a glitch');
+  assert.equal(C.holoGlitchAt(1000), null);
   let prev = -Infinity, bursts = 0;
   for (let n = 0; n < 2000; n++) {
     const w = C.holoGlitchWindow(n);

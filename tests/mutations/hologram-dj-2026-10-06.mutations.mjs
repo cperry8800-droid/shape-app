@@ -17,9 +17,13 @@ export default {
     { name: 'a burst may start on any 8th: two bursts can land under 3.5 beats apart', file: CORE,
       find: 'Math.floor(3 + holoHash(n * 11 + 5) * 10)',
       replace: 'Math.floor(holoHash(n * 11 + 5) * 16)' },
+    // A PROVEN NO-OP TODAY: window 0's own draw is holoHash(3) = 0.2346, under the 0.4
+    // threshold, so it holds no burst with or without `n < 1`. The clause is what keeps the
+    // first two bars clear if the hash constants ever change; the suite pins the property
+    // (holoGlitchWindow(0) === null), which this mutant cannot break with today's hash.
     { name: 'the first two bars may glitch: the preview can open on a burst', file: CORE,
       find: 'if (n < 1 || holoHash(n * 7 + 3) < 0.4) return null;',
-      replace: 'if (n < 0 || holoHash(n * 7 + 3) < 0.4) return null;' },
+      replace: 'if (n < 0 || holoHash(n * 7 + 3) < 0.4) return null;', expectSurvive: true },
     { name: 'the glitch band grows to 40 px', file: CORE,
       find: 'const h = 8 + Math.floor(holoHash(n * 17 + 2) * 17);',
       replace: 'const h = 8 + Math.floor(holoHash(n * 17 + 2) * 33);' },
