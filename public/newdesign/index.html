@@ -619,6 +619,57 @@
     .jn{opacity:1}
     .jn p{max-height:90px}
   }
+
+  /* ══ THE SPLASH · "The Census" ═══════════════════════════════════════════
+     Restored 2026-10-06 (owner: "make sure the splash page is present on shape
+     website"). The climb's rebuild (2026-09-11) replaced it with the fold's own
+     load-in; this brings back the same intro: the night sky as the membership,
+     six member-stars at the mark's vertices, the strokes drawing them together,
+     the triangles filling. The line under the mark is new: "You don't climb
+     alone." (owner's pick, 2026-10-06), in place of "Tonight, we train." It
+     wears this page's teal and type rather than the retired #2ee0c4 and
+     JetBrains Mono.
+     ⚠ HIDDEN UNTIL THE SCRIPT CHOOSES TO RUN IT. The old overlay rendered by
+     default and relied on its script to remove it, so with JavaScript off it
+     covered the whole page with no way past it. `.run` is what shows it here,
+     so no script, or a script that fails before that line, leaves the page.
+     ⚠ IT HANDS OFF TO THE CLIMB RATHER THAN RACING IT. The fold's load-in (the
+     words widening, the route climbing) waits for `shape:intro-end`, and the
+     splash's mark glides into the summit flag, which is the same mark. */
+  #shape-intro{display:none;position:fixed;inset:0;z-index:200;place-items:center;overflow:hidden;
+    background:radial-gradient(120% 90% at 78% -10%,rgba(10,143,135,.14),transparent 55%),
+               linear-gradient(180deg,var(--ink-2) 0%,var(--ink) 100%);
+    color:var(--fg);transition:opacity .9s ease;will-change:opacity}
+  #shape-intro.run{display:grid}
+  #shape-intro.go{opacity:0;pointer-events:none}
+  #shape-intro .istars{position:absolute;inset:0;width:100%;height:100%}
+  #shape-intro .istars circle{fill:var(--fg);opacity:.35}
+  #shape-intro .istars .itw{animation:siTwinkle 3.4s ease-in-out infinite}
+  #shape-intro .iw{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;
+    padding:0 28px;transition:transform .8s cubic-bezier(.2,.7,.2,1)}
+  #shape-intro .imark{width:min(118px,26vw);overflow:visible;filter:drop-shadow(0 0 14px rgba(var(--teal-rgb),.28))}
+  #shape-intro .imark .iv{fill:#fff;opacity:0;animation:siStar .5s ease forwards}
+  #shape-intro .imark .ic{stroke-dasharray:1;stroke-dashoffset:1;fill:transparent;
+    animation:siDraw 1s cubic-bezier(.2,.7,.2,1) forwards,siFillT .45s ease 1.75s forwards}
+  #shape-intro .imark .ic2{animation-name:siDraw,siFillW}
+  /* Doto is this page's reading face, so the line reads like the wire and the
+     eyebrows: 700 / ROND 30, the setting the type note keeps for small labels. */
+  #shape-intro .iline{margin-top:28px;font-family:var(--num);font-weight:700;font-size:clamp(12px,1.3vw,15px);
+    letter-spacing:.3em;text-indent:.3em;text-transform:uppercase;color:var(--fg);font-variation-settings:'ROND' 30;
+    opacity:0;transform:translateY(8px);animation:siUp .55s .35s cubic-bezier(.2,.7,.2,1) forwards}
+  #shape-intro .iline b{font-weight:700;color:var(--teal)}
+  body.intro-lock{overflow:hidden}
+  /* The chat launcher claims a max z-index by design, so it is kept off the WHOLE
+     intro, the fade included: intro-active outlives intro-lock, which drops the
+     moment end() runs while the overlay goes on fading for ~.9s. */
+  body.intro-active #shape-global-chat-button{display:none!important}
+  @keyframes siUp{to{opacity:1;transform:none}}
+  @keyframes siStar{to{opacity:1}}
+  @keyframes siTwinkle{0%,100%{opacity:.25}50%{opacity:.85}}
+  @keyframes siDraw{to{stroke-dashoffset:0}}
+  /* literal, as the mark's attributes are: the value of --teal */
+  @keyframes siFillT{to{fill:#34d6c5}}
+  @keyframes siFillW{to{fill:rgba(238,243,240,.92)}}
 </style>
 <noscript><style>
   /* ⚠ WITHOUT JS THE JOURNEY WAS 320vh OF A PINNED PANEL WITH NO BODY TEXT.
@@ -637,6 +688,124 @@
 <script>document.documentElement.classList.remove('no-js');</script>
 <script defer src="/_vercel/insights/script.js"></script></head>
 <body>
+
+<!-- ══ THE SPLASH · "The Census" (see the stylesheet's note). First in <body> so it
+     is up before anything under it can paint. aria-hidden: it says nothing the
+     page does not, and it lasts 2.9 s at most. -->
+<div id="shape-intro" aria-hidden="true">
+  <svg class="istars" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="iw">
+    <!-- The two-triangle mark: the nav pill's and the summit flag's geometry
+         (viewBox 8 8 79 98, teal bottom-left, white top-right). Six member-stars
+         pop at the vertices, then the strokes draw them together and the
+         triangles fill. -->
+    <svg class="imark" viewBox="8 8 79 98" aria-hidden="true">
+      <circle class="iv" cx="14" cy="47" r="1.8" style="animation-delay:.3s"/>
+      <circle class="iv" cx="14" cy="100" r="1.8" style="animation-delay:.42s"/>
+      <circle class="iv" cx="51" cy="73" r="1.8" style="animation-delay:.54s"/>
+      <circle class="iv" cx="81" cy="14" r="1.8" style="animation-delay:.66s"/>
+      <circle class="iv" cx="81" cy="65" r="1.8" style="animation-delay:.78s"/>
+      <circle class="iv" cx="44" cy="39" r="1.8" style="animation-delay:.9s"/>
+      <polygon class="ic" points="14,47 14,100 51,73" pathLength="1"
+        stroke="#34d6c5" stroke-width="1.3" stroke-linejoin="round"
+        style="animation-delay:.6s,1.75s"/>
+      <polygon class="ic ic2" points="81,14 81,65 44,39" pathLength="1"
+        stroke="rgba(238,243,240,.9)" stroke-width="1.3" stroke-linejoin="round"
+        style="animation-delay:.85s,1.75s"/>
+    </svg>
+    <div class="iline">You don&rsquo;t climb <b>alone.</b></div>
+  </div>
+</div>
+<script>
+/* ══ WHEN THE SPLASH PLAYS ═══════════════════════════════════════════════════
+   Once per browser session, on a fresh arrival, for 2.9 s or until the visitor
+   scrolls, swipes, presses a key or taps. It does NOT play:
+   - under prefers-reduced-motion;
+   - with ?home in the URL;
+   - after a same-origin referrer (the logo, or any link inside the site);
+   - after it has already played in this tab's session;
+   - on a deep link with a #fragment. New on the restore: end() returns the page
+     to the top, so the old overlay threw a linked section away.
+   A signed-in visitor gets it cut short as soon as /api/me answers.
+   ⚠ ?splash PLAYS IT WHATEVER THE ABOVE SAY, so it can be checked on the live
+   site without a fresh browser.
+   It tells the fold through window.__shapeIntro ('running', then 'done') and the
+   shape:intro-start / shape:intro-end events. The climb holds its load-in while
+   it runs (see boot() there). */
+(function(){
+  var el=document.getElementById('shape-intro');
+  if(!el) return;
+  var q=null; try{ q=new URLSearchParams(location.search); }catch(e){}
+  var force=!!(q&&q.has('splash'));
+  var rm=false,seen=false,internal=false;
+  try{ rm=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){}
+  try{ seen=sessionStorage.getItem('shape.introSeen')==='1'; }catch(e){}
+  try{ if(document.referrer && new URL(document.referrer).origin===location.origin) internal=true; }catch(e){}
+  var skip=!!(q&&q.has('home')), deep=!!location.hash;
+  if(!force && (rm||skip||internal||seen||deep)){ if(el.parentNode) el.parentNode.removeChild(el); return; }
+  try{ sessionStorage.setItem('shape.introSeen','1'); }catch(e){}
+  window.__shapeIntro='running';
+  try{ window.dispatchEvent(new Event('shape:intro-start')); }catch(e){}
+  el.classList.add('run');
+  /* Star dust, seeded (no Math.random) so every arrival draws the same sky. A
+     handful twinkle. */
+  try{
+    var svg=el.querySelector('.istars');
+    if(svg){
+      var NS='http://www.w3.org/2000/svg', frag=document.createDocumentFragment();
+      var rand=function(seed){ var x=Math.sin(seed)*10000; return x-Math.floor(x); };
+      for(var i=0;i<70;i++){
+        var c=document.createElementNS(NS,'circle');
+        c.setAttribute('cx',(rand(i*3.7+2)*100)+'%');
+        c.setAttribute('cy',(rand(i*5.1+7)*100)+'%');
+        c.setAttribute('r',(rand(i*7.3)*0.9+0.5).toFixed(2));
+        if(i%5===0){ c.setAttribute('class','itw'); c.style.animationDelay=(rand(i*11)*3).toFixed(2)+'s'; }
+        frag.appendChild(c);
+      }
+      svg.appendChild(frag);
+    }
+  }catch(e){}
+  document.body.classList.add('intro-lock','intro-active');
+  var done=false;
+  function end(){
+    if(done) return; done=true;
+    /* The hand-off: the mark glides into the summit flag, which is the same mark,
+       while the overlay fades through to the fold. The flag is placed by the climb
+       script, so before that has drawn once (its inline left is still empty) there
+       is nowhere true to land and this degrades to a plain fade. */
+    try{
+      var sm=el.querySelector('.imark'), iw=el.querySelector('.iw'),
+          su=document.getElementById('summit'), fl=su&&su.querySelector('.flag');
+      if(sm&&iw&&fl&&su.style.left){
+        var a=sm.getBoundingClientRect(), b=fl.getBoundingClientRect(), r=iw.getBoundingClientRect();
+        var s=a.width>0?b.width/a.width:0;
+        if(s>0&&b.height>0&&b.top>=0&&b.bottom<=window.innerHeight){
+          var ax=a.left+a.width/2, ay=a.top+a.height/2;
+          iw.style.transformOrigin=(ax-r.left)+'px '+(ay-r.top)+'px';
+          iw.style.transform='translate('+((b.left+b.width/2)-ax)+'px,'+((b.top+b.height/2)-ay)+'px) scale('+s+')';
+        }
+      }
+    }catch(e){}
+    el.classList.add('go');
+    document.body.classList.remove('intro-lock');
+    try{ window.scrollTo(0,0); }catch(e){}
+    window.removeEventListener('wheel',end); window.removeEventListener('touchmove',end);
+    window.removeEventListener('keydown',end); el.removeEventListener('click',end);
+    window.__shapeIntro='done';
+    try{ window.dispatchEvent(new Event('shape:intro-end')); }catch(e){}
+    /* intro-active (and the chat launcher's hide) drops only once the overlay is gone */
+    setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); document.body.classList.remove('intro-active'); },1050);
+  }
+  if(!force){
+    try{ fetch('/api/me',{credentials:'same-origin'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){ if(d&&d.user) end(); }).catch(function(){}); }catch(e){}
+  }
+  setTimeout(end,2900);
+  window.addEventListener('wheel',end,{passive:true});
+  window.addEventListener('touchmove',end,{passive:true});
+  window.addEventListener('keydown',end);
+  el.addEventListener('click',end);
+})();
+</script>
 
 <nav>
   <div class="wrap navr">
@@ -1181,13 +1350,18 @@
     var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--w'));
     return (isFinite(v) && v > 0) ? v : 100;
   }
-  function reveal(){
+  /* `held` sets the words at the starting width and stops there: what the fold
+     shows under the splash, so the widening is still to come when it lifts.
+     Each call supersedes the one before (`rv`), so a splash that starts again
+     mid-widening holds the words rather than letting the last run finish them. */
+  var rv=0;
+  function reveal(held){
     var ws=[].slice.call(document.querySelectorAll('.hero h1 .w')); if(!ws.length) return;
-    var to=headWidth(), from=62, span=to-from;
+    var to=headWidth(), from=62, span=to-from, run=++rv;
     if(still){ ws.forEach(function(w){ w.style.setProperty('--hw',to); }); return; }
-    ws.forEach(function(w,i){ w.style.setProperty('--hw',from);
+    ws.forEach(function(w,i){ w.style.setProperty('--hw',from); if(held) return;
       setTimeout(function(){ var t0=null;
-        function f(now){ if(t0===null) t0=now; var k=Math.min(1,(now-t0)/900), e=1-Math.pow(1-k,3);
+        function f(now){ if(run!==rv) return; if(t0===null) t0=now; var k=Math.min(1,(now-t0)/900), e=1-Math.pow(1-k,3);
           w.style.setProperty('--hw',(from+span*e).toFixed(1)); if(k<1) requestAnimationFrame(f); }
         requestAnimationFrame(f); }, 90+i*110); });
   }
@@ -1219,9 +1393,25 @@
     }catch(e){ resume(); }   /* never trade the animation for the optimisation */
   }
 
-  function boot(){ size(); buildProfile(); reveal();
-    if(still){ prog=1; draw(); return; }
-    climb(); iv=setInterval(climb,14000); watchHero(); }
+  /* ⚠ THE LOAD-IN WAITS FOR THE SPLASH. The words widening and the route
+     climbing are the fold's arrival; with the splash back (2026-10-06) they would
+     otherwise play underneath it, and the visitor would meet their last frame.
+     While window.__shapeIntro is 'running' the fold holds: the words at their
+     starting width, the route at the trailhead, and the flag faint at the summit
+     so the splash's mark has somewhere to land. shape:intro-end starts it. With
+     no splash (reduced motion, a return visit, any link from inside the site)
+     start() runs at boot, as it always did. */
+  function hold(){ if(still) return;
+    if(tw){ cancelAnimationFrame(tw); tw=null; } clearInterval(iv); iv=null; prog=0; reveal(true); }
+  function start(){ if(still) return;
+    reveal(); climb(); clearInterval(iv); iv=setInterval(climb,14000); }
+  window.addEventListener('shape:intro-start',hold);
+  window.addEventListener('shape:intro-end',start);
+
+  function boot(){ size(); buildProfile();
+    if(still){ reveal(); prog=1; draw(); return; }
+    watchHero();
+    if(window.__shapeIntro==='running') hold(); else start(); }
 
   var rt=null;
   window.addEventListener('resize',function(){ clearTimeout(rt); rt=setTimeout(function(){ size(); buildProfile(); draw(); },140); });
