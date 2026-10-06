@@ -24,13 +24,20 @@ const LB = 1 / 0.45359237;
 const now = Date.now();
 const ago = (days) => new Date(now - days * 86400000).toISOString();
 
-// A query builder that records nothing and answers every chain with the table's rows.
+// A query builder that answers every chain with the table's rows, holding only the
+// columns the query SELECTED, as the database does: a route that stops asking for
+// `load_unit` must not still be handed it.
 function stubClient(tables) {
   const user = { id: 'u-1' };
   const chain = (table) => {
-    const rows = tables[table] || [];
+    let rows = tables[table] || [];
     const q = {
-      select: () => q, eq: () => q, neq: () => q, in: () => q, gte: () => q, lte: () => q, lt: () => q, gt: () => q,
+      select: (cols) => {
+        const keep = String(cols || '*').split(',').map((c) => c.trim()).filter(Boolean);
+        if (!keep.includes('*')) rows = rows.map((r) => Object.fromEntries(keep.filter((k) => k in r).map((k) => [k, r[k]])));
+        return q;
+      },
+      eq: () => q, neq: () => q, in: () => q, gte: () => q, lte: () => q, lt: () => q, gt: () => q,
       order: () => q, limit: () => q, not: () => q, is: () => q, ilike: () => q, or: () => q, filter: () => q,
       maybeSingle: async () => ({ data: rows[0] || null, error: null }),
       single: async () => ({ data: rows[0] || null, error: null }),
