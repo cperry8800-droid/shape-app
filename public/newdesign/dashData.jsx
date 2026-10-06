@@ -1408,7 +1408,9 @@ function dashUnitsApi(U, prefs) {
   const exact = (v, unit) => {
     const m = measure(v, unit);
     if (!ready || m.unit === unit || !Number.isFinite(Number(v))) return m;
-    const k = Number(U.bsSdMeasure(1e6, unit, p).value) / 1e6; // the unit ratio, to six places
+    // The ratio comes from a probe: the converter rounds a result of 100 or more to a
+    // whole number, so 1e6 converted carries the factor to six places (lb→kg 0.453592).
+    const k = Number(U.bsSdMeasure(1e6, unit, p).value) / 1e6;
     return { value: Number(v) * k, unit: m.unit };
   };
   return {
@@ -1427,23 +1429,54 @@ function dashUnitsApi(U, prefs) {
 }
 let _dashUnits = null;
 let _dashUnitsLoad = null;
+let _dashUnitsGen = 0;
+let _dashUnitsUid; // the account the cached setting was read for: undefined until known, null signed out
+let _dashUnitsWatching = false;
 const _dashUnitsSubs = new Set();
+// A sign-in, sign-out or account switch on the same page reads the setting again;
+// a token refresh for the same account does not. Until the first read knows its
+// account, an auth event is left to that read, which asks the session itself.
+function dashWatchUnitsAuth() {
+  if (_dashUnitsWatching) return;
+  const db = window.shapeDb;
+  const auth = db && db.client && db.client.auth;
+  if (!auth || typeof auth.onAuthStateChange !== "function") return;
+  _dashUnitsWatching = true;
+  try {
+    auth.onAuthStateChange((_event, session) => {
+      const uid = session && session.user && session.user.id ? session.user.id : null;
+      if (_dashUnitsUid === undefined || uid === _dashUnitsUid) return;
+      _dashUnitsLoad = null;
+      dashLoadUnits();
+    });
+  } catch (e) { _dashUnitsWatching = false; }
+}
 function dashLoadUnits() {
   if (_dashUnitsLoad) return _dashUnitsLoad;
+  dashWatchUnitsAuth();
+  const gen = ++_dashUnitsGen;
   const setting = (async () => {
     const db = window.shapeDb;
     if (!db || typeof db.getUserGoals !== "function") return null;
     try {
       await dashDocBridge();
       const u = db.getUser ? await db.getUser() : null;
+      if (gen === _dashUnitsGen) _dashUnitsUid = u && u.id ? u.id : null;
       if (!u || !u.id) return null; // signed out: never read anyone's settings
       return await db.getUserGoals("client_settings");
     } catch (e) { return null; } // a failed read falls back to the default, never breaks a page
   })();
   _dashUnitsLoad = Promise.all([import("/newdesign/unitText.mjs"), setting])
-    .then(([U, st]) => { _dashUnits = { U, prefs: dashUnitPrefs(st && st.units) }; })
-    .catch(() => { _dashUnits = null; })
-    .then(() => { _dashUnitsSubs.forEach((f) => { try { f(); } catch (e) {} }); return _dashUnits; });
+    .then(([U, st]) => ({ U, prefs: dashUnitPrefs(st && st.units) }))
+    .catch(() => null)
+    .then((next) => {
+      // A read overtaken by a newer one (the account changed while it was in flight)
+      // is dropped, never painted over the newer answer.
+      if (gen !== _dashUnitsGen) return _dashUnits;
+      _dashUnits = next;
+      _dashUnitsSubs.forEach((f) => { try { f(); } catch (e) {} });
+      return _dashUnits;
+    });
   return _dashUnitsLoad;
 }
 function useDashUnits() {

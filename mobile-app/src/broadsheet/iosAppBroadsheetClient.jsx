@@ -37414,6 +37414,13 @@ function bsProgressWeight(t, v, unit = 'lb') {
   return { n: m.unit === 'lb' ? Math.round(n) : n, unit: m.unit || unit };
 }
 
+// A recorded lift in the member's unit, at the precision it was recorded: a 100.5 lb
+// PR reads 100.5 lb, never rounded the way bodyweight is.
+function bsProgressLoad(t, v, unit) {
+  const m = t.uMeasure(v, unit);
+  return { n: Number(m.value), unit: m.unit || unit };
+}
+
 function BSClientProgress({ onBack, initialTab = 'overall' }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -37656,10 +37663,10 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
         <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, boxSizing: 'border-box', padding: '10px 0', borderTop: i ? `1px solid ${hair}` : 0 }}>
           <span style={{ minWidth: 0 }}>
             <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.8) }}>{p.lift}</span>
-            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3 }}>was {wt(p.prev, p.unit || null).n}{wt(p.prev, p.unit || null).unit}</span>
+            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, color: bsTHexA(t.INK, 0.45), marginTop: 3 }}>was {bsProgressLoad(t, p.prev, p.unit || null).n}{bsProgressLoad(t, p.prev, p.unit || null).unit}</span>
           </span>
           {leader}
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{wt(p.value, p.unit || null).n} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{wt(p.value, p.unit || null).unit}</span></span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 800, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{bsProgressLoad(t, p.value, p.unit || null).n} <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, color: t.INK50 }}>{bsProgressLoad(t, p.value, p.unit || null).unit}</span></span>
           <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: bsTHexA(t.INK, 0.7), whiteSpace: 'nowrap' }}><span aria-hidden style={{ color: heat }}>▴</span> {Number(p.deltaPct).toFixed(1)}%</span>
         </div>
       )) : <BSTRedact INK={t.INK} label="PRs · not on record" />)}

@@ -187,6 +187,64 @@ test('the loader reads the signed-in member’s setting once, and never a signed
   assert.deepEqual(asked, ['client_settings'], 'one read per page, shared by every component that asks');
   await close();
 
+  // An account change on the same page reads the setting again and re-renders every
+  // component; a token refresh for the same account does not read again.
+  let onAuth = null;
+  const settings = { 'u-1': METRIC, 'u-2': IMPERIAL };
+  let who = 'u-1';
+  const reads = [];
+  window.shapeDb = {
+    getSession: async () => ({}), getUser: async () => ({ id: who }),
+    getUserGoals: async () => { reads.push(who); return { units: settings[who] }; },
+    client: { auth: { onAuthStateChange: (cb) => { onAuth = cb; return { data: { subscription: { unsubscribe() {} } } }; } } },
+  };
+  const LA = freshLoader();
+  const seenA = [];
+  const ProbeA = () => { seenA.push(LA.useDashUnits().fmt(80, 'kg')); return null; };
+  const elA = document.createElement('div'); document.body.appendChild(elA);
+  const rootA = createRoot(elA);
+  const closeA = track(React, rootA, elA);
+  await React.act(async () => rootA.render(React.createElement(ProbeA)));
+  await React.act(async () => { await LA.dashLoadUnits(); });
+  assert.equal(seenA[seenA.length - 1], '80 kg');
+  assert.equal(typeof onAuth, 'function', 'the loader watches the session');
+  await React.act(async () => { onAuth('TOKEN_REFRESHED', { user: { id: 'u-1' } }); await LA.dashLoadUnits(); });
+  assert.deepEqual(reads, ['u-1'], 'a token refresh for the same account reads nothing');
+  who = 'u-2';
+  await React.act(async () => { onAuth('SIGNED_IN', { user: { id: 'u-2' } }); await LA.dashLoadUnits(); });
+  assert.deepEqual(reads, ['u-1', 'u-2'], 'the new account’s setting is read');
+  assert.equal(seenA[seenA.length - 1], '176 lb', 'and every component re-renders in it');
+  await closeA();
+
+  // A read overtaken by a newer account's read is dropped, not painted over it: A's
+  // setting is still on its way when B signs in, B's answer lands, then A's does.
+  let releaseA = null;
+  who = 'u-1';
+  window.shapeDb = {
+    getSession: async () => ({}), getUser: async () => ({ id: who }),
+    getUserGoals: async () => (who === 'u-1' && !releaseA
+      ? new Promise((res) => { releaseA = () => res({ units: METRIC }); })
+      : { units: settings[who] }),
+    client: { auth: { onAuthStateChange: (cb) => { onAuth = cb; return { data: { subscription: { unsubscribe() {} } } }; } } },
+  };
+  const LB2 = freshLoader();
+  const first = LB2.dashLoadUnits();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(typeof releaseA, 'function', 'A’s read is in flight');
+  who = 'u-2';
+  onAuth('SIGNED_IN', { user: { id: 'u-2' } });
+  await LB2.dashLoadUnits();
+  releaseA();
+  await first;
+  let lastB = null;
+  const ProbeB = () => { lastB = LB2.useDashUnits().fmt(80, 'kg'); return null; };
+  const elB = document.createElement('div'); document.body.appendChild(elB);
+  const rootB = createRoot(elB);
+  const closeB = track(React, rootB, elB);
+  await React.act(async () => rootB.render(React.createElement(ProbeB)));
+  assert.equal(lastB, '176 lb', 'B’s setting stands');
+  await closeB();
+
   // Signed out: nobody's settings are read, and the page shows the app default.
   asked.length = 0;
   window.shapeDb = { getSession: async () => null, getUser: async () => null, getUserGoals: async (k) => { asked.push(k); return { units: METRIC }; } };

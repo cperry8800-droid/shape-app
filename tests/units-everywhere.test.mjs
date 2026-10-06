@@ -11,6 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, THEME, SHIM, ROOT } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { bsSdUnitizeText, bsSdUnitizeStat, bsSdUnitizeLabel, bsSdMeasure } from '../mobile-app/src/services/sessionLedger.mjs';
@@ -30,7 +31,7 @@ const themeFor = (prefs) => new Proxy({}, {
 });
 let CURRENT = THEME;
 globalThis.useBS = () => CURRENT;
-const { BSClientProgress, BSTerrainProfile, bsProgressWeight } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile', 'bsProgressWeight']);
+const { BSClientProgress, BSTerrainProfile, bsProgressWeight, bsProgressLoad } = await loadBroadsheet(['BSClientProgress', 'BSTerrainProfile', 'bsProgressWeight', 'bsProgressLoad']);
 const W = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetWidgets.jsx'), {
   registry: new Map([['react', SHIM]]),
   appendExports: 'export { WWeight, WBody, WMeasurements, WPR };',
@@ -82,6 +83,13 @@ test('the Progress page reads in the member\'s units on every tab', () => {
   assert.deepEqual(bsProgressWeight(themeFor(KG), 171.4), { n: 77.7, unit: 'kg' });
   assert.deepEqual(bsProgressWeight(themeFor(KG), 80, 'kg'), { n: 80, unit: 'kg' });
   assert.deepEqual(bsProgressWeight(themeFor(KG), 12, null), { n: 12, unit: null }, 'a row with no unit is shown as it came');
+  // A PR keeps the precision it was recorded at; only bodyweight reads whole.
+  assert.deepEqual(bsProgressLoad(themeFor(LB), 100.5, 'lb'), { n: 100.5, unit: 'lb' });
+  assert.deepEqual(bsProgressLoad(themeFor(KG), 100.5, 'lb'), { n: 45.6, unit: 'kg' });
+  assert.deepEqual(bsProgressLoad(themeFor(KG), 12, null), { n: 12, unit: null });
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(src, /was \{bsProgressLoad\(t, p\.prev, p\.unit \|\| null\)\.n\}/, 'the previous best is a recorded lift');
+  assert.match(src, /\{bsProgressLoad\(t, p\.value, p\.unit \|\| null\)\.n\} <span/, 'the new best is a recorded lift');
   const training = drawn(BSClientProgress, { onBack() {}, initialTab: 'training' }, KG);
   // 9,120 lb of volume is 4,137 kg; 38,450 lb is 17,441 kg.
   assert.ok(training.includes('4.1k kg') && training.includes('17.4k kg'), `volume: ${training.filter((s) => /k (kg|lb)/.test(s))}`);
