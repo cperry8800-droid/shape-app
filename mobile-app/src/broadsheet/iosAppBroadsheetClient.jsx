@@ -36484,7 +36484,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 80 }}>
           {/* ⚠ SAME AS THE LIVE OVERLAY: this appended `· ${r.LIVE.bpm} BPM`,
               which is a reading, on a preview where nothing is even playing. */}
-          <RadioEffects mode={fxPreview} label={tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} tint={bsFxTint(r.fxColor, t)} isLight={!!t.isLight} floor={0} />
+          <RadioEffects mode={fxPreview} label={tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} tint={bsFxTint(r.fxColor, t)} isLight={!!t.isLight} floor={0} preview />
         </div>
       ), document.getElementById('bs-phone-surface') || document.body)}
 
