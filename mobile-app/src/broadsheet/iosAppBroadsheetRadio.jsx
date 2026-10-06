@@ -1091,9 +1091,11 @@ function BSNowPlaying({ onOpen }) {
           {/* ⚠ A MARK, NOT A READING. This was `<BSBeatRing bpm={r.LIVE.bpm}>` — a
               ring pulsing at a typed-in 132 with "132" printed inside it, which is
               a claim about the station's tempo. The tempo is measured on the Radio
-              page, off the analyser, and nothing on Home reads that analyser: the
+              page, off the analyser, and this card reads nothing from it: the
               detector runs inside the Signal Field, and hoisting a 60Hz read onto
-              a Home card to feed one number is the wrong trade. So Home shows the
+              a Home card to feed one number is the wrong trade. (The light
+              effects overlay reads it for its lights when the member turns them
+              on, and quotes no tempo either.) So Home shows the
               mark and says nothing it has not measured. The blinking dot in the
               eyebrow above already carries "this is on air". */}
           <div aria-hidden style={{

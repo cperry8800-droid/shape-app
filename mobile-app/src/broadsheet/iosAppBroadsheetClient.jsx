@@ -402,9 +402,10 @@ function BSRadioFx({ floor = 0 }) {
   // ⚠ THE ISLAND CHIP NAMES THE STATION AND NOTHING ELSE. It read
   // `… · ${r.LIVE.bpm} BPM` off a typed-in 132 — a tempo nobody measured,
   // floated over the member's screen in the one place they cannot miss it. The
-  // measured tempo lives on the Radio page, off the analyser; this overlay has
-  // no analyser and no business quoting one. What is left is the station's own
-  // name, which is a fact about us. (Codex, P2 on #2076.)
+  // measured tempo lives on the Radio page, off the analyser. This overlay reads
+  // the analyser only to move its lights (kicks and drops, never a tempo), so it
+  // still has no business quoting one. What is left is the station's own name,
+  // which is a fact about us. (Codex, P2 on #2076.)
   const label = r.LIVE.show.toUpperCase();
   // live: this overlay only renders while the radio plays, so the lights read
   // the station's own audio (and breathe when the stream cannot be read). The
