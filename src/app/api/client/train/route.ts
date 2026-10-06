@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { DAY_MS, startOfWeek } from '@/lib/time';
 import { requireMembership } from '@/lib/require-membership';
+import { setLoadLb, setLoadUnit } from '@/lib/set-load';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
 
   const { data: setRows } = await supabase
     .from('workout_set_logs')
-    .select('actual_load, actual_reps, rpe, completed, created_at, payload')
+    .select('actual_load, actual_reps, rpe, completed, created_at, payload, load_unit')
     .eq('client_id', user.id)
     .limit(5000);
 
@@ -88,7 +89,8 @@ export async function GET(request: Request) {
     const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load);
     const reps = colReps > 0 ? colReps : pnum(p.actualReps ?? p.reps);
     if (Number.isFinite(load) && load > 0 && Number.isFinite(reps) && reps > 0) {
-      const vol = load * reps;
+      // Pounds, whatever the set was logged in (`@/lib/set-load`).
+      const vol = setLoadLb(load, r.load_unit) * reps;
       totalVolume += vol;
       if (now - new Date(r.created_at).getTime() <= 7 * DAY_MS) volume7d += vol;
     }
@@ -106,7 +108,7 @@ export async function GET(request: Request) {
   const { data: recentSetRows } = recentIds.length
     ? await supabase
         .from('workout_set_logs')
-        .select('session_id, move_index, move_name, set_number, target_reps, target_load, actual_reps, actual_load, completed')
+        .select('session_id, move_index, move_name, set_number, target_reps, target_load, actual_reps, actual_load, load_unit, completed')
         .in('session_id', recentIds)
         .order('move_index', { ascending: true })
         .order('set_number', { ascending: true })
@@ -133,10 +135,13 @@ export async function GET(request: Request) {
     agg.setsPrescribed += 1;
     if (r.completed !== false && (r.actual_reps != null || r.actual_load != null)) {
       agg.setsLogged += 1;
+      // Compared in pounds, so a session that mixes units still names its heaviest set;
+      // the best is written with the unit it was logged in, and the page converts it.
       const load = Number(r.actual_load);
-      if (Number.isFinite(load) && load >= agg.bestLoad) {
-        agg.bestLoad = load;
-        agg.best = [r.actual_load, r.actual_reps != null ? '× ' + r.actual_reps : null].filter(Boolean).join(' ');
+      const loadLb = setLoadLb(load, r.load_unit);
+      if (Number.isFinite(loadLb) && loadLb >= agg.bestLoad) {
+        agg.bestLoad = loadLb;
+        agg.best = [r.actual_load != null ? `${r.actual_load} ${setLoadUnit(r.load_unit)}` : null, r.actual_reps != null ? '× ' + r.actual_reps : null].filter(Boolean).join(' ');
       }
     }
   }
