@@ -847,6 +847,33 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-06 — The profile's strength ridge, its feed's PR and workout lines, and the goal page's 7d volume follow Settings → Units
+
+- **Merged [#2217](https://github.com/cperry8800-droid/shape-app/pull/2217) as `27a5772`**, final head `b7f9f96`; the merged tree is byte-identical to it (tree `284636f` on both). 3 files: `iosAppBroadsheetClient.jsx`, `tests/units-loaded-figures.test.mjs` and its mutation spec. **No migration, no route, no i18n key.** #2215 registered the first two; the owner said *"yes fix both. dont need code review"*, then *"yes fix the workout posts too"*. The PR line turned up while doing them.
+- **What was wrong.** Four figures still read in the unit they arrived in:
+  - the profile's **strength ridge** (Climb → Strength) printed the top PR as `${best} ${unit}` as stored. Since #2215 a PR keeps its set's own unit, so a 102.5 kg record read "103 kg" to an imperial member;
+  - a **PR item on the member's own profile feed** carried "Best: 100 kg × 3" beside a stat the card does convert;
+  - a **logged workout** there read "5.2 km · 30 min" under a "5.2K" stat label. The card converts a stat's value, never its label, and never the body;
+  - the **goal page's "7d volume"** printed `/api/client/train`'s pounds as a bare "9k" whatever the setting.
+- **The fixes**, all in `BSTerrainProfile` and `BSClientGoals`:
+  - the ridge converts through `tTheme.uMeasure`: the same record reads "226 lb × 5" with a 249 lb target. The ridge reads whole numbers, as it always did;
+  - every code-built feed line goes through `tTheme.uText` ("Best: 220 lb × 3", "3.2 mi · 30 min · 300 kcal"), the same rule as the card's stats. Minutes and kcal are untouched. These lines are built by code; the member's own words are never rewritten;
+  - the workout effect hands the raw kilometres out with the item (`distKm`), and `bsProfileDistLabel` writes the label: "5.2K" for kilometres, as it always read, and "3.2 mi" for miles;
+  - the volume row carries its raw pounds out of the effect, and `bsGoalVolume` renders "9.1k lb" / "4.1k kg", the Progress page's form. No volume still reads "—". ⚠ **An imperial member's figure changes too**, from "9k" to "9.1k lb".
+- ⚠ **EVERYTHING CONVERTS AT RENDER, NOT IN THE EFFECT.** These pages load once per mount, so a conversion inside the effect would hold the old unit after a Settings flip until a remount. A mutation that moves the volume's conversion into the effect is killed by the flip test.
+- **Review: none, on the owner's word.** Codex declined on its usage limit when the PR opened; CodeRabbit posted only its skip notice.
+- **Verified:**
+  - New `tests/units-loaded-figures.test.mjs` (5 tests) mounts the shipped components with effects running (the `weekly-readout-surface` pattern), so the fetch → state → render path is production's. The flip tests freeze the fetch, then switch the setting and re-render; each figure changes unit with no refetch.
+  - ⚠ **An "answer only the first call" stub starved the page.** The profile calls the same endpoint from more than one effect, so the first draft's ridge read *No lifts yet*. The stub answers every call until the test freezes it.
+  - The first 4 tests fail on `main`; the workout test fails on the previous head `e6b8cdf`. All 5 pass on `b7f9f96`.
+  - Mutations (`tests/mutations/units-loaded-figures-2026-10-06.mutations.mjs`, `--fail-on-skipped --fail-on-survivor`): **9/9** on `e6b8cdf`, then **14/14** on `b7f9f96`, nothing skipped, restored byte-identical.
+  - 203/203 across the neighbouring suites (the i18n inventory and the feed-card tests included), and the mobile build is clean. Each commit skipped the pre-commit gate under the small-commit rule.
+  - All required checks green on `b7f9f96`, and the debug APK build too.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - ⚠ **NO SIGNED-IN PASS.** No metric member's profile or goal page has been looked at in the app, on a phone or in a browser.
+  - Production holds no `workout_set_logs` rows yet, so the ridge and the PR lines have no real record to show.
+
 ### 2026-10-06 — The server adds loads in pounds whatever unit each set was logged in, and a PR keeps its own unit
 
 - **Merged [#2215](https://github.com/cperry8800-droid/shape-app/pull/2215) as `3944948`**, final head `b1f082d`; the merged tree is byte-identical to it (tree `272efa2` on both). 5 files. **No migration, no i18n key.** The owner picked it from my list of next items (*"do 1, then 4, then 2"*). It was the last place the units work could still mix measuring systems, registered out of scope by #2213.
@@ -872,8 +899,8 @@ Append new entries at the top, under this note.
 - **Written after the merge**, per the 2026-09-11 rule.
 - ⚠ **REGISTERED, NOT DONE:**
   - Production holds no `workout_set_logs` rows yet, so no member has seen either figure change.
-  - The profile's strength ridge prints the top PR as `${best} ${unit}` without converting it, so a record in the other unit reads in that unit there.
-  - The app's goal page shows `7d volume` as an unlabelled `Nk` of pounds, whatever the setting.
+  - The profile's strength ridge prints the top PR as `${best} ${unit}` without converting it, so a record in the other unit reads in that unit there. #2217, above, fixed it.
+  - The app's goal page shows `7d volume` as an unlabelled `Nk` of pounds, whatever the setting. #2217, above, fixed it.
 
 ### 2026-10-06 — Units everywhere: the app's Progress page and Home widgets, and every website dashboard, follow Settings → Units
 
