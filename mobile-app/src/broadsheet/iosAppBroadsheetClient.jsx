@@ -381,13 +381,18 @@ window.BSMastCorner = BSMeCorner;
 // accent on the CURRENT paper; a hex is itself.
 function bsFxTint(fxColor, t) {
   if (!fxColor || fxColor === 'cycle') return null;
-  if (fxColor === 'accent') return t.ACCENT;
+  // The accent is a #rrggbb on every shipped paper, but a theme that ever
+  // hands back another form must not reach the overlay's colour maths: an
+  // unreadable accent falls back to the drifting palette, like any bad pick.
+  if (fxColor === 'accent') return /^#[0-9a-fA-F]{6}$/.test(t.ACCENT || '') ? t.ACCENT : null;
   return /^#[0-9a-fA-F]{6}$/.test(fxColor) ? fxColor : null;
 }
 
 // Renders the music-reactive overlay (edge glow / bloom / hologram DJ)
 // only while radio is on, not paused, and fxMode != 'off'.
-function BSRadioFx() {
+// floor = the CSS px the tab bar takes at the bottom of this screen (0 where
+// there is none): the hologram's booth stands on it instead of under it.
+function BSRadioFx({ floor = 0 }) {
   const r = useBSRadio();
   const t = useBS();
   if (bsSdReduced()) return null; // the OS reduced-motion signal outranks the fx opt-in
@@ -401,7 +406,7 @@ function BSRadioFx() {
   // no analyser and no business quoting one. What is left is the station's own
   // name, which is a fact about us. (Codex, P2 on #2076.)
   const label = r.LIVE.show.toUpperCase();
-  return <RadioEffects mode={r.fxMode} label={label} tint={bsFxTint(r.fxColor, t)} />;
+  return <RadioEffects mode={r.fxMode} label={label} tint={bsFxTint(r.fxColor, t)} isLight={!!t.isLight} floor={floor} />;
 }
 
 // Inner wrapper so BSClientApp can access useBSSheet
@@ -1060,7 +1065,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       <div key={tab} className={navSlideCls} style={{ position: 'absolute', inset: 0 }}>
         {screens[tab]}
       </div>
-      <BSRadioFx />
+      <BSRadioFx floor={window.BS_TABBAR_H || 64} />
       {/* Pinned message composers (chat feed + DM threads) portal into this
           slot so they're positioned against the phone-frame container — not
           the browser viewport. A viewport-fixed composer overhangs the frame
@@ -36479,7 +36484,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 80 }}>
           {/* ⚠ SAME AS THE LIVE OVERLAY: this appended `· ${r.LIVE.bpm} BPM`,
               which is a reading, on a preview where nothing is even playing. */}
-          <RadioEffects mode={fxPreview} label={tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} tint={bsFxTint(r.fxColor, t)} />
+          <RadioEffects mode={fxPreview} label={tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} tint={bsFxTint(r.fxColor, t)} isLight={!!t.isLight} floor={0} preview />
         </div>
       ), document.getElementById('bs-phone-surface') || document.body)}
 
