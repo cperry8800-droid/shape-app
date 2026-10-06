@@ -20078,7 +20078,7 @@ function bsSdHeatColor(intensity, fallback) {
 // viewBox), an optional MAX flag marks the peak, and touch-scrubbing anywhere
 // shows a scan line + mono readout. HR mode (zoneGrad) colors the line by
 // intensity — cool blue at the session's floor up to red at its ceiling.
-function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, muted, distanceMi = null, zoneGrad = false, markMax = false, unit = '' }) {
+function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, muted, distance = null, distUnit = 'mi', zoneGrad = false, markMax = false, unit = '' }) {
   const [ref, seen] = useBSSdInView();
   const [scrub, setScrub] = useStateBSC(null); // { frac, i }
   // Gradient ids must be unique PER MOUNT — the same chart can render twice
@@ -20091,9 +20091,9 @@ function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, m
   const gid = `sd-${idKey}-${sdUid}`;
   const fmtv = fmt || ((v) => `${Math.round(v)}`);
   const yTicks = [{ y: top, v: invert ? lo : hi }, { y: (top + bot) / 2, v: (lo + hi) / 2 }, { y: bot, v: invert ? hi : lo }];
-  const step = distanceMi && distanceMi > 0 ? Math.max(1, Math.round(distanceMi / 5)) : 0;
+  const step = distance && distance > 0 ? Math.max(1, Math.round(distance / 5)) : 0;
   const xTicks = [];
-  if (step) for (let m = step; m < distanceMi - 0.15; m += step) xTicks.push(m);
+  if (step) for (let m = step; m < distance - 0.15; m += step) xTicks.push(m);
   const reduced = bsSdReduced();
   // Peak marker (max value; for inverted charts the "peak" is the FASTEST = min).
   const peakVal = invert ? lo : hi;
@@ -20124,7 +20124,7 @@ function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, m
             )}
           </defs>
           {yTicks.map((tk, i) => <line key={i} x1="0" y1={tk.y} x2={W} y2={tk.y} stroke={bsTHexA(t.INK, 0.08)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />)}
-          {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke={bsTHexA(t.INK, 0.06)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
+          {xTicks.map((m, i) => { const xp = (m / distance) * 100; return <line key={i} x1={xp} y1="0" x2={xp} y2="100" stroke={bsTHexA(t.INK, 0.06)} strokeWidth="0.5" vectorEffect="non-scaling-stroke" />; })}
           <path d={`${line} L${W} 100 L0 100 Z`} fill={`url(#${gid}-a)`} style={{ opacity: seen ? 1 : 0, transition: 'opacity 700ms ease 650ms' }} />
           <path d={line} fill="none" stroke={zoneGrad ? `url(#${gid}-z)` : color} strokeWidth={zoneGrad ? 1.4 : 1} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round"
             pathLength={1} strokeDasharray={reduced ? 'none' : 1} strokeDashoffset={reduced ? 0 : (seen ? 0 : 1)} style={{ transition: 'stroke-dashoffset 1100ms cubic-bezier(.4,0,.2,1) 120ms' }} />
@@ -20139,13 +20139,13 @@ function BSSdTrace({ vals, color, invert = false, fmt, idKey, height = 104, t, m
         )}
         {scrub && (
           <span style={{ position: 'absolute', top: -4, left: `min(max(${scrub.frac * 100}% - 30px, 0px), calc(100% - 74px))`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.04em', color: t.PAPER, background: bsTHexA(t.INK, 0.9), padding: '3px 7px', borderRadius: 4, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' }}>
-            {fmtv(vals[scrub.i])}{unit ? ` ${unit}` : ''}{distanceMi ? ` · ${(scrub.frac * distanceMi).toFixed(1)} mi` : ''}
+            {fmtv(vals[scrub.i])}{unit ? ` ${unit}` : ''}{distance ? ` · ${(scrub.frac * distance).toFixed(1)} ${distUnit}` : ''}
           </span>
         )}
       </div>
       {xTicks.length > 0 && (
         <div style={{ position: 'relative', height: 13, marginTop: 4 }}>
-          {xTicks.map((m, i) => { const xp = (m / distanceMi) * 100; return <span key={i} style={{ position: 'absolute', left: `${xp}%`, top: 0, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: muted }}>{m} mi</span>; })}
+          {xTicks.map((m, i) => { const xp = (m / distance) * 100; return <span key={i} style={{ position: 'absolute', left: `${xp}%`, top: 0, transform: 'translateX(-50%)', fontFamily: t.MONO, fontSize: 7, fontWeight: 700, color: muted }}>{m} {distUnit}</span>; })}
         </div>
       )}
     </div>
@@ -20864,11 +20864,16 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
   // calories, stride, … — reads up top.
   const isChartedScalar = (k) => (hasCadGraph && cadRe.test(k)) || (hasElevGraph && elevRe.test(k));
   const summaryStats = allStats.filter((s) => s !== bestPaceStat && !isChartedScalar(s[0]));
-  // Total distance (for the x-axis mile markers) — only when the distance stat
-  // is in miles (runs/rides); swims/others report metres, so skip the markers.
+  // Total distance, in the unit the page SHOWS it (miles or kilometres, per the
+  // reader's setting), for the x-axis markers and the per-unit splits. Swims and
+  // others report metres or yards, so they get no markers.
+  // ⚠ IT READ MILES ONLY. Once the figure followed the reader's units (#2205), a
+  // metric member's "13.5 km" read as no distance at all: the markers vanished and
+  // the splits fell back to eight equal pieces still labelled "Mile 1"–"Mile 8".
   const distStat = (d.heroStat && /dist/i.test(d.heroStat[0])) ? d.heroStat : allStats.find(([k]) => /dist/i.test(k));
-  const distRaw = distStat ? String(distStat[1]) : '';
-  const distanceMi = /mi/i.test(distRaw) ? (parseFloat(distRaw.replace(/[^\d.]/g, '')) || null) : null;
+  const distM = String(distStat ? distStat[1] : '').match(/(\d[\d,]*(?:\.\d+)?)\s*(mi|km)\b/i);
+  const distUnit = distM ? distM[2].toLowerCase() : null;
+  const distance = distM ? (parseFloat(distM[1].replace(/,/g, '')) || null) : null;
   const fmtPaceSec = (s) => { const m = Math.floor(s / 60), ss = Math.round(s % 60); return `${m}:${String(ss).padStart(2, '0')}`; };
   // GRAPH-TYPE RULE (by activity) — the primary velocity chart is Pace for foot
   // sports (M:SS, faster reads higher), Speed for rides (mph, higher reads
@@ -20903,7 +20908,8 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         : null,
     paceTrace: Array.isArray(d.paceTrace) ? d.paceTrace : null,
     hrTrace: d.trace, cadenceTrace: d.cadenceTrace, elevTrace: d.elevTrace,
-    distanceMi, sport,
+    // One split per mile or per kilometre, whichever the reader reads in.
+    unit: distUnit || ((t.unitPrefs && t.unitPrefs.distance === 'km') ? 'km' : 'mi'), distance, sport,
   });
   // ⚠ EVERY SPLIT IN THE READER'S UNITS. A provider's splits are stored as
   // written ('8:42/mi', '+12 ft') and the trace-derived ones are labelled in the
@@ -21125,7 +21131,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && Array.isArray(d.powerTrace) && d.powerTrace.length > 1 && (
           <>
             {secHead(tr('session:chart.power', { defaultValue: 'Power' }))}
-            <BSSdTrace vals={d.powerTrace} color="#d8b25a" fmt={(v) => `${Math.round(v)}`} idKey="pwr" height={96} t={t} muted={muted} distanceMi={distanceMi} unit="w" />
+            <BSSdTrace vals={d.powerTrace} color="#d8b25a" fmt={(v) => `${Math.round(v)}`} idKey="pwr" height={96} t={t} muted={muted} distance={distance} distUnit={distUnit} unit="w" />
           </>
         )}
         {/* HEART RATE — a bpm-over-distance area chart (y-axis bpm + x-axis miles),
@@ -21133,7 +21139,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && ((Array.isArray(d.trace) && d.trace.length > 1) || (Array.isArray(d.zones) && d.zones.length > 0)) && (
           <>
             {secHead(tr('session:chart.heartRate', { defaultValue: 'Heart rate' }))}
-            {Array.isArray(d.trace) && d.trace.length > 1 && <BSSdTrace vals={d.trace} color={neu} fmt={(v) => `${Math.round(v)}`} idKey="hr" height={116} t={t} muted={muted} distanceMi={distanceMi} zoneGrad markMax unit="bpm" />}
+            {Array.isArray(d.trace) && d.trace.length > 1 && <BSSdTrace vals={d.trace} color={neu} fmt={(v) => `${Math.round(v)}`} idKey="hr" height={116} t={t} muted={muted} distance={distance} distUnit={distUnit} zoneGrad markMax unit="bpm" />}
             {Array.isArray(d.zones) && d.zones.length > 0 && <BSSdZoneCells zones={d.zones} t={t} muted={muted} />}
           </>
         )}
@@ -21174,16 +21180,19 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             trace by mile (segment buckets when distance is unknown/marathon+). */}
         {!isComments && hasCadGraph && (() => {
           const cadTrace = d.cadenceTrace;
-          const miles = distanceMi ? Math.round(distanceMi) : 0;
-          const perMile = miles >= 2 && miles <= 15;
-          const nb = Math.max(2, Math.min(perMile ? miles : 6, cadTrace.length));
+          const units = distance ? Math.round(distance) : 0;
+          const perUnit = units >= 2 && units <= 15;
+          const nb = Math.max(2, Math.min(perUnit ? units : 6, cadTrace.length));
           const buckets = Array.from({ length: nb }, (_, b) => {
             const s = Math.floor((b * cadTrace.length) / nb), e = Math.max(s + 1, Math.floor(((b + 1) * cadTrace.length) / nb));
             const seg = cadTrace.slice(s, e);
             return seg.reduce((a, v) => a + v, 0) / seg.length;
           });
           const cadUnit = (cadStat && bsSdSplitUnit(cadStat[1]).unit) || 'spm';
-          const cRows = buckets.map((v, b) => [perMile ? tr('session:chart.mileLabel', { defaultValue: 'Mi {n}', n: b + 1 }) : tr('session:chart.segLabel', { defaultValue: 'Seg {n}', n: b + 1 }), `${Math.round(v)} ${cadUnit}`, '']);
+          const unitLabel = (n) => (distUnit === 'km'
+            ? tr('session:chart.kmLabel', { defaultValue: 'Km {n}', n })
+            : tr('session:chart.mileLabel', { defaultValue: 'Mi {n}', n }));
+          const cRows = buckets.map((v, b) => [perUnit ? unitLabel(b + 1) : tr('session:chart.segLabel', { defaultValue: 'Seg {n}', n: b + 1 }), `${Math.round(v)} ${cadUnit}`, '']);
           // Cadence clusters tightly (e.g. 168–186), so bars spread on the
           // min→max range — raw v/max would render every bar near-identical.
           const mn = Math.min(...buckets), spread = Math.max(Math.max(...buckets) - mn, 1);
@@ -21201,7 +21210,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         {!isComments && hasElevGraph && (
           <>
             {secHead(tr('session:chart.elevation', { defaultValue: 'Elevation' }), elevStat ? headChip(tr('session:chart.gainValue', { defaultValue: '+{value} gain', value: elevStat[1] })) : null)}
-            <BSSdTrace vals={elevIn.trace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distanceMi={distanceMi} unit={elevIn.unit} />
+            <BSSdTrace vals={elevIn.trace} color="#8a93a0" fmt={(v) => `${Math.round(v)}`} idKey="elev" height={96} t={t} muted={muted} distance={distance} distUnit={distUnit} unit={elevIn.unit} />
           </>
         )}
         {/* COMMENTS PAGE — reactions summary (likes open their own sheet) + the

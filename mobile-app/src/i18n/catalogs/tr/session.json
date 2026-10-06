@@ -12,6 +12,7 @@
   "chart.gpsNotRecordedAria": "GPS kaydedilmedi",
   "chart.heartRate": "Kalp atış hızı",
   "chart.mileLabel": "Mi {n}",
+  "chart.kmLabel": "Km {n}",
   "chart.pace": "Tempo",
   "chart.power": "Güç",
   "chart.routeGps": "Rota · GPS",

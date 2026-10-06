@@ -12,6 +12,7 @@
   "chart.gpsNotRecordedAria": "GPS не записано",
   "chart.heartRate": "Пульс",
   "chart.mileLabel": "Mi {n}",
+  "chart.kmLabel": "Km {n}",
   "chart.pace": "Темп",
   "chart.power": "Потужність",
   "chart.routeGps": "Маршрут · GPS",

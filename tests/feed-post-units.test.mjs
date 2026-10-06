@@ -21,7 +21,7 @@ import { bsPaceSplits } from '../mobile-app/src/services/paceSplits.mjs';
 // installed before the load lets the session page render under either setting.
 let CURRENT = THEME;
 globalThis.useBS = () => CURRENT;
-const { BSActivityCard, BSActivityDetail, COMMUNITY_ACTIVITIES, bsActivityFromPost } = await loadBroadsheet(['BSActivityCard', 'BSActivityDetail', 'COMMUNITY_ACTIVITIES', 'bsActivityFromPost']);
+const { BSActivityCard, BSActivityDetail, BSSdTrace, COMMUNITY_ACTIVITIES, bsActivityFromPost } = await loadBroadsheet(['BSActivityCard', 'BSActivityDetail', 'BSSdTrace', 'COMMUNITY_ACTIVITIES', 'bsActivityFromPost']);
 
 const KG = { weight: 'kg', distance: 'km', length: 'cm' };
 const LB = { weight: 'lb', distance: 'mi', length: 'in' };
@@ -151,7 +151,19 @@ test('a ride\'s splits in km/h still rank the fastest split fastest', () => {
 // ── the session page a card opens ───────────────────────────────────────────
 // Opened the way a tap opens it: the card's own hero handler builds the page's
 // data, so the conversions under test are the ones the app actually runs.
-const pageEntries = (a, prefs) => {
+const pageEntries = (a, prefs) => openPage(a, prefs, (nodes) => {
+  // ⚠ THIS HARNESS DOES NOT RENDER NESTED COMPONENTS, so the tiles, the split
+  // table, the bars and the charts never appear as text — a first version of
+  // the page sweep saw only the page's own headings. What they WOULD draw is
+  // in their props, so those strings are read too.
+  const fromProps = [];
+  for (const n of nodes) {
+    if (typeof n.type !== 'function' || !FIGURE_PROPS[n.type.name]) continue;
+    for (const k of FIGURE_PROPS[n.type.name]) strings(n.props[k], fromProps);
+  }
+  return [...leaves(nodes[0]), ...fromProps];
+});
+const openPage = (a, prefs, read) => {
   let captured = null;
   const ctx = { ...ctxFor(prefs), setActivityDetail: (d) => { captured = d; } };
   const card = drive(BSActivityCard, { a, ctx, isLast: true, pagePad: 0, variant: 'feed' });
@@ -165,16 +177,7 @@ const pageEntries = (a, prefs) => {
       d: captured, liked: false, count: 0, myExpr: null, comments: [], feedAvatars: {},
       onClose() {}, onReact() {}, onProfile() {}, onOpenLikers() {}, draft: '', setDraft() {}, onSend() {},
     }).nodes();
-    // ⚠ THIS HARNESS DOES NOT RENDER NESTED COMPONENTS, so the tiles, the split
-    // table, the bars and the charts never appear as text — a first version of
-    // the page sweep saw only the page's own headings. What they WOULD draw is
-    // in their props, so those strings are read too.
-    const fromProps = [];
-    for (const n of nodes) {
-      if (typeof n.type !== 'function' || !FIGURE_PROPS[n.type.name]) continue;
-      for (const k of FIGURE_PROPS[n.type.name]) strings(n.props[k], fromProps);
-    }
-    return [...leaves(nodes[0]), ...fromProps];
+    return read(nodes);
   } finally { CURRENT = THEME; }
 };
 
@@ -256,4 +259,65 @@ test('a real PR\'s gain reads in the member\'s units, in the pill and on the car
   assert.match(wall, /\+4\.5 kg/, `the gain stayed in pounds: ${wall.slice(0, 200)}`);
   assert.doesNotMatch(wall, /\d\s*lb\b/, 'a pound figure survived on a metric card');
   assert.match(render(a, LB, 'feed'), /\+10 lb/, 'an imperial reader keeps pounds');
+});
+
+// ── splits are cut in the reader's unit ─────────────────────────────────────
+// ⚠ THE PAGE READ ITS DISTANCE IN MILES ONLY. Once the figure followed the
+// reader's units (#2205), a metric member's "29.3 km" read as no distance at all:
+// the chart markers vanished and the splits fell back to eight equal pieces of an
+// 18.2-mile run, each still labelled "Mile N", over paces per km.
+const runs = () => COMMUNITY_ACTIVITIES.filter((a) => a.kind === 'run' && Array.isArray(a.paceTrace));
+const splitsOf = (nodes) => {
+  const bars = nodes.find((n) => n.type && n.type.name === 'BSSdPaceBars');
+  return bars ? bars.props.data.splits : [];
+};
+const tracesOf = (nodes) => nodes.filter((n) => n.type && n.type.name === 'BSSdTrace').map((n) => n.props);
+
+test('a run\'s splits are per kilometre for a metric reader and per mile for an imperial one', () => {
+  assert.ok(runs().length >= 3, `only ${runs().length} demo runs carry a pace trace`);
+  for (const a of runs()) {
+    const miles = parseFloat(a.distance);
+    const km = openPage(a, KG, splitsOf);
+    assert.equal(km.length, Math.round(Math.round(miles * 1.609344 * 10) / 10), `${a.who}: ${km.length} splits for ${a.distance}`);
+    assert.deepEqual(km.map((x) => x.label), km.map((_, i) => `Km ${i + 1}`), `${a.who}: a metric reader's splits are not per km`);
+    assert.ok(km.every((x) => /\/km$/.test(x.paceLabel)), `${a.who}: a split pace is not per km: ${km.map((x) => x.paceLabel)}`);
+    const mi = openPage(a, LB, splitsOf);
+    assert.ok(mi.length > 0 && mi.every((x) => /^Mile \d+$|^Last /.test(x.label)), `${a.who}: an imperial reader's splits are not per mile`);
+    assert.ok(mi.every((x) => /\/mi$/.test(x.paceLabel)), `${a.who}: an imperial split pace is not per mile`);
+  }
+});
+
+test('the charts mark the distance in the reader\'s unit', () => {
+  for (const a of runs()) {
+    const miles = parseFloat(a.distance);
+    const km = openPage(a, KG, tracesOf);
+    assert.ok(km.length > 0, `${a.who}: no distance chart`);
+    for (const p of km) {
+      assert.equal(p.distUnit, 'km', `${a.who}: a metric chart is marked in ${p.distUnit}`);
+      assert.ok(Math.abs(p.distance - miles * 1.609344) < 0.06, `${a.who}: ${p.distance} km for ${a.distance}`);
+    }
+    for (const p of openPage(a, LB, tracesOf)) {
+      assert.equal(p.distUnit, 'mi');
+      assert.equal(p.distance, miles);
+    }
+  }
+});
+
+test('the cadence bars are per kilometre for a metric reader', () => {
+  const quinn = runs().find((a) => a.who === 'Quinn Harper');
+  const bars = (prefs) => openPage(quinn, prefs, (nodes) => nodes.filter((n) => n.type && n.type.name === 'BSSdBars').map((n) => n.props.rows.map((r) => r[0])));
+  // (This harness's translator returns the template, so the label reads "Km {n}".)
+  assert.ok(bars(KG).some((labels) => labels.length === 5 && labels.every((l) => /^Km\b/.test(l))), `metric cadence bars: ${JSON.stringify(bars(KG))}`);
+  assert.ok(bars(LB).some((labels) => labels.length === 3 && labels.every((l) => /^Mi\b/.test(l))), `imperial cadence bars: ${JSON.stringify(bars(LB))}`);
+});
+
+test('a chart names its distance markers, and the point under a finger, in its own unit', () => {
+  const vals = Array.from({ length: 20 }, (_, i) => 150 + (i % 7));
+  for (const unit of ['km', 'mi']) {
+    const chart = drive(BSSdTrace, { vals, color: '#000', fmt: (v) => String(Math.round(v)), idKey: 'u', t: THEME, muted: '#888', distance: 10, distUnit: unit, unit: 'bpm' });
+    assert.ok(chart.text.includes(`2 ${unit}`) && chart.text.includes(`8 ${unit}`), `the markers are not in ${unit}: ${chart.text}`);
+    const pad = chart.nodes().find((n) => n.props && typeof n.props.onPointerDown === 'function');
+    pad.props.onPointerDown({ currentTarget: { getBoundingClientRect: () => ({ left: 0, width: 100 }) }, clientX: 50 });
+    assert.ok(chart.render().text.includes(`· 5.0 ${unit}`), `the scrubbed point is not in ${unit}: ${chart.text}`);
+  }
 });
