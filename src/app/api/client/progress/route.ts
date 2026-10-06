@@ -8,7 +8,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { epleyE1rm } from '@/lib/e1rm';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { requireMembership } from '@/lib/require-membership';
-import { setLoadLb } from '@/lib/set-load';
+import { setLoadLb, setLoadUnit } from '@/lib/set-load';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -203,17 +203,19 @@ export async function GET(request: Request) {
     bestAt: string;
     e1rm: number | null;
   };
-  const prMap = new Map<string, PR>();
+  const prMap = new Map<string, PR & { lb: number }>();
   for (const r of setRows ?? []) {
     if (r.completed === false) continue;
     const p = (r.payload ?? {}) as Record<string, unknown>;
     // A null OR zero column means "not set" → fall back to the payload.
     const colLoad = Number(r.actual_load);
-    const typed = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
-    if (!Number.isFinite(typed) || typed <= 0) continue;
-    // Pounds before any comparison, as get_my_lift_prs does: 100 kg must beat 200 lb's
-    // loser, not lose to it. The PR is reported in pounds and the page converts it.
-    const load = Math.round(setLoadLb(typed, r.load_unit) * 10) / 10;
+    const load = colLoad > 0 ? colLoad : pnum(p.actualLoad ?? p.load ?? p.actual_load);
+    if (!Number.isFinite(load) || load <= 0) continue;
+    // Ranked in pounds, as get_my_lift_prs ranks: 100 kg must beat 200 lb, not lose to
+    // it. The PR keeps its set's own load and unit, as that RPC returns it, and each
+    // page converts from that unit. Reporting pounds instead would round-trip a
+    // kilogram record (102.5 kg → 226.0 lb → "103 kg" for a metric reader).
+    const lb = setLoadLb(load, r.load_unit);
     const colReps = Number(r.actual_reps);
     const repsN = colReps > 0 ? colReps : pnum(p.actualReps ?? p.reps ?? p.actual_reps);
     const reps = Number.isFinite(repsN) ? Math.round(repsN) : null;
@@ -225,23 +227,26 @@ export async function GET(request: Request) {
         move: key,
         best: load,
         bestReps: reps,
-        unit: 'lb',
+        unit: setLoadUnit(r.load_unit),
         bestAt: r.created_at,
         e1rm: null,
+        lb,
       });
-    } else if (load > pr.best) {
+    } else if (lb > pr.lb) {
       pr.best = load;
+      pr.unit = setLoadUnit(r.load_unit);
+      pr.lb = lb;
       pr.bestReps = reps;
       pr.bestAt = r.created_at;
     }
   }
 
   let prs = [...prMap.values()]
-    .sort((a, b) => b.best - a.best)
+    .sort((a, b) => b.lb - a.lb)
     .slice(0, 6)
     .map((p) => {
       const e = epleyE1rm(p.best, p.bestReps);
-      return { ...p, e1rm: e == null ? null : Math.round(e * 10) / 10 };
+      return { move: p.move, best: p.best, bestReps: p.bestReps, unit: p.unit, bestAt: p.bestAt, e1rm: e == null ? null : Math.round(e * 10) / 10 };
     });
 
   // Prefer all-time PRs from the aggregate RPC — it scans EVERY logged set, so a

@@ -115,15 +115,39 @@ test('a session\'s best set is the heaviest in pounds, and names its own unit', 
   assert.equal(bench.best, '100 kg × 3', '100 kg (220.5 lb) is the heavier set, and it says kilograms');
 });
 
-test('the progress route\'s strength series and windowed PRs are pounds', async () => {
+test('the progress route ranks PRs in pounds and keeps the winning set\'s own load and unit', async () => {
+  const sets = [
+    { move_name: 'Squat', actual_load: 200, actual_reps: 5, load_unit: 'lb', payload: {}, created_at: ago(3), completed: true },
+    { move_name: 'Squat', actual_load: 102.5, actual_reps: 5, load_unit: 'kg', payload: {}, created_at: ago(2), completed: true },
+    { move_name: 'Bench', actual_load: 80, actual_reps: 3, load_unit: 'kg', payload: {}, created_at: ago(3), completed: true },
+    { move_name: 'Bench', actual_load: 185, actual_reps: 3, load_unit: 'lb', payload: {}, created_at: ago(1), completed: true },
+  ];
+  const body = await call('progress', { workout_set_logs: sets });
+  const squat = body.prs.find((p) => p.move === 'Squat');
+  assert.deepEqual([squat.best, squat.unit], [102.5, 'kg'], '102.5 kg (226 lb) beats 200 lb, and stays 102.5 kg: a round trip through pounds would read "103 kg"');
+  assert.equal(squat.e1rm, Math.round(102.5 * (1 + 5 / 30) * 10) / 10, 'the e1RM is in the PR\'s own unit');
+  const bench = body.prs.find((p) => p.move === 'Bench');
+  assert.deepEqual([bench.best, bench.unit], [185, 'lb'], 'a heavier set in the other unit takes the load AND the unit');
+  assert.deepEqual(body.prs.map((p) => p.move), ['Squat', 'Bench'], 'ordered by weight in pounds (226 lb ahead of 185 lb)');
+});
+
+test('the strength series is pounds', async () => {
   const sets = [
     { move_name: 'Squat', actual_load: 100, actual_reps: 5, load_unit: 'kg', payload: {}, created_at: ago(1), completed: true },
     { move_name: 'Squat', actual_load: 200, actual_reps: 5, load_unit: 'lb', payload: {}, created_at: ago(2), completed: true },
   ];
   const body = await call('progress', { workout_set_logs: sets });
-  const squat = body.prs.find((p) => p.move === 'Squat');
-  assert.equal(squat.unit, 'lb');
-  assert.equal(squat.best, 220.5, '100 kg beats 200 lb, reported in pounds');
   const top = Math.max(...body.series.strength.map((p) => p.value));
   assert.ok(Math.abs(top - 100 * LB) < 1e-6, 'the week\'s top is 100 kg in pounds, not "100"');
+});
+
+test('the all-time PR RPC\'s rows keep their own load and unit, like the fallback', async () => {
+  const m = await routes();
+  const client = stubClient({ workout_set_logs: [] });
+  client.rpc = async (name) => (name === 'get_my_lift_prs'
+    ? { data: [{ move: 'Squat', best: 102.5, best_reps: 5, unit: 'kg', best_at: ago(2) }, { move: 'Bench', best: 185, best_reps: 3, unit: 'lb', best_at: ago(1) }], error: null }
+    : { data: null, error: { message: 'not applied' } });
+  m.use(client);
+  const body = await (await m.progress.GET(new Request('https://shape.test/api/client/progress'))).json();
+  assert.deepEqual(body.prs.map((p) => [p.move, p.best, p.unit]), [['Squat', 102.5, 'kg'], ['Bench', 185, 'lb']]);
 });
