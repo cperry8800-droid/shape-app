@@ -301,6 +301,52 @@ function CKCoachNote({ clientId, accent }) {
 // Standalone (TrainerClient.html?id=…) reads the id from the query string; inside a
 // coach shell the `#client/<id>` route passes it as a prop, with the shell's role
 // and inShell so the back / Schedule / Assign links stay same-document hashes.
+// ── The client's figures in the coach's own units (Settings → Units) ─────────
+// Pure, so a test drives them with the real converter. `units` is dashData's
+// `useDashUnits()` answer; before it is ready every figure shows as it came.
+//
+// Bodyweight: the goal document's series is in its own unit (kg since the 2026-09
+// rewrite), so the change is taken there and converted once.
+function ckBodyweight(ov, units) {
+  const liveW = ov && Array.isArray(ov.weighIns) ? ov.weighIns.map(x => Number(x.kg)).filter(x => !isNaN(x)) : [];
+  const series = liveW.length >= 2 ? liveW : null;
+  const srcUnit = (ov && ov.unit) || "kg";
+  const cv = (n) => Number(units.measure(n, srcUnit).value);
+  return {
+    series,
+    trend: series ? series.map(cv) : null,
+    unit: units.label(srcUnit),
+    now: series ? cv(series[series.length - 1]) : null,
+    delta: series ? +cv(series[series.length - 1] - series[0]).toFixed(1) : null,
+    weeks: series ? series.length : 0,
+  };
+}
+// A girth measurement carries its own unit (in or cm).
+function ckMeasure(m, units) {
+  const r = units.measure(Number(m.value), m.unit);
+  return { value: Number(r.value), unit: r.unit };
+}
+// The key-lift rows.
+function ckLiftRows(L, units) {
+  if (!(L && Array.isArray(L.keyLifts) && L.keyLifts.length)) return [];
+  const best = L.keyLifts.map(x => ckNum(x.best)).filter(v => v != null);
+  const mx = best.length ? Math.max(...best) : 1;
+  // ⚠ THE UNIT COMES FROM THE ROW, NEVER FROM THIS SENTENCE. This hardcoded
+  // "kg" while get_client_lifts sent a bare number, so it was always a guess —
+  // and once 2026-09-10-coach-lift-units.sql normalised that RPC to canonical
+  // POUNDS the guess became wrong by a factor of 2.2: a client's 100 kg lift
+  // arrives as 220.5 and this row would have read "220.5 kg". The RPC states
+  // its unit now; where it does not, the figure is UNLABELLED rather than
+  // guessed. ⚠ "lb" was the same mistake as the "kg" above one step on: the
+  // RPC only states a unit once that migration is APPLIED, and until then it
+  // returns a bare max taken ACROSS mixed units — a number whose unit is
+  // genuinely unknown. Stamping one on it turns that into a claim.
+  const liftUnit = (typeof L.unit === "string" && L.unit.trim()) ? L.unit.trim() : "";
+  // A stated unit is converted to the coach's; an unlabelled figure stays unlabelled
+  // and unconverted, for the reason above.
+  return L.keyLifts.map(x => { const raw = ckNum(x.best), u0 = (typeof x.unit === "string" && x.unit.trim()) ? x.unit.trim() : liftUnit; const cv = (n) => (n == null || !u0 ? n : Number(units.measure(n, u0).value)); const b = cv(raw), dl = cv(ckNum(x.delta)), e1 = cv(ckNum(x.e1rm)), u = u0 ? units.label(u0) : ""; const v = b != null ? (e1 != null ? `${b}${u ? " " + u : ""} · ${Math.round(e1)} e1RM` : `${b}${u ? " " + u : ""}`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: raw != null && mx ? Math.max(0.2, raw / mx) : 0.5 }; });
+}
+
 function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell } = {}) {
   const params = new URLSearchParams(window.location.hash.includes("?") ? window.location.hash.split("?")[1] : window.location.search);
   const clientId = clientIdProp || params.get("id");
@@ -331,6 +377,8 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   const [memberAge, setMemberAge] = React.useState(null);
   const [err, setErr] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  // Weights, lifts and girths read in the coach's own units (Settings → Units).
+  const units = useDashUnits();
 
   React.useEffect(() => {
     if (!clientId) { setErr("Missing client id."); return; }
@@ -488,12 +536,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   const S = data.stats || {}, L = data.lifts || {};
   const G = data.goals || {};
   const ov = (G && G.share !== false && G.overall) ? G.overall : null;
-  const liveW = ov && Array.isArray(ov.weighIns) ? ov.weighIns.map(x => Number(x.kg)).filter(x => !isNaN(x)) : [];
-  const bwSeries = liveW.length >= 2 ? liveW : null;
-  const bwUnit = (ov && ov.unit) || "kg";
-  const bwNow = bwSeries ? bwSeries[bwSeries.length - 1] : null;
-  const bwDelta = bwSeries ? +(bwNow - bwSeries[0]).toFixed(1) : null;
-  const bwWeeks = bwSeries ? bwSeries.length : 0;
+  const { series: bwSeries, trend: bwTrend, unit: bwUnit, now: bwNow, delta: bwDelta, weeks: bwWeeks } = ckBodyweight(ov, units);
 
   const sDone = ckNum(S.sessionsCompleted), sPlan = ckNum(S.sessionsPlanned);
   const attendancePct = (sPlan && sPlan > 0) ? Math.round((sDone / sPlan) * 100) : null;
@@ -502,22 +545,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   const avgKcal = ckNum(S.avgCalories), avgP = ckNum(S.avgProtein), avgC = ckNum(S.avgCarbs), avgF = ckNum(S.avgFat);
   const avgRpe = ckNum(L.avgRpe), prs = ckNum(L.prs);
   const kcalStr = avgKcal != null ? avgKcal.toLocaleString() : null;
-  const liftRows = (Array.isArray(L.keyLifts) && L.keyLifts.length) ? (() => {
-    const best = L.keyLifts.map(x => ckNum(x.best)).filter(v => v != null);
-    const mx = best.length ? Math.max(...best) : 1;
-    // ⚠ THE UNIT COMES FROM THE ROW, NEVER FROM THIS SENTENCE. This hardcoded
-    // "kg" while get_client_lifts sent a bare number, so it was always a guess —
-    // and once 2026-09-10-coach-lift-units.sql normalised that RPC to canonical
-    // POUNDS the guess became wrong by a factor of 2.2: a client's 100 kg lift
-    // arrives as 220.5 and this row would have read "220.5 kg". The RPC states
-    // its unit now; where it does not, the figure is UNLABELLED rather than
-    // guessed. ⚠ "lb" was the same mistake as the "kg" above one step on: the
-    // RPC only states a unit once that migration is APPLIED, and until then it
-    // returns a bare max taken ACROSS mixed units — a number whose unit is
-    // genuinely unknown. Stamping one on it turns that into a claim.
-    const liftUnit = (typeof L.unit === "string" && L.unit.trim()) ? L.unit.trim() : "";
-    return L.keyLifts.map(x => { const b = ckNum(x.best), dl = ckNum(x.delta), e1 = ckNum(x.e1rm); const u = (typeof x.unit === "string" && x.unit.trim()) ? x.unit.trim() : liftUnit; const v = b != null ? (e1 != null ? `${b}${u ? " " + u : ""} · ${Math.round(e1)} e1RM` : `${b}${u ? " " + u : ""}`) : "—"; return { n: x.name || "Lift", v, d: dl != null ? `${dl >= 0 ? "+" : ""}${dl}` : "—", p: b != null && mx ? Math.max(0.2, b / mx) : 0.5 }; });
-  })() : [];
+  const liftRows = ckLiftRows(L, units);
   // Targets are not in the overview yet — the drawer says "no target set" for
   // the same reason — so the row shows the average the client actually logged
   // and names the missing target instead of inventing one.
@@ -608,7 +636,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
               <CKSecHead>{isNutri ? "BODY · WEIGHT TREND" : "BODY · BODYWEIGHT"}</CKSecHead>
               {bwSeries && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>{bwNow} {bwUnit} · {bwDelta >= 0 ? "+" : ""}{bwDelta} over {bwWeeks}</span>}
             </div>
-            {bwSeries ? <CKTrend vals={bwSeries} color={accent} /> : <CKEmpty>No shared weigh-ins yet — two weigh-ins draw the trend.</CKEmpty>}
+            {bwSeries ? <CKTrend vals={bwTrend} color={accent} /> : <CKEmpty>No shared weigh-ins yet — two weigh-ins draw the trend.</CKEmpty>}
           </Card>
 
           {counterparts.length > 0 && (
@@ -879,7 +907,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   {data.measurements.map((m) => (
                     <div key={m.site} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{m.site}</div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{Number(m.value)} <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{m.unit}</span></div>
+                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{ckMeasure(m, units).value} <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{ckMeasure(m, units).unit}</span></div>
                       <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: "var(--sh-ink3, #75706a)" }}>{String(m.measured_on)}</div>
                     </div>
                   ))}
@@ -918,6 +946,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
 }
 
 function GoalsCard({ data, teal, rust, gold }) {
+  const units = useDashUnits();
   const G = data.goals;
   // Work-domain headline (spec 2026-07-13) — shared goals include THE WORK station.
   const ov = G.overall, trM = G.trainingMeta, nuM = G.nutritionMeta, wkM = G.workMeta;
@@ -942,10 +971,12 @@ function GoalsCard({ data, teal, rust, gold }) {
       ) : (
         <div>
           {ov && (() => {
-            const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, unit = ov.unit || "kg";
+            const start = Number(ov.start) || 0, now = Number(ov.now) || 0, target = Number(ov.target) || 0, srcUnit = ov.unit || "kg";
             const range = start - target;
             const pct = range > 0 ? Math.max(0, Math.min(1, (start - now) / range)) : 0;
-            const down = +(now - start).toFixed(1), toGo = +(now - target).toFixed(1);
+            // Progress is measured in the document's unit; what is printed is in the coach's.
+            const cv = (n) => Number(units.measure(n, srcUnit).value), unit = units.label(srcUnit);
+            const down = +cv(now - start).toFixed(1), toGo = +cv(now - target).toFixed(1);
             const byD = ov.by ? new Date(ov.by) : null;
             const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString([], { month: "short", day: "numeric" }).toUpperCase() : "";
             return (
@@ -956,7 +987,7 @@ function GoalsCard({ data, teal, rust, gold }) {
                 </div>
                 <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
                 <div style={{ height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "var(--sh-accent2, #0ac5a8)" }} /></div>
-                <div style={{ marginTop: 7, fontSize: 11.5, color: "var(--sh-ink2, #a09b94)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {now}{unit} · target {target}{unit}</div>
+                <div style={{ marginTop: 7, fontSize: 11.5, color: "var(--sh-ink2, #a09b94)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {cv(now)}{unit} · target {cv(target)}{unit}</div>
               </div>
             );
           })()}

@@ -162,6 +162,32 @@ test('the weigh-in table is written in kilograms by every caller', () => {
     'the goal page must not send the document unit for a kilogram value');
 });
 
+// ⚠ NORA IS A THIRD WRITER, AND THE TEST ABOVE NEVER SAW HER. Her log_weigh_in
+// stored the member's own unit, so a weigh-in logged in pounds sat in a column
+// every reader takes as kilograms (the coach RPC get_client_goals emits it as
+// `kg`). Driven, not grepped: the preview, the stored row, and the undo predicate.
+test('Nora’s weigh-in is stored in kilograms, and the preview keeps the member’s words', async () => {
+  const { logWeighInAction } = await import('../src/lib/ai/actions.mjs');
+  const writes = [];
+  const chain = (table) => {
+    const q = {
+      select: () => q, eq: () => q,
+      maybeSingle: async () => ({ data: null, error: null }),
+      upsert: async (row) => { writes.push({ table, row }); return { error: null }; },
+    };
+    return q;
+  };
+  const ctx = { isMember: true, actor: { id: 'u-1' }, supabase: { from: chain, rpc: async () => ({}) } };
+  const lb = await logWeighInAction.buildPreview(ctx, { weight: 180, unit: 'lb' });
+  assert.match(lb.summary, /180 lb/, 'the member reads their own words');
+  assert.deepEqual(lb.confirmedPayload, { weight: 81.65, unit: 'kg' });
+  assert.deepEqual({ weight: lb.afterState.weight, unit: lb.afterState.unit }, { weight: 81.65, unit: 'kg' }, 'the undo matches the row as stored');
+  await logWeighInAction.execute(ctx, lb);
+  assert.deepEqual(writes.map((w) => [w.table, w.row.weight, w.row.unit]), [['client_weigh_ins', 81.65, 'kg']]);
+  const kg = await logWeighInAction.buildPreview(ctx, { weight: 80, unit: 'kg' });
+  assert.deepEqual(kg.confirmedPayload, { weight: 80, unit: 'kg' });
+});
+
 test('the goal target editor no longer lets a member type a free-text unit', () => {
   // The free-text box is where mixed-unit documents came from: a member could
   // type "lbs" beside figures the weigh-in table was filling in kilograms.

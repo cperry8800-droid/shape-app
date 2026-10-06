@@ -9,6 +9,17 @@ import React from 'react';
 
 const { useState: useStateBSW } = React;
 const { useBS: useBSW, BSHalftone: BSHalftoneW } = window;
+// ⚠ THE WIDGETS' FIGURES ARE WRITTEN IN POUNDS AND INCHES, AND EACH IS SHOWN IN
+// THE MEMBER'S UNIT through the theme's own converter (the one the Progress page
+// uses), so a metric member's Home never reads "182.4 lb". A theme without the
+// converter (a bare preview) shows the figure as written.
+function wUnit(t, value, unit) {
+  const m = (t && typeof t.uMeasure === 'function') ? t.uMeasure(value, unit) : { value, unit };
+  return { value: Number(m.value), unit: m.unit || unit };
+}
+// A signed change at one decimal, in the cells' own form ("+1.1", "−0.8"); the
+// render prints the minus as it always has.
+const wSigned = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(1);
 
 // ─── Frame: replaces BSCell with subtler, rule-based chrome ──
 // Default = no full border. Just a tonal corner mark + bottom rule.
@@ -168,19 +179,20 @@ function WWeight() {
   const start = series[0];
   const delta = (cur - start);
   const isDown = delta < 0;
+  const curIn = wUnit(t, cur, 'lb'), deltaIn = wUnit(t, delta, 'lb');
   return (
     <WFrame accent={t.BLUE}>
       <WEyebrow accent={t.BLUE}>Weight · 7d</WEyebrow>
       <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontWeight: t.W.displayHeavy, fontSize: 36, lineHeight: 0.9, letterSpacing: '-0.04em' }}>
-        {cur}
-        <span style={{ fontSize: 13, fontWeight: 600, color: t.INK70, marginLeft: 3 }}>lb</span>
+        {curIn.value}
+        <span style={{ fontSize: 13, fontWeight: 600, color: t.INK70, marginLeft: 3 }}>{curIn.unit}</span>
       </div>
       <div style={{
         display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 4, marginTop: 4,
         padding: '2px 6px', background: isDown ? t.GREEN : t.RUST, color: t.PAPER,
         fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', fontWeight: 800,
       }}>
-        {isDown ? '▼' : '▲'} {Math.abs(delta).toFixed(1)} LB · 7D
+        {isDown ? '▼' : '▲'} {Math.abs(deltaIn.value).toFixed(1)} {String(deltaIn.unit).toUpperCase()} · 7D
       </div>
       <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', marginTop: 6 }}>
         <WSpark values={series} h={42} stroke={t.BLUE} fill={t.BLUE} />
@@ -384,7 +396,8 @@ function WPR() {
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK70, fontWeight: 800 }}>{p.date}</div>
             <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.displayHeavy, fontSize: 14, letterSpacing: '-0.01em', color: t.INK }}>{p.lift}</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.displayHeavy, fontSize: 18, color: t.RUST, letterSpacing: '-0.02em', lineHeight: 1 }}>{p.val}</div>
+              {/* Pounds as written, shown in the member's unit (no unit printed, as before). */}
+              <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.displayHeavy, fontSize: 18, color: t.RUST, letterSpacing: '-0.02em', lineHeight: 1 }}>{wUnit(t, Number(p.val), 'lb').value}</div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK70, fontWeight: 700, letterSpacing: '0.1em' }}>{p.unit}</div>
             </div>
           </div>
@@ -468,7 +481,11 @@ function WBody() {
     { k: 'BF',     v: '14.2', unit: '%',  d: '−0.3', dir: 'down' },
     { k: 'Muscle', v: '154',  unit: 'lb', d: '+1.1', dir: 'up'   },
     { k: 'Weight', v: '182',  unit: 'lb', d: '−1.8', dir: 'down' },
-  ];
+  ].map((c) => {
+    if (c.unit !== 'lb') return c;
+    const v = wUnit(t, Number(c.v), 'lb'), d = wUnit(t, Number(c.d.replace('−', '-')), 'lb');
+    return { ...c, v: String(v.value), unit: v.unit, d: wSigned(d.value) };
+  });
   return (
     <WFrame accent={t.RUST}>
       <WEyebrow accent={t.RUST}>Body comp · 30d</WEyebrow>
@@ -697,7 +714,10 @@ function WMeasurements() {
     { k: 'Chest',  v: '42.5', d: '+0.4', dir: 'up',   good: 'up'   },
     { k: 'Hip',    v: '38.2', d: '−0.3', dir: 'down', good: 'down' },
     { k: 'Arm',    v: '15.1', d: '+0.2', dir: 'up',   good: 'up'   },
-  ];
+  ].map((c) => {
+    const v = wUnit(t, Number(c.v), 'in'), d = wUnit(t, Number(c.d.replace('−', '-')), 'in');
+    return { ...c, v: v.value.toFixed(1), unit: v.unit, d: wSigned(d.value) };
+  });
   return (
     <WFrame accent={t.RUST}>
       <WEyebrow accent={t.RUST}>Measurements · 30d</WEyebrow>
@@ -709,7 +729,7 @@ function WMeasurements() {
               <div>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', color: t.INK70, fontWeight: 800, textTransform: 'uppercase' }}>{c.k}</div>
                 <div style={{ fontFamily: t.DISPLAY, fontWeight: t.W.displayHeavy, fontSize: 16, letterSpacing: '-0.02em', lineHeight: 1, color: t.INK }}>
-                  {c.v}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK70, fontWeight: 700, marginLeft: 2 }}>in</span>
+                  {c.v}<span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK70, fontWeight: 700, marginLeft: 2 }}>{c.unit}</span>
                 </div>
               </div>
               <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', color: isGood ? t.GREEN : t.RUST }}>

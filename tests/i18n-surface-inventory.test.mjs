@@ -804,7 +804,12 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // string was the "mi" on its distance markers. The markers now read the unit the
   // page shows (`{distUnit}`, miles or kilometres per the member's setting), so
   // the chart renders no user copy at all and leaves the baseline.
-  assert.equal(noneStrings, 737, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 737 -> 734, none.length UNCHANGED: three hardcoded UNITS left
+  // three untranslated surfaces — BSClientProgress's "k lb" volume, WWeight's
+  // "LB · 7D" tag and WMeasurements' "in". Each now prints the unit of the member's
+  // setting (Settings → Units), so it is a figure, not copy; every other string on
+  // the three surfaces is still English and they stay in UNCOVERED.
+  assert.equal(noneStrings, 734, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 36, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 89, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its

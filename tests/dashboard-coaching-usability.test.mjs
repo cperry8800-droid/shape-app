@@ -16,10 +16,14 @@ const DashSignals = require('../public/newdesign/dashSignals.js');
 const compile = (file) => babel.transformSync(readFileSync(new URL('../public/newdesign/' + file, import.meta.url), 'utf8'), { presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script' }).code;
 const Card = ({ children }) => React.createElement('section', null, children);
 const { CKCoachNote, ckNoteDraftKey, ckSaveNoteDocument } = new Function('React', 'Card', compile('coachClientDetail.jsx') + '\nreturn { CKCoachNote, ckNoteDraftKey, ckSaveNoteDocument };')(React, Card);
-const { useDashboard, _dashRecordFromLive } = new Function('React', 'DashSignals', compile('dashData.jsx') + '\nreturn { useDashboard, _dashRecordFromLive };')(React, DashSignals);
+const { useDashboard, _dashRecordFromLive, dashUnitsApi, dashMilestonesIn, dashWeighIn, dashWeighInDelta } = new Function('React', 'DashSignals', compile('dashData.jsx') + '\nreturn { useDashboard, _dashRecordFromLive, dashUnitsApi, dashMilestonesIn, dashWeighIn, dashWeighInDelta };')(React, DashSignals);
+// The drawer's weights read in the coach's units (useDashUnits); before the setting
+// is read they show as stored, which is what these tests read.
+const asStored = () => dashUnitsApi(null, null);
 const colours = { unknown: '#999999', green: '#7bbf5a', amber: '#d8a23a', red: '#e0644b', new: '#2ee0c4' };
-const { DashClientDrawer, DashRosterTable } = new Function('React', 'ReactDOM', 'DashSignals', 'DASH_SEV_COLORS', 'useRememberedSet', 'DashPill', 'dashClientHref', 'dashMessageClient', 'dashRelDay', compile('dashRoster.jsx') + '\nreturn { DashClientDrawer, DashRosterTable };')(
+const { DashClientDrawer, DashRosterTable } = new Function('React', 'ReactDOM', 'DashSignals', 'DASH_SEV_COLORS', 'useRememberedSet', 'DashPill', 'dashClientHref', 'dashMessageClient', 'dashRelDay', 'useDashUnits', 'dashMilestonesIn', 'dashWeighIn', 'dashWeighInDelta', compile('dashRoster.jsx') + '\nreturn { DashClientDrawer, DashRosterTable };')(
   React, ReactDOM, DashSignals, colours, () => [[], () => {}], ({ children }) => React.createElement('span', null, children), () => null, () => {}, () => null,
+  asStored, dashMilestonesIn, dashWeighIn, dashWeighInDelta,
 );
 globalThis.fetch = async () => ({ ok: false });
 const act = React.act;

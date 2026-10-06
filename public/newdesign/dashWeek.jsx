@@ -241,6 +241,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
   const id = rec.profile.id;
   const [noteOpen, setNoteOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(review && review.note ? review.note : "");
+  const units = useDashUnits();
   React.useEffect(() => { setDraft(review && review.note ? review.note : ""); }, [review && review.note, id, weekOf]);
   const fetched = live && Array.isArray(rec.checkins) ? rec.checkins : null;
   const ck = live
@@ -272,7 +273,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
     .slice()
     .sort((a, b) => new Date(a.on || 0).getTime() - new Date(b.on || 0).getTime());
   const wLast = w.length ? w[w.length - 1] : null, wPrev = w.length > 1 ? w[w.length - 2] : null;
-  const wDelta = wLast && wPrev ? Math.round((wLast.weight - wPrev.weight) * 10) / 10 : null;
+  const wDelta = wLast && wPrev ? dashWeighInDelta(wPrev, wLast, units) : null;
   const href = typeof dashClientHref === "function" ? dashClientHref(rec, role) : null;
   const btn = { fontFamily: DWK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", cursor: "pointer", textDecoration: "none", display: "inline-block" };
   return (
@@ -327,7 +328,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 12 }}>
             <DwkStat label={isCurrent ? "Adherence · this week" : "Adherence · week"} value={adh != null ? adh + "%" : "—"} sub={adhDelta != null ? (adhDelta >= 0 ? "▲ +" : "▼ −") + Math.abs(adhDelta) + " vs week before" : adhNote} tone={adh != null && adh < 70 ? DWK_AMBER : null} />
             <DwkStat label="Food logs · 7d" value={logs != null ? logs + "/7" : "—"} sub={logs == null ? "not shared" : logs <= 3 ? "thin week" : null} tone={logs != null && logs <= 3 ? DWK_AMBER : null} />
-            <DwkStat label="Weigh-in" value={wLast ? wLast.weight + " " + (wLast.unit || "lb") : (ck && ck.weight != null ? ck.weight + " " + (ck.unit || "kg") : "—")} sub={wDelta != null ? (wDelta > 0 ? "+" : "") + wDelta + " since the one before" : wLast ? "first shared weigh-in" : "none shared"} />
+            <DwkStat label="Weigh-in" value={wLast ? units.fmt(Number(wLast.weight), wLast.unit || "lb") : (ck && ck.weight != null ? units.fmt(Number(ck.weight), ck.unit || "kg") : "—")} sub={wDelta != null ? (wDelta > 0 ? "+" : "") + wDelta + " since the one before" : wLast ? "first shared weigh-in" : "none shared"} />
           </div>
           {/* Note */}
           {(noteOpen || (review && review.note)) && (

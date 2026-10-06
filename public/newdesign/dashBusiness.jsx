@@ -383,10 +383,13 @@ function DbzOriginZone({ live, byOrigin }) {
 function DbzOutcomesZone({ role, cp }) {
   const cfg = DBZ_ROLES[role];
   const roster = (cp && cp.roster) || [];
+  const units = useDashUnits();
+  // The roster carries the change in pounds; it reads in the coach's own units.
   const fmtWeight = (lb) => {
     if (lb == null) return "—";
-    const r = Math.round(lb * 10) / 10;
-    return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(1) + " lb";
+    const m = units.measure(lb, "lb");
+    const r = Math.round(Number(m.value) * 10) / 10;
+    return (r > 0 ? "+" : r < 0 ? "−" : "") + Math.abs(r).toFixed(1) + " " + m.unit;
   };
   const topLosers = roster.filter((r) => r.weightChangeLb != null && r.weightChangeLb < 0)
     .slice().sort((a, b) => a.weightChangeLb - b.weightChangeLb).slice(0, 5);

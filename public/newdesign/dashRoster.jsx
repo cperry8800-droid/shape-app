@@ -360,7 +360,8 @@ function DashSecNotes({ rec }) {
   );
 }
 function DashSecMilestones({ rec }) {
-  const ms = DashSignals.buildMilestones(rec);
+  const units = useDashUnits();
+  const ms = dashMilestonesIn(DashSignals.buildMilestones(rec), units);
   if (!ms.recent.length && !ms.next.length) return <DashDrawerEmpty>Milestones appear as they log and share progress.</DashDrawerEmpty>;
   return (
     <div>
@@ -382,9 +383,11 @@ function DashSecMilestones({ rec }) {
   );
 }
 function DashSecNutritionSummary({ rec }) {
+  const units = useDashUnits();
   const f = rec.foodLogs;
   const weighIns = Array.isArray(rec.weighIns) ? rec.weighIns.filter((w) => w && w.weight != null) : [];
-  const wDelta = weighIns.length >= 2 ? Math.round((weighIns[weighIns.length - 1].weight - weighIns[0].weight) * 10) / 10 : null;
+  const wDelta = weighIns.length >= 2 ? dashWeighInDelta(weighIns[0], weighIns[weighIns.length - 1], units) : null;
+  const wNow = weighIns.length ? dashWeighIn(weighIns[weighIns.length - 1], units) : null;
   if (!f && !weighIns.length) return <DashDrawerEmpty>Nothing shared from the nutrition side yet.</DashDrawerEmpty>;
   return (
     <div>
@@ -402,9 +405,9 @@ function DashSecNutritionSummary({ rec }) {
       </div>
       {weighIns.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <DashDrawerSpark data={weighIns.map((w) => w.weight)} />
+          <DashDrawerSpark data={weighIns.map((w) => Number(dashWeighIn(w, units).value))} />
           <div>
-            <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 18 }}>{weighIns[weighIns.length - 1].weight} <span style={{ fontSize: 11, color: DASH_ROSTER_INK50 }}>{weighIns[weighIns.length - 1].unit || "lb"}</span></div>
+            <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 18 }}>{wNow.value} <span style={{ fontSize: 11, color: DASH_ROSTER_INK50 }}>{wNow.unit}</span></div>
             {wDelta != null && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: DASH_ROSTER_INK50, marginTop: 2 }}>{wDelta > 0 ? "+" : ""}{wDelta} since first shared weigh-in</div>}
           </div>
         </div>
@@ -452,14 +455,16 @@ function DashSecMacros({ rec }) {
   return <div>{row("Calories", n.avgCalories, n.targetCalories, true)}{row("Protein", n.avgProtein, n.targetProtein, false)}</div>;
 }
 function DashSecWeighIns({ rec }) {
+  const units = useDashUnits();
   const weighIns = Array.isArray(rec.weighIns) ? rec.weighIns.filter((w) => w && w.weight != null) : [];
   if (!weighIns.length) return <DashDrawerEmpty>No shared weigh-ins yet.</DashDrawerEmpty>;
-  const wDelta = weighIns.length >= 2 ? Math.round((weighIns[weighIns.length - 1].weight - weighIns[0].weight) * 10) / 10 : null;
+  const wDelta = weighIns.length >= 2 ? dashWeighInDelta(weighIns[0], weighIns[weighIns.length - 1], units) : null;
+  const wNow = dashWeighIn(weighIns[weighIns.length - 1], units);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-      <DashDrawerSpark data={weighIns.map((w) => w.weight)} />
+      <DashDrawerSpark data={weighIns.map((w) => Number(dashWeighIn(w, units).value))} />
       <div>
-        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 20, letterSpacing: "-0.02em" }}>{weighIns[weighIns.length - 1].weight} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>{weighIns[weighIns.length - 1].unit || "lb"}</span></div>
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 20, letterSpacing: "-0.02em" }}>{wNow.value} <span style={{ fontSize: 12, color: DASH_ROSTER_INK50 }}>{wNow.unit}</span></div>
         {wDelta != null && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: DASH_ROSTER_INK50, marginTop: 2 }}>{wDelta > 0 ? "+" : ""}{wDelta} since first shared weigh-in</div>}
       </div>
     </div>

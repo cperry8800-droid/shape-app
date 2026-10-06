@@ -363,19 +363,19 @@ function dashJointDraft(j, role) {
 // Priority: goal proximity + projected pace (the engine's goalBrief, e.g.
 // '2.8 lb to "Goal weight" · pace Jul 17') → check-in state → streak →
 // adherence. Records without goals[] fall back to the legacy distance line.
-function dashContextLine(rec) {
+function dashContextLine(rec, units) {
   if (!rec) return null;
   const parts = [];
   const brief = DashSignals.goalBrief ? DashSignals.goalBrief(rec, new Date()) : null;
   if (brief) {
-    parts.push(brief);
+    parts.push(dashGoalText(brief, units));
   } else if (rec.goal && rec.goal.target != null) {
     const now = rec.goal.now != null
       ? rec.goal.now
       : (Array.isArray(rec.weighIns) && rec.weighIns.length ? rec.weighIns[rec.weighIns.length - 1].weight : null);
     if (now != null) {
       const dist = Math.round(Math.abs(now - rec.goal.target) * 10) / 10;
-      parts.push(dist + " " + (rec.goal.unit || "lb") + " from goal weight");
+      parts.push(dashGoalText(dist + " " + (rec.goal.unit || "lb") + " from goal weight", units));
     }
   }
   if (rec.checkIn) {
@@ -420,13 +420,14 @@ function dashClientHref(rec, role) {
 // context line + inline actions: Message · Last notes · Start log.
 function ExpandableSchedule({ schedule, clients, role }) {
   const [openIdx, setOpenIdx] = React.useState(null);
+  const units = useDashUnits();
   const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
   return (
     <div>
       {schedule.map((s, i) => {
         const open = openIdx === i;
         const rec = dashFindRecord(clients, s.who);
-        const context = dashContextLine(rec);
+        const context = dashContextLine(rec, units);
         const expandable = s.time !== "—"; // skip the "No sessions today" placeholder
         return (
           <div key={i} style={{ borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
@@ -750,9 +751,10 @@ function ProgrammingQueuePanel({ queue, role, live }) {
 // the empty state explains itself instead of inventing wins.
 function DashWinsPanel({ clients, role }) {
   const ink50 = "var(--sh-ink2, #a09b94)";
+  const units = useDashUnits();
   const rows = [];
   for (const c of clients) {
-    const ms = DashSignals.buildMilestones(c);
+    const ms = dashMilestonesIn(DashSignals.buildMilestones(c), units);
     const hit = ms.recent.find((m) => m.hitAt); // dated hits only (not active-streak fills)
     if (hit) rows.push({ client: c, hit });
   }

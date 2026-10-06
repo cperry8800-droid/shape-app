@@ -234,13 +234,17 @@ function ClientScorePage() {
   // new routes: the sidebar has no entry for them, and a tab that cannot be navigated
   // to from the nav is exactly the orphan this review opened with.
   const [view, setView] = React.useState("standing");
-  const ledger = live && Array.isArray(live.recent) && live.recent.length
+  // A PR note carries the lift's change ("Squat PR · +5 lb"); it reads in the member's
+  // units. ClientScore.html (a redirect to ClientApp.html#score) does not load dashData.jsx.
+  const units = typeof useDashUnits === "function" ? useDashUnits() : null;
+  const ledgerRows = live && Array.isArray(live.recent) && live.recent.length
     ? live.recent.slice(0, 8).map(r => ({
         when: fmtWhen(r.earned_at),
         what: r.note || (r.source_kind || 'Score event'),
         delta: r.delta,
       }))
     : demo ? staticLedger : [];
+  const ledger = units ? ledgerRows.map(r => ({ ...r, what: units.text(r.what) })) : ledgerRows;
 
   // The rust token, not the old #c1641f: that read 3.8:1 on the light card and 3.9:1
   // on the dark one, and it labels the score's only unit.
