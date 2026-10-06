@@ -4,9 +4,10 @@
 //   node scripts/mutate.mjs --spec tests/mutations/app-units-everywhere-2026-10-06.mutations.mjs --fail-on-skipped
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 const WIDGETS = 'mobile-app/src/broadsheet/iosAppBroadsheetWidgets.jsx';
+const NORA = 'src/lib/ai/actions.mjs';
 
 export default {
-  test: 'node --test tests/units-everywhere.test.mjs',
+  test: 'node --test tests/units-everywhere.test.mjs tests/units-weight-canonical.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── the Progress page ──
@@ -60,5 +61,15 @@ export default {
     { name: 'the measurements are labelled inches', file: WIDGETS,
       find: "fontWeight: 700, marginLeft: 2 }}>{c.unit}</span>",
       replace: "fontWeight: 700, marginLeft: 2 }}>in</span>" },
+    // ── Nora's weigh-in (a third writer of the kilogram column) ──
+    { name: 'Nora stores the member\'s own unit', file: NORA,
+      find: "confirmedPayload: { weight: kg, unit: 'kg' },",
+      replace: "confirmedPayload: { weight: weight, unit: unit }," },
+    { name: 'Nora\'s undo looks for a row she did not write', file: NORA,
+      find: "    var after = { logged_on: today, weight: kg, unit: 'kg' };",
+      replace: "    var after = { logged_on: today, weight: weight, unit: unit };" },
+    { name: 'Nora stores pounds as kilograms unconverted', file: NORA,
+      find: "    var kg = unit === 'lb' ? Math.round(weight * 0.45359237 * 100) / 100 : weight;",
+      replace: "    var kg = weight;" },
   ],
 };

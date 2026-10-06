@@ -237,6 +237,10 @@ test('the feed reads the member\'s setting, and falls back to imperial when it c
     assert.equal(signedIn.U.bsSdUnitizeText, U.bsSdUnitizeText, 'the loader handed back a different converter');
     assert.equal(signedIn.U.bsPaceSplits, S.bsPaceSplits, 'the loader did not hand the feed the splits model');
     assert.deepEqual(asked, ['client_settings']);
+    globalThis.window = { shapeDb: { getUserGoals: async () => ({ units: 'kg / km' }) } };
+    assert.deepEqual((await load(true)).prefs, KG, 'the app’s rule: a kg or km setting is metric');
+    globalThis.window = { shapeDb: { getUserGoals: async (k) => { asked.push(k); return { units: 'Metric · kg / km' }; } } };
+    asked.length = 1;
     assert.deepEqual((await load(false)).prefs, LB, 'signed out: the default, and the setting is not read');
     assert.deepEqual(asked, ['client_settings'], 'a signed-out visitor\'s settings were read');
     globalThis.window = { shapeDb: { getUserGoals: async () => { throw new Error('offline'); } } };

@@ -45,7 +45,7 @@ export default {
       find: 'Promise.resolve().then(() => db.getUserGoals("client_settings")).catch(() => null)',
       replace: 'Promise.resolve().then(() => db.getUserGoals("client_settings"))' },
     { name: 'the website\'s "Metric · kg / km" label is not read as metric', file: WEB,
-      find: 'return /metric/i.test(String(units || "")) ?',
+      find: 'return /metric|\\bkg\\b|\\bkm\\b/i.test(String(units || "")) ?',
       replace: 'return /^metric$/i.test(String(units || "")) ?' },
     { name: 'the feed never hands the loaded units to the cards', file: WEB,
       find: '      cfLoadUnits(signedIn).then((u) => { if (alive && u) setUnits(u); });\n',

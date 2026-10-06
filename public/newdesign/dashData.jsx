@@ -1389,7 +1389,8 @@ function useRememberedSet(store, key, max) {
 // imperial. One load per page, shared by every component that asks.
 const DASH_UNITS_IMPERIAL = { weight: "lb", distance: "mi", length: "in" };
 const DASH_UNITS_METRIC = { weight: "kg", distance: "km", length: "cm" };
-function dashUnitPrefs(units) { return /metric/i.test(String(units || "")) ? DASH_UNITS_METRIC : DASH_UNITS_IMPERIAL; }
+// The app's own rule (`bsNormalizeUnits`), so a setting reads as one system on both.
+function dashUnitPrefs(units) { return /metric|\bkg\b|\bkm\b/i.test(String(units || "")) ? DASH_UNITS_METRIC : DASH_UNITS_IMPERIAL; }
 // The converter for a loaded module `U` and a setting. Pure, so a test drives it
 // with the real module. `measure` returns { value, unit }; `fmt` a "value unit"
 // string; `text` converts every figure in a string; `label` a bare unit.
@@ -1401,9 +1402,18 @@ function dashUnitsApi(U, prefs) {
     const m = U.bsSdMeasure(Number(v), unit, p);
     return { value: m.value, unit: m.unit || unit };
   };
+  // `measure` rounds for display (0.1, or whole at 100 and up). A series that is
+  // compared or subtracted converts EXACTLY instead, so a change is the converted
+  // change, never the difference of two rounded readings.
+  const exact = (v, unit) => {
+    const m = measure(v, unit);
+    if (!ready || m.unit === unit || !Number.isFinite(Number(v))) return m;
+    const k = Number(U.bsSdMeasure(1e6, unit, p).value) / 1e6; // the unit ratio, to six places
+    return { value: Number(v) * k, unit: m.unit };
+  };
   return {
     ready, prefs: p, metric: p.weight === "kg",
-    measure,
+    measure, exact,
     fmt: (v, unit) => { const m = measure(v, unit); return m.value == null || m.value === "" ? "" : m.value + (m.unit ? " " + m.unit : ""); },
     text: (s, opts) => (ready && s != null && s !== "" ? U.bsSdUnitizeText(String(s), p, opts) : s),
     // A bare unit field. `bsSdMeasure` knows lengths too (the prose label refuses

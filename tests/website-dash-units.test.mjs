@@ -69,7 +69,7 @@ async function setup() {
   const C = await load('coachClientDetail.jsx', ['GoalsCard', 'ckBodyweight', 'ckMeasure', 'ckLiftRows', 'CoachClientDetailPage']);
   const CL = await load('dashClient.jsx', ['DashWorkoutCard', 'ClientDashboardPage']);
   const TR = await load('dashTrain.jsx', ['DtrHistory', 'ClientWorkoutsPage']);
-  const P = await load('dashProgress.jsx', ['dprPointsIn', 'dprSeriesIn', 'dprPrsIn', 'dprLiftsIn', 'DprMilestoneTimeline', 'DprCheckinHistory', 'DprCheckinForm', 'ClientProgressPage']);
+  const P = await load('dashProgress.jsx', ['dprPointsIn', 'dprSeriesIn', 'dprPrsIn', 'dprLiftsIn', 'DprMilestoneTimeline', 'DprCheckinHistory', 'DprCheckinForm', 'ClientProgressPage', 'dprCheckinUnits', 'dprCurrentCheckin']);
   // The Score page reads the score-record helpers its host loads before it.
   const csr = readFileSync(ND('clientScoreRecord.jsx'), 'utf8');
   await load('clientScoreRecord.jsx', [...csr.matchAll(/^function (\w+)\(/gm)].map((m) => m[1]));
@@ -113,8 +113,16 @@ async function mount(React, Page, payloads) {
   const close = track(React, root, el);
   await React.act(async () => root.render(React.createElement(Page)));
   await React.act(async () => { await new Promise((r) => setTimeout(r, 20)); });
-  const text = el.textContent.replace(/\s+/g, ' ');
+  // Text nodes joined with a space: textContent runs adjacent figures together
+  // ("−1.8 lb81.6 kg"), and a unit glued to the next number hides from \b.
+  const text = readText(el);
   return { el, text, unmount: async () => { await close(); globalThis.fetch = prev; } };
+}
+
+function readText(el) {
+  const out = [], walk = document.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) out.push(n.nodeValue);
+  return out.join(' ').replace(/\s+/g, ' ').trim();
 }
 
 // A unit word for the other system, anywhere in what is read.
@@ -125,11 +133,16 @@ test('the converter: Settings → Units, the same module the app uses, and as st
   const { D, api } = await setup();
   assert.deepEqual(D.dashUnitPrefs(METRIC), { weight: 'kg', distance: 'km', length: 'cm' });
   assert.deepEqual(D.dashUnitPrefs(undefined), { weight: 'lb', distance: 'mi', length: 'in' }, 'no setting is the app default, imperial');
+  assert.deepEqual(D.dashUnitPrefs('kg / km'), { weight: 'kg', distance: 'km', length: 'cm' }, 'the app’s rule: a kg or km setting is metric');
   const m = api(METRIC), i = api(IMPERIAL);
   assert.deepEqual(m.measure(171, 'lb'), { value: 77.6, unit: 'kg' });
   assert.deepEqual(i.measure(77.6, 'kg'), { value: 171, unit: 'lb' });
   assert.deepEqual(m.measure(33, 'in'), { value: 83.8, unit: 'cm' });
   assert.equal(m.fmt(171, 'lb'), '77.6 kg');
+  // A series that is subtracted converts exactly; only display rounds.
+  assert.ok(Math.abs(m.exact(176.3, 'lb').value - 79.9683) < 1e-3 && m.exact(176.3, 'lb').unit === 'kg');
+  assert.deepEqual(i.exact(176.3, 'lb'), { value: 176.3, unit: 'lb' });
+  assert.ok(Math.abs(m.exact(33, 'in').value - 83.82) < 1e-3);
   assert.equal(m.text('Squat PR · +5 lb'), 'Squat PR · +2.3 kg');
   assert.equal(m.label('lb'), 'kg');
   assert.equal(m.label('in'), 'cm', 'a bare unit field converts a length, which prose refuses');
@@ -236,6 +249,12 @@ test('coach pages: roster drawer, week review, business outcomes and Today read 
     ].join(' | ');
     for (const f of figures) assert.ok(out.includes(f), `${system}: "${f}" in ${out}`);
     assert.ok(own.test(out));
+    // Each surface carries its own change, read on its own (one surface's figure must
+    // not stand in for another's).
+    const change = system === METRIC ? '-1.8 since' : '-4 since';
+    assert.ok(text(React.createElement(R.DashSecWeighIns, { rec })).includes(change), 'the drawer’s weigh-ins');
+    assert.ok(text(React.createElement(R.DashSecNutritionSummary, { rec })).includes(change), 'the drawer’s nutrition summary');
+    assert.ok(text(React.createElement(W.DwkRow, { row: { severity: 'green', flags: [], client: rec }, role: 'trainer', weekOf: '2026-09-28', thisMonday: '2026-09-28', live: true, review: null, adherence: null, readout: null, onReview() {}, onNote() {}, canPersist: false, editable: false })).includes(change + ' the one before'), 'the week review');
     assert.ok(!other.test(out), `${system}: no figure in the other system — ${out.match(other)}`);
   }
 });
@@ -339,6 +358,22 @@ test('the member’s pages: workout card, history, milestones and check-ins', as
   assert.ok(!/\((kg|cm)\)/.test(form), 'no field asks in the other system');
 });
 
+test('before the setting is read, the check-in form asks in the unit the week was saved in', async () => {
+  const { React, P, D, as, html } = await setup();
+  const kit = { weekOf: '2026-10-05', checkins: [{ week_of: '2026-10-05', weight: 80, unit: 'kg', ratings: {} }] };
+  const pending = D.dashUnitsApi(null, null);
+  const form = html(React.createElement(P.DprCheckinForm, { kit, units: pending, onSaved() {} }));
+  assert.match(form, /Weight \(kg\)/);
+  assert.match(form, /value="80"/, 'the saved figure, in the unit it was saved in');
+  // The page re-keys the form only when the system really changes: an imperial member
+  // with nothing saved this week keeps what they are typing when the setting arrives.
+  assert.deepEqual(P.dprCheckinUnits(pending, null), { w: 'lb', l: 'in' });
+  assert.deepEqual(P.dprCheckinUnits(as(IMPERIAL), null), { w: 'lb', l: 'in' });
+  assert.deepEqual(P.dprCheckinUnits(as(METRIC), P.dprCurrentCheckin({ weekOf: 'w', checkins: [{ week_of: 'w', weight: 180, unit: 'lb' }] })), { w: 'kg', l: 'cm' });
+  const src = readFileSync(ND('dashProgress.jsx'), 'utf8');
+  assert.match(src, /<DprCheckinForm key=\{"u-" \+ dprCheckinUnits\(units, dprCurrentCheckin\(kit\)\)\.w\}/);
+});
+
 test('the check-in form sends the unit it asked in', async () => {
   const { React, P, as } = await setup();
   const src = readFileSync(ND('dashProgress.jsx'), 'utf8');
@@ -353,18 +388,23 @@ test('the member’s Progress page, live: bodyweight, strength, PRs, lifts and g
   const { React, P, as } = await setup();
   const day = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
   const payloads = {
-    '/api/client/progress': { ok: true, weightSeries: [{ date: day(40), value: 180 }, { date: day(2), value: 176 }],
-      series: { weight: [{ date: day(40), value: 180 }, { date: day(2), value: 176 }], strength: [{ date: day(40), value: 300 }, { date: day(2), value: 320 }] },
+    '/api/client/progress': { ok: true, weightSeries: [{ date: day(40), value: 180 }, { date: day(2), value: 176.3 }],
+      series: { weight: [{ date: day(40), value: 180 }, { date: day(2), value: 176.3 }], strength: [{ date: day(40), value: 300 }, { date: day(2), value: 320 }] },
       prs: [{ move: 'Back squat', best: 265, bestReps: 5, unit: 'lb', bestAt: day(3) }] },
     '/api/client/checkin-kit': { ok: true, weekOf: day(0), checkins: [], measurements: [{ site: 'waist', value: 34, unit: 'in', measured_on: day(40) }, { site: 'waist', value: 33, unit: 'in', measured_on: day(2) }] },
     '/api/client/progress-photos': { ok: true, photos: [] },
     '/api/client/dashboard': { kpis: { streak: 3 } },
     '/api/client/strength': { ok: true, lifts: [{ name: 'Back squat', currentE1rm: 298, bestE1rm: 298, status: 'progressing', unit: 'lb', topSet: { load: 265, reps: 5 }, series: [{ date: day(40), e1rm: 290 }, { date: day(2), e1rm: 298 }] }] },
   };
-  for (const [system, other, figures] of [[METRIC, IMPERIAL_RE, [/120\s*kg/, /83\.8/]], [IMPERIAL, METRIC_RE, [/265\s*lb/, /\b33\b/]]]) {
+  // 180 → 176.3 lb is −3.7 lb, which is −1.7 kg. Converting each reading first gives
+  // 81.6 → 80.0, a change of −1.6: the comparison and the trend take the change once.
+  for (const [system, other, figures] of [
+    [METRIC, IMPERIAL_RE, [/120 kg/, /waist 86\.4 → 83\.8 cm −2\.5 cm/, /−1\.7 kg/, /80 kg · −1\.7 since start|80\.0 kg · −1\.7 since start/]],
+    [IMPERIAL, METRIC_RE, [/265 lb/, /waist 34 → 33 in −1 in/, /−3\.7 lb/, /176 lb · −4 since start/]],
+  ]) {
     as(system);
     const page = await mount(React, P.ClientProgressPage, payloads);
-    for (const f of figures) assert.match(page.text, f, `${system}: the PR (265 lb) and the waist (33 in)`);
+    for (const f of figures) assert.match(page.text, f, `${system}: ${f} in ${page.text}`);
     assert.ok(!other.test(page.text), `${system}: a figure in the other system — ${page.text.match(other)}`);
     await page.unmount();
   }
@@ -420,6 +460,7 @@ test('the living profile’s own trajectory, lifts and setting', async () => {
   const load = (db) => new Function('window', src.slice(a, b).replace('import("/newdesign/unitText.mjs")', `import(${JSON.stringify(new URL('../public/newdesign/unitText.mjs', import.meta.url).href)})`) + '; return lvLoadUnits();')({ shapeDb: db });
   assert.deepEqual((await load({ getUserGoals: async () => ({ units: METRIC }) })).prefs, { weight: 'kg', distance: 'km', length: 'cm' });
   assert.deepEqual((await load({ getUserGoals: async () => ({ units: IMPERIAL }) })).prefs, { weight: 'lb', distance: 'mi', length: 'in' });
+  assert.deepEqual((await load({ getUserGoals: async () => ({ units: 'kg / km' }) })).prefs, { weight: 'kg', distance: 'km', length: 'cm' }, 'the app’s rule');
   const failed = await load({ getUserGoals: async () => { throw new Error('offline'); } });
   assert.deepEqual(failed.prefs, { weight: 'lb', distance: 'mi', length: 'in' }, 'a failed read keeps the converter on the default');
   assert.equal(typeof failed.T.bsSdMeasure, 'function');

@@ -133,7 +133,7 @@ function lvLoadUnits() {
   return Promise.all([
     import("/newdesign/unitText.mjs"),
     Promise.resolve().then(() => (window.shapeDb && window.shapeDb.getUserGoals ? window.shapeDb.getUserGoals("client_settings") : null)).catch(() => null),
-  ]).then(([T, s]) => ({ T, prefs: /metric/i.test(String((s && s.units) || "")) ? { weight: "kg", distance: "km", length: "cm" } : { weight: "lb", distance: "mi", length: "in" } })).catch(() => null);
+  ]).then(([T, s]) => ({ T, prefs: /metric|\bkg\b|\bkm\b/i.test(String((s && s.units) || "")) ? { weight: "kg", distance: "km", length: "cm" } : { weight: "lb", distance: "mi", length: "in" } })).catch(() => null);
 }
 // The last seven weigh-ins as a trajectory. The change is taken in the weigh-ins' own
 // unit when they share one and converted once, so rounding two converted readings

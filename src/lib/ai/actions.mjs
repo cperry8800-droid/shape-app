@@ -505,12 +505,19 @@ export const logWeighInAction = {
     var unit = input.unit || (cur && cur.unit) || null;
     if (!unit) throw new Error('Which unit — lb or kg?');
     var before = { logged_on: today, weight: cur ? Number(cur.weight) : null, unit: cur ? String(cur.unit) : null };
-    var after = { logged_on: today, weight: weight, unit: unit };
+    // ⚠ THE TABLE IS KILOGRAMS. client_weigh_ins.weight is canonical kg: the app's
+    // logWeighIn converts before it stores, and the readers (the coach RPC
+    // get_client_goals among them) read the column as kilograms. This writer
+    // stored the member's own unit, so "log 180 lb" read as 180 kg on a coach's
+    // roster, and as 396.8 lb once the coach pages followed the coach's units.
+    // The preview speaks the member's words; the row is kilograms.
+    var kg = unit === 'lb' ? Math.round(weight * 0.45359237 * 100) / 100 : weight;
+    var after = { logged_on: today, weight: kg, unit: 'kg' };
     return {
       summary: 'Log today’s weigh-in: ' + weight + ' ' + unit + (cur ? ' (replaces ' + before.weight + ' ' + before.unit + ')' : ''),
       diff: [{ label: 'Weight', before: cur ? before.weight + ' ' + before.unit : '—', after: weight + ' ' + unit }],
       target: { userId: ctx.actor.id, kind: 'weigh_in', id: today },
-      beforeState: before, afterState: after, confirmedPayload: { weight: weight, unit: unit },
+      beforeState: before, afterState: after, confirmedPayload: { weight: kg, unit: 'kg' },
     };
   },
   async execute(ctx, plan) {

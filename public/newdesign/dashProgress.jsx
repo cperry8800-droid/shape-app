@@ -115,11 +115,13 @@ const DPR_DEMO = (() => {
 // A measurement converts per row, so a member who logged waist in inches one week and
 // centimetres the next compares like with like. Pure, so a test drives them.
 const DPR_LB_SERIES = ["weight", "strength"];
+// Points convert exactly (`units.exact`): the cards subtract them, and a change
+// taken between two rounded readings can be 0.1 off the real one. Display rounds.
 function dprPointsIn(rows, unit, units) {
   if (!Array.isArray(rows) || !units || !units.ready) return rows;
   return rows.map((r) => {
     if (!r || r.value == null || !isFinite(Number(r.value))) return r;
-    const m = units.measure(Number(r.value), r.unit || unit);
+    const m = units.exact(Number(r.value), r.unit || unit);
     return { ...r, value: m.value, unit: m.unit };
   });
 }
@@ -495,20 +497,33 @@ function DprCheckinHistory({ kit }) {
   );
 }
 
+// This week's saved check-in, if any.
+function dprCurrentCheckin(kit) {
+  return ((kit && kit.checkins) || []).find((c) => String(c.week_of) === kit.weekOf) || null;
+}
+// The units the check-in form asks in. Once the member's setting is read, theirs;
+// until then, the unit this week's saved check-in was logged in, else the app
+// default (imperial). So a pre-fill is never labelled in a system it was not written
+// in, and the form only re-keys when the system really changes, which is the one
+// time a half-typed entry has to go.
+function dprCheckinUnits(units, cur) {
+  const metric = units && units.ready
+    ? units.metric
+    : !!(cur && cur.weight != null && /^kg$/i.test(String(cur.unit || "kg")));
+  return { w: metric ? "kg" : "lb", l: metric ? "cm" : "in" };
+}
 function DprCheckinForm({ kit, onSaved, units }) {
-  const cur = (kit.checkins || []).find((c) => String(c.week_of) === kit.weekOf);
+  const cur = dprCurrentCheckin(kit);
   // ⚠ THE FORM ASKED FOR KILOGRAMS AND CENTIMETRES WHATEVER THE MEMBER'S SETTING, so an
   // imperial member had to convert before typing. It asks in their units now and sends
   // the unit with each figure (the API stores lb/kg and in/cm as given). A week already
-  // saved pre-fills in their unit too. The page re-keys this form when the setting
-  // arrives, so a pre-fill is never computed in one system and labelled in the other.
-  const wUnit = units && units.metric ? "kg" : "lb";
-  const lUnit = units && units.metric ? "cm" : "in";
+  // saved pre-fills in the unit it asks in.
+  const { w: wUnit, l: lUnit } = dprCheckinUnits(units, cur);
   const [ratings, setRatings] = React.useState((cur && cur.ratings) || {});
   const [wins, setWins] = React.useState((cur && cur.wins) || "");
   const [struggles, setStruggles] = React.useState((cur && cur.struggles) || "");
   const [question, setQuestion] = React.useState((cur && cur.question) || "");
-  const [weight, setWeight] = React.useState(cur && cur.weight != null && units ? String(units.measure(Number(cur.weight), cur.unit || "kg").value) : (cur && cur.weight != null ? String(cur.weight) : ""));
+  const [weight, setWeight] = React.useState(cur && cur.weight != null ? String(units && units.ready ? units.measure(Number(cur.weight), cur.unit || "kg").value : cur.weight) : "");
   const [meas, setMeas] = React.useState({});
   const [files, setFiles] = React.useState({});
   const [busy, setBusy] = React.useState(false);
@@ -1297,7 +1312,7 @@ function ClientProgressPage() {
             <div key={m.site} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center", padding: "6px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
               <span style={{ fontFamily: DPR_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_INK50 }}>{m.site}</span>
               <span style={{ fontFamily: DPR_MONO, fontSize: 11.5 }}>
-                <span style={{ color: DPR_INK50 }}>{m.cmp.then.value}</span> → {m.cmp.now.value} <span style={{ color: DPR_INK50 }}>{m.unit}</span>
+                <span style={{ color: DPR_INK50 }}>{Math.round(m.cmp.then.value * 10) / 10}</span> → {Math.round(m.cmp.now.value * 10) / 10} <span style={{ color: DPR_INK50 }}>{m.unit}</span>
               </span>
               <DprDeltaChip delta={m.cmp.delta} unit={m.unit} />
             </div>
@@ -1454,7 +1469,7 @@ function ClientProgressPage() {
       // is unobserved: expanding a history row would grow past the fitted height and
       // be clipped by item-content's overflow:hidden, silently.
       <div>
-        <DprCheckinForm key={"u-" + units.ready + "-" + units.prefs.weight} kit={kit} units={units} onSaved={() => setReloadKey((k) => k + 1)} />
+        <DprCheckinForm key={"u-" + dprCheckinUnits(units, dprCurrentCheckin(kit)).w} kit={kit} units={units} onSaved={() => setReloadKey((k) => k + 1)} />
         <DprCheckinHistory kit={kit} />
       </div>
     ) },

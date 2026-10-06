@@ -796,7 +796,7 @@ function cfDistanceOf(v) {
 // Settings → Units (`client_settings.units`, which both surfaces write). Signed
 // out, or until the setting is read, the app's default applies: imperial.
 function cfUnitPrefs(units) {
-  return /metric/i.test(String(units || "")) ? { weight: "kg", distance: "km" } : { weight: "lb", distance: "mi" };
+  return /metric|\bkg\b|\bkm\b/i.test(String(units || "")) ? { weight: "kg", distance: "km" } : { weight: "lb", distance: "mi" };
 }
 function cfLoadUnits(signedIn) {
   const db = window.shapeDb;
