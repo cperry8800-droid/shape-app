@@ -36,8 +36,8 @@ export default {
       replace: 'elev: p.elev,' },
     // ── the setting ──
     { name: 'the member\'s setting is ignored', file: WEB,
-      find: '.then(([U, st]) => ({ U, prefs: cfUnitPrefs(st && st.units) }))',
-      replace: '.then(([U, st]) => ({ U, prefs: cfUnitPrefs(null) }))' },
+      find: '.then(([T, S, st]) => ({ U: { ...T, ...S }, prefs: cfUnitPrefs(st && st.units) }))',
+      replace: '.then(([T, S, st]) => ({ U: { ...T, ...S }, prefs: cfUnitPrefs(null) }))' },
     { name: 'a signed-out visitor\'s settings are read', file: WEB,
       find: '(signedIn && db && typeof db.getUserGoals === "function")',
       replace: '(db && typeof db.getUserGoals === "function")' },

@@ -68,8 +68,8 @@ export default {
       find: 'paceLabel: x.paceLabel ? t.uText(x.paceLabel, { sport }) : x.paceLabel,',
       replace: 'paceLabel: x.paceLabel,' },
     { name: 'the elevation chart is labelled feet for everyone', file: CARD,
-      find: 'distanceMi={distanceMi} unit={elevIn.unit} />',
-      replace: 'distanceMi={distanceMi} unit="ft" />' },
+      find: 'distance={distance} distUnit={distUnit} unit={elevIn.unit} />',
+      replace: 'distance={distance} distUnit={distUnit} unit="ft" />' },
     // ── the review round (Fable) ──
     { name: 'breakdown rows convert as stats again: a movement name reads as a label', file: CARD,
       find: 'rows: uStats(a.breakdown.rows, false) } : null,',
