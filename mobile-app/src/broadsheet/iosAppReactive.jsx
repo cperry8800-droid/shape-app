@@ -1,56 +1,90 @@
 import React from 'react';
 import { RadioHologramDJ } from './iosAppHologramDJ.jsx';
-// Music-reactive effects for Shape Radio
-// Simulates BPM-synced visual effects. With real audio we'd use Web Audio API
-// + AnalyserNode; here we fake it with a 132 BPM clock (454ms per beat) and
-// sine-based bass/mid/treble channels.
+import { RadioBgBloom, RadioEdgeLight, RadioStageLights } from './iosAppRadioLights.jsx';
+import { rlInitial, rlStep, rlRead, rlBandsOf, rlHasSignal, rlDemo, rlIdle } from '../services/radioLight.mjs';
+// Music-reactive light effects for Shape Radio (Settings → Light effects).
+//
+// Every layer follows ONE reading of the music per frame (`radioLight` below,
+// rules in services/radioLight.mjs):
+//   measured — the radio is playing and its analyser can be read: the lights
+//              follow the music's level, its kicks and its drops;
+//   idle     — playing, but the stream cannot be read (no CORS, or no stream):
+//              the lights breathe and claim no beat;
+//   demo     — nothing playing (the Settings tap-to-preview): a 132 BPM clock.
 //
 // Intensity modes:
 //   'off'       — no effects (just the static Home)
-//   'subtle'    — edge glow + breathing hero + EQ mini-bars on Dynamic Island
-//   'immersive' — adds button halos, bg gradient shift, particle accents
+//   'subtle'    — the edge light, a drifting bloom, the island's EQ
+//   'immersive' — adds the stage lights (iosAppRadioLights.jsx)
 //   'hologram'  — adds the projected DJ at the booth (iosAppHologramDJ.jsx)
 //
 // Everything is strictly cosmetic; content/interactivity unchanged.
 
-const { useState: useStateF, useEffect: useEffectF, useRef: useRefF } = React;
-
-// 132 BPM = one beat every 454.5ms
-const BPM = 132;
-const BEAT_MS = 60000 / BPM;
+const { useState: useStateF, useEffect: useEffectF } = React;
 
 // ─────────────────────────────────────────────────────────────
-// useBeat — returns { beat (0..1 progress within beat), pulse (0..1, exp decay on kick), t (seconds) }
+// The shared reading: one per animation frame, however many layers ask. The
+// first layer to ask in a frame reads the analyser; the rest get its answer.
 // ─────────────────────────────────────────────────────────────
-function useBeat(on = true) {
-  const [tick, setTick] = useStateF(0);
-  const startRef = useRefF(performance.now());
-  const rafRef = useRefF();
-
-  useEffectF(() => {
-    if (!on) return;
-    let alive = true;
-    function loop(now) {
-      if (!alive) return;
-      setTick(now - startRef.current);
-      rafRef.current = requestAnimationFrame(loop);
+const RL_STATE = { t0: null, at: -1, live: null, read: null, state: rlInitial(), lastMs: null, bins: null };
+function radioLightAnalyser() {
+  try {
+    const radio = typeof window !== 'undefined' ? window.ShapeRadioLive : null;
+    return radio && radio.analyser ? radio.analyser() : null;
+  } catch (e) { return null; }
+}
+function radioLight(now, live) {
+  const S = RL_STATE;
+  if (now === S.at && live === S.live && S.read) return S.read;
+  // a fresh start after any pause or a switch of source: the 6 s Settings
+  // preview always opens at the top of its demo, drop included
+  if (S.t0 === null || now - S.at > 1000 || live !== S.live) S.t0 = now;
+  const ms = Math.max(0, now - S.t0);
+  let read;
+  if (!live) {
+    S.state = rlInitial(); S.lastMs = null;
+    read = rlDemo(ms);
+  } else {
+    const an = radioLightAnalyser();
+    let bins = null;
+    if (an && an.frequencyBinCount) {
+      if (!S.bins || S.bins.length !== an.frequencyBinCount) S.bins = new Uint8Array(an.frequencyBinCount);
+      an.getByteFrequencyData(S.bins);
+      bins = S.bins;
     }
-    rafRef.current = requestAnimationFrame(loop);
-    return () => {
-      alive = false;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [on]);
+    // ⚠ AN ALL-ZERO FRAME IS A STREAM WE CANNOT READ, NOT SILENCE: the lights
+    // breathe instead of dancing to a beat nobody measured
+    if (rlHasSignal(bins)) {
+      S.state = rlStep(S.state, rlBandsOf(bins), S.lastMs === null ? 0 : ms - S.lastMs);
+      S.lastMs = ms;
+      read = rlRead(S.state, 'measured');
+    } else {
+      S.state = rlInitial(); S.lastMs = null;
+      read = rlIdle(ms);
+    }
+  }
+  read = { ...read, clock: ms };
+  S.at = now; S.live = live; S.read = read;
+  return read;
+}
 
-  if (!on) return { beat: 0, pulse: 0, t: 0, bass: 0, mid: 0, treble: 0 };
-
-  const t = tick / 1000;
-  const beatPhase = (tick % BEAT_MS) / BEAT_MS;
-  const pulse = Math.pow(1 - beatPhase, 3);
-  const bass = pulse;
-  const mid = Math.pow(1 - ((tick + BEAT_MS / 2) % BEAT_MS) / BEAT_MS, 2) * 0.7;
-  const treble = (Math.sin(t * 18) * 0.5 + 0.5) * 0.5 + 0.5 * Math.sin(t * 7);
-  return { beat: beatPhase, pulse, t, bass, mid: Math.max(0, mid), treble: Math.max(0, treble) };
+// useBeat — the shared reading, re-rendered each frame for the React layers.
+// { pulse (the kick: 1 on a hit), bass, mid, treble, level, drop, t (s), source }
+function useBeat(on = true, live = false) {
+  const [read, setRead] = useStateF(null);
+  useEffectF(() => {
+    if (!on) return undefined;
+    let alive = true, raf = 0;
+    const loop = (now) => { if (!alive) return; setRead(radioLight(now, live)); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => { alive = false; cancelAnimationFrame(raf); };
+  }, [on, live]);
+  if (!on || !read) return { beat: 0, pulse: 0, t: 0, bass: 0, mid: 0, treble: 0, level: 0, drop: 0, source: null };
+  return {
+    beat: read.bar, pulse: read.kick, t: read.clock / 1000,
+    bass: read.measured ? Math.max(read.kick, read.bass) : read.kick,
+    mid: read.mid, treble: read.high, level: read.level, drop: read.drop, source: read.source,
+  };
 }
 
 const FX_COLORS = ['#0ac5a8', '#e37a5a', '#d9b26a', '#8c6fa8'];
@@ -73,41 +107,15 @@ function cycleColor(tSec, period = 18) {
   return mixHex(FX_COLORS[i], FX_COLORS[(i + 1) % n], frac);
 }
 
-function RadioEdgeGlow({ color = '#0ac5a8', enabled = true }) {
-  const { bass } = useBeat(enabled);
-  if (!enabled) return null;
-  const intensity = 0.3 + bass * 0.5;
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 9,
-      boxShadow: `inset 0 0 ${40 + bass * 80}px ${18 + bass * 24}px ${color}${Math.round(intensity * 40).toString(16).padStart(2, '0')}`,
-      transition: 'box-shadow 60ms linear',
-      borderRadius: 40,
-    }} />
-  );
-}
+// The edge light, the bloom and the stage lights are in iosAppRadioLights.jsx.
 
-function RadioBgBloom({ color = '#0ac5a8', enabled = true }) {
-  const { bass, t } = useBeat(enabled);
-  if (!enabled) return null;
-  const x = 50 + Math.sin(t * 0.3) * 15;
-  const y = 40 + Math.cos(t * 0.22) * 15;
-  const size = 40 + bass * 25;
-  const alpha = 0.06 + bass * 0.08;
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-      background: `radial-gradient(${size}% ${size}% at ${x}% ${y}%, ${color}${Math.round(alpha * 255).toString(16).padStart(2, '0')} 0%, transparent 70%)`,
-      transition: 'background 80ms linear',
-    }} />
-  );
-}
-
-function RadioDynamicIsland({ enabled = true, color = '#0ac5a8', label = 'Shape Radio · 132' }) {
-  const { bass, mid, treble, t } = useBeat(enabled);
+function RadioDynamicIsland({ enabled = true, color = '#0ac5a8', label = 'Shape Radio · 132', live = false }) {
+  const { bass, mid, treble, t, source } = useBeat(enabled, live);
   if (!enabled) return null;
   const bars = Array.from({ length: 7 }).map((_, i) => {
-    const wave = Math.sin(t * (6 + i * 1.2) + i) * 0.4 + 0.6;
+    // with nothing to read, the bars only breathe: an EQ dancing to no music
+    // is a reading nobody took
+    const wave = (Math.sin(t * (6 + i * 1.2) + i) * 0.4 + 0.6) * (source === 'idle' ? 0.25 : 1);
     return Math.max(0.15, (i < 2 ? bass : i < 4 ? mid : treble) * 0.6 + wave * 0.4);
   });
   return (
@@ -160,23 +168,26 @@ function Halo({ color = '#0ac5a8', enabled = true, radius = 22, children, style 
 
 // tint: a fixed hex pins every layer to one color (the Settings fx color
 // picker — 'cycle' passes null and keeps the drifting 18s palette).
-// isLight: the paper under the overlay (the hologram prints as ink on light
-// paper). floor: CSS px the tab bar takes at the bottom (0 where there is none).
-// preview: the Settings tap-to-preview, where the booth stands on the colour
-// swatches and gets a paper-coloured glass so it still reads there.
-function RadioEffects({ mode = 'subtle', label = 'Shape Radio · 132', tint = null, isLight = false, floor = 0, preview = false }) {
+// isLight: the paper under the overlay (light paper deepens every gel).
+// floor: CSS px the tab bar takes at the bottom (0 where there is none).
+// preview: the Settings tap-to-preview (the hologram's glass over the swatches).
+// live: the radio is playing — read the music; otherwise the demo beat.
+function RadioEffects({ mode = 'subtle', label = 'Shape Radio · 132', tint = null, isLight = false, floor = 0, preview = false, live = false }) {
   const on = mode !== 'off';
-  const { t } = useBeat(on);
+  const { t } = useBeat(on, live);
+  const sample = React.useCallback((now) => radioLight(now, live), [live]);
   const color = tint || cycleColor(t, 18);
   if (!on) return null;
+  const staged = mode === 'immersive' || mode === 'hologram';
   return (
     <>
-      <RadioBgBloom color={color} enabled={true} />
-      <RadioEdgeGlow color={color} enabled={true} />
-      <RadioDynamicIsland color={color} label={label} enabled={true} />
-      {mode === 'hologram' && <RadioHologramDJ color={color} isLight={isLight} floor={floor} preview={preview} />}
+      <RadioBgBloom color={color} isLight={isLight} sample={sample} />
+      {staged && <RadioStageLights color={color} isLight={isLight} floor={floor} sample={sample} />}
+      <RadioEdgeLight color={color} isLight={isLight} floor={floor} sample={sample} />
+      <RadioDynamicIsland color={color} label={label} enabled={true} live={live} />
+      {mode === 'hologram' && <RadioHologramDJ color={color} isLight={isLight} floor={floor} preview={preview} sample={sample} />}
     </>
   );
 }
 
-Object.assign(window, { useBeat, Halo, RadioEffects, RadioEdgeGlow, RadioBgBloom, RadioDynamicIsland, RadioHologramDJ, cycleColor, mixHex });
+Object.assign(window, { useBeat, radioLight, Halo, RadioEffects, RadioEdgeLight, RadioBgBloom, RadioStageLights, RadioDynamicIsland, RadioHologramDJ, cycleColor, mixHex });
