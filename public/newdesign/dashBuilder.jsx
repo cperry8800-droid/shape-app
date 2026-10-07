@@ -477,11 +477,11 @@ function dbuProgressionReport(doc) {
     if (W.progressionStatus(doc, 0, di, bi, ri) === "source") {
       out.moves += 1;
       for (let wi = weeks.length - 1; wi > 0 && !out.example; wi -= 1) {
-        ((((weeks[wi].days || [])[di]) || {}).blocks || []).forEach((tb, tbi) => (tb.rows || []).forEach((tr, tri) => {
-          if (!out.example && same(tr, r) && W.progressionStatus(doc, wi, di, tbi, tri) === "follows") {
+        (weeks[wi].days || []).forEach((td, tdi) => (td.blocks || []).forEach((tb, tbi) => (tb.rows || []).forEach((tr, tri) => {
+          if (!out.example && same(tr, r) && W.progressionStatus(doc, wi, tdi, tbi, tri) === "follows") {
             out.example = { name: String(r.name).trim(), to: Number(tr.load), week: wi + 1 };
           }
-        }));
+        })));
       }
     } else if (rule.kinds.includes(b.kind) && r.loadText == null && Number(r.load) > 0 && r.loadType !== rule.unit) out.otherUnit += 1;
   })));
@@ -2192,10 +2192,12 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // ⚠ THE DAY EDITOR DOCKS UNDER THE CANVAS, so a day opened from week 1 of an 8-week Grid
   // can open below the fold. Focus moves into it once it has rendered, which brings it on
   // screen and puts a keyboard user where the edit is (Planner's side panel did the same).
+  // One-shot: a request that finds no panel (a Sheet band whose day week 1 does not have)
+  // is dropped, rather than waiting to pull focus on some later, unrelated render.
   React.useEffect(() => {
-    if (!focusPanel.current || !panelRef.current) return;
+    if (!focusPanel.current) return;
     focusPanel.current = false;
-    panelRef.current.focus();
+    if (panelRef.current) panelRef.current.focus();
   });
   const idRef = React.useRef(template.draftId || (template.id && !String(template.id).startsWith('demo-') ? template.id : crypto.randomUUID()));
   const persisted = React.useRef(template.recovered ? !!template.recovered.persisted : !!template.id && !String(template.id).startsWith('demo-'));

@@ -303,10 +303,14 @@
   // Steps of progression each week has taken: one per training week after the first; a
   // deload week takes none, so its loads hold and the climb resumes after it.
   const progressionSteps = weeks => { let n = 0; return weeks.map((w, i) => { if (i > 0 && !(w && w.deload)) n += 1; return n; }); };
-  // ⚠ "THE SAME MOVE" IN A LATER WEEK IS THE SAME DAY (BY PLACE, AS THE SHEET'S BANDS ARE),
-  // THE SAME KIND OF BLOCK AND THE SAME NAME — the second Back squat of a day matches the
-  // second. Not the row's exact place: a move added or dragged in week 3 would otherwise
-  // hand every move after it someone else's weight.
+  // ⚠ "THE SAME MOVE" IN A LATER WEEK IS THE SAME DAY, THE SAME KIND OF BLOCK AND THE SAME
+  // NAME — the second Back squat of a day matches the second. Not the row's exact place: a
+  // move added or dragged in week 3 would otherwise hand every move after it someone
+  // else's weight. And the same day is week 1's day ON THE SAME WEEKDAY (the Grid's own
+  // identity for a day), falling back to the same place in the week (the Sheet's band) for
+  // a day with no weekday or none to match: by place alone, deleting a day from week 1, or
+  // a week whose days are not listed Mon → Sun, would match every later day to the wrong
+  // session and quietly stop its climb.
   function moveKeys(day) {
     const seen = {}, out = [];
     (day && day.blocks || []).forEach((block, bi) => (block.rows || []).forEach((row, ri) => {
@@ -317,9 +321,15 @@
     }));
     return out;
   }
-  function baseMoves(builder, di) {
+  const hasWeekday = d => !!d && Number.isInteger(d.weekday) && d.weekday >= 0 && d.weekday <= 6;
+  function baseDay(builder, day, di) {
+    const first = (builder.weeks[0] || {}).days || [];
+    const same = hasWeekday(day) ? first.find(d => hasWeekday(d) && d.weekday === day.weekday) : null;
+    return same || first[di];
+  }
+  function baseMoves(builder, day, di) {
     const map = new Map();
-    for (const m of moveKeys(((builder.weeks[0] || {}).days || [])[di])) if (m.key && !map.has(m.key)) map.set(m.key, m);
+    for (const m of moveKeys(baseDay(builder, day, di))) if (m.key && !map.has(m.key)) map.set(m.key, m);
     return map;
   }
   function stepLoad(rule, base, steps) {
@@ -353,7 +363,7 @@
     const steps = progressionSteps(weeks);
     const base = {...builder, weeks};
     const out = weeks.map((week, wi) => wi === 0 ? week : {...week, days:(week.days || []).map((day, di) => {
-      const from = baseMoves(base, di);
+      const from = baseMoves(base, day, di);
       const keyed = new Map(moveKeys(day).map(m => [m.bi + ':' + m.ri, m.key]));
       return {...day, blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row, ri) => {
         const b = from.get(keyed.get(bi + ':' + ri));
@@ -379,7 +389,7 @@
     if (!row) return '';
     if (wi === 0) return progressible(rule, block, row) ? 'source' : '';
     const key = (moveKeys(day).find(m => m.bi === bi && m.ri === ri) || {}).key;
-    const b = key ? baseMoves(builder, di).get(key) : null;
+    const b = key ? baseMoves(builder, day, di).get(key) : null;
     if (!b || !progressible(rule, b.block, b.row) || !progressible(rule, block, {...row, load:1})) return '';
     return row.loadPinned === true ? 'pinned' : 'follows';
   }

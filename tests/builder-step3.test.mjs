@@ -123,6 +123,23 @@ test('a load typed by hand in a later week stays, and the rule finds a move by n
   assert.deepEqual(loads(again, backSquat), [200, 205, 300]);
 });
 
+// The Grid's identity for a day is its weekday; the place in the week is only the fallback.
+test('a later week\'s day climbs from week 1\'s day on the same weekday, wherever either is listed', () => {
+  const b = program(3, { progression: RULE });
+  b.weeks[0].days.reverse(); // week 1 lists Thursday first; weeks 2 and 3 list Monday first
+  const out = W.applyProgramProgression(b);
+  assert.deepEqual(loads(out, (x, wi) => x.weeks[wi].days.find((d) => d.name === 'Lower A').blocks[1].rows[0]), [225, 230, 235]);
+  assert.deepEqual(loads(out, (x, wi) => x.weeks[wi].days.find((d) => d.name === 'Upper A').blocks[0].rows[0]), [95, 100, 105]);
+  // Deleting week 1's Monday leaves Thursday's climb where it was in every week.
+  const gone = W.applyProgramProgression(dbuDeleteDay(W.applyProgramProgression(program(3, { progression: RULE })), 0, 0));
+  assert.deepEqual(loads(gone, (x, wi) => x.weeks[wi].days.find((d) => d.name === 'Upper A').blocks[0].rows[0]), [95, 100, 105]);
+  assert.equal(W.progressionStatus(gone, 2, 1, 0, 0), 'follows', 'week 3\'s Thursday lost its source when Monday went');
+  // A day with no weekday falls back to its place in the week.
+  const loose = program(2, { progression: RULE });
+  loose.weeks.forEach((w) => w.days.forEach((d) => { delete d.weekday; }));
+  assert.equal(squat(W.applyProgramProgression(loose), 1).load, 230);
+});
+
 test('an edit pins exactly the loads it changed, matched by id within the day', () => {
   const before = week1().days[0];
   const after = JSON.parse(JSON.stringify(before));
