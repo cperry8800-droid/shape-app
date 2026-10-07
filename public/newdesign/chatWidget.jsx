@@ -1608,7 +1608,7 @@ function ChatWidget(props) {
               const following = profFollow && Number.isFinite(profFollow.following) ? profFollow.following : null;
               const handle = "@" + String(profileFor.who).toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 18);
               const bio = isNora
-                ? "Nora is Shape's concierge — the assistant built into the app. Ask her about finding a coach, billing, integrations, your plan or your account; she brings in the human Shape team whenever she can't sort something herself."
+                ? "Nora is Shape's concierge — the assistant built into the app. Ask her about finding a coach, billing, integrations, your plan or your account; when she can't sort something herself, she gives you the Shape team's email."
                 : (isPrivate ? null : ((profLive && profLive.bio) || `${profileFor.who} is part of the Shape community${isCoach ? " as a coach" : ""}. ${isCoach ? "Browse their coaching profile to see packages and book a session." : "Say hi or cheer them on."}`));
               // Full-profile link → the SAME person shown here. Real accounts load
               // by id; for demo people we pass the name + role + this card's points
@@ -1665,7 +1665,7 @@ function ChatWidget(props) {
                         <React.Fragment>
                           <Stat label="Status" value="Online" color={tc} />
                           <Stat label="Replies" value="Instantly" />
-                          <Stat label="Escalates to" value="Shape team" />
+                          <Stat label="People at" value="info@" />
                         </React.Fragment>
                       ) : (
                         <React.Fragment>
@@ -1686,7 +1686,7 @@ function ChatWidget(props) {
                         {isNora && (
                           <div style={{ marginTop: 14, borderRadius: 14, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", padding: "4px 16px 12px" }}>
                             <Row label="Helps with" value="Finding a coach · billing · integrations · your plan & account" />
-                            <Row label="Can't sort it?" value="She flags it for the human Shape team to follow up." />
+                            <Row label="Can't sort it?" value="Email the Shape team at info@theshapecommunity.com." />
                           </div>
                         )}
                         {(pronouns || goal || link) && (
@@ -2037,14 +2037,14 @@ function DragDots() {
 function supportReply(text) {
   const low = String(text || "").toLowerCase();
   if (/billing|price|cost|refund|charge|stripe|invoice|subscription/.test(low))
-    return "Got it — I'll route this to billing. What's the email on the account so we can pull it up?";
+    return "I can't reach billing from here. Email the Shape team at info@theshapecommunity.com from the address on your account.";
   if (/coach|trainer|nutrition|marketplace|find a coach/.test(low))
     return "Tell me your goal and city and I'll point you to the right coach or nutritionist on Shape.";
   if (/app|bug|crash|android|iphone|ios|login|log in|password|account/.test(low))
-    return "Sorry about that. Send the device + what's happening and our support team can troubleshoot from there.";
+    return "Sorry about that. Email info@theshapecommunity.com with your device and what's happening, and the Shape team can troubleshoot.";
   if (/cancel|delete|close.*account/.test(low))
-    return "I can help with that. Confirm the account email and a teammate will follow up to finish it.";
-  return "Thanks — a Shape teammate will follow up here and by email shortly. Anything else I can help with?";
+    return "I can't do that from here. Email the Shape team at info@theshapecommunity.com from the address on your account.";
+  return "I can't answer that just now. The Shape team answers at info@theshapecommunity.com. Anything else I can help with?";
 }
 
 // Different replies for 1:1 vs group. For group chats, a random member responds.

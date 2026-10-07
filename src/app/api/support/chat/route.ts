@@ -118,12 +118,12 @@ const SYSTEM_PROMPT = [
   '',
   'COACHES: When a member wants to find, switch, compare, or get matched with a coach (trainer or nutritionist), CALL the recommend_coaches tool and then recommend specific people by name with one short reason each (specialty, city, or rating). Ask at most ONE clarifying question (e.g. goal, in-person vs remote) only if you truly cannot pick a sensible focus; otherwise just recommend. Never invent coaches — only mention ones the tool returns. The tool lists the live marketplace first; a result marked example is a demonstration listing rather than a real coach — prefer the real ones, and if you mention an example say it is an example listing. Quote a price, rating or credential only when the listing states one; a coach marked atCapacity is not taking new clients right now. If the tool answers noMatch, say plainly that no listing matches that yet, then offer the marketplace or a broader focus.',
   '',
-  "HOW SHAPE WORKS: For a question about Shape itself — what it costs and includes, whether a coach is required, coach prices and what coaches pay, cancelling or billing, Shape Radio, coach credentials and the Verified badge, switching coaches, the Shape Score and its tiers and rewards, habits, units, Cook Mode and recipes, privacy and data, the account, or what you can do — call shape_help and answer from what it returns (each entry names its source). If it returns no entry, say you don't have that written down and offer to pass the question to the Shape team. Never invent a policy, a price or a date.",
+  "HOW SHAPE WORKS: For a question about Shape itself — what it costs and includes, whether a coach is required, coach prices and what coaches pay, cancelling or billing, Shape Radio, coach credentials and the Verified badge, switching coaches, the Shape Score and its tiers and rewards, habits, units, Cook Mode and recipes, privacy and data, the account, or what you can do — call shape_help and answer from what it returns (each entry names its source). If it returns no entry, say you don't have that written down and that the Shape team answers at info@theshapecommunity.com. Never invent a policy, a price or a date.",
   '',
   "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers — puts a workout on a client's calendar BY TITLE ONLY, with no exercises, on a day they named), assign_meal_plan (nutritionists), set_program_detail (program phase/note — a trainer's training block or a nutritionist's nutrition phase), add_review_note (feedback on a logged session), reschedule_session (move one of their coaching sessions). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
   '',
   'OTHER FIRST-LINE HELP: account & login, billing/subscription ($5/mo platform membership; coaches set their own coaching prices), connecting integrations (Spotify, Strava, Whoop, Oura, Garmin, Apple Health, Instacart), and using the Train/Eat/Habits/Score/Radio tabs, channels & chat.',
-  'Never invent policy, prices, or medical advice. If something needs a human — refunds, account changes, data deletion, a confirmed bug, or anything you are unsure about — say you have flagged it for the Shape team and they will follow up here. Do not promise specific timelines.',
+  'Never invent policy, prices, or medical advice. If something needs a human — refunds, account changes, data deletion, a confirmed bug, or anything you are unsure about — say you cannot do that from here and that they can email the Shape team at info@theshapecommunity.com. You cannot pass anything to the team yourself: never say you have flagged, forwarded, noted or passed something on, and never promise that someone will follow up.',
 ].join('\n');
 
 const TOOLS = [
@@ -493,19 +493,55 @@ const VOICE_PROMPT_NOTE =
 // A trainer's turn: Nora can BUILD. Rides only when draft_workout is in the tool list,
 // so every other caller's prompt is unchanged. ⚠ IT CARRIES TODAY'S DATE, because
 // "Monday" has to become a YYYY-MM-DD and the model has no clock: without it the
-// date is a guess, which is the one thing this paragraph forbids. UTC, the day the
-// assignment boundary calls today.
-function trainerPromptNote(now: Date): string {
-  const day = now.toISOString().slice(0, 10);
-  const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getUTCDay()];
+// date is a guess, which is the one thing this paragraph forbids. ⚠ THE TRAINER'S
+// OWN DAY, not UTC's (#2227 registered it): at 9 pm in New York UTC is already
+// tomorrow, so "tomorrow" landed a day late and "today" meant tomorrow. Workouts are
+// still dated on UTC days at the boundary (/api/trainer/workout refuses a day before
+// UTC's today), so when the trainer's day is behind UTC's the note names the earliest
+// day a session can go on, instead of letting a "today" fail as "already passed".
+function trainerPromptNote(now: Date, zone = 'UTC'): string {
+  const utcDay = now.toISOString().slice(0, 10);
+  let day = utcDay;
+  let weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getUTCDay()];
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'long' }).formatToParts(now);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value || '';
+    const local = `${get('year')}-${get('month')}-${get('day')}`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(local) && get('weekday')) { day = local; weekday = get('weekday'); }
+    else zone = 'UTC';
+  } catch { zone = 'UTC'; }
+  const earliest = day < utcDay
+    ? ` Sessions are dated on UTC days, so the earliest day a session can go on right now is ${utcDay}: if they want one today, say so and offer ${utcDay}.`
+    : '';
   return [
-    `TRAINER DRAFTING: Today is ${day} (${weekday}, UTC). You CAN build workouts and programs for this trainer — the one exception to "never invent a workout".`,
+    `TRAINER DRAFTING: Today is ${day} (${weekday}, ${zone}).${earliest} You CAN build workouts and programs for this trainer — the one exception to "never invent a workout".`,
     "When they ask you to build, make, create, write, draft or program a session, a workout, a week or a multi-week plan, call draft_workout with their request in their own words (kind 'day' for one session, 'program' for a repeating week or several weeks), passing minutes, equipment, level, weeks and daysPerWeek only when they said them.",
     'The server drafts the real exercise rows and shows them a card: it is a STARTING POINT for the trainer to review and edit, nothing is saved or assigned until they confirm, and a saved draft opens in the builder. Say that — never that it is done.',
     "Never invent loads (the server leaves weights blank unless they gave numbers; RPE sets the effort), never guess a client (find_client first, and ask if it is unclear), and never invent a date: for a client's single session, if they did not say which day, ask \"Which day?\" before calling. Turn a named weekday into YYYY-MM-DD from today's date.",
     'A multi-week program for a client is saved to their programs with the client ready to pick in the builder\'s Assign — say so. assign_workout puts an EMPTY session with just a title on a calendar: use it only when they explicitly want an already-named workout assigned without building it.',
     'If draft_workout says the card is a template, tell them AI drafting is unavailable right now and that the card is a template from the exercise library. Anything that is not about training (a poem, a recipe) you answer normally, without draft_workout.',
   ].join(' ');
+}
+
+// The zone a trainer's "today" means: the one their open hours and Schedule are kept in
+// (trainers.timezone, the zone /api/calendar shows their bookings in), else the zone the
+// app stored on their own profile (client_profiles.timezone), else UTC. Rows, not
+// maybeSingle(): an account can own two trainer listings, and maybeSingle errors on two.
+// Any read that fails, or a zone Intl does not know, reads as UTC, the old behaviour.
+async function trainerZone(sb: Actor['supabase'], uid: string): Promise<string> {
+  const valid = (z: unknown): string | null => {
+    const v = typeof z === 'string' ? z.trim() : '';
+    if (!v) return null;
+    try { new Intl.DateTimeFormat('en-US', { timeZone: v }); return v; } catch { return null; }
+  };
+  try {
+    const t = await sb.from('trainers').select('timezone').eq('owner_id', uid).limit(5);
+    for (const row of (t.data ?? []) as Array<{ timezone?: unknown }>) { const z = valid(row.timezone); if (z) return z; }
+    const c = await sb.from('client_profiles').select('timezone').eq('user_id', uid).limit(1);
+    const z = valid(((c.data ?? [])[0] as { timezone?: unknown } | undefined)?.timezone);
+    if (z) return z;
+  } catch { /* UTC below */ }
+  return 'UTC';
 }
 
 // The per-request context the READ tools run with: the caller's own RLS client
@@ -874,7 +910,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -897,7 +933,7 @@ async function askOpenAI(
   // named so a short spoken question is answered in the member's language.
   const langName = member.locale && member.locale !== 'en' ? languageNameFor(member.locale) : null;
   const langNote = langName ? `\n\nLANGUAGE: The member's app is set to ${langName} (${member.locale}). Answer in ${langName} unless they write to you in another language; keep coach names, product names and figures as they are.` : '';
-  const trainerNote = member.trainerTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${trainerPromptNote(member.reads ? member.reads.now : new Date())}` : '';
+  const trainerNote = member.trainerTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${trainerPromptNote(member.reads ? member.reads.now : new Date(), member.trainerZone)}` : '';
   const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
@@ -1027,13 +1063,13 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
   if (has('spotify'))
     return { reply: "For Spotify: open Settings → Manage integrations → Connect Spotify. Once connected you can save a coach's playlist straight to your own profile.", actions: [{ type: 'screen', label: 'Open integrations', screen: 'integrations' }] };
   if (has('instacart', 'grocery'))
-    return { reply: "Grocery hand-off to Instacart is rolling out — for now your grocery list copies to your clipboard so you can paste it into any store. I've noted your interest for the Shape team.", actions: [] };
+    return { reply: "Grocery hand-off to Instacart is rolling out — for now your grocery list copies to your clipboard so you can paste it into any store.", actions: [] };
   if (has('whoop', 'strava', 'oura', 'garmin', 'apple health', 'apple watch', 'wearable', 'sync'))
     return { reply: 'You can connect wearables under Settings → Manage integrations (Strava, Whoop, Oura, Garmin, and Apple Health on the iOS app). Recovery, sleep, and workouts then flow into your daily snapshot.', actions: [{ type: 'screen', label: 'Open integrations', screen: 'integrations' }] };
   if (has('password', 'log in', 'login', 'sign in', "can't get in", 'reset'))
-    return { reply: "For login trouble, try resetting your password from the sign-in screen. If you still can't get in, tell me your account email and I'll flag it for the Shape team.", actions: [] };
+    return { reply: "For login trouble, try resetting your password from the sign-in screen. If you still can't get in, email the Shape team at info@theshapecommunity.com from the address on your account.", actions: [] };
   if (has('cancel', 'refund', 'billing', 'charge', 'subscription', 'payment'))
-    return { reply: "I can't make billing changes from here, but I've flagged this for the Shape team — they'll follow up in this thread. If you can, add the date and amount you're asking about.", actions: [{ type: 'screen', label: 'See pricing', screen: 'pricing', url: '/newdesign/Pricing.html' }] };
+    return { reply: "I can't make billing changes from here. Email the Shape team at info@theshapecommunity.com with the date and amount you're asking about, and a person will answer.", actions: [{ type: 'screen', label: 'See pricing', screen: 'pricing', url: '/newdesign/Pricing.html' }] };
   if (has('nutrition', 'diet', 'meal', 'macro', 'eat', 'vegan', 'plant')) {
     const browse: SupportAction = { type: 'marketplace', label: 'Browse all nutritionists', role: 'nutritionist', url: '/newdesign/Marketplace.html?role=Nutritionist' };
     const { pool, unavailable } = await coachPool('nutritionist');
@@ -1061,7 +1097,7 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
   // is required (minScore 4), never a stray body word.
   const known = searchKnowledge(text, { limit: 1, minScore: 4 });
   if (known.entries.length) return { reply: known.entries[0].body, actions: [] };
-  return { reply: "Thanks for reaching out — I've passed this to the Shape team and they'll follow up right here. In the meantime, is there anything else I can help with?", actions: [] };
+  return { reply: "I can't answer that one from here. The Shape team answers at info@theshapecommunity.com. Is there anything else I can help with?", actions: [] };
 }
 
 export async function POST(request: Request) {
@@ -1097,6 +1133,7 @@ export async function POST(request: Request) {
   let reads: ReadCtx | null = null;
   let coachTools: typeof COACH_TOOLS = [];
   let trainerTools: typeof TRAINER_TOOLS = [];
+  let zone = 'UTC';
   let isMember = false;
   if (actor) {
     const membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
@@ -1113,7 +1150,7 @@ export async function POST(request: Request) {
       // ⚠ THE ROLE THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
       // is `roles: ['trainer']` against the actor's role, so offering it to anyone else
       // would hand the model a tool that can only answer role_not_allowed.
-      if (actor.role === 'trainer') trainerTools = TRAINER_TOOLS;
+      if (actor.role === 'trainer') { trainerTools = TRAINER_TOOLS; zone = await trainerZone(actor.supabase, actor.user.id); }
       memoryCtx = {
         actor: { id: actor.user.id, role: actor.role },
         supabase: actor.supabase,
@@ -1137,7 +1174,7 @@ export async function POST(request: Request) {
   const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
   const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, isMember, voice, locale, coach }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach }, request.signal).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
