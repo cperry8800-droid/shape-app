@@ -960,12 +960,14 @@ function dbuPairByDrop(day, key, targetKey) {
   if (!src || !dst) return { day };
   const all = blocks.flatMap((b) => b.rows || []);
   const tg = dbuGroupOf(dst.row);
-  const used = new Set(all.filter((r) => r !== src.row && r !== dst.row).map(dbuGroupOf).filter(Boolean));
+  // The move leaves its own superset unless it is dropped into it. A partner left alone there
+  // is no superset any more and loses its letter, so that letter is free for the new pair.
+  const sg = dbuGroupOf(src.row);
+  const stay = sg && sg !== tg ? all.filter((r) => r !== src.row && dbuGroupOf(r) === sg) : [];
+  const orphan = stay.length === 1 ? stay[0] : null;
+  const used = new Set(all.filter((r) => r !== src.row && r !== dst.row && r !== orphan).map(dbuGroupOf).filter(Boolean));
   const letter = tg || ["A", "B", "C", "D"].find((l) => !used.has(l));
   if (!letter) return { day, error: "All four superset letters (A–D) are in use on this day." };
-  const sg = dbuGroupOf(src.row);
-  const stay = sg && sg !== letter ? all.filter((r) => r !== src.row && dbuGroupOf(r) === sg) : [];
-  const orphan = stay.length === 1 ? stay[0] : null;
   const moved = { ...src.row, group: letter };
   const next = blocks.map((b, bi) => {
     let rows = (b.rows || []).filter((r) => r !== src.row).map((r) => (r === orphan ? { ...r, group: null } : r === dst.row ? { ...r, group: letter } : r));

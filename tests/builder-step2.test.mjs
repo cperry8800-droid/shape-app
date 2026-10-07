@@ -207,6 +207,12 @@ test('dropping a move onto another makes a superset: a free letter, or the targe
   const no = dbuPairByDrop(full, 'y', 'x');
   assert.equal(no.day, full);
   assert.match(no.error, /All four superset letters/);
+  // ...but a move that leaves a pair frees that pair's letter: r1 leaves A, r0 is alone in it
+  // and loses the letter, so r1 and x take A rather than being refused.
+  const freed = dbuPairByDrop(full, 'r1', 'x');
+  assert.equal(freed.error, undefined, 'the letter the dragged move releases was still counted as used');
+  assert.equal(freed.letter, 'A');
+  assert.deepEqual(groups(freed.day), ['r0 r2B r3B r4C r5C r6D r7D xA r1A y']);
 });
 
 test('superset with next takes a free letter, and unpairing leaves no superset of one', () => {
