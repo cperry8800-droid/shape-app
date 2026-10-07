@@ -19548,7 +19548,9 @@ function BSSearchMsgBtn({ uid, name }) {
 // A query reads as a question when it ends in "?", runs to three words, or opens with a
 // question word. A single word stays a name search. The website's siteSearch.js holds the
 // same rule; tests/nora-search-asks.test.mjs holds the two to each other.
-const BS_QUESTION_RE = /^(how|what|why|when|where|who|which|can|could|should|is|are|do|does|did|will|would|help|find|show|tell|explain|i |i'm|im |my )/i;
+  // ⚠ A WHOLE WORD, AND NO NAME-LIKE WORDS. Without the \b, "Isabel Jones" matched "is" and "Dora
+  // Lee" matched "do"; "will" is left out because "Will Smith" is a name (Codex, #2248).
+const BS_QUESTION_RE = /^(how|what|why|when|where|who|which|can|could|should|is|are|do|does|did|would|help|find|show|tell|explain|i|i'm|im|my)\b/i;
 function bsLooksLikeQuestion(q) {
   q = String(q || '').trim();
   if (q.length < 4) return false;
@@ -19873,7 +19875,7 @@ function BSUniversalSearch({ onClose }) {
             </div>
           ) : (
             <>
-              {askNoraRow}
+              {list.length === 0 && askNoraRow}
               {noraHit && (
                 <>
                   <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('common:search.staffEyebrow', { defaultValue: 'Shape staff' })}</div>
@@ -19893,6 +19895,8 @@ function BSUniversalSearch({ onClose }) {
                   {list.map(Row)}
                 </>
               )}
+              {/* First when nobody matched; after the people when someone did, so a name is never pushed down. */}
+              {list.length > 0 && askNoraRow}
               {filter === 'all' && chHits.length > 0 && (
                 <>
                   <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('feed:tab.channels', { defaultValue: 'Channels' })}</div>

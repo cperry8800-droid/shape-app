@@ -133,7 +133,9 @@
   // question typed into it ("how do I cancel?") found nobody and said so. Anything that
   // reads as a question now offers to ask Nora, with the words carried into her composer
   // for the visitor to send. A single word stays a name search.
-  var QUESTION_RE = /^(how|what|why|when|where|who|which|can|could|should|is|are|do|does|did|will|would|help|find|show|tell|explain|i |i'm|im |my )/i;
+  // ⚠ A WHOLE WORD, AND NO NAME-LIKE WORDS. Without the \b, "Isabel Jones" matched "is" and "Dora
+  // Lee" matched "do"; "will" is left out because "Will Smith" is a name (Codex, #2248).
+  var QUESTION_RE = /^(how|what|why|when|where|who|which|can|could|should|is|are|do|does|did|would|help|find|show|tell|explain|i|i'm|im|my)\b/i;
   function looksLikeQuestion(q) {
     q = String(q || '').trim();
     if (q.length < 4) return false;
@@ -209,7 +211,8 @@
   function render(rows, nh, query, notice) {
     var html = '';
     var asking = looksLikeQuestion(query) ? query : '';
-    if (asking) html += askRow(asking);
+    // First when nobody matched; after the people when someone did, so a name is never pushed down.
+    if (asking && !rows.length) html += askRow(asking);
     if (nh) {
       html +=
         '<button class="ss-nora" type="button" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;background:transparent;border:0;width:100%;text-align:left">' +
@@ -241,6 +244,7 @@
           '<span style="font-family:' + MONO + ';font-size:12px;color:rgba(242,237,228,0.4)">›</span>' +
         '</a>';
     });
+    if (asking && rows.length) html += askRow(asking);
     resultsEl.innerHTML = html;
 
     var ask = resultsEl.querySelector('.ss-ask');

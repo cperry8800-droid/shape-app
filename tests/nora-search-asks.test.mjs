@@ -26,6 +26,9 @@ const CASES = [
   ['how do I cancel', true], ['pricing?', true], ['find me a coach', true], ['can I pause', true],
   ['what is shape', true], ['strength coach brooklyn', true], ['my plan', true],
   ['maya', false], ['Maya Okafor', false], ['nora', false], ['@devon', false], ['', false], ['hi?', false],
+  // A two-word name that only starts like a question word stays a name (Codex, #2248).
+  ['Isabel Jones', false], ['Dora Lee', false], ['Will Smith', false], ['Aretha Franklin', false], ['Ian Wright', false], ['Myra Hess', false],
+  ['will I lose weight', true], ['is it free', true], ["i'm stuck", true], ['do you deliver', true],
 ];
 
 test('one rule on all three searches: a question is offered to Nora, a name stays a name', () => {
@@ -97,7 +100,11 @@ test('website, page without React: the real launcher opens Nora with the questio
 
 test('the React search and the app carry the same row and the same hand-off', () => {
   assert.match(SHELL, /const req = \{ who: "Nora", tab: "support", draft: asking \};/);
-  assert.match(SHELL, /\{asking && \(\n\s+<button data-ask-nora onClick=\{askNora\}/);
+  assert.match(SHELL, /const askRowEl = \(\n\s+<button data-ask-nora onClick=\{askNora\}/);
+  assert.match(SHELL, /\{asking && !\(rows && rows\.length\) && askRowEl\}/, 'first only when nobody matched');
+  assert.match(SHELL, /\)\)\}\{asking && askRowEl\}<\/>/, 'after the people when someone did');
+  assert.match(APP, /\{list\.length === 0 && askNoraRow\}/);
+  assert.match(APP, /\{list\.length > 0 && askNoraRow\}/);
   assert.match(SHELL, /rows\.length === 0 && !noraHit && !asking \?/);
   // App: the row, its hand-off, and the sheet reading the draft once.
   assert.match(APP, /<button data-ask-nora onClick=\{\(\) => \{ onClose\(\); bsAskNora\(askNora\); \}\}/);
@@ -113,4 +120,27 @@ test('the app label is translated in every catalog', () => {
     const cat = JSON.parse(readFileSync(join(ROOT, `mobile-app/src/i18n/catalogs/${loc}/common.json`), 'utf8'));
     assert.ok(typeof cat['search.askNora'] === 'string' && cat['search.askNora'].trim(), loc);
   }
+});
+
+test('website search: when a person matches, they stay first and Ask Nora follows', async () => {
+  const person = { id: 'u1', full_name: 'Mary Jane Watson', role: 'client', points: 10, avatar: '' };
+  const { w } = await searchFor('Mary Jane Watson', () => null, () => Promise.resolve({ data: [person], error: null }));
+  const kids = [...w.document.querySelectorAll('.ss-ask, a[href*="MemberProfile"]')];
+  assert.deepEqual(kids.map((k) => k.className === 'ss-ask' ? 'ask' : 'person'), ['person', 'ask']);
+});
+
+test('website, page without React: a message already typed is not overwritten by the search draft', async () => {
+  const { w } = await searchFor('can I pause my membership', (w) => {
+    w.matchMedia = () => ({ matches: false });
+    w.fetch = () => Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+    w.eval(BUTTON);
+    return null;
+  });
+  // The visitor had opened Nora and typed, then closed the panel.
+  w.__openChatTo({ who: 'Nora', tab: 'support' });
+  const panel = w.document.getElementById('shape-global-chat-panel');
+  panel.querySelector('textarea').value = 'my own words';
+  w.document.querySelector('.ss-ask').click();
+  await wait(10);
+  assert.equal(panel.querySelector('textarea').value, 'my own words');
 });
