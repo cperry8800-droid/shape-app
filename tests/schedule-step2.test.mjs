@@ -136,7 +136,7 @@ test('sessions_no_overlap: the database refuses an overlap between active bookin
   assert.match(body, /if not exists \(\s*select 1 from pg_constraint\s+where conname = 'sessions_no_overlap'/, 'safe to re-run');
 
   const { loadRealModule } = await import('./helpers/load-real-module.mjs');
-  const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}]]) });
+  const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/owned-provider', { isMissingRelation: () => false }]]) });
   assert.equal(booking.isDoubleBookError({ code: '23P01' }), true, 'the overlap constraint');
   assert.equal(booking.isDoubleBookError({ code: '23505' }), true, 'the identical-start index');
   for (const e of [{ code: '42501' }, { code: '23503' }, null, undefined, 'x', {}]) assert.equal(booking.isDoubleBookError(e), false, JSON.stringify(e));
@@ -215,7 +215,20 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
   });
   const base = fakeSupabase({
     tables: view, fail,
-    rpcs: { get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: (tables.names || {})[id] || null })) },
+    rpcs: {
+      get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: (tables.names || {})[id] || null })),
+      // provider_busy_blocks as the migration writes it: time off, and active sessions, in the window.
+      provider_busy_blocks: ({ p_role, p_provider_id, p_from, p_to }) => {
+        const [from, to] = [Date.parse(p_from), Date.parse(p_to)];
+        const mine = (r) => r.provider_role === p_role && r.provider_id === p_provider_id;
+        const off = (tables.provider_time_off || []).filter((o) => mine(o) && Date.parse(o.starts_at) < to && Date.parse(o.ends_at) > from)
+          .map((o) => ({ starts_at: o.starts_at, ends_at: o.ends_at, kind: 'time_off' }));
+        const ses = (tables.sessions || []).filter((r) => mine(r) && ['requested', 'confirmed'].includes(r.status))
+          .map((r) => ({ starts_at: r.scheduled_at, ends_at: new Date(Date.parse(r.scheduled_at) + (r.duration_min || 15) * 60000).toISOString(), kind: 'session' }))
+          .filter((b) => Date.parse(b.starts_at) < to && Date.parse(b.ends_at) > from);
+        return [...off, ...ses];
+      },
+    },
   });
   let n = 0;
   const writes = tables.__writes || (tables.__writes = []);
@@ -273,7 +286,8 @@ async function routes() {
   const nextServer = require('next/server');
   const lib = (f, reg = []) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true, registry: new Map([['next/server', nextServer], ...reg]) });
   const [time, requestUtils] = await Promise.all([lib('time.ts'), lib('request-utils.ts')]);
-  const booking = await lib('session-booking.ts', [['@supabase/supabase-js', {}]]);
+  const owned = await lib('owned-provider.ts', [['@/lib/time', time], ['@supabase/supabase-js', {}]]);
+  const booking = await lib('session-booking.ts', [['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]);
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
   const state = { client: null, admin: null, user: null, notices: [], mails: [] };
   const registry = () => new Map([
@@ -497,6 +511,39 @@ test('a member\'s request outside the hours, across a booking, to someone else\'
   }
 });
 
+// ── Step 3: the coach's own rules ─────────────────────────────────────────────
+// Thursday Oct 8, open 9a–12p New York (13:00Z–16:00Z); the clock reads Wed Oct 7, 11:00 AM.
+const rulesRow = (r) => ({ provider_role: 'trainer', provider_id: 7, buffer_min: 0, max_per_day: null, min_notice_hours: 0, ...r });
+test('step 3: a member\'s request keeps the coach\'s time off, buffer, daily limit and notice — refused with the reason, and nothing written', async () => {
+  const cases = [
+    ['time_off', { provider_time_off: [{ provider_role: 'trainer', provider_id: 7, starts_at: '2026-10-08T13:00:00Z', ends_at: '2026-10-08T16:00:00Z' }] }, {}, /away then/],
+    // A session 11:00–12:00; the 10:00 hour ends where it starts, so only the 30-minute buffer refuses it.
+    ['buffer', { sessions: [sess('s-9', '2026-10-08T15:00:00+00:00')], provider_booking_rules: [rulesRow({ buffer_min: 30 })] }, {}, /too close/],
+    ['daily_limit', { sessions: [sess('s-9', '2026-10-08T13:00:00+00:00')], provider_booking_rules: [rulesRow({ max_per_day: 1 })] }, { scheduledAt: '2026-10-08T15:00:00.000Z' }, /fully booked/],
+    ['notice', { provider_booking_rules: [rulesRow({ min_notice_hours: 48 })] }, {}, /at least 2 days/],
+  ];
+  for (const [reason, extra, body, said] of cases) {
+    const r = await ask(body, { tables: world(extra) });
+    assert.equal(r.status, 409, reason + ': ' + JSON.stringify(r.body));
+    assert.equal(r.body.code, reason);
+    assert.match(r.body.error, said, reason);
+    assert.doesNotMatch(r.body.error, /Marcus/, 'another member\'s name reached the member');
+    assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0, reason + ' wrote a row');
+    assert.equal(r.notices.length, 0, reason + ' told the coach');
+  }
+  // The same calendar with no rules and no time off books.
+  const fine = await ask({}, { tables: world({ sessions: [sess('s-9', '2026-10-08T15:00:00+00:00')], provider_booking_rules: [rulesRow({ buffer_min: 0 })] }) });
+  assert.equal(fine.status, 200, JSON.stringify(fine.body));
+});
+
+test('step 3: a calendar whose rules or busy time cannot be read books nothing', async () => {
+  for (const fail of [['provider_booking_rules'], ['rpc:provider_busy_blocks']]) {
+    const r = await ask({}, { tables: world(), fail });
+    assert.equal(r.status, 503, fail + ': ' + JSON.stringify(r.body));
+    assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0);
+  }
+});
+
 const consult = (body, opts) => post('consult', '/api/consultation', { providerId: 7, professionalType: 'trainer', date: '2026-10-08', time: '9:00 AM', ...body }, { user: MEMBER, ...opts });
 
 test('/api/consultation refuses a time outside the coach\'s open hours — and books one inside them', async () => {
@@ -514,6 +561,11 @@ test('/api/consultation refuses a time outside the coach\'s open hours — and b
   const lastQuarter = await consult({ time: '11:45 AM' }, { tables: world() });
   assert.equal(lastQuarter.status, 409, 'an 11:45 the page never offered');
   assert.equal(lastQuarter.body.code, 'outside_hours');
+  // Step 3: the coach's time off closes the consult too.
+  const away = await consult({ time: '10:00 AM' }, { tables: world({ provider_time_off: [{ provider_role: 'trainer', provider_id: 7, starts_at: '2026-10-08T13:00:00Z', ends_at: '2026-10-08T16:00:00Z' }] }) });
+  assert.equal(away.status, 409, JSON.stringify(away.body));
+  assert.equal(away.body.code, 'time_off');
+  assert.equal(away.writes.filter((w) => w.op === 'insert').length, 0);
   const raced = await consult({ time: '10:00 AM' }, { tables: world(), insertError: { code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' } });
   assert.equal(raced.status, 409, 'an overlap the database refused is "taken", not a 500');
   assert.match(raced.body.error, /just taken/);
@@ -573,7 +625,8 @@ test('every page that runs the Schedule loads the rules module before it', () =>
   const hosts = readdirSync(dir).filter((f) => f.endsWith('.html')).map((f) => [f, readFileSync(join(dir, f), 'utf8')]).filter(([, h]) => /src="dashSchedule\.jsx/.test(h));
   assert.ok(hosts.length >= 4, 'the Schedule hosts vanished');
   for (const [f, html] of hosts) {
-    const mod = html.search(/import \* as SR from "\/newdesign\/scheduleRules\.mjs[^"]*"; window\.ShapeScheduleRules = SR;/);
+    // bookingRules.mjs (window.ShapeBookingRules) places time off on the coach's clock (step 3).
+    const mod = html.search(/import \* as SR from "\/newdesign\/scheduleRules\.mjs[^"]*"; import \* as BR from "\/newdesign\/bookingRules\.mjs[^"]*"; window\.ShapeScheduleRules = SR; window\.ShapeBookingRules = BR;/);
     assert.ok(mod >= 0, f + ' runs the Schedule without its rules');
     assert.ok(mod < html.search(/src="dashSchedule\.jsx/), f + ' loads the rules after the page');
   }

@@ -38,7 +38,7 @@ import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
-import { isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
+import { checkBookingRules, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
@@ -242,6 +242,23 @@ export async function POST(req: NextRequest) {
       { error: "That time is outside this coach's open hours. Please pick one of the times shown.", code: 'outside_hours' },
       { status: 409 }
     );
+  }
+
+  // The coach's own rules: time off, the buffer between sessions, the daily limit and the notice
+  // they ask for (Schedule step 3). The page offers only times that pass them; this is the wall
+  // for a stale page or a crafted request. An unreadable calendar refuses, like the hours above.
+  const rules = await checkBookingRules(admin, {
+    role: providerRole, providerId: providerIdRaw, zone: providerZone, slots: hours.slots,
+    startMs: scheduled.getTime(), durationMin: 15, nowMs: Date.now(),
+  });
+  if (!rules.ok && rules.unavailable) {
+    return NextResponse.json(
+      { error: "We couldn't check this coach's calendar just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  if (!rules.ok) {
+    return NextResponse.json({ error: rules.message + ' Please pick another time.', code: rules.reason }, { status: 409 });
   }
 
   // Look up the coach's email via auth.users (owner_id FK).

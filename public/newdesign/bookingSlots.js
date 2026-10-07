@@ -185,6 +185,57 @@
     return out;
   }
 
+  // ── The coach's booking rules (2026-10-07, Schedule step 3) ──────────────────
+  // ⚠ THIS IS bookingRules.mjs's checkSlot, RESTATED FOR A PLAIN SCRIPT, AND A TEST HOLDS THEM
+  // EQUAL. The routes refuse a request with checkSlot (time off, notice, buffer, daily limit),
+  // so a slot this page offers and the route then refuses is a member told "pick another time"
+  // about a time we showed them. This file cannot import an ES module (it is a plain <script>),
+  // so tests/schedule-step3.test.mjs drives both over the same calendars and requires the same
+  // answer for every start. The open-hours rule is not here: buildSlots already offers only
+  // starts inside the hours, by the same expansion the routes check.
+  //
+  // `busy` is what /api/availability answers: [{ start, end, kind: 'session' | 'time_off' }]
+  // (provider_busy_blocks, which returns active sessions only). `rules` is { bufferMin,
+  // maxPerDay, minNoticeHours } or the table's own snake_case names.
+  function ruleNum(v, lo, hi) {
+    const n = num(v);
+    return isFinite(n) && Number.isInteger(n) && n >= lo && n <= hi ? n : null;
+  }
+  function prepRules(busy, rules, zone) {
+    const r = rules && typeof rules === "object" ? rules : {};
+    const buf = ruleNum(r.bufferMin != null ? r.bufferMin : r.buffer_min, 0, 120);
+    const notice = ruleNum(r.minNoticeHours != null ? r.minNoticeHours : r.min_notice_hours, 0, 336);
+    const max = ruleNum(r.maxPerDay != null ? r.maxPerDay : r.max_per_day, 1, 24);
+    const offs = [], sess = [], counts = new Map();
+    for (const b of Array.isArray(busy) ? busy : []) {
+      if (!b || typeof b !== "object") continue;
+      const st = new Date(b.start != null ? b.start : b.starts_at).getTime();
+      const en = new Date(b.end != null ? b.end : b.ends_at).getTime();
+      if (!isFinite(st) || !isFinite(en) || !(en > st)) continue;
+      if (b.kind === "time_off") { offs.push({ start: st, end: en }); continue; }
+      sess.push({ start: st, end: en });
+      // The coach's LOCAL date of the session's start, as the daily limit counts it.
+      const c = zonedCivil(st, zone);
+      if (c) { const k = c.y + "-" + c.mo + "-" + c.d; counts.set(k, (counts.get(k) || 0) + 1); }
+    }
+    return { buf: buf || 0, notice: notice || 0, max: max, offs: offs, sess: sess, counts: counts };
+  }
+  function refusedBy(t, sessionMin, P, now, zone) {
+    const e = t + sessionMin * 60000;
+    if (P.notice > 0 && t < now + P.notice * 3600000) return "notice";
+    if (P.offs.some((o) => o.start < e && o.end > t)) return "time_off";
+    if (P.sess.some((x) => x.start < e && x.end > t)) return "overlap";
+    if (P.buf > 0) {
+      const gap = P.buf * 60000;
+      if (P.sess.some((x) => (x.end <= t && t - x.end < gap) || (x.start >= e && x.start - e < gap))) return "buffer";
+    }
+    if (P.max != null) {
+      const c = zonedCivil(t, zone);
+      if (c && (P.counts.get(c.y + "-" + c.mo + "-" + c.d) || 0) >= P.max) return "daily_limit";
+    }
+    return null;
+  }
+
   // Build every open instant in the window.
   //
   // ⚠ `booked` IS MATCHED ON THE INSTANT, NOT ON THE STRING. Postgres can hand back
@@ -214,6 +265,8 @@
     const now = o.now instanceof Date ? o.now.getTime() : num(o.now);
     if (!isFinite(now)) return [];
 
+    // Only when the caller passed them: an older caller that sends neither gets today's list.
+    const ruled = o.busy != null || o.rules != null ? prepRules(o.busy, o.rules, zone) : null;
     const taken = new Set();
     for (const b of Array.isArray(o.booked) ? o.booked : []) {
       const t = new Date(b).getTime();
@@ -251,6 +304,7 @@
         if (t <= now) continue;        // a slot in the past is not open
         if (taken.has(t)) continue;    // somebody already holds it
         if (seen.has(t)) continue;     // overlapping blocks must not offer it twice
+        if (ruled && refusedBy(t, sessionMin, ruled, now, zone)) continue;   // the coach's rules
         seen.add(t);
         out.push({ iso: iso, ms: t, startMinute: m, durationMin: sessionMin });
       }
@@ -305,6 +359,6 @@
     slotLabel: slotLabel,
     dayLabel: dayLabel,
     groupByDay: groupByDay,
-    _internals: { expand: expand, zoneOffsetMs: zoneOffsetMs, zonedCivil: zonedCivil, zonedInstant: zonedInstant },
+    _internals: { refusedBy: refusedBy, prepRules: prepRules, expand: expand, zoneOffsetMs: zoneOffsetMs, zonedCivil: zonedCivil, zonedInstant: zonedInstant },
   };
 });

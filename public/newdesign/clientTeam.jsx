@@ -100,6 +100,9 @@ function CtBookSheet({ coach, onClose, onBooked }) {
         if (!window.BookingSlots.isZone(j.timezone)) { setSlots([]); setState("nozone"); return; }
         const built = window.BookingSlots.buildSlots({
           slots: j.slots, booked: j.booked, zone: j.timezone,
+          // The coach's time off, buffer, daily limit and notice: the times /api/sessions/request
+          // would refuse are not offered (Schedule step 3).
+          busy: j.busy || [], rules: j.rules || null,
           now: new Date(), days: CT_BOOK_DAYS, sessionMin: CT_SESSION_MIN,
         });
         setSlots(built);

@@ -253,11 +253,13 @@ test('the editor adopts the zone the route actually stored', async () => {
   const src = stripComments(readFileSync(new URL('../public/newdesign/dashSchedule.jsx', import.meta.url), 'utf8'));
   // The label is a claim about what members are booked in, so it must come from the write's
   // own answer rather than from the value we happened to send.
-  assert.match(src, /if \(res\.ok && onZone\)/, 'the stored zone is never adopted');
-  assert.match(src, /onZone\(j\.timezone\)/, 'the response timezone is not applied');
+  // Since 2026-10-07 the hours are edited on the grid (DscHoursEditor) and saved in one write;
+  // the editor hands the stored zone to the page's hoursSaved, which adopts it.
+  const refused = src.indexOf('if (!res.ok) { setErr(');
+  const adopted = src.indexOf('onSaved(slots, j && typeof j.timezone === "string" && j.timezone ? j.timezone : null)');
+  assert.ok(adopted > 0, 'the response timezone is not handed on');
   // ⚠ ONLY ON SUCCESS: a failed save stored nothing, so the old label is still the true one.
-  const at = src.indexOf('if (res.ok && onZone)');
-  assert.ok(at > 0);
-  assert.doesNotMatch(src.slice(0, at), /onZone\(/, 'the zone is adopted before the save is known to have landed');
-  assert.match(src, /onZone=\{setAvailZone\}/, 'the callback is never wired from the page');
+  assert.ok(refused > 0 && refused < adopted, 'the zone is adopted before the save is known to have landed');
+  assert.match(src, /const hoursSaved = \(slots, zone\) => \{\s*setAvail\(slots\);\s*if \(zone\) setAvailZone\(zone\);/, 'the page never adopts the stored zone');
+  assert.match(src, /onSaved=\{hoursSaved\}/, 'the callback is never wired from the page');
 });

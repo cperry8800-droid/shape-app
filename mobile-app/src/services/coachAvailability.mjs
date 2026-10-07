@@ -31,6 +31,10 @@
 // one matrix of zones and dates and requires identical answers. Change one, change all
 // three, or that guard fails.
 
+// The coach's own rules (time off, buffer, daily limit, notice): the same module the server
+// refuses a booking with, imported by relative path like shapeBackend's shared modules.
+import { checkSlot } from '../../../public/newdesign/bookingRules.mjs';
+
 const pad2 = (n) => String(n).padStart(2, '0');
 const isoDay = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
@@ -102,7 +106,11 @@ export function bsInstantInZone(y, mo, d, h, mi, zone) {
   return t;
 }
 
-export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now = new Date(), zone = null } = {}) {
+// `busy` and `rules` are /api/availability's (2026-10-07, Schedule step 3): a time the coach has
+// off, or one inside their buffer, past their daily limit or sooner than their notice, is not
+// offered. `sessionMin` is the length being booked (the app's intro consult is 15 minutes).
+// ⚠ ONLY WHEN PASSED: an older caller that sends neither gets the list it always did.
+export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now = new Date(), zone = null, busy = null, rules = null, sessionMin = 15 } = {}) {
   // ⚠ BELT-AND-BRACES, PROVEN: `fmtFor` refuses the same values, so removing THIS line
   // alone changes no answer (a mutation round confirmed it survives); removing both kills
   // the suite. Kept as a fast path — it avoids building the whole day map — and because it
@@ -115,6 +123,11 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
   // `…T13:00:00+00:00` where a client builds `…T13:00:00.000Z` — one moment, two
   // spellings — and the old local-HH:MM key could only ever agree with a slot built the
   // same wrong way. Epoch ms cannot be spelled two ways.
+  // The open-hours rule is this projection's own (it offers the coach's block starts), so it is
+  // skipped; everything else is checkSlot's, the same answer the server gives.
+  const ruled = busy != null || rules != null
+    ? { availability: slots, busy: Array.isArray(busy) ? busy : [], rules, audience: 'member', skip: ['closed'] }
+    : null;
   const takenMs = new Set();
   for (const b of booked || []) {
     const raw = typeof b === 'string' ? b : b && b.scheduled_at;
@@ -158,6 +171,7 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
       if (at <= nowMs) continue;            // past never emits
       if (takenMs.has(at)) continue;        // taken
       if (seen.has(at)) continue;           // overlapping blocks must not offer it twice
+      if (ruled && !checkSlot({ start: at, durationMin: sessionMin }, { ...ruled, now: nowMs, zone }).ok) continue;
       seen.add(at);
       // Display fields are the MEMBER's own calendar and clock — the calendar grid keys
       // on `iso` and the member acts on `time`.
