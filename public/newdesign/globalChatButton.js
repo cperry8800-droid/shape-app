@@ -446,12 +446,33 @@
     send.addEventListener("click", function () { submit(); });
 
     render();
+    // A deep link (window.__openChatTo({ who, tab })) lands where it asked: the tab by
+    // id, then the thread by name. Search's Nora hit on a page without React reaches
+    // here, and opening on the first tab instead of Nora was the bug (Codex, #2240).
+    node.__showRequest = function (req) {
+      if (!req || typeof req !== "object") return;
+      var tab = null;
+      for (var i = 0; i < DATA.length; i++) if (DATA[i].id === req.tab) tab = DATA[i];
+      if (!tab && req.who) {
+        for (var j = 0; j < DATA.length && !tab; j++) {
+          (DATA[j].threads || []).forEach(function (th) { if (!tab && th.who === req.who) tab = DATA[j]; });
+        }
+      }
+      if (!tab) return;
+      state.tab = tab.id;
+      state.ti = tab.support ? 0 : null;
+      (tab.threads || []).forEach(function (th, k) { if (req.who && th.who === req.who) state.ti = k; });
+      render();
+    };
     document.body.appendChild(node);
     return node;
   }
 
   function openFallbackPanel() {
     var node = panel();
+    var req = window.__openChatRequest || null;
+    try { delete window.__openChatRequest; } catch (e) { window.__openChatRequest = null; }
+    if (node.__showRequest) node.__showRequest(req);
     node.classList.add("open");
     try { localStorage.setItem("shape.chat.open", "1"); } catch (e) {}
     restorePanelPosition(node);

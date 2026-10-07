@@ -48,3 +48,17 @@ test('the React search (pageShell.jsx) takes the same path', () => {
   assert.match(line, /else if \(window\.__openChatTo\) window\.__openChatTo\(\{ who: "Nora", tab: "support" \}\);/);
   assert.ok(line.indexOf('__openChatTo') < line.indexOf('Community.html'), 'Community is the last resort');
 });
+
+// ⚠ WITH THE REAL LAUNCHER, ON A PAGE WITHOUT REACT (contact.html, help.html,
+// privacy.html …). __openChatTo there falls back to globalChatButton.js's own panel,
+// which ignored the request and opened on its first tab (Codex, #2240). Not a stub.
+test('search on a page without React: the real launcher opens its panel on Nora', async () => {
+  const BUTTON = readFileSync(join(ROOT, 'public/newdesign/globalChatButton.js'), 'utf8');
+  const { seen, href } = await pickNora((w) => { w.matchMedia = () => ({ matches: false }); w.eval(BUTTON); return w; });
+  const panel = seen.document.getElementById('shape-global-chat-panel');
+  assert.ok(panel && panel.classList.contains('open'), 'the fallback panel opened');
+  assert.equal(panel.querySelector('.sgc-tab.active').textContent, 'Help');
+  assert.equal(panel.querySelector('.sgc-title').textContent, 'Nora');
+  assert.equal(seen.__openChatRequest, undefined, 'the request is consumed');
+  assert.equal(href, 'https://www.theshapecommunity.com/newdesign/index.html');
+});
