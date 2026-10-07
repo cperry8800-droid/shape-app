@@ -100,6 +100,187 @@
     }).slice(0, 12);
   }
 
+  // ── The exercise library as data (2026-10-07, owner-approved "Build faster") ─
+  // The table `exercise_library` (supabase-migrations/2026-10-07-exercise-library.sql)
+  // holds ~200 moves with aliases and a category, read through GET /api/exercises.
+  // `searchLibrary` is the ONE ranking: the route imports this file and calls it, and the
+  // builder's type-ahead will call the same function over the list it fetched, so a query
+  // cannot rank one way on the server and another in the picker.
+  // ⚠ THE PICKER ABOVE IS UNTOUCHED. `searchExercises` still serves today's 12-result
+  // modal over the 75 moves in EXERCISES; wiring the picker to the table is a later step.
+  //
+  // What the 75 built-in moves carry beyond name / muscle / equipment. The migration seeds
+  // each of them with EXACTLY these aliases and this category (tests/exercise-library.test.mjs
+  // reads the SQL and holds the two equal), so the fallback below — what the route serves
+  // before the migration has run — answers "rdl" the way the table will.
+  // ⚠ AN ALIAS NAMES THE SAME MOVEMENT, NEVER A FAMILY. `parseWorkoutText` renames a pasted
+  // line that IS an alias to the move it belongs to, so "Row" → Rower would turn a strength
+  // coach's "Row 3x10" into an erg, and "Lunge" → Walking lunge would rename every reverse
+  // and static lunge. Abbreviations, spellings and the powerlifting conventions ("Squat",
+  // "Bench") qualify; a word that names several moves does not.
+  var LIBRARY_CATEGORIES = ["strength", "power", "conditioning", "mobility"];
+  var EXERCISE_META = {
+    "Back squat": ["Squat", "Barbell squat", "High-bar squat", "Low-bar squat"],
+    "Goblet squat": ["KB goblet squat"],
+    "Walking lunge": ["DB walking lunge"],
+    "Split squat": ["Static lunge"],
+    "Leg extension": ["Quad extension"],
+    "Deadlift": ["Conventional deadlift", "DL"],
+    "Romanian deadlift": ["RDL", "Barbell RDL"],
+    "Trap-bar deadlift": ["Hex bar deadlift"],
+    "Leg curl": ["Hamstring curl"],
+    "Nordic curl": ["Nordic hamstring curl", "Nordics"],
+    "Hip thrust": ["Barbell hip thrust"],
+    "Glute bridge": ["Bridge"],
+    "Back extension": ["Hyperextension", "45-degree back extension"],
+    "Bench press": ["Bench", "Flat bench", "Barbell bench press", "BB bench"],
+    "Incline bench press": ["Incline bench", "Incline barbell press"],
+    "Dumbbell bench press": ["DB bench", "DB bench press"],
+    "Incline dumbbell press": ["Incline DB press", "Incline dumbbell bench"],
+    "Machine chest press": ["Chest press"],
+    "Push-up": ["Pushup", "Press-up"],
+    "Dip": ["Dips", "Parallel bar dip"],
+    "Cable fly": ["Cable crossover", "Cable flye"],
+    "Overhead press": ["OHP", "Military press", "Strict press", "Barbell shoulder press"],
+    "Dumbbell shoulder press": ["DB shoulder press", "Seated dumbbell press"],
+    "Lateral raise": ["Side raise", "DB lateral raise"],
+    "Rear-delt fly": ["Reverse fly", "Rear delt raise"],
+    "Pull-up": ["Pullup"],
+    "Chin-up": ["Chinup"],
+    "Lat pulldown": ["Pulldown"],
+    "Barbell row": ["Bent-over row", "BB row"],
+    "Dumbbell row": ["DB row", "One-arm row", "Single-arm dumbbell row"],
+    "Chest-supported row": ["Incline dumbbell row"],
+    "Cable row": ["Seated row", "Seated cable row"],
+    "Inverted row": ["Bodyweight row", "Australian pull-up"],
+    "Shrug": ["Dumbbell shrug"],
+    "Barbell curl": ["BB curl", "Straight-bar curl"],
+    "Dumbbell curl": ["DB curl"],
+    "Incline curl": ["Incline dumbbell curl"],
+    "Triceps pushdown": ["Tricep pushdown", "Pushdown"],
+    "Overhead triceps extension": ["Overhead tricep extension", "Cable overhead extension"],
+    "Skull crusher": ["Lying triceps extension", "Skullcrusher"],
+    "Close-grip bench": ["Close-grip bench press", "CGBP"],
+    "Plank": ["Front plank"],
+    "Hanging leg raise": ["HLR"],
+    "Ab wheel rollout": ["Ab wheel", "Rollout"],
+    "Cable crunch": ["Kneeling cable crunch"],
+    "Farmer carry": ["Farmer's walk", "Farmer's carry"],
+    "Kettlebell swing": ["KB swing", "Russian swing"],
+    "Assault bike": ["Air bike", "Fan bike"],
+    "Rower": ["Row erg", "Rowing machine"],
+    "Easy run": ["Easy jog", "Jog"],
+    "Interval run": ["Run intervals"],
+    "Hill sprints": ["Hill repeats"],
+    "Jump rope": ["Skipping", "Skip rope"],
+    "Band pull-apart": ["Pull-apart"],
+    "Hip 90/90 flow": ["90/90", "90/90 hip switch"],
+    "World's greatest stretch": ["WGS"],
+  };
+  // The category a built-in move is seeded with: the muscle decides it, except the two
+  // moves that are plyometric rather than strength work.
+  var CATEGORY_OVERRIDES = { "Box jump": "power", "Kettlebell swing": "power" };
+  function exerciseCategory(ex) {
+    var name = ex && ex.name;
+    if (name && CATEGORY_OVERRIDES[name]) return CATEGORY_OVERRIDES[name];
+    var m = String((ex && ex.muscle) || "").toLowerCase();
+    if (m === "conditioning") return "conditioning";
+    if (m === "mobility") return "mobility";
+    return "strength";
+  }
+
+  // One spelling for comparing names: case, accents, apostrophes and punctuation carry no
+  // meaning, so "World's greatest stretch", "worlds greatest-stretch" and "WORLDS GREATEST
+  // STRETCH" are one key, and "pull up" finds "Pull-up".
+  function libNorm(s) {
+    var t = String(s == null ? "" : s);
+    if (t.normalize) t = t.normalize("NFD").replace(/[̀-ͯ]/g, "");
+    return t.toLowerCase().replace(/[‘’'`]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  }
+  // The table's id for a move: its normalized name with dashes. Deterministic, so the
+  // seed can be re-run on any database (a branch DB included) and land on the same ids.
+  function librarySlug(name) { return libNorm(name).replace(/ /g, "-"); }
+
+  // The library the route serves before the migration has run: the 75 built-in moves,
+  // each with the aliases and category the migration seeds it with.
+  function libraryFallback() {
+    return EXERCISES.map(function (e) {
+      return {
+        id: librarySlug(e.name), name: e.name, muscle: e.muscle, equipment: e.equipment,
+        category: exerciseCategory(e), demoUrl: null, aliases: (EXERCISE_META[e.name] || []).slice(),
+      };
+    });
+  }
+
+  // How well a move answers a query, lower is better, -1 for no match:
+  //   0 the name IS the query · 1 an alias is · 2 the name starts with it · 3 an alias does ·
+  //   4 a word of the name starts with it · 5 a word of an alias does · 6 the name contains
+  //   it · 7 an alias does · 8 a word of its muscle, equipment or category starts with it ·
+  //   9 every word of a several-word query starts a word somewhere on the move.
+  // ⚠ THE MUSCLE AND EQUIPMENT STILL MATCH (tier 8), because today's picker answers "quads"
+  // and "kettlebell" with the moves that use them, and a ranking that dropped that would be
+  // a regression the day the picker is wired to it.
+  function libraryTier(item, nq, words) {
+    var name = libNorm(item.name);
+    var aliases = (item.aliases || []).map(libNorm).filter(Boolean);
+    var i;
+    var any = function (fn) { for (i = 0; i < aliases.length; i++) if (fn(aliases[i])) return true; return false; };
+    var starts = function (hay) { return (" " + hay).indexOf(" " + nq) >= 0; };
+    if (name === nq) return 0;
+    if (any(function (a) { return a === nq; })) return 1;
+    if (name.indexOf(nq) === 0) return 2;
+    if (any(function (a) { return a.indexOf(nq) === 0; })) return 3;
+    if (starts(name)) return 4;
+    if (any(starts)) return 5;
+    if (name.indexOf(nq) >= 0) return 6;
+    if (any(function (a) { return a.indexOf(nq) >= 0; })) return 7;
+    var facets = [libNorm(item.muscle), libNorm(item.equipment), libNorm(item.category)].join(" ");
+    if (starts(facets)) return 8;
+    if (words.length > 1) {
+      var all = " " + [name].concat(aliases, [facets]).join(" ");
+      for (i = 0; i < words.length; i++) if (all.indexOf(" " + words[i]) < 0) return -1;
+      return 9;
+    }
+    return -1;
+  }
+  // ⚠ A PLAIN CODE-POINT COMPARISON, NOT localeCompare. The server (Node's ICU) and a
+  // browser can collate punctuation differently — "Pull-up" against "Pullover" is the
+  // classic split — and the point of one ranking is that both sides return one order.
+  function libCmp(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
+
+  // list → the matching moves, best first, at most `limit` (default 30, 1–100).
+  // opts: { muscle, equipment, category, limit }. A filter is an exact match on the
+  // normalized value ("Trap bar" = "trap-bar"). An empty query lists the filtered moves
+  // alphabetically.
+  function searchLibrary(list, q, opts) {
+    opts = opts || {};
+    var lim = Math.floor(Number(opts.limit));
+    lim = isFinite(lim) && lim > 0 ? Math.min(lim, 100) : 30;
+    var nq = libNorm(q);
+    var words = nq ? nq.split(" ") : [];
+    var fm = libNorm(opts.muscle), fe = libNorm(opts.equipment), fc = libNorm(opts.category);
+    var hits = [];
+    var src = Array.isArray(list) ? list : [];
+    for (var k = 0; k < src.length; k++) {
+      var it = src[k];
+      if (!it || !String(it.name || "").trim()) continue;
+      if (fm && libNorm(it.muscle) !== fm) continue;
+      if (fe && libNorm(it.equipment) !== fe) continue;
+      if (fc && libNorm(it.category) !== fc) continue;
+      var tier = nq ? libraryTier(it, nq, words) : 0;
+      if (tier < 0) continue;
+      hits.push({ it: it, tier: tier, key: libNorm(it.name), raw: String(it.name) });
+    }
+    hits.sort(function (a, b) {
+      if (a.tier !== b.tier) return a.tier - b.tier;
+      // Inside a tier the shorter name is the closer answer ("Deadlift" before "Deficit
+      // deadlift" for "dead"); with no query there is no closeness, only the alphabet.
+      if (nq && a.key.length !== b.key.length) return a.key.length - b.key.length;
+      return libCmp(a.key, b.key) || libCmp(a.raw, b.raw);
+    });
+    return hits.slice(0, lim).map(function (h) { return h.it; });
+  }
+
   // ── The coach's own moves ──────────────────────────────────────────────────
   // ⚠ EVERY MOVE A COACH HAS EVER WRITTEN IS ALREADY IN THEIR OWN SAVED PROGRAMS,
   // so offering them back needs no table, no route and no migration: `newRow`
@@ -225,6 +406,346 @@
     return { version: 1, goalTag: goalTag || "strength", weeks: [newWeek()] };
   }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  // ── Paste a workout as text (2026-10-07, owner-approved "Build faster") ────
+  // "Coaches already keep programs in Notes and spreadsheets." Pasted text → rows in the
+  // builder's own row shape (`newRow`), sorted into the day's blocks, plus a warning for
+  // every line that was read with a guess or not read at all. Pure: the UI shows the
+  // result as a preview and inserts it; nothing here writes.
+  //
+  //   Back squat 4x5 @225          → 4 × 5, 225 in the default unit (opts.unit, else kg)
+  //   RDL 3x8 185lb RPE 7          → Romanian deadlift, 3 × 8, 185 lb, RPE 7
+  //   Bench 5x5 @ 80%              → Bench press, 5 × 5, 80% 1RM
+  //   Plank 3 x 45s · Run 5 x 400m → a hold and a distance keep their unit as the reps
+  //   A1 Pull-up 3x8 / A2 Dip 3x10 → two rows in superset A
+  //   Rest 90s                     → the rest of the row(s) on the line above
+  //   Warm-up: / Main / Accessory / Finisher → which block the rows below go in
+  //
+  // ⚠ NOTHING THE COACH WROTE IS DROPPED. A word this cannot place is kept: before the
+  // prescription it is the name, after it it is the load text when no number load was read
+  // ("heavy", "bodyweight", "+20 kg") — the same reading `rowFromBlock` gives an imported
+  // line — and otherwise the cue. Every row also carries `sourceLine`, the line as pasted,
+  // so the preview can show what each row was read from. It is import-only: the UI drops it
+  // on insert or keeps it as provenance; no reader of a saved row looks at it.
+  // ⚠ AND NOTHING IS INVENTED SILENTLY. A known move pasted with no sets × reps gets the
+  // builder's default (3 × 8, as the + button gives it) WITH a warning; an unknown line with
+  // no prescription keeps empty sets and reps, also with a warning.
+  var PASTE_MAX_LINES = 200;
+  var PASTE_MAX_ROWS = 60;
+  // ⚠ THE SAME UNIT LIST AS ShapeWorkoutDocument.TIME_DISTANCE_UNITS (the one rule for "a
+  // rep value that is a hold or a distance", planOutline.mjs). Read from it when the page
+  // loaded workoutDocument.js; the literal is the fallback for a page that did not, and
+  // tests/workout-paste.test.mjs holds the literal equal to the shared list.
+  var PASTE_UNITS = (WorkoutDoc && WorkoutDoc.TIME_DISTANCE_UNITS) || "s|secs?|seconds?|mins?|minutes?|m|km|mi|yds?|yards?";
+  // Longest spelling first, so "min" is never read as "mi" + "n" or "m" + "in".
+  var P_UNIT = PASTE_UNITS.split("|").sort(function (a, b) { return b.length - a.length; }).join("|");
+  var P_TIME = "seconds?|minutes?|secs?|mins?|s";
+  var P_NUM = "\\d+(?:\\.\\d+)?";
+  var P_LOADU = "kilograms?|kilos?|kgs?|pounds?|lbs?|#|%";
+  // A boundary that a separator, the start or the end of the text, or a span already read
+  // (blanked to \u0000) can supply. ⚠ NO LOOKBEHIND: Safari before 16.4 refuses the whole
+  // script at parse time if one appears, which would take the builder down with it.
+  var P_PRE = "(^|[\\s,;:(\\u00b7\\u0000@\\u2013\\u2014-])";
+  var P_POST = "(?=$|[\\s,;)\\u00b7\\u0000])";
+  var P_SIDE = "(\\s*\\/\\s*(?:side|leg|arm)s?\\b|\\s+per\\s+(?:side|leg|arm)\\b|\\s+each(?:\\s+(?:side|leg|arm))?\\b|\\s+ea\\b\\.?)?";
+  var P_REPS = "(\\d+(?:\\s*[-\\u2013]\\s*\\d+)?(?:\\s*\\/\\s*\\d+(?:\\s*[-\\u2013]\\s*\\d+)?)+(?!\\s*(?:" + P_LOADU + "))" +
+    "|\\d+\\s*[-\\u2013]\\s*\\d+\\s*(?:" + P_UNIT + ")(?![a-z])" +
+    "|" + P_NUM + "\\s*(?:" + P_UNIT + ")(?![a-z])" +
+    "|\\d+\\s*[-\\u2013]\\s*\\d+" +
+    "|amrap|max(?:\\s+reps)?|to\\s+failure|\\d+)";
+  var RE_SCHEME = new RegExp(P_PRE + "(\\d{1,2})\\s*(?:(?:sets?\\s*)?[x\\u00d7*]|sets?\\s*of|sets?(?=\\s+\\d))\\s*" + P_REPS + P_SIDE + "(?:\\s*reps?\\b)?", "i");
+  var RE_DUR = new RegExp(P_PRE + "(\\d+\\s*[-\\u2013]\\s*\\d+\\s*(?:" + P_UNIT + ")|" + P_NUM + "\\s*(?:" + P_UNIT + "))(?![a-z])", "i");
+  var RE_REPS_ONLY = new RegExp(P_PRE + "(?:[x\\u00d7]\\s*(\\d+)|(\\d+)\\s*reps?\\b)(?![\\d.])", "i");
+  var RE_SETS_ONLY = new RegExp(P_PRE + "(\\d{1,2})\\s*sets?\\b", "i");
+  var P_REST_VAL = "(\\d{1,2}:\\d{2}|\\d+\\s*[-\\u2013]\\s*\\d+\\s*(?:" + P_TIME + ")|" + P_NUM + "\\s*(?:" + P_TIME + "))(?![a-z])";
+  var RE_REST_AFTER = new RegExp(P_PRE + "rest(?:ing)?\\s*[:=]?\\s*" + P_REST_VAL, "i");
+  var RE_REST_BEFORE = new RegExp(P_PRE + P_REST_VAL + "\\s*rest\\b", "i");
+  var RE_TEMPO = new RegExp(P_PRE + "(?:tempo\\s*[:=]?\\s*(\\d[\\dx]{3}|\\d[-.][\\dx][-.][\\dx][-.][\\dx])|(\\d[\\dx]{3}|\\d-[\\dx]-[\\dx]-[\\dx])\\s*tempo\\b)(?![\\w])", "i");
+  var RE_RPE = /(@\s*)?\brpe\s*[:=]?\s*(\d{1,2}(?:\.\d+)?)(?!\s*[-–/]\s*\d)(?![\d.])/i;
+  var RE_LOAD_LADDER = new RegExp(P_PRE + "(?:@\\s*)?(" + P_NUM + "(?:\\s*\\/\\s*" + P_NUM + ")+)\\s*(" + P_LOADU + ")(?:\\s*(?:1\\s*rm|of\\s+(?:1\\s*rm|max)))?(?![a-z])", "i");
+  var RE_LOAD_RANGE = new RegExp(P_PRE + "(?:@\\s*)?(" + P_NUM + ")\\s*(?:[-\\u2013\\u2192]|->|to)\\s*(" + P_NUM + ")\\s*(" + P_LOADU + ")(?:\\s*(?:1\\s*rm|of\\s+(?:1\\s*rm|max)))?(?![a-z])", "i");
+  var RE_LOAD_ADDED = new RegExp(P_PRE + "\\+\\s*(" + P_NUM + ")\\s*(" + P_LOADU + ")?(?![a-z\\d])", "i");
+  var RE_LOAD = new RegExp(P_PRE + "(?:@\\s*)?(" + P_NUM + ")\\s*(" + P_LOADU + ")(?:\\s*(?:1\\s*rm|of\\s+(?:1\\s*rm|max)))?(?![a-z])", "i");
+  var RE_LOAD_BARE = /@\s*(\d+(?:\.\d+)?)(?![\d.%#a-z])/i;
+  var RE_BODYWEIGHT = /\b(?:body\s*weight|bw)\b/i;
+  var RE_LABEL = /^([A-Za-z])(\d{1,2})[.):-]?\s+/;
+  var RE_SUPERSET_SPLIT = /\s+\/\s+(?=[A-Za-z]\d{1,2}[.):-]?\s)/;
+  var PASTE_HEADINGS = [
+    ["warmup", /^(?:warm[\s-]?ups?|prep|activation|primer)$/],
+    ["main", /^(?:main|main (?:sets?|lifts?|work|block|part)|strength|primary|workout|lifts?)$/],
+    ["accessory", /^(?:accessor(?:y|ies)|assistance|secondary|supplemental|hypertrophy)$/],
+    ["finisher", /^(?:finishers?|conditioning|metcon|cool[\s-]?downs?|cardio)$/],
+  ];
+  var RE_DAY_HEADING = /^(?:day\s*\d+|week\s*\d+|(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?)(?:\s*[-–—]\s*.*)?$/;
+
+  // "45" + "seconds" → "45s"; the builder's own spellings ("90s", "2 min", "400m").
+  function pasteQty(num, unit) {
+    var u = String(unit || "").toLowerCase();
+    if (/^s(?:ecs?|econds?)?$/.test(u)) return num + "s";
+    if (/^min(?:s|utes?)?$/.test(u)) return num + " min";
+    if (u === "m") return num + "m";
+    if (/^y(?:ar)?ds?$/.test(u)) return num + " yd";
+    return num + " " + u;
+  }
+  // A quantity as written ("45 sec", "30-45s", "1:30") in the builder's spelling.
+  function pasteQtyText(s) {
+    var t = String(s).replace(/–/g, "-").replace(/\s*-\s*/g, "-").trim();
+    if (/^\d{1,2}:\d{2}$/.test(t)) return t;
+    var m = /^(\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?)\s*([a-z]+)$/i.exec(t);
+    return m ? pasteQty(m[1], m[2]) : t;
+  }
+  function pasteLoadUnit(u) {
+    u = String(u || "").toLowerCase();
+    if (u === "%") return "pct";
+    if (u === "#" || /^(?:lbs?|pounds?)$/.test(u)) return "lb";
+    if (/^(?:kgs?|kilos?|kilograms?)$/.test(u)) return "kg";
+    return null;
+  }
+  function pasteUnitWord(type) { return type === "pct" ? "%" : " " + type; }
+  // A half-point RPE on the 1–10 scale, or null — the builder's own RPE axis.
+  function pasteRpe(v) {
+    var n = Number(v);
+    return isFinite(n) && n >= 1 && n <= 10 && Math.round(n * 2) === n * 2 ? n : null;
+  }
+  function pasteClean(raw) {
+    var s = String(raw == null ? "" : raw).replace(/[\t   ]/g, " ").trim();
+    s = s.replace(/^(?:[-*•·+▪◦‣–—>]+|\d{1,3}[.)]|\(\d{1,3}\)|\[[ xX]?\])\s+/, "");
+    s = s.replace(/^#+\s*/, "").replace(/\*\*|__/g, "");
+    // "2,000m" is one number; "2,5 kg" is a decimal. Done before a ", " can split a line.
+    s = s.replace(/(\d),(\d{3})(?!\d)/g, "$1$2").replace(/(\d),(\d{1,2})(?=\s*(?:kg|lb))/gi, "$1.$2");
+    return s.replace(/\s+/g, " ").trim();
+  }
+  function pasteHeading(line) {
+    var m = /^([^:]{1,40}):\s*(.*)$/.exec(line);
+    // "Strength -" and "Main —" are headings too; the dash is how a list app writes the colon.
+    var label = (m ? m[1] : line).toLowerCase().replace(/[\s.\-–—]+$/, "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+    for (var i = 0; i < PASTE_HEADINGS.length; i++) {
+      if (PASTE_HEADINGS[i][1].test(label)) return { kind: PASTE_HEADINGS[i][0], rest: m ? m[2].trim() : "" };
+    }
+    if (RE_DAY_HEADING.test(label)) return { day: true };
+    return null;
+  }
+  // "Rest 90s" / "Rest: 2-3 min between sets" / "Rest 1:30" — a line that is ONLY a rest.
+  // ⚠ "Rest-pause curl 3x10" IS AN EXERCISE: the time has to come straight after the word.
+  function pasteRestLine(line) {
+    if (/^rest(?:\s*day)?\.?$/i.test(line)) return { rest: "" };
+    var m = new RegExp("^rest(?:ing)?\\s*(?:[:=\\-\\u2013]\\s*)?(?:" + P_REST_VAL + "|(\\d+)(?![\\d.:]))", "i").exec(line);
+    if (!m) return null;
+    return m[1] ? { rest: pasteQtyText(m[1]) } : { rest: m[2] + "s", bare: true };
+  }
+  // A line's exercises: split on ", " / "; ", but a piece that does not open with a name
+  // and a prescription ("rest 3 min", "heavy", "90s rest") stays with the one before it.
+  var RE_SEG_START = new RegExp("^(?:[A-Za-z]\\d{1,2}[.):-]?\\s+)?(?!(?:rest|tempo|rpe|x)\\b)[A-Za-z][^@]*?\\s(?:\\d{1,2}\\s*(?:sets?\\s*)?[x\\u00d7*]\\s*\\d|\\d{1,2}\\s*sets?\\b|" + P_NUM + "\\s*(?:" + P_UNIT + ")(?![a-z]))", "i");
+  function pasteSegments(line) {
+    var pieces = line.split(/[,;]\s+/);
+    var out = [];
+    for (var i = 0; i < pieces.length; i++) {
+      var p = pieces[i].trim();
+      if (!p) continue;
+      if (out.length && !RE_SEG_START.test(p)) out[out.length - 1] += ", " + p;
+      else out.push(p);
+    }
+    return out;
+  }
+  // The library move a pasted name IS: its own name or one of its aliases, normalized, then
+  // the same with a plural "s" taken off ("Pull-ups"). Never a fuzzy match — a guess that
+  // renamed a coach's move would be worse than leaving it as typed.
+  function pasteMatch(name, library) {
+    var k = libNorm(name);
+    if (!k) return null;
+    var tries = [k];
+    if (/[^s]s$/.test(k)) tries.push(k.slice(0, -1));
+    for (var t = 0; t < tries.length; t++) {
+      var i, j;
+      for (i = 0; i < library.length; i++) if (library[i] && libNorm(library[i].name) === tries[t]) return library[i];
+      for (i = 0; i < library.length; i++) {
+        var al = (library[i] && library[i].aliases) || [];
+        for (j = 0; j < al.length; j++) if (libNorm(al[j]) === tries[t]) return library[i];
+      }
+    }
+    return null;
+  }
+  function pasteTrim(s) {
+    return String(s || "").replace(/\(\s*\)/g, " ").replace(/^[\s,;:·@()\-–—]+|[\s,;:·@(\-–—]+$/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  // One exercise from one piece of a line. `ctx` carries the unit, the library, the
+  // warning sink and the source line.
+  function pasteRow(part, ctx) {
+    var group = null;
+    var lab = RE_LABEL.exec(part);
+    if (lab) { group = lab[1].toUpperCase(); part = part.slice(lab[0].length); }
+    var mask = part;
+    var first = part.length;
+    // Read a span, and blank it so nothing after reads it twice. A pattern whose first
+    // group is the boundary (P_PRE) starts the span after that boundary.
+    function take(re, pre) {
+      var m = re.exec(mask);
+      if (!m) return null;
+      var at = m.index + (pre ? m[1].length : 0);
+      var len = m[0].length - (pre ? m[1].length : 0);
+      mask = mask.slice(0, at) + new Array(len + 1).join("\u0000") + mask.slice(at + len);
+      if (at < first) first = at;
+      return m;
+    }
+    var row = { sets: null, reps: null, rest: null, tempo: null, rpe: null, load: null, loadType: null, loadText: null, perSet: null };
+    var m;
+    if ((m = take(RE_REST_AFTER, true)) || (m = take(RE_REST_BEFORE, true))) row.rest = pasteQtyText(m[2]);
+    if ((m = take(RE_TEMPO, true))) row.tempo = String(m[2] || m[3]).toUpperCase();
+    m = RE_RPE.exec(mask);
+    if (m) {
+      var r = pasteRpe(m[2]);
+      if (r == null) ctx.warn("RPE " + m[2] + " isn't on the 1–10 scale in half points; kept it as written.");
+      else { take(RE_RPE, false); row.rpe = r; }
+    }
+    var ladderReps = null;
+    if ((m = take(RE_SCHEME, true))) {
+      var sets = Number(m[2]);
+      var reps = String(m[3]).replace(/–/g, "-").replace(/\s*-\s*/g, "-").replace(/\s*\/\s*/g, "/");
+      var side = m[4] ? (/side/i.test(m[4]) ? "/side" : /leg/i.test(m[4]) ? "/leg" : /arm/i.test(m[4]) ? "/arm" : " each") : "";
+      if (/^(?:amrap|max|max reps|to failure)$/i.test(reps)) reps = reps.toUpperCase() === "AMRAP" ? "AMRAP" : reps.toLowerCase();
+      else if (/[a-z]/i.test(reps)) reps = pasteQtyText(reps);
+      var steps = reps.split("/");
+      // A rep LADDER is one value per set ("3 x 8/6/4"); "3 x 10/10" is ten a side.
+      if (steps.length > 1 && steps.length === sets && !side) { ladderReps = steps; reps = steps[0]; }
+      if (sets >= 1) { row.sets = sets; row.reps = reps + side; }
+    }
+    // The load: a ladder, a range, an added load, a number with its unit, or a bare "@n".
+    if ((m = take(RE_LOAD_LADDER, true))) {
+      var lt = pasteLoadUnit(m[3]);
+      var vals = m[2].split(/\s*\/\s*/).map(Number);
+      if (row.sets && vals.length === row.sets) {
+        row.loadType = lt; row.load = vals[0];
+        row.perSet = vals.map(function (v, i) { return { reps: ladderReps ? ladderReps[i] : "", load: v }; });
+      } else row.loadText = vals.join("/") + pasteUnitWord(lt);
+    } else if ((m = take(RE_LOAD_RANGE, true))) {
+      row.loadText = m[2] + "-" + m[3] + pasteUnitWord(pasteLoadUnit(m[4]));
+    } else if ((m = take(RE_LOAD_ADDED, true))) {
+      row.loadText = "+" + m[2] + pasteUnitWord(m[3] ? pasteLoadUnit(m[3]) : ctx.unit);
+    } else if ((m = take(RE_LOAD, true))) {
+      row.loadType = pasteLoadUnit(m[3]); row.load = Number(m[2]);
+    } else if ((m = RE_LOAD_BARE.exec(mask))) {
+      var n = Number(m[1]);
+      // "@8" is how RPE-based programs write effort; "@225" is a weight. A bare number up
+      // to 10 on a row with no RPE yet is read as the effort, and says so.
+      if (n <= 10 && row.rpe == null && pasteRpe(n) != null) {
+        take(RE_LOAD_BARE, false); row.rpe = n;
+        ctx.warn("Read @" + m[1] + " as RPE " + n + "; write " + m[1] + " " + ctx.unit + " for a load.");
+      } else {
+        take(RE_LOAD_BARE, false); row.loadType = ctx.unit; row.load = n; ctx.bareUnit();
+      }
+    }
+    if (row.load == null && row.loadText == null && (m = take(RE_BODYWEIGHT, false))) row.loadText = "bodyweight";
+    if (ladderReps && !row.perSet) row.perSet = ladderReps.map(function (v) { return { reps: v, load: "" }; });
+    // No sets × reps: a hold or a distance on its own is one set of it ("Bike 5 min"),
+    // "x20" / "20 reps" is one set of twenty, "3 sets" is three sets of unknown reps.
+    if (row.sets == null) {
+      if ((m = take(RE_DUR, true))) { row.sets = 1; row.reps = pasteQtyText(m[2]); }
+      else if ((m = take(RE_REPS_ONLY, true))) { row.sets = 1; row.reps = m[2] || m[3]; }
+      else if ((m = take(RE_SETS_ONLY, true))) { row.sets = Number(m[2]); row.reps = ""; ctx.warn("No reps given; the row has " + m[2] + " sets and empty reps."); }
+    }
+    // What was not read: the text before the first span is the name, the rest is left over.
+    var name = pasteTrim(part.slice(0, first));
+    var left = pasteTrim(mask.slice(first).split("\u0000").join(" "));
+    if (!name) { name = left; left = ""; }
+    var ex = pasteMatch(name, ctx.library);
+    var out = newRow(ex ? { name: ex.name, muscle: ex.muscle || "", equipment: ex.equipment || "" } : null);
+    if (!ex) out.name = name ? name.charAt(0).toUpperCase() + name.slice(1, 120) : "";
+    if (!out.name) ctx.warn("No exercise name; the row is unnamed.");
+    out.loadType = row.loadType || ctx.unit;
+    if (row.sets != null) { out.sets = row.sets; out.reps = row.reps; }
+    else if (ex) ctx.warn("No sets × reps for " + ex.name + "; used the builder's 3 × 8.");
+    else { out.sets = ""; out.reps = ""; ctx.warn("Couldn't read a prescription; kept the line as an exercise named “" + out.name + "”."); }
+    if (row.load != null) out.load = row.load;
+    if (row.rpe != null) out.rpe = row.rpe;
+    if (row.rest != null) out.rest = row.rest;
+    if (row.tempo != null) out.tempo = row.tempo;
+    if (row.perSet) out.perSet = row.perSet;
+    if (row.loadText != null) out.loadText = row.loadText;
+    if (left) {
+      if (row.load == null && row.loadText == null) {
+        out.loadText = left;
+        if (!/[a-z]/i.test(left)) ctx.warn("Couldn't tell what “" + left + "” is; kept it as the load text.");
+      } else out.cue = left;
+    }
+    if (group) out.group = group;
+    out.sourceLine = ctx.line;
+    return out;
+  }
+
+  // text → { blocks: [{ kind, rows }], warnings: [{ line, text, message }] }.
+  // opts: { unit: 'kg'|'lb' for a load written with no unit (default kg), library: the
+  // moves a name may resolve to (default the built-in library), block: where rows go before
+  // any heading (default 'main') }.
+  function parseWorkoutText(text, opts) {
+    opts = opts || {};
+    var unit = opts.unit === "lb" ? "lb" : "kg";
+    var library = Array.isArray(opts.library) ? opts.library : libraryFallback();
+    var kind = "main";
+    for (var b = 0; b < BLOCK_KINDS.length; b++) if (BLOCK_KINDS[b].key === opts.block) kind = opts.block;
+    var byKind = {};
+    var warnings = [];
+    var bare = [];
+    var lastRows = null;
+    var count = 0;
+    var capped = false;
+    var lines = String(text == null ? "" : text).replace(/\r\n?/g, "\n").split("\n");
+    if (lines.length > PASTE_MAX_LINES) {
+      warnings.push({ line: PASTE_MAX_LINES + 1, text: "", message: "Only the first " + PASTE_MAX_LINES + " lines were read." });
+      lines = lines.slice(0, PASTE_MAX_LINES);
+    }
+    for (var n = 0; n < lines.length; n++) {
+      var raw = String(lines[n]).trim();
+      var line = pasteClean(raw);
+      if (!line) continue;
+      var lineNo = n + 1;
+      var warn = (function (no, src) { return function (msg) { warnings.push({ line: no, text: src, message: msg }); }; })(lineNo, raw);
+      var head = pasteHeading(line);
+      if (head && head.day) { warn("Only one day is read at a time; this heading was skipped."); lastRows = null; continue; }
+      if (head) {
+        kind = head.kind; lastRows = null;
+        if (!head.rest) continue;
+        line = head.rest;
+      }
+      var rest = pasteRestLine(line);
+      if (rest) {
+        if (!rest.rest) { warn("A rest line needs a time, like “Rest 90s”; skipped."); continue; }
+        if (!lastRows) { warn("Rest " + rest.rest + " has no exercise above it; skipped."); continue; }
+        if (rest.bare) warn("Read Rest " + rest.rest.slice(0, -1) + " as seconds.");
+        for (var k = 0; k < lastRows.length; k++) lastRows[k].rest = rest.rest;
+        continue;
+      }
+      var ctx = { unit: unit, library: library, warn: warn, line: raw, bareUnit: (function (no) { return function () { if (bare.indexOf(no) < 0) bare.push(no); }; })(lineNo) };
+      var produced = [];
+      var segs = pasteSegments(line);
+      for (var s = 0; s < segs.length; s++) {
+        var parts = segs[s].split(RE_SUPERSET_SPLIT);
+        for (var p = 0; p < parts.length; p++) {
+          if (count >= PASTE_MAX_ROWS) {
+            if (!capped) warn("Only the first " + PASTE_MAX_ROWS + " exercises were read.");
+            capped = true;
+            continue;
+          }
+          produced.push(pasteRow(parts[p], ctx));
+          count += 1;
+        }
+      }
+      if (produced.length) {
+        byKind[kind] = (byKind[kind] || []).concat(produced);
+        lastRows = produced;
+      }
+    }
+    if (bare.length) {
+      warnings.push({ line: bare[0], text: "", message: "A load with no unit (line" + (bare.length > 1 ? "s " : " ") + bare.join(", ") + ") was read as " + unit + "." });
+    }
+    warnings.sort(function (x, y) { return x.line - y.line; });
+    var blocks = [];
+    for (var q = 0; q < BLOCK_KINDS.length; q++) {
+      var key = BLOCK_KINDS[q].key;
+      if (byKind[key] && byKind[key].length) blocks.push({ kind: key, rows: byKind[key] });
+    }
+    return { blocks: blocks, warnings: warnings };
+  }
 
   // ── Load + scheme formatting (the client card shows these verbatim) ───────
   // ⚠ THE FALLBACK IS A FALLBACK, and it has to compose the same two axes or a
@@ -821,6 +1342,10 @@
     BLOCK_KINDS: BLOCK_KINDS,
     EXERCISES: EXERCISES,
     searchExercises: searchExercises,
+    LIBRARY_CATEGORIES: LIBRARY_CATEGORIES, LIBRARY_ALIASES: EXERCISE_META,
+    exerciseCategory: exerciseCategory, libraryKey: libNorm, librarySlug: librarySlug,
+    libraryFallback: libraryFallback, searchLibrary: searchLibrary,
+    parseWorkoutText: parseWorkoutText,
     customMovesFromTemplates: customMovesFromTemplates, mergeMoveInto: mergeMoveInto,
     mergeOwnMoves: mergeOwnMoves, ownMovesFor: ownMovesFor,
     searchCustomMoves: searchCustomMoves,

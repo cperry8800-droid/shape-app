@@ -29,6 +29,12 @@ const GATED_API_PREFIXES = [
 // Server-to-server routes UNDER a gated prefix that authenticate themselves (a
 // secret), so the per-user membership gate must NOT apply (no user session).
 const GATE_SKIP = ['/api/ai/notify/cron'];
+// The same, for a path that carries its own credential in a SEGMENT: a coach's calendar feed,
+// /api/calendar/feed/<token>, is fetched by Google / Apple / Outlook with no session at all, so
+// the gate would 401 every subscription. The route answers 404 to anything but a live token
+// and is still rate-limited above. ⚠ The trailing slash is the point: /api/calendar/feed-token
+// (the signed-in coach managing their link) does NOT match, and stays gated.
+const GATE_SKIP_PREFIXES = ['/api/calendar/feed/'];
 
 // ---- Rate limits ----------------------------------------------------------
 // AUTH writes (sign-in bridge / sign-out) are the strict brute-force tier;
@@ -205,7 +211,11 @@ export async function updateSession(request: NextRequest) {
   // Server-side enforcement for the paid client API prefixes. Honors a Bearer
   // token (native app) as well as the cookie session (web). Fails OPEN on any
   // unexpected error so a gate fault can never take down the paid routes.
-  if (!GATE_SKIP.includes(apiPath) && GATED_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'))) {
+  if (
+    !GATE_SKIP.includes(apiPath) &&
+    !GATE_SKIP_PREFIXES.some((p) => apiPath.startsWith(p)) &&
+    GATED_API_PREFIXES.some((p) => apiPath === p || apiPath.startsWith(p + '/'))
+  ) {
     try {
       const authHeader = request.headers.get('authorization') || '';
       const bearer = authHeader.match(/^Bearer\s+(.+)$/i);
