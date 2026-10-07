@@ -24670,7 +24670,15 @@ function BSClientChat({ onProfile, role = 'client', openRequest }) {
 // that POSTs the signed token to /api/ai/proposals/confirm — nothing is applied
 // until this tap. Once it lands, Undo reverses it by auditId. Token-only: the UI
 // never fabricates the change. Theme-token styling (matches the chat chips).
+// ⚠ A DIFF ROW WITH NO `before` IS A LINE, NOT A CHANGE. A drafted workout
+// (draft_workout) lists its days and moves; drawing each as "— → Back squat…"
+// read as a column of deletions. The rows scroll inside the card past ~10 lines,
+// because a week of moves would otherwise push Confirm off a phone screen.
+// ⚠ AND `a.open` IS SHOWN ONLY AFTER THE CONFIRM LANDS: before that the program it
+// names does not exist. On the app it opens by id in the trainer's Programs tab
+// (`shape:openCoachPlan`, answered by the trainer shell), never by a website URL.
 function BSNoraProposal({ a, t }) {
+  const tr = useShapeTr();
   const [status, setStatus] = React.useState('idle'); // idle | busy | done | undoing | undone | error
   const [err, setErr] = React.useState('');
   const [auditId, setAuditId] = React.useState(null);
@@ -24678,51 +24686,66 @@ function BSNoraProposal({ a, t }) {
   const ac = t.isLight ? '#0a8f87' : '#34d6c5';
   const diff = Array.isArray(a.diff) ? a.diff : [];
   const fmtV = (v) => (v == null || v === '') ? '—' : String(v);
+  const isLine = (d) => !!d && typeof d === 'object' && !Object.prototype.hasOwnProperty.call(d, 'before');
+  const open = a.open && a.open.kind === 'coach_plan' && a.open.planId ? a.open : null;
   const confirm = async () => {
     if (status === 'busy' || status === 'done') return;
     setStatus('busy'); setErr('');
     try {
-      if (!window.ShapeSupport?.confirm) throw new Error('Actions are unavailable right now.');
+      if (!window.ShapeSupport?.confirm) throw new Error(tr('feed:support.proposal.unavailable', { defaultValue: 'Actions are unavailable right now.' }));
       const r = await window.ShapeSupport.confirm(a.token);
       setAuditId(r && r.auditId); setStatus('done');
-    } catch (e) { setErr(String(e?.message || 'Could not apply that change.')); setStatus('error'); }
+    } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.applyFailed', { defaultValue: 'Could not apply that change.' }))); setStatus('error'); }
   };
   const undo = async () => {
     if (!auditId || status === 'undoing' || status === 'undone') return;
     setStatus('undoing'); setErr('');
     try {
-      if (!window.ShapeSupport?.undo) throw new Error('Undo is unavailable right now.');
+      if (!window.ShapeSupport?.undo) throw new Error(tr('feed:support.proposal.undoUnavailable', { defaultValue: 'Undo is unavailable right now.' }));
       await window.ShapeSupport.undo(auditId); setStatus('undone');
-    } catch (e) { setErr(String(e?.message || 'Could not undo.')); setStatus('done'); }
+    } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.undoFailed', { defaultValue: 'Could not undo.' }))); setStatus('done'); }
+  };
+  const openPlan = () => {
+    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null } })); } catch (e) {}
   };
   return (
     <div style={{ width: '100%', border: `1px solid ${ac}55`, background: `${ac}0f`, borderRadius: 14, padding: 12, marginTop: 8 }}>
       <div style={{ fontFamily: mono, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ac }}>
-        {status === 'done' ? 'Applied ✓' : status === 'undone' ? 'Undone' : 'Draft · review & confirm'}
+        {status === 'done' ? tr('feed:support.proposal.applied', { defaultValue: 'Applied ✓' }) : status === 'undone' ? tr('feed:support.proposal.undone', { defaultValue: 'Undone' }) : tr('feed:support.proposal.draft', { defaultValue: 'Draft · review & confirm' })}
       </div>
       <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 14, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
       {diff.length > 0 && status !== 'undone' && (
-        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {diff.map((d, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap' }}>
-              <span style={{ color: muted }}>{d.label || d.field}</span>
-              <span style={{ color: muted, textDecoration: 'line-through', opacity: 0.7 }}>{fmtV(d.before)}</span>
-              <span style={{ color: muted }}>→</span>
-              <span style={{ color: ink, fontWeight: 700 }}>{fmtV(d.after)}</span>
-            </div>
-          ))}
+        <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
+          {diff.map((d, i) => (isLine(d)
+            ? (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap', paddingLeft: d.label ? 0 : 10 }}>
+                {d.label ? <span style={{ color: muted }}>{d.label}</span> : null}
+                <span style={{ color: ink, fontWeight: d.label ? 700 : 500 }}>{fmtV(d.after)}</span>
+              </div>
+            )
+            : (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontFamily: mono, fontSize: 10, flexWrap: 'wrap' }}>
+                <span style={{ color: muted }}>{d.label || d.field}</span>
+                <span style={{ color: muted, textDecoration: 'line-through', opacity: 0.7 }}>{fmtV(d.before)}</span>
+                <span style={{ color: muted }}>→</span>
+                <span style={{ color: ink, fontWeight: 700 }}>{fmtV(d.after)}</span>
+              </div>
+            )))}
         </div>
       )}
       {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 9, color: t.RUST, lineHeight: 1.4 }}>{err}</div>}
-      <div style={{ marginTop: 10, display: 'flex', gap: 7, alignItems: 'center' }}>
+      <div style={{ marginTop: 10, display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
         {(status === 'idle' || status === 'error') && (
-          <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? 'Try again' : 'Confirm'}</button>
+          <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? tr('feed:support.proposal.tryAgain', { defaultValue: 'Try again' }) : tr('feed:support.proposal.confirm', { defaultValue: 'Confirm' })}</button>
         )}
-        {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Applying…</span>}
+        {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('feed:support.proposal.applying', { defaultValue: 'Applying…' })}</span>}
+        {status === 'done' && open && (
+          <button onClick={openPlan} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.proposal.openBuilder', { defaultValue: 'Open in builder' })} →</button>
+        )}
         {status === 'done' && auditId && (
-          <button onClick={undo} style={{ border: `1px solid ${hair}`, background: 'transparent', color: muted, borderRadius: 999, padding: '7px 12px', fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Undo</button>
+          <button onClick={undo} style={{ border: `1px solid ${hair}`, background: 'transparent', color: muted, borderRadius: 999, padding: '7px 12px', fontFamily: mono, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.proposal.undo', { defaultValue: 'Undo' })}</button>
         )}
-        {status === 'undoing' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Undoing…</span>}
+        {status === 'undoing' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('feed:support.proposal.undoing', { defaultValue: 'Undoing…' })}</span>}
       </div>
     </div>
   );

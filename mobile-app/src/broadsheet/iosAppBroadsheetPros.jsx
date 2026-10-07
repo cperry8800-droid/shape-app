@@ -1161,6 +1161,10 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [showHabits, setShowHabits] = useStateBSP(false);
   const [storeView, setStoreView] = useStateBSP('store');
   const [programInitialTab, setProgramInitialTab] = useStateBSP('programs');
+  // A program Nora drafted and the coach confirmed → open it in the Programs tab's
+  // editor (BSTrainerPrograms answers it once its library has loaded). Not a nav
+  // descriptor: replaying it would reopen an editor the coach already closed.
+  const [openPlanRequest, setOpenPlanRequest] = useStateBSP(null);
   const [queueView, setQueueView] = useStateBSP(null);
   const [liveWatch, setLiveWatch] = useStateBSP(null);
   const [settingsStart, setSettingsStart] = useStateBSP(''); // replayed Settings sub-page (announce register)
@@ -1265,6 +1269,21 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proMessageClient', onMsg);
     return () => window.removeEventListener('shape:proMessageClient', onMsg);
   }, []);
+  // ⚠ "OPEN IN BUILDER" ON NORA'S CARD. The website follows the card's URL; the app has
+  // no such page, so the card fires this with the saved program's id and the trainer
+  // shell takes the coach to Programs, where the editor opens on that program.
+  React.useEffect(() => {
+    const onOpenPlan = (e) => {
+      const planId = e && e.detail && typeof e.detail.planId === 'string' ? e.detail.planId : null;
+      if (!planId) return;
+      navJumpRef.current.navPush();
+      setProgramInitialTab('programs');
+      setOpenPlanRequest({ planId, nonce: Date.now() });
+      setTab('programs');
+    };
+    window.addEventListener('shape:openCoachPlan', onOpenPlan);
+    return () => window.removeEventListener('shape:openCoachPlan', onOpenPlan);
+  }, []);
   // Care team — open (or reuse) the private coach↔coach thread about a shared
   // client, then jump to Chat on that thread.
   React.useEffect(() => {
@@ -1323,7 +1342,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} />,
-    programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} />,
+    programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
@@ -5867,7 +5886,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   );
 }
 
-function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
+function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } = {}) {
   const t = useBS();
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
@@ -5915,6 +5934,21 @@ function BSTrainerPrograms({ initialTab = 'programs' } = {}) {
     document.addEventListener('visibilitychange', resume);
     return () => { libraryRead.current += 1; window.removeEventListener('focus', resume); document.removeEventListener('visibilitychange', resume); };
   }, [refreshLibrary]);
+  // Open the program a confirmed Nora draft just saved. ⚠ IT WAITS FOR THE LIBRARY, and
+  // reads it once more if the program is not in it yet: the save landed a moment ago,
+  // and a library read that started before it would not hold it. Only then does it say
+  // it cannot find it — never an editor on nothing. Answered once per request (nonce).
+  const openHandled = React.useRef(null);
+  const openRetried = React.useRef(null);
+  useEffectBSP(() => {
+    const req = openPlanRequest;
+    if (!req || !req.planId || openHandled.current === req.nonce || !serverPlans) return;
+    const row = serverPlans.find((p) => p.id === req.planId);
+    if (row) { openHandled.current = req.nonce; setEditingPlan(row); return; }
+    if (openRetried.current !== req.nonce) { openRetried.current = req.nonce; refreshLibrary(); return; }
+    openHandled.current = req.nonce;
+    setLibraryError(tr('coach:plans.openMissing', { defaultValue: "That program isn't in your library yet. Try again in a moment." }));
+  }, [openPlanRequest, serverPlans, refreshLibrary]);
   const rememberPlan = (row) => {
     libraryRead.current += 1; // a pre-save read must not replace the saved row
     const normalized = normalizeWorkoutPlan(row);

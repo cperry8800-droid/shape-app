@@ -198,6 +198,10 @@ function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, provi
   };
 }
 
+// A day the boundary will take: assign_workout refuses a day that has passed (the
+// route refuses it too), so a fixed calendar date in a test goes stale.
+const FUTURE = new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10);
+
 test('assign_workout: trainer on client → preview → endpoint → audit → undo (archives the assignment)', async () => {
   const registry = registryWith(assignWorkoutAction);
   const audit = inMemoryAudit();
@@ -209,10 +213,10 @@ test('assign_workout: trainer on client → preview → endpoint → audit → u
     return { ok: false, status: 404, data: {} };
   });
 
-  const p = await proposeChange({ registry, action: 'assign_workout', input: { clientId: 'client-9', clientName: 'Priya', title: 'Upper — push', scheduledDate: '2026-06-20' }, actor, ctx, secret: SECRET });
+  const p = await proposeChange({ registry, action: 'assign_workout', input: { clientId: 'client-9', clientName: 'Priya', title: 'Upper — push', scheduledDate: FUTURE }, actor, ctx, secret: SECRET });
   assert.equal(p.ok, true);
   assert.ok(supabase._calls.rpc.some((r) => r.name === 'is_coach_on_client'));
-  assert.match(p.preview.summary, /Assign 'Upper — push' to Priya on 2026-06-20/);
+  assert.match(p.preview.summary, new RegExp(`Assign 'Upper — push' to Priya on ${FUTURE}`));
   assert.equal(ctx._calls.length, 0);
 
   const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
@@ -228,7 +232,7 @@ test('assign_workout: trainer on client → preview → endpoint → audit → u
   assert.equal(u.patch.status, 'archived');
   assert.equal(u.filters.trainer_id, 42);
   assert.equal(u.filters.client_id, 'client-9');
-  assert.equal(u.filters.scheduled_date, '2026-06-20');
+  assert.equal(u.filters.scheduled_date, FUTURE);
   assert.equal(audit._rows[0].status, 'undone');
 });
 
@@ -241,7 +245,7 @@ test('assign_workout: OUT-OF-SCOPE client rejected AT THE ENDPOINT (403) — exe
   const supabase = richSupabase2({ coachMap: { 'client-9': true }, providerId: 42 });
   const ctx = ctxFor(actor, supabase, () => ({ ok: false, status: 403, data: { error: 'You can only assign workouts to your own active clients.' } }));
 
-  const p = await proposeChange({ registry, action: 'assign_workout', input: { clientId: 'client-9', clientName: 'Priya', title: 'Upper — push' }, actor, ctx, secret: SECRET });
+  const p = await proposeChange({ registry, action: 'assign_workout', input: { clientId: 'client-9', clientName: 'Priya', title: 'Upper — push', scheduledDate: FUTURE }, actor, ctx, secret: SECRET });
   assert.equal(p.ok, true);
   const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
   assert.equal(c.ok, false);
