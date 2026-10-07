@@ -156,8 +156,13 @@ const UNIT_WORD = String.raw`(kgs?|kilos?|kilograms?|lbs?|pounds?|%)`;
  *   loading the bar with it for 4 × 6 is exactly the failure this exists to stop.
  * - A bare number counts only straight after "use", "using", "at" or "@" ("use 185"),
  *   in the coach's own unit, and never when a time, count or distance follows it.
- * - Percentages are free (any 30–100) once the coach is working off a 1RM: relative
+ * - Percentages are free (any 30–100) once the coach is working off a 1RM, or asks for a
+ *   percentage-based program in general ("program it in percentages"): relative
  *   intensity, the same axis as RPE. Otherwise only a percentage they wrote.
+ *   ⚠ A WRITTEN PERCENTAGE DOES NOT FREE THE REST (Codex, the review of #2227). "Bench at
+ *   60%" used to set pctFree, and then any 30–100% the model put on any other move
+ *   survived: an unstated 100% squat on the confirm card, the exact invented load this
+ *   rule exists to stop. Now that brief admits 60% and nothing else.
  */
 export function allowedLoads(request, unit) {
   const text = String(request || '').toLowerCase();
@@ -178,7 +183,7 @@ export function allowedLoads(request, unit) {
     const value = Number(m[1]);
     if (value > 0 && (unit === 'kg' || unit === 'lb')) abs.push({ value, type: unit });
   }
-  const pctFree = /1\s?rm|one[- ]rep max|percent|%/.test(text);
+  const pctFree = /1\s?rm|one[- ]rep max|\bpercentages\b|\bpercent(?:age)?[- ]based\b|%[- ]based\b|\bpercentages? of (?:max|1\s?rm)\b/.test(text);
   return { abs, pct, pctFree };
 }
 
@@ -296,6 +301,12 @@ export function sanitizeDraft(raw, brief) {
     days = [{ ...days[0], weekday: null }];
   } else {
     days = days.slice(0, b.daysPerWeek);
+    // ⚠ A SHORT WEEK IS A BROKEN ANSWER, NOT A SMALLER PROGRAM (Codex, the review of #2227).
+    // The model is asked for exactly daysPerWeek sessions (the task line says so), and the
+    // schema cannot bound an array's length; a three-day request answered with one usable day
+    // used to become a one-day program the coach could confirm and assign. It falls back to
+    // the labelled template instead, which builds the count that was asked for.
+    if (days.length < b.daysPerWeek) return null;
     const used = new Set();
     for (const d of days) {
       if (d.weekday != null && !used.has(d.weekday)) used.add(d.weekday);

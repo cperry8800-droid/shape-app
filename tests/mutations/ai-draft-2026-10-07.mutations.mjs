@@ -212,5 +212,12 @@ export default {
     { name: 'app: the Programs tab gives up without a second read', file: PROS,
       find: '    if (openRetried.current !== req.nonce) { openRetried.current = req.nonce; refreshLibrary(); return; }\n',
       replace: '' },
+    // ── Codex, the review of #2227 ───────────────────────────────────────────────────
+    { name: 'a written percentage frees every percentage again', file: CORE,
+      find: "  const pctFree = /1\\s?rm|one[- ]rep max|\\bpercentages\\b|",
+      replace: "  const pctFree = /%|1\\s?rm|one[- ]rep max|\\bpercentages\\b|" },
+    { name: 'a short week is kept as a smaller program', file: CORE,
+      find: '    if (days.length < b.daysPerWeek) return null;\n',
+      replace: '' },
   ],
 };

@@ -162,7 +162,7 @@ test('Add to this day appends by block and selects the first drafted move; Undo 
   assert.deepEqual(names(), ['Hip flow', 'Glute bridge', 'Back squat', 'Bench press', 'Front squat', 'Romanian deadlift', 'Plank']);
   assert.equal(detailName(), 'Glute bridge', 'the first drafted move is not the one opened');
   assert.match(said(), /Draft added: 3 exercises/);
-  assert.equal(document.querySelector('.dai'), null, 'the panel stayed open over the list');
+  assert.equal(!!document.querySelector('.dai'), false, 'the panel stayed open over the list');
   const saved = await savedDay(writes);
   assert.equal(saved.name, 'Lower', 'a name the coach chose was replaced by the draft\'s');
   assert.equal(saved.blocks.find((b) => b.kind === 'finisher').rows[0].name, 'Plank');
@@ -245,7 +245,7 @@ test('Escape in the brief closes the panel and leaves the day open', async () =>
   stubDraft({ body: draftAnswer() });
   const input = await openDraft();
   await key(input, 'Escape');
-  assert.equal(document.querySelector('.dai'), null);
+  assert.equal(!!document.querySelector('.dai'), false);
   assert.ok(document.querySelector('.dday'), 'Escape closed the day editor too');
 });
 

@@ -200,6 +200,31 @@ test('a program week: unique weekdays, filled from the default spread and sorted
   assert.equal(two.days.length, 2, 'no more days than the coach asked for');
 });
 
+// Codex, the review of #2227 (P1): a written percentage used to free every percentage.
+test('⚠ LOADS: a percentage the coach wrote admits that percentage, not every other one', () => {
+  const withPct = (rows) => ({ ...RAW_DAY, days: [{ ...RAW_DAY.days[0], blocks: [{ kind: 'main', rows }] }] });
+  const rows = [row('Bench press', 4, '6', 0, '', { load: 60, loadUnit: 'pct' }), row('Back squat', 4, '6', 0, '', { load: 100, loadUnit: 'pct' })];
+  const spec = sanitizeDraft(withPct(rows), cleanBrief({ request: 'upper and lower, bench at 60%' }));
+  const loads = spec.days[0].blocks[0].rows.map((r) => r.name + ':' + r.loadType + ':' + r.load);
+  assert.deepEqual(loads, ['Bench press:pct:60', 'Back squat:lb:'], 'an unstated 100% squat survived because the brief named 60% for the bench');
+  assert.equal(allowedLoads('bench at 60%', 'lb').pctFree, false);
+  // A percentage-BASED program, or a 1RM to work from, is relative intensity in general.
+  for (const brief of ['program it in percentages', 'a percentage-based strength block', 'squat off a 1RM of 140 kg']) {
+    assert.equal(allowedLoads(brief, 'lb').pctFree, true, brief);
+  }
+});
+
+// Codex, the review of #2227 (P2): a short week became a smaller program.
+test('a model week with fewer days than asked for is a broken answer: the labelled template, never a smaller program', async () => {
+  assert.equal(sanitizeDraft(RAW_WEEK, cleanBrief({ request: 'strength', kind: 'program', weeks: 4, daysPerWeek: 4 })), null, 'three days for a four-day ask were kept');
+  assert.equal(sanitizeDraft(RAW_WEEK, cleanBrief({ request: 'strength', kind: 'program', weeks: 4, daysPerWeek: 3 })).days.length, 3, 'the count that was asked for still passes');
+  const model = scriptedModel(answer(RAW_WEEK));
+  const out = await generateDraft(cleanBrief({ request: 'strength', kind: 'program', weeks: 4, daysPerWeek: 4 }), { callModel: model });
+  assert.equal(out.ok, true);
+  assert.equal(out.source, 'template');
+  assert.equal(out.spec.days.length, 4, 'the template builds the four days that were asked for');
+});
+
 // ── the document ────────────────────────────────────────────────────────────────
 test('expandDraft is the builder\'s document: normalized, deterministic, ids unique', () => {
   const spec = sanitizeDraft(RAW_DAY, cleanBrief({ request: 'lower body' }));
