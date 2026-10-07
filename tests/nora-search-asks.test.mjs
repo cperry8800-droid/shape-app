@@ -71,7 +71,7 @@ test('website search: a question shows "Ask Nora" first, and picking it opens he
 
 test('website search: a name gets no Ask Nora row', async () => {
   const { w } = await searchFor('Maya', () => null);
-  assert.equal(w.document.querySelector('.ss-ask'), null);
+  assert.ok(!w.document.querySelector('.ss-ask'), 'a name gets no Ask Nora row');
 });
 
 test('website search: a failed search still offers the question to Nora, and still says the search failed', async () => {
