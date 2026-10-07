@@ -18,9 +18,10 @@ export default {
   timeoutMs: 180_000,
   mutations: [
     // ── the library ranking (one function for the route and the picker) ─────────────────
+    // (the source holds these as the characters themselves, not as \u escapes)
     { name: 'apostrophes are a word break, not nothing', file: CORE,
-      find: '.replace(/[\\u2018\\u2019\'`]/g, "")',
-      replace: '.replace(/[\\u2018\\u2019\'`]/g, " ")' },
+      find: '.replace(/[‘’\'`]/g, "")',
+      replace: '.replace(/[‘’\'`]/g, " ")' },
     { name: 'an exact alias ranks with the substrings', file: CORE,
       find: '    if (any(function (a) { return a === nq; })) return 1;',
       replace: '    if (any(function (a) { return a === nq; })) return 7;' },
@@ -117,7 +118,7 @@ export default {
       find: '  var PASTE_MAX_ROWS = 60;',
       replace: '  var PASTE_MAX_ROWS = 600;' },
     { name: 'a dash after a heading word is not a heading', file: CORE,
-      find: '.replace(/[\\s.\\-\\u2013\\u2014]+$/, "")',
+      find: '.replace(/[\\s.\\-–—]+$/, "")',
       replace: '.replace(/[\\s.]+$/, "")' },
 
     // ── the iCalendar text ────────────────────────────────────────────────────────────────
@@ -240,9 +241,10 @@ export default {
     { name: 'the exemption covers the link route too', file: MW,
       find: "const GATE_SKIP_PREFIXES = ['/api/calendar/feed/'];",
       replace: "const GATE_SKIP_PREFIXES = ['/api/calendar/feed'];" },
+    // (middleware.ts has CRLF line endings, so this anchor stops short of the line end)
     { name: 'the feed is gated like the rest of the prefix', file: MW,
-      find: '    !GATE_SKIP_PREFIXES.some((p) => apiPath.startsWith(p)) &&\n',
-      replace: '' },
+      find: '    !GATE_SKIP_PREFIXES.some((p) => apiPath.startsWith(p)) &&',
+      replace: '    true &&' },
 
     // ── the Settings card ─────────────────────────────────────────────────────────────────
     { name: 'Reset resets without asking', file: CARD,

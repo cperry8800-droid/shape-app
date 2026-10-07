@@ -100,10 +100,12 @@ test('the tiers: exact name, exact alias, name prefix, alias prefix, word start,
   const lib = [
     { name: 'Squat' }, { name: 'Squat jump' }, { name: 'Back squat', aliases: ['SQ'] },
     { name: 'Zercher', aliases: ['Squat zercher'] }, { name: 'Quads finisher', muscle: 'Legs' },
-    { name: 'Hip thrust', muscle: 'Glutes', equipment: 'Barbell' }, { name: 'Bodysquats' },
+    // ⚠ SHORTER THAN "Back squat" ON PURPOSE: inside one tier the shorter name wins, so only a
+    // substring that would out-sort the word start proves the word-start tier is there.
+    { name: 'Hip thrust', muscle: 'Glutes', equipment: 'Barbell' }, { name: 'Ysquat' },
   ];
-  assert.deepEqual(names(DB.searchLibrary(lib, 'squat')), ['Squat', 'Squat jump', 'Zercher', 'Back squat', 'Bodysquats']);
-  assert.deepEqual(names(DB.searchLibrary(lib, 'sq')), ['Back squat', 'Squat', 'Squat jump', 'Zercher', 'Bodysquats']);
+  assert.deepEqual(names(DB.searchLibrary(lib, 'squat')), ['Squat', 'Squat jump', 'Zercher', 'Back squat', 'Ysquat']);
+  assert.deepEqual(names(DB.searchLibrary(lib, 'sq')), ['Back squat', 'Squat', 'Squat jump', 'Zercher', 'Ysquat']);
   assert.deepEqual(names(DB.searchLibrary(lib, 'bar')), ['Hip thrust'], 'equipment no longer matches');
   assert.deepEqual(names(DB.searchLibrary(lib, 'zzz')), []);
 });

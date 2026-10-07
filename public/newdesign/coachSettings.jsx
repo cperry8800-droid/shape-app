@@ -835,8 +835,8 @@ function CoachCalendarFeedCard({ signedIn }) {
       ) : null}
       {note ? <div role="status" style={{ marginTop: 8, fontSize: 11.5, color: CST_TEAL }}>{note}</div> : null}
       <div style={{ marginTop: 12, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
-        Anyone with this link can see your session times and client names. Keep it to yourself,
-        and reset it if it's shared by mistake.
+        Anyone with this link can see your session times, your clients' names and what they
+        booked about. Keep it to yourself, and reset it if it's shared by mistake.
       </div>
     </React.Fragment>
   );

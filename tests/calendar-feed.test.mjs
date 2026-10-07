@@ -623,7 +623,7 @@ test('a live link: the URL in a read-only field, Copy, a webcal link, a Google l
     assert.equal(m.link('Google Calendar ↗').getAttribute('href'), 'https://calendar.google.com/calendar/r?cid=' + encodeURIComponent(LINK.webcalUrl));
     assert.equal(m.link('Google Calendar ↗').getAttribute('rel'), 'noopener noreferrer');
     assert.match(m.text(), /Link ready/);
-    assert.match(m.text(), /Anyone with this link can see your session times and client names/);
+    assert.match(m.text(), /Anyone with this link can see your session times, your clients' names and what they\s+booked about/);
     await m.click('Copy');
     assert.deepEqual(m.clipboard, [LINK.url]);
     assert.match(m.text(), /Copied\./);

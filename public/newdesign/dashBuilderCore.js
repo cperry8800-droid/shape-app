@@ -446,7 +446,6 @@
   // (blanked to \u0000) can supply. ⚠ NO LOOKBEHIND: Safari before 16.4 refuses the whole
   // script at parse time if one appears, which would take the builder down with it.
   var P_PRE = "(^|[\\s,;:(\\u00b7\\u0000@\\u2013\\u2014-])";
-  var P_POST = "(?=$|[\\s,;)\\u00b7\\u0000])";
   var P_SIDE = "(\\s*\\/\\s*(?:side|leg|arm)s?\\b|\\s+per\\s+(?:side|leg|arm)\\b|\\s+each(?:\\s+(?:side|leg|arm))?\\b|\\s+ea\\b\\.?)?";
   var P_REPS = "(\\d+(?:\\s*[-\\u2013]\\s*\\d+)?(?:\\s*\\/\\s*\\d+(?:\\s*[-\\u2013]\\s*\\d+)?)+(?!\\s*(?:" + P_LOADU + "))" +
     "|\\d+\\s*[-\\u2013]\\s*\\d+\\s*(?:" + P_UNIT + ")(?![a-z])" +
