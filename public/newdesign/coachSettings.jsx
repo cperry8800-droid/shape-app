@@ -256,7 +256,7 @@ function CoachSettingsPage({ role }) {
         payoutCard={card}
         eyebrow="OFFICE · SETTINGS"
         title="How your practice reads"
-        subtitle="The thresholds that decide when a client is flagged to you, where your dashboard opens, and which of your own notifications reach you. Nothing here changes what a client sees."
+        subtitle="The thresholds that decide when a client is flagged to you, where your dashboard opens, which of your own notifications reach you, and the private link that puts your sessions on your own calendar. Nothing here changes what a client sees."
       >
         {/* ── the signal engine ───────────────────────────────────────────── */}
         {cstCard(
@@ -366,6 +366,13 @@ function CoachSettingsPage({ role }) {
               read effect keys on `signedIn`, which does not change when one signed-in
               coach is replaced by another. */}
           <CoachNotificationCard key={acct || "anon"} signedIn={signedIn} acct={acct} />
+        </div>
+
+        {/* ── the calendar feed ───────────────────────────────────────────── */}
+        <div style={{ marginTop: 16 }}>
+          {/* Keyed on the account for the notification card's reason: a link read for one
+              coach must never stay on screen under another's session. */}
+          <CoachCalendarFeedCard key={acct || "anon"} signedIn={signedIn} />
         </div>
         {typeof CoachAccountSettings === "function" && <CoachAccountSettings key={acct || "anon"} accountId={acct} />}
       </DashPage>
@@ -663,6 +670,178 @@ function CoachNotificationCard({ signedIn, acct }) {
   );
 }
 
+// ── The calendar feed (2026-10-07, owner-approved coach-tools plan, Schedule "Connect") ──
+// A private link a coach subscribes to from Google, Apple or Outlook, which lists their Shape
+// bookings there. GET/POST /api/calendar/feed-token reads and resets it; the feed itself is
+// /api/calendar/feed/<token>.ics (src/lib/calendar-feed.ts).
+// ⚠ READ-ONLY, AND THE CARD SAYS SO. A subscription is one-way: nothing done in Google comes
+// back, and a change in Shape shows up only when the calendar app next fetches the link —
+// which the APP decides (Apple honours the hourly hint; Google takes hours, sometimes a day).
+// ⚠ THE LINK IS A CREDENTIAL: anyone holding it reads the coach's session times and client
+// names. The card says that too, and a reset is the remedy, behind an in-page confirm (no
+// `confirm()`, which a browser may suppress and which no test can drive).
+const CST_FEED_API = "/api/calendar/feed-token";
+const CST_FEED_INTRO = "Subscribe from Google, Apple or Outlook to see your Shape sessions there. Read-only; changes in Shape show up when your calendar app refreshes, usually within a few hours (Google can take up to a day).";
+
+// One request to the link route → the card's next state. Every answer the route gives has a
+// state here, so the card never sits on "Loading…" after a reply it did not expect.
+async function cstFeedRequest(method) {
+  try {
+    // The cookie-session bridge first, as the notification card does: the route reads the
+    // session from the cookie, and a page that signed in through the client library alone
+    // has not written it yet.
+    try { if (window.shapeDb && window.shapeDb.getSession) await window.shapeDb.getSession(); } catch (e) { /* the cookie may still carry it */ }
+    const res = await fetch(CST_FEED_API, {
+      method, credentials: "same-origin", cache: "no-store",
+      headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
+      body: method === "POST" ? JSON.stringify({ rotate: true }) : undefined,
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (res.ok && data && typeof data.url === "string" && typeof data.webcalUrl === "string") {
+      return { kind: "ready", url: data.url, webcalUrl: data.webcalUrl, rotated: data.rotated === true };
+    }
+    if (res.status === 503 && data && data.code === "feed_not_set_up") return { kind: "notSetUp" };
+    if (res.status === 401) return { kind: "signedOut" };
+    if (res.status === 402 || res.status === 403) return { kind: "refused", message: (data && data.error) || "Calendar feeds are for coaches." };
+    return { kind: "error" };
+  } catch (e) {
+    return { kind: "error" };
+  }
+}
+
+// Google Calendar's own "add by URL" entry point takes the webcal:// form in `cid`.
+function cstGoogleSubscribeUrl(webcalUrl) {
+  return "https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(webcalUrl);
+}
+
+function CoachCalendarFeedCard({ signedIn }) {
+  const [state, setState] = React.useState({ kind: "loading" });
+  const [confirming, setConfirming] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [note, setNote] = React.useState("");
+  // ⚠ A REPLY IS ONLY USED IF IT IS THE NEWEST ASK. A load still in flight when a reset lands
+  // would otherwise paint the OLD link back over the new one — the link the reset just killed.
+  const genRef = React.useRef(0);
+  const fieldRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (signedIn !== true) return;
+    const gen = (genRef.current += 1);
+    setState({ kind: "loading" });
+    cstFeedRequest("GET").then((next) => { if (gen === genRef.current) setState(next); });
+  }, [signedIn]);
+
+  const retry = () => {
+    const gen = (genRef.current += 1);
+    setState({ kind: "loading" });
+    setNote("");
+    cstFeedRequest("GET").then((next) => { if (gen === genRef.current) setState(next); });
+  };
+  const reset = async () => {
+    if (busy) return;
+    const gen = (genRef.current += 1);
+    setBusy(true);
+    setNote("");
+    const next = await cstFeedRequest("POST");
+    setBusy(false);
+    if (gen !== genRef.current) return;
+    setConfirming(false);
+    // ⚠ A FAILED RESET KEEPS THE LINK ON SCREEN, BECAUSE IT STILL WORKS. Replacing it with an
+    // error state would tell the coach their calendar is broken when nothing changed.
+    if (next.kind === "ready") { setState(next); setNote("New link ready. Subscribe again with it; the old one has stopped working."); }
+    else if (next.kind === "notSetUp" || next.kind === "signedOut" || next.kind === "refused") setState(next);
+    else setNote("Couldn't reset your link just now. The current one still works.");
+  };
+  const copy = async () => {
+    if (state.kind !== "ready") return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(state.url); setNote("Copied."); return; }
+    } catch (e) { /* fall through to selecting the text */ }
+    try {
+      const el = fieldRef.current;
+      if (el) { el.focus(); el.select(); }
+      if (document.execCommand && document.execCommand("copy")) { setNote("Copied."); return; }
+    } catch (e) { /* the selection is still there to copy by hand */ }
+    setNote("Select the link and copy it.");
+  };
+
+  // ⚠ THE LINK IS SHOWN ONLY TO A SIGNED-IN ACCOUNT. A read answered after a sign-out would
+  // otherwise leave a credential on screen under the signed-out view.
+  const ready = signedIn === true && state.kind === "ready" ? state : null;
+  const live = !!ready;
+  const field = {
+    flex: "1 1 260px", minWidth: 0, minHeight: 32, padding: "6px 10px", borderRadius: 4,
+    border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "transparent",
+    color: live ? CST_INK : CST_INK50, fontFamily: CST_MONO, fontSize: 11.5,
+  };
+  const linkChip = (on) => ({ ...cstChip(false), minHeight: 30, display: "inline-flex", alignItems: "center", textDecoration: "none", opacity: on ? 1 : 0.45, pointerEvents: on ? "auto" : "none" });
+
+  // The line under the controls: what this account can do with the card right now.
+  const status = signedIn === undefined ? "Loading…"
+    : signedIn === false ? "Sign in as a coach to get your private calendar link."
+    : state.kind === "loading" ? "Loading your link…"
+    : state.kind === "notSetUp" ? "Calendar feed isn't set up yet. Nothing to do on your side; it switches on once it's installed."
+    : state.kind === "signedOut" ? "Sign in again to see your calendar link."
+    : state.kind === "refused" ? state.message
+    : state.kind === "error" ? "Couldn't load your calendar link just now."
+    : "";
+
+  return cstCard(
+    <React.Fragment>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <span className="dash-eyebrow">Calendar feed · read-only</span>
+        <span style={{ marginLeft: "auto", fontFamily: CST_MONO, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: live ? CST_TEAL : CST_INK50 }}>
+          {live ? "Link ready" : "Off"}
+        </span>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 12.5, color: CST_INK50, lineHeight: 1.5 }}>{CST_FEED_INTRO}</div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12, alignItems: "center" }}>
+        <input
+          ref={fieldRef} type="text" readOnly aria-label="Your calendar feed link"
+          value={ready ? ready.url : ""} placeholder={signedIn === false ? "Sign in to get your link" : "—"}
+          disabled={!live} onFocus={(e) => { try { e.currentTarget.select(); } catch (err) {} }}
+          style={field}
+        />
+        <button type="button" onClick={copy} disabled={!live} style={{ ...cstChip(false), minHeight: 30, opacity: live ? 1 : 0.45 }}>Copy</button>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+        <a href={ready ? ready.webcalUrl : undefined} aria-disabled={!live} style={linkChip(live)}>Add to calendar</a>
+        <a href={ready ? cstGoogleSubscribeUrl(ready.webcalUrl) : undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!live} style={linkChip(live)}>Google Calendar ↗</a>
+        <button type="button" onClick={() => { setConfirming(true); setNote(""); }} disabled={!live || confirming}
+          style={{ ...cstChip(false), minHeight: 30, opacity: live && !confirming ? 1 : 0.45 }}>Reset link</button>
+      </div>
+
+      {confirming && live && (
+        <div role="alertdialog" aria-label="Reset your calendar link" style={{ marginTop: 12, padding: "12px 14px", borderRadius: 4, border: "1px solid " + CST_AMBER, background: "rgba(var(--sh-gold-rgb, 216,162,58),0.08)" }}>
+          <div style={{ fontSize: 12.5, color: CST_INK, lineHeight: 1.5 }}>
+            Reset your link? Calendars subscribed to the current one stop updating, and you'll
+            subscribe again with the new link.
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+            <button type="button" onClick={reset} disabled={busy} style={{ ...cstChip(false), minHeight: 30, border: "1px solid " + CST_AMBER, color: CST_AMBER }}>{busy ? "Resetting…" : "Reset link"}</button>
+            <button type="button" onClick={() => setConfirming(false)} disabled={busy} style={{ ...cstChip(false), minHeight: 30 }}>Keep it</button>
+          </div>
+        </div>
+      )}
+
+      {status ? (
+        <div style={{ marginTop: 10, fontSize: 11.5, color: state.kind === "notSetUp" || state.kind === "error" ? CST_AMBER : CST_INK50, lineHeight: 1.5 }}>
+          {status}
+          {signedIn === true && state.kind === "error" ? <button type="button" onClick={retry} style={{ ...cstChip(false), minHeight: 26, marginLeft: 8 }}>Retry</button> : null}
+        </div>
+      ) : null}
+      {note ? <div role="status" style={{ marginTop: 8, fontSize: 11.5, color: CST_TEAL }}>{note}</div> : null}
+      <div style={{ marginTop: 12, fontSize: 11.5, color: CST_INK50, lineHeight: 1.5 }}>
+        Anyone with this link can see your session times, your clients' names and what they
+        booked about. Keep it to yourself, and reset it if it's shared by mistake.
+      </div>
+    </React.Fragment>
+  );
+}
+
 // Which tab the shell should open on when the address carries none. Returns null
 // for every case that is not a positive answer — signed out, unreadable, nothing
 // chosen, a slug this shell does not have.
@@ -679,4 +858,4 @@ async function cstResolveLandingTab(isKnownSlug) {
   } catch (e) { return null; }
 }
 
-Object.assign(window, { CoachSettingsPage, CoachNotificationCard, CstNumber, cstLandingOptions, cstResolveLandingTab, CST_COACH_TYPES, CST_REGISTRY_COACH_TYPES, CST_DEFAULT_CHANNELS });
+Object.assign(window, { CoachSettingsPage, CoachNotificationCard, CoachCalendarFeedCard, CstNumber, cstLandingOptions, cstResolveLandingTab, CST_COACH_TYPES, CST_REGISTRY_COACH_TYPES, CST_DEFAULT_CHANNELS });
