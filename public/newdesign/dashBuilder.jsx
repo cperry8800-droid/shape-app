@@ -2516,7 +2516,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dtool .dwk input[type="checkbox"]{width:18px;height:18px;flex:0 0 auto}
 .dbu2 .dtool .dwk>span{display:grid;min-width:0}
 .dbu2 .dtool .dwk b{font-size:13.5px;font-weight:600}
-.dbu2 .dtool .dwk small{font-size:12px;color:${DBU_INK3};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbu2 .dtool .dwk small{font-size:12px;line-height:1.35;color:${DBU_INK3};overflow-wrap:anywhere}
 .dbu2 .dtool .dwk.rep small{color:${DBU_RUST}}
 .dbu2 .dtool .drow2{display:flex;flex-wrap:wrap;gap:8px}
 .dbu2 .dtool button{height:var(--dbu-ctl);padding:0 12px;border-radius:8px;border:1px solid ${DBU_LINE2};background:${DBU_WH};color:${DBU_INK};font-size:13px;font-weight:600;cursor:pointer}
