@@ -278,6 +278,8 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   const [viewMonth, setViewMonth] = useStateBSCal(loggedIn ? _today.getMonth() : 4);
   const [selDay, setSelDay] = useStateBSCal(loggedIn ? _today.getDate() : 14);
   const [serverEvents, setServerEvents] = useStateBSCal(null);
+  // The zone /api/calendar placed this month's bookings in (its response names it).
+  const [serverZone, setServerZone] = useStateBSCal(null);
   const [showAdd, setShowAdd] = useStateBSCal(false);
   // The auth cache can hydrate just AFTER this screen mounts; if we read "logged
   // out" at first paint we'd be stuck on the May-demo view and never load live
@@ -302,7 +304,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     const from = `${viewYear}-${pad(viewMonth + 1)}-01`;
     const to = `${viewYear}-${pad(viewMonth + 1)}-${new Date(viewYear, viewMonth + 1, 0).getDate()}`;
     window.ShapeCalendar.list({ from, to, clientId, role })
-      .then(d => setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))))
+      .then(d => { setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))); })
       .catch(() => setServerEvents([]));
   }, [loggedIn, viewYear, viewMonth, clientId, role]);
   React.useEffect(() => { loadMonth(); }, [loadMonth]);
@@ -391,6 +393,7 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         sheet={sheet}
         role={role}
         live={useServer}
+        zone={useServer ? serverZone : null}
         onChanged={loadMonth}
         onPrev={() => { let m = viewMonth - 1, y = viewYear; if (m < 0) { m = 11; y -= 1; } setViewMonth(m); setViewYear(y); }}
         onNext={() => { let m = viewMonth + 1, y = viewYear; if (m > 11) { m = 0; y += 1; } setViewMonth(m); setViewYear(y); }}
@@ -490,7 +493,7 @@ function BSCalAddSheet({ year, month, day, onClose, onSaved }) {
 // Day timeline — vertical, each event a row. Mark "now" (8:30 AM May 14) and gaps.
 
 // ────────── MONTH VIEW
-function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
+function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, selDay, setSelDay, sheet, role, live = false, zone = null, onChanged = () => {}, onPrev = () => {}, onNext = () => {} }) {
   const t = useBSCal();
   const tr = useShapeTr();
   const teal = bsCalTeal(t);
@@ -540,6 +543,16 @@ function BSCalendarMonth({ events, viewYear, viewMonth, monthName, isDemoMonth, 
           <button onClick={onNext} aria-label={tr('calendar:nav.nextMonth', { defaultValue: 'Next month' })} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{nextAbbr} ›</button>
         </div>
       </div>
+
+      {/* ⚠ A BARE "9:00" IS A CLAIM ABOUT A CLOCK, so the month names the zone its bookings
+          are read in: the one /api/calendar answered in (the coach's stored zone, or this
+          device's), never a guess. Live accounts only — the demo month has no one's clock.
+          Registered on #2222, done 2026-10-07. */}
+      {zone && (
+        <div style={{ padding: `0 ${t.padX}px 8px`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
+          {tr('calendar:zone.timesIn', { defaultValue: 'Times in {zone}', zone })}
+        </div>
+      )}
 
       {/* DOW header — single letters */}
       <div style={{ padding: `2px ${t.padX}px 6px`, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>

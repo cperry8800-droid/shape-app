@@ -97,5 +97,6 @@
   "state.upNext": "ALS NÄCHSTES",
   "unit.durMin": "{min}m",
   "unit.min": "{min} MIN",
-  "view.kicker": "Rubrik · Kalender"
+  "view.kicker": "Rubrik · Kalender",
+  "zone.timesIn": "Zeiten in {zone}"
 }

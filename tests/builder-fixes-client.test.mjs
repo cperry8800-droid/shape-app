@@ -267,3 +267,49 @@ test('the website Train card shows the walkthrough, the introduction and each de
   assert.equal(bare.video, null);
   assert.equal(bare.programVideo, null);
 });
+
+// ── The follow-ups registered on #2222 (owner, 2026-10-07: "keep going") ─────
+// The website's workout card grouped nothing, and the app's preview showed no move's demo.
+const Signals = require_('../public/newdesign/dashSignals.js');
+const cardBlocks = (exercises) => Signals.workoutCardExercises(exercises).map((e) => e.blockLabel);
+
+test('the member card names the same four blocks the document does', () => {
+  assert.deepEqual(Object.keys(Signals.CARD_BLOCKS), W.BLOCK_KINDS, 'the card\'s copy of the kinds drifted from the document\'s');
+});
+
+test('the website card heads each of the coach\'s blocks where it changes, and none when there are none', () => {
+  assert.deepEqual(cardBlocks(delivered().exercises), ['Warm-up', 'Main', null, 'Accessory', null, 'Finisher']);
+  assert.deepEqual(cardBlocks(delivered({ blocks: false }).exercises), [null, null, null, null, null, null], 'a day without blocks is one plain list');
+  // A move with no kind stays with the run before it; a second run of one kind is not a new heading.
+  assert.deepEqual(cardBlocks([{ name: 'a', block: 'main' }, { name: 'b' }, { name: 'c', block: 'main' }, { name: 'd', block: 'finisher' }]), ['Main', null, null, 'Finisher']);
+  assert.deepEqual(cardBlocks([{ name: 'a', block: 'cooldown' }, { name: 'b', block: 'MAIN ' }]), [null, 'Main'], 'only the builder\'s kinds are blocks');
+});
+
+test('the card renders the headings, and the builder\'s preview of it names them the same way', async () => {
+  globalThis.DashSignals = Signals;
+  Object.assign(globalThis, { React, serif: 'serif' });
+  const nd = (f) => fileURLToPath(new URL('../public/newdesign/' + f, import.meta.url));
+  const registry = new Map([['react', React]]);
+  const { dtrToCard } = await loadRealModule(nd('dashTrain.jsx'), { registry, appendExports: 'export { dtrToCard };' });
+  const { DashWorkoutCard } = await loadRealModule(nd('dashClient.jsx'), { registry, appendExports: 'export { DashWorkoutCard };' });
+  const heads = (html) => [...html.matchAll(/class="dash-card-block"[^>]*>([^<]*)</g)].map((m) => m[1]);
+  const render = (workout) => RDS.renderToStaticMarkup(React.createElement(DashWorkoutCard, { workout, interactive: false, maxRows: 99 }));
+  assert.deepEqual(heads(render(dtrToCard(delivered(), 'Coach'))), ['Warm-up', 'Main', 'Accessory', 'Finisher']);
+  assert.deepEqual(heads(render(dtrToCard(delivered({ blocks: false }), 'Coach'))), []);
+  // The coach's "preview as client" is this same card, from the builder's own day.
+  assert.deepEqual(DashBuilder.dayToClientCard(coachDay()).exercises.map((e) => e.blockLabel), ['Warm-up', 'Main', null, 'Accessory', null, 'Finisher']);
+  const twoMains = { ...coachDay(), blocks: [{ kind: 'main', rows: [row('A')] }, { kind: 'main', rows: [row('B')] }, { kind: 'accessory', rows: [] }, { kind: 'finisher', rows: [row('C')] }] };
+  assert.deepEqual(DashBuilder.dayToClientCard(twoMains).exercises.map((e) => e.blockLabel), ['Main', null, 'Finisher'], 'two main blocks read as one Main, as the member sees them; an empty block names nothing');
+});
+
+test('the app preview offers each move\'s demo behind one control, one open at a time', () => {
+  const d = previewOf(delivered());
+  const demoButtons = () => d.buttons().filter((b) => /How-to · form clip/.test(b.label));
+  assert.equal(demoButtons().length, 1, 'only the move with a demo offers one');
+  const players = () => d.nodes().filter((n) => n.type && n.type.name === 'ShapeVideoPlayer' && /squat\.mp4/.test(String(n.props.value)));
+  assert.equal(players().length, 0, 'folded until asked for');
+  d.click('▸ How-to · form clip');
+  assert.equal(players().length, 1, 'the coach\'s clip opens under its move');
+  d.click('▾ How-to · form clip');
+  assert.equal(players().length, 0, 'and folds again');
+});

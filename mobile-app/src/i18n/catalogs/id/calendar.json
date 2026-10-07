@@ -97,5 +97,6 @@
   "state.upNext": "BERIKUTNYA",
   "unit.durMin": "{min}mnt",
   "unit.min": "{min} MNT",
-  "view.kicker": "Bagian · Kalender"
+  "view.kicker": "Bagian · Kalender",
+  "zone.timesIn": "Waktu di {zone}"
 }

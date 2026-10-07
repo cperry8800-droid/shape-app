@@ -97,5 +97,6 @@
   "state.upNext": "PROSSIMO",
   "unit.durMin": "{min}m",
   "unit.min": "{min} MIN",
-  "view.kicker": "Sezione · Calendario"
+  "view.kicker": "Sezione · Calendario",
+  "zone.timesIn": "Orari in {zone}"
 }

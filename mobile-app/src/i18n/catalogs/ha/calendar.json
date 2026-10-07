@@ -97,5 +97,6 @@
   "state.upNext": "NA GABA",
   "unit.durMin": "{min}min",
   "unit.min": "{min} MIN",
-  "view.kicker": "Sashe · Kalanda"
+  "view.kicker": "Sashe · Kalanda",
+  "zone.timesIn": "Lokaci a {zone}"
 }

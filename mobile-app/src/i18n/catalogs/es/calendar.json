@@ -97,5 +97,6 @@
   "state.upNext": "A CONTINUACIÓN",
   "unit.durMin": "{min}m",
   "unit.min": "{min} MIN",
-  "view.kicker": "Sección · Calendario"
+  "view.kicker": "Sección · Calendario",
+  "zone.timesIn": "Horas en {zone}"
 }
