@@ -59,10 +59,18 @@ test('there is no edit mode: a mouse drags the whole card, a touch screen only t
   const root = createRoot(document.getElementById('root'));
   try {
     await media(true, false);
-    await React.act(async () => {
-      root.render(React.createElement(DashGrid, { role: 'trainer', widgets: [widget('one', 'One')] }));
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    });
+    // The handle is chosen when the grid boots, so the pointer has to be known on the FIRST
+    // render: a first frame that guessed "touch" boots a mouse user's grid twice, and the
+    // end state is identical, so only counting the boots can tell.
+    const init = window.GridStack.init; let boots = 0;
+    window.GridStack.init = function (...args) { boots += 1; return init.apply(this, args); };
+    try {
+      await React.act(async () => {
+        root.render(React.createElement(DashGrid, { role: 'trainer', widgets: [widget('one', 'One')] }));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+    } finally { window.GridStack.init = init; }
+    assert.equal(boots, 1, 'a mouse user\'s grid boots once, with the mouse handle');
     assert.ok(!document.querySelector('[data-dg-customize]'), 'the Customize toggle is gone');
     assert.doesNotMatch(document.body.textContent, /Arrange|Customize/, 'nothing still sends the member to a mode or a menu');
     const card = item('One');
