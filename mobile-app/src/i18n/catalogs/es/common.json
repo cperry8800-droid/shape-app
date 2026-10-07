@@ -32,6 +32,7 @@
   "search.recipeFallback": "Receta",
   "search.staffEyebrow": "Equipo de Shape",
   "search.noraEyebrow": "Conserjería de Shape · siempre en línea",
+  "search.askNora": "Preguntar a Nora",
   "search.followsYou": "Te sigue",
   "search.mutuals": "{count, plural, one {# en común} other {# en común}}",
   "search.countPeople": "{count, plural, one {# persona} other {# personas}}",

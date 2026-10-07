@@ -452,7 +452,8 @@ test('a failed search never renders as "nobody matched"', () => {
   assert.match(stripComments(PROS), /coach:addClient\.searchFailed/, 'the coach roster has no failure copy');
   // siteSearch routes both through one honest could-not-answer renderer
   const site = stripComments(SITE);
-  assert.match(site, /function renderProblem\(nh, isLimited\)/, 'siteSearch has no could-not-answer renderer');
+  // (Its third argument, the query, carries only the Ask Nora row — 2026-10-07.)
+  assert.match(site, /function renderProblem\(nh, isLimited(, query)?\)/, 'siteSearch has no could-not-answer renderer');
   // The catch must route to renderProblem, never to the ordinary empty render.
   // ⚠ ANCHORED ON THE RPC, not on `.catch(` — the file has an earlier, unrelated
   // catch on the Supabase bundle loader, and a bare marker silently selects it

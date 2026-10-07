@@ -32,6 +32,7 @@
   "search.recipeFallback": "Рецепт",
   "search.staffEyebrow": "Команда Shape",
   "search.noraEyebrow": "Консьєрж Shape · завжди на зв'язку",
+  "search.askNora": "Запитати Нору",
   "search.followsYou": "Підписаний на вас",
   "search.mutuals": "{count, plural, one {# спільний} few {# спільні} many {# спільних} other {# спільних}}",
   "search.countPeople": "{count, plural, one {# людина} few {# людини} many {# людей} other {# людини}}",

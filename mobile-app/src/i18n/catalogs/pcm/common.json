@@ -32,6 +32,7 @@
   "search.recipeFallback": "Recipe",
   "search.staffEyebrow": "Shape staff",
   "search.noraEyebrow": "Shape Concierge · dey online always",
+  "search.askNora": "Ask Nora",
   "search.followsYou": "Dey follow you",
   "search.mutuals": "{count, plural, one {# person una both know} other {# people una both know}}",
   "search.countPeople": "{count, plural, one {# person} other {# people}}",
