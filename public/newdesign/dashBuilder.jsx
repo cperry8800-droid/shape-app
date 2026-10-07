@@ -708,7 +708,29 @@ function DbuLadder({ row, onChange }) {
   </details>;
 }
 
-function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [], onUploading }) {
+// ⚠ AN EMPTY LOAD READS EMPTY. `newRow` stores `load: 0`, and 0 is "no load" to every
+// reader (`weightLabel`, `setTarget`, the player's prefill), so every new move showed a
+// "0" that prescribed nothing, beside a unit for a weight nobody had written. Owner,
+// 2026-10-07: "Apply all the fixes first". DISPLAY ONLY: the stored 0 is untouched, so
+// no assigned workout reads any differently. The text is held while the field is in use,
+// or typing "0.5" would lose its leading 0 the moment it read as none.
+function dbuNoLoad(load) { return load == null || load === "" || !(Number(load) > 0); }
+function DbuLoadInput({ row, onLoad }) {
+  const [draft, setDraft] = React.useState(null);
+  const value = draft != null ? draft : dbuNoLoad(row.load) ? "" : row.load;
+  return <input aria-label={row.name+' load'} type="number" min="0" placeholder="—" value={value}
+    onFocus={()=>setDraft(dbuNoLoad(row.load) ? "" : String(row.load))} onBlur={()=>setDraft(null)}
+    onChange={e=>{setDraft(e.target.value);onLoad(e.target.value===''?'':Number(e.target.value));}} style={{...dbuField,width:'100%'}}/>;
+}
+// The unit belongs to a weight, so it appears once there is one to qualify: the row's
+// own, an imported load instruction it may replace, or a per-set weight in the ladder
+// (whose column reads in this unit). A hidden select keeps its saved value.
+function dbuShowsUnit(row) {
+  return !dbuNoLoad(row.load) || String(row.loadText ?? '').trim() !== ''
+    || ShapeWorkoutDocument.perSetEntries(row).some(e=>!dbuNoLoad(e.load));
+}
+
+function DbuRow({ row, onChange, onRemove, onMove, onDuplicate, clips = [], onUploading }) {
   const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText;
     // A trainer's new Rest value replaces any older numeric override, as in the mobile editor.
     if(k==='rest') delete next.restSeconds; onChange(next);};
@@ -721,26 +743,20 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
   const video=ShapeWorkoutDocument.videoUrl(row.video);
   const field=(key,label,type='text')=><label style={{display:'block',minWidth:0}}><span style={dbuLabel}>{label}</span><input aria-label={row.name+' '+label} type={type} min={type==='number'?1:undefined} value={row[key] ?? ''} onChange={e=>set(key,type==='number'?e.target.value:e.target.value)} style={{...dbuField,width:'100%'}}/></label>;
   return <div style={{border:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)',borderLeft:'3px solid '+(row.group?'var(--sh-accent, #2ee0c4)':'rgba(var(--sh-ink-rgb, 242,237,228),0.2)'),borderRadius:4,padding:12,marginBottom:10}}>
-    {/* ⚠ THE NAME GETS A ROW WHEN THE CONTROLS WOULD CROWD IT. Inside the 400px
-        floating panel these four 40px buttons take ~254px, which left "Hip 90/90
-        flow" about 60px and wrapped it onto three lines — most of what reads as
-        clunky in a day with several moves. A flex-basis on the name is what pushes
-        the controls to their own line at that width and keeps them beside it when
-        the panel is in the flow and wide. The controls are also a step quieter than
-        the fields they sit above: 32px, still past the 24px WCAG 2.5.8 floor. */}
-    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:10}}>
-      <span style={{color:DBU_INK50,flex:'0 0 auto'}}>{label}</span>
-      <strong style={{flex:'1 1 150px',minWidth:0,fontSize:15}}>{row.name}</strong>
-      <div style={{display:'flex',gap:6,marginLeft:'auto',flex:'0 0 auto'}}>
-        <button aria-label={'Move '+row.name+' up'} onClick={()=>onMove(-1)} style={dbuRowBtn}>↑</button>
-        <button aria-label={'Move '+row.name+' down'} onClick={()=>onMove(1)} style={dbuRowBtn}>↓</button>
-        <button onClick={onDuplicate} style={dbuRowBtn}>Duplicate</button>
-        <button disabled={uploading} aria-label={'Remove '+row.name} onClick={onRemove} style={dbuRowBtn}>×</button>
-      </div>
+    {/* ⚠ THE NUMBER AND NAME ARE SAID ONCE, BY THE SUMMARY ABOVE THIS CARD. The card
+        repeated them ("01 · Back squat" over "01 Back squat"), so every open move named
+        itself twice. Owner, 2026-10-07. The controls keep their row, a step quieter than
+        the fields below (32px, past the 24px WCAG 2.5.8 floor), and every one still
+        names its move for a screen reader. */}
+    <div style={{display:'flex',justifyContent:'flex-end',gap:6,flexWrap:'wrap',marginBottom:10}}>
+      <button aria-label={'Move '+row.name+' up'} onClick={()=>onMove(-1)} style={dbuRowBtn}>↑</button>
+      <button aria-label={'Move '+row.name+' down'} onClick={()=>onMove(1)} style={dbuRowBtn}>↓</button>
+      <button onClick={onDuplicate} style={dbuRowBtn}>Duplicate</button>
+      <button disabled={uploading} aria-label={'Remove '+row.name} onClick={onRemove} style={dbuRowBtn}>×</button>
     </div>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(85px,1fr))',gap:10}}>
       {field('sets','Sets','number')}{field('reps','Reps')}
-      <label><span style={dbuLabel}>Load</span><input aria-label={row.name+' load'} type="number" min="0" value={row.load ?? ''} onChange={e=>set('load',e.target.value===''?'':Number(e.target.value))} style={{...dbuField,width:'100%'}}/></label>
+      <label><span style={dbuLabel}>Load</span><DbuLoadInput row={row} onLoad={v=>set('load',v)}/></label>
       {/* ⚠ RPE LEFT THIS LIST AND GOT ITS OWN. As a fourth `loadType` it was
              EXCLUSIVE with a weight — a coach could say 100 kg or RPE 8 and never
              "100 kg @ RPE 8", which is what most strength programming looks like.
@@ -748,8 +764,9 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
              IBS". A stored row still carrying `loadType:'rpe'` is converted on
              read by `splitLegacyRpe`, so this select can never show a blank value
              for an option it no longer offers. */}
-      <label><span style={dbuLabel}>Unit</span><select aria-label={row.name+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)} style={{...dbuField,width:'100%'}}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option></select></label>
-      <label><span style={dbuLabel}>RPE</span><select aria-label={row.name+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))} style={{...dbuField,width:'100%'}}><option value="">None</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></label>
+      {dbuShowsUnit(row) && <label><span style={dbuLabel}>Unit</span><select aria-label={row.name+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)} style={{...dbuField,width:'100%'}}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option></select></label>}
+      {/* No target RPE reads "—", as an empty load does: a placeholder, not a word. */}
+      <label><span style={dbuLabel}>RPE</span><select aria-label={row.name+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))} style={{...dbuField,width:'100%'}}><option value="">—</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></label>
       {field('rest','Rest')}
     </div>
     {row.loadText && <p style={{fontSize:12,color:DBU_INK50}}>Original load instruction: {row.loadText}</p>}
@@ -758,24 +775,40 @@ function DbuRow({ row, label, onChange, onRemove, onMove, onDuplicate, clips = [
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}}>{field('cue','Coach cue')}{field('tempo','Tempo')}<label><span style={dbuLabel}>Superset</span><select value={row.group || ''} onChange={e=>set('group',e.target.value || null)} style={dbuField}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label></div>
       <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,marginTop:10}}><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:Number(row.rpe)>0?0.5:undefined}:null)}/> Apply progression when copying a week with progression</label>
     </details>
-    <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)'}}>
-      <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.m4v,.webm" hidden onChange={e=>{const f=e.target.files[0];e.target.value='';upload(f);}}/>
-      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}><button disabled={uploading} style={dbuBtn(false)} onClick={()=>fileRef.current.click()}>{uploading?'Uploading…':video?'Replace demo':'Upload demo'}</button>
-        {!!clips.length && <select aria-label={'Choose demo for '+row.name} style={{...dbuField,maxWidth:'100%'}} value="" disabled={uploading} onChange={e=>set('video',e.target.value)}><option value="">Choose from video library</option>{clips.map(c=><option key={c.url} value={c.url}>{c.name}</option>)}</select>}
-        {video && <button disabled={uploading} style={dbuBtn(false)} onClick={()=>set('video','')}>Remove demo</button>}
+    {/* ⚠ THE DEMO SITS BEHIND ONE CONTROL, the way the day's walkthrough and the
+        program's introduction do. It was always open: two buttons, a library select, a
+        link field and its help text under EVERY move, attached or not, most of a move's
+        height for a field most moves leave empty. Owner, 2026-10-07. Folded, the summary
+        still says whether a demo is attached, and whether an upload is running or failed
+        (the coach may fold it mid-upload); open, it is the same upload, library, link,
+        remove and player as before. */}
+    <details className="cb-demo" style={{marginTop:12}}>
+      <summary style={{cursor:'pointer',fontSize:13,minHeight:32}}>Demo video <small style={{marginLeft:8,color:DBU_INK50,fontSize:12}}>{uploading?'Uploading…':error?'Upload failed':video?'Attached':'Optional'}</small></summary>
+      <div style={{paddingTop:6}}>
+        <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.m4v,.webm" hidden onChange={e=>{const f=e.target.files[0];e.target.value='';upload(f);}}/>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}><button disabled={uploading} style={dbuBtn(false)} onClick={()=>fileRef.current.click()}>{uploading?'Uploading…':video?'Replace demo':'Upload demo'}</button>
+          {!!clips.length && <select aria-label={'Choose demo for '+row.name} style={{...dbuField,maxWidth:'100%'}} value="" disabled={uploading} onChange={e=>set('video',e.target.value)}><option value="">Choose from video library</option>{clips.map(c=><option key={c.url} value={c.url}>{c.name}</option>)}</select>}
+          {video && <button disabled={uploading} style={dbuBtn(false)} onClick={()=>set('video','')}>Remove demo</button>}
+        </div>
+        {uploading && <progress aria-label="Uploading exercise demonstration" style={{width:'100%',marginTop:8}}/>}
+        {error && <p role="alert" style={{fontSize:13,color:'var(--sh-rust, #e0644b)'}}>{error}</p>}
+        <ShapeVideoLink value={video} onChange={url=>set('video',url)} label={'Video link for '+(row.name || 'exercise')} disabled={uploading}/>
+        <ShapeVideoPlayer value={video} title={row.name || 'Exercise demonstration'}/>
       </div>
-      {uploading && <progress aria-label="Uploading exercise demonstration" style={{width:'100%',marginTop:8}}/>}
-      {error && <p role="alert" style={{fontSize:13,color:'var(--sh-rust, #e0644b)'}}>{error}</p>}
-      <ShapeVideoLink value={video} onChange={url=>set('video',url)} label={'Video link for '+(row.name || 'exercise')} disabled={uploading}/>
-      <ShapeVideoPlayer value={video} title={row.name || 'Exercise demonstration'}/>
-    </div>
+    </details>
   </div>;
 }
 
 // ── Day editor (right pane) ──────────────────────────────────────────────────
-function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, compact = false }) {
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
-  const [expanded, setExpanded] = React.useState(day.blocks[0]?.rows[0]?.id || "");
+  // ⚠ EVERY MOVE IS FOLDED TO ITS ONE-LINE SUMMARY, IN EVERY LAYOUT, AND ONE OPENS AT A
+  // TIME. Editor and Planner forced every move open (`open={!compact || …}`), so a day of
+  // six moves was six full prescriptions, each with its own video block, one under the
+  // other; only Guided folded them. Owner, 2026-10-07: "Apply all the fixes first". The
+  // day opens on its list ("01 · Back squat 3 × 8 · rest 90s"), a click opens that move
+  // and folds the last one, and a move just added opens so the coach can fill it in.
+  const [expanded, setExpanded] = React.useState("");
   const labels = DashBuilder.rowLabels(day);
   let labelIdx = 0;
   const setBlock = (bi, next) => onChange({ ...day, blocks: day.blocks.map((b, i) => (i === bi ? next : b)) });
@@ -836,9 +869,9 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
           {block.rows.map((row, ri) => {
             const label = labels[labelIdx]; labelIdx += 1;
             return (
-              <details className="cb-exercise" key={row.id} open={!compact || expanded === row.id}>
-                <summary onClick={compact ? e=>{e.preventDefault();setExpanded(expanded===row.id?"":row.id);} : undefined}>{label} · {row.name}<small>{row.sets} × {row.reps}{row.rest ? " · rest " + row.rest : ""}{row.video ? " · video" : ""}</small></summary>
-              <DbuRow row={row} label={label} clips={clips} onUploading={onUploading}
+              <details className="cb-exercise" key={row.id} open={expanded === row.id}>
+                <summary onClick={e=>{e.preventDefault();setExpanded(expanded===row.id?"":row.id);}}>{label} · {row.name}<small>{row.sets} × {row.reps}{row.rest ? " · rest " + row.rest : ""}{ShapeWorkoutDocument.videoUrl(row.video) ? " · demo" : ""}</small></summary>
+              <DbuRow row={row} clips={clips} onUploading={onUploading}
                 onDuplicate={() => setBlock(bi, {...block, rows:[...block.rows.slice(0,ri+1),{...JSON.parse(JSON.stringify(row)),id:crypto.randomUUID()},...block.rows.slice(ri+1)]})}
                 onChange={(next) => setBlock(bi, { ...block, rows: block.rows.map((r, i) => (i === ri ? next : r)) })}
                 onRemove={() => setBlock(bi, { ...block, rows: block.rows.filter((_, i) => i !== ri) })}
@@ -1773,7 +1806,6 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
                 playlists={playlists}
                 clips={clips}
                 customMoves={ownMoves}
-                compact={guided}
                 onUploading={uploadCount}
               />
             </div>

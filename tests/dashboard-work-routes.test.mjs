@@ -23,7 +23,9 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
     ['@/lib/require-membership',{requireMembership:async()=>null}],
     ['@/lib/request-utils',{readJson:async()=>({ok:false,response:json({}, {status:400})}),dbError:()=>json({error:'unavailable'},{status:500})}],
     ['@/lib/access-guards.mjs',{isSessionReschedulable:()=>false}],
-    ['@/lib/time',{normalizeZone:(zone)=>zone || null}],
+    // The calendar places bookings with the real wall-clock helpers (2026-10-07); only the zone
+    // check stays permissive here.
+    ['@/lib/time',{...(await loadRealModule(fileURLToPath(new URL('../src/lib/time.ts',import.meta.url)),{typescript:true})),normalizeZone:(zone)=>zone || null}],
   ]);
   const route = await loadRealModule(fileURLToPath(new URL('../src/app/api/'+path+'/route.ts',import.meta.url)),{typescript:true,registry});
   return { route, calls };

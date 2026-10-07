@@ -259,7 +259,7 @@ function ClientOvTools() {
   const tools = [
     { t: "Real programming", b: "Your coach writes it. Sets, reps, progressions, substitutions. Updated every cycle based on how you're actually moving." },
     { t: "Food logs that read you back", b: "Photo, barcode, or quick-add. Your nutritionist reviews them. You get real feedback, not a green checkmark." },
-    { t: "One calendar", b: "Workouts, meals, check-ins, calls. Syncs with Google, Apple, Outlook. Your coach sees what you see." },
+    { t: "One calendar", b: "Workouts, meals, check-ins and calls in one place. Your coach sees what you see." },
     { t: "Messages with your team", b: "One thread per coach. Form check videos, lift cues, nutrition tweaks. Replies usually within a day." },
     { t: "Shape Score", b: "A weekly read on training load, recovery, and consistency. Uses your log — not your smartwatch's guess." },
     { t: "Community & events", b: "Local runs, lift nights, cohorts, and challenges. Train alone; stay accountable with people in your city." },

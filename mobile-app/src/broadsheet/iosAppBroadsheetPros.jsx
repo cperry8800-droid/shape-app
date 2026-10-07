@@ -1414,7 +1414,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       if (k === 'ADMIN' || k === 'ADM') return ['ADM', t.INK50];
       return ['LIVE', t.RUST];
     };
-    window.ShapeCalendar.list({ from: _ds(wk[0]), to: _ds(wk[6]), strict: true }).then((r) => {
+    window.ShapeCalendar.list({ from: _ds(wk[0]), to: _ds(wk[6]), role: isNutri ? 'nutritionist' : 'trainer', strict: true }).then((r) => {
       if (!on) return;
       if (!Array.isArray(r?.events)) throw new Error('Calendar unavailable');
       const evs = r.events;

@@ -21,7 +21,7 @@ import { createNotification } from '@/lib/notify';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 
-import { normalizeZone } from '@/lib/time';
+import { instantInZone, normalizeZone } from '@/lib/time';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -115,8 +115,20 @@ export async function POST(request: Request) {
   if (!['confirm', 'decline', 'complete', 'cancel', 'reschedule'].includes(action)) {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   }
-  // Reschedule carries the new wall-clock: { date: 'YYYY-MM-DD', time?: 'HH:MM' }.
-  // Stored UTC (the calendar reads/writes UTC wall-clock consistently).
+  // Reschedule carries the new wall-clock: { date: 'YYYY-MM-DD', time?: 'HH:MM', tz?: IANA }.
+  //
+  // ⚠ THE WALL CLOCK IS READ IN `tz`, THE ZONE /api/calendar PLACED IT IN — and the calendar
+  // names that zone in its response so a caller can hand it straight back. This read every
+  // wall clock as UTC ("Stored UTC") while the calendar now shows bookings in the coach's own
+  // zone, so the two halves of a drag would disagree by the offset. And a wall clock is the
+  // right thing to keep across a move: a 9:00 AM New York session dragged from Oct 30 to
+  // Nov 2 stays at 9:00 AM, which is 13:00Z before the clocks change and 14:00Z after. Keeping
+  // the INSTANT's UTC hour instead would land it at 8:00 AM.
+  //
+  // ⚠ NO `tz` MEANS UTC, ON PURPOSE: it is what an installed app build from before this change
+  // and Nora's undo (which slices `scheduled_at`) both mean, and /api/calendar answers a caller
+  // who sends no `tz` in UTC to match. A `tz` that is SENT but is not a zone is refused rather
+  // than read as UTC, because that would move the booking by the offset and report success.
   let newScheduledAt: string | null = null;
   if (action === 'reschedule') {
     const date = String(body.date ?? '');
@@ -124,7 +136,18 @@ export async function POST(request: Request) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json({ error: 'reschedule needs a valid date.' }, { status: 400 });
     }
-    newScheduledAt = `${date}T${time ? time.padStart(5, '0') : '00:00'}:00Z`;
+    const sentZone = body.tz;
+    const zone = sentZone == null || sentZone === '' ? 'UTC' : normalizeZone(sentZone);
+    if (!zone) return NextResponse.json({ error: 'reschedule needs a valid time zone.' }, { status: 400 });
+    const [y, mo, d] = date.split('-').map(Number);
+    const [h, mi] = time ? time.split(':').map(Number) : [0, 0];
+    // NaN for a wall clock the zone never shows (the spring-forward hour) and for an
+    // impossible one ("25:00", Feb 30): instantInZone round-trips its answer.
+    const at = instantInZone(y, mo, d, h, mi, zone);
+    if (!Number.isFinite(at)) {
+      return NextResponse.json({ error: `${date} ${time ?? '00:00'} is not a time that exists in ${zone}. Pick another time.` }, { status: 400 });
+    }
+    newScheduledAt = new Date(at).toISOString();
   }
 
   const user = await currentUser(request);

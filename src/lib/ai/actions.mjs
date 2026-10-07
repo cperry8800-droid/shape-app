@@ -400,9 +400,38 @@ export const addReviewNoteAction = {
   },
 };
 
+// The zone a coach's wall clock means: the one their open hours are stored in
+// (`trainers.timezone` / `nutritionists.timezone`), the zone /api/calendar shows their
+// bookings in. UTC when none is stored, which is exactly how this action read every
+// time before the coach Schedule moved onto the coach's own clock (2026-10-07).
+async function noraCoachZone(ctx) {
+  var table = ctx.actor.role === 'trainer' ? 'trainers' : 'nutritionists';
+  try {
+    var r = await ctx.supabase.from(table).select('*').eq('owner_id', ctx.actor.id).maybeSingle();
+    var z = r && r.data && typeof r.data.timezone === 'string' ? r.data.timezone.trim() : '';
+    if (z) { new Intl.DateTimeFormat('en-US', { timeZone: z }); return z; }
+  } catch (e) { /* an unknown zone or an unreadable row reads as UTC, the old behaviour */ }
+  return 'UTC';
+}
+// The date ('YYYY-MM-DD') and wall clock ('HH:MM') `zone` shows at an ISO instant.
+function noraWallClock(iso, zone) {
+  var t = Date.parse(iso);
+  if (!Number.isFinite(t)) return { date: String(iso || '').slice(0, 10), time: null };
+  var parts = {};
+  new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(t)).forEach(function (p) { parts[p.type] = p.value; });
+  return { date: parts.year + '-' + parts.month + '-' + parts.day, time: parts.hour + ':' + parts.minute };
+}
+
 // reschedule_session → POST /api/sessions/manage (action 'reschedule'). The
 // endpoint enforces coach-on-session + only-active-is-reschedulable. Undo moves
 // it back to the original slot (captured at preview).
+// ⚠ "MOVE IT TO 3PM" MEANS 3PM ON THE COACH'S CLOCK. This sent the coach's words as a bare
+// wall clock, which the route read as UTC, and previewed the old slot by slicing the UTC
+// instant: a New York coach saying "3pm" booked 11:00 AM and was shown 19:00 as the time
+// it was moving from. The coach's stored zone now goes with the time (`tz`, which the
+// route reads the wall clock in) and the preview reads the old slot on the same clock.
+// With no stored zone it is UTC and the payload carries no `tz`, as before.
 export const rescheduleSessionAction = {
   name: 'reschedule_session',
   roles: ['trainer', 'nutritionist', 'dietitian'],
@@ -417,17 +446,21 @@ export const rescheduleSessionAction = {
     var time = /^\d{1,2}:\d{2}$/.test(String(input.time || '')) ? String(input.time) : null;
     var sess = await ctx.supabase.from('sessions').select('id, client_id, scheduled_at, status').eq('id', input.sessionId).maybeSingle();
     if (!(sess && sess.data)) throw new Error("I can't find that session — it may not be one of yours.");
-    var prev = String(sess.data.scheduled_at || '');
-    var prevDate = prev.slice(0, 10);
-    var prevTime = prev.length >= 16 ? prev.slice(11, 16) : null;
+    var zone = await noraCoachZone(ctx);
+    var was = noraWallClock(String(sess.data.scheduled_at || ''), zone);
+    var prevDate = was.date;
+    var prevTime = was.time;
+    var inZone = zone === 'UTC' ? '' : ' (' + zone + ')';
     var fmt = function (d, t) { return d + (t && t !== '00:00' ? ' ' + t : ''); };
+    var payload = { sessionId: input.sessionId, action: 'reschedule', date: date, time: time };
+    if (zone !== 'UTC') payload.tz = zone;
     return {
-      summary: 'Move this session to ' + fmt(date, time),
-      diff: [{ label: 'Session time', field: 'scheduled_at', before: fmt(prevDate, prevTime) || '—', after: fmt(date, time) }],
+      summary: 'Move this session to ' + fmt(date, time) + inZone,
+      diff: [{ label: 'Session time', field: 'scheduled_at', before: (fmt(prevDate, prevTime) || '—') + inZone, after: fmt(date, time) + inZone }],
       target: { userId: sess.data.client_id, kind: 'session', id: input.sessionId },
-      beforeState: { sessionId: input.sessionId, prevDate: prevDate, prevTime: prevTime },
+      beforeState: { sessionId: input.sessionId, prevDate: prevDate, prevTime: prevTime, zone: zone },
       afterState: { date: date, time: time },
-      confirmedPayload: { sessionId: input.sessionId, action: 'reschedule', date: date, time: time },
+      confirmedPayload: payload,
     };
   },
   async execute(ctx, plan) {
@@ -438,7 +471,9 @@ export const rescheduleSessionAction = {
   async undo(ctx, plan) {
     var b = plan.beforeState || {};
     if (!b.prevDate) return;
-    var r = await ctx.call('POST', '/api/sessions/manage', { sessionId: b.sessionId, action: 'reschedule', date: b.prevDate, time: b.prevTime });
+    var back = { sessionId: b.sessionId, action: 'reschedule', date: b.prevDate, time: b.prevTime };
+    if (b.zone && b.zone !== 'UTC') back.tz = b.zone;
+    var r = await ctx.call('POST', '/api/sessions/manage', back);
     if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not undo the reschedule.');
   },
 };

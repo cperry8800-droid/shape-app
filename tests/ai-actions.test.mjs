@@ -158,7 +158,7 @@ test('nothing to log is refused with a clear ask', async () => {
 // ── coach assign tools (write-scope hardening) ──────────────────────────────
 // A richer Supabase stub: rpc('is_coach_on_client'), provider-row lookup, the
 // current published meal plan, and awaitable update chains (records patch+filters).
-function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, prevPlan = null, program = null, workoutSession = null, apptSession = null } = {}) {
+function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, providerZone = null, prevPlan = null, program = null, workoutSession = null, apptSession = null } = {}) {
   const calls = { updates: [], rpc: [], deletes: [] };
   return {
     from(table) {
@@ -167,7 +167,7 @@ function richSupabase2({ coachMap = {}, discCoachMap = {}, providerId = 7, prevP
         eq() { return chain; },
         in() { return chain; },
         maybeSingle: async () => {
-          if (table === 'trainers' || table === 'nutritionists') return { data: providerId == null ? null : { id: providerId } };
+          if (table === 'trainers' || table === 'nutritionists') return { data: providerId == null ? null : { id: providerId, ...(providerZone ? { timezone: providerZone } : {}) } };
           if (table === 'client_meal_plans') return { data: prevPlan };
           if (table === 'client_programs') return { data: program };
           if (table === 'workout_sessions') return { data: workoutSession };
@@ -444,6 +444,42 @@ test('reschedule_session: coach → manage endpoint → audit → undo restores 
   await undoChange({ registry, auditId: c.auditId, actor, ctx, audit });
   assert.deepEqual(posts[1], { sessionId: 's-1', action: 'reschedule', date: '2026-06-20', time: '15:00' }); // back to the original
   assert.equal(audit._rows[0].status, 'undone');
+});
+
+test('reschedule_session: the coach\'s "9:00" is 9:00 on their own clock, and undo returns to it', async () => {
+  // A New York coach (stored zone) moving a session booked for 15:00 New York (19:00Z).
+  // The preview reads the old slot on the coach's clock, the move and the undo both carry
+  // the zone, and the route reads each wall clock in it (tests/schedule-fixes.test.mjs).
+  const registry = registryWith(rescheduleSessionAction);
+  const audit = inMemoryAudit();
+  const actor = { id: 'trainer-1', role: 'trainer' };
+  const supabase = richSupabase2({ providerZone: 'America/New_York', apptSession: { id: 's-1', client_id: 'client-9', scheduled_at: '2026-06-20T19:00:00Z', status: 'confirmed' } });
+  const posts = [];
+  const ctx = ctxFor(actor, supabase, (m, p, b) => { if (p === '/api/sessions/manage') { posts.push(b); return { ok: true, status: 200, data: { ok: true } }; } return { ok: false, status: 404, data: {} }; });
+
+  const p = await proposeChange({ registry, action: 'reschedule_session', input: { sessionId: 's-1', date: '2026-06-25', time: '09:00' }, actor, ctx, secret: SECRET });
+  assert.equal(p.ok, true);
+  assert.equal(p.preview.summary, 'Move this session to 2026-06-25 09:00 (America/New_York)');
+  assert.equal(p.preview.diff[0].before, '2026-06-20 15:00 (America/New_York)', 'the old slot on the coach\'s clock, not the UTC 19:00');
+
+  const c = await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit });
+  assert.equal(c.ok, true);
+  assert.deepEqual(posts[0], { sessionId: 's-1', action: 'reschedule', date: '2026-06-25', time: '09:00', tz: 'America/New_York' });
+
+  await undoChange({ registry, auditId: c.auditId, actor, ctx, audit });
+  assert.deepEqual(posts[1], { sessionId: 's-1', action: 'reschedule', date: '2026-06-20', time: '15:00', tz: 'America/New_York' });
+});
+
+test('reschedule_session: an unusable stored zone reads as UTC, as before', async () => {
+  const registry = registryWith(rescheduleSessionAction);
+  const actor = { id: 'trainer-1', role: 'trainer' };
+  const supabase = richSupabase2({ providerZone: 'Mars/Olympus', apptSession: { id: 's-1', client_id: 'client-9', scheduled_at: '2026-06-20T15:00:00Z', status: 'confirmed' } });
+  const posts = [];
+  const ctx = ctxFor(actor, supabase, (m, p, b) => { posts.push(b); return { ok: true, status: 200, data: { ok: true } }; });
+  const p = await proposeChange({ registry, action: 'reschedule_session', input: { sessionId: 's-1', date: '2026-06-25', time: '09:00' }, actor, ctx, secret: SECRET });
+  assert.equal(p.preview.diff[0].before, '2026-06-20 15:00');
+  await confirmChange({ registry, token: p.token, actor, ctx, secret: SECRET, audit: inMemoryAudit() });
+  assert.equal('tz' in posts[0], false, 'no zone is sent when none is usable');
 });
 
 test('reschedule_session: a 409 from the endpoint (not reschedulable) surfaces, no audit', async () => {

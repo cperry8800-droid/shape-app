@@ -121,3 +121,20 @@ export function instantInZone(
   if (back.y !== y || back.mo !== mo || back.d !== d || back.h !== h || back.mi !== mi) return NaN;
   return t;
 }
+
+/**
+ * The calendar date ('YYYY-MM-DD') and wall clock ('HH:MM') that `zone` shows at instant
+ * `t`, or null when either is unusable. The inverse of `instantInZone`.
+ *
+ * Added 2026-10-07 for the coach Schedule, which placed every booking with
+ * `toISOString().slice(0, 10)` and `getUTCHours()` — so a 9:00 AM New York consult read
+ * "1:00p", and an 8:00 PM session sat on the NEXT day's cell. ⚠ THE DATE COMES FROM THE
+ * SAME READING AS THE TIME, never from the UTC instant: 23:30 in New York is 03:30Z the
+ * following day, and only the zone's own fields put it back on the evening it happens.
+ */
+export function wallClockInZone(t: number, zone: string): { date: string; time: string } | null {
+  const p = partsAt(t, zone);
+  if (!p) return null;
+  const pad = (n: number, w = 2) => String(n).padStart(w, '0');
+  return { date: `${pad(p.y, 4)}-${pad(p.mo)}-${pad(p.d)}`, time: `${pad(p.h)}:${pad(p.mi)}` };
+}

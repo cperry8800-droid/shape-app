@@ -163,7 +163,9 @@ function TrainerHow() {
   const steps = [
     { n: "01", t: "Apply in 10 minutes", b: "Tell us about your credentials, specialty, and coaching style. We verify CPT, CSCS, or equivalent.", time: "10 min" },
     { n: "02", t: "We review your application", b: "Our team reads every application. We reach out to learn more or with an approval." },
-    { n: "03", t: "Set up your storefront", b: "Upload your programs, set session pricing, connect your calendar, write your bio. We help with copy.", time: "1–2 hrs" },
+    // ⚠ "connect your calendar" came out with the sync claims (2026-10-07): there is nothing to
+    // connect. Setting open hours is the real step.
+    { n: "03", t: "Set up your storefront", b: "Upload your programs, set session pricing, set your open hours, write your bio. We help with copy.", time: "1–2 hrs" },
     { n: "04", t: "Start getting matched", b: "Your profile goes live in the marketplace. New client inquiries land in your inbox.", time: "Ongoing" },
   ];
   return (
@@ -277,7 +279,9 @@ function TrainerTools() {
     { t: "Program builder", b: "Sets, reps, RPE, tempo, supersets. Autoregulation baked in. Clone any block to a new client in one click." },
     { t: "Client roster", b: "One view. Streaks, check-ins, flagged clients, weekly adherence. Sort by whatever you care about today." },
     { t: "Form check videos", b: "Clients upload. You annotate. Threads stay tied to the lift. Better than voice memos, faster than email." },
-    { t: "Scheduling", b: "Two-way sync with Google, Apple, Outlook. Clients book inside Shape. Auto-reminders, reschedule rules, no-show handling." },
+    // ⚠ This said "Two-way sync with Google, Apple, Outlook … Auto-reminders, reschedule rules,
+    // no-show handling" — none of which exists (owner, 2026-10-07; see coaches.jsx's Schedule tab).
+    { t: "Scheduling", b: "Clients book inside Shape, into the hours you open in your own time zone. Drag a session to a new day and the client is notified." },
     { t: "Messaging", b: "Typing indicators, read receipts, voice notes. Quick replies for the things you type all day." },
     { t: "Payouts", b: "Weekly direct deposit, or instant. Clean monthly statements. Tax docs when January comes." },
   ];

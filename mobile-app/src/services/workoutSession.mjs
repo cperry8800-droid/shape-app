@@ -1,4 +1,4 @@
-import { supersetKey } from '../../../public/newdesign/workoutDocument.mjs';
+import { supersetKey, blockKind } from '../../../public/newdesign/workoutDocument.mjs';
 import { BS_TIME_DISTANCE_SUFFIX, bsPlainScheme } from './planOutline.mjs';
 
 // Session rules shared by the live player and regression tests. Drafts contain
@@ -89,6 +89,31 @@ export function bsSessionMoves(moves = []) {
     const scheme = bsPlainScheme(String(m.s || ''));
     return { ...m, sets: Math.max(1, Number(m.sets) || (scheme ? Number(scheme[1]) : 1)), reps: m.reps ?? (scheme ? scheme[2] : ''), restSeconds: bsRestSeconds(m) };
   });
+}
+// ⚠ THE COACH'S BLOCKS, IN THE COACH'S ORDER — OR ONE PLAIN LIST, NEVER INVENTED ONES.
+// The workout preview wrapped every day in "Warm-up / Main set / Cool-down", with every
+// move under Main and two notes nobody wrote, while the coach had already sorted the day
+// into warm-up, main, accessory and finisher (owner, 2026-10-07: "Apply all the fixes").
+// Each delivered move carries its block (`builderToAssignmentRows` → the plan route's
+// `block`), so the groups are runs of one kind in the order the moves arrive: two
+// blocks of one kind stay two groups, as the coach built them. A move with no kind
+// inside a grouped day stays with the group before it (a swap keeps its move's block,
+// so this is a stray, not a heading), and a day where NO move names a block is one
+// group with no kind, which the preview renders as a plain list.
+// Grouping only: the moves inside are the same objects in the same order, so the
+// session player, which never reads `block`, runs exactly what it ran before.
+export function bsMoveBlocks(moves = []) {
+  const list = Array.isArray(moves) ? moves : [];
+  if (!list.length) return [];
+  if (!list.some((m) => blockKind(m && m.block))) return [{ kind: '', moves: list }];
+  const out = [];
+  for (const m of list) {
+    const last = out[out.length - 1];
+    const kind = blockKind(m && m.block) || (last ? last.kind : '');
+    if (last && last.kind === kind) last.moves.push(m);
+    else out.push({ kind, moves: [m] });
+  }
+  return out;
 }
 // ⚠ A SWAP THAT BRINGS ITS OWN SCHEME BRINGS ITS OWN PRESCRIPTION. The Train deck
 // applies a picked alternative as `{ ...move, m, s }`, so the move swapped in kept the

@@ -174,7 +174,9 @@ function NutHow() {
   const steps = [
     { n: "01", t: "Apply with credentials", b: "RD, RDN, CNS, CSSD, or licensed dietitian. Upload your CDR number or state license. We verify every one.", time: "10 min" },
     { n: "02", t: "We review your application", b: "Our clinical team reads every application. Licensed dietitians review yours. Approvals come with onboarding notes." },
-    { n: "03", t: "Set up your practice", b: "Build intake forms, set session pricing, connect your calendar, upload plan templates. Import from existing clients.", time: "1–2 hrs" },
+    // ⚠ "connect your calendar" came out with the sync claims (2026-10-07): there is nothing to
+    // connect. Setting open hours is the real step.
+    { n: "03", t: "Set up your practice", b: "Build intake forms, set session pricing, set your open hours, upload plan templates. Import from existing clients.", time: "1–2 hrs" },
     { n: "04", t: "Start getting matched", b: "Members searching by specialty find your profile.", time: "Ongoing" },
   ];
   return (
@@ -288,7 +290,10 @@ function NutTools() {
     { t: "Meal plan builder", b: "Macro targets, swap rules, grocery lists that auto-generate. Save any plan as a template, reuse across clients." },
     { t: "Food log review", b: "Client logs land in one thread. Flag outliers, leave timestamped notes, and keep the whole history in one place." },
     { t: "Client roster", b: "Adherence, weight trend, flagged clients, upcoming consults — all one screen. Filter by specialty or protocol." },
-    { t: "Scheduling", b: "Two-way sync with Google, Apple, Outlook. Clients book 20-min check-ins or 60-min consults. Auto-reminders, intake forms." },
+    // ⚠ This said "Two-way sync with Google, Apple, Outlook. Clients book 20-min check-ins or
+    // 60-min consults. Auto-reminders, intake forms." — no sync, no session reminders, and a
+    // booking is a 15-minute consult (owner, 2026-10-07; see coaches.jsx's Schedule tab).
+    { t: "Scheduling", b: "Clients book consults inside Shape, into the hours you open in your own time zone. Drag one to a new day and the client is notified." },
     { t: "Messaging", b: "Secure client chat. Voice notes, photos of meals and labs, saved replies for the questions you answer weekly." },
     { t: "Payouts & docs", b: "Weekly direct deposit, or instant. Clean monthly statements. Tax docs when January comes." },
   ];

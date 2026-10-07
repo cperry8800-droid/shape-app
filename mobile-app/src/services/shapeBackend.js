@@ -5122,12 +5122,14 @@ window.ShapeRecipeImport = { parse: parseRecipeText, photo: parseRecipePhoto };
 async function getSessions() {
   return getJsonOrDefault(sessionsApiUrl(), [], (data) => (Array.isArray(data.sessions) ? data.sessions : []));
 }
-async function manageSession({ sessionId, action, date, time } = {}) {
-  // reschedule carries the new wall-clock ({ date: 'YYYY-MM-DD', time?: 'HH:MM' });
-  // the other actions send only { sessionId, action }.
+async function manageSession({ sessionId, action, date, time, tz } = {}) {
+  // reschedule carries the new wall-clock ({ date: 'YYYY-MM-DD', time?: 'HH:MM', tz?: IANA });
+  // the other actions send only { sessionId, action }. `tz` is the zone /api/calendar named
+  // for the times it showed — without it the route reads the wall clock as UTC.
   const body = { sessionId, action };
   if (date) body.date = date;
   if (time) body.time = time;
+  if (tz) body.tz = tz;
   const res = await fetch(sessionsApiUrl(), {
     method: 'POST',
     credentials: 'same-origin',
@@ -5185,14 +5187,25 @@ async function logActivity({ activityType, durationMin, distanceKm, calories, st
 }
 
 // ─── Calendar (shared with website via /api/calendar) ────────────────────────
-async function listCalendar({ from, to, clientId, strict = false } = {}) {
+// ⚠ `tz` IS SENT ON EVERY READ, AND THE ANSWER'S `zone` IS HANDED BACK. Without `tz` the
+// route places bookings in UTC (the contract older builds rely on), so a 9:00 AM New York
+// session read 1:00 PM and an evening one sat on the next day. With it the route answers on
+// the coach's stored zone (`role` picks the row for an account that owns both) or, for a
+// member, this device's — and names the zone, which a reschedule must send back so the wall
+// clock it carries is read on the same clock it was shown on.
+function deviceTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; }
+}
+async function listCalendar({ from, to, clientId, role, strict = false } = {}) {
   const qs = new URLSearchParams();
   if (from) qs.set('from', from);
   if (to) qs.set('to', to);
   if (clientId) qs.set('clientId', clientId);
+  if (role === 'trainer' || role === 'nutritionist') qs.set('role', role);
+  qs.set('tz', deviceTimeZone());
   const d = await getJsonOrDefault(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, null);
   if (strict && !Array.isArray(d?.events)) throw new Error('Calendar unavailable');
-  return { events: Array.isArray(d?.events) ? d.events : [] };
+  return { events: Array.isArray(d?.events) ? d.events : [], zone: typeof d?.zone === 'string' && d.zone ? d.zone : null };
 }
 async function createCalendarEvent(body = {}) {
   const res = await fetch(`${apiBaseUrl || ''}/api/calendar`, {

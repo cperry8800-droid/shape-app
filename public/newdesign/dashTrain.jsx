@@ -101,6 +101,12 @@ function dtrToCard(w, coach) {
     //   a blank page, not a missing label.
     exercises: DashSignals.workoutCardExercises(w.exercises),
     playlist: w.playlist || null,
+    // ⚠ THE COACH'S VIDEOS RIDE ON THE CARD HERE TOO. The dashboard's copy of this
+    //   mapping (dashClient.jsx) passed the day's walkthrough and the program's
+    //   introduction; this one did not, so the Train page's own hero showed neither
+    //   while `DashWorkoutCard` could render both. Each move's demonstration already
+    //   rides on `workoutCardExercises` (`video`). Owner, 2026-10-07.
+    video: w.video || null, programVideo: w.programVideo || null,
   };
 }
 
