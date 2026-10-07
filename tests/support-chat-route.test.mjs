@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import * as noraGreeting from '../src/lib/ai/noraGreeting.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -71,6 +72,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMe
     // The anonymous client a signed-out caller's coach lookup reads the public
     // marketplace tables with — the same fake, so the test reads what it read.
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
+    ['@/lib/ai/noraGreeting.mjs', noraGreeting],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
@@ -567,4 +569,31 @@ test('a PARTIAL live read (role any, one table down) is never a no-match — the
   await fence.mod.POST(post({ ...ask('a fencing coach?'), surface: 'app' }));
   const f = JSON.parse(fence.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
   assert.equal(f.noMatch, true);
+});
+
+// ── GET: the greeting for whoever is asking ──────────────────────────────────────────
+test('GET answers the greeting for the account the server sees, never the page\'s claim', async () => {
+  const get = (q = '') => new Request(`https://x/api/support/chat${q}`, { method: 'GET' });
+  const kinds = [
+    [{ user: null }, 'visitor'],
+    [{ isMember: false }, 'account'],
+    [{}, 'member'],
+    [{ role: 'trainer' }, 'trainer'],
+    [{ role: 'nutritionist' }, 'nutritionist'],
+    [{ isAdmin: true }, 'admin'],
+  ];
+  for (const [opts, kind] of kinds) {
+    const r = await loadRoute(opts);
+    const res = await r.mod.GET(get('?role=admin'));
+    const g = await res.json();
+    assert.equal(g.kind, kind);
+    assert.equal(g.quick.length, 4);
+    assert.equal(res.headers.get('cache-control'), 'private, no-store');
+    assert.equal(r.calls.ai.length, 0, 'a greeting is not a model call');
+  }
+  const trainer = await loadRoute({ role: 'trainer' });
+  const full = await (await trainer.mod.GET(get())).json();
+  const plain = await (await trainer.mod.GET(get('?plain=1'))).json();
+  assert.ok(full.quick.some((q) => /^Draft/.test(q)));
+  assert.ok(!plain.quick.some((q) => /^Draft/.test(q)), 'a panel that cannot confirm is offered no draft');
 });

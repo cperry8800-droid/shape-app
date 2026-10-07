@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import * as noraGreeting from '../src/lib/ai/noraGreeting.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 import { loadBroadsheet, drive, SHIM, THEME, flatten, textOf } from './helpers/broadsheet-mount.mjs';
 
@@ -187,6 +188,7 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     ['@/lib/ai/shapeKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'))],
     ['@/lib/ai/voiceLang.mjs', await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'))],
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
+    ['@/lib/ai/noraGreeting.mjs', noraGreeting],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {

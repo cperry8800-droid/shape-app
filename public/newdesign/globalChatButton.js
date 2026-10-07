@@ -462,6 +462,21 @@
 
     function render() { renderTabs(); renderMain(); }
 
+    // Nora's greeting and suggestions for this account, from the server. This panel cannot
+    // show a confirm card, so it asks for the plain set (?plain=1). It replaces the seed
+    // greeting only while her thread is untouched.
+    if (typeof window.fetch === "function") window.fetch("/api/support/chat?plain=1", { credentials: "same-origin" }).then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (g) {
+      if (!g || typeof g.text !== "string" || !g.text.trim()) return;
+      var th = (tabBy("support").threads || [])[0];
+      if (!th || th.who !== "Nora" || !th.messages || th.messages.length !== 1 || th.messages[0].me) return;
+      th.messages[0].t = g.text;
+      th.last = g.text;
+      th.quick = (Array.isArray(g.quick) ? g.quick : []).filter(function (q) { return typeof q === "string" && q.trim(); }).slice(0, 4);
+      render();
+    }).catch(function () {});
+
     function submit(text) {
       var th = activeThread();
       if (!th) return;

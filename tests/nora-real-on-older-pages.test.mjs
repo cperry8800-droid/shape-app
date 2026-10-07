@@ -16,14 +16,19 @@ const BUTTON = readFileSync(join(ROOT, 'public/newdesign/globalChatButton.js'), 
 const DOWN = /I can't be reached right now\. Try again in a moment, or email the Shape team at info@theshapecommunity\.com\./;
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-function page(fetchImpl) {
+function page(fetchImpl, greet = () => json(404, {})) {
+  const gets = [];
   const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', url: 'https://www.theshapecommunity.com/help.html' });
   const w = dom.window;
   w.matchMedia = () => ({ matches: false });
   const calls = [];
-  w.fetch = (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return fetchImpl(url, init); };
+  // The panel's greeting is a GET on open; the questions are the POSTs this harness reads.
+  w.fetch = (url, init) => {
+    if (!init || init.method !== 'POST') { gets.push(url); return greet(url); }
+    calls.push({ url, body: JSON.parse(init.body) }); return fetchImpl(url, init);
+  };
   w.eval(BUTTON);
-  return { w, doc: w.document, calls };
+  return { w, doc: w.document, calls, gets };
 }
 const json = (status, body) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body) });
 
@@ -84,7 +89,7 @@ test('older pages: Nora\'s greeting promises nothing', () => {
 // ── the Next app's button ────────────────────────────────────────────────────────
 const nextBtn = await loadRealModule(join(ROOT, 'src/components/GlobalChatButton.tsx'), {
   typescript: true,
-  registry: new Map([['react', { useState: () => [] }], ['next/navigation', { usePathname: () => '/dashboard' }]]),
+  registry: new Map([['react', { useState: () => [], useEffect: () => {} }], ['next/navigation', { usePathname: () => '/dashboard' }]]),
 });
 
 test('Next app: askNora posts the conversation and returns her reply with safe links', async () => {
@@ -103,6 +108,22 @@ test('Next app: no scripted replies and no invented unread count', () => {
   const src = readFileSync(join(ROOT, 'src/components/GlobalChatButton.tsx'), 'utf8');
   assert.doesNotMatch(src, /function replyFor|teammate can follow up|route this to billing/);
   assert.doesNotMatch(src, />\s*24\s*</, 'no hard-coded unread badge');
+});
+
+test('older pages: Nora opens with the account\'s greeting and suggestions, and a suggestion asks Nora', async () => {
+  const p = page(() => json(200, { reply: 'Here is your day.' }), () => json(200, { kind: 'member', text: 'Hi, I\'m Nora. Member greeting.', quick: ["What's on today?", 'How was my week?', 'Find me a coach', 'How do I cancel or change my plan?'] }));
+  for (let i = 0; i < 3 && !p.doc.getElementById('shape-global-chat-button'); i++) await new Promise((r) => setTimeout(r, 5));
+  p.doc.querySelector('#shape-global-chat-button .sgc-nora').click();
+  for (let i = 0; i < 5; i++) await tick();
+  assert.deepEqual(p.gets, ['/api/support/chat?plain=1']);
+  const panel = p.doc.getElementById('shape-global-chat-panel');
+  assert.match(panel.textContent, /Member greeting\./);
+  const chips = [...panel.querySelectorAll('.sgc-quick button')].map((b) => b.textContent);
+  assert.deepEqual(chips, ["What's on today?", 'How was my week?', 'Find me a coach', 'How do I cancel or change my plan?']);
+  panel.querySelectorAll('.sgc-quick button')[0].click();
+  for (let i = 0; i < 5; i++) await tick();
+  assert.deepEqual(p.calls.at(-1).body.messages.at(-1), { role: 'user', content: "What's on today?" });
+  assert.equal(p.calls.at(-1).body.messages[0].content, "Hi, I'm Nora. Member greeting.", 'the greeting shown is the one Nora is told she said');
 });
 
 // ── the split: "✦ Ask Nora | Chat" (owner, 2026-10-07, option A) ────────────────
