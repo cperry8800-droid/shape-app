@@ -10,6 +10,8 @@ import { join, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseRows, diffLive, verdict, report, main } from '../scripts/definer-live-diff.mjs';
+import * as M from './helpers/definer-model.mjs';
+import { allowListAsOfCapture } from './helpers/definer-live.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = join(ROOT, 'scripts/definer-live-diff.mjs');
@@ -273,5 +275,18 @@ test('the CLI: the checked-in allow-list accepts the live capture, and rejects a
   assert.match(loose.stderr, /search_path does not end in pg_temp[^]*an_unpinned_trigger/);
   assert.doesNotMatch(loose.stderr, /UNACCOUNTED anon-executable/, 'and it is not reported as an anon exposure');
   assert.equal(cli('').status, 2);
-  assert.equal(cli(JSON.stringify([{ rows }]), '--strict').status, 0, 'the checked-in lists carry no stale entry against the live capture');
+  // --strict against the capture reads the allow-list AS OF the capture: an entry for a function no
+  // pre-capture migration creates cannot be in it yet (allowListAsOfCapture). Nothing else is set aside.
+  const asOf = allowListAsOfCapture(JSON.parse(fs.readFileSync(join(ROOT, 'tests/fixtures/definer-anon-allowlist.json'), 'utf8')), M.replayDir(join(ROOT, 'supabase-migrations'), { before: LIVE.capturedOn }));
+  const tmp = fs.mkdtempSync(join(os.tmpdir(), 'allow-as-of-'));
+  try {
+    const p = join(tmp, 'allow.json');
+    fs.writeFileSync(p, JSON.stringify(asOf.allow));
+    assert.equal(cli(JSON.stringify([{ rows }]), '--strict', '--allowlist', p).status, 0, 'the checked-in lists carry no stale entry against the live capture');
+    if (asOf.pending.length) {
+      const strictAll = cli(JSON.stringify([{ rows }]), '--strict');
+      assert.equal(strictAll.status, 1, 'the whole list, post-capture entries included, is stale against an older capture');
+      for (const name of asOf.pending) assert.match(strictAll.stdout + strictAll.stderr, new RegExp(name), `${name} is the stale one`);
+    }
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });

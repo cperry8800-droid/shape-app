@@ -61,7 +61,7 @@ import os from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as M from './helpers/definer-model.mjs';
-import { compareToLive, checkDrift } from './helpers/definer-live.mjs';
+import { compareToLive, checkDrift, allowListAsOfCapture } from './helpers/definer-live.mjs';
 import { diffLive } from '../scripts/definer-live-diff.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -134,12 +134,20 @@ test('agreement is real: the model reaches the live answer without being told it
 });
 
 test('the live anon-executable set is fully accounted for by the allow-list', () => {
+  // Entries for functions no pre-capture migration creates are the grants test's business until a
+  // re-capture (allowListAsOfCapture says why); the rest must match the capture exactly.
+  const { allow: ALLOW_AT_CAPTURE, pending } = allowListAsOfCapture(ALLOW, model);
+  const fullModel = M.replayDir(MIGRATIONS);
+  for (const name of pending) {
+    assert.ok(!LIVE.anonExecutable.includes(name) && !LIVE.notAnonExecutable.includes(name), `${name} is set aside as post-capture but the capture has it — it is not pending, so classify it against the capture`);
+    assert.ok([...fullModel.fns.values()].some((f) => f.name === name), `${name} is in the allow-list but no migration creates it at all — that is stale, not pending`);
+  }
   const unpinned = new Set(LIVE.definersWithoutPgTemp);
   const rows = [
     ...LIVE.anonExecutable.map((proname) => ({ proname, is_trigger: false, anon_executable: true, pg_temp_pinned: !unpinned.has(proname) })),
     ...LIVE.notAnonExecutable.map((proname) => ({ proname, is_trigger: false, anon_executable: false, pg_temp_pinned: !unpinned.has(proname) })),
   ];
-  const d = diffLive(rows, ALLOW);
+  const d = diffLive(rows, ALLOW_AT_CAPTURE);
   assert.deepEqual(d.unaccounted, [], 'a live anon-executable definer with no entry and no registered finding');
   assert.deepEqual(d.unregisteredPins, []);
   assert.deepEqual(d.doubleListed, []);
