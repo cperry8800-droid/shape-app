@@ -187,6 +187,8 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     ['@/lib/ai/shapeKnowledge.mjs', await import(join(ROOT, 'src/lib/ai/shapeKnowledge.mjs'))],
     ['@/lib/ai/voiceLang.mjs', await import(join(ROOT, 'src/lib/ai/voiceLang.mjs'))],
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
+    // Nora's daily limits and bot check are tested in support-chat-route; here every question passes.
+    ['@/lib/ai/noraLimits', { noraTier: () => 'member', visitorGate: async () => ({ ok: true, id: 'v', setCookie: null }), countQuestion: async () => ({ allowed: true, limit: null, resetSeconds: 0 }), limitReply: () => '', requestIp: () => 'ip', CHECK_REPLY: '' }],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {

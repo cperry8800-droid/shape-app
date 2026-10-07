@@ -297,15 +297,28 @@
       var history = (thread.messages || []).filter(function (m) { return !m.pending; }).slice(-12).map(function (m) {
         return { role: m.me ? "user" : "assistant", content: String(m.t || "") };
       });
-      return fetch("/api/support/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ messages: history, surface: "web", confirmCards: false })
-      }).then(function (res) {
-        return res.json().catch(function () { return {}; }).then(function (data) {
-          if (!res.ok || !data || typeof data.reply !== "string" || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };
-          return { reply: data.reply, links: noraLinks(data.actions) };
+      function post(extra) {
+        var body = { messages: history, surface: "web", confirmCards: false };
+        if (extra) for (var k in extra) body[k] = extra[k];
+        return fetch("/api/support/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify(body)
+        }).then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) { return { res: res, data: data || {} }; });
+        });
+      }
+      function settle(r) {
+        var ok = r.res.ok || r.data.needsCheck;
+        if (!ok || typeof r.data.reply !== "string" || !r.data.reply.trim()) return { reply: NORA_DOWN, links: [] };
+        return { reply: r.data.reply, links: noraLinks(r.data.actions) };
+      }
+      return post(null).then(function (r) {
+        // A visitor's first question passes the bot check: solve it once and ask again.
+        if (r.res.status !== 403 || !r.data.needsCheck || !window.ShapeTurnstile || !window.ShapeTurnstile.solve) return settle(r);
+        return window.ShapeTurnstile.solve().then(function (token) {
+          return token ? post({ turnstileToken: token }).then(settle) : settle(r);
         });
       }).catch(function () { return { reply: NORA_DOWN, links: [] }; });
     }

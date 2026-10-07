@@ -49,6 +49,44 @@ function loadTurnstile(): Promise<Window['turnstile']> {
   return loadingPromise;
 }
 
+/**
+ * One token with no form around it: Nora's bot check on a visitor's first question.
+ * The widget shows only if Cloudflare needs an interaction, in a small card above the
+ * page, and is removed once it answers. '' when there is no key, no script, or no
+ * answer in 60 s.
+ */
+export function solveTurnstile(): Promise<string> {
+  if (!SITE_KEY || typeof document === 'undefined') return Promise.resolve('');
+  return loadTurnstile()
+    .then((ts) => new Promise<string>((resolve) => {
+      if (!ts) { resolve(''); return; }
+      const host = document.createElement('div');
+      host.setAttribute('data-nora-check', '');
+      host.style.cssText = 'position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:2147483646;';
+      document.body.appendChild(host);
+      let id: string | null = null;
+      let done = false;
+      const finish = (tok: string) => {
+        if (done) return;
+        done = true;
+        try { if (id != null) ts.remove(id); } catch {}
+        host.remove();
+        resolve(tok || '');
+      };
+      try {
+        id = ts.render(host, {
+          sitekey: SITE_KEY,
+          appearance: 'interaction-only',
+          callback: (tok: string) => finish(tok),
+          'error-callback': () => finish(''),
+          'expired-callback': () => finish(''),
+        });
+      } catch { finish(''); }
+      setTimeout(() => finish(''), 60000);
+    }))
+    .catch(() => '');
+}
+
 /** Whether a site key is configured (the widget renders + a token is required). */
 export function turnstileEnabled(): boolean {
   return !!SITE_KEY;

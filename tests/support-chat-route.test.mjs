@@ -49,9 +49,15 @@ function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', su
 // `isCoach`/`isAdmin` default the way membership-core derives them (from the
 // role), so a test can also model a DUAL-ROLE account: primary role 'client',
 // coach by roles[] — which is what the route must read membership for.
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [] } = {}) {
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
-  const calls_ = { ai: [], proposals: [] };
+  const calls_ = { ai: [], proposals: [], rate: [], turnstile: [] };
+  // Nora's limits run for real over a stubbed counter and bot check, so a test reads
+  // which bucket each question counted against and what the check was handed.
+  const noraLimits = await loadRealModule(join(ROOT, 'src/lib/ai/noraLimits.ts'), { typescript: true, registry: new Map([
+    ['@/lib/rate-limit', { checkRateLimit: async (_sb, key, max, win) => { calls_.rate.push({ key, max, win }); return rate ? rate(key, max) : { allowed: true, remaining: max, resetSeconds: 0, limit: max }; } }],
+    ['@/lib/turnstile', { turnstileEnabled: () => !!turnstile, verifyTurnstile: async (tok) => { calls_.turnstile.push(tok); return !!turnstile && turnstile(tok); } }],
+  ]) });
   let i = 0;
   const registry = new Map([
     ['next/server', nextServer],
@@ -71,6 +77,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', isMe
     // The anonymous client a signed-out caller's coach lookup reads the public
     // marketplace tables with — the same fake, so the test reads what it read.
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
+    ['@/lib/ai/noraLimits', noraLimits],
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
@@ -567,4 +574,96 @@ test('a PARTIAL live read (role any, one table down) is never a no-match — the
   await fence.mod.POST(post({ ...ask('a fencing coach?'), surface: 'app' }));
   const f = JSON.parse(fence.calls.ai[1].body.input.find((it) => it.type === 'function_call_output').output);
   assert.equal(f.noMatch, true);
+});
+
+// ── Daily limits and the visitor's bot check (owner, 2026-10-07) ────────────────────
+const VISITOR_HDR = { 'x-forwarded-for': '203.0.113.9' };
+
+test('⚠ every question counts against its tier: visitor 20 by browser and 100 by address, account 40, member 200, coach 300, admin none', async () => {
+  const visitor = await loadRoute({ user: null });
+  await visitor.mod.POST(post(ask('hi'), VISITOR_HDR));
+  assert.deepEqual(visitor.calls.rate.map((r) => [r.key.replace(/nora:v:[0-9a-f-]{36}/, 'nora:v:<id>'), r.max, r.win]), [['nora:v:<id>', 20, 86400], ['nora:ip:203.0.113.9', 100, 86400]]);
+
+  const account = await loadRoute({ isMember: false });
+  await account.mod.POST(post(ask('hi')));
+  assert.deepEqual(account.calls.rate.map((r) => [r.key, r.max]), [[`nora:u:${U}`, 40]]);
+
+  const member = await loadRoute({});
+  await member.mod.POST(post(ask('hi')));
+  assert.deepEqual(member.calls.rate.map((r) => [r.key, r.max]), [[`nora:u:${U}`, 200]]);
+
+  const coach = await loadRoute({ role: 'trainer' });
+  await coach.mod.POST(post(ask('hi')));
+  assert.deepEqual(coach.calls.rate.map((r) => [r.key, r.max]), [[`nora:u:${U}`, 300]]);
+
+  const admin = await loadRoute({ isAdmin: true });
+  await admin.mod.POST(post(ask('hi')));
+  assert.equal(admin.calls.rate.length, 0, 'an admin is never counted');
+  assert.equal(admin.calls.ai.length, 1);
+});
+
+test('⚠ past the limit nothing reaches the model, and Nora says when it resets', async () => {
+  const member = await loadRoute({ rate: (key, max) => ({ allowed: false, remaining: 0, resetSeconds: 5 * 3600, limit: max }) });
+  const res = await member.mod.POST(post(ask('hi')));
+  const body = await res.json();
+  assert.equal(res.status, 200, 'a reply every panel already shows');
+  assert.equal(member.calls.ai.length, 0);
+  assert.equal(body.source, 'limit');
+  assert.match(body.reply, /limit of 200 questions/);
+  assert.match(body.reply, /about 5 hours/);
+
+  // A visitor's own twenty, or the address's hundred: either one stops the question.
+  const byAddress = await loadRoute({ user: null, rate: (key, max) => ({ allowed: !key.startsWith('nora:ip:'), remaining: 0, resetSeconds: 60, limit: max }) });
+  const v = await (await byAddress.mod.POST(post(ask('hi'), VISITOR_HDR))).json();
+  assert.equal(byAddress.calls.ai.length, 0);
+  assert.match(v.reply, /20 questions for visitors/);
+  assert.match(v.reply, /Sign in or create an account/);
+});
+
+test('⚠ a visitor\'s first question passes the bot check; the cookie it earns skips it after, and a forged one does not', async (t) => {
+  // The cookie is signed with the server's secret; pin one so the run does not depend on the shell.
+  const prior = process.env.RATE_LIMIT_SECRET;
+  process.env.RATE_LIMIT_SECRET = 'nora-test-secret';
+  t.after(() => { if (prior === undefined) delete process.env.RATE_LIMIT_SECRET; else process.env.RATE_LIMIT_SECRET = prior; });
+  const route = await loadRoute({ user: null, turnstile: (tok) => tok === 'good' });
+  const none = await route.mod.POST(post(ask('hi'), VISITOR_HDR));
+  assert.equal(none.status, 403);
+  const nb = await none.json();
+  assert.equal(nb.needsCheck, true);
+  assert.equal(route.calls.ai.length, 0, 'no model before the check');
+  assert.equal(route.calls.rate.length, 0, 'an unchecked request is not counted');
+
+  const bad = await route.mod.POST(post({ ...ask('hi'), turnstileToken: 'bad' }, VISITOR_HDR));
+  assert.equal(bad.status, 403);
+
+  const good = await route.mod.POST(post({ ...ask('hi'), turnstileToken: 'good' }, VISITOR_HDR));
+  assert.equal(good.status, 200);
+  const cookie = good.headers.get('set-cookie') || '';
+  assert.match(cookie, /^shape_nora_v=[^;]+; Path=\/api\/support; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax$/);
+  assert.equal(route.calls.ai.length, 1);
+
+  const pair = cookie.split(';')[0];
+  const checks = route.calls.turnstile.length;
+  const again = await route.mod.POST(post(ask('and?'), { ...VISITOR_HDR, cookie: pair }));
+  assert.equal(again.status, 200);
+  assert.equal(route.calls.turnstile.length, checks, 'the cookie skips the check');
+  assert.equal(again.headers.get('set-cookie'), null, 'and is not reissued');
+  const id = decodeURIComponent(pair.split('=')[1]).split('.')[0];
+  assert.ok(route.calls.rate.some((r) => r.key === `nora:v:${id}`), 'the browser bucket is the cookie\'s id');
+
+  const forged = await route.mod.POST(post(ask('x'), { ...VISITOR_HDR, cookie: `shape_nora_v=${id}.deadbeef` }));
+  assert.equal(forged.status, 403, 'a cookie whose signature does not match is no cookie');
+});
+
+test('the check is for visitors only, and with it switched off a visitor still gets a counted browser', async () => {
+  const member = await loadRoute({ turnstile: () => false });
+  const res = await member.mod.POST(post(ask('hi')));
+  assert.equal(res.status, 200);
+  assert.equal(member.calls.turnstile.length, 0);
+  assert.equal(res.headers.get('set-cookie'), null);
+
+  const off = await loadRoute({ user: null });
+  const r = await off.mod.POST(post(ask('hi'), VISITOR_HDR));
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('set-cookie') || '', /^shape_nora_v=/);
 });
