@@ -29,10 +29,11 @@ const json = (status, body) => Promise.resolve({ ok: status < 400, status, json:
 
 async function askHelp(p, text) {
   for (let i = 0; i < 3 && !p.doc.getElementById('shape-global-chat-button'); i++) await new Promise((r) => setTimeout(r, 5));
-  p.doc.getElementById('shape-global-chat-button').click();
+  // The corner's "✦ Ask Nora" half (the split, 2026-10-07) opens her thread directly.
+  p.doc.querySelector('#shape-global-chat-button .sgc-nora').click();
   const panel = p.doc.getElementById('shape-global-chat-panel');
   assert.ok(panel, 'with no React the self-contained panel opens');
-  [...panel.querySelectorAll('.sgc-tab')].find((b) => b.textContent.startsWith('Help')).click();
+  assert.equal(panel.querySelector('.sgc-title').textContent, 'Nora');
   const input = panel.querySelector('textarea');
   input.value = text;
   input.dispatchEvent(new p.w.Event('input'));
@@ -167,4 +168,54 @@ test('⚠ the solver is on every page with Nora, not only the ones that load sup
 test('the app, which cannot earn a website token, says where to ask instead of failing', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
   assert.match(src, /if \(res\.status === 403 && payload && payload\.needsCheck\) \{\n\s+return \{ reply: 'Sign in to ask Nora in the app\./);
+});
+
+// ── the split: "✦ Ask Nora | Chat" (owner, 2026-10-07, option A) ────────────────
+test('the corner is one split object: the Nora half first, then Chat, under the old id', async () => {
+  const p = page(() => json(200, { reply: 'ok' }));
+  for (let i = 0; i < 3 && !p.doc.getElementById('shape-global-chat-button'); i++) await new Promise((r) => setTimeout(r, 5));
+  const dock = p.doc.getElementById('shape-global-chat-button');
+  assert.equal(dock.getAttribute('role'), 'group');
+  assert.deepEqual([...dock.querySelectorAll('.sgc-half')].map((b) => b.getAttribute('aria-label')), ['Ask Nora', 'Open Shape chat']);
+  assert.ok(dock.querySelector('.sgc-chat .shape-global-chat-count'), 'the unread badge rides on Chat');
+});
+
+test('Chat (its half, or a page\'s own .click() on the old id) opens with no Nora tab', async () => {
+  for (const how of ['half', 'element']) {
+    const p = page(() => json(200, { reply: 'ok' }));
+    for (let i = 0; i < 3 && !p.doc.getElementById('shape-global-chat-button'); i++) await new Promise((r) => setTimeout(r, 5));
+    const dock = p.doc.getElementById('shape-global-chat-button');
+    (how === 'half' ? dock.querySelector('.sgc-chat') : dock).click();
+    const panel = p.doc.getElementById('shape-global-chat-panel');
+    assert.ok(panel && panel.classList.contains('open'), how);
+    const tabs = [...panel.querySelectorAll('.sgc-tab')].map((b) => b.textContent);
+    assert.ok(tabs.length > 0, how);
+    assert.ok(!tabs.some((t) => t.startsWith('Help')), `${how}: Nora is not a tab inside Chat`);
+  }
+});
+
+test('phones get the round ✦: the dock mounts below 760 px, Chat hidden by CSS there', async () => {
+  const dom = new JSDOM('<!doctype html><body></body>', { runScripts: 'outside-only', url: 'https://www.theshapecommunity.com/help.html' });
+  dom.window.matchMedia = () => ({ matches: true });
+  dom.window.eval(BUTTON);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(dom.window.document.getElementById('shape-global-chat-button'), 'mounted at phone width');
+  // The site's mobile breakpoint, 760 px (Codex, #2244), not the panel's 640.
+  assert.match(BUTTON, /@media \(max-width:760px\)\{#shape-global-chat-button \.sgc-chat\{display:none\}#shape-global-chat-button \.sgc-nora\{width:52px;height:52px/);
+  assert.doesNotMatch(BUTTON, /@media \(max-width:640px\)\{[^"]*\.sgc-chat\{display:none\}/);
+});
+
+test('the corner steps aside while a panel is open, and comes back when it closes', async () => {
+  const p = page(() => json(200, { reply: 'ok' }));
+  for (let i = 0; i < 3 && !p.doc.getElementById('shape-global-chat-button'); i++) await new Promise((r) => setTimeout(r, 5));
+  const dock = p.doc.getElementById('shape-global-chat-button');
+  dock.querySelector('.sgc-nora').click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(dock.classList.contains('shape-global-chat-hidden'), 'hidden while the panel is open');
+  p.doc.querySelector('#shape-global-chat-panel .sgc-close').click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(!dock.classList.contains('shape-global-chat-hidden'), 'back once it closes');
+  const rich = p.doc.createElement('div'); rich.setAttribute('data-chat-panel', ''); p.doc.body.appendChild(rich);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(dock.classList.contains('shape-global-chat-hidden'), 'hidden under the rich widget too');
 });
