@@ -583,6 +583,23 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach tools: the Schedule and the program builder — SHIPPED 2026-10-07 (#2222 to #2236). Six migrations, all applied and checked in production',
+      items: [
+        { label: 'Fixes first (#2222, #2223): the Schedule shows times on the coach\'s own clock and loads the range on screen; the false claims (two-way sync, reminders, intake forms) are gone and a test bans them; members get the coach\'s blocks, playlist and demo videos', status: 'done' },
+        { label: 'A private, read-only calendar feed for Google Calendar, Apple Calendar or Outlook (Settings → Calendar feed, /api/calendar/feed/<token>); a failed read is a 503, never an empty feed. The exercise catalog is data (exercise_catalog, 248 moves, GET /api/exercises), and a workout can be pasted as text (#2224)', status: 'done' },
+        { label: 'Schedule step 2 (#2228): Day, Week and Month on a time axis, open hours shaded, a requests strip, a booking sheet with real actions, book from an empty slot, drag to a new time. sessions_no_overlap, an exclusion constraint over active sessions, refuses a double booking in the database', status: 'done' },
+        { label: 'Schedule step 3 (#2225, #2229, #2231): hours painted on the grid, time off, and booking rules (buffer, daily limit, notice). Members are offered only free times (provider_busy_blocks), and a before-insert trigger re-checks a member\'s request under a per-coach lock, so two at once cannot both pass', status: 'done' },
+        { label: 'Schedule step 4: the app books through the server, so an intro meets the coach\'s hours and a coach\'s "Book a session" is a real session (#2233); weekly runs of 2 to 26 weeks, cancelled or moved as "this and following" in one transaction, move_session_run (#2234); a Plans row showing each client\'s training days (#2235); the Coaches tour names the calendar feed (#2236)', status: 'done' },
+        { label: 'Builder (#2226, #2230, #2232, #2236): a day is one list with the detail beside it; Grid ⇄ Sheet only; delete a day, copy a day to other weeks; the progression bar writes later weeks\' loads (with an RPE climb and deloads), and the app\'s editor applies the same rule; drop one move on another to make a superset', status: 'done' },
+        { label: 'AI drafting (#2227): "Draft with AI" in the builder, and Nora drafts a workout or program for a trainer in chat. It invents no loads, client or date, and nothing is saved before the coach confirms', status: 'done' },
+        { label: 'Migrations, all six checked in production on 2026-10-07: calendar-feed-token, exercise-catalog (248 rows), booking-rules-time-off, sessions-no-overlap, booking-rules-enforced (sessions_enforce_booking_rules), session-series (series_id, sessions_series_idx, move_session_run executable by authenticated and not by anon)', status: 'done' },
+        { label: 'Direct inserts through RLS still bypass a coach\'s open hours (the rules and the overlap are enforced in the database). Closing it means moving /api/sessions/request to a service-role write and dropping the member insert policy', status: 'pending' },
+        { label: 'Still to build: the app\'s "this and following" and a member moving a session; resizing a booking; no-shows (needs a migration); the app\'s hours editor; the catalog and paste-a-workout in the day list; nutritionist meal-plan drafting with Nora', status: 'pending' },
+        { label: 'The Coaches tour\'s Schedule screenshot predates steps 2 to 4', status: 'pending' },
+        { label: 'On-device pass: none of this has been run signed in on a phone, and the new app strings in 12 languages have not been read by speakers', status: 'manual' },
+      ],
+    },
+    {
       section: 'Night-before prep reminders — SHIPPED 2026-10-05 (#2202 -> f2a8aa9). One migration (applied), one cron route',
       items: [
         { label: 'One rule for the server and the app (mobile-app/src/services/prepAhead.mjs): which planned meals need prepping tonight, batched over the days one prep keeps (the oats keep 3, so Sunday covers Mon to Wed). A made-ahead meal counts as prepped only when a prep covers it on its own day', status: 'done' },
@@ -793,7 +810,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
     {
       section: 'Guided builders, reusable templates and private workout feedback — SHIPPED 2026-09-23 (#2167 -> 1f649bc)',
       items: [
-        { label: 'On the website, coaches choose Guided, Editor or Planner for workouts and nutrition plans; Guided is the default and all three edit the same document', status: 'done' },
+        { label: 'On the website, coaches choose Guided, Editor or Planner for workouts and nutrition plans; Guided is the default and all three edit the same document. ⚠ WORKOUTS SINCE 2026-10-07: the trainer\'s builder is Grid ⇄ Sheet only (#2230); nutrition plans keep all three', status: 'done' },
         { label: 'The library separates Use as template (a new copy) from Edit template (the original), with explicit Save template and client review steps', status: 'done' },
         { label: 'In the app, both coach roles open a client\'s current workout from their profile, save private comments with workout or exercise context, and open that exact conversation', status: 'done' },
         { label: 'Feedback reuses the private conversation store and its RLS, prefers the professional thread and creates no community posts; the desktop workout monitor uses the same component', status: 'done' },
