@@ -85,6 +85,63 @@ test('fitsOpenHours accepts exactly what bookingSlots.js offers a member, and no
   assert.ok(checked > 40, 'the offer sweep checked too little: ' + checked);
 });
 
+test('isOfferedStart is bookingSlots.js expand(), row by row: every minute of every weekday answers the same', () => {
+  // ⚠ CONTAINMENT IS NOT THE OFFER (Codex, the review of #2228). Inside a 9:00–11:00 row the page
+  // offers 9:00 and 10:00; fitsOpenHours alone also took a crafted 9:15. So the member routes ask
+  // this too, and this has to be EXACTLY the page's expansion — stricter would refuse a time the
+  // member was shown. Checked against expand() itself, over every minute, not a few examples.
+  const pattern = [
+    { weekday: 1, start_minute: 360, duration_min: 240 }, { weekday: 1, start_minute: 615, duration_min: 90 },
+    { weekday: 3, start_minute: 1020, duration_min: 30 }, { weekday: 4, start_minute: 540, duration_min: 180 },
+    { weekday: 5, start_minute: 1410, duration_min: 120 }, { weekday: 6, start_minute: 45, duration_min: 61 },
+  ];
+  let offered = 0;
+  for (const sessionMin of [15, 60]) {
+    for (let wd = 0; wd < 7; wd++) {
+      const starts = new Set(pattern.filter((s) => s.weekday === wd).flatMap((s) => B._internals.expand(s, sessionMin)));
+      for (let m = 0; m < 1440; m++) {
+        assert.equal(R.isOfferedStart(pattern, wd, m, sessionMin), starts.has(m), `weekday ${wd} minute ${m} (${sessionMin} min)`);
+        if (starts.has(m)) offered++;
+      }
+    }
+  }
+  assert.ok(offered > 20, 'the sweep found too few offered starts: ' + offered);
+  assert.equal(R.isOfferedStart(pattern, 4, 555, 60), false, 'the 9:15 Codex named');
+  assert.equal(R.isOfferedStart(pattern, 4, 600, 60), true);
+  assert.equal(R.isOfferedStart(pattern, null, 540, 60), false);
+  assert.equal(R.isOfferedStart(pattern, 4, 540, 0), false);
+});
+
+test('the request route books only the Team page\'s own length', () => {
+  const page = readFileSync(join(ROOT, 'public/newdesign/clientTeam.jsx'), 'utf8').match(/const CT_SESSION_MIN = (\d+);/);
+  const route = readFileSync(join(ROOT, 'src/app/api/sessions/request/route.ts'), 'utf8').match(/const SESSION_MIN = (\d+);/);
+  assert.ok(page && route, 'a constant moved');
+  assert.equal(route[1], page[1], 'the route refuses the length the Team page sends');
+});
+
+test('sessions_no_overlap: the database refuses an overlap between active bookings, by the same rule the routes read', async () => {
+  // ⚠ THE READ IS NOT THE GUARD AGAINST A RACE (Codex, P1 on #2228): two overlapping writes sent
+  // together both pass findSessionClash. Exercised against Postgres 16 when written (a second
+  // concurrent overlapping insert waited for the first, then failed with 23P01); pinned here by
+  // what it says, because the suite has no database.
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-10-07-sessions-no-overlap.sql'), 'utf8');
+  const body = sql.replace(/--.*$/gm, '');
+  assert.match(body, /create extension if not exists btree_gist/);
+  assert.match(body, /add constraint sessions_no_overlap\s+exclude using gist \(\s*provider_role with =,\s*provider_id with =,\s*public\.session_span\(scheduled_at, duration_min\) with &&\s*\)/);
+  assert.match(body, /'\[\)'/, 'half-open, so back to back is not a clash (clashIn\'s rule)');
+  assert.match(body, /\bimmutable\b/);
+  const where = body.match(/where \(status in \(([^)]*)\)\)/);
+  assert.ok(where, 'the constraint covers only bookings that hold time');
+  assert.deepEqual(where[1].split(',').map((x) => x.trim().replace(/'/g, '')), R.ACTIVE_STATUSES);
+  assert.match(body, /if not exists \(\s*select 1 from pg_constraint\s+where conname = 'sessions_no_overlap'/, 'safe to re-run');
+
+  const { loadRealModule } = await import('./helpers/load-real-module.mjs');
+  const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}]]) });
+  assert.equal(booking.isDoubleBookError({ code: '23P01' }), true, 'the overlap constraint');
+  assert.equal(booking.isDoubleBookError({ code: '23505' }), true, 'the identical-start index');
+  for (const e of [{ code: '42501' }, { code: '23503' }, null, undefined, 'x', {}]) assert.equal(booking.isDoubleBookError(e), false, JSON.stringify(e));
+});
+
 test('a clash is an overlap with an ACTIVE booking: back to back is not, the booking itself is not', () => {
   const items = [
     { id: 'a', start: 540, end: 600, status: 'confirmed' },
@@ -146,7 +203,7 @@ test('the load counts open hours used — confirmed and done only, inside the ho
 // fakeSupabase answers reads by APPLYING the filters; this adds the writes the booking routes
 // make, against the same rows, and the auth admin read. `label` says which client wrote, so a
 // test can tell a request-client insert (RLS applies) from a service-role one.
-function db(tables, { label, insertError = null, fail = [], rlsUser = null } = {}) {
+function db(tables, { label, insertError = null, updateError = null, fail = [], rlsUser = null } = {}) {
   // ⚠ THE REQUEST CLIENT READS `sessions` THROUGH ITS POLICY (read_own_sessions: your own, or
   // ones booked against a provider row you own). Without it a member's client would see the
   // coach's whole calendar here, and a route that checked a clash through the wrong client
@@ -186,6 +243,8 @@ function db(tables, { label, insertError = null, fail = [], rlsUser = null } = {
           eq(col, v) { filters.push((r) => r[col] === v); return upd; },
           select() { return upd; }, maybeSingle() { return upd; },
           then(res, rej) {
+            // The database refusing the write (the overlap constraint): nothing changes.
+            if (updateError) return Promise.resolve({ data: null, error: updateError }).then(res, rej);
             const rows = (tables[table] || []).filter((r) => filters.every((f) => f(r)));
             for (const r of rows) Object.assign(r, patch);
             writes.push({ by: label, table, op: 'update', patch });
@@ -238,9 +297,10 @@ async function routes() {
   loaded = { manage, request, consult, calendar, state };
   return loaded;
 }
-async function post(mod, path, body, { tables, user, insertError, fail } = {}) {
+async function post(mod, path, body, { tables, user, insertError, updateError, fail } = {}) {
   const m = await routes();
-  m.state.client = db(tables, { label: 'request', fail, rlsUser: user ? user.id : null });
+  // ⚠ BOTH CLIENTS REFUSE THE INSERT: a member's request is written through their own client.
+  m.state.client = db(tables, { label: 'request', insertError, updateError, fail, rlsUser: user ? user.id : null });
   m.state.admin = db(tables, { label: 'service', insertError, fail });
   m.state.user = user;
   m.state.notices.length = 0;
@@ -340,6 +400,25 @@ test('create fails closed: an unreadable calendar books nothing, and a taken sta
   assert.equal(taken.status, 409);
   assert.equal(taken.body.code, 'taken');
   assert.equal(taken.notices.length, 0, 'a booking that was not written was announced');
+  // ⚠ THE RACE THE READ CANNOT SEE: an overlapping booking committed between the clash read and
+  // this write, and sessions_no_overlap refused it (23P01). The same sentence, not a 500.
+  const raced = await create({}, { tables: world(), insertError: { code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' } });
+  assert.equal(raced.status, 409, JSON.stringify(raced.body));
+  assert.equal(raced.body.code, 'taken');
+  assert.equal(raced.notices.length, 0);
+});
+
+test('a reschedule that loses the race to the overlap constraint moves nothing and tells nobody', async () => {
+  const tables = world({ sessions: [sess('s-1', '2026-10-08T14:00:00+00:00', { client_id: 'member-1' })] });
+  const r = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 's-1', tz: NY, date: '2026-10-09', time: '10:00' },
+    { tables, user: COACH, updateError: { code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' } });
+  assert.equal(r.status, 409, JSON.stringify(r.body));
+  assert.equal(r.body.code, 'taken');
+  assert.match(r.body.error, /Nothing was moved/);
+  assert.equal(r.notices.length, 0, 'a move that was not written was announced');
+  const other = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 's-1', tz: NY, date: '2026-10-09', time: '10:00' },
+    { tables, user: COACH, updateError: { code: '42501', message: 'permission denied' } });
+  assert.equal(other.status, 500, 'any other write failure is still a failure, not "taken"');
 });
 
 test('a reschedule onto another booking is refused server-side, and nudging within its own hour is not', async () => {
@@ -403,9 +482,16 @@ test('a member\'s request outside the hours, across a booking, to someone else\'
   assert.equal(anon.status, 401);
   const len = await ask({ durationMin: 50 }, { tables: world() });
   assert.equal(len.status, 400);
+  // ⚠ ONLY WHAT THE TEAM PAGE OFFERED (Codex, the review of #2228): its hour, at one of the
+  // starts it lays out. 90 minutes and a 9:15 start both sit inside Thursday's 9–12 hours.
+  const longer = await ask({ durationMin: 90 }, { tables: world() });
+  assert.equal(longer.status, 400, 'a length the page never offers');
+  const offGrid = await ask({ scheduledAt: '2026-10-08T13:15:00.000Z' }, { tables: world() });  // 9:15 New York
+  assert.equal(offGrid.status, 409, 'a 9:15 start the page never offered');
+  assert.equal(offGrid.body.code, 'outside_hours');
   const past = await ask({ scheduledAt: '2026-10-07T13:00:00.000Z' }, { tables: world() });
   assert.equal(past.status, 400);
-  for (const r of [outside, overrun, taken, notMine, noZone, unread, anon, len, past]) {
+  for (const r of [outside, overrun, taken, notMine, noZone, unread, anon, len, longer, offGrid, past]) {
     assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0, 'a refused request wrote a row');
     assert.equal(r.notices.length, 0, 'a refused request told the coach');
   }
@@ -421,15 +507,23 @@ test('/api/consultation refuses a time outside the coach\'s open hours — and b
   assert.equal(threeAm.status, 409);
   assert.equal(threeAm.body.code, 'outside_hours');
   assert.match(threeAm.body.error, /outside this coach's open hours/);
+  // ⚠ THE PAGE OFFERS THE HOURS' STARTS, NOT EVERY QUARTER (bookingSlots.js steps by the hour):
+  // 11:00 is offered; a crafted 11:45 sits inside the hours and is still refused (Codex, #2228).
+  const lastHour = await consult({ time: '11:00 AM' }, { tables: world() });
+  assert.equal(lastHour.status, 200, 'the last offered start before close');
   const lastQuarter = await consult({ time: '11:45 AM' }, { tables: world() });
-  assert.equal(lastQuarter.status, 200, 'the last quarter-hour before close is inside');
+  assert.equal(lastQuarter.status, 409, 'an 11:45 the page never offered');
+  assert.equal(lastQuarter.body.code, 'outside_hours');
+  const raced = await consult({ time: '10:00 AM' }, { tables: world(), insertError: { code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' } });
+  assert.equal(raced.status, 409, 'an overlap the database refused is "taken", not a 500');
+  assert.match(raced.body.error, /just taken/);
   const atClose = await consult({ time: '12:00 PM' }, { tables: world() });
   assert.equal(atClose.status, 409, 'noon is when Thursday closes');
   const wrongDay = await consult({ date: '2026-10-10', time: '9:00 AM' }, { tables: world() });
   assert.equal(wrongDay.status, 409, 'Saturday has no hours');
   const unread = await consult({}, { tables: world(), fail: ['provider_availability'] });
   assert.equal(unread.status, 503, 'an unreadable pattern vouches for nothing');
-  for (const r of [threeAm, atClose, wrongDay, unread]) assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0);
+  for (const r of [threeAm, lastQuarter, atClose, wrongDay, unread]) assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0);
 });
 
 test('the calendar marks a session the caller booked AS A CLIENT, so the Schedule does not answer it', async () => {

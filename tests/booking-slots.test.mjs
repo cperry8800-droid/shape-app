@@ -232,7 +232,8 @@ test('the Team page books with the account, and the preview cannot book at all',
   // RLS pins it too, but writing anything else would be a self-confirm
   assert.match(route, /status: 'requested'/);
   assert.doesNotMatch(route, /status: 'confirmed'/);
-  assert.match(route, /23505/, 'the double-book index lost its own sentence in the route');
+  // The codes (23505 the start index, 23P01 the overlap constraint) live in session-booking.ts.
+  assert.match(route, /if \(isDoubleBookError\(error\)\)/, 'a refused double booking lost its own sentence in the route');
   // the control is gated on a LIVE page AND a real provider row — a demo coach has
   // neither an availability pattern nor a row a booking could be written against
   assert.match(t, /canBook=\{state === "live" && !!c\.provider_id\}/);

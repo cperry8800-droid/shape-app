@@ -38,7 +38,7 @@ import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
-import { insideOpenHours, readOpenHours } from '@/lib/session-booking';
+import { isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
@@ -223,9 +223,10 @@ export async function POST(req: NextRequest) {
   // sent and wrote it, so a crafted request could book a coach at 3 AM: the booking page only
   // OFFERS open hours, but nothing here checked them. `date` + `time` are already the coach's
   // own wall clock (the page sends them in the coach's zone and the instant above is derived
-  // from them), so the check reads them directly. The rule is scheduleRules.fitsOpenHours —
-  // exactly what bookingSlots.js offers the page, so a time the member was shown is never
-  // refused here.
+  // from them), so the check reads them directly. The rule is what bookingSlots.js offers the
+  // page: inside the hours (scheduleRules.fitsOpenHours) AND one of the starts it lays out
+  // (isOfferedStart — the page offers 9:00 and 10:00 in a 9–11 row, never a crafted 9:15;
+  // Codex, the review of #2228). A time the member was shown is never refused here.
   //
   // ⚠ A FAILED READ REFUSES. An unreadable pattern cannot vouch for any time, and writing the
   // booking anyway is the unchecked path this closes.
@@ -236,7 +237,7 @@ export async function POST(req: NextRequest) {
       { status: 503 }
     );
   }
-  if (!insideOpenHours(hours.slots, date, parsed.hour * 60 + parsed.minute, 15)) {
+  if (!offeredInOpenHours(hours.slots, date, parsed.hour * 60 + parsed.minute, 15)) {
     return NextResponse.json(
       { error: "That time is outside this coach's open hours. Please pick one of the times shown.", code: 'outside_hours' },
       { status: 409 }
@@ -250,8 +251,9 @@ export async function POST(req: NextRequest) {
     coachEmail = authUser?.user?.email ?? null;
   }
 
-  // Insert — the unique index on (role, provider_id, scheduled_at) will
-  // reject a conflict with 23505.
+  // Insert — the database refuses a double booking: the unique index on (role, provider_id,
+  // scheduled_at) with 23505, and an overlap with another active booking with 23P01
+  // (sessions_no_overlap, 2026-10-07).
   const { data: inserted, error: insertError } = await admin
     .from('sessions')
     .insert({
@@ -273,7 +275,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (insertError) {
-    if (insertError.code === '23505') {
+    if (isDoubleBookError(insertError)) {
       return NextResponse.json(
         { error: 'That slot was just taken. Please pick another.' },
         { status: 409 }

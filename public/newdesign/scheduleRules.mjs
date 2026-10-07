@@ -80,6 +80,32 @@ export function fitsOpenHours(slots, weekday, startMin, durationMin) {
     && num(s && s.start_minute) === start && num(s && s.duration_min) > 0 && num(s && s.duration_min) < dur);
 }
 
+// Whether `startMin` on `weekday` is one of the STARTS bookingSlots.js offers for a session of
+// `sessionMin`: each stored row's own start, then every whole hour after it that still fits in
+// the row, or the start alone when the row is shorter than one session. This mirrors
+// bookingSlots.js `expand()` row by row (tests/schedule-step2.test.mjs proves the two agree).
+//
+// ⚠ fitsOpenHours SAYS "INSIDE THE HOURS"; THIS SAYS "A TIME THE PAGE SHOWED" (Codex, the review of
+// #2228). Inside a 9:00–11:00 row the page offers 9:00 and 10:00; containment alone also took a
+// crafted 9:15. The member routes require both, so a request is exactly one of the offered
+// times, and still never past the hours.
+export function isOfferedStart(slots, weekday, startMin, sessionMin) {
+  const wd = num(weekday), at = num(startMin), len = num(sessionMin);
+  if (!Number.isInteger(wd) || wd < 0 || wd > 6) return false;
+  if (!Number.isFinite(at) || !Number.isFinite(len) || len <= 0) return false;
+  for (const s of Array.isArray(slots) ? slots : []) {
+    if (num(s && s.weekday) !== wd) continue;
+    const start = num(s && s.start_minute);
+    if (!(start >= 0 && start <= 1439)) continue;   // NaN (no start) fails both comparisons
+    const dur = num(s && s.duration_min);
+    const span = Number.isFinite(dur) && dur > 0 ? dur : len;
+    if (at === start) return true;   // every row offers its own start, short or not
+    if (at < start || at > 1439 || (at - start) % 60 !== 0) continue;
+    if (at + len <= start + span) return true;
+  }
+  return false;
+}
+
 // ── Clashes ─────────────────────────────────────────────────────────────────
 
 // The first item that overlaps [start, end), or null. Items are { id, start, end, status }.

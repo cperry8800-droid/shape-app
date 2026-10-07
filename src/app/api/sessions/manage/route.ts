@@ -25,7 +25,7 @@ import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
 import { isSessionReschedulable, unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
-import { findSessionClash } from '@/lib/session-booking';
+import { findSessionClash, isDoubleBookError } from '@/lib/session-booking';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
 export const runtime = 'nodejs';
@@ -284,10 +284,10 @@ async function createSession(request: Request, body: Record<string, unknown>) {
     .select('id, status, type, scheduled_at, duration_min, meeting_url, topic')
     .single();
   if (insErr) {
-    // ⚠ 23505 IS THE DOUBLE-BOOK INDEX: somebody took this exact start between the clash read
-    // and the write. Its own sentence, because "something went wrong" sends the coach back to
-    // the same dead time.
-    if ((insErr as { code?: string }).code === '23505') {
+    // ⚠ THE DATABASE REFUSED A DOUBLE BOOKING: somebody took this start (23505) or an
+    // overlapping time (23P01, sessions_no_overlap) between the clash read and the write. Its
+    // own sentence, because "something went wrong" sends the coach back to the same dead time.
+    if (isDoubleBookError(insErr)) {
       return NextResponse.json({ error: 'That time was just taken. Pick another.', code: 'taken' }, { status: 409 });
     }
     return dbError(insErr, 'session create', 500);
@@ -432,6 +432,12 @@ export async function POST(request: Request) {
     .eq('id', sessionId)
     .select('id, status, type, scheduled_at, duration_min, meeting_url, topic')
     .maybeSingle();
+  // ⚠ A MOVE CAN LOSE THE SAME RACE A NEW BOOKING CAN: the clash read above passed, and another
+  // write took the time before this one landed. The database refuses it (sessions_no_overlap);
+  // the coach is told the time was taken, and nothing moved, so nobody is notified.
+  if (updErr && isDoubleBookError(updErr)) {
+    return NextResponse.json({ error: 'That time was just taken. Nothing was moved — pick another.', code: 'taken' }, { status: 409 });
+  }
   if (updErr) return dbError(updErr, 'session update', 500);
 
   // Notify the client when the coach confirms, declines, reschedules or cancels (best-effort).

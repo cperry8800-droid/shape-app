@@ -9,7 +9,7 @@
 // consult).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ACTIVE_STATUSES, clashIn, fitsOpenHours } from '../../public/newdesign/scheduleRules.mjs';
+import { ACTIVE_STATUSES, clashIn, fitsOpenHours, isOfferedStart } from '../../public/newdesign/scheduleRules.mjs';
 
 // How far before a new booking an existing one can START and still reach into it. No session
 // in this product runs past a few hours (the coach create caps at 4); half a day is a window
@@ -83,7 +83,40 @@ export function insideOpenHours(
   minute: number,
   durationMin: number,
 ): boolean {
+  return fitsOpenHours(slots, civilWeekday(date), minute, durationMin);
+}
+
+// The weekday of a civil 'YYYY-MM-DD', read offset-free (getDay()-style, 0 = Sun).
+function civilWeekday(date: string): number {
   const [y, m, d] = date.split('-').map(Number);
   const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return fitsOpenHours(slots, weekday, minute, durationMin);
+  return weekday;
+}
+
+/**
+ * Whether the time is one the booking page OFFERED: inside the open hours (above) AND one of the
+ * starts bookingSlots.js lays out (scheduleRules.isOfferedStart). The member routes use this, so
+ * a crafted 9:15 inside a 9:00–11:00 row is refused like a 3 AM one (Codex, the review of #2228).
+ */
+export function offeredInOpenHours(
+  slots: Array<{ weekday: number; start_minute: number; duration_min: number }>,
+  date: string,
+  minute: number,
+  durationMin: number,
+): boolean {
+  return insideOpenHours(slots, date, minute, durationMin) && isOfferedStart(slots, civilWeekday(date), minute, durationMin);
+}
+
+/**
+ * Whether a write was refused because the time is already held: 23505 is the identical-start
+ * index (sessions_no_conflict_idx), 23P01 the overlap constraint (sessions_no_overlap,
+ * 2026-10-07-sessions-no-overlap.sql).
+ *
+ * ⚠ THE READ ABOVE IS NOT THE GUARD AGAINST A RACE; THE CONSTRAINT IS (Codex, the review of #2228).
+ * Two overlapping requests sent together both pass findSessionClash before either writes. The
+ * database refuses the second, and every writer answers that with "taken", never a 500.
+ */
+export function isDoubleBookError(error: unknown): boolean {
+  const code = error && typeof error === 'object' ? String((error as { code?: unknown }).code ?? '') : '';
+  return code === '23505' || code === '23P01';
 }

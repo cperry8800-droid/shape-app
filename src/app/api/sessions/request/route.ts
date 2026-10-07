@@ -10,8 +10,9 @@
 // bookings, so a crafted insert could put a request at 3 AM or across a booked hour.
 //
 // This route is that insert with the three missing halves:
-//   1. the time must sit inside the coach's open hours (scheduleRules.fitsOpenHours — exactly
-//      what bookingSlots.js offered the member, no more);
+//   1. the time must be one bookingSlots.js offered the member: inside the coach's open hours
+//      (scheduleRules.fitsOpenHours) AND one of the starts it lays out (isOfferedStart), at the
+//      Team page's own length — no more;
 //   2. it must not overlap the coach's other active bookings (requested or confirmed);
 //   3. the coach is notified, on their own clock.
 //
@@ -33,14 +34,16 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { readJson, dbError } from '@/lib/request-utils';
 import { normalizeZone, wallClockInZone } from '@/lib/time';
-import { findSessionClash, insideOpenHours, readOpenHours } from '@/lib/session-booking';
+import { findSessionClash, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// The lengths a member can ask for. 60 is what the Team page books (its editor's grid is
-// hourly); the shorter ones are there for a coach whose open rows are shorter.
-const LENGTHS = [15, 30, 45, 60, 90];
+// The one length a member can ask for: the Team page's CT_SESSION_MIN (clientTeam.jsx), which
+// every slot it offers carries. ⚠ IT WAS FIVE LENGTHS (15–90), AND THE PAGE NEVER SENDS ANY BUT
+// THIS ONE (Codex, the review of #2228): a crafted request could ask for 90 minutes the coach was
+// never offered. tests/schedule-step2.test.mjs pins it to the page's constant.
+const SESSION_MIN = 60;
 
 export async function POST(request: Request) {
   const bodyResult = await readJson<Record<string, unknown>>(request, { allowEmpty: true });
@@ -57,8 +60,8 @@ export async function POST(request: Request) {
   }
   const startMs = Date.parse(String(body.scheduledAt ?? ''));
   if (!Number.isFinite(startMs)) return NextResponse.json({ error: 'Invalid time.' }, { status: 400 });
-  const durationMin = body.durationMin == null ? 60 : Number(body.durationMin);
-  if (!LENGTHS.includes(durationMin)) return NextResponse.json({ error: 'Invalid session length.' }, { status: 400 });
+  const durationMin = body.durationMin == null ? SESSION_MIN : Number(body.durationMin);
+  if (durationMin !== SESSION_MIN) return NextResponse.json({ error: 'Invalid session length.' }, { status: 400 });
   if (startMs <= Date.now()) return NextResponse.json({ error: 'That time has passed. Pick another.' }, { status: 400 });
   const topic = String(body.topic ?? '').replace(/\s+/g, ' ').trim().slice(0, 200) || 'Coaching session';
 
@@ -88,12 +91,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This coach's calendar isn't ready for bookings yet.", code: 'nozone' }, { status: 409 });
   }
 
-  // 1 · Inside the coach's open hours, read on THEIR clock.
+  // 1 · One of the times the page offered, read on the coach's clock: inside their open hours
+  // and on the start grid bookingSlots lays out (a 9:15 inside a 9:00–11:00 row is not offered).
   const wall = wallClockInZone(startMs, zone);
   const hours = await readOpenHours(admin, role, providerId);
   if (!hours.ok || !wall) return NextResponse.json({ error: "We couldn't read your coach's open hours. Nothing was booked — try again." }, { status: 503 });
   const [hh, mm] = wall.time.split(':').map(Number);
-  if (!insideOpenHours(hours.slots, wall.date, hh * 60 + mm, durationMin)) {
+  if (!offeredInOpenHours(hours.slots, wall.date, hh * 60 + mm, durationMin)) {
     return NextResponse.json({ error: "That time is outside your coach's open hours. Pick one of the times shown.", code: 'outside_hours' }, { status: 409 });
   }
 
@@ -126,9 +130,10 @@ export async function POST(request: Request) {
     .select('id')
     .single();
   if (error) {
-    // ⚠ 23505 IS THE DOUBLE-BOOK INDEX: the same start was taken between the clash read and
-    // this write. It deserves its own sentence, or the member goes back to the same dead time.
-    if ((error as { code?: string }).code === '23505') {
+    // ⚠ THE DATABASE REFUSED A DOUBLE BOOKING: the same start (23505) or an overlapping one
+    // (23P01, sessions_no_overlap) was written between the clash read and this write. It
+    // deserves its own sentence, or the member goes back to the same dead time.
+    if (isDoubleBookError(error)) {
       return NextResponse.json({ error: 'Somebody just took that time. Pick another and we’ll send the request.', code: 'taken' }, { status: 409 });
     }
     return dbError(error, 'session request', 500);
