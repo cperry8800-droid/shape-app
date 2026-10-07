@@ -2064,12 +2064,16 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
 
   const selectSlot = (day, date, time, iso, month, at) => {
     if (time === '--') return;
+    // The coach's own date and clock for this instant: what /api/consultation reads (it
+    // derives the instant itself and checks it against their open hours). Only a projected
+    // slot has one; a preview row has neither and is never written.
+    const wall = Number.isFinite(at) ? (realAvail || []).find((x) => x.at === at) : null;
     setAction({
       type: 'Booking',
       title: tr('marketplace:listing.slotTitle', { defaultValue: '{day}, {month} {date} at {time}', day, month, date, time }),
       body: tr('marketplace:listing.slotBody', { defaultValue: 'Free intro call with {name}. You can reschedule later from messages.', name: coach.name }),
       cta: tr('marketplace:listing.confirmBooking', { defaultValue: 'Confirm booking' }),
-      slot: { day, date, time, month, iso, at },
+      slot: { day, date, time, month, iso, at, coachDate: wall ? wall.coachDate : null, coachTime: wall ? wall.coachTime : null },
     });
   };
 
@@ -2186,7 +2190,10 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
       userId: coach.provider_user_id || null, city: coach.loc || coach.city || 'Remote',
       bio: coach.bio || '', init: coach.init || (coach.name ? coach.name[0] : '?'),
       tier: coach.tier || null, public: true,
-      commerce: { coach, role: saleProviderRole, packages: p.packages },
+      // "Book intro" on the profile opens this listing's own calendar: an intro is booked
+      // at a time the coach offers, and the profile has no slot to send (it used to call the
+      // booking with none, which failed every time).
+      commerce: { coach, role: saleProviderRole, packages: p.packages, bookIntro: () => { setShowProfile(false); setShowCal(true); } },
     };
     return <Living person={person} onBack={() => setShowProfile(false)} onMessage={(pp) => { setShowProfile(false); if (goChat) goChat((pp && pp.who) || coach.name, isNutriDetail ? 'Nutritionist' : 'Trainer'); }} />;
   }
@@ -2194,10 +2201,10 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const fmtSlot = bsFmtSlot12;
   // One slot list feeds the station AND the calendar: real projected slots for
   // live coaches (realAvail; [] = honestly none), the preview pattern otherwise.
-  // ⚠ `at` RIDES ALONG, and it is the only field the booking WRITE may use. The rest are
-  // the member's own calendar and clock for display; rebuilding an instant from them
-  // discards the coach's zone (see scheduledAtFromSlot). Demo rows carry no `at` and fall
-  // back, which is correct — nothing real is written for them.
+  // ⚠ `at` RIDES ALONG, and with the coach's own date and clock (looked up by it in
+  // selectSlot) it is all the booking WRITE may use. The rest are the member's own calendar
+  // and clock for display; rebuilding an instant from them discards the coach's zone. Demo
+  // rows carry no `at`, and nothing is written for them.
   const projSlotRow = (s) => { const d = new Date(`${s.iso}T00:00:00`); return { day: BSM_DAYS3[s.weekday], date: String(d.getDate()), time: s.time, iso: s.iso, month: BSM_MONTHS3[d.getMonth()], at: s.at }; };
   const allOpenSlots = realAvail != null
     ? realAvail.map(projSlotRow)

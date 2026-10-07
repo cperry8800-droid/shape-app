@@ -1139,5 +1139,6 @@
   "video.secureLink": "Verwende einen sicheren Link, der mit https:// beginnt.",
   "video.emptyFile": "Wähle eine Videodatei, die nicht leer ist.",
   "video.fileType": "Wähle ein MP4-, MOV-, M4V- oder WebM-Video. MP4 mit H.264 funktioniert auf den meisten Geräten.",
-  "video.fileSize": "Das Video muss kleiner als {limit} MB sein."
+  "video.fileSize": "Das Video muss kleiner als {limit} MB sein.",
+  "schedule.pickTime": "Uhrzeit wählen"
 }

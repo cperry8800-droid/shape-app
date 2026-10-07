@@ -1139,5 +1139,6 @@
   "video.secureLink": "Use secure link wey start with https://.",
   "video.emptyFile": "Choose video file wey no empty.",
   "video.fileType": "Choose MP4, MOV, M4V or WebM video. MP4 with H.264 dey work best for different devices.",
-  "video.fileSize": "Make the video dey under {limit} MB."
+  "video.fileSize": "Make the video dey under {limit} MB.",
+  "schedule.pickTime": "Pick time"
 }

@@ -1139,5 +1139,6 @@
   "video.secureLink": "Gunakan tautan aman yang diawali https://.",
   "video.emptyFile": "Pilih file video yang tidak kosong.",
   "video.fileType": "Pilih video MP4, MOV, M4V atau WebM. MP4 dengan H.264 paling kompatibel di berbagai perangkat.",
-  "video.fileSize": "Ukuran video harus di bawah {limit} MB."
+  "video.fileSize": "Ukuran video harus di bawah {limit} MB.",
+  "schedule.pickTime": "Pilih waktu"
 }

@@ -302,7 +302,9 @@ async function routes() {
     ['@/lib/notify', { createNotification: async (_c, n) => { state.notices.push(n); return true; } }],
     ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
     ['@/lib/email', { buildIcs: () => 'ICS', sendEmail: async (m) => { state.mails.push(m); return { ok: true }; } }],
-    ['@/lib/turnstile', { verifyTurnstile: async () => true }],
+    // The captcha passes unless a test turns it off (`captcha: false`), the website form's
+    // case with no token once TURNSTILE_SECRET_KEY is set.
+    ['@/lib/turnstile', { verifyTurnstile: async () => state.captcha !== false }],
     ['@/lib/require-membership', { requireMembership: async () => null }],
     ['@supabase/supabase-js', {}],
   ]);
@@ -311,15 +313,16 @@ async function routes() {
   loaded = { manage, request, consult, calendar, state };
   return loaded;
 }
-async function post(mod, path, body, { tables, user, insertError, updateError, fail } = {}) {
+async function post(mod, path, body, { tables, user, insertError, updateError, fail, headers = {}, captcha = true } = {}) {
   const m = await routes();
+  m.state.captcha = captcha;
   // ⚠ BOTH CLIENTS REFUSE THE INSERT: a member's request is written through their own client.
   m.state.client = db(tables, { label: 'request', insertError, updateError, fail, rlsUser: user ? user.id : null });
   m.state.admin = db(tables, { label: 'service', insertError, fail });
   m.state.user = user;
   m.state.notices.length = 0;
   const res = await atNow(() => m[mod].POST(new Request('https://shape.test' + path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
   })));
   return { status: res.status, body: await res.json(), notices: m.state.notices.slice(), writes: tables.__writes || [] };
 }
@@ -588,6 +591,31 @@ test('/api/consultation refuses a time outside the coach\'s open hours — and b
   const unread = await consult({}, { tables: world(), fail: ['provider_availability'] });
   assert.equal(unread.status, 503, 'an unreadable pattern vouches for nothing');
   for (const r of [threeAm, lastQuarter, atClose, wrongDay, unread]) assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0);
+});
+
+test('/api/consultation: the app books with its Bearer token and no captcha; the website form still needs one', async () => {
+  // Step 4: the app's intro booking comes here instead of inserting straight into `sessions`.
+  // It cannot earn a Turnstile token (the widget is keyed to the website's domain), and it
+  // signs in with a Bearer token the website's cookie-riding form never sends.
+  const web = await consult({}, { tables: world(), captcha: false });
+  assert.equal(web.status, 400, JSON.stringify(web.body));
+  assert.match(web.body.error, /Captcha/);
+  assert.equal(web.writes.filter((w) => w.op === 'insert').length, 0);
+  const app = await consult({}, { tables: world(), captcha: false, headers: { Authorization: 'Bearer member-token' } });
+  assert.equal(app.status, 200, JSON.stringify(app.body));
+  assert.equal(app.writes.filter((w) => w.op === 'insert').length, 1);
+  assert.equal(app.notices.length, 1, 'the coach is told about an app booking, as about a website one');
+  // The same checks as the website: a time outside the hours is refused for the app too.
+  const late = await consult({ time: '3:00 AM' }, { tables: world(), captcha: false, headers: { Authorization: 'Bearer member-token' } });
+  assert.equal(late.status, 409);
+  assert.equal(late.body.code, 'outside_hours');
+  // A Bearer header is not an account: no user behind it is still a 401, and nothing is written.
+  const nobody = await consult({}, { tables: world(), captcha: false, headers: { Authorization: 'Bearer junk' }, user: null });
+  assert.equal(nobody.status, 401);
+  assert.equal(nobody.writes.filter((w) => w.op === 'insert').length, 0);
+  // An empty "Bearer" is not a token, so it is the website's case.
+  const blank = await consult({}, { tables: world(), captcha: false, headers: { Authorization: 'Bearer ' } });
+  assert.equal(blank.status, 400);
 });
 
 test('the calendar marks a session the caller booked AS A CLIENT, so the Schedule does not answer it', async () => {

@@ -18838,6 +18838,10 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   };
   const doBookIntro = async () => {
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;
+    // ⚠ AN INTRO IS BOOKED AT A TIME THE COACH OFFERS. The listing that opened this profile
+    // hands over its own calendar (`commerce.bookIntro`); without one there is no time to
+    // send, and the booking below refuses rather than guessing one.
+    if (commerce && typeof commerce.bookIntro === 'function') { commerce.bookIntro(); return; }
     try { await window.ShapeBookings?.submitConsultationBooking?.({ coach: commerceCoach, role: commerceCoach.provider_role, topic: 'Free intro call' }); window.__bsToast?.(tr('profile:coach.introRequested', { name: first, defaultValue: 'Intro requested — {name} will follow up.' }), 'ok'); }
     catch (e) { window.__bsToast?.(e?.message || tr('profile:coach.bookError', { defaultValue: 'Could not book.' }), 'err'); }
   };

@@ -211,3 +211,24 @@ test('the app does not offer a time the coach has off, or one their rules refuse
   assert.deepEqual(bsProjectAvailability({ ...base, busy: early, rules: { bufferMin: 0, maxPerDay: 1, minNoticeHours: 0 } }).map((s) => s.at), [at(9)]);
   assert.deepEqual(bsProjectAvailability({ ...base, busy: early, rules: { bufferMin: 0, maxPerDay: 2, minNoticeHours: 0 } }).map((s) => s.at), [at(9), at(16)]);
 });
+
+test('each slot carries the COACH\'s own date and clock, which is what the booking route reads', () => {
+  // Step 4 (2026-10-07): the app books intros through /api/consultation, which takes the
+  // coach's wall clock and derives the instant itself. A Tokyo coach opens Thursday 08:00:
+  // that is Wednesday 23:00Z, so a member west of Tokyo reads it on a Wednesday.
+  const open = bsProjectAvailability({
+    slots: [{ weekday: 4, start_minute: 8 * 60, duration_min: 60 }],
+    booked: [], weeks: 1, now: new Date('2026-07-08T00:00:00Z'), zone: 'Asia/Tokyo',
+  });
+  assert.equal(open.length, 1);
+  assert.equal(new Date(open[0].at).toISOString(), '2026-07-08T23:00:00.000Z');
+  assert.equal(open[0].coachDate, '2026-07-09', 'the coach\'s own Thursday');
+  assert.equal(open[0].coachTime, '08:00');
+  // A half-hour start keeps its minutes.
+  const half = bsProjectAvailability({
+    slots: [{ weekday: 4, start_minute: 9 * 60 + 30, duration_min: 60 }],
+    booked: [], weeks: 1, now: new Date('2026-07-08T12:00:00Z'), zone: 'America/New_York',
+  });
+  assert.equal(half[0].coachDate, '2026-07-09');
+  assert.equal(half[0].coachTime, '09:30');
+});
