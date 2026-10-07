@@ -228,6 +228,30 @@ test('hours are edited on the grid in half hours: paint a rectangle, copy a day,
   } finally { await page.unmount(); }
 });
 
+test('the hours editor opens only on hours that have arrived (Codex, the review of #2229)', async () => {
+  // ⚠ THE SAVE REWRITES THE WHOLE WEEK: an editor seeded before the read answered would save one
+  // painted cell over every hour the coach has.
+  let release;
+  const held = new Promise((r) => { release = r; });
+  const srv = server();
+  const page = await mountSchedule({ fetch: async (u, init) => (u.pathname === '/api/my-availability' && (!init || !init.method) ? (await held, json(200, { slots: HOURS, timezone: NY })) : srv.handler(u, init)) });
+  try {
+    const edit = () => page.doc.querySelector('[data-edit-hours]');
+    assert.equal(edit().disabled, true, 'the editor can open before the hours arrive');
+    assert.match(edit().textContent, /Loading your hours/);
+    release();
+    await page.settle();
+    assert.equal(edit().disabled, false);
+    await page.click(edit());
+    assert.equal(cell(page, 0, 16).getAttribute('aria-pressed'), 'true', 'the editor opened without the stored hours');
+  } finally { await page.unmount(); }
+  const failed = await mountSchedule({ fetch: async (u, init) => (u.pathname === '/api/my-availability' ? json(503, { error: 'x' }) : server().handler(u, init)) });
+  try {
+    assert.equal(failed.doc.querySelector('[data-edit-hours]').disabled, true, 'an unread week can be overwritten');
+    assert.match(failed.text(), /Your hours couldn't load/);
+  } finally { await failed.unmount(); }
+});
+
 test('a refused hours save keeps the editor open and says why; Cancel discards the edit', async () => {
   const { page } = await open({ answers: { hours: json(400, { error: 'timezone_required', detail: 'We need your timezone before saving them.' }) } });
   try {

@@ -434,7 +434,7 @@ function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved }) 
 }
 
 // The rail's summary of the week's hours, and the way into editing them.
-function DscHoursPlate({ slots, live, storedZone, editing, onEdit }) {
+function DscHoursPlate({ slots, live, storedZone, editing, state = "ready", onEdit }) {
   const { cells } = dscHoursModel(slots);
   const openMin = cells.reduce((n, d) => n + d.filter(Boolean).length, 0) * DSC_HALF;
   const zoneLabel = dscZoneLabel(live, storedZone);
@@ -442,7 +442,7 @@ function DscHoursPlate({ slots, live, storedZone, editing, onEdit }) {
     <div>
       <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>Open hours · your marketplace profile</span>
       <div style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50, marginTop: 4 }}>{(window.ShapeScheduleRules ? window.ShapeScheduleRules.hoursLabel(openMin) : String(openMin / 60)) + " open hrs/wk" + (zoneLabel ? " · " + zoneLabel : "")}</div>
-      <div data-hours-summary="" style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: "4px 8px", margin: "10px 0 12px", fontSize: 11.5 }}>
+      <div data-hours-summary="" aria-busy={state === "loading"} style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: "4px 8px", margin: "10px 0 12px", fontSize: 11.5, opacity: state === "ready" ? 1 : 0.45 }}>
         {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
           const text = dscDaySummary(cells, wd);
           return (
@@ -453,7 +453,10 @@ function DscHoursPlate({ slots, live, storedZone, editing, onEdit }) {
           );
         })}
       </div>
-      <button type="button" data-edit-hours="" onClick={onEdit} disabled={editing} style={{ ...dscBtn(editing ? "" : "on"), opacity: editing ? 0.6 : 1 }}>{editing ? "Editing on the grid" : "Edit hours"}</button>
+      {state === "failed" && <div role="alert" style={{ fontSize: 11.5, color: DSC_RUST, marginBottom: 8 }}>Your hours couldn't load. Reload to edit them.</div>}
+      <button type="button" data-edit-hours="" onClick={onEdit} disabled={editing || state !== "ready"} style={{ ...dscBtn(editing || state !== "ready" ? "" : "on"), opacity: editing || state !== "ready" ? 0.6 : 1 }}>
+        {editing ? "Editing on the grid" : state === "loading" ? "Loading your hours…" : "Edit hours"}
+      </button>
     </div>
   );
 }
@@ -1390,6 +1393,8 @@ function CoachSchedulePage({ role }) {
   // without the moved copy being mistaken for a live answer.
   const [demoEvents, setDemoEvents] = React.useState(DSC_DEMO.events);
   const [avail, setAvail] = React.useState(null);
+  // The hours read has answered (with hours or without): until then the editor cannot open.
+  const [availRead, setAvailRead] = React.useState(false);
   // Day, week or month, remembered: a coach who works the week grid should not have to
   // choose it again on every visit to their own calendar. The week is the default — it is
   // where the working day happens now.
@@ -1445,6 +1450,7 @@ function CoachSchedulePage({ role }) {
         if (!on) return;
         if (av && Array.isArray(av.slots)) setAvail(av.slots);
         if (av && typeof av.timezone === "string") setAvailZone(av.timezone);
+        setAvailRead(true);
       });
     return () => { on = false; };
   }, [role]);
@@ -1516,6 +1522,12 @@ function CoachSchedulePage({ role }) {
   const BR = dscBookingRules();
   const offZone = liveEvents ? calZone : dscBrowserZone();
   const offsFor = (iso) => dscOffOn(timeOff, iso, offZone, BR);
+  // ⚠ THE EDITOR OPENS ONLY ON HOURS THAT HAVE ARRIVED (Codex, the review of #2229). The save is
+  // a delete-and-rewrite of the whole week, so an editor seeded before the read answered would
+  // save one painted cell over every hour the coach had. A live coach waits for their own hours
+  // (and cannot edit when the read failed); the demo waits until the page knows it is the demo,
+  // so example hours are never what a coach about to be signed in saves.
+  const hoursState = source === "live" ? (avail != null ? "ready" : availRead ? "failed" : "loading") : source === "demo" ? "ready" : "loading";
   // Only the coach's own bookings (sessions/consults) + manual events belong
   // on the planning calendar — the client-facing pushed workouts/meals are a
   // client surface, shown read-only if present.
@@ -1979,7 +1991,7 @@ function CoachSchedulePage({ role }) {
           {/* Availability */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-gold, #d8a23a)", paddingLeft: 22 }}>
-              <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours}
+              <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours} state={hoursState}
                 onEdit={() => { setSlot(null); setBooking(null); setEditingHours(true); }} />
             </div>
             <div className="dash-plate" style={{ "--dac": "var(--sh-gold, #d8a23a)", padding: "14px 16px" }}>

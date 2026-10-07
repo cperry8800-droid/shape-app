@@ -192,3 +192,22 @@ test('the marketplace Listing hands the coach zone to the projection', async () 
   assert.match(src, /import \{[^}]*\bbsIsZone\b[^}]*\} from '\.\.\/services\/coachAvailability\.mjs'/,
     'bsIsZone is used but not imported');
 });
+
+test('the app does not offer a time the coach has off, or one their rules refuse (Schedule step 3)', () => {
+  // Thursdays 06:30 for two weeks; the intro consult is 15 minutes.
+  const slots = [{ weekday: 4, start_minute: 6 * 60 + 30, duration_min: 60 }];
+  const base = { slots, booked: [], weeks: 2, now: NOW, zone: HERE };
+  const at = (d) => new Date(2026, 6, d, 6, 30).getTime();
+  assert.deepEqual(bsProjectAvailability(base).map((s) => s.at), [at(9), at(16)], 'no busy time and no rules: the list it always was');
+  // Time off over the first Thursday morning.
+  const off = [{ start: new Date(2026, 6, 9, 6, 0).toISOString(), end: new Date(2026, 6, 9, 12, 0).toISOString(), kind: 'time_off' }];
+  assert.deepEqual(bsProjectAvailability({ ...base, busy: off }).map((s) => s.at), [at(16)]);
+  // Notice: 48 hours from Wednesday noon rules out Thursday 06:30.
+  assert.deepEqual(bsProjectAvailability({ ...base, busy: [], rules: { bufferMin: 0, maxPerDay: null, minNoticeHours: 48 } }).map((s) => s.at), [at(16)]);
+  // A 15-minute buffer after a session ending at 06:20 rules out 06:30; a daily limit of 1 with
+  // a session already that day does too.
+  const early = [{ start: new Date(2026, 7 - 1, 16, 6, 0).toISOString(), end: new Date(2026, 6, 16, 6, 20).toISOString(), kind: 'session' }];
+  assert.deepEqual(bsProjectAvailability({ ...base, busy: early, rules: { bufferMin: 15, maxPerDay: null, minNoticeHours: 0 } }).map((s) => s.at), [at(9)]);
+  assert.deepEqual(bsProjectAvailability({ ...base, busy: early, rules: { bufferMin: 0, maxPerDay: 1, minNoticeHours: 0 } }).map((s) => s.at), [at(9)]);
+  assert.deepEqual(bsProjectAvailability({ ...base, busy: early, rules: { bufferMin: 0, maxPerDay: 2, minNoticeHours: 0 } }).map((s) => s.at), [at(9), at(16)]);
+});

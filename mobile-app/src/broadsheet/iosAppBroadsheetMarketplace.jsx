@@ -1925,7 +1925,9 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
         // hours we cannot place has some — and saying "no open times" there is a false
         // claim about them rather than about our data.
         setNoZone(d.slots.length > 0 && !bsIsZone(d.timezone));
-        setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone }));
+        // `busy` + `rules`: the coach's time off, buffer, daily limit and notice (Schedule step 3).
+        // The intro consult this books is 15 minutes (shapeBackend.submitConsultationBooking).
+        setRealAvail(bsProjectAvailability({ slots: d.slots, booked: d.booked || [], weeks: 6, zone: d.timezone, busy: d.busy || [], rules: d.rules || null, sessionMin: 15 }));
       })
       .catch(() => {});
     return () => { on = false; };
