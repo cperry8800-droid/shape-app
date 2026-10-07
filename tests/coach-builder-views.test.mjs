@@ -75,10 +75,8 @@ async function mount(t,extra={}){
   const root=createRoot(document.getElementById('root'));
   OPEN.push(root);
   await React.act(async()=>root.render(React.createElement(DbuBuilder,{template:t,clients:[],queue:[],live:false,ownerId:'coach-a',playlists:[],clips:[],dayTemplates:[{name:'Saved push day',day:DashBuilder.newDay('Push')}],onBack(){},onSaved(){},...extra})));
-  // The drag/canvas regressions exercise the optional popped-out Planner editor.
-  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Planner').click());
-  await React.act(async()=>document.querySelector('.wg button.c:not(.rest)').click());
-  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pop out editor')?.click());
+  // ⚠ ONE WAY TO BUILD SINCE STEP 3: the builder opens on the Grid with week 1's first day
+  // open in the day editor docked under it, so there is no layout or panel to choose first.
   return root;
 }
 
@@ -181,73 +179,50 @@ test('a date is on screen in both views, and the header says whose start it is n
 // ⚠ F1 (P0). The preview used to wrap into the 210px tree column, 1,413px below the fold,
 // where position:sticky could not lift it because the cell it stuck inside WAS that row. A
 // coach ticked the box, saw nothing change, and concluded the control did nothing.
-// ⚠ THE CANVAS IS NOW FULL WIDTH AND BOTH PANELS FLOAT OVER IT, which is the board's own
-// `.drawer` / `.pop` and is measured rather than preferred: as columns they left the grid
-// 640px, at which "Rest · ＋ Add session" wraps to three lines and the sheet's week columns
-// clip. So nothing can wrap into a row that does not exist.
-test('both panels float over a full-width canvas, and neither hides the other view', async () => {
+// ⚠ THE CANVAS IS FULL WIDTH: measured rather than preferred, because as columns the panels
+// left the grid 640px, at which "Rest · ＋ Add session" wraps to three lines and the sheet's
+// week columns clip. So nothing can wrap into a row that does not exist.
+// ⚠ AND SINCE STEP 3 (owner, 2026-10-07) ONLY THE PREVIEW FLOATS. The day editor floated in
+// three positions (beside the canvas, Planner's side panel, popped out and dragged); it is
+// docked under the canvas now, in the flow, at the builder's full width, which is where
+// step 2's detail sits beside the list.
+test('the canvas is full width, the day editor docks under it, and only the preview floats', async () => {
   const src = await import('node:fs').then(fs => fs.readFileSync(SRC, 'utf8'));
   assert.ok(!/\.dbu-c3\{|\.dbu-layout\{/.test(src),
     'the old multi-column layout must not come back — a child of it wrapped below the fold');
-  // ⚠ THIS PINNED `position:absolute` AND THE PANEL IS NOW `fixed` — the fix, not a
-  // drift. Absolute anchored it to the PAGE while `max-height:calc(100vh - 140px)`
-  // sized it against the SCREEN, and those two cannot both be true: measured at
-  // 1440x940 in Sheet the box ran y 496 → bottom 1296, so 556px of it (and 2,933px
-  // of scrollable content inside it) sat below the fold, and reaching its lower half
-  // scrolled its own Done button off the top. What this test is NAMED for is that
-  // the panel floats over a full-width canvas instead of taking a column, and both
-  // out-of-flow positions satisfy that; the literal was never the invariant.
-  assert.match(src, /\.dbu2 \.drawer\.float\{position:fixed/, 'the day editor floats over the canvas');
-  // ⚠ AND ITS HEIGHT IS DERIVED FROM WHERE IT ACTUALLY SITS. A fixed box budgeted as
-  // `100vh - <constant>` is the same defect in a different position: it fits only
-  // while it happens to start at that constant.
-  // ⚠ SCOPED TO THE DRAWER'S OWN RULE, because the blanket version FAILS CORRECT
-  // CODE. `.dbu2 .pop` still carries `max-height:calc(100vh - 120px)` as its
-  // RESTING budget, which is exact while the stylesheet's bottom anchor holds.
-  // ⚠ THAT PREMISE USED TO READ "it is pinned to the viewport BOTTOM, so a
-  // viewport-relative budget is exact there" AND IT IS NO LONGER TRUE: the
-  // preview is draggable, so once moved it is positioned by its own top like the
-  // drawer — which is why the drag hook overrides `maxHeight` inline for both
-  // panels from the same expression. The CSS budget is the untouched-panel case.
-  // Comments are stripped first — this file's own prose quotes the retired rule.
-  // ⚠ THE INTERPOLATIONS ARE BLANKED BEFORE THE RULE IS CUT OUT. This block is a
-  // template literal, so `width:${DBU_PANEL_W}px` puts a `}` INSIDE the rule — and
-  // a `[^}]*` body match stops dead at it, reading only the front of the
-  // declaration. Mutation-proven: re-adding `max-height:calc(100vh - 140px)` AFTER
-  // that point SURVIVED the first version of this guard.
+  // Comments are stripped first — this file's own prose names the retired rules.
+  // ⚠ THE INTERPOLATIONS ARE BLANKED BEFORE A RULE IS CUT OUT. The stylesheet is a template
+  // literal, so `${DBU_PANEL_W}` puts a `}` INSIDE a rule — and a `[^}]*` body match stops
+  // dead at it, reading only the front of the declaration.
   const code = stripComments(src).replace(/\$\{[^}]*\}/g, 'X');
-  const floatRule = /\.dbu2 \.drawer\.float\{([^}]*)\}/.exec(code);
-  assert.ok(floatRule, 'the .dbu2 .drawer.float rule is gone — this guard is reading nothing');
-  assert.ok(!/max-height/.test(floatRule[1]),
-    'the panel must not carry a CSS height budget; it is computed from its own top in JS');
-  // ⚠ RE-ANCHORED ON THE INVARIANT, NOT THE SPELLING. This pinned `panelPos.y` —
-  // the name the day panel's own machinery happened to use before both panels
-  // moved onto one `useDbuDrag` hook, where the same expression reads `pos.y`. A
-  // correct refactor failed a test about height budgets. What the guard is for is
-  // that the budget is measured DOWN FROM THE PANEL'S OWN TOP rather than from a
-  // constant, and that is what it asks now.
+  assert.ok(!/\.drawer\.float|is-popped|is-sidepanel|Pop out editor|Dock editor/.test(code),
+    'a retired day-editor position is back');
+  const drawerRules = [...code.matchAll(/\.dbu2 \.drawer\{([^}]*)\}/g)].map((m) => m[1]);
+  assert.ok(drawerRules.length >= 1, 'the .dbu2 .drawer rule is gone — this guard is reading nothing');
+  assert.ok(drawerRules.every((r) => !/position:(fixed|absolute|sticky)/.test(r)), 'the day editor left the flow');
+  // ⚠ THE PREVIEW STILL FLOATS, AND ITS HEIGHT IS DERIVED FROM WHERE IT ACTUALLY SITS. A
+  // fixed box budgeted as `100vh - <constant>` fits only while it happens to start at that
+  // constant, so once moved it is sized from its own top in JS (`useDbuDrag`).
   const budget = /maxHeight: Math\.max\([^\n]*window\.innerHeight - ([A-Za-z.]*\by)\b/.exec(code);
   assert.ok(budget, 'a floating panel must size itself from its own top, so the budget is correct by construction');
   assert.ok(!/maxHeight: Math\.max\([^\n]*window\.innerHeight - \d/.test(code),
     'the budget must not be a constant offset from the viewport — that fits only while the panel starts at that constant');
-  assert.match(src, /\.dbu2 \.pop\{position:fixed/, 'the client preview floats too');
-  assert.match(src, /@media\(max-width:1100px\)\{\.dbu2 \.drawer\.float\{position:static/,
-    'and drops back into the flow on a narrow screen rather than covering the page');
+  assert.match(src, /\.dbu2 \.pop\{position:fixed/, 'the client preview floats');
 
   const root = await mount(template());
-  assert.ok(document.querySelector('.drawer.float'), 'a day is open, so the panel floats');
-  assert.ok(document.querySelector('.wg'), 'and the grid is still rendered under it');
+  const drawer = document.querySelector('.drawer');
+  assert.ok(drawer, 'a day is open, so the day editor is on the page');
+  const stage = document.querySelector('.stage');
+  assert.ok(stage && stage.contains(document.querySelector('.wg')), 'and the grid is rendered on the stage');
+  assert.ok(!!(stage.compareDocumentPosition(drawer) & window.Node.DOCUMENT_POSITION_FOLLOWING) && !stage.contains(drawer),
+    'the day editor follows the canvas in the flow, rather than sitting inside or over it');
+  assert.ok(!drawer.getAttribute('style'), 'nothing positions the day editor inline');
 
-  // Sheet is read left to right across weeks, so the panel must not sit over those columns.
+  // Sheet is read left to right across weeks; switching to it closes the day editor, which
+  // a coach reopens from a band.
   await React.act(async () => [...document.querySelectorAll('.seg button')].find(b => /Sheet/.test(b.textContent)).click());
-  // ⚠ NEVER HAND A LIVE DOM NODE TO A VALUE-COMPARING ASSERTION. `assert.equal(node, null)`
-  // reads perfectly well and, on the failing path, node builds the error's diff with
-  // util.inspect over an element whose parent pointers reach the whole document: measured at
-  // 81s, after which the runner SIGKILLs the FILE — so the mutation reads as killed while the
-  // four tests below this one never ran at all. The boolean form throws the same message in
-  // 1ms. tests/assert-dom-value.test.mjs keeps the shape out of both builder suites.
-  assert.ok(!document.querySelector('.drawer.float'),
-    'switching to Sheet closes the panel, which would otherwise cover the week columns');
+  // ⚠ NEVER HAND A LIVE DOM NODE TO A VALUE-COMPARING ASSERTION — tests/assert-dom-value.test.mjs.
+  assert.ok(!document.querySelector('.drawer'), 'switching to Sheet closes the day editor');
   assert.ok(document.querySelector('.sh'), 'the sheet renders');
 
   await React.act(async () => byText('Preview as client').click());
@@ -263,6 +238,8 @@ test('both panels float over a full-width canvas, and neither hides the other vi
   const pop2 = document.querySelector('[role="dialog"][aria-label="Client preview"]');
   assert.ok(pop2.contains(document.querySelector('[data-testid="client-card"]')),
     'and once a session is picked it carries that client card');
+  assert.ok(document.querySelector('.drawer'), 'and the band opened the day editor under the sheet');
+  assert.ok(document.activeElement === document.querySelector('.drawer'), 'with the keyboard moved into it, which brings it on screen');
   await React.act(async () => root.unmount());
 });
 
@@ -274,11 +251,17 @@ test('both panels float over a full-width canvas, and neither hides the other vi
 // visibility check was added, which is a control a coach cannot reach passing a guard whose
 // whole subject is that the control survived.
 const shown=el=>!!el&&!el.hidden&&!el.hasAttribute('hidden')&&(el.style||{}).display!=='none'&&(el.style||{}).visibility!=='hidden';
+// ⚠ PROGRESS IS THE ONE TOOL RETIRED ON PURPOSE (step 3): it copied a week with the
+// per-move increments a checkbox fixed in code, and the progression bar is the one rule now,
+// under which a plain Copy brings a week that already climbs. Copy to weeks and Delete day
+// are new on the day.
 test('no week or day tool was lost with the retired tree',async()=>{
   const root=await mount(template());
-  for (const label of ['Copy','Progress','Deload','Duplicate day','Done']) {
+  for (const label of ['Copy','Deload','Duplicate day','Copy to weeks','Delete day','Done']) {
     assert.ok(shown(byText(label)),'the builder still offers "'+label+'", and on screen');
   }
+  assert.ok(!byText('Progress'),'the retired Progress tool is back beside the bar that replaced it');
+  assert.ok(shown(document.querySelector('.dprog[aria-label="Progression"]')),'the progression bar is on screen');
   assert.ok(byText('＋ Week'),'and adding a week');
   assert.ok([...document.querySelectorAll('select')].some(s=>s.getAttribute('aria-label')==='Add a saved day to week 1'),
     'reuse-a-saved-day survives; it is the one tree control with no home in either canvas');
@@ -582,13 +565,17 @@ test('every site that sets a day weekday is one of nine, each safe for a stated 
     'DbuBuilder :: next.weekday = dbuNextFreeWeekday(doc.weeks[target])',
     // ＋ Week: a fresh week whose only day can collide with nothing.
     'DbuBuilder :: weekday: 0',
-    // Guided/Editor adds a day using the same next-free-weekday helper.
-    'DbuBuilder :: weekday:dbuNextFreeWeekday(w)',
     // addAt is reached from a REST cell, so that weekday is free by construction.
     'addAt :: weekday',
+    // ＋ Add a day uses the same next-free-weekday helper.
+    'addDay :: weekday: dbuNextFreeWeekday(w)',
     // The rule itself: the move, and the swap that keeps the week a permutation.
     'dbuAssignWeekday :: weekday',
     'dbuAssignWeekday :: weekday: from.weekday',
+    // Copy to weeks: a source with no weekday has no slot, so it takes the next free one.
+    // A source WITH a weekday keeps it (a JSON copy), replacing the day already in that
+    // slot or landing in a free one, so the target week stays a permutation either way.
+    'dbuCopyDayToWeeks :: copy.weekday = dbuNextFreeWeekday(w)',
     // Load-time fill, and only for days that have no weekday, from the unused set.
     'dbuWithWeekdays :: weekday: wd',
   ], 'a new site sets a day weekday — route it through dbuAssignWeekday, or add it here with why it cannot collide');

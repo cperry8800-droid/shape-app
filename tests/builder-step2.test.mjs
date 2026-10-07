@@ -38,7 +38,6 @@ globalThis.useRememberedChoices = (live) => ({ live });
 globalThis.useRememberedChoice = (_store, _key, _allowed, fallback) => React.useState(fallback);
 const nd = (f) => fileURLToPath(new URL('../public/newdesign/' + f, import.meta.url));
 const SRC = nd('dashBuilder.jsx');
-Object.assign(globalThis, await loadRealModule(nd('coachBuilderLayouts.jsx'), { appendExports: 'export {COACH_BUILDER_LAYOUTS,CoachBuilderNav,CoachBuilderFooter,coachTemplateCopy};' }));
 Object.assign(globalThis, await loadRealModule(nd('dashFilterBar.jsx'), { appendExports: 'export {useDfbPopShift};' }));
 const {
   DbuBuilder, dbuMoveRow, dbuStepTarget, dbuDropTarget, dbuPairState, dbuTogglePair, dbuRankMoves, dbuFlatRows,
@@ -83,12 +82,12 @@ function program() {
   return d;
 }
 const PLAYLISTS = [{ name: 'Easy flow', meta: '8 tracks' }];
-async function mount(layout = 'Editor', extra = {}) {
+// ⚠ ONE WAY TO BUILD SINCE STEP 3: no layout to pick first. The builder opens on the Grid
+// with week 1's first day open in the editor docked under it.
+async function mount(extra = {}) {
   const writes = capture();
   root = createRoot(document.getElementById('root'));
   await React.act(async () => root.render(React.createElement(DbuBuilder, { template: { name: 'Lower', detail: { builder: program() } }, clients: [], queue: [], live: true, ownerId: 'coach-a', playlists: PLAYLISTS, clips: [], dayTemplates: [], onBack() {}, onSaved() {}, ...extra })));
-  await click(button(layout));
-  if (layout === 'Planner') await click(document.querySelector('.wg button.c:not(.rest)'));
   assert.ok(document.querySelector('.dday'), 'the day editor is not open — this test drives nothing');
   return writes;
 }
@@ -196,25 +195,18 @@ test('the flat list carries each move\'s block and the member card\'s labels', (
 });
 
 // ── One line per exercise ───────────────────────────────────────────────────
-for (const layout of ['Guided', 'Editor', 'Planner']) {
-  test(`${layout}: the day is one list of lines with the blocks as its labels, and a detail beside it`, async () => {
-    if (layout === 'Guided') {
-      capture();
-      root = createRoot(document.getElementById('root'));
-      await React.act(async () => root.render(React.createElement(DbuBuilder, { template: { name: 'Lower', detail: { builder: program() } }, clients: [], queue: [], live: true, ownerId: 'coach-a', playlists: PLAYLISTS, clips: [], dayTemplates: [], onBack() {}, onSaved() {} })));
-      await click(button('Continue →'));
-    } else await mount(layout);
-    assert.deepEqual(names(), ['Hip flow', 'Back squat', 'Bench press', 'Front squat']);
-    assert.deepEqual([...document.querySelectorAll('.dlist .dbk .kind')].map((s) => s.value), ['warmup', 'main', 'accessory'], 'every block is a label in the one list');
-    assert.equal(document.querySelectorAll('.dlist').length, 1);
-    assert.equal(document.querySelectorAll('.dlist section').length, 0, 'a block is a <section> again — pageShell pads every section 18px on a phone');
-    for (const n of names()) for (const cell of ['Sets', 'Reps', 'load', 'target RPE', 'Rest']) assert.ok(byAria(n + ' ' + cell), n + ' has no ' + cell + ' on its line');
-    assert.equal(document.querySelectorAll('.dr.on').length, 1, 'one move is open at a time');
-    assert.equal(detailName(), 'Hip flow', 'the day opens on its first move');
-    assert.ok(line('Bench press').querySelector('.ix').textContent === '03');
-    assert.ok(document.querySelector('.dlist .dempty'), 'the empty block says it is empty, so it reads as a place to drop');
-  });
-}
+test('the day is one list of lines with the blocks as its labels, and a detail beside it', async () => {
+  await mount();
+  assert.deepEqual(names(), ['Hip flow', 'Back squat', 'Bench press', 'Front squat']);
+  assert.deepEqual([...document.querySelectorAll('.dlist .dbk .kind')].map((s) => s.value), ['warmup', 'main', 'accessory'], 'every block is a label in the one list');
+  assert.equal(document.querySelectorAll('.dlist').length, 1);
+  assert.equal(document.querySelectorAll('.dlist section').length, 0, 'a block is a <section> again — pageShell pads every section 18px on a phone');
+  for (const n of names()) for (const cell of ['Sets', 'Reps', 'load', 'target RPE', 'Rest']) assert.ok(byAria(n + ' ' + cell), n + ' has no ' + cell + ' on its line');
+  assert.equal(document.querySelectorAll('.dr.on').length, 1, 'one move is open at a time');
+  assert.equal(detailName(), 'Hip flow', 'the day opens on its first move');
+  assert.ok(line('Bench press').querySelector('.ix').textContent === '03');
+  assert.ok(document.querySelector('.dlist .dempty'), 'the empty block says it is empty, so it reads as a place to drop');
+});
 
 test('a line\'s cells write the row, with the old row editor\'s rules', async () => {
   const writes = await mount();
@@ -308,7 +300,7 @@ test('the playlist chip shows the day\'s playlist even when the list has not loa
 });
 
 test('the walkthrough chip opens its panel, and Escape closes it without closing the day', async () => {
-  await mount('Planner');
+  await mount();
   const chip = [...document.querySelectorAll('.dchips button')].find((b) => /Walkthrough video/.test(b.textContent));
   const panel = document.getElementById(chip.getAttribute('aria-controls'));
   assert.equal(panel.hidden, true);
@@ -345,7 +337,7 @@ test('type to add: Enter adds the first match to the current block and lands in 
 });
 
 test('type to add: arrows choose, a new name is offered last, and the coach\'s own moves come first', async () => {
-  await mount('Editor', { customMoves: [{ id: 'own-sled drag', name: 'Sled drag', muscle: 'Conditioning', equipment: 'Sled', own: true }] });
+  await mount({ customMoves: [{ id: 'own-sled drag', name: 'Sled drag', muscle: 'Conditioning', equipment: 'Sled', own: true }] });
   const add = document.querySelector('.dqa input[role="combobox"]');
   await focusOn(add);
   await setValue(add, 'sled');
@@ -384,7 +376,7 @@ test('removing the block that holds the open move opens the first move left', as
 });
 
 test('type to add: Escape closes the list, and only an empty line lets it close the day', async () => {
-  await mount('Planner');
+  await mount();
   const add = document.querySelector('.dqa input[role="combobox"]');
   await focusOn(add);
   await setValue(add, 'row');
@@ -537,9 +529,4 @@ test('one control height in the day editor: 36px, or 44 on a coarse pointer', ()
   }
   // The shared video controls carry 44px inline, so the day editor overrides them.
   assert.match(code, /:is\(\.cb-demo,\.dpop\) :is\(button,select,input\[type="url"\]\)\{min-height:var\(--dbu-ctl\)!important/);
-});
-
-test('the selected day\'s subtitle takes the fill\'s own ink', () => {
-  const layouts = readFileSync(nd('coachBuilderLayouts.jsx'), 'utf8');
-  assert.match(layouts, /\.cbuilder \.cb-days \.cb-button\[aria-pressed=true\] small\{color:inherit\}/);
 });

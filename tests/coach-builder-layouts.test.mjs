@@ -18,7 +18,10 @@ globalThis.DashPill=({children})=>React.createElement('span',null,children);
 globalThis.DashWorkoutCard=globalThis.DashMealLedgerCard=()=>null;
 globalThis.useRememberedChoices=live=>({live});
 const choices=[];
-globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{choices.push({key,allowed,fallback});return React.useState(fallback);};
+// What a coach's `dashboard_prefs` already holds. Read back WITHOUT the real hook's
+// allow-list check, the worst case for a value the builder no longer offers.
+let STORED={};
+globalThis.useRememberedChoice=(store,key,allowed,fallback)=>{choices.push({key,allowed,fallback});return React.useState(Object.prototype.hasOwnProperty.call(STORED,key)?STORED[key]:fallback);};
 const nd=f=>fileURLToPath(new URL('../public/newdesign/'+f,import.meta.url));
 Object.assign(globalThis,await loadRealModule(nd('coachBuilderLayouts.jsx'),{appendExports:'export {COACH_BUILDER_LAYOUTS,CoachBuilderNav,CoachBuilderFooter,coachTemplateCopy};'}));
 Object.assign(globalThis,await loadRealModule(nd('dashFilterBar.jsx'),{appendExports:'export {useDfbPopShift};'}));
@@ -26,24 +29,25 @@ const {DbuBuilder}=await loadRealModule(nd('dashBuilder.jsx'),{appendExports:'ex
 const {DmbBuilder}=await loadRealModule(nd('dashMealBuilder.jsx'),{appendExports:'export {DmbBuilder};'});
 const {DashWorkoutCard:WorkoutCard}=await loadRealModule(nd('dashClient.jsx'),{appendExports:'export {DashWorkoutCard};'});
 globalThis.serif='serif';
-let root;afterEach(async()=>{if(root)await React.act(async()=>root.unmount());root=null;localStorage.clear();});
+let root;afterEach(async()=>{if(root)await React.act(async()=>root.unmount());root=null;localStorage.clear();STORED={};choices.length=0;});
 const button=t=>[...document.querySelectorAll('button')].find(b=>b.textContent===t);
 const click=async t=>{assert.ok(button(t),'missing '+t);await React.act(async()=>button(t).click());};
 async function input(label,value){const el=document.querySelector('[aria-label="'+label+'"]') || [...document.querySelectorAll('label[for]')].find(el=>el.textContent===label)?.control;assert.ok(el,'missing '+label);await React.act(async()=>{Object.getOwnPropertyDescriptor(el.tagName==='SELECT'?window.HTMLSelectElement.prototype:window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));});}
 async function mount(Component,template,extra={}){root=createRoot(document.getElementById('root'));await React.act(async()=>root.render(React.createElement(Component,{template,clients:[],queue:[],lifecycle:[],live:true,ownerId:'coach-a',playlists:[],clips:[{name:'Squat demo',url:'https://shape.test/squat.mp4'}],dayTemplates:[],onBack(){},onSaved(){},...extra})));}
 function capture(){const writes=[];globalThis.fetch=async(url,opts)=>{const body=JSON.parse(opts.body);writes.push({method:opts.method,...body});return {ok:true,json:async()=>({plan:{...body,detail:{...body.detail,revision:1}}})};};return writes;}
 
-test('all workout layouts edit the same complete prescription and reuse saves a separate template',async()=>{
+// ⚠ THE WORKOUT BUILDER HAS ONE LAYOUT SINCE STEP 3 (owner, 2026-10-07): Grid ⇄ Sheet with
+// the day editor docked under the canvas. What this test was for survives the layouts: the
+// one editor writes the complete prescription, and reuse saves a separate template.
+test('the workout editor edits the complete prescription and reuse saves a separate template',async()=>{
   const original={id:'source',published:true,name:'Strength',detail:{revision:7,buildType:'program',builder:DashBuilder.newProgram()}};
   const row={...DashBuilder.newRow({name:'Squat'}),rpe:7,rest:'90s',tempo:'3010',cue:'Brace',group:'A',progression:{incKg:2.5},video:'https://shape.test/original.mp4',perSet:[{reps:'5',load:50}]};
   original.detail.builder.weeks[0].days[0].blocks[0].rows=[row];
   const baseline=structuredClone(original),writes=capture();
   await mount(DbuBuilder,coachTemplateCopy(original));
-  assert.equal(document.querySelector('.cbuilder').dataset.layout,'guided');
-  await click('Continue →');
+  for(const layout of ['Guided','Editor','Planner'])assert.ok(!button(layout),'the retired '+layout+' layout is back');
   await input('Squat Rest','105s');await input('Squat target RPE','8.5');
   await input('Choose demo for Squat','https://shape.test/squat.mp4');
-  for(const layout of ['Editor','Planner','Guided'])await click(layout);
   await click('Save template');
   assert.equal(writes.length,1);assert.equal(writes[0].method,'POST');assert.notEqual(writes[0].id,original.id);
   assert.equal(writes[0].published,false);assert.equal(writes[0].expectedRevision,0);
@@ -51,7 +55,7 @@ test('all workout layouts edit the same complete prescription and reuse saves a 
   assert.equal(saved.rest,'105s');assert.equal(saved.rpe,8.5);assert.equal(saved.video,'https://shape.test/squat.mp4');
   for(const k of ['sets','reps','tempo','cue','group','progression','perSet'])assert.deepEqual(saved[k],row[k],k+' survived');
   assert.deepEqual(original,baseline,'reuse never edits the original');
-  assert.ok(choices.some(c=>c.key==='workoutBuilderLayout'&&c.fallback==='guided'&&c.allowed.length===3));
+  assert.ok(!choices.some(c=>c.key==='workoutBuilderLayout'),'the workout builder still asks for a layout');
 });
 
 test('nutrition layouts preserve exclusions, swaps, variants and groceries while saving a new template',async()=>{
@@ -110,53 +114,46 @@ test('the actual client preview offers safe coach demonstrations without autopla
   assert.equal(document.querySelectorAll('iframe').length,0);
 });
 
-test('switching Editor and Planner never stacks their workspaces, and keeps edits',async()=>{
+// A coach who last used Planner (or Guided, or a popped-out panel) still has that word in
+// their prefs. Nothing reads it any more, so they land on the default: the Grid, with the
+// day editor docked under it, and every edit still writes.
+test('a remembered retired layout opens on the default, and nothing asks for it',async()=>{
+  STORED={workoutBuilderLayout:'planner',builderView:'grid'};
   const writes=capture();
-  await mount(DbuBuilder,{name:'Compact program',detail:{builder:DashBuilder.newProgram()}},{live:false});
-  await click('Editor');
-  assert.equal(document.querySelector('.wg').parentElement.parentElement.hidden,true);
-  await input('Day name','Edited day');
-  for(let i=0;i<3;i++){
-    await click('Planner');
-    assert.equal(document.querySelector('.wg').parentElement.parentElement.hidden,false);
-    assert.ok(!document.querySelector('.drawer'));
-    assert.equal(document.querySelector('.cb-choice .tb').hidden,false);
-    await click('Editor');
-    assert.equal(document.querySelector('.wg').parentElement.parentElement.hidden,true);
-    assert.equal(document.querySelector('#dbu-day-name').value,'Edited day');
-    assert.ok(!document.querySelector('.cb-choice .seg'));
-    assert.equal(document.querySelector('.cb-choice .tb').hidden,false);
-    assert.ok([...document.querySelectorAll('.cb-choice button')].some(b=>b.textContent==='＋ Add a day'));
-  }
-  await click('Arrange days & weeks');
-  assert.equal(document.querySelector('.cbuilder').dataset.layout,'planner');
-  assert.ok(!document.querySelector('.drawer'));
+  await mount(DbuBuilder,{name:'Old prefs program',detail:{builder:DashBuilder.newProgram()}});
+  assert.ok(!choices.some(c=>c.key==='workoutBuilderLayout'),'the retired layout is still read');
+  assert.ok(choices.some(c=>c.key==='builderView'&&c.fallback==='grid'&&c.allowed.join()==='grid,sheet'),'the view switch is the one choice left');
+  assert.ok(document.querySelector('.wg'),'no Grid — a blank builder');
+  assert.ok(document.querySelector('.drawer .dday'),'the day editor is not open under it');
+  for(const gone of ['Guided','Editor','Planner','Pop out editor','Arrange days & weeks','Continue →'])assert.ok(!button(gone),gone+' is back');
+  assert.ok(!document.querySelector('.cb-choice,.cb-steps,.cb-foot,.cb-workspace,.cb-days,.is-sidepanel,.is-popped'),'a retired layout\'s chrome is back');
+  await input('Day name','Kept day');await click('Save template');
+  assert.equal(writes.at(-1).detail.builder.weeks[0].days[0].name,'Kept day');
 });
 
-test('Planner day editing opens on demand and Escape closes it with focus returned',async()=>{
+test('a day opened from the canvas takes the keyboard; Escape and Done close it and hand focus back',async()=>{
   capture();await mount(DbuBuilder,{name:'Panel program',detail:{builder:DashBuilder.newProgram()}},{live:false});
-  await click('Planner');
   const trigger=document.querySelector('.wg button.c:not(.rest)');
   await React.act(async()=>{trigger.focus();trigger.click();});
-  const panel=document.querySelector('.is-sidepanel');
-  assert.ok(panel);assert.ok(document.activeElement===panel);
+  const panel=document.querySelector('.drawer');
+  assert.ok(panel);assert.ok(document.activeElement===panel,'opening a day did not move the keyboard into it');
   await input('Day name','Retained day');
   await React.act(async()=>panel.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
-  assert.ok(!document.querySelector('.drawer'));assert.ok(document.activeElement===trigger);
+  assert.ok(!document.querySelector('.drawer'));assert.ok(document.activeElement===trigger,'Escape left the keyboard nowhere');
   await React.act(async()=>trigger.click());
   assert.equal(document.querySelector('#dbu-day-name').value,'Retained day');
   await click('Done');assert.ok(!document.querySelector('.drawer'));
+  assert.ok(document.activeElement===trigger,'Done left the keyboard nowhere');
   await click('▤Sheet');
   assert.ok(!document.querySelector('.drawer'));
   const heading=document.querySelector('.sh button[title="Open Retained day"]');
   await React.act(async()=>{heading.focus();heading.click();});
-  assert.ok(document.querySelector('.is-sidepanel'));
+  assert.ok(document.querySelector('.drawer'),'a band in the Sheet did not open the day');
 });
 
-test('program and day videos stay distinct, collapsed and saved through layout changes',async()=>{
+test('program and day videos stay distinct, collapsed and saved',async()=>{
   const doc=DashBuilder.newProgram();doc.video='https://shape.test/program.mp4';doc.weeks[0].days[0].video='https://shape.test/day.mp4';
   const writes=capture();await mount(DbuBuilder,{name:'Video program',detail:{builder:doc}});
-  await click('Editor');
   // ⚠ THE DAY'S WALKTHROUGH IS A HEADER CHIP NOW, NOT A SECOND FOLD (owner, 2026-10-07: the
   // day's settings in its header). Still distinct from the program's, still closed until
   // asked, and the chip says a video is attached the way the fold's summary did.
@@ -168,7 +165,6 @@ test('program and day videos stay distinct, collapsed and saved through layout c
   const panel=document.getElementById(chip.getAttribute('aria-controls'));
   assert.equal(panel.hidden,true);assert.match(panel.textContent,/this day's workout/);
   await React.act(async()=>chip.click());assert.equal(panel.hidden,false);assert.equal(chip.getAttribute('aria-expanded'),'true');
-  for(const layout of ['Planner','Editor'])await click(layout);
   await input('Day name','With videos');await click('Save template');
   assert.equal(writes.at(-1).detail.builder.video,doc.video);
   assert.equal(writes.at(-1).detail.builder.weeks[0].days[0].video,doc.weeks[0].days[0].video);

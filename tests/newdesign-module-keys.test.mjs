@@ -46,9 +46,13 @@ const loads = (page, file) => read(page).includes('src="' + file);
 // ⚠ 20260923b: workoutDocument.js only. Its legacy block reader keeps a hold or a
 // distance whole (`TIME_DISTANCE_UNITS`); a page handed the older copy reads a legacy
 // "Carry — 3 × 40 m · 32 kg" as 40 reps and a load of "m · 32 kg".
+// ⚠ 20261007: the program's progression — `normalizeProgression`,
+// `applyProgramProgression`, `progressionStatus`, `pinLoadEdits`, `deloadWeek` and
+// `undeloadWeek` in the document module, and `undeloadWeek` in the builder core. The
+// builder calls them on every edit, so a page handed the older copy is a blank page.
 const MIN = {
-  'workoutDocument.js': '20260923b',
-  'dashBuilderCore.js': '20260923',
+  'workoutDocument.js': '20261007',
+  'dashBuilderCore.js': '20261007',
   'dashMealCore.js': '20260922c',
   'dashSignals.js': '20260922b',
 };
