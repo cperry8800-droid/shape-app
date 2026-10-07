@@ -1091,7 +1091,104 @@ function DbuDayChips({ day, onChange, onWeekday, takenBy, playlists = [], clips,
 // ── Day editor ───────────────────────────────────────────────────────────────
 // The chips, then the list and its detail. The day's name and date are the panel's
 // heading (`DbuBuilder`), which is where a coach looks for which day this is.
-function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false }) {
+// ── Draft with AI ────────────────────────────────────────────────────────────
+// The proposal's "Draft a day with AI on the web" (owner-approved 2026-10-07), and the
+// owner's "make sure there are no gaps". The coach describes the day in their own words;
+// /api/ai/draft-workout (the same core Nora drafts with, src/lib/ai/workoutDraft.mjs)
+// answers with builder rows, which are SHOWN before anything touches the day. The coach
+// then adds them to the day or replaces it, and one Undo puts the day back. Nothing is
+// saved by drafting: the rows join the document and ride its own autosave.
+// ⚠ THE ROUTE NEVER INVENTS A LOAD, so drafted rows read "—" in Load until the coach
+// types one, unless the brief itself named a weight. And a template answer (no AI key, a
+// failed call) is LABELLED as one, in the route's own words, never passed off as AI.
+// ⚠ SIGNED OUT (the preview) THERE IS NO CALL: the route is trainer-only, and a 401 in a
+// demo would read as a broken button rather than a feature that needs an account.
+function DbuAiDraft({ live, clientId, hasRows, onApply, onClose }) {
+  const [text, setText] = React.useState("");
+  const [st, setSt] = React.useState({ state: "idle" });
+  const inputRef = React.useRef(null);
+  const id = React.useId();
+  React.useEffect(() => { if (inputRef.current) inputRef.current.focus(); }, []);
+  const ask = React.useRef(0);
+  React.useEffect(() => () => { ask.current++; }, []);
+  const run = async () => {
+    const request = text.trim();
+    if (!request) { setSt({ state: "error", error: "Describe the day first, for example “Lower body, 50 min, barbell, intermediate”." }); return; }
+    if (!live) { setSt({ state: "error", error: "Drafting with AI needs a signed-in trainer account. This is the preview." }); return; }
+    const mine = ++ask.current;
+    setSt({ state: "busy" });
+    try {
+      const res = await fetch("/api/ai/draft-workout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request, kind: "day", ...(clientId ? { clientId } : {}) }) });
+      const data = await res.json().catch(() => null);
+      if (mine !== ask.current) return;
+      if (!res.ok || !data) throw new Error((data && data.error) || "Could not draft that day. Try again in a moment.");
+      const week = data.draft && data.draft.builder && Array.isArray(data.draft.builder.weeks) ? data.draft.builder.weeks[0] : null;
+      const dDay = week && Array.isArray(week.days) ? week.days[0] : null;
+      if (!dDay || !(dDay.blocks || []).some((b) => (b.rows || []).length)) throw new Error("The draft came back empty. Try describing the day another way.");
+      setSt({ state: "ready", day: dDay, lines: Array.isArray(data.lines) ? data.lines.map(String) : [], notice: data.notice ? String(data.notice) : "", notes: data.notes ? String(data.notes) : "" });
+    } catch (e) {
+      if (mine === ask.current) setSt({ state: "error", error: (e && e.message) || "Could not draft that day." });
+    }
+  };
+  const ready = st.state === "ready";
+  return (
+    <section className="dai" aria-label="Draft this day with AI">
+      <div className="dai-row">
+        <label className="sr" htmlFor={id}>Describe the day</label>
+        <input id={id} ref={inputRef} className="dai-in" value={text} placeholder="Lower body, 50 min, barbell, intermediate" maxLength={500}
+          disabled={st.state === "busy"}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (dbuImeComposing(e.nativeEvent)) return;
+            if (e.key === "Enter") { e.preventDefault(); run(); }
+            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
+          }} />
+        <button type="button" className="dbtn" onClick={run} disabled={st.state === "busy"}>{st.state === "busy" ? "Drafting…" : ready ? "Draft again" : "Draft"}</button>
+        <button type="button" className="dq" aria-label="Close Draft with AI" onClick={onClose}>×</button>
+      </div>
+      <p className="dai-hint">Name the focus, time, equipment and level. Loads stay empty unless you give one.</p>
+      <div role="status" aria-live="polite">
+        {st.state === "busy" && <p className="dai-msg">Drafting the day…</p>}
+        {st.state === "error" && <p className="dai-msg err">{st.error}</p>}
+        {ready && st.notice && <p className="dai-msg note">{st.notice}</p>}
+      </div>
+      {ready && (
+        <>
+          <ul className="dai-lines" aria-label="Drafted exercises">
+            {st.lines.map((l, i) => <li key={i} className={i === 0 ? "head" : undefined}>{l}</li>)}
+          </ul>
+          {st.notes && <p className="dai-hint">{st.notes}</p>}
+          <div className="dai-row">
+            {hasRows ? (
+              <>
+                <button type="button" className="dbtn" onClick={() => onApply("add", st.day)}>Add to this day</button>
+                <button type="button" className="dbtn" onClick={() => onApply("replace", st.day)}>Replace this day</button>
+              </>
+            ) : <button type="button" className="dbtn" onClick={() => onApply("replace", st.day)}>Use this draft</button>}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// Adds a drafted day's rows to a day: each drafted block's rows go to the end of the
+// first block of the same kind, or to a new block of that kind in the builder's order.
+function dbuMergeDraft(blocks, draftBlocks) {
+  const order = DashBuilder.BLOCK_KINDS.map((k) => k.key);
+  const rank = (kind) => { const i = order.indexOf(kind); return i < 0 ? order.length : i; };
+  const next = blocks.map((b) => ({ ...b, rows: [...(b.rows || [])] }));
+  for (const db of draftBlocks) {
+    const at = next.findIndex((b) => b.kind === db.kind);
+    if (at >= 0) { next[at] = { ...next[at], rows: [...next[at].rows, ...db.rows] }; continue; }
+    let i = next.length;
+    while (i > 0 && rank(next[i - 1].kind) > rank(db.kind)) i--;
+    next.splice(i, 0, { kind: db.kind, rows: [...db.rows] });
+  }
+  return next;
+}
+
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
   const blocks = day.blocks || [];
   const flat = dbuFlatRows(day);
@@ -1104,6 +1201,10 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
   const listRef = React.useRef(null), addRef = React.useRef(null);
   const focusNext = React.useRef(null);
   const [say, setSay] = React.useState("");
+  const [aiOpen, setAiOpen] = React.useState(false);
+  // One step back from the last draft applied, offered only while the day is still exactly
+  // what the draft left: an Undo that also threw away edits made since would lose work.
+  const aiUndo = React.useRef(null);
   // ⚠ NOT WHILE AN UPLOAD RUNS. The detail is remounted per move, and a demo upload's
   // result is written by the detail that started it; switching moves mid-upload would
   // unmount it and drop the video on the floor. The fieldset already stops every control;
@@ -1201,6 +1302,31 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
     setBlock(x.bi, { ...blocks[x.bi], rows: [...blocks[x.bi].rows.slice(0, x.ri + 1), { ...JSON.parse(JSON.stringify(x.row)), id: crypto.randomUUID() }, ...blocks[x.bi].rows.slice(x.ri + 1)] });
     setSay((String(x.row.name || "").trim() || "The exercise") + " duplicated.");
   };
+  const applyDraft = (mode, dDay) => {
+    const drafted = (dDay.blocks || []).filter((b) => (b.rows || []).length).map((b) => ({ kind: b.kind, rows: b.rows }));
+    const count = drafted.reduce((n, b) => n + b.rows.length, 0);
+    if (!count) return;
+    const replace = mode === "replace" || !flat.length;
+    const nextBlocks = replace ? drafted : dbuMergeDraft(blocks, drafted);
+    // The draft's name only replaces a placeholder ("Day 2", or nothing) — never a name the
+    // coach chose.
+    const placeholder = !String(day.name || "").trim() || /^day\s*\d+$/i.test(String(day.name).trim());
+    const next = { ...day, ...(placeholder && dDay.name ? { name: dDay.name } : {}), blocks: nextBlocks };
+    aiUndo.current = { before: day, after: JSON.stringify(next.blocks) };
+    onChange(next);
+    const first = drafted[0].rows[0];
+    if (first && first.id != null) setSelKey(String(first.id));
+    setAiOpen(false);
+    setSay((replace ? "Day replaced with the draft: " : "Draft added: ") + count + (count === 1 ? " exercise." : " exercises.") + " Undo draft is under the list.");
+  };
+  const canUndoDraft = !!aiUndo.current && aiUndo.current.after === JSON.stringify(day.blocks || []);
+  const undoDraft = () => {
+    const u = aiUndo.current;
+    if (!u) return;
+    aiUndo.current = null;
+    onChange(u.before);
+    setSay("Draft undone.");
+  };
   // Removing a move selects its neighbour and puts focus on it, so neither the detail nor
   // the keyboard is left pointing at nothing.
   const remove = (x) => {
@@ -1255,8 +1381,11 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
             <DbuQuickAdd customMoves={customMoves} inputRef={addRef} blockLabel={dbuKindLabel((blocks[curBi] || { kind: "main" }).kind)}
               onAdd={(ex) => addRows(curBi, [DashBuilder.newRow(ex)], true)} />
           </div>
+          {aiOpen && <DbuAiDraft live={live} clientId={clientId} hasRows={flat.length > 0} onApply={applyDraft} onClose={() => setAiOpen(false)} />}
           <div className="dfoot">
             <button type="button" className="dbtn ghost" onClick={() => write([...blocks, { kind: "accessory", rows: [] }])}>+ Block</button>
+            <button type="button" className="dbtn ghost" aria-expanded={aiOpen} onClick={() => setAiOpen((o) => !o)}>✦ Draft with AI</button>
+            {canUndoDraft && <button type="button" className="dbtn" onClick={undoDraft}>Undo draft</button>}
           </div>
         </div>
         {current ? (
@@ -2122,6 +2251,16 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dqa-list [aria-selected="true"]{background:${DBU_TEALBG}}
 .dbu2 .dqa-list .new{color:${DBU_TEAL};font-weight:600}
 .dbu2 .dfoot{display:flex;gap:8px;margin-top:10px}
+/* Draft with AI: the brief, the drafted lines shown before anything touches the day. */
+.dbu2 .dai{margin-top:10px;padding:12px;border:1px solid ${DBU_LINE2};border-radius:10px;background:${DBU_PG}}
+.dbu2 .dai-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.dbu2 .dai-in{flex:1 1 220px;min-width:0;height:var(--dbu-ctl);padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};color:${DBU_INK};font-size:14px}
+.dbu2 .dai-hint{margin:6px 0 0;font-size:12px;color:${DBU_INK3}}
+.dbu2 .dai-msg{margin:8px 0 0;font-size:13px;color:${DBU_INK2}}
+.dbu2 .dai-msg.err{color:${DBU_RUST}}
+.dbu2 .dai-msg.note{color:${DBU_GOLD}}
+.dbu2 .dai-lines{list-style:none;margin:10px 0;padding:8px 10px;max-height:260px;overflow:auto;border:1px solid ${DBU_LINE};border-radius:8px;background:${DBU_WH};font-size:13px;line-height:1.55}
+.dbu2 .dai-lines li.head{font-family:${DBU_MONO};font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_INK3}}
 /* The detail. */
 .dbu2 .ddetail{min-width:0;padding:14px 16px 16px;border:1px solid ${DBU_LINE2};border-top:3px solid ${DBU_RUST};border-radius:12px;background:${DBU_PG}}
 .dbu2 .ddetail.empty{border-top-color:${DBU_LINE2};font-size:13px;color:${DBU_INK2}}
@@ -2329,6 +2468,8 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
                 clips={clips}
                 customMoves={ownMoves}
                 onUploading={uploadCount}
+                live={!!live}
+                clientId={preselectId || null}
               />
             </div>
           )}
@@ -2441,6 +2582,18 @@ function TrainerProgramsPage() {
     }catch(e){if(read===usageRead.current)setUsage(u=>u.state==='ready'?u:{state:'error'});}
   },[]);
   const isLive=!!ownerId;
+  // ⚠ ?plan=<id> OPENS THAT PROGRAM, ONCE: Nora's "Open in builder" after she saves a draft
+  // (src/lib/ai/actions.mjs). Read once the library has answered, and only once, so closing
+  // the builder does not snap it open again on the next refresh.
+  const openPlan = typeof dashRouteParam === 'function' ? dashRouteParam('plan') : null;
+  const planOpened = React.useRef(false);
+  const [planMissing,setPlanMissing]=React.useState(false);
+  React.useEffect(()=>{
+    if(!openPlan||planOpened.current||!templates||!resolved.current)return;
+    planOpened.current=true;
+    const t=templates.find(x=>String(x.id)===String(openPlan));
+    if(t)setView(t);else setPlanMissing(true);
+  },[templates,openPlan]);
   React.useEffect(()=>{
     let on=true;
     (async()=>{
@@ -2505,6 +2658,7 @@ function TrainerProgramsPage() {
         </div>
         {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
         {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
+        {planMissing&&<p role="status">That program isn’t in your library yet. If you just saved it from Nora, refresh in a moment.</p>}
         {templates===null&&!error&&<p role="status">Loading workouts…</p>}
         {templates?.length===0&&<p>No workouts yet. Create a single day or program to start your library.</p>}
         {!!templates?.length&&<div className="dbu-library-filters">
