@@ -347,6 +347,32 @@ test('the app\'s Copy week copies a week that climbs, not one held by the source
   assert.equal(squat(b, 2).rpe, 8);
 });
 
+test('a program left behind its rule opens caught up AND unsaved, so future assignments wait for the save', async () => {
+  // Codex, #2232: "Review future assignments" proposes from the STORED plan, so a caught-up
+  // copy that read as saved could send clients the stale loads.
+  window.ShapeCoachPlans = { assignments: async () => ({ assignments: [] }) };
+  try {
+    const stale = program(3, { progression: CLIMB });   // every week a copy of week 1: behind the rule
+    const saves = await mountApp(stale);
+    // Unsaved: kept as a draft on the device (the editor's own word for it), never "saved".
+    assert.doesNotMatch(document.body.textContent, /Saved version/, 'the catch-up read as the saved version');
+    assert.match(document.body.textContent, /Draft kept on this device|Unsaved changes/);
+    const review = () => buttons().find((b) => /future/i.test(b.textContent));
+    assert.ok(review().disabled, 'future assignments opened over a stored plan that is behind');
+    assert.equal(review().textContent, 'Save before reviewing future workouts');
+    await week(3);
+    assert.equal(field('1. Back squat', 'Load').value, '235', 'the editor did not catch the program up');
+    const b = await appSave(saves);
+    assert.deepEqual(series(b, squat, 'load'), [225, 230, 235]);
+    await React.act(async () => root.unmount()); root = null;
+    // A program already in step opens clean, as before.
+    await mountApp(W.applyProgramProgression(program(3, { progression: CLIMB })));
+    assert.match(document.body.textContent, /Saved version/);
+    assert.equal(review().disabled, false);
+    assert.equal(review().textContent, 'Review future assignments');
+  } finally { delete window.ShapeCoachPlans; }
+});
+
 test('a program with no progression saves from the app exactly as before', async () => {
   const plain = program(3);
   squat(plain, 2).rpe = 9; squat(plain, 2).load = 260;

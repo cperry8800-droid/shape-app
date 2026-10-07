@@ -36,9 +36,14 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   const tr = useWorkoutTr(inheritedTr);
   const account = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
   const ownerRef = React.useRef(account);
-  // In step from the start, so a program the website left behind is caught up on open
-  // without reading as an unsaved change.
-  const [initial] = React.useState(() => ({ name: plan.name || '', creationId: plan.id ? undefined : crypto.randomUUID(), detail: inStep(normalizeWorkoutDetail(plan.detail, { name: plan.name })) }));
+  // ⚠ THE BASELINE IS THE PROGRAM AS STORED, NOT AS CAUGHT UP (Codex, #2232). The coach edits
+  // a copy in step with its rule from the start, but a program whose later weeks were left
+  // behind week 1 (an app edit before the app knew the rule) is still behind on the server.
+  // Reading the caught-up copy as "saved" said so falsely and opened "Review future
+  // assignments", which proposes from the STORED plan, so clients could be sent the stale
+  // loads. A catch-up is an unsaved change until it is saved; a program already in step
+  // opens clean, as before.
+  const [initial] = React.useState(() => ({ name: plan.name || '', creationId: plan.id ? undefined : crypto.randomUUID(), detail: normalizeWorkoutDetail(plan.detail, { name: plan.name }) }));
   const draftKey = coachWorkoutDraftKey(ownerRef.current, plan.id, initial.detail.buildType);
   const [value, setValue] = React.useState(() => {
     try {
@@ -47,7 +52,7 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
       // newer server revision. The PATCH conflict protects concurrent edits.
       if (saved && typeof saved.name === 'string' && saved.detail?.builder) return { ...initial, ...saved, detail: inStep(normalizeWorkoutDetail(saved.detail, { name: saved.name })) };
     } catch (_) { /* storage can be unavailable */ }
-    return initial;
+    return { ...initial, detail: inStep(initial.detail) };
   });
   const [weekIdx, setWeekIdx] = React.useState(0);
   const [dayIdx, setDayIdx] = React.useState(0);
@@ -188,7 +193,7 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
     if (savingRef.current || upload) return;
     if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== ownerRef.current) { setError(txt('accountChanged', 'Your account changed. Reopen the library before saving.')); return; }
     if (!value.name.trim()) { setError(txt('nameRequired', 'Name this workout or program first.')); return; }
-    if (value.detail.builder.outlineOnly && JSON.stringify(value.detail.builder) !== JSON.stringify(initial.detail.builder)) { setError(txt('startSession', 'Add exercises')); return; }
+    if (value.detail.builder.outlineOnly && JSON.stringify(value.detail.builder) !== JSON.stringify(inStep(initial.detail).builder)) { setError(txt('startSession', 'Add exercises')); return; }
     const invalid = value.detail.builder.weeks.some((wk) => wk.days.some((dy) => (dy.plannedMinutes != null && (dy.plannedMinutes < 1 || dy.plannedMinutes > 480)) || (dy.plannedRpe != null && (dy.plannedRpe < 1 || dy.plannedRpe > 10)) || dy.blocks.some((block) => block.rows.some((row) => row.sets !== '' && row.sets != null && (!Number.isInteger(Number(row.sets)) || Number(row.sets) < 1)))));
     if (invalid) { setError(txt('invalidPrescription', 'Use positive whole sets, 1–480 planned minutes, and RPE between 1 and 10.')); return; }
     savingRef.current = true; setSaving(true); setError('');
