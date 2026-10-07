@@ -271,6 +271,8 @@ test('Nora: with no listing zone the profile\'s zone decides; two listings still
   assert.match(none, /Today is 2026-10-08 \(Thursday, UTC\)\./);
   const bad = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'Mars/Olympus' }] } });
   assert.match(bad, /Today is 2026-10-08 \(Thursday, UTC\)\./);
+  const badThenProfile = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'Mars/Olympus' }], client_profiles: [{ user_id: COACH, timezone: 'America/Los_Angeles' }] } });
+  assert.match(badThenProfile, /Today is 2026-10-07 \(Wednesday, America\/Los_Angeles\)/, 'a zone Intl does not know is skipped, not kept');
   const failed = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'America/New_York' }] }, fail: ['trainers'] });
   assert.match(failed, /Today is 2026-10-08 \(Thursday, UTC\)\./, 'an unreadable listing reads as UTC');
 });
