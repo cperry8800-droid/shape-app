@@ -47,6 +47,7 @@ test('older pages: the Help tab asks the real Nora and shows her reply', async (
   assert.equal(p.calls.length, 1);
   assert.equal(p.calls[0].url, '/api/support/chat');
   assert.equal(p.calls[0].body.surface, 'web');
+  assert.equal(p.calls[0].body.confirmCards, false, 'this panel cannot show a confirm card, so it asks for none');
   const last = p.calls[0].body.messages.at(-1);
   assert.deepEqual(last, { role: 'user', content: 'find me a strength coach' });
   assert.equal(p.calls[0].body.messages[0].role, 'assistant', "Nora's greeting rides as her own turn");
@@ -89,7 +90,7 @@ test('Next app: askNora posts the conversation and returns her reply with safe l
   const seen = [];
   const r = await nextBtn.askNora([{ from: 'shape', text: 'Hi' }, { from: 'you', text: 'pricing?' }], (url, init) => { seen.push({ url, body: JSON.parse(init.body) }); return json(200, { reply: '$5 a month.', actions: [{ label: 'Pricing', url: '/newdesign/Pricing.html' }, { label: 'x', url: 'https://evil.example' }] }); });
   assert.equal(seen[0].url, '/api/support/chat');
-  assert.deepEqual(seen[0].body, { surface: 'web', messages: [{ role: 'assistant', content: 'Hi' }, { role: 'user', content: 'pricing?' }] });
+  assert.deepEqual(seen[0].body, { surface: 'web', confirmCards: false, messages: [{ role: 'assistant', content: 'Hi' }, { role: 'user', content: 'pricing?' }] });
   assert.deepEqual(r, { reply: '$5 a month.', links: [{ label: 'Pricing', url: '/newdesign/Pricing.html' }] });
   const down = await nextBtn.askNora([{ from: 'you', text: 'x' }], () => Promise.reject(new Error('offline')));
   assert.match(down.reply, DOWN);

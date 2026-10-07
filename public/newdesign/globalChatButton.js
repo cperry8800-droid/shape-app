@@ -301,7 +301,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ messages: history, surface: "web" })
+        body: JSON.stringify({ messages: history, surface: "web", confirmCards: false })
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (data) {
           if (!res.ok || !data || typeof data.reply !== "string" || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };

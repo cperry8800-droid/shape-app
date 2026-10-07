@@ -36,6 +36,8 @@ export async function askNora(history: Message[], fetcher: typeof fetch = fetch)
       credentials: 'same-origin',
       body: JSON.stringify({
         surface: 'web',
+        // This panel renders text and links only, so Nora is asked for no drafted changes.
+        confirmCards: false,
         messages: history.slice(-12).map((m) => ({ role: m.from === 'you' ? 'user' : 'assistant', content: m.text })),
       }),
     });
