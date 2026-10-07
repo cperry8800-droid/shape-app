@@ -92,3 +92,26 @@ test('a follow-up that opens another screen closes the sheet', () => {
   assert.match(sheet, /\['shape:openMarket', 'shape:openIntegrations', 'shape:openCoachPlan'\]/);
   assert.match(sheet, /names\.forEach\(\(n\) => window\.addEventListener\(n, close\)\)/);
 });
+
+// ── The account's greeting in the sheet (the Ask Nora plan, step 2, after #2247) ──────
+test('the sheet greets with the account\'s own greeting and suggestions, once, and only an untouched thread', () => {
+  const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
+  assert.match(sheet, /greet: true \};/, 'the seed is marked, so only it is ever replaced');
+  assert.match(sheet, /if \(_bsNoraGreeted \|\| !window\.ShapeSupport\?\.greeting\) return;/);
+  assert.match(sheet, /if \(cur\.length !== 1 \|\| !cur\[0\]\.greet\) return;/, 'a conversation under way is never rewritten');
+  assert.match(sheet, /_bsNoraPublish\(\[\{ \.\.\.cur\[0\], t: g\.text, quick: g\.quick \}\]\);/, 'through the store, so a closed sheet still gets it');
+  assert.match(sheet, /if \(!g\) \{ _bsNoraGreeted = false; return; \}/, 'a failed read is tried again next open');
+  // The chips show under the greeting while it is the only message, and a tap asks Nora.
+  assert.match(sheet, /\{m\.greet && supportMsgs\.length === 1 && Array\.isArray\(m\.quick\) && m\.quick\.length > 0 && \(/);
+  assert.match(sheet, /onClick=\{\(\) => sendSupportText\(q\)\}/);
+});
+
+test('the app reads the greeting through its API base and session, and fails to the seed', () => {
+  const be = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const fn = between(be, 'async function noraGreeting(', 'window.ShapeSupport = {');
+  assert.match(fn, /fetch\(`\$\{apiBaseUrl\}\/api\/support\/chat`, \{ headers, signal \}\)/, 'a root-relative fetch never reaches the backend on the native build');
+  assert.match(fn, /headers\.Authorization = `Bearer \$\{token\}`/);
+  assert.doesNotMatch(fn, /plain=1/, 'the sheet shows confirm cards, so it gets the full set');
+  assert.match(fn, /if \(!res\.ok\) return null;/);
+  assert.match(be, /window\.ShapeSupport = \{\n  greeting: noraGreeting,/);
+});

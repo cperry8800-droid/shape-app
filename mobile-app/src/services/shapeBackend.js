@@ -7912,7 +7912,28 @@ async function undoNoraProposal(auditId) {
   if (!res.ok) throw new Error(payload.error || 'Could not undo that change.');
   return payload;
 }
+// Nora's greeting and four suggestions for this account (GET /api/support/chat, the
+// Ask Nora plan, step 2): the same greeting the website shows the same account, decided
+// on the server from the session. null on any failure, so the sheet keeps its own.
+async function noraGreeting({ signal } = {}) {
+  if (!apiBaseUrl) return null;
+  try {
+    const headers = {};
+    const token = await liveAccessToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${apiBaseUrl}/api/support/chat`, { headers, signal });
+    if (!res.ok) return null;
+    const g = await res.json().catch(() => null);
+    if (!g || typeof g.text !== 'string' || !g.text.trim()) return null;
+    const quick = Array.isArray(g.quick) ? g.quick.filter((q) => typeof q === 'string' && q.trim()).slice(0, 4) : [];
+    return { text: g.text, quick };
+  } catch (e) {
+    return null;
+  }
+}
+
 window.ShapeSupport = {
+  greeting: noraGreeting,
   ask: askSupportBot,
   transcribe: transcribeVoice,
   transcribeNote,
