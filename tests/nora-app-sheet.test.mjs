@@ -97,10 +97,13 @@ test('a follow-up that opens another screen closes the sheet', () => {
 test('the sheet greets with the account\'s own greeting and suggestions, once, and only an untouched thread', () => {
   const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
   assert.match(sheet, /greet: true \};/, 'the seed is marked, so only it is ever replaced');
-  assert.match(sheet, /if \(_bsNoraGreeted \|\| !window\.ShapeSupport\?\.greeting\) return;/);
+  // Keyed by the account, so a sign-in after a signed-out preview fetches the new account's (Codex, #2249).
+  assert.match(sheet, /const who = _bsNoraWho\(\);\n\s+if \(_bsNoraGreeted === who \|\| !window\.ShapeSupport\?\.greeting\) return;/);
+  assert.match(APP, /const _bsNoraWho = \(\) => \{ try \{ return window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.user\?\.id \|\| 'anon'; \}/);
+  assert.match(sheet, /if \(!g \|\| _bsNoraGreeted !== who\)/, 'an answer for an account that has since signed out is dropped');
   assert.match(sheet, /if \(cur\.length !== 1 \|\| !cur\[0\]\.greet\) return;/, 'a conversation under way is never rewritten');
   assert.match(sheet, /_bsNoraPublish\(\[\{ \.\.\.cur\[0\], t: g\.text, quick: g\.quick \}\]\);/, 'through the store, so a closed sheet still gets it');
-  assert.match(sheet, /if \(!g\) \{ _bsNoraGreeted = false; return; \}/, 'a failed read is tried again next open');
+  assert.match(sheet, /if \(!g && _bsNoraGreeted === who\) _bsNoraGreeted = null;/, 'a failed read is tried again next open');
   // The chips show under the greeting while it is the only message, and a tap asks Nora.
   assert.match(sheet, /\{m\.greet && supportMsgs\.length === 1 && Array\.isArray\(m\.quick\) && m\.quick\.length > 0 && \(/);
   assert.match(sheet, /onClick=\{\(\) => sendSupportText\(q\)\}/);

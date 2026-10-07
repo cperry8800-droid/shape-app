@@ -24548,7 +24548,10 @@ let _bsNoraThread = null;
 // the in-flight flag live here, and every open sheet subscribes to them.
 let _bsNoraBusy = false;
 const _bsNoraSubs = new Set();
-let _bsNoraGreeted = false; // the account's greeting is fetched once a session
+// The account whose greeting the thread holds, so a sign-in after a signed-out preview
+// fetches the new account's own (the app remounts on login without reloading; Codex, #2249).
+let _bsNoraGreeted = null;
+const _bsNoraWho = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || 'anon'; } catch (e) { return 'anon'; } };
 function _bsNoraPublish(thread, busy) {
   if (thread) _bsNoraThread = thread;
   if (typeof busy === 'boolean') _bsNoraBusy = busy;
@@ -24578,14 +24581,15 @@ function BSNoraSheet({ onClose }) {
   // website shows this account. It replaces the seed only while the thread is still just
   // the greeting, and is fetched once a session.
   React.useEffect(() => {
-    if (_bsNoraGreeted || !window.ShapeSupport?.greeting) return;
-    _bsNoraGreeted = true;
+    const who = _bsNoraWho();
+    if (_bsNoraGreeted === who || !window.ShapeSupport?.greeting) return;
+    _bsNoraGreeted = who;
     window.ShapeSupport.greeting().then((g) => {
-      if (!g) { _bsNoraGreeted = false; return; }
+      if (!g || _bsNoraGreeted !== who) { if (!g && _bsNoraGreeted === who) _bsNoraGreeted = null; return; }
       const cur = _bsNoraThread || [SUPPORT_GREETING];
       if (cur.length !== 1 || !cur[0].greet) return;
       _bsNoraPublish([{ ...cur[0], t: g.text, quick: g.quick }]);
-    }).catch(() => { _bsNoraGreeted = false; });
+    }).catch(() => { if (_bsNoraGreeted === who) _bsNoraGreeted = null; });
   }, []);
   const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
   // Read at REPLY time via the ref — a reply resolving after the user flips the
