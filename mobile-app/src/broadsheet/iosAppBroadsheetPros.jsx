@@ -1276,9 +1276,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const onOpenPlan = (e) => {
       const planId = e && e.detail && typeof e.detail.planId === 'string' ? e.detail.planId : null;
       if (!planId) return;
+      // The client Nora drafted it for rides along, so Assign can start on them (#2227).
+      const clientId = typeof e.detail.clientId === 'string' && e.detail.clientId ? e.detail.clientId : null;
       navJumpRef.current.navPush();
       setProgramInitialTab('programs');
-      setOpenPlanRequest({ planId, nonce: Date.now() });
+      setOpenPlanRequest({ planId, clientId, nonce: Date.now() });
       setTab('programs');
     };
     window.addEventListener('shape:openCoachPlan', onOpenPlan);
@@ -3528,7 +3530,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
 // one gated boundary (a weekday split fills the week; a week block or an
 // exercise outline is one session per week); nutritionist assignments publish a
 // client_meal_plans weekly menu. A short note lands in the client's 1:1.
-function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp, clientUid: clientUidProp, onBack, onDone }) {
+function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp, clientUid: clientUidProp, preferClientUid = null, onBack, onDone }) {
   const t = useBS();
   const tr = useShapeTr();
   const accent = bsProAccent(t, role);
@@ -3563,6 +3565,14 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     if (fixedClient || !window.ShapeAssign?.clients) { setClientList([]); return; }
     window.ShapeAssign.clients(role).then(rows => setClientList(rows || [])).catch(() => setClientList([]));
   }, []);
+  // A program Nora drafted for a named client opens Assign with that client picked,
+  // once the roster holds them; the coach can still pick someone else. Only a client
+  // on this coach's own roster is ever picked, so a stale id selects nobody.
+  useEffectBSP(() => {
+    if (!preferClientUid || picked || !Array.isArray(clientList)) return;
+    const hit = clientList.find(c => c && c.userId === preferClientUid);
+    if (hit) setPicked(hit);
+  }, [clientList, preferClientUid]);
 
   // Default the weekly repeat to the plan's authored length ("6 weeks").
   useEffectBSP(() => {
@@ -5986,7 +5996,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
     const req = openPlanRequest;
     if (!req || !req.planId || openHandled.current === req.nonce || !serverPlans) return;
     const row = serverPlans.find((p) => p.id === req.planId);
-    if (row) { openHandled.current = req.nonce; setEditingPlan(row); return; }
+    if (row) { openHandled.current = req.nonce; if (req.clientId) setAssignPrefer({ planId: row.id, clientId: req.clientId }); setEditingPlan(row); return; }
     if (openRetried.current !== req.nonce) { openRetried.current = req.nonce; refreshLibrary(); return; }
     openHandled.current = req.nonce;
     setLibraryError(tr('coach:plans.openMissing', { defaultValue: "That program isn't in your library yet. Try again in a moment." }));
@@ -6096,6 +6106,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
   const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
+  const [assignPrefer, setAssignPrefer] = useStateBSP(null); // { planId, clientId } from Nora's Open in builder
   // `days` is destructured and carried even though the trainer editor never
   // authors it (perDayAuthoring is nutrition-only): the callback contract lives
   // on the editor, and a receiver that silently drops a field the editor may one
@@ -6139,7 +6150,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Assign a catalogue plan to a linked client ──
-  if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:plans.assignedTrain', { defaultValue: "Assigned — it's on their Train tab" })); }} />;
+  if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} preferClientUid={assignPrefer && assignPlan.id && assignPrefer.planId === assignPlan.id ? assignPrefer.clientId : null} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:plans.assignedTrain', { defaultValue: "Assigned — it's on their Train tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
   // `loadCapture` is TRAINING-ONLY. The guardrail's universe is training load

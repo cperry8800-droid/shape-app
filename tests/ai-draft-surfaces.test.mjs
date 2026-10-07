@@ -406,10 +406,10 @@ test('app: the trainer shell answers shape:openCoachPlan and the Programs screen
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
   const trainer = src.slice(src.indexOf('function BSTrainerAppInner('), src.indexOf('function BSNutritionistApp('));
   assert.match(trainer, /window\.addEventListener\('shape:openCoachPlan', onOpenPlan\)/);
-  assert.match(trainer, /setOpenPlanRequest\(\{ planId, nonce: Date\.now\(\) \}\);\s*setTab\('programs'\);/);
+  assert.match(trainer, /setOpenPlanRequest\(\{ planId, clientId, nonce: Date\.now\(\) \}\);\s*setTab\('programs'\);/);
   assert.match(trainer, /<BSTrainerPrograms sheet=\{sheet\} initialTab=\{programInitialTab\} openPlanRequest=\{openPlanRequest\} \/>/);
   const programs = src.slice(src.indexOf('function BSTrainerPrograms('), src.indexOf('const rememberPlan = (row) =>', src.indexOf('function BSTrainerPrograms(')));
-  assert.match(programs, /const row = serverPlans\.find\(\(p\) => p\.id === req\.planId\);\s*if \(row\) \{ openHandled\.current = req\.nonce; setEditingPlan\(row\); return; \}/);
+  assert.match(programs, /const row = serverPlans\.find\(\(p\) => p\.id === req\.planId\);\s*if \(row\) \{ openHandled\.current = req\.nonce; if \(req\.clientId\) setAssignPrefer\(\{ planId: row\.id, clientId: req\.clientId \}\); setEditingPlan\(row\); return; \}/);
   assert.match(programs, /refreshLibrary\(\); return; \}/, 'one more read before it says it cannot find it');
 });
 
