@@ -152,6 +152,19 @@ test('rules GET: the defaults when nothing is saved, the stored row when it is, 
   assert.deepEqual([nutri.status, nutri.body.providerId, nutri.body.rules.bufferMin], [200, null, 0]);
 });
 
+// Codex, the review of #2225: owner_id is not unique, and `maybeSingle()` over two owned rows is an
+// error, so an account with two trainer rows got a 503 from every call with no way to pick one.
+// The lowest id is the account's primary row, as /api/lead-boosts and Stripe Connect already read it.
+test('an account that owns two rows for a role gets its primary row (the lowest id), not a 503', async () => {
+  const t = coach();
+  t.trainers = [{ id: 11, owner_id: 'coach-1', name: 'Second', timezone: NY }, ...t.trainers];
+  const c = db({ tables: t });
+  const rules = await call(c, 'rules', 'GET', { qs: 'role=trainer' });
+  assert.deepEqual([rules.status, rules.body.providerId], [200, 7]);
+  const off = await call(c, 'off', 'GET', { qs: 'role=trainer' });
+  assert.equal(off.status, 200);
+});
+
 test('rules POST: validated, written for the caller\'s own row, and only the fields that were sent', async () => {
   const c = db({ tables: coach() });
   const first = await call(c, 'rules', 'POST', { body: { role: 'trainer', bufferMin: 15, maxPerDay: 6, minNoticeHours: 12 } });

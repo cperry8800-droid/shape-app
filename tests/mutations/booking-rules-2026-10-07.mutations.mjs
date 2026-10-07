@@ -213,5 +213,15 @@ export default {
     { name: 'anon cannot call the busy read', file: SQL,
       find: 'to anon, authenticated;\n',
       replace: 'to authenticated;\n' },
+    // ── Codex, the review of #2225 ───────────────────────────────────────────────────────
+    { name: 'two owned rows for a role are a 503 again', file: OWNED,
+      find: "    .order('id', { ascending: true }).limit(1).maybeSingle();",
+      replace: '    .maybeSingle();' },
+    { name: 'a busy read over the cap returns a cut list', file: SQL,
+      find: '  if v_rows > 2000 then',
+      replace: '  if false then' },
+    { name: 'the longest slot range is a busy read the function refuses', file: RULES,
+      find: 'export const MAX_WINDOW_DAYS = 60;',
+      replace: 'export const MAX_WINDOW_DAYS = 62;' },
   ],
 };

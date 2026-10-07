@@ -68,7 +68,14 @@ export const RULE_LIMITS = Object.freeze({
 export const DEFAULT_RULES = Object.freeze({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0 });
 
 /** The longest window `openSlots` walks, and the longest a busy read may ask for. */
-export const MAX_WINDOW_DAYS = 62;
+// ⚠ 60, NOT 62 (Codex, the review of #2225). openSlots says to read busy blocks from a day before
+// `from` to a day after `to`, and provider_busy_blocks refuses a window longer than
+// BUSY_READ_MAX_DAYS. A 62-day slot range padded by a day each side was a 64-day read the
+// function refuses, leaving a caller to either fail or drop the padding and miscount the first
+// and last local days. tests/booking-rules.test.mjs holds MAX_WINDOW_DAYS + 2 within the
+// function's limit, and the function's limit equal to the migration's.
+export const MAX_WINDOW_DAYS = 60;
+export const BUSY_READ_MAX_DAYS = 62;
 /** The most slot starts `openSlots` returns. */
 export const MAX_SLOTS = 2000;
 /** The longest single block of time off. A longer leave is two entries. */

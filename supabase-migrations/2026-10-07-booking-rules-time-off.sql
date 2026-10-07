@@ -66,7 +66,10 @@
 -- REFUSED, not cut short — a silently shortened answer reads as free time past the cut, which
 -- is the one error a busy read must never make); nothing that ended more than two days before
 -- now (a member needs today's sessions for the daily limit and has no business with the
--- coach's history); and at most 2000 rows, which 62 days cannot reach at 24 sessions a day.
+-- coach's history); and MORE THAN 2000 ROWS IS AN ERROR, NOT A SHORTER LIST (Codex, the review of
+-- #2225: a cut list hands a member busy time as free time, the one error a busy read must never
+-- make; nothing caps a coach's sessions or time-off rows per day, so the cap is reachable in
+-- principle even though 62 days at 24 sessions a day is 1,488).
 -- ⚠ GRANTED TO anon BY NAME, and registered as public-by-design in
 -- tests/fixtures/definer-anon-allowlist.json — the consultation page's open times are shown to
 -- signed-out visitors, and the definer audit (tests/definer-grants.test.mjs) requires every
@@ -194,6 +197,7 @@ as $$
 #variable_conflict use_column
 declare
   v_from timestamptz;
+  v_rows integer;
 begin
   if p_role is null or p_role not in ('trainer', 'nutritionist')
      or p_provider_id is null or p_from is null or p_to is null or p_to <= p_from then
@@ -231,7 +235,14 @@ begin
          and s.scheduled_at + make_interval(mins => greatest(coalesce(s.duration_min, 15), 1)) > v_from
     ) b
     order by b.starts_at, b.ends_at
-    limit 2000;
+    limit 2001;
+  -- One row past the cap is read so the cap can be SEEN. Raising after RETURN QUERY aborts the
+  -- call, so the caller gets this error and none of the rows: a slot list fails closed (no
+  -- times offered) instead of offering the times past the cut.
+  get diagnostics v_rows = row_count;
+  if v_rows > 2000 then
+    raise exception 'provider_busy_blocks: more than 2000 busy blocks in the window; ask for a shorter one' using errcode = '54000';
+  end if;
 end;
 $$;
 

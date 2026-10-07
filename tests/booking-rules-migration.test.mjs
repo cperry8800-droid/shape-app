@@ -76,7 +76,11 @@ test('provider_busy_blocks is a pinned definer that returns when, and nothing ab
   assert.match(body, /s\.status in \('requested', 'confirmed'\)/);
   assert.match(body, /p_to - p_from > interval '62 days' then raise exception/);
   assert.match(body, /greatest\(p_from, now\(\) - interval '2 days'\)/);
-  assert.match(body, /limit 2000;/);
+  // Over the cap is an error, never a cut list (Codex, the review of #2225): one row past it is
+  // read so the overflow is seen, and the function raises.
+  assert.match(body, /limit 2001;/);
+  assert.match(body, /get diagnostics v_rows = row_count;\s*if v_rows > 2000 then\s*raise exception/);
+  assert.doesNotMatch(body, /limit 2000;/);
   assert.match(body, /o\.starts_at < p_to and o\.ends_at > v_from/, 'time off overlapping the window');
 });
 

@@ -32,7 +32,15 @@ export async function resolveOwnedProvider(
   userId: string
 ): Promise<OwnedProvider | null | 'unavailable'> {
   const table = role === 'trainer' ? 'trainers' : 'nutritionists';
-  const { data, error } = await supabase.from(table).select('*').eq('owner_id', userId).maybeSingle();
+  // ⚠ THE LOWEST id, NOT "THE ONLY ROW" (Codex, the review of #2225). `owner_id` is not unique,
+  // so an account that owns two rows for one role made `maybeSingle()` error, and every rules
+  // and time-off call for that role answered 503 with nothing the caller could send to pick
+  // one. Measured 2026-10-07: no real account owns two (the duplicates are the seeded example
+  // coaches, which own nothing), but the schema permits it. The lowest id is "the account's
+  // primary provider row" — the rule /api/lead-boosts and /api/stripe/connect-account already
+  // use — so all three agree on which row an account's settings belong to.
+  const { data, error } = await supabase.from(table).select('*').eq('owner_id', userId)
+    .order('id', { ascending: true }).limit(1).maybeSingle();
   if (error) return 'unavailable';
   if (!data) return null;
   const row = data as { id: number; timezone?: unknown };

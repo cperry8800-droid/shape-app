@@ -340,14 +340,14 @@ test('openSlots offers exactly the starts checkSlot accepts, soonest first', () 
   assert.ok(!got.some((s) => s < '2026-10-07T08:00:00.000Z'), '12 hours\' notice from Tuesday 4:00 PM closes Tuesday');
 });
 
-test('openSlots is bounded: a step, a limit, a 62-day window, and nonsense refused', () => {
+test('openSlots is bounded: a step, a limit, a 60-day window, and nonsense refused', () => {
   const ctx = base({ now: '2026-01-01T00:00:00Z', availability: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, start_minute: 0, duration_min: 1440 })) });
   const day = R.openSlots({ from: '2026-01-05T05:00:00Z', to: '2026-01-06T05:00:00Z', durationMin: 30, step: 30 }, ctx);
   assert.equal(day.length, 48, 'a 24-hour day at 30-minute steps');
   assert.equal(R.openSlots({ from: '2026-01-05T05:00:00Z', to: '2026-01-06T05:00:00Z', durationMin: 30 }, ctx).length, 96, 'step defaults to 15');
   assert.equal(R.openSlots({ from: '2026-01-05T05:00:00Z', to: '2026-01-06T05:00:00Z', durationMin: 30, limit: 7 }, ctx).length, 7);
   const year = R.openSlots({ from: '2026-01-01T05:00:00Z', to: '2027-01-01T05:00:00Z', durationMin: 60, step: 240, limit: 2000 }, ctx);
-  assert.ok(year.length > 0 && Z(year[year.length - 1]) < Z('2026-01-01T05:00:00Z') + R.MAX_WINDOW_DAYS * 86_400_000, 'cut at 62 days');
+  assert.ok(year.length > 0 && Z(year[year.length - 1]) < Z('2026-01-01T05:00:00Z') + R.MAX_WINDOW_DAYS * 86_400_000, 'cut at MAX_WINDOW_DAYS');
   assert.ok(R.openSlots({ from: '2026-01-01T05:00:00Z', to: '2027-01-01T05:00:00Z', durationMin: 15, step: 5, limit: 99999 }, ctx).length <= R.MAX_SLOTS);
   for (const bad of [
     { from: '2026-01-06T05:00:00Z', to: '2026-01-05T05:00:00Z', durationMin: 30 },
@@ -429,4 +429,15 @@ test('parseTimeOff: instants with offsets, whole days in the coach\'s zone, and 
   assert.equal(noZone.error, 'timezone_required');
   assert.equal(R.parseTimeOff({ startsAt: '2026-10-09T17:00:00Z', endsAt: '2026-10-09T18:00:00Z' }, { zone: null, now }).ok, true);
   assert.equal(R.parseTimeOff({ startsAt: '2026-10-09T17:00:00Z', endsAt: '2026-10-09T18:00:00Z', note: '   ' }, opts).note, null);
+});
+
+// Codex, the review of #2225: the busy read openSlots asks for (a day either side of its range)
+// must fit inside what provider_busy_blocks accepts, or the longest range a booking page may ask
+// for is one the function refuses.
+test('the longest slot range, padded a day each side, is a busy read the function accepts', () => {
+  assert.ok(R.MAX_WINDOW_DAYS + 2 <= R.BUSY_READ_MAX_DAYS, `${R.MAX_WINDOW_DAYS} + 2 days > ${R.BUSY_READ_MAX_DAYS}`);
+  const sql = readFileSync(new URL('../supabase-migrations/2026-10-07-booking-rules-time-off.sql', import.meta.url), 'utf8');
+  const m = sql.match(/p_to - p_from > interval '(\d+) days'/);
+  assert.ok(m, 'the function states its window limit');
+  assert.equal(Number(m[1]), R.BUSY_READ_MAX_DAYS, 'the module and the migration agree on the busy-read limit');
 });
