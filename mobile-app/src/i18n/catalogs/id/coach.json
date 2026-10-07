@@ -1140,5 +1140,7 @@
   "video.emptyFile": "Pilih file video yang tidak kosong.",
   "video.fileType": "Pilih video MP4, MOV, M4V atau WebM. MP4 dengan H.264 paling kompatibel di berbagai perangkat.",
   "video.fileSize": "Ukuran video harus di bawah {limit} MB.",
-  "schedule.pickTime": "Pilih waktu"
+  "schedule.pickTime": "Pilih waktu",
+  "schedule.runPartial": "{booked} dari {total} dipesan.",
+  "schedule.runDone": "Selesai"
 }

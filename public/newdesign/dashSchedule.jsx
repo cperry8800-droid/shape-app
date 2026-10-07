@@ -714,6 +714,29 @@ function dscDayLabel(iso, long) {
 }
 // Now, on the zone's own clock: { date, min }. The grid's now line and "that time has passed"
 // both read it, so the coach's clock decides, never this laptop's.
+// ── Weekly runs (recurring sessions, step 4) ──
+// The dates of a run as /api/sessions/manage lays them out (src/lib/session-series.ts): from the
+// first date for `weeks` weeks, on the picked weekdays. Civil dates only; the route places each
+// on the coach's clock and says which it skipped.
+function dscRunDates(first, weeks, weekdays) {
+  const d0 = dscRouteDate(first);
+  if (!d0 || !(weeks > 0)) return [];
+  const days = new Set(weekdays), out = [];
+  for (let i = 0; i < weeks * 7; i++) { const d = dscAddDays(d0, i); if (days.has(d.getDay())) out.push(dscIso(d)); }
+  return out;
+}
+const dscShiftIso = (iso, n) => { const d = dscRouteDate(iso); return d ? dscIso(dscAddDays(d, n)) : iso; };
+const dscDaysBetween = (a, b) => {
+  const x = dscRouteDate(a), y = dscRouteDate(b);
+  return x && y ? Math.round((Date.UTC(y.getFullYear(), y.getMonth(), y.getDate()) - Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())) / 86400000) : 0;
+};
+// "This and following" on the loaded calendar: this booking and every later active one of its run
+// (the route acts on the same set, read from the database).
+const dscFollowing = (list, ev) => list.filter((e) => e.seriesId && e.seriesId === ev.seriesId && (e.status === "requested" || e.status === "confirmed")
+  && (e.date + " " + (e.time || "")) >= (ev.date + " " + (ev.time || "")));
+const DSC_RUN_WEEKS = [2, 3, 4, 6, 8, 10, 12, 16, 20, 26];
+const DSC_WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 function dscNowIn(zone) {
   try {
     if (zone) {
@@ -1131,6 +1154,7 @@ function DscBookingSheet({ ev, row, colorOf, prep, busy, startInMove, verdictFor
           ["When", dscDayLabel(ev.date) + (s != null ? " · " + dscClock(s) + "–" + dscClock(s + dscDur(ev)) : "")],
           ["Where", dscWhere(ev)],
           ["Status", status],
+          ...(ev.seriesId ? [["Repeats", "Part of a weekly run"]] : []),
         ]} />
       </div>
 
@@ -1152,11 +1176,24 @@ function DscBookingSheet({ ev, row, colorOf, prep, busy, startInMove, verdictFor
         </div>
       ) : confirmCancel ? (
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid " + DSC_HAIR }}>
-          <div style={{ fontSize: 13 }}>Cancel this session? {first} is told.</div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button type="button" disabled={busy} onClick={() => onAction(ev, "cancel")} style={dscBtn("warn")}>Yes, cancel it</button>
-            <button type="button" onClick={() => setConfirmCancel(false)} style={dscBtn()}>Keep it</button>
-          </div>
+          {ev.seriesId ? (
+            <>
+              <div style={{ fontSize: 13 }}>Cancel this session, or this one and the rest of its weekly run? {first} is told.</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <button type="button" disabled={busy} onClick={() => onAction(ev, "cancel")} style={dscBtn("warn")}>This session</button>
+                <button type="button" disabled={busy} onClick={() => onAction(ev, "cancel", { scope: "following" })} style={dscBtn("warn")}>This and following</button>
+                <button type="button" onClick={() => setConfirmCancel(false)} style={dscBtn()}>Keep them</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 13 }}>Cancel this session? {first} is told.</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button type="button" disabled={busy} onClick={() => onAction(ev, "cancel")} style={dscBtn("warn")}>Yes, cancel it</button>
+                <button type="button" onClick={() => setConfirmCancel(false)} style={dscBtn()}>Keep it</button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
@@ -1201,7 +1238,7 @@ function DscBookingSheet({ ev, row, colorOf, prep, busy, startInMove, verdictFor
 // /api/consultation's duration_min). Both are a pick, not a rule.
 const DSC_LENGTHS = [15, 30, 45, 60, 90];
 const DSC_TYPES = [["video", "Video"], ["inperson", "In person"], ["phone", "Phone"]];
-function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose }) {
+function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone }) {
   const [date, setDate] = React.useState(slot.date);
   const [minute, setMinute] = React.useState(slot.minute);
   const [clientId, setClientId] = React.useState(roster.length === 1 ? roster[0].client.profile.id : "");
@@ -1210,17 +1247,42 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose }) {
   const [topic, setTopic] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
+  // A weekly run: the first date's own weekday is always in it (the run starts with this
+  // booking), and any others the coach adds. Up to 60 sessions, the route's ceiling.
+  const [weekly, setWeekly] = React.useState(false);
+  const [weeks, setWeeks] = React.useState(8);
+  const [extraDays, setExtraDays] = React.useState([]);
+  const [skipped, setSkipped] = React.useState(null);   // after a run: the dates it could not book
+  const firstWd = dscWeekday(date);
+  const runDays = firstWd == null ? extraDays : [...new Set([firstWd, ...extraDays])].sort((a, b) => a - b);
+  const runDates = weekly ? dscRunDates(date, weeks, runDays) : [];
+  const tooMany = runDates.length > 60;
   const v = verdictFor(null, date, minute, dur);
   const row = roster.find((r) => r.client.profile.id === clientId) || null;
-  const blocked = busy || !row || v.past || !!v.clash;
+  const blocked = busy || !row || v.past || !!v.clash || tooMany;
   const pill = (on) => ({ ...dscBtn(on ? "on" : null), padding: "6px 10px" });
   const submit = async () => {
     if (blocked) return;
     setBusy(true); setErr("");
-    const out = await onBook({ row, date, minute, durationMin: dur, type, topic: topic.trim() });
+    const out = await onBook({ row, date, minute, durationMin: dur, type, topic: topic.trim(), ...(weekly ? { repeat: { weeks, weekdays: runDays } } : {}) });
     setBusy(false);
-    if (out && out.ok) onClose(); else setErr((out && out.error) || "Couldn't book it — try again.");
+    if (!out || !out.ok) { setErr((out && out.error) || "Couldn't book it — try again."); return; }
+    // A run that skipped dates says which before the sheet goes, rather than in a toast.
+    if (out.skipped && out.skipped.length) setSkipped(out); else onClose();
   };
+  if (skipped) {
+    return (
+      <DscModal label="Weekly run booked" accent={DSC_TEAL} onClose={onClose}>
+        <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: DSC_TEAL }}>Weekly run</div>
+        <div role="status" style={{ fontSize: 14, marginTop: 6 }}>Booked {skipped.booked} of {skipped.booked + skipped.skipped.length}. {skipped.first} is told.</div>
+        <div style={{ marginTop: 10, fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50 }}>Not booked</div>
+        <ul style={{ margin: "6px 0 0", paddingLeft: 18, display: "grid", gap: 4, fontSize: 12.5 }}>
+          {skipped.skipped.map((x) => <li key={x.date + x.time}>{x.message}</li>)}
+        </ul>
+        <div style={{ marginTop: 16 }}><button type="button" onClick={onDone || onClose} style={dscBtn("on")}>Done</button></div>
+      </DscModal>
+    );
+  }
   return (
     <DscModal label="Book a session" accent={DSC_TEAL} onClose={onClose}>
       <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: DSC_TEAL }}>Book a {role === "nutritionist" ? "consult" : "session"}</div>
@@ -1255,12 +1317,41 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose }) {
           <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50 }}>Focus · optional</span>
           <input type="text" aria-label="Focus" maxLength={200} value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={role === "nutritionist" ? "e.g. Plan review" : "e.g. Lower A"} style={{ ...dscInput, fontSize: 12.5, fontFamily: "inherit" }} />
         </label>
+        <div>
+          <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50, marginBottom: 5 }}>Repeat</div>
+          <div role="group" aria-label="Repeat" style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            <button type="button" aria-pressed={!weekly} onClick={() => setWeekly(false)} style={pill(!weekly)}>Doesn’t repeat</button>
+            <button type="button" aria-pressed={weekly} onClick={() => setWeekly(true)} style={pill(weekly)}>Weekly</button>
+          </div>
+          {weekly && (
+            <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+              <div role="group" aria-label="Days" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {DSC_WD.map((l, i) => {
+                  const on = runDays.includes(i), locked = i === firstWd;
+                  return <button key={l} type="button" aria-label={l} aria-pressed={on} disabled={locked} title={locked ? "The run starts with this booking" : undefined}
+                    onClick={() => setExtraDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i]))}
+                    style={{ ...pill(on), padding: "6px 8px", minWidth: 34, opacity: locked ? 0.85 : 1 }}>{l.slice(0, 2)}</button>;
+                })}
+              </div>
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5 }}>
+                <span>For</span>
+                <select aria-label="Weeks" value={weeks} onChange={(e) => setWeeks(Number(e.target.value))} style={{ ...dscInput, fontSize: 12.5, fontFamily: "inherit" }}>
+                  {DSC_RUN_WEEKS.map((n) => <option key={n} value={n}>{n} weeks</option>)}
+                </select>
+              </label>
+              <div role="status" style={{ fontSize: 12, color: tooMany ? DSC_RUST : DSC_INK50 }}>
+                {tooMany ? runDates.length + " sessions is more than one run can book (60). Pick fewer days or weeks."
+                  : runDates.length + " sessions · last on " + dscDayLabel(runDates[runDates.length - 1]) + ". A date that overlaps another booking is skipped, and named."}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       <DscVerdict v={v} />
       {err && <div role="alert" style={{ fontSize: 12.5, color: DSC_RUST, marginTop: 8 }}>{err}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
         <button type="button" disabled={blocked} onClick={submit} style={{ ...dscBtn("on"), opacity: blocked ? 0.45 : 1 }}>
-          {busy ? "Booking…" : (v.away ? "Book in time off" : v.outside ? "Book outside hours" : "Book") + (row ? " · " + row.client.profile.name.split(" ")[0] + " is told" : "")}
+          {busy ? "Booking…" : (weekly && runDates.length > 1 ? "Book " + runDates.length + " sessions" : "Book") + (v.away ? " in time off" : v.outside ? " outside hours" : "") + (row ? " · " + row.client.profile.name.split(" ")[0] + " is told" : "")}
         </button>
         <button type="button" onClick={onClose} style={dscBtn()}>Cancel</button>
       </div>
@@ -1280,6 +1371,24 @@ function DscConfirmMove({ move, onYes, onNo }) {
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
         <button type="button" onClick={onYes} style={dscBtn("on")}>Move anyway</button>
+        <button type="button" onClick={onNo} style={dscBtn()}>Keep it</button>
+      </div>
+    </DscModal>
+  );
+}
+
+// A booking of a weekly run is moved alone or with the rest of the run, the coach's call.
+function DscScopeAsk({ ask, onPick, onNo }) {
+  const who = ask.ev.with || ask.ev.title;
+  return (
+    <DscModal label="Move a weekly session" accent={DSC_TEAL} onClose={onNo} width={400}>
+      <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: DSC_TEAL }}>Weekly run</div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>
+        Move {who} to {dscDayLabel(ask.date)} · {dscClock(dscMin(ask.time))}. Just this session, or this one and the rest of the run? The rest keep their weekly rhythm on the new day and time.
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+        <button type="button" onClick={() => onPick("one")} style={dscBtn("on")}>Just this one</button>
+        <button type="button" onClick={() => onPick("following")} style={dscBtn("on")}>This and following</button>
         <button type="button" onClick={onNo} style={dscBtn()}>Keep it</button>
       </div>
     </DscModal>
@@ -1424,6 +1533,7 @@ function CoachSchedulePage({ role }) {
   const [slot, setSlot] = React.useState(null);         // { date, minute, dur } — "+ Book"
   const [bookOpen, setBookOpen] = React.useState(false);
   const [confirmMove, setConfirmMove] = React.useState(null);
+  const [scopeAsk, setScopeAsk] = React.useState(null);   // { ev, date, time } — a run's move: this one or following
   const [busyId, setBusyId] = React.useState(null);
   const [toast, setToast] = React.useState(null);
   const dragRef = React.useRef(null);
@@ -1605,13 +1715,24 @@ function CoachSchedulePage({ role }) {
   };
 
   // ── Moving a booking ──
-  const moveBooking = async (ev, dateIso, time) => {
+  const moveBooking = async (ev, dateIso, time, scope) => {
     const who = ev.with || ev.title;
     const when = dscDayLabel(dateIso) + (time ? " " + dscClock(dscMin(time)) : "");
-    const moveTo = (date, t) => (list) => list.map((e) => (e.id === ev.id ? { ...e, date, time: t } : e));
-    if (!liveEvents) { setDemoEvents(moveTo(dateIso, time)); showToast("Demo · would move " + who + " to " + when + " and notify them."); return; }
+    // "This and following" on a run: every later booking of it moves by the same number of days to
+    // the new wall time, as the route moves them (session-series.ts shiftedRun).
+    const following = scope === "following" && !!ev.seriesId && ev.source === "session";
+    const shift = dscDaysBetween(ev.date, dateIso);
+    const moveTo = (date, t) => (list) => {
+      if (!following) return list.map((e) => (e.id === ev.id ? { ...e, date, time: t } : e));
+      const ids = new Set(dscFollowing(list, ev).map((e) => e.id));
+      return list.map((e) => (e.id === ev.id ? { ...e, date, time: t } : ids.has(e.id) ? { ...e, date: dscShiftIso(e.date, shift), time: t } : e));
+    };
+    const snapshot = liveEvents && cal ? cal.events : null;
+    const n = following ? Math.max(1, dscFollowing(calEvents, ev).length) : 1;
+    const moved = following ? n + " sessions with " + who + " (" + dscDayLabel(dateIso) + " on, at " + dscClock(dscMin(time)) + ")" : who + " to " + when;
+    if (!liveEvents) { setDemoEvents(moveTo(dateIso, time)); showToast("Demo · would move " + moved + " and notify them."); return; }
     setCal((c) => (c ? { ...c, events: moveTo(dateIso, time)(c.events) } : c));
-    if (!isLive) { showToast("Demo · would move " + who + " to " + when + " and notify them."); return; }
+    if (!isLive) { showToast("Demo · would move " + moved + " and notify them."); return; }
     try {
       let res;
       if (ev.source === "session" && ev.sessionId) {
@@ -1619,11 +1740,11 @@ function CoachSchedulePage({ role }) {
         // reschedule's date+time in the zone it is handed; without one it reads UTC, and a
         // 9:00 AM New York session dropped on a new day would land at 5:00 AM (4:00 in winter).
         // Keeping the WALL clock is also what holds "9:00 AM" across a DST change.
-        res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reschedule", sessionId: ev.sessionId, date: dateIso, time: time || null, tz: calZone || undefined }) });
+        res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reschedule", sessionId: ev.sessionId, date: dateIso, time: time || null, tz: calZone || undefined, ...(following ? { scope: "following" } : {}) }) });
       } else if (ev.source === "event") {
         res = await fetch("/api/calendar", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: String(ev.id).replace(/^event:/, ""), date: dateIso, ...(time ? { time } : {}) }) });
       }
-      if (res && res.ok) { showToast("Moved " + who + " to " + when + " · " + (ev.with ? ev.with.split(" ")[0] + " notified" : "updated")); return; }
+      if (res && res.ok) { showToast("Moved " + moved + " · " + (ev.with ? ev.with.split(" ")[0] + " notified" : "updated")); return; }
       // ⚠ THE SERVER'S OWN SENTENCE, WHEN IT HAS ONE. An overlap the grid could not see (a
       // booking in a month not loaded, or made a minute ago elsewhere) comes back as a 409
       // naming the clash, which says more than "couldn't move it".
@@ -1631,7 +1752,8 @@ function CoachSchedulePage({ role }) {
       throw new Error((j && j.error) || "");
     } catch (e) {
       showToast((e && e.message) || "Couldn't move it — try again.");
-      setCal((c) => (c ? { ...c, events: moveTo(ev.date, ev.time)(c.events) } : c)); // revert
+      // Revert: a run's move put back whole, from the list as it was before it.
+      setCal((c) => (c ? { ...c, events: following && snapshot ? snapshot : moveTo(ev.date, ev.time)(c.events) } : c));
     }
   };
   // Every move goes through the verdict first: a clash or the past is refused outright,
@@ -1647,6 +1769,11 @@ function CoachSchedulePage({ role }) {
       if (v.clash) { showToast("Not moved — that overlaps " + v.clash.label + "."); return; }
       if (v.outside || v.away) { setConfirmMove({ ev, date: dateIso, time, why: v.away ? "away" : "outside" }); return; }
     }
+    goMove(ev, dateIso, time);
+  };
+  // A booking of a run asks which: just this one, or this one and the rest of the run.
+  const goMove = (ev, dateIso, time) => {
+    if (ev.source === "session" && ev.seriesId && time) { setScopeAsk({ ev, date: dateIso, time }); return; }
     moveBooking(ev, dateIso, time);
   };
   // Month view: a day-only move, by HTML5 drag.
@@ -1658,22 +1785,28 @@ function CoachSchedulePage({ role }) {
   };
 
   // ── Answering a booking ──
-  const sessionAction = async (ev, action) => {
+  const sessionAction = async (ev, action, opts) => {
     const first = String(ev.with || "the client").split(" ")[0];
+    // "This and following" on a run (recurring sessions): this booking and every later one of it.
+    const following = action === "cancel" && opts && opts.scope === "following" && !!ev.seriesId;
     const said = { confirm: "Accepted", decline: "Declined", cancel: "Cancelled", complete: "Marked done" }[action];
     const told = action === "complete" ? "" : " · " + first + " is told";
-    const apply = (extra) => (list) => (action === "decline" || action === "cancel"
-      ? list.filter((e) => e.id !== ev.id)
-      : list.map((e) => (e.id === ev.id ? { ...e, status: action === "confirm" ? "confirmed" : "completed", reschedulable: action === "confirm", ...(extra || {}) } : e)));
-    if (!liveEvents || !isLive) { setEvents(apply()); setBooking(null); showToast("Demo · " + said.toLowerCase() + " " + (ev.with || ev.title) + told + " once you're signed in."); return; }
+    const apply = (extra) => (list) => {
+      if (following) { const gone = new Set(dscFollowing(list, ev).map((e) => e.id)); gone.add(ev.id); return list.filter((e) => !gone.has(e.id)); }
+      return action === "decline" || action === "cancel"
+        ? list.filter((e) => e.id !== ev.id)
+        : list.map((e) => (e.id === ev.id ? { ...e, status: action === "confirm" ? "confirmed" : "completed", reschedulable: action === "confirm", ...(extra || {}) } : e));
+    };
+    const what = (n) => (following ? n + (n === 1 ? " session" : " sessions") + " with " + (ev.with || ev.title) : (ev.with || ev.title));
+    if (!liveEvents || !isLive) { const n = following ? dscFollowing(calEvents, ev).length : 1; setEvents(apply()); setBooking(null); showToast("Demo · " + said.toLowerCase() + " " + what(n) + told + " once you're signed in."); return; }
     setBusyId(ev.id);
     try {
-      const res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, sessionId: ev.sessionId }) });
+      const res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, sessionId: ev.sessionId, ...(following ? { scope: "following" } : {}) }) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((j && j.error) || "");
       setEvents(apply(action === "confirm" && j && j.meetingUrl ? { meetingUrl: j.meetingUrl } : null));
       setBooking(null);
-      showToast(said + " · " + (ev.with || ev.title) + told);
+      showToast(said + " · " + what(following && j && j.series ? j.series.count : 1) + told);
     } catch (e) {
       showToast((e && e.message) || "Couldn't update it — try again.");
     } finally {
@@ -1682,9 +1815,10 @@ function CoachSchedulePage({ role }) {
   };
 
   // ── Booking from an empty slot ──
-  const bookSession = async ({ row, date, minute, durationMin, type, topic }) => {
+  const bookSession = async ({ row, date, minute, durationMin, type, topic, repeat }) => {
     const name = row.client.profile.name;
     const time = dscHHMM(minute);
+    if (repeat) return bookRun({ row, date, time, durationMin, type, topic, repeat });
     const ev = {
       source: "session", kind: role === "nutritionist" ? "CONSULT" : "SESSION",
       title: topic || (role === "nutritionist" ? "Nutrition consult" : "Coaching session"), sub: type,
@@ -1715,6 +1849,47 @@ function CoachSchedulePage({ role }) {
       return { ok: true };
     } catch (e) {
       return { ok: false, error: "Couldn't book it — try again." };
+    }
+  };
+  // A weekly run: one request, every date the route could book added to the grid, and the ones
+  // it skipped handed back to the sheet to name.
+  const bookRun = async ({ row, date, time, durationMin, type, topic, repeat }) => {
+    const name = row.client.profile.name, first = name.split(" ")[0];
+    const base = {
+      source: "session", kind: role === "nutritionist" ? "CONSULT" : "SESSION",
+      title: topic || (role === "nutritionist" ? "Nutrition consult" : "Coaching session"), sub: type,
+      time, durationMin, with: name, clientId: row.client.profile.id, status: "confirmed", reschedulable: true, editable: false, meetingUrl: null,
+    };
+    if (!liveEvents || !isLive) {
+      const seriesId = "demo-run-" + date + "-" + time;
+      const known = calEvents.find((e) => e.with === name && e.clientId);
+      const dates = dscRunDates(date, repeat.weeks, repeat.weekdays);
+      setEvents((list) => [...list, ...dates.map((d) => ({ ...base, id: seriesId + "-" + d, sessionId: seriesId + "-" + d, date: d, seriesId, clientId: known ? known.clientId : base.clientId }))]);
+      setSlot(null);
+      showToast("Demo · would book " + dates.length + " sessions with " + name + " and tell them.");
+      return { ok: true };
+    }
+    if (!calZone) return { ok: false, error: "Your calendar hasn't loaded yet — reload and try again." };
+    try {
+      const res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create", role, clientId: row.client.profile.id, date, time, tz: calZone, durationMin, type, ...(topic ? { topic } : {}), repeat }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j || !j.series) {
+        const why = j && Array.isArray(j.skipped) && j.skipped.length ? " " + j.skipped[0].message : "";
+        return { ok: false, error: ((j && j.error) || "Couldn't book the run — try again.") + why };
+      }
+      const placed = (j.series.sessions || []).map((x) => {
+        const wall = dscWallAt(Date.parse(x.scheduledAt), calZone);
+        return { ...base, id: "session:" + x.id, sessionId: x.id, scheduledAt: x.scheduledAt, date: wall ? wall.date : date, time: wall ? dscHHMM(wall.min) : time, seriesId: j.series.id, with: j.clientName || name };
+      });
+      setEvents((list) => [...list, ...placed]);
+      const skipped = j.series.skipped || [];
+      // ⚠ THE SHEET STAYS WHEN DATES WERE SKIPPED, so it can name them; clearing the slot here
+      // would close it first. Its Done clears the slot instead.
+      if (!skipped.length) { setSlot(null); showToast("Booked " + j.series.booked + " sessions with " + name + " · " + first + " is told"); }
+      return { ok: true, booked: j.series.booked, skipped, first };
+    } catch (e) {
+      return { ok: false, error: "Couldn't book the run — try again." };
     }
   };
   const onSlot = (date, minute) => {
@@ -2021,11 +2196,15 @@ function CoachSchedulePage({ role }) {
           onClose={() => setBooking(null)} />
       )}
       {bookOpen && slot && (
-        <DscBookSheet slot={slot} roster={roster} role={role} verdictFor={verdictFor} onBook={bookSession} onClose={() => setBookOpen(false)} />
+        <DscBookSheet slot={slot} roster={roster} role={role} verdictFor={verdictFor} onBook={bookSession} onClose={() => setBookOpen(false)} onDone={() => { setBookOpen(false); setSlot(null); }} />
       )}
       {confirmMove && (
         <DscConfirmMove move={confirmMove} onNo={() => setConfirmMove(null)}
-          onYes={() => { const m = confirmMove; setConfirmMove(null); moveBooking(m.ev, m.date, m.time); }} />
+          onYes={() => { const m = confirmMove; setConfirmMove(null); goMove(m.ev, m.date, m.time); }} />
+      )}
+      {scopeAsk && (
+        <DscScopeAsk ask={scopeAsk} onNo={() => setScopeAsk(null)}
+          onPick={(scope) => { const a = scopeAsk; setScopeAsk(null); moveBooking(a.ev, a.date, a.time, scope); }} />
       )}
       {drawerRow && typeof window.DashClientDrawer === "function" && <DashClientDrawer row={drawerRow} role={role} onClose={() => setDrawerRow(null)} prefs={prefs} />}
       {sheetEv && <DscEventSheet ev={sheetEv} colorOf={colorOf} onClose={() => setSheetEv(null)} />}

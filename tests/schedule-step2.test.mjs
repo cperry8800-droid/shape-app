@@ -237,15 +237,22 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
     auth: { admin: { getUserById: async (id) => ({ data: { user: { id, email: (tables.emails || {})[id] || null } } }) } },
     from(table) {
       const chain = base.from(table);
+      // A run is one insert of many rows (recurring sessions): an array writes all or nothing, as
+      // PostgREST's does. `insertError` may be a function of what is being written, so a test can
+      // refuse the run's bulk write and one of its single ones.
       chain.insert = (row) => {
+        const many = Array.isArray(row);
         const ins = {
           select() { return ins; }, single() { return ins; },
           then(res, rej) {
-            if (insertError) return Promise.resolve({ data: null, error: insertError }).then(res, rej);
-            const stored = { id: row.id || 'gen-' + (++n), ...row };
-            (tables[table] = tables[table] || []).push(stored);
-            writes.push({ by: label, table, op: 'insert', row: stored });
-            return Promise.resolve({ data: stored, error: null }).then(res, rej);
+            const refused = typeof insertError === 'function' ? insertError(row) : insertError;
+            if (refused) return Promise.resolve({ data: null, error: refused }).then(res, rej);
+            const stored = (many ? row : [row]).map((r) => ({ id: r.id || 'gen-' + (++n), ...r }));
+            for (const st of stored) {
+              (tables[table] = tables[table] || []).push(st);
+              writes.push({ by: label, table, op: 'insert', row: st });
+            }
+            return Promise.resolve({ data: many ? stored : stored[0], error: null }).then(res, rej);
           },
         };
         return ins;
@@ -254,13 +261,16 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
         const filters = [];
         const upd = {
           eq(col, v) { filters.push((r) => r[col] === v); return upd; },
+          in(col, vs) { filters.push((r) => vs.includes(r[col])); return upd; },
           select() { return upd; }, maybeSingle() { return upd; },
           then(res, rej) {
-            // The database refusing the write (the overlap constraint): nothing changes.
-            if (updateError) return Promise.resolve({ data: null, error: updateError }).then(res, rej);
             const rows = (tables[table] || []).filter((r) => filters.every((f) => f(r)));
+            // The database refusing the write (the overlap constraint): nothing changes. A function
+            // decides per write (a run's move refused part-way).
+            const refused = typeof updateError === 'function' ? updateError(patch, rows) : updateError;
+            if (refused) return Promise.resolve({ data: null, error: refused }).then(res, rej);
             for (const r of rows) Object.assign(r, patch);
-            writes.push({ by: label, table, op: 'update', patch });
+            writes.push({ by: label, table, op: 'update', patch, ids: rows.map((r) => r.id) });
             return Promise.resolve({ data: rows[0] ?? null, error: null }).then(res, rej);
           },
         };
@@ -288,6 +298,7 @@ async function routes() {
   const [time, requestUtils] = await Promise.all([lib('time.ts'), lib('request-utils.ts')]);
   const owned = await lib('owned-provider.ts', [['@/lib/time', time], ['@supabase/supabase-js', {}]]);
   const booking = await lib('session-booking.ts', [['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]);
+  const series = await lib('session-series.ts', [['@supabase/supabase-js', {}], ['@/lib/time', time]]);
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
   const state = { client: null, admin: null, user: null, notices: [], mails: [] };
   const registry = () => new Map([
@@ -296,6 +307,7 @@ async function routes() {
     ['@/lib/request-utils', requestUtils],
     ['@/lib/access-guards.mjs', guards],
     ['@/lib/session-booking', booking],
+    ['@/lib/session-series', series],
     ['@/lib/request-auth', { clientForRequest: async () => state.client, currentUser: async () => state.user }],
     ['@/lib/supabase/admin', { createAdminClient: () => state.admin }],
     ['@/lib/video', { videoRoomUrl: (id) => 'https://meet.shape.test/' + id }],
@@ -310,7 +322,7 @@ async function routes() {
   ]);
   const load = (p) => loadRealModule(join(ROOT, 'src/app/api', p), { typescript: true, registry: registry() });
   const [manage, request, consult, calendar] = await Promise.all([load('sessions/manage/route.ts'), load('sessions/request/route.ts'), load('consultation/route.ts'), load('calendar/route.ts')]);
-  loaded = { manage, request, consult, calendar, state };
+  loaded = { manage, request, consult, calendar, state, series };
   return loaded;
 }
 async function post(mod, path, body, { tables, user, insertError, updateError, fail, headers = {}, captcha = true } = {}) {
@@ -557,6 +569,173 @@ test('step 3: a calendar whose rules or busy time cannot be read books nothing',
     assert.equal(r.status, 503, fail + ': ' + JSON.stringify(r.body));
     assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0);
   }
+});
+
+// ── Step 4 · recurring sessions ─────────────────────────────────────────────
+// A run: every Tue and Thu at 7:00 AM New York for two weeks, from Tue Oct 27. The clocks change
+// on Sun Nov 1, so the first two are 11:00Z and the last two 12:00Z: the wall time holds.
+const RUN = { date: '2026-10-27', time: '07:00', repeat: { weeks: 2, weekdays: [2, 4] }, durationMin: 60 };
+const runRows = (tables) => (tables.sessions || []).filter((r) => r.series_id).sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+
+test('a run books every date on the coach\'s clock across the clock change, and skips and names a taken one', async () => {
+  const tables = world({ sessions: [sess('s-taken', '2026-11-03T12:00:00.000Z', { client_name: 'Marcus T.' })] });
+  const r = await create(RUN, { tables });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const rows = runRows(tables);
+  assert.deepEqual(rows.map((x) => x.scheduled_at), ['2026-10-27T11:00:00.000Z', '2026-10-29T11:00:00.000Z', '2026-11-05T12:00:00.000Z'],
+    '7:00 AM on the coach\'s clock on both sides of the change, and the taken Tuesday left out');
+  assert.equal(new Set(rows.map((x) => x.series_id)).size, 1, 'one run, one id');
+  assert.ok(rows.every((x) => x.status === 'confirmed' && x.client_id === 'member-1' && x.duration_min === 60));
+  assert.equal(r.writes.filter((w) => w.op === 'insert').every((w) => w.by === 'service'), true);
+  assert.equal(r.body.series.booked, 3);
+  assert.equal(r.body.series.id, rows[0].series_id);
+  assert.deepEqual(r.body.series.skipped.map((x) => [x.date, x.reason]), [['2026-11-03', 'overlap']]);
+  assert.match(r.body.series.skipped[0].message, /^Tue, Nov 3 overlaps Marcus T\. at 7:00 AM\.$/);
+  assert.equal(r.notices.length, 1, 'one notice for the run, not one per session');
+  assert.match(r.notices[0].body, /^Your coach booked 3 sessions with you, starting /);
+  // Without weekdays the run repeats on the first date's own weekday.
+  const t2 = world();
+  const weekly = await create({ date: '2026-10-08', time: '10:00', repeat: { weeks: 3 } }, { tables: t2 });
+  assert.equal(weekly.status, 200, JSON.stringify(weekly.body));
+  assert.deepEqual(runRows(t2).map((x) => x.scheduled_at.slice(0, 10)), ['2026-10-08', '2026-10-15', '2026-10-22']);
+});
+
+test('a run is refused whole when it cannot be one: its shape, the client, or every date taken', async () => {
+  for (const [repeat, re] of [[{ weeks: 1 }, /2 to 26 weeks/], [{ weeks: 27 }, /2 to 26 weeks/], [{ weeks: 4, weekdays: [7] }, /days the session repeats/],
+    [{ weeks: 4, weekdays: [] }, /days the session repeats/], [{ weeks: 26, weekdays: [0, 1, 2, 3, 4, 5, 6] }, /at most 60 sessions/], ['every week', /2 to 26 weeks/]]) {
+    const tables = world();
+    const r = await create({ ...RUN, repeat }, { tables });
+    assert.equal(r.status, 400, JSON.stringify(repeat));
+    assert.match(r.body.error, re);
+    assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0);
+  }
+  const notMine = await create({ ...RUN, clientId: 'member-2' }, { tables: world() });
+  assert.equal(notMine.status, 403, 'a run is for the coach\'s own active client, as a booking is');
+  const full = world({ sessions: ['2026-10-27T11:00:00.000Z', '2026-10-29T11:00:00.000Z', '2026-11-03T12:00:00.000Z', '2026-11-05T12:00:00.000Z'].map((at, i) => sess('s' + i, at)) });
+  const none = await create(RUN, { tables: full });
+  assert.equal(none.status, 409);
+  assert.equal(none.body.skipped.length, 4);
+  assert.equal(none.writes.filter((w) => w.op === 'insert').length, 0);
+  assert.equal(none.notices.length, 0);
+});
+
+test('a run whose bulk write is refused is written booking by booking, and a date taken meanwhile is skipped', async () => {
+  const tables = world();
+  const raced = '2026-10-29T11:00:00.000Z';
+  const r = await create(RUN, {
+    tables,
+    insertError: (rows) => (Array.isArray(rows) || rows.scheduled_at === raced ? { code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' } : null),
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(runRows(tables).map((x) => x.scheduled_at), ['2026-10-27T11:00:00.000Z', '2026-11-03T12:00:00.000Z', '2026-11-05T12:00:00.000Z']);
+  assert.deepEqual(r.body.series.skipped.map((x) => [x.date, x.reason]), [['2026-10-29', 'taken']]);
+  // A database without the series column says so, and books nothing.
+  const old = await create(RUN, { tables: world(), insertError: { code: 'PGRST204', message: "Could not find the 'series_id' column of 'sessions' in the schema cache" } });
+  assert.equal(old.status, 503);
+  assert.match(old.body.error, /aren't set up yet/);
+});
+
+test('a run date whose wall time the zone skips is named, never moved to an hour nobody asked for', async () => {
+  const { series } = await routes();
+  // Sundays at 2:30 AM New York from Mar 7, 2027: on Mar 14 the clocks jump from 2:00 to 3:00.
+  const o = series.seriesOccurrences({ date: '2027-03-07', time: '2:30', zone: NY, weeks: 3 });
+  assert.equal(o.ok, true);
+  assert.deepEqual(o.list.map((x) => [x.date, x.time, new Date(x.at).toISOString()]), [
+    ['2027-03-07', '02:30', '2027-03-07T07:30:00.000Z'], ['2027-03-21', '02:30', '2027-03-21T06:30:00.000Z'],
+  ]);
+  assert.deepEqual(o.missing, [{ date: '2027-03-14', time: '02:30' }]);
+  assert.equal(series.seriesOccurrences({ date: '2027-02-30', time: '07:00', zone: NY, weeks: 2 }).ok, false, 'Feb 30 is not a date');
+  assert.equal(series.seriesOccurrences({ date: '2027-03-07', time: '24:00', zone: NY, weeks: 2 }).ok, false);
+});
+
+const runOf = (n, extra = {}) => Array.from({ length: n }, (_, i) => {
+  // Tuesdays at 7:00 AM New York from Oct 27: 11:00Z, then 12:00Z after the change.
+  const day = 27 + 7 * i;
+  const date = day <= 31 ? `2026-10-${day}` : `2026-11-${String(day - 31).padStart(2, '0')}`;
+  return sess('r' + (i + 1), `${date}T${day <= 31 ? '11' : '12'}:00:00.000Z`, { client_id: 'member-1', series_id: 'run-1', ...extra });
+});
+
+test('cancel "this and following" cancels this booking and every later one of its run, and tells the member once', async () => {
+  const tables = world({ sessions: runOf(4) });
+  const r = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 'r2', scope: 'following' }, { tables, user: COACH });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(tables.sessions.map((x) => [x.id, x.status]), [['r1', 'confirmed'], ['r2', 'cancelled'], ['r3', 'cancelled'], ['r4', 'cancelled']]);
+  assert.equal(r.body.series.count, 3);
+  assert.equal(r.notices.length, 1);
+  assert.match(r.notices[0].body, /^Your coach cancelled 3 sessions, from .+ on\.$/);
+  // The member may cancel the rest of their own run too, and is not told about their own act.
+  const t2 = world({ sessions: runOf(3) });
+  const mine = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 'r1', scope: 'following' }, { tables: t2, user: MEMBER });
+  assert.equal(mine.status, 200, JSON.stringify(mine.body));
+  assert.ok(t2.sessions.every((x) => x.status === 'cancelled'));
+  assert.equal(mine.notices.length, 0);
+  // A single booking has no "following".
+  const single = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 's-1', scope: 'following' }, { tables: world({ sessions: [sess('s-1', '2026-10-08T14:00:00.000Z')] }), user: COACH });
+  assert.equal(single.status, 400);
+  assert.match(single.body.error, /isn't part of a repeating run/);
+});
+
+test('move "this and following": every later booking shifts by the same days to the new wall time, all or nothing', async () => {
+  const tables = world({ sessions: runOf(4) });
+  // r2 (Tue Nov 3, 7:00) to Wed Nov 4 at 8:00: r2..r4 land on Wednesdays at 8:00 AM New York.
+  const r = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r2', scope: 'following', date: '2026-11-04', time: '08:00', tz: NY }, { tables, user: COACH });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(tables.sessions.map((x) => [x.id, x.scheduled_at]), [
+    ['r1', '2026-10-27T11:00:00.000Z'], ['r2', '2026-11-04T13:00:00.000Z'], ['r3', '2026-11-11T13:00:00.000Z'], ['r4', '2026-11-18T13:00:00.000Z'],
+  ]);
+  assert.equal(r.notices.length, 1);
+  assert.match(r.notices[0].body, /^Your coach moved 3 sessions; the next is on /);
+
+  // A move from before the clock change to after it keeps the wall time too.
+  const t1 = world({ sessions: runOf(3) });
+  const early = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r1', scope: 'following', date: '2026-10-28', time: '07:30', tz: NY }, { tables: t1, user: COACH });
+  assert.equal(early.status, 200, JSON.stringify(early.body));
+  assert.deepEqual(t1.sessions.map((x) => x.scheduled_at), ['2026-10-28T11:30:00.000Z', '2026-11-04T12:30:00.000Z', '2026-11-11T12:30:00.000Z']);
+
+  // One clash refuses the whole move, names the date, and moves nothing. The run's own bookings
+  // are not clashes (they are the ones moving).
+  const t2 = world({ sessions: [...runOf(4), sess('s-x', '2026-11-11T13:00:00.000Z', { client_name: 'Marcus T.' })] });
+  const before = JSON.stringify(t2.sessions);
+  const clash = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r2', scope: 'following', date: '2026-11-04', time: '08:00', tz: NY }, { tables: t2, user: COACH });
+  assert.equal(clash.status, 409);
+  assert.match(clash.body.error, /^Wed, Nov 11 overlaps Marcus T\. at 8:00 AM\. Nothing was moved\.$/);
+  assert.equal(JSON.stringify(t2.sessions), before);
+  assert.equal(clash.notices.length, 0);
+
+  // The database refusing one write part-way puts back the ones already moved.
+  const t3 = world({ sessions: runOf(4) });
+  const before3 = JSON.stringify(t3.sessions);
+  let writesSeen = 0;
+  const raced = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r1', scope: 'following', date: '2026-10-28', time: '07:00', tz: NY }, {
+    tables: t3, user: COACH,
+    updateError: (patch) => (patch.scheduled_at && ++writesSeen === 3 ? { code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' } : null),
+  });
+  assert.equal(raced.status, 409, JSON.stringify(raced.body));
+  assert.equal(raced.body.code, 'taken');
+  assert.equal(JSON.stringify(t3.sessions), before3, 'a half-moved run was left behind');
+  // Moving later, the latest booking moves first, so the run never lands on itself.
+  const t4 = world({ sessions: runOf(3) });
+  const order = [];
+  await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r1', scope: 'following', date: '2026-11-03', time: '07:00', tz: NY }, {
+    tables: t4, user: COACH, updateError: (patch, rows) => { order.push(rows[0] && rows[0].id); return null; },
+  });
+  assert.deepEqual(order, ['r3', 'r2', 'r1']);
+  // Only the coach moves a run.
+  const t5 = world({ sessions: runOf(2) });
+  const member = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r1', scope: 'following', date: '2026-10-28', time: '07:00', tz: NY }, { tables: t5, user: MEMBER });
+  assert.equal(member.status, 403);
+});
+
+test('the calendar hands the Schedule each booking\'s run', async () => {
+  const tables = world({ sessions: [...runOf(2), sess('s-one', '2026-10-08T14:00:00.000Z')], calendar_events: [], client_workouts: [], client_meal_plans: [] });
+  const m = await routes();
+  m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1' });
+  m.state.user = COACH;
+  const res = await atNow(() => m.calendar.GET(new Request('https://shape.test/api/calendar?from=2026-10-01&to=2026-11-30&tz=' + NY + '&role=trainer')));
+  const byId = Object.fromEntries((await res.json()).events.filter((e) => e.source === 'session').map((e) => [e.sessionId, e]));
+  assert.equal(byId.r1.seriesId, 'run-1');
+  assert.equal(byId.r2.seriesId, 'run-1');
+  assert.equal(byId['s-one'].seriesId, null);
 });
 
 const consult = (body, opts) => post('consult', '/api/consultation', { providerId: 7, professionalType: 'trainer', date: '2026-10-08', time: '9:00 AM', ...body }, { user: MEMBER, ...opts });
@@ -1009,6 +1188,129 @@ test('the book sheet refuses a clash before sending, and shows the server\'s ref
     await page.clickAt(page.doc.querySelector('[data-col-date="2026-10-06"]'), 150, yOf(600));
     assert.ok(!page.doc.querySelector('[data-dsc-ghost]'));
   } finally { await page.unmount(); }
+});
+
+// ── Step 4 · weekly runs on the page ────────────────────────────────────────
+const setSel = async (page, sel, v) => { sel.value = String(v); await page.act(async () => sel.dispatchEvent(new page.dom.window.Event('change', { bubbles: true }))); };
+const RUN_EVENTS = () => [...WEEK(),
+  ev('r-a', '2026-10-08', '11:00', { seriesId: 'run-1', with: 'Marcus T.', clientId: 'member-2' }),
+  ev('r-b', '2026-10-10', '11:00', { seriesId: 'run-1', with: 'Marcus T.', clientId: 'member-2' }),
+  ev('r-c', '2026-10-11', '11:00', { seriesId: 'run-1', with: 'Marcus T.', clientId: 'member-2' }),
+];
+
+test('the book sheet books a weekly run: its first day is always in it, and the dates it skipped are named before it closes', async () => {
+  const series = {
+    id: 'run-9', booked: 3,
+    sessions: [{ id: 'n-1', scheduledAt: '2026-10-08T15:00:00.000Z' }, { id: 'n-2', scheduledAt: '2026-10-09T15:00:00.000Z' }, { id: 'n-3', scheduledAt: '2026-10-15T15:00:00.000Z' }],
+    skipped: [{ date: '2026-10-16', time: '11:00', reason: 'overlap', message: 'Fri, Oct 16 overlaps Sam R. at 11:00 AM.' }],
+  };
+  const { page, posts } = await open({ answers: { create: () => json(200, { ok: true, session: { id: 'n-1', scheduled_at: series.sessions[0].scheduledAt }, meetingUrl: null, clientName: 'Marcus T.', series }) } });
+  try {
+    page.layout();
+    await page.clickAt(page.doc.querySelector('[data-col-date="2026-10-08"]'), 350, yOf(660) + 5);
+    await page.click(page.doc.querySelector('[data-dsc-ghost]'));
+    const dlg = () => page.doc.querySelector('[role=dialog]');
+    await setSel(page, dlg().querySelector('select[aria-label=Client]'), 'member-2');
+    await page.click(page.buttonMatching(/^Weekly$/, dlg()));
+    const day = (name) => dlg().querySelector('[aria-label="' + name + '"]');
+    assert.equal(day('Thu').getAttribute('aria-pressed'), 'true');
+    assert.equal(day('Thu').disabled, true, 'the run starts with this booking, so its day cannot be taken out');
+    await page.click(day('Fri'));
+    await setSel(page, dlg().querySelector('select[aria-label=Weeks]'), 2);
+    assert.match(dlg().textContent, /4 sessions · last on Fri, Oct 16/);
+    await page.click(page.buttonMatching(/^Book 4 sessions · Marcus is told$/, dlg()));
+    assert.deepEqual(posts, [{ action: 'create', role: 'trainer', clientId: 'member-2', date: '2026-10-08', time: '11:00', tz: NY, durationMin: 60, type: 'video', repeat: { weeks: 2, weekdays: [4, 5] } }]);
+    // It stays to say what it could not book.
+    assert.match(dlg().textContent, /Booked 3 of 4\. Marcus is told\./);
+    assert.match(dlg().textContent, /Fri, Oct 16 overlaps Sam R\. at 11:00 AM\./);
+    assert.equal(colOf(page, block(page, 'n-1')), '2026-10-08');
+    assert.equal(colOf(page, block(page, 'n-2')), '2026-10-09');
+    await page.click(page.buttonMatching(/^Done$/, dlg()));
+    assert.ok(!dlg());
+    // A run of more than 60 sessions is refused before it is sent.
+    page.layout();
+    await page.clickAt(page.doc.querySelector('[data-col-date="2026-10-08"]'), 350, yOf(600) + 5);
+    await page.click(page.doc.querySelector('[data-dsc-ghost]'));
+    await setSel(page, dlg().querySelector('select[aria-label=Client]'), 'member-2');
+    await page.click(page.buttonMatching(/^Weekly$/, dlg()));
+    for (const d of ['Mon', 'Tue', 'Wed', 'Fri']) await page.click(day(d));
+    await setSel(page, dlg().querySelector('select[aria-label=Weeks]'), 26);
+    assert.match(dlg().textContent, /more than one run can book \(60\)/);
+    assert.equal(page.buttonMatching(/^Book/, dlg()).disabled, true);
+  } finally { await page.unmount(); }
+});
+
+test('a run\'s booking cancels alone or with the rest of its run', async () => {
+  const { page, posts } = await open({ events: RUN_EVENTS(), answers: { cancel: (b) => json(200, { ok: true, ...(b.scope ? { series: { id: 'run-1', count: 3 } } : {}) }) } });
+  try {
+    const dlg = () => page.doc.querySelector('[role=dialog]');
+    await page.click(block(page, 'r-b'));
+    assert.match(dlg().textContent, /RepeatsPart of a weekly run/);
+    await page.click(page.buttonMatching(/^Cancel$/, dlg()));
+    await page.click(page.buttonMatching(/^This session$/, dlg()));
+    assert.deepEqual(posts.at(-1), { action: 'cancel', sessionId: 'r-b' });
+    assert.ok(!block(page, 'r-b'));
+    assert.ok(block(page, 'r-a') && block(page, 'r-c'), 'one cancel took the others with it');
+    await page.click(block(page, 'r-a'));
+    await page.click(page.buttonMatching(/^Cancel$/, dlg()));
+    await page.click(page.buttonMatching(/^This and following$/, dlg()));
+    assert.deepEqual(posts.at(-1), { action: 'cancel', sessionId: 'r-a', scope: 'following' });
+    assert.ok(!block(page, 'r-a') && !block(page, 'r-c'));
+    assert.ok(block(page, 's-thu'), 'a booking outside the run went too');
+    assert.match(page.toast(), /^Cancelled · 3 sessions with Marcus T\. · Marcus is told$/);
+    // A single booking asks nothing about a run.
+    await page.click(block(page, 's-thu'));
+    await page.click(page.buttonMatching(/^Cancel$/, dlg()));
+    assert.ok(page.buttonMatching(/^Yes, cancel it$/, dlg()));
+    assert.ok(!page.buttonMatching(/^This and following$/, dlg()));
+  } finally { await page.unmount(); }
+});
+
+test('moving a run\'s booking asks: just this one, or this and following, which keep their weekly rhythm', async () => {
+  const { page, posts } = await open({ events: RUN_EVENTS() });
+  try {
+    const dlg = () => page.doc.querySelector('[role=dialog]');
+    // r-a (Thu 11:00) to Fri 11:00, with the rest of its run.
+    await page.click(block(page, 'r-a'));
+    await page.click(page.buttonMatching(/^Reschedule$/, dlg()));
+    const input = dlg().querySelector('input[type=date]');
+    const proto = Object.getOwnPropertyDescriptor(page.dom.window.HTMLInputElement.prototype, 'value');
+    proto.set.call(input, '2026-10-09');
+    await page.act(async () => input.dispatchEvent(new page.dom.window.Event('input', { bubbles: true })));
+    await page.click(page.buttonMatching(/^Move/, dlg()));
+    assert.equal(posts.length, 0, 'it moved before asking');
+    assert.match(dlg().textContent, /Just this session, or this one and the rest of the run\?/);
+    await page.click(page.buttonMatching(/^This and following$/, dlg()));
+    assert.deepEqual(posts, [{ action: 'reschedule', sessionId: 'r-a', date: '2026-10-09', time: '11:00', tz: NY, scope: 'following' }]);
+    assert.equal(colOf(page, block(page, 'r-a')), '2026-10-09');
+    assert.equal(colOf(page, block(page, 'r-b')), '2026-10-11', 'Saturday moved a day with it');
+    assert.ok(!block(page, 'r-c'), 'Sunday\'s moved on to Monday, off this week');
+    assert.match(page.toast(), /^Moved 3 sessions with Marcus T\./);
+    // "Just this one" sends no scope, and the rest stay.
+    await page.click(block(page, 'r-b'));
+    await page.click(page.buttonMatching(/^Reschedule$/, dlg()));
+    await setSel(page, dlg().querySelector('select[aria-label="New time"]'), 720);
+    await page.click(page.buttonMatching(/^Move/, dlg()));
+    // Sunday has no open hours: that is asked first, then which bookings.
+    await page.click(page.buttonMatching(/^Move anyway$/, dlg()));
+    await page.click(page.buttonMatching(/^Just this one$/, dlg()));
+    assert.deepEqual(posts.at(-1), { action: 'reschedule', sessionId: 'r-b', date: '2026-10-11', time: '12:00', tz: NY });
+  } finally { await page.unmount(); }
+  // A refused run move puts every booking back where it was.
+  const refused = await open({ events: RUN_EVENTS(), answers: { reschedule: () => json(409, { error: 'Sat, Oct 17 overlaps Sam R. at 11:00 AM. Nothing was moved.', code: 'overlap' }) } });
+  try {
+    const p2 = refused.page;
+    const dlg = () => p2.doc.querySelector('[role=dialog]');
+    await p2.click(block(p2, 'r-a'));
+    await p2.click(p2.buttonMatching(/^Reschedule$/, dlg()));
+    await setSel(p2, dlg().querySelector('select[aria-label="New time"]'), 600);
+    await p2.click(p2.buttonMatching(/^Move/, dlg()));
+    await p2.click(p2.buttonMatching(/^This and following$/, dlg()));
+    assert.match(p2.toast(), /Sat, Oct 17 overlaps Sam R\. at 11:00 AM\. Nothing was moved\./);
+    assert.equal(px(block(p2, 'r-a').style.top), yOf(660) + 1);
+    assert.equal(px(block(p2, 'r-b').style.top), yOf(660) + 1);
+    assert.equal(colOf(p2, block(p2, 'r-c')), '2026-10-11');
+  } finally { await refused.page.unmount(); }
 });
 
 test('a manual calendar note is the coach\'s own: no verdict over a session, and it moves by PATCH with its time', async () => {

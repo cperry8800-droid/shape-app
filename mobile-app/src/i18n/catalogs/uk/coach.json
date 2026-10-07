@@ -1140,5 +1140,7 @@
   "video.emptyFile": "Виберіть непорожній відеофайл.",
   "video.fileType": "Виберіть відео MP4, MOV, M4V чи WebM. MP4 з H.264 найкраще сумісний із різними пристроями.",
   "video.fileSize": "Відео має бути меншим за {limit} МБ.",
-  "schedule.pickTime": "Оберіть час"
+  "schedule.pickTime": "Оберіть час",
+  "schedule.runPartial": "Заброньовано {booked} з {total}.",
+  "schedule.runDone": "Готово"
 }

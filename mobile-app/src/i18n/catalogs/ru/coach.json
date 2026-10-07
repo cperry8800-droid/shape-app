@@ -1140,5 +1140,7 @@
   "video.emptyFile": "Выберите непустой видеофайл.",
   "video.fileType": "Выберите видео MP4, MOV, M4V или WebM. MP4 с H.264 лучше всего совместим с разными устройствами.",
   "video.fileSize": "Видео должно быть меньше {limit} МБ.",
-  "schedule.pickTime": "Выберите время"
+  "schedule.pickTime": "Выберите время",
+  "schedule.runPartial": "Забронировано {booked} из {total}.",
+  "schedule.runDone": "Готово"
 }
