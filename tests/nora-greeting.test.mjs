@@ -57,6 +57,10 @@ test('the three website panels ask for the greeting; the plain ones ask for the 
   const widget = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
   assert.match(widget, /fetch\("\/api\/support\/chat", \{ credentials: "same-origin" \}\)/);
   assert.match(widget, /msgs\.length !== 1 \|\| msgs\[0\]\.me/, 'only an untouched thread is rewritten');
+  // Applied after the saved threads hydrate, or a late hydrate restores the old seed (Codex, #2247).
+  assert.match(widget, /if \(!noraGreeting \|\| !hydrated\) return;/);
+  assert.match(widget, /\}, \[noraGreeting, hydrated\]\);/);
+  assert.ok(widget.indexOf('}, [noraGreeting, hydrated]);') > widget.indexOf('setHydrated(true);'), 'declared after the hydrate');
   const fallback = readFileSync(join(ROOT, 'public/newdesign/globalChatButton.js'), 'utf8');
   assert.match(fallback, /\/api\/support\/chat\?plain=1/);
   const next = readFileSync(join(ROOT, 'src/components/GlobalChatButton.tsx'), 'utf8');
