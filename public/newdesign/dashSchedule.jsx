@@ -1462,7 +1462,7 @@ function CoachSchedulePage({ role }) {
                 <span style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", minWidth: 150 }}>{label}</span>
                 <button onClick={() => step(1)} aria-label="Next" style={btn(false)}>›</button>
                 <button onClick={goToday} style={{ ...btn(false), fontSize: 8 }}>Today</button>
-                <button type="button" onClick={bookFromToolbar} style={{ ...btn(false), fontSize: 8, color: DSC_TEAL, border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.45)" }}>+ Book</button>
+                <button type="button" onClick={bookFromToolbar} style={{ ...btn(false), fontSize: 8, whiteSpace: "nowrap", color: DSC_TEAL, border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.45)" }}>+ Book</button>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 {/* ⚠ LOAD AT A GLANCE COUNTS OPEN HOURS USED, NOT SESSIONS. Booked time is measured
