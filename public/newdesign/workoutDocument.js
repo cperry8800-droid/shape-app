@@ -222,14 +222,24 @@
     const clean = normalizePerSet(perSet);
     return clean ? {...rest, perSet:clean} : rest;
   }
-  // The two markers a row can carry for the program's progression, kept only in the
-  // shape they are written in: `loadPinned` is true or absent, `deloadFrom` is the
-  // set count a deload cut, or absent.
+  // The markers a row can carry for the program's progression, kept only in the shape
+  // they are written in: `loadPinned` and `rpePinned` are true or absent, `deloadFrom`
+  // is the set count a deload cut, or absent.
   function withProgressionMarks(row) {
-    if (!row || (!('loadPinned' in row) && !('deloadFrom' in row))) return row;
-    const {loadPinned, deloadFrom, ...rest} = row;
+    if (!row || (!('loadPinned' in row) && !('rpePinned' in row) && !('deloadFrom' in row))) return row;
+    const {loadPinned, rpePinned, deloadFrom, ...rest} = row;
     const from = Number(deloadFrom);
-    return {...rest, ...(loadPinned === true ? {loadPinned:true} : {}), ...(text(deloadFrom).trim() !== '' && Number.isFinite(from) && from > 0 ? {deloadFrom} : {})};
+    return {...rest, ...(loadPinned === true ? {loadPinned:true} : {}), ...(rpePinned === true ? {rpePinned:true} : {}), ...(text(deloadFrom).trim() !== '' && Number.isFinite(from) && from > 0 ? {deloadFrom} : {})};
+  }
+  // A row with its hand-typed marks taken off: 'load', 'rpe', or both when no axis is
+  // named. What "Follow the progression" does, and what a copied day or week starts as
+  // (a value typed by hand for the source's week is not one for the copy's).
+  function unpinned(row, axis) {
+    if (!row) return row;
+    const {loadPinned, rpePinned, ...rest} = row;
+    if (axis === 'load') return 'rpePinned' in row ? {...rest, rpePinned} : rest;
+    if (axis === 'rpe') return 'loadPinned' in row ? {...rest, loadPinned} : rest;
+    return rest;
   }
 
   // ── Deload weeks ───────────────────────────────────────────────────────────
@@ -302,6 +312,22 @@
   // left as the coach wrote it, and the bar says how many were left.
   const PROGRESSION_UNITS = ['kg', 'lb', 'pct'];
   const round2 = n => Math.round(n * 100) / 100;
+  // ── The RPE climb ──
+  // Owner, 2026-10-07: "There's no progression for RPE." An optional part of the same rule:
+  //   progression.rpe = { step: 0.5, cap: 9 }   "RPE +0.5 a week, up to 9"
+  // ⚠ EVERY RPE IT WRITES IS ONE BOTH EDITORS CAN SHOW. Their select offers 1–10 in half
+  // points (plus a stored off-list value), so the step and the cap are kept on that grid:
+  // a step of 0.5 to 2, a cap of 1 to 10. A week-1 RPE on the grid therefore climbs on it,
+  // and nothing the rule writes is ever above 10 or below week 1's own RPE.
+  const halfPoint = n => Math.round(n * 2) / 2;
+  function normalizeRpeClimb(value) {
+    if (!value || typeof value !== 'object') return null;
+    const step = halfPoint(Number(value.step));
+    if (!Number.isFinite(step) || step < 0.5) return null;
+    const asked = text(value.cap).trim() === '' ? NaN : Number(value.cap);
+    const cap = Number.isFinite(asked) ? Math.min(10, Math.max(1, halfPoint(asked))) : 10;
+    return {step:Math.min(step, 2), cap};
+  }
   function normalizeProgression(value) {
     if (!value || typeof value !== 'object') return null;
     const amount = Number(value.amount);
@@ -312,7 +338,10 @@
     const kinds = BLOCK_KINDS.filter(k => asked.includes(k));
     if (!kinds.length) return null;
     const every = Number(value.deloadEvery);
-    return {amount:round2(Math.min(amount, 1000)), unit, kinds, deloadEvery:Number.isInteger(every) && every >= 2 && every <= 52 ? every : 0};
+    // The RPE climb rides along only when it is a valid one; a broken one is no climb,
+    // never a reason to drop the load rule beside it.
+    const rpe = normalizeRpeClimb(value.rpe);
+    return {amount:round2(Math.min(amount, 1000)), unit, kinds, deloadEvery:Number.isInteger(every) && every >= 2 && every <= 52 ? every : 0, ...(rpe ? {rpe} : {})};
   }
   const positiveLoad = v => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(Number(v)) && Number(v) > 0;
   // A move the rule can move: in one of its blocks, typed in its unit, with a weight, and
@@ -366,9 +395,22 @@
       return {...o, load:positiveLoad(b.load) ? stepLoad(rule, Number(b.load), steps) : Number(b.load) === 0 && text(b.load).trim() !== '' ? 0 : ''};
     });
   }
-  // Every later week's governed loads, from week 1's, by the rule. A load the coach typed
-  // by hand in a later week (`loadPinned`) is left alone. Returns the SAME object when
-  // nothing changes, so opening a program that is already in step cannot mark it dirty.
+  // A move whose RPE the climb moves: in one of the rule's blocks, with a target RPE. Its
+  // weight does not matter (a bodyweight move climbs by effort alone), and a legacy row
+  // that still keeps its RPE as the load is left to `splitLegacyRpe`.
+  const rpeClimbs = (rule, block, row) => !!(rule && rule.rpe && block && row) && rule.kinds.includes(blockKind(block.kind))
+    && row.loadType !== 'rpe' && rpeValue(row) != null;
+  // Week N's RPE: week 1's plus a step for every training week since, up to the cap and
+  // never below week 1's own. ⚠ A DELOAD WEEK GOES BACK TO WEEK 1'S RPE, the effort the
+  // climb started from, and takes no step, so the climb resumes after it where it left.
+  function stepRpe(rule, base, steps, deload) {
+    if (deload) return base;
+    return round2(Math.max(base, Math.min(rule.rpe.cap, base + rule.rpe.step * steps)));
+  }
+  // Every later week's governed loads, from week 1's, by the rule, and their RPEs when the
+  // rule climbs RPE too. A load or an RPE the coach set by hand in a later week
+  // (`loadPinned`, `rpePinned`) is left alone. Returns the SAME object when nothing
+  // changes, so opening a program that is already in step cannot mark it dirty.
   function applyProgramProgression(builder) {
     const rule = normalizeProgression(builder && builder.progression);
     if (!rule || !Array.isArray(builder.weeks) || !builder.weeks.length) return builder;
@@ -387,31 +429,54 @@
       const keyed = new Map(moveKeys(day).map(m => [m.bi + ':' + m.ri, m.key]));
       return {...day, blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row, ri) => {
         const b = from.get(keyed.get(bi + ':' + ri));
-        if (!row || row.loadPinned === true || !b || !progressible(rule, b.block, b.row) || !progressible(rule, block, {...row, load:1})) return row;
-        const next = {...row, load:stepLoad(rule, Number(b.row.load), steps[wi])};
-        const ladder = stepLadder(rule, b.row, row, steps[wi]);
-        if (ladder) next.perSet = ladder;
+        if (!row || !b) return row;
+        let next = row;
+        if (row.loadPinned !== true && progressible(rule, b.block, b.row) && progressible(rule, block, {...row, load:1})) {
+          next = {...next, load:stepLoad(rule, Number(b.row.load), steps[wi])};
+          const ladder = stepLadder(rule, b.row, row, steps[wi]);
+          if (ladder) next.perSet = ladder;
+        }
+        if (row.rpePinned !== true && row.loadType !== 'rpe' && rpeClimbs(rule, b.block, b.row)) {
+          next = {...next, rpe:stepRpe(rule, rpeValue(b.row), steps[wi], !!week.deload)};
+        }
         return next;
       })}))};
     })});
     const result = {...builder, weeks:out};
     return JSON.stringify(result) === JSON.stringify(builder) ? builder : result;
   }
+  // The move at one place, with the rule and week 1's move it is matched to.
+  function progressionPlace(builder, wi, di, bi, ri) {
+    const rule = normalizeProgression(builder && builder.progression);
+    if (!rule || !builder.weeks || !builder.weeks[wi]) return null;
+    const day = (builder.weeks[wi].days || [])[di];
+    const block = day && (day.blocks || [])[bi];
+    const row = block && (block.rows || [])[ri];
+    if (!row) return null;
+    if (wi === 0) return {rule, block, row, base:null};
+    const key = (moveKeys(day).find(m => m.bi === bi && m.ri === ri) || {}).key;
+    return {rule, block, row, base:key ? baseMoves(builder, day, di).get(key) || null : null};
+  }
   // What the rule does to one move, for the builder to mark it: 'source' (week 1, the
   // weight the climb starts from), 'follows' (a later week, set by the rule), 'pinned' (a
   // later week, typed by hand) or '' (the rule does not touch it).
   function progressionStatus(builder, wi, di, bi, ri) {
-    const rule = normalizeProgression(builder && builder.progression);
-    if (!rule || !builder.weeks || !builder.weeks[wi]) return '';
-    const day = (builder.weeks[wi].days || [])[di];
-    const block = day && (day.blocks || [])[bi];
-    const row = block && (block.rows || [])[ri];
-    if (!row) return '';
+    const at = progressionPlace(builder, wi, di, bi, ri);
+    if (!at) return '';
+    const {rule, block, row, base:b} = at;
     if (wi === 0) return progressible(rule, block, row) ? 'source' : '';
-    const key = (moveKeys(day).find(m => m.bi === bi && m.ri === ri) || {}).key;
-    const b = key ? baseMoves(builder, day, di).get(key) : null;
     if (!b || !progressible(rule, b.block, b.row) || !progressible(rule, block, {...row, load:1})) return '';
     return row.loadPinned === true ? 'pinned' : 'follows';
+  }
+  // The same four answers for the move's RPE: 'source', 'follows', 'pinned' or '' (the
+  // rule climbs no RPE, or not this move's).
+  function rpeProgressionStatus(builder, wi, di, bi, ri) {
+    const at = progressionPlace(builder, wi, di, bi, ri);
+    if (!at) return '';
+    const {rule, block, row, base:b} = at;
+    if (wi === 0) return rpeClimbs(rule, block, row) ? 'source' : '';
+    if (!b || !rpeClimbs(rule, b.block, b.row) || row.loadType === 'rpe') return '';
+    return row.rpePinned === true ? 'pinned' : 'follows';
   }
   // A load typed by hand in a later week stays as typed: every row whose weight (or a
   // ladder weight) differs between the day before and after an edit is marked. Matched by
@@ -425,16 +490,25 @@
     while (ladderWeights.length && ladderWeights[ladderWeights.length - 1] === '') ladderWeights.pop();
     return JSON.stringify([row && row.load, ladderWeights]);
   };
-  function pinLoadEdits(prevDay, nextDay) {
+  // ⚠ AN RPE IS PINNED THE SAME WAY, BUT ONLY WHILE THE RULE CLIMBS RPE (`rule`, the
+  // program's progression, is the third argument). Without a climb nothing would put a
+  // later week's RPE back, so a pin there would only wait to hold it against a climb the
+  // coach turns on later, over a value they picked when no climb existed.
+  const rpeOf = row => rpeValue(row);
+  function pinLoadEdits(prevDay, nextDay, rule) {
     if (!prevDay || !nextDay) return nextDay;
+    const climbRpe = !!(normalizeProgression(rule) || {}).rpe;
     const before = new Map();
     for (const b of prevDay.blocks || []) for (const r of b.rows || []) if (r && r.id != null && !before.has(String(r.id))) before.set(String(r.id), r);
     let changed = false;
     const blocks = (nextDay.blocks || []).map(b => ({...b, rows:(b.rows || []).map(r => {
       const was = r && r.id != null ? before.get(String(r.id)) : null;
-      if (!was || r.loadPinned === true || loadsOf(was) === loadsOf(r)) return r;
-      changed = true;
-      return {...r, loadPinned:true};
+      if (!was) return r;
+      let out = r;
+      if (r.loadPinned !== true && loadsOf(was) !== loadsOf(r)) out = {...out, loadPinned:true};
+      if (climbRpe && r.rpePinned !== true && rpeOf(was) !== rpeOf(r)) out = {...out, rpePinned:true};
+      if (out !== r) changed = true;
+      return out;
     })}));
     return changed ? {...nextDay, blocks} : nextDay;
   }
@@ -524,5 +598,5 @@
       text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS, normalizeProgression, applyProgramProgression, progressionStatus, pinLoadEdits, deloadWeek, undeloadWeek, legacyDeload};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS, normalizeProgression, applyProgramProgression, progressionStatus, rpeProgressionStatus, pinLoadEdits, unpinned, deloadWeek, undeloadWeek, legacyDeload};
 });

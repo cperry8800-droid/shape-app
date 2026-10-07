@@ -1,7 +1,7 @@
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import React from 'react';
 const { ShapeVideoPlayer, ShapeVideoLink, ShapeVideoAttachment } = createMobileVideoComponents(React);
-import { normalizeWorkoutDetail, videoUrl, ladder as rowLadder, perSetEntries, weightLabel, LADDER_MAX, SET_REPS_MAX } from '../../../public/newdesign/workoutDocument.mjs';
+import { normalizeWorkoutDetail, videoUrl, ladder as rowLadder, perSetEntries, weightLabel, LADDER_MAX, SET_REPS_MAX, normalizeProgression, applyProgramProgression, pinLoadEdits, progressionStatus, rpeProgressionStatus, unpinned } from '../../../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutVideos, coachWorkoutDraftKey } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutFutureUpdates, { useWorkoutTr } from './BSWorkoutFutureUpdates.jsx';
 
@@ -16,6 +16,16 @@ const newDay = (name) => ({ id: uid(), name, blocks: [{ kind: 'main', rows: [] }
 // card still prints the stored RPE, so an off-list legacy value would be invisible
 // here and visible to the member. Same rule as the website editor's.
 const RPE_STEPS = Array.from({ length: 19 }, (_, i) => Math.round((1 + i * 0.5) * 10) / 10);
+// ⚠ THE PROGRAM'S PROGRESSION APPLIES HERE TOO (owner, 2026-10-07: "The app's coach editor
+// doesn't know the progression rule"). The rule is set on the website's progression bar and
+// stored with the program (`builder.progression`); this editor runs every edit through the
+// SAME functions the website does (`applyProgramProgression`, `pinLoadEdits`), so a week 1
+// edit moves the later weeks before the coach saves, and a load or RPE typed over the rule
+// in a later week stays as typed. A program with no rule comes back exactly as it went in.
+const inStep = (detail) => {
+  const builder = applyProgramProgression(detail.builder);
+  return builder === detail.builder ? detail : { ...detail, builder };
+};
 function rpeOptions(current) {
   const n = Number(current);
   const stored = current !== '' && current != null && Number.isFinite(n) && n > 0 && n <= 10 && !RPE_STEPS.includes(n);
@@ -26,14 +36,16 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   const tr = useWorkoutTr(inheritedTr);
   const account = window.ShapeAuth?.getCachedState?.()?.user?.id || null;
   const ownerRef = React.useRef(account);
-  const [initial] = React.useState(() => ({ name: plan.name || '', creationId: plan.id ? undefined : crypto.randomUUID(), detail: normalizeWorkoutDetail(plan.detail, { name: plan.name }) }));
+  // In step from the start, so a program the website left behind is caught up on open
+  // without reading as an unsaved change.
+  const [initial] = React.useState(() => ({ name: plan.name || '', creationId: plan.id ? undefined : crypto.randomUUID(), detail: inStep(normalizeWorkoutDetail(plan.detail, { name: plan.name })) }));
   const draftKey = coachWorkoutDraftKey(ownerRef.current, plan.id, initial.detail.buildType);
   const [value, setValue] = React.useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(draftKey) || 'null');
       // A stale draft is offered as the draft, never silently stamped with a
       // newer server revision. The PATCH conflict protects concurrent edits.
-      if (saved && typeof saved.name === 'string' && saved.detail?.builder) return { ...initial, ...saved, detail: normalizeWorkoutDetail(saved.detail, { name: saved.name }) };
+      if (saved && typeof saved.name === 'string' && saved.detail?.builder) return { ...initial, ...saved, detail: inStep(normalizeWorkoutDetail(saved.detail, { name: saved.name })) };
     } catch (_) { /* storage can be unavailable */ }
     return initial;
   });
@@ -75,9 +87,40 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
   const input = { width: '100%', minWidth: 0, boxSizing: 'border-box', minHeight: 44, padding: '10px', fontFamily: t.MONO, fontSize: 13, border: `1px solid ${t.RULE || t.INK20}`, borderRadius: 7, background: t.PAPER, color: t.INK };
   const label = { display: 'grid', gap: 5, color: t.INK50, fontFamily: t.MONO, fontSize: 10 };
   const txt = (key, text) => tr(`coach:workoutEditor.${key}`, { defaultValue: text });
-  const change = (fn, keepUndo = false) => { if (savingRef.current) return; if (!keepUndo) setUndo(null); setRetry(null); setUploadError(''); setValue((prev) => { const next = clone(prev); fn(next); return next; }); };
+  // The rule, read only: what it moves, its deload cadence and its RPE climb. It is set on
+  // the website's progression bar; here it is stated, and every edit goes through it.
+  const rule = normalizeProgression(builder.progression);
+  const ruleKinds = !rule ? '' : rule.kinds.join() === 'main' ? txt('progressionKindsMain', 'main lifts')
+    : rule.kinds.join() === 'main,accessory' ? txt('progressionKindsMainAccessory', 'main and accessory lifts')
+    : rule.kinds.length === 4 ? txt('progressionKindsAll', 'every block') : rule.kinds.join(', ');
+  const ruleSummary = rule ? [
+    rule.unit === 'pct'
+      ? tr('coach:workoutEditor.progressionLoadPct', { defaultValue: '+{amount}% 1RM a week on {kinds}', amount: rule.amount, kinds: ruleKinds })
+      : tr('coach:workoutEditor.progressionLoad', { defaultValue: '+{amount} {unit} a week on {kinds}', amount: rule.amount, unit: rule.unit, kinds: ruleKinds }),
+    rule.deloadEvery ? tr('coach:workoutEditor.progressionDeload', { defaultValue: 'deload every {count} weeks', count: rule.deloadEvery }) : null,
+    rule.rpe ? tr('coach:workoutEditor.progressionRpe', { defaultValue: 'RPE +{step} a week, up to {cap}', step: rule.rpe.step, cap: rule.rpe.cap }) : null,
+  ].filter(Boolean).join(' · ') : '';
+  // What the rule does to one move of the open day: its load and its RPE.
+  const ruleMarks = (bi, ri) => {
+    if (!rule) return null;
+    const load = progressionStatus(builder, wi, di, bi, ri), rpe = rpeProgressionStatus(builder, wi, di, bi, ri);
+    if (!load && !rpe) return null;
+    if (wi === 0) return { parts: [txt('progressionSource', 'Later weeks climb from this')], pinned: false };
+    const parts = [
+      load === 'follows' ? txt('progressionLoadFollows', 'Load set by the progression') : load === 'pinned' ? txt('progressionLoadPinned', 'Load typed by hand') : null,
+      rpe === 'follows' ? txt('progressionRpeFollows', 'RPE set by the progression') : rpe === 'pinned' ? txt('progressionRpePinned', 'RPE picked by hand') : null,
+    ].filter(Boolean);
+    return { parts, pinned: load === 'pinned' || rpe === 'pinned' };
+  };
+  const change = (fn, keepUndo = false) => { if (savingRef.current) return; if (!keepUndo) setUndo(null); setRetry(null); setUploadError(''); setValue((prev) => { const next = clone(prev); fn(next); next.detail.builder = applyProgramProgression(next.detail.builder); return next; }); };
+  // ⚠ IN A LATER WEEK, A LOAD OR AN RPE TYPED OVER THE RULE IS PINNED to that week, or the
+  // rule would put its own number back on the next edit. Week 1 is where the climb starts,
+  // so its values are never pinned: they move the rest.
   const changeDay = (fn, keepUndo = false) => change((next) => {
-    fn(next.detail.builder.weeks[wi].days[di]);
+    const days = next.detail.builder.weeks[wi].days;
+    const before = next.detail.builder.progression && wi > 0 ? clone(days[di]) : null;
+    fn(days[di]);
+    if (before) days[di] = pinLoadEdits(before, days[di], next.detail.builder.progression);
     if (next.detail.builder.weeks.some((w) => w.days.some((d) => d.blocks.some((b) => b.rows.some((r) => r.name?.trim()))))) delete next.detail.builder.outlineOnly;
   }, keepUndo);
   const changeRow = (bi, ri, key, nextValue) => changeDay((next) => {
@@ -179,10 +222,14 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
     <label style={label}>{txt('name', 'Name')}<input value={value.name} onChange={(e) => change((next) => { next.name = e.target.value; })} style={input} /></label>
     <label style={{ ...label, marginTop: 10 }}>{txt('type', 'Library section')}<select value={value.detail.buildType || 'program'} onChange={(e) => change((next) => { next.detail.buildType = e.target.value; })} style={input}><option value="workout">{txt('singleWorkout', 'Workouts')}</option><option value="program">{txt('routine', 'Programs')}</option><option value="plan">{txt('paidPlan', 'Plans')}</option></select></label>
     <ShapeVideoAttachment value={builder.video} title={tr('coach:video.programIntro', {defaultValue:'Program introduction'})} onChange={video=>change(next=>{next.detail.builder.video=video;})} upload={uploadIntroduction} onBusy={introductionBusy} clips={videos}/>
+    {rule && <div role="note" aria-label={txt('progressionTitle', 'Progression')} data-progression="" style={{ marginTop: 16, padding: '10px 12px', border: `1px solid ${t.RULE || t.INK20}`, borderLeft: `3px solid ${accent}`, borderRadius: 8, fontFamily: t.MONO, fontSize: 11, lineHeight: 1.5, color: t.INK50 }}>
+      <div style={{ color: t.INK }}><span aria-hidden="true" style={{ color: accent }}>↗︎ </span>{txt('progressionTitle', 'Progression')} · {ruleSummary}</div>
+      <div>{txt('progressionHint', 'Change week 1 and the later weeks follow. A value you type over the rule in a later week stays as typed. Set the rule in the program builder on the website.')}</div>
+    </div>}
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>
       {builder.weeks.map((_, i) => <button type="button" key={i} aria-pressed={wi === i} onClick={() => { setWeekIdx(i); setDayIdx(0); }} style={{ ...button, color: wi === i ? accent : t.INK }}>{txt('week', 'Week')} {i + 1}</button>)}
       <button type="button" onClick={() => { change((next) => { next.detail.builder.weeks.push({ deload: false, days: [newDay(txt('newSession', 'New session'))] }); }); setWeekIdx(builder.weeks.length); setDayIdx(0); }} style={button}>{txt('addWeek', '+ Week')}</button>
-      <button type="button" onClick={() => { change((next) => { const copy = clone(next.detail.builder.weeks[wi]); for (const d of copy.days) { d.id = uid(); for (const b of d.blocks) for (const r of b.rows) r.id = uid(); } next.detail.builder.weeks.splice(wi + 1, 0, copy); }); setWeekIdx(wi + 1); setDayIdx(0); }} style={button}>{txt('copyWeek', 'Copy week')}</button>
+      <button type="button" onClick={() => { change((next) => { const copy = clone(next.detail.builder.weeks[wi]); for (const d of copy.days) { d.id = uid(); for (const b of d.blocks) b.rows = b.rows.map((r) => ({ ...unpinned(r), id: uid() })); } next.detail.builder.weeks.splice(wi + 1, 0, copy); }); setWeekIdx(wi + 1); setDayIdx(0); }} style={button}>{txt('copyWeek', 'Copy week')}</button>
       {builder.weeks.length > 1 && <button type="button" onClick={() => { setUndo(clone(value)); change((next) => next.detail.builder.weeks.splice(wi, 1), true); setWeekIdx(Math.max(0, wi - 1)); setDayIdx(0); }} style={button}>{txt('removeWeek', 'Remove week')}</button>}
     </div>
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '12px 0' }}>
@@ -216,6 +263,14 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
             <label style={label}>{txt('targetRpe', 'Target · RPE')}<select value={row.rpe ?? ''} onChange={(e) => changeRow(bi, ri, 'rpe', e.target.value === '' ? '' : Number(e.target.value))} style={input}><option value="">{txt('rpeNone', 'None')}</option>{rpeOptions(row.rpe).map((v) => <option key={v} value={v}>{v}</option>)}</select></label>
           </div>
           {row.loadText && <div style={{ fontFamily: t.MONO, fontSize: 11, marginTop: 8, color: t.INK50 }}>{txt('existingLoad', 'Existing prescription')}: {row.loadText}</div>}
+          {(() => {
+            const marks = ruleMarks(bi, ri);
+            if (!marks) return null;
+            return <div data-progression-row="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 8, fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>
+              <span><span aria-hidden="true" style={{ color: accent }}>{marks.pinned ? '✎︎ ' : '↗︎ '}</span>{marks.parts.join(' · ')}</span>
+              {marks.pinned && <button type="button" onClick={() => changeDay((next) => { next.blocks[bi].rows[ri] = unpinned(next.blocks[bi].rows[ri]); })} style={{ ...button, minHeight: 36, padding: '6px 10px' }}>{txt('progressionFollow', 'Follow the progression')}</button>}
+            </div>;
+          })()}
           {(() => {
             const count = Number(row.sets);
             const n = Number.isInteger(count) && count > 0 ? Math.min(count, LADDER_MAX) : 0;

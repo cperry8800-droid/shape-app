@@ -52,8 +52,10 @@ const loads = (page, file) => read(page).includes('src="' + file);
 // builder calls them on every edit, so a page handed the older copy is a blank page.
 // ⚠ 20261007b: workoutDocument.js only. `legacyDeload`, which the Grid's week tools call on
 // every render to keep a deload week saved before the cadence the coach's to clear.
+// ⚠ 20261007c: workoutDocument.js only. The RPE climb: `rpeProgressionStatus` and `unpinned`,
+// which the builder's day editor, Sheet and bar call on every render and every edit.
 const MIN = {
-  'workoutDocument.js': '20261007b',
+  'workoutDocument.js': '20261007c',
   'dashBuilderCore.js': '20261007',
   'dashMealCore.js': '20260922c',
   'dashSignals.js': '20260922b',
