@@ -30,41 +30,139 @@ globalThis.cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
 window.eval(readFileSync(new URL('../public/vendor/gridstack/gridstack-all.js', import.meta.url), 'utf8'));
 const store = { read: () => ({ doc: {}, loaded: true, status: 'saved' }), flush() {}, change() {} };
 // Use the real component and GridStack; only account I/O and device media are controlled.
-const DashGrid = new Function('React', 'ReactDOM', 'store', compiled + '\nuseDgLayoutStore = () => ({ store }); return DashGrid;')(React, ReactDOM, store);
+// ⚠ IN THE WINDOW'S REALM, AS IN A BROWSER. GridStack is evaluated by `window.eval`, and its
+// `load()` clones its input through `instanceof Array` — so an array built in Node's realm
+// reads as a plain object there and `load` throws. A page has one realm; this harness had
+// two, which made `arrange` (keyboard moves) look broken when only the harness was.
+const DashGrid = new window.Function('React', 'ReactDOM', 'store', compiled + '\nuseDgLayoutStore = () => ({ store }); return DashGrid;')(React, ReactDOM, store);
 
-test('desktop dragging, tablet/hybrid scrolling, Customize, and pointer changes use the live input capabilities', async () => {
+// Owner, 2026-10-07: "remove this arrange box and have all of these customization and
+// edits done by dragging click etc. a more free feel with the boxes and widgets". So there
+// is no edit mode and no Arrange menu: a card moves by dragging, resizes from its right
+// edge, hides from its ×, and the ⠿ grip carries the keyboard's version of all of it.
+// What a touch screen must keep is its scrolling, and that is now the HANDLE's job: the
+// card is a handle only for a mouse; on touch only the grip is.
+const items = () => [...document.querySelectorAll('.grid-stack-item')];
+const item = (title) => items().find((el) => el.querySelector('.dg-grip')?.getAttribute('aria-label') === 'Move ' + title);
+const dragEls = (el) => el.ddElement?.ddDraggable?.dragEls || [];
+const settle = () => React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)); });
+// ⚠ WAIT FOR THE STATE, NOT FOR A NUMBER OF MILLISECONDS. A pointer change re-boots the grid
+// through an effect and a fresh container; under the full suite's load 60ms was measured
+// short of that (the re-boot assertion failed there and passed alone).
+const until = async (cond, what) => {
+  for (let i = 0; i < 100; i++) {
+    if (cond()) return;
+    await React.act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+  }
+  assert.fail('timed out waiting for ' + what);
+};
+const media = async (fine, coarse) => React.act(async () => {
+  for (const [query, m] of queries) {
+    m.matches = query.includes('pointer: fine') ? fine : coarse;
+    for (const listener of m.listeners) listener();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 60));
+});
+const widget = (key, title) => ({ key, title, size: 'half', render: () => React.createElement('p', null, title + ' text') });
+
+test('there is no edit mode: a mouse drags the whole card, a touch screen only the grip', async () => {
   const root = createRoot(document.getElementById('root'));
-  const disabled = () => {
-    const card = document.querySelector('.grid-stack-item');
-    assert.ok(card, 'real GridStack card mounted');
-    return card.classList.contains('ui-draggable-disabled');
-  };
-  const media = async (fine, coarse) => React.act(async () => {
-    for (const [query, m] of queries) {
-      m.matches = query.includes('pointer: fine') ? fine : coarse;
-      for (const listener of m.listeners) listener();
-    }
-  });
-  const customize = () => React.act(async () => document.querySelector('[data-dg-customize]').click());
   try {
-    await React.act(async () => {
-      root.render(React.createElement(DashGrid, { role: 'trainer', widgets: [{ key: 'one', title: 'One', size: 'half', render: () => React.createElement('p', null, 'Card text') }] }));
-      await new Promise(resolve => setTimeout(resolve, 100));
-    });
-    assert.equal(disabled(), false, 'mouse desktop can drag without Customize');
-    await media(false, true);
-    assert.equal(disabled(), true, 'wide touch tablet keeps native scrolling');
-    assert.match(document.body.textContent, /Customize dashboard to arrange cards/);
-    await customize();
-    assert.equal(disabled(), false, 'tablet can opt into arranging');
-    await customize();
-    assert.equal(disabled(), true, 'Done restores native scrolling');
-    await media(true, true);
-    assert.equal(disabled(), true, 'hybrid device preserves touch scrolling too');
     await media(true, false);
-    assert.equal(disabled(), false, 'switching to mouse-only input restores direct dragging');
+    // The handle is chosen when the grid boots, so the pointer has to be known on the FIRST
+    // render: a first frame that guessed "touch" boots a mouse user's grid twice, and the
+    // end state is identical, so only counting the boots can tell.
+    const init = window.GridStack.init; let boots = 0;
+    window.GridStack.init = function (...args) { boots += 1; return init.apply(this, args); };
+    try {
+      await React.act(async () => {
+        root.render(React.createElement(DashGrid, { role: 'trainer', widgets: [widget('one', 'One')] }));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+      await until(() => item('One'), 'the first boot');
+    } finally { window.GridStack.init = init; }
+    assert.equal(boots, 1, 'a mouse user\'s grid boots once, with the mouse handle');
+    assert.ok(!document.querySelector('[data-dg-customize]'), 'the Customize toggle is gone');
+    assert.doesNotMatch(document.body.textContent, /Arrange|Customize/, 'nothing still sends the member to a mode or a menu');
+    const card = item('One');
+    assert.ok(card, 'the card carries its grip from the first frame');
+    assert.equal(card.classList.contains('ui-draggable-disabled'), false, 'a mouse can drag without entering a mode');
+    assert.equal(card.classList.contains('ui-resizable-disabled'), false, 'and resize from the right edge');
+    const grip = card.querySelector('.dg-grip');
+    assert.ok(dragEls(card).includes(card.querySelector('.grid-stack-item-content')), 'for a mouse the whole card is a handle');
+    assert.ok(dragEls(card).includes(grip), 'and so is the grip');
+
+    await media(false, true);
+    await until(() => item('One') && item('One') !== card, 'the grid to re-boot for touch');
+    const tablet = item('One');
+    assert.ok(tablet !== card, 'a pointer change re-boots the grid with the other handle');
+    assert.equal(tablet.classList.contains('ui-draggable-disabled'), false, 'a tablet can move cards too, with no mode');
+    assert.ok(dragEls(tablet).length === 1 && dragEls(tablet)[0] === tablet.querySelector('.dg-grip'), 'on touch only the grip is a handle, so a swipe on the card scrolls');
+    assert.match(document.body.textContent, /Drag ⠿ to move a card/);
+
+    await media(true, true);
+    // Touch → hybrid is no change of handle (neither is mouse-only), so no re-boot to wait on.
+    assert.ok(dragEls(item('One')).length === 1 && dragEls(item('One'))[0] === item('One').querySelector('.dg-grip'), 'a hybrid keeps its touch scrolling');
+    const hybrid = item('One');
+    await media(true, false);
+    await until(() => item('One') && item('One') !== hybrid, 'the grid to re-boot for the mouse');
+    assert.ok(dragEls(item('One')).includes(item('One').querySelector('.grid-stack-item-content')), 'mouse-only input gets the whole card back');
   } finally {
     await React.act(async () => root.unmount());
   }
   assert.ok([...queries.values()].every(m => m.listeners.size === 0), 'media listeners are removed on unmount');
+});
+
+test('× hides a card from the card itself and hands focus to its neighbour', async () => {
+  const root = createRoot(document.getElementById('root'));
+  try {
+    await media(true, false);
+    await React.act(async () => {
+      root.render(React.createElement(DashGrid, { role: 'trainer', widgets: [widget('one', 'One'), widget('two', 'Two')] }));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    await until(() => item('One') && item('Two'), 'both cards');
+    const x = item('One').querySelector('.dg-chrome .dg-x');
+    assert.ok(x, 'the × sits in the card pill');
+    assert.equal(x.getAttribute('aria-label'), 'Hide One');
+    await React.act(async () => { x.click(); });
+    await until(() => !item('One'), 'the card to leave the board');
+    assert.ok(!item('One'), 'the card left the board');
+    assert.ok(item('Two'), 'its neighbour stayed');
+    assert.ok(document.activeElement === item('Two').querySelector('.dg-grip'), 'focus moved to the neighbour, not to <body>');
+    assert.match(document.body.textContent, /\+ One/, 'the hidden-cards bar offers it back');
+    assert.match(document.querySelector('.dg-sr-only').textContent, /One hidden/);
+  } finally {
+    await React.act(async () => root.unmount());
+  }
+});
+
+test('the grip moves and resizes a card from the keyboard', async () => {
+  const root = createRoot(document.getElementById('root'));
+  const key = (el, k, shiftKey = false) => React.act(async () => {
+    el.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true, cancelable: true }));
+  });
+  const node = (title) => item(title).gridstackNode;
+  try {
+    await media(true, false);
+    await React.act(async () => {
+      root.render(React.createElement(DashGrid, { role: 'trainer', widgets: [widget('one', 'One'), widget('two', 'Two')] }));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    await until(() => item('One') && item('Two'), 'both cards');
+    assert.ok(node('One').x < node('Two').x, 'One starts first');
+    await key(item('One').querySelector('.dg-grip'), 'ArrowRight');
+    assert.ok(node('One').x > node('Two').x, 'an arrow moves it one place along the reading order');
+    assert.match(document.querySelector('.dg-sr-only').textContent, /One moved to position 2 of 2/);
+    await key(item('One').querySelector('.dg-grip'), 'Home');
+    assert.ok(node('One').x < node('Two').x, 'Home sends it to the start');
+    const w0 = node('Two').w;
+    await key(item('Two').querySelector('.dg-grip'), 'ArrowRight', true);
+    assert.ok(node('Two').w > w0, 'Shift + Right widens it to the next size');
+    assert.match(document.querySelector('.dg-sr-only').textContent, /Two is now Wide/);
+    await key(item('Two').querySelector('.dg-grip'), 'ArrowLeft', true);
+    assert.equal(node('Two').w, w0, 'Shift + Left steps it back');
+  } finally {
+    await React.act(async () => root.unmount());
+  }
 });

@@ -69,7 +69,13 @@ test('the gear and its panel read the SAME list', () => {
   // Named once, so a card can never render a ⚙ that opens nothing — the failure mode
   // this repo has already paid for on the hidden-cards bar, where the bar's visibility
   // and its contents were two different expressions.
-  const chrome = GRID.slice(GRID.indexOf('const chrome = (key)'), GRID.indexOf('className={customizing', GRID.indexOf('const chrome = (key)')));
+  // Sliced to the board's root className: the ⚙ moved into the card's pill (`controls`,
+  // right after `chrome`) when the Arrange menu and its edit mode went (2026-10-07). An
+  // end anchor that no longer exists slices to -1 and quietly tests the wrong span.
+  const from = GRID.indexOf('const chrome = (key)');
+  const to = GRID.indexOf('className={"dg-board"', from);
+  assert.ok(from > 0 && to > from, 'the chrome/controls span is no longer where this test looks');
+  const chrome = GRID.slice(from, to);
   assert.match(chrome, /dgSettingGroups\(w\)\.length > 0 && [\s\S]*?<DgCardSettings groups=\{dgSettingGroups\(w\)\} \/>/);
 });
 
