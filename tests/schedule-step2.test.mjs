@@ -203,7 +203,7 @@ test('the load counts open hours used — confirmed and done only, inside the ho
 // fakeSupabase answers reads by APPLYING the filters; this adds the writes the booking routes
 // make, against the same rows, and the auth admin read. `label` says which client wrote, so a
 // test can tell a request-client insert (RLS applies) from a service-role one.
-function db(tables, { label, insertError = null, updateError = null, fail = [], rlsUser = null } = {}) {
+function db(tables, { label, insertError = null, updateError = null, fail = [], rlsUser = null, maxRows = null } = {}) {
   // ⚠ THE REQUEST CLIENT READS `sessions` THROUGH ITS POLICY (read_own_sessions: your own, or
   // ones booked against a provider row you own). Without it a member's client would see the
   // coach's whole calendar here, and a route that checked a clash through the wrong client
@@ -214,7 +214,7 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
     get: (t, k) => (k === 'sessions' ? (t.sessions || []).filter((r) => r.client_id === rlsUser || owns(r)) : t[k]),
   });
   const base = fakeSupabase({
-    tables: view, fail,
+    tables: view, fail, maxRows,
     rpcs: {
       get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: (tables.names || {})[id] || null })),
       // provider_busy_blocks as the migration writes it: time off, and active sessions, in the window.
@@ -239,6 +239,8 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
     // in ONE transaction, so any refusal (`updateError`, asked per move as a single update is, or
     // a row that is gone or not active) rolls back every move before it.
     async rpc(name, args) {
+      // get_display_names refuses more than 200 ids, as 2026-08-03-profiles-display-names.sql does.
+      if (name === 'get_display_names' && args.p_ids.length > 200) return { data: null, error: { message: 'get_display_names: at most 200 ids' } };
       if (name !== 'move_session_run') return base.rpc(name, args);
       const done = [];
       for (const m of args.p_moves) {
@@ -1513,6 +1515,58 @@ test('/api/calendar serves a trainer\'s clients\' dated training days, only when
   const failed = await get('&role=trainer&clientPlans=1');
   assert.equal(failed.clientPlansReadable, false, 'a failed read was drawn as a week with no training');
   assert.deepEqual(failed.clientPlans, []);
+});
+
+test('/api/calendar reads the plans of every trainer row the coach owns, the whole window, and every client\'s name', async () => {
+  const m = await routes();
+  m.state.user = COACH;
+  const get = async (tables, q, maxRows = null) => {
+    m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1', maxRows });
+    return (await atNow(() => m.calendar.GET(new Request('https://shape.test/api/calendar?tz=' + NY + q)))).json();
+  };
+  const cw = (id, trainer_id, client_id, scheduled_date) => ({ id, trainer_id, client_id, title: 'Lower A', status: 'published', scheduled_date, payload: {}, description: null });
+  const day = (i) => new Date(Date.UTC(2026, 9, 1) + (i % 90) * 86400000).toISOString().slice(0, 10);
+
+  // ⚠ trainers.owner_id is not unique (2026-08-10-shared-clients-roster.sql): a second listing's plans count too.
+  const twoRows = world({
+    calendar_events: [], client_meal_plans: [],
+    trainers: [{ id: 7, owner_id: 'coach-1', name: 'Coach', timezone: NY }, { id: 12, owner_id: 'coach-1', name: 'Coach (second listing)', timezone: NY }],
+    client_workouts: [cw('a1', 7, 'member-1', '2026-10-08'), cw('b1', 12, 'member-2', '2026-10-09')],
+  });
+  const both = await get(twoRows, '&from=2026-10-01&to=2026-10-31&role=trainer&clientPlans=1');
+  assert.equal(both.clientPlansReadable, true);
+  assert.deepEqual(both.clientPlans.map((p) => p.id), ['cplan:a1', 'cplan:b1'], 'a second trainer row\'s plans were dropped');
+
+  // Three months of a 30-client roster on five-day programs is ~1,950 rows; PostgREST answers at
+  // most 1,000 a page. Every row comes back, in date order, and the read says it is whole.
+  const busy = world({
+    calendar_events: [], client_meal_plans: [],
+    client_workouts: Array.from({ length: 2300 }, (_, i) => cw('r' + String(i).padStart(4, '0'), 7, 'member-' + (i % 30), day(i))),
+  });
+  const all = await get(busy, '&from=2026-10-01&to=2026-12-31&role=trainer&clientPlans=1', 1000);
+  assert.equal(all.clientPlans.length, 2300, 'a window past one page was cut short');
+  assert.equal(all.clientPlansReadable, true);
+  assert.equal(new Set(all.clientPlans.map((p) => p.id)).size, 2300, 'a row was read twice across pages');
+  assert.ok(all.clientPlans.every((p, i, a) => i === 0 || a[i - 1].date <= p.date), 'the plans are not in date order');
+
+  // Past the route's own cap it keeps what it read and says the row is incomplete.
+  const huge = world({
+    calendar_events: [], client_meal_plans: [],
+    client_workouts: Array.from({ length: 5001 }, (_, i) => cw('h' + String(i).padStart(4, '0'), 7, 'member-' + (i % 30), day(i))),
+  });
+  const cut = await get(huge, '&from=2026-10-01&to=2026-12-31&role=trainer&clientPlans=1', 1000);
+  assert.equal(cut.clientPlansReadable, false, 'a cut-short read was drawn as complete');
+  assert.equal(cut.clientPlans.length, 5000);
+
+  // get_display_names takes at most 200 ids a call: 250 clients are named in batches.
+  const names = Object.fromEntries(Array.from({ length: 250 }, (_, i) => ['member-' + i, 'Client ' + i]));
+  const wide = world({
+    calendar_events: [], client_meal_plans: [], names,
+    client_workouts: Array.from({ length: 250 }, (_, i) => cw('n' + i, 7, 'member-' + i, '2026-10-08')),
+  });
+  const named = await get(wide, '&from=2026-10-01&to=2026-10-31&role=trainer&clientPlans=1');
+  assert.equal(named.clientPlans.length, 250);
+  assert.ok(named.clientPlans.every((p) => p.with === names[p.clientId]), 'a client past the 200th was left as "Client"');
 });
 
 test('client chips filter the grid, ?client= lands filtered, and clashes still see every booking', async () => {
