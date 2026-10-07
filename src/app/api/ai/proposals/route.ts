@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     registry: serverRegistry,
     action,
     input,
-    actor: { id: actor.user.id, role: actor.role },
+    actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
     ctx: makeCtx(actor, request),
     secret,
   });

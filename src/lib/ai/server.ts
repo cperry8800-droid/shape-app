@@ -13,7 +13,11 @@ import { currentUser, clientForRequest } from '@/lib/request-auth';
 import { createRegistry, demoEchoAction } from '@/lib/ai/proposals.mjs';
 import { NORA_ACTIONS } from '@/lib/ai/actions.mjs';
 
-export type Actor = { user: User; role: string; supabase: SupabaseClient };
+// `roles` is the account's every role (profiles.role plus profiles.roles[]), the set
+// computeMembership and /api/ai/draft-workout already read: a dual-role account whose
+// primary role is client but who also trains is a trainer to both, and now to Nora
+// (#2227's open thread, ruled by the owner 2026-10-07). `role` stays the primary one.
+export type Actor = { user: User; role: string; roles: string[]; supabase: SupabaseClient };
 
 /** The signed-in human + their role + an RLS-scoped client, or null. */
 export async function resolveActor(request: Request): Promise<Actor | null> {
@@ -22,11 +26,13 @@ export async function resolveActor(request: Request): Promise<Actor | null> {
   const supabase = await clientForRequest(request);
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, roles')
     .eq('id', user.id)
     .maybeSingle();
-  const role = (profile as { role?: string } | null)?.role || 'client';
-  return { user, role, supabase };
+  const p = (profile ?? {}) as { role?: unknown; roles?: unknown };
+  const role = typeof p.role === 'string' && p.role ? p.role : 'client';
+  const roles = [...new Set([role, ...(Array.isArray(p.roles) ? p.roles.filter((r): r is string => typeof r === 'string' && !!r) : [])])];
+  return { user, role, roles, supabase };
 }
 
 /**
@@ -232,7 +238,7 @@ export function proposalConsumer(supabase: SupabaseClient) {
  * endpoint caller that forwards the actor's session). */
 export function makeCtx(actor: Actor, request?: Request) {
   return {
-    actor: { id: actor.user.id, role: actor.role },
+    actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
     store: userGoalsStore(actor.supabase, actor.user.id),
     supabase: actor.supabase,
     // Call an existing same-origin /api/* endpoint CARRYING THE ACTOR'S SESSION,

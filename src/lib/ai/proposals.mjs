@@ -86,10 +86,16 @@ export function createRegistry() {
   };
 }
 
-export function roleAllowed(action, role) {
+// `held` is the actor's every role (primary plus profiles.roles[]). It counts only for
+// an action that opts in with `heldRoles: true` (draft_workout, which saves to the
+// account's own trainers listing and reads no role after this). Every other action
+// still branches on ctx.actor.role (a coach's zone, the discipline a program detail
+// targets), so a secondary role must not open it (Codex, #2242).
+export function roleAllowed(action, role, held) {
   const roles = action.roles || ALL_MEMBER_ROLES;
-  if (typeof roles === 'function') return !!roles(role);
-  return Array.isArray(roles) && roles.includes(role);
+  const mine = [role, ...(action.heldRoles === true && Array.isArray(held) ? held : [])];
+  if (typeof roles === 'function') return mine.some((r) => !!roles(r));
+  return Array.isArray(roles) && mine.some((r) => roles.includes(r));
 }
 
 // ───────────────────────── lifecycle ──────────────────────────────
@@ -111,7 +117,7 @@ export async function proposeChange({
 }) {
   const action = registry.get(actionName);
   if (!action) return { ok: false, error: 'unknown_action' };
-  if (!roleAllowed(action, actor.role)) return { ok: false, error: 'role_not_allowed' };
+  if (!roleAllowed(action, actor.role, actor.roles)) return { ok: false, error: 'role_not_allowed' };
 
   // buildPreview is where permission / "unmatched reference" / validation errors
   // surface — return them as a clean message (so Nora can ask), never a 500.
@@ -178,7 +184,7 @@ export async function confirmChange({ registry, token, actor, ctx, secret, audit
 
   const action = registry.get(plan.action);
   if (!action) return { ok: false, error: 'unknown_action' };
-  if (!roleAllowed(action, actor.role)) return { ok: false, error: 'role_not_allowed' };
+  if (!roleAllowed(action, actor.role, actor.roles)) return { ok: false, error: 'role_not_allowed' };
 
   // Single-use gate: reserve the nonce BEFORE executing. A duplicate reservation
   // means this token was already confirmed — reject without re-running the action.
