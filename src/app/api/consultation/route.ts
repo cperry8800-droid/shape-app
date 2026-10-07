@@ -38,7 +38,7 @@ import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
-import { checkBookingRules, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
+import { bookingRuleRefusal, checkBookingRules, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
@@ -292,6 +292,11 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (insertError) {
+    // The database's own check of the coach's rules (a request racing another one past the check above).
+    const refused = bookingRuleRefusal(insertError);
+    if (refused) {
+      return NextResponse.json({ error: refused.message + ' Please pick another time.', code: refused.reason }, { status: 409 });
+    }
     if (isDoubleBookError(insertError)) {
       return NextResponse.json(
         { error: 'That slot was just taken. Please pick another.' },

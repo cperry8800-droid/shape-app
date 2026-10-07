@@ -13,6 +13,7 @@ import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
+import { bookingRuleRefusal } from '../../../public/newdesign/bookingRules.mjs';
 import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, bsFetchDuplicateCandidates, bsActivityStartISO, bsPostActivityStart, BS_PRIVACY_RANK } from './workoutShare.mjs';
@@ -1386,6 +1387,13 @@ async function createSessionRequest({
     .select()
     .single();
 
+  // ⚠ A REFUSAL IS NOT AN OUTAGE. The database refuses a request that breaks the coach's rules
+  // (sessions_enforce_booking_rules: notice, time off, buffer, daily limit) or lands on another
+  // booking (sessions_no_overlap, or the identical-start index). Saving that locally told the
+  // member their intro was "held locally" when the coach can never receive it; say why instead.
+  const refused = bookingRuleRefusal(error);
+  if (refused) throw new Error(refused.message + ' Pick another time.');
+  if (error && (error.code === '23P01' || error.code === '23505')) throw new Error('That time was just taken. Pick another.');
   if (error) {
     return { stored: 'local', data: saveLocalRecord('shape.sessions', payload, error), error };
   }

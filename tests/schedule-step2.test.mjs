@@ -536,6 +536,18 @@ test('step 3: a member\'s request keeps the coach\'s time off, buffer, daily lim
   assert.equal(fine.status, 200, JSON.stringify(fine.body));
 });
 
+test('the database\'s refusal of a racing request reaches the member as the rule, not a 500', async () => {
+  // Two requests sent together both pass checkBookingRules; the trigger refuses the second.
+  const r = await ask({}, { tables: world(), insertError: { code: 'P0001', message: 'booking_rule:daily_limit' } });
+  assert.equal(r.status, 409, JSON.stringify(r.body));
+  assert.equal(r.body.code, 'daily_limit');
+  assert.equal(r.body.error, 'This coach is fully booked that day.');
+  assert.equal(r.notices.length, 0, 'a request that was not written told the coach');
+  const c = await consult({ time: '10:00 AM' }, { tables: world(), insertError: { code: 'P0001', message: 'booking_rule:buffer' } });
+  assert.equal(c.status, 409, JSON.stringify(c.body));
+  assert.equal(c.body.code, 'buffer');
+});
+
 test('step 3: a calendar whose rules or busy time cannot be read books nothing', async () => {
   for (const fail of [['provider_booking_rules'], ['rpc:provider_busy_blocks']]) {
     const r = await ask({}, { tables: world(), fail });

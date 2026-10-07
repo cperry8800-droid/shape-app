@@ -274,6 +274,33 @@ function noticeText(hours) {
   return hours === 1 ? "1 hour's" : `${hours} hours'`;
 }
 
+// What a MEMBER is told for each refusal. One copy, read by evaluate() below and by
+// bookingRuleRefusal(), so the sentence a member reads is the same whether the page, the route or
+// the database (2026-10-07-booking-rules-enforced.sql) said no.
+const MEMBER_SAYS = Object.freeze({
+  time_off: 'This coach is away then.',
+  buffer: "That's too close to another of this coach's sessions.",
+  daily_limit: 'This coach is fully booked that day.',
+});
+const memberNotice = (hours) => `This coach needs at least ${noticeText(hours)} notice. Pick a later time.`;
+
+/**
+ * A refusal raised by the database's booking-rules trigger (`booking_rule:<reason>`, SQLSTATE
+ * P0001; for `notice` the error's details carry the hours), as { reason, message } in the
+ * member's words. Null for any other error, so a caller falls through to its own handling.
+ * @param {unknown} error a Supabase/PostgREST error { code, message, details }
+ * @returns {{ reason: string, message: string } | null}
+ */
+export function bookingRuleRefusal(error) {
+  if (!error || typeof error !== 'object') return null;
+  const m = /^booking_rule:(notice|time_off|buffer|daily_limit)$/.exec(String(error.message ?? '').trim());
+  if (!m) return null;
+  const reason = m[1];
+  if (reason !== 'notice') return { reason, message: MEMBER_SAYS[reason] };
+  const hours = Number(error.details);
+  return { reason, message: Number.isInteger(hours) && hours > 0 ? memberNotice(hours) : 'This coach needs more notice. Pick a later time.' };
+}
+
 // ── Rules ───────────────────────────────────────────────────────────────────────────────
 
 const clampInt = (v, lim, fallback) => {
@@ -550,7 +577,7 @@ function evaluate(s, e, P, firstOnly) {
   if (on('notice') && notice > 0 && Number.isFinite(P.nowMs) && s > P.nowMs && s < P.nowMs + notice * HOUR_MS) {
     if (add('notice',
       `That's less than your ${noticeText(notice)} minimum notice.`,
-      `This coach needs at least ${noticeText(notice)} notice. Pick a later time.`)) return out;
+      memberNotice(notice))) return out;
   }
   if (on('closed')) {
     let hit = false;
@@ -580,7 +607,7 @@ function evaluate(s, e, P, firstOnly) {
     const off = P.timeOff.find((x) => x.start < e && x.end > s);
     if (off && add('time_off',
       `That's during your time off, which runs until ${dayLabel(off.end, z)} at ${timeLabel(off.end, z)}.`,
-      'This coach is away then.')) return out;
+      MEMBER_SAYS.time_off)) return out;
   }
   if (on('overlap')) {
     const clash = P.sessions.find((x) => x.start < e && x.end > s);
@@ -599,10 +626,10 @@ function evaluate(s, e, P, firstOnly) {
     }
     if (before && add('buffer',
       `That's inside your ${buf}-minute buffer after the ${timeLabel(before.start, z)} session.`,
-      "That's too close to another of this coach's sessions.")) return out;
+      MEMBER_SAYS.buffer)) return out;
     if (after && add('buffer',
       `That's inside your ${buf}-minute buffer before the ${timeLabel(after.start, z)} session.`,
-      "That's too close to another of this coach's sessions.")) return out;
+      MEMBER_SAYS.buffer)) return out;
   }
   const max = P.rules.maxPerDay;
   if (on('daily_limit') && max != null && P.zoneOk) {
@@ -614,7 +641,7 @@ function evaluate(s, e, P, firstOnly) {
       const n = `${count} session${count === 1 ? '' : 's'}`;
       if (add('daily_limit',
         `You already have ${n} on ${dayLabel(s, z)}, your daily limit.`,
-        'This coach is fully booked that day.')) return out;
+        MEMBER_SAYS.daily_limit)) return out;
     }
   }
   return out;
