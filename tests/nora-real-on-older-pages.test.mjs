@@ -165,7 +165,7 @@ test('⚠ the solver is on every page with Nora, not only the ones that load sup
   assert.equal(tok, 'tok-3');
   assert.equal(rendered.appearance, 'interaction-only');
   assert.equal(rendered.sitekey, '0x4AAAAAADmrGKVw7Ghzs1gQ');
-  assert.equal(p.doc.querySelector('[data-nora-check]'), null, 'the widget is removed once it answers');
+  assert.ok(!p.doc.querySelector('[data-nora-check]'), 'the widget is removed once it answers');
   const widget = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
   assert.match(widget, /window\.__shapeNoraSolve \|\| \(window\.ShapeTurnstile && window\.ShapeTurnstile\.solve\)/);
 });
