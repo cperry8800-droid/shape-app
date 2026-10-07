@@ -97,5 +97,6 @@
   "state.upNext": "À SUIVRE",
   "unit.durMin": "{min}m",
   "unit.min": "{min} MIN",
-  "view.kicker": "Rubrique · Calendrier"
+  "view.kicker": "Rubrique · Calendrier",
+  "zone.timesIn": "Heures en {zone}"
 }

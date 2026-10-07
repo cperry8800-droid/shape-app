@@ -2180,13 +2180,33 @@
   // `dashClient.jsx` — which is how one of them could have kept the raw group as
   // its prefix while the other derived a label, and a member would have seen a
   // different numbering on Today than on Train. One rule, driven by its own test.
+  // The coach's blocks, named as the member reads them. The kinds are the builder's own
+  // (workoutDocument.js BLOCK_KINDS), repeated here because the member's pages load this
+  // file without that one; tests/builder-fixes-client.test.mjs holds the two lists equal.
+  var CARD_BLOCKS = { warmup: "Warm-up", main: "Main", accessory: "Accessory", finisher: "Finisher" };
+  function cardBlockKind(value) {
+    var key = typeof value === "string" ? value.trim().toLowerCase() : "";
+    return Object.prototype.hasOwnProperty.call(CARD_BLOCKS, key) ? key : "";
+  }
   function workoutCardExercises(exercises) {
     var list = exercises || [];
     var labels = groupLabels(list);
+    // ⚠ A HEADING WHERE THE COACH'S BLOCK CHANGES, AND NONE WHEN THE COACH NAMED NONE.
+    // The same rule as the app's preview (bsMoveBlocks): runs of one kind in the order the
+    // moves arrive, a move with no kind staying with the run before it, and a day where no
+    // move names a block read as one plain list. Owner, 2026-10-07: "Apply all the fixes".
+    // (A day where no move names a block needs no case of its own: every kind is "", and
+    // a heading needs one.)
+    var kinds = list.map(function (e) { return cardBlockKind(e && e.block); });
+    var run = "";
     return list.map(function (e, i) {
       e = e || {};
+      var kind = kinds[i] || run;
+      var blockLabel = kind && kind !== run ? CARD_BLOCKS[kind] : null;
+      run = kind;
       return {
         prefix: labels[i],
+        blockLabel: blockLabel,
         name: e.name,
         scheme: [[e.sets, e.reps].filter(Boolean).join(" × "), e.tempo ? e.tempo + " tempo" : null, e.rest].filter(Boolean).join(" · "),
         load: e.load || "",
@@ -2196,6 +2216,7 @@
     });
   }
   return {
+    CARD_BLOCKS: CARD_BLOCKS,
     THRESHOLDS: THRESHOLDS,
     DEFAULT_THRESHOLDS: DEFAULT_THRESHOLDS,
     TUNABLES: TUNABLES,

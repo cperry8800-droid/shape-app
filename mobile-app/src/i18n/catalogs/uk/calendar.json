@@ -97,5 +97,6 @@
   "state.upNext": "ДАЛІ",
   "unit.durMin": "{min}хв",
   "unit.min": "{min} ХВ",
-  "view.kicker": "Розділ · Календар"
+  "view.kicker": "Розділ · Календар",
+  "zone.timesIn": "Час: {zone}"
 }

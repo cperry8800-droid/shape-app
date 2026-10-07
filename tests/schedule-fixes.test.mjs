@@ -297,6 +297,19 @@ test('the app sends its zone on every calendar read, and hands the named zone ba
   assert.match(APP_CAL, /action: 'reschedule', date: newDate, time, tz: event\.zone/, 'the app reschedule no longer sends the zone it was shown in');
 });
 
+test('the app calendar names the zone its bookings are read in, for a live account only', () => {
+  // Registered on #2222 ("the app calendar doesn't label its zone"), done the same day.
+  assert.match(APP_CAL, /setServerZone\(typeof d\.zone === 'string' && d\.zone \? d\.zone : null\)/, 'the screen no longer keeps the zone the route named');
+  assert.match(APP_CAL, /zone=\{useServer \? serverZone : null\}/, 'the demo month would be given a zone, or a live one none');
+  const month = between(APP_CAL, 'function BSCalendarMonth(', '{/* DOW header');
+  assert.match(month, /\{zone && \(/, 'the label shows without a zone');
+  assert.match(month, /tr\('calendar:zone\.timesIn', \{ defaultValue: 'Times in \{zone\}', zone \}\)/, 'the label is not the translated one');
+  for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
+    const cat = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs', loc, 'calendar.json'), 'utf8'));
+    assert.match(cat['zone.timesIn'] || '', /\{zone\}/, loc + ' has no "Times in {zone}"');
+  }
+});
+
 test('the website\'s member calendar overlay sends its zone too', () => {
   // The fourth reader of /api/calendar. It only displays, so the zone it sends is the whole fix.
   const shell = readFileSync(join(ROOT, 'public/newdesign/pageShell.jsx'), 'utf8');

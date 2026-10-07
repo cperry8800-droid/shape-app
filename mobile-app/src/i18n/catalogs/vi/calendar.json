@@ -97,5 +97,6 @@
   "state.upNext": "TIẾP THEO",
   "unit.durMin": "{min}ph",
   "unit.min": "{min} PHÚT",
-  "view.kicker": "Mục · Lịch"
+  "view.kicker": "Mục · Lịch",
+  "zone.timesIn": "Giờ theo {zone}"
 }

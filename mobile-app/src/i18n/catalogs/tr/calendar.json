@@ -97,5 +97,6 @@
   "state.upNext": "SIRADAKİ",
   "unit.durMin": "{min}dk",
   "unit.min": "{min} DK",
-  "view.kicker": "Bölüm · Takvim"
+  "view.kicker": "Bölüm · Takvim",
+  "zone.timesIn": "Saatler: {zone}"
 }

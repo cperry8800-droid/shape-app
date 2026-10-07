@@ -378,11 +378,19 @@
     var labels = rowLabels(day);
     var exercises = [];
     var li = 0;
+    var shownKind = "";
     for (var b = 0; b < day.blocks.length; b++) {
       var rows = day.blocks[b].rows;
+      // The member's card heads a run of one kind once (workoutCardExercises), so the
+      // coach's preview of that card does too: two main blocks in a row read as one Main.
+      var kindLabel = rows.length && day.blocks[b].kind !== shownKind
+        ? ({ warmup: "Warm-up", main: "Main", accessory: "Accessory", finisher: "Finisher" })[day.blocks[b].kind] || null : null;
+      if (rows.length) shownKind = day.blocks[b].kind;
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
         exercises.push({
+          // The block's name on its first row, as the member's card shows it.
+          blockLabel: i === 0 ? kindLabel : null,
           // ⚠ EVERY ROW, NOT ONLY THE GROUPED ONES. `DashWorkoutCard` numbers a
           //   prefix-less row by its ABSOLUTE index, so this preview read
           //   "01 / A1 / A2 / 04" beside an editor reading "01 / A1 / A2 / 02" —

@@ -97,5 +97,6 @@
   "state.upNext": "ДАЛЕЕ",
   "unit.durMin": "{min}м",
   "unit.min": "{min} МИН",
-  "view.kicker": "Раздел · Календарь"
+  "view.kicker": "Раздел · Календарь",
+  "zone.timesIn": "Время: {zone}"
 }

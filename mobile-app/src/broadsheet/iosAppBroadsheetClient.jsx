@@ -32005,6 +32005,8 @@ const _bsCueLibrary = {
 function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
   const t = useBS();
   const tr = useShapeTr();
+  // Which move's demonstration is open ("block:move"), one at a time.
+  const [demoAt, setDemoAt] = useStateBSC(null);
   _bsScrollTopOnMount();
   const isRest = program.tag === 'REST';
 
@@ -32083,6 +32085,23 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
                     {cue && (
                       <div style={{ marginTop: 6, paddingLeft: 29, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, color: t.INK70, lineHeight: 1.35 }}>“{cue}”</div>
                     )}
+                    {/* ⚠ THE COACH'S DEMO, HERE AS WELL AS IN THE SESSION. A move's clip was
+                        reachable only from the live player's How-to chip, so a member reading
+                        the day before starting it could not see how a move is done. Folded
+                        behind one control, one open at a time, so the preview stays a list.
+                        Owner, 2026-10-07: "Apply all the fixes". */}
+                    {m.video && (() => {
+                      const key = bi + ':' + i;
+                      const open = demoAt === key;
+                      return (
+                        <div style={{ paddingLeft: 29, marginTop: 6 }}>
+                          <button type="button" aria-expanded={open} onClick={() => setDemoAt(open ? null : key)} style={{ minHeight: 32, background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT }}>
+                            {open ? '▾' : '▸'} {tr('session:player.formClip', { defaultValue: 'How-to · form clip' })}
+                          </button>
+                          {open && <ShapeVideoPlayer value={m.video} title={tr('session:player.formClipHead', { defaultValue: 'How-to · {move}', move: m.m })} />}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

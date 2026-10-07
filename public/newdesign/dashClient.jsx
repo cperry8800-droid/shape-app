@@ -173,7 +173,10 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
       <ShapeVideoPlayer value={workout.programVideo} title="Program introduction"/>
       <ShapeVideoPlayer value={workout.video} title="Workout walkthrough"/>
       {rows.slice(0, maxRows).map((e, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 10, alignItems: "start", padding: "7px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
+        <React.Fragment key={i}>
+        {/* The coach's block, where it changes (workoutCardExercises / dayToClientCard). */}
+        {e.blockLabel && <div className="dash-card-block" style={{ fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: accent, padding: i ? "10px 0 2px" : "2px 0 2px" }}>{e.blockLabel}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 10, alignItems: "start", padding: "7px 0", borderTop: i && !e.blockLabel ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none" }}>
           <span style={{ fontFamily: mono, fontSize: 9.5, color: e.prefix ? accent : ink50, fontWeight: e.prefix ? 700 : 400, marginTop: 2 }}>{e.prefix || String(i + 1).padStart(2, "0")}</span>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 500 }}>{e.name}</div>
@@ -183,6 +186,7 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
           </div>
           <span style={{ fontFamily: mono, fontSize: 10.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", marginTop: 2, whiteSpace: "nowrap" }}>{units ? units.text(e.load) : e.load}</span>
         </div>
+        </React.Fragment>
       ))}
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
