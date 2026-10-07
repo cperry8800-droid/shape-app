@@ -2044,12 +2044,13 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dchip select{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;opacity:0;cursor:pointer;font-size:16px}
 .dbu2 .dpop{max-width:600px;border:1px solid ${DBU_LINE2};border-radius:12px;background:${DBU_PG};padding:12px 14px;margin:-4px 0 14px}
 .dbu2 .dpop>p{margin:0;font-size:13px;color:${DBU_INK2}}
-/* List beside detail when the panel has the room, the detail under it when not. */
+/* List beside detail when the panel has the room, the detail under it when not.
+   NOT sticky: the page's main element is overflow-x hidden, which makes it a scroll
+   container, so a sticky detail would never stick to the viewport (measured at 1440). */
 .dbu2 .dsplit{display:grid;gap:16px;align-items:start}
 .dbu2 .dmain{min-width:0}
 @container dday (min-width:760px){
  .dbu2 .dsplit{grid-template-columns:minmax(0,1fr) 284px}
- .dbu2 .ddetail{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;overscroll-behavior:contain}
 }
 .dbu2 .dlist{container:dlist / inline-size;position:relative;border:1px solid ${DBU_LINE};border-radius:10px;background:${DBU_WH}}
 .dbu2 .dlist[data-dragging]{user-select:none;-webkit-user-select:none}
