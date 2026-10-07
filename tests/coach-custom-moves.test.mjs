@@ -43,18 +43,20 @@ Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/
   { appendExports: 'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };' }));
 
 const SRC = fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx', import.meta.url));
-const mod = await loadRealModule(SRC, { appendExports: 'export { DbuBuilder, DbuExercisePicker, dbuClampPanel, dbuDefaultPanelPos, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H };' });
-const { DbuExercisePicker, dbuClampPanel, dbuDefaultPanelPos, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H } = mod;
+const mod = await loadRealModule(SRC, { appendExports: 'export { DbuBuilder, DbuExercisePicker, dbuClampPanel, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H };' });
+const { DbuExercisePicker, dbuClampPanel, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H } = mod;
 
 const buttons = () => [...document.querySelectorAll('button')];
 const byText = (re) => buttons().find((b) => re.test(b.textContent));
 
-// ── Where the panel may sit ─────────────────────────────────────────────────
+// ── Where the floating panel may sit ────────────────────────────────────────
 // ⚠ THE SHIPPED CLAMP IS DRIVEN, NOT DESCRIBED. Measured on the pre-fix build at
-// 1440x940 in Sheet: the panel's box ran y 496 → bottom 1296, i.e. 556px of it
+// 1440x940 in Sheet: the day panel's box ran y 496 → bottom 1296, i.e. 556px of it
 // below the fold, because `position:absolute` anchored it to the page while
-// `max-height:calc(100vh - 140px)` sized it against the screen.
-test('the day panel can never be dropped outside the viewport', () => {
+// `max-height:calc(100vh - 140px)` sized it against the screen. The day editor docks
+// under the canvas since step 3; the client preview is the panel that floats now, on
+// the same clamp.
+test('the floating panel can never be dropped outside the viewport', () => {
   window.innerWidth = 1440; window.innerHeight = 940;
   for (const [x, y] of [[-4000, 4000], [99999, -99999], [0, 0], [1440, 940], [-1, 941]]) {
     const p = dbuClampPanel(x, y, DBU_PANEL_W);
@@ -73,23 +75,6 @@ test('a window too small for the panel still yields a position on screen', () =>
   const p = dbuClampPanel(9999, 9999, DBU_PANEL_W);
   assert.ok(p.x >= DBU_PANEL_GAP && p.y >= DBU_PANEL_GAP, 'clamped to the gutter rather than to a negative');
   window.innerWidth = 1440; window.innerHeight = 940;
-});
-
-// ⚠ OPENING LEVEL WITH THE STAGE IS WRONG WHEN THE STAGE IS FAR DOWN THE PAGE:
-// on the measured layout the stage top sits at y 504 of a 940 viewport, which
-// would leave a 424px letterbox. The default is raised so the panel opens usable.
-test('the panel opens with a usable height however far down the page the stage is', () => {
-  window.innerWidth = 1440; window.innerHeight = 940;
-  const stage = { getBoundingClientRect: () => ({ top: 860, right: 1368, bottom: 1100, left: 312, width: 1056, height: 240 }) };
-  const p = dbuDefaultPanelPos(stage);
-  const height = window.innerHeight - p.y - DBU_PANEL_GAP;
-  assert.ok(height >= 400, `opened only ${height}px tall`);
-  assert.ok(p.x + DBU_PANEL_W <= window.innerWidth - DBU_PANEL_GAP + 0.001, 'and inside the right gutter');
-});
-
-test('with no stage to measure the panel still opens on screen', () => {
-  const p = dbuDefaultPanelPos(null);
-  assert.ok(p.x >= DBU_PANEL_GAP && p.y >= DBU_PANEL_GAP);
 });
 
 // ── The coach's own moves ───────────────────────────────────────────────────
@@ -560,19 +545,30 @@ const mountBuilder = async () => {
     template: dbuTemplate(), clients: [], queue: [], live: false, ownerId: 'coach-a',
     playlists: [], clips: [], dayTemplates: [], onBack() {}, onSaved() {},
   })));
-  // The drag/canvas regressions exercise the optional popped-out Planner editor.
-  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Planner').click());
-  await React.act(async()=>document.querySelector('.wg button.c:not(.rest)').click());
-  await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Pop out editor')?.click());
   return root;
 };
-const grip = () => document.querySelector('.drawer.float .dh');
+// ⚠ THESE DRIVE THE CLIENT PREVIEW SINCE STEP 3. They were written against the day
+// editor's popped-out panel, which is retired; the preview floats on the same
+// \`useDbuDrag\` hook, so every rule they pin (one pointer drives a drag, a lost capture
+// ends it, a close cannot strand it, the grip is the handle) is still that hook's.
+const togglePreview = async () => {
+  const tog = [...document.querySelectorAll('button.tog')].find((b) => /Preview as client/.test(b.textContent));
+  assert.ok(tog, 'no preview toggle — without one this test asserts nothing');
+  await React.act(async () => tog.click());
+};
+const mountWithPreview = async () => {
+  const root = await mountBuilder();
+  await togglePreview();
+  assert.ok(document.querySelector('.pop'), 'the preview did not open');
+  return root;
+};
+const grip = () => document.querySelector('.pop .ph2');
 const grabbing = () => !!(grip() && /grabbing/.test(grip().getAttribute('style') || ''));
 const ptr = (type, init) => React.act(async () => grip().dispatchEvent(new window.PointerEvent(type, { bubbles: true, ...init })));
 
 test('a second finger does not end the first finger\'s drag', async () => {
-  const root = await mountBuilder();
-  assert.ok(grip(), 'a day is open, so the panel floats and can be grabbed');
+  const root = await mountWithPreview();
+  assert.ok(grip(), 'the preview is open, so the panel floats and can be grabbed');
   await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
   assert.ok(grabbing(), 'the grab took');
   // ⚠ `onPanelMove` WAS POINTER-ID MATCHED AND `onPanelDrop` WAS NOT. A second finger
@@ -589,7 +585,7 @@ test('a second finger does not end the first finger\'s drag', async () => {
 // taking the pointer back. `lostpointercapture` is the one event that fires however
 // the gesture ends.
 test('losing pointer capture ends the drag', async () => {
-  const root = await mountBuilder();
+  const root = await mountWithPreview();
   await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
   assert.ok(grabbing());
   await ptr('lostpointercapture', { pointerId: 1 });
@@ -597,25 +593,18 @@ test('losing pointer capture ends the drag', async () => {
   await React.act(async () => root.unmount());
 });
 
-// ⚠ AND `dragging` LIVES IN `DbuBuilder`, WHICH OUTLIVES THE PANEL. A drag interrupted
+// ⚠ AND `dragging` LIVES IN THE HOOK, WHICH OUTLIVES THE PANEL. A drag interrupted
 // by the panel closing left the NEXT open stuck in `grabbing`, with its text
 // unselectable, until the page was reloaded.
-test('a drag interrupted by the panel closing does not follow it to the next day', async () => {
-  const root = await mountBuilder();
+test('a drag interrupted by the panel closing does not follow it to the next open', async () => {
+  const root = await mountWithPreview();
   await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
   assert.ok(grabbing(), 'mid-drag');
-  const seg = (re) => [...document.querySelectorAll('.seg button')].find((b) => re.test(b.textContent));
-  await React.act(async () => seg(/Sheet/).click());
-  assert.ok(!document.querySelector('.drawer.float'), 'the panel closed under the drag');
-  await React.act(async () => seg(/Grid/).click());
-  // ⚠ THE REOPEN IS ASSERTED, NOT ASSUMED. This read `if (grip())` — and switching back
-  // to Grid does NOT restore `sel`, so the panel never reopened and the one line that
-  // mattered was skipped every run. The mutation that disables the clearing survived a
-  // green suite because of it. A day band has to be clicked, and that it exists is its
-  // own assertion.
-  const day = [...document.querySelectorAll('.wg button.c')].find((b) => !b.classList.contains('rest'));
-  assert.ok(day, 'no day band to reopen — without one this test asserts nothing');
-  await React.act(async () => day.click());
+  await togglePreview();
+  assert.ok(!document.querySelector('.pop'), 'the panel closed under the drag');
+  // ⚠ THE REOPEN IS ASSERTED, NOT ASSUMED: a guard that read `if (grip())` once skipped the
+  // one line that mattered every run, and a mutation that disabled the clearing survived.
+  await togglePreview();
   assert.ok(grip(), 'the panel reopened');
   assert.ok(!grabbing(), 'and it is not still holding the interrupted grab');
   await React.act(async () => root.unmount());
@@ -663,8 +652,8 @@ test('both builders resolve their own moves and foods through the shared rule', 
 // starting a drag. A coach who grabbed the dots got nothing; a coach who grabbed
 // the empty header beside them got the feature.
 test('the drag grip itself starts a drag', async () => {
-  const root = await mountBuilder();
-  const gh = document.querySelector('.drawer.float .dh .gh');
+  const root = await mountWithPreview();
+  const gh = document.querySelector('.pop .ph2 .gh');
   assert.ok(gh, 'no grip rendered — without one this test asserts nothing');
   await React.act(async () => gh.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, pointerId: 7, clientX: 500, clientY: 200 })));
   assert.ok(grabbing(), 'pressing the handle is a drag, not a dead button');
@@ -672,7 +661,7 @@ test('the drag grip itself starts a drag', async () => {
   // ⚠ AND THE EXCLUSION IT WAS CARVED OUT OF STILL HOLDS: a real control in the
   // header is that control's. Without this the fix is "let anything start a drag",
   // which takes Done and Duplicate away from the pointer.
-  const done = [...document.querySelectorAll('.drawer.float .dh button')].find((b) => !b.classList.contains('gh'));
+  const done = [...document.querySelectorAll('.pop .ph2 button')].find((b) => !b.classList.contains('gh'));
   assert.ok(done, 'no ordinary control in the header — the control half is untested');
   await React.act(async () => done.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, pointerId: 8, clientX: 500, clientY: 200 })));
   assert.ok(!grabbing(), 'a press on a control is still that control’s');
@@ -683,12 +672,12 @@ test('the drag grip itself starts a drag', async () => {
 // REPLACE the drag, so the panel stopped following the hand moving it and waited on
 // the finger that was only resting there.
 const panelBox = () => {
-  const st = document.querySelector('.drawer.float').getAttribute('style') || '';
+  const st = document.querySelector('.pop').getAttribute('style') || '';
   const x = /left:\s*(-?[\d.]+)px/.exec(st), y = /top:\s*(-?[\d.]+)px/.exec(st);
   return x && y ? [Number(x[1]), Number(y[1])] : null;
 };
 test('a second finger cannot take over a drag already under way', async () => {
-  const root = await mountBuilder();
+  const root = await mountWithPreview();
   await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
   await ptr('pointermove', { pointerId: 1, clientX: 420, clientY: 260 });
   const moved = panelBox();
@@ -763,19 +752,20 @@ test('the client preview can be dragged, and moving it releases the anchor it wa
   await React.act(async () => root.unmount());
 });
 
-// ⚠ ONE HOOK, TWO PANELS — asserted structurally, because the alternative this
-// repo already records is three line-for-line copies of `useCoachDoc` that had
-// drifted. Both panels must take their pointer handlers from `useDbuDrag`, and the
-// pointer-capture dance must exist exactly once in the file.
-test('both floating panels share one drag rule', async () => {
+// ⚠ ONE HOOK — asserted structurally, because the alternative this repo already records
+// is three line-for-line copies of `useCoachDoc` that had drifted. Two panels floated
+// until step 3 docked the day editor; the client preview is the one left, and it must
+// still take its pointer handlers from `useDbuDrag`, with the pointer-capture dance
+// written exactly once in the file (the row drag shares it through `dbuCapture`).
+test('the floating panel takes its drag from the one shared rule', async () => {
   const { readFileSync } = await import('node:fs');
   const { stripComments } = await import('./helpers/strip-comments.mjs');
   const code = stripComments(readFileSync(SRC, 'utf8'));
-  assert.equal((code.match(/= useDbuDrag\(\{/g) || []).length, 2, 'exactly two panels are draggable, and both go through the hook');
-  assert.equal((code.match(/setPointerCapture/g) || []).length, 1, 'the capture dance is written once, not once per panel');
+  assert.equal((code.match(/= useDbuDrag\(\{/g) || []).length, 1, 'exactly one panel is draggable, and it goes through the hook');
+  assert.equal((code.match(/setPointerCapture/g) || []).length, 1, 'the capture dance is written once, not once per gesture');
   assert.equal((code.match(/function useDbuDrag\b/g) || []).length, 1);
-  // Each panel spreads the hook's own handler bundle rather than re-wiring five
-  // pointer props by hand — a second hand-wiring is how one of them loses
-  // `onLostPointerCapture` and strands a grabbing cursor.
-  assert.equal((code.match(/\{\.\.\.(panel|previewPanel)\.headerProps\}/g) || []).length, 2);
+  // The panel spreads the hook's own handler bundle rather than re-wiring five pointer
+  // props by hand — a hand-wiring is how a panel loses `onLostPointerCapture` and
+  // strands a grabbing cursor.
+  assert.equal((code.match(/\{\.\.\.previewPanel\.headerProps\}/g) || []).length, 1);
 });

@@ -362,6 +362,138 @@ function dbuSummary(doc, dates) {
   };
 }
 
+// ── A day, deleted or copied to other weeks ─────────────────────────────────
+// Step 3 of the builder plan (owner, 2026-10-07): "Delete a day; copy it to other weeks".
+// Duplicate already copied a day within its week; neither of these existed.
+const dbuMoves = (day) => ((day && day.blocks) || []).reduce((n, b) => n + ((b.rows || []).length), 0);
+// One week's day goes: the Grid cell the panel's heading names. The other weeks keep
+// theirs, and the confirm says so before anything is removed.
+function dbuDeleteDay(doc, wi, di) {
+  const w = doc.weeks[wi];
+  if (!w || !w.days[di]) return doc;
+  return { ...doc, weeks: doc.weeks.map((x, i) => (i === wi ? { ...x, days: x.days.filter((_, j) => j !== di) } : x)) };
+}
+// Where a copy of week `wi`'s day `di` lands in week `ti`: the slot of its own weekday.
+// ⚠ A DAY ALREADY IN THAT SLOT IS REPLACED, AND NEVER WITHOUT BEING NAMED FIRST: the week
+// list says "replaces Upper A, 5 moves" beside that week, and the button counts the days it
+// will replace, before the coach confirms. Asking per collision was the other choice;
+// replacing is what "copy Lower A to weeks 2–8" means, and the commonest collision is the
+// empty "Day 1" that ＋ Week puts on every new week's Monday.
+function dbuCopySlot(doc, wi, di, ti) {
+  const src = doc.weeks[wi] && doc.weeks[wi].days[di];
+  const target = doc.weeks[ti];
+  if (!src || !target || ti === wi) return null;
+  const at = dbuHasWeekday(src) ? target.days.findIndex((d) => dbuHasWeekday(d) && d.weekday === src.weekday) : -1;
+  return { at, replaces: at >= 0 ? target.days[at] : null };
+}
+// A copy is a day of its own: new ids for it and every move, so nothing that finds a day
+// or a move by id (the assignment's `dayId`, the editor's selection) mistakes it for its
+// source. Its sets are the full week's (a copy out of a deload week is not cut again in a
+// training week), and a load typed by hand for the source's week is not one for the
+// target's, so the copy follows the program's progression there.
+function dbuCopiedDay(day, deload) {
+  const fresh = JSON.parse(JSON.stringify(day));
+  fresh.id = crypto.randomUUID();
+  (fresh.blocks || []).forEach((b) => { b.rows = (b.rows || []).map((r) => { const { loadPinned, ...rest } = r; return { ...rest, id: crypto.randomUUID() }; }); });
+  const whole = ShapeWorkoutDocument.undeloadWeek({ deload: true, days: [fresh] }).days[0];
+  return deload ? ShapeWorkoutDocument.deloadWeek({ deload: false, days: [whole] }).days[0] : whole;
+}
+function dbuCopyDayToWeeks(doc, wi, di, targets) {
+  const src = doc.weeks[wi] && doc.weeks[wi].days[di];
+  if (!src) return doc;
+  const want = new Set((targets || []).filter((t) => t !== wi && doc.weeks[t]));
+  if (!want.size) return doc;
+  return { ...doc, weeks: doc.weeks.map((w, ti) => {
+    if (!want.has(ti)) return w;
+    const copy = dbuCopiedDay(src, !!w.deload);
+    const slot = dbuCopySlot(doc, wi, di, ti);
+    if (slot && slot.at >= 0) return { ...w, days: w.days.map((d, j) => (j === slot.at ? copy : d)) };
+    // A source with no weekday ("In sequence from start") has no slot to aim at, so the
+    // copy takes the week's next free weekday, as Duplicate does.
+    if (!dbuHasWeekday(copy)) copy.weekday = dbuNextFreeWeekday(w);
+    // In weekday order, so the Sheet reads Mon → Sun as the Grid does.
+    const after = w.days.findIndex((d) => dbuHasWeekday(d) && d.weekday > copy.weekday);
+    return { ...w, days: after < 0 ? [...w.days, copy] : [...w.days.slice(0, after), copy, ...w.days.slice(after)] };
+  }) };
+}
+// "week 2", "weeks 2 and 3", "weeks 2–8", "weeks 2, 3 and 5": runs of three or more read
+// as a range.
+function dbuWeekList(nums) {
+  const list = [...new Set(nums)].sort((a, b) => a - b);
+  if (!list.length) return "";
+  const parts = [];
+  for (let i = 0; i < list.length;) {
+    let j = i;
+    while (j + 1 < list.length && list[j + 1] === list[j] + 1) j += 1;
+    if (j - i >= 2) parts.push(list[i] + "–" + list[j]);
+    else for (let k = i; k <= j; k += 1) parts.push(String(list[k]));
+    i = j + 1;
+  }
+  const words = parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts[parts.length - 1] : parts[0];
+  return (list.length === 1 ? "week " : "weeks ") + words;
+}
+
+// ── The program's progression, as the bar and the marks show it ─────────────
+// The rule and its arithmetic live in the document module (`ShapeWorkoutDocument`:
+// `normalizeProgression`, `applyProgramProgression`, `progressionStatus`), because they
+// write the loads every reader of the document receives. What is here is how a coach sees
+// it. U+FE0E keeps the arrow and the pencil as type, not iOS's colour emoji.
+const DBU_PROGRESS_MARK = {
+  source: ["↗︎", "Goes up each week with the program’s progression"],
+  follows: ["↗︎", "This week’s load is set by the program’s progression"],
+  pinned: ["✎︎", "This week’s load was typed by hand"],
+};
+const dbuUnitLabel = (unit) => (unit === "pct" ? "% 1RM" : unit === "lb" ? "lb" : "kg");
+const dbuAmountLabel = (rule) => rule.amount + (rule.unit === "pct" ? "% 1RM" : " " + dbuUnitLabel(rule.unit));
+const DBU_PROGRESS_KINDS = [
+  { kinds: ["main"], label: "main lifts" },
+  { kinds: ["main", "accessory"], label: "main and accessory lifts" },
+  { kinds: ["warmup", "main", "accessory", "finisher"], label: "every block" },
+];
+const DBU_DELOAD_EVERY = [0, 3, 4, 5, 6];
+const dbuOrdinal = (n) => n + ((n % 100 >= 11 && n % 100 <= 13) ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th"));
+const dbuDeloadLabel = (n) => (n ? "Deload every " + dbuOrdinal(n) + " week" : "No deload week");
+// The rule a coach starts from: the unit most of week 1's main lifts are typed in (so the
+// bar moves what they already wrote), 5 lb or 2.5 kg / % a week, and no deload yet.
+function dbuDefaultRule(doc) {
+  const count = { kg: 0, lb: 0, pct: 0 };
+  (((doc.weeks || [])[0] || {}).days || []).forEach((d) => (d.blocks || []).forEach((b) => {
+    if (b.kind !== "main") return;
+    (b.rows || []).forEach((r) => { if (count[r.loadType] != null && r.loadText == null && Number(r.load) > 0) count[r.loadType] += 1; });
+  }));
+  const unit = ["lb", "kg", "pct"].reduce((best, u) => (count[u] > count[best] ? u : best), "kg");
+  return { amount: unit === "lb" ? 5 : 2.5, unit, kinds: ["main"], deloadEvery: 0 };
+}
+// What the bar reports: how many moves climb, one of them as an example, the deload weeks,
+// the loads typed by hand, and the moves left alone because they are in another unit.
+function dbuProgressionReport(doc) {
+  const W = ShapeWorkoutDocument;
+  const rule = W.normalizeProgression(doc.progression);
+  const weeks = doc.weeks || [];
+  const out = { rule, moves: 0, otherUnit: 0, pinned: 0, deloads: [], example: null };
+  if (!rule) return out;
+  const same = (a, b) => String((a && a.name) || "").trim().toLowerCase() === String((b && b.name) || "").trim().toLowerCase();
+  ((weeks[0] || {}).days || []).forEach((day, di) => (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((r, ri) => {
+    if (W.progressionStatus(doc, 0, di, bi, ri) === "source") {
+      out.moves += 1;
+      for (let wi = weeks.length - 1; wi > 0 && !out.example; wi -= 1) {
+        (weeks[wi].days || []).forEach((td, tdi) => (td.blocks || []).forEach((tb, tbi) => (tb.rows || []).forEach((tr, tri) => {
+          if (!out.example && same(tr, r) && W.progressionStatus(doc, wi, tdi, tbi, tri) === "follows") {
+            out.example = { name: String(r.name).trim(), to: Number(tr.load), week: wi + 1 };
+          }
+        })));
+      }
+    } else if (rule.kinds.includes(b.kind) && r.loadText == null && Number(r.load) > 0 && r.loadType !== rule.unit) out.otherUnit += 1;
+  })));
+  weeks.forEach((w, wi) => {
+    if (w.deload) out.deloads.push(wi + 1);
+    if (wi) (w.days || []).forEach((day, di) => (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((_, ri) => {
+      if (W.progressionStatus(doc, wi, di, bi, ri) === "pinned") out.pinned += 1;
+    })));
+  });
+  return out;
+}
+
 // ── Template persistence (live API ⇄ localStorage drafts) ───────────────────
 const dbuDraftKey = ownerId => "shape.dashBuilderDrafts.v2." + (ownerId || "demo");
 function dbuReadDrafts(ownerId) {
@@ -390,23 +522,6 @@ async function dbuUploadVideo(file) {
   return media.publicUrl;
 }
 
-// ── The floating day panel: where it sits, and how it is moved ───────────────
-// ⚠ IT WAS ANCHORED TO THE PAGE AND BUDGETED AGAINST THE VIEWPORT, and those two
-// cannot both be true. `position:absolute;top:-8px` put its top wherever the stage
-// happened to be while `max-height:calc(100vh - 140px)` sized it against the
-// screen. Measured at 1440x940 in Sheet: top y 496, height 800, so its bottom sat
-// at 1296 — **556px below the fold** — with 2,933px of scrollable content inside a
-// 798px box. Reaching the lower half meant scrolling the page, which carried its
-// own Done and Duplicate buttons off the top. Fixed positioning makes the budget
-// correct by construction: the box now lives in the same coordinate space as the
-// number that bounds it, so `maxHeight` below is exact rather than hopeful.
-//
-// ⚠ AND IT IS DRAGGABLE ON THE OWNER'S RULING — "floating but can be moved
-// around...dragged. Free moving" — which is what answers the other half of the
-// measurement. In Sheet the panel sat at x 978 over a Week 2 column running
-// 990→1367: covered entirely, on the one view whose whole purpose is reading weeks
-// left to right. A coach now moves it off whatever they are reading instead of
-// choosing between the panel and the column.
 // The RPE scale, 1–10 in half points. ⚠ IT RUNS FROM 1, NOT 5: a lifting block
 // lives at 7–9, but the same field carries an easy run at RPE 3 — the 5k demo
 // template has exactly that — and a scale that started at 5 could not express it.
@@ -422,7 +537,16 @@ function dbuRpeOptions(current) {
   return stored ? [...DBU_RPE_STEPS, n].sort((a, b) => a - b) : DBU_RPE_STEPS;
 }
 
-const DBU_PANEL_W = 400;   // matches `.drawer.float`'s width
+// ── The client preview: where it sits, and how it is moved ───────────────────
+// ⚠ ONE PANEL FLOATS NOW, AND IT IS THE PREVIEW. The day editor floated too, in three
+// positions (beside the canvas, a fixed side panel, popped out and dragged), and the
+// builder plan's step 3 retired all three with the Guided, Editor and Planner layouts
+// (owner, 2026-10-07: "I like everything that is proposed ... proceed with
+// upgrades/improvements"). The day editor docks under the canvas at the builder's full
+// width, where step 2's detail sits beside the list. What the floating panels learned
+// stays with the one that still floats: it is dragged by its header, clamped to the
+// screen and budgeted from its own top.
+const DBU_PANEL_W = 344;   // matches `.pop`'s width
 const DBU_PANEL_GAP = 12;  // the margin it keeps to every screen edge
 const DBU_PANEL_MIN_H = 160; // enough of it to stay grabbable
 
@@ -439,45 +563,13 @@ function dbuClampPanel(x, y, w) {
   };
 }
 
-// Where it opens: beside the canvas, as before — but raised when the stage sits so
-// far down the page that opening level with it would leave a letterbox of panel.
-// `DBU_PANEL_OPEN_H` is the height worth having before the internal scroll starts
-// doing the work.
-const DBU_PANEL_OPEN_H = 420;
-function dbuDefaultPanelPos(stage) {
-  const vh = window.innerHeight;
-  const r = stage && stage.getBoundingClientRect ? stage.getBoundingClientRect() : null;
-  const x = r ? r.right - DBU_PANEL_W + 10 : window.innerWidth - DBU_PANEL_W - DBU_PANEL_GAP;
-  const top = r ? r.top - 8 : DBU_PANEL_GAP;
-  return dbuClampPanel(x, Math.min(Math.max(DBU_PANEL_GAP, top), Math.max(DBU_PANEL_GAP, vh - DBU_PANEL_OPEN_H - DBU_PANEL_GAP)), DBU_PANEL_W);
-}
-
-// ⚠ BELOW 1100px THE PANEL IS NOT FLOATING AT ALL — `.drawer.float`'s media query
-// drops it back into the flow — so no inline position may be written there or it
-// would win over the stylesheet and pin a phone-width panel to the viewport.
-// Dragging is a wide-screen affordance; the stacked panel needs none.
-function useDbuFloating() {
-  const [floating, setFloating] = React.useState(() => typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(min-width: 1101px)').matches : true);
-  React.useEffect(() => {
-    if (!window.matchMedia) return;
-    const mq = window.matchMedia('(min-width: 1101px)');
-    const on = (e) => setFloating(e.matches);
-    mq.addEventListener ? mq.addEventListener('change', on) : mq.addListener(on);
-    return () => { mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on); };
-  }, []);
-  return floating;
-}
-
-// ── One drag rule, two floating panels ───────────────────────────────────────
-// ⚠ THE DAY EDITOR AND THE CLIENT PREVIEW SHARE THIS rather than each carrying
-// its own pointer-capture dance. They open in different corners at different
-// widths — but "grab the header, stay on screen, and move by keyboard too" is
-// ONE rule, and this repo already records what the other bet costs: `useCoachDoc`
-// was the third line-for-line copy of one store and the copies had drifted.
-// ⚠ THE CAPTURE DANCE IS WRITTEN ONCE, and three gestures use it: the day editor's panel,
-// the client preview and, since the day became a list, a row dragged by its handle. A
-// capture can throw (the pointer already gone, an element detached mid-gesture) and a
-// throw there must not end the gesture it was only protecting.
+// ── One drag rule ───────────────────────────────────────────────────────────
+// "Grab the header, stay on screen, and move by keyboard too" — written once, for the
+// client preview (the day editor used it too until it docked, step 3).
+// ⚠ THE CAPTURE DANCE IS WRITTEN ONCE, and two gestures use it: the client preview and,
+// since the day became a list, a row dragged by its handle. A capture can throw (the
+// pointer already gone, an element detached mid-gesture) and a throw there must not end
+// the gesture it was only protecting.
 function dbuCapture(e) { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} }
 function dbuRelease(e, id) { try { e.currentTarget.releasePointerCapture(id); } catch (err) {} }
 function useDbuDrag({ enabled, open, defaultPos }) {
@@ -541,7 +633,7 @@ function useDbuDrag({ enabled, open, defaultPos }) {
   // text cannot outlive it.
   const onLostCapture = () => end();
   // ⚠ ARROW KEYS MOVE IT TOO. A drag-only affordance is unreachable by keyboard,
-  // and either panel can cover the thing it is about — so the way out of that
+  // and the panel can cover the thing it is about — so the way out of that
   // has to exist without a pointer.
   const onKey = (e) => {
     const step = e.shiftKey ? 48 : 12;
@@ -868,7 +960,7 @@ function dbuRankMoves(list, term) {
 // walks the line like a spreadsheet; each one names its move for a screen reader.
 // Focus anywhere in the line selects it, so the detail follows the coach's cursor.
 // Usable on its own (two suites mount it bare), with selection and drag handed in.
-function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown }) {
+function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown, progress = '' }) {
   const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText;
     // A trainer's new Rest value replaces any older numeric override, as in the mobile editor.
     if(k==='rest') delete next.restSeconds; onChange(next);};
@@ -880,7 +972,10 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
   const marks = [
     row.cue && ['“', 'Has a coaching cue'],
     video && ['▶︎', 'Has a demo video'],
-    row.progression && ['↗︎', 'Progresses when a week is copied with Progress'],
+    // ⚠ THE PROGRAM'S PROGRESSION, NOT THE ROW'S OLD CHECKBOX. `row.progression` only ever
+    // did anything when a week was copied with Progress, a tool step 3 retired, so marking
+    // it would promise a climb that no longer happens.
+    progress && DBU_PROGRESS_MARK[progress],
     ladder && ['≡', 'Per-set targets · ' + [ladder.reps, ladder.weight].filter(Boolean).join(' · ')],
   ].filter(Boolean);
   const pick = () => { if (onSelect) onSelect(); };
@@ -921,7 +1016,7 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
 // fields, the demo and the move's own actions. Remounted per move (its key), so an
 // upload's state belongs to the move it was started on — and the list will not change
 // the selection while one runs (`busy`), so that move stays on screen until it lands.
-function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplicate, onPair, pair = {}, clips = [], onUploading }) {
+function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplicate, onPair, pair = {}, clips = [], onUploading, progress = '', rule = null, onFollow }) {
   const set = (k,v) => onChange({...row,[k]:v});
   const [uploading,setUploading] = React.useState(false);
   const [error,setError] = React.useState('');
@@ -942,7 +1037,16 @@ function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplic
       {field('cue','Coach cue')}{field('tempo','Tempo')}
       <label><span>Superset</span><select className="df" aria-label={who+' superset'} value={row.group || ''} onChange={e=>set('group',e.target.value || null)}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label>
     </div>
-    <label className="dchk"><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:Number(row.rpe)>0?0.5:undefined}:null)}/> Increase it when a week is copied with Progress</label>
+    {/* ⚠ THE CHECKBOX THAT WAS HERE ("Increase it when a week is copied with Progress")
+        carried increments fixed in code. The program's progression bar sets one rule for
+        every move it covers; this line says what it does to this one. */}
+    {progress && rule && <p className="dprg">
+      <span aria-hidden="true">{DBU_PROGRESS_MARK[progress][0]}</span>
+      {progress === 'source' ? 'Goes up ' + dbuAmountLabel(rule) + ' each week with the program’s progression.'
+        : progress === 'follows' ? 'This week’s load is set by the progression. Type a load to set it by hand.'
+        : 'You set this week’s load by hand.'}
+      {progress === 'pinned' && onFollow && <button type="button" className="dbtn" onClick={onFollow}>Follow the progression</button>}
+    </p>}
     {/* ⚠ THE DEMO OPENS HERE, NOT BEHIND A FOLD. Step 1 folded it under every move because
         it was under EVERY move; the detail holds one move, so its demo is the thing being
         looked at and stays open. The heading still says whether a demo is attached, and
@@ -997,7 +1101,7 @@ function DbuQuickAdd({ customMoves = [], onAdd, blockLabel, inputRef }) {
       add(options[at]);
     } else if (e.key === "Escape" && (shown || q)) {
       // Only when there is something to dismiss; an Escape on an empty line is the
-      // panel's (Planner closes its day editor on it).
+      // panel's (it closes the day editor).
       e.preventDefault(); e.stopPropagation();
       if (shown) setOpen(false); else setQ("");
     }
@@ -1188,7 +1292,7 @@ function dbuMergeDraft(blocks, draftBlocks) {
   return next;
 }
 
-function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null }) {
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null, progress = {}, rule = null }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
   const blocks = day.blocks || [];
   const flat = dbuFlatRows(day);
@@ -1364,7 +1468,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
                         <DbuRow key={x.key} row={x.row} label={x.label} rowKey={x.key} detailId={detailId}
                           selected={!!current && current.key === x.key} onSelect={() => select(x.key)}
                           dragging={!!drag && drag.key === x.key} dy={drag && drag.key === x.key ? drag.dy : 0}
-                          handle={handleFor(x.key)} onRowKeyDown={onRowKey(x.key)}
+                          handle={handleFor(x.key)} onRowKeyDown={onRowKey(x.key)} progress={progress[x.key] || ''}
                           onChange={(next) => updateRow(x.key, next)} />
                       ))}
                     </div>
@@ -1391,6 +1495,8 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
         {current ? (
           <DbuRowDetail key={current.key} id={detailId} row={current.row} label={current.label} blockLabel={dbuKindLabel(blocks[current.bi].kind)}
             clips={clips} onUploading={onUploading} pair={dbuPairState(day, current.key)}
+            progress={progress[current.key] || ''} rule={rule}
+            onFollow={() => { const { loadPinned, ...rest } = current.row; updateRow(current.key, rest); }}
             onChange={(next) => updateRow(current.key, next)}
             onPair={() => onChange(dbuTogglePair(day, current.key))}
             onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} />
@@ -1590,7 +1696,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
   );
 }
 
-// ── The builder (tree left · day editor right · always-on client preview) ───
+// ── The builder (the canvas · the day editor docked under it · a floating client preview) ──
 // ── The two canvases ─────────────────────────────────────────────────────────
 // ⚠ ONE DOCUMENT, TWO VIEWS, READ IN OPPOSITE DIRECTIONS — which is why this is a switch
 // and not one stacked page. Grid answers WHEN (rows are weeks, columns are weekdays); Sheet
@@ -1625,8 +1731,13 @@ function DbuViewSwitch({ view, setView }) {
 }
 
 // ── Grid — the calendar is the builder ───────────────────────────────────────
+// A deload week from before the progression that its cadence does not name: the coach can
+// take its flag off. A week the cadence names is a deload either way.
+const dbuLegacyOff = (rule, w, wi) => !!(rule && rule.deloadEvery) && ShapeWorkoutDocument.legacyDeload(w) && (wi + 1) % rule.deloadEvery !== 0;
 function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
   const dragRef = React.useRef(null);
+  const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
+  const cadence = !!(rule && rule.deloadEvery);
   const weekStart = (wi) => ((doc.weeks[wi].days || []).map((_, di) => dates[wi + ":" + di]).filter(Boolean).sort()[0] || "");
   // ⚠ A DROP SWAPS, IT DOES NOT OVERWRITE. Measured on a Mon/Wed/Fri week, dragging Mon onto
   // the POPULATED Wed cell: 3 of 3 sessions visible becomes 2 of 3, silently. That drop is
@@ -1652,13 +1763,18 @@ function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
               <b>Week {wi + 1}</b>
               <span>{dbuDayMonth(weekStart(wi)) || "—"}</span>
               {w.deload && <span className="dl">Deload −40%</span>}
-              {/* ⚠ Every week tool the retired tree carried, kept. Losing one to a layout
-                  change would be a silent regression in the engine §1.4 of the review says
-                  must survive any redesign. */}
+              {/* ⚠ Every week tool the retired tree carried, kept — except Progress, which
+                  step 3 retired with the per-move checkbox it read: the progression bar
+                  above the canvas is the one rule now, so Copy brings a week that already
+                  climbs. Under a deload cadence the bar owns which weeks deload, so the
+                  week's own Deload says so instead of fighting it. */}
+              {/* A deload week saved before the cadence keeps its flag under it (its sets
+                  were cut with nothing to give back), so its own Deload stays the coach's
+                  to clear: the one week tool a cadence does not take over. */}
               <span className="tools">
-                <button type="button" onClick={() => onWeek("duplicate", wi)} title="Copy this week unchanged">Copy</button>
-                <button type="button" onClick={() => onWeek("progress", wi)} title="Copy this week with the configured load increases">Progress</button>
-                <button type="button" onClick={() => onWeek("deload", wi)} aria-pressed={!!w.deload} title="Deload: −40% volume, then edit freely">Deload</button>
+                <button type="button" onClick={() => onWeek("duplicate", wi)} title={cadence ? "Copy this week. The progression sets its loads" : "Copy this week unchanged"}>Copy</button>
+                <button type="button" onClick={() => onWeek("deload", wi)} aria-pressed={!!w.deload} disabled={cadence && !dbuLegacyOff(rule, w, wi)}
+                  title={cadence ? (dbuLegacyOff(rule, w, wi) ? "Deloaded before the progression. Press to take the deload off; its sets stay as they are" : "The progression sets the deload weeks") : "Deload: −40% volume, then edit freely"}>Deload</button>
                 {doc.weeks.length > 1 && <button type="button" onClick={() => onWeek("remove", wi)} aria-label={"Remove week " + (wi + 1)}>×</button>}
               </span>
             </div>
@@ -1748,12 +1864,23 @@ function DbuSheetSetsReps({ row, label, onChange }) {
 function DbuSheet({ doc, dates, setSel, setWeeks }) {
   const weeks = doc.weeks || [];
   const dayCount = weeks.reduce((n, w) => Math.max(n, (w.days || []).length), 0);
+  // `value` is the fields to write, or a function of the row for an edit that removes one.
   const editRow = (di, bi, ri, wi, value) => setWeeks(weeks.map((w, i) => {
     if (i !== wi) return w;
     const day = (w.days || [])[di];
     if (!day || !(day.blocks || [])[bi] || !(day.blocks[bi].rows || [])[ri]) return w;
-    return { ...w, days: w.days.map((d, j) => (j !== di ? d : { ...d, blocks: d.blocks.map((b, k) => (k !== bi ? b : { ...b, rows: b.rows.map((r, m) => (m !== ri ? r : { ...r, ...value })) })) })) };
+    return { ...w, days: w.days.map((d, j) => (j !== di ? d : { ...d, blocks: d.blocks.map((b, k) => (k !== bi ? b : { ...b, rows: b.rows.map((r, m) => (m !== ri ? r : typeof value === "function" ? value(r) : { ...r, ...value })) })) })) };
   }));
+  // ⚠ A LOAD TYPED IN A LATER WEEK OF A MOVE THE PROGRESSION SETS IS PINNED, or the rule
+  // would put its own number back on the next keystroke. The mark beside it takes the pin
+  // off again, and the load returns to the rule's.
+  const status = (wi, di, bi, ri) => ShapeWorkoutDocument.progressionStatus(doc, wi, di, bi, ri);
+  const unpin = (r) => { const { loadPinned, ...rest } = r; return rest; };
+  const mark = (st, name, wi, di, bi, ri) => (st === "follows" || st === "source")
+    ? <span className="pg" title={DBU_PROGRESS_MARK[st][1]}><span aria-hidden="true">{DBU_PROGRESS_MARK[st][0]}</span><span className="sr">{DBU_PROGRESS_MARK[st][1]}</span></span>
+    : st === "pinned"
+      ? <button type="button" className="pg pin" title="Typed by hand. Press to follow the progression again" aria-label={"Follow the progression again, " + name + ", week " + (wi + 1)} onClick={() => editRow(di, bi, ri, wi, unpin)}>{DBU_PROGRESS_MARK.pinned[0]}</button>
+      : null;
   return (
     <div className="scroll">
       <table className="sh" style={{ minWidth: 300 + weeks.length * 130 }}>
@@ -1811,11 +1938,14 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
                       // saved and changes nothing the member does. The cell shows the ladder
                       // and opens the day, where the per-set table is.
                       const cellLadder = ShapeWorkoutDocument.ladder(cellRow);
+                      const st = status(wi, di, bi, ri);
+                      const who = cellRow.name || row.name;
                       if (cellLadder) return (
                         <td key={wi}>
                           <button type="button" className={"cell ladder" + (w.deload ? " dl" : "")} onClick={() => setSel({ w: wi, d: di })}
                             aria-label={"Per-set targets, " + (cellRow.name || row.name) + ", week " + (wi + 1) + ": " + cellRow.sets + " × " + cellLadder.reps + (cellLadder.weight ? ", " + cellLadder.weight : "") + ". Open the day to edit."}>
                             {diverged && <span className="div" title={cellRow.name}>{cellRow.name}</span>}
+                            {st && <span className="pg" aria-hidden="true" title={DBU_PROGRESS_MARK[st][1]}>{DBU_PROGRESS_MARK[st][0]}</span>}
                             <span className="a">{cellRow.sets} × {dbuSlashBreaks(cellLadder.reps)}</span>
                             <span className="b">{cellLadder.weight ? dbuSlashBreaks(cellLadder.weight) : "—"}</span>
                           </button>
@@ -1828,8 +1958,9 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
                             <DbuSheetSetsReps key={cellRow.id} row={cellRow}
                               label={"Sets and reps, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
                               onChange={(value) => editRow(di, bi, ri, wi, value)} />
-                            <input className="b" aria-label={"Load, " + (cellRow.name || row.name) + ", week " + (wi + 1)}
-                              value={cellRow.load ?? ""} onChange={(e) => editRow(di, bi, ri, wi, { load: e.target.value })} />
+                            <input className="b" aria-label={"Load, " + who + ", week " + (wi + 1)}
+                              value={cellRow.load ?? ""} onChange={(e) => editRow(di, bi, ri, wi, { load: e.target.value, ...(st === "follows" ? { loadPinned: true } : {}) })} />
+                            {mark(st, who, wi, di, bi, ri)}
                           </span>
                         </td>
                       );
@@ -1850,14 +1981,153 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
   );
 }
 
+// ── The progression bar ──────────────────────────────────────────────────────
+// One rule for the program, set once and always in view above the canvas: "+5 lb a week
+// on main lifts, deload every 4th week" (owner, 2026-10-07, step 3 of the builder plan;
+// the 21 Sept brief drew it as "Progression +N kg / week on main lifts ▾" in the
+// toolbar). The rule writes each later week's loads into the document as week 1 changes
+// (`applyProgramProgression`), so the Sheet's cells, the client preview and every
+// assignment read the climbed loads, not a label.
+function DbuProgressionBar({ doc, onRule }) {
+  // The amount is held as typed while the field is in use: clearing "5" to type "2.5"
+  // must not write a rule of nothing, or the weeks would flatten under the coach's hands.
+  const [amount, setAmount] = React.useState(null);
+  const rep = dbuProgressionReport(doc);
+  const rule = rep.rule;
+  if (!rule) {
+    return (
+      <div className="dprog off" role="group" aria-label="Progression">
+        <span className="dp-l"><i aria-hidden="true">↗︎</i>Progression</span>
+        <span className="dp-off">Off. Each week’s loads are the ones you type.</span>
+        <button type="button" className="dp-b" onClick={() => onRule(dbuDefaultRule(doc))}>＋ Add a progression</button>
+      </div>
+    );
+  }
+  const set = (patch) => onRule({ ...rule, ...patch });
+  const kindsKey = rule.kinds.join(",");
+  const kindOptions = DBU_PROGRESS_KINDS.some((k) => k.kinds.join(",") === kindsKey)
+    ? DBU_PROGRESS_KINDS
+    : [...DBU_PROGRESS_KINDS, { kinds: rule.kinds, label: rule.kinds.map(dbuKindLabel).join(", ").toLowerCase() }];
+  const deloadOptions = DBU_DELOAD_EVERY.includes(rule.deloadEvery) ? DBU_DELOAD_EVERY : [...DBU_DELOAD_EVERY, rule.deloadEvery].sort((a, b) => a - b);
+  const kindsLabel = (kindOptions.find((k) => k.kinds.join(",") === kindsKey) || {}).label || "lifts";
+  const weeks = (doc.weeks || []).length;
+  const lines = [];
+  if (weeks < 2) lines.push("Add a week and its loads follow this rule.");
+  else if (!rep.moves) lines.push("No " + kindsLabel + " in week 1 have a load in " + dbuUnitLabel(rule.unit) + " yet.");
+  else lines.push(rep.moves + (rep.moves === 1 ? " move" : " moves") + " from week 1 go up " + dbuAmountLabel(rule) + " each week"
+    + (rep.example ? ". " + rep.example.name + " reaches " + rep.example.to + (rule.unit === "pct" ? "% 1RM" : " " + dbuUnitLabel(rule.unit)) + " in week " + rep.example.week : "") + ".");
+  if (rule.deloadEvery && rep.deloads.length) lines.push((rep.deloads.length === 1 ? "Week " + rep.deloads[0] + " deloads" : dbuWeekList(rep.deloads).replace(/^weeks/, "Weeks") + " deload") + ": about 40% fewer sets, and loads hold.");
+  if (rep.pinned) lines.push(rep.pinned + (rep.pinned === 1 ? " load you typed by hand stays" : " loads you typed by hand stay") + " as typed.");
+  if (rep.otherUnit) lines.push(rep.otherUnit + (rep.otherUnit === 1 ? " move" : " moves") + " in another unit " + (rep.otherUnit === 1 ? "stays" : "stay") + " as written.");
+  return (
+    <div className="dprog" role="group" aria-label="Progression">
+      <div className="dp-row">
+        <span className="dp-l"><i aria-hidden="true">↗︎</i>Progression</span>
+        <span className="dp-f">
+          <span aria-hidden="true">＋</span>
+          <input aria-label="Load added each week" type="number" min="0" step="any" inputMode="decimal"
+            value={amount != null ? amount : String(rule.amount)}
+            onFocus={() => setAmount(String(rule.amount))} onBlur={() => setAmount(null)}
+            onChange={(e) => { const v = e.target.value; setAmount(v); const n = Number(v); if (v.trim() !== "" && Number.isFinite(n) && n > 0) set({ amount: n }); }} />
+          <select aria-label="Unit of the weekly increase" value={rule.unit} onChange={(e) => set({ unit: e.target.value })}>
+            <option value="lb">lb</option><option value="kg">kg</option><option value="pct">% 1RM</option>
+          </select>
+          <span>a week on</span>
+          <select aria-label="Moves the progression applies to" value={kindsKey} onChange={(e) => set({ kinds: e.target.value.split(",") })}>
+            {kindOptions.map((k) => <option key={k.kinds.join(",")} value={k.kinds.join(",")}>{k.label}</option>)}
+          </select>
+        </span>
+        <span className="dp-f">
+          <select aria-label="Deload weeks" value={rule.deloadEvery} onChange={(e) => set({ deloadEvery: Number(e.target.value) })}>
+            {deloadOptions.map((n) => <option key={n} value={n}>{dbuDeloadLabel(n)}</option>)}
+          </select>
+        </span>
+        <button type="button" className="dp-b" onClick={() => onRule(null)}>Turn off</button>
+      </div>
+      <p className="dp-s">{lines.join(" ")}</p>
+    </div>
+  );
+}
+
+// ── Copy a day to other weeks ────────────────────────────────────────────────
+// Opened from the day editor's heading. Every other week is listed with what the copy
+// does there, BEFORE the coach confirms: "Monday is free", or "replaces Upper A, 5 moves".
+function DbuCopyToWeeks({ doc, wi, di, onCopy, onCancel }) {
+  const day = doc.weeks[wi].days[di];
+  const others = doc.weeks.map((_, i) => i).filter((i) => i !== wi);
+  const later = others.filter((i) => i > wi);
+  const [picked, setPicked] = React.useState(() => new Set());
+  const firstRef = React.useRef(null);
+  React.useEffect(() => { if (firstRef.current) firstRef.current.focus(); }, []);
+  const slot = (ti) => dbuCopySlot(doc, wi, di, ti) || { at: -1, replaces: null };
+  const chosen = others.filter((t) => picked.has(t));
+  const replacing = chosen.filter((t) => slot(t).replaces).length;
+  const when = dbuHasWeekday(day) ? DBU_DOW_FULL[day.weekday] : null;
+  const toggle = (ti, on) => setPicked((prev) => { const next = new Set(prev); if (on) next.add(ti); else next.delete(ti); return next; });
+  return (
+    <div className="dtool" role="group" aria-label={"Copy " + day.name + " to other weeks"}
+      onKeyDown={(e) => { if (e.key === "Escape" && !dbuImeComposing(e.nativeEvent)) { e.preventDefault(); e.stopPropagation(); onCancel(); } }}>
+      <p>{"Copy " + day.name + " to " + (when ? "the " + when + " of " : "") + "other weeks. A day already there is replaced."}</p>
+      <div className="dweeks">
+        {others.map((ti, k) => {
+          const r = slot(ti).replaces;
+          const n = r ? dbuMoves(r) : 0;
+          return (
+            <label key={ti} className={"dwk" + (r ? " rep" : "")}>
+              <input ref={k === 0 ? firstRef : undefined} type="checkbox" checked={picked.has(ti)} onChange={(e) => toggle(ti, e.target.checked)} />
+              <span><b>Week {ti + 1}</b><small>{r ? "replaces " + (r.name || "a day") + ", " + (n ? n + (n === 1 ? " move" : " moves") : "empty") : when ? when + " is free" : "adds a day"}</small></span>
+            </label>
+          );
+        })}
+      </div>
+      <div className="drow2">
+        {later.length > 1 && <button type="button" onClick={() => setPicked(new Set(later))}>All later weeks</button>}
+        <button type="button" className="go" disabled={!chosen.length} onClick={() => onCopy(chosen)}>
+          {chosen.length ? "Copy to " + chosen.length + (chosen.length === 1 ? " week" : " weeks") + (replacing ? " · replaces " + replacing + (replacing === 1 ? " day" : " days") : "") : "Choose weeks"}
+        </button>
+        <button type="button" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Delete a day ─────────────────────────────────────────────────────────────
+// ⚠ A CONFIRM BUILT INTO THE PANEL, NOT AN UNDO. Three reasons, each about this page:
+// deleting closes the panel the coach is working in, so an Undo would have to live
+// somewhere the builder puts no other notice; the autosave writes the deletion within a
+// second, and an assign or an update of future workouts in that window reads the saved
+// document; and the confirm can name what goes (the day, its week, its moves) before it
+// goes. The safe answer has the focus, and Escape is "Keep it".
+function DbuDeleteDay({ day, wi, onDelete, onCancel }) {
+  const keepRef = React.useRef(null);
+  React.useEffect(() => { if (keepRef.current) keepRef.current.focus(); }, []);
+  const n = dbuMoves(day);
+  return (
+    <div className="dtool warn" role="group" aria-label={"Delete " + day.name + "?"}
+      onKeyDown={(e) => { if (e.key === "Escape" && !dbuImeComposing(e.nativeEvent)) { e.preventDefault(); e.stopPropagation(); onCancel(); } }}>
+      <p>Delete {day.name} from week {wi + 1}? {n ? "Its " + n + (n === 1 ? " move goes" : " moves go") + " with it." : "It has no moves yet."} Other weeks keep theirs.</p>
+      <div className="drow2">
+        <button type="button" className="danger" onClick={onDelete}>{"Delete " + day.name}</button>
+        <button type="button" ref={keepRef} onClick={onCancel}>Keep it</button>
+      </div>
+    </div>
+  );
+}
+
 function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
   // ⚠ The weekday backfill runs INSIDE the initializer, so it is part of the baseline
   // `saved.current` below and opening a legacy program does not mark it dirty or spend a
-  // revision. The dates drawn and the dates assigned both use it either way.
-  const [doc, setDoc] = React.useState(() => dbuWithWeekdays(JSON.parse(JSON.stringify(initial.current.doc))));
+  // revision. The dates drawn and the dates assigned both use it either way. The program's
+  // progression is brought into step here for the same reason: a document already in step
+  // comes back as itself.
+  const [doc, setDocState] = React.useState(() => ShapeWorkoutDocument.applyProgramProgression(dbuWithWeekdays(JSON.parse(JSON.stringify(initial.current.doc)))));
+  // ⚠ EVERY EDIT GOES THROUGH THE PROGRESSION, so a load changed in week 1, a week copied
+  // or removed, or a day copied to other weeks leaves every later week's governed loads
+  // where the rule puts them. Without a rule this returns the document it was given.
+  const setDoc = (next) => setDocState(ShapeWorkoutDocument.applyProgramProgression(next));
   const [sel, setSel] = React.useState({w:0,d:0});
   // ⚠ REMEMBERED PER COACH, which the board's G tab asks for in as many words: "the
   // switch is remembered per coach, so whoever thinks in calendars opens to the grid and
@@ -1868,24 +2138,32 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // ⚠ THE STORE OPENS ONLY WHEN THE BUILDER IS LIVE. In the signed-out preview there is
   // no account to remember against, and `useRememberedChoices` declines to open a
   // per-account document without one; the switch still works, it just does not persist.
+  //
+  // ⚠ GRID ⇄ SHEET IS THE ONLY CHOICE LEFT (step 3 of the builder plan, owner, 2026-10-07).
+  // The Guided / Editor / Planner layouts and the day editor's three panel positions are
+  // retired, so nothing reads `workoutBuilderLayout` any more: a coach whose prefs still
+  // name "planner" opens on the Grid with the day editor docked, like everyone else, and
+  // the stale key is simply never asked for. (The meal builder keeps its own layouts.)
   const prefs = useRememberedChoices(!!live);
   const [view, setViewRaw] = useRememberedChoice(prefs, "builderView", DBU_VIEW_KEYS, "grid");
-  const [layout, chooseLayout] = useRememberedChoice(prefs, "workoutBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
-  const [step, setStep] = React.useState(0);
-  const [popped, setPopped] = React.useState(false);
-  const [plannerEditorOpen, setPlannerEditorOpen] = React.useState(false);
+  // What opened the day editor, so Done, Escape and Delete give focus back to it; and the
+  // one-shot request to move focus into the editor once it has rendered.
   const dayTrigger = React.useRef(null);
-  const steps = ["Basics", "Exercises", "Schedule", "Review"];
+  const focusPanel = React.useRef(false);
+  const panelRef = React.useRef(null);
+  const addDayRef = React.useRef(null);
+  // The day editor's heading tools that open a strip of their own: copy to weeks, delete.
+  const [dayTool, setDayTool] = React.useState(null);
+  // Said once a day is copied or deleted, since the result is in weeks the editor is not
+  // showing (copy) or the editor itself is gone (delete).
+  const [notice, setNotice] = React.useState("");
   const [templateSaved, setTemplateSaved] = React.useState(false);
   React.useEffect(() => setTemplateSaved(false), [name, doc]);
-  const goStep = next => { setStep(next); if (sel.w < 0) setSel({w:0,d:0}); };
-  const setLayout = next => { chooseLayout(next); setPopped(false); setPlannerEditorOpen(false); if (sel.w < 0) setSel({w:0,d:0}); };
-  const guided = layout === "guided";
-  const scheduleShown = layout === "planner" || (guided && step === 2);
-  const selectDay = next => { dayTrigger.current = document.activeElement; setSel(next); if (layout === "planner") setPlannerEditorOpen(true); if (guided && step === 2) setStep(1); };
+  React.useEffect(() => setDayTool(null), [sel.w, sel.d]);
+  const selectDay = next => { dayTrigger.current = document.activeElement; focusPanel.current = true; setNotice(""); setSel(next); };
   // Sheet edits its own cells. Close the day editor when switching, then reopen
-  // it from a day heading; coaches can explicitly pop it out when they need to.
-  const setView = (next) => { setPlannerEditorOpen(false); setPopped(false); if (next === "sheet") setSel({ w: -1, d: -1 }); setViewRaw(next); };
+  // it from a day heading.
+  const setView = (next) => { if (next === "sheet") setSel({ w: -1, d: -1 }); setViewRaw(next); };
   // ⚠ THE OPEN DOCUMENT COUNTS TOO. `customMoves` comes from SAVED templates, so a
   // move created ten seconds ago would not be offered for the next day until the
   // program had been saved and re-fetched — which reads as the feature not
@@ -1896,34 +2174,38 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // nothing; it is the library walk's own rule, not a second one written here.
   const ownMoves = React.useMemo(() => DashBuilder.ownMovesFor(doc, customMoves), [customMoves, doc]);
   const [preview, setPreview] = React.useState(false);
-  // The two floating panels, on one drag rule (`useDbuDrag`).
-  const canFloat = useDbuFloating();
-  const floating = canFloat && popped;
-  const stageRef = React.useRef(null);
-  const panelOpen = sel.w >= 0 && sel.d >= 0 && (layout !== "planner" || plannerEditorOpen);
-  const panel = useDbuDrag({ enabled: floating, open: panelOpen, defaultPos: () => dbuDefaultPanelPos(stageRef.current) });
-  // ⚠ THE PREVIEW IS DRAGGABLE AT EVERY WIDTH, unlike the day editor. `.pop` is
-  // `position:fixed` in every media query — nothing drops it back into the flow —
-  // so there is no width at which an inline position would fight the stylesheet.
-  // It also needs no default: the stylesheet already anchors it bottom-right, and
-  // leaving the position null until a coach moves it keeps that anchor live
-  // across a resize instead of freezing today's pixels.
+  // ⚠ THE PREVIEW IS DRAGGABLE AT EVERY WIDTH. `.pop` is `position:fixed` in every media
+  // query — nothing drops it back into the flow — so there is no width at which an inline
+  // position would fight the stylesheet. It also needs no default: the stylesheet already
+  // anchors it bottom-right, and leaving the position null until a coach moves it keeps
+  // that anchor live across a resize instead of freezing today's pixels.
   const previewPanel = useDbuDrag({ enabled: true, open: preview, defaultPos: null });
   const [saveState, setSaveState] = React.useState(template.recovered ? 'dirty' : 'saved');
   const [error,setError] = React.useState('');
   const [saveConflict,setSaveConflict] = React.useState(false);
   const [assigning,setAssigning] = React.useState(false);
   const [uploads,setUploads] = React.useState(0);
+  // Focus goes back to whatever opened the day, or, when nothing on the canvas did (the
+  // day the builder opens on), to ＋ Add a day, so the keyboard is never left on nothing.
+  const refocus = () => {
+    const el = dayTrigger.current && dayTrigger.current.isConnected ? dayTrigger.current : addDayRef.current;
+    if (el) el.focus();
+  };
   const closeDayEditor = () => {
     if (uploads) return;
-    setPopped(false);
-    setPlannerEditorOpen(false);
-    if (layout === "planner") dayTrigger.current?.isConnected && dayTrigger.current.focus();
-    else setSel({w:-1,d:-1});
+    setSel({w:-1,d:-1});
+    refocus();
   };
+  // ⚠ THE DAY EDITOR DOCKS UNDER THE CANVAS, so a day opened from week 1 of an 8-week Grid
+  // can open below the fold. Focus moves into it once it has rendered, which brings it on
+  // screen and puts a keyboard user where the edit is (Planner's side panel did the same).
+  // One-shot: a request that finds no panel (a Sheet band whose day week 1 does not have)
+  // is dropped, rather than waiting to pull focus on some later, unrelated render.
   React.useEffect(() => {
-    if (layout === "planner" && plannerEditorOpen) panel.ref.current?.focus();
-  }, [layout, plannerEditorOpen]);
+    if (!focusPanel.current) return;
+    focusPanel.current = false;
+    if (panelRef.current) panelRef.current.focus();
+  });
   const idRef = React.useRef(template.draftId || (template.id && !String(template.id).startsWith('demo-') ? template.id : crypto.randomUUID()));
   const persisted = React.useRef(template.recovered ? !!template.recovered.persisted : !!template.id && !String(template.id).startsWith('demo-'));
   const revision = React.useRef(initial.current.revision);
@@ -1991,7 +2273,14 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const week = doc.weeks[sel.w];
   const day = week && week.days[sel.d];
   const setWeeks = (weeks) => setDoc({ ...doc, weeks });
-  const setDay = (next) => setWeeks(doc.weeks.map((w, wi) => (wi === sel.w ? { ...w, days: w.days.map((d, di) => (di === sel.d ? next : d)) } : w)));
+  // ⚠ IN A LATER WEEK, A LOAD THE COACH TYPES OVER THE PROGRESSION'S IS PINNED to that
+  // week (`pinLoadEdits`), or the rule would put its own number back on the next render.
+  // Week 1 is where the climb starts, so its loads are never pinned: they move the rest.
+  const setDay = (next) => {
+    const prev = doc.weeks[sel.w] && doc.weeks[sel.w].days[sel.d];
+    const day2 = doc.progression && sel.w > 0 ? ShapeWorkoutDocument.pinLoadEdits(prev, next) : next;
+    setWeeks(doc.weeks.map((w, wi) => (wi === sel.w ? { ...w, days: w.days.map((d, di) => (di === sel.d ? day2 : d)) } : w)));
+  };
   // ⚠ THE DAY EDITOR'S TRAINING-DAY SELECT DOES NOT GO THROUGH `setDay`, which is a blind
   // positional replace with no collision check — picking a weekday another day in the week
   // already held put two days on one weekday, and the Grid finds a day BY weekday, so the
@@ -2001,29 +2290,74 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // this day and displaces nothing.
   const setDayWeekday = (n) => setWeeks(doc.weeks.map((w, wi) => (wi === sel.w ? dbuAssignWeekday(w, sel.d, n) : w)));
 
+  // A copied week is a new week: the loads typed by hand for the source week are not its
+  // own, so under a progression it climbs from week 1 like every other.
   const duplicateWeek = (wi) => {
     const next = JSON.parse(JSON.stringify(doc.weeks[wi]));
+    (next.days || []).forEach((d) => (d.blocks || []).forEach((b) => { b.rows = (b.rows || []).map(({ loadPinned, ...r }) => r); }));
     setWeeks([...doc.weeks.slice(0, wi + 1), next, ...doc.weeks.slice(wi + 1)]);
   };
   // Every per-week action in one place, so the grid's gutter and any later caller
-  // cannot drift into two versions of "duplicate a week".
+  // cannot drift into two versions of "duplicate a week". ("progress" — copy a week with
+  // the per-move increments — retired with those increments; the progression bar is the
+  // one rule now, and a copied week climbs under it.)
   const onWeek = (action, wi) => {
     if (action === "duplicate") return duplicateWeek(wi);
     if (action === "deload") return toggleDeload(wi);
-    if (action === "progress") {
-      const next = DashBuilder.applyProgression(doc.weeks[wi]);
-      return setWeeks([...doc.weeks.slice(0, wi + 1), next, ...doc.weeks.slice(wi + 1)]);
-    }
     if (action === "remove" && doc.weeks.length > 1) {
       setWeeks(doc.weeks.filter((_, i) => i !== wi));
       setSel({ w: -1, d: -1 });
     }
   };
+  // ⚠ TAKING A DELOAD OFF GIVES THE SETS BACK (`undeloadWeek`), unless the coach changed them
+  // during it. It used to leave them cut, which a deload cadence cannot live with.
   const toggleDeload = (wi) => {
     const w = doc.weeks[wi];
-    if (w.deload) setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, deload: false } : x))); // unflag; sets stay as edited
-    else setWeeks(doc.weeks.map((x, i) => (i === wi ? DashBuilder.deloadWeek(x) : x)));
+    setWeeks(doc.weeks.map((x, i) => (i !== wi ? x : w.deload ? DashBuilder.undeloadWeek(x) : DashBuilder.deloadWeek(x))));
   };
+  // The progression bar's one writer. Off keeps every load where it is (they are real
+  // numbers in the weeks, not a view of the rule) and drops the hand-typed marks, which
+  // have nothing left to hold against. Leaving a deload cadence takes its deloads off.
+  const setRule = (next) => {
+    const prev = ShapeWorkoutDocument.normalizeProgression(doc.progression);
+    if (!next) {
+      const { progression, ...rest } = doc;
+      setDoc({ ...rest, weeks: doc.weeks.map((w) => ({ ...w, days: (w.days || []).map((d) => ({ ...d, blocks: (d.blocks || []).map((b) => ({ ...b, rows: (b.rows || []).map(({ loadPinned, ...r }) => r) })) })) })) });
+      return;
+    }
+    // ⚠ NOT A DELOAD WEEK SAVED BEFORE THE CADENCE (`legacyDeload`): its sets were cut
+    // with nothing to give them back, so it stays marked as the deload it still is.
+    const weeks = prev && prev.deloadEvery && !next.deloadEvery ? doc.weeks.map((w) => (w.deload && !ShapeWorkoutDocument.legacyDeload(w) ? DashBuilder.undeloadWeek(w) : w)) : doc.weeks;
+    setDoc({ ...doc, weeks, progression: ShapeWorkoutDocument.normalizeProgression(next) || prev });
+  };
+  const addDay = () => {
+    const wi = Math.max(0, sel.w), w = doc.weeks[wi];
+    setWeeks(doc.weeks.map((v, i) => (i === wi ? { ...v, days: [...v.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday: dbuNextFreeWeekday(w) }] } : v)));
+    selectDay({ w: wi, d: w.days.length });
+  };
+  const deleteDay = () => {
+    const gone = day && day.name;
+    setDoc(dbuDeleteDay(doc, sel.w, sel.d));
+    setNotice((gone || "The day") + " deleted from week " + (sel.w + 1) + ".");
+    setSel({ w: -1, d: -1 });
+    refocus();
+  };
+  const copyDay = (targets) => {
+    setDoc(dbuCopyDayToWeeks(doc, sel.w, sel.d, targets));
+    setNotice(day.name + " copied to " + dbuWeekList(targets.map((t) => t + 1)) + ".");
+    setDayTool(null);
+  };
+  // The only day left in the whole program is not deleted: an empty program has no day
+  // for the editor to open, and the Grid would be the only way back.
+  const onlyDay = doc.weeks.reduce((n, w) => n + (w.days || []).length, 0) <= 1;
+
+  // What the program's progression does to each move of the open day, for its marks.
+  const progress = {};
+  if (day) (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((r, ri) => {
+    const st = ShapeWorkoutDocument.progressionStatus(doc, sel.w, sel.d, bi, ri);
+    if (st) progress[dbuRowKey(r, bi, ri)] = st;
+  }));
+  const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
 
   const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you", programVideo:doc.video }) : null;
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? (persisted.current ? "Saved" : "New template · not saved yet") : "Draft saved locally";
@@ -2051,6 +2385,14 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 button{font-family:inherit}
 .dbu2 input,.dbu2 select,.dbu2 textarea{font-family:inherit;color:${DBU_INK}}
 .dbu2 :focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:2px}
+.dbu2 [hidden]{display:none!important}
+.dbu2 button:disabled{opacity:.5;cursor:not-allowed}
+.dbu2 .cb-copy{padding:12px 16px;background:${DBU_REST};border-radius:8px;font-size:14px;margin:0 0 16px}
+.dbu2 .cb-details{border-bottom:1px solid ${DBU_LINE};margin:0 0 14px;padding:0 0 4px}
+.dbu2 .cb-details>summary{cursor:pointer;padding:10px 0;font-size:14px;font-weight:600}
+.dbu2 .cb-details>summary small{margin-left:10px;color:${DBU_INK2};font-size:12px;font-weight:400}
+.dbu2 .cb-details>p{font-size:13px;line-height:1.5;color:${DBU_INK2};margin:4px 0 12px}
+.dbu2 .cb-details .meta{margin-bottom:10px}
 .dbu2 h1{font-family:${DBU_DISPLAY};font-weight:600;font-variation-settings:'wdth' 112;font-size:34px;letter-spacing:-.01em;margin:0;line-height:1.05;color:${DBU_INK}}
 .dbu2 .hd{display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:18px}
 .dbu2 .meta{font-size:14px;color:${DBU_INK2};margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -2102,7 +2444,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .sh tr.band .hint{margin-left:auto;font-size:13px;color:${DBU_INK2}}
 .dbu2 .sh .en b{display:block;font-size:14.5px;font-weight:600}
 .dbu2 .sh .en span{display:block;font-size:12px;color:${DBU_INK3};margin-top:1px}
-.dbu2 .sh .cell{display:inline-flex;flex-direction:column;justify-content:center;width:100%;min-width:0;height:52px;padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-variant-numeric:tabular-nums;line-height:1.15}
+.dbu2 .sh .cell{position:relative;display:inline-flex;flex-direction:column;justify-content:center;width:100%;min-width:0;height:52px;padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-variant-numeric:tabular-nums;line-height:1.15}
 .dbu2 .sh .cell input{border:0;background:transparent;padding:0;width:100%;height:24px;font-variant-numeric:tabular-nums;outline:none}
 .dbu2 .sh .cell input.a{font-size:14px;font-weight:600;color:${DBU_INK}}
 .dbu2 .sh .cell input.b{font-size:12px;color:${DBU_INK2}}
@@ -2122,21 +2464,39 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .sh .none{color:${DBU_INK3};text-align:center;display:block}
 .dbu2 .addday{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:1.5px dashed ${DBU_LINE2};border-radius:9px;justify-content:center;font-size:14px;font-weight:600;color:${DBU_TEAL};background:transparent;cursor:pointer;margin-top:14px}
 .dbu2 .stage{position:relative}
-.dbu2 .drawer{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:20px 22px 18px}
-.dbu2 .drawer.float{position:fixed;left:auto;right:16px;top:96px;width:${DBU_PANEL_W}px;overflow-y:auto;overscroll-behavior:contain;z-index:40}
-.dbu2 .drawer .dh.grab,.dbu2 .pop .ph2.grab{cursor:grab;touch-action:none}
+/* The progression bar: one rule for the program, above the canvas. */
+.dbu2 .dprog{display:flex;flex-direction:column;gap:6px;margin:0 0 14px;padding:10px 14px;border:1px solid ${DBU_LINE};border-left:3px solid ${DBU_TEAL};border-radius:10px;background:${DBU_WH}}
+.dbu2 .dprog.off{flex-direction:row;align-items:center;flex-wrap:wrap;gap:8px 12px;border-left-color:${DBU_LINE2}}
+.dbu2 .dprog .dp-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px}
+.dbu2 .dprog .dp-l{font-family:${DBU_MONO};font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_TEAL};white-space:nowrap}
+.dbu2 .dprog.off .dp-l{color:${DBU_INK3}}
+.dbu2 .dprog .dp-l i{font-style:normal;margin-right:5px}
+.dbu2 .dprog .dp-f{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px;color:${DBU_INK2}}
+.dbu2 .dprog input,.dbu2 .dprog select{height:34px;padding:0 8px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};color:${DBU_INK};font-size:14px}
+.dbu2 .dprog input{width:70px;font-variant-numeric:tabular-nums}
+.dbu2 .dprog .dp-b{height:34px;padding:0 12px;margin-left:auto;border-radius:8px;border:1px solid ${DBU_LINE2};background:transparent;color:${DBU_INK2};font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.dbu2 .dprog.off .dp-b{border-style:dashed;color:${DBU_TEAL}}
+.dbu2 .dprog .dp-off,.dbu2 .dprog .dp-s{margin:0;font-size:13px;color:${DBU_INK2}}
+.dbu2 .dmsg{margin:0 0 12px;font-size:13.5px;font-weight:600;color:${DBU_TEAL}}
+.dbu2 .sh .cell .pg{position:absolute;top:3px;right:6px;font-size:11px;line-height:1;color:${DBU_TEAL};background:transparent;border:0;padding:0}
+.dbu2 .sh .cell button.pg.pin{top:0;right:0;min-width:24px;min-height:24px;padding:3px 6px;display:flex;justify-content:flex-end;align-items:flex-start;color:${DBU_GOLD};cursor:pointer}
+/* The day editor docks under the canvas at the builder's full width (step 3). It used to
+   float in three positions; now only the client preview floats. */
+.dbu2 .drawer{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;padding:20px 22px 18px;margin-top:16px;scroll-margin-top:16px}
+.dbu2 .drawer:focus{outline:none}
+.dbu2 .drawer:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:2px}
+.dbu2 .pop .ph2.grab{cursor:grab;touch-action:none}
 .dbu2 .gh{flex:0 0 auto;order:-1;height:28px;width:22px;padding:0;border:0;cursor:grab;border-radius:6px;background-image:radial-gradient(currentColor 1.1px, transparent 1.2px);background-size:6px 6px;background-position:center;background-repeat:repeat;background-clip:content-box;padding:5px 7px;color:${DBU_LINE2}}
 .dbu2 .gh:hover{color:${DBU_INK2}}
 .dbu2 .gh:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:1px}
-@media(max-width:1100px){.dbu2 .drawer.float{position:static!important;left:auto!important;top:auto!important;right:auto!important;width:auto!important;max-height:none!important;margin-top:16px}}
 .dbu2 .pop{position:fixed;right:20px;bottom:20px;width:344px;max-width:calc(100vw - 40px);max-height:calc(100vh - 120px);overflow-y:auto;z-index:60;background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:16px 18px 18px}
 .dbu2 .pop .ph2{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
 .dbu2 .pop .ph2 b{font-size:15px;font-weight:700;margin-right:auto}
 .dbu2 .x{height:32px;padding:0 11px;border-radius:8px;border:1px solid ${DBU_LINE};background:${DBU_WH};color:${DBU_INK2};font-size:13px;font-weight:600;cursor:pointer}
 .dbu2 .scroll{overflow-x:auto}
 /* ── The day editor: one line per exercise, the detail beside it ─────────────
-   Step 2 of the approved builder plan (owner, 2026-10-07). The panel it sits in is
-   784px wide in Editor at 1440, 556 in Planner, 400 popped out and under 300 on a
+   Step 2 of the approved builder plan (owner, 2026-10-07). The panel it sits in is the
+   builder's full width since step 3 docked it (about 1,050px at 1440) and under 300 on a
    phone, so the list and its rows read their OWN width (container queries, as the
    dashboard grid's widgets do) rather than the viewport's.
    ONE CONTROL HEIGHT: every button in the panel is --dbu-ctl, 36px, or 44 on a coarse
@@ -2154,6 +2514,23 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .drawer .dn:hover{box-shadow:inset 0 -1px 0 ${DBU_LINE2}}
 .dbu2 .drawer .dn:focus{box-shadow:inset 0 -2px 0 ${DBU_TEAL}}
 .dbu2 .drawer .dh .dacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.dbu2 .drawer .dh .x.danger{color:${DBU_RUST}}
+.dbu2 .drawer .dh .x[aria-expanded="true"]{border-color:${DBU_TEAL};color:${DBU_TEAL}}
+/* The heading's strips: copy to weeks, and the delete confirm. */
+.dbu2 .dtool{margin:0 0 14px;padding:12px 14px;border:1px solid ${DBU_LINE2};border-radius:12px;background:${DBU_PG}}
+.dbu2 .dtool.warn{border-color:${DBU_RUST};background:${DBU_RUSTBG}}
+.dbu2 .dtool>p{margin:0 0 10px;font-size:13.5px;color:${DBU_INK}}
+.dbu2 .dtool .dweeks{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px;margin:0 0 10px}
+.dbu2 .dtool .dwk{display:flex;align-items:center;gap:8px;min-height:var(--dbu-ctl);padding:4px 8px;border:1px solid ${DBU_LINE};border-radius:8px;background:${DBU_WH};cursor:pointer}
+.dbu2 .dtool .dwk input[type="checkbox"]{width:18px;height:18px;flex:0 0 auto}
+.dbu2 .dtool .dwk>span{display:grid;min-width:0}
+.dbu2 .dtool .dwk b{font-size:13.5px;font-weight:600}
+.dbu2 .dtool .dwk small{font-size:12px;line-height:1.35;color:${DBU_INK3};overflow-wrap:anywhere}
+.dbu2 .dtool .dwk.rep small{color:${DBU_RUST}}
+.dbu2 .dtool .drow2{display:flex;flex-wrap:wrap;gap:8px}
+.dbu2 .dtool button{height:var(--dbu-ctl);padding:0 12px;border-radius:8px;border:1px solid ${DBU_LINE2};background:${DBU_WH};color:${DBU_INK};font-size:13px;font-weight:600;cursor:pointer}
+.dbu2 .dtool button.go{background:${DBU_TEAL};border-color:${DBU_TEAL};color:var(--sh-deep, #06231f)}
+.dbu2 .dtool button.danger{border-color:${DBU_RUST};color:${DBU_RUST}}
 .dbu2 .dday{container:dday / inline-size}
 .dbu2 .dday .dbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:var(--dbu-ctl);padding:0 12px;border-radius:8px;border:1px solid ${DBU_LINE2};background:${DBU_WH};color:${DBU_INK};font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}
 .dbu2 .dday .dbtn.ghost{border-style:dashed;background:transparent;color:${DBU_TEAL}}
@@ -2276,12 +2653,12 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .ddetail .dfs label:first-child{grid-column:1/-1}
 .dbu2 .ddetail .dfs label>span{display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:${DBU_INK2}}
 .dbu2 .ddetail .df{box-sizing:border-box;width:100%;max-width:100%;height:var(--dbu-ctl);padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};color:${DBU_INK};font-size:13.5px;outline:none}
-.dbu2 .ddetail .dchk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:12.5px;color:${DBU_INK2}}
-.dbu2 .ddetail .dchk input[type="checkbox"]{width:18px;height:18px;flex:0 0 auto}
+.dbu2 .ddetail .dprg{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin:10px 0 0;font-size:12.5px;color:${DBU_INK2}}
+.dbu2 .ddetail .dprg>span{color:${DBU_TEAL}}
 .dbu2 .ddetail .drow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .dbu2 .ddetail .drow .df{width:auto;flex:1 1 150px}
 .dbu2 .ddetail .dacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:14px 0 0;padding-top:12px;border-top:1px solid ${DBU_LINE}}
-@media(max-width:760px){.cbuilder.dbu2 .drawer{padding:14px 12px 16px}}
+@media(max-width:760px){.dbu2{padding:16px 12px}.dbu2 .hd>div{min-width:0!important}.dbu2 .drawer{padding:14px 12px 16px}}
 /* NOTE: these rules carry NO .dbu2 prefix on purpose. DbuDialog portals into
    document.body, so the picker is NOT inside the builder's root and every
    prefixed rule above misses it — which is why its checkboxes drew at the
@@ -2304,36 +2681,8 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 /* The thin-scrollbar rules live in dash.css (.dash-thin-scroll) because the meal
    builder needs the same ones and has no style host of its own. */
 `}</style>
-      <div className="dbu2 cbuilder" data-layout={layout} data-step={step}>
-        <CoachBuilderNav layout={layout} onLayout={setLayout} step={step} onStep={goStep} steps={steps} busy={!!uploads}>
-        <div className="tb" hidden={guided && step !== 1 && step !== 2}>
-          {scheduleShown && <DbuViewSwitch view={view} setView={setView} />}
-          <div style={{ flex: 1 }} />
-          {/* ⚠ "Reuse a saved day" survives the retired tree. It is the one control there with
-              no home in either canvas, and dropping it would have removed a shipped feature in
-              a layout PR. Its developer-voice label (F10) is what changed, not its behaviour. */}
-          {scheduleShown && !!dayTemplates?.length && (
-            <select aria-label="Add a saved day to week 1" value="" style={{ ...dbuField, cursor: "pointer" }}
-              onChange={(e) => {
-                const savedDay = dayTemplates[Number(e.target.value)];
-                if (!savedDay) return;
-                const next = JSON.parse(JSON.stringify(savedDay.day));
-                next.id = crypto.randomUUID();
-                const target = Math.max(0, sel.w);
-                if (!dbuHasWeekday(next)) next.weekday = dbuNextFreeWeekday(doc.weeks[target]);
-                setWeeks(doc.weeks.map((w, i) => (i === target ? { ...w, days: [...w.days, next] } : w)));
-              }}>
-              <option value="">Add a saved day…</option>
-              {dayTemplates.map((x, i) => <option key={i} value={i}>{x.name}</option>)}
-            </select>
-          )}
-          <button type="button" className="cb-button" onClick={()=>{const wi=Math.max(0,sel.w), w=doc.weeks[wi];setWeeks(doc.weeks.map((v,i)=>i===wi?{...v,days:[...v.days,{...DashBuilder.newDay("Day "+(w.days.length+1)),weekday:dbuNextFreeWeekday(w)}]}:v));selectDay({w:wi,d:w.days.length});}}>＋ Add a day</button>
-          <button type="button" hidden={!scheduleShown} style={dbuBtn(false)} onClick={() => setWeeks([...doc.weeks, { ...DashBuilder.newWeek(), days: [{ ...DashBuilder.newDay("Day 1"), weekday: 0 }] }])}>＋ Week</button>
-        </div>
-          {layout === "editor" && <button className="cb-button" type="button" onClick={()=>setLayout("planner")}>Arrange days &amp; weeks</button>}
-        </CoachBuilderNav>
-        {template.sourceName && (!guided || step === 0) && <p className="cb-copy">Based on <strong>{template.sourceName}</strong>. You’re editing a new copy; the original template stays unchanged.</p>}
-        {guided && <div className="cb-intro"><h2>{["Start with the basics", "Build your workout", "Arrange days and weeks", "Ready for your clients?"][step]}</h2><p>{["Name this template so you can find it and use it again. You can assign it to clients whenever you’re ready.", "Choose a day, then type an exercise in the last line and press Enter. Sets, reps, load, RPE and rest sit on each line; select a line for its per-set targets, cues and demo video.", "Repeat a week, add progression or plan a deload. Each client’s start date is chosen when you assign the plan.", "Check each day as your client will see it. Save the template for later or choose clients and a start date."][step]}</p></div>}
+      <div className="dbu2" data-view={view}>
+        {template.sourceName && <p className="cb-copy">Based on <strong>{template.sourceName}</strong>. You’re editing a new copy; the original template stays unchanged.</p>}
         {/* ── Header ──────────────────────────────────────────────────────────
             One row that never moves between the two views: who this is, when it is
             drawn for, what it adds up to, and the one primary action. */}
@@ -2341,27 +2690,26 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
           <div style={{ minWidth: 260, flex: "1 1 320px" }}>
             <button type="button" className="back" onClick={leave} disabled={!!uploads} style={{ marginBottom: 6 }}>← Library</button>
             <input aria-label="Workout or program name" value={name} onChange={(e) => setName(e.target.value)}
-              style={{ fontFamily: DBU_DISPLAY, fontWeight: 600, fontVariationSettings: "'wdth' 112", fontSize: guided && step !== 0 ? 24 : 34, letterSpacing: "-.01em", lineHeight: 1.05, color: DBU_INK,
+              style={{ fontFamily: DBU_DISPLAY, fontWeight: 600, fontVariationSettings: "'wdth' 112", fontSize: 34, letterSpacing: "-.01em", lineHeight: 1.05, color: DBU_INK,
                 background: "transparent", border: 0, borderBottom: "1px solid transparent", padding: 0, width: "100%", outline: "none" }}
               onFocus={(e) => { e.target.style.borderBottomColor = DBU_LINE2; }}
               onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
-            <div className="meta" hidden={guided && step !== 0}>
+            <div className="meta">
               <span className="chip q">{summary.weeks} {summary.weeks === 1 ? "week" : "weeks"} · {weekdayLabel} · {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}{summary.last ? " · last " + dbuShortDate(summary.last) : ""}</span>
               <span className="saved">v{doc.version} · {saveLabel}</span>
             </div>
-
           </div>
           <div className="acts">
             <button type="button" className="tog" onClick={() => setPreview(!preview)} aria-pressed={preview}>
               <i aria-hidden="true" />Preview as client
             </button>
             <button type="button" disabled={!!uploads || saveState === "saving"} onClick={async () => { if (await flush()) setTemplateSaved(true); }} style={dbuBtn(false)}>Save template</button>
-            <button hidden={guided && step !== 3} type="button" disabled={!!uploads || saveState === "saving"} onClick={() => flush(true)} style={dbuBtn(false)}>Publish</button>
-            <button hidden={guided && step !== 3} type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
+            <button type="button" disabled={!!uploads || saveState === "saving"} onClick={() => flush(true)} style={dbuBtn(false)}>Publish</button>
+            <button type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
           </div>
         </div>
 
-        <details className="cb-details" hidden={guided && step !== 0}>
+        <details className="cb-details">
           <summary>Program details <small>Tags, start date &amp; introduction video{doc.video ? " · Video added" : ""}</small></summary>
           <div className="meta">
               <DbuTagPicker tags={doc.tags} customTags={customTags} onChange={(tags) => setDoc({ ...doc, tags })} />
@@ -2392,54 +2740,70 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
         {templateSaved && <p role="status">{live ? "Template saved to your library. Use as template makes a separate copy next time." : "Template draft saved on this device. Sign in to save to your library."}</p>}
         {doc.outlineOnly && <p style={{ fontSize: 13.5, color: DBU_INK2 }}>This imported outline has day or week titles only. Add exercises before assigning it as a structured workout.</p>}
 
+        {/* ── Toolbar ─────────────────────────────────────────────────────────
+            ⚠ ONE WAY TO BUILD (step 3 of the builder plan, owner, 2026-10-07). The Guided,
+            Editor and Planner layouts each drew this toolbar, the canvas and the day editor
+            in a different arrangement, and the day editor sat in three positions besides;
+            what is left is the Grid ⇄ Sheet switch the owner picked on 21 Sept, with the
+            day editor docked under whichever canvas is showing. */}
+        <div className="tb">
+          <DbuViewSwitch view={view} setView={setView} />
+          <div style={{ flex: 1 }} />
+          {/* ⚠ "Reuse a saved day" survives the retired tree. It is the one control there with
+              no home in either canvas, and dropping it would have removed a shipped feature in
+              a layout PR. Its developer-voice label (F10) is what changed, not its behaviour. */}
+          {!!dayTemplates?.length && (
+            <select aria-label="Add a saved day to week 1" value="" style={{ ...dbuField, cursor: "pointer" }}
+              onChange={(e) => {
+                const savedDay = dayTemplates[Number(e.target.value)];
+                if (!savedDay) return;
+                const next = JSON.parse(JSON.stringify(savedDay.day));
+                next.id = crypto.randomUUID();
+                const target = Math.max(0, sel.w);
+                if (!dbuHasWeekday(next)) next.weekday = dbuNextFreeWeekday(doc.weeks[target]);
+                setWeeks(doc.weeks.map((w, i) => (i === target ? { ...w, days: [...w.days, next] } : w)));
+              }}>
+              <option value="">Add a saved day…</option>
+              {dayTemplates.map((x, i) => <option key={i} value={i}>{x.name}</option>)}
+            </select>
+          )}
+          <button type="button" ref={addDayRef} style={dbuBtn(false)} onClick={addDay}>＋ Add a day</button>
+          <button type="button" style={dbuBtn(false)} onClick={() => setWeeks([...doc.weeks, { ...DashBuilder.newWeek(), days: [{ ...DashBuilder.newDay("Day 1"), weekday: 0 }] }])}>＋ Week</button>
+        </div>
+        <DbuProgressionBar doc={doc} onRule={setRule} />
+        {notice && <p className="dmsg" role="status">{notice}</p>}
+
         {/* ⚠ F1 (P0): `.dbu-layout` DECLARED TWO COLUMNS AND HAD THREE CHILDREN, so the client
-            preview wrapped into the second grid row — inside the 210px tree column, measured at
-            1,413px below the fold, where `position:sticky` cannot lift it because the cell it
-            sticks inside IS that row. A coach ticked the box, saw nothing change, and concluded
-            the control did nothing.
-            ⚠ AND NEVER THREE COLUMNS, which is measured rather than preferred: at 1440 the
-            content area is 1,104px, so a canvas beside BOTH a 400px editor and a 340px preview
-            is 332px — at which the grid clips Sunday and the sheet clips the very week columns
-            it exists to read left to right. So the preview takes the panel slot in Sheet (where
-            cells are edited inline anyway) and floats as a popover in Grid (where the panel IS
-            how you edit). Both views keep a ~690px canvas with the preview open. */}
-        <div className="stage" ref={stageRef}>
-          <div hidden={!scheduleShown}>
+            preview wrapped into the second grid row, below the fold, where `position:sticky`
+            could not lift it. ⚠ AND NEVER THREE COLUMNS: at 1440 the content area is 1,104px,
+            and a canvas beside an editor AND a preview clips Sunday and the sheet's week
+            columns. So the canvas takes the full width, the day editor docks under it, and the
+            preview floats. */}
+        <div className="stage">
           {view === "grid"
             ? <DbuGrid doc={doc} dates={dates} sel={sel} setSel={selectDay} setWeeks={setWeeks} uploads={uploads} onWeek={onWeek} />
             : <DbuSheet doc={doc} dates={dates} setSel={selectDay} setWeeks={setWeeks} />}
+        </div>
 
-          {/* Planner opens a day on demand in a viewport-bound side panel.
-              Editor and Guided keep the day beside their day navigation. */}
-          </div>
-          <div className={layout === "planner" ? "cb-planner-editor" : "cb-workspace"} hidden={(guided && step !== 1 && step !== 3) || (layout === "planner" && !plannerEditorOpen)}>
-            {layout !== "planner" && <aside className="cb-days" aria-label="Workout days">
-              <label>Week<select aria-label="Week to edit" value={Math.max(0,sel.w)} style={dbuField} onChange={e=>setSel({w:Number(e.target.value),d:0})}>{doc.weeks.map((w,i)=><option key={i} value={i}>Week {i+1}{w.deload?" · deload":""}</option>)}</select></label>
-              {(week || doc.weeks[0]).days.map((d,i)=><button type="button" className="cb-button" key={d.id || i} aria-pressed={sel.d===i} onClick={()=>setSel({w:Math.max(0,sel.w),d:i})}>{d.name}<small>{d.blocks.reduce((n,b)=>n+b.rows.length,0)} exercises</small></button>)}
-            </aside>}
-          {day && !(guided && step === 3) && (layout !== "planner" || plannerEditorOpen) && (
-            /* ⚠ role="group", NOT "dialog": this panel is not modal, traps no focus and
-               sits beside a canvas that stays live. Calling it a dialog tells a
-               screen-reader user the rest of the page is inert when it is not. */
-            <div className={"drawer float dash-thin-scroll" + (floating ? " is-popped" : layout === "planner" ? " is-sidepanel" : "")} ref={panel.ref} role="group" tabIndex={-1}
-              onKeyDown={e=>{if(e.key === "Escape" && layout === "planner" && !e.defaultPrevented && !e.target.closest('[role="dialog"]')){e.stopPropagation();closeDayEditor();}}} aria-label={"Day editor \u00b7 " + day.name}
-              style={floating ? panel.style : undefined}>
-              <div className={"dh" + (floating ? " grab" : "")} {...panel.headerProps} style={panel.grabStyle}>
-                {floating && <button type="button" className="gh" aria-label="Move the day editor — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={panel.onKey} title="Drag to move" />}
-                {/* ⚠ THE DAY'S NAME IS ITS HEADING, AND THE HEADING IS THE FIELD (owner,
-                    2026-10-07: day settings in the header). It was a bold title here over a
-                    full-width "Day name" input three lines below it, so the name was shown
-                    twice and edited in the second place. The date line above it is the one
-                    the assignment would write. Pressing in the field never starts a panel
-                    drag: an input is one of the controls `useDbuDrag` leaves alone. */}
-                <div className="dt">
-                  <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
-                  <label htmlFor="dbu-day-name" className="sr">Day name</label>
-                  <input id="dbu-day-name" className="dn" value={day.name} title="Rename this day" onChange={(e) => setDay({ ...day, name: e.target.value })} />
-                </div>
-                <div className="dacts">
-                {canFloat && <button type="button" className="x" onClick={()=>setPopped(!popped)}>{popped ? "Dock editor" : "Pop out editor"}</button>}
-                {view === "grid" && <button type="button" className="x" onClick={() => {setView("sheet");if(guided)setStep(2);else setLayout("planner");}} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
+        {day && (
+          /* ⚠ role="group", NOT "dialog": this panel is not modal, traps no focus and sits
+             under a canvas that stays live. Calling it a dialog tells a screen-reader user
+             the rest of the page is inert when it is not.
+             Escape closes it, as Done does — unless the Escape belonged to something inside
+             it (a list, a strip, the walkthrough panel), which marks it handled. */
+          <div className="drawer dash-thin-scroll" ref={panelRef} role="group" tabIndex={-1} aria-label={"Day editor · " + day.name}
+            onKeyDown={(e) => { if (e.key === "Escape" && !e.defaultPrevented && !dbuImeComposing(e.nativeEvent) && !e.target.closest('[role="dialog"]')) { e.stopPropagation(); closeDayEditor(); } }}>
+            <div className="dh">
+              {/* ⚠ THE DAY'S NAME IS ITS HEADING, AND THE HEADING IS THE FIELD (owner,
+                  2026-10-07: day settings in the header). The date line above it is the one
+                  the assignment would write. */}
+              <div className="dt">
+                <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
+                <label htmlFor="dbu-day-name" className="sr">Day name</label>
+                <input id="dbu-day-name" className="dn" value={day.name} title="Rename this day" onChange={(e) => setDay({ ...day, name: e.target.value })} />
+              </div>
+              <div className="dacts">
+                {view === "grid" && <button type="button" className="x" onClick={() => setView("sheet")} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
                 {/* ⚠ The tree carried a per-day Copy button; the grid moves a day by dragging it
                     to another weekday, which is a different action. Duplication would have been
                     lost with the tree, so it lands here — on the day it is about. */}
@@ -2451,43 +2815,44 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
                   setWeeks(doc.weeks.map((x, i) => (i === sel.w ? { ...x, days: [...x.days.slice(0, sel.d + 1), next, ...x.days.slice(sel.d + 1)] } : x)));
                   setSel({ w: sel.w, d: sel.d + 1 });
                 }}>Duplicate day</button>
+                <button type="button" className="x" aria-expanded={dayTool === "copy"} disabled={doc.weeks.length < 2}
+                  title={doc.weeks.length < 2 ? "Add a week to copy this day into" : undefined}
+                  onClick={() => { setNotice(""); setDayTool(dayTool === "copy" ? null : "copy"); }}>Copy to weeks</button>
+                <button type="button" className="x danger" aria-expanded={dayTool === "delete"} disabled={onlyDay}
+                  title={onlyDay ? "A program keeps at least one day" : undefined}
+                  onClick={() => { setNotice(""); setDayTool(dayTool === "delete" ? null : "delete"); }}>Delete day</button>
                 <button type="button" className="x" aria-label="Close the day editor" disabled={!!uploads} onClick={closeDayEditor}>Done</button>
-                </div>
               </div>
-              {/* Keyed by the day's PLACE as well as its id: `newDay` gives a day no id, so two
-                  id-less days in one week shared a key and the second opened on the first's
-                  selection. */}
-              <DbuDayEditor
-                key={sel.w + ":" + sel.d + ":" + (day.id || "")}
-                busy={!!uploads}
-                day={day}
-                onChange={setDay}
-                onWeekday={setDayWeekday}
-                takenBy={dbuTakenByWeekday(week, sel.d)}
-                playlists={playlists}
-                clips={clips}
-                customMoves={ownMoves}
-                onUploading={uploadCount}
-                live={!!live}
-                clientId={preselectId || null}
-              />
             </div>
-          )}
-
-          {guided && step === 3 && <section className="cb-review" aria-label="Review workout">
-            <h2>{day?.name || "Choose a day"}</h2>
-            {previewCard && <DashWorkoutCard workout={previewCard} interactive={false} maxRows={99}/>}
-            <div className="cb-actions"><button type="button" className="cb-button" onClick={()=>goStep(1)}>Edit this workout</button></div>
-          </section>}
+            {dayTool === "copy" && <DbuCopyToWeeks doc={doc} wi={sel.w} di={sel.d} onCopy={copyDay} onCancel={() => setDayTool(null)} />}
+            {dayTool === "delete" && <DbuDeleteDay day={day} wi={sel.w} onDelete={deleteDay} onCancel={() => setDayTool(null)} />}
+            {/* Keyed by the day's PLACE as well as its id: `newDay` gives a day no id, so two
+                id-less days in one week shared a key and the second opened on the first's
+                selection. */}
+            <DbuDayEditor
+              key={sel.w + ":" + sel.d + ":" + (day.id || "")}
+              busy={!!uploads}
+              day={day}
+              onChange={setDay}
+              onWeekday={setDayWeekday}
+              takenBy={dbuTakenByWeekday(week, sel.d)}
+              playlists={playlists}
+              clips={clips}
+              customMoves={ownMoves}
+              onUploading={uploadCount}
+              live={!!live}
+              clientId={preselectId || null}
+              progress={progress}
+              rule={rule}
+            />
           </div>
-        </div>
-        {guided && <CoachBuilderFooter step={step} onStep={goStep} steps={steps} busy={!!uploads}/>}
+        )}
 
         {/* Client preview — the EXACT card the client dashboard renders, as the board's `.pop`.
             ⚠ IT IS DRAGGABLE, on the owner's ruling. Anchored bottom-right it lands on top of
             the site-wide chat button and, at the widths a coach actually builds at, over the
-            sidebar it is meant to be read beside. Same header-grab, same clamp and the same
-            arrow keys as the day editor, because it is the same hook. */}
+            sidebar it is meant to be read beside. Header-grab, a clamp to the screen and the
+            arrow keys, through `useDbuDrag`. */}
         {preview && (
           <div className="pop" ref={previewPanel.ref} role="dialog" aria-label="Client preview" style={previewPanel.style}>
             <div className="ph2 grab" {...previewPanel.headerProps} style={previewPanel.grabStyle}>

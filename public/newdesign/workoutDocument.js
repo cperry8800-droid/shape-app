@@ -222,6 +222,222 @@
     const clean = normalizePerSet(perSet);
     return clean ? {...rest, perSet:clean} : rest;
   }
+  // The two markers a row can carry for the program's progression, kept only in the
+  // shape they are written in: `loadPinned` is true or absent, `deloadFrom` is the
+  // set count a deload cut, or absent.
+  function withProgressionMarks(row) {
+    if (!row || (!('loadPinned' in row) && !('deloadFrom' in row))) return row;
+    const {loadPinned, deloadFrom, ...rest} = row;
+    const from = Number(deloadFrom);
+    return {...rest, ...(loadPinned === true ? {loadPinned:true} : {}), ...(text(deloadFrom).trim() !== '' && Number.isFinite(from) && from > 0 ? {deloadFrom} : {})};
+  }
+
+  // ── Deload weeks ───────────────────────────────────────────────────────────
+  // A deload keeps 60% of each move's sets, at least one: the week tools' rule, which the
+  // program's progression now also applies on its deload weeks.
+  // ⚠ THE CUT REMEMBERS WHAT IT CUT (`deloadFrom`), so taking the deload off gives the
+  // sets back. It used to leave them cut, which a cadence cannot live with: moving "deload
+  // every 4th week" to every 5th would have left week 4 short of sets with no deload flag
+  // to say why. A set count the coach changed during the deload is theirs and stays.
+  const DELOAD_SHARE = 0.6;
+  function deloadedSets(sets) {
+    const n = Number(sets);
+    return text(sets).trim() !== '' && Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n * DELOAD_SHARE)) : null;
+  }
+  const eachRow = (week, fn) => {
+    for (const day of week.days || []) for (const block of day.blocks || []) block.rows = (block.rows || []).map(fn);
+  };
+  // ⚠ A DELOAD WEEK SAVED BEFORE THE CUT REMEMBERED ANYTHING IS NOT ONE THIS MODULE CUT.
+  // It carries `deload: true` over sets that are ALREADY cut and no `deloadFrom` to give
+  // them back (Codex P1, #2230). Cutting it again would take 40% off what is left, and
+  // taking its flag off would leave a short week that no longer says why. So a week this
+  // module deloads says so (`deloadCut`), a row's `deloadFrom` says the same of a week cut
+  // before the marker existed, and a deload week with neither is a legacy one: it stays
+  // marked and is never cut again, and only the coach takes its flag off (the week's own
+  // Deload), knowing its sets stay as they are.
+  const anyRow = (week, test) => (week.days || []).some(d => (d.blocks || []).some(b => (b.rows || []).some(r => r && test(r))));
+  function legacyDeload(week) {
+    return !!week && week.deload === true && week.deloadCut !== true && !anyRow(week, r => r.deloadFrom != null);
+  }
+  // ⚠ IDEMPOTENT, AND RUN ON EVERY DELOAD WEEK THE CADENCE NAMES, not only on the weeks it
+  // turns into deloads: a move or a saved day added to a deload week after it was cut has
+  // no `deloadFrom`, and is cut here like the rest (Codex P1, #2230). A row that already
+  // remembers its cut is the coach's from then on, so its sets are never cut twice.
+  function deloadWeek(week) {
+    const next = copy(week);
+    if (legacyDeload(week)) return next;
+    next.deload = true;
+    next.deloadCut = true;
+    eachRow(next, row => {
+      if (!row || row.deloadFrom != null) return row;
+      const cut = deloadedSets(row.sets);
+      return cut == null ? row : {...row, deloadFrom:row.sets, sets:cut};
+    });
+    return next;
+  }
+  function undeloadWeek(week) {
+    const next = copy(week);
+    next.deload = false;
+    delete next.deloadCut;
+    eachRow(next, row => {
+      if (!row || row.deloadFrom == null) return row;
+      const {deloadFrom, ...rest} = row;
+      return Number(rest.sets) === deloadedSets(deloadFrom) ? {...rest, sets:deloadFrom} : rest;
+    });
+    return next;
+  }
+
+  // ── The program's progression ──────────────────────────────────────────────
+  // Owner, 2026-10-07 (the builder plan, step 3): "+5 lb a week on main lifts, deload in
+  // week 4", set once for the program. It replaces the per-move checkbox whose increments
+  // were fixed in code and applied only when a week was copied with Progress.
+  //   builder.progression = { amount: 5, unit: 'lb'|'kg'|'pct', kinds: ['main'], deloadEvery: 0|N }
+  // ⚠ THE RULE IS WRITTEN INTO THE WEEKS, NOT APPLIED AT DELIVERY. `applyProgramProgression`
+  // sets each later week's loads in the document itself, so every reader gets week N's real
+  // load without knowing the rule exists: the assign flow, "Update future workouts" (whose
+  // route lifts ONE day out of its week and so could never apply a per-week rule), the app's
+  // editor and library, and Nora. The rule is kept beside the weeks so the bar can show it
+  // and the builder can keep the weeks in step when week 1 changes.
+  // ⚠ UNITS ARE NEVER CONVERTED. A rule in lb moves only moves typed in lb; a move in kg is
+  // left as the coach wrote it, and the bar says how many were left.
+  const PROGRESSION_UNITS = ['kg', 'lb', 'pct'];
+  const round2 = n => Math.round(n * 100) / 100;
+  function normalizeProgression(value) {
+    if (!value || typeof value !== 'object') return null;
+    const amount = Number(value.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    const unit = PROGRESSION_UNITS.includes(value.unit) ? value.unit : null;
+    if (!unit) return null;
+    const asked = Array.isArray(value.kinds) ? value.kinds.map(blockKind) : ['main'];
+    const kinds = BLOCK_KINDS.filter(k => asked.includes(k));
+    if (!kinds.length) return null;
+    const every = Number(value.deloadEvery);
+    return {amount:round2(Math.min(amount, 1000)), unit, kinds, deloadEvery:Number.isInteger(every) && every >= 2 && every <= 52 ? every : 0};
+  }
+  const positiveLoad = v => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(Number(v)) && Number(v) > 0;
+  // A move the rule can move: in one of its blocks, typed in its unit, with a weight, and
+  // not standing in for an imported load instruction.
+  const progressible = (rule, block, row) => !!(rule && block && row) && rule.kinds.includes(blockKind(block.kind))
+    && row.loadType === rule.unit && row.loadText == null && positiveLoad(row.load);
+  // Steps of progression each week has taken: one per training week after the first; a
+  // deload week takes none, so its loads hold and the climb resumes after it.
+  const progressionSteps = weeks => { let n = 0; return weeks.map((w, i) => { if (i > 0 && !(w && w.deload)) n += 1; return n; }); };
+  // ⚠ "THE SAME MOVE" IN A LATER WEEK IS THE SAME DAY, THE SAME KIND OF BLOCK AND THE SAME
+  // NAME — the second Back squat of a day matches the second. Not the row's exact place: a
+  // move added or dragged in week 3 would otherwise hand every move after it someone
+  // else's weight. And the same day is week 1's day ON THE SAME WEEKDAY (the Grid's own
+  // identity for a day), falling back to the same place in the week (the Sheet's band) for
+  // a day with no weekday or none to match: by place alone, deleting a day from week 1, or
+  // a week whose days are not listed Mon → Sun, would match every later day to the wrong
+  // session and quietly stop its climb.
+  function moveKeys(day) {
+    const seen = {}, out = [];
+    (day && day.blocks || []).forEach((block, bi) => (block.rows || []).forEach((row, ri) => {
+      const name = text(row && row.name).trim().toLowerCase();
+      const k = blockKind(block.kind) + '|' + name;
+      seen[k] = (seen[k] || 0) + 1;
+      out.push({bi, ri, block, row, key:name ? k + '|' + seen[k] : ''});
+    }));
+    return out;
+  }
+  const hasWeekday = d => !!d && Number.isInteger(d.weekday) && d.weekday >= 0 && d.weekday <= 6;
+  function baseDay(builder, day, di) {
+    const first = (builder.weeks[0] || {}).days || [];
+    const same = hasWeekday(day) ? first.find(d => hasWeekday(d) && d.weekday === day.weekday) : null;
+    return same || first[di];
+  }
+  function baseMoves(builder, day, di) {
+    const map = new Map();
+    for (const m of moveKeys(baseDay(builder, day, di))) if (m.key && !map.has(m.key)) map.set(m.key, m);
+    return map;
+  }
+  function stepLoad(rule, base, steps) {
+    const v = round2(base + rule.amount * steps);
+    return rule.unit === 'pct' ? Math.min(100, v) : v;
+  }
+  // A governed move's ladder follows week 1's set by set; its reps stay its own.
+  function stepLadder(rule, baseRow, row, steps) {
+    const base = Array.isArray(baseRow.perSet) ? baseRow.perSet : [];
+    const own = Array.isArray(row.perSet) ? row.perSet : [];
+    if (!base.length && !own.length) return null;
+    return Array.from({length:Math.max(base.length, own.length)}, (_, i) => {
+      const b = base[i] && typeof base[i] === 'object' ? base[i] : {};
+      const o = own[i] && typeof own[i] === 'object' ? own[i] : {};
+      return {...o, load:positiveLoad(b.load) ? stepLoad(rule, Number(b.load), steps) : Number(b.load) === 0 && text(b.load).trim() !== '' ? 0 : ''};
+    });
+  }
+  // Every later week's governed loads, from week 1's, by the rule. A load the coach typed
+  // by hand in a later week (`loadPinned`) is left alone. Returns the SAME object when
+  // nothing changes, so opening a program that is already in step cannot mark it dirty.
+  function applyProgramProgression(builder) {
+    const rule = normalizeProgression(builder && builder.progression);
+    if (!rule || !Array.isArray(builder.weeks) || !builder.weeks.length) return builder;
+    let weeks = builder.weeks;
+    if (rule.deloadEvery) {
+      weeks = weeks.map((w, i) => {
+        if (legacyDeload(w)) return w;
+        const want = (i + 1) % rule.deloadEvery === 0;
+        return want ? deloadWeek(w) : w.deload ? undeloadWeek(w) : w;
+      });
+    }
+    const steps = progressionSteps(weeks);
+    const base = {...builder, weeks};
+    const out = weeks.map((week, wi) => wi === 0 ? week : {...week, days:(week.days || []).map((day, di) => {
+      const from = baseMoves(base, day, di);
+      const keyed = new Map(moveKeys(day).map(m => [m.bi + ':' + m.ri, m.key]));
+      return {...day, blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row, ri) => {
+        const b = from.get(keyed.get(bi + ':' + ri));
+        if (!row || row.loadPinned === true || !b || !progressible(rule, b.block, b.row) || !progressible(rule, block, {...row, load:1})) return row;
+        const next = {...row, load:stepLoad(rule, Number(b.row.load), steps[wi])};
+        const ladder = stepLadder(rule, b.row, row, steps[wi]);
+        if (ladder) next.perSet = ladder;
+        return next;
+      })}))};
+    })});
+    const result = {...builder, weeks:out};
+    return JSON.stringify(result) === JSON.stringify(builder) ? builder : result;
+  }
+  // What the rule does to one move, for the builder to mark it: 'source' (week 1, the
+  // weight the climb starts from), 'follows' (a later week, set by the rule), 'pinned' (a
+  // later week, typed by hand) or '' (the rule does not touch it).
+  function progressionStatus(builder, wi, di, bi, ri) {
+    const rule = normalizeProgression(builder && builder.progression);
+    if (!rule || !builder.weeks || !builder.weeks[wi]) return '';
+    const day = (builder.weeks[wi].days || [])[di];
+    const block = day && (day.blocks || [])[bi];
+    const row = block && (block.rows || [])[ri];
+    if (!row) return '';
+    if (wi === 0) return progressible(rule, block, row) ? 'source' : '';
+    const key = (moveKeys(day).find(m => m.bi === bi && m.ri === ri) || {}).key;
+    const b = key ? baseMoves(builder, day, di).get(key) : null;
+    if (!b || !progressible(rule, b.block, b.row) || !progressible(rule, block, {...row, load:1})) return '';
+    return row.loadPinned === true ? 'pinned' : 'follows';
+  }
+  // A load typed by hand in a later week stays as typed: every row whose weight (or a
+  // ladder weight) differs between the day before and after an edit is marked. Matched by
+  // id within the one day, so a move dragged elsewhere in it is still the move it was.
+  // ⚠ ONLY THE WEIGHTS A COACH WROTE COUNT: the row's load and each set's explicit one.
+  // Typing a set's reps adds ladder entries whose weights are blank, and a blank weight
+  // inherits the row's, so a reps-only edit pinned a load nobody typed and stopped that
+  // week's climb (Codex P1, #2230). Trailing blank weights say nothing and are dropped.
+  const loadsOf = row => {
+    const ladderWeights = perSetEntries(row).map(e => e.load);
+    while (ladderWeights.length && ladderWeights[ladderWeights.length - 1] === '') ladderWeights.pop();
+    return JSON.stringify([row && row.load, ladderWeights]);
+  };
+  function pinLoadEdits(prevDay, nextDay) {
+    if (!prevDay || !nextDay) return nextDay;
+    const before = new Map();
+    for (const b of prevDay.blocks || []) for (const r of b.rows || []) if (r && r.id != null && !before.has(String(r.id))) before.set(String(r.id), r);
+    let changed = false;
+    const blocks = (nextDay.blocks || []).map(b => ({...b, rows:(b.rows || []).map(r => {
+      const was = r && r.id != null ? before.get(String(r.id)) : null;
+      if (!was || r.loadPinned === true || loadsOf(was) === loadsOf(r)) return r;
+      changed = true;
+      return {...r, loadPinned:true};
+    })}));
+    return changed ? {...nextDay, blocks} : nextDay;
+  }
   function normalizeWorkoutDetail(input, options = {}) {
     const detail = input && typeof input === 'object' ? copy(input) : {};
     let builder = detail.builder;
@@ -251,9 +467,16 @@
     builder.schemaVersion = 1;
     if ('video' in builder) builder.video = videoUrl(builder.video);
     builder.version = Math.max(1, Number(builder.version) || 1);
-    builder.weeks = builder.weeks.map((week, wi) => ({...week, days:(week.days || []).map((day, di) => ({
+    // The program's progression is kept only in the shape the builder writes; anything
+    // else is no rule at all, rather than a half-read one moving loads.
+    if ('progression' in builder) {
+      const rule = normalizeProgression(builder.progression);
+      if (rule) builder.progression = rule; else delete builder.progression;
+    }
+    // `deloadCut` is true on a deload week, or absent.
+    builder.weeks = builder.weeks.map(({deloadCut, ...week}, wi) => ({...week, ...(deloadCut === true && week.deload === true ? {deloadCut:true} : {}), days:(week.days || []).map((day, di) => ({
       ...day, ...('video' in day ? {video:videoUrl(day.video)} : {}), id:day.id || `day-${wi}-${di}`, name:day.name || `Day ${di + 1}`,
-      blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => withLadder(splitLegacyRpe({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video), group:supersetKey(row.group) || null})))})),
+      blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => withProgressionMarks(withLadder(splitLegacyRpe({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video), group:supersetKey(row.group) || null}))))})),
     }))}));
     if (!builder.weeks.length) builder.weeks = [{deload:false,days:[{id:'day-0',name:options.name || 'Workout',blocks:[{kind:'main',rows:[]}]}]}];
     const dayCount = builder.weeks.reduce((n,w) => n + w.days.length, 0);
@@ -301,5 +524,5 @@
       text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS, normalizeProgression, applyProgramProgression, progressionStatus, pinLoadEdits, deloadWeek, undeloadWeek, legacyDeload};
 });

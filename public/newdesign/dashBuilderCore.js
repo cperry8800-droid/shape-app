@@ -877,7 +877,11 @@
   }
 
   // Deload: −40% volume (sets), floor 1 — a starting point the trainer edits.
+  // ⚠ THE DOCUMENT MODULE'S RULE WHEN IT IS LOADED (both hosts load it first), because the
+  // program's progression applies the same cut on its deload weeks and the two must not
+  // drift. That copy remembers what it cut, so `undeloadWeek` can give the sets back.
   function deloadWeek(week) {
+    if (WorkoutDoc && WorkoutDoc.deloadWeek) return WorkoutDoc.deloadWeek(week);
     var next = clone(week);
     next.deload = true;
     for (var d = 0; d < next.days.length; d++) {
@@ -888,6 +892,14 @@
         }
       }
     }
+    return next;
+  }
+
+  // Taking a deload off: the sets it cut come back, unless the coach changed them since.
+  function undeloadWeek(week) {
+    if (WorkoutDoc && WorkoutDoc.undeloadWeek) return WorkoutDoc.undeloadWeek(week);
+    var next = clone(week);
+    next.deload = false;
     return next;
   }
 
@@ -1351,7 +1363,7 @@
     canCreateMove: canCreateMove,
     newRow: newRow, newDay: newDay, newWeek: newWeek, newProgram: newProgram,
     loadLabel: loadLabel, repsLabel: repsLabel, schemeLabel: schemeLabel, rowLabels: rowLabels,
-    applyProgression: applyProgression, deloadWeek: deloadWeek,
+    applyProgression: applyProgression, deloadWeek: deloadWeek, undeloadWeek: undeloadWeek,
     dayToClientCard: dayToClientCard, buildAssignmentRows: buildAssignmentRows,
     demoTemplates: demoTemplates, demoPerformance: demoPerformance,
     TAG_MAX: TAG_MAX, TAG_MAX_LEN: TAG_MAX_LEN, TAG_PALETTE: TAG_PALETTE,

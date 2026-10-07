@@ -69,12 +69,10 @@ function program() {
   return d;
 }
 const PLAYLISTS = [{ name: 'Easy flow', meta: '8 tracks' }];
-async function mount(layout = 'Editor', extra = {}) {
+async function mount(extra = {}) {
   const writes = capture();
   root = createRoot(document.getElementById('root'));
   await React.act(async () => root.render(React.createElement(DbuBuilder, { template: { name: 'Lower', detail: { builder: program() } }, clients: [], queue: [], live: true, ownerId: 'coach-a', playlists: PLAYLISTS, clips: [], dayTemplates: [], onBack() {}, onSaved() {}, ...extra })));
-  await click(button(layout));
-  if (layout === 'Planner') await click(document.querySelector('.wg button.c:not(.rest)'));
   assert.ok(document.querySelector('.dday'), 'the day editor is not open — this test drives nothing');
   return writes;
 }
@@ -142,7 +140,7 @@ test('a drafted day joins the day block by block: same kind appends, a new kind 
 
 // ── The panel, in the real builder ──────────────────────────────────────────
 test('Draft with AI shows the drafted lines first, and nothing touches the day until the coach picks', async () => {
-  const writes = await mount('Editor');
+  const writes = await mount();
   const { asked } = stubDraft({ body: draftAnswer() });
   const before = names();
   await draft('Lower body, 50 min, barbell, intermediate');
@@ -154,7 +152,7 @@ test('Draft with AI shows the drafted lines first, and nothing touches the day u
 });
 
 test('Add to this day appends by block and selects the first drafted move; Undo draft puts the day back', async () => {
-  const writes = await mount('Editor');
+  const writes = await mount();
   stubDraft({ body: draftAnswer() });
   const before = names();
   await draft('lower body');
@@ -172,7 +170,7 @@ test('Add to this day appends by block and selects the first drafted move; Undo 
 });
 
 test('Replace this day swaps the moves; an edit after the draft takes Undo away rather than losing it', async () => {
-  await mount('Editor');
+  await mount();
   stubDraft({ body: draftAnswer() });
   await draft('lower body');
   await click(button('Replace this day'));
@@ -184,7 +182,7 @@ test('Replace this day swaps the moves; an edit after the draft takes Undo away 
 
 test('an empty day takes the draft whole, and takes its name only over a placeholder', async () => {
   const tpl = { name: 'Lower', detail: { builder: (() => { const d = program(); d.weeks[0].days[0] = { id: 'day-a', name: 'Day 1', weekday: 0, blocks: [{ kind: 'main', rows: [] }] }; return d; })() } };
-  const writes = await mount('Editor', { template: tpl });
+  const writes = await mount({ template: tpl });
   stubDraft({ body: draftAnswer() });
   await draft('lower body');
   assert.equal(button('Add to this day'), undefined, 'an empty day has nothing to add to');
@@ -194,14 +192,14 @@ test('an empty day takes the draft whole, and takes its name only over a placeho
 });
 
 test('a template answer says so in the route\'s words, never as an AI draft', async () => {
-  await mount('Editor');
+  await mount();
   stubDraft({ body: draftAnswer({ source: 'template', notice: 'Template — AI drafting is unavailable right now.' }) });
   await draft('lower body');
   assert.match(status(), /Template — AI drafting is unavailable right now\./);
 });
 
 test('a refusal is shown in the route\'s own words, and the day is untouched', async () => {
-  await mount('Editor');
+  await mount();
   stubDraft({ status: 403, body: { error: 'Workout drafting is for trainers.' } });
   const before = names();
   await draft('lower body');
@@ -211,7 +209,7 @@ test('a refusal is shown in the route\'s own words, and the day is untouched', a
 });
 
 test('an empty draft is an error, not an empty day', async () => {
-  await mount('Editor');
+  await mount();
   stubDraft({ body: draftAnswer({ draft: { name: 'x', builder: { weeks: [{ days: [{ name: 'x', blocks: [{ kind: 'main', rows: [] }] }] }] } } }) });
   await draft('lower body');
   assert.match(status(), /came back empty/);
@@ -219,13 +217,13 @@ test('an empty draft is an error, not an empty day', async () => {
 });
 
 test('the preview never calls the route; an empty brief asks for one', async () => {
-  await mount('Editor', { live: false });
+  await mount({ live: false });
   const { asked } = stubDraft({ body: draftAnswer() });
   await draft('lower body');
   assert.match(status(), /needs a signed-in trainer account/);
   assert.equal(asked.length, 0, 'a signed-out preview called the trainer-only route');
   root && await React.act(async () => root.unmount()); root = null;
-  await mount('Editor');
+  await mount();
   const live = stubDraft({ body: draftAnswer() });
   await draft('   ');
   assert.match(status(), /Describe the day first/);
@@ -233,15 +231,16 @@ test('the preview never calls the route; an empty brief asks for one', async () 
 });
 
 test('a client the builder was opened for goes with the brief, as context', async () => {
-  await mount('Editor', { preselectId: '11111111-2222-4333-8444-555555555555' });
+  await mount({ preselectId: '11111111-2222-4333-8444-555555555555' });
   const { asked } = stubDraft({ body: draftAnswer() });
   await draft('upper body');
   assert.equal(asked[0].clientId, '11111111-2222-4333-8444-555555555555');
 });
 
-// In Planner, where an Escape that reaches the panel closes its day editor (step 2's rule).
+// An Escape that reaches the panel closes the day editor (step 2's rule for Planner, and
+// the one day editor's since step 3).
 test('Escape in the brief closes the panel and leaves the day open', async () => {
-  await mount('Planner');
+  await mount();
   stubDraft({ body: draftAnswer() });
   const input = await openDraft();
   await key(input, 'Escape');

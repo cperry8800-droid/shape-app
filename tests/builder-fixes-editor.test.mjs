@@ -7,7 +7,8 @@
 //     weight nobody wrote, and "None" in RPE. Display only — the stored row is untouched;
 //   · the move's number and name said twice, in the summary and again on the card;
 //   · the demo-video block always open under every move, attached or not;
-//   · Editor and Planner forcing every move open, so a day read as a wall of forms.
+//   · Editor and Planner forcing every move open, so a day read as a wall of forms (the
+//     layouts themselves were retired in step 3; there is one day editor now).
 //
 // Step 2 (the same approval) turned each move into one line with its detail beside the
 // list; the pins on the fold and the folded demo follow it there, and say so where they do.
@@ -31,7 +32,6 @@ globalThis.DashWorkoutCard = () => null;
 globalThis.useRememberedChoices = (live) => ({ live });
 globalThis.useRememberedChoice = (_store, _key, _allowed, fallback) => React.useState(fallback);
 const nd = (f) => fileURLToPath(new URL('../public/newdesign/' + f, import.meta.url));
-Object.assign(globalThis, await loadRealModule(nd('coachBuilderLayouts.jsx'), { appendExports: 'export {COACH_BUILDER_LAYOUTS,CoachBuilderNav,CoachBuilderFooter,coachTemplateCopy};' }));
 Object.assign(globalThis, await loadRealModule(nd('dashFilterBar.jsx'), { appendExports: 'export {useDfbPopShift};' }));
 const { DbuBuilder } = await loadRealModule(nd('dashBuilder.jsx'), { appendExports: 'export {DbuBuilder};' });
 
@@ -66,13 +66,10 @@ function program() {
   ];
   return d;
 }
-async function mount(layout) {
+async function mount() {
   const writes = capture();
   root = createRoot(document.getElementById('root'));
   await React.act(async () => root.render(React.createElement(DbuBuilder, { template: { name: 'Lower', detail: { builder: program() } }, clients: [], queue: [], live: true, ownerId: 'coach-a', playlists: [], clips: CLIPS, dayTemplates: [], onBack() {}, onSaved() {} })));
-  await click(button(layout));
-  if (layout === 'Guided') await click(button('Continue →'));
-  if (layout === 'Planner') await click(document.querySelector('.wg button.c:not(.rest)'));
   assert.ok(document.querySelector('#dbu-day-name'), 'the day editor is not open — this test drives nothing');
   return writes;
 }
@@ -88,25 +85,23 @@ const detail = () => document.querySelector('aside.ddetail');
 const saved = async (writes) => { await click(button('Save template')); return writes.at(-1).detail.builder.weeks[0].days[0].blocks; };
 
 // ── One line each, one selected at a time ───────────────────────────────────
-for (const layout of ['Guided', 'Editor', 'Planner']) {
-  test(`${layout}: every move is one line, and one is open in the detail at a time`, async () => {
-    await mount(layout);
-    assert.equal(moves().length, 4);
-    assert.equal(document.querySelectorAll('details.cb-exercise').length, 0, 'the folded cards are back');
-    assert.deepEqual(openOf(), [true, false, false, false], 'the day opens on its first move');
-    assert.equal(detail().querySelector('h3').textContent, 'Hip flow');
-    await click(move('Back squat').querySelector('.nm'));
-    assert.deepEqual(openOf(), [false, true, false, false]);
-    assert.equal(detail().querySelector('h3').textContent, 'Back squat');
-    await click(move('Bench press').querySelector('.nm'));
-    assert.deepEqual(openOf(), [false, false, true, false], 'opening a move closes the last one');
-    await click(move('Bench press').querySelector('.nm'));
-    assert.deepEqual(openOf(), [false, false, true, false], 'and pressing it again keeps it open, since the detail is the only place it shows');
-  });
-}
+test('every move is one line, and one is open in the detail at a time', async () => {
+  await mount();
+  assert.equal(moves().length, 4);
+  assert.equal(document.querySelectorAll('details.cb-exercise').length, 0, 'the folded cards are back');
+  assert.deepEqual(openOf(), [true, false, false, false], 'the day opens on its first move');
+  assert.equal(detail().querySelector('h3').textContent, 'Hip flow');
+  await click(move('Back squat').querySelector('.nm'));
+  assert.deepEqual(openOf(), [false, true, false, false]);
+  assert.equal(detail().querySelector('h3').textContent, 'Back squat');
+  await click(move('Bench press').querySelector('.nm'));
+  assert.deepEqual(openOf(), [false, false, true, false], 'opening a move closes the last one');
+  await click(move('Bench press').querySelector('.nm'));
+  assert.deepEqual(openOf(), [false, false, true, false], 'and pressing it again keeps it open, since the detail is the only place it shows');
+});
 
 test('a move added from the picker is the one selected', async () => {
-  await mount('Editor');
+  await mount();
   await click(move('Back squat').querySelector('.nm'));
   await click(buttons().filter((b) => b.textContent === '+ Exercise')[1]);
   const dialog = document.querySelector('[role="dialog"][aria-label="Add exercises"]');
@@ -122,7 +117,7 @@ test('a move added from the picker is the one selected', async () => {
 
 // ── Empty defaults read empty ───────────────────────────────────────────────
 test('an empty load reads empty, and the unit waits for a weight', async () => {
-  const writes = await mount('Editor');
+  const writes = await mount();
   const load = byAria('Back squat load');
   assert.equal(load.value, '', 'a new move\'s 0 still shows as a prescribed "0"');
   assert.equal(load.placeholder, '—');
@@ -148,7 +143,7 @@ test('an empty load reads empty, and the unit waits for a weight', async () => {
 });
 
 test('a load being typed keeps its leading 0 until the field is left', async () => {
-  await mount('Editor');
+  await mount();
   const load = byAria('Back squat load');
   await React.act(async () => load.focus());
   await setValue(load, '0');
@@ -164,14 +159,13 @@ test('the unit shows for an imported load instruction and for a ladder\'s weight
   capture();
   root = createRoot(document.getElementById('root'));
   await React.act(async () => root.render(React.createElement(DbuBuilder, { template: { name: 'Lower', detail: { builder: d } }, clients: [], queue: [], live: true, ownerId: 'coach-a', playlists: [], clips: [], dayTemplates: [], onBack() {}, onSaved() {} })));
-  await click(button('Editor'));
   assert.ok(byAria('Back squat load unit'), 'an imported instruction may be replaced by a weight in a unit');
   assert.equal(byAria('Front squat load unit').value, 'pct', 'the ladder\'s weights read in this unit, so it stays in reach');
   assert.ok(!byAria('Hip flow load unit'));
 });
 
 test('no target RPE reads as a dash, not as a word', async () => {
-  await mount('Editor');
+  await mount();
   const rpe = byAria('Back squat target RPE');
   assert.equal(rpe.value, '');
   assert.equal(rpe.options[0].textContent, '—');
@@ -183,7 +177,7 @@ test('no target RPE reads as a dash, not as a word', async () => {
 // The line names the move; the detail beside it names it once more as its heading, which
 // is the drawn proposal (owner, 2026-10-07). Nothing else in the detail repeats it.
 test('a move says its number and name once on its line, and once as the detail\'s heading', async () => {
-  await mount('Editor');
+  await mount();
   const squat = move('Back squat');
   await click(squat.querySelector('.nm'));
   assert.equal(squat.querySelector('.ix').textContent, '02');
@@ -201,7 +195,7 @@ test('a move says its number and name once on its line, and once as the detail\'
 // Step 1 folded the demo under every move; the detail holds one move, so its demo is open
 // there. The heading still says whether one is attached, and the line carries a mark.
 test('the demo opens in the detail, says whether one is attached, and keeps every way to set it', async () => {
-  const writes = await mount('Editor');
+  const writes = await mount();
   const demo = () => detail().querySelector('.cb-demo');
   await click(move('Back squat').querySelector('.nm'));
   assert.equal(demo().tagName, 'DIV', 'the demo went back behind a fold');
@@ -238,7 +232,7 @@ test('the demo heading says when its upload is running, and when it failed', asy
       getPublicUrl: () => ({ data: { publicUrl: 'https://shape.test/uploaded.mp4' } }),
     }) },
   } };
-  await mount('Editor');
+  await mount();
   await click(move('Back squat').querySelector('.nm'));
   const pick = async () => {
     const input = detail().querySelector('.cb-demo input[type="file"]');
