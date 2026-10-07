@@ -125,48 +125,29 @@ test('the consultation route derives the instant and never trusts a sent one', (
 
 test('the app books the RESOLVED instant, never one rebuilt from display fields', () => {
   const b = stripComments(BACKEND);
-  // `at` is preferred and emitted as a real ISO instant…
-  assert.match(b, /const at = Number\(slot\.at\)/, 'scheduledAtFromSlot ignores the resolved instant');
-  assert.match(b, /return new Date\(at\)\.toISOString\(\)/, 'the resolved instant is not sent as an ISO instant');
-  // …and it is preferred BEFORE the display-field reconstruction, or it can never be reached.
-  const iAt = b.indexOf('Number(slot.at)');
-  const iRebuild = b.indexOf('toBookingDate(slot.date');
-  assert.ok(iAt > 0 && iRebuild > iAt, 'the display-field rebuild still wins over the resolved instant');
+  // ⚠ STEP 4 (2026-10-07): the app books through /api/consultation, which derives the instant
+  // from the COACH's own date and clock and cross-checks the one sent. The member's display
+  // fields never reach the write, and the old rebuild from them is gone with the direct insert.
+  assert.match(b, /const at = Number\(slot\.at\)/, 'the booking ignores the resolved instant');
+  assert.match(b, /scheduledAt: new Date\(at\)\.toISOString\(\)/, 'the resolved instant is not sent as an ISO instant');
+  assert.match(b, /slot\.coachDate/, 'the coach\'s own date is not what the route is sent');
+  assert.match(b, /bookingTime12h\(slot\.coachTime\)/, 'the coach\'s own clock is not what the route is sent');
+  assert.doesNotMatch(b, /toBookingDate|scheduledAtFromSlot/, 'a display-field rebuild of the instant is back');
 
-  // And the Listing has to actually carry it: a preference for a field nobody forwards is
+  // And the Listing has to actually carry them: a preference for a field nobody forwards is
   // the shape of this bug, not its fix.
   const l = stripComments(LISTING);
   assert.match(l, /month: BSM_MONTHS3\[d\.getMonth\(\)\], at: s\.at/, 'projSlotRow drops the resolved instant');
-  assert.match(l, /slot: \{ day, date, time, month, iso, at \}/, 'the confirm payload drops the resolved instant');
+  assert.match(l, /slot: \{ day, date, time, month, iso, at, coachDate: wall \? wall\.coachDate : null, coachTime: wall \? wall\.coachTime : null \}/,
+    'the confirm payload drops the instant or the coach\'s clock');
+  assert.match(l, /const wall = Number\.isFinite\(at\) \? \(realAvail \|\| \[\]\)\.find\(\(x\) => x\.at === at\) : null/,
+    'the coach\'s clock is not looked up by the instant the member picked');
   assert.match(l, /const selectSlot = \(day, date, time, iso, month, at\)/, 'selectSlot does not take the instant');
   // both call sites forward it
   assert.match(l, /selectSlot\(BSM_DAYS3\[d\.getDay\(\)\], String\(d\.getDate\(\)\), s\.time, s\.iso, BSM_MONTHS3\[d\.getMonth\(\)\], s\.at\)/,
     'the calendar does not forward the instant');
   assert.match(l, /selectSlot\(s\.day, s\.date, s\.time, s\.iso, s\.month, s\.at\)/,
     'the slot row does not forward the instant');
-});
-
-test('a rebuilt fallback instant is only reachable for rows that have no instant', () => {
-  // The demo/preview rows legitimately carry no `at`, so the fallback stays — but it must be
-  // unreachable whenever a real projected slot is in hand. Driven, not read: the lifted
-  // function is executed over both shapes.
-  const i = BACKEND.indexOf('function scheduledAtFromSlot');
-  const j = BACKEND.indexOf('\nasync function createSessionRequest', i);
-  assert.ok(i > 0 && j > i, 'could not lift scheduledAtFromSlot');
-  const body = BACKEND.slice(i, j);
-  const fn = new Function(
-    'MONTHS', 'toBookingDate',
-    body + '\nreturn scheduledAtFromSlot;'
-  )({}, () => '2026-09-17');
-
-  const at = Date.UTC(2026, 8, 17, 13, 0);   // a New York 09:00, resolved
-  assert.equal(fn({ at, date: '17', month: 'Sep', time: '06:00' }), new Date(at).toISOString(),
-    'a slot carrying a resolved instant was rebuilt from its display fields');
-  // …and with no instant it still falls back rather than refusing (the preview path).
-  assert.equal(fn({ date: '17', month: 'Sep', time: '09:00' }), '2026-09-17T09:00:00');
-  // 0 and NaN are not instants — `Number(null)` is 0 and finite, the trap this repo records.
-  assert.equal(fn({ at: 0, date: '17', month: 'Sep', time: '09:00' }), '2026-09-17T09:00:00');
-  assert.equal(fn({ at: 'nope', date: '17', month: 'Sep', time: '09:00' }), '2026-09-17T09:00:00');
 });
 
 // ── Second review round (2026-09-11) ────────────────────────────────────────

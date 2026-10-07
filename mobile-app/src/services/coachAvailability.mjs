@@ -175,6 +175,10 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
       seen.add(at);
       // Display fields are the MEMBER's own calendar and clock — the calendar grid keys
       // on `iso` and the member acts on `time`.
+      // ⚠ `coachDate` / `coachTime` ARE THE COACH'S OWN WALL CLOCK, the row this slot came from.
+      // The booking goes through /api/consultation (2026-10-07, Schedule step 4), which takes
+      // the coach's date and time and derives the instant itself; `at` rides along as the
+      // cross-check it compares against.
       const local = new Date(at);
       out.push({
         iso: isoDay(local),
@@ -182,6 +186,8 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
         time: `${pad2(local.getHours())}:${pad2(local.getMinutes())}`,
         durationMin: s.durationMin,
         at,
+        coachDate: `${cy}-${pad2(cmo)}-${pad2(cd)}`,
+        coachTime: `${pad2(h)}:${pad2(mi)}`,
       });
     }
   }

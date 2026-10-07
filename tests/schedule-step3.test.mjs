@@ -402,34 +402,58 @@ test('bookingRuleRefusal reads the trigger\'s refusal into the member\'s own sen
   }
 });
 
-test('the app says why the database refused a request instead of "holding it locally"', async () => {
-  // Lifted from the shipped shapeBackend.js and driven with its collaborators stood in.
+test('the app books an intro THROUGH /api/consultation, on the coach\'s own clock, and says why it was refused', async () => {
+  // Step 4: the app used to insert the `requested` row itself, so its intros skipped the open
+  // hours, never told the coach and sent no invites. Lifted from the shipped shapeBackend.js
+  // and driven with its collaborators stood in.
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
-  const i = src.indexOf('async function createSessionRequest');
-  const j = src.indexOf('\nasync function ', i + 10);
-  assert.ok(i > 0 && j > i, 'could not lift createSessionRequest');
-  const make = (error) => {
-    const saved = [];
-    const supabase = { from: () => ({ insert: () => ({ select: () => ({ single: async () => ({ data: error ? null : { id: 's-1' }, error }) }) }) }) };
-    const fn = new Function('supabase', 'state', 'normalizeRole', 'saveLocalRecord', 'bookingRuleRefusal',
-      src.slice(i, j) + '\nreturn createSessionRequest;')(
-      supabase, { user: { id: 'member-1', email: 'm@shape.test' }, profile: {} }, (r) => r,
-      (k, p) => { saved.push(p); return p; }, BR.bookingRuleRefusal);
-    return { fn, saved };
+  assert.doesNotMatch(src, /from\('sessions'\)\s*\.insert/, 'the app still writes a session row itself');
+  const i = src.indexOf('function bookingTime12h');
+  const j = src.indexOf('\nasync function listProviderAvailability', i);
+  assert.ok(i > 0 && j > i, 'could not lift submitConsultationBooking');
+  const make = ({ token = 'tok-1', reply = { status: 200, body: { ok: true, session_id: 's-1' } } } = {}) => {
+    const calls = [];
+    const fetch = async (url, init) => { calls.push({ url, init, body: JSON.parse(init.body) }); return { ok: reply.status < 300, status: reply.status, json: async () => reply.body }; };
+    const api = new Function('normalizeRole', 'state', 'liveAccessToken', 'apiBaseUrl', 'fetch',
+      src.slice(i, j) + '\nreturn { submitConsultationBooking, bookingTime12h };')(
+      (r) => r, { user: { id: 'member-1', email: 'm@shape.test' }, profile: {} }, async () => token, 'https://api.shape.test', fetch);
+    return { ...api, calls };
   };
-  const args = { providerId: 7, providerRole: 'trainer', scheduledAt: '2026-10-08T13:00:00.000Z' };
-  for (const [error, said] of [
-    [{ code: 'P0001', message: 'booking_rule:time_off' }, /This coach is away then\. Pick another time\./],
-    [{ code: 'P0001', message: 'booking_rule:notice', details: '24' }, /1 day's notice/],
-    [{ code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' }, /just taken/],
-  ]) {
-    const { fn, saved } = make(error);
-    await assert.rejects(fn(args), said);
-    assert.equal(saved.length, 0, 'a refused request was saved locally');
+  const coach = { name: 'Coach', provider_id: 7, provider_role: 'trainer' };
+  // A New York 09:00, shown to a Los Angeles member as 06:00.
+  const slot = { at: Date.parse('2026-10-08T13:00:00Z'), iso: '2026-10-08', time: '06:00', coachDate: '2026-10-08', coachTime: '09:00' };
+
+  const ok = make();
+  const r = await ok.submitConsultationBooking({ coach, role: 'trainer', slot, topic: 'Free intro call' });
+  assert.equal(r.stored, 'supabase');
+  assert.equal(r.data.id, 's-1');
+  assert.equal(ok.calls.length, 1);
+  assert.equal(ok.calls[0].url, 'https://api.shape.test/api/consultation');
+  assert.equal(ok.calls[0].init.headers.Authorization, 'Bearer tok-1', 'the app signs the booking with its own token');
+  assert.deepEqual(
+    { providerId: ok.calls[0].body.providerId, professionalType: ok.calls[0].body.professionalType, date: ok.calls[0].body.date, time: ok.calls[0].body.time, scheduledAt: ok.calls[0].body.scheduledAt },
+    { providerId: 7, professionalType: 'trainer', date: '2026-10-08', time: '9:00 AM', scheduledAt: '2026-10-08T13:00:00.000Z' },
+    'the route gets the COACH\'s wall clock and the instant to cross-check, never the member\'s 06:00');
+
+  // The route's own sentence, nothing kept locally.
+  const away = make({ reply: { status: 409, body: { error: 'This coach is away then. Please pick another time.', code: 'time_off' } } });
+  await assert.rejects(away.submitConsultationBooking({ coach, role: 'trainer', slot }), /This coach is away then\. Please pick another time\./);
+  const down = make({ reply: { status: 500, body: {} } });
+  await assert.rejects(down.submitConsultationBooking({ coach, role: 'trainer', slot }), /Could not book this consultation/);
+
+  // A preview row (no instant, no coach clock) and a signed-out member send nothing.
+  for (const bad of [{ iso: '2026-10-08', time: '09:00' }, { ...slot, coachTime: null }, { ...slot, at: 0 }, { ...slot, coachDate: '10/08/2026' }]) {
+    const m = make();
+    await assert.rejects(m.submitConsultationBooking({ coach, role: 'trainer', slot: bad }), /Choose a valid consultation time/);
+    assert.equal(m.calls.length, 0, JSON.stringify(bad));
   }
-  const ok = make(null);
-  assert.equal((await ok.fn(args)).stored, 'supabase');
-  const outage = make({ code: 'PGRST301', message: 'JWT expired' });
-  assert.equal((await outage.fn(args)).stored, 'local', 'an outage still keeps the request locally, as before');
+  const out = make({ token: null });
+  await assert.rejects(out.submitConsultationBooking({ coach, role: 'trainer', slot }), /Sign in/);
+  assert.equal(out.calls.length, 0);
+
+  // The 12-hour clock the route parses.
+  for (const [hhmm, want] of [['00:00', '12:00 AM'], ['09:05', '9:05 AM'], ['12:00', '12:00 PM'], ['12:30', '12:30 PM'], ['13:00', '1:00 PM'], ['23:59', '11:59 PM'], ['24:00', ''], ['9', ''], [null, '']]) {
+    assert.equal(ok.bookingTime12h(hhmm), want, String(hhmm));
+  }
 });

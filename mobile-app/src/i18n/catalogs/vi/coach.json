@@ -1139,5 +1139,6 @@
   "video.secureLink": "Dùng liên kết an toàn bắt đầu bằng https://.",
   "video.emptyFile": "Chọn tệp video không trống.",
   "video.fileType": "Chọn video MP4, MOV, M4V hoặc WebM. MP4 với H.264 tương thích tốt nhất trên các thiết bị.",
-  "video.fileSize": "Video phải nhỏ hơn {limit} MB."
+  "video.fileSize": "Video phải nhỏ hơn {limit} MB.",
+  "schedule.pickTime": "Chọn giờ"
 }

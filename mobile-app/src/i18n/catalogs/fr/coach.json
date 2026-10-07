@@ -1139,5 +1139,6 @@
   "video.secureLink": "Utilisez un lien sécurisé commençant par https://.",
   "video.emptyFile": "Choisissez un fichier vidéo non vide.",
   "video.fileType": "Choisissez une vidéo MP4, MOV, M4V ou WebM. MP4 avec H.264 offre la meilleure compatibilité.",
-  "video.fileSize": "La vidéo doit faire moins de {limit} Mo."
+  "video.fileSize": "La vidéo doit faire moins de {limit} Mo.",
+  "schedule.pickTime": "Choisissez une heure"
 }

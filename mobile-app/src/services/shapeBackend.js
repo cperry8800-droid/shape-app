@@ -13,7 +13,6 @@ import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.
 import { mergePostPatch } from './communityPostPatch.mjs';
 import { computeWeekendSplit, buildSelfWeekendBuckets } from './weekendSplit.mjs';
 import { bsVarianceBand } from '../../../public/newdesign/varianceBand.mjs';
-import { bookingRuleRefusal } from '../../../public/newdesign/bookingRules.mjs';
 import { bsSetsWindow } from '../../../public/newdesign/noraSets.mjs';
 import { bsFeedQuerySpec } from './feedMode.mjs';
 import { bsWorkoutSharePrivacy, bsIsDuplicateWorkoutPost, bsFetchDuplicateCandidates, bsActivityStartISO, bsPostActivityStart, BS_PRIVACY_RANK } from './workoutShare.mjs';
@@ -1298,109 +1297,6 @@ async function submitProviderApplication({ role, values }) {
   return { stored: 'supabase', data };
 }
 
-function toBookingDate(date, month = 'May') {
-  const day = Number(date);
-  if (!Number.isFinite(day)) return null;
-  const MONTHS = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
-  const mi = MONTHS[month];
-  if (mi == null) return null; // unknown month → no guess (was silently April)
-  // Pick the year so the month/day is upcoming — this year, or next year if it
-  // has already passed. (Was hardcoded 2026, which silently breaks past 2026.)
-  const now = new Date();
-  let year = now.getFullYear();
-  if (mi < now.getMonth() || (mi === now.getMonth() && day < now.getDate())) year += 1;
-  return `${year}-${String(mi + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-function scheduledAtFromSlot(slot = {}) {
-  // ⚠ PREFER THE RESOLVED INSTANT. `slot.at` is the epoch ms the availability projection
-  // produced by placing the coach's stored wall clock in the COACH's zone; `slot.iso` and
-  // `slot.time` are the MEMBER's own calendar and clock, kept for display. Rebuilding
-  // `scheduled_at` from those display fields threw the resolved instant away and stored the
-  // member's 09:00 for a coach who had opened 09:00 somewhere else entirely — the exact
-  // defect the 2026-09-11 timezone fix was for, one layer below where it was fixed. Caught
-  // by CodeRabbit on #2053 after the projection was already correct.
-  //
-  // ⚠ AND THE REBUILT STRING CARRIED NO ZONE AT ALL (`2026-09-17T09:00:00`), so the instant
-  // Postgres stored depended on the DATABASE's timezone setting rather than on anybody's
-  // intent. The fallback keeps it only for the demo/preview rows, which have no `at`.
-  const at = Number(slot.at);
-  if (Number.isFinite(at) && at > 0) return new Date(at).toISOString();
-  const scheduledDate = slot.scheduled_date || toBookingDate(slot.date, slot.month || 'May');
-  if (!scheduledDate || !slot.time || slot.time === '--') return null;
-  return `${scheduledDate}T${String(slot.time).padStart(5, '0')}:00`;
-}
-
-async function createSessionRequest({
-  providerId,
-  providerRole,
-  type = 'video',
-  scheduledAt,
-  durationMin = 15,
-  meetingUrl = '',
-  clientPhone = '',
-  clientName = '',
-  clientEmail = '',
-  topic = '',
-  notes = '',
-} = {}) {
-  const normalizedRole = normalizeRole(providerRole);
-  const normalizedProviderId = Number(providerId);
-  if (!Number.isInteger(normalizedProviderId) || normalizedProviderId <= 0 || !['trainer', 'nutritionist'].includes(normalizedRole)) {
-    throw new Error('Missing provider row for session booking.');
-  }
-  if (!scheduledAt) {
-    throw new Error('Choose a valid session time.');
-  }
-
-  const profile = state.profile || {};
-  const user = state.user || {};
-  const resolvedClientName = clientName || profile.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Shape client';
-  const resolvedClientEmail = clientEmail || user.email || profile.email || '';
-  if (!resolvedClientEmail) {
-    throw new Error('Client email is required before booking a session.');
-  }
-
-  const payload = {
-    client_id: state.user?.id || null,
-    client_name: resolvedClientName,
-    client_email: resolvedClientEmail,
-    provider_id: normalizedProviderId,
-    provider_role: normalizedRole,
-    type,
-    scheduled_at: scheduledAt,
-    duration_min: durationMin,
-    status: 'requested',
-    meeting_url: meetingUrl || null,
-    client_phone: clientPhone || profile.phone || null,
-    topic,
-    notes,
-  };
-
-  if (!supabase) {
-    return { stored: 'local', data: saveLocalRecord('shape.sessions', payload) };
-  }
-
-  const { data, error } = await supabase
-    .from('sessions')
-    .insert(payload)
-    .select()
-    .single();
-
-  // ⚠ A REFUSAL IS NOT AN OUTAGE. The database refuses a request that breaks the coach's rules
-  // (sessions_enforce_booking_rules: notice, time off, buffer, daily limit) or lands on another
-  // booking (sessions_no_overlap, or the identical-start index). Saving that locally told the
-  // member their intro was "held locally" when the coach can never receive it; say why instead.
-  const refused = bookingRuleRefusal(error);
-  if (refused) throw new Error(refused.message + ' Pick another time.');
-  if (error && (error.code === '23P01' || error.code === '23505')) throw new Error('That time was just taken. Pick another.');
-  if (error) {
-    return { stored: 'local', data: saveLocalRecord('shape.sessions', payload, error), error };
-  }
-
-  return { stored: 'supabase', data };
-}
-
 async function listSessions() {
   if (!state.user?.id) {
     throw new Error('Sign in before loading sessions.');
@@ -1438,37 +1334,69 @@ async function updateSessionStatus({ sessionId, status, meetingUrl } = {}) {
   return { stored: 'supabase', data };
 }
 
-async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free intro call' }) {
-  const profile = state.profile || {};
-  const user = state.user || {};
-  const clientName = profile.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Shape client';
-  const clientEmail = user.email || profile.email || '';
-  const professionalType = normalizeRole(role || coach?.provider_role);
-  const scheduledAt = scheduledAtFromSlot(slot);
+// An intro consult, booked THROUGH THE SERVER (2026-10-07, Schedule step 4).
+//
+// ⚠ IT USED TO INSERT STRAIGHT INTO `sessions` FROM THE APP. RLS let it (a member may write a
+// `requested` row), but nothing on that path checked the time against the coach's open hours,
+// the coach was never notified, and nobody got an invite: the coach found the request only by
+// opening their Schedule. /api/consultation is the website's own intro booking, so the app now
+// gets the same open hours, the coach's rules (Schedule step 3), the coach's notification and
+// both invites. The route takes the COACH's own date and clock (`coachDate`/`coachTime`, from
+// the projected slot) and derives the instant itself; `at` goes with them as its cross-check.
+//
+// ⚠ NOTHING IS KEPT LOCALLY ANY MORE. A refusal (outside the hours, a rule, a taken time, a
+// failure) is said, in the route's own words, and the member picks again.
+function bookingTime12h(hhmm) {
+  const [h, m] = String(hhmm || '').split(':').map(Number);
+  if (!Number.isInteger(h) || !Number.isInteger(m) || h < 0 || h > 23 || m < 0 || m > 59) return '';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
 
+async function submitConsultationBooking({ coach, role, slot = {}, topic = 'Free intro call' }) {
+  const professionalType = normalizeRole(role || coach?.provider_role);
   if (!coach?.name || !['trainer', 'nutritionist'].includes(professionalType)) {
     throw new Error('Missing provider details for booking.');
   }
-  if (!scheduledAt) {
+  const providerId = Number(coach.provider_id || coach.db_id);
+  if (!Number.isInteger(providerId) || providerId <= 0) {
+    throw new Error('Missing provider row for session booking.');
+  }
+  // Only a projected slot is a time the coach offers: a real instant AND their own wall clock.
+  const at = Number(slot.at);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(slot.coachDate || '')) ? slot.coachDate : '';
+  const time = bookingTime12h(slot.coachTime);
+  if (!Number.isFinite(at) || at <= 0 || !date || !time) {
     throw new Error('Choose a valid consultation time.');
   }
-  if (!clientEmail) {
-    throw new Error('Sign in with an email before booking a consultation.');
-  }
-
-  const providerId = coach.provider_id || coach.db_id;
-  const session = await createSessionRequest({
-    providerId,
-    providerRole: professionalType,
-    type: 'video',
-    scheduledAt,
-    durationMin: 15,
-    clientName,
-    clientEmail,
-    topic,
-    notes: `Intro consultation with ${coach.name}.`,
+  // The route needs the account (an anonymous booking was a denial-of-availability hole). The
+  // app sends it as a Bearer token, which is also what tells the route this is not the
+  // website's form and has no captcha to send. Read fresh: a member can sit on a coach's
+  // listing past the hourly token refresh.
+  const token = state.user?.id ? await liveAccessToken() : null;
+  if (!token) throw new Error('Sign in to book a consultation.');
+  const user = state.user || {};
+  const profile = state.profile || {};
+  const res = await fetch(`${apiBaseUrl || ''}/api/consultation`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      providerId,
+      professionalType,
+      date,
+      time,
+      scheduledAt: new Date(at).toISOString(),
+      topic,
+      // Read only for an account with no email of its own (phone sign-up); the route takes
+      // the account's address otherwise.
+      clientEmail: user.email || profile.email || '',
+    }),
   });
-
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d?.session_id) {
+    throw new Error(d?.error || 'Could not book this consultation. Try again.');
+  }
+  const session = { stored: 'supabase', data: { id: d.session_id } };
   return { stored: session.stored, data: session.data, session };
 }
 
@@ -5148,6 +5076,24 @@ async function manageSession({ sessionId, action, date, time, tz } = {}) {
   if (!res.ok) throw new Error(data.error || 'Could not update session.');
   return data;
 }
+// A coach books a session with one of their own clients (2026-10-07, Schedule step 4): the
+// same `create` the website's Schedule uses when a coach books from an empty slot, so the row
+// is a real CONFIRMED session that both calendars show, with a video room when the session is
+// on video. ⚠ THE APP USED TO SAVE A CALENDAR NOTE ON THE CLIENT'S CALENDAR INSTEAD (POST
+// /api/calendar), so a session "booked" in the app never reached the coach's Schedule, held no
+// time against other bookings, and gave the client nothing to join. The route checks the client
+// is the coach's own and refuses an overlap in its own words, which are thrown as they are.
+async function createCoachSession({ role, clientId, date, time, tz, durationMin, type, topic } = {}) {
+  const res = await fetch(sessionsApiUrl(), {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ action: 'create', role, clientId, date, time, tz, durationMin, type, topic }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not book the session.');
+  return data;
+}
 
 // ─── Notifications (in-app feed + live bell) ─────────────────────────────────
 async function listNotifications() {
@@ -5573,11 +5519,11 @@ window.ShapeWaitlist = {
 };
 
 window.ShapeSessions = {
-  createSessionRequest,
   listSessions,
   updateSessionStatus,
   getSessions,
   manageSession,
+  createCoachSession,
 };
 
 window.ShapeAvailability = {

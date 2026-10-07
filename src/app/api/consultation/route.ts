@@ -78,8 +78,18 @@ export async function POST(req: NextRequest) {
 
   // Bot gate (Cloudflare Turnstile). No-op until TURNSTILE_SECRET_KEY is set;
   // once set, a public booking must carry a valid captcha token.
+  //
+  // ⚠ NOT FOR THE APP (2026-10-07, Schedule step 4). The app books intros here now, and it
+  // cannot earn a token: the widget is keyed to the website's own domain, and the app runs on
+  // its own origin. It signs in with a Bearer token, which the website's form never sends (it
+  // rides the cookie), so that is what tells the two apart. This opens nothing: an account is
+  // required below either way, and a signed-in member could already write this same
+  // `requested` row straight through RLS (client_insert_own_sessions), which is the path the
+  // app used until now. Here it at least meets the open hours, the coach's rules and a
+  // notification. A bad token is refused by the account check as before.
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null;
-  if (!(await verifyTurnstile(body.captchaToken ?? body.turnstileToken, ip))) {
+  const appCaller = /^Bearer\s+\S/i.test(req.headers.get('authorization') ?? '');
+  if (!appCaller && !(await verifyTurnstile(body.captchaToken ?? body.turnstileToken, ip))) {
     return NextResponse.json({ error: 'Captcha check failed — please retry.' }, { status: 400 });
   }
 
