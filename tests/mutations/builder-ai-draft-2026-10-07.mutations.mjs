@@ -30,7 +30,11 @@ export default {
     { name: 'Undo stays offered after later edits, and would lose them', file: B,
       find: 'const canUndoDraft = !!aiUndo.current && aiUndo.current.after === JSON.stringify(day.blocks || []);',
       replace: 'const canUndoDraft = !!aiUndo.current;' },
-    { name: 'Undo can run twice', file: B,
+    // ⚠ A PROVEN NO-OP, kept for the record. Undo is offered only while the day's blocks are
+    // exactly what the draft left (`canUndoDraft`), and after an Undo they are the blocks from
+    // before it, so the button is gone whether or not the ref is cleared. Clearing it is
+    // hygiene: a later edit that rebuilt the drafted day byte for byte would bring it back.
+    { name: 'Undo can run twice', file: B, expectSurvive: true,
       find: '    aiUndo.current = null;\n    onChange(u.before);',
       replace: '    onChange(u.before);' },
     { name: 'a new block kind lands at the end, not in builder order', file: B,

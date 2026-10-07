@@ -239,8 +239,9 @@ test('a client the builder was opened for goes with the brief, as context', asyn
   assert.equal(asked[0].clientId, '11111111-2222-4333-8444-555555555555');
 });
 
+// In Planner, where an Escape that reaches the panel closes its day editor (step 2's rule).
 test('Escape in the brief closes the panel and leaves the day open', async () => {
-  await mount('Editor');
+  await mount('Planner');
   stubDraft({ body: draftAnswer() });
   const input = await openDraft();
   await key(input, 'Escape');
