@@ -847,6 +847,44 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-07 — Dashboard cards move, resize and hide in place: no Arrange menu, no edit mode
+
+- **Merged [#2220](https://github.com/cperry8800-droid/shape-app/pull/2220) as `de2a67d`**, final head `ff7431f`; the merged tree is byte-identical to it. 4 files: `public/newdesign/dashGrid.jsx`, `tests/dash-grid-input.test.mjs`, `tests/dash-card-settings.test.mjs` and a mutation spec. **No migration, no route, no i18n key.** The owner, with a screenshot of the Arrange panel: *"remove this arrange box and have all of these customization and edits done by dragging click etc. a more free feel with the boxes and widgets"*.
+- **What went:** the per-card Arrange popover (Move up / down / to top, Standard / Wide, Hide, Close) and the *Customize dashboard* / *Done* mode around it. Every `<DashGrid>` board is now always editable.
+- **What each card has:** one pill at its top right holding the ⠿ grip, the ⚙ (when the card has settings) and ×. The pill is at 40% until hover or focus, the rule the ⚙ already had.
+  - **Move:** a mouse drags the whole card or the grip. A touch screen or a hybrid drags only the grip, so a swipe anywhere else still scrolls.
+  - **Resize:** the right-edge zone is live on every 12-column board; the ↔ shows on hover or focus. Phones stay one column with no resize.
+  - **Keyboard:** on the grip, arrows move the card through reading order, Home/End send it to either end, Shift + Left/Right steps its width. Each is announced with its place or size.
+  - **×** hides the card and hands focus to the next card's grip (or the widget catalogue).
+- ⚠ **THE GRIP IS BUILT WITH THE ITEM, NOT BY REACT.** GridStack collects its drag handles once, when the item is prepared, and falls back to the WHOLE ITEM when it finds none. A portaled grip mounts a commit later, so on touch every card would have become a handle and swallowed scrolling. `dgItemShell` builds the element with the grip in it and hands it to `addWidget({ el })`. The handle is chosen at boot, so the pointer is read on the first render and a pointer change re-boots the grid on a fresh container.
+- ⚠ **THE OLD TEST HARNESS HAD TWO JAVASCRIPT REALMS.** GridStack ran under `window.eval` and the component under Node's `Function`, so GridStack's `load()` (an `instanceof Array` clone) rejected the component's arrays and `arrange` threw — in the harness only. The component is now evaluated with `window.Function`, one realm, as in a browser. I first called it a production bug in chat; it was not.
+- ⚠ **A FIXED 60 MS WAIT FAILED UNDER THE FULL SUITE'S LOAD.** The pointer-change re-boot assertion passed alone and failed in the full run. Each step now waits (up to 3 s) for the state it asserts; six parallel runs pass.
+- **Review: none,** on the owner's word (*"no code review needed for simple edits"*). Codex declined on its usage limit; CodeRabbit posted only its skip notice.
+- **Verified:**
+  - Driven in Chromium on `TrainerApp.html` (signed-out preview): mouse drag, Shift + Right to Wide, an edge drag, × with focus on the neighbour; a coarse-pointer tablet's only drag element is the 36×32 px grip; a 390 px phone has no resize zone.
+  - Mutations (`tests/mutations/dash-grid-direct-edit-2026-10-07.mutations.mjs`, `--fail-on-skipped`): **15/15**, restored byte-identical. The first run's survivor (a first frame that guessed "touch" boots twice, with an identical end state) is killed by counting GridStack boots.
+  - Full suite 5541/5542 on the first commit; the one failure was the repo's DOM-valued-assertion guard, now satisfied. All required checks green on `ff7431f`.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:** no signed-in pass on a real phone or tablet; GridStack's touch path was exercised in Chromium's touch emulation only.
+
+### 2026-10-07 — Homepage loop rings fitted to their content; the coaches tab row's scrollbar stub; the footer's "every figure" line
+
+- **Merged [#2219](https://github.com/cperry8800-droid/shape-app/pull/2219) as `3122408`** (merged by the owner). 5 files. **No migration, no route, no i18n key.** Three owner asks: *"these boxes on index page on website need to be better aligned"*, *"remove this scroll toggle bar on coaches page"*, *"remove this sentence on index page … in footnote"*.
+- **The rings.** The four teal rings in *01 · The loop* sat 5% in from each side, which is where the app's own content starts in the 600 px captures (~28 px), so each was drawn through its text (`1,568`, `1/25`, `SET 01`, the NEW PR chip). The inset is 2.5% (the Wall's ring 1.25%, its content starts at 19 px), and each ring's top/height is the target's measured bounds plus ~12 px. The Wall ring frames the headline and the 245 lb record with the chip above it as a tag, because the avatar's tip ends 5 px above the chip.
+  - A new test decodes each shipped JPEG with `sharp` and fails if a ring's outline band lands on anything but background (118 hits on `main`'s Eat ring).
+- **The coaches tab row.** `.co-tabs` was `overflow-x:auto`, which makes `overflow-y` auto, and each tab's `-1px` bottom margin overhangs the row, so classic scrollbars (Windows Chrome) drew a white ▲/▼ stub and a wheel nudged the row 1 px. `overflow-y:hidden` and a hidden scrollbar; the row still swipes sideways when narrow.
+- **The footer** reads *"Real coaches. One app. The whole loop."*; the labelling rule it described still holds.
+- **Verified:** mutations (`tests/mutations/homepage-rings-coaches-tabs-2026-10-07.mutations.mjs`) **11/11**; the 15 test files that read these pages, 198 tests; rendered in Chromium (rings at 1440; the tab row with real scrollbars at 1440–390).
+- **Written after the merge**, per the 2026-09-11 rule.
+
+### 2026-10-07 — Coach tools rethink: the Schedule page and the program builder, reviewed; the owner approved all of it
+
+- **Not a code change.** The brainstorm page: https://claude.ai/artifact/5rCNP94RRoduVbaPmbHeVJ (Schedule and Program builder tabs; fix-first cards, a drawn proposal each, the idea bank, a four-step order). Owner: *"I like everything that is proposed for schedule and program builder. Apply all the fixes first then proceed with upgrades/improvements"*.
+- **Fix-first, found while mapping the code:**
+  - Schedule: every booking renders in UTC (`/api/calendar` builds `date`/`time` with `toISOString`/`getUTCHours`), so a 9:00 AM New York consult reads 1:00p; the page loads once with the route's ±60-day default, so far months look empty; `coaches.jsx` advertises two-way Google/Apple/Outlook sync, reminders, no-show handling and intake forms that do not exist.
+  - Builder: the app's workout preview invents Warm-up / Main set / Cool-down and files every move under Main, ignoring the coach's blocks; the app drops the day's playlist and the website's client card drops the demo videos; the day editor shows defaults as data (Load 0, RPE None) and every exercise forced open in Editor/Planner.
+- **Next:** those fixes as their own PRs, then the upgrades in the page's order.
+
 ### 2026-10-06 — The profile's strength ridge, its feed's PR and workout lines, and the goal page's 7d volume follow Settings → Units
 
 - **Merged [#2217](https://github.com/cperry8800-droid/shape-app/pull/2217) as `27a5772`**, final head `b7f9f96`; the merged tree is byte-identical to it (tree `284636f` on both). 3 files: `iosAppBroadsheetClient.jsx`, `tests/units-loaded-figures.test.mjs` and its mutation spec. **No migration, no route, no i18n key.** #2215 registered the first two; the owner said *"yes fix both. dont need code review"*, then *"yes fix the workout posts too"*. The PR line turned up while doing them.
