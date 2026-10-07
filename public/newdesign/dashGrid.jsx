@@ -199,13 +199,31 @@ function dgInjectStyle() {
 .dash-wchrome{opacity:.4;transition:opacity .12s}
 .dash-gridstack .grid-stack-item:hover .dash-wchrome,.dash-gridstack .grid-stack-item:focus-within .dash-wchrome{opacity:1}
 @media (hover:none){.dash-wchrome{opacity:1}}
-.dash-drag-handle{cursor:grab;touch-action:none}
-.dg-edit-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px 4px 14px;font-size:12px;border:1px solid var(--sh-line2, #413d38);border-radius:10px 10px 0 0;background:var(--sh-ground, #1a1612)}
-.dg-customizing .grid-stack-item-content{border:1px solid var(--sh-line2, #413d38);border-radius:10px;container-type:inline-size}
 .dash-gridstack .grid-stack-item-content{container-type:inline-size}
-.dg-customizing .ui-draggable-dragging{cursor:grabbing;filter:drop-shadow(0 12px 14px rgba(0,0,0,.18))}
+/* ⚠ NO EDIT MODE (owner, 2026-10-07: "remove this arrange box and have all of these
+   customization and edits done by dragging click etc."). Every card carries one pill at
+   its top right: the ⠿ grip, the ⚙ when the card has settings, and × to hide it. The pill
+   is a SIBLING of .grid-stack-item-content, not inside it, because GridStack collects its
+   drag handles once, when the item is created, and a React portal mounts later; built
+   with the item, the grip is a handle from the first frame (see dgItemShell). It sits
+   8px in from the item edge, which is the grid's own margin, so it lines up with the card. */
+.dg-chrome{position:absolute;top:13px;right:14px;z-index:21;display:inline-flex;gap:1px;align-items:center;min-height:24px;background:rgba(var(--sh-card-rgb, 37,33,29),0.92);border:1px solid var(--sh-line, #302c27);border-radius:7px;padding:0 2px}
+.dg-chrome-slot{display:inline-flex;align-items:center;gap:1px}
+.dg-grip,.dg-x{width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:var(--sh-ink2, #a09b94);font-size:12px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.dg-grip{cursor:grab;touch-action:none}.dg-x{cursor:pointer;font-weight:800}
+.dg-grip:hover,.dg-x:hover{color:var(--sh-ink, #f2ede4);background:rgba(var(--sh-ink-rgb, 242,237,228),0.08)}
+.dg-grip:focus-visible,.dg-x:focus-visible{outline:2px solid var(--sh-accent, #2ee0c4);outline-offset:1px}
+/* On a touch screen the grip is the ONLY handle (the card itself scrolls the page), so it
+   gets a finger-sized target rather than the 24px floor a mouse is fine with. */
+@media (pointer:coarse){.dg-grip{width:36px;height:32px;font-size:15px}}
+.dash-gridstack .ui-draggable-dragging,.dash-gridstack .ui-resizable-resizing{filter:drop-shadow(0 12px 14px rgba(0,0,0,.18))}
+.dash-gridstack .ui-draggable-dragging,.dash-gridstack .ui-draggable-dragging .dg-grip{cursor:grabbing}
 .dash-gridstack .ui-resizable-e{width:44px!important;right:0!important;top:40%!important;height:44px!important;cursor:ew-resize!important;z-index:20}
-.dash-rs{position:absolute;right:5px;top:calc(40% + 10px);bottom:auto;width:24px;height:24px;clip-path:none;background:var(--sh-card, #25211d);color:var(--sh-ink2, #a09b94);text-align:center;line-height:24px;border:1px solid var(--sh-line2, #413d38);border-radius:5px}
+/* The ↔ marks the right-edge resize zone. It shows on hover or focus where there is a
+   hover, and stays faintly visible where there is not, for the same reason the pill does. */
+.dash-rs{position:absolute;right:5px;top:calc(40% + 10px);bottom:auto;width:24px;height:24px;clip-path:none;background:var(--sh-card, #25211d);color:var(--sh-ink2, #a09b94);text-align:center;line-height:24px;border:1px solid var(--sh-line2, #413d38);border-radius:5px;opacity:0;transition:opacity .12s;pointer-events:none}
+.dash-gridstack .grid-stack-item:hover .dash-rs,.dash-gridstack .grid-stack-item:focus-within .dash-rs{opacity:1}
+@media (hover:none){.dash-rs{opacity:.6}}
 .dg-boards{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto;flex:1 1 380px}
 .dg-board-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-basis:100%;padding:12px;border:1px solid var(--sh-line2, #413d38);border-radius:8px}
 .dg-board-form label{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -221,7 +239,6 @@ function dgInjectStyle() {
 @container (max-width:650px){.dw-week{grid-template-columns:1fr}.dw-day{display:grid;grid-template-columns:65px 75px 1fr;align-items:center;padding:8px 10px}.dw-day-count{font-size:18px}.dw-status{grid-template-columns:1fr 1fr}.dw-row{flex-wrap:wrap}}
 @container (min-width:850px){.dw-movers{grid-template-columns:1fr 1fr}.dw-movers>p{grid-column:1/-1}.dw-extra:nth-child(-n+10){display:block}}
 .dg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.dg-viewing .ui-resizable-handle{display:none!important}
 .dg-direct-drag .grid-stack-item-content{cursor:grab}.dg-direct-drag .ui-draggable-dragging{cursor:grabbing}
 @media(max-width:767px){.dash-gridstack .ui-resizable-handle,.dash-rs{display:none!important}.dg-board-form input{font-size:16px;max-width:100%}}
 
@@ -601,7 +618,7 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false }) {
           {waiting.length > 0 && head("Nothing to show yet")}
           {waiting.map((r) => item(r, null))}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", marginTop: 4 }}>
-            <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Customize for arrangement and sizing options</span>
+            <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Drag a card to move it, or its right edge to resize it</span>
             <button type="button" onClick={() => { setOpen(false); onReset(); }} style={{ ...mono, background: "transparent", border: 0, minHeight: 36, cursor: "pointer", fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</button>
           </div>
         </div>,
@@ -808,31 +825,39 @@ function DgSavedDashboards({ store, role, beforeChange }) {
 function dgWidths(widget) {
   return widget && widget.widths ? widget.widths : widget && ["practice", "kpis", "roster", "trajectory", "outcomes", "queue"].includes(widget.key) ? [12] : widget && widget.key === "notes" ? [4, 6, 12] : [6, 12];
 }
-function DgWidgetMenu({ widget, mobile, onMove, onSize, onHide }) {
-  const [open, setOpen] = React.useState(false);
-  const boxRef = React.useRef(null), panelRef = React.useRef(null);
-  const box = useDgPanel(open, setOpen, boxRef, panelRef, 260);
-  const wasOpen = React.useRef(false);
-  React.useEffect(() => {
-    if (open && box && !wasOpen.current && panelRef.current) panelRef.current.querySelector("button").focus();
-    if (!open && wasOpen.current && boxRef.current) boxRef.current.querySelector("button").focus();
-    wasOpen.current = !!(open && box);
-  }, [open, box]);
-  const title = widget.title || widget.key;
-  const close = () => { setOpen(false); if (boxRef.current) boxRef.current.querySelector("button").focus(); };
-  const pick = (fn) => { close(); fn(); };
-  return <span ref={boxRef}>
-    <button type="button" style={{ ...DG_CONTROL, minHeight: 44 }} aria-label={"Arrange " + title} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)}>Arrange</button>
-    {open && box && ReactDOM.createPortal(<div ref={panelRef} role="dialog" aria-label={"Arrange " + title} style={dgPanelStyle(box)}>
-      <div style={{ padding: 8, fontSize: 13, fontWeight: 600 }}>{title}</div>
-      {[[-1, "Move up"], [1, "Move down"], ["top", "Move to top"]].map(([dir, label]) => <button key={label} type="button" style={{ ...DG_CONTROL, width: "100%", minHeight: 44, marginBottom: 4 }} onClick={() => pick(() => onMove(dir))}>{label}</button>)}
-      {!mobile && <fieldset style={{ border: 0, margin: "10px 0", padding: 0 }}><legend style={{ fontSize: 12 }}>Width · height fits content</legend>
-        {dgWidths(widget).map((w) => <button key={w} type="button" style={{ ...DG_CONTROL, minHeight: 44, margin: 3 }} onClick={() => pick(() => onSize(w))}>{w === 4 ? "Compact" : w === 6 ? "Standard" : "Wide"}</button>)}
-      </fieldset>}
-      <button type="button" style={{ ...DG_CONTROL, width: "100%", minHeight: 44 }} onClick={() => pick(onHide)}>Hide {title}</button>
-      <button type="button" style={{ ...DG_CONTROL, width: "100%", marginTop: 6 }} onClick={close}>Close</button>
-    </div>, document.body)}
-  </span>;
+function dgWidthName(w) { return w === 4 ? "Compact" : w === 6 ? "Standard" : "Wide"; }
+// A mouse with nothing touch-capable beside it. Width alone cannot tell a mouse from a
+// tablet, and a hybrid device keeps its touch scrolling: there the card is not a handle.
+function dgFinePointer() {
+  try {
+    return window.matchMedia("(pointer: fine) and (hover: hover)").matches && !window.matchMedia("(any-pointer: coarse)").matches;
+  } catch (e) { return false; }
+}
+// ⚠ THE GRIP IS BUILT WITH THE ITEM, BEFORE GRIDSTACK SEES IT. GridStack's draggable
+// collects `handle` matches once, when the item is prepared, and falls back to the WHOLE
+// ITEM when it finds none. A grip rendered by React arrives a commit later, so on a touch
+// screen (where the grip is the only handle) every card would have become a handle and
+// swallowed the page's scrolling. `addWidget({ el })` takes this element as-is.
+// The grip is a <button> so it takes focus and keys; `.dg-grip` is exempted from the
+// draggable's `cancel` list, and it holds text only, because GridStack starts a drag only
+// when the pressed target IS the handle element, not something inside it.
+function dgItemShell(title, onKey) {
+  const el = document.createElement("div"); el.className = "grid-stack-item";
+  const content = document.createElement("div"); content.className = "grid-stack-item-content";
+  const bar = document.createElement("div"); bar.className = "dash-wchrome dg-chrome";
+  const grip = document.createElement("button");
+  grip.type = "button"; grip.className = "dg-grip"; grip.textContent = "⠿";
+  grip.setAttribute("aria-label", "Move " + title);
+  grip.title = "Drag to move. Arrow keys move it; Shift + Left or Right changes its width.";
+  grip.addEventListener("keydown", onKey);
+  const slot = document.createElement("span"); slot.className = "dg-chrome-slot";
+  bar.appendChild(grip); bar.appendChild(slot);
+  el.appendChild(content); el.appendChild(bar);
+  return el;
+}
+// Where the ⚙ and × portal to: the pill beside the content host.
+function dgChromeSlot(host) {
+  return host && host.parentElement ? host.parentElement.querySelector(".dg-chrome-slot") : null;
 }
 
 
@@ -877,12 +902,14 @@ function DashGrid({ role, tab = "today", widgets }) {
   const layoutUnavailable = !!store && !storeState.loaded && storeState.status === "error";
   docRef.current = storeState.doc;
   const activeBoard = dgBoards(storeState.doc, role).active;
-  const [customizing, setCustomizing] = React.useState(false);
   const [mobile, setMobile] = React.useState(false);
-  const [directDrag, setDirectDrag] = React.useState(false);
+  // Read on the first render, not after it: the grid is initialised with a handle chosen
+  // from this (the whole card for a mouse, the ⠿ grip alone for touch), so a first frame
+  // that guessed "touch" would boot a mouse user's grid with the wrong handle.
+  const [directDrag, setDirectDrag] = React.useState(() => typeof window !== "undefined" && !!window.matchMedia && dgFinePointer());
   React.useEffect(() => {
-    // Width alone cannot distinguish a mouse from a tablet. Touch-capable hybrid
-    // devices also keep normal swipes until Customize explicitly enables dragging.
+    // Width alone cannot distinguish a mouse from a tablet. A touch-capable hybrid
+    // keeps its swipes: the card is not a handle there, only the ⠿ grip is.
     const fine = window.matchMedia("(pointer: fine) and (hover: hover)");
     const touch = window.matchMedia("(any-pointer: coarse)");
     const update = () => setDirectDrag(fine.matches && !touch.matches);
@@ -972,13 +999,18 @@ function DashGrid({ role, tab = "today", widgets }) {
     persist({ ...saved, items, ...dgSplitHidden(nextHidden, widgetsRef.current, saved && saved.added) });
   };
 
+  // The grip's keys, through a ref: the listener is attached once, when the item is
+  // built, and must reach this render's `arrange`, not the boot render's.
+  const gripKeyRef = React.useRef(() => {});
   // Add one widget to the grid; return its content host element for the portal.
   const addOne = (spec) => {
     const grid = gridRef.current; if (!grid) return null;
-    const widths = dgWidths(widgetsRef.current.find((w) => w.key === spec.key));
+    const widget = widgetsRef.current.find((w) => w.key === spec.key);
+    const widths = dgWidths(widget);
     const minW = widths[0];
     const opts = { id: spec.key, minW, w: Math.max(minW, spec.w || minW), h: spec.h };
     if (spec.autoPosition) opts.autoPosition = true; else { opts.x = spec.x; opts.y = spec.y; }
+    opts.el = dgItemShell((widget && widget.title) || spec.key, (e) => gripKeyRef.current(spec.key, e));
     const el = grid.addWidget(opts);
     itemRef.current[spec.key] = el;
     // Portal the card directly into the GridStack-managed item-content; sizeToContent
@@ -1000,9 +1032,11 @@ function DashGrid({ role, tab = "today", widgets }) {
       const grid = window.GridStack.init({
         column: 12, columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }] },
         cellHeight: 2, margin: 8, float: true,
-        // The content host exists before React portals mount and survives Customize
-        // toggles. Dragging it must never intercept a widget's interactive controls.
-        handle: ".grid-stack-item-content", draggable: { cancel: "button, input, textarea, select, a, label, summary, [contenteditable], [role='button'], [role='slider']" }, resizable: { handles: "e" }, alwaysShowResizeHandle: true, disableDrag: true, disableResize: !customizing || !storeState.loaded,
+        // A mouse drags the whole card (and the grip); a touch screen drags only the
+        // grip, so a swipe anywhere else on a card still scrolls the page. Both exist
+        // before React portals mount (see dgItemShell). Dragging must never intercept a
+        // widget's own controls, and the grip is the one button that IS a handle.
+        handle: directDrag ? ".grid-stack-item-content, .dg-grip" : ".dg-grip", draggable: { cancel: "button:not(.dg-grip), input, textarea, select, a, label, summary, [contenteditable], [role='button'], [role='slider']" }, resizable: { handles: "e" }, alwaysShowResizeHandle: true, disableDrag: true, disableResize: true,
         // sizeToContent stays OFF: its auto-cascade overrode our explicit ordered layout,
         // and its observer can't see React-portaled content anyway. We fit heights via
         // manual grid.resizeToContent() calls (see the fit effect) instead.
@@ -1021,13 +1055,13 @@ function DashGrid({ role, tab = "today", widgets }) {
       setHosts(nextHosts);
       setReady(true);
       grid.on("dragstart resizestart", checkpoint);
-      grid.on("dragstop", () => { persistFromGrid(); setAnnouncement("Widget moved. Layout saved automatically."); });
+      grid.on("dragstop", () => { persistFromGrid(); setAnnouncement("Card moved. Layout saved."); });
       grid.on("resizestop", (ev, el) => {
         const widths = dgWidths(widgetsRef.current.find((w) => w.key === el.gridstackNode.id));
         const nearest = widths.reduce((a,b) => Math.abs(b-el.gridstackNode.w) < Math.abs(a-el.gridstackNode.w) ? b : a);
         grid.update(el, { w: nearest });
         try { grid.resizeToContent(el); } catch (e) {}
-        persistFromGrid(); setAnnouncement("Widget width changed. Height fits content.");
+        persistFromGrid(); setAnnouncement("Card is now " + dgWidthName(nearest) + ". Height fits content.");
       });
     };
     boot();
@@ -1038,16 +1072,17 @@ function DashGrid({ role, tab = "today", widgets }) {
       gridRef.current = null; itemRef.current = {}; lastPosRef.current = {};
     };
     // eslint-disable-next-line
-  }, [role, tab, store, storeState.loaded, layoutUnavailable, activeBoard, revision]);
+  }, [role, tab, store, storeState.loaded, layoutUnavailable, activeBoard, revision, directDrag]);
 
   React.useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
-    // Read the actual column count so initialization cannot briefly enable dragging
-    // in a narrow layout before mobile state settles.
-    grid.enableMove(storeState.loaded && (customizing || (directDrag && grid.getColumn() > 1)));
-    grid.enableResize(customizing && storeState.loaded && !mobile);
-  }, [customizing, directDrag, storeState.loaded, mobile, ready, activeBoard, revision]);
+    // Always on once the layout is loaded: there is no edit mode to enter. What a touch
+    // screen keeps is its scrolling, and that is the handle's job, not a mode's. Width is
+    // read off the live column count, so a one-column phone never gets a resize zone.
+    grid.enableMove(!!storeState.loaded);
+    grid.enableResize(!!storeState.loaded && !mobile && grid.getColumn() > 1);
+  }, [directDrag, storeState.loaded, mobile, ready, activeBoard, revision]);
   React.useEffect(() => { setUndo([]); }, [role, tab, activeBoard, store]);
 
   const arrange = (key, direction, width) => {
@@ -1058,7 +1093,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     if (index < 0) return;
     if (width) nodes[index].w = width;
     else {
-      const target = direction === "top" ? 0 : Math.max(0, Math.min(nodes.length - 1, index + direction));
+      const target = direction === "top" ? 0 : direction === "bottom" ? nodes.length - 1 : Math.max(0, Math.min(nodes.length - 1, index + direction));
       nodes.splice(target, 0, nodes.splice(index, 1)[0]);
     }
     let y = 0, x = 0, rowH = 0;
@@ -1070,7 +1105,29 @@ function DashGrid({ role, tab = "today", widgets }) {
       return next;
     });
     grid.load(nodes, false); persistFromGrid();
-    setAnnouncement((byKey[key].title || key) + (width ? " width changed." : " moved."));
+    const title = (byKey[key] && byKey[key].title) || key;
+    const at = nodes.findIndex((n) => n.id === key);
+    setAnnouncement(width ? title + " is now " + dgWidthName(width) + "." : title + " moved to position " + (at + 1) + " of " + nodes.length + ".");
+  };
+  // The keyboard's way to do what a drag does, on the grip (WCAG 2.1.1). Arrows step the
+  // card through reading order, Home/End send it to either end, and Shift + Left/Right
+  // steps its width through the same sizes a right-edge drag snaps to.
+  gripKeyRef.current = (key, e) => {
+    const k = e.key;
+    if (e.shiftKey && (k === "ArrowLeft" || k === "ArrowRight")) {
+      e.preventDefault();
+      const grid = gridRef.current; const el = itemRef.current[key];
+      if (!grid || !el || mobile || grid.getColumn() !== 12) return;
+      const cur = (el.gridstackNode && el.gridstackNode.w) || 0;
+      const widths = dgWidths(byKey[key]);
+      const next = k === "ArrowRight" ? widths.find((w) => w > cur) : widths.slice().reverse().find((w) => w < cur);
+      if (next) arrange(key, null, next);
+      return;
+    }
+    const dir = k === "ArrowUp" || k === "ArrowLeft" ? -1 : k === "ArrowDown" || k === "ArrowRight" ? 1 : k === "Home" ? "top" : k === "End" ? "bottom" : null;
+    if (dir == null || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    arrange(key, dir);
   };
 
   // ── keep the grid in step with the widget list AFTER boot ────────────────
@@ -1319,6 +1376,21 @@ function DashGrid({ role, tab = "today", widgets }) {
   // see the note at the render for why that is not the chip list.
   const hiddenDefaults = hidden.filter((k) => byKey[k] && !byKey[k].optional);
 
+  // × on the card. Focus goes to the next card's grip (or the one before), because the
+  // button that had it is about to be removed with its card; with no card left, it goes
+  // to the widget catalogue, which is where the card can be added back from.
+  const hideFromCard = (key) => {
+    if (!storeState.loaded) return;
+    const order = liveItems().sort((a, b) => a.y - b.y || a.x - b.x).map((n) => n.id);
+    const at = order.indexOf(key);
+    const next = order[at + 1] != null ? order[at + 1] : order[at - 1];
+    const target = next != null && itemRef.current[next] ? itemRef.current[next].querySelector(".dg-grip")
+      : elRef.current && elRef.current.parentElement ? elRef.current.parentElement.querySelector("[data-tour='dash-widgets']") : null;
+    if (target) target.focus();
+    hide(key);
+    setAnnouncement(((byKey[key] && byKey[key].title) || key) + " hidden. Undo, or add it back from Widgets.");
+  };
+
   const chrome = (key) => {
     // ⚠ `w.empty` IS CHECKED HERE, NOT ONLY IN THE EFFECT, AND WITHOUT IT THE `empty`
     // CONTRACT IS A CRASH. The item is torn down by the sync effect, which runs AFTER
@@ -1335,36 +1407,45 @@ function DashGrid({ role, tab = "today", widgets }) {
     if (content == null || content === false) return null;
     return (
       <div style={{ position: "relative" }}>
-        {customizing && <div className="dash-drag-handle dg-edit-header">
-          <span style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, minWidth: 0 }}><span aria-hidden="true">⠿</span><span>{w.title || key}</span></span>
-          <DgWidgetMenu widget={w} mobile={mobile} onMove={(dir) => arrange(key, dir)} onSize={(width) => arrange(key, null, width)} onHide={() => { const button = elRef.current && elRef.current.parentElement.querySelector("[data-dg-customize]"); if (button) button.focus(); hide(key); }} />
-        </div>}
-        {dgSettingGroups(w).length > 0 && <div className="dash-wchrome" style={{ position: "absolute", top: customizing ? 58 : 6, right: 8, zIndex: 5 }}><DgCardSettings groups={dgSettingGroups(w)} /></div>}
         {content}
-        {customizing && !mobile && <div className="dash-rs" aria-hidden="true">↔</div>}
+        {!mobile && <div className="dash-rs" aria-hidden="true">↔</div>}
       </div>
+    );
+  };
+  // The pill's React half, portaled beside the grip (see dgItemShell): the ⚙ when the card
+  // has settings, then × to hide it.
+  const controls = (key) => {
+    const w = byKey[key]; if (!w || w.empty) return null;
+    const title = w.title || key;
+    return (
+      <>
+        {dgSettingGroups(w).length > 0 && <DgCardSettings groups={dgSettingGroups(w)} />}
+        <button type="button" className="dg-x" aria-label={"Hide " + title} title={"Hide " + title} onClick={() => hideFromCard(key)}>×</button>
+      </>
     );
   };
 
   return (
-    <div className={customizing ? "dg-customizing" : (directDrag && !mobile ? "dg-viewing dg-direct-drag" : "dg-viewing")}>
+    <div className={"dg-board" + (directDrag && !mobile ? " dg-direct-drag" : "")}>
       {/* The catalogue: always visible, above the grid, on every tab — see DgCatalog. */}
       <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <DgSavedDashboards store={store} role={role} beforeChange={() => { if (ready) persistVisibility(hiddenRef.current); }} />
-        <button type="button" data-dg-customize style={DG_CONTROL} disabled={!ready || !storeState.loaded} aria-pressed={customizing} onClick={() => setCustomizing(!customizing)}>{customizing ? "Done" : "Customize dashboard"}</button>
         <button type="button" style={DG_CONTROL} disabled={!storeState.loaded || !undo.length} onClick={undoLast}>Undo</button>
         <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />
       </div>
       <div role="status" style={{ color: DG_MUTE, fontSize: 12, marginBottom: 12 }}>
         {storeState.status === "loading" ? "Loading dashboards…" : storeState.status === "saving" ? "Saving…" : storeState.status === "error" ? storeState.error : storeState.status === "preview" ? "Preview · sign in to save dashboards" : "Saved · all tabs"}
         {storeState.status === "error" && <button type="button" style={{ ...DG_CONTROL, marginLeft: 8 }} onClick={() => store ? store.retry() : retryAccount()}>Retry</button>}
-        {storeState.loaded && <span> · {customizing ? (mobile ? "Move cards with Arrange or drag. Phone order is saved separately." : "Drag a widget or use Arrange. Resize width from the right edge; height fits content.") : (mobile || !directDrag ? "Customize dashboard to arrange cards." : "Drag a widget to move it. Customize for resizing and more options.")}</span>}
+        {storeState.loaded && <span> · {mobile ? "Drag ⠿ to reorder cards. Phone order is saved separately." : directDrag ? "Drag a card to move it, its right edge to resize it, × to hide it." : "Drag ⠿ to move a card, its right edge to resize it, × to hide it."}</span>}
       </div>
       <span className="dg-sr-only" aria-live="polite">{announcement}</span>
       {/* min-height reserves space so the page doesn't collapse to 0 then jump down
           when GridStack measures + positions the cards in JS after mount (CLS guard) */}
-      <div key={role + ":" + tab + ":" + activeBoard + ":" + revision + ":" + (store ? store.uid : "loading") + ":" + storeState.loaded + ":" + layoutUnavailable} ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
-      {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key]) : null))}
+      {/* `directDrag` is in the key because the drag handle is chosen when the grid is
+          initialised: a pointer change re-boots it on a fresh container. */}
+      <div key={role + ":" + tab + ":" + activeBoard + ":" + revision + ":" + (store ? store.uid : "loading") + ":" + storeState.loaded + ":" + layoutUnavailable + ":" + directDrag} ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
+      {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key], key) : null))}
+      {Object.keys(hosts).map((key) => { const slot = dgChromeSlot(hosts[key]); return slot ? ReactDOM.createPortal(controls(key), slot, key + ":controls") : null; })}
       {/* ⚠ THE BAR IS KEYED ON `hiddenDefaults`, THE CHIPS ON `hiddenChips`, AND THE
           DIFFERENCE IS THE RESET LINK. Gating the whole bar on the chips took `Reset
           layout` away with them — so a member whose only hidden card happened to be
