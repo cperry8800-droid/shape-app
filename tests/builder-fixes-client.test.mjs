@@ -228,6 +228,23 @@ test('a day without a playlist, and a rest day, chip nothing', async () => {
   delete globalThis.window.ShapePlan;
 });
 
+// ⚠ THE CASE THAT CAN ACTUALLY GO WRONG. A day with no workout has no playlist to show,
+// so the test above passes on any hero. A COACH-SET rest is a workout day turned to
+// recovery by Adjust (`bsApplyTrainAdjust`), and it keeps the day's fields — playlist
+// included — so only the rest check stands between it and a soundtrack chip.
+test('a coach-set rest keeps the day\'s playlist, and still chips nothing', async () => {
+  const days = Array(7).fill(null); days[(new Date().getDay() + 6) % 7] = 'Rest';
+  globalThis.window.ShapeProgram = { get: () => ({ trainingPhase: 'Build', detail: { training: { updatedAt: '2026-10-07T00:00:00Z', days } } }), set() {} };
+  try {
+    const { d } = await trainPage({ ...delivered(), scheduledDate: today() });
+    assert.match(d.text, /Coach-set rest/, 'setup: today is the coach\'s rest');
+    assert.ok(!d.buttons().some((b) => b.label.startsWith('♪')), 'a soundtrack on a day the coach set to rest');
+  } finally {
+    delete globalThis.window.ShapeProgram;
+    delete globalThis.window.ShapePlan;
+  }
+});
+
 // ── The website's Train page card ───────────────────────────────────────────
 test('the website Train card shows the walkthrough, the introduction and each demo', async () => {
   // The page-shell globals these classic scripts read at render, as every host loads them.
