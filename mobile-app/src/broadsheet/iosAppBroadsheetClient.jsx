@@ -308,17 +308,30 @@ function bsBuildLabel() {
 // Monochrome ⌕ — opens the universal search screen via a window event
 // (handled in BSClientAppInner / the coach shells), so any header can drop it
 // in without prop-threading. Always sits to the LEFT of the profile avatar.
-function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null }) {
+function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true }) {
   const t = useBS();
   // `ink` matches the profile mastheads' pencil/gear chrome (0.3-alpha border +
   // 14px glyph) so the corner buttons read as one set. Fill stays transparent —
   // paper ground, same as every other page's corners (owner call 2026-07-14).
   const g = ink ? 14 : Math.max(13, Math.round(size * 0.44));
+  // ✦ NORA SITS LEFT OF ⌕ (owner, 2026-10-07: option D). Every header places this
+  // corner, so one change puts her on every screen; it covers nothing. A surface
+  // with its own Nora controls (the full-screen Radio) passes nora={false}.
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const corner = { width: size, height: size, flexShrink: 0, borderRadius: 999, border: `1px solid ${ink ? bsTHexA(ink, 0.3) : t.RULE}`, background: 'transparent', color: ink || t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 };
   return (
-    <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openSearch')); } catch (e) {} }} aria-label="Search Shape"
-      style={{ width: size, height: size, flexShrink: 0, borderRadius: 999, border: `1px solid ${ink ? bsTHexA(ink, 0.3) : t.RULE}`, background: 'transparent', color: ink || t.INK, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-      <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={ink ? 2.2 : 2.4} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
-    </button>
+    <>
+      {nora && (
+        <button data-nora-corner onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {} }} aria-label="Ask Nora"
+          style={{ ...corner, color: teal, fontSize: Math.max(13, Math.round(size * 0.46)), lineHeight: 1 }}>
+          <span aria-hidden>✦</span>
+        </button>
+      )}
+      <button onClick={() => { try { window.dispatchEvent(new CustomEvent('shape:openSearch')); } catch (e) {} }} aria-label="Search Shape"
+        style={corner}>
+        <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={ink ? 2.2 : 2.4} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
+      </button>
+    </>
   );
 }
 
@@ -795,6 +808,12 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
 
   // Universal search — the ⌕ in every header opens it (no prop-threading).
   const [showSearch, setShowSearch] = useStateBSC(false);
+  const [showNoraSheet, setShowNoraSheet] = useStateBSC(false);
+  React.useEffect(() => {
+    const open = () => { setShowSearch(false); setShowNoraSheet(true); };
+    window.addEventListener('shape:openNora', open);
+    return () => window.removeEventListener('shape:openNora', open);
+  }, []);
   React.useEffect(() => {
     const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
@@ -807,6 +826,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      // Nora is a sheet over the screen you are on (option D), not a Chat segment.
+      if (d.support) { setShowSearch(false); setShowSettings(false); setShowNoraSheet(true); return; }
       navJumpRef.current.navPush();
       setShowSearch(false);
       // Settings is a full-screen overlay above the tabs; a conversation opened from
@@ -1019,6 +1040,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // the profile customizer (220) and BSUniversalSearch (230) — so search opened
   // FROM Settings still paints over it. The wrapper is its own stacking context,
   // so Settings' own sheets (200/240) stack inside it and are unaffected.
+  const noraSheet = showNoraSheet ? <BSNoraSheet onClose={() => setShowNoraSheet(false)} /> : null;
   const settingsOverlay = showSettings ? (
     <div style={{ position: 'absolute', inset: 0, zIndex: 210 }}>
       <BSSettings
@@ -1039,6 +1061,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
         <BSRadioFx />
         {settingsOverlay}
+      {noraSheet}
+        {noraSheet}
         {searchOverlay}
       </div>
     );
@@ -1049,6 +1073,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         <BSCycleCalendarPage onBack={() => { if (!navBack()) setShowCycle(false); }} />
         <BSRadioFx />
         {settingsOverlay}
+      {noraSheet}
+        {noraSheet}
         {searchOverlay}
       </div>
     );
@@ -1095,6 +1121,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       />
       <BSRadioPrompt />
       {settingsOverlay}
+      {noraSheet}
       {searchOverlay}
       {showScoreIntro && <BSScoreIntro onClose={(skipped) => { setShowScoreIntro(false); if (!skipped) chainTourAfterIntro(); }} onOpenScore={() => { setShowScoreIntro(false); goScore(); }} />}
       {showTour && <BSOnboardingTour onClose={() => setShowTour(false)} onNavigate={setTab} />}
@@ -23153,81 +23180,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // flex `gap` doesn't visibly shift mid-collapse while maxHeight animates.
   const bsSubStyle = (gap) => ({ maxHeight: subHidden ? 0 : 80, opacity: subHidden ? 0 : 1, overflow: 'hidden', pointerEvents: subHidden ? 'none' : 'auto', transition: 'max-height 240ms cubic-bezier(.4,0,.2,1), opacity 150ms ease', ...(gap ? { marginBottom: subHidden ? -gap : 0 } : null) });
   const [draft, setDraft] = useStateBSC('');
-  // Support assistant — one continuous AI-backed thread that lives for the
-  // session. It stays put while you move between tabs, but a fresh app load /
-  // reload starts a clean thread with the current greeting (no persistence).
-  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true };
-  const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
-  const [supportDraft, setSupportDraft] = useStateBSC('');
-  const [supportBusy, setSupportBusy] = useStateBSC(false);
-  const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
-  // Read at REPLY time via the ref — a reply resolving after the user flips the
-  // chip off must not force-play (the async closure would hold the stale value).
-  const voiceChatRef = React.useRef(false);
-  // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
-  // default); the global voice on/off + tone still live in Settings → Nora voice.
-  // (We do NOT force the tone here — that would overwrite the user's own setting
-  // on every mount.) The per-message "Listen" button plays a reply aloud on demand.
-  // Explicit Listen taps toast honestly on failure; auto-speak stays silent.
-  const speakReply = (text, opts) => {
-    try {
-      const p = window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts);
-      if (p && p.then) p.then((r) => {
-        if (r && r.ok === false && !r.disabled && opts && opts.force) {
-          window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info');
-        }
-      });
-    } catch (e) {}
-  };
-  // Clear any thread persisted by older builds so stale history doesn't reappear.
-  React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
-  // The body is a parameter so the voice hand-off (a released hold-to-talk
-  // transcript) and the typed path share ONE sender — no setState race.
-  // `opts.voice` marks a SPOKEN message (a released hold-to-talk transcript):
-  // the server then writes the reply for the ear, since it is read aloud.
-  const sendSupportText = async (body, opts = {}) => {
-    const clean = String(body || '').trim();
-    if (!clean || supportBusy) return;
-    setSupportDraft('');
-    const next = [...supportMsgs, { who: 'You', t: clean, time: 'now', me: true }];
-    setSupportMsgs(next);
-    setSupportBusy(true);
-    try {
-      const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
-      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true });
-      const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
-      const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
-      setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
-      // Conversation mode reads every reply aloud; otherwise the global
-      // auto-speak toggle decides (off by default). Auto-speak failures are silent.
-      // voiceChatRef, not the closed-over state: the chip may have flipped off
-      // while this reply was in flight.
-      if (voiceChatRef.current) speakReply(reply, { force: true });
-      else if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
-    } catch (e) {
-      setSupportMsgs(m => [...m, { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
-    } finally { setSupportBusy(false); }
-  };
-  const sendSupport = () => sendSupportText(supportDraft);
-  // Nora's structured follow-ups → in-app destinations (the app is a webview, so
-  // route coach/marketplace links to the in-app Marketplace rather than a URL).
-  const runSupportAction = (a) => {
-    if (!a) return;
-    try {
-      if (a.type === 'coach' || a.type === 'marketplace') {
-        // A LIVE listing carries providerId → the Listing opens directly (the
-        // market listener reads detail.coachId); an example listing or a
-        // browse action opens the marketplace filtered to the role.
-        const detail = { role: a.role || null, coach: a.slug || null };
-        if (a.type === 'coach' && a.providerId != null) detail.coachId = a.providerId;
-        window.dispatchEvent(new CustomEvent('shape:openMarket', { detail }));
-      } else if (a.type === 'screen' && a.screen === 'integrations') {
-        window.dispatchEvent(new CustomEvent('shape:openIntegrations'));
-      } else if (a.url) {
-        window.open(a.url, '_blank');
-      }
-    } catch (e) {}
-  };
+  // Nora's thread lives in BSNoraSheet now (the header ✦, owner 2026-10-07).
   // Live direct-message threads (real coaches/conversations). Falls back to the
   // sample people lists below when there are none (demo / not signed in).
   const [coachThreads, setCoachThreads] = useStateBSC(null);
@@ -23306,11 +23259,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       return;
     }
     // Deep-link to Nora (universal search → the Support tab's concierge thread).
-    if (openRequest.support) {
-      setTab('support');
-      setOpenChat(null);
-      return;
-    }
+    // Nora is a sheet now: the shell opens it for a support request, so the
+    // Chat tab has nothing to do here.
+    if (openRequest.support) return;
     setTab('teams');
     setTeamsSel('coaches');
     if (!name) { setOpenChat(null); return; }
@@ -24126,7 +24077,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
       <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
-          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread], ['support', tr('feed:tab.support', { defaultValue: 'Support' }), 0]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
+          {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
 
@@ -24347,82 +24298,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               </div>
             );
           }
-          // Support — its own top-level tab: the continuous AI-backed thread.
-          // Serialized into the Open Ledger chat language (matches BSChatThread):
-          // a concierge masthead + tucked-corner tier-tinted bubbles, teal accent.
-          if (tab === 'support') {
-            const noraTint = TEAL;           // concierge reads teal (was the dated blue #2e6fa0)
-            const myTC = bsMyTierColor();
-            return (
-              <div style={{ padding: `14px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
-                {/* Concierge masthead — the section-head language the other tabs carry */}
-                {/* role="button" (not <button>) — the Voice-chat chip is a real
-                    <button> nested inside this tappable head, and button-in-button
-                    is invalid HTML. */}
-                <div role="button" tabIndex={0} onClick={() => setShowNora(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowNora(true); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
-                  {/* Text-only head — Nora's portrait rides her message bubbles below
-                      (each reply should feel like HER), so the masthead carrying it
-                      too read as a double avatar. */}
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:support.concierge', { defaultValue: 'Concierge' })}</div>
-                    <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>Nora<span style={{ color: noraTint }}>.</span></div>
-                  </div>
-                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint }}>
-                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, boxShadow: `0 0 8px ${noraTint}` }} />24/7
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); const on = !voiceChatRef.current; voiceChatRef.current = on; setVoiceChat(on); if (!on) { try { window.ShapeVoice?.stop?.(); } catch (err) {} } }}
-                    aria-pressed={voiceChat}
-                    style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, border: `1px solid ${voiceChat ? noraTint : hair}`, background: voiceChat ? `${noraTint}1f` : 'transparent', color: voiceChat ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                  >
-                    <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.voiceChat', { defaultValue: 'Voice chat' })} {voiceChat ? tr('feed:support.on', { defaultValue: 'on' }) : tr('feed:support.off', { defaultValue: 'off' })}
-                  </button>
-                </div>
-                <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
-
-                {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
-                  {supportMsgs.map((m, i) => {
-                    const me = m.me;
-                    const tc = me ? myTC : noraTint;
-                    const bubbleBg = t.isLight ? `${tc}1c` : `${tc}2b`;
-                    return (
-                      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
-                        <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
-                          {me
-                            ? <BSFacetAvatar size={32} c={myTC} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
-                            : <BSFacetAvatar size={32} c={noraTint} initial="N" name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
-                            {!me && (
-                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
-                            )}
-                            <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
-                            {m.bot && (
-                              <button onClick={() => speakReply(m.t, { force: true })} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
-                            )}
-                            {Array.isArray(m.actions) && m.actions.length > 0 && (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
-                                {m.actions.map((a, ai) => (
-                                  a.type === 'proposal'
-                                    ? <BSNoraProposal key={ai} a={a} t={t} />
-                                    : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
-                                        <span>{a.label}</span>
-                                        {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
-                                      </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</div>}
-                </div>
-              </div>
-            );
-          }
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
             <div style={{ padding: `7px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -24576,9 +24451,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
-      {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? (text) => sendSupportText(text, { voice: true }) : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
-      )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
       {activityDetail && (() => {
@@ -24661,6 +24533,193 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
     </BSPage>
+  );
+}
+
+// ── NORA'S SHEET (owner, 2026-10-07: option D) ────────────────────────────────
+// The ✦ beside ⌕ in every header opens Nora as a sheet over the screen you are on,
+// so "this meal" or "this client" still has the screen behind it. It replaced the
+// Support segment of Chat (owner, same day): her thread, its cards, its actions and
+// its voice moved here unchanged. Every shell opens it for 'shape:openNora' and for
+// a support request on 'shape:openConversation' (search's Nora hit, Help's button).
+// The thread lives for the session, across closes, as it did in Chat.
+let _bsNoraThread = null;
+function BSNoraSheet({ onClose }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const TEAL = '#0ac5a8', TEALB = '#2ee0c4';
+  const cardInk = t.INK;
+  const muted = t.INK50;
+  const hair = t.RULE;
+  const [showNora, setShowNora] = useStateBSC(false);
+  // Support assistant — one continuous AI-backed thread that lives for the
+  // session. It stays put while you move between tabs, but a fresh app load /
+  // reload starts a clean thread with the current greeting (no persistence).
+  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true };
+  const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
+  const [supportDraft, setSupportDraft] = useStateBSC('');
+  const [supportBusy, setSupportBusy] = useStateBSC(false);
+  const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
+  // Read at REPLY time via the ref — a reply resolving after the user flips the
+  // chip off must not force-play (the async closure would hold the stale value).
+  const voiceChatRef = React.useRef(false);
+  // No in-thread tone toggle — Nora's tone defaults to supportive (the ShapeVoice
+  // default); the global voice on/off + tone still live in Settings → Nora voice.
+  // (We do NOT force the tone here — that would overwrite the user's own setting
+  // on every mount.) The per-message "Listen" button plays a reply aloud on demand.
+  // Explicit Listen taps toast honestly on failure; auto-speak stays silent.
+  const speakReply = (text, opts) => {
+    try {
+      const p = window.ShapeVoice && window.ShapeVoice.speak(text, undefined, opts);
+      if (p && p.then) p.then((r) => {
+        if (r && r.ok === false && !r.disabled && opts && opts.force) {
+          window.__bsToast?.(r.reason === 'unavailable' ? 'Voice is unavailable right now' : "Nora's voice is a member feature", 'info');
+        }
+      });
+    } catch (e) {}
+  };
+  // Clear any thread persisted by older builds so stale history doesn't reappear.
+  React.useEffect(() => { try { Object.keys(window.localStorage || {}).forEach(k => { if (k.indexOf('shape.support.') === 0) window.localStorage.removeItem(k); }); } catch (e) {} }, []);
+  // The body is a parameter so the voice hand-off (a released hold-to-talk
+  // transcript) and the typed path share ONE sender — no setState race.
+  // `opts.voice` marks a SPOKEN message (a released hold-to-talk transcript):
+  // the server then writes the reply for the ear, since it is read aloud.
+  const sendSupportText = async (body, opts = {}) => {
+    const clean = String(body || '').trim();
+    if (!clean || supportBusy) return;
+    setSupportDraft('');
+    const next = [...supportMsgs, { who: 'You', t: clean, time: 'now', me: true }];
+    setSupportMsgs(next);
+    setSupportBusy(true);
+    try {
+      const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
+      const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true });
+      const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
+      const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
+      setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
+      // Conversation mode reads every reply aloud; otherwise the global
+      // auto-speak toggle decides (off by default). Auto-speak failures are silent.
+      // voiceChatRef, not the closed-over state: the chip may have flipped off
+      // while this reply was in flight.
+      if (voiceChatRef.current) speakReply(reply, { force: true });
+      else if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
+    } catch (e) {
+      setSupportMsgs(m => [...m, { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
+    } finally { setSupportBusy(false); }
+  };
+  const sendSupport = () => sendSupportText(supportDraft);
+  // Nora's structured follow-ups → in-app destinations (the app is a webview, so
+  // route coach/marketplace links to the in-app Marketplace rather than a URL).
+  const runSupportAction = (a) => {
+    if (!a) return;
+    try {
+      if (a.type === 'coach' || a.type === 'marketplace') {
+        // A LIVE listing carries providerId → the Listing opens directly (the
+        // market listener reads detail.coachId); an example listing or a
+        // browse action opens the marketplace filtered to the role.
+        const detail = { role: a.role || null, coach: a.slug || null };
+        if (a.type === 'coach' && a.providerId != null) detail.coachId = a.providerId;
+        window.dispatchEvent(new CustomEvent('shape:openMarket', { detail }));
+      } else if (a.type === 'screen' && a.screen === 'integrations') {
+        window.dispatchEvent(new CustomEvent('shape:openIntegrations'));
+      } else if (a.url) {
+        window.open(a.url, '_blank');
+      }
+    } catch (e) {}
+  };
+  React.useEffect(() => { _bsNoraThread = supportMsgs; }, [supportMsgs]);
+  const scrollRef = React.useRef(null);
+  React.useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [supportMsgs.length, supportBusy]);
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+            const noraTint = TEAL;           // concierge reads teal (was the dated blue #2e6fa0)
+            const myTC = bsMyTierColor();
+              const host = (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body;
+  return createPortal(
+    <div data-nora-sheet style={{ position: 'absolute', inset: 0, zIndex: 240 }}>
+      <div onClick={onClose} aria-hidden style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)' }} />
+      <div role="dialog" aria-label="Nora" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '86%', background: t.PAPER, borderRadius: '18px 18px 0 0', borderTop: `1px solid ${hair}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: hair, margin: '8px auto 0', flex: 'none' }} />
+        <button type="button" onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ position: 'absolute', top: 8, right: 10, zIndex: 1, width: 34, height: 34, borderRadius: 999, border: 0, background: 'transparent', color: muted, fontSize: 20, lineHeight: 1, cursor: 'pointer' }}>×</button>
+        <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+
+              <div style={{ padding: `14px ${t.padX}px 90px`, display: 'flex', flexDirection: 'column' }}>
+                {/* Concierge masthead — the section-head language the other tabs carry */}
+                {/* role="button" (not <button>) — the Voice-chat chip is a real
+                    <button> nested inside this tappable head, and button-in-button
+                    is invalid HTML. */}
+                <div role="button" tabIndex={0} onClick={() => setShowNora(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowNora(true); } }} style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: 'pointer' }}>
+                  {/* Text-only head — Nora's portrait rides her message bubbles below
+                      (each reply should feel like HER), so the masthead carrying it
+                      too read as a double avatar. */}
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:support.concierge', { defaultValue: 'Concierge' })}</div>
+                    <div style={{ fontFamily: t.BODY, fontSize: 18, fontWeight: 760, color: t.INK, letterSpacing: '-0.02em' }}>Nora<span style={{ color: noraTint }}>.</span></div>
+                  </div>
+                  <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint }}>
+                    <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: noraTint, boxShadow: `0 0 8px ${noraTint}` }} />24/7
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); const on = !voiceChatRef.current; voiceChatRef.current = on; setVoiceChat(on); if (!on) { try { window.ShapeVoice?.stop?.(); } catch (err) {} } }}
+                    aria-pressed={voiceChat}
+                    style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, border: `1px solid ${voiceChat ? noraTint : hair}`, background: voiceChat ? `${noraTint}1f` : 'transparent', color: voiceChat ? noraTint : muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    <span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.voiceChat', { defaultValue: 'Voice chat' })} {voiceChat ? tr('feed:support.on', { defaultValue: 'on' }) : tr('feed:support.off', { defaultValue: 'off' })}
+                  </button>
+                </div>
+                <div aria-hidden style={{ height: 2, marginTop: 10, marginBottom: 16, background: `linear-gradient(90deg, ${t.INK}, ${noraTint} 62%, transparent)` }} />
+
+                {/* Messages — tucked-corner tinted bubbles, matching BSChatThread */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
+                  {supportMsgs.map((m, i) => {
+                    const me = m.me;
+                    const tc = me ? myTC : noraTint;
+                    const bubbleBg = t.isLight ? `${tc}1c` : `${tc}2b`;
+                    return (
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', alignSelf: me ? 'flex-end' : 'flex-start', maxWidth: '90%' }}>
+                        <div style={{ display: 'flex', flexDirection: me ? 'row-reverse' : 'row', alignItems: 'flex-start', gap: 11 }}>
+                          {me
+                            ? <BSFacetAvatar size={32} c={myTC} initial={bsMyInitials()} photo={bsMyPhoto() || undefined} showRank={false} />
+                            : <BSFacetAvatar size={32} c={noraTint} initial="N" name={m.who} photo={m.bot ? BS_NORA_AVATAR : undefined} showRank={false} BG={t.PAPER} INK={'#fff'} onClick={m.bot ? () => setShowNora(true) : undefined} />}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: me ? 'flex-end' : 'flex-start', minWidth: 0 }}>
+                            {!me && (
+                              <div onClick={m.bot ? () => setShowNora(true) : undefined} style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: noraTint, fontWeight: 800, marginBottom: 5, cursor: m.bot ? 'pointer' : 'default' }}>{m.who}{m.bot ? ` · ${tr('feed:support.concierge', { defaultValue: 'Concierge' })}` : ''}</div>
+                            )}
+                            <div style={{ borderRadius: 16, [me ? 'borderBottomRightRadius' : 'borderBottomLeftRadius']: 5, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK, background: bubbleBg, border: `1px solid ${tc}40`, padding: '11px 14px', whiteSpace: 'pre-wrap' }}>{m.t}</div>
+                            {m.bot && (
+                              <button onClick={() => speakReply(m.t, { force: true })} title={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} aria-label={tr('feed:support.readAloud', { defaultValue: 'Read this aloud' })} style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, border: `1px solid ${hair}`, background: 'transparent', color: muted, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}><span aria-hidden style={{ fontSize: 10, lineHeight: 1 }}>♪</span> {tr('feed:support.listen', { defaultValue: 'Listen' })}</button>
+                            )}
+                            {Array.isArray(m.actions) && m.actions.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
+                                {m.actions.map((a, ai) => (
+                                  a.type === 'proposal'
+                                    ? <BSNoraProposal key={ai} a={a} t={t} />
+                                    : <button key={ai} onClick={() => runSupportAction(a)} style={{ border: `1px solid ${TEALB}`, background: `${TEALB}1a`, color: cardInk, borderRadius: 12, padding: '7px 11px', fontFamily: t.BODY, fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left', lineHeight: 1.3, display: 'inline-flex', flexDirection: 'column' }}>
+                                        <span>{a.label}</span>
+                                        {a.meta && <span style={{ fontSize: 9.5, opacity: 0.7, fontFamily: t.MONO }}>{a.meta}</span>}
+                                      </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {supportBusy && <div style={{ alignSelf: 'flex-start', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: muted, paddingLeft: 43 }}>{tr('feed:support.typing', { defaultValue: 'Nora is typing…' })}</div>}
+                </div>
+              </div>
+                    </div>
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? (text) => sendSupportText(text, { voice: true }) : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
+      </div>
+      {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
+    </div>,
+    host
   );
 }
 
@@ -38552,7 +38611,7 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Quick answers</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
-          The fastest way to get help: ask <b>Nora</b> in Chat → Support — she answers most questions instantly. The basics are below.
+          The fastest way to get help: ask <b>Nora</b> — tap ✦ at the top of any screen. She answers most questions instantly. The basics are below.
         </div>
         {onAskNora && (
           <button onClick={onAskNora} style={{ marginTop: 14, borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: 0, background: t.ACCENT, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>✦ Ask Nora</button>
@@ -38578,5 +38637,5 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
+Object.assign(window, { BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, BSUniversalSearch, BSSearchCorner });
 try { window.BS_HEADER_AVATAR = BS_HEADER_AVATAR; } catch (e) {}

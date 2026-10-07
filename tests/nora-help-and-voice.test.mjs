@@ -14,7 +14,7 @@ const WEB = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
 
 test('app Help: the path that exists, and a button that opens Nora', () => {
   assert.doesNotMatch(APP, /Chat → Team → Support/);
-  assert.match(APP, /ask <b>Nora<\/b> in Chat → Support/);
+  assert.match(APP, /ask <b>Nora<\/b> — tap ✦ at the top of any screen/, 'the header ✦, since option D');
   const page = APP.slice(APP.indexOf('function BSHelpPage('), APP.indexOf('Object.assign(window, { BSCookMode'));
   assert.match(page, /function BSHelpPage\(\{ onBack, onContact, onAskNora \}\)/);
   assert.ok(/\{onAskNora && \(\s*<button onClick=\{onAskNora\}/.test(page) && page.includes('>✦ Ask Nora</button>'), 'the button');
