@@ -912,6 +912,23 @@ export const DO_INERT = [
     reads: 'loops over the columns of public.guardrail_health_runs and runs `revoke all (column) on table public.guardrail_health_runs from public, anon, authenticated, service_role`: a column privilege on one table, never a function' },
 ];
 
+// CREATE EXTENSION, documented one extension at a time. An extension's install script is not in the
+// migration, so the replay cannot read what it creates; each entry is one a person read. Only the exact
+// form `create extension [if not exists] <name> with schema <schema>` matches: a version, CASCADE or a
+// missing or different schema still fails, because each changes what is installed or where.
+export const EXTENSIONS_INERT = [
+  { name: 'btree_gist', schema: 'extensions', file: '2026-10-07-sessions-no-overlap.sql',
+    reads: 'GiST operator classes for scalar types (so provider_role and provider_id can sit beside a range in the sessions_no_overlap exclusion constraint) and their C support functions, all SECURITY INVOKER, installed in the extensions schema: nothing in public, and no existing function\'s ACL, definer flag or search_path changes' },
+];
+
+function inertExtension(t) {
+  let i = 2;
+  if (isWord(t[i], 'if') && isWord(t[i + 1], 'not') && isWord(t[i + 2], 'exists')) i += 3;
+  if (!(isWord(t[i]) && isWord(t[i + 1], 'with') && isWord(t[i + 2], 'schema') && isWord(t[i + 3]))) return null;
+  if (t.length !== i + 4) return null;
+  return EXTENSIONS_INERT.find((e) => e.name === t[i].v && e.schema === t[i + 3].v) ?? null;
+}
+
 // ── Statements that cannot change a function ─────────────────────────────────
 
 // Each entry is the head of a statement class known NOT to change EXECUTE, the definer flag or
@@ -1171,6 +1188,7 @@ export function applyStatement(model, stmt) {
     const obj = objectWord(t);
     if (obj === 'function') { bump(model, 'create-function'); return applyCreate(model, stmt); }
     if (IRRELEVANT.create.has(obj)) { bump(model, `ignored:create ${obj}`); return; }
+    if (obj === 'extension' && inertExtension(t)) { bump(model, 'ignored:create extension'); return; }
     return reject(model, stmt, 'unmodelled statement', `CREATE ${(obj ?? '?').toUpperCase()} is not a known-irrelevant statement (add it to IRRELEVANT in tests/helpers/definer-model.mjs if it cannot change a function's ACL, definer flag or search_path, or model it)`);
   }
   if (head === 'drop') {
