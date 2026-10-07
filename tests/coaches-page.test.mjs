@@ -386,6 +386,23 @@ test('no coach-facing page claims a calendar sync, reminders or no-show handling
   }
 });
 
+test('the /mobile preview claims no calendar sync either', () => {
+  // `next.config.ts` serves public/mobile at /mobile, so its coach, nutritionist and member
+  // pages are public copy too, and they carried the same "Two-way sync with Google, Apple,
+  // Outlook … auto-reminders, no-show handling" lines the sweep above removed from
+  // /newdesign. Outside that corpus, so swept here, every .jsx in the folder.
+  const MOBILE = path.join(path.dirname(ND), 'mobile');
+  const files = readdirSync(MOBILE).filter((f) => f.endsWith('.jsx'));
+  assert.ok(files.length >= 3, 'the /mobile preview pages moved: ' + files.length);
+  for (const f of files) {
+    const body = stripComments(readFileSync(path.join(MOBILE, f), 'utf8'));
+    for (const [re, why] of SYNC_CLAIMS) {
+      const hit = re.exec(body);
+      assert.equal(hit, null, `mobile/${f} claims ${why}: “${hit && hit[0]}”`);
+    }
+  }
+});
+
 test('the Schedule tab lists what the Schedule page does', () => {
   // The replacements are claims too, so each is pinned to the code that makes it true —
   // a later edit to the page that drops one fails here rather than leaving the tour lying.

@@ -107,7 +107,7 @@ function TrainerHow() {
   const steps = [
     { n: "01", t: "Apply in 10 minutes", b: "Tell us about your credentials, specialty, and coaching style. We verify CPT, CSCS, or equivalent.", time: "10 min" },
     { n: "02", t: "Review in 2–3 days", b: "Our team reads every application. We reach out to learn more or with an approval.", time: "2–3 days" },
-    { n: "03", t: "Set up your storefront", b: "Upload your programs, set session pricing, connect your calendar, write your bio. We help with copy.", time: "1–2 hrs" },
+    { n: "03", t: "Set up your storefront", b: "Upload your programs, set session pricing and your open hours, write your bio. We help with copy.", time: "1–2 hrs" },
     { n: "04", t: "Start getting matched", b: "Your profile goes live in the marketplace. New client inquiries land in your inbox within the first week.", time: "Ongoing" },
   ];
   return (
@@ -222,7 +222,7 @@ function TrainerTools() {
     { t: "Program builder", b: "Sets, reps, RPE, tempo, supersets. Autoregulation baked in. Clone any block to a new client in one click." },
     { t: "Client roster", b: "One view. Streaks, check-ins, flagged clients, weekly adherence. Sort by whatever you care about today." },
     { t: "Form check videos", b: "Clients upload. You annotate. Threads stay tied to the lift. Better than voice memos, faster than email." },
-    { t: "Scheduling", b: "Two-way sync with Google, Apple, Outlook. Clients book inside Shape. Auto-reminders, reschedule rules, no-show handling." },
+    { t: "Scheduling", b: "Clients book inside Shape, into the open hours you set in your own time zone. Drag a session to move it; the client is notified." },
     { t: "Messaging", b: "Typing indicators, read receipts, voice notes. Quick replies for the things you type all day." },
     { t: "Payouts", b: "Link Stripe in a minute, or we'll spin up a new account for you. Weekly direct deposit to your bank. Clean monthly statements." },
   ];
