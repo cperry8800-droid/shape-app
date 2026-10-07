@@ -9,12 +9,14 @@
 // also landed anywhere: nothing checked the time against the coach's open hours or their other
 // bookings, so a crafted insert could put a request at 3 AM or across a booked hour.
 //
-// This route is that insert with the three missing halves:
+// This route is that insert with the missing halves:
 //   1. the time must be one bookingSlots.js offered the member: inside the coach's open hours
 //      (scheduleRules.fitsOpenHours) AND one of the starts it lays out (isOfferedStart), at the
 //      Team page's own length — no more;
 //   2. it must not overlap the coach's other active bookings (requested or confirmed);
-//   3. the coach is notified, on their own clock.
+//   3. it must keep the coach's own rules: time off, buffer, daily limit and notice
+//      (bookingRules.checkSlot, Schedule step 3);
+//   4. the coach is notified, on their own clock.
 //
 // ⚠ THE ROW IS STILL WRITTEN THROUGH THE MEMBER'S OWN CLIENT, so RLS keeps pinning
 // `client_id = auth.uid()` and `status = 'requested'` exactly as before — this route adds
@@ -34,7 +36,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { readJson, dbError } from '@/lib/request-utils';
 import { normalizeZone, wallClockInZone } from '@/lib/time';
-import { findSessionClash, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
+import { checkBookingRules, findSessionClash, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -107,6 +109,12 @@ export async function POST(request: Request) {
   if (!clash.ok) return NextResponse.json({ error: "We couldn't check your coach's calendar. Nothing was booked — try again." }, { status: 503 });
   if (clash.clash) return NextResponse.json({ error: 'Somebody just took that time. Pick another and we’ll send the request.', code: 'taken' }, { status: 409 });
 
+  // 3 · The coach's own rules: time off, the buffer, the daily limit and the notice they ask for
+  // (Schedule step 3). The reason is the code, and the sentence never names another member.
+  const rules = await checkBookingRules(admin, { role, providerId, zone, slots: hours.slots, startMs, durationMin, nowMs: Date.now() });
+  if (!rules.ok && rules.unavailable) return NextResponse.json({ error: "We couldn't check your coach's calendar. Nothing was booked — try again." }, { status: 503 });
+  if (!rules.ok) return NextResponse.json({ error: rules.message, code: rules.reason }, { status: 409 });
+
   // Identity comes from the ACCOUNT, never from the body — the same rule /api/consultation
   // records, and the RLS policy pins client_id = auth.uid() anyway.
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
@@ -139,7 +147,7 @@ export async function POST(request: Request) {
     return dbError(error, 'session request', 500);
   }
 
-  // 3 · The coach hears about it, on their own clock (the zone their hours are stored in).
+  // 4 · The coach hears about it, on their own clock (the zone their hours are stored in).
   const ownerId = (provider as { owner_id?: string | null }).owner_id;
   if (ownerId) {
     try {

@@ -72,7 +72,8 @@ async function routes() {
   const [time, requestUtils] = await Promise.all([lib('time.ts'), lib('request-utils.ts')]);
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
   // The shared booking rules (clash + open hours), compiled from the shipped file like the rest.
-  const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}]]) });
+  const owned = await loadRealModule(join(ROOT, 'src/lib/owned-provider.ts'), { typescript: true, registry: new Map([['@/lib/time', time], ['@supabase/supabase-js', {}]]) });
+  const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]) });
   let client = null, userId = 'coach-1';
   const notices = [];
   const registry = () => new Map([

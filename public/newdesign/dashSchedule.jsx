@@ -186,26 +186,41 @@ const DSC_DEMO = (() => {
       { weekday: 4, start_minute: 9 * 60, duration_min: 300 }, { weekday: 5, start_minute: 6 * 60, duration_min: 300 },
       { weekday: 6, start_minute: 9 * 60, duration_min: 180 },
     ],
+    // One example block, tomorrow 1:00 to 5:00 PM on this browser's clock like the rest, so it is
+    // always ahead of the visitor and (but on a Sunday) on the week they are shown.
+    timeOff: (() => {
+      const t = new Date();
+      return [{
+        id: "demo-off-1", note: "Dentist",
+        startsAt: new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1, 13, 0).toISOString(),
+        endsAt: new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1, 17, 0).toISOString(),
+      }];
+    })(),
   };
 })();
 
-// ── Availability editor — the weekly slots the marketplace reads ────────────
-// Slots are hour blocks (start_minute on the hour); toggling rebuilds the
-// whole set and POSTs it (the route is delete-all + re-insert).
-//
+// ── Open hours — the weekly pattern the marketplace reads ───────────────────
 // ⚠ THE GRID IS THE COACH'S OWN CLOCK, AND UNTIL 2026-09-11 NOBODY RECORDED WHICH ONE.
-// A stored start_minute is a bare wall-clock minute — toggle "9a" and 540 is written —
+// A stored start_minute is a bare wall-clock minute — open "9:00" and 540 is written —
 // so every reader had to invent a zone, and the live ones disagreed: the website read 540
 // as 09:00 UTC while the app read it as 09:00 in the MEMBER's zone. A New York coach who
 // opened 9am had members booking 5:00 AM on one surface and 9:00 AM on the other. The
-// POST now carries this browser's resolved zone, the route stamps it on the coach's row,
-// and the label below names it so a coach can see what they are declaring rather than
+// save now carries this browser's resolved zone, the route stamps it on the coach's row,
+// and the label names it so a coach can see what they are declaring rather than
 // trusting an unqualified "9a".
-const DSC_HOURS = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-// provider_availability.weekday is getDay()-style: 0=Sun … 6=Sat (per the
-// migration + what the consultation/booking flow reads). Display Mon-first,
-// but STORE the real getDay index so the marketplace booking lines up.
+//
+// ⚠ EDITED ON THE WEEK GRID IN HALF HOURS SINCE 2026-10-07 (Schedule step 3). The rail used to
+// hold 105 whole-hour buttons from 6 AM to 8 PM that each saved on tap; a coach who opens 7:30
+// or works until 9 PM could not say so, and every tap was a delete-and-rewrite of the week.
+// provider_availability.weekday is getDay()-style: 0=Sun … 6=Sat (per the migration + what the
+// booking flows read). Display Mon-first, but STORE the real getDay index.
 const DSC_AVAIL_DAYS = [["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["Fri", 5], ["Sat", 6], ["Sun", 0]];
+const DSC_HALF = 30;
+const DSC_CELLS = 48;
+// The rows the editor draws: 5 AM to 10 PM, widened to any open half hour outside it.
+const DSC_EDIT_FROM = (5 * 60) / DSC_HALF;
+const DSC_EDIT_TO = (22 * 60) / DSC_HALF;
+const DSC_EDIT_PX = 14;
 // ⚠ THE LABEL STATES A FACT OR NOTHING. Live, it names the zone the hours are STORED
 // against (what members are actually booked in) and falls back to this browser's zone
 // only before the first save, marked as the one about to be stamped. In the demo preview
@@ -223,103 +238,376 @@ function dscZoneLabel(live, storedZone) {
 function dscBrowserZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
 }
-function DscAvailability({ role, live, initial, storedZone, onZone }) {
-  // A Set of "weekday:hour" keys derived from the loaded slots (each slot
-  // covers its duration in hourly cells).
-  const seed = () => {
-    const set = new Set();
-    for (const s of initial || []) {
-      const startH = Math.floor(s.start_minute / 60);
-      const spanH = Math.max(1, Math.round((s.duration_min || 60) / 60));
-      for (let h = startH; h < startH + spanH && h <= 20; h++) set.add(s.weekday + ":" + h);
+// Stored rows → seven days of 48 half-hour cells (index = getDay()). A cell is open when a row
+// covers ALL of it. `offGrid` says a row did not land on the half hour, so saving will round it.
+function dscHoursModel(slots) {
+  const cells = Array.from({ length: 7 }, () => Array(DSC_CELLS).fill(false));
+  let offGrid = false;
+  for (const s of Array.isArray(slots) ? slots : []) {
+    const wd = Number(s && s.weekday), start = Number(s && s.start_minute);
+    if (!Number.isInteger(wd) || wd < 0 || wd > 6 || !Number.isFinite(start)) continue;
+    const dur = Number(s.duration_min) > 0 ? Number(s.duration_min) : 60;
+    const end = Math.min(1440, start + dur);
+    if (start % DSC_HALF || end % DSC_HALF) offGrid = true;
+    for (let i = 0; i < DSC_CELLS; i++) if (start <= i * DSC_HALF && (i + 1) * DSC_HALF <= end) cells[wd][i] = true;
+  }
+  return { cells, offGrid };
+}
+// Seven days of cells → the rows the route stores: each run of open half hours, one row.
+function dscHoursRows(cells) {
+  const out = [];
+  for (let wd = 0; wd < 7; wd++) {
+    const day = cells[wd] || [];
+    for (let i = 0; i < DSC_CELLS; i++) {
+      if (!day[i]) continue;
+      let j = i;
+      while (j + 1 < DSC_CELLS && day[j + 1]) j++;
+      out.push({ weekday: wd, start_minute: i * DSC_HALF, duration_min: (j - i + 1) * DSC_HALF });
+      i = j;
     }
-    return set;
-  };
-  const [cells, setCells] = React.useState(seed);
-  const [state, setState] = React.useState("");
-  React.useEffect(() => { setCells(seed()); }, [JSON.stringify(initial)]);
+  }
+  return out;
+}
+// "9:00a–12:00p, 2:00p–6:00p" for one weekday's rows, or "Closed".
+function dscDaySummary(cells, wd) {
+  const runs = dscHoursRows(cells).filter((r) => r.weekday === wd);
+  return runs.length ? runs.map((r) => dscClock(r.start_minute) + "–" + dscClock(r.start_minute + r.duration_min)).join(", ") : "Closed";
+}
+// The days a copy goes to, from the editor's "to" choice.
+function dscCopyTargets(to, from) {
+  const days = to === "weekdays" ? [1, 2, 3, 4, 5] : to === "weekend" ? [6, 0] : to === "all" ? [0, 1, 2, 3, 4, 5, 6] : [Number(to)];
+  return days.filter((d) => Number.isInteger(d) && d >= 0 && d <= 6 && d !== from);
+}
 
-  // Persist: collapse contiguous hour cells per weekday into {start,duration}.
-  const persist = async (next) => {
+// The week's hours, as a grid you paint. Drag across cells to open time, or start on an open
+// cell to close it; a drag fills the rectangle between where it started and where it is, so
+// Monday 9:00 to Friday 5:00 opens the working week in one gesture. A cell is also a button:
+// click it, or Enter/Space. Nothing is saved until "Save hours".
+function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved }) {
+  const seed = React.useMemo(() => dscHoursModel(initial), [JSON.stringify(initial)]);
+  const [cells, setCells] = React.useState(() => seed.cells.map((d) => d.slice()));
+  const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const [copyFrom, setCopyFrom] = React.useState(1);
+  const [copyTo, setCopyTo] = React.useState("weekdays");
+  const paintRef = React.useRef(null);
+  React.useEffect(() => () => { if (paintRef.current) paintRef.current.cleanup(); }, []);
+  let first = DSC_EDIT_FROM, last = DSC_EDIT_TO;
+  cells.forEach((d) => d.forEach((on, i) => { if (on) { first = Math.min(first, i); last = Math.max(last, i + 1); } }));
+  const rows = Array.from({ length: last - first }, (_, k) => first + k);
+  const dirty = JSON.stringify(cells) !== JSON.stringify(seed.cells);
+  const openMin = cells.reduce((n, d) => n + d.filter(Boolean).length, 0) * DSC_HALF;
+  const zoneLabel = dscZoneLabel(live, storedZone);
+
+  // The rectangle from the anchor to `to` (display column, row), painted over the cells as
+  // they were when the drag began — so dragging back shrinks it.
+  const paint = (p, to) => {
+    const next = p.base.map((d) => d.slice());
+    const [c0, c1] = [Math.min(p.col, to.col), Math.max(p.col, to.col)];
+    const [r0, r1] = [Math.min(p.row, to.row), Math.max(p.row, to.row)];
+    for (let c = c0; c <= c1; c++) for (let r = r0; r <= r1; r++) next[DSC_AVAIL_DAYS[c][1]][r] = p.value;
     setCells(next);
-    if (!live) { setState("demo"); return; }
-    const slots = [];
-    for (let wd = 0; wd < 7; wd++) {
-      const hrs = DSC_HOURS.filter((h) => next.has(wd + ":" + h)).sort((a, b) => a - b);
-      let i = 0;
-      while (i < hrs.length) {
-        let j = i;
-        while (j + 1 < hrs.length && hrs[j + 1] === hrs[j] + 1) j++;
-        slots.push({ weekday: wd, start_minute: hrs[i] * 60, duration_min: (hrs[j] - hrs[i] + 1) * 60 });
-        i = j + 1;
-      }
-    }
-    setState("saving");
+  };
+  const startPaint = (col, row, e) => {
+    if (e.button != null && e.button > 0) return;
+    e.preventDefault();
+    if (paintRef.current) paintRef.current.cleanup();
+    const p = { col, row, base: cells.map((d) => d.slice()), value: !cells[DSC_AVAIL_DAYS[col][1]][row] };
+    // ⚠ THE CELL UNDER THE POINTER, NOT THE ONE THE EVENT NAMES. A touch keeps sending its
+    // events to the cell it started on, so the target never changes during a drag.
+    const move = (m) => {
+      const el = document.elementFromPoint ? document.elementFromPoint(m.clientX, m.clientY) : null;
+      const cell = el && el.closest ? el.closest("[data-hcell]") : null;
+      if (!cell) return;
+      const [c, r] = cell.getAttribute("data-hcell").split(":").map(Number);
+      paint(p, { col: c, row: r });
+    };
+    const end = () => { p.cleanup(); paintRef.current = null; };
+    p.cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+    paintRef.current = p;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    paint(p, { col, row });
+  };
+  const toggle = (col, row) => {
+    const next = cells.map((d) => d.slice());
+    const wd = DSC_AVAIL_DAYS[col][1];
+    next[wd][row] = !next[wd][row];
+    setCells(next);
+  };
+  const copy = () => {
+    const next = cells.map((d) => d.slice());
+    for (const t of dscCopyTargets(copyTo, copyFrom)) next[t] = cells[copyFrom].slice();
+    setCells(next);
+  };
+  const clearDay = () => {
+    const next = cells.map((d) => d.slice());
+    next[copyFrom] = Array(DSC_CELLS).fill(false);
+    setCells(next);
+  };
+  const save = async () => {
+    const slots = dscHoursRows(cells);
+    if (!live) { onSaved(slots, null); return; }
+    setSaving(true); setErr(null);
     try {
       const res = await fetch("/api/my-availability", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        // ⚠ WITHOUT THIS THE ROUTE REFUSES THE SAVE — deliberately, because hours nobody
-        // can place are hours no member can book, and writing them would report "live on
-        // your profile" over availability that renders nowhere.
+        // ⚠ WITHOUT THE ZONE THE ROUTE REFUSES THE SAVE — deliberately, because hours nobody
+        // can place are hours no member can book.
         body: JSON.stringify({ role, slots, timezone: dscBrowserZone() }),
       });
-      setState(res.ok ? "saved" : "error");
-      // ⚠ ADOPT THE ZONE THE ROUTE ACTUALLY STORED, rather than assuming the one we sent
-      // landed. The label below is a claim about what members are booked in, so it has to
-      // come from the write's own answer — and a coach whose laptop changed zone would
-      // otherwise keep reading the previous one until a reload. Only on success: a failed
-      // save stored nothing, so the old label is still the true one.
-      if (res.ok && onZone) {
-        const j = await res.json().catch(() => null);
-        if (j && typeof j.timezone === "string" && j.timezone) onZone(j.timezone);
-      }
-    } catch (e) { setState("error"); }
+      const j = await res.json().catch(() => null);
+      if (!res.ok) { setErr((j && (j.detail || (typeof j.error === "string" && j.error !== "save_failed" ? j.error : null))) || "Couldn't save your hours — try again."); return; }
+      // ⚠ ADOPT THE ZONE THE ROUTE ACTUALLY STORED, rather than assuming the one we sent landed.
+      onSaved(slots, j && typeof j.timezone === "string" && j.timezone ? j.timezone : null);
+    } catch (e) {
+      setErr("Couldn't save your hours — try again.");
+    } finally {
+      setSaving(false);
+    }
   };
-  const toggle = (wd, h) => {
-    const k = wd + ":" + h;
-    const next = new Set(cells);
-    next.has(k) ? next.delete(k) : next.add(k);
-    persist(next);
-  };
-  const blocks = cells.size;
+  const sel = { ...dscInput, padding: "5px 6px", fontSize: 10.5 };
+  const cols = "40px " + DSC_AVAIL_DAYS.map(() => "minmax(0, 1fr)").join(" ");
+  return (
+    <div data-hours-editor="">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ display: "grid", gap: 3 }}>
+          <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>Edit hours · every week</span>
+          <span style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50 }}>{(window.ShapeScheduleRules ? window.ShapeScheduleRules.hoursLabel(openMin) : String(openMin / 60)) + " open hrs/wk" + (zoneLabel ? " · " + zoneLabel : "")}</span>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button type="button" onClick={onCancel} style={dscBtn()}>Cancel</button>
+          <button type="button" data-save-hours="" onClick={save} disabled={saving || !dirty} style={{ ...dscBtn("on"), opacity: saving || !dirty ? 0.5 : 1 }}>{saving ? "Saving…" : "Save hours"}</button>
+        </div>
+      </div>
+      <div role="group" aria-label="Copy a day" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 8, fontSize: 12 }}>
+        <span style={{ color: DSC_INK50 }}>Copy</span>
+        <select aria-label="Copy from" value={copyFrom} onChange={(e) => setCopyFrom(Number(e.target.value))} style={sel}>
+          {DSC_AVAIL_DAYS.map(([lbl, wd]) => <option key={wd} value={wd}>{lbl}</option>)}
+        </select>
+        <span style={{ color: DSC_INK50 }}>to</span>
+        <select aria-label="Copy to" value={copyTo} onChange={(e) => setCopyTo(e.target.value)} style={sel}>
+          <option value="weekdays">Weekdays</option>
+          <option value="weekend">Weekend</option>
+          <option value="all">Every day</option>
+          {DSC_AVAIL_DAYS.filter(([, wd]) => wd !== copyFrom).map(([lbl, wd]) => <option key={wd} value={String(wd)}>{lbl}</option>)}
+        </select>
+        <button type="button" data-copy-day="" onClick={copy} style={{ ...dscBtn(), padding: "6px 10px" }}>Copy</button>
+        <button type="button" data-clear-day="" onClick={clearDay} style={{ ...dscBtn(), padding: "6px 10px" }}>Clear {DSC_AVAIL_DAYS.find(([, wd]) => wd === copyFrom)[0]}</button>
+      </div>
+      <div style={{ fontSize: 11.5, color: DSC_INK50, lineHeight: 1.5, marginBottom: 8 }}>
+        Drag across the grid to open time; start on an open half hour to close it. These hours repeat every week, and they're what members can book.
+      </div>
+      {seed.offGrid && <div style={{ fontSize: 11.5, color: DSC_GOLD, marginBottom: 8 }}>Some of your saved hours don't start or end on the half hour. Saving rounds them to the half hours shown.</div>}
+      {err && <div role="alert" style={{ fontSize: 12, color: DSC_RUST, marginBottom: 8 }}>{err}</div>}
+      <div style={{ border: "1px solid " + DSC_HAIR, borderRadius: 8, overflow: "hidden", touchAction: "none", userSelect: "none" }}>
+        <div style={{ display: "grid", gridTemplateColumns: cols, borderBottom: "1px solid " + DSC_HAIR }}>
+          <span />
+          {DSC_AVAIL_DAYS.map(([lbl]) => <span key={lbl} style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_INK50, textAlign: "center", padding: "6px 0", borderLeft: "1px solid " + DSC_HAIR }}>{lbl}</span>)}
+        </div>
+        <div role="grid" aria-label="Weekly open hours" style={{ display: "grid", gridTemplateColumns: cols }}>
+          {rows.map((r) => (
+            <React.Fragment key={r}>
+              <span aria-hidden style={{ fontFamily: DSC_MONO, fontSize: 8, color: DSC_INK50, textAlign: "right", paddingRight: 6, height: DSC_EDIT_PX, lineHeight: DSC_EDIT_PX + "px", transform: "translateY(-50%)" }}>{r % 2 === 0 ? dscHourLabel(r / 2) : ""}</span>
+              {DSC_AVAIL_DAYS.map(([lbl, wd], c) => {
+                const on = cells[wd][r];
+                return (
+                  <button key={wd} type="button" data-hcell={c + ":" + r} aria-pressed={on} aria-label={lbl + " " + dscClock(r * DSC_HALF)}
+                    onPointerDown={(e) => startPaint(c, r, e)}
+                    // A pointer's click was the paint itself; only a keyboard's click (detail 0) toggles.
+                    onClick={(e) => { if (e.detail === 0) toggle(c, r); }}
+                    style={{ height: DSC_EDIT_PX, padding: 0, border: 0, borderLeft: "1px solid " + DSC_HAIR, borderTop: r % 2 === 0 ? "1px solid " + DSC_HAIR : "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.04)", background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.38)" : "transparent", cursor: "pointer" }} />
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The rail's summary of the week's hours, and the way into editing them.
+function DscHoursPlate({ slots, live, storedZone, editing, onEdit }) {
+  const { cells } = dscHoursModel(slots);
+  const openMin = cells.reduce((n, d) => n + d.filter(Boolean).length, 0) * DSC_HALF;
+  const zoneLabel = dscZoneLabel(live, storedZone);
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <span className="dash-eyebrow" style={{ color: "var(--sh-gold, #d8a23a)" }}>
-          Availability · feeds your marketplace profile{dscZoneLabel(live, storedZone) ? " · " + dscZoneLabel(live, storedZone) : ""}
-        </span>
-        <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, color: state === "saved" ? "var(--sh-green, #7bbf5a)" : state === "error" ? "var(--sh-rust, #e0644b)" : DSC_INK50 }}>
-          {state === "saving" ? "Saving…" : state === "saved" ? "Saved · live on your profile" : state === "error" ? "Couldn't save" : state === "demo" ? "Demo · saves once signed in" : blocks + " open hours/wk"}
-        </span>
-      </div>
-      <div style={{ fontSize: 11.5, color: DSC_INK50, lineHeight: 1.5, margin: "8px 0 10px", maxWidth: 560 }}>
-        Tap the hours you take clients. This is exactly what shows on your marketplace profile — members book into these blocks.
-      </div>
-      {/* ⚠ HOURS RUN DOWN, DAYS RUN ACROSS — and the transpose is the fix, not a
-          restyle. This plate lives in the Schedule page's 300px rail, and the
-          old layout put 15 hour COLUMNS in it behind `minWidth: 520` with the
-          scrollbar hidden on purpose: 1p–8p were off-screen with no affordance
-          saying so, and the cells that were visible sat ~15px wide, under any
-          usable tap target (review 2026-09-09, V2). Seven day columns fit the
-          rail with ~35px cells and nothing hidden — and hours-down is the shape
-          every calendar uses, so it reads as a week rather than a heatmap. */}
-      <div style={{ display: "grid", gridTemplateColumns: "34px repeat(" + DSC_AVAIL_DAYS.length + ", 1fr)", gap: 3 }}>
-        <span />
-        {DSC_AVAIL_DAYS.map(([lbl]) => <span key={lbl} style={{ fontFamily: DSC_MONO, fontSize: 8, color: DSC_INK50, textAlign: "center" }}>{lbl}</span>)}
-        {DSC_HOURS.map((h) => {
-          const hLbl = (h % 12 === 0 ? 12 : h % 12) + (h >= 12 ? "p" : "a");
+      <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>Open hours · your marketplace profile</span>
+      <div style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50, marginTop: 4 }}>{(window.ShapeScheduleRules ? window.ShapeScheduleRules.hoursLabel(openMin) : String(openMin / 60)) + " open hrs/wk" + (zoneLabel ? " · " + zoneLabel : "")}</div>
+      <div data-hours-summary="" style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: "4px 8px", margin: "10px 0 12px", fontSize: 11.5 }}>
+        {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
+          const text = dscDaySummary(cells, wd);
           return (
-            <React.Fragment key={h}>
-              <span style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50, alignSelf: "center", textAlign: "right", paddingRight: 2 }}>{hLbl}</span>
-              {DSC_AVAIL_DAYS.map(([lbl, wd]) => {
-                const on = cells.has(wd + ":" + h);
-                return <button key={wd} onClick={() => toggle(wd, h)} aria-label={lbl + " " + hLbl} aria-pressed={on} style={{ height: 22, borderRadius: 3, border: "1px solid " + (on ? "rgba(var(--sh-gold-rgb, 216,162,58),0.5)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)"), background: on ? "var(--sh-gold, #d8a23a)" : "transparent", cursor: "pointer", padding: 0 }} />;
-              })}
+            <React.Fragment key={wd}>
+              <span style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50, paddingTop: 1 }}>{lbl}</span>
+              <span style={{ color: text === "Closed" ? DSC_INK50 : "var(--sh-ink, #f2ede4)" }}>{text}</span>
             </React.Fragment>
           );
         })}
       </div>
+      <button type="button" data-edit-hours="" onClick={onEdit} disabled={editing} style={{ ...dscBtn(editing ? "" : "on"), opacity: editing ? 0.6 : 1 }}>{editing ? "Editing on the grid" : "Edit hours"}</button>
+    </div>
+  );
+}
+
+// ── Time off ────────────────────────────────────────────────────────────────
+// A vacation or an afternoon: booking is closed for it (bookingRules.checkSlot refuses it, and
+// the member pages stop offering it), and it is hatched on the grid. It does NOT cancel a booking
+// already inside it — the route counts those, and moving them stays the coach's call.
+const dscDateFmt = (ms, zone) => new Date(ms).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", ...(zone ? { timeZone: zone } : {}) });
+// "Mon, Oct 12 – Fri, Oct 16" for whole days, "Tue, Oct 13 · 1:00p–6:00p" for part of one.
+function dscOffLabel(b, zone) {
+  const s = Date.parse(b.startsAt), e = Date.parse(b.endsAt);
+  const ws = zone ? dscWallAt(s, zone) : null, we = zone ? dscWallAt(e, zone) : null;
+  if (ws && we && ws.min === 0 && we.min === 0) {
+    const last = e - DSC_DAY / 2;   // the last whole day is the one before the end's midnight
+    const a = dscDateFmt(s, zone), z = dscDateFmt(last, zone);
+    return a === z ? a : a + " – " + z;
+  }
+  if (ws && we && ws.date === we.date) return dscDateFmt(s, zone) + " · " + dscClock(ws.min) + "–" + dscClock(we.min);
+  if (ws && we) return dscDateFmt(s, zone) + " " + dscClock(ws.min) + " – " + dscDateFmt(e, zone) + " " + dscClock(we.min);
+  return new Date(s).toLocaleString() + " – " + new Date(e).toLocaleString();
+}
+function DscTimeOffPlate({ list, zone, adding, onAdd, onRemove, busyId, error }) {
+  const todayIso = dscTodayIn(zone);
+  const [open, setOpen] = React.useState(false);
+  const [allDay, setAllDay] = React.useState(true);
+  const [from, setFrom] = React.useState(todayIso);
+  const [to, setTo] = React.useState(todayIso);
+  const [fromMin, setFromMin] = React.useState(12 * 60);
+  const [toMin, setToMin] = React.useState(17 * 60);
+  const [note, setNote] = React.useState("");
+  const submit = async (e) => {
+    e.preventDefault();
+    const ok = await onAdd({ allDay, from, to: to < from ? from : to, fromMin, toMin, note: note.trim() });
+    if (ok) { setOpen(false); setNote(""); }
+  };
+  const upcoming = (list || []).filter((b) => Date.parse(b.endsAt) > Date.now());
+  return (
+    <div>
+      <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>Time off · booking closes</span>
+      <div data-time-off-list="" style={{ display: "grid", gap: 6, margin: "10px 0" }}>
+        {upcoming.length === 0 && <div style={{ fontSize: 11.5, color: DSC_INK50 }}>None coming up.</div>}
+        {upcoming.map((b) => (
+          <div key={b.id} data-time-off-item={b.id} style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 12 }}>
+            <span style={{ flex: 1, minWidth: 0 }}>{dscOffLabel(b, zone)}{b.note ? <span style={{ color: DSC_INK50 }}>{" · " + b.note}</span> : null}</span>
+            <button type="button" aria-label={"Remove time off " + dscOffLabel(b, zone)} disabled={busyId === b.id} onClick={() => onRemove(b)} style={{ ...dscBtn(), padding: "3px 8px" }}>×</button>
+          </div>
+        ))}
+      </div>
+      {error && <div role="alert" style={{ fontSize: 11.5, color: DSC_RUST, marginBottom: 8 }}>{error}</div>}
+      {!open
+        ? <button type="button" data-add-time-off="" onClick={() => setOpen(true)} style={dscBtn()}>＋ Add time off</button>
+        : (
+          <form data-time-off-form="" onSubmit={submit} style={{ display: "grid", gap: 8, fontSize: 12 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} /> Whole days
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "38px 1fr", gap: 6, alignItems: "center" }}>
+              <span style={{ color: DSC_INK50 }}>From</span>
+              <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input type="date" aria-label="From date" value={from} min={todayIso} onChange={(e) => setFrom(e.target.value)} style={dscInput} />
+                {!allDay && <DscTimeSelect label="From time" value={fromMin} onChange={setFromMin} />}
+              </span>
+              <span style={{ color: DSC_INK50 }}>To</span>
+              <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input type="date" aria-label="To date" value={to < from ? from : to} min={from} onChange={(e) => setTo(e.target.value)} style={dscInput} />
+                {!allDay && <DscTimeSelect label="To time" value={toMin} onChange={setToMin} />}
+              </span>
+            </div>
+            <input type="text" aria-label="Note (only you see it)" placeholder="Note (only you see it)" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} style={dscInput} />
+            <div style={{ display: "flex", gap: 6 }}>
+              <button type="submit" disabled={adding} style={{ ...dscBtn("on"), opacity: adding ? 0.5 : 1 }}>{adding ? "Adding…" : "Add time off"}</button>
+              <button type="button" onClick={() => setOpen(false)} style={dscBtn()}>Cancel</button>
+            </div>
+          </form>
+        )}
+    </div>
+  );
+}
+
+// ── Booking rules ───────────────────────────────────────────────────────────
+// What members may book: a buffer between sessions, a daily limit and a minimum notice. The
+// routes refuse a member's booking that breaks one (bookingRules.checkSlot), and the member pages
+// do not offer it. The coach's own bookings and moves are not held to them.
+const DSC_BUFFERS = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120];
+const DSC_LIMITS = [null, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 20, 24];
+const DSC_NOTICE = [0, 1, 2, 4, 6, 12, 24, 48, 72, 168, 336];
+const dscNoticeText = (h) => (h === 0 ? "None" : h % 168 === 0 ? (h / 168) + (h === 168 ? " week" : " weeks") : h % 24 === 0 ? (h / 24) + (h === 24 ? " day" : " days") : h + (h === 1 ? " hour" : " hours"));
+function DscRulesPlate({ role, live, onToast }) {
+  const [saved, setSaved] = React.useState({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0 });
+  const [draft, setDraft] = React.useState(saved);
+  const [state, setState] = React.useState(live ? "loading" : "ready");   // loading | ready | notready | error | saving
+  const [err, setErr] = React.useState(null);
+  React.useEffect(() => {
+    if (!live) return undefined;
+    let on = true;
+    fetch("/api/my-booking-rules?role=" + role, { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((j) => {
+        if (!on) return;
+        if (!j || !j.rules) { setState("error"); return; }
+        setSaved(j.rules); setDraft(j.rules); setState(j.ready === false ? "notready" : "ready");
+      });
+    return () => { on = false; };
+  }, [role, live]);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const save = async () => {
+    if (!live) { setSaved(draft); onToast("Demo · these rules would apply once you're signed in."); return; }
+    setState("saving"); setErr(null);
+    try {
+      const res = await fetch("/api/my-booking-rules", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, ...draft }) });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || !j || !j.rules) { setErr((j && j.detail) || "Couldn't save your rules — try again."); setState("ready"); return; }
+      setSaved(j.rules); setDraft(j.rules); setState("ready");
+      onToast("Booking rules saved · members see them now");
+    } catch (e) {
+      setErr("Couldn't save your rules — try again."); setState("ready");
+    }
+  };
+  const opts = (list, cur) => (list.includes(cur) ? list : [...list, cur].sort((a, b) => (a == null ? -1 : b == null ? 1 : a - b)));
+  const sel = { ...dscInput, padding: "5px 6px", fontSize: 10.5 };
+  const off = state === "loading" || state === "notready" || state === "error" || state === "saving";
+  const row = (label, el) => (
+    <label style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 8, fontSize: 12 }}>
+      <span>{label}</span>{el}
+    </label>
+  );
+  return (
+    <div data-rules-plate="">
+      <span className="dash-eyebrow">Booking rules · for members</span>
+      <div style={{ display: "grid", gap: 8, margin: "10px 0" }}>
+        {row("Buffer between sessions", (
+          <select aria-label="Buffer between sessions" disabled={off} value={String(draft.bufferMin)} onChange={(e) => setDraft({ ...draft, bufferMin: Number(e.target.value) })} style={sel}>
+            {opts(DSC_BUFFERS, draft.bufferMin).map((m) => <option key={m} value={String(m)}>{m === 0 ? "None" : m + " min"}</option>)}
+          </select>
+        ))}
+        {row("Most sessions a day", (
+          <select aria-label="Most sessions a day" disabled={off} value={draft.maxPerDay == null ? "" : String(draft.maxPerDay)} onChange={(e) => setDraft({ ...draft, maxPerDay: e.target.value === "" ? null : Number(e.target.value) })} style={sel}>
+            {opts(DSC_LIMITS, draft.maxPerDay).map((n) => <option key={String(n)} value={n == null ? "" : String(n)}>{n == null ? "No limit" : String(n)}</option>)}
+          </select>
+        ))}
+        {row("Notice before a booking", (
+          <select aria-label="Notice before a booking" disabled={off} value={String(draft.minNoticeHours)} onChange={(e) => setDraft({ ...draft, minNoticeHours: Number(e.target.value) })} style={sel}>
+            {opts(DSC_NOTICE, draft.minNoticeHours).map((h) => <option key={h} value={String(h)}>{dscNoticeText(h)}</option>)}
+          </select>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, color: DSC_INK50, lineHeight: 1.5, marginBottom: 10 }}>
+        {state === "notready" ? "Booking rules will be ready after the next update."
+          : state === "error" ? "Your rules couldn't load. Reload to try again."
+          : "Members can't book inside your buffer, past your daily limit or sooner than your notice. You can still book and move clients yourself."}
+      </div>
+      {err && <div role="alert" style={{ fontSize: 11.5, color: DSC_RUST, marginBottom: 8 }}>{err}</div>}
+      <button type="button" data-save-rules="" onClick={save} disabled={off || !dirty} style={{ ...dscBtn("on"), opacity: off || !dirty ? 0.5 : 1 }}>{state === "saving" ? "Saving…" : "Save rules"}</button>
     </div>
   );
 }
@@ -358,7 +646,7 @@ function DscChip({ ev, onClick, onDragStart, compact, colorOf, drag = true }) {
 // ── Month grid ──────────────────────────────────────────────────────────────
 // Day-only moves, by HTML5 drag: a month cell has no clock to drop onto. The week and day
 // grids below are where a booking moves to a new TIME.
-function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf, todayIso = dscIso(new Date()) }) {
+function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf, offDates, todayIso = dscIso(new Date()) }) {
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const start = dscMonday(first);
   const cells = [];
@@ -380,6 +668,7 @@ function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf
               onDrop={(e) => { e.preventDefault(); onDrop(iso); }}
               style={{ minHeight: 92, borderRadius: 6, border: "1px solid " + (isToday ? "rgba(var(--sh-accent-rgb, 46,224,196),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"), background: inMonth ? "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" : "transparent", opacity: inMonth ? 1 : 0.4, padding: 5, overflow: "hidden" }}>
               <div style={{ fontFamily: DSC_MONO, fontSize: 9, color: isToday ? DSC_TEAL : DSC_INK50, marginBottom: 3 }}>{d.getDate()}</div>
+              {offDates && offDates.has(iso) && <div data-time-off-day="" style={{ fontFamily: DSC_MONO, fontSize: 7.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_INK50, padding: "1px 4px", marginBottom: 3, borderRadius: 3, background: "repeating-linear-gradient(135deg, rgba(var(--sh-ink-rgb, 242,237,228),0.1) 0 5px, transparent 5px 10px)" }}>Time off</div>}
               {evs.slice(0, 4).map((ev) => <DscChip key={ev.id} ev={ev} compact colorOf={colorOf} onClick={onPickEvent} onDragStart={onDrag} />)}
               {evs.length > 4 && <div style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50 }}>+{evs.length - 4} more</div>}
             </div>
@@ -436,6 +725,41 @@ function dscNowIn(zone) {
 }
 // The rules module (scheduleRules.mjs), or null when the host page did not load it.
 function dscRules() { return typeof window !== "undefined" && window.ShapeScheduleRules && typeof window.ShapeScheduleRules.clashIn === "function" ? window.ShapeScheduleRules : null; }
+// The booking-rules module (bookingRules.mjs, window.ShapeBookingRules), for its zone arithmetic.
+// Null when the host page did not load it: time off is then listed in the rail but not drawn on
+// the grid, rather than drawn on a guessed clock.
+function dscBookingRules() { return typeof window !== "undefined" && window.ShapeBookingRules && typeof window.ShapeBookingRules.wallInstant === "function" ? window.ShapeBookingRules : null; }
+// The wall clock a zone shows at instant `ms`: { date, min }, or null.
+function dscWallAt(ms, zone) {
+  try {
+    const p = {};
+    for (const x of new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(ms))) p[x.type] = x.value;
+    const h = Number(p.hour) % 24;
+    return p.year && Number.isFinite(h) ? { date: p.year + "-" + p.month + "-" + p.day, min: h * 60 + Number(p.minute) } : null;
+  } catch (e) { return null; }
+}
+// The part of each time-off block that falls on `iso`, a date in `zone`, as minutes since that
+// day's midnight: [{ start, end, id }]. A block that runs past midnight ends at 1440 on its first
+// day and starts at 0 on the next. ⚠ THE DAY'S EDGES ARE INSTANTS FROM THE ZONE, NOT 24 HOURS
+// APART: a DST day is 23 or 25 hours long, so midnight-to-midnight is asked of the zone.
+function dscOffOn(list, iso, zone, BR) {
+  if (!BR || !zone || !Array.isArray(list) || !list.length) return [];
+  const d = dscRouteDate(iso);
+  if (!d) return [];
+  const n = dscAddDays(d, 1);
+  const dayStart = BR.wallInstant(d.getFullYear(), d.getMonth() + 1, d.getDate(), 0, zone);
+  const dayEnd = BR.wallInstant(n.getFullYear(), n.getMonth() + 1, n.getDate(), 0, zone);
+  if (!Number.isFinite(dayStart) || !Number.isFinite(dayEnd)) return [];
+  const out = [];
+  for (const b of list) {
+    const s = Date.parse(b.startsAt), e = Date.parse(b.endsAt);
+    if (!(e > dayStart && s < dayEnd)) continue;
+    const a = s <= dayStart ? 0 : (dscWallAt(s, zone) || {}).min;
+    const z = e >= dayEnd ? 1440 : (dscWallAt(e, zone) || {}).min;
+    if (Number.isFinite(a) && Number.isFinite(z) && z > a) out.push({ start: a, end: z, id: b.id });
+  }
+  return out;
+}
 // Under 760px seven columns are too narrow to read, so the week becomes the day view.
 function useDscNarrow() {
   const q = "(max-width: 759px)";
@@ -467,7 +791,7 @@ function dscWhere(ev) {
 // on the block keeps a finger's drag from scrolling the page instead. The verdict (clash,
 // outside open hours, in the past) is asked for on every move, so the drop target is red
 // BEFORE the coach lets go, not a "couldn't move it" after.
-function DscTimeGrid({ days, byDate, blocks, colorOf, todayIso, nowMin, startHour, endHour, slot, onSlot, onBookSlot, onPick, onMove, verdictFor, onDayHead, rules }) {
+function DscTimeGrid({ days, byDate, blocks, offsFor, colorOf, todayIso, nowMin, startHour, endHour, slot, onSlot, onBookSlot, onPick, onMove, verdictFor, onDayHead, rules }) {
   const colsRef = React.useRef(null);
   const dragRef = React.useRef(null);
   const suppressRef = React.useRef(false);
@@ -527,9 +851,10 @@ function DscTimeGrid({ days, byDate, blocks, colorOf, todayIso, nowMin, startHou
 
   const dragMsg = drag ? (drag.verdict.past ? "That time has passed"
     : drag.verdict.clash ? "Overlaps " + drag.verdict.clash.label + " — it won't move there"
+    : drag.verdict.away ? "During your time off — you'll be asked first"
     : drag.verdict.outside ? "Outside your open hours — you'll be asked first"
     : "Drop to move to " + dscDayLabel(drag.date) + " · " + dscClock(drag.minute)) : "";
-  const dragColor = drag ? (drag.verdict.past || drag.verdict.clash ? DSC_RUST : drag.verdict.outside ? DSC_GOLD : DSC_TEAL) : DSC_TEAL;
+  const dragColor = drag ? (drag.verdict.past || drag.verdict.clash ? DSC_RUST : drag.verdict.outside || drag.verdict.away ? DSC_GOLD : DSC_TEAL) : DSC_TEAL;
   // ⚠ SPELLED OUT, NOT `repeat(7, …)`: pageShell's ≤900px stylesheet collapses any inline
   // `grid-template-columns: repeat(7…` to a single column, which would stack a tablet's week
   // grid into one tall column of seven.
@@ -596,6 +921,15 @@ function DscTimeGrid({ days, byDate, blocks, colorOf, todayIso, nowMin, startHou
                   {blocks && (blocks[wd] || []).map((b, k) => {
                     const s = Math.max(b.start, startHour * 60), en = Math.min(b.end, 1440, endHour * 60);
                     return en > s ? <div key={k} aria-hidden data-open-band="" style={{ position: "absolute", left: 0, right: 0, top: yOf(s), height: yOf(en) - yOf(s), background: "rgba(var(--sh-accent-rgb, 46,224,196),0.07)", borderLeft: "2px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)", pointerEvents: "none" }} /> : null;
+                  })}
+                  {/* Time off, hatched over the hours; a click still reaches the column (booking asks first). */}
+                  {offsFor && offsFor(iso).map((o, k) => {
+                    const s = Math.max(o.start, startHour * 60), en = Math.min(o.end, endHour * 60);
+                    return en > s ? (
+                      <div key={"off" + k} data-time-off="" style={{ position: "absolute", left: 0, right: 0, top: yOf(s), height: yOf(en) - yOf(s), zIndex: 1, pointerEvents: "none", background: "repeating-linear-gradient(135deg, rgba(var(--sh-ink-rgb, 242,237,228),0.08) 0 6px, transparent 6px 12px)", borderTop: "1px solid " + DSC_HAIR, borderBottom: "1px solid " + DSC_HAIR }}>
+                        <span style={{ display: "block", padding: "3px 6px", fontFamily: DSC_MONO, fontSize: 8, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_INK50 }}>Time off</span>
+                      </div>
+                    ) : null;
                   })}
                   {timed.map(({ e, s }) => {
                     const color = (colorOf || dscClientColor)(e.clientId || e.with || e.title);
@@ -726,7 +1060,7 @@ function DscTimeSelect({ value, onChange, label }) {
 const dscInput = { background: "transparent", color: "inherit", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", borderRadius: 4, padding: "6px 8px", fontFamily: DSC_MONO, fontSize: 11, colorScheme: "dark light" };
 function DscVerdict({ v }) {
   if (!v) return null;
-  const text = v.past ? "That time has passed." : v.clash ? "Overlaps " + v.clash.label + "." : v.outside ? "Outside your open hours." : null;
+  const text = v.past ? "That time has passed." : v.clash ? "Overlaps " + v.clash.label + "." : v.away ? "During your time off." : v.outside ? "Outside your open hours." : null;
   if (!text) return null;
   return <div role="alert" style={{ fontFamily: DSC_MONO, fontSize: 9.5, letterSpacing: "0.04em", color: v.past || v.clash ? DSC_RUST : DSC_GOLD, marginTop: 8 }}>{text}</div>;
 }
@@ -923,7 +1257,7 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose }) {
       {err && <div role="alert" style={{ fontSize: 12.5, color: DSC_RUST, marginTop: 8 }}>{err}</div>}
       <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
         <button type="button" disabled={blocked} onClick={submit} style={{ ...dscBtn("on"), opacity: blocked ? 0.45 : 1 }}>
-          {busy ? "Booking…" : (v.outside ? "Book outside hours" : "Book") + (row ? " · " + row.client.profile.name.split(" ")[0] + " is told" : "")}
+          {busy ? "Booking…" : (v.away ? "Book in time off" : v.outside ? "Book outside hours" : "Book") + (row ? " · " + row.client.profile.name.split(" ")[0] + " is told" : "")}
         </button>
         <button type="button" onClick={onClose} style={dscBtn()}>Cancel</button>
       </div>
@@ -933,11 +1267,13 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose }) {
 
 // "Outside your open hours" — the one verdict a coach may overrule, so it asks.
 function DscConfirmMove({ move, onYes, onNo }) {
+  const away = move.why === "away";
+  const title = away ? "During your time off" : "Outside your open hours";
   return (
-    <DscModal label="Outside your open hours" accent={DSC_GOLD} onClose={onNo} width={380}>
-      <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: DSC_GOLD }}>Outside your open hours</div>
+    <DscModal label={title} accent={DSC_GOLD} onClose={onNo} width={380}>
+      <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: DSC_GOLD }}>{title}</div>
       <div style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 8 }}>
-        {dscDayLabel(move.date)} · {dscClock(dscMin(move.time))} isn't in the hours you've opened. Move {move.ev.with || move.ev.title} there anyway?
+        {dscDayLabel(move.date)} · {dscClock(dscMin(move.time))} {away ? "is in your time off" : "isn't in the hours you've opened"}. Move {move.ev.with || move.ev.title} there anyway?
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
         <button type="button" onClick={onYes} style={dscBtn("on")}>Move anyway</button>
@@ -1090,6 +1426,13 @@ function CoachSchedulePage({ role }) {
   // The zone the coach's stored hours are expressed in (null until first saved).
   const [availZone, setAvailZone] = React.useState(null);
   const isLive = !!live;
+  // Editing the week's hours on the grid (Schedule step 3).
+  const [editingHours, setEditingHours] = React.useState(false);
+  // Time off: the coach's blocks, { id, startsAt, endsAt, note }. The demo shows one example.
+  const [timeOff, setTimeOff] = React.useState([]);
+  const [offBusy, setOffBusy] = React.useState(null);
+  const [offAdding, setOffAdding] = React.useState(false);
+  const [offErr, setOffErr] = React.useState(null);
   // A tick a minute, so the now line and "that time has passed" keep up with the clock.
   const [, setTick] = React.useState(0);
   React.useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 60000); return () => clearInterval(t); }, []);
@@ -1105,6 +1448,18 @@ function CoachSchedulePage({ role }) {
       });
     return () => { on = false; };
   }, [role]);
+  React.useEffect(() => {
+    if (!isLive) { setTimeOff(DSC_DEMO.timeOff); return undefined; }
+    let on = true;
+    fetch("/api/my-time-off?role=" + role, { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((j) => {
+        if (!on) return;
+        if (j && Array.isArray(j.timeOff)) setTimeOff(j.timeOff);
+        else setOffErr("Your time off couldn't load. Reload to try again.");
+      });
+    return () => { on = false; };
+  }, [role, isLive]);
 
   // ── The calendar, a month at a time (see dscVisibleRange) ──
   // In-flight and failed months live in refs, not state: they gate requests and must not
@@ -1156,6 +1511,11 @@ function CoachSchedulePage({ role }) {
   const shadeOk = !isLive || (!!availZone && (!calZone || calZone === availZone));
   const blocks = R && shadeOk ? R.openBlocks(availSlots) : null;
   const hasHours = !!blocks && blocks.some((d) => d.length > 0);
+  // Time off on the grid's own clock: the zone /api/calendar answered in, or (in the demo, whose
+  // example dates are this browser's) this browser's. Before a live answer it is not drawn.
+  const BR = dscBookingRules();
+  const offZone = liveEvents ? calZone : dscBrowserZone();
+  const offsFor = (iso) => dscOffOn(timeOff, iso, offZone, BR);
   // Only the coach's own bookings (sessions/consults) + manual events belong
   // on the planning calendar — the client-facing pushed workouts/meals are a
   // client surface, shown read-only if present.
@@ -1201,7 +1561,7 @@ function CoachSchedulePage({ role }) {
   // ⚠ ONLY A SESSION IS JUDGED. A manual calendar note is the coach's own and moves freely
   // (requestMove does not ask), so a red target over one would be a refusal that never happens.
   const verdictFor = (ev, date, start, dur) => {
-    if (ev && ev.source !== "session") return { past: false, clash: null, outside: false };
+    if (ev && ev.source !== "session") return { past: false, clash: null, outside: false, away: false };
     const items = (sessionsByDate.get(date) || []).map((e) => ({ id: e.id, start: dscMin(e.time), end: dscMin(e.time) + dscDur(e), status: e.status, e }));
     const hit = R ? R.clashIn(items, start, start + dur, ev ? ev.id : null) : null;
     return {
@@ -1209,6 +1569,8 @@ function CoachSchedulePage({ role }) {
       clash: hit ? { label: (hit.e.with || hit.e.title) + " at " + dscClock(hit.start) } : null,
       // Only a coach who has opened hours is asked: with none set, every time is "outside".
       outside: !!(R && hasHours && !R.fitsOpenHours(availSlots, dscWeekday(date), start, dur)),
+      // Time off closes booking for members; the coach may book or move into it, after asking.
+      away: offsFor(date).some((o) => o.start < start + dur && o.end > start),
     };
   };
 
@@ -1271,7 +1633,7 @@ function CoachSchedulePage({ role }) {
       const v = verdictFor(ev, dateIso, start, dscDur(ev));
       if (v.past) { showToast("That time has passed — " + (ev.with || ev.title) + " wasn't moved."); return; }
       if (v.clash) { showToast("Not moved — that overlaps " + v.clash.label + "."); return; }
-      if (v.outside) { setConfirmMove({ ev, date: dateIso, time }); return; }
+      if (v.outside || v.away) { setConfirmMove({ ev, date: dateIso, time, why: v.away ? "away" : "outside" }); return; }
     }
     moveBooking(ev, dateIso, time);
   };
@@ -1361,6 +1723,71 @@ function CoachSchedulePage({ role }) {
     setBookOpen(true);
   };
 
+  // ── Hours, time off ──
+  const hoursSaved = (slots, zone) => {
+    setAvail(slots);
+    if (zone) setAvailZone(zone);
+    setEditingHours(false);
+    showToast(isLive ? "Hours saved · members can book them now" : "Demo · these hours would be saved once you're signed in.");
+  };
+  // ⚠ WHOLE DAYS ARE SENT AS DATES, AND THE ROUTE READS THEM IN THE COACH'S STORED ZONE; part of a
+  // day is sent as two instants, made here from the wall clock in that same zone. The grid's zone
+  // is that zone whenever hours are saved, so what the coach picks is what gets closed.
+  const addTimeOff = async ({ allDay, from, to, fromMin, toMin, note }) => {
+    setOffErr(null);
+    const zone = isLive ? (availZone || calZone) : dscBrowserZone();
+    const ymd = (iso) => iso.split("-").map(Number);
+    let span = null;
+    if (BR && zone) {
+      const [y1, m1, d1] = ymd(from);
+      const toDay = allDay ? dscAddDays(dscRouteDate(to), 1) : dscRouteDate(to);
+      const s0 = BR.wallInstant(y1, m1, d1, allDay ? 0 : fromMin, zone);
+      const e0 = toDay ? BR.wallInstant(toDay.getFullYear(), toDay.getMonth() + 1, toDay.getDate(), allDay ? 0 : toMin, zone) : NaN;
+      if (Number.isFinite(s0) && Number.isFinite(e0)) span = { s: s0, e: e0 };
+    }
+    if (!allDay && !span) { setOffErr("Save your hours once first, so your time zone is set."); return false; }
+    if (span && !(span.e > span.s)) { setOffErr("Time off has to end after it starts."); return false; }
+    if (!isLive) {
+      if (!span) return false;
+      setTimeOff((l) => [...l, { id: "demo-off-" + span.s, startsAt: new Date(span.s).toISOString(), endsAt: new Date(span.e).toISOString(), note: note || null }]);
+      showToast("Demo · this time off would close booking once you're signed in.");
+      return true;
+    }
+    const body = allDay
+      ? { role, allDay: true, fromDate: from, toDate: to, ...(note ? { note } : {}) }
+      : { role, startsAt: new Date(span.s).toISOString(), endsAt: new Date(span.e).toISOString(), ...(note ? { note } : {}) };
+    setOffAdding(true);
+    try {
+      const res = await fetch("/api/my-time-off", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || !j || !j.timeOff) { setOffErr((j && j.detail) || "Couldn't add your time off — try again."); return false; }
+      setTimeOff((l) => [...l, j.timeOff].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt)));
+      const n = j.overlapping;
+      showToast("Time off added" + (n > 0 ? " · " + n + (n === 1 ? " booking is" : " bookings are") + " still inside it — move or cancel " + (n === 1 ? "it" : "them") : ""));
+      return true;
+    } catch (e) {
+      setOffErr("Couldn't add your time off — try again.");
+      return false;
+    } finally {
+      setOffAdding(false);
+    }
+  };
+  const removeTimeOff = async (b) => {
+    setOffErr(null);
+    if (!isLive) { setTimeOff((l) => l.filter((x) => x.id !== b.id)); return; }
+    setOffBusy(b.id);
+    try {
+      const res = await fetch("/api/my-time-off?role=" + role + "&id=" + encodeURIComponent(b.id), { method: "DELETE", credentials: "same-origin" });
+      if (!res.ok) throw new Error("");
+      setTimeOff((l) => l.filter((x) => x.id !== b.id));
+      showToast("Time off removed · members can book that time again");
+    } catch (e) {
+      setOffErr("Couldn't remove it — try again.");
+    } finally {
+      setOffBusy(null);
+    }
+  };
+
   // ── What is on screen ──
   const weekMon = dscMonday(cursor);
   const weekDays = Array.from({ length: 7 }, (_, i) => dscAddDays(weekMon, i));
@@ -1415,7 +1842,7 @@ function CoachSchedulePage({ role }) {
   const pctBooked = weekLoad.openMin ? Math.min(100, Math.round((weekLoad.bookedMin / weekLoad.openMin) * 100)) : 0;
 
   const grid = (
-    <DscTimeGrid rules={R} days={gridDays} byDate={byDate} blocks={blocks} colorOf={colorOf} todayIso={todayIso} nowMin={nowMin}
+    <DscTimeGrid rules={R} days={gridDays} byDate={byDate} blocks={blocks} offsFor={offsFor} colorOf={colorOf} todayIso={todayIso} nowMin={nowMin}
       startHour={range.startHour} endHour={range.endHour}
       slot={slot} onSlot={onSlot} onBookSlot={() => setBookOpen(true)}
       onPick={pickEvent} onMove={(ev, date, minute) => requestMove(ev, date, minute)} verdictFor={verdictFor}
@@ -1442,6 +1869,14 @@ function CoachSchedulePage({ role }) {
     </div>
   );
   const dayIso = dscIso(cursorDay);
+  // The month grid's days with any time off (its 42 cells, from the Monday before the 1st).
+  const monthOffDates = (() => {
+    const set = new Set();
+    if (shownView !== "month" || !timeOff.length) return set;
+    const startMon = dscMonday(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
+    for (let i = 0; i < 42; i++) { const iso = dscIso(dscAddDays(startMon, i)); if (offsFor(iso).length) set.add(iso); }
+    return set;
+  })();
 
   return (
     <React.Fragment>
@@ -1456,10 +1891,15 @@ function CoachSchedulePage({ role }) {
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
           {/* Calendar */}
           <div className="dash-plate dash-plate--tick" style={{ "--dac": role === "nutritionist" ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust2, #c0533b)", paddingLeft: 24, minWidth: 0 }}>
+            {/* While the hours are edited the grid below is the weekly pattern, not a dated week, so
+                paging and switching views have nothing to act on and step aside. */}
+            {!editingHours && (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {/* ⚠ WRAPS AT PHONE WIDTH: a long day label ("Wednesday, Oct 7") pushed "+ Book" past
+                  the plate's edge at 390px, where it was clipped. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <button onClick={() => step(-1)} aria-label="Previous" style={btn(false)}>‹</button>
-                <span style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", minWidth: 150 }}>{label}</span>
+                <span style={{ fontFamily: serif, fontSize: 19, letterSpacing: "-0.015em", minWidth: narrow ? 0 : 150 }}>{label}</span>
                 <button onClick={() => step(1)} aria-label="Next" style={btn(false)}>›</button>
                 <button onClick={goToday} style={{ ...btn(false), fontSize: 8 }}>Today</button>
                 <button type="button" onClick={bookFromToolbar} style={{ ...btn(false), fontSize: 8, whiteSpace: "nowrap", color: DSC_TEAL, border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.45)" }}>+ Book</button>
@@ -1480,11 +1920,12 @@ function CoachSchedulePage({ role }) {
                 </div>
               </div>
             </div>
+            )}
             {/* ⚠ THE ZONE IS NAMED, BECAUSE A BARE "9:00a" IS A CLAIM ABOUT A CLOCK. It is the zone
                 the route says it answered in — never this browser's guess — and it is the one a
                 drag hands back. Shown only for a live answer — the demo has no coach to name —
                 or for a signed-in coach whose first read failed, who needs the Retry. */}
-            {(liveEvents || isLive) && (calZone || loadNote) && (
+            {!editingHours && (liveEvents || isLive) && (calZone || loadNote) && (
               <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, margin: "-4px 0 10px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
                 {calZone && <span>Times in {calZone}</span>}
                 {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone || "no time zone"}; re-save them below</span>}
@@ -1492,6 +1933,11 @@ function CoachSchedulePage({ role }) {
                 {loadNote === "error" && <span>Some dates couldn't load. <button type="button" onClick={retryLoad} style={{ ...btn(false), padding: "2px 8px", fontSize: 8 }}>Retry</button></span>}
               </div>
             )}
+            {editingHours ? (
+              <DscHoursEditor role={role} live={isLive} initial={availSlots} storedZone={availZone}
+                onCancel={() => setEditingHours(false)} onSaved={hoursSaved} />
+            ) : (
+            <React.Fragment>
             <DscRequests list={requests} busyId={busyId} onPick={pickEvent}
               onAccept={(ev) => sessionAction(ev, "confirm")} onDecline={(ev) => sessionAction(ev, "decline")}
               onOther={(ev) => { setSlot(null); setBooking({ ev, move: true }); }} />
@@ -1499,7 +1945,7 @@ function CoachSchedulePage({ role }) {
               <div role="alert" style={{ fontSize: 12.5, color: DSC_RUST, marginBottom: 10 }}>The week grid couldn't load — reload the page. The month view still works.</div>
             )}
             {shownView === "month" || !R
-              ? <DscMonth cursor={cursor} byDate={byDate} colorOf={colorOf} todayIso={todayIso} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />
+              ? <DscMonth cursor={cursor} byDate={byDate} colorOf={colorOf} todayIso={todayIso} offDates={monthOffDates} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />
               : shownView === "day" || narrow
                 ? (
                   <div className="dsc-day" style={{ display: "grid", gridTemplateColumns: narrow ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
@@ -1526,17 +1972,27 @@ function CoachSchedulePage({ role }) {
                 {picked.length > 0 && <button type="button" onClick={() => setPicked([])} style={{ ...btn(false), padding: "4px 9px", fontSize: 8 }}>Show all</button>}
               </div>
             )}
+            </React.Fragment>
+            )}
           </div>
 
           {/* Availability */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-gold, #d8a23a)", paddingLeft: 22 }}>
-              <DscAvailability role={role} live={isLive} initial={availSlots} storedZone={availZone} onZone={setAvailZone} />
+              <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours}
+                onEdit={() => { setSlot(null); setBooking(null); setEditingHours(true); }} />
+            </div>
+            <div className="dash-plate" style={{ "--dac": "var(--sh-gold, #d8a23a)", padding: "14px 16px" }}>
+              <DscTimeOffPlate list={timeOff} zone={offZone || availZone} adding={offAdding} busyId={offBusy} error={offErr}
+                onAdd={addTimeOff} onRemove={removeTimeOff} />
+            </div>
+            <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", padding: "14px 16px" }}>
+              <DscRulesPlate role={role} live={isLive} onToast={showToast} />
             </div>
             <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", padding: "14px 16px" }}>
               <div className="dash-eyebrow">How the week works</div>
               <div style={{ fontSize: 12, color: DSC_INK50, lineHeight: 1.55, marginTop: 8 }}>
-                Drag a session to a new time in 15-minute steps — the client gets a notification with the new time. A red target means it would overlap another booking; outside your shaded open hours you're asked first. Click open time to book a client, and answer dashed requests in the strip at the top. Workouts and meals pushed from a plan are read-only here; move those in the program or meal plan.
+                Drag a session to a new time in 15-minute steps — the client gets a notification with the new time. A red target means it would overlap another booking; outside your shaded open hours or in hatched time off you're asked first. Click open time to book a client, and answer dashed requests in the strip at the top. Workouts and meals pushed from a plan are read-only here; move those in the program or meal plan.
               </div>
               <a href={role === "nutritionist" ? "NutritionistDashboard.html" : "TrainerDashboard.html"} style={{ display: "inline-block", marginTop: 10, fontFamily: DSC_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DSC_TEAL, textDecoration: "none" }}>← Today's summary</a>
             </div>
@@ -1548,7 +2004,7 @@ function CoachSchedulePage({ role }) {
         <DscBookingSheet ev={booking.ev} startInMove={booking.move} row={rowFor(booking.ev)} colorOf={colorOf} prep={prepFor(booking.ev)}
           busy={busyId === booking.ev.id} verdictFor={verdictFor}
           onAction={sessionAction}
-          onMove={(ev, date, minute, v) => { setBooking(null); if (v && v.outside) setConfirmMove({ ev, date, time: dscHHMM(minute) }); else requestMove(ev, date, minute); }}
+          onMove={(ev, date, minute, v) => { setBooking(null); if (v && (v.outside || v.away)) setConfirmMove({ ev, date, time: dscHHMM(minute), why: v.away ? "away" : "outside" }); else requestMove(ev, date, minute); }}
           onOpenFile={typeof window.DashClientDrawer === "function" ? (row) => { setBooking(null); setDrawerRow(row); } : null}
           onClose={() => setBooking(null)} />
       )}

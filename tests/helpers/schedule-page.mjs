@@ -20,6 +20,7 @@ const babel = require('next/dist/compiled/babel/core');
 const presetReact = require('next/dist/compiled/babel/preset-react');
 export const SCHEDULE_SRC = readFileSync(join(ROOT, 'public/newdesign/dashSchedule.jsx'), 'utf8');
 export const RULES_URL = pathToFileURL(join(ROOT, 'public/newdesign/scheduleRules.mjs')).href;
+export const BOOKING_RULES_URL = pathToFileURL(join(ROOT, 'public/newdesign/bookingRules.mjs')).href;
 
 function pinnedDate(RealDate, fixed) {
   class PinnedDate extends RealDate {
@@ -45,6 +46,7 @@ export async function mountSchedule({
   globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   globalThis.Date = pinnedDate(before.Date, now);
   dom.window.ShapeScheduleRules = await import(RULES_URL);
+  dom.window.ShapeBookingRules = await import(BOOKING_RULES_URL);
   dom.window.matchMedia = (q) => ({ matches: narrow && /max-width/.test(q), media: q, addEventListener() {}, removeEventListener() {} });
   if (drawer) dom.window.DashClientDrawer = drawer;
   const React = require('react');

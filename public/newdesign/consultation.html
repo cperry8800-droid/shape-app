@@ -430,6 +430,9 @@
         // is the `sessions` default and what this page's own copy promises.
         const built = coachZone ? window.BookingSlots.buildSlots({
           slots: data.slots || [], booked: data.booked || [], zone: coachZone,
+          // The coach's time off, buffer, daily limit and notice: the times the route would
+          // refuse are not offered (Schedule step 3).
+          busy: data.busy || [], rules: data.rules || null,
           now: new Date(), days: 28, sessionMin: 15,
         }) : [];
         slotsByDate = new Map();

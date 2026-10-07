@@ -10,6 +10,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ACTIVE_STATUSES, clashIn, fitsOpenHours, isOfferedStart } from '../../public/newdesign/scheduleRules.mjs';
+import { checkSlot } from '../../public/newdesign/bookingRules.mjs';
+import { isMissingRelation } from '@/lib/owned-provider';
 
 // How far before a new booking an existing one can START and still reach into it. No session
 // in this product runs past a few hours (the coach create caps at 4); half a day is a window
@@ -120,3 +122,63 @@ export function isDoubleBookError(error: unknown): boolean {
   const code = error && typeof error === 'object' ? String((error as { code?: unknown }).code ?? '') : '';
   return code === '23505' || code === '23P01';
 }
+
+/**
+ * The coach's own booking rules for a MEMBER's booking (2026-10-07, Schedule step 3): their time
+ * off, the buffer between sessions, the daily limit and the minimum notice, as
+ * bookingRules.checkSlot decides them. The routes have already checked the open hours (the
+ * offered starts) and the overlap (findSessionClash, and the database's sessions_no_overlap), so
+ * those two are skipped here and keep their own answers.
+ *
+ * ⚠ A FAILED READ IS `unavailable`, NEVER "NO RULES". Read as no time off and no limits, an
+ * outage would book a member into a coach's vacation. Only "not set up yet" (a database without
+ * 2026-10-07-booking-rules-time-off.sql) reads as the defaults, which is how it behaved before.
+ *
+ * `db` must read across the coach's whole calendar: the service role, or any client for the
+ * definer read (provider_busy_blocks says when, never who).
+ */
+export async function checkBookingRules(
+  db: Pick<SupabaseClient, 'from' | 'rpc'>,
+  opts: {
+    role: string;
+    providerId: number;
+    zone: string;
+    slots: Array<{ weekday: number; start_minute: number; duration_min: number }>;
+    startMs: number;
+    durationMin: number;
+    nowMs: number;
+  },
+): Promise<{ ok: true } | { ok: false; unavailable: true } | { ok: false; unavailable?: false; reason: string; message: string }> {
+  const endMs = opts.startMs + opts.durationMin * MINUTE_MS;
+  const [rulesRes, busyRes] = await Promise.all([
+    db.from('provider_booking_rules')
+      .select('buffer_min, max_per_day, min_notice_hours')
+      .eq('provider_role', opts.role)
+      .eq('provider_id', opts.providerId)
+      .maybeSingle(),
+    // Two days either side: the daily limit counts the whole local day, and the buffer reaches
+    // across midnight.
+    db.rpc('provider_busy_blocks', {
+      p_role: opts.role,
+      p_provider_id: opts.providerId,
+      p_from: new Date(opts.startMs - 2 * 86_400_000).toISOString(),
+      p_to: new Date(endMs + 2 * 86_400_000).toISOString(),
+    }),
+  ]);
+  if (rulesRes.error && !isMissingRelation(rulesRes.error)) return { ok: false, unavailable: true };
+  if (busyRes.error && !isMissingRelation(busyRes.error)) return { ok: false, unavailable: true };
+  const verdict = checkSlot(
+    { start: opts.startMs, durationMin: opts.durationMin },
+    {
+      now: opts.nowMs,
+      zone: opts.zone,
+      availability: opts.slots,
+      busy: busyRes.error ? [] : busyRes.data ?? [],
+      rules: rulesRes.error ? null : rulesRes.data,
+      audience: 'member',
+      skip: ['past', 'closed', 'overlap'],
+    },
+  );
+  return verdict.ok ? { ok: true } : { ok: false, reason: verdict.reason, message: verdict.message };
+}
+
