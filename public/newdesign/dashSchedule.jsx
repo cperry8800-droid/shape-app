@@ -5,8 +5,9 @@
 // a client notification), and an availability-blocks editor that feeds the
 // marketplace profile. Today's schedule stays the daily summary.
 //
-// Data: /api/calendar (sessions carry clientId + name + reschedulable;
-// manual calendar_events are editable; pushed workouts/meals are read-only),
+// Data: /api/calendar, a month range at a time with `tz` + `role`, so bookings come back on
+// the coach's own clock and the response names the zone (sessions carry clientId + name +
+// reschedulable; manual calendar_events are editable; pushed workouts/meals are read-only),
 // /api/sessions/manage (action 'reschedule' — coach-only, notifies the
 // client), /api/my-availability?role= (the same weekly slots the marketplace
 // reads). useDashboard(role) supplies the roster for the drawer. Demo under
@@ -65,6 +66,71 @@ function dscFmt12(t) {
   const [h, m] = String(t).split(":").map(Number);
   if (isNaN(h)) return null;
   return (h % 12 === 0 ? 12 : h % 12) + ":" + String(m || 0).padStart(2, "0") + (h >= 12 ? "p" : "a");
+}
+// `n` calendar days after `d`, at local midnight.
+// ⚠ BY THE CALENDAR, NOT BY 24-HOUR STEPS. The grids used to build their cells as
+// `start + i * DSC_DAY`, and on the night the clocks go back a day is 25 hours long: the
+// cell after it landed at 23:00 the day before, so the month that contains the change
+// showed that Sunday twice and every later cell one day early, under the wrong weekday.
+function dscAddDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+
+// ── The range the page loads ────────────────────────────────────────────────
+// ⚠ THE PAGE ASKS FOR THE DATES ON SCREEN. It used to load /api/calendar once with no
+// range, and the route's default is 60 days either side of today, so a coach who paged
+// three months ahead saw an empty calendar that had simply never been asked for. It now
+// loads whole MONTHS, keyed "YYYY-MM": the ones the visible grid touches plus a week
+// either side, each fetched once and kept, so paging back costs nothing and the next
+// week is usually already there. Contiguous missing months go in one request.
+const DSC_MARGIN_DAYS = 7;
+function dscVisibleRange(view, cursor) {
+  const start = view === "month" ? dscMonday(new Date(cursor.getFullYear(), cursor.getMonth(), 1)) : dscMonday(cursor);
+  return { from: dscAddDays(start, -DSC_MARGIN_DAYS), to: dscAddDays(start, (view === "month" ? 41 : 6) + DSC_MARGIN_DAYS) };
+}
+function dscMonthKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+function dscNextMonthKey(k) {
+  let y = Number(k.slice(0, 4)), m = Number(k.slice(5, 7)) + 1;
+  if (m > 12) { m = 1; y += 1; }
+  return y + "-" + String(m).padStart(2, "0");
+}
+function dscMonthsIn(range) {
+  const out = [];
+  const last = dscMonthKey(range.to);
+  for (let k = dscMonthKey(range.from); k <= last; k = dscNextMonthKey(k)) out.push(k);
+  return out;
+}
+// Consecutive months as runs, so one request covers each gap.
+function dscMonthRuns(keys) {
+  const runs = [];
+  for (const k of keys) {
+    const run = runs[runs.length - 1];
+    if (run && dscNextMonthKey(run[run.length - 1]) === k) run.push(k); else runs.push([k]);
+  }
+  return runs;
+}
+function dscMonthEnd(k) { return k + "-" + String(new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)), 0).getDate()).padStart(2, "0"); }
+// One response folded into what is already loaded. Events are keyed by id, so a booking
+// dragged into a month that loads later arrives once, with the server's own date.
+// ⚠ A RESPONSE IN A DIFFERENT ZONE STARTS THE CACHE OVER. Every booking's `date`/`time` is
+// a wall clock in the zone the route names, and the reschedule hands that zone back; a
+// coach who re-saves their hours from another zone mid-visit would otherwise get months
+// read on two clocks under one label, and drags priced in the wrong one.
+function dscMergeRange(prev, res, months) {
+  const zone = typeof res.zone === "string" && res.zone ? res.zone : null;
+  if (!prev || prev.zone !== zone) return { zone, months: new Set(months), events: res.events.slice() };
+  const byId = new Map(prev.events.map((e) => [e.id, e]));
+  for (const e of res.events) byId.set(e.id, e);
+  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()] };
+}
+// Today's date in the zone the bookings are read in, so the highlighted cell is the day
+// the coach's own clock says it is (a coach whose laptop is elsewhere still sees their day).
+function dscTodayIn(zone) {
+  try {
+    if (zone) {
+      const s = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    }
+  } catch (e) { /* an unknown zone falls back to this browser's day */ }
+  return dscIso(new Date());
 }
 
 // ── Demo dataset (signed out — under the band) ──────────────────────────────
@@ -260,12 +326,11 @@ function DscChip({ ev, onClick, onDragStart, compact, colorOf }) {
 }
 
 // ── Month grid ──────────────────────────────────────────────────────────────
-function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf }) {
+function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf, todayIso = dscIso(new Date()) }) {
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const start = dscMonday(first);
-  const todayIso = dscIso(new Date());
   const cells = [];
-  for (let i = 0; i < 42; i++) cells.push(new Date(start.getTime() + i * DSC_DAY));
+  for (let i = 0; i < 42; i++) cells.push(dscAddDays(start, i));
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
@@ -294,11 +359,10 @@ function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf
 }
 
 // ── Week view (day columns) ─────────────────────────────────────────────────
-function DscWeek({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf }) {
+function DscWeek({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf, todayIso = dscIso(new Date()) }) {
   const mon = dscMonday(cursor);
-  const todayIso = dscIso(new Date());
   const days = [];
-  for (let i = 0; i < 7; i++) days.push(new Date(mon.getTime() + i * DSC_DAY));
+  for (let i = 0; i < 7; i++) days.push(dscAddDays(mon, i));
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
       {days.map((d, i) => {
@@ -351,7 +415,12 @@ const DSC_ROLES = {
 function CoachSchedulePage({ role }) {
   const cfg = DSC_ROLES[role];
   const { triage, today: live, source } = useDashboard(role);
-  const [events, setEvents] = React.useState(null);
+  // What /api/calendar has answered so far: { zone, months: Set<"YYYY-MM">, events }, or null
+  // until the first answer (the demo shows until then). See dscMergeRange.
+  const [cal, setCal] = React.useState(null);
+  // The demo set, held in state only so a drag in the preview visibly moves the chip
+  // without the moved copy being mistaken for a live answer.
+  const [demoEvents, setDemoEvents] = React.useState(DSC_DEMO.events);
   const [avail, setAvail] = React.useState(null);
   // Month or week, remembered: a coach who works the week grid should not have to
   // choose it again on every visit to their own calendar.
@@ -378,19 +447,55 @@ function CoachSchedulePage({ role }) {
 
   React.useEffect(() => {
     let on = true;
-    const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-    (async () => {
-      const [cal, av] = await Promise.all([j("/api/calendar"), j("/api/my-availability?role=" + role)]);
-      if (!on) return;
-      if (cal && Array.isArray(cal.events)) setEvents(cal.events);
-      if (av && Array.isArray(av.slots)) setAvail(av.slots);
-      if (av && typeof av.timezone === "string") setAvailZone(av.timezone);
-    })();
+    fetch("/api/my-availability?role=" + role, { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((av) => {
+        if (!on) return;
+        if (av && Array.isArray(av.slots)) setAvail(av.slots);
+        if (av && typeof av.timezone === "string") setAvailZone(av.timezone);
+      });
     return () => { on = false; };
   }, [role]);
 
-  const liveEvents = events != null;
-  const allEvents = liveEvents ? events : DSC_DEMO.events;
+  // ── The calendar, a month at a time (see dscVisibleRange) ──
+  // In-flight and failed months live in refs, not state: they gate requests and must not
+  // themselves re-run the effect. A failed month is not retried on its own — that would
+  // loop on a signed-out visitor — but by the Retry the error note offers.
+  const inflight = React.useRef(new Set());
+  const failed = React.useRef(new Set());
+  const mounted = React.useRef(true);
+  React.useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const [loadNote, setLoadNote] = React.useState("");
+  const [retryTick, setRetryTick] = React.useState(0);
+  const wanted = dscMonthsIn(dscVisibleRange(view, cursor));
+  React.useEffect(() => {
+    const missing = wanted.filter((k) => !(cal && cal.months.has(k)) && !inflight.current.has(k) && !failed.current.has(k));
+    if (!missing.length) return;
+    setLoadNote("loading");
+    for (const run of dscMonthRuns(missing)) {
+      run.forEach((k) => inflight.current.add(k));
+      // ⚠ `tz` IS WHAT MAKES THE ROUTE ANSWER ON A CLOCK at all — without it every booking
+      // comes back in UTC (the contract older app builds rely on). With it the route uses the
+      // coach's stored zone for `role`, and this browser's only when none is stored yet.
+      const url = "/api/calendar?from=" + run[0] + "-01&to=" + dscMonthEnd(run[run.length - 1])
+        + "&role=" + encodeURIComponent(role) + "&tz=" + encodeURIComponent(dscBrowserZone() || "");
+      fetch(url, { credentials: "same-origin", cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((res) => {
+          run.forEach((k) => inflight.current.delete(k));
+          if (!mounted.current) return;
+          if (res && Array.isArray(res.events)) setCal((prev) => dscMergeRange(prev, res, run));
+          else run.forEach((k) => failed.current.add(k));
+          setLoadNote(inflight.current.size ? "loading" : failed.current.size ? "error" : "");
+        });
+    }
+  }, [role, wanted.join(","), cal, retryTick]);
+  const retryLoad = () => { failed.current.clear(); setLoadNote(""); setRetryTick((n) => n + 1); };
+
+  const liveEvents = cal != null;
+  const allEvents = liveEvents ? cal.events : demoEvents;
+  const calZone = liveEvents ? cal.zone : null;
+  const todayIso = dscTodayIn(calZone);
   const availSlots = avail != null ? avail : (isLive ? [] : DSC_DEMO.availability);
   // Only the coach's own bookings (sessions/consults) + manual events belong
   // on the planning calendar — the client-facing pushed workouts/meals are a
@@ -417,13 +522,19 @@ function CoachSchedulePage({ role }) {
     dragRef.current = null; setDragId(null);
     if (!ev || ev.date === dateIso) return;
     if (!(ev.reschedulable || ev.editable)) { showToast(ev.with || ev.title + " is read-only — reschedule it in the program/plan."); return; }
-    // Optimistic local move.
-    setEvents((prev) => (prev || allEvents).map((e) => (e.id === ev.id ? { ...e, date: dateIso } : e)));
+    // Optimistic local move, on whichever set is on screen.
+    const moveTo = (date) => (list) => list.map((e) => (e.id === ev.id ? { ...e, date } : e));
+    if (!liveEvents) { setDemoEvents(moveTo(dateIso)); showToast("Demo · would move " + (ev.with || ev.title) + " to " + dateIso + " and notify them."); return; }
+    setCal((c) => (c ? { ...c, events: moveTo(dateIso)(c.events) } : c));
     if (!isLive) { showToast("Demo · would move " + (ev.with || ev.title) + " to " + dateIso + " and notify them."); return; }
     try {
       let res;
       if (ev.source === "session" && ev.sessionId) {
-        res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reschedule", sessionId: ev.sessionId, date: dateIso, time: ev.time || null }) });
+        // ⚠ THE TIME IS A WALL CLOCK IN `calZone`, SO THE ZONE GOES WITH IT. The route reads a
+        // reschedule's date+time in the zone it is handed; without one it reads UTC, and a
+        // 9:00 AM New York session dropped on a new day would land at 5:00 AM (4:00 in winter).
+        // Keeping the WALL clock is also what holds "9:00 AM" across a DST change.
+        res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reschedule", sessionId: ev.sessionId, date: dateIso, time: ev.time || null, tz: calZone || undefined }) });
       } else if (ev.source === "event") {
         res = await fetch("/api/calendar", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: String(ev.id).replace(/^event:/, ""), date: dateIso }) });
       }
@@ -431,13 +542,15 @@ function CoachSchedulePage({ role }) {
       else throw new Error("HTTP " + (res ? res.status : "—"));
     } catch (e) {
       showToast("Couldn't move it — try again.");
-      setEvents((prev) => (prev || []).map((x) => (x.id === ev.id ? { ...x, date: ev.date } : x))); // revert
+      setCal((c) => (c ? { ...c, events: moveTo(ev.date)(c.events) } : c)); // revert
     }
   };
 
   const monthLabel = cursor.toLocaleDateString([], { month: "long", year: "numeric" });
-  const weekLabel = (() => { const m = dscMonday(cursor); const s = new Date(m.getTime() + 6 * DSC_DAY); return m.toLocaleDateString([], { month: "short", day: "numeric" }) + " – " + s.toLocaleDateString([], { month: "short", day: "numeric" }); })();
-  const step = (dir) => setCursor((c) => { const n = new Date(c); view === "month" ? n.setMonth(n.getMonth() + dir) : n.setDate(n.getDate() + dir * 7); return n; });
+  const weekLabel = (() => { const m = dscMonday(cursor); const s = dscAddDays(m, 6); return m.toLocaleDateString([], { month: "short", day: "numeric" }) + " – " + s.toLocaleDateString([], { month: "short", day: "numeric" }); })();
+  // ⚠ A MONTH STEP LANDS ON THE 1ST. `setMonth(+1)` from the 31st overflows — Oct 31 became
+  // "Nov 31", i.e. Dec 1 — so on the last days of a month "next" skipped a whole month.
+  const step = (dir) => setCursor((c) => (view === "month" ? new Date(c.getFullYear(), c.getMonth() + dir, 1) : dscAddDays(c, dir * 7)));
 
   // Color-key legend: the clients on the visible calendar.
   const legend = [...new Map(planEvents.filter((e) => e.with).map((e) => [e.clientId || e.with, { name: e.with, key: e.clientId || e.with }])).values()].slice(0, 8);
@@ -470,9 +583,20 @@ function CoachSchedulePage({ role }) {
                 <button onClick={() => setView("week")} style={btn(view === "week")}>Week</button>
               </div>
             </div>
+            {/* ⚠ THE ZONE IS NAMED, BECAUSE A BARE "9:00a" IS A CLAIM ABOUT A CLOCK. It is the zone
+                the route says it answered in — never this browser's guess — and it is the one a
+                drag hands back. Shown only for a live answer — the demo has no coach to name —
+                or for a signed-in coach whose first read failed, who needs the Retry. */}
+            {(liveEvents || isLive) && (calZone || loadNote) && (
+              <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, margin: "-4px 0 10px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+                {calZone && <span>Times in {calZone}</span>}
+                {loadNote === "loading" && <span>Loading…</span>}
+                {loadNote === "error" && <span>Some dates couldn't load. <button type="button" onClick={retryLoad} style={{ ...btn(false), padding: "2px 8px", fontSize: 8 }}>Retry</button></span>}
+              </div>
+            )}
             {view === "month"
-              ? <DscMonth cursor={cursor} byDate={byDate} colorOf={colorOf} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />
-              : <DscWeek cursor={cursor} byDate={byDate} colorOf={colorOf} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />}
+              ? <DscMonth cursor={cursor} byDate={byDate} colorOf={colorOf} todayIso={todayIso} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />
+              : <DscWeek cursor={cursor} byDate={byDate} colorOf={colorOf} todayIso={todayIso} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />}
             {/* Client color legend */}
             {legend.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>

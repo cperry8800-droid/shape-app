@@ -238,7 +238,7 @@ const _BS_CAL_ACCENTS = (t) => {
     REST: t.INK50,
   };
 };
-function _bsMapServerCalEvent(ev, t) {
+function _bsMapServerCalEvent(ev, t, zone = null) {
   const [, , dd] = (ev.date || '').split('-');
   const accents = _BS_CAL_ACCENTS(t);
   return {
@@ -261,6 +261,9 @@ function _bsMapServerCalEvent(ev, t) {
     sessionId: ev.sessionId || null,
     status: ev.status || null,
     reschedulable: ev.reschedulable !== false,
+    // The zone the route placed `date`/`time` in (its response names it). A reschedule
+    // hands it back, so the wall clock it keeps is read on the clock it was shown on.
+    zone: zone || null,
   };
 }
 
@@ -298,10 +301,10 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     if (!loggedIn || !window.ShapeCalendar) { setServerEvents(null); return; }
     const from = `${viewYear}-${pad(viewMonth + 1)}-01`;
     const to = `${viewYear}-${pad(viewMonth + 1)}-${new Date(viewYear, viewMonth + 1, 0).getDate()}`;
-    window.ShapeCalendar.list({ from, to, clientId })
-      .then(d => setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t))))
+    window.ShapeCalendar.list({ from, to, clientId, role })
+      .then(d => setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))))
       .catch(() => setServerEvents([]));
-  }, [loggedIn, viewYear, viewMonth, clientId]);
+  }, [loggedIn, viewYear, viewMonth, clientId, role]);
   React.useEffect(() => { loadMonth(); }, [loadMonth]);
 
   // Trainer/nutritionist demo events are authored on days 20-26 and remapped onto
@@ -736,7 +739,9 @@ function BSEventSheet({ event, role, onClose, live = false, onChanged = () => {}
       // gated by the button — a stray onChange must not reach the server.
       const time = /^\d{1,2}:\d{2}$/.test(String(event.time || '')) ? event.time : undefined;
       try {
-        await callManageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time });
+        // ⚠ `tz` GOES WITH THE TIME: it is a wall clock in the zone /api/calendar named, and
+        // without one the route reads it as UTC and moves the session by the offset.
+        await callManageSession({ sessionId: event.sessionId, action: 'reschedule', date: newDate, time, tz: event.zone || undefined });
         window.__bsToast?.(tr('calendar:msg.rescheduledDone', { defaultValue: 'Rescheduled ✓' }), 'ok'); onClose(); onChanged();
       }
       catch (e) { window.__bsToast?.(e?.message || tr('calendar:msg.couldNotReschedule', { defaultValue: 'Could not reschedule' }), 'err'); }

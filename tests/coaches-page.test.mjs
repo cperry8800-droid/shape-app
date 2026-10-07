@@ -342,6 +342,69 @@ test('the step cards state no duration they cannot keep', () => {
   }
 });
 
+// ── calendar sync, until it exists ──────────────────────────────────────────
+// Owner, 2026-10-07: "Apply all the fixes first", on a review of the coach Schedule that
+// found the Coaches page selling a calendar that "syncs both ways with Google, Apple and
+// Outlook, with reminders and reschedule rules handled for you". There is no calendar feed,
+// no sync of any kind, no session reminder and no no-show handling anywhere in the tree.
+// coach.jsx and nutritionist.jsx carried the same claim in their toolkit grids and a
+// "connect your calendar" setup step, so the sweep runs over the same DERIVED corpus as the
+// timing ban above rather than the one page the review named.
+// ⚠ When a real sync ships, this list is the thing to change — with the PR that ships it.
+const SYNC_CLAIMS = [
+  [/\b(two-way|2-way)\b[^.]{0,40}\bsync/i, 'a two-way calendar sync', 'Two-way calendar sync'],
+  [/\bsyncs?\b[^.]{0,20}\b(both ways|with (google|apple|outlook|your calendar))/i, 'a sync with an outside calendar',
+   'Your week and your month. Clients book inside Shape; the calendar syncs both ways with Google, Apple and Outlook.'],
+  [/\boutlook\b/i, 'an Outlook integration', 'Two-way sync with Google, Apple, Outlook.'],
+  [/\b(google|apple) calendar\b|\bical\b|\.ics\b/i, 'a named calendar integration', 'Add sessions to Google Calendar.'],
+  [/\bconnect your calendar\b/i, 'a calendar to connect', 'set session pricing, connect your calendar, write your bio'],
+  [/\b(auto-?reminders?|reminders? and reschedule rules|no-show handling)\b/i, 'session reminders or no-show handling',
+   'Auto-reminders, reschedule rules, no-show handling.'],
+];
+
+test('every sync ban still catches the sentence it was written for, and not the copy that replaced it', () => {
+  for (const [re, why, retired] of SYNC_CLAIMS) {
+    assert.match(retired, re, 'the ban for ' + why + ' no longer matches its own retired copy');
+  }
+  // The true copy that replaced it, and a neighbour that names a brand for another reason.
+  for (const kept of [
+    'Clients book inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.',
+    'Open hours you set once, in your own time zone',
+    'Paste a Spotify or Apple Music link, attach it to a workout',
+  ]) {
+    for (const [re, why] of SYNC_CLAIMS) assert.doesNotMatch(kept, re, 'the ban for ' + why + ' fires on true copy: ' + kept);
+  }
+});
+
+test('no coach-facing page claims a calendar sync, reminders or no-show handling', () => {
+  for (const f of COACH_FACING) {
+    const body = stripComments(read(f)).replace(/\bquote:\s*"(?:[^"\\]|\\.)*"/g, 'quote: ""');
+    for (const [re, why] of SYNC_CLAIMS) {
+      const hit = re.exec(body);
+      assert.equal(hit, null, `${f} claims ${why}: “${hit && hit[0]}”`);
+    }
+  }
+});
+
+test('the Schedule tab lists what the Schedule page does', () => {
+  // The replacements are claims too, so each is pinned to the code that makes it true —
+  // a later edit to the page that drops one fails here rather than leaving the tour lying.
+  const SCHEDULE = read('dashSchedule.jsx');
+  for (const role of ['trainer', 'nutri']) {
+    const tab = CO_TOUR[role].tabs.find((t) => t.key === 'schedule');
+    assert.ok(tab, role + ': the Schedule tab is gone from the tour');
+    assert.ok(tab.list.some((l) => /move it; the client is notified/.test(l)), role + ': the drag-to-move item is gone');
+    assert.ok(tab.list.includes('Open hours you set once, in your own time zone'), role + ': the open-hours item is gone');
+    assert.ok(tab.list.some((l) => /color-coded by client/.test(l)), role + ': the color-coding item is gone');
+  }
+  assert.match(SCHEDULE, /action: "reschedule"/, 'the Schedule page no longer reschedules by drag');
+  assert.match(SCHEDULE, /function dscColorMap\(/, 'the Schedule page no longer colours by client');
+  assert.match(SCHEDULE, /body: JSON\.stringify\(\{ role, slots, timezone: dscBrowserZone\(\) \}\)/, 'open hours no longer carry the coach zone');
+  // The member really is told: the reschedule writes a notification to the client.
+  const MANAGE = readFileSync(new URL('../src/app/api/sessions/manage/route.ts', import.meta.url), 'utf8');
+  assert.match(MANAGE, /reschedule: \{ type: 'session_rescheduled'/, 'a reschedule no longer notifies the client');
+});
+
 // ⚠ THE FACTS STRIP IS ONE TYPEFACE. Owner, 2026-09-14, on a screenshot of it:
 // "have the font here match weekly and verified headings". $0 and 15% were set in
 // Doto — the face this site reserves for a MEASURED reading — at 40px, while

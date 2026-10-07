@@ -67,9 +67,15 @@ const CO_TOUR = {
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
+      // ⚠ ONLY WHAT SCHEDULE DOES (owner, 2026-10-07: take the claims down). This tab said the
+      // calendar "syncs both ways with Google, Apple and Outlook, with reminders and reschedule
+      // rules handled for you" and listed two-way sync and no-show handling. None of it exists:
+      // there is no calendar feed or sync of any kind, no session reminder, and no-shows are
+      // deliberately never scored (score-accountability). tests/coaches-page.test.mjs bans the
+      // sync claim on every coach-facing page until it is built.
       { key: "schedule", file: "schedule", name: "Schedule",
-        body: "Your week and your month. Clients book inside Shape; the calendar syncs both ways with Google, Apple and Outlook, with reminders and reschedule rules handled for you.",
-        list: ["Week and month views", "Two-way calendar sync", "Open hours you set once, in your own time zone", "No-show and reschedule handling"] },
+        body: "Your week and your month. Clients book inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.",
+        list: ["Week and month views", "Drag a session to move it; the client is notified", "Open hours you set once, in your own time zone", "Bookings color-coded by client, one click to their file"] },
       { key: "clients", file: "clients", name: "Clients",
         body: "One roster, one view: streaks, weekly score, adherence, last food log, last contact, revenue and tenure. Sort by whatever you care about today and open any client's full file.",
         list: ["Sort every column that has a value behind it", "Needs-eyes, new and on-track filters", "Each client's file one click away", "Export the roster as a spreadsheet"] },
@@ -102,9 +108,13 @@ const CO_TOUR = {
       { key: "week", file: "week", name: "Week",
         body: "The end-of-week review. Every client, one row: their check-in ratings, the win and the struggle they wrote, what they asked you, adherence against the week before, food logs and the weigh-in. Tick each one as you go, or close the week in one go.",
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
+      // ⚠ Same ruling as the trainer tab. Also gone: "20-minute check-ins or 60-minute
+      // consults" (a booking is a 15-minute consult, /api/consultation) and "Intake forms
+      // before the first consult" (nothing is sent or required before a consult; the only
+      // intake is the member's own sign-up questionnaire).
       { key: "schedule", file: "schedule", name: "Schedule",
-        body: "Your week and your month. Clients book 20-minute check-ins or 60-minute consults inside Shape; the calendar syncs both ways with Google, Apple and Outlook.",
-        list: ["Week and month views", "Two-way calendar sync", "Open hours you set once, in your own time zone", "Intake forms before the first consult"] },
+        body: "Your week and your month. Clients book consults inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.",
+        list: ["Week and month views", "Drag a consult to move it; the client is notified", "Open hours you set once, in your own time zone", "Consults color-coded by client, one click to their file"] },
       { key: "clients", file: "clients", name: "Clients",
         body: "One roster, one view: adherence, last food log, last consult, weight trend, revenue and tenure. Filter by specialty or protocol and open any client's full file.",
         list: ["Sort every column that has a value behind it", "Needs-eyes, new and on-track filters", "Each client's file one click away", "Export the roster as a spreadsheet"] },
@@ -260,7 +270,8 @@ function CoSteps() {
   const steps = [
     ["1", "Apply", "Tell us about your credentials, specialty and how you coach. We verify CPT, CSCS, RD, RDN, CNS or equivalent."],
     ["2", "We review", "Our team reads every application, and licensed dietitians review the nutrition ones. We reach out to learn more, or with an approval."],
-    ["3", "Set up your storefront", "Upload your programs or plan templates, set session pricing, connect your calendar, write your bio. We help with the copy."],
+    // "connect your calendar" came out with the sync claims (2026-10-07) — nothing to connect.
+    ["3", "Set up your storefront", "Upload your programs or plan templates, set session pricing, set your open hours, write your bio. We help with the copy."],
     ["4", "Get matched", "Your profile goes live in the marketplace, and new client inquiries land in your inbox."],
   ];
   return (

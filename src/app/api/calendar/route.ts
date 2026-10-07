@@ -1,8 +1,8 @@
 // Shared calendar for the website (newdesign CalendarOverlay) + mobile app
 // (BSCalendarScreen). Both front-ends read/write here so they stay in sync.
 //
-// GET  ?from=YYYY-MM-DD&to=YYYY-MM-DD[&clientId=<uuid>]
-//      -> { events: [...] } merging:
+// GET  ?from=YYYY-MM-DD&to=YYYY-MM-DD[&clientId=<uuid>][&tz=<IANA>][&role=trainer|nutritionist]
+//      -> { events: [...], zone } merging:
 //         * calendar_events rows (planned workouts/meals/check-ins/etc.)
 //         * the sessions table (coaching bookings) as read-only events
 //         * DERIVED read-only plan events — assigned workouts
@@ -12,6 +12,26 @@
 //           calendar automatically, no duplicate event rows to drift.
 //      RLS scopes all of it: a coach may pass ?clientId to view a client's
 //      calendar (and sees only the plan rows they authored).
+//
+//      ⚠ A BOOKING'S `date` AND `time` ARE A WALL CLOCK IN `zone`, AND THE RESPONSE NAMES IT.
+//      Sessions are stored as real instants; until 2026-10-07 this route read them back with
+//      `toISOString()` and `getUTCHours()`, so every surface that reads it (the coach Schedule,
+//      the member calendar overlay, the app's calendar) showed a 9:00 AM New York consult at
+//      "1:00p" and an evening session on the next day's cell. One rule, `calendarZone` below:
+//        1. a caller who sends `tz` is placing bookings on a clock, so: the caller's OWN
+//           provider zone when they are a coach (the zone their open hours are stored in, so
+//           a booking and the hour it was booked into read the same) — `role` picks which
+//           row for an account that owns both — else the `tz` they sent (their browser);
+//        2. a caller who sends no `tz` gets UTC, exactly as before. ⚠ THAT IS DELIBERATE, NOT
+//           A FALLBACK NOBODY THOUGHT ABOUT: /api/sessions/manage reads a reschedule's wall
+//           clock as UTC when it carries no `tz`, and an installed app build from before
+//           this change (and Nora's undo, which slices `scheduled_at`) sends none. Zoning
+//           their reads without zoning their writes would move every booking they drag by
+//           the coach's offset.
+//      calendar_events rows are ALREADY a wall clock (event_date + event_time columns, no
+//      zone) and plan rows are bare dates, so neither is converted.
+//      `scheduledAt` (the real instant) still rides on every session for callers that do
+//      their own arithmetic (the capacity panel on Today).
 //
 // POST   { userId?, kind, title, sub?, date, time?, durationMin?, with?,
 //          location?, accent?, metadata? }  -> create (userId defaults to self;
@@ -26,6 +46,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { isSessionReschedulable } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
+import { DAY_MS, normalizeZone, wallClockInZone } from '@/lib/time';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,6 +69,29 @@ type EventRow = {
   event_time: string | null; duration_min: number | null; with_name: string | null;
   location: string | null; accent: string | null; status: string;
 };
+
+type Supa = Awaited<ReturnType<typeof clientForRequest>>;
+
+// The zone this response places bookings in — the rule is in the header comment.
+// ⚠ `select('*')` FOR THE SAME REASON AS /api/my-availability: naming `timezone` would error
+// the whole read on a database without 2026-09-11-provider-timezone.sql, and a calendar that
+// fails to load is worse than one that reads in the browser's zone.
+async function calendarZone(supabase: Supa, userId: string, sentTz: string | null, role: string | null): Promise<string> {
+  if (sentTz == null) return 'UTC';
+  const tables = role === 'trainer' ? ['trainers'] : role === 'nutritionist' ? ['nutritionists'] : ['trainers', 'nutritionists'];
+  const rows = await Promise.all(tables.map((t) => supabase.from(t).select('*').eq('owner_id', userId).maybeSingle()));
+  for (const r of rows) {
+    const zone = normalizeZone((r.data as { timezone?: unknown } | null)?.timezone);
+    if (zone) return zone;
+  }
+  return normalizeZone(sentTz) ?? 'UTC';
+}
+
+// A calendar date `days` away, by the calendar rather than by 24-hour steps.
+function shiftDate(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d) + days * DAY_MS).toISOString().slice(0, 10);
+}
 
 function shape(r: EventRow) {
   return {
@@ -101,8 +145,14 @@ export async function GET(request: Request) {
   const events = ((evRows ?? []) as EventRow[]).map(shape);
 
   // 2) sessions (coaching bookings) merged read-only.
-  const fromIso = `${dFrom}T00:00:00Z`;
-  const toIso = `${dTo}T23:59:59Z`;
+  // ⚠ THE WINDOW IS A RANGE OF THE ZONE'S DATES, NOT OF UTC ONES. A UTC-bounded read drops a
+  // New York session at 9:00 PM on the window's last day (01:00Z the day after) and keeps one
+  // from the evening before it. So the read is widened by a day each side, every zone's
+  // offset fits inside that, and the rows are cut back to [dFrom, dTo] by their LOCAL date
+  // below. Under UTC the cut leaves exactly what the old bounds read.
+  const zone = await calendarZone(supabase, user.id, url.searchParams.get('tz'), url.searchParams.get('role'));
+  const fromIso = `${shiftDate(dFrom, -1)}T00:00:00Z`;
+  const toIso = `${shiftDate(dTo, 1)}T23:59:59Z`;
   let sessionQuery = supabase
     .from('sessions')
     .select('id, client_id, provider_role, type, scheduled_at, duration_min, status, topic, meeting_url')
@@ -119,10 +169,19 @@ export async function GET(request: Request) {
   if (capacityRole && sessionsError) return NextResponse.json({ error: 'Bookings could not be read.' }, { status: 503 });
   if (capacityRole && sessRows && sessRows.length >= 1000) return NextResponse.json({ error: 'Booking window is too large to measure capacity.' }, { status: 503 });
 
+  type SessRow = {
+    id: string; client_id: string | null; provider_role: string; type: string; scheduled_at: string;
+    duration_min: number | null; status: string; topic: string | null; meeting_url: string | null;
+  };
+  // Each booking on the zone's own date and clock (`wallClockInZone`), cut back to the
+  // window by that LOCAL date — the widened read above is only a superset.
+  const placed = ((sessRows ?? []) as SessRow[])
+    .map((s) => ({ s, wall: wallClockInZone(new Date(s.scheduled_at).getTime(), zone) }))
+    .filter((p): p is { s: SessRow; wall: { date: string; time: string } } => !!p.wall && p.wall.date >= dFrom && p.wall.date <= dTo);
 
   // Resolve client names for the coach Schedule view (color-coding + the
   // click-through client drawer). RLS already scoped these to the caller.
-  const sessClientIds = [...new Set((sessRows ?? []).map((s: { client_id?: string }) => s.client_id).filter(Boolean) as string[])];
+  const sessClientIds = [...new Set(placed.map(({ s }) => s.client_id).filter(Boolean) as string[])];
   const sessNameById = new Map<string, string>();
   if (!capacityRole && sessClientIds.length) {
     // ⚠ A status='requested' booking is a PROSPECT — no subscription yet, so the
@@ -140,13 +199,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const sessions = (sessRows ?? []).map((s: {
-    id: string; client_id: string | null; provider_role: string; type: string; scheduled_at: string;
-    duration_min: number | null; status: string; topic: string | null; meeting_url: string | null;
-  }) => {
-    const dt = new Date(s.scheduled_at);
-    const date = dt.toISOString().slice(0, 10);
-    const time = `${String(dt.getUTCHours()).padStart(2, '0')}:${String(dt.getUTCMinutes()).padStart(2, '0')}`;
+  const sessions = placed.map(({ s, wall: { date, time } }) => {
     return {
       id: `session:${s.id}`,
       sessionId: s.id,
@@ -173,7 +226,7 @@ export async function GET(request: Request) {
     };
   });
 
-  if (capacityRole) return NextResponse.json({ bookingsReadable: true, events: sessions });
+  if (capacityRole) return NextResponse.json({ bookingsReadable: true, events: sessions, zone });
 
   // 3) Assigned workouts (trainer "push to client"). Mirrors the Home tab
   //    (/api/client/plan → bsHomeLiveWeek): DATED workouts land on their date;
@@ -310,7 +363,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals] });
+  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals], zone });
 }
 
 // ── POST ─────────────────────────────────────────────────────────────────────

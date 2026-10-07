@@ -1905,11 +1905,17 @@ function CalendarOverlay({ open, onClose, role = "client", events = [], anchorDa
     if (!open) return;
     const from = ymd(addDays(cursor, -45));
     const to = ymd(addDays(cursor, 45));
-    fetch(`/api/calendar?from=${from}&to=${to}`, { credentials: "same-origin" })
+    // ⚠ `tz` MAKES THE ROUTE PLACE BOOKINGS ON A CLOCK — this browser's for a member, the
+    // coach's stored zone for a coach (`role` picks which row) — instead of in UTC, where a
+    // 9:00 AM New York session read 1:00 PM and an evening one sat on the next day.
+    let tz = "";
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { tz = ""; }
+    const coachRole = role === "trainer" || role === "nutritionist" ? `&role=${role}` : "";
+    fetch(`/api/calendar?from=${from}&to=${to}&tz=${encodeURIComponent(tz)}${coachRole}`, { credentials: "same-origin" })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d && Array.isArray(d.events)) setServerEvents(d.events); })
       .catch(() => {});
-  }, [open, monthKey]);
+  }, [open, monthKey, role]);
   React.useEffect(() => { reload(); }, [reload]);
 
   // Server events win when present; otherwise the static prop events show.
