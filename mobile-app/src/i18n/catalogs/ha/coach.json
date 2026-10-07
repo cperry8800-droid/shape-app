@@ -1140,5 +1140,7 @@
   "video.emptyFile": "Zaɓi fayil ɗin bidiyo wanda ba fanko ba.",
   "video.fileType": "Zaɓi bidiyon MP4, MOV, M4V ko WebM. MP4 mai H.264 ya fi dacewa da na’urori daban-daban.",
   "video.fileSize": "Bidiyon ya kasance ƙasa da {limit} MB.",
-  "schedule.pickTime": "Zaɓi lokaci"
+  "schedule.pickTime": "Zaɓi lokaci",
+  "schedule.runPartial": "An yi rajistar {booked} cikin {total}.",
+  "schedule.runDone": "An gama"
 }

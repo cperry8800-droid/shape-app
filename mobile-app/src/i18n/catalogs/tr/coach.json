@@ -1140,5 +1140,7 @@
   "video.emptyFile": "Boş olmayan bir video dosyası seçin.",
   "video.fileType": "MP4, MOV, M4V veya WebM video seçin. H.264 içeren MP4, cihazlar arasında en uyumlu seçenektir.",
   "video.fileSize": "Video {limit} MB altında olmalıdır.",
-  "schedule.pickTime": "Bir saat seçin"
+  "schedule.pickTime": "Bir saat seçin",
+  "schedule.runPartial": "{total} seanstan {booked} tanesi ayarlandı.",
+  "schedule.runDone": "Tamam"
 }

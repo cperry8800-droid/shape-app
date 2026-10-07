@@ -3390,6 +3390,11 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const [mode, setMode] = useStateBSP('zoom');
   const [status, setStatus] = useStateBSP('');
   const [errMsg, setErrMsg] = useStateBSP('');
+  // A weekly run on the picked day (recurring sessions): the route books every week it can and
+  // names the dates it skipped, which stay on screen rather than flashing past.
+  const [repeat, setRepeat] = useStateBSP(false);
+  const [weeks, setWeeks] = useStateBSP(8);
+  const [runNote, setRunNote] = useStateBSP('');
   const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const today = new Date();
@@ -3421,10 +3426,17 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
         let tz = '';
         try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
         const [hh, mm] = time.split(':');
-        await window.ShapeSessions.createCoachSession({
+        const out = await window.ShapeSessions.createCoachSession({
           role, clientId: clientUid, date: dateStr, time: `${hh.padStart(2, '0')}:${mm}`, tz, durationMin: duration,
           type: MODE_TYPE[mode] || 'video', topic: mode === 'gym' ? `${typeLabel} · ${modeLabel}` : typeLabel,
+          ...(repeat ? { repeat: { weeks } } : {}),
         });
+        const skipped = (out && out.series && out.series.skipped) || [];
+        if (skipped.length) {
+          setRunNote(`${tr('coach:schedule.runPartial', { defaultValue: 'Booked {booked} of {total}.', booked: out.series.booked, total: out.series.booked + skipped.length })} ${skipped.map((x) => x.message).join(' ')}`);
+          setStatus('done');
+          return;
+        }
       }
       setStatus('done');
       setTimeout(onBack, 950);
@@ -3472,6 +3484,16 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
             <BSProActionSec eyebrow={tr('coach:schedule.where', { defaultValue: 'WHERE' })} title={tr('coach:schedule.mode', { defaultValue: 'Mode' })} accent={accent} />
             <BSProChips options={modeOpts} value={mode} onPick={setMode} accent={accent} />
           </div>
+          <button onClick={() => setRepeat(r => !r)} aria-pressed={repeat} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
+            <div>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{tr('coach:schedule.repeatWeekly', { defaultValue: 'Repeat weekly' })}</div>
+              <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.everyDayAt', { defaultValue: 'Every {day} at {time}', day: WD[sel.getDay()], time })}</div>
+            </div>
+            <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${repeat ? accent : t.RULE}`, background: repeat ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: repeat ? 'flex-end' : 'flex-start' }}>
+              <span style={{ width: 16, height: 16, borderRadius: 999, background: repeat ? '#06231f' : t.INK50, display: 'block' }} />
+            </span>
+          </button>
+          {repeat && <BSProStepper label={tr('coach:assign.weeks', { defaultValue: 'WEEKS' })} value={weeks} set={setWeeks} min={2} max={26} accent={accent} />}
           <div>
             <BSProActionSec eyebrow={tr('coach:schedule.summary', { defaultValue: 'SUMMARY' })} title={tr('coach:schedule.theBooking', { defaultValue: 'The booking' })} accent={accent} />
             <div style={{ display: 'flex', gap: 20 }}>
@@ -3483,6 +3505,8 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
               ))}
             </div>
             <button onClick={add} disabled={status === 'saving' || status === 'done' || isPast(time)} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' || isPast(time) ? 0.6 : 1 }}>{status === 'saving' ? tr('coach:schedule.adding', { defaultValue: 'Adding…' }) : status === 'done' ? tr('coach:schedule.added', { defaultValue: 'Added ✓' }) : tr('coach:schedule.addToCalendar', { defaultValue: 'Add to calendar →' })}</button>
+            {runNote && <div role="status" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.INK, letterSpacing: '0.06em', lineHeight: 1.5 }}>{runNote}</div>}
+            {runNote && <button onClick={onBack} style={{ width: '100%', marginTop: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, padding: '12px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('coach:schedule.runDone', { defaultValue: 'Done' })}</button>}
             {status === 'error' && <div role="alert" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{errMsg || tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." })}</div>}
             {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.demoBooks', { defaultValue: 'Demo client · books once linked to a live member' })}</div>}
           </div>

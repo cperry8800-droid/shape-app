@@ -5083,12 +5083,17 @@ async function manageSession({ sessionId, action, date, time, tz } = {}) {
 // /api/calendar), so a session "booked" in the app never reached the coach's Schedule, held no
 // time against other bookings, and gave the client nothing to join. The route checks the client
 // is the coach's own and refuses an overlap in its own words, which are thrown as they are.
-async function createCoachSession({ role, clientId, date, time, tz, durationMin, type, topic } = {}) {
+// `repeat: { weeks }` books a weekly run instead; the reply's `series` names any dates skipped.
+// ⚠ IT IS FORWARDED BY NAME: this used to rebuild the body from a fixed list, so "Repeat weekly"
+// was dropped here and the app reported a run while one session was booked (Codex, #2234).
+async function createCoachSession({ role, clientId, date, time, tz, durationMin, type, topic, repeat } = {}) {
+  const body = { action: 'create', role, clientId, date, time, tz, durationMin, type, topic };
+  if (repeat) body.repeat = repeat;
   const res = await fetch(sessionsApiUrl(), {
     method: 'POST',
     credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ action: 'create', role, clientId, date, time, tz, durationMin, type, topic }),
+    body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Could not book the session.');

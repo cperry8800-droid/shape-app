@@ -155,9 +155,12 @@ export async function GET(request: Request) {
   const widen = zone === 'UTC' ? 0 : 1;
   const fromIso = `${widen ? shiftDate(dFrom, -widen) : dFrom}T00:00:00Z`;
   const toIso = `${widen ? shiftDate(dTo, widen) : dTo}T23:59:59Z`;
+  // ⚠ `*` RATHER THAN A COLUMN LIST, so a database without 2026-10-07-session-series.sql still
+  // answers: naming `series_id` there would fail the whole read and empty every calendar. Only the
+  // fields mapped below leave this route.
   let sessionQuery = supabase
     .from('sessions')
-    .select('id, client_id, provider_role, type, scheduled_at, duration_min, status, topic, meeting_url')
+    .select('*')
     .gte('scheduled_at', fromIso)
     .lte('scheduled_at', toIso)
     .in('status', ['requested', 'confirmed', 'completed'])
@@ -174,6 +177,7 @@ export async function GET(request: Request) {
   type SessRow = {
     id: string; client_id: string | null; provider_role: string; type: string; scheduled_at: string;
     duration_min: number | null; status: string; topic: string | null; meeting_url: string | null;
+    series_id?: string | null;
   };
   // Each booking on the zone's own date and clock (`wallClockInZone`), cut back to the
   // window by that LOCAL date — the widened read above is only a superset.
@@ -232,6 +236,9 @@ export async function GET(request: Request) {
       // refuse it (403) after the coach had pressed it. Marked rather than dropped: the member
       // calendar overlay reads this route for exactly these rows.
       asClient: !!s.client_id && s.client_id === user.id,
+      // The run this booking belongs to (recurring sessions): the Schedule offers "this and
+      // following" on it. Null for a single booking, and on a database without the column.
+      seriesId: s.series_id ?? null,
     };
   });
 

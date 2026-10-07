@@ -1140,5 +1140,7 @@
   "video.emptyFile": "Choose a video file that is not empty.",
   "video.fileType": "Choose an MP4, MOV, M4V or WebM video. MP4 with H.264 works best across devices.",
   "video.fileSize": "Keep the video under {limit} MB.",
-  "schedule.pickTime": "Pick a time"
+  "schedule.pickTime": "Pick a time",
+  "schedule.runPartial": "Booked {booked} of {total}.",
+  "schedule.runDone": "Done"
 }

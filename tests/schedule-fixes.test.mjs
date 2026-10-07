@@ -74,6 +74,7 @@ async function routes() {
   // The shared booking rules (clash + open hours), compiled from the shipped file like the rest.
   const owned = await loadRealModule(join(ROOT, 'src/lib/owned-provider.ts'), { typescript: true, registry: new Map([['@/lib/time', time], ['@supabase/supabase-js', {}]]) });
   const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/owned-provider', owned]]) });
+  const series = await loadRealModule(join(ROOT, 'src/lib/session-series.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}], ['@/lib/time', time]]) });
   let client = null, userId = 'coach-1';
   const notices = [];
   const registry = () => new Map([
@@ -82,6 +83,7 @@ async function routes() {
     ['@/lib/request-utils', requestUtils],
     ['@/lib/access-guards.mjs', guards],
     ['@/lib/session-booking', booking],
+    ['@/lib/session-series', series],
     ['@/lib/require-membership', { requireMembership: async () => null }],
     ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: userId }) }],
     ['@/lib/supabase/admin', { createAdminClient: () => ({}) }],

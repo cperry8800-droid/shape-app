@@ -45,6 +45,7 @@ function loadScreen(win, now = NOW) {
     BSPage: pass, BSFooter: () => null, BSProActionHead: () => null, BSProClientMini: () => null, BSProActionSec: () => null,
     // The chips and the segment are the module's own components; the tests pick through their onPick.
     BSProChips: (p) => SHIM.createElement('div', p), BSProSegment: (p) => SHIM.createElement('div', p),
+    BSProStepper: (p) => SHIM.createElement('div', p),
   };
   vm.runInNewContext(code, ctx);
   return ctx.Screen;
@@ -150,6 +151,62 @@ test('the listing\'s main "Book the intro" holds the coach\'s next PROJECTED tim
   assert.match(fn, /if \(realAvail != null\) \{\s*const s = realAvail\[0\];\s*if \(!s\) \{ setShowCal\(true\); return; \}\s*nextOpen = \{ \.\.\.projSlotRow\(s\), coachDate: s\.coachDate, coachTime: s\.coachTime \};/);
   const iLive = fn.indexOf('realAvail != null'), iPreview = fn.indexOf('p.availability');
   assert.ok(iLive > 0 && iPreview > iLive, 'the preview pattern is reached before the live slots');
+});
+
+test('app coach: "Repeat weekly" books a run of real sessions, and names the dates it skipped', async () => {
+  const calls = [];
+  let reply = { ok: true, session: { id: 's-1' }, series: { id: 'run-1', booked: 4, skipped: [] } };
+  const win = { ShapeSessions: { createCoachSession: async (b) => { calls.push(JSON.parse(JSON.stringify(b))); return reply; } } };
+  const Screen = loadScreen(win);
+  const d = drive(Screen, { client: { n: 'Priya Shah' }, role: 'trainer', clientUid: 'member-1', onBack() {} });
+  const stepper = () => flatten(d.nodes()).find((n) => n.props && typeof n.props.set === 'function' && n.props.min === 2);
+  assert.equal(stepper(), undefined, 'the weeks show before the run is asked for');
+  d.click('Repeat weekly');
+  assert.equal(stepper().props.max, 26);
+  stepper().props.set(4);
+  d.render();
+  d.click('11:30');
+  d.click('Add to calendar');
+  await tick(); await tick();
+  assert.deepEqual(calls[0].repeat, { weeks: 4 });
+
+  // A run that skipped a date says which, and waits to be dismissed.
+  reply = { ok: true, session: { id: 's-1' }, series: { id: 'run-2', booked: 3, skipped: [{ date: '2026-10-21', time: '11:30', reason: 'overlap', message: 'Wed, Oct 21 overlaps Marcus T. at 11:30 AM.' }] } };
+  let back = 0;
+  const d2 = drive(Screen, { client: { n: 'Priya Shah' }, role: 'trainer', clientUid: 'member-1', onBack() { back += 1; } });
+  d2.click('Repeat weekly');
+  d2.click('11:30');
+  d2.click('Add to calendar');
+  await tick(); await tick();
+  d2.render();
+  assert.ok(d2.text.includes('Booked 3 of 4. Wed, Oct 21 overlaps Marcus T. at 11:30 AM.'), d2.text.slice(-200));
+  d2.click('Done');
+  assert.equal(back, 1);
+  // Without the switch, nothing about a run is sent.
+  const d3 = drive(Screen, { client: { n: 'Priya Shah' }, role: 'trainer', clientUid: 'member-1', onBack() {} });
+  d3.click('11:30');
+  d3.click('Add to calendar');
+  await tick(); await tick();
+  assert.equal('repeat' in calls[calls.length - 1], false);
+});
+
+test('the app\'s createCoachSession carries "Repeat weekly" to the route, and leaves it off a single booking', async () => {
+  // ⚠ The screen above passes `repeat`, but the service rebuilt the body from a fixed list and
+  // dropped it, so the app reported a run while the route booked one session (Codex, #2234).
+  // Lifted from the shipped shapeBackend.js and run against a recorded fetch.
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const i = src.indexOf('async function createCoachSession(');
+  const j = src.indexOf('\n}\n', i);
+  assert.ok(i > 0 && j > i, 'could not lift createCoachSession');
+  const calls = [];
+  const fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ ok: true }) }; };
+  const createCoachSession = new Function('fetch', 'sessionsApiUrl', 'sessionsAuthHeaders',
+    src.slice(i, j + 2) + '\nreturn createCoachSession;')(fetch, () => '/api/sessions/manage', (h) => h);
+  const one = { role: 'trainer', clientId: 'member-1', date: '2026-10-08', time: '11:30', tz: 'America/New_York', durationMin: 60, type: 'video', topic: 'Session' };
+  await createCoachSession({ ...one, repeat: { weeks: 4 } });
+  assert.deepEqual(calls[0], { action: 'create', ...one, repeat: { weeks: 4 } });
+  await createCoachSession(one);
+  assert.equal('repeat' in calls[1], false);
 });
 
 test('the profile\'s "Book intro" opens the listing\'s own calendar instead of booking with no time', () => {

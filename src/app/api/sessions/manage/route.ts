@@ -10,9 +10,12 @@
 //   complete (coach) -> status='completed'
 //   cancel   (client or coach) -> status='cancelled'; a coach's cancel tells the member
 //   reschedule (coach) -> a new wall clock; refused when it overlaps another booking
-// POST { action: 'create', role, clientId, date, time, tz, durationMin, type?, topic? }
+// POST { action: 'create', role, clientId, date, time, tz, durationMin, type?, topic?, repeat? }
 //   (coach) -> a CONFIRMED session with one of the coach's own active clients, booked from an
 //   empty slot on the Schedule grid. No sessionId: there is no row yet. See createSession.
+//   `repeat: { weeks, weekdays? }` books a run instead (see createRun).
+// cancel and reschedule take `scope: 'following'` on a booking that is part of a run: this one
+//   and every later active booking of the run (see runFollowing).
 //
 // Auth: cookie session OR Bearer token (the mobile app bridges either).
 
@@ -26,8 +29,9 @@ import { createNotification } from '@/lib/notify';
 import { isSessionReschedulable, unauthorizedAssignTargets } from '@/lib/access-guards.mjs';
 import { readJson, dbError } from '@/lib/request-utils';
 import { findSessionClash, isDoubleBookError } from '@/lib/session-booking';
+import { clashInWindow, readCalendarWindow, seriesOccurrences, shiftedRun } from '@/lib/session-series';
 
-import { instantInZone, normalizeZone } from '@/lib/time';
+import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +47,8 @@ type SessionRow = {
   status: string;
   meeting_url: string | null;
   topic: string | null;
+  // Read with `*`, so a database without 2026-10-07-session-series.sql reads it as absent.
+  series_id?: string | null;
 };
 
 async function ownedProviderIds(supabase: SupabaseClient, userId: string) {
@@ -236,28 +242,20 @@ async function createSession(request: Request, body: Record<string, unknown>) {
     return NextResponse.json({ error: 'You can only book a session with your own active client.' }, { status: 403 });
   }
 
+  // A run ("every Tue and Thu for 8 weeks") is the same booking on each of its dates, past the
+  // same checks above; it is written by createRun.
+  if (body.repeat != null) {
+    return createRun({ supabase, role, providerId, clientId, date, time, zone, durationMin, type, topic, repeat: body.repeat });
+  }
+
   const clash = await findSessionClash(supabase, { role, providerId, startMs: at, durationMin });
   if (!clash.ok) return NextResponse.json({ error: "Couldn't check your calendar for clashes. Nothing was booked — try again." }, { status: 503 });
   if (clash.clash) {
     return NextResponse.json({ error: `That overlaps ${clashLabel(clash.clash, zone)}. Pick another time.`, code: 'overlap' }, { status: 409 });
   }
 
-  // The row's NOT NULL display fields. The name comes the way the calendar reads it
-  // (get_display_names: display fields only); the address from auth, because the member's
-  // own invite mail and the sessions list key on it — an account with none (phone sign-up)
-  // stores an empty string rather than failing the booking.
-  let clientName = 'Client';
-  try {
-    const { data: names } = await supabase.rpc('get_display_names', { p_ids: [clientId] });
-    const n = ((names ?? []) as { full_name: string | null }[])[0];
-    if (n && String(n.full_name ?? '').trim()) clientName = String(n.full_name).trim();
-  } catch { /* the booking does not depend on a display name */ }
   const admin = createAdminClient();
-  let clientEmail = '';
-  try {
-    const { data: authUser } = await admin.auth.admin.getUserById(clientId);
-    clientEmail = authUser?.user?.email ?? '';
-  } catch { /* nor on an address */ }
+  const { clientName, clientEmail } = await bookingIdentity(supabase, admin, clientId);
 
   // The id is minted here so a video session's room can be named after it in the same write.
   // ⚠ videoRoomUrl RETURNS NULL WHEN NO JITSI DOMAIN IS CONFIGURED; the session is still booked,
@@ -309,6 +307,228 @@ async function createSession(request: Request, body: Record<string, unknown>) {
 
   const row = inserted as { meeting_url?: string | null } | null;
   return NextResponse.json({ ok: true, session: inserted, meetingUrl: row?.meeting_url ?? null, clientName });
+}
+
+// The row's NOT NULL display fields. The name comes the way the calendar reads it
+// (get_display_names: display fields only); the address from auth, because the member's own
+// invite mail and the sessions list key on it — an account with none (phone sign-up) stores an
+// empty string rather than failing the booking.
+async function bookingIdentity(supabase: SupabaseClient, admin: SupabaseClient, clientId: string) {
+  let clientName = 'Client';
+  try {
+    const { data: names } = await supabase.rpc('get_display_names', { p_ids: [clientId] });
+    const n = ((names ?? []) as { full_name: string | null }[])[0];
+    if (n && String(n.full_name ?? '').trim()) clientName = String(n.full_name).trim();
+  } catch { /* the booking does not depend on a display name */ }
+  let clientEmail = '';
+  try {
+    const { data: authUser } = await admin.auth.admin.getUserById(clientId);
+    clientEmail = authUser?.user?.email ?? '';
+  } catch { /* nor on an address */ }
+  return { clientName, clientEmail };
+}
+
+// "Tue, Oct 20", on the coach's clock — which date of a run a sentence is about.
+const dayLabel = (at: number, zone: string) => new Date(at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: zone });
+
+// A database without 2026-10-07-session-series.sql: the column is unknown to PostgREST (PGRST204)
+// or to Postgres (42703). A run cannot be written or read there, and saying so beats a 500.
+const isMissingSeriesColumn = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === 'PGRST204' || e.code === '42703') && /series_id/.test(String(e.message ?? ''));
+// The same file's move_session_run, missing: PostgREST's PGRST202, or Postgres's own
+// undefined_function.
+const isMissingMoveFunction = (e: { code?: string } | null) => !!e && (e.code === 'PGRST202' || e.code === '42883');
+
+// ── create with `repeat`: a run of bookings ──────────────────────────────────
+//
+// Every date of the run (seriesOccurrences: the coach's own calendar and clock, so a run that
+// crosses a clock change keeps its wall time) is checked against the coach's calendar, read ONCE
+// for the whole run. A date that would overlap another booking is SKIPPED and named, never
+// moved: a coach who asked for Tuesdays at 7 gets Tuesdays at 7, minus the ones that are taken,
+// and is told which. Nothing is booked when every date is taken.
+//
+// ⚠ ONE INSERT FOR THE RUN, THEN ONE PER BOOKING ONLY IF THE DATABASE REFUSED IT. The calendar
+// read can lose the same race a single booking can (sessions_no_overlap); a refused bulk insert
+// writes nothing, so the run is retried booking by booking and a date taken in the meantime is
+// skipped like the others.
+async function createRun(o: {
+  supabase: SupabaseClient; role: string; providerId: number; clientId: string; date: string; time: string; zone: string;
+  durationMin: number; type: string; topic: string | null; repeat: unknown;
+}) {
+  const repeat = (o.repeat && typeof o.repeat === 'object' ? o.repeat : {}) as Record<string, unknown>;
+  const weekdays = repeat.weekdays == null ? null : Array.isArray(repeat.weekdays) ? repeat.weekdays.map(Number) : [NaN];
+  const occ = seriesOccurrences({ date: o.date, time: o.time, zone: o.zone, weeks: Number(repeat.weeks), weekdays });
+  if (!occ.ok) return NextResponse.json({ error: occ.error }, { status: 400 });
+
+  type Skip = { date: string; time: string; reason: 'past' | 'overlap' | 'taken' | 'no_such_time'; message: string };
+  const skipped: Skip[] = occ.missing.map((m) => ({ ...m, reason: 'no_such_time' as const, message: `${m.date} ${m.time} doesn't exist in ${o.zone}.` }));
+  const now = Date.now();
+  for (const x of occ.list) if (x.at < now - 60_000) skipped.push({ date: x.date, time: x.time, reason: 'past', message: `${dayLabel(x.at, o.zone)} has passed.` });
+  const ahead = occ.list.filter((x) => x.at >= now - 60_000);
+  if (!ahead.length) return NextResponse.json({ error: 'None of those dates are ahead of now. Nothing was booked.' }, { status: 400 });
+
+  const cal = await readCalendarWindow(o.supabase, { role: o.role, providerId: o.providerId, fromMs: ahead[0].at, toMs: ahead[ahead.length - 1].at + o.durationMin * 60_000 });
+  if (!cal.ok) return NextResponse.json({ error: "Couldn't check your calendar for clashes. Nothing was booked — try again." }, { status: 503 });
+  const free = [];
+  for (const x of ahead) {
+    const c = clashInWindow(cal.items, x.at, o.durationMin);
+    if (c) skipped.push({ date: x.date, time: x.time, reason: 'overlap', message: `${dayLabel(x.at, o.zone)} overlaps ${clashLabel({ startMs: c.start, clientName: c.name }, o.zone)}.` });
+    else free.push(x);
+  }
+  if (!free.length) {
+    return NextResponse.json({ error: 'Every one of those dates overlaps another booking. Nothing was booked.', code: 'overlap', skipped }, { status: 409 });
+  }
+
+  const admin = createAdminClient();
+  const { clientName, clientEmail } = await bookingIdentity(o.supabase, admin, o.clientId);
+  const seriesId = randomUUID();
+  const rowFor = (x: { at: number }) => {
+    const id = randomUUID();
+    const room = o.type === 'video' ? videoRoomUrl(id) : null;
+    return {
+      id, series_id: seriesId, client_id: o.clientId, client_name: clientName, client_email: clientEmail,
+      provider_id: o.providerId, provider_role: o.role, type: o.type, scheduled_at: new Date(x.at).toISOString(),
+      duration_min: o.durationMin, status: 'confirmed', topic: o.topic, ...(room ? { meeting_url: room } : {}),
+    };
+  };
+  const SELECT = 'id, status, type, scheduled_at, duration_min, meeting_url, topic, series_id';
+  type Booked = { id: string; scheduled_at: string; meeting_url?: string | null };
+  let booked: Booked[] = [];
+  const bulk = await admin.from('sessions').insert(free.map(rowFor)).select(SELECT);
+  if (!bulk.error) booked = (bulk.data ?? []) as Booked[];
+  else if (isMissingSeriesColumn(bulk.error)) {
+    return NextResponse.json({ error: "Repeating sessions aren't set up yet. Book them one at a time for now." }, { status: 503 });
+  } else if (isDoubleBookError(bulk.error)) {
+    for (const x of free) {
+      const one = await admin.from('sessions').insert(rowFor(x)).select(SELECT).single();
+      if (!one.error) booked.push(one.data as Booked);
+      else if (isDoubleBookError(one.error)) skipped.push({ date: x.date, time: x.time, reason: 'taken', message: `${dayLabel(x.at, o.zone)} was just taken.` });
+      else if (!booked.length) return dbError(one.error, 'session series create', 500);
+      else skipped.push({ date: x.date, time: x.time, reason: 'taken', message: `${dayLabel(x.at, o.zone)} couldn't be saved.` });
+    }
+    if (!booked.length) return NextResponse.json({ error: 'Those times were just taken. Nothing was booked.', code: 'taken', skipped }, { status: 409 });
+  } else {
+    return dbError(bulk.error, 'session series create', 500);
+  }
+  booked.sort((a, b) => Date.parse(a.scheduled_at) - Date.parse(b.scheduled_at));
+
+  try {
+    const when = await memberClock(o.supabase, o.clientId, booked[0].scheduled_at);
+    await createNotification(createAdminClient(), {
+      userId: o.clientId,
+      type: 'session_booked',
+      title: booked.length === 1 ? 'Session booked' : 'Sessions booked',
+      body: booked.length === 1
+        ? `Your coach booked a session with you on ${when}.`
+        : `Your coach booked ${booked.length} sessions with you, starting ${when}.`,
+      route: 'sessions',
+      data: { sessionId: booked[0].id, seriesId },
+    });
+  } catch {
+    /* best-effort: the run stands without its notice */
+  }
+  skipped.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  return NextResponse.json({
+    ok: true,
+    session: booked[0],
+    meetingUrl: booked[0].meeting_url ?? null,
+    clientName,
+    series: { id: seriesId, booked: booked.length, sessions: booked.map((b) => ({ id: b.id, scheduledAt: b.scheduled_at, meetingUrl: b.meeting_url ?? null })), skipped },
+  });
+}
+
+// ── cancel / reschedule with `scope: 'following'` ───────────────────────────
+//
+// This booking and every later ACTIVE booking of its run. A cancel cancels them together. A move
+// shifts each by the same number of calendar days on the coach's clock and gives it the new wall
+// time (shiftedRun), so a Tuesday 7:00 run moved to Wednesday 8:00 stays on Wednesdays at 8:00.
+//
+// ⚠ A MOVE IS ALL OR NOTHING. Every new time is checked before any row moves, against the
+// calendar with the run's own bookings left out (they are the ones moving), and one clash refuses
+// the whole move and names the date. The writes then go to move_session_run
+// (2026-10-07-session-series.sql) as ONE transaction, in the order that cannot collide with a
+// booking of the same run still waiting to move (latest first when moving later, earliest first
+// when moving earlier), so a write the database refuses rolls back every move before it.
+//
+// ⚠ IT USED TO MOVE ONE ROW AT A TIME FROM HERE AND PUT BACK THE ONES ALREADY MOVED WHEN A LATER
+// ONE WAS REFUSED (Codex, the review of #2234). A put-back can itself be refused (another booking
+// took the time just vacated), and this then answered "Nothing was moved" over a half-moved run.
+async function runFollowing(o: {
+  supabase: SupabaseClient; userId: string; session: SessionRow; isCoach: boolean;
+  action: 'cancel' | 'reschedule'; date: string; time: string | null; zone: string;
+}) {
+  const sid = o.session.series_id;
+  if (!sid) return NextResponse.json({ error: "This session isn't part of a repeating run." }, { status: 400 });
+  // A run is at most 60 bookings, so the read needs no cap.
+  const { data, error } = await o.supabase
+    .from('sessions')
+    .select('id, scheduled_at, duration_min, status, client_id')
+    .eq('series_id', sid)
+    .gte('scheduled_at', o.session.scheduled_at)
+    .in('status', ['requested', 'confirmed'])
+    .order('scheduled_at', { ascending: true });
+  if (error) return NextResponse.json({ error: "Couldn't read the rest of this run. Nothing was changed — try again." }, { status: 503 });
+  const run = (data ?? []) as Array<{ id: string; scheduled_at: string; duration_min: number | null; status: string; client_id: string | null }>;
+  if (!run.length) return NextResponse.json({ error: 'Nothing in this run is left to change.' }, { status: 409 });
+  const ids = run.map((r) => r.id);
+  const notify = async (title: string, type: string, body: (when: string) => string, whenSource: string) => {
+    if (!o.session.client_id || !o.isCoach || o.session.client_id === o.userId) return;
+    try {
+      const when = await memberClock(o.supabase, o.session.client_id, whenSource);
+      await createNotification(createAdminClient(), { userId: o.session.client_id, type, title, body: body(when), route: 'sessions', data: { sessionId: o.session.id, seriesId: sid } });
+    } catch { /* best-effort */ }
+  };
+
+  if (o.action === 'cancel') {
+    const { error: updErr } = await o.supabase.from('sessions').update({ status: 'cancelled' }).in('id', ids);
+    if (updErr) return dbError(updErr, 'session run cancel', 500);
+    await notify(run.length === 1 ? 'Session cancelled' : 'Sessions cancelled', 'session_cancelled',
+      (when) => run.length === 1 ? `Your coach cancelled your session on ${when}.` : `Your coach cancelled ${run.length} sessions, from ${when} on.`, run[0].scheduled_at);
+    return NextResponse.json({ ok: true, series: { id: sid, count: run.length } });
+  }
+
+  // reschedule
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(o.date) || !o.time) {
+    return NextResponse.json({ error: 'Moving the rest of a run needs a date and a time.' }, { status: 400 });
+  }
+  const from = wallClockInZone(Date.parse(o.session.scheduled_at), o.zone);
+  if (!from) return NextResponse.json({ error: 'reschedule needs a valid time zone.' }, { status: 400 });
+  const shifted = shiftedRun(run, { zone: o.zone, fromDate: from.date, toDate: o.date, time: o.time });
+  const gone = shifted.find((x) => x.at == null);
+  if (gone) return NextResponse.json({ error: `${gone.date} ${o.time} is not a time that exists in ${o.zone}. Nothing was moved.` }, { status: 400 });
+  const ats = shifted.map((x) => x.at as number);
+  const span = Math.max(...run.map((r) => r.duration_min ?? 15));
+  const cal = await readCalendarWindow(o.supabase, { role: o.session.provider_role, providerId: o.session.provider_id, fromMs: Math.min(...ats), toMs: Math.max(...ats) + span * 60_000 });
+  if (!cal.ok) return NextResponse.json({ error: "Couldn't check the calendar for clashes. Nothing was moved — try again." }, { status: 503 });
+  const exclude = new Set(ids);
+  for (let i = 0; i < run.length; i++) {
+    const c = clashInWindow(cal.items, ats[i], run[i].duration_min ?? 15, exclude);
+    if (c) {
+      return NextResponse.json({ error: `${dayLabel(ats[i], o.zone)} overlaps ${clashLabel({ startMs: c.start, clientName: c.name }, o.zone)}. Nothing was moved.`, code: 'overlap' }, { status: 409 });
+    }
+  }
+  const later = ats[0] > Date.parse(run[0].scheduled_at);
+  const order = run.map((_, i) => i);
+  if (later) order.reverse();
+  const { error: moveErr } = await o.supabase.rpc('move_session_run', {
+    p_moves: order.map((i) => ({ id: run[i].id, at: new Date(ats[i]).toISOString() })),
+  });
+  if (moveErr) {
+    if (isDoubleBookError(moveErr)) {
+      return NextResponse.json({ error: 'One of those times was just taken. Nothing was moved — pick another time.', code: 'taken' }, { status: 409 });
+    }
+    // P0002: a booking of the run was cancelled since it was read, or is not the caller's to move.
+    if (moveErr.code === 'P0002') {
+      return NextResponse.json({ error: 'This run changed while you were moving it. Nothing was moved — reload and try again.', code: 'changed' }, { status: 409 });
+    }
+    if (isMissingMoveFunction(moveErr)) {
+      return NextResponse.json({ error: "Moving the rest of a run isn't set up yet. Nothing was moved — move them one at a time for now." }, { status: 503 });
+    }
+    return dbError(moveErr, 'session run reschedule', 500);
+  }
+  await notify(run.length === 1 ? 'Session moved' : 'Sessions moved', 'session_rescheduled',
+    (when) => run.length === 1 ? `Your coach moved your session to ${when}.` : `Your coach moved ${run.length} sessions; the next is on ${when}.`, new Date(ats[0]).toISOString());
+  return NextResponse.json({ ok: true, series: { id: sid, count: run.length, sessions: run.map((r, i) => ({ id: r.id, scheduledAt: new Date(ats[i]).toISOString() })) } });
 }
 
 export async function POST(request: Request) {
@@ -365,9 +585,11 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
 
+  // ⚠ `*`, SO A DATABASE WITHOUT 2026-10-07-session-series.sql STILL READS THE ROW: naming
+  // `series_id` would fail every confirm, cancel and move there, not only the run's.
   const { data: sessionRow, error: readErr } = await supabase
     .from('sessions')
-    .select('id, client_id, provider_id, provider_role, type, scheduled_at, duration_min, status, meeting_url')
+    .select('*')
     .eq('id', sessionId)
     .maybeSingle();
   if (readErr || !sessionRow) return NextResponse.json({ error: 'Session not found.' }, { status: 404 });
@@ -388,6 +610,14 @@ export async function POST(request: Request) {
   // can't rewrite a past session's time — and no "moved" notification fires.
   if (action === 'reschedule' && !isSessionReschedulable(session.status)) {
     return NextResponse.json({ error: `Can't reschedule a ${session.status} session.` }, { status: 409 });
+  }
+  // "This and following" on a booking that is part of a run (recurring sessions, step 4).
+  if (body.scope === 'following' && (action === 'cancel' || action === 'reschedule')) {
+    return runFollowing({
+      supabase, userId: user.id, session, isCoach, action,
+      date: String(body.date ?? ''), time: /^\d{1,2}:\d{2}$/.test(String(body.time ?? '')) ? String(body.time) : null,
+      zone: rescheduleZone,
+    });
   }
   // ⚠ A MOVE ONTO ANOTHER BOOKING IS REFUSED HERE, NOT ONLY ON THE GRID. The Schedule grid turns
   // its drop target red over a clash, but the app's sheet, Nora and any stale page post here
