@@ -287,8 +287,8 @@
      loudest recurring element on a page whose subject is the product. The
      BORDER went, not the WORDS: this label is what makes the ON AIR chip, the
      demo coach cast, the drawn score and the captured screens allowed to be on
-     the page at all, and the footer's own claim ("every figure on this page is
-     measured or labelled an example") is only true while they are here.
+     the page at all. (The footer no longer says so in words — owner, 2026-10-07
+     — but the rule stands: every figure here is measured or labelled.)
      Guarded by tests/homepage-climb.test.mjs. */
   .exlabel{display:inline-flex;align-items:center;gap:6px;font-family:var(--num);font-weight:700;font-size:10px;
            letter-spacing:.07em;text-transform:uppercase;color:#e6c373;font-variation-settings:'ROND' 30}
@@ -308,9 +308,15 @@
      at — silently, because both values stay legal CSS and the ring still draws.
      Widening from 1/1 to 3/4 is why each ring was multiplied by 600/800. The guard
      in tests/homepage-climb.test.mjs pins each ring's position in IMAGE pixels, so
-     the next change to this line fails rather than drifts. */
+     the next change to this line fails rather than drifts.
+     ⚠ AND EACH RING IS FITTED TO ITS CAPTURE, ON ALL FOUR SIDES. The app's own
+     content starts ~28 px into a 600 px capture (5%), so a 5% inset drew every
+     ring THROUGH the text it framed: "1,568", "1/25", "SET 01", the NEW PR chip.
+     2.5% clears it; the Wall's content starts at 19 px, so its ring overrides
+     to 1.25%. Each ring's top/height is the target's measured bounds plus ~12 px,
+     or the midpoint of the gap where its neighbours are closer than that. */
   .mo .shot img{display:block;width:100%;height:auto;transform:translateY(calc(var(--y) * -1))}
-  .mo .hl{position:absolute;left:5%;right:5%;border:1.5px solid var(--teal);border-radius:6px;
+  .mo .hl{position:absolute;left:2.5%;right:2.5%;border:1.5px solid var(--teal);border-radius:6px;
           box-shadow:0 0 0 3px rgba(var(--teal-rgb),.12);opacity:0;transition:opacity .5s}
   .mo.on .hl{opacity:1}
   .mo.on{border-color:rgba(var(--teal-rgb),.34)}
@@ -921,19 +927,19 @@
     <div class="mo-grid" id="mo-grid">
       <div class="mo on">
         <div class="eb">Eat · the menu</div><h3>The ledger ticks.</h3>
-        <div class="shot"><img src="/newdesign/home-eat-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the day's calories against target, macros, and today's meals" style="--y:27%"><span class="hl" style="top:18.75%;height:18%"></span></div>
+        <div class="shot"><img src="/newdesign/home-eat-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the day's calories against target, macros, and today's meals" style="--y:27%"><span class="hl" style="top:19.75%;height:17%"></span></div>
       </div>
       <div class="mo">
         <div class="eb">Eat · the shop</div><h3>The list writes itself.</h3>
-        <div class="shot"><img src="/newdesign/home-grocery-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan sorted by aisle with Produce open" style="--y:24.5%"><span class="hl" style="top:39%;height:22.5%"></span></div>
+        <div class="shot"><img src="/newdesign/home-grocery-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan sorted by aisle with Produce open" style="--y:24.5%"><span class="hl" style="top:39%;height:19.25%"></span></div>
       </div>
       <div class="mo">
         <div class="eb">Train · in the session</div><h3>A set logs.</h3>
-        <div class="shot"><img src="/newdesign/home-session-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, the first set ticked" style="--y:15%"><span class="hl" style="top:12.75%;height:14.25%"></span></div>
+        <div class="shot"><img src="/newdesign/home-session-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, the first set ticked" style="--y:15%"><span class="hl" style="top:11.75%;height:16.25%"></span></div>
       </div>
       <div class="mo">
         <div class="eb">Community · the Wall</div><h3>A PR lands.</h3>
-        <div class="shot"><img src="/newdesign/home-feed-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Wall in Chat: a deadlift PR with the record stamped above the session's own stats" style="--y:28.5%"><span class="hl" style="top:33.75%;height:21.75%"></span></div>
+        <div class="shot"><img src="/newdesign/home-feed-v1.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Wall in Chat: a deadlift PR with the record stamped above the session's own stats" style="--y:28.5%"><span class="hl" style="top:37.5%;height:17.5%;left:1.25%;right:1.25%"></span></div>
       </div>
     </div>
     <div style="margin-top:20px"><span class="exlabel">Example member · captured from the app's signed-out preview</span></div>
@@ -1084,7 +1090,7 @@
 <div class="ftg">
 <div class="fbrand">
 <img class="logo" src="/shape-logo-nav-white.png" width="265" height="128" alt="Shape" />
-<p class="tag2">Real coaches. One app. The whole loop. Every figure on this page is measured or labelled an example.</p>
+<p class="tag2">Real coaches. One app. The whole loop.</p>
 </div>
 <div><h5>Product</h5>
 <a href="/newdesign/Marketplace.html">Marketplace</a>
