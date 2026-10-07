@@ -1431,7 +1431,7 @@ function bsRadioCorner(ink, bg) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap }}>
       {(typeof window !== 'undefined' && window.BSSearchCorner)
-        ? React.createElement(window.BSSearchCorner, { size, ink })
+        ? React.createElement(window.BSSearchCorner, { size, ink, nora: false })
         : null}
       {(typeof window !== 'undefined' && window.BSFacetAvatar)
         ? React.createElement(window.BSFacetAvatar, {

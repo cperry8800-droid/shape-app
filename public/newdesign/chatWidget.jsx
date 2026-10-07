@@ -301,6 +301,23 @@ function ChatWidget(props) {
   const isNoraTab = (t) => !!(t && t.support);
   // threadsByTab: array of arrays of threads (mutable copy)
   const [threadsByTab, setThreadsByTab] = React.useState(() => tabs.map(t => t.threads));
+  // Nora's greeting and suggestions for this account (GET /api/support/chat), fetched the
+  // first time the widget opens. It replaces the seed greeting only while her thread is
+  // untouched, so a conversation already under way is never rewritten.
+  const greetedRef = React.useRef(false);
+  const [noraGreeting, setNoraGreeting] = React.useState(null);
+  React.useEffect(() => {
+    if (!open || greetedRef.current) return;
+    greetedRef.current = true;
+    fetch("/api/support/chat", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((g) => {
+        if (!g || typeof g.text !== "string" || !g.text.trim()) return;
+        const quick = Array.isArray(g.quick) ? g.quick.filter((q) => typeof q === "string" && q.trim()).slice(0, 4) : [];
+        setNoraGreeting({ text: g.text, quick });
+      })
+      .catch(() => {});
+  }, [open]);
   const [activeByTab, setActiveByTab] = React.useState(() => tabs.map(() => 0));
   const [draftByTab, setDraftByTab] = React.useState(() => tabs.map(() => ""));
   const [typing, setTyping] = React.useState(false);
@@ -449,6 +466,20 @@ function ChatWidget(props) {
     })();
     return () => { cancelled = true; };
   }, [tabs.length, feedReady]);
+
+  // ⚠ THE GREETING IS APPLIED ONLY ONCE THE SAVED THREADS ARE IN. The fetch races the
+  // localStorage hydrate above, and a hydrate that landed second restored the saved seed
+  // over the account's greeting for good (Codex, #2247). So it waits on `hydrated`, and
+  // re-applies if either arrives later.
+  React.useEffect(() => {
+    if (!noraGreeting || !hydrated) return;
+    const g = noraGreeting;
+    setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
+      const msgs = th.messages || [];
+      if (th.who !== "Nora" || msgs.length !== 1 || msgs[0].me) return th;
+      return { ...th, last: g.text, quick: g.quick, messages: [{ ...msgs[0], t: g.text }] };
+    }) : list));
+  }, [noraGreeting, hydrated]);
 
   React.useEffect(() => {
     if (!hydratedRef.current || !storeKeyRef.current) return;

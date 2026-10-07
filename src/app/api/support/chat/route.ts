@@ -63,6 +63,7 @@ import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs
 import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { noraTier, visitorGate, countQuestion, limitReply, requestIp, CHECK_REPLY } from '@/lib/ai/noraLimits';
+import { greetingKind, greetingFor } from '@/lib/ai/noraGreeting.mjs';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
 import {
@@ -1248,4 +1249,25 @@ export async function POST(request: Request) {
 
   const fb = await fallbackReply(String(lastUser.content || ''), coach);
   return respond({ reply: fb.reply, source: 'fallback', actions: fb.actions });
+}
+
+// Nora's greeting and four suggestions for whoever is asking (the Ask Nora plan, step 2).
+// Every panel opens with this, so the same account is greeted the same way everywhere.
+// Decided from the session and membership, never from the page; ?plain=1 is a panel that
+// cannot show a confirm card, which gets suggestions that need none. Fails to the
+// visitor's greeting, which promises the least.
+export async function GET(request: Request) {
+  const plain = new URL(request.url).searchParams.get('plain') === '1';
+  let kind = 'visitor';
+  try {
+    const actor = await resolveActor(request).catch(() => null);
+    if (actor) {
+      const m = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
+      kind = greetingKind(true, m, [actor.role, ...(actor.roles || [])]);
+    }
+  } catch {
+    kind = 'visitor';
+  }
+  const g = greetingFor(kind, { plain });
+  return NextResponse.json(g, { headers: { 'Cache-Control': 'private, no-store' } });
 }
