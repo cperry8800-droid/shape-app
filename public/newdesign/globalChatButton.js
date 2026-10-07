@@ -117,6 +117,7 @@
       "#shape-global-chat-panel .sgc-msg.them{align-self:flex-start;border-top-left-radius:4px}",
       "#shape-global-chat-panel .sgc-time{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.1em;color:rgba(var(--sh-ink-rgb, 242,237,228),.36);margin-top:-5px}",
       "#shape-global-chat-panel .sgc-quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:2px}",
+      "#shape-global-chat-panel .sgc-quick a{display:inline-block;text-decoration:none;border:1px solid rgba(30,192,168,.42);color:var(--sh-accent, #2ee0c4);border-radius:999px;padding:7px 11px;font:600 12px 'Space Grotesk',Inter,Arial,sans-serif}",
       "#shape-global-chat-panel .sgc-quick button{border:1px solid rgba(30,192,168,.42);background:transparent;color:var(--sh-accent, #2ee0c4);border-radius:999px;padding:7px 11px;font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer}",
       "#shape-global-chat-panel .sgc-compose{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.09)}",
       "#shape-global-chat-panel textarea{flex:1;min-height:40px;max-height:110px;resize:none;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.12);border-radius:12px;background:rgba(var(--sh-ink-rgb, 242,237,228),.045);color:var(--sh-ink, #f2ede4);padding:11px 12px;font:13.5px 'Space Grotesk',Inter,Arial,sans-serif;outline:none}",
@@ -273,7 +274,7 @@
       { id:"support", label:"Help", eyebrow:"CUSTOMER SUPPORT", title:"How can we help?", support:true, threads:[
         { who:"Nora", role:"Shape's Concierge · coaches · billing · the app · your account", last:"How can we help?", time:"now", unread:0,
           quick:["Find a coach","Billing help","App support"], messages:[
-          { who:"Nora", t:"Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time:"now", me:false } ] } ] }
+          { who:"Nora", t:"Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time:"now", me:false } ] } ] }
     ], viewerRoleSync());
   }
 
@@ -287,12 +288,33 @@
     function tabBy(id) { for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i]; return DATA[0]; }
     function unreadFor(tab) { return (tab.threads || []).reduce(function (s, th) { return s + (Number(th.unread) || 0); }, 0); }
     function stamp() { return new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
-    function supportReply(text) {
-      var low = String(text || "").toLowerCase();
-      if (/billing|price|cost|refund|stripe/.test(low)) return "Got it — we'll route this to billing. What's the email on the account?";
-      if (/coach|trainer|nutrition|marketplace|find a coach/.test(low)) return "Tell us your goal and location and we'll point you to the right coach or nutritionist.";
-      if (/app|bug|android|iphone|login|account|app support/.test(low)) return "Send the device and what's happening — support can troubleshoot the app from there.";
-      return "Thanks — a Shape teammate will follow up here or by email.";
+    // ⚠ THE REAL NORA, NOT A SCRIPT. This panel is what pages without React show (the
+    // older public/*.html pages, help.html and login.html among them), and its Help tab
+    // greeted people as Nora and answered from four canned lines. It now asks the same
+    // endpoint the full chat does; a failure says so and gives the address a person reads.
+    var NORA_DOWN = "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.";
+    function askNora(thread) {
+      var history = (thread.messages || []).filter(function (m) { return !m.pending; }).slice(-12).map(function (m) {
+        return { role: m.me ? "user" : "assistant", content: String(m.t || "") };
+      });
+      return fetch("/api/support/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ messages: history, surface: "web" })
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok || !data || typeof data.reply !== "string" || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };
+          return { reply: data.reply, links: noraLinks(data.actions) };
+        });
+      }).catch(function () { return { reply: NORA_DOWN, links: [] }; });
+    }
+    // Nora's tappable follow-ups, as plain links: only a same-site path, never a
+    // script or another origin, whatever the reply carries.
+    function noraLinks(actions) {
+      return (Array.isArray(actions) ? actions : []).filter(function (a) {
+        return a && typeof a.url === "string" && /^\/(?!\/)/.test(a.url) && typeof a.label === "string" && a.label.trim();
+      }).slice(0, 4).map(function (a) { return { label: a.label.trim().slice(0, 60), url: a.url }; });
     }
 
     var node = document.createElement("section");
@@ -389,6 +411,17 @@
         msg.className = "sgc-msg " + (m.me ? "me" : "them");
         msg.textContent = m.t;
         body.appendChild(msg);
+        if (m.links && m.links.length) {
+          var lk = document.createElement("div");
+          lk.className = "sgc-quick";
+          m.links.forEach(function (l) {
+            var a = document.createElement("a");
+            a.href = l.url;
+            a.textContent = l.label;
+            lk.appendChild(a);
+          });
+          body.appendChild(lk);
+        }
         var time = document.createElement("div");
         time.className = "sgc-time";
         time.textContent = (m.me ? "YOU" : (m.who || "").toUpperCase()) + " · " + (m.time || stamp());
@@ -427,10 +460,13 @@
       var supportTab = tabBy(state.tab).support;
       render();
       if (supportTab) {
-        window.setTimeout(function () {
-          var cur = activeThread();
-          if (cur) { cur.messages.push({ who: "Shape", t: supportReply(value), time: stamp(), me: false }); render(); }
-        }, 480);
+        var pending = { who: "Nora", t: "…", time: stamp(), me: false, pending: true };
+        th.messages.push(pending);
+        render();
+        askNora(th).then(function (r) {
+          pending.t = r.reply; pending.links = r.links; pending.time = stamp(); delete pending.pending;
+          render();
+        });
       }
     }
 

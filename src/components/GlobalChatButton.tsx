@@ -6,30 +6,56 @@ import { usePathname } from 'next/navigation';
 type Message = {
   from: 'shape' | 'you';
   text: string;
+  links?: { label: string; url: string }[];
 };
 
-function replyFor(text: string) {
-  const value = text.toLowerCase();
-  if (/billing|price|cost|refund|stripe/.test(value)) {
-    return 'Got it. Send the email on the account and we will route this to billing.';
+// ⚠ THE REAL NORA, NOT A SCRIPT. This button sat on every Next page with four canned
+// replies (one promising a teammate's follow-up) and a hard-coded unread badge.
+// It now asks the same endpoint as every other Nora; a failure says so and gives the
+// address a person actually reads (nothing records a question for the team).
+const NORA_DOWN = "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.";
+
+// Nora's follow-ups as plain links: a same-site path only, whatever the reply carries.
+export function noraLinks(actions: unknown): { label: string; url: string }[] {
+  if (!Array.isArray(actions)) return [];
+  const out: { label: string; url: string }[] = [];
+  for (const a of actions as Array<{ url?: unknown; label?: unknown }>) {
+    if (!a || typeof a.url !== 'string' || !/^\/(?!\/)/.test(a.url)) continue;
+    if (typeof a.label !== 'string' || !a.label.trim()) continue;
+    out.push({ label: a.label.trim().slice(0, 60), url: a.url });
+    if (out.length === 4) break;
   }
-  if (/coach|trainer|nutrition|marketplace/.test(value)) {
-    return 'Send what you are looking for and we can point you to the right coach or nutritionist.';
+  return out;
+}
+
+export async function askNora(history: Message[], fetcher: typeof fetch = fetch): Promise<{ reply: string; links: { label: string; url: string }[] }> {
+  try {
+    const res = await fetcher('/api/support/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        surface: 'web',
+        messages: history.slice(-12).map((m) => ({ role: m.from === 'you' ? 'user' : 'assistant', content: m.text })),
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { reply?: unknown; actions?: unknown };
+    if (!res.ok || typeof data.reply !== 'string' || !data.reply.trim()) return { reply: NORA_DOWN, links: [] };
+    return { reply: data.reply, links: noraLinks(data.actions) };
+  } catch {
+    return { reply: NORA_DOWN, links: [] };
   }
-  if (/app|bug|android|iphone|login|account/.test(value)) {
-    return 'Send the device and issue. Support can use that to troubleshoot the app.';
-  }
-  return 'Received. A Shape teammate can follow up here or by email.';
 }
 
 export default function GlobalChatButton() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       from: 'shape',
-      text: 'Welcome to Shape. Send a question about coaches, billing, the app, or your account.',
+      text: "Hi, I'm Nora, Shape's assistant. Ask me about coaches, billing, the app or your account.",
     },
   ]);
 
@@ -37,15 +63,16 @@ export default function GlobalChatButton() {
     return null;
   }
 
-  function send(text = draft) {
+  async function send(text = draft) {
     const value = text.trim();
-    if (!value) return;
-    setMessages((current) => [
-      ...current,
-      { from: 'you', text: value },
-      { from: 'shape', text: replyFor(value) },
-    ]);
+    if (!value || busy) return;
+    const next: Message[] = [...messages, { from: 'you', text: value }];
+    setMessages(next);
     setDraft('');
+    setBusy(true);
+    const { reply, links } = await askNora(next);
+    setMessages((current) => [...current, { from: 'shape', text: reply, links }]);
+    setBusy(false);
   }
 
   return (
@@ -59,9 +86,9 @@ export default function GlobalChatButton() {
           <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-b from-[#0ac5a8]/10 to-transparent px-[18px] py-4">
             <div>
               <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[#2ee0c4]">
-                Shape chat
+                Ask Nora
               </div>
-              <div className="text-lg font-bold leading-tight">How can we help?</div>
+              <div className="text-lg font-bold leading-tight">How can I help?</div>
             </div>
             <button
               type="button"
@@ -84,8 +111,22 @@ export default function GlobalChatButton() {
                 }
               >
                 {message.text}
+                {message.links && message.links.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {message.links.map((l) => (
+                      <a key={l.url + l.label} href={l.url} className="rounded-full border border-[#0ac5a8]/45 px-3 py-1.5 text-xs font-semibold text-[#2ee0c4] no-underline">
+                        {l.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
+            {busy && (
+              <div className="max-w-[84%] self-start rounded-[14px] rounded-tl bg-white/10 px-3.5 py-2.5 text-[13.5px] leading-snug" aria-live="polite">
+                Nora is typing…
+              </div>
+            )}
             {messages.length === 1 && (
               <div className="mt-1 flex flex-wrap gap-2">
                 {['Find a coach', 'Billing help', 'App support'].map((item) => (
@@ -113,12 +154,12 @@ export default function GlobalChatButton() {
                 }
               }}
               rows={1}
-              placeholder="Message Shape..."
+              placeholder="Ask Nora…"
               className="min-h-10 flex-1 resize-none rounded-xl border border-white/15 bg-white/[0.045] px-3 py-2.5 text-[13.5px] text-[#f2ede4] outline-none"
             />
             <button
               type="button"
-              disabled={!draft.trim()}
+              disabled={!draft.trim() || busy}
               onClick={() => send()}
               className="rounded-full border-0 bg-[#f2ede4] px-4 text-[13px] font-bold text-[#1a1612] disabled:cursor-not-allowed disabled:opacity-45"
             >
@@ -131,7 +172,7 @@ export default function GlobalChatButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open Shape chat"
+        aria-label="Ask Nora"
         className="fixed bottom-6 right-6 z-[2147483000] inline-flex items-center gap-3 rounded-full border-0 bg-[#0ac5a8] px-6 py-4 text-[15px] font-bold text-[#1a1612] shadow-[0_18px_44px_rgba(0,0,0,0.38),0_4px_14px_rgba(10,197,168,0.35)] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-white/80 max-sm:bottom-4 max-sm:right-4 max-sm:px-5 max-sm:py-3.5 max-sm:text-sm"
       >
         <svg width="19" height="19" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -142,10 +183,7 @@ export default function GlobalChatButton() {
             strokeWidth="1.35"
           />
         </svg>
-        <span>Chat</span>
-        <span className="inline-flex h-6 min-w-7 items-center justify-center rounded-full bg-[#1a1612] px-2 font-mono text-xs font-bold leading-none text-[#0ac5a8]">
-          24
-        </span>
+        <span>Ask Nora</span>
       </button>
     </>
   );
