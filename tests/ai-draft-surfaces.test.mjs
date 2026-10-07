@@ -517,3 +517,29 @@ test('Nora: a dual-role account\'s drafted card is built, not refused as role_no
   assert.ok(card, 'a confirm card');
   assert.equal(card.action, 'draft_workout');
 });
+
+// ── a chat that cannot show a confirm card gets no write tools ──────────────────
+// The older pages' fallback panel and the Next app's button render text and links
+// only; a drafted change would be promised "below" and never appear (Codex, #2239).
+test('Nora: confirmCards: false strips every write tool and says so; the default keeps them', async () => {
+  const WRITES = ['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder'];
+  const plain = await loadChat({ role: 'trainer' });
+  await plain.mod.POST(new Request('https://x/api/support/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], confirmCards: false }) }));
+  const names = toolNames(plain.seen[0].body);
+  assert.deepEqual(names.filter((n) => WRITES.includes(n)), [], 'no write tool is offered');
+  assert.ok(names.includes('get_training_plan'), 'lookups still work');
+  const sys = plain.seen[0].body.input[0].content;
+  assert.match(sys, /THIS CHAT CANNOT MAKE CHANGES/);
+  assert.doesNotMatch(sys, /TRAINER DRAFTING/);
+  const full = await loadChat({ role: 'trainer' });
+  await full.mod.POST(chatPost('hi'));
+  assert.ok(toolNames(full.seen[0].body).includes('draft_workout'), 'a chat with cards keeps them');
+  assert.doesNotMatch(full.seen[0].body.input[0].content, /THIS CHAT CANNOT MAKE CHANGES/);
+});
+
+test('Nora with no model: a trainer in a plain chat gets no template card', async () => {
+  const t = await loadChat({ role: 'trainer', hasKey: false });
+  const res = await t.mod.POST(new Request('https://x/api/support/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'build me a lower body session, 50 min' }], confirmCards: false }) }));
+  const j = await res.json();
+  assert.ok(!(j.actions || []).some((a) => a.type === 'proposal'), 'no confirm card the panel cannot show');
+});

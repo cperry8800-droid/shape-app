@@ -485,6 +485,11 @@ const MEMBER_PROMPT_NOTE =
   "MEMORY: The member can ask you to remember or forget personal preferences — use the remember/forget tools (applied immediately, no confirm; managed under Settings → What Nora remembers). If a forget returns candidates, list them and ask which one.\n" +
   "MEMBER ACTIONS: They can also log a weigh-in (log_weigh_in), log water (log_water), check off a habit (check_habit), and set reminders (set_reminder) — each DRAFTS a confirm card, so say you've drafted it, never that it's done. For a NAMED food, call find_food first and propose log_meal with the REAL returned macros.\n" +
   'THE READ TOOLS ARE AVAILABLE on this turn — use them (see LOOKUPS) before answering anything about this member\'s own plan, schedule, progress or numbers.';
+// A plain chat (confirmCards: false) has no write tools and says so: the model must not
+// offer a change it has no way to draft. Rides last among the role notes, so it wins.
+const NO_CARDS_NOTE =
+  "THIS CHAT CANNOT MAKE CHANGES: it shows text only, so you have no tools to log, assign, draft, move or set anything here, whatever the notes above say. If they ask for a change, say you can't do it in this chat and that they can ask you in the Shape app or in the chat on the Shape website, where you can draft it for them to confirm. Lookups and answers work as normal.";
+
 // A spoken turn: the reply is read aloud by text-to-speech, so it is written
 // for the ear. Rides only when the client says the message was spoken.
 const VOICE_PROMPT_NOTE =
@@ -913,7 +918,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; trainerZone?: string; noCards?: boolean; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -937,7 +942,8 @@ async function askOpenAI(
   const langName = member.locale && member.locale !== 'en' ? languageNameFor(member.locale) : null;
   const langNote = langName ? `\n\nLANGUAGE: The member's app is set to ${langName} (${member.locale}). Answer in ${langName} unless they write to you in another language; keep coach names, product names and figures as they are.` : '';
   const trainerNote = member.trainerTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${trainerPromptNote(member.reads ? member.reads.now : new Date(), member.trainerZone)}` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const noCardsNote = member.noCards && !member.cookMsg ? `\n\n${NO_CARDS_NOTE}` : '';
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${noCardsNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // The server-built member-context block (or the honest unavailable note on
@@ -963,7 +969,8 @@ async function askOpenAI(
   // trainer draft_workout.
   const tools = member.cookMsg
     ? []
-    : (member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools] : TOOLS);
+    : (member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools] : TOOLS)
+      .filter((t) => !(member.noCards && WRITE_TOOLS.has(String((t as { name?: unknown }).name))));
   // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
   // anyone else rides the public model. `model` is set explicitly for the
   // public path only — an explicit model also disables callAI's access
@@ -1104,7 +1111,7 @@ async function fallbackReply(text: string, coach: CoachCtx): Promise<{ reply: st
 }
 
 export async function POST(request: Request) {
-  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown }>(request);
+  const parsed = await readJson<{ messages?: ChatMessage[]; tone?: string; cookContext?: unknown; voice?: unknown; surface?: unknown; locale?: unknown; confirmCards?: unknown }>(request);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
   const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && m.content) : [];
@@ -1123,6 +1130,12 @@ export async function POST(request: Request) {
   const voice = body.voice === true;
   const surface: CoachCtx['surface'] = body.surface === 'app' ? 'app' : 'web';
   const locale = normalizeLocale(body.locale);
+  // ⚠ A CHAT THAT CANNOT SHOW A CONFIRM CARD GETS NO WRITE TOOLS. Every change Nora
+  // makes is drafted as a card the member confirms; the plain panels (the older pages'
+  // fallback chat, the Next app's button) render text and links only, so a drafted
+  // change would be promised "below" and never appear (Codex, #2239). They send
+  // confirmCards: false. Like voice, it narrows what Nora offers and grants nothing.
+  const noCards = body.confirmCards === false;
 
   // Resolve the actor ONCE; membership (fail-closed) decides whether the
   // member-only layer exists AT ALL for this request: the context block, the
@@ -1154,7 +1167,7 @@ export async function POST(request: Request) {
       // is `roles: ['trainer']`, checked against the actor's every role (primary plus
       // profiles.roles[]), so a dual-role account that also trains drafts too, and
       // offering it to anyone else would hand the model a tool that answers role_not_allowed.
-      if (actor.role === 'trainer' || (actor.roles || []).includes('trainer')) { trainerTools = TRAINER_TOOLS; zone = await trainerZone(actor.supabase, actor.user.id); }
+      if ((actor.role === 'trainer' || (actor.roles || []).includes('trainer')) && !noCards) { trainerTools = TRAINER_TOOLS; zone = await trainerZone(actor.supabase, actor.user.id); }
       memoryCtx = {
         actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
         supabase: actor.supabase,
@@ -1178,7 +1191,7 @@ export async function POST(request: Request) {
   const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
   const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, trainerZone: zone, isMember, voice, locale, coach, noCards }, request.signal).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
