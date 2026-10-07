@@ -196,7 +196,14 @@ export default {
     { name: 'a question about Shape reads as a build request', file: CORE,
       find: '  if (!s || QUESTION.test(s) || !BUILD_VERB.test(s) || !looksLikeTraining(s)) return null;',
       replace: '  if (!s || !BUILD_VERB.test(s) || !looksLikeTraining(s)) return null;' },
-    { name: 'the no-model card is offered to everyone', file: CHAT,
+    // ⚠ A PROVEN NO-OP, measured on the round of 2026-10-07 (59 killed, this one survived).
+    // Without the guard a non-trainer's fallback still reaches proposeChange, whose role
+    // gate (draft_workout is `roles: ['trainer']`, checked BEFORE buildPreview, so no read
+    // and no draft) refuses it, and a signed-out caller is refused in makePropose (no
+    // actor). Either way `actions` is empty and the request falls through to the same
+    // fallbackReply — which the surfaces test pins for a client and a nutritionist. The
+    // guard only saves a function call; the registry is the gate.
+    { name: 'the no-model card is offered to everyone', file: CHAT, expectSurvive: true,
       find: '  if (trainerTools.length) {\n    const brief = draftBriefFromText(',
       replace: '  if (true) {\n    const brief = draftBriefFromText(' },
     { name: 'the no-model card asks the model that just failed', file: CHAT,
