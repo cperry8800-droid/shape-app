@@ -925,7 +925,10 @@ function ChatWidget(props) {
           let data = await res.json().catch(() => ({}));
           // A visitor's first question passes the bot check: solve it once and ask again.
           if (res.status === 403 && data && data.needsCheck) {
-            const token = window.ShapeTurnstile && window.ShapeTurnstile.solve ? await window.ShapeTurnstile.solve() : "";
+            // globalChatButton.js carries the solver on every page with Nora, including the
+            // marketing pages that never load /supabase.js; ShapeTurnstile is the fallback.
+            const solve = window.__shapeNoraSolve || (window.ShapeTurnstile && window.ShapeTurnstile.solve);
+            const token = solve ? await solve() : "";
             if (token) { res = await ask({ turnstileToken: token }); data = await res.json().catch(() => ({})); }
           }
           if (data && data.reply && (res.ok || data.needsCheck)) { reply = data.reply; actions = data.actions; }

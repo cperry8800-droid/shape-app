@@ -144,6 +144,27 @@ test('Next app: askNora solves the check once and retries with the token', async
 test('the rich chat widget retries a checked question with a solved token', () => {
   const src = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
   assert.match(src, /res\.status === 403 && data && data\.needsCheck/);
-  assert.match(src, /window\.ShapeTurnstile\.solve\(\)/);
+  assert.match(src, /const token = solve \? await solve\(\) : "";/);
   assert.match(src, /ask\(\{ turnstileToken: token \}\)/);
+});
+
+test('⚠ the solver is on every page with Nora, not only the ones that load supabase.js', async () => {
+  // A marketing page: no ShapeTurnstile. The button script's own solver loads Turnstile.
+  const p = page(() => json(403, CHECK));
+  assert.equal(typeof p.w.__shapeNoraSolve, 'function');
+  assert.equal(p.w.ShapeTurnstile, undefined);
+  let rendered = null;
+  p.w.turnstile = { render: (el, opts) => { rendered = opts; setTimeout(() => opts.callback('tok-3'), 0); return 'w1'; }, remove: () => {} };
+  const tok = await p.w.__shapeNoraSolve();
+  assert.equal(tok, 'tok-3');
+  assert.equal(rendered.appearance, 'interaction-only');
+  assert.equal(rendered.sitekey, '0x4AAAAAADmrGKVw7Ghzs1gQ');
+  assert.equal(p.doc.querySelector('[data-nora-check]'), null, 'the widget is removed once it answers');
+  const widget = readFileSync(join(ROOT, 'public/newdesign/chatWidget.jsx'), 'utf8');
+  assert.match(widget, /window\.__shapeNoraSolve \|\| \(window\.ShapeTurnstile && window\.ShapeTurnstile\.solve\)/);
+});
+
+test('the app, which cannot earn a website token, says where to ask instead of failing', () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  assert.match(src, /if \(res\.status === 403 && payload && payload\.needsCheck\) \{\n\s+return \{ reply: 'Sign in to ask Nora in the app\./);
 });
