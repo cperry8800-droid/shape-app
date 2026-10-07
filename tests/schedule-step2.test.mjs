@@ -920,13 +920,17 @@ const ROSTER = [
   { client: { profile: { id: 'member-2', name: 'Marcus T.' }, payments: {} } },
 ];
 
-function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {} } = {}) {
+function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {}, plans = null, plansReadable = true } = {}) {
   const posts = [];
+  const calendarUrls = [];
   const handler = async (u, init) => {
     if (u.pathname === '/api/my-availability') return json(200, { slots, timezone: zone });
     if (u.pathname === '/api/calendar') {
+      calendarUrls.push(u.search);
       const from = u.searchParams.get('from'), to = u.searchParams.get('to');
-      return json(200, { events: events.filter((e) => e.date >= from && e.date <= to), zone });
+      const asked = u.searchParams.get('clientPlans') === '1';
+      return json(200, { events: events.filter((e) => e.date >= from && e.date <= to), zone,
+        ...(asked && plans ? { clientPlans: plans.filter((p) => p.date >= from && p.date <= to), clientPlansReadable: plansReadable } : {}) });
     }
     if (u.pathname === '/api/sessions/manage') {
       const body = JSON.parse(init.body);
@@ -937,12 +941,12 @@ function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {} } = {}
     }
     return json(404, {});
   };
-  return { posts, handler };
+  return { posts, handler, calendarUrls };
 }
 async function open(opts = {}) {
   const srv = server(opts);
   const page = await mountSchedule({ fetch: srv.handler, triage: opts.triage ?? ROSTER, params: opts.params, role: opts.role, narrow: opts.narrow, drawer: opts.drawer, live: opts.live });
-  return { page, posts: srv.posts };
+  return { page, posts: srv.posts, calendarUrls: srv.calendarUrls };
 }
 const block = (page, id) => page.doc.querySelector('[data-dsc-block="session:' + id + '"]');
 const colOf = (page, el) => el && el.closest('[data-col-date]').getAttribute('data-col-date');
@@ -1429,6 +1433,86 @@ test('a nutritionist books the 15-minute consult by default', async () => {
     await page.click(page.doc.querySelector('[data-dsc-ghost]'));
     assert.equal(page.buttonMatching(/^15 min$/, page.doc.querySelector('[role=dialog]')).getAttribute('aria-pressed'), 'true');
   } finally { await page.unmount(); }
+});
+
+// ── Step 4 · the plans row ──────────────────────────────────────────────────
+const PLANS = [
+  { id: 'cplan:w1', date: '2026-10-05', clientId: 'member-1', with: 'Priya S.', title: 'Lower A' },
+  { id: 'cplan:w2', date: '2026-10-08', clientId: 'member-1', with: 'Priya S.', title: 'Upper A' },
+  { id: 'cplan:w3', date: '2026-10-08', clientId: 'member-2', with: 'Marcus T.', title: 'Push' },
+];
+const plansIn = (page, iso) => [...page.doc.querySelectorAll('[data-plans-day="' + iso + '"] [data-plan]')].map((n) => n.textContent);
+
+test('the plans row shows what each client\'s program puts on the day, follows the client chips, and turns off', async () => {
+  const opened = [];
+  const Drawer = ({ row }) => { opened.push(row.client.profile.id); return null; };
+  const { page, calendarUrls } = await open({ plans: PLANS, drawer: Drawer });
+  try {
+    assert.ok(calendarUrls.every((q) => /[?&]clientPlans=1(&|$)/.test(q)), 'a trainer\'s calendar read does not ask for the plans');
+    assert.ok(page.doc.querySelector('[data-plans-row]'));
+    assert.deepEqual(plansIn(page, '2026-10-05'), ['Priya · Lower A']);
+    assert.deepEqual(plansIn(page, '2026-10-08'), ['Priya · Upper A', 'Marcus · Push']);
+    assert.deepEqual(plansIn(page, '2026-10-06'), []);
+    // A chip opens that client's file.
+    await page.click(page.doc.querySelector('[data-plan="cplan:w3"]'));
+    assert.deepEqual(opened, ['member-2']);
+    // The client chips narrow it with the bookings.
+    await page.click(page.buttonMatching(/Marcus T\./, page.doc.querySelector('[aria-label="Show clients"]')));
+    assert.deepEqual(plansIn(page, '2026-10-08'), ['Marcus · Push']);
+    assert.deepEqual(plansIn(page, '2026-10-05'), []);
+    await page.click(page.button('Show all'));
+    // Off, and remembered.
+    const toggle = page.button('Client plans');
+    assert.equal(toggle.getAttribute('aria-pressed'), 'true');
+    await page.click(toggle);
+    assert.ok(!page.doc.querySelector('[data-plans-row]'));
+    assert.deepEqual(page.remembered.filter(([k]) => k === 'schedulePlans').map(([, v]) => v), ['off']);
+  } finally { await page.unmount(); }
+});
+
+test('the plans row says when it could not load, and a nutritionist has none', async () => {
+  const unread = await open({ plans: [], plansReadable: false });
+  try {
+    assert.match(unread.page.text(), /Client plans couldn't load — the row is incomplete\./);
+  } finally { await unread.page.unmount(); }
+  const nutri = await open({ role: 'nutritionist', plans: PLANS });
+  try {
+    assert.ok(nutri.calendarUrls.every((q) => !/clientPlans/.test(q)), 'a nutritionist asks for training days');
+    assert.ok(!nutri.page.doc.querySelector('[data-plans-row]'));
+    assert.ok(!nutri.page.button('Client plans'));
+  } finally { await nutri.page.unmount(); }
+});
+
+test('/api/calendar serves a trainer\'s clients\' dated training days, only when asked, and says when it cannot', async () => {
+  const cw = (id, client_id, scheduled_date, extra = {}) => ({ id, trainer_id: 7, client_id, title: 'Lower A', status: 'published', scheduled_date, payload: {}, description: null, ...extra });
+  const tables = world({
+    calendar_events: [], client_meal_plans: [], names: { 'member-1': 'Priya Shah', 'member-2': 'Marcus Tate' },
+    client_workouts: [
+      cw('w1', 'member-1', '2026-10-08'),
+      cw('w2', 'member-2', '2026-10-09', { title: 'Push' }),
+      cw('w3', 'member-1', null),                                // undated: the member's own week decides
+      cw('w4', 'member-1', '2026-10-10', { status: 'archived' }),
+      cw('w5', 'member-1', '2026-11-20'),                        // outside the window
+      cw('w6', 'member-9', '2026-10-08', { trainer_id: 99 }),    // another trainer's
+    ],
+  });
+  const m = await routes();
+  m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1' });
+  m.state.user = COACH;
+  const get = async (q) => (await atNow(() => m.calendar.GET(new Request('https://shape.test/api/calendar?from=2026-10-01&to=2026-10-31&tz=' + NY + q)))).json();
+  const asked = await get('&role=trainer&clientPlans=1');
+  assert.equal(asked.clientPlansReadable, true);
+  assert.deepEqual(asked.clientPlans, [
+    { id: 'cplan:w1', date: '2026-10-08', clientId: 'member-1', with: 'Priya Shah', title: 'Lower A' },
+    { id: 'cplan:w2', date: '2026-10-09', clientId: 'member-2', with: 'Marcus Tate', title: 'Push' },
+  ]);
+  const notAsked = await get('&role=trainer');
+  assert.equal('clientPlans' in notAsked, false, 'every calendar read pays for the plans');
+  assert.equal('clientPlans' in (await get('&role=nutritionist&clientPlans=1')), false);
+  m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1', fail: ['client_workouts'] });
+  const failed = await get('&role=trainer&clientPlans=1');
+  assert.equal(failed.clientPlansReadable, false, 'a failed read was drawn as a week with no training');
+  assert.deepEqual(failed.clientPlans, []);
 });
 
 test('client chips filter the grid, ?client= lands filtered, and clashes still see every booking', async () => {

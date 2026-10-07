@@ -54,6 +54,9 @@ export const dynamic = 'force-dynamic';
 // How many published plan rows the calendar reads, newest first with the undated ones
 // kept — see the note on that query.
 const PLAN_CAP = 200;
+// The plans row reads a window of every client's assigned training days (one row per day
+// planned); a full month for a busy roster stays well inside this.
+const CLIENT_PLAN_CAP = 1000;
 
 function clean(v: unknown, max: number): string {
   return String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -379,7 +382,50 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals], zone });
+  // 6) The plans row (Schedule step 4): the training days a TRAINER's programs put on their
+  //    clients' calendars, by date. Asked for with `clientPlans=1` and `role=trainer` (the coach's
+  //    Schedule), never with ?clientId. Only DATED workouts: an undated one lands on whatever
+  //    day the member's own week has free, which the coach's calendar cannot know. Read through
+  //    RLS (trainer_select_own_client_workouts: the coach's own trainer row). A nutritionist's
+  //    plans are meal plans, which have no training days, so there is no row for them.
+  //    ⚠ A FAILED READ IS SAID (`clientPlansReadable: false`), never shown as a week with no
+  //    training in it.
+  let plansRow: { clientPlans: Array<Record<string, unknown>>; clientPlansReadable: boolean } | null = null;
+  if (url.searchParams.get('clientPlans') === '1' && url.searchParams.get('role') === 'trainer' && !clientId) {
+    plansRow = { clientPlans: [], clientPlansReadable: false };
+    const { data: tRow, error: tErr } = await supabase.from('trainers').select('id').eq('owner_id', user.id).maybeSingle();
+    if (!tErr && tRow) {
+      const { data: cpRows, error: cpErr } = await supabase
+        .from('client_workouts')
+        .select('id, client_id, title, scheduled_date')
+        .eq('trainer_id', (tRow as { id: number }).id)
+        .eq('status', 'published')
+        .gte('scheduled_date', dFrom)
+        .lte('scheduled_date', dTo)
+        // Newest first under the cap, so a full row keeps the weeks ahead of the coach.
+        .order('scheduled_date', { ascending: false })
+        .limit(CLIENT_PLAN_CAP);
+      if (!cpErr) {
+        const rows = (cpRows ?? []) as Array<{ id: string; client_id: string; title: string | null; scheduled_date: string }>;
+        const ids = [...new Set(rows.map((r) => r.client_id).filter(Boolean))];
+        const nameOf = new Map<string, string>();
+        if (ids.length) {
+          const { data: names } = await supabase.rpc('get_display_names', { p_ids: ids });
+          for (const n of (names ?? []) as { user_id: string; full_name: string | null }[]) nameOf.set(String(n.user_id), String(n.full_name ?? '').trim() || 'Client');
+        }
+        plansRow = {
+          clientPlansReadable: true,
+          clientPlans: rows.slice().reverse().map((r) => ({
+            id: `cplan:${r.id}`, date: r.scheduled_date, clientId: r.client_id, with: nameOf.get(r.client_id) || 'Client', title: r.title || 'Workout',
+          })),
+        };
+      }
+    } else if (!tErr) {
+      plansRow = { clientPlans: [], clientPlansReadable: true };
+    }
+  }
+
+  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals], zone, ...(plansRow || {}) });
 }
 
 // ── POST ─────────────────────────────────────────────────────────────────────
