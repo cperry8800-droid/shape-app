@@ -11,9 +11,17 @@
 // check; coach actions additionally front-check is_coach_on_client here, with the
 // endpoint's own 403 as the backstop.
 
+import { randomUUID } from 'node:crypto';
 import { gateAction, disclaimerFor } from '../compliance/nutrition.mjs';
 import { applyRemember, applyForget, MEMORY_KIND } from './noraMemory.mjs';
 import { matchHabit, waterLiters, REMINDER_KINDS, validReminderTime } from './memberTools.mjs';
+import {
+  cleanBrief, generateDraft, expandDraft, summarizeDraft, moveLine, dayLabel, readCoachLoadUnit, readClientContext,
+  draftSessions, sessionWeeks, isoDateOrEmpty, clipText, TEMPLATE_NOTICE,
+} from './workoutDraft.mjs';
+// The chat route's no-model path reads a trainer's request with this (it imports Nora's
+// actions, never the draft core directly).
+export { briefFromText as draftBriefFromText } from './workoutDraft.mjs';
 
 // NC1 — compute the scope disclaimer for an individualized nutrition action so
 // Nora's confirm card states it up front (the endpoint is the authoritative gate).
@@ -196,8 +204,28 @@ async function ownProviderId(ctx, table) {
   return row && row.data ? row.data.id : null;
 }
 
+// The UTC calendar day: what /api/trainer/workout's boundary calls today
+// (`new Date().toISOString().slice(0, 10)`), so a preview never promises a day the
+// route then refuses as past.
+function utcToday() { return new Date().toISOString().slice(0, 10); }
+// ⚠ A CLIENT'S SESSION NEEDS A DAY, AND NORA NEVER PICKS ONE. /api/trainer/workout has
+// refused an undated workout since the week boundary (a session has to land in a week
+// to be judged and published), but assign_workout previewed one happily — so the coach
+// confirmed a card that could only fail. The preview asks instead, and refuses a day
+// that has passed, which the boundary refuses too and answered "Please retry".
+function assignDate(raw, ask) {
+  if (raw == null || String(raw).trim() === '') throw new Error(ask);
+  var d = isoDateOrEmpty(raw);
+  if (!d) throw new Error('I need the day as a date (YYYY-MM-DD). Which day?');
+  if (d < utcToday()) throw new Error(d + ' has already passed. Which day should it go on?');
+  return d;
+}
+
 // assign_workout → POST /api/trainer/workout (trainer only). Undo archives the
 // assignment(s) it created (a clean withdraw).
+// ⚠ THIS ASSIGNS BY TITLE: no exercises ride with it unless a payload does, so the
+// client gets an empty session with that name. Building a session is draft_workout's
+// job; this stays for a coach who wants exactly that, and its card says so.
 export const assignWorkoutAction = {
   name: 'assign_workout',
   roles: ['trainer'],
@@ -207,17 +235,20 @@ export const assignWorkoutAction = {
     await requireOnClient(ctx, input.clientId);
     var title = String(input.title || '').trim().slice(0, 200);
     if (!title) throw new Error('What workout should I assign? Give me the title.');
+    var who = input.clientName ? String(input.clientName) : 'this client';
+    var scheduledDate = assignDate(input.scheduledDate, "Which day should I put '" + title + "' on " + who + "'s calendar? Tell me the date and I'll draft it.");
     var trainerId = await ownProviderId(ctx, 'trainers');
     if (trainerId == null) throw new Error("You don't have a trainer profile, so I can't assign workouts.");
-    var scheduledDate = input.scheduledDate ? String(input.scheduledDate).slice(0, 10) : null;
     var payload = (input.payload && typeof input.payload === 'object') ? input.payload : {};
     var description = input.description ? String(input.description).slice(0, 2000) : null;
     var body = { clientIds: [input.clientId], title: title, description: description, kind: 'template', scheduledDate: scheduledDate, payload: payload };
-    var who = input.clientName ? String(input.clientName) : 'this client';
-    var when = scheduledDate ? ' on ' + scheduledDate : '';
+    var when = ' on ' + scheduledDate;
+    var empty = !(Array.isArray(payload.exercises) && payload.exercises.length);
+    var diff = [{ label: 'Workout', field: 'assignment', before: '—', after: title + when }];
+    if (empty) diff.push({ label: 'Exercises', field: 'exercises', before: '—', after: 'None — title only' });
     return {
-      summary: "Assign '" + title + "' to " + who + when,
-      diff: [{ label: 'Workout', field: 'assignment', before: '—', after: title + when }],
+      summary: "Assign '" + title + "' to " + who + when + (empty ? ' (title only, no exercises)' : ''),
+      diff: diff,
       target: { userId: input.clientId, kind: 'workout', id: title },
       beforeState: { trainerId: trainerId, clientId: input.clientId, title: title, scheduledDate: scheduledDate },
       afterState: { title: title }, confirmedPayload: body,
@@ -234,6 +265,194 @@ export const assignWorkoutAction = {
       .eq('trainer_id', b.trainerId).eq('client_id', b.clientId).eq('title', b.title).eq('status', 'published');
     if (b.scheduledDate) q = q.eq('scheduled_date', b.scheduledDate);
     await q;
+  },
+};
+
+// ── draft_workout · a trainer asks Nora to BUILD a session or a program ─────────
+// The draft is generated INSIDE buildPreview (src/lib/ai/workoutDraft.mjs, the core
+// the website builder's "Draft with AI" route shares), so the signed token carries the
+// exact rows the coach reviewed: confirm executes the token's payload and never asks
+// the model again. Two outcomes, both confirm-required, both undoable:
+//
+//   save   → POST /api/coach/plans as an UNPUBLISHED program, with an id minted here so
+//            the card can link straight to it ("Open in builder"). Undo deletes it only
+//            while it is still the revision this saved (an edit in the builder wins).
+//   assign → POST /api/trainer/workout, ONE call, when the whole draft lands in ONE
+//            client-week. Every session is stamped with a template id minted here, so
+//            undo archives exactly the sessions this put on the calendar and nothing
+//            the coach had there already.
+//
+// ⚠ A MULTI-WEEK PROGRAM FOR A CLIENT IS SAVED, NOT ASSIGNED. The boundary publishes one
+// client-week per call; a program spanning several would publish week by week, and a
+// guardrail hold on week 3 would leave weeks 1-2 live with no audit row and no undo,
+// because confirmChange audits only a whole success. The builder's own Assign already
+// handles that honestly (start date, preview, "First 2 of 4 weeks published"), so the
+// draft is saved with the client named and the coach assigns it there.
+var WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// The phone card shows week 1 move by move, then cuts off: a 7-day week of 16-move
+// days is 112 lines, which no one reviews on a phone. The builder holds the rest.
+var CARD_MOVES = 36;
+function draftDiff(built, spec, source, sessions) {
+  var rows = [];
+  if (source === 'template') rows.push({ label: 'Source', after: TEMPLATE_NOTICE });
+  var summary = summarizeDraft(built.builder, spec);
+  var left = CARD_MOVES;
+  var days = built.builder.weeks[0].days;
+  days.forEach(function (day, i) {
+    var moves = (day.blocks || []).flatMap(function (b) { return b.rows || []; });
+    // An assigned day is labelled by the date it lands on, which is what the coach chose.
+    var s = sessions && sessions[i];
+    var label = s ? WEEKDAY[new Date(s.scheduledDate + 'T00:00:00Z').getUTCDay()] + ' ' + s.scheduledDate + ' · ' + day.name : dayLabel(day);
+    rows.push({ label: label, after: moves.length + ' move' + (moves.length === 1 ? '' : 's') });
+    var shown = moves.slice(0, Math.max(0, left));
+    shown.forEach(function (r) { rows.push({ label: '', after: moveLine(r) }); });
+    left -= shown.length;
+    if (shown.length < moves.length) rows.push({ label: '', after: '+' + (moves.length - shown.length) + ' more in the builder' });
+  });
+  if (summary.repeat) rows.push({ label: 'Weeks', after: summary.repeat });
+  var allRows = built.builder.weeks[0].days.flatMap(function (d) { return d.blocks.flatMap(function (b) { return b.rows; }); });
+  if (allRows.some(function (r) { return !(Number(r.load) > 0); })) {
+    rows.push({ label: 'Loads', after: 'Left blank unless you gave them — RPE sets the effort' });
+  }
+  if (spec.notes) rows.push({ label: 'Note', after: spec.notes });
+  return rows;
+}
+function programsUrl(planId, clientId) {
+  return '/newdesign/TrainerApp.html#programs?plan=' + encodeURIComponent(planId) + (clientId ? '&client=' + encodeURIComponent(clientId) : '');
+}
+export const draftWorkoutAction = {
+  name: 'draft_workout',
+  roles: ['trainer'],
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    var brief = cleanBrief(input);
+    if (!brief.request) throw new Error("Tell me what to build — e.g. 'lower body, 50 minutes, barbell, intermediate'.");
+    // NEVER a guessed client: a named one must resolve to an id this trainer coaches.
+    var named = !!(input.clientId || input.clientName);
+    var clientId = null;
+    var who = null;
+    if (named) {
+      await requireOnClient(ctx, input.clientId);
+      clientId = input.clientId;
+      who = input.clientName ? clipText(input.clientName, 60) : 'this client';
+    }
+    var wantsAssign = named && input.saveOnly !== true;
+    var rawDate = input.scheduledDate || input.startDate;
+    var date = '';
+    var trainerId = null;
+    if (wantsAssign && brief.kind === 'day') {
+      // ⚠ NEVER A GUESSED DATE. Asked before the model runs, so a question costs nothing.
+      date = assignDate(rawDate, 'Which day should ' + who + " do it? Tell me the date and I'll draft it.");
+    } else if (wantsAssign && brief.weeks === 1 && rawDate) {
+      date = assignDate(rawDate, '');
+    }
+    if (date) {
+      trainerId = await ownProviderId(ctx, 'trainers');
+      if (trainerId == null) throw new Error("You don't have a trainer profile, so I can't assign workouts.");
+    }
+    var unit = brief.unit || await readCoachLoadUnit(ctx.supabase, ctx.actor.id);
+    var context = clientId ? await readClientContext(ctx.supabase, clientId) : null;
+    var gen = await generateDraft({ ...brief, unit: unit, client: context }, { callModel: typeof ctx.draftModel === 'function' ? ctx.draftModel : null });
+    if (!gen.ok) throw new Error(gen.message);
+    var spec = gen.spec;
+    var built = expandDraft(spec);
+    var templateTag = gen.source === 'template' ? TEMPLATE_NOTICE + ' ' : '';
+
+    var mode = date ? 'assign' : 'save';
+    var why = '';
+    var sessions = null;
+    var draftId = null;
+    if (mode === 'assign') {
+      // The template id every session carries, minted for this draft alone: undo
+      // archives by it, so it never touches a session the coach had there already.
+      draftId = randomUUID();
+      sessions = draftSessions(built, date, draftId);
+      var weeks = sessionWeeks(sessions);
+      if (weeks.length !== 1) {
+        // A one-week program started mid-week runs into the next week: two publishes,
+        // the case above. Saved for the builder's Assign instead, and the card says why.
+        mode = 'save';
+        why = 'It runs across two calendar weeks from ' + date + ', so it is saved for you to assign from the builder.';
+        sessions = null;
+      }
+      // No session can land before `date`: builderToAssignmentRows only offsets forward
+      // from the start, and `date` itself was refused above if it had passed.
+    }
+
+    if (mode === 'assign') {
+      var dates = sessions.map(function (s) { return s.scheduledDate; });
+      var when = brief.kind === 'day' ? ' on ' + date : ' for the week of ' + sessionWeeks(sessions)[0];
+      return {
+        summary: templateTag + 'Draft "' + built.name + '" and assign it to ' + who + when,
+        diff: draftDiff(built, spec, gen.source, sessions),
+        target: { userId: clientId, kind: 'workout', id: draftId },
+        beforeState: { trainerId: trainerId, clientId: clientId, draftId: draftId, dates: dates },
+        afterState: { draftId: draftId, name: built.name, dates: dates },
+        confirmedPayload: { mode: 'assign', clientId: clientId, startDate: date, draftId: draftId, spec: spec },
+        note: (gen.source === 'template' ? 'This is a TEMPLATE, not an AI draft: AI drafting is unavailable right now — say so. ' : '') + 'Nothing is assigned until the trainer confirms the card.',
+      };
+    }
+
+    var planId = randomUUID();
+    var forWho = clientId ? ' for ' + who : '';
+    var tail = clientId
+      ? ' — open it in the builder to assign it' + (brief.kind === 'program' && brief.weeks > 1 ? ' (a multi-week program is assigned from the builder)' : '')
+      : ' as a draft';
+    return {
+      summary: templateTag + 'Draft "' + built.name + '"' + forWho + ' and save it to your programs' + tail,
+      diff: (why ? [{ label: 'Why saved', after: why }] : []).concat(draftDiff(built, spec, gen.source, null)),
+      target: { userId: ctx.actor.id, kind: 'coach_plan', id: planId },
+      beforeState: { planId: planId },
+      afterState: { planId: planId, name: built.name },
+      confirmedPayload: { mode: 'save', planId: planId, clientId: clientId, spec: spec },
+      open: { kind: 'coach_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: programsUrl(planId, clientId) },
+      note: (gen.source === 'template' ? 'This is a TEMPLATE, not an AI draft: AI drafting is unavailable right now — say so. ' : '')
+        + 'Nothing is saved until the trainer confirms; it is saved unpublished and opens in the builder for editing'
+        + (clientId ? ', where they assign it to the client.' : '.'),
+    };
+  },
+  async execute(ctx, plan) {
+    var p = plan.confirmedPayload || {};
+    // ⚠ THE SPEC IS THE TOKEN'S: expanded the same way the preview expanded it, so what
+    // lands is what the coach reviewed. The model is never asked again here.
+    var built = expandDraft(p.spec);
+    if (p.mode === 'assign') {
+      var sessions = draftSessions(built, p.startDate, p.draftId);
+      var r = await ctx.call('POST', '/api/trainer/workout', { clientIds: [p.clientId], sessions: sessions });
+      // A guardrail hold (409) carries the sentence the coach needs in `error`.
+      if (!r.ok) throw new Error((r.data && r.data.error) || 'Could not assign the workout.');
+      return r.data;
+    }
+    var weeks = built.builder.weeks.length;
+    var res = await ctx.call('POST', '/api/coach/plans', {
+      id: p.planId, kind: 'program', name: built.name, meta: weeks + (weeks === 1 ? ' week' : ' weeks'),
+      published: false, expectedOwnerId: ctx.actor.id, detail: { buildType: built.buildType, builder: built.builder },
+    });
+    // Relayed as the route says it ("This draft was already saved…", a 409, a 500).
+    if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the draft to your programs.');
+    return { plan: { id: p.planId, name: built.name }, open: { kind: 'coach_plan', planId: p.planId, url: programsUrl(p.planId, p.clientId) } };
+  },
+  async undo(ctx, plan) {
+    var b = plan.beforeState || {};
+    var res;
+    if (plan.confirmedPayload && plan.confirmedPayload.mode === 'assign') {
+      // Exactly the sessions this put there (the template id was minted for them), and
+      // only while they are still published — a session the client has moved on from
+      // is not ours to pull back.
+      res = await ctx.supabase.from('client_workouts').update({ status: 'archived' })
+        .eq('trainer_id', b.trainerId).eq('client_id', b.clientId).eq('status', 'published')
+        .eq('payload->template->>id', b.draftId)
+        .select('id');
+      if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone.');
+      return;
+    }
+    // ⚠ IN-STATEMENT GUARD: revision 1 is the save itself. Once the coach has saved an
+    // edit in the builder the revision moves, zero rows match, and their work stays.
+    res = await ctx.supabase.from('coach_plans').delete()
+      .eq('id', b.planId).eq('owner_id', ctx.actor.id).eq('detail->>revision', '1')
+      .select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone. It has been edited or removed in the builder.');
   },
 };
 
@@ -837,4 +1056,4 @@ export const forgetMemoryTool = {
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.) The memory tools above
 // are deliberately NOT in this list — they're direct, not proposal-drafted.
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, draftWorkoutAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction];

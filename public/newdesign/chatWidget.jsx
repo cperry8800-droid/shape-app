@@ -153,6 +153,12 @@ function cwTierForPoints(pts, coach) {
 // signed token to /api/ai/proposals/confirm (cookie session) — nothing is applied
 // until this click. Once it lands, Undo reverses it by auditId. Token-only: the
 // UI never fabricates the change. Reuses the chat-widget tokens (no restyle).
+// ⚠ A DIFF ROW WITH NO `before` IS A LINE, NOT A CHANGE: a drafted workout lists its
+// days and moves, and "— → Back squat…" read as a column of deletions. The rows
+// scroll inside the card past ~10 lines so Confirm stays on screen.
+// ⚠ `a.open` (a saved draft → the builder) shows only AFTER the confirm lands, and
+// only for a same-site /newdesign/ page — the server builds it, the card still checks.
+const cwIsLine = (d) => !!d && typeof d === "object" && !Object.prototype.hasOwnProperty.call(d, "before");
 function CwProposalCard({ a }) {
   const [status, setStatus] = React.useState("idle"); // idle|busy|done|undoing|undone|error
   const [err, setErr] = React.useState("");
@@ -161,6 +167,7 @@ function CwProposalCard({ a }) {
   const ink = "var(--sh-ink, #f2ede4)", muted = "var(--sh-ink2, #a09b94)", hair = "rgba(var(--sh-ink-rgb, 242,237,228),0.14)";
   const diff = Array.isArray(a.diff) ? a.diff : [];
   const fmtV = (v) => (v == null || v === "") ? "—" : String(v);
+  const openUrl = a.open && typeof a.open.url === "string" && /^\/newdesign\/[A-Za-z]+\.html(?:[#?][^\s"'<>]*)?$/.test(a.open.url) ? a.open.url : null;
   const post = async (url, payload) => {
     const res = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
@@ -186,8 +193,13 @@ function CwProposalCard({ a }) {
       </div>
       <div style={{ marginTop: 5, fontFamily: sans, fontSize: 13.5, color: ink, lineHeight: 1.35 }}>{a.summary || a.label}</div>
       {diff.length > 0 && status !== "undone" && (
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
-          {diff.map((d, i) => (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5, maxHeight: 280, overflowY: "auto" }}>
+          {diff.map((d, i) => cwIsLine(d) ? (
+            <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap", paddingLeft: d.label ? 0 : 10 }}>
+              {d.label ? <span style={{ color: muted }}>{d.label}</span> : null}
+              <span style={{ color: ink, fontWeight: d.label ? 600 : 500 }}>{fmtV(d.after)}</span>
+            </div>
+          ) : (
             <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontFamily: mono, fontSize: 10.5, flexWrap: "wrap" }}>
               <span style={{ color: muted }}>{d.label || d.field}</span>
               <span style={{ color: muted, textDecoration: "line-through", opacity: 0.7 }}>{fmtV(d.before)}</span>
@@ -198,11 +210,14 @@ function CwProposalCard({ a }) {
         </div>
       )}
       {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 10, color: "#e0463c", lineHeight: 1.4 }}>{err}</div>}
-      <div style={{ marginTop: 10, display: "flex", gap: 7, alignItems: "center" }}>
+      <div style={{ marginTop: 10, display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
         {(status === "idle" || status === "error") && (
           <button onClick={confirm} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{status === "error" ? "Try again" : "Confirm"}</button>
         )}
         {status === "busy" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Applying…</span>}
+        {status === "done" && openUrl && (
+          <a href={openUrl} style={{ textDecoration: "none", border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Open in builder →</a>
+        )}
         {status === "done" && auditId && (
           <button onClick={undo} style={{ border: `1px solid ${hair}`, background: "transparent", color: muted, borderRadius: 999, padding: "7px 13px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Undo</button>
         )}

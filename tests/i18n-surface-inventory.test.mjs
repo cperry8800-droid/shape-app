@@ -341,7 +341,7 @@ const UNCOVERED = new Set([
   'Client::BSKitchenCard', 'Client::BSLeaderboard', 'Client::BSLegalActions',
   'Client::BSLogActivity',
   'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
-  'Client::BSNoraMemoryPage', 'Client::BSNoraProfile', 'Client::BSNoraProposal',
+  'Client::BSNoraMemoryPage', 'Client::BSNoraProfile',
   'Client::BSNotifications', 'Client::BSNotifyPrefs',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProfileIdentityHead', 'Client::BSProgChart',
@@ -809,9 +809,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // "LB · 7D" tag and WMeasurements' "in". Each now prints the unit of the member's
   // setting (Settings → Units), so it is a figure, not copy; every other string on
   // the three surfaces is still English and they stay in UNCOVERED.
-  assert.equal(noneStrings, 734, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  assert.equal(noneStrings, 726, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 36, 'partial-surface count moved — regenerate PARTIAL and the record');
-  assert.equal(none.length, 89, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

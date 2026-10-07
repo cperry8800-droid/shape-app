@@ -38,6 +38,12 @@
 // is private), and recommend_coaches over the LIVE trainers / nutritionists
 // rows (public-read tables), merged with the example directory on the website
 // only, the way the website's marketplace lists them.
+//
+// DRAFTING (2026-10-07): a TRAINER can just ask Nora to build a session or a
+// program. draft_workout (offered to the trainer role only) drafts real builder
+// rows through src/lib/ai/workoutDraft.mjs — the core /api/ai/draft-workout shares
+// — into a confirm card whose signed token carries those rows. With no model at
+// all, a trainer's build request still gets the card, as a labelled template.
 
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
@@ -54,7 +60,7 @@ import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoal
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
 import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
-import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
+import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
@@ -65,6 +71,10 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// A trainer's turn can include a drafted workout: two chat rounds plus one
+// medium-effort draft (bounded at 45 s, then a labelled template). Room for that,
+// rather than the platform default.
+export const maxDuration = 120;
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -81,7 +91,10 @@ type SupportAction =
   // A previewed, NOT-yet-applied change: the client renders the diff + a Confirm
   // button that POSTs the token to /api/ai/proposals/confirm. Nothing happens
   // until the human confirms.
-  | { type: 'proposal'; label: string; summary: string; diff: Array<{ label?: string; before?: unknown; after?: unknown }>; token: string; action: string };
+  // A diff row with no `before` is a plain line (a drafted move), not a change.
+  | { type: 'proposal'; label: string; summary: string; diff: Array<{ label?: string; before?: unknown; after?: unknown }>; token: string; action: string; open?: ProposalOpen };
+// `kind: 'coach_plan'` → the website follows `url`; the app opens the plan by id.
+type ProposalOpen = { kind: 'coach_plan'; planId: string; clientId?: string; url: string };
 
 type OpenAIContentPart = { type?: string; text?: string };
 type OpenAIOutputItem = {
@@ -107,7 +120,7 @@ const SYSTEM_PROMPT = [
   '',
   "HOW SHAPE WORKS: For a question about Shape itself — what it costs and includes, whether a coach is required, coach prices and what coaches pay, cancelling or billing, Shape Radio, coach credentials and the Verified badge, switching coaches, the Shape Score and its tiers and rewards, habits, units, Cook Mode and recipes, privacy and data, the account, or what you can do — call shape_help and answer from what it returns (each entry names its source). If it returns no entry, say you don't have that written down and offer to pass the question to the Shape team. Never invent a policy, a price or a date.",
   '',
-  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers), assign_meal_plan (nutritionists), set_program_detail (program phase/note — a trainer's training block or a nutritionist's nutrition phase), add_review_note (feedback on a logged session), reschedule_session (move one of their coaching sessions). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
+  "ACTIONS: You can DO things, not just explain them. To log a meal for the signed-in member onto today's nutrition, call log_meal (calories/protein/carbs/fat/water). For a COACH on their OWN client: set_client_goal (any coach), assign_workout (trainers — puts a workout on a client's calendar BY TITLE ONLY, with no exercises, on a day they named), assign_meal_plan (nutritionists), set_program_detail (program phase/note — a trainer's training block or a nutritionist's nutrition phase), add_review_note (feedback on a logged session), reschedule_session (move one of their coaching sessions). These DRAFT a change the user must CONFIRM — so never say it's done; say you've drafted it and they can review & confirm below. NEVER guess an unmatched client — if you don't have the client, ask for the name. NEVER invent a value, workout, or meal the user didn't give. The server only lets a coach act on a client they actively coach, in their own discipline — if a tool returns an error message, relay it plainly.",
   '',
   'OTHER FIRST-LINE HELP: account & login, billing/subscription ($5/mo platform membership; coaches set their own coaching prices), connecting integrations (Spotify, Strava, Whoop, Oura, Garmin, Apple Health, Instacart), and using the Train/Eat/Habits/Score/Radio tabs, channels & chat.',
   'Never invent policy, prices, or medical advice. If something needs a human — refunds, account changes, data deletion, a confirmed bug, or anything you are unsure about — say you have flagged it for the Shape team and they will follow up here. Do not promise specific timelines.',
@@ -201,14 +214,14 @@ const TOOLS = [
     type: 'function',
     name: 'assign_workout',
     description:
-      "Assign a workout to one of the TRAINER's own clients (trainers only). Use when a trainer says e.g. 'give Priya the upper-body session on Monday'. Always pass clientName; pass clientId only if known. Pass a title; scheduledDate (YYYY-MM-DD) if they named a day. DRAFTS the change for the trainer to confirm. If you cannot identify the client, ask — do not guess. The server rejects any client who isn't actively coached by this trainer.",
+      "Put an ALREADY-NAMED workout on one of the TRAINER's own clients' calendars BY TITLE ONLY (trainers only): the client gets a session with that title and NO exercises. Use it only when the trainer explicitly wants exactly that, e.g. 'put Upper A on Priya's Monday'. To build, make, create, write, draft or program a session or a plan, use draft_workout instead. Always pass clientName; pass clientId only if known. Pass the title and scheduledDate (YYYY-MM-DD) — if they did not say which day, ask; never guess one. DRAFTS the change for the trainer to confirm. If you cannot identify the client, ask — do not guess. The server rejects any client who isn't actively coached by this trainer.",
     parameters: {
       type: 'object',
       properties: {
         clientName: { type: 'string', description: "The client's name as the trainer referred to them." },
         clientId: { type: 'string', description: "The client's user id, if known from context." },
         title: { type: 'string', description: "The workout title, e.g. 'Upper body — push'." },
-        scheduledDate: { type: 'string', description: 'The day to schedule it, YYYY-MM-DD, if given.' },
+        scheduledDate: { type: 'string', description: 'The day to schedule it, YYYY-MM-DD, as the trainer said it. Never guessed — ask if they did not say.' },
         description: { type: 'string', description: 'Optional note to the client.' },
       },
       required: ['clientName', 'title'],
@@ -291,7 +304,7 @@ const TOOLS = [
 
 // The write tools that DRAFT a confirm-required change (vs. read tools that
 // answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
-const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder']);
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder']);
 
 // ── Member-only tools (memory) ────────────────────────────────────────────────
 // Appended to the tool list ONLY for a verified member (computeMembership,
@@ -425,6 +438,40 @@ const COACH_TOOLS = [
   { type: 'function', name: 'find_client', description: "Resolve a client the coach named to the client's id from the COACH'S OWN active roster. Exactly one match returns the client; several return candidates to ask about; none returns the roster names. Call this before any client action when you do not already have the id.", parameters: { type: 'object', properties: { name: { type: 'string', description: 'The name as the coach said it.' } }, required: ['name'], additionalProperties: false }, strict: true },
   { type: 'function', name: 'get_client_snapshot', description: "A coached client's recent numbers: sessions kept, workout minutes, days logged and average macros, latest and starting weight, key lifts. Only for a client this coach actively coaches; otherwise it answers allowed:false.", parameters: { type: 'object', properties: { clientId: { type: 'string', description: 'The client id from find_client or context.' } }, required: ['clientId'], additionalProperties: false }, strict: true },
 ];
+// ── Trainer-only WRITE tool: build a session or a program from the coach's words ──
+// Offered ONLY to a verified member whose role is trainer — the same role the action
+// registry gates `draft_workout` on — so a client, a nutritionist or a visitor never
+// sees the schema, and a fabricated call is refused by the registry anyway. The draft
+// is generated server-side (src/lib/ai/workoutDraft.mjs) into the signed confirm card;
+// Nora only passes the brief.
+const TRAINER_TOOLS = [
+  {
+    type: 'function',
+    name: 'draft_workout',
+    description:
+      "BUILD a workout or a program for the TRAINER from their brief — the server drafts real exercise rows (sets, reps, RPE, rest, cues; weights left blank unless they gave numbers) and shows the trainer a card to review. Use whenever a trainer asks you to build, make, create, write, draft or program a session, a workout, a week or a multi-week plan, for a client or for their library. Pass `request` in the trainer's own words. kind 'day' = one session; 'program' = a repeating week, or several weeks. With a client (find_client first; never guess one): a single session is ASSIGNED on scheduledDate — if they did not say which day, ask before calling; a one-week program with a startDate is assigned too; a multi-week program is saved to their programs for them to assign from the builder. Without a client, or with saveOnly, it is saved to their programs as an unpublished draft. Nothing is saved or assigned until they confirm.",
+    parameters: {
+      type: 'object',
+      properties: {
+        request: { type: 'string', description: "What to build, in the trainer's own words, e.g. 'lower body, 50 min, barbell, intermediate'." },
+        kind: { type: 'string', enum: ['day', 'program'], description: "'day' for one session; 'program' for a repeating week or several weeks." },
+        clientName: { type: 'string', description: "The client's name as the trainer said it, if it is for a client." },
+        clientId: { type: 'string', description: "The client's id from find_client." },
+        scheduledDate: { type: 'string', description: "YYYY-MM-DD the trainer named for a client's single session. Never guessed." },
+        startDate: { type: 'string', description: "YYYY-MM-DD a client's one-week program starts, if they said." },
+        weeks: { type: 'integer', description: 'Program length in weeks (1-12), only if they said.' },
+        daysPerWeek: { type: 'integer', description: 'Sessions per week (1-7), only if they said.' },
+        minutes: { type: 'integer', description: 'Minutes per session, only if they said.' },
+        equipment: { type: 'string', description: "Equipment available, only if they said (e.g. 'barbell', 'dumbbells only', 'bodyweight')." },
+        level: { type: 'string', description: "beginner, intermediate or advanced, only if they said." },
+        saveOnly: { type: 'boolean', description: "true when they want it saved to their programs rather than put on the client's calendar." },
+      },
+      required: ['request', 'kind'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
+];
 const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TOOLS.map((t) => t.name)]);
 // Up to this many model turns per request: a lookup, an action drafted from
 // it, and a reply is three; Astra "continues through more steps", so the cap
@@ -442,6 +489,24 @@ const MEMBER_PROMPT_NOTE =
 // for the ear. Rides only when the client says the message was spoken.
 const VOICE_PROMPT_NOTE =
   "VOICE: The member is SPEAKING to you and your reply will be read aloud by text-to-speech, so write for the ear: one to three short sentences, the answer first, no lists, no URLs, no ids, no symbols or abbreviations that do not read aloud (say 'pounds' not 'lb', 'per month' not '/mo', 'four point nine stars' not '★4.9'). If you recommend coaches, name at most two with one short reason each and say they can tap a name below to open the profile — the tappable cards come back with your reply. When you have drafted a change, say so and that the confirm button is below. If you cannot see something, say that in one sentence.";
+
+// A trainer's turn: Nora can BUILD. Rides only when draft_workout is in the tool list,
+// so every other caller's prompt is unchanged. ⚠ IT CARRIES TODAY'S DATE, because
+// "Monday" has to become a YYYY-MM-DD and the model has no clock: without it the
+// date is a guess, which is the one thing this paragraph forbids. UTC, the day the
+// assignment boundary calls today.
+function trainerPromptNote(now: Date): string {
+  const day = now.toISOString().slice(0, 10);
+  const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getUTCDay()];
+  return [
+    `TRAINER DRAFTING: Today is ${day} (${weekday}, UTC). You CAN build workouts and programs for this trainer — the one exception to "never invent a workout".`,
+    "When they ask you to build, make, create, write, draft or program a session, a workout, a week or a multi-week plan, call draft_workout with their request in their own words (kind 'day' for one session, 'program' for a repeating week or several weeks), passing minutes, equipment, level, weeks and daysPerWeek only when they said them.",
+    'The server drafts the real exercise rows and shows them a card: it is a STARTING POINT for the trainer to review and edit, nothing is saved or assigned until they confirm, and a saved draft opens in the builder. Say that — never that it is done.',
+    "Never invent loads (the server leaves weights blank unless they gave numbers; RPE sets the effort), never guess a client (find_client first, and ask if it is unclear), and never invent a date: for a client's single session, if they did not say which day, ask \"Which day?\" before calling. Turn a named weekday into YYYY-MM-DD from today's date.",
+    'A multi-week program for a client is saved to their programs with the client ready to pick in the builder\'s Assign — say so. assign_workout puts an EMPTY session with just a title on a calendar: use it only when they explicitly want an already-named workout assigned without building it.',
+    'If draft_workout says the card is a template, tell them AI drafting is unavailable right now and that the card is a template from the exercise library. Anything that is not about training (a poem, a recipe) you answer normally, without draft_workout.',
+  ].join(' ');
+}
 
 // The per-request context the READ tools run with: the caller's own RLS client
 // and id (member-verified), the clock, and whether the caller is a coach — null
@@ -767,7 +832,11 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 // returned token at /api/ai/proposals/confirm. Takes the ALREADY-resolved
 // actor + membership (POST resolves both once) — the member self-service
 // tools' buildPreview re-checks ctx.isMember as defense-in-depth.
-function makePropose(actor: Actor | null, request: Request, isMember: boolean): ProposeFn {
+// `draftModel` is the model draft_workout drafts with (null when there is no key, and
+// the draft is then a labelled template) — injected here rather than imported by the
+// action, so the action's core stays node-testable.
+type DraftModel = ((body: Record<string, unknown>, opts: { promptId: string; effort?: 'medium'; timeoutMs?: number }) => ReturnType<typeof callAI>) | null;
+function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null): ProposeFn {
   return async (name, args) => {
     if (!actor) {
       return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
@@ -779,21 +848,25 @@ function makePropose(actor: Actor | null, request: Request, isMember: boolean): 
       action: name,
       input: args,
       actor: { id: actor.user.id, role: actor.role },
-      ctx: { ...makeCtx(actor, request), isMember },
+      ctx: { ...makeCtx(actor, request), isMember, draftModel },
       secret,
     });
     if (!res.ok) {
       return { result: { error: res.error, message: (res as { message?: string }).message || null }, actions: [] };
     }
+    const preview = res.preview as typeof res.preview & { open?: ProposalOpen; note?: string };
     const action: SupportAction = {
       type: 'proposal',
       label: 'Review & confirm',
-      summary: res.preview.summary,
-      diff: res.preview.diff,
+      summary: preview.summary,
+      diff: preview.diff,
       token: res.token,
       action: name,
+      // Where the confirmed change opens (a saved draft → the builder): the card shows
+      // it only after the confirm lands, never before.
+      ...(preview.open ? { open: preview.open } : {}),
     };
-    return { result: { proposed: true, summary: res.preview.summary, requiresConfirm: true }, actions: [action] };
+    return { result: { proposed: true, summary: preview.summary, requiresConfirm: true, ...(preview.note ? { note: preview.note } : {}) }, actions: [action] };
   };
 }
 
@@ -801,7 +874,7 @@ async function askOpenAI(
   messages: ChatMessage[],
   propose: ProposeFn,
   tone: string | undefined,
-  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
+  member: { contextMsg: string | null; memberTools: typeof MEMBER_TOOLS; memoryCtx: MemoryCtx | null; cookMsg: string | null; reads: ReadCtx | null; coachTools: typeof COACH_TOOLS; trainerTools: typeof TRAINER_TOOLS; isMember: boolean; voice: boolean; locale: string | null; coach: CoachCtx },
   signal?: AbortSignal,
 ): Promise<{ reply: string; actions: SupportAction[]; model: string | null } | null> {
   if (!hasOpenAIKey()) return null;
@@ -824,7 +897,8 @@ async function askOpenAI(
   // named so a short spoken question is answered in the member's language.
   const langName = member.locale && member.locale !== 'en' ? languageNameFor(member.locale) : null;
   const langNote = langName ? `\n\nLANGUAGE: The member's app is set to ${langName} (${member.locale}). Answer in ${langName} unless they write to you in another language; keep coach names, product names and figures as they are.` : '';
-  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
+  const trainerNote = member.trainerTools.length && member.memberTools.length && !member.cookMsg ? `\n\n${trainerPromptNote(member.reads ? member.reads.now : new Date())}` : '';
+  const systemPrompt = `${SYSTEM_PROMPT}${member.memberTools.length && !member.cookMsg ? `\n\n${MEMBER_PROMPT_NOTE}` : ''}${trainerNote}${cookOverride}${member.voice ? `\n\n${VOICE_PROMPT_NOTE}` : ''}${langNote}\n\n${toneInstruction(tone)}`;
   let input: unknown[] = [
     { role: 'system', content: systemPrompt },
     // The server-built member-context block (or the honest unavailable note on
@@ -846,10 +920,11 @@ async function askOpenAI(
   ];
   const actions: SupportAction[] = [];
   // Cook Mode: no tools at all. A member: the base tools, the member action +
-  // memory tools, the READ tools, and — for a coach — the two coach lookups.
+  // memory tools, the READ tools, for a coach the two coach lookups, and for a
+  // trainer draft_workout.
   const tools = member.cookMsg
     ? []
-    : (member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools] : TOOLS);
+    : (member.memberTools.length ? [...TOOLS, ...member.memberTools, ...MEMBER_READ_TOOLS, ...member.coachTools, ...member.trainerTools] : TOOLS);
   // ⚠ MODEL TIERING: a signed-in-and-verified member rides the pin (Astra);
   // anyone else rides the public model. `model` is set explicitly for the
   // public path only — an explicit model also disables callAI's access
@@ -909,6 +984,8 @@ async function askOpenAI(
   }
   return null;
 }
+
+const TEMPLATE_FALLBACK_REPLY = "AI drafting is unavailable right now, so here is a template from Shape's exercise library to start from. Review it below — nothing is saved until you confirm, and you can edit it and assign it from the builder.";
 
 // Rule-based first responder for when the model is unset/down. Still returns
 // coach actions for coach questions so the experience degrades gracefully.
@@ -1019,6 +1096,7 @@ export async function POST(request: Request) {
   let memoryCtx: MemoryCtx | null = null;
   let reads: ReadCtx | null = null;
   let coachTools: typeof COACH_TOOLS = [];
+  let trainerTools: typeof TRAINER_TOOLS = [];
   let isMember = false;
   if (actor) {
     const membership = await computeMembership(actor.supabase, actor.user.id, actor.user.email ?? null).catch(() => null);
@@ -1032,6 +1110,10 @@ export async function POST(request: Request) {
       const isCoach = !!(membership.isCoach || membership.isAdmin);
       reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach };
       if (isCoach) coachTools = COACH_TOOLS;
+      // ⚠ THE ROLE THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
+      // is `roles: ['trainer']` against the actor's role, so offering it to anyone else
+      // would hand the model a tool that can only answer role_not_allowed.
+      if (actor.role === 'trainer') trainerTools = TRAINER_TOOLS;
       memoryCtx = {
         actor: { id: actor.user.id, role: actor.role },
         supabase: actor.supabase,
@@ -1043,7 +1125,10 @@ export async function POST(request: Request) {
       contextMsg = failed ? UNAVAILABLE_NOTE : formatMemberContext(facts);
     }
   }
-  const propose = makePropose(actor, request, isMember);
+  // The draft's own model call: the pinned model with its fallback, like every member
+  // call; null with no key, and the draft says it is a template.
+  const draftModel: DraftModel = hasOpenAIKey() ? (b, o) => callAI(b, { ...o, signal: request.signal }) : null;
+  const propose = makePropose(actor, request, isMember, trainerTools.length ? draftModel : null);
   // The coach lookup reads the PUBLIC marketplace tables: the member's own
   // client when there is one, else the request's anonymous client (a signed-out
   // visitor asking for a coach is the website widget's oldest use). A client
@@ -1052,7 +1137,7 @@ export async function POST(request: Request) {
   const coachSb = actor ? actor.supabase : await clientForRequest(request).catch(() => null);
   const coach: CoachCtx = { sb: coachSb, surface };
 
-  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, isMember, voice, locale, coach }, request.signal).catch(() => null);
+  const ai = await askOpenAI(messages, propose, body.tone, { contextMsg, memberTools, memoryCtx, cookMsg, reads, coachTools, trainerTools, isMember, voice, locale, coach }, request.signal).catch(() => null);
   if (ai) return NextResponse.json({ reply: ai.reply, source: 'ai', actions: ai.actions, model: ai.model });
 
   // Cook Mode is a read-only, grounded sous-chef: the support fallback can claim
@@ -1064,6 +1149,20 @@ export async function POST(request: Request) {
   // Major + adversarial review PR #1805).
   if (cookMsg) {
     return NextResponse.json({ reply: '', source: 'cook_unavailable', actions: [] });
+  }
+
+  // ⚠ NO MODEL, STILL A STARTING POINT FOR A TRAINER. The rule-based reply below cannot
+  // call a tool, so "build me a lower-body session" from a trainer was answered "passed
+  // to the Shape team". A build request now gets the draft card with no model behind it
+  // — the labelled template, saved only to their own library on confirm (the request is
+  // read for weeks, days and minutes, never for a client or a date). Anything else, and
+  // anyone else, gets the reply it always did.
+  if (trainerTools.length) {
+    const brief = draftBriefFromText(String(lastUser.content || ''));
+    const drafted = brief ? await makePropose(actor, request, isMember, null)('draft_workout', brief).catch(() => null) : null;
+    if (drafted && drafted.actions.length) {
+      return NextResponse.json({ reply: TEMPLATE_FALLBACK_REPLY, source: 'fallback', actions: drafted.actions });
+    }
   }
 
   const fb = await fallbackReply(String(lastUser.content || ''), coach);

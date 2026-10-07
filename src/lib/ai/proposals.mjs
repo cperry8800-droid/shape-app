@@ -149,6 +149,12 @@ export async function proposeChange({
       action: actionName,
       source: plan.source,
       target,
+      // Optional, and only for the surfaces: `open` is where the confirmed change can be
+      // opened (draft_workout's saved program → the builder), `note` is a line for the
+      // model to relay (e.g. that a draft is a template). Neither is in the signed plan,
+      // so neither can change what confirm executes.
+      ...(preview.open && typeof preview.open === 'object' ? { open: preview.open } : {}),
+      ...(typeof preview.note === 'string' && preview.note ? { note: preview.note } : {}),
     },
     token: signToken(plan, secret),
   };
