@@ -19948,7 +19948,7 @@ function BSNoraProfile({ onClose }) {
         </div>
         {/* escalation note */}
         <div style={{ marginTop: 16, borderRadius: 14, border: `1px solid ${bsTHexA(BLUE, 0.35)}`, background: bsTHexA(BLUE, 0.08), padding: '12px 14px', fontFamily: SERIF, fontSize: 13.5, fontStyle: 'italic', color: bsTHexA(t.INK, 0.75), lineHeight: 1.5 }}>
-          “If I can't sort it out, I bring in the human Shape team — you never get stuck with a bot.”
+          “If I can't sort it out, I'll point you to the human Shape team at info@theshapecommunity.com.”
         </div>
         <button onClick={onClose} style={{ marginTop: 18, width: '100%', minHeight: 46, borderRadius: 999, background: TEAL, color: '#06110e', border: 0, cursor: 'pointer', fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800 }}>Message Nora →</button>
       </div>
@@ -23153,7 +23153,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   // Support assistant — one continuous AI-backed thread that lives for the
   // session. It stays put while you move between tabs, but a fresh app load /
   // reload starts a clean thread with the current greeting (no persistence).
-  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: 'now', me: false, bot: true };
+  const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC([SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
   const [supportBusy, setSupportBusy] = useStateBSC(false);
@@ -23192,7 +23192,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     try {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
       const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true });
-      const reply = (res && res.reply) || "Thanks — I've flagged this for the Shape team and they'll follow up here.";
+      const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
       setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
       // Conversation mode reads every reply aloud; otherwise the global
@@ -23202,7 +23202,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       if (voiceChatRef.current) speakReply(reply, { force: true });
       else if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
     } catch (e) {
-      setSupportMsgs(m => [...m, { who: 'Nora', t: "I'm having trouble reaching support right now — I've flagged this for the Shape team to follow up.", time: 'now', me: false, bot: true }]);
+      setSupportMsgs(m => [...m, { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
     } finally { setSupportBusy(false); }
   };
   const sendSupport = () => sendSupportText(supportDraft);
@@ -24574,7 +24574,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}
       {tab === 'support' && (
-        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? (text) => sendSupportText(text, { voice: true }) : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Message the Shape team…' })} />
+        <BSMessageComposer value={supportDraft} onChange={setSupportDraft} onSend={sendSupport} pinned unlocked voice holdToTalk={voiceChat} onVoiceComplete={voiceChat ? (text) => sendSupportText(text, { voice: true }) : undefined} placeholder={tr('feed:support.composerPlaceholder', { defaultValue: 'Ask Nora…' })} />
       )}
       {showNora && <BSNoraProfile onClose={() => setShowNora(false)} />}
       {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
