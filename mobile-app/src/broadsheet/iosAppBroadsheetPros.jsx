@@ -3375,8 +3375,17 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
     ? [{ k: 'consult', l: tr('coach:schedule.typeConsult', { defaultValue: 'Consult' }) }, { k: 'plan', l: tr('coach:schedule.typePlanDelivery', { defaultValue: 'Plan delivery' }) }, { k: 'review', l: tr('coach:schedule.typeFoodLog', { defaultValue: 'Food-log review' }) }, { k: 'intro', l: tr('coach:schedule.typeIntro', { defaultValue: 'Intro call' }) }]
     : [{ k: 'session', l: tr('coach:schedule.typeSession', { defaultValue: 'Session' }) }, { k: 'checkin', l: tr('coach:schedule.typeCheckin', { defaultValue: 'Check-in' }) }, { k: 'review', l: tr('coach:schedule.typeFormReview', { defaultValue: 'Form review' }) }, { k: 'intro', l: tr('coach:schedule.typeIntro', { defaultValue: 'Intro call' }) }];
   const [type, setType] = useStateBSP(TYPES[0].k);
-  const [dayIdx, setDayIdx] = useStateBSP(0);
-  const [time, setTime] = useStateBSP('9:00');
+  const times = ['7:00', '8:00', '9:00', '11:30', '14:00', '16:00', '17:00', '18:30'];
+  // ⚠ IT OPENS ON A TIME STILL AHEAD (Codex, #2233): opened after 9:00 it used to sit on 9:00,
+  // already gone and disabled but still selected, so the first Add was refused as past. The first
+  // time left today, or tomorrow's first once today's have all gone.
+  const [firstOpen] = useStateBSP(() => {
+    const n = new Date();
+    const m = n.getHours() * 60 + n.getMinutes();
+    return times.find((tm) => { const [h, mi] = tm.split(':').map(Number); return h * 60 + mi > m; }) || null;
+  });
+  const [dayIdx, setDayIdx] = useStateBSP(firstOpen ? 0 : 1);
+  const [time, setTime] = useStateBSP(firstOpen || times[0]);
   const [duration, setDuration] = useStateBSP(isNutri ? 30 : 45);
   const [mode, setMode] = useStateBSP('zoom');
   const [status, setStatus] = useStateBSP('');
@@ -3386,7 +3395,6 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const today = new Date();
   const dayCells = Array.from({ length: 7 }, (_, k) => { const d = new Date(today); d.setDate(today.getDate() + k); return d; });
   const sel = dayCells[dayIdx] || today;
-  const times = ['7:00', '8:00', '9:00', '11:30', '14:00', '16:00', '17:00', '18:30'];
   const modeOpts = isNutri
     ? [{ k: 'zoom', l: 'Zoom' }, { k: 'call', l: tr('coach:schedule.modeCall', { defaultValue: 'Call' }) }, { k: 'inperson', l: tr('coach:schedule.modeInPerson', { defaultValue: 'In-person' }) }]
     : [{ k: 'zoom', l: 'Zoom' }, { k: 'gym', l: tr('coach:schedule.modeGym', { defaultValue: 'Gym' }) }, { k: 'call', l: tr('coach:schedule.modeCall', { defaultValue: 'Call' }) }, { k: 'inperson', l: tr('coach:schedule.modeInPerson', { defaultValue: 'In-person' }) }];
@@ -3474,7 +3482,7 @@ function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
                 </div>
               ))}
             </div>
-            <button onClick={add} disabled={status === 'saving' || status === 'done'} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' ? 0.6 : 1 }}>{status === 'saving' ? tr('coach:schedule.adding', { defaultValue: 'Adding…' }) : status === 'done' ? tr('coach:schedule.added', { defaultValue: 'Added ✓' }) : tr('coach:schedule.addToCalendar', { defaultValue: 'Add to calendar →' })}</button>
+            <button onClick={add} disabled={status === 'saving' || status === 'done' || isPast(time)} style={{ width: '100%', marginTop: 16, borderRadius: 14, border: 0, background: teal, color: '#06231f', padding: '15px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', opacity: status === 'saving' || isPast(time) ? 0.6 : 1 }}>{status === 'saving' ? tr('coach:schedule.adding', { defaultValue: 'Adding…' }) : status === 'done' ? tr('coach:schedule.added', { defaultValue: 'Added ✓' }) : tr('coach:schedule.addToCalendar', { defaultValue: 'Add to calendar →' })}</button>
             {status === 'error' && <div role="alert" style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, color: t.RUST, letterSpacing: '0.08em' }}>{errMsg || tr('coach:schedule.addError', { defaultValue: "Couldn't add — try again." })}</div>}
             {!clientUid && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:schedule.demoBooks', { defaultValue: 'Demo client · books once linked to a live member' })}</div>}
           </div>

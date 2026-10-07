@@ -2027,9 +2027,20 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   const firstName = p.first;
 
   const openIntro = () => {
-    const nextOpen = p.availability
-      .flatMap(([day, date, times, iso, month]) => times.map(time => ({ day, date, time, month, iso })))
-      .find(slot => slot.time && slot.time !== '--');
+    // ⚠ A LIVE COACH'S NEXT OPEN TIME IS A PROJECTED SLOT, carrying its instant and the coach's
+    // own clock, which is all the booking may send (Codex, #2233): the preview pattern has
+    // neither, so booking it was refused every time. The preview is for a demo listing only, and a
+    // real coach with no open time gets their calendar, which says so.
+    let nextOpen;
+    if (realAvail != null) {
+      const s = realAvail[0];
+      if (!s) { setShowCal(true); return; }
+      nextOpen = { ...projSlotRow(s), coachDate: s.coachDate, coachTime: s.coachTime };
+    } else {
+      nextOpen = p.availability
+        .flatMap(([day, date, times, iso, month]) => times.map(time => ({ day, date, time, month, iso })))
+        .find(slot => slot.time && slot.time !== '--');
+    }
     setAction({
       type: 'Booking',
       title: tr('marketplace:listing.bookIntroTitle', { defaultValue: 'Book a free intro with {name}', name: firstName }),

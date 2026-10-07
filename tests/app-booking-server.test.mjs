@@ -28,7 +28,11 @@ class PinnedDate extends Date {
   static now() { return NOW; }
 }
 
-function loadScreen(win) {
+function loadScreen(win, now = NOW) {
+  class AtDate extends Date {
+    constructor(...a) { if (a.length) super(...a); else super(now); }
+    static now() { return now; }
+  }
   const start = PROS.indexOf('function BSProScheduleSession(');
   const end = PROS.indexOf('\nfunction BSProAssignPage(', start);
   assert.ok(start > 0 && end > start, 'the coach booking screen must stay where this harness reads it');
@@ -36,7 +40,7 @@ function loadScreen(win) {
   const pass = ({ children }) => SHIM.createElement('div', null, children);
   const tr = (k, o = {}) => String(o.defaultValue ?? k).replace(/\{(\w+)\}/g, (m, n) => (n in o ? String(o[n]) : m));
   const ctx = {
-    React: SHIM, window: win, Date: PinnedDate, Intl, setTimeout: () => 0,
+    React: SHIM, window: win, Date: AtDate, Intl, setTimeout: () => 0,
     useBS: () => THEME, useShapeTr: () => tr, useBSProClientHeat: () => '#c0533b', useStateBSP: SHIM.useState,
     BSPage: pass, BSFooter: () => null, BSProActionHead: () => null, BSProClientMini: () => null, BSProActionSec: () => null,
     // The chips and the segment are the module's own components; the tests pick through their onPick.
@@ -115,6 +119,37 @@ test('app coach: a refusal is shown in the route\'s own words, and a demo client
   dd.click('Add to calendar');
   await tick(); await tick();
   assert.equal(called, 0, 'a demo client is never booked');
+});
+
+test('app coach: the screen opens on a time still ahead, and never sends one already gone', async () => {
+  // Codex, #2233: opened after 9:00 it sat on 9:00, disabled but selected, and the first Add was refused.
+  const calls = [];
+  const win = { ShapeSessions: { createCoachSession: async (b) => { calls.push(JSON.parse(JSON.stringify(b))); return { ok: true }; } } };
+  const pressed = (d) => d.nodes().filter((n) => n.type === 'button' && /1c$/.test(String(n.props.style && n.props.style.background))).map((n) => textOf(n).trim());
+  const at10 = drive(loadScreen(win), { client: { n: 'Priya Shah' }, role: 'trainer', clientUid: 'member-1', onBack() {} });
+  assert.deepEqual(pressed(at10), ['WED7', '11:30'], 'at 10:00 it opens today at 11:30');
+  at10.click('Add to calendar');
+  await tick(); await tick();
+  assert.equal(calls[0].time, '11:30');
+  assert.equal(calls[0].date, '2026-10-07');
+  // At 19:00 every time today has gone: it opens tomorrow at the first time.
+  const at19 = drive(loadScreen(win, new Date(2026, 9, 7, 19, 0, 0).getTime()), { client: { n: 'Priya Shah' }, role: 'trainer', clientUid: 'member-1', onBack() {} });
+  assert.deepEqual(pressed(at19), ['THU8', '7:00']);
+  // Back on today, the gone time is held but Add is off.
+  at19.click('WED7');
+  assert.equal(at19.buttons().find((x) => x.label === 'Add to calendar →').disabled, true);
+  at19.click('THU8');
+  assert.equal(at19.buttons().find((x) => x.label === 'Add to calendar →').disabled, false);
+});
+
+test('the listing\'s main "Book the intro" holds the coach\'s next PROJECTED time, never the preview pattern', () => {
+  // Codex, #2233: both primary intro buttons booked a preview row, which has no instant and no
+  // coach clock, so the server path refused every one.
+  const listing = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx'), 'utf8');
+  const fn = listing.slice(listing.indexOf('const openIntro = () => {'), listing.indexOf('const openMessage = () => {'));
+  assert.match(fn, /if \(realAvail != null\) \{\s*const s = realAvail\[0\];\s*if \(!s\) \{ setShowCal\(true\); return; \}\s*nextOpen = \{ \.\.\.projSlotRow\(s\), coachDate: s\.coachDate, coachTime: s\.coachTime \};/);
+  const iLive = fn.indexOf('realAvail != null'), iPreview = fn.indexOf('p.availability');
+  assert.ok(iLive > 0 && iPreview > iLive, 'the preview pattern is reached before the live slots');
 });
 
 test('the profile\'s "Book intro" opens the listing\'s own calendar instead of booking with no time', () => {
