@@ -130,10 +130,23 @@ function dscMonthEnd(k) { return k + "-" + String(new Date(Number(k.slice(0, 4))
 // read on two clocks under one label, and drags priced in the wrong one.
 function dscMergeRange(prev, res, months) {
   const zone = typeof res.zone === "string" && res.zone ? res.zone : null;
-  if (!prev || prev.zone !== zone) return { zone, months: new Set(months), events: res.events.slice() };
+  // The plans row (step 4) rides along with each month: merged by id, and unreadable once any
+  // month's read of it failed (`clientPlansReadable: false`), so a gap is said, not drawn empty.
+  const plansIn = Array.isArray(res.clientPlans) ? res.clientPlans : [];
+  const plansOk = res.clientPlansReadable !== false;
+  if (!prev || prev.zone !== zone) return { zone, months: new Set(months), events: res.events.slice(), clientPlans: plansIn.slice(), plansOk };
   const byId = new Map(prev.events.map((e) => [e.id, e]));
   for (const e of res.events) byId.set(e.id, e);
-  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()] };
+  const planById = new Map((prev.clientPlans || []).map((p) => [p.id, p]));
+  for (const p of plansIn) planById.set(p.id, p);
+  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansOk: prev.plansOk !== false && plansOk };
+}
+// A demo week of client plans for the signed-out preview: invented, like its bookings.
+function dscDemoPlans(monday) {
+  const at = (n) => dscIso(dscAddDays(monday, n));
+  return [
+    [0, "Priya S.", "Lower A"], [3, "Priya S.", "Upper A"], [1, "Marcus T.", "Push"], [5, "Marcus T.", "Legs"], [2, "Dana K.", "Tempo run"],
+  ].map(([n, who, title]) => ({ id: "demo-cplan-" + n + who, date: at(n), clientId: "demo-" + who, with: who, title }));
 }
 // Today's date in the zone the bookings are read in, so the highlighted cell is the day
 // the coach's own clock says it is (a coach whose laptop is elsewhere still sees their day).
@@ -817,7 +830,7 @@ function dscWhere(ev) {
 // on the block keeps a finger's drag from scrolling the page instead. The verdict (clash,
 // outside open hours, in the past) is asked for on every move, so the drop target is red
 // BEFORE the coach lets go, not a "couldn't move it" after.
-function DscTimeGrid({ days, byDate, blocks, offsFor, colorOf, todayIso, nowMin, startHour, endHour, slot, onSlot, onBookSlot, onPick, onMove, verdictFor, onDayHead, rules }) {
+function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf, todayIso, nowMin, startHour, endHour, slot, onSlot, onBookSlot, onPick, onMove, verdictFor, onDayHead, rules }) {
   const colsRef = React.useRef(null);
   const dragRef = React.useRef(null);
   const suppressRef = React.useRef(false);
@@ -918,6 +931,30 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, colorOf, todayIso, nowMin,
                 {list.length > 3 && <div style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50 }}>+{list.length - 3} more</div>}
               </div>
             ))}
+          </div>
+        )}
+        {/* Plans row (step 4): what each client's program puts on the day. Read-only; a chip
+            opens that client's file where the page has one. */}
+        {plansFor && isos.some((iso) => plansFor(iso).length) && (
+          <div data-plans-row="" style={{ display: "grid", gridTemplateColumns: "44px " + cols, borderBottom: "1px solid " + DSC_HAIR }}>
+            <span style={{ fontFamily: DSC_MONO, fontSize: 7.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DSC_INK50, padding: "6px 4px 0", textAlign: "right" }}>Plans</span>
+            {isos.map((iso) => {
+              const list = plansFor(iso);
+              return (
+                <div key={iso} data-plans-day={iso} style={{ borderLeft: "1px solid " + DSC_HAIR, padding: 3, minWidth: 0, display: "grid", gap: 2, alignContent: "start" }}>
+                  {list.slice(0, 3).map((p) => {
+                    const color = (colorOf || dscClientColor)(p.clientId || p.with);
+                    const label = String(p.with || "Client").split(" ")[0] + " · " + p.title;
+                    const style = { display: "flex", alignItems: "center", gap: 4, minWidth: 0, padding: "1px 4px", borderRadius: 3, border: 0, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.05)", color: "inherit", font: "inherit", fontSize: 10, lineHeight: 1.3, textAlign: "left", cursor: onPlan ? "pointer" : "default" };
+                    const inner = <React.Fragment><span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: color, flex: "0 0 auto" }} /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span></React.Fragment>;
+                    return onPlan
+                      ? <button key={p.id} type="button" data-plan={p.id} title={(p.with || "Client") + " · " + p.title + " (their program)"} onClick={() => onPlan(p)} style={style}>{inner}</button>
+                      : <div key={p.id} data-plan={p.id} title={(p.with || "Client") + " · " + p.title + " (their program)"} style={style}>{inner}</div>;
+                  })}
+                  {list.length > 3 && <div style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50 }}>+{list.length - 3} more</div>}
+                </div>
+              );
+            })}
           </div>
         )}
         {/* Hours */}
@@ -1509,6 +1546,9 @@ function CoachSchedulePage({ role }) {
   // where the working day happens now.
   const prefs = useRememberedChoices(source === "live");
   const [view, setView] = useRememberedChoice(prefs, "scheduleView", DSC_VIEWS, "week");
+  // The plans row: what a trainer's clients' programs put on each day (step 4), shown unless
+  // the coach turns it off. A nutritionist's plans are meal plans, with no training days.
+  const [plansPref, setPlansPref] = useRememberedChoice(prefs, "schedulePlans", ["on", "off"], "on");
   const [cursor, setCursor] = React.useState(() => {
     return dscRouteDate(dashRouteParam("date")) || new Date();
   });
@@ -1598,7 +1638,9 @@ function CoachSchedulePage({ role }) {
       // comes back in UTC (the contract older app builds rely on). With it the route uses the
       // coach's stored zone for `role`, and this browser's only when none is stored yet.
       const url = "/api/calendar?from=" + run[0] + "-01&to=" + dscMonthEnd(run[run.length - 1])
-        + "&role=" + encodeURIComponent(role) + "&tz=" + encodeURIComponent(dscBrowserZone() || "");
+        + "&role=" + encodeURIComponent(role) + "&tz=" + encodeURIComponent(dscBrowserZone() || "")
+        // A trainer's clients' training days, for the plans row (step 4).
+        + (role === "trainer" ? "&clientPlans=1" : "");
       fetch(url, { credentials: "same-origin", cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null)).catch(() => null)
         .then((res) => {
@@ -1659,6 +1701,19 @@ function CoachSchedulePage({ role }) {
     for (const list of m.values()) list.sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
     return m;
   }, [JSON.stringify(planEvents)]);
+  // The plans row (step 4): a trainer's clients' training days, narrowed by the same client chips.
+  const showPlans = role === "trainer" && plansPref !== "off";
+  // The demo's plans meet the demo's bookings by name, so a client keeps one colour across both.
+  const planList = !showPlans ? [] : liveEvents ? (cal.clientPlans || [])
+    : dscDemoPlans(dscMonday(cursor)).map((p) => { const known = calEvents.find((e) => e.with === p.with && e.clientId); return known ? { ...p, clientId: known.clientId } : p; });
+  const plansByDate = new Map();
+  for (const p of planList) {
+    if (picked.length && !picked.includes(p.clientId)) continue;
+    if (!plansByDate.has(p.date)) plansByDate.set(p.date, []);
+    plansByDate.get(p.date).push(p);
+  }
+  const plansFor = showPlans ? (iso) => plansByDate.get(iso) || [] : null;
+  const plansUnread = showPlans && liveEvents && cal.plansOk === false;
   // Clashes are judged against EVERY booking, filtered or not: a session hidden by a chip
   // still holds its hour.
   const sessionsByDate = React.useMemo(() => {
@@ -2030,6 +2085,7 @@ function CoachSchedulePage({ role }) {
 
   const grid = (
     <DscTimeGrid rules={R} days={gridDays} byDate={byDate} blocks={blocks} offsFor={offsFor} colorOf={colorOf} todayIso={todayIso} nowMin={nowMin}
+      plansFor={plansFor} onPlan={typeof window.DashClientDrawer === "function" ? (p) => { const row = rowFor({ clientId: p.clientId, with: p.with }); if (row) setDrawerRow(row); } : null}
       startHour={range.startHour} endHour={range.endHour}
       slot={slot} onSlot={onSlot} onBookSlot={() => setBookOpen(true)}
       onPick={pickEvent} onMove={(ev, date, minute) => requestMove(ev, date, minute)} verdictFor={verdictFor}
@@ -2102,6 +2158,9 @@ function CoachSchedulePage({ role }) {
                       : "No open hours set this week"}
                   </span>
                 )}
+                {role === "trainer" && shownView !== "month" && (
+                  <button type="button" aria-pressed={showPlans} onClick={() => setPlansPref(showPlans ? "off" : "on")} title="What your clients' programs put on each day" style={btn(showPlans)}>Client plans</button>
+                )}
                 <div role="group" aria-label="View" style={{ display: "flex", gap: 6 }}>
                   {DSC_VIEWS.map((v) => <button key={v} type="button" aria-pressed={shownView === v} onClick={() => pickView(v)} style={btn(shownView === v)}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>)}
                 </div>
@@ -2116,6 +2175,7 @@ function CoachSchedulePage({ role }) {
               <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, margin: "-4px 0 10px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
                 {calZone && <span>Times in {calZone}</span>}
                 {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone || "no time zone"}; re-save them below</span>}
+                {plansUnread && <span>Client plans couldn't load — the row is incomplete.</span>}
                 {loadNote === "loading" && <span>Loading…</span>}
                 {loadNote === "error" && <span>Some dates couldn't load. <button type="button" onClick={retryLoad} style={{ ...btn(false), padding: "2px 8px", fontSize: 8 }}>Retry</button></span>}
               </div>

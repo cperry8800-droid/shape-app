@@ -203,7 +203,7 @@ test('the load counts open hours used — confirmed and done only, inside the ho
 // fakeSupabase answers reads by APPLYING the filters; this adds the writes the booking routes
 // make, against the same rows, and the auth admin read. `label` says which client wrote, so a
 // test can tell a request-client insert (RLS applies) from a service-role one.
-function db(tables, { label, insertError = null, updateError = null, fail = [], rlsUser = null } = {}) {
+function db(tables, { label, insertError = null, updateError = null, fail = [], rlsUser = null, maxRows = null } = {}) {
   // ⚠ THE REQUEST CLIENT READS `sessions` THROUGH ITS POLICY (read_own_sessions: your own, or
   // ones booked against a provider row you own). Without it a member's client would see the
   // coach's whole calendar here, and a route that checked a clash through the wrong client
@@ -214,7 +214,7 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
     get: (t, k) => (k === 'sessions' ? (t.sessions || []).filter((r) => r.client_id === rlsUser || owns(r)) : t[k]),
   });
   const base = fakeSupabase({
-    tables: view, fail,
+    tables: view, fail, maxRows,
     rpcs: {
       get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: (tables.names || {})[id] || null })),
       // provider_busy_blocks as the migration writes it: time off, and active sessions, in the window.
@@ -239,6 +239,8 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
     // in ONE transaction, so any refusal (`updateError`, asked per move as a single update is, or
     // a row that is gone or not active) rolls back every move before it.
     async rpc(name, args) {
+      // get_display_names refuses more than 200 ids, as 2026-08-03-profiles-display-names.sql does.
+      if (name === 'get_display_names' && args.p_ids.length > 200) return { data: null, error: { message: 'get_display_names: at most 200 ids' } };
       if (name !== 'move_session_run') return base.rpc(name, args);
       const done = [];
       for (const m of args.p_moves) {
@@ -920,13 +922,17 @@ const ROSTER = [
   { client: { profile: { id: 'member-2', name: 'Marcus T.' }, payments: {} } },
 ];
 
-function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {} } = {}) {
+function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {}, plans = null, plansReadable = true } = {}) {
   const posts = [];
+  const calendarUrls = [];
   const handler = async (u, init) => {
     if (u.pathname === '/api/my-availability') return json(200, { slots, timezone: zone });
     if (u.pathname === '/api/calendar') {
+      calendarUrls.push(u.search);
       const from = u.searchParams.get('from'), to = u.searchParams.get('to');
-      return json(200, { events: events.filter((e) => e.date >= from && e.date <= to), zone });
+      const asked = u.searchParams.get('clientPlans') === '1';
+      return json(200, { events: events.filter((e) => e.date >= from && e.date <= to), zone,
+        ...(asked && plans ? { clientPlans: plans.filter((p) => p.date >= from && p.date <= to), clientPlansReadable: plansReadable } : {}) });
     }
     if (u.pathname === '/api/sessions/manage') {
       const body = JSON.parse(init.body);
@@ -937,12 +943,12 @@ function server({ events = WEEK(), slots = HOURS, zone = NY, answers = {} } = {}
     }
     return json(404, {});
   };
-  return { posts, handler };
+  return { posts, handler, calendarUrls };
 }
 async function open(opts = {}) {
   const srv = server(opts);
   const page = await mountSchedule({ fetch: srv.handler, triage: opts.triage ?? ROSTER, params: opts.params, role: opts.role, narrow: opts.narrow, drawer: opts.drawer, live: opts.live });
-  return { page, posts: srv.posts };
+  return { page, posts: srv.posts, calendarUrls: srv.calendarUrls };
 }
 const block = (page, id) => page.doc.querySelector('[data-dsc-block="session:' + id + '"]');
 const colOf = (page, el) => el && el.closest('[data-col-date]').getAttribute('data-col-date');
@@ -1429,6 +1435,138 @@ test('a nutritionist books the 15-minute consult by default', async () => {
     await page.click(page.doc.querySelector('[data-dsc-ghost]'));
     assert.equal(page.buttonMatching(/^15 min$/, page.doc.querySelector('[role=dialog]')).getAttribute('aria-pressed'), 'true');
   } finally { await page.unmount(); }
+});
+
+// ── Step 4 · the plans row ──────────────────────────────────────────────────
+const PLANS = [
+  { id: 'cplan:w1', date: '2026-10-05', clientId: 'member-1', with: 'Priya S.', title: 'Lower A' },
+  { id: 'cplan:w2', date: '2026-10-08', clientId: 'member-1', with: 'Priya S.', title: 'Upper A' },
+  { id: 'cplan:w3', date: '2026-10-08', clientId: 'member-2', with: 'Marcus T.', title: 'Push' },
+];
+const plansIn = (page, iso) => [...page.doc.querySelectorAll('[data-plans-day="' + iso + '"] [data-plan]')].map((n) => n.textContent);
+
+test('the plans row shows what each client\'s program puts on the day, follows the client chips, and turns off', async () => {
+  const opened = [];
+  const Drawer = ({ row }) => { opened.push(row.client.profile.id); return null; };
+  const { page, calendarUrls } = await open({ plans: PLANS, drawer: Drawer });
+  try {
+    assert.ok(calendarUrls.every((q) => /[?&]clientPlans=1(&|$)/.test(q)), 'a trainer\'s calendar read does not ask for the plans');
+    assert.ok(page.doc.querySelector('[data-plans-row]'));
+    assert.deepEqual(plansIn(page, '2026-10-05'), ['Priya · Lower A']);
+    assert.deepEqual(plansIn(page, '2026-10-08'), ['Priya · Upper A', 'Marcus · Push']);
+    assert.deepEqual(plansIn(page, '2026-10-06'), []);
+    // A chip opens that client's file.
+    await page.click(page.doc.querySelector('[data-plan="cplan:w3"]'));
+    assert.deepEqual(opened, ['member-2']);
+    // The client chips narrow it with the bookings.
+    await page.click(page.buttonMatching(/Marcus T\./, page.doc.querySelector('[aria-label="Show clients"]')));
+    assert.deepEqual(plansIn(page, '2026-10-08'), ['Marcus · Push']);
+    assert.deepEqual(plansIn(page, '2026-10-05'), []);
+    await page.click(page.button('Show all'));
+    // Off, and remembered.
+    const toggle = page.button('Client plans');
+    assert.equal(toggle.getAttribute('aria-pressed'), 'true');
+    await page.click(toggle);
+    assert.ok(!page.doc.querySelector('[data-plans-row]'));
+    assert.deepEqual(page.remembered.filter(([k]) => k === 'schedulePlans').map(([, v]) => v), ['off']);
+  } finally { await page.unmount(); }
+});
+
+test('the plans row says when it could not load, and a nutritionist has none', async () => {
+  const unread = await open({ plans: [], plansReadable: false });
+  try {
+    assert.match(unread.page.text(), /Client plans couldn't load — the row is incomplete\./);
+  } finally { await unread.page.unmount(); }
+  const nutri = await open({ role: 'nutritionist', plans: PLANS });
+  try {
+    assert.ok(nutri.calendarUrls.every((q) => !/clientPlans/.test(q)), 'a nutritionist asks for training days');
+    assert.ok(!nutri.page.doc.querySelector('[data-plans-row]'));
+    assert.ok(!nutri.page.button('Client plans'));
+  } finally { await nutri.page.unmount(); }
+});
+
+test('/api/calendar serves a trainer\'s clients\' dated training days, only when asked, and says when it cannot', async () => {
+  const cw = (id, client_id, scheduled_date, extra = {}) => ({ id, trainer_id: 7, client_id, title: 'Lower A', status: 'published', scheduled_date, payload: {}, description: null, ...extra });
+  const tables = world({
+    calendar_events: [], client_meal_plans: [], names: { 'member-1': 'Priya Shah', 'member-2': 'Marcus Tate' },
+    client_workouts: [
+      cw('w1', 'member-1', '2026-10-08'),
+      cw('w2', 'member-2', '2026-10-09', { title: 'Push' }),
+      cw('w3', 'member-1', null),                                // undated: the member's own week decides
+      cw('w4', 'member-1', '2026-10-10', { status: 'archived' }),
+      cw('w5', 'member-1', '2026-11-20'),                        // outside the window
+      cw('w6', 'member-9', '2026-10-08', { trainer_id: 99 }),    // another trainer's
+    ],
+  });
+  const m = await routes();
+  m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1' });
+  m.state.user = COACH;
+  const get = async (q) => (await atNow(() => m.calendar.GET(new Request('https://shape.test/api/calendar?from=2026-10-01&to=2026-10-31&tz=' + NY + q)))).json();
+  const asked = await get('&role=trainer&clientPlans=1');
+  assert.equal(asked.clientPlansReadable, true);
+  assert.deepEqual(asked.clientPlans, [
+    { id: 'cplan:w1', date: '2026-10-08', clientId: 'member-1', with: 'Priya Shah', title: 'Lower A' },
+    { id: 'cplan:w2', date: '2026-10-09', clientId: 'member-2', with: 'Marcus Tate', title: 'Push' },
+  ]);
+  const notAsked = await get('&role=trainer');
+  assert.equal('clientPlans' in notAsked, false, 'every calendar read pays for the plans');
+  assert.equal('clientPlans' in (await get('&role=nutritionist&clientPlans=1')), false);
+  m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1', fail: ['client_workouts'] });
+  const failed = await get('&role=trainer&clientPlans=1');
+  assert.equal(failed.clientPlansReadable, false, 'a failed read was drawn as a week with no training');
+  assert.deepEqual(failed.clientPlans, []);
+});
+
+test('/api/calendar reads the plans of every trainer row the coach owns, the whole window, and every client\'s name', async () => {
+  const m = await routes();
+  m.state.user = COACH;
+  const get = async (tables, q, maxRows = null) => {
+    m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1', maxRows });
+    return (await atNow(() => m.calendar.GET(new Request('https://shape.test/api/calendar?tz=' + NY + q)))).json();
+  };
+  const cw = (id, trainer_id, client_id, scheduled_date) => ({ id, trainer_id, client_id, title: 'Lower A', status: 'published', scheduled_date, payload: {}, description: null });
+  const day = (i) => new Date(Date.UTC(2026, 9, 1) + (i % 90) * 86400000).toISOString().slice(0, 10);
+
+  // ⚠ trainers.owner_id is not unique (2026-08-10-shared-clients-roster.sql): a second listing's plans count too.
+  const twoRows = world({
+    calendar_events: [], client_meal_plans: [],
+    trainers: [{ id: 7, owner_id: 'coach-1', name: 'Coach', timezone: NY }, { id: 12, owner_id: 'coach-1', name: 'Coach (second listing)', timezone: NY }],
+    client_workouts: [cw('a1', 7, 'member-1', '2026-10-08'), cw('b1', 12, 'member-2', '2026-10-09')],
+  });
+  const both = await get(twoRows, '&from=2026-10-01&to=2026-10-31&role=trainer&clientPlans=1');
+  assert.equal(both.clientPlansReadable, true);
+  assert.deepEqual(both.clientPlans.map((p) => p.id), ['cplan:a1', 'cplan:b1'], 'a second trainer row\'s plans were dropped');
+
+  // Three months of a 30-client roster on five-day programs is ~1,950 rows; PostgREST answers at
+  // most 1,000 a page. Every row comes back, in date order, and the read says it is whole.
+  const busy = world({
+    calendar_events: [], client_meal_plans: [],
+    client_workouts: Array.from({ length: 2300 }, (_, i) => cw('r' + String(i).padStart(4, '0'), 7, 'member-' + (i % 30), day(i))),
+  });
+  const all = await get(busy, '&from=2026-10-01&to=2026-12-31&role=trainer&clientPlans=1', 1000);
+  assert.equal(all.clientPlans.length, 2300, 'a window past one page was cut short');
+  assert.equal(all.clientPlansReadable, true);
+  assert.equal(new Set(all.clientPlans.map((p) => p.id)).size, 2300, 'a row was read twice across pages');
+  assert.ok(all.clientPlans.every((p, i, a) => i === 0 || a[i - 1].date <= p.date), 'the plans are not in date order');
+
+  // Past the route's own cap it keeps what it read and says the row is incomplete.
+  const huge = world({
+    calendar_events: [], client_meal_plans: [],
+    client_workouts: Array.from({ length: 5001 }, (_, i) => cw('h' + String(i).padStart(4, '0'), 7, 'member-' + (i % 30), day(i))),
+  });
+  const cut = await get(huge, '&from=2026-10-01&to=2026-12-31&role=trainer&clientPlans=1', 1000);
+  assert.equal(cut.clientPlansReadable, false, 'a cut-short read was drawn as complete');
+  assert.equal(cut.clientPlans.length, 5000);
+
+  // get_display_names takes at most 200 ids a call: 250 clients are named in batches.
+  const names = Object.fromEntries(Array.from({ length: 250 }, (_, i) => ['member-' + i, 'Client ' + i]));
+  const wide = world({
+    calendar_events: [], client_meal_plans: [], names,
+    client_workouts: Array.from({ length: 250 }, (_, i) => cw('n' + i, 7, 'member-' + i, '2026-10-08')),
+  });
+  const named = await get(wide, '&from=2026-10-01&to=2026-10-31&role=trainer&clientPlans=1');
+  assert.equal(named.clientPlans.length, 250);
+  assert.ok(named.clientPlans.every((p) => p.with === names[p.clientId]), 'a client past the 200th was left as "Client"');
 });
 
 test('client chips filter the grid, ?client= lands filtered, and clashes still see every booking', async () => {

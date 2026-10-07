@@ -54,6 +54,13 @@ export const dynamic = 'force-dynamic';
 // How many published plan rows the calendar reads, newest first with the undated ones
 // kept — see the note on that query.
 const PLAN_CAP = 200;
+// The plans row reads a window of every client's assigned training days (one row per day
+// planned), in pages, to the end of the window. Past the cap the read is reported incomplete
+// (`clientPlansReadable: false`) rather than drawn as days with no training.
+const CLIENT_PLAN_PAGE = 1000;
+const CLIENT_PLAN_CAP = 5000;
+// get_display_names refuses more than 200 ids in one call (2026-08-03-profiles-display-names.sql).
+const DISPLAY_NAME_BATCH = 200;
 
 function clean(v: unknown, max: number): string {
   return String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -379,7 +386,65 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals], zone });
+  // 6) The plans row (Schedule step 4): the training days a TRAINER's programs put on their
+  //    clients' calendars, by date. Asked for with `clientPlans=1` and `role=trainer` (the coach's
+  //    Schedule), never with ?clientId. Only DATED workouts: an undated one lands on whatever
+  //    day the member's own week has free, which the coach's calendar cannot know. Read through
+  //    RLS (trainer_select_own_client_workouts: the coach's own trainer rows). A nutritionist's
+  //    plans are meal plans, which have no training days, so there is no row for them.
+  //    ⚠ A FAILED READ IS SAID (`clientPlansReadable: false`), never shown as a week with no
+  //    training in it.
+  let plansRow: { clientPlans: Array<Record<string, unknown>>; clientPlansReadable: boolean } | null = null;
+  if (url.searchParams.get('clientPlans') === '1' && url.searchParams.get('role') === 'trainer' && !clientId) {
+    plansRow = { clientPlans: [], clientPlansReadable: false };
+    // ⚠ EVERY trainer row the account owns: `trainers.owner_id` is not unique
+    // (2026-08-10-shared-clients-roster.sql), and the coach plan routes read them all the same way.
+    const { data: tRows, error: tErr } = await supabase.from('trainers').select('id').eq('owner_id', user.id);
+    const trainerIds = ((tRows ?? []) as { id: number }[]).map((r) => r.id);
+    if (!tErr && trainerIds.length) {
+      // Pages to the end of the window, oldest first with the id as a tie-break so no row is
+      // skipped or read twice between pages. The exact count says when the read is whole; a page
+      // that comes back short (PostgREST's own max-rows) just moves the next one along.
+      const rows: Array<{ id: string; client_id: string; title: string | null; scheduled_date: string }> = [];
+      let total: number | null = null;
+      let readOk = true;
+      for (;;) {
+        const { data: page, error: cpErr, count } = await supabase
+          .from('client_workouts')
+          .select('id, client_id, title, scheduled_date', { count: 'exact' })
+          .in('trainer_id', trainerIds)
+          .eq('status', 'published')
+          .gte('scheduled_date', dFrom)
+          .lte('scheduled_date', dTo)
+          .order('scheduled_date', { ascending: true })
+          .order('id', { ascending: true })
+          .range(rows.length, Math.min(rows.length + CLIENT_PLAN_PAGE, CLIENT_PLAN_CAP) - 1);
+        if (cpErr) { readOk = false; break; }
+        if (total == null && typeof count === 'number') total = count;
+        const got = (page ?? []) as typeof rows;
+        rows.push(...got);
+        if (!got.length || (total != null && rows.length >= total) || rows.length >= CLIENT_PLAN_CAP) break;
+      }
+      const whole = readOk && (total != null ? rows.length >= total : rows.length < CLIENT_PLAN_CAP);
+      const ids = [...new Set(rows.map((r) => r.client_id).filter(Boolean))];
+      const nameOf = new Map<string, string>();
+      for (let i = 0; i < ids.length; i += DISPLAY_NAME_BATCH) {
+        const { data: names } = await supabase.rpc('get_display_names', { p_ids: ids.slice(i, i + DISPLAY_NAME_BATCH) });
+        for (const n of (names ?? []) as { user_id: string; full_name: string | null }[]) nameOf.set(String(n.user_id), String(n.full_name ?? '').trim() || 'Client');
+      }
+      // A failed or cut-short read keeps what it read and says the row is incomplete.
+      plansRow = {
+        clientPlansReadable: whole,
+        clientPlans: rows.map((r) => ({
+          id: `cplan:${r.id}`, date: r.scheduled_date, clientId: r.client_id, with: nameOf.get(r.client_id) || 'Client', title: r.title || 'Workout',
+        })),
+      };
+    } else if (!tErr) {
+      plansRow = { clientPlans: [], clientPlansReadable: true };
+    }
+  }
+
+  return NextResponse.json({ events: [...events, ...sessions, ...planWorkouts, ...planMeals], zone, ...(plansRow || {}) });
 }
 
 // ── POST ─────────────────────────────────────────────────────────────────────
