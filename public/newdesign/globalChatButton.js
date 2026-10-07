@@ -98,7 +98,12 @@
     var style = document.createElement("style");
     style.id = "shape-global-chat-style";
     style.textContent = [
-      "#shape-global-chat-button{position:fixed;right:24px;bottom:24px;z-index:2147483000;display:inline-flex;align-items:center;gap:12px;padding:17px 24px 17px 21px;border:0;border-radius:999px;background:#1ec0a8;color:#1a1612;font-family: var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif);font-size:15px;font-weight:700;letter-spacing:.01em;text-decoration:none;box-shadow:0 18px 44px rgba(0,0,0,.38),0 4px 14px rgba(30,192,168,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease}",
+      "#shape-global-chat-button{position:fixed;right:24px;bottom:24px;z-index:2147483000;display:inline-flex;align-items:stretch;padding:0;border:0;border-radius:999px;overflow:hidden;background:#1ec0a8;color:#1a1612;font-family: var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif);font-size:15px;font-weight:700;letter-spacing:.01em;text-decoration:none;box-shadow:0 18px 44px rgba(0,0,0,.38),0 4px 14px rgba(30,192,168,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .16s ease,box-shadow .16s ease,opacity .16s ease}",
+      // The split: "✦ Ask Nora" first, then "Chat" (owner, 2026-10-07, option A).
+      "#shape-global-chat-button .sgc-half{display:inline-flex;align-items:center;gap:10px;border:0;margin:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;cursor:pointer;padding:17px 22px 17px 18px;-webkit-tap-highlight-color:transparent}",
+      "#shape-global-chat-button .sgc-nora{background:#1a1612;color:#f2ede4}",
+      "#shape-global-chat-button .sgc-star{color:#2ee0c4;font-size:16px;line-height:1}",
+      "#shape-global-chat-button .sgc-half:focus-visible{outline:3px solid rgba(var(--sh-ink-rgb, 242,237,228),.8);outline-offset:-3px}",
       "#shape-global-chat-button:hover{transform:translateY(-2px);box-shadow:0 22px 52px rgba(0,0,0,.44),0 5px 18px rgba(30,192,168,.42)}",
       "#shape-global-chat-button:focus-visible{outline:3px solid rgba(var(--sh-ink-rgb, 242,237,228),.8);outline-offset:4px}",
       "#shape-global-chat-button svg{width:19px;height:19px;flex:none}",
@@ -137,7 +142,7 @@
       "#shape-global-chat-panel .sgc-row .ls{font-size:12px;color:rgba(var(--sh-ink-rgb, 242,237,228),.6);grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#shape-global-chat-panel .sgc-back{border:0;background:transparent;color:var(--sh-accent, #2ee0c4);font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0;margin-bottom:2px}",
       "#shape-global-chat-panel .sgc-from{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.08em;color:rgba(var(--sh-ink-rgb, 242,237,228),.42);margin:-3px 0 -2px}",
-      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));padding:14px 19px 14px 16px;font-size:14px;gap:10px}#shape-global-chat-button .shape-global-chat-count{min-width:25px;height:22px;font-size:11px}#shape-global-chat-panel{right:16px;bottom:82px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 104px));max-height:calc(100vh - 104px)}}"
+      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:14px}#shape-global-chat-button .sgc-chat{display:none}#shape-global-chat-button .sgc-nora{width:52px;height:52px;padding:0;justify-content:center}#shape-global-chat-button .sgc-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}#shape-global-chat-button .sgc-star{font-size:20px}#shape-global-chat-button .shape-global-chat-count{min-width:25px;height:22px;font-size:11px}#shape-global-chat-panel{right:16px;bottom:82px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 104px));max-height:calc(100vh - 104px)}}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -283,7 +288,11 @@
     if (existing) return existing;
 
     var DATA = chatData();
-    var state = { tab: DATA[0].id, ti: null };
+    var state = { tab: DATA[0].id, ti: null, mode: "chat" };
+    // Nora mode shows Nora's tab alone; Chat shows every tab but hers.
+    function shownTabs() {
+      return DATA.filter(function (t) { return state.mode === "nora" ? !!t.support : !t.support; });
+    }
 
     function tabBy(id) { for (var i = 0; i < DATA.length; i++) if (DATA[i].id === id) return DATA[i]; return DATA[0]; }
     function unreadFor(tab) { return (tab.threads || []).reduce(function (s, th) { return s + (Number(th.unread) || 0); }, 0); }
@@ -344,7 +353,8 @@
 
     function renderTabs() {
       tabsEl.innerHTML = "";
-      DATA.forEach(function (tab) {
+      tabsEl.style.display = state.mode === "nora" ? "none" : "";
+      shownTabs().forEach(function (tab) {
         var b = document.createElement("button");
         b.type = "button";
         b.className = "sgc-tab" + (tab.id === state.tab ? " active" : "");
@@ -486,7 +496,13 @@
     // id, then the thread by name. Search's Nora hit on a page without React reaches
     // here, and opening on the first tab instead of Nora was the bug (Codex, #2240).
     node.__showRequest = function (req) {
-      if (!req || typeof req !== "object") return;
+      // No request (the Chat half, a page's .click()) is Chat: never Nora's tab.
+      if (!req || typeof req !== "object") {
+        state.mode = "chat";
+        if (tabBy(state.tab).support) { var first = shownTabs()[0]; state.tab = first ? first.id : state.tab; state.ti = null; }
+        render();
+        return;
+      }
       var tab = null;
       for (var i = 0; i < DATA.length; i++) if (DATA[i].id === req.tab) tab = DATA[i];
       if (!tab && req.who) {
@@ -495,6 +511,7 @@
         }
       }
       if (!tab) return;
+      state.mode = tab.support ? "nora" : "chat";
       state.tab = tab.id;
       state.ti = tab.support ? 0 : null;
       (tab.threads || []).forEach(function (th, k) { if (req.who && th.who === req.who) state.ti = k; });
@@ -659,8 +676,10 @@
 
   function mount() {
     if (document.getElementById(ID)) return;
-    // No chat bubble on mobile — matches the mobile-redirect breakpoint.
-    if (isMobileViewport()) return;
+    // ⚠ PHONES GET NORA. This used to return here below 760 px, so a visitor on a
+    // phone could not reach Nora on any page (the Ask Nora review, 2026-10-07). At
+    // phone width the dock is a single round ✦ (CSS above); Chat stays in the
+    // page's own menu.
     injectStyles();
 
     // Resolve the signed-in role early so the chat tabs are filtered to it
@@ -671,22 +690,35 @@
       window.setTimeout(function () { waitRole(n + 1); }, 120);
     })(0);
 
-    var button = document.createElement("button");
+    // ⚠ THE DOCK KEEPS THE OLD ID. Pages hide #shape-global-chat-button (the
+    // homepage splash and drawer, the Cook page) and call its .click() to open
+    // Chat; both keep working, because the id is now the whole split object and a
+    // click that does not land on the Nora half opens Chat as before.
+    var button = document.createElement("div");
     button.id = ID;
-    button.type = "button";
-    button.setAttribute("aria-label", "Open Shape chat");
+    button.setAttribute("role", "group");
+    button.setAttribute("aria-label", "Ask Nora or open chat");
     button.innerHTML = [
+      '<button type="button" class="sgc-half sgc-nora" aria-label="Ask Nora"><span class="sgc-star" aria-hidden="true">✦</span><span class="sgc-label">Ask Nora</span></button>',
+      '<button type="button" class="sgc-half sgc-chat" aria-label="Open Shape chat">',
       '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true">',
       '<path d="M2 6.5a4 4 0 0 1 4-4h4a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H6.5L3.5 14V8.5a3.5 3.5 0 0 1-1.5-2Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/>',
       "</svg>",
       "<span>Chat</span>",
-      '<span class="shape-global-chat-count" style="display:none"></span>'
+      '<span class="shape-global-chat-count" style="display:none"></span>',
+      "</button>"
     ].join("");
     syncUnreadBadge(button);
 
-    button.addEventListener("click", function () {
-      // Open the full rich ChatWidget (loads it if the page doesn't
-      // have it yet); falls back to the self-contained panel on failure.
+    button.addEventListener("click", function (event) {
+      var t = event && event.target;
+      if (t && t.closest && t.closest(".sgc-nora")) {
+        // Nora: the widget's Nora mode, or the fallback panel's Nora thread.
+        window.__openChatTo({ who: "Nora", tab: "support" });
+        return;
+      }
+      // Chat (the right half, or a page's own .click()): the full ChatWidget,
+      // loaded if the page doesn't have it; the fallback panel on failure.
       openRichChat();
     });
 

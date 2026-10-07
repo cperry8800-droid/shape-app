@@ -291,6 +291,14 @@ function ChatWidget(props) {
     } catch {}
   }, [open]);
   const [tabIdx, setTabIdx] = React.useState(0);
+  // ── ASK NORA | CHAT (owner, 2026-10-07: the A split) ──────────────────
+  // One widget, two doors. Opened on the support tab (the corner's "Ask Nora",
+  // search's Nora hit, any __openChat(…, "support")) it is NORA MODE: Nora's
+  // thread alone, single column, narrower, no tab bar. Opened any other way it
+  // is CHAT: every tab EXCEPT Nora's, so she is no longer the last tab inside
+  // the bubble (owner, same day). A popped-out window keeps every tab.
+  const [noraMode, setNoraMode] = React.useState(false);
+  const isNoraTab = (t) => !!(t && t.support);
   // threadsByTab: array of arrays of threads (mutable copy)
   const [threadsByTab, setThreadsByTab] = React.useState(() => tabs.map(t => t.threads));
   const [activeByTab, setActiveByTab] = React.useState(() => tabs.map(() => 0));
@@ -778,6 +786,14 @@ function ChatWidget(props) {
       const who = descriptor ? descriptor.who : (typeof arg === "string" ? arg : null);
       const conversationId = descriptor && descriptor.conversationId;
       if (!tabId && descriptor && descriptor.tab) tabId = descriptor.tab;
+      const toNora = !docked && isNoraTab(tabs.find(t => t.id === tabId));
+      setNoraMode(toNora);
+      // Chat never lands on Nora's tab: a plain open whose last tab was hers
+      // moves to the first tab Chat shows.
+      if (!toNora && !tabId && isNoraTab(tabs[tabIdx])) {
+        const first = tabs.findIndex(t => !isNoraTab(t));
+        if (first >= 0) setTabIdx(first);
+      }
       // Pre-fill the target tab's composer, keeping anything already typed.
       const fillDraft = (ti) => {
         if (descriptor && descriptor.draft) {
@@ -843,7 +859,7 @@ function ChatWidget(props) {
       window.__openChat(req, req && req.tab);
     }
     return () => { delete window.__openChat; };
-  }, [threadsByTab, tabs, tabIdx]);
+  }, [threadsByTab, tabs, tabIdx, docked]);
 
   React.useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -1331,7 +1347,7 @@ function ChatWidget(props) {
             position: "fixed",
             ...(pos ? { left: pos.x, top: pos.y } : { right: 28, bottom: 28 }),
             zIndex: 180,
-            width: size.w, maxWidth: "calc(100vw - 40px)",
+            width: noraMode ? Math.min(size.w, 420) : size.w, maxWidth: "calc(100vw - 40px)",
             height: size.h, maxHeight: "calc(100vh - 40px)",
             background: "var(--sh-ground, #1a1612)", color: INK,
             border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 14,
@@ -1353,8 +1369,8 @@ function ChatWidget(props) {
             <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
               <span style={{ color: "var(--sh-ink3, #75706a)", display: "inline-flex", alignItems: "center" }}><DragDots /></span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 2 }}>SHAPE</div>
-                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.02em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Your community</div>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.18em", color: TEAL_BRIGHT, marginBottom: 2 }}>{noraMode ? "✦ ASK NORA" : "SHAPE"}</div>
+                <div style={{ fontFamily: serif, fontSize: 26, lineHeight: 1.05, letterSpacing: "-0.02em", color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{noraMode ? "Nora" : "Your community"}</div>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 2, flex: "none" }}>
@@ -1373,13 +1389,14 @@ function ChatWidget(props) {
             </div>
           </div>
 
-          {/* Top tab bar — full width */}
-          {tabs.length > 1 && (
+          {/* Top tab bar — full width. Nora mode has none; Chat leaves Nora's tab out. */}
+          {!noraMode && tabs.length > 1 && (
             <div
               onMouseDown={startDrag}
               title="Drag to move"
               style={{ display: "flex", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)", cursor: "grab", userSelect: "none" }}>
               {tabs.map((t, i) => {
+                if (!docked && isNoraTab(t)) return null;
                 const unread = tabUnread(i);
                 const isActive = i === tabIdx;
                 return (
@@ -1413,9 +1430,9 @@ function ChatWidget(props) {
               the message poll, the draft text and the scroll position of every
               open thread; tearing it down on a tab switch would drop an unsent
               draft and restart polling from scratch each time. */}
-          <div style={{ display: currentTab.feed ? "none" : "grid", gridTemplateColumns: "260px 1fr", flex: currentTab.feed ? "0 0 auto" : 1, minHeight: 0 }}>
+          <div style={{ display: currentTab.feed ? "none" : "grid", gridTemplateColumns: noraMode ? "1fr" : "260px 1fr", flex: currentTab.feed ? "0 0 auto" : 1, minHeight: 0 }}>
           {/* Sidebar */}
-          <div style={{ borderRight: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <div style={{ borderRight: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: noraMode ? "none" : "flex", flexDirection: "column", minHeight: 0 }}>
             <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 4 }}>
                 {currentTab.eyebrow}

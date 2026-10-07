@@ -9,13 +9,14 @@ const source = readFileSync('public/newdesign/chatWidget.jsx', 'utf8');
 const start = source.indexOf('    window.__openChat = (arg, tabId) => {');
 const end = source.indexOf('    // A deep link could land before this widget mounted', start);
 assert.ok(start > 0 && end > start, 'the global opener must remain in this harness');
-function opener() {
-  const threads = [
+function opener({ tabs = [{id:'friends'},{id:'team'}], tabIdx = 0, docked = false, threads: given = null } = {}) {
+  const threads = given || [
     [{who:'Alex',conversationId:'another-client'}, {who:'Alex',conversationId:'member-dm'}],
     [{who:'Alex',conversationId:'coach-thread'}],
   ];
-  const state = {open:false, tab:0, active:[0,0], drafts:['Existing draft',''], threads};
-  const context = {window:{}, tabs:[{id:'friends'},{id:'team'}], threadsByTab:threads, tabIdx:0, dirtyRef:{current:false},
+  const state = {open:false, tab:tabIdx, active:threads.map(() => 0), drafts:threads.map((_, i) => i === 0 ? 'Existing draft' : ''), threads, nora:null};
+  const context = {window:{}, tabs, threadsByTab:threads, tabIdx, dirtyRef:{current:false},
+    docked, isNoraTab: (t) => !!(t && t.support), setNoraMode: v => state.nora=v,
     setOpen: v => state.open=v, setTabIdx: v => state.tab=v,
     setActiveByTab: fn => state.active=fn(state.active),
     setDraftByTab: fn => state.drafts=fn(state.drafts),
@@ -43,4 +44,30 @@ test('an ID-only deep link opens the exact conversation and legacy name links st
   assert.equal(h.selected().conversationId,'coach-thread');
   const legacy=opener(); legacy.open('Alex','friends');
   assert.equal(legacy.selected().conversationId,'another-client');
+});
+
+// ── Ask Nora | Chat (owner, 2026-10-07) ─────────────────────────────────────────
+const SPLIT = { tabs: [{id:'feed'},{id:'team'},{id:'support', support:true}], threads: [[], [{who:'Maya'}], [{who:'Nora'}]] };
+
+test('opened on the support tab, the widget is in Nora mode on her thread', () => {
+  const h = opener(SPLIT); h.open({who:'Nora', tab:'support'});
+  assert.equal(h.state.nora, true);
+  assert.equal(h.state.tab, 2);
+  assert.equal(h.selected().who, 'Nora');
+  const legacy = opener(SPLIT); legacy.open('Nora', 'support');
+  assert.equal(legacy.state.nora, true, 'the legacy (name, tab) form too');
+});
+
+test('opened any other way it is Chat, and never lands on Nora\'s tab', () => {
+  const plain = opener({ ...SPLIT, tabIdx: 2 }); plain.open();
+  assert.equal(plain.state.nora, false);
+  assert.equal(plain.state.tab, 0, 'a plain open whose last tab was Nora\'s moves to the first Chat tab');
+  const team = opener(SPLIT); team.open({who:'Maya', tab:'team'});
+  assert.equal(team.state.nora, false);
+  assert.equal(team.state.tab, 1);
+});
+
+test('a popped-out window keeps every tab: no Nora mode there', () => {
+  const h = opener({ ...SPLIT, docked: true }); h.open({who:'Nora', tab:'support'});
+  assert.equal(h.state.nora, false);
 });
