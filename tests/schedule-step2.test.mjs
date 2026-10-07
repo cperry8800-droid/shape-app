@@ -723,6 +723,13 @@ test('the booking sheet: status, where, real actions, and the client\'s prep fro
     assert.equal(page.buttonMatching(/Mark done/, dlg()).disabled, true);
     await page.click(page.buttonMatching(/Open client file/, dlg()));
     assert.deepEqual(opened.slice(-1), ['member-1']);
+    // "Last session" is one that has HAPPENED: Saturday's sheet skips Thursday's, still ahead.
+    // ⚠ CHECKED WHILE THURSDAY'S IS STILL BOOKED. This sat after the cancel below, which removes
+    // Thursday's — so with the has-it-happened check deleted there was no future session left to
+    // pick wrongly, and the mutation that deletes it survived (2026-10-07 round).
+    await page.click(block(page, 's-sat'));
+    assert.match(dlg().textContent, /Last session.*Wed, Oct 7 · Tempo run/);
+    await page.click(page.button('Close'));
     // Cancel asks, then cancels.
     await page.click(block(page, 's-thu'));
     await page.click(page.buttonMatching(/^Cancel$/, dlg()));
@@ -738,10 +745,6 @@ test('the booking sheet: status, where, real actions, and the client\'s prep fro
     // A room is Join.
     await page.click(block(page, 's-fri'));
     assert.equal(page.doc.querySelector('[role=dialog] a').getAttribute('href'), 'https://meet.shape.test/s-fri');
-    // "Last session" is one that has HAPPENED: Saturday's sheet skips Thursday's, still ahead.
-    await page.click(page.button('Close'));
-    await page.click(block(page, 's-sat'));
-    assert.match(dlg().textContent, /Last session.*Wed, Oct 7 · Tempo run/);
   } finally { await page.unmount(); }
 });
 
