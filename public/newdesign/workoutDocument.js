@@ -247,9 +247,27 @@
   const eachRow = (week, fn) => {
     for (const day of week.days || []) for (const block of day.blocks || []) block.rows = (block.rows || []).map(fn);
   };
+  // ⚠ A DELOAD WEEK SAVED BEFORE THE CUT REMEMBERED ANYTHING IS NOT ONE THIS MODULE CUT.
+  // It carries `deload: true` over sets that are ALREADY cut and no `deloadFrom` to give
+  // them back (Codex P1, #2230). Cutting it again would take 40% off what is left, and
+  // taking its flag off would leave a short week that no longer says why. So a week this
+  // module deloads says so (`deloadCut`), a row's `deloadFrom` says the same of a week cut
+  // before the marker existed, and a deload week with neither is a legacy one: it stays
+  // marked and is never cut again, and only the coach takes its flag off (the week's own
+  // Deload), knowing its sets stay as they are.
+  const anyRow = (week, test) => (week.days || []).some(d => (d.blocks || []).some(b => (b.rows || []).some(r => r && test(r))));
+  function legacyDeload(week) {
+    return !!week && week.deload === true && week.deloadCut !== true && !anyRow(week, r => r.deloadFrom != null);
+  }
+  // ⚠ IDEMPOTENT, AND RUN ON EVERY DELOAD WEEK THE CADENCE NAMES, not only on the weeks it
+  // turns into deloads: a move or a saved day added to a deload week after it was cut has
+  // no `deloadFrom`, and is cut here like the rest (Codex P1, #2230). A row that already
+  // remembers its cut is the coach's from then on, so its sets are never cut twice.
   function deloadWeek(week) {
     const next = copy(week);
+    if (legacyDeload(week)) return next;
     next.deload = true;
+    next.deloadCut = true;
     eachRow(next, row => {
       if (!row || row.deloadFrom != null) return row;
       const cut = deloadedSets(row.sets);
@@ -260,6 +278,7 @@
   function undeloadWeek(week) {
     const next = copy(week);
     next.deload = false;
+    delete next.deloadCut;
     eachRow(next, row => {
       if (!row || row.deloadFrom == null) return row;
       const {deloadFrom, ...rest} = row;
@@ -356,8 +375,9 @@
     let weeks = builder.weeks;
     if (rule.deloadEvery) {
       weeks = weeks.map((w, i) => {
+        if (legacyDeload(w)) return w;
         const want = (i + 1) % rule.deloadEvery === 0;
-        return want && !w.deload ? deloadWeek(w) : !want && w.deload ? undeloadWeek(w) : w;
+        return want ? deloadWeek(w) : w.deload ? undeloadWeek(w) : w;
       });
     }
     const steps = progressionSteps(weeks);
@@ -396,7 +416,15 @@
   // A load typed by hand in a later week stays as typed: every row whose weight (or a
   // ladder weight) differs between the day before and after an edit is marked. Matched by
   // id within the one day, so a move dragged elsewhere in it is still the move it was.
-  const loadsOf = row => JSON.stringify([row && row.load, perSetEntries(row).map(e => e.load)]);
+  // ⚠ ONLY THE WEIGHTS A COACH WROTE COUNT: the row's load and each set's explicit one.
+  // Typing a set's reps adds ladder entries whose weights are blank, and a blank weight
+  // inherits the row's, so a reps-only edit pinned a load nobody typed and stopped that
+  // week's climb (Codex P1, #2230). Trailing blank weights say nothing and are dropped.
+  const loadsOf = row => {
+    const ladderWeights = perSetEntries(row).map(e => e.load);
+    while (ladderWeights.length && ladderWeights[ladderWeights.length - 1] === '') ladderWeights.pop();
+    return JSON.stringify([row && row.load, ladderWeights]);
+  };
   function pinLoadEdits(prevDay, nextDay) {
     if (!prevDay || !nextDay) return nextDay;
     const before = new Map();
@@ -445,7 +473,8 @@
       const rule = normalizeProgression(builder.progression);
       if (rule) builder.progression = rule; else delete builder.progression;
     }
-    builder.weeks = builder.weeks.map((week, wi) => ({...week, days:(week.days || []).map((day, di) => ({
+    // `deloadCut` is true on a deload week, or absent.
+    builder.weeks = builder.weeks.map(({deloadCut, ...week}, wi) => ({...week, ...(deloadCut === true && week.deload === true ? {deloadCut:true} : {}), days:(week.days || []).map((day, di) => ({
       ...day, ...('video' in day ? {video:videoUrl(day.video)} : {}), id:day.id || `day-${wi}-${di}`, name:day.name || `Day ${di + 1}`,
       blocks:(day.blocks || []).map((block, bi) => ({...block, rows:(block.rows || []).map((row,ri) => withProgressionMarks(withLadder(splitLegacyRpe({...row, id:row.id || `ex-${wi}-${di}-${bi}-${ri}`, video:videoUrl(row.video), group:supersetKey(row.group) || null}))))})),
     }))}));
@@ -495,5 +524,5 @@
       text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS, normalizeProgression, applyProgramProgression, progressionStatus, pinLoadEdits, deloadWeek, undeloadWeek};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS, normalizeProgression, applyProgramProgression, progressionStatus, pinLoadEdits, deloadWeek, undeloadWeek, legacyDeload};
 });

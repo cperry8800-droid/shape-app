@@ -1731,6 +1731,9 @@ function DbuViewSwitch({ view, setView }) {
 }
 
 // ── Grid — the calendar is the builder ───────────────────────────────────────
+// A deload week from before the progression that its cadence does not name: the coach can
+// take its flag off. A week the cadence names is a deload either way.
+const dbuLegacyOff = (rule, w, wi) => !!(rule && rule.deloadEvery) && ShapeWorkoutDocument.legacyDeload(w) && (wi + 1) % rule.deloadEvery !== 0;
 function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
   const dragRef = React.useRef(null);
   const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
@@ -1765,9 +1768,13 @@ function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
                   above the canvas is the one rule now, so Copy brings a week that already
                   climbs. Under a deload cadence the bar owns which weeks deload, so the
                   week's own Deload says so instead of fighting it. */}
+              {/* A deload week saved before the cadence keeps its flag under it (its sets
+                  were cut with nothing to give back), so its own Deload stays the coach's
+                  to clear: the one week tool a cadence does not take over. */}
               <span className="tools">
                 <button type="button" onClick={() => onWeek("duplicate", wi)} title={cadence ? "Copy this week. The progression sets its loads" : "Copy this week unchanged"}>Copy</button>
-                <button type="button" onClick={() => onWeek("deload", wi)} aria-pressed={!!w.deload} disabled={cadence} title={cadence ? "The progression sets the deload weeks" : "Deload: −40% volume, then edit freely"}>Deload</button>
+                <button type="button" onClick={() => onWeek("deload", wi)} aria-pressed={!!w.deload} disabled={cadence && !dbuLegacyOff(rule, w, wi)}
+                  title={cadence ? (dbuLegacyOff(rule, w, wi) ? "Deloaded before the progression. Press to take the deload off; its sets stay as they are" : "The progression sets the deload weeks") : "Deload: −40% volume, then edit freely"}>Deload</button>
                 {doc.weeks.length > 1 && <button type="button" onClick={() => onWeek("remove", wi)} aria-label={"Remove week " + (wi + 1)}>×</button>}
               </span>
             </div>
@@ -2318,7 +2325,9 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
       setDoc({ ...rest, weeks: doc.weeks.map((w) => ({ ...w, days: (w.days || []).map((d) => ({ ...d, blocks: (d.blocks || []).map((b) => ({ ...b, rows: (b.rows || []).map(({ loadPinned, ...r }) => r) })) })) })) });
       return;
     }
-    const weeks = prev && prev.deloadEvery && !next.deloadEvery ? doc.weeks.map((w) => (w.deload ? DashBuilder.undeloadWeek(w) : w)) : doc.weeks;
+    // ⚠ NOT A DELOAD WEEK SAVED BEFORE THE CADENCE (`legacyDeload`): its sets were cut
+    // with nothing to give them back, so it stays marked as the deload it still is.
+    const weeks = prev && prev.deloadEvery && !next.deloadEvery ? doc.weeks.map((w) => (w.deload && !ShapeWorkoutDocument.legacyDeload(w) ? DashBuilder.undeloadWeek(w) : w)) : doc.weeks;
     setDoc({ ...doc, weeks, progression: ShapeWorkoutDocument.normalizeProgression(next) || prev });
   };
   const addDay = () => {

@@ -185,6 +185,67 @@ test('taking a deload off gives the sets back, unless the coach changed them dur
   assert.equal(DashBuilder.undeloadWeek(DashBuilder.deloadWeek(w)).days[0].blocks[1].rows[0].sets, 4, 'the week tools use the same rule');
 });
 
+// ── Codex P1s on #2230 ──────────────────────────────────────────────────────
+test('a move or a saved day added to a cadence deload week after it was cut is cut too, and nothing is cut twice', () => {
+  const out = W.applyProgramProgression(program(4, { progression: { ...RULE, deloadEvery: 4 } }));
+  assert.equal(squat(out, 3).sets, 2);
+  out.weeks[3].days[0].blocks[1].rows.push(row('Pause squat', 'pause', { loadType: 'lb', load: 185, sets: 5 }));
+  out.weeks[3].days.push({ id: 'saved', name: 'Saved day', weekday: 5, blocks: [{ kind: 'main', rows: [row('Deadlift', 'dl', { sets: 3 })] }] });
+  const again = W.applyProgramProgression(out);
+  const pause = again.weeks[3].days[0].blocks[1].rows.find((r) => r.id === 'pause');
+  assert.equal(pause.sets, 3, 'a move added to the deload week kept its full sets');
+  assert.equal(pause.deloadFrom, 5);
+  assert.equal(again.weeks[3].days[2].blocks[0].rows[0].sets, 2, 'a saved day added to the deload week kept its full sets');
+  assert.equal(squat(again, 3).sets, 2, 'a move already cut was cut again');
+  assert.equal(W.applyProgramProgression(again), again, 'the cut is not idempotent');
+  // An empty week the cadence deloads, filled in afterwards, is cut as it fills.
+  const empty = program(4, { progression: { ...RULE, deloadEvery: 4 } });
+  empty.weeks[3] = { deload: false, days: [] };
+  const marked = W.applyProgramProgression(empty);
+  assert.equal(marked.weeks[3].deload, true);
+  marked.weeks[3].days.push({ id: 'n', name: 'Day 1', weekday: 0, blocks: [{ kind: 'main', rows: [row('Front squat', 'fs', { sets: 4 })] }] });
+  assert.equal(W.applyProgramProgression(marked).weeks[3].days[0].blocks[0].rows[0].sets, 2, 'an empty deload week filled in later was not cut');
+});
+
+test('a deload week saved before step 3 stays a deload: never cut again, never unflagged by the cadence', () => {
+  const legacy = () => { const w = week1(); w.deload = true; w.days[0].blocks[1].rows[0].sets = 2; return w; }; // cut by an older build: no deloadFrom
+  assert.equal(W.legacyDeload(legacy()), true);
+  assert.equal(W.legacyDeload(W.deloadWeek(week1())), false, 'a week this module cut reads as legacy');
+  assert.equal(W.deloadWeek(legacy()).days[0].blocks[1].rows[0].sets, 2, 'a legacy deload was cut a second time');
+  // The cadence does not name week 3: it stays marked, with the sets it has.
+  const b = program(4, { progression: { ...RULE, deloadEvery: 4 } });
+  b.weeks[2] = legacy();
+  const out = W.applyProgramProgression(b);
+  assert.deepEqual(out.weeks.map((w) => !!w.deload), [false, false, true, true], 'the legacy deload lost its flag');
+  assert.equal(squat(out, 2).sets, 2);
+  assert.deepEqual(loads(out, squat), [225, 230, 230, 230], 'a legacy deload week does not climb either');
+  // The cadence names week 4, which was a legacy deload: it is a deload either way, and is not cut twice.
+  const named = program(4, { progression: { ...RULE, deloadEvery: 4 } });
+  named.weeks[3] = legacy();
+  assert.equal(squat(W.applyProgramProgression(named), 3).sets, 2);
+  // The marker is kept only on a deload week.
+  assert.equal(W.normalizeWorkoutDetail({ builder: { weeks: [{ deload: false, deloadCut: true, days: [] }] } }).builder.weeks[0].deloadCut, undefined);
+  assert.equal(W.normalizeWorkoutDetail({ builder: { weeks: [W.deloadWeek(week1())] } }).builder.weeks[0].deloadCut, true);
+});
+
+test('a reps-only ladder edit in a later week does not pin the load; a ladder weight does', () => {
+  const before = week1().days[0];
+  const reps = JSON.parse(JSON.stringify(before));
+  reps.blocks[1].rows[0].perSet = [{ reps: '5' }, { reps: '3', load: '' }];
+  assert.equal('loadPinned' in W.pinLoadEdits(before, reps).blocks[1].rows[0], false, 'typing reps pinned the load');
+  const weight = JSON.parse(JSON.stringify(reps));
+  weight.blocks[1].rows[0].perSet[2] = { load: 250 };
+  assert.equal(W.pinLoadEdits(reps, weight).blocks[1].rows[0].loadPinned, true, 'a set weight is a load');
+  // And the week still climbs after the reps edit.
+  const b = W.applyProgramProgression(program(3, { progression: RULE }));
+  const day = b.weeks[1].days[0];
+  const edited = JSON.parse(JSON.stringify(day));
+  edited.blocks[1].rows[0].perSet = [{ reps: '6' }];
+  b.weeks[1].days[0] = W.pinLoadEdits(day, edited);
+  b.weeks[0].days[0].blocks[1].rows[0].load = 200;
+  assert.equal(squat(W.applyProgramProgression(b), 1).load, 205, 'the week stopped following after a reps edit');
+});
+
 // ── Copy and delete, as functions ───────────────────────────────────────────
 test('a week list reads the way a coach says it', () => {
   assert.equal(dbuWeekList([4]), 'week 4');
@@ -328,6 +389,23 @@ test('turning the progression off keeps every load where it is and drops the mar
   assert.deepEqual(loads(b, squat), [225, 230, 260], 'turning it off rewrote the loads');
   assert.equal(b.weeks.flatMap((w) => w.days.flatMap((d) => d.blocks.flatMap((x) => x.rows))).some((r) => 'loadPinned' in r), false);
   assert.match(bar().textContent, /^↗︎ProgressionOff/);
+});
+
+test('a deload week saved before the cadence keeps its flag when the cadence leaves, and only the coach clears it', async () => {
+  const start = program(4, { progression: { ...RULE, deloadEvery: 4 } });
+  start.weeks[2].deload = true; start.weeks[2].days[0].blocks[1].rows[0].sets = 2; // an older build's cut
+  const writes = await mount(start);
+  const deloads = () => buttons().filter((x) => x.textContent === 'Deload');
+  assert.deepEqual(deloads().map((x) => x.disabled), [true, true, false, true], 'only the legacy week\'s own Deload is the coach\'s under a cadence');
+  await setValue(byAria('Deload weeks'), '0');
+  let b = await save(writes);
+  assert.deepEqual(b.weeks.map((w) => !!w.deload), [false, false, true, false], 'leaving the cadence unflagged a week whose sets it cannot give back');
+  assert.equal(squat(b, 2).sets, 2);
+  assert.equal(squat(b, 3).sets, 4, 'the cadence\'s own deload did not give its sets back');
+  await click(deloads()[2]);
+  b = await save(writes);
+  assert.equal(b.weeks[2].deload, false);
+  assert.equal(squat(b, 2).sets, 2, 'clearing a legacy deload pretended to restore its sets');
 });
 
 test('Delete day asks first, inside the panel; Keep it and Escape change nothing', async () => {
