@@ -20,6 +20,18 @@ export const dynamic = 'force-dynamic';
 
 const MAX_TTS_CHARS = 2000;
 
+// "May this account use voice?" — answered by the same gate POST runs, so a page
+// never shows a mic or a read-aloud the server would refuse, and never hides one it
+// would serve (a dietitian, an admin: the website's own member check knew neither;
+// Codex, #2241). 200 { voice: true }, else the gate's own 401/402/403. No audio, no key.
+export async function GET(request: Request) {
+  const denied = await requireMembership(request);
+  if (denied) return denied;
+  const actor = await resolveActor(request);
+  if (!actor) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+  return NextResponse.json({ voice: true }, { headers: { 'Cache-Control': 'no-store' } });
+}
+
 export async function POST(request: Request) {
   const denied = await requireMembership(request);
   if (denied) return denied;
