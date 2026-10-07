@@ -536,6 +536,9 @@ async function trainerZone(sb: Actor['supabase'], uid: string): Promise<string> 
   };
   try {
     const t = await sb.from('trainers').select('timezone').eq('owner_id', uid).limit(5);
+    // An unreadable listing is UTC, never the profile's zone: the listing is the
+    // authoritative one, and the profile can name somewhere else entirely (Codex, #2238).
+    if (t.error) return 'UTC';
     for (const row of (t.data ?? []) as Array<{ timezone?: unknown }>) { const z = valid(row.timezone); if (z) return z; }
     const c = await sb.from('client_profiles').select('timezone').eq('user_id', uid).limit(1);
     const z = valid(((c.data ?? [])[0] as { timezone?: unknown } | undefined)?.timezone);
