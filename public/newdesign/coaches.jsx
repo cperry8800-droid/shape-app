@@ -69,13 +69,15 @@ const CO_TOUR = {
         list: ["Ratings, win, struggle and the question they asked you", "Adherence, food logs and weigh-in against the week before", "Message or leave a note from the row", "Mark all reviewed in one tap"] },
       // ⚠ ONLY WHAT SCHEDULE DOES (owner, 2026-10-07: take the claims down). This tab said the
       // calendar "syncs both ways with Google, Apple and Outlook, with reminders and reschedule
-      // rules handled for you" and listed two-way sync and no-show handling. None of it exists:
-      // there is no calendar feed or sync of any kind, no session reminder, and no-shows are
-      // deliberately never scored (score-accountability). tests/coaches-page.test.mjs bans the
-      // sync claim on every coach-facing page until it is built.
+      // rules handled for you" and listed two-way sync and no-show handling. None of that
+      // exists: no session reminder, and no-shows are deliberately never scored
+      // (score-accountability). ⚠ WHAT DOES EXIST SINCE #2224 IS ONE-WAY: a private calendar
+      // feed the coach subscribes to from their own calendar app (Settings → Calendar feed,
+      // /api/calendar/feed/<token>.ics). Nothing comes back into Shape, so the line says
+      // "read-only" and never "sync". tests/coaches-page.test.mjs bans the rest.
       { key: "schedule", file: "schedule", name: "Schedule",
         body: "Your week and your month. Clients book inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.",
-        list: ["Week and month views", "Drag a session to move it; the client is notified", "Open hours you set once, in your own time zone", "Bookings color-coded by client, one click to their file"] },
+        list: ["Week and month views", "Drag a session to move it; the client is notified", "Open hours you set once, in your own time zone", "Bookings color-coded by client, one click to their file", "A private, read-only feed for Google Calendar, Apple Calendar or Outlook"] },
       { key: "clients", file: "clients", name: "Clients",
         body: "One roster, one view: streaks, weekly score, adherence, last food log, last contact, revenue and tenure. Sort by whatever you care about today and open any client's full file.",
         list: ["Sort every column that has a value behind it", "Needs-eyes, new and on-track filters", "Each client's file one click away", "Export the roster as a spreadsheet"] },
@@ -114,7 +116,7 @@ const CO_TOUR = {
       // intake is the member's own sign-up questionnaire).
       { key: "schedule", file: "schedule", name: "Schedule",
         body: "Your week and your month. Clients book consults inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.",
-        list: ["Week and month views", "Drag a consult to move it; the client is notified", "Open hours you set once, in your own time zone", "Consults color-coded by client, one click to their file"] },
+        list: ["Week and month views", "Drag a consult to move it; the client is notified", "Open hours you set once, in your own time zone", "Consults color-coded by client, one click to their file", "A private, read-only feed for Google Calendar, Apple Calendar or Outlook"] },
       { key: "clients", file: "clients", name: "Clients",
         body: "One roster, one view: adherence, last food log, last consult, weight trend, revenue and tenure. Filter by specialty or protocol and open any client's full file.",
         list: ["Sort every column that has a value behind it", "Needs-eyes, new and on-track filters", "Each client's file one click away", "Export the roster as a spreadsheet"] },

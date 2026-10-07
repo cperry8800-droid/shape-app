@@ -351,12 +351,16 @@ test('the step cards state no duration they cannot keep', () => {
 // "connect your calendar" setup step, so the sweep runs over the same DERIVED corpus as the
 // timing ban above rather than the one page the review named.
 // ⚠ When a real sync ships, this list is the thing to change — with the PR that ships it.
+// ⚠ CHANGED 2026-10-07 (Schedule step 4): the one-way calendar FEED shipped in #2224 — a private
+// .ics link a coach subscribes to from Google Calendar, Apple Calendar or Outlook. So naming
+// those apps for a subscription is now true, and the two bans that forbade any mention of them
+// ("an Outlook integration", "a named calendar integration") are narrowed to what is still
+// false: a SYNC or an INTEGRATION with an outside calendar (nothing comes back into Shape).
 const SYNC_CLAIMS = [
   [/\b(two-way|2-way)\b[^.]{0,40}\bsync/i, 'a two-way calendar sync', 'Two-way calendar sync'],
   [/\bsyncs?\b[^.]{0,20}\b(both ways|with (google|apple|outlook|your calendar))/i, 'a sync with an outside calendar',
    'Your week and your month. Clients book inside Shape; the calendar syncs both ways with Google, Apple and Outlook.'],
-  [/\boutlook\b/i, 'an Outlook integration', 'Two-way sync with Google, Apple, Outlook.'],
-  [/\b(google|apple) calendar\b|\bical\b|\.ics\b/i, 'a named calendar integration', 'Add sessions to Google Calendar.'],
+  [/\b(sync\w*|integrat\w*)\b[^.]{0,40}\b(outlook|google|apple calendar)\b/i, 'a sync or integration with an outside calendar', 'Two-way sync with Google, Apple, Outlook.'],
   [/\bconnect your calendar\b/i, 'a calendar to connect', 'set session pricing, connect your calendar, write your bio'],
   [/\b(auto-?reminders?|reminders? and reschedule rules|no-show handling)\b/i, 'session reminders or no-show handling',
    'Auto-reminders, reschedule rules, no-show handling.'],
@@ -371,6 +375,8 @@ test('every sync ban still catches the sentence it was written for, and not the 
     'Clients book inside Shape, into the hours you open, and every booking reads in your own time zone. Drag one to a new day and the client is notified.',
     'Open hours you set once, in your own time zone',
     'Paste a Spotify or Apple Music link, attach it to a workout',
+    // The one-way feed (#2224), as the tour says it.
+    'A private, read-only feed for Google Calendar, Apple Calendar or Outlook',
   ]) {
     for (const [re, why] of SYNC_CLAIMS) assert.doesNotMatch(kept, re, 'the ban for ' + why + ' fires on true copy: ' + kept);
   }
@@ -413,8 +419,13 @@ test('the Schedule tab lists what the Schedule page does', () => {
     assert.ok(tab.list.some((l) => /move it; the client is notified/.test(l)), role + ': the drag-to-move item is gone');
     assert.ok(tab.list.includes('Open hours you set once, in your own time zone'), role + ': the open-hours item is gone');
     assert.ok(tab.list.some((l) => /color-coded by client/.test(l)), role + ': the color-coding item is gone');
+    assert.ok(tab.list.some((l) => /private, read-only feed/.test(l)), role + ': the calendar feed item is gone');
   }
   assert.match(SCHEDULE, /action: "reschedule"/, 'the Schedule page no longer reschedules by drag');
+  // The feed is real and one-way: a coach's private .ics link, read by their calendar app.
+  const FEED_ROUTE = path.join(path.dirname(path.dirname(ND)), 'src/app/api/calendar/feed');
+  assert.ok(existsSync(FEED_ROUTE), 'the calendar feed route is gone, and the tour still offers it');
+  assert.match(read('coachSettings.jsx'), /function CoachCalendarFeedCard\(/, 'the coach can no longer get their feed link');
   assert.match(SCHEDULE, /function dscColorMap\(/, 'the Schedule page no longer colours by client');
   assert.match(SCHEDULE, /body: JSON\.stringify\(\{ role, slots, timezone: dscBrowserZone\(\) \}\)/, 'open hours no longer carry the coach zone');
   // The member really is told: the reschedule writes a notification to the client.
