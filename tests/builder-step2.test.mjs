@@ -362,6 +362,23 @@ test('type to add: arrows choose, a new name is offered last, and the coach\'s o
   assert.equal(line('Zercher carry').querySelector('.nm').textContent, 'Zercher carry');
 });
 
+test('type to add ranks what the library lists: a name that starts with the text beats one that only contains it', async () => {
+  await mount();
+  const add = document.querySelector('.dqa input[role="combobox"]');
+  await focusOn(add);
+  await setValue(add, 'row');
+  const first = document.querySelector('.dqa-list [role="option"]').textContent;
+  assert.equal(first.startsWith('Rower'), true, 'the library lists Barbell row first; the type-ahead should offer Rower');
+});
+
+test('removing the block that holds the open move opens the first move left', async () => {
+  await mount();
+  assert.equal(detailName(), 'Hip flow');
+  await click(byAria('Remove the Warmup block'));
+  assert.equal(detailName(), 'Back squat', 'the detail went blank with moves still on the day');
+  assert.equal(line('Back squat').classList.contains('on'), true);
+});
+
 test('type to add: Escape closes the list, and only an empty line lets it close the day', async () => {
   await mount('Planner');
   const add = document.querySelector('.dqa input[role="combobox"]');
