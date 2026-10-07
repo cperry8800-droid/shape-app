@@ -50,8 +50,6 @@ const dbuField = { boxSizing: "border-box", display: "flex", alignItems: "center
 // is Safari's form: WebKit ends the composition BEFORE the keydown for the Enter that
 // confirms it, so `isComposing` already reads false there.
 const dbuImeComposing = (e) => !!(e && (e.isComposing || e.keyCode === 229));
-// The row's secondary controls: a step quieter than dbuBtn, still past the floor.
-const dbuRowBtn = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 32, height: 32, padding: "0 10px", borderRadius: 7, border: "1px solid " + DBU_LINE2, background: DBU_WH, color: DBU_INK, fontFamily: DBU_BODY, fontSize: 12.5, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
 const dbuLabel = { fontFamily: DBU_BODY, fontSize: 12.5, color: DBU_INK2, fontWeight: 600, marginBottom: 5, display: "block" };
 
 // ── The library page's controls ─────────────────────────────────────────────
@@ -476,6 +474,12 @@ function useDbuFloating() {
 // widths — but "grab the header, stay on screen, and move by keyboard too" is
 // ONE rule, and this repo already records what the other bet costs: `useCoachDoc`
 // was the third line-for-line copy of one store and the copies had drifted.
+// ⚠ THE CAPTURE DANCE IS WRITTEN ONCE, and three gestures use it: the day editor's panel,
+// the client preview and, since the day became a list, a row dragged by its handle. A
+// capture can throw (the pointer already gone, an element detached mid-gesture) and a
+// throw there must not end the gesture it was only protecting.
+function dbuCapture(e) { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} }
+function dbuRelease(e, id) { try { e.currentTarget.releasePointerCapture(id); } catch (err) {} }
 function useDbuDrag({ enabled, open, defaultPos }) {
   const ref = React.useRef(null);
   const [pos, setPos] = React.useState(null);
@@ -511,7 +515,7 @@ function useDbuDrag({ enabled, open, defaultPos }) {
     if (dragRef.current && dragRef.current.id !== e.pointerId) return;
     const r = ref.current.getBoundingClientRect();
     dragRef.current = { dx: e.clientX - r.x, dy: e.clientY - r.y, id: e.pointerId, w: r.width };
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+    dbuCapture(e);
     setDragging(true);
     e.preventDefault();
   };
@@ -528,7 +532,7 @@ function useDbuDrag({ enabled, open, defaultPos }) {
     // end a drag that is still under way — the panel would simply stop following
     // the hand moving it.
     if (!d || (e && e.pointerId != null && d.id !== e.pointerId)) return;
-    try { e.currentTarget.releasePointerCapture(d.id); } catch (err) {}
+    dbuRelease(e, d.id);
     end();
   };
   // ⚠ CAPTURE CAN END WITHOUT A POINTERUP — the capturing element removed, the
@@ -703,7 +707,7 @@ function DbuLadder({ row, onChange }) {
         })}
       </div>
       <p style={{ fontSize: 12.5, color: DBU_INK50, margin: '8px 0 0' }}>A blank field uses the row's {String(row.reps ?? '') ? row.reps + ' reps' : 'reps'}{baseWeight ? ' and ' + baseWeight : ''}.{count > doc.LADDER_MAX ? ' Per-set targets cover the first ' + doc.LADDER_MAX + ' sets.' : ''}</p>
-      {any && <button type="button" onClick={clear} style={{ ...dbuRowBtn, marginTop: 8 }}>Clear per-set targets</button>}
+      {any && <button type="button" className="dbtn" onClick={clear} style={{ marginTop: 8 }}>Clear per-set targets</button>}
     </>}
   </details>;
 }
@@ -715,12 +719,14 @@ function DbuLadder({ row, onChange }) {
 // no assigned workout reads any differently. The text is held while the field is in use,
 // or typing "0.5" would lose its leading 0 the moment it read as none.
 function dbuNoLoad(load) { return load == null || load === "" || !(Number(load) > 0); }
-function DbuLoadInput({ row, onLoad }) {
+// ⚠ IT IS A CELL OF THE DAY'S LIST NOW, so it takes the list's class and a `data-cell`
+// the list restores focus by. Rendered without a class it keeps the field it was.
+function DbuLoadInput({ row, onLoad, who, className }) {
   const [draft, setDraft] = React.useState(null);
   const value = draft != null ? draft : dbuNoLoad(row.load) ? "" : row.load;
-  return <input aria-label={row.name+' load'} type="number" min="0" placeholder="—" value={value}
+  return <input aria-label={(who || row.name)+' load'} type="number" min="0" placeholder="—" value={value} data-cell="load" className={className}
     onFocus={()=>setDraft(dbuNoLoad(row.load) ? "" : String(row.load))} onBlur={()=>setDraft(null)}
-    onChange={e=>{setDraft(e.target.value);onLoad(e.target.value===''?'':Number(e.target.value));}} style={{...dbuField,width:'100%'}}/>;
+    onChange={e=>{setDraft(e.target.value);onLoad(e.target.value===''?'':Number(e.target.value));}} style={className ? undefined : {...dbuField,width:'100%'}}/>;
 }
 // The unit belongs to a weight, so it appears once there is one to qualify: the row's
 // own, an imported load instruction it may replace, or a per-set weight in the ladder
@@ -730,10 +736,193 @@ function dbuShowsUnit(row) {
     || ShapeWorkoutDocument.perSetEntries(row).some(e=>!dbuNoLoad(e.load));
 }
 
-function DbuRow({ row, onChange, onRemove, onMove, onDuplicate, clips = [], onUploading }) {
+// ── The day as one list ──────────────────────────────────────────────────────
+// ⚠ STEP 2 OF THE APPROVED BUILDER PLAN — owner, 2026-10-07: "I like everything that is
+// proposed for schedule and program builder", after calling the day editor "overwhelming
+// and confusing". The proposal's drawn day is the target: ONE LINE PER EXERCISE carrying
+// the prescription a coach changes most (sets × reps, load, RPE, rest), the blocks as
+// section labels inside that one list, and the rest of a move (its ladder, cue, tempo,
+// superset, progression and demo) in a DETAIL opened beside the list, or under it where
+// the panel is narrow. A six-move day was about 2,000px of stacked cards; it is one screen.
+//
+// A row is found by its id, never by where it sits. Rows MOVE now (drag, Alt+arrow, across
+// blocks), and an edit addressed by position lands on whatever slid into that position —
+// including the upload that finishes after the coach has reordered the day. A legacy row
+// with no id falls back to its position, which is all the old editor ever used.
+function dbuRowKey(row, bi, ri) {
+  return row && row.id != null && row.id !== "" ? String(row.id) : "pos:" + bi + ":" + ri;
+}
+const dbuKindLabel = (kind) => (DashBuilder.BLOCK_KINDS.find((k) => k.key === kind) || {}).label || "Block";
+// Every row in the order the member does them, with its block and its A1/01 label. The
+// labels come from `DashBuilder.rowLabels` — the member's card uses the same rule.
+function dbuFlatRows(day) {
+  const labels = DashBuilder.rowLabels(day);
+  const out = [];
+  (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((row, ri) => {
+    out.push({ row, bi, ri, key: dbuRowKey(row, bi, ri), label: labels[out.length] });
+  }));
+  return out;
+}
+// Move one row to `index` of block `toBi`, where `index` counts the target block's rows
+// WITHOUT the moving one. Moving into another block changes the row's block, which is the
+// whole of what "across blocks" means: the block is where a row sits, not a field on it.
+// The same day comes back when nothing would change, so a drop in place writes nothing.
+function dbuMoveRow(day, key, toBi, toIndex) {
+  const blocks = day.blocks || [];
+  let from = null;
+  blocks.forEach((b, bi) => (b.rows || []).forEach((r, ri) => { if (!from && dbuRowKey(r, bi, ri) === key) from = { row: r, bi, ri }; }));
+  if (!from || !blocks[toBi]) return day;
+  const without = blocks.map((b, bi) => (bi === from.bi ? { ...b, rows: b.rows.filter((_, ri) => ri !== from.ri) } : b));
+  const target = without[toBi].rows || [];
+  const at = Math.max(0, Math.min(Number(toIndex) || 0, target.length));
+  if (toBi === from.bi && at === from.ri) return day;
+  return { ...day, blocks: without.map((b, bi) => (bi === toBi ? { ...b, rows: [...target.slice(0, at), from.row, ...target.slice(at)] } : b)) };
+}
+// Alt+↑ / Alt+↓, the keyboard's way to do what the handle does. One step, and a step off
+// the end of a block lands at the near end of the next one — the boundary is crossed, as
+// a drag across it would.
+function dbuStepTarget(day, key, dir) {
+  const blocks = day.blocks || [];
+  for (let bi = 0; bi < blocks.length; bi += 1) {
+    const rows = blocks[bi].rows || [];
+    for (let ri = 0; ri < rows.length; ri += 1) {
+      if (dbuRowKey(rows[ri], bi, ri) !== key) continue;
+      if (dir < 0) {
+        if (ri > 0) return { bi, index: ri - 1 };
+        return bi > 0 ? { bi: bi - 1, index: (blocks[bi - 1].rows || []).length } : null;
+      }
+      if (ri < rows.length - 1) return { bi, index: ri + 1 };
+      return bi < blocks.length - 1 ? { bi: bi + 1, index: 0 } : null;
+    }
+  }
+  return null;
+}
+// Where a dragged row would land, read off the rows as they are drawn. Each row's
+// midpoint splits "before it" from "after it"; a block's label opens that block, so a
+// pointer above a label's midpoint drops at the END of the block before it — which is
+// what makes an EMPTY block, a label and nothing else, a place a row can be dropped.
+// `y` is where the insertion line goes, relative to the list.
+function dbuDropTarget(list, key, clientY) {
+  if (!list) return null;
+  const top = list.getBoundingClientRect().top;
+  let bi = 0, k = 0, edge = null;
+  for (const el of list.querySelectorAll("[data-bk],[data-rk]")) {
+    const r = el.getBoundingClientRect(), mid = r.top + r.height / 2;
+    if (el.hasAttribute("data-bk")) {
+      if (edge != null && clientY < mid) return { bi, index: k, y: edge - top };
+      bi = Number(el.getAttribute("data-bk")); k = 0; edge = r.bottom;
+      continue;
+    }
+    if (el.getAttribute("data-rk") === key) continue;
+    if (clientY < mid) return { bi, index: k, y: r.top - top };
+    k += 1; edge = r.bottom;
+  }
+  return edge == null ? null : { bi, index: k, y: edge - top };
+}
+// "Superset with next": pair this move with the one after it IN ITS BLOCK. They take the
+// letter either already carries, or the first of A–D the day is not using — the same four
+// letters the Superset select offers. Pressed on a pair, it takes this move out, and a
+// partner left alone in its letter leaves with it, because a superset of one is not one.
+const dbuGroupOf = (row) => String((row && row.group) || "").trim().toUpperCase();
+function dbuPairState(day, key) {
+  for (const [bi, b] of (day.blocks || []).entries()) {
+    const rows = b.rows || [];
+    const ri = rows.findIndex((r, i) => dbuRowKey(r, bi, i) === key);
+    if (ri < 0) continue;
+    const g = dbuGroupOf(rows[ri]), next = rows[ri + 1];
+    return { canPair: !!next, paired: !!g && !!next && dbuGroupOf(next) === g };
+  }
+  return { canPair: false, paired: false };
+}
+function dbuTogglePair(day, key) {
+  const blocks = day.blocks || [];
+  const bi = blocks.findIndex((b, i) => (b.rows || []).some((r, ri) => dbuRowKey(r, i, ri) === key));
+  if (bi < 0) return day;
+  const rows = blocks[bi].rows;
+  const ri = rows.findIndex((r, i) => dbuRowKey(r, bi, i) === key);
+  const row = rows[ri], next = rows[ri + 1];
+  const g = dbuGroupOf(row);
+  const all = blocks.flatMap((b) => b.rows || []);
+  if (g && next && dbuGroupOf(next) === g) {
+    const left = all.filter((r) => r !== row && dbuGroupOf(r) === g);
+    const clear = (r) => (r === row || (left.length === 1 && r === left[0]) ? { ...r, group: null } : r);
+    return { ...day, blocks: blocks.map((b) => ({ ...b, rows: (b.rows || []).map(clear) })) };
+  }
+  if (!next) return day;
+  const used = new Set(all.filter((r) => r !== row && r !== next).map(dbuGroupOf).filter(Boolean));
+  const letter = g || dbuGroupOf(next) || ["A", "B", "C", "D"].find((l) => !used.has(l)) || "A";
+  return { ...day, blocks: blocks.map((b, i) => (i !== bi ? b : { ...b, rows: rows.map((r, j) => (j === ri || j === ri + 1 ? { ...r, group: letter } : r)) })) };
+}
+// The type-ahead's order inside a group: the exact name first, then names that start with
+// what was typed, then the rest as the library lists them — so Enter on "deadlift" adds
+// Deadlift, not Romanian deadlift.
+function dbuRankMoves(list, term) {
+  const t = String(term || "").trim().toLowerCase();
+  const rank = (e) => { const n = String(e.name || "").toLowerCase(); return n === t ? 0 : n.startsWith(t) ? 1 : 2; };
+  return (list || []).map((e, i) => [e, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map((x) => x[0]);
+}
+
+// ── One line per exercise ────────────────────────────────────────────────────
+// ⠿ · index · name · sets × reps · load · RPE · rest, then small marks for what the
+// detail holds. Every cell is a real input that reads as text until it is used, so Tab
+// walks the line like a spreadsheet; each one names its move for a screen reader.
+// Focus anywhere in the line selects it, so the detail follows the coach's cursor.
+// Usable on its own (two suites mount it bare), with selection and drag handed in.
+function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown }) {
   const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText;
     // A trainer's new Rest value replaces any older numeric override, as in the mobile editor.
     if(k==='rest') delete next.restSeconds; onChange(next);};
+  const who = String(row.name || '').trim() || 'New exercise';
+  const video = ShapeWorkoutDocument.videoUrl(row.video);
+  const ladder = ShapeWorkoutDocument.ladder(row);
+  // ⚠ U+FE0E ON THE ARROWS: ▶ and ↗ have emoji forms that iOS draws in colour, and the
+  // house rule is monochrome symbols only. The text selector keeps them type.
+  const marks = [
+    row.cue && ['“', 'Has a coaching cue'],
+    video && ['▶︎', 'Has a demo video'],
+    row.progression && ['↗︎', 'Progresses when a week is copied with Progress'],
+    ladder && ['≡', 'Per-set targets · ' + [ladder.reps, ladder.weight].filter(Boolean).join(' · ')],
+  ].filter(Boolean);
+  const pick = () => { if (onSelect) onSelect(); };
+  return <div className={'dr' + (selected ? ' on' : '') + (row.group ? ' grp' : '') + (dragging ? ' drag' : '')} data-rk={rowKey} role="listitem"
+    onFocus={pick} onClick={pick} onKeyDown={onRowKeyDown} style={dragging ? { transform: 'translateY(' + dy + 'px)' } : undefined}>
+    <button type="button" className="rh" tabIndex={-1} aria-label={'Drag to reorder ' + who} title="Drag to reorder. From the keyboard: Alt+↑ or Alt+↓" {...(handle || {})}>⠿</button>
+    <i className={'ix' + (row.group ? ' ss' : '')}>{label}</i>
+    <span className="nmc">
+      <button type="button" className="nm" data-cell="name" title={who} aria-expanded={onSelect ? selected : undefined} aria-controls={onSelect && selected ? detailId : undefined} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">{who}</button>
+      {!!marks.length && <span className="mk">{marks.map(([g, t]) => <b key={t} title={t}><span aria-hidden="true">{g}</span><span className="sr">{t}</span></b>)}</span>}
+    </span>
+    <span className="dcells">
+      <span className="c sx">
+        <input className="ci n" data-cell="sets" aria-label={who+' Sets'} type="number" min="1" value={row.sets ?? ''} onChange={e=>set('sets',e.target.value)}/>
+        <span className="tm" aria-hidden="true">×</span>
+        <input className="ci" data-cell="reps" aria-label={who+' Reps'} value={row.reps ?? ''} onChange={e=>set('reps',e.target.value)}/>
+      </span>
+      <span className="c ld">
+        <DbuLoadInput row={row} who={who} className="ci n" onLoad={v=>set('load',v)}/>
+        {/* ⚠ RPE LEFT THIS LIST AND GOT ITS OWN. As a fourth `loadType` it was
+               EXCLUSIVE with a weight — a coach could say 100 kg or RPE 8 and never
+               "100 kg @ RPE 8", which is what most strength programming looks like.
+               Owner: "if i want RPE, that should be a seperate drop down from KG or
+               IBS". A stored row still carrying `loadType:'rpe'` is converted on
+               read by `splitLegacyRpe`, so this select can never show a blank value
+               for an option it no longer offers. */}
+        {dbuShowsUnit(row) && <select className="ci u" data-cell="unit" aria-label={who+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option></select>}
+      </span>
+      {/* No target RPE reads "—", as an empty load does: a placeholder, not a word. */}
+      <span className="c rp"><select className="ci" data-cell="rpe" aria-label={who+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))}><option value="">—</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></span>
+      <span className="c rs"><input className="ci" data-cell="rest" aria-label={who+' Rest'} placeholder="—" value={row.rest ?? ''} onChange={e=>set('rest',e.target.value)}/></span>
+    </span>
+  </div>;
+}
+
+// ── The detail beside the list ───────────────────────────────────────────────
+// Everything about one move that is not the line: the per-set ladder, the coaching
+// fields, the demo and the move's own actions. Remounted per move (its key), so an
+// upload's state belongs to the move it was started on — and the list will not change
+// the selection while one runs (`busy`), so that move stays on screen until it lands.
+function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplicate, onPair, pair = {}, clips = [], onUploading }) {
+  const set = (k,v) => onChange({...row,[k]:v});
   const [uploading,setUploading] = React.useState(false);
   const [error,setError] = React.useState('');
   const fileRef=React.useRef(null), latest=React.useRef({row,onChange}); latest.current={row,onChange};
@@ -741,161 +930,348 @@ function DbuRow({ row, onChange, onRemove, onMove, onDuplicate, clips = [], onUp
   React.useEffect(()=>()=>{mounted.current=false;},[]);
   const upload=async(file)=>{if(!file)return; setUploading(true);setError('');onUploading(1);try {const url=await dbuUploadVideo(file);if(mounted.current)latest.current.onChange({...latest.current.row,video:url});}catch(e){if(mounted.current)setError(e.message || 'Upload failed. Choose the file to retry.');}finally{if(mounted.current)setUploading(false);onUploading(-1);}};
   const video=ShapeWorkoutDocument.videoUrl(row.video);
-  const field=(key,label,type='text')=><label style={{display:'block',minWidth:0}}><span style={dbuLabel}>{label}</span><input aria-label={row.name+' '+label} type={type} min={type==='number'?1:undefined} value={row[key] ?? ''} onChange={e=>set(key,type==='number'?e.target.value:e.target.value)} style={{...dbuField,width:'100%'}}/></label>;
-  return <div style={{border:'1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)',borderLeft:'3px solid '+(row.group?'var(--sh-accent, #2ee0c4)':'rgba(var(--sh-ink-rgb, 242,237,228),0.2)'),borderRadius:4,padding:12,marginBottom:10}}>
-    {/* ⚠ THE NUMBER AND NAME ARE SAID ONCE, BY THE SUMMARY ABOVE THIS CARD. The card
-        repeated them ("01 · Back squat" over "01 Back squat"), so every open move named
-        itself twice. Owner, 2026-10-07. The controls keep their row, a step quieter than
-        the fields below (32px, past the 24px WCAG 2.5.8 floor), and every one still
-        names its move for a screen reader. */}
-    <div style={{display:'flex',justifyContent:'flex-end',gap:6,flexWrap:'wrap',marginBottom:10}}>
-      <button aria-label={'Move '+row.name+' up'} onClick={()=>onMove(-1)} style={dbuRowBtn}>↑</button>
-      <button aria-label={'Move '+row.name+' down'} onClick={()=>onMove(1)} style={dbuRowBtn}>↓</button>
-      <button onClick={onDuplicate} style={dbuRowBtn}>Duplicate</button>
-      <button disabled={uploading} aria-label={'Remove '+row.name} onClick={onRemove} style={dbuRowBtn}>×</button>
-    </div>
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(85px,1fr))',gap:10}}>
-      {field('sets','Sets','number')}{field('reps','Reps')}
-      <label><span style={dbuLabel}>Load</span><DbuLoadInput row={row} onLoad={v=>set('load',v)}/></label>
-      {/* ⚠ RPE LEFT THIS LIST AND GOT ITS OWN. As a fourth `loadType` it was
-             EXCLUSIVE with a weight — a coach could say 100 kg or RPE 8 and never
-             "100 kg @ RPE 8", which is what most strength programming looks like.
-             Owner: "if i want RPE, that should be a seperate drop down from KG or
-             IBS". A stored row still carrying `loadType:'rpe'` is converted on
-             read by `splitLegacyRpe`, so this select can never show a blank value
-             for an option it no longer offers. */}
-      {dbuShowsUnit(row) && <label><span style={dbuLabel}>Unit</span><select aria-label={row.name+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)} style={{...dbuField,width:'100%'}}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option></select></label>}
-      {/* No target RPE reads "—", as an empty load does: a placeholder, not a word. */}
-      <label><span style={dbuLabel}>RPE</span><select aria-label={row.name+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))} style={{...dbuField,width:'100%'}}><option value="">—</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></label>
-      {field('rest','Rest')}
-    </div>
-    {row.loadText && <p style={{fontSize:12,color:DBU_INK50}}>Original load instruction: {row.loadText}</p>}
+  const who = String(row.name || '').trim() || 'New exercise';
+  const field=(key,lbl)=><label><span>{lbl}</span><input className="df" aria-label={who+' '+lbl} value={row[key] ?? ''} onChange={e=>set(key,e.target.value)}/></label>;
+  return <aside className="ddetail" id={id} aria-label={'Exercise detail · ' + who}>
+    <div className="deb">{label}{blockLabel ? ' · ' + blockLabel : ''}</div>
+    <h3 className="dnm">{who}</h3>
+    {row.loadText && <p className="dnote">Original load instruction: {row.loadText}</p>}
     <DbuLadder row={row} onChange={onChange}/>
-    <details style={{marginTop:12}}><summary style={{cursor:'pointer',fontSize:13,minHeight:32}}>Cues, tempo, superset & progression</summary>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}}>{field('cue','Coach cue')}{field('tempo','Tempo')}<label><span style={dbuLabel}>Superset</span><select value={row.group || ''} onChange={e=>set('group',e.target.value || null)} style={dbuField}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label></div>
-      <label style={{display:'flex',gap:8,alignItems:'center',fontSize:12,marginTop:10}}><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:Number(row.rpe)>0?0.5:undefined}:null)}/> Apply progression when copying a week with progression</label>
-    </details>
-    {/* ⚠ THE DEMO SITS BEHIND ONE CONTROL, the way the day's walkthrough and the
-        program's introduction do. It was always open: two buttons, a library select, a
-        link field and its help text under EVERY move, attached or not, most of a move's
-        height for a field most moves leave empty. Owner, 2026-10-07. Folded, the summary
-        still says whether a demo is attached, and whether an upload is running or failed
-        (the coach may fold it mid-upload); open, it is the same upload, library, link,
-        remove and player as before. */}
-    <details className="cb-demo" style={{marginTop:12}}>
-      <summary style={{cursor:'pointer',fontSize:13,minHeight:32}}>Demo video <small style={{marginLeft:8,color:DBU_INK50,fontSize:12}}>{uploading?'Uploading…':error?'Upload failed':video?'Attached':'Optional'}</small></summary>
-      <div style={{paddingTop:6}}>
-        <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.m4v,.webm" hidden onChange={e=>{const f=e.target.files[0];e.target.value='';upload(f);}}/>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}><button disabled={uploading} style={dbuBtn(false)} onClick={()=>fileRef.current.click()}>{uploading?'Uploading…':video?'Replace demo':'Upload demo'}</button>
-          {!!clips.length && <select aria-label={'Choose demo for '+row.name} style={{...dbuField,maxWidth:'100%'}} value="" disabled={uploading} onChange={e=>set('video',e.target.value)}><option value="">Choose from video library</option>{clips.map(c=><option key={c.url} value={c.url}>{c.name}</option>)}</select>}
-          {video && <button disabled={uploading} style={dbuBtn(false)} onClick={()=>set('video','')}>Remove demo</button>}
-        </div>
-        {uploading && <progress aria-label="Uploading exercise demonstration" style={{width:'100%',marginTop:8}}/>}
-        {error && <p role="alert" style={{fontSize:13,color:'var(--sh-rust, #e0644b)'}}>{error}</p>}
-        <ShapeVideoLink value={video} onChange={url=>set('video',url)} label={'Video link for '+(row.name || 'exercise')} disabled={uploading}/>
-        <ShapeVideoPlayer value={video} title={row.name || 'Exercise demonstration'}/>
+    <div className="sub">Coaching</div>
+    <div className="dfs">
+      {field('cue','Coach cue')}{field('tempo','Tempo')}
+      <label><span>Superset</span><select className="df" aria-label={who+' superset'} value={row.group || ''} onChange={e=>set('group',e.target.value || null)}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label>
+    </div>
+    <label className="dchk"><input type="checkbox" checked={!!row.progression} onChange={e=>set('progression',e.target.checked?{rule:'all-reps',incKg:row.loadType==='kg'?2.5:undefined,incLb:row.loadType==='lb'?5:undefined,incPct:row.loadType==='pct'?2.5:undefined,incRpe:Number(row.rpe)>0?0.5:undefined}:null)}/> Increase it when a week is copied with Progress</label>
+    {/* ⚠ THE DEMO OPENS HERE, NOT BEHIND A FOLD. Step 1 folded it under every move because
+        it was under EVERY move; the detail holds one move, so its demo is the thing being
+        looked at and stays open. The heading still says whether a demo is attached, and
+        whether an upload is running or failed. Upload, library, link, remove and player are
+        what they were. */}
+    <div className="cb-demo" role="group" aria-label={'Demo video for ' + who}>
+      <div className="sub">Demo video <small>{uploading?'Uploading…':error?'Upload failed':video?'Attached':'Optional'}</small></div>
+      <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.m4v,.webm" hidden onChange={e=>{const f=e.target.files[0];e.target.value='';upload(f);}}/>
+      <div className="drow"><button type="button" disabled={uploading} className="dbtn" onClick={()=>fileRef.current.click()}>{uploading?'Uploading…':video?'Replace demo':'Upload demo'}</button>
+        {!!clips.length && <select aria-label={'Choose demo for '+who} className="df" value="" disabled={uploading} onChange={e=>set('video',e.target.value)}><option value="">Choose from video library</option>{clips.map(c=><option key={c.url} value={c.url}>{c.name}</option>)}</select>}
+        {video && <button type="button" disabled={uploading} className="dbtn" onClick={()=>set('video','')}>Remove demo</button>}
       </div>
-    </details>
-  </div>;
+      {uploading && <progress aria-label="Uploading exercise demonstration" style={{width:'100%',marginTop:8}}/>}
+      {error && <p role="alert" style={{fontSize:13,color:'var(--sh-rust, #e0644b)'}}>{error}</p>}
+      <ShapeVideoLink value={video} onChange={url=>set('video',url)} label={'Video link for '+who} disabled={uploading}/>
+      <ShapeVideoPlayer value={video} title={row.name || 'Exercise demonstration'}/>
+    </div>
+    <div className="dacts">
+      <button type="button" className="dbtn" disabled={uploading || !pair.canPair} onClick={onPair} title={pair.canPair ? undefined : 'The last move in a block has nothing after it to pair with'}>{pair.paired ? 'Unpair from next' : 'Superset with next'}</button>
+      <button type="button" className="dbtn" onClick={onDuplicate}>Duplicate</button>
+      <button type="button" className="dbtn danger" disabled={uploading} aria-label={'Remove '+who} onClick={onRemove}>Remove</button>
+    </div>
+  </aside>;
 }
 
-// ── Day editor (right pane) ──────────────────────────────────────────────────
-function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves }) {
-  const [pickerFor, setPickerFor] = React.useState(null); // block index
-  // ⚠ EVERY MOVE IS FOLDED TO ITS ONE-LINE SUMMARY, IN EVERY LAYOUT, AND ONE OPENS AT A
-  // TIME. Editor and Planner forced every move open (`open={!compact || …}`), so a day of
-  // six moves was six full prescriptions, each with its own video block, one under the
-  // other; only Guided folded them. Owner, 2026-10-07: "Apply all the fixes first". The
-  // day opens on its list ("01 · Back squat 3 × 8 · rest 90s"), a click opens that move
-  // and folds the last one, and a move just added opens so the coach can fill it in.
-  const [expanded, setExpanded] = React.useState("");
-  const labels = DashBuilder.rowLabels(day);
-  let labelIdx = 0;
-  const setBlock = (bi, next) => onChange({ ...day, blocks: day.blocks.map((b, i) => (i === bi ? next : b)) });
+// ── Type to add ──────────────────────────────────────────────────────────────
+// The list's last line. Type-ahead over the picker's own sources and rule — the coach's
+// moves, the Shape library, and "Add 'X' as a new exercise" — so the two ways in cannot
+// disagree about what a name means. ↑/↓ choose, Enter adds, Escape closes the list. The
+// modal picker stays one click away on every block label, for ticking several at once.
+function DbuQuickAdd({ customMoves = [], onAdd, blockLabel, inputRef }) {
+  const [q, setQ] = React.useState("");
+  const [active, setActive] = React.useState(0);
+  const [open, setOpen] = React.useState(false);
+  const id = React.useId();
+  const term = q.trim();
+  const mine = term ? dbuRankMoves(DashBuilder.searchCustomMoves(customMoves, term), term) : [];
+  const shape = term ? dbuRankMoves(DashBuilder.searchExercises(term), term) : [];
+  const create = DashBuilder.canCreateMove(term, customMoves) ? { id: "new-" + term.toLowerCase(), name: term, muscle: "", equipment: "", own: true, isNew: true } : null;
+  const options = [...mine, ...shape, ...(create ? [create] : [])];
+  const at = options.length ? Math.min(active, options.length - 1) : -1;
+  const shown = open && options.length > 0;
+  const add = (ex) => { if (!ex) return; setQ(""); setActive(0); setOpen(false); onAdd(ex); };
+  const onKey = (e) => {
+    if (dbuImeComposing(e.nativeEvent)) return;
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && options.length && !e.altKey) {
+      e.preventDefault();
+      setOpen(true);
+      setActive((at + (e.key === "ArrowDown" ? 1 : options.length - 1)) % options.length);
+    } else if (e.key === "Enter" && at >= 0) {
+      e.preventDefault();
+      add(options[at]);
+    } else if (e.key === "Escape" && (shown || q)) {
+      // Only when there is something to dismiss; an Escape on an empty line is the
+      // panel's (Planner closes its day editor on it).
+      e.preventDefault(); e.stopPropagation();
+      if (shown) setOpen(false); else setQ("");
+    }
+  };
+  const opt = (ex, i) => (
+    <li key={ex.id + ":" + i} id={id + "-" + i} role="option" aria-selected={i === at} className={ex.isNew ? "new" : undefined}
+      onMouseDown={(e) => e.preventDefault()} onClick={() => add(ex)} onMouseEnter={() => setActive(i)}>
+      <span>{ex.isNew ? "＋ Add “" + ex.name + "” as a new exercise" : ex.name}</span>
+      {!ex.isNew && <small>{[ex.muscle, ex.equipment].filter(Boolean).join(" · ") || (ex.own ? "Your own move" : "")}</small>}
+    </li>
+  );
   return (
-    <div>
-      {/* ⚠ A GRID THAT READS ITS OWN CONTAINER, not the viewport. This block sits
-          inside a 400px floating panel on a wide screen and inside a full-width one
-          below 1100px, and a viewport media query cannot tell those apart — which is
-          why the old flex-wrap row dealt three fields of three different widths into
-          two ragged lines. `auto-fit` measures the panel, so it is one clean column
-          in the float and three across when the panel is in the flow. */}
-      <div className="dayhead">
-        <div>
-          <label style={dbuLabel} htmlFor="dbu-day-name">Day name</label>
-          <input id="dbu-day-name" value={day.name} onChange={(e) => onChange({ ...day, name: e.target.value })} style={{ ...dbuField, width: "100%", fontSize: 14 }} />
+    <div className="dqa">
+      <input ref={inputRef} role="combobox" aria-autocomplete="list" aria-expanded={shown} aria-controls={id} aria-activedescendant={shown && at >= 0 ? id + "-" + at : undefined}
+        aria-label={"Add an exercise to " + blockLabel} placeholder="Type an exercise and press Enter…" value={q}
+        onChange={(e) => { setQ(e.target.value); setActive(0); setOpen(true); }} onKeyDown={onKey}
+        onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} />
+      <span className="kbd" aria-hidden="true">to {blockLabel} · ⏎ add · ⇥ next cell</span>
+      {shown && (
+        <ul role="listbox" id={id} className="dqa-list dash-thin-scroll" aria-label="Exercises">
+          {!!mine.length && <li role="presentation" className="h">Your moves</li>}
+          {mine.map((ex, i) => opt(ex, i))}
+          {!!shape.length && <li role="presentation" className="h">Shape library</li>}
+          {shape.map((ex, i) => opt(ex, mine.length + i))}
+          {create && opt(create, options.length - 1)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── The day's own settings, as chips ─────────────────────────────────────────
+// ⚠ THREE FULL-WIDTH FIELDS BECAME THREE CHIPS (owner, 2026-10-07). The training day and
+// the playlist are NATIVE selects laid invisibly over their chip, so the chip opens the
+// platform's own list — keyboard, screen reader and phone included — while showing only
+// what matters ("♫ Heavy Day mix", or a dashed "＋ Playlist"). The walkthrough is an
+// attachment, not a choice, so its chip opens an inline panel; the panel is hidden, never
+// unmounted, so an upload started in it outlives closing it.
+function DbuDayChips({ day, onChange, onWeekday, takenBy, playlists = [], clips, onUploading }) {
+  const [vidOpen, setVidOpen] = React.useState(false);
+  const [vidBusy, setVidBusy] = React.useState(0);
+  const panelId = React.useId();
+  const chipRef = React.useRef(null);
+  const wd = dbuHasWeekday(day) ? day.weekday : null;
+  // A playlist the day already carries is offered even when the list has not loaded it
+  // (signed out, or since renamed), or the select would DISPLAY "No playlist" over a day
+  // that has one — the same trap `dbuRpeOptions` closes for a stored RPE.
+  const lists = day.playlist && day.playlist.name && !playlists.some((p) => p.name === day.playlist.name) ? [day.playlist, ...playlists] : playlists;
+  const closeVid = () => { setVidOpen(false); if (chipRef.current) chipRef.current.focus(); };
+  return <>
+    <div className="dchips" role="group" aria-label="Day settings">
+      <span className="dchip" title="Training day">
+        <span aria-hidden="true"><small>Training day</small> {wd != null ? DBU_DOW_FULL[wd] : "In sequence"} <i>▾</i></span>
+        {/* ⚠ ROUTED THROUGH `onWeekday`, NEVER `onChange`. This select and the Grid's drag
+            are the two writers of a day's weekday; both go through `dbuAssignWeekday`, so a
+            weekday another day already holds is EXCHANGED rather than duplicated. Writing it
+            through `onChange` — a blind positional replace — is how two days came to sit on
+            one weekday, and the Grid can render only the first of those, so the second was
+            unreachable while the document still held it. Fixed in #2143.
+            The option names the day it would swap with, so the outcome is legible before the
+            click rather than a session quietly changing day. */}
+        <select aria-label="Training day" value={day.weekday ?? ''} onChange={(e) => onWeekday(e.target.value === '' ? undefined : Number(e.target.value))}>
+          <option value="">In sequence from start</option>
+          {DBU_DOW_FULL.map((d, i) => <option key={d} value={i}>{d}{takenBy && takenBy[i] ? " · swaps with " + takenBy[i] : ""}</option>)}
+        </select>
+      </span>
+      <span className={"dchip" + (day.playlist ? "" : " dim")} title="Playlist on the client's card">
+        <span aria-hidden="true">{day.playlist ? "♫ " + day.playlist.name : "＋ Playlist"}</span>
+        <select aria-label="Playlist on the client's card" value={day.playlist ? day.playlist.name : ""} onChange={(e) => {
+          const p = lists.find((x) => x.name === e.target.value);
+          onChange({ ...day, playlist: p ? { name: p.name, meta: p.meta || "" } : null });
+        }}>
+          <option value="">No playlist</option>
+          {lists.map((p) => <option key={p.name} value={p.name}>{p.name}{p.meta ? " · " + p.meta : ""}</option>)}
+          {!lists.length && <option value="" disabled>No Shape Radio playlists yet</option>}
+        </select>
+      </span>
+      <button type="button" ref={chipRef} className={"dchip" + (day.video ? "" : " dim")} aria-expanded={vidOpen} aria-controls={panelId} onClick={() => setVidOpen((o) => !o)}>
+        {vidBusy ? "Uploading walkthrough…" : day.video ? "▶︎ Walkthrough video" : "＋ Walkthrough video"}
+      </button>
+    </div>
+    <div className="dpop" id={panelId} hidden={!vidOpen} role="group" aria-label="Workout walkthrough video"
+      onKeyDown={(e) => { if (e.key === "Escape" && !dbuImeComposing(e.nativeEvent) && !e.defaultPrevented) { e.preventDefault(); e.stopPropagation(); closeVid(); } }}>
+      <p>Explain this day's workout: exercises, technique and what to focus on.</p>
+      <ShapeVideoAttachment value={day.video} title="Workout walkthrough" onChange={video=>onChange({...day,video})} upload={dbuUploadVideo} onBusy={(d)=>{setVidBusy((n)=>Math.max(0,n+d));onUploading(d);}} clips={clips}/>
+      <button type="button" className="dbtn" onClick={closeVid}>Done</button>
+    </div>
+  </>;
+}
+
+// ── Day editor ───────────────────────────────────────────────────────────────
+// The chips, then the list and its detail. The day's name and date are the panel's
+// heading (`DbuBuilder`), which is where a coach looks for which day this is.
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false }) {
+  const [pickerFor, setPickerFor] = React.useState(null); // block index
+  const blocks = day.blocks || [];
+  const flat = dbuFlatRows(day);
+  // ⚠ ONE MOVE IS SELECTED, AND THE DAY OPENS ON ITS FIRST. Step 1 folded every move to a
+  // line and opened one at a time; here the line IS the fold and the detail beside it is
+  // the opened move, so there is always one to show when the day has any.
+  const [selKey, setSelKey] = React.useState(() => (flat[0] ? flat[0].key : ""));
+  const current = flat.find((x) => x.key === selKey) || flat[0] || null;
+  const detailId = React.useId();
+  const listRef = React.useRef(null), addRef = React.useRef(null);
+  const focusNext = React.useRef(null);
+  const [say, setSay] = React.useState("");
+  // ⚠ NOT WHILE AN UPLOAD RUNS. The detail is remounted per move, and a demo upload's
+  // result is written by the detail that started it; switching moves mid-upload would
+  // unmount it and drop the video on the floor. The fieldset already stops every control;
+  // this stops the row clicks that are not controls.
+  const select = (key) => { if (!busy && key !== selKey) setSelKey(key); };
+  const write = (next) => onChange({ ...day, blocks: next });
+  const setBlock = (bi, next) => write(blocks.map((b, i) => (i === bi ? next : b)));
+  const updateRow = (key, next) => write(blocks.map((b, bi) => ({ ...b, rows: (b.rows || []).map((r, ri) => (dbuRowKey(r, bi, ri) === key ? next : r)) })));
+  const curBi = current ? current.bi : Math.max(0, blocks.length - 1);
+  // New moves land in the CURRENT block — the one the selected move is in — at its end.
+  const addRows = (bi, rows, focusSets) => {
+    if (!rows.length) return;
+    write(blocks.length ? blocks.map((b, i) => (i === bi ? { ...b, rows: [...(b.rows || []), ...rows] } : b)) : [{ kind: "main", rows }]);
+    const key = String(rows[0].id);
+    setSelKey(key);
+    if (focusSets) focusNext.current = { key, cell: "sets", select: true };
+    setSay(rows.length === 1 ? (rows[0].name || "An exercise") + " added to " + dbuKindLabel((blocks[bi] || { kind: "main" }).kind) + "." : rows.length + " exercises added.");
+  };
+  const move = (key, to) => {
+    const next = dbuMoveRow(day, key, to.bi, to.index);
+    if (next === day) return;
+    onChange(next);
+    const b = next.blocks[to.bi], rows = b.rows || [];
+    const at = rows.findIndex((r, ri) => dbuRowKey(r, to.bi, ri) === key);
+    const name = String((rows[at] && rows[at].name) || "").trim() || "The exercise";
+    setSay(name + " moved to " + dbuKindLabel(b.kind) + ", " + (at + 1) + " of " + rows.length + ".");
+  };
+  // Alt+↑ / Alt+↓ on any focused part of a line. Focus goes back to the same cell after
+  // the move — React moves the line's DOM node, and a moved node loses focus.
+  const onRowKey = (key) => (e) => {
+    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown") || dbuImeComposing(e.nativeEvent)) return;
+    e.preventDefault();
+    if (busy) return;
+    const up = e.key === "ArrowUp";
+    const to = dbuStepTarget(day, key, up ? -1 : 1);
+    const x = flat.find((f) => f.key === key);
+    const name = String((x && x.row.name) || "").trim() || "The exercise";
+    if (!to) { setSay(name + (up ? " is already first." : " is already last.")); return; }
+    focusNext.current = { key, cell: (e.target && e.target.getAttribute && e.target.getAttribute("data-cell")) || "name" };
+    move(key, to);
+  };
+  React.useLayoutEffect(() => {
+    const f = focusNext.current;
+    if (!f) return;
+    focusNext.current = null;
+    if (f.add) { if (addRef.current) addRef.current.focus(); return; }
+    const line = listRef.current && [...listRef.current.querySelectorAll("[data-rk]")].find((el) => el.getAttribute("data-rk") === f.key);
+    const el = line && (line.querySelector('[data-cell="' + f.cell + '"]') || line.querySelector('[data-cell="name"]'));
+    if (el) { el.focus(); if (f.select && el.select) el.select(); }
+  });
+
+  // ── Drag by the handle ────────────────────────────────────────────────────
+  // ⚠ POINTER EVENTS WITH CAPTURE, the panel drag's own rule (`useDbuDrag`): one path for
+  // mouse, pen and touch, one pointer drives a drag, and losing capture ends it. The row
+  // follows the pointer and a line marks where it will land; nothing moves in the
+  // document until the drop, so an abandoned drag (Escape, a cancelled touch) writes
+  // nothing and spends no revision.
+  const dragRef = React.useRef(null);
+  const [drag, setDrag] = React.useState(null);
+  const endDrag = () => { dragRef.current = null; setDrag(null); };
+  React.useEffect(() => {
+    if (!drag) return undefined;
+    const key = (e) => { if (e.key === "Escape" && dragRef.current) { e.preventDefault(); dragRef.current.cancelled = true; setDrag(null); } };
+    document.addEventListener("keydown", key, true);
+    return () => document.removeEventListener("keydown", key, true);
+  }, [!!drag]);
+  const handleFor = (key) => ({
+    onPointerDown: (e) => {
+      if (busy || (e.pointerType === "mouse" && e.button !== 0)) return;
+      if (dragRef.current && dragRef.current.id !== e.pointerId) return;
+      dbuCapture(e);
+      dragRef.current = { key, id: e.pointerId, y0: e.clientY, to: null };
+      select(key);
+      setDrag({ key, dy: 0, line: null });
+      e.preventDefault();
+    },
+    onPointerMove: (e) => {
+      const d = dragRef.current;
+      if (!d || d.id !== e.pointerId || d.cancelled) return;
+      d.to = dbuDropTarget(listRef.current, d.key, e.clientY);
+      setDrag({ key: d.key, dy: e.clientY - d.y0, line: d.to ? d.to.y : null });
+    },
+    onPointerUp: (e) => {
+      const d = dragRef.current;
+      if (!d || d.id !== e.pointerId) return;
+      endDrag();
+      dbuRelease(e, e.pointerId);
+      if (d.to && !d.cancelled) move(d.key, d.to);
+    },
+    onPointerCancel: (e) => { const d = dragRef.current; if (d && d.id === e.pointerId) endDrag(); },
+    onLostPointerCapture: (e) => { const d = dragRef.current; if (d && d.id === e.pointerId) endDrag(); },
+  });
+
+  const duplicate = (x) => {
+    setBlock(x.bi, { ...blocks[x.bi], rows: [...blocks[x.bi].rows.slice(0, x.ri + 1), { ...JSON.parse(JSON.stringify(x.row)), id: crypto.randomUUID() }, ...blocks[x.bi].rows.slice(x.ri + 1)] });
+    setSay((String(x.row.name || "").trim() || "The exercise") + " duplicated.");
+  };
+  // Removing a move selects its neighbour and puts focus on it, so neither the detail nor
+  // the keyboard is left pointing at nothing.
+  const remove = (x) => {
+    const i = flat.findIndex((f) => f.key === x.key);
+    const next = flat[i + 1] || flat[i - 1] || null;
+    setBlock(x.bi, { ...blocks[x.bi], rows: blocks[x.bi].rows.filter((_, ri) => ri !== x.ri) });
+    setSelKey(next ? next.key : "");
+    focusNext.current = next ? { key: next.key, cell: "name" } : { add: true };
+    setSay((String(x.row.name || "").trim() || "The exercise") + " removed.");
+  };
+
+  return (
+    <div className="dday">
+      <DbuDayChips day={day} onChange={onChange} onWeekday={onWeekday} takenBy={takenBy} playlists={playlists} clips={clips} onUploading={onUploading} />
+      <div className="dsplit">
+        <div className="dmain">
+          <div className="dlist" ref={listRef} data-dragging={drag ? "" : undefined}>
+            <div className="dhd" aria-hidden="true"><span /><span /><span>Exercise</span><span>Sets × reps</span><span>Load</span><span>RPE</span><span>Rest</span></div>
+            {blocks.map((block, bi) => {
+              const kl = dbuKindLabel(block.kind);
+              const rows = flat.filter((x) => x.bi === bi);
+              return (
+                <div className="dblk" key={bi} role="group" aria-label={kl + " block"}>
+                  <div className="dbk" data-bk={bi}>
+                    <select className="kind" aria-label={"Block " + (bi + 1) + " type"} value={block.kind} onChange={(e) => setBlock(bi, { ...block, kind: e.target.value })}>
+                      {DashBuilder.BLOCK_KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
+                    </select>
+                    <span className="rule" aria-hidden="true" />
+                    <button type="button" className="dq" onClick={() => setPickerFor(bi)}>+ Exercise</button>
+                    {blocks.length > 1 && <button type="button" className="dq" aria-label={"Remove the " + kl + " block"} title="Remove this block" onClick={() => write(blocks.filter((_, i) => i !== bi))}>×</button>}
+                  </div>
+                  {rows.length ? (
+                    <div role="list" aria-label={kl}>
+                      {rows.map((x) => (
+                        <DbuRow key={x.key} row={x.row} label={x.label} rowKey={x.key} detailId={detailId}
+                          selected={!!current && current.key === x.key} onSelect={() => select(x.key)}
+                          dragging={!!drag && drag.key === x.key} dy={drag && drag.key === x.key ? drag.dy : 0}
+                          handle={handleFor(x.key)} onRowKeyDown={onRowKey(x.key)}
+                          onChange={(next) => updateRow(x.key, next)} />
+                      ))}
+                    </div>
+                  ) : <p className="dempty">Nothing here yet. Drag a move in, or use + Exercise.</p>}
+                  {pickerFor === bi && (
+                    <DbuExercisePicker customMoves={customMoves}
+                      onPick={(items) => { addRows(bi, items.map((ex) => DashBuilder.newRow(ex)), false); setPickerFor(null); }}
+                      onClose={() => setPickerFor(null)} />
+                  )}
+                </div>
+              );
+            })}
+            {drag && drag.line != null && <div className="dline" style={{ top: drag.line }} aria-hidden="true" />}
+            <DbuQuickAdd customMoves={customMoves} inputRef={addRef} blockLabel={dbuKindLabel((blocks[curBi] || { kind: "main" }).kind)}
+              onAdd={(ex) => addRows(curBi, [DashBuilder.newRow(ex)], true)} />
+          </div>
+          <div className="dfoot">
+            <button type="button" className="dbtn ghost" onClick={() => write([...blocks, { kind: "accessory", rows: [] }])}>+ Block</button>
+          </div>
         </div>
-        <label style={{ minWidth: 0 }}>
-          <span style={dbuLabel}>Training day</span>
-          {/* ⚠ ROUTED THROUGH `onWeekday`, NEVER `onChange`. This select and the Grid's drag
-              are the two writers of a day's weekday; both go through `dbuAssignWeekday`, so a
-              weekday another day already holds is EXCHANGED rather than duplicated. Writing it
-              through `onChange` — a blind positional replace — is how two days came to sit on
-              one weekday, and the Grid can render only the first of those, so the second was
-              unreachable while the document still held it. Fixed in #2143.
-              The option names the day it would swap with, so the outcome is legible before the
-              click rather than a session quietly changing day. */}
-          <select value={day.weekday ?? ''} onChange={(e) => onWeekday(e.target.value === '' ? undefined : Number(e.target.value))} style={{ ...dbuField, width: "100%" }}>
-            <option value="">In sequence from start</option>
-            {DBU_DOW_FULL.map((d, i) => <option key={d} value={i}>{d}{takenBy && takenBy[i] ? " · swaps with " + takenBy[i] : ""}</option>)}
-          </select>
-        </label>
-        <div>
-          <span style={dbuLabel}>Shape Radio playlist</span>
-          <select value={day.playlist ? day.playlist.name : ""} onChange={(e) => {
-            const p = playlists.find((x) => x.name === e.target.value);
-            onChange({ ...day, playlist: p ? { name: p.name, meta: p.meta || "" } : null });
-          }} style={{ ...dbuField, width: "100%" }}>
-            <option value="">No playlist</option>
-            {playlists.map((p) => <option key={p.name} value={p.name}>{p.name}{p.meta ? " · " + p.meta : ""}</option>)}
-          </select>
-          <span className="hint">Chips on the client card</span>
-        </div>
+        {current ? (
+          <DbuRowDetail key={current.key} id={detailId} row={current.row} label={current.label} blockLabel={dbuKindLabel(blocks[current.bi].kind)}
+            clips={clips} onUploading={onUploading} pair={dbuPairState(day, current.key)}
+            onChange={(next) => updateRow(current.key, next)}
+            onPair={() => onChange(dbuTogglePair(day, current.key))}
+            onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} />
+        ) : (
+          <aside className="ddetail empty" aria-label="Exercise detail">
+            <p>Type an exercise in the last line and press Enter. Its per-set targets, cues and demo open here.</p>
+          </aside>
+        )}
       </div>
-      <details className="cb-details" key={day.id}>
-        <summary>Workout walkthrough video <small>{day.video ? "Video added" : "Optional"}</small></summary>
-        <p>Explain this day's workout: exercises, technique and what to focus on.</p>
-        <ShapeVideoAttachment value={day.video} title="Workout walkthrough" onChange={video=>onChange({...day,video})} upload={dbuUploadVideo} onBusy={onUploading} clips={clips}/>
-      </details>
-      {day.blocks.map((block, bi) => (
-        <div key={bi} style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-            <select value={block.kind} onChange={(e) => setBlock(bi, { ...block, kind: e.target.value })} style={{ ...dbuField, fontFamily: DBU_MONO, fontSize: 9.5, textTransform: "uppercase", letterSpacing: "0.1em", color: DBU_RUST, padding: "5px 7px" }}>
-              {DashBuilder.BLOCK_KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
-            </select>
-            <div style={{ flex: 1, height: 2, background: "linear-gradient(90deg, " + DBU_RUST + ", rgba(var(--sh-rust2-rgb, 192,83,59),0.2) 45%, transparent 85%)" }} />
-            {day.blocks.length > 1 && <button onClick={() => onChange({ ...day, blocks: day.blocks.filter((_, i) => i !== bi) })} style={{ ...dbuBtn(false), padding: "4px 8px", color: "var(--sh-rust, #e0644b)", borderColor: "rgba(var(--sh-rust-rgb, 224,100,75),0.4)" }}>Remove block</button>}
-          </div>
-          {block.rows.map((row, ri) => {
-            const label = labels[labelIdx]; labelIdx += 1;
-            return (
-              <details className="cb-exercise" key={row.id} open={expanded === row.id}>
-                <summary onClick={e=>{e.preventDefault();setExpanded(expanded===row.id?"":row.id);}}>{label} · {row.name}<small>{row.sets} × {row.reps}{row.rest ? " · rest " + row.rest : ""}{ShapeWorkoutDocument.videoUrl(row.video) ? " · demo" : ""}</small></summary>
-              <DbuRow row={row} clips={clips} onUploading={onUploading}
-                onDuplicate={() => setBlock(bi, {...block, rows:[...block.rows.slice(0,ri+1),{...JSON.parse(JSON.stringify(row)),id:crypto.randomUUID()},...block.rows.slice(ri+1)]})}
-                onChange={(next) => setBlock(bi, { ...block, rows: block.rows.map((r, i) => (i === ri ? next : r)) })}
-                onRemove={() => setBlock(bi, { ...block, rows: block.rows.filter((_, i) => i !== ri) })}
-                onMove={(dir) => {
-                  const rows = [...block.rows];
-                  const j = ri + dir;
-                  if (j < 0 || j >= rows.length) return;
-                  [rows[ri], rows[j]] = [rows[j], rows[ri]];
-                  setBlock(bi, { ...block, rows });
-                }} />
-              </details>
-            );
-          })}
-          <div style={{ position: "relative", display: "inline-block" }}>
-            <button onClick={() => setPickerFor(pickerFor === bi ? null : bi)} style={dbuBtn(false)}>+ Exercise</button>
-            {pickerFor === bi && (
-              <DbuExercisePicker customMoves={customMoves}
-                onPick={(items) => { const added=items.map(ex=>DashBuilder.newRow(ex)); setBlock(bi, { ...block, rows: [...block.rows, ...added] }); if(added.length)setExpanded(added[0].id); setPickerFor(null); }}
-                onClose={() => setPickerFor(null)} />
-            )}
-          </div>
-        </div>
-      ))}
-      <button onClick={() => onChange({ ...day, blocks: [...day.blocks, { kind: "accessory", rows: [] }] })} style={{ ...dbuBtn(false), marginTop: 2 }}>+ Block</button>
+      <p className="sr" role="status" aria-live="polite">{say}</p>
     </div>
   );
 }
@@ -1620,22 +1996,152 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .drawer{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:20px 22px 18px}
 .dbu2 .drawer.float{position:fixed;left:auto;right:16px;top:96px;width:${DBU_PANEL_W}px;overflow-y:auto;overscroll-behavior:contain;z-index:40}
 .dbu2 .drawer .dh.grab,.dbu2 .pop .ph2.grab{cursor:grab;touch-action:none}
-.dbu2 .dayhead{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 12px;margin-bottom:14px;align-items:end}
-.dbu2 .dayhead>*{min-width:0}
-.dbu2 .dayhead .hint{display:block;margin-top:4px;font-size:11.5px;color:${DBU_INK3}}
 .dbu2 .gh{flex:0 0 auto;order:-1;height:28px;width:22px;padding:0;border:0;cursor:grab;border-radius:6px;background-image:radial-gradient(currentColor 1.1px, transparent 1.2px);background-size:6px 6px;background-position:center;background-repeat:repeat;background-clip:content-box;padding:5px 7px;color:${DBU_LINE2}}
 .dbu2 .gh:hover{color:${DBU_INK2}}
 .dbu2 .gh:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:1px}
 @media(max-width:1100px){.dbu2 .drawer.float{position:static!important;left:auto!important;top:auto!important;right:auto!important;width:auto!important;max-height:none!important;margin-top:16px}}
-.dbu2 .drawer .dh{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
-.dbu2 .drawer .dh b{font-size:19px;font-weight:700;letter-spacing:-.01em}
-.dbu2 .drawer .when{font-size:13.5px;color:${DBU_INK2};margin-bottom:14px}
-.dbu2 .drawer .when b{color:${DBU_RUST};font-weight:700}
 .dbu2 .pop{position:fixed;right:20px;bottom:20px;width:344px;max-width:calc(100vw - 40px);max-height:calc(100vh - 120px);overflow-y:auto;z-index:60;background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:16px 18px 18px}
 .dbu2 .pop .ph2{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
 .dbu2 .pop .ph2 b{font-size:15px;font-weight:700;margin-right:auto}
 .dbu2 .x{height:32px;padding:0 11px;border-radius:8px;border:1px solid ${DBU_LINE};background:${DBU_WH};color:${DBU_INK2};font-size:13px;font-weight:600;cursor:pointer}
 .dbu2 .scroll{overflow-x:auto}
+/* ── The day editor: one line per exercise, the detail beside it ─────────────
+   Step 2 of the approved builder plan (owner, 2026-10-07). The panel it sits in is
+   784px wide in Editor at 1440, 556 in Planner, 400 popped out and under 300 on a
+   phone, so the list and its rows read their OWN width (container queries, as the
+   dashboard grid's widgets do) rather than the viewport's.
+   ONE CONTROL HEIGHT: every button in the panel is --dbu-ctl, 36px, or 44 on a coarse
+   pointer. They were 32, 40 and 44 (the shared video controls), side by side. The
+   video controls carry their 44 inline, so the override below needs !important. */
+.dbu2 .drawer{--dbu-ctl:36px;--dbu-cell:30px}
+@media (pointer:coarse){.dbu2 .drawer{--dbu-ctl:44px;--dbu-cell:40px}}
+.dbu2 .sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.dbu2 .drawer .dh{display:flex;justify-content:space-between;align-items:flex-end;gap:8px 12px;margin-bottom:12px;flex-wrap:wrap}
+.dbu2 .drawer .dh .x{height:var(--dbu-ctl)}
+.dbu2 .drawer .dt{flex:1 1 220px;min-width:0;display:grid;gap:3px}
+.dbu2 .drawer .dt .when{font-family:${DBU_MONO};font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_RUST}}
+.dbu2 .drawer .dt .when b{font-weight:700;color:inherit}
+.dbu2 .drawer .dn{font-family:${DBU_DISPLAY};font-weight:700;font-variation-settings:'wdth' 92;font-size:22px;line-height:1.2;letter-spacing:-.005em;color:${DBU_INK};background:transparent;border:0;border-radius:0;padding:0 0 2px;margin:0;width:100%;min-width:0;outline:none;text-overflow:ellipsis;box-shadow:inset 0 -1px 0 transparent;cursor:text}
+.dbu2 .drawer .dn:hover{box-shadow:inset 0 -1px 0 ${DBU_LINE2}}
+.dbu2 .drawer .dn:focus{box-shadow:inset 0 -2px 0 ${DBU_TEAL}}
+.dbu2 .drawer .dh .dacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.dbu2 .dday{container:dday / inline-size}
+.dbu2 .dday .dbtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:var(--dbu-ctl);padding:0 12px;border-radius:8px;border:1px solid ${DBU_LINE2};background:${DBU_WH};color:${DBU_INK};font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}
+.dbu2 .dday .dbtn.ghost{border-style:dashed;background:transparent;color:${DBU_TEAL}}
+.dbu2 .dday .dbtn.danger{color:${DBU_RUST}}
+.dbu2 .dday :is(.cb-demo,.dpop) :is(button,select,input[type="url"]){min-height:var(--dbu-ctl)!important;padding-top:0!important;padding-bottom:0!important}
+/* The day's settings, as chips. A select laid invisibly over its chip opens the
+   platform's own list; the chip shows only the answer. */
+.dbu2 .dchips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.dbu2 .dchip{position:relative;display:inline-flex;align-items:center;gap:6px;height:var(--dbu-ctl);max-width:100%;padding:0 14px;border-radius:999px;border:1px solid ${DBU_LINE2};background:${DBU_WH};color:${DBU_INK};font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer}
+.dbu2 .dchip>span{overflow:hidden;text-overflow:ellipsis}
+.dbu2 .dchip small{font-size:11.5px;font-weight:500;color:${DBU_INK3};margin-right:2px}
+.dbu2 .dchip i{font-style:normal;font-size:10px;color:${DBU_INK3};margin-left:2px}
+.dbu2 .dchip.dim{border-style:dashed;background:transparent;color:${DBU_INK2};font-weight:500}
+.dbu2 .dchip:hover{border-color:${DBU_INK3}}
+.dbu2 .dchip:focus-within{outline:2px solid ${DBU_TEAL};outline-offset:2px}
+.dbu2 .dchip[aria-expanded="true"]{border-color:${DBU_TEAL};color:${DBU_TEAL};border-style:solid}
+.dbu2 .dchip select{position:absolute;inset:0;width:100%;height:100%;margin:0;border:0;opacity:0;cursor:pointer;font-size:16px}
+.dbu2 .dpop{max-width:600px;border:1px solid ${DBU_LINE2};border-radius:12px;background:${DBU_PG};padding:12px 14px;margin:-4px 0 14px}
+.dbu2 .dpop>p{margin:0;font-size:13px;color:${DBU_INK2}}
+/* List beside detail when the panel has the room, the detail under it when not. */
+.dbu2 .dsplit{display:grid;gap:16px;align-items:start}
+.dbu2 .dmain{min-width:0}
+@container dday (min-width:760px){
+ .dbu2 .dsplit{grid-template-columns:minmax(0,1fr) 284px}
+ .dbu2 .ddetail{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;overscroll-behavior:contain}
+}
+.dbu2 .dlist{container:dlist / inline-size;position:relative;border:1px solid ${DBU_LINE};border-radius:10px;background:${DBU_WH}}
+.dbu2 .dlist[data-dragging]{user-select:none;-webkit-user-select:none}
+.dbu2 .dbk{display:flex;align-items:center;gap:4px;padding:4px 6px 0 8px;background:${DBU_PG};border-top:1px solid ${DBU_LINE}}
+.dbu2 .dbk .kind{-webkit-appearance:none;appearance:none;height:28px;padding:0 20px 0 6px;border:1px solid transparent;border-radius:6px;background-color:transparent;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:right 10px top 52%,right 6px top 52%;background-size:4px 4px;background-repeat:no-repeat;font-family:${DBU_MONO};font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_RUST};cursor:pointer}
+.dbu2 .dbk .kind:hover{border-color:${DBU_LINE2}}
+.dbu2 .dbk .rule{flex:1;height:1px;background:linear-gradient(90deg,rgba(var(--sh-rust2-rgb, 192,83,59),.45),transparent 80%)}
+.dbu2 .dbk .dq{height:var(--dbu-ctl);padding:0 8px;border:0;border-radius:6px;background:transparent;color:${DBU_TEAL};font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.dbu2 .dbk .dq:hover{background:${DBU_TEALBG}}
+.dbu2 .dempty{margin:0;padding:8px 12px 10px 48px;font-size:12.5px;color:${DBU_INK3};border-top:1px dashed ${DBU_LINE}}
+/* A line, two rows of it where the list is narrow: the move on top, its four numbers
+   under it in fixed columns, which the list's header names once. (A caption on every
+   cell was tried first and ran a phone row to three lines.) */
+.dbu2 .dhd{display:grid;grid-template-columns:16px 84px 82px 38px minmax(0,1fr);column-gap:6px;padding:7px 8px 4px 4px;font-family:${DBU_MONO};font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${DBU_INK3}}
+.dbu2 .dhd span:nth-child(-n+3){display:none}
+.dbu2 .dhd span:nth-child(4){grid-column:2}
+.dbu2 .dhd span:nth-child(n+4){padding-left:5px;white-space:nowrap}
+.dbu2 .dhd+.dblk .dbk{border-top:1px solid ${DBU_LINE}}
+.dbu2 .dr{position:relative;display:grid;grid-template-columns:16px 26px minmax(0,1fr);align-items:center;column-gap:6px;padding:3px 8px 5px 4px;border-top:1px solid ${DBU_LINE};background:${DBU_WH}}
+.dbu2 .dr:hover{background:rgba(var(--sh-ink-rgb, 242,237,228),.025)}
+.dbu2 .dr.grp{box-shadow:inset 3px 0 0 ${DBU_RUST}}
+.dbu2 .dr.on{background:${DBU_TEALBG};box-shadow:inset 3px 0 0 ${DBU_TEAL}}
+.dbu2 .dr.drag{z-index:3;background:${DBU_WH};box-shadow:0 10px 28px rgba(21,33,30,.2),inset 3px 0 0 ${DBU_TEAL};opacity:.97}
+.dbu2 .dr .rh{width:16px;height:var(--dbu-cell);padding:0;border:0;border-radius:4px;background:transparent;color:${DBU_INK3};font-size:13px;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:grab;touch-action:none}
+.dbu2 .dr .rh:hover{color:${DBU_INK};background:rgba(var(--sh-ink-rgb, 242,237,228),.06)}
+.dbu2 .dlist[data-dragging] .dr .rh{cursor:grabbing}
+.dbu2 .dr .ix{font-style:normal;font-family:${DBU_MONO};font-size:10.5px;font-weight:700;color:${DBU_INK3}}
+.dbu2 .dr .ix.ss{color:${DBU_RUST}}
+.dbu2 .dr .nmc{display:flex;align-items:center;gap:6px;min-width:0}
+.dbu2 .dr .nm{flex:0 1 auto;min-width:0;height:var(--dbu-cell);padding:0 4px;border:0;border-radius:5px;background:transparent;color:${DBU_INK};font-size:14px;font-weight:600;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.dbu2 .dr .mk{flex:0 0 auto;display:inline-flex;gap:6px;color:${DBU_INK3};font-size:12.5px;line-height:1}
+.dbu2 .dr .mk b{font-weight:600;cursor:default}
+.dbu2 .dr .dcells{grid-column:2/-1;display:grid;grid-template-columns:84px 82px 38px minmax(0,1fr);column-gap:6px;align-items:center}
+.dbu2 .dr .c{display:flex;align-items:center;gap:1px;min-width:0}
+.dbu2 .dr .tm{flex:0 0 auto;color:${DBU_INK3};font-size:12px}
+.dbu2 .dr .ci{box-sizing:border-box;height:var(--dbu-cell);min-width:0;padding:0 5px;border:1px solid transparent;border-radius:6px;background:transparent;color:${DBU_INK};font-size:14px;font-variant-numeric:tabular-nums;outline:none}
+.dbu2 .dr .ci:hover{border-color:${DBU_LINE2}}
+.dbu2 .dr .ci:focus{border-color:${DBU_TEAL};background:${DBU_WH};box-shadow:0 0 0 1px ${DBU_TEAL}}
+.dbu2 .dr .ci::placeholder{color:${DBU_INK3};opacity:1}
+.dbu2 .dr input.ci[type="number"]{-moz-appearance:textfield;appearance:textfield}
+.dbu2 .dr input.ci::-webkit-outer-spin-button,.dbu2 .dr input.ci::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.dbu2 .dr select.ci{-webkit-appearance:none;appearance:none;cursor:pointer}
+.dbu2 .dr .sx [data-cell="sets"]{flex:0 0 28px;width:28px;text-align:right}
+.dbu2 .dr .sx [data-cell="reps"]{flex:1 1 auto;width:0}
+.dbu2 .dr .ld [data-cell="load"]{flex:1 1 auto;width:0;max-width:52px}
+.dbu2 .dr .ld .u{flex:0 0 38px;width:38px;padding:0 3px;color:${DBU_INK2}}
+.dbu2 .dr .rp .ci{width:100%;text-align:center}
+.dbu2 .dr .rs .ci{width:100%}
+@container dlist (min-width:500px){
+ .dbu2 .dhd{grid-template-columns:16px 26px minmax(0,1fr) 96px 92px 38px 52px;column-gap:4px;padding:8px 8px 5px 4px}
+ .dbu2 .dhd span:nth-child(-n+3){display:block}
+ .dbu2 .dhd span:nth-child(4){grid-column:auto}
+ .dbu2 .dr{grid-template-columns:16px 26px minmax(0,1fr) 96px 92px 38px 52px;column-gap:4px;padding:3px 8px 3px 4px}
+ .dbu2 .dr .dcells{display:contents}
+}
+.dbu2 .dline{position:absolute;left:8px;right:8px;height:2px;margin-top:-1px;border-radius:2px;background:${DBU_TEAL};pointer-events:none;z-index:4}
+.dbu2 .dline::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:${DBU_TEAL}}
+/* Type to add: the list's last line. */
+.dbu2 .dqa{position:relative;display:flex;align-items:center;gap:10px;padding:6px 10px 6px 8px;border-top:1px solid ${DBU_LINE}}
+.dbu2 .dqa input{flex:1;min-width:0;height:var(--dbu-ctl);padding:0 10px;border:0;border-left:2px solid ${DBU_TEAL};border-radius:0;background:transparent;color:${DBU_INK};font-size:14px;outline:none}
+.dbu2 .dqa input::placeholder{color:${DBU_INK3};opacity:1}
+.dbu2 .dqa input:focus{background:${DBU_TEALBG}}
+.dbu2 .dqa .kbd{font-family:${DBU_MONO};font-size:10px;color:${DBU_INK3};white-space:nowrap}
+@container dlist (max-width:499px){.dbu2 .dqa .kbd{display:none}}
+.dbu2 .dqa-list{position:absolute;left:8px;right:8px;top:100%;z-index:20;margin:2px 0 0;padding:4px;list-style:none;max-height:300px;overflow-y:auto;background:${DBU_WH};border:1px solid ${DBU_LINE2};border-radius:10px;box-shadow:0 14px 36px rgba(21,33,30,.18)}
+.dbu2 .dqa-list .h{padding:8px 8px 3px;font-family:${DBU_MONO};font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${DBU_INK2}}
+.dbu2 .dqa-list [role="option"]{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:36px;padding:4px 8px;border-radius:6px;font-size:13.5px;cursor:pointer}
+.dbu2 .dqa-list [role="option"] small{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;color:${DBU_INK3}}
+.dbu2 .dqa-list [aria-selected="true"]{background:${DBU_TEALBG}}
+.dbu2 .dqa-list .new{color:${DBU_TEAL};font-weight:600}
+.dbu2 .dfoot{display:flex;gap:8px;margin-top:10px}
+/* The detail. */
+.dbu2 .ddetail{min-width:0;padding:14px 16px 16px;border:1px solid ${DBU_LINE2};border-top:3px solid ${DBU_RUST};border-radius:12px;background:${DBU_PG}}
+.dbu2 .ddetail.empty{border-top-color:${DBU_LINE2};font-size:13px;color:${DBU_INK2}}
+.dbu2 .ddetail.empty p{margin:0}
+.dbu2 .ddetail .deb{font-family:${DBU_MONO};font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_RUST}}
+.dbu2 .ddetail .dnm{margin:3px 0 0;font-family:${DBU_DISPLAY};font-weight:700;font-variation-settings:'wdth' 92;font-size:19px;line-height:1.2;overflow-wrap:anywhere}
+.dbu2 .ddetail .dnote{margin:8px 0 0;font-size:12px;color:${DBU_INK2}}
+.dbu2 .ddetail>details>summary{font-weight:600}
+.dbu2 .ddetail .sub{display:flex;align-items:baseline;gap:8px;margin:14px 0 8px;padding-top:10px;border-top:1px solid ${DBU_LINE};font-family:${DBU_MONO};font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_INK3}}
+.dbu2 .ddetail .sub small{font-family:${DBU_BODY};font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:${DBU_INK2}}
+.dbu2 .ddetail .dfs{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px 10px}
+.dbu2 .ddetail .dfs label{min-width:0}
+.dbu2 .ddetail .dfs label:first-child{grid-column:1/-1}
+.dbu2 .ddetail .dfs label>span{display:block;margin-bottom:4px;font-size:12px;font-weight:600;color:${DBU_INK2}}
+.dbu2 .ddetail .df{box-sizing:border-box;width:100%;max-width:100%;height:var(--dbu-ctl);padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};color:${DBU_INK};font-size:13.5px;outline:none}
+.dbu2 .ddetail .dchk{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:12.5px;color:${DBU_INK2}}
+.dbu2 .ddetail .dchk input[type="checkbox"]{width:18px;height:18px;flex:0 0 auto}
+.dbu2 .ddetail .drow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.dbu2 .ddetail .drow .df{width:auto;flex:1 1 150px}
+.dbu2 .ddetail .dacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:14px 0 0;padding-top:12px;border-top:1px solid ${DBU_LINE}}
+@media(max-width:760px){.cbuilder.dbu2 .drawer{padding:14px 12px 16px}}
 /* NOTE: these rules carry NO .dbu2 prefix on purpose. DbuDialog portals into
    document.body, so the picker is NOT inside the builder's root and every
    prefixed rule above misses it — which is why its checkboxes drew at the
@@ -1687,7 +2193,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
           {layout === "editor" && <button className="cb-button" type="button" onClick={()=>setLayout("planner")}>Arrange days &amp; weeks</button>}
         </CoachBuilderNav>
         {template.sourceName && (!guided || step === 0) && <p className="cb-copy">Based on <strong>{template.sourceName}</strong>. You’re editing a new copy; the original template stays unchanged.</p>}
-        {guided && <div className="cb-intro"><h2>{["Start with the basics", "Build your workout", "Arrange days and weeks", "Ready for your clients?"][step]}</h2><p>{["Name this template so you can find it and use it again. You can assign it to clients whenever you’re ready.", "Choose a day, add exercises, then set the prescription. Rest, RPE and demonstration videos are available on every exercise.", "Repeat a week, add progression or plan a deload. Each client’s start date is chosen when you assign the plan.", "Check each day as your client will see it. Save the template for later or choose clients and a start date."][step]}</p></div>}
+        {guided && <div className="cb-intro"><h2>{["Start with the basics", "Build your workout", "Arrange days and weeks", "Ready for your clients?"][step]}</h2><p>{["Name this template so you can find it and use it again. You can assign it to clients whenever you’re ready.", "Choose a day, then type an exercise in the last line and press Enter. Sets, reps, load, RPE and rest sit on each line; select a line for its per-set targets, cues and demo video.", "Repeat a week, add progression or plan a deload. Each client’s start date is chosen when you assign the plan.", "Check each day as your client will see it. Save the template for later or choose clients and a start date."][step]}</p></div>}
         {/* ── Header ──────────────────────────────────────────────────────────
             One row that never moves between the two views: who this is, when it is
             drawn for, what it adds up to, and the one primary action. */}
@@ -1780,7 +2286,18 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
               style={floating ? panel.style : undefined}>
               <div className={"dh" + (floating ? " grab" : "")} {...panel.headerProps} style={panel.grabStyle}>
                 {floating && <button type="button" className="gh" aria-label="Move the day editor — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={panel.onKey} title="Drag to move" />}
-                <b>{day.name}</b>
+                {/* ⚠ THE DAY'S NAME IS ITS HEADING, AND THE HEADING IS THE FIELD (owner,
+                    2026-10-07: day settings in the header). It was a bold title here over a
+                    full-width "Day name" input three lines below it, so the name was shown
+                    twice and edited in the second place. The date line above it is the one
+                    the assignment would write. Pressing in the field never starts a panel
+                    drag: an input is one of the controls `useDbuDrag` leaves alone. */}
+                <div className="dt">
+                  <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
+                  <label htmlFor="dbu-day-name" className="sr">Day name</label>
+                  <input id="dbu-day-name" className="dn" value={day.name} title="Rename this day" onChange={(e) => setDay({ ...day, name: e.target.value })} />
+                </div>
+                <div className="dacts">
                 {canFloat && <button type="button" className="x" onClick={()=>setPopped(!popped)}>{popped ? "Dock editor" : "Pop out editor"}</button>}
                 {view === "grid" && <button type="button" className="x" onClick={() => {setView("sheet");if(guided)setStep(2);else setLayout("planner");}} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
                 {/* ⚠ The tree carried a per-day Copy button; the grid moves a day by dragging it
@@ -1795,10 +2312,14 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
                   setSel({ w: sel.w, d: sel.d + 1 });
                 }}>Duplicate day</button>
                 <button type="button" className="x" aria-label="Close the day editor" disabled={!!uploads} onClick={closeDayEditor}>Done</button>
+                </div>
               </div>
-              <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
+              {/* Keyed by the day's PLACE as well as its id: `newDay` gives a day no id, so two
+                  id-less days in one week shared a key and the second opened on the first's
+                  selection. */}
               <DbuDayEditor
-                key={sel.w + ":" + day.id}
+                key={sel.w + ":" + sel.d + ":" + (day.id || "")}
+                busy={!!uploads}
                 day={day}
                 onChange={setDay}
                 onWeekday={setDayWeekday}

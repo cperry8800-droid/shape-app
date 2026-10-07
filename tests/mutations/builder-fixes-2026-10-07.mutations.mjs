@@ -94,9 +94,10 @@ export default {
     { name: 'leaving the field keeps the typed 0', file: BUILDER,
       find: 'onBlur={()=>setDraft(null)}',
       replace: 'onBlur={()=>{}}' },
+    // ⚠ REPOINTED BY STEP 2 (owner, 2026-10-07): the unit is a cell on the move's line now.
     { name: 'the unit shows with no weight', file: BUILDER,
-      find: "{dbuShowsUnit(row) && <label><span style={dbuLabel}>Unit</span>",
-      replace: "{true && <label><span style={dbuLabel}>Unit</span>" },
+      find: '{dbuShowsUnit(row) && <select className="ci u"',
+      replace: '{true && <select className="ci u"' },
     { name: 'the unit ignores an imported load instruction', file: BUILDER,
       find: "return !dbuNoLoad(row.load) || String(row.loadText ?? '').trim() !== ''\n",
       replace: 'return !dbuNoLoad(row.load)\n' },
@@ -107,13 +108,17 @@ export default {
       find: '<option value="">—</option>{dbuRpeOptions(row.rpe)',
       replace: '<option value="">None</option>{dbuRpeOptions(row.rpe)' },
     // ── The name once ────────────────────────────────────────────────────────────────────
-    { name: 'the card names the move again', file: BUILDER,
-      find: "<div style={{display:'flex',justifyContent:'flex-end',gap:6,flexWrap:'wrap',marginBottom:10}}>",
-      replace: "<div style={{display:'flex',justifyContent:'flex-end',gap:6,flexWrap:'wrap',marginBottom:10}}><strong>{row.name}</strong>" },
+    // ⚠ REPOINTED BY STEP 2: the card is gone, and the detail beside the list is where a
+    // second naming of the move would now land.
+    { name: 'the detail names the move again', file: BUILDER,
+      find: '    <div className="dfs">\n',
+      replace: '    <div className="dfs"><strong>{who}</strong>\n' },
     // ── The demo behind one control ──────────────────────────────────────────────────────
-    { name: 'the demo is open under every move', file: BUILDER,
-      find: '<details className="cb-demo" style={{marginTop:12}}>',
-      replace: '<details className="cb-demo" open style={{marginTop:12}}>' },
+    // ⚠ REPOINTED BY STEP 2: the demo is open in the detail, so the regression is it going
+    // missing from there.
+    { name: 'the detail drops the demo', file: BUILDER,
+      find: "    <div className=\"cb-demo\" role=\"group\" aria-label={'Demo video for ' + who}>",
+      replace: "    <div className=\"cb-demo\" role=\"group\" aria-label={'Demo video for ' + who} hidden={!video}>" },
     { name: 'the folded demo does not say it is attached', file: BUILDER,
       find: "video?'Attached':'Optional'",
       replace: "'Optional'" },
@@ -124,20 +129,18 @@ export default {
       find: "error?'Upload failed':video?'Attached'",
       replace: "video?'Attached'" },
     { name: 'the move\'s line stops saying it has a demo', file: BUILDER,
-      find: '? " · demo" : ""',
-      replace: '? "" : ""' },
-    // ── Folded, one at a time ────────────────────────────────────────────────────────────
-    { name: 'the first move of each block opens on its own', file: BUILDER,
-      find: '<details className="cb-exercise" key={row.id} open={expanded === row.id}>',
-      replace: '<details className="cb-exercise" key={row.id} open={expanded === row.id || ri === 0}>' },
-    { name: 'the day opens on its first move', file: BUILDER,
-      find: '  const [expanded, setExpanded] = React.useState("");\n',
-      replace: '  const [expanded, setExpanded] = React.useState(day.blocks[0]?.rows[0]?.id || "");\n' },
-    { name: 'an open move\'s summary cannot fold it', file: BUILDER,
-      find: 'setExpanded(expanded===row.id?"":row.id);',
-      replace: 'setExpanded(row.id);' },
-    { name: 'a move just added stays folded', file: BUILDER,
-      find: ' if(added.length)setExpanded(added[0].id);',
+      find: "    video && ['▶\uFE0E', 'Has a demo video'],\n",
       replace: '' },
+    // ── Folded, one at a time ────────────────────────────────────────────────────────────
+    // ⚠ REPOINTED BY STEP 2: the fold became one line per move with one open in the detail.
+    { name: 'the first move of each block opens too', file: BUILDER,
+      find: 'selected={!!current && current.key === x.key}',
+      replace: 'selected={!!current && (current.key === x.key || x.ri === 0)}' },
+    { name: 'pressing an open move closes it', file: BUILDER,
+      find: '  const select = (key) => { if (!busy && key !== selKey) setSelKey(key); };',
+      replace: '  const select = (key) => { if (!busy) setSelKey(key === selKey ? "none" : key); };' },
+    { name: 'a move just added is not the one selected', file: BUILDER,
+      find: '    const key = String(rows[0].id);\n    setSelKey(key);\n',
+      replace: '    const key = String(rows[0].id);\n' },
   ],
 };
