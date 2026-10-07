@@ -70,7 +70,7 @@ export async function GET(request: Request) {
   try {
     const supabase = await clientForRequest(request);
     const { data, error } = await supabase
-      .from('exercise_library')
+      .from('exercise_catalog')
       .select('id, name, muscle, equipment, category, demo_url, aliases')
       .limit(ROW_CAP);
     if (error) {

@@ -23,7 +23,7 @@ import { fakeSupabase } from './helpers/fake-supabase.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(ROOT, 'package.json'));
 const DB = require(join(ROOT, 'public/newdesign/dashBuilderCore.js'));
-const SQL = readFileSync(join(ROOT, 'supabase-migrations/2026-10-07-exercise-library.sql'), 'utf8');
+const SQL = readFileSync(join(ROOT, 'supabase-migrations/2026-10-07-exercise-catalog.sql'), 'utf8');
 const names = (list) => list.map((e) => e.name);
 const FALLBACK = DB.libraryFallback();
 const search = (q, opts) => names(DB.searchLibrary(FALLBACK, q, opts));
@@ -84,8 +84,8 @@ test('every seeded move: its id is its slug, its category is allowed, and no nam
 });
 
 test('the migration is re-runnable and keeps the owner\'s demo clips', () => {
-  assert.match(SQL, /create table if not exists public\.exercise_library/);
-  assert.match(SQL, /create unique index if not exists exercise_library_name_lower_uidx\s+on public\.exercise_library \(lower\(name\)\)/);
+  assert.match(SQL, /create table if not exists public\.exercise_catalog/);
+  assert.match(SQL, /create unique index if not exists exercise_catalog_name_lower_uidx\s+on public\.exercise_catalog \(lower\(name\)\)/);
   const upd = SQL.slice(SQL.indexOf('on conflict (id) do update set'));
   assert.ok(upd.length > 0, 'a re-run would fail on the primary key');
   assert.ok(!/demo_url/.test(upd), 'a re-run would wipe the demo clips the owner added');
@@ -193,7 +193,7 @@ async function get(qs, c) {
 const TABLE = SEED.map((s, i) => ({ ...s, demo_url: i === 0 ? 'https://cdn.example/back-squat.mp4' : (i === 1 ? 'http://insecure.example/x.mp4' : null) }));
 
 test('the route ranks the table with the builder\'s own function — one order on both sides', async () => {
-  const c = fakeSupabase({ tables: { exercise_library: TABLE } });
+  const c = fakeSupabase({ tables: { exercise_catalog: TABLE } });
   for (const [qs, q, opts] of [
     ['q=row', 'row', {}],
     ['q=db%20bench&limit=5', 'db bench', { limit: 5 }],
@@ -213,7 +213,7 @@ test('the route ranks the table with the builder\'s own function — one order o
 });
 
 test('the route\'s rows: the seed\'s fields, an https demo clip or none, and a private cache', async () => {
-  const c = fakeSupabase({ tables: { exercise_library: TABLE } });
+  const c = fakeSupabase({ tables: { exercise_catalog: TABLE } });
   const { body, cache } = await get('q=back%20squat&limit=1', c);
   assert.deepEqual(body.exercises[0], {
     id: 'back-squat', name: 'Back squat', muscle: 'Quads', equipment: 'Barbell', category: 'strength',
@@ -228,16 +228,16 @@ test('the route\'s rows: the seed\'s fields, an https demo clip or none, and a p
 });
 
 test('before the migration, with an empty table, or on a failed read, the route serves the built-in moves', async () => {
-  const missing = { from: () => ({ select: () => ({ limit: async () => ({ data: null, error: { code: 'PGRST205', message: "Could not find the table 'public.exercise_library' in the schema cache" } }) }) }) };
+  const missing = { from: () => ({ select: () => ({ limit: async () => ({ data: null, error: { code: 'PGRST205', message: "Could not find the table 'public.exercise_catalog' in the schema cache" } }) }) }) };
   const a = await get('q=rdl', missing);
   assert.deepEqual([a.status, a.body.source, a.body.exercises.map((e) => e.name)], [200, 'builtin', ['Romanian deadlift']]);
   assert.equal(a.warned.length, 0, 'the expected pre-migration state was logged as a fault');
 
-  const empty = await get('q=rdl', fakeSupabase({ tables: { exercise_library: [] } }));
+  const empty = await get('q=rdl', fakeSupabase({ tables: { exercise_catalog: [] } }));
   assert.equal(empty.body.source, 'builtin');
   assert.deepEqual(empty.body.exercises.map((e) => e.name), ['Romanian deadlift']);
 
-  const broken = await get('q=rdl', fakeSupabase({ tables: {}, fail: ['exercise_library'] }));
+  const broken = await get('q=rdl', fakeSupabase({ tables: {}, fail: ['exercise_catalog'] }));
   assert.equal(broken.body.source, 'builtin');
   assert.equal(broken.warned.length, 1, 'a real failure was not logged');
 

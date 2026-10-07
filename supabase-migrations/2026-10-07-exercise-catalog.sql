@@ -35,8 +35,29 @@
 --
 -- Reads are public (the library is not private; the website shipped it in a static file).
 -- There is no write policy: writes are the service role's and this file's.
+--
+-- ===== WHY IT IS NOT CALLED exercise_library =====
+-- That name is taken. 2026-05-08-coach-program-tools.sql made `exercise_library` as a
+-- per-coach table (owner_id, primary_muscles[], equipment[], video_url, coaching cues, an
+-- is_public flag) for coaches' own moves. This file first used the same name; on production
+-- `create table if not exists` saw that table, created nothing, and the seed failed on
+-- `column "muscle" does not exist` (owner, 2026-10-07; the whole run rolled back). The shared
+-- catalog is a different thing from a coach's own moves, so it has its own table and the
+-- May one is left exactly as it is.
+-- ⚠ The guard below turns that silent skip into a clear stop: if a table by this name
+-- already exists in another shape, nothing in this file runs against it.
 
-create table if not exists public.exercise_library (
+do $$
+begin
+  if to_regclass('public.exercise_catalog') is not null and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'exercise_catalog' and column_name = 'aliases'
+  ) then
+    raise exception 'public.exercise_catalog already exists in a different shape; this migration expects (id, name, muscle, equipment, category, demo_url, aliases).';
+  end if;
+end $$;
+
+create table if not exists public.exercise_catalog (
   id text primary key check (id ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   name text not null check (length(btrim(name)) between 1 and 120),
   muscle text not null,
@@ -50,18 +71,18 @@ create table if not exists public.exercise_library (
 );
 
 -- One move per name, whatever its case.
-create unique index if not exists exercise_library_name_lower_uidx
-  on public.exercise_library (lower(name));
+create unique index if not exists exercise_catalog_name_lower_uidx
+  on public.exercise_catalog (lower(name));
 
-alter table public.exercise_library enable row level security;
+alter table public.exercise_catalog enable row level security;
 
-drop policy if exists "exercise library is public" on public.exercise_library;
-create policy "exercise library is public"
-  on public.exercise_library for select
+drop policy if exists "exercise catalog is public" on public.exercise_catalog;
+create policy "exercise catalog is public"
+  on public.exercise_catalog for select
   to anon, authenticated
   using (true);
 
-insert into public.exercise_library (id, name, muscle, equipment, category, aliases) values
+insert into public.exercise_catalog (id, name, muscle, equipment, category, aliases) values
   ('back-squat', 'Back squat', 'Quads', 'Barbell', 'strength', array['Squat', 'Barbell squat', 'High-bar squat', 'Low-bar squat']::text[]),  -- the 75 built-in moves (dashBuilderCore.js EXERCISES), in their own order
   ('front-squat', 'Front squat', 'Quads', 'Barbell', 'strength', '{}'::text[]),
   ('goblet-squat', 'Goblet squat', 'Quads', 'Dumbbell', 'strength', array['KB goblet squat']::text[]),

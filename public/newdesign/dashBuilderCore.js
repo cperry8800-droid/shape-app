@@ -101,7 +101,7 @@
   }
 
   // ── The exercise library as data (2026-10-07, owner-approved "Build faster") ─
-  // The table `exercise_library` (supabase-migrations/2026-10-07-exercise-library.sql)
+  // The table `exercise_catalog` (supabase-migrations/2026-10-07-exercise-catalog.sql)
   // holds ~200 moves with aliases and a category, read through GET /api/exercises.
   // `searchLibrary` is the ONE ranking: the route imports this file and calls it, and the
   // builder's type-ahead will call the same function over the list it fetched, so a query
