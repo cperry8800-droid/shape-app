@@ -229,6 +229,7 @@ test('time off POST says how many booked sessions the new block already covers, 
   const c = db({ tables: coach(NY, { sessions: [
     s('in', '2030-10-14T14:00:00+00:00'),
     s('runs-in', '2030-10-14T03:30:00+00:00'), // starts before the block, ends inside it
+    s('ended-before', '2030-10-13T20:00:00+00:00'), // read (the day before), but over before it starts
     s('cancelled', '2030-10-14T15:00:00+00:00', { status: 'cancelled' }),
     s('after', '2030-10-15T14:00:00+00:00'),
     s('other-coach', '2030-10-14T14:00:00+00:00', { provider_id: 8 }),
