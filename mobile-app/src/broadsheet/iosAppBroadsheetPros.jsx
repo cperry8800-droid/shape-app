@@ -6150,7 +6150,10 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
   if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Assign a catalogue plan to a linked client ──
-  if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} preferClientUid={assignPrefer && assignPlan.id && assignPrefer.planId === assignPlan.id ? assignPrefer.clientId : null} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:plans.assignedTrain', { defaultValue: "Assigned — it's on their Train tab" })); }} />;
+  // The Nora client is a one-time hint: the first Assign for that plan uses it, and
+  // leaving that Assign (back or done) clears it, so a later Assign of the same
+  // reusable plan starts with nobody picked (Codex, #2243).
+  if (assignPlan) return <BSProAssignPage role="trainer" plan={assignPlan} preferClientUid={assignPrefer && assignPlan.id && assignPrefer.planId === assignPlan.id ? assignPrefer.clientId : null} onBack={() => { setAssignPrefer(null); setAssignPlan(null); }} onDone={() => { setAssignPrefer(null); setAssignPlan(null); flash(tr('coach:plans.assignedTrain', { defaultValue: "Assigned — it's on their Train tab" })); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
   // `loadCapture` is TRAINING-ONLY. The guardrail's universe is training load

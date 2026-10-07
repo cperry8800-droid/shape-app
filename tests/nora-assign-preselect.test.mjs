@@ -45,3 +45,10 @@ test('4 · Assign picks the client only from the coach\'s own roster, once, and 
   assert.equal(run('b', null, null), null, 'nothing before the roster loads');
   assert.equal(run(null, null, roster), null);
 });
+
+test('5 · the hint is used once: leaving that Assign, back or done, clears it', () => {
+  const progs = PROS.slice(PROS.indexOf('function BSTrainerPrograms('));
+  const line = progs.split('\n').find((l) => l.includes('<BSProAssignPage role="trainer"'));
+  assert.ok(line.includes('onBack={() => { setAssignPrefer(null); setAssignPlan(null); }}'));
+  assert.ok(line.includes('onDone={() => { setAssignPrefer(null); setAssignPlan(null);'));
+});
