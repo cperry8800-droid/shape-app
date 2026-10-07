@@ -515,6 +515,8 @@ test('draft_workout · a multi-week program for a client is SAVED for the builde
   assert.equal(p.preview.open.clientId, 'client-9');
   assert.ok(p.preview.diff.some((d) => d.label === 'Weeks' && /deload week 4/.test(d.after)));
   assert.equal(plan.confirmedPayload.spec.days.length, 3, 'the token carries one week, not six');
+  assert.ok(!p.preview.diff.some((d) => d.label === 'Why saved'), 'saved by rule, not because an assignment happened to span weeks');
+  assert.ok(!ctx.supabase._calls.reads.some((r) => r.table === 'trainers'), 'no assignment was ever on the table');
 });
 
 test('draft_workout · a one-week program from a Monday is ONE publish; from mid-week it would be two, so it is saved', async () => {
