@@ -919,7 +919,11 @@ function dbuStepTarget(day, key, dir) {
 // pointer above a label's midpoint drops at the END of the block before it — which is
 // what makes an EMPTY block, a label and nothing else, a place a row can be dropped.
 // `y` is where the insertion line goes, relative to the list.
-function dbuDropTarget(list, key, clientY) {
+// ⚠ WITH `pair`, A ROW'S MIDDLE IS A SUPERSET TARGET (Builder step 4, "superset by drop"): over
+// the middle 40% of another move the answer is { pair: its key, y, h }, and only the top and
+// bottom 30% still mean "before" and "after". A line is a short target, so the bands are
+// generous to the move and the pair both.
+function dbuDropTarget(list, key, clientY, pair = false) {
   if (!list) return null;
   const top = list.getBoundingClientRect().top;
   let bi = 0, k = 0, edge = null;
@@ -931,10 +935,48 @@ function dbuDropTarget(list, key, clientY) {
       continue;
     }
     if (el.getAttribute("data-rk") === key) continue;
+    if (pair && clientY >= r.top + r.height * 0.3 && clientY <= r.bottom - r.height * 0.3) {
+      return { pair: el.getAttribute("data-rk"), bi, y: r.top - top, h: r.height };
+    }
     if (clientY < mid) return { bi, index: k, y: r.top - top };
     k += 1; edge = r.bottom;
   }
   return edge == null ? null : { bi, index: k, y: edge - top };
+}
+// Drop one move onto another: they become a superset. The pair takes the target's letter
+// (joining its superset when it already has one), else the first of A–D the day is not using.
+// The dropped move lands right after the target's group in the target's block, so the pair
+// reads A1, A2 down the list. A superset the dropped move leaves with only one move in it is
+// undone, as "Superset with next" does. `error` when no letter is free.
+function dbuPairByDrop(day, key, targetKey) {
+  if (!key || key === targetKey) return { day };
+  const blocks = day.blocks || [];
+  let src = null, dst = null;
+  blocks.forEach((b, bi) => (b.rows || []).forEach((r, ri) => {
+    const k = dbuRowKey(r, bi, ri);
+    if (k === key) src = { bi, ri, row: r };
+    if (k === targetKey) dst = { bi, ri, row: r };
+  }));
+  if (!src || !dst) return { day };
+  const all = blocks.flatMap((b) => b.rows || []);
+  const tg = dbuGroupOf(dst.row);
+  const used = new Set(all.filter((r) => r !== src.row && r !== dst.row).map(dbuGroupOf).filter(Boolean));
+  const letter = tg || ["A", "B", "C", "D"].find((l) => !used.has(l));
+  if (!letter) return { day, error: "All four superset letters (A–D) are in use on this day." };
+  const sg = dbuGroupOf(src.row);
+  const stay = sg && sg !== letter ? all.filter((r) => r !== src.row && dbuGroupOf(r) === sg) : [];
+  const orphan = stay.length === 1 ? stay[0] : null;
+  const moved = { ...src.row, group: letter };
+  const next = blocks.map((b, bi) => {
+    let rows = (b.rows || []).filter((r) => r !== src.row).map((r) => (r === orphan ? { ...r, group: null } : r === dst.row ? { ...r, group: letter } : r));
+    if (bi === dst.bi) {
+      let at = (b.rows || []).filter((r) => r !== src.row).indexOf(dst.row);
+      while (at + 1 < rows.length && dbuGroupOf(rows[at + 1]) === letter) at += 1;
+      rows = [...rows.slice(0, at + 1), moved, ...rows.slice(at + 1)];
+    }
+    return { ...b, rows };
+  });
+  return { day: { ...day, blocks: next }, letter };
 }
 // "Superset with next": pair this move with the one after it IN ITS BLOCK. They take the
 // letter either already carries, or the first of A–D the day is not using — the same four
@@ -1420,20 +1462,33 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
     onPointerMove: (e) => {
       const d = dragRef.current;
       if (!d || d.id !== e.pointerId || d.cancelled) return;
-      d.to = dbuDropTarget(listRef.current, d.key, e.clientY);
-      setDrag({ key: d.key, dy: e.clientY - d.y0, line: d.to ? d.to.y : null });
+      d.to = dbuDropTarget(listRef.current, d.key, e.clientY, true);
+      const onto = d.to && d.to.pair ? flat.find((f) => f.key === d.to.pair) : null;
+      setDrag({ key: d.key, dy: e.clientY - d.y0, line: d.to && !d.to.pair ? d.to.y : null,
+        pair: onto ? { y: d.to.y, h: d.to.h, name: String(onto.row.name || "").trim() || "this move" } : null });
     },
     onPointerUp: (e) => {
       const d = dragRef.current;
       if (!d || d.id !== e.pointerId) return;
       endDrag();
       dbuRelease(e, e.pointerId);
-      if (d.to && !d.cancelled) move(d.key, d.to);
+      if (!d.to || d.cancelled) return;
+      if (d.to.pair) pairOnto(d.key, d.to.pair); else move(d.key, d.to);
     },
     onPointerCancel: (e) => { const d = dragRef.current; if (d && d.id === e.pointerId) endDrag(); },
     onLostPointerCapture: (e) => { const d = dragRef.current; if (d && d.id === e.pointerId) endDrag(); },
   });
 
+  // Superset by drop: the dragged move pairs with the one it was let go on.
+  const pairOnto = (key, targetKey) => {
+    const out = dbuPairByDrop(day, key, targetKey);
+    if (out.error) { setSay(out.error); return; }
+    if (out.day === day) return;
+    onChange(out.day);
+    const a = flat.find((f) => f.key === key), b = flat.find((f) => f.key === targetKey);
+    const nm = (x) => String((x && x.row.name) || "").trim() || "The exercise";
+    setSay(nm(a) + " and " + nm(b) + " are superset " + out.letter + ".");
+  };
   const duplicate = (x) => {
     setBlock(x.bi, { ...blocks[x.bi], rows: [...blocks[x.bi].rows.slice(0, x.ri + 1), { ...JSON.parse(JSON.stringify(x.row)), id: crypto.randomUUID() }, ...blocks[x.bi].rows.slice(x.ri + 1)] });
     setSay((String(x.row.name || "").trim() || "The exercise") + " duplicated.");
@@ -1514,6 +1569,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
               );
             })}
             {drag && drag.line != null && <div className="dline" style={{ top: drag.line }} aria-hidden="true" />}
+            {drag && drag.pair && <div className="dpair" style={{ top: drag.pair.y, height: drag.pair.h }} aria-hidden="true"><span>Superset with {drag.pair.name}</span></div>}
             <DbuQuickAdd customMoves={customMoves} inputRef={addRef} blockLabel={dbuKindLabel((blocks[curBi] || { kind: "main" }).kind)}
               onAdd={(ex) => addRows(curBi, [DashBuilder.newRow(ex)], true)} />
           </div>
@@ -2668,6 +2724,8 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
  .dbu2 .dr .dcells{display:contents}
 }
 .dbu2 .dline{position:absolute;left:8px;right:8px;height:2px;margin-top:-1px;border-radius:2px;background:${DBU_TEAL};pointer-events:none;z-index:4}
+.dbu2 .dpair{position:absolute;left:4px;right:4px;box-sizing:border-box;border:2px solid ${DBU_TEAL};border-radius:6px;pointer-events:none;z-index:4}
+.dbu2 .dpair span{position:absolute;right:8px;top:-10px;padding:1px 6px;border-radius:3px;background:${DBU_TEALBG};color:${DBU_TEAL};border:1px solid ${DBU_TEAL};font:700 9px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;max-width:80%;overflow:hidden;text-overflow:ellipsis}
 .dbu2 .dline::before{content:"";position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:${DBU_TEAL}}
 /* Type to add: the list's last line. */
 .dbu2 .dqa{position:relative;display:flex;align-items:center;gap:10px;padding:6px 10px 6px 8px;border-top:1px solid ${DBU_LINE}}

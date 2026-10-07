@@ -40,8 +40,8 @@ const nd = (f) => fileURLToPath(new URL('../public/newdesign/' + f, import.meta.
 const SRC = nd('dashBuilder.jsx');
 Object.assign(globalThis, await loadRealModule(nd('dashFilterBar.jsx'), { appendExports: 'export {useDfbPopShift};' }));
 const {
-  DbuBuilder, dbuMoveRow, dbuStepTarget, dbuDropTarget, dbuPairState, dbuTogglePair, dbuRankMoves, dbuFlatRows,
-} = await loadRealModule(SRC, { appendExports: 'export { DbuBuilder, dbuMoveRow, dbuStepTarget, dbuDropTarget, dbuPairState, dbuTogglePair, dbuRankMoves, dbuFlatRows };' });
+  DbuBuilder, dbuMoveRow, dbuStepTarget, dbuDropTarget, dbuPairState, dbuTogglePair, dbuRankMoves, dbuFlatRows, dbuPairByDrop,
+} = await loadRealModule(SRC, { appendExports: 'export { DbuBuilder, dbuMoveRow, dbuStepTarget, dbuDropTarget, dbuPairState, dbuTogglePair, dbuRankMoves, dbuFlatRows, dbuPairByDrop };' });
 
 // ── Harness ─────────────────────────────────────────────────────────────────
 let root;
@@ -165,6 +165,48 @@ test('the drop target reads the rows as drawn: midpoints split, a label opens it
   assert.deepEqual(at('b', 150), [1, 0, 160], 'the row being dragged is not counted: the line goes above the next one');
   assert.deepEqual(at('b', 230), [2, 0, 240], 'below the last label: into that block, empty or not');
   assert.equal(dbuDropTarget(null, 'a', 0), null);
+});
+
+test('with pairing on, a row\'s middle is a superset target and its edges still mean before and after', () => {
+  // [label 0][a][label 1][b][c] — each 40px from 0; a row's middle 40% is the pair band.
+  const els = [['bk', 0], ['rk', 'a'], ['bk', 1], ['rk', 'b'], ['rk', 'c']].map(([k, v], i) => ({
+    hasAttribute: (n) => n === 'data-' + k,
+    getAttribute: (n) => (n === 'data-' + k ? String(v) : null),
+    getBoundingClientRect: () => ({ top: 100 + i * 40, bottom: 140 + i * 40, height: 40 }),
+  }));
+  const list = { getBoundingClientRect: () => ({ top: 100 }), querySelectorAll: () => els };
+  // Row b spans 120–160 (relative): 120–132 before it, 132–148 pair, 148–160 after it.
+  assert.deepEqual(dbuDropTarget(list, 'c', 100 + 140, true), { pair: 'b', bi: 1, y: 120, h: 40 });
+  assert.deepEqual(dbuDropTarget(list, 'c', 100 + 125, true), { bi: 1, index: 0, y: 120 });
+  assert.equal(dbuDropTarget(list, 'c', 100 + 155, true).pair, undefined);
+  assert.equal(dbuDropTarget(list, 'b', 100 + 140, true).pair, undefined, 'a move is never its own pair');
+  assert.equal(dbuDropTarget(list, 'c', 100 + 140).pair, undefined, 'without pairing the middle is a midpoint, as before');
+});
+
+test('dropping a move onto another makes a superset: a free letter, or the target\'s, right after its group', () => {
+  const groups = (x) => x.blocks.map((b) => b.rows.map((r) => r.id + (r.group || '')).join(' '));
+  const d = { blocks: [
+    { kind: 'main', rows: [{ id: 'a', group: 'A' }, { id: 'b', group: 'A' }, { id: 'c' }, { id: 'd' }] },
+    { kind: 'accessory', rows: [{ id: 'e' }, { id: 'f', group: 'C' }, { id: 'g', group: 'C' }] },
+  ] };
+  // d onto c: neither has a letter; A and C are used, so B. d lands right after c.
+  let r = dbuPairByDrop(d, 'd', 'c');
+  assert.equal(r.letter, 'B');
+  assert.deepEqual(groups(r.day), ['aA bA cB dB', 'e fC gC']);
+  // e onto a: joins A, placed after the last of A, and leaves its own block.
+  r = dbuPairByDrop(d, 'e', 'a');
+  assert.deepEqual(groups(r.day), ['aA bA eA c d', 'fC gC']);
+  // g onto c: g leaves C, and f, left alone in C, is no superset any more.
+  r = dbuPairByDrop(d, 'g', 'c');
+  assert.deepEqual(groups(r.day), ['aA bA cB gB d', 'e f']);
+  // Onto itself, or an unknown move: nothing changes.
+  assert.equal(dbuPairByDrop(d, 'c', 'c').day, d);
+  assert.equal(dbuPairByDrop(d, 'c', 'zzz').day, d);
+  // All four letters in use: refused, with a reason.
+  const full = { blocks: [{ kind: 'main', rows: ['A', 'A', 'B', 'B', 'C', 'C', 'D', 'D'].map((g, i) => ({ id: 'r' + i, group: g })).concat([{ id: 'x' }, { id: 'y' }]) }] };
+  const no = dbuPairByDrop(full, 'y', 'x');
+  assert.equal(no.day, full);
+  assert.match(no.error, /All four superset letters/);
 });
 
 test('superset with next takes a free letter, and unpairing leaves no superset of one', () => {
@@ -439,6 +481,30 @@ test('dragging the handle moves a line between blocks, into an empty one too, an
     await pointer(squat(), 'pointermove', { pointerId: 2, clientY: 270 });
     await pointer(squat(), 'pointerup', { pointerId: 2, clientY: 270 });
     assert.deepEqual(shape(await savedDay(writes)), ['warmup:r-front,r-hip', 'main:r-bench', 'accessory:r-squat']);
+  } finally { restore(); }
+});
+
+test('dropping a line on the middle of another makes them a superset, and the target says so while dragging', async () => {
+  const restore = drawRows();
+  try {
+    const writes = await mount();
+    // [0 warmup][40 hip][80 main][120 squat][160 bench][200 front][240 accessory]
+    const handle = () => line('Front squat').querySelector('.rh');
+    await pointer(handle(), 'pointerdown', { pointerId: 1, clientY: 220 });
+    await pointer(handle(), 'pointermove', { pointerId: 1, clientY: 140 });   // the middle of Back squat
+    const box = document.querySelector('.dpair');
+    assert.ok(box, 'no superset target while over the middle of a line');
+    assert.equal(box.textContent, 'Superset with Back squat');
+    assert.ok(!document.querySelector('.dline'), 'an insertion line beside the superset target');
+    await pointer(handle(), 'pointerup', { pointerId: 1, clientY: 140 });
+    assert.ok(!document.querySelector('.dpair'));
+    const saved = await savedDay(writes);
+    assert.deepEqual(shape(saved), ['warmup:r-hip', 'main:r-squat,r-front,r-bench', 'accessory:']);
+    const main = saved.blocks.find((b) => b.kind === 'main').rows;
+    assert.equal(main[0].group, main[1].group);
+    assert.ok(main[0].group, 'the pair has no letter');
+    assert.ok(!main[2].group, 'the move after the pair was pulled into it');
+    assert.equal(said(), 'Front squat and Back squat are superset ' + main[0].group + '.');
   } finally { restore(); }
 });
 
