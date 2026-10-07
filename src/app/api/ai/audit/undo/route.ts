@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   const res = await undoChange({
     registry: serverRegistry,
     auditId,
-    actor: { id: actor.user.id, role: actor.role },
+    actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
     ctx: makeCtx(actor, request),
     audit: auditSink(actor.supabase),
   });

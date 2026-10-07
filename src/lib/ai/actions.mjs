@@ -323,6 +323,9 @@ function programsUrl(planId, clientId) {
 export const draftWorkoutAction = {
   name: 'draft_workout',
   roles: ['trainer'],
+  // A dual-role account that also trains may draft (owner, 2026-10-07): this action
+  // saves to the account's own trainers listing and branches on no role afterwards.
+  heldRoles: true,
   source: 'nora',
   async buildPreview(ctx, input) {
     input = input || {};

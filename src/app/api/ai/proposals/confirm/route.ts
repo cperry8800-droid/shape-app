@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const res = await confirmChange({
     registry: serverRegistry,
     token,
-    actor: { id: actor.user.id, role: actor.role },
+    actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
     ctx: makeCtx(actor, request),
     secret,
     audit: auditSink(actor.supabase),

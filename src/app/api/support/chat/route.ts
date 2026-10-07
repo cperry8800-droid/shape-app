@@ -559,7 +559,7 @@ type ReadCtx = { sb: Actor['supabase']; uid: string; now: Date; isCoach: boolean
 
 // The per-request context a direct memory tool runs with (member-verified).
 type MemoryCtx = {
-  actor: { id: string; role: string };
+  actor: { id: string; role: string; roles?: string[] };
   supabase: Actor['supabase'];
   audit: ReturnType<typeof auditSink>;
   isMember: true;
@@ -891,7 +891,7 @@ function makePropose(actor: Actor | null, request: Request, isMember: boolean, d
       registry: serverRegistry,
       action: name,
       input: args,
-      actor: { id: actor.user.id, role: actor.role },
+      actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
       ctx: { ...makeCtx(actor, request), isMember, draftModel },
       secret,
     });
@@ -1163,12 +1163,13 @@ export async function POST(request: Request) {
       const isCoach = !!(membership.isCoach || membership.isAdmin);
       reads = { sb: actor.supabase, uid: actor.user.id, now: new Date(), isCoach };
       if (isCoach) coachTools = COACH_TOOLS;
-      // ⚠ THE ROLE THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
-      // is `roles: ['trainer']` against the actor's role, so offering it to anyone else
-      // would hand the model a tool that can only answer role_not_allowed.
-      if (actor.role === 'trainer' && !noCards) { trainerTools = TRAINER_TOOLS; zone = await trainerZone(actor.supabase, actor.user.id); }
+      // ⚠ THE ROLES THE REGISTRY GATES ON, not membership's coach verdict: draft_workout
+      // is `roles: ['trainer']`, checked against the actor's every role (primary plus
+      // profiles.roles[]), so a dual-role account that also trains drafts too, and
+      // offering it to anyone else would hand the model a tool that answers role_not_allowed.
+      if ((actor.role === 'trainer' || (actor.roles || []).includes('trainer')) && !noCards) { trainerTools = TRAINER_TOOLS; zone = await trainerZone(actor.supabase, actor.user.id); }
       memoryCtx = {
-        actor: { id: actor.user.id, role: actor.role },
+        actor: { id: actor.user.id, role: actor.role, roles: actor.roles },
         supabase: actor.supabase,
         audit: auditSink(actor.supabase),
         isMember: true,
