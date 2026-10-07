@@ -160,7 +160,8 @@ test('the Wall is NOT a segment — it is the activity sub-tab', () => {
   const line = bare.split('\n').find((l) => l.includes('.map(([k, l, b])'));
   assert.ok(line, 'the pill row was not found — has it been restructured?');
   const keys = [...line.matchAll(/\['([a-z]+)', tr\('feed:tab\./g)].map((m) => m[1]);
-  assert.deepEqual(keys, ['feed', 'teams', 'channels', 'support'],
+  // Support left the row on 2026-10-07 (#2245): Nora is the ✦ sheet in every header now.
+  assert.deepEqual(keys, ['feed', 'teams', 'channels'],
     'the Wall must not be a segment of its own — it IS the activity feed');
   // The grid's column count tracks the pill count, or the last pill is clipped
   // off a 375px phone.

@@ -1110,6 +1110,14 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
+  // Nora's sheet (the header ✦, option D) — the client module's BSNoraSheet,
+  // read off window at render time like the other shared surfaces.
+  const [showNoraSheet, setShowNoraSheet] = useStateBSP(false);
+  useEffectBSP(() => {
+    const open = () => { setShowSearch(false); setShowNoraSheet(true); };
+    window.addEventListener('shape:openNora', open);
+    return () => window.removeEventListener('shape:openNora', open);
+  }, []);
   useEffectBSP(() => {
     const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
@@ -1121,6 +1129,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      // Nora is a sheet over the screen you are on (option D), not a Chat segment.
+      if (d.support) { setShowSearch(false); setShowSettings(false); setShowNoraSheet(true); return; }
       navJumpRef.current.navPush();
       setShowSearch(false);
       // Settings is a full-screen overlay above the tabs; a conversation opened from
@@ -1337,7 +1347,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   ) : null;
   // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
   // leaves its flag set, so that branch returns before the main render.
-  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}</>);
+  const noraSheet = showNoraSheet && typeof window !== 'undefined' && window.BSNoraSheet
+    ? React.createElement(window.BSNoraSheet, { onClose: () => setShowNoraSheet(false) }) : null;
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}{noraSheet}</>);
   if (showSoundtracks) return takeover(<BSProSoundtracks role="trainer" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
   if (showCalendar) return takeover(<BSCalendarScreen role="trainer" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
   if (showReviews) return takeover(<BSWorkoutReviewPage role="trainer" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
@@ -1373,6 +1385,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       ]} />
       <BSRadioPrompt />
       {settingsOverlay}
+      {noraSheet}
       {searchOverlay}
       {showTour && <BSProOnboardingTour role="trainer" plansKey="programs" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>
@@ -6716,6 +6729,14 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [showTour, setShowTour] = useStateBSP(false);
   // Universal search — the ⌕ in the header opens it (shared client component).
   const [showSearch, setShowSearch] = useStateBSP(false);
+  // Nora's sheet (the header ✦, option D) — the client module's BSNoraSheet,
+  // read off window at render time like the other shared surfaces.
+  const [showNoraSheet, setShowNoraSheet] = useStateBSP(false);
+  useEffectBSP(() => {
+    const open = () => { setShowSearch(false); setShowNoraSheet(true); };
+    window.addEventListener('shape:openNora', open);
+    return () => window.removeEventListener('shape:openNora', open);
+  }, []);
   useEffectBSP(() => {
     const open = () => { navJumpRef.current.navPush(); setShowSearch(true); };
     window.addEventListener('shape:openSearch', open);
@@ -6727,6 +6748,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const open = (e) => {
       const d = (e && e.detail) || {};
       if (!d.conversationId && !d.channel && !d.support) return;
+      // Nora is a sheet over the screen you are on (option D), not a Chat segment.
+      if (d.support) { setShowSearch(false); setShowSettings(false); setShowNoraSheet(true); return; }
       navJumpRef.current.navPush();
       setShowSearch(false);
       // Settings is a full-screen overlay above the tabs; a conversation opened from
@@ -6901,7 +6924,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   ) : null;
   // Every takeover renders BOTH overlays: opening Settings from (say) the calendar
   // leaves its flag set, so that branch returns before the main render.
-  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}</>);
+  const noraSheet = showNoraSheet && typeof window !== 'undefined' && window.BSNoraSheet
+    ? React.createElement(window.BSNoraSheet, { onClose: () => setShowNoraSheet(false) }) : null;
+  const takeover = (el) => (<>{el}{settingsOverlay}{searchOverlay}{noraSheet}</>);
   if (showSoundtracks) return takeover(<BSProSoundtracks role="nutritionist" onBack={() => { if (!navBack()) setShowSoundtracks(false); }} />);
   if (showCalendar) return takeover(<BSCalendarScreen role="nutritionist" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />);
   if (showReviews) return takeover(<BSWorkoutReviewPage role="nutritionist" onBack={() => { if (!navBack()) setShowReviews(false); }} />);
@@ -6936,6 +6961,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       ]} />
       <BSRadioPrompt />
       {settingsOverlay}
+      {noraSheet}
       {searchOverlay}
       {showTour && <BSProOnboardingTour role="nutritionist" plansKey="plans" onNavigate={setTab} onClose={() => setShowTour(false)} />}
     </div>

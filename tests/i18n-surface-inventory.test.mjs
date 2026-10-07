@@ -813,7 +813,10 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // string, its "✦ Ask Nora" button (the Ask Nora review, 2026-10-07). Every other
   // line of that page is English already, and giving it a translator would move it
   // to PARTIAL over one button; it is translated with the rest of the page or not at all.
-  assert.equal(noneStrings, 727, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
+  // ⚠ AND noneStrings 727 -> 728, none.length UNCHANGED: BSSearchCorner gained the
+  // ✦'s aria-label, "Ask Nora" (option D, 2026-10-07), beside its own hardcoded
+  // "Search Shape". The corner has no translator; it is translated with ⌕ or not at all.
+  assert.equal(noneStrings, 728, 'the untranslated surfaces changed how much they hardcode — update the number AND docs/WORKLOG.md');
   assert.equal(part.length, 36, 'partial-surface count moved — regenerate PARTIAL and the record');
   assert.equal(none.length, 88, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
