@@ -19,6 +19,9 @@ import {
   cleanBrief, generateDraft, expandDraft, summarizeDraft, moveLine, dayLabel, readCoachLoadUnit, readClientContext,
   draftSessions, sessionWeeks, isoDateOrEmpty, clipText, TEMPLATE_NOTICE,
 } from './workoutDraft.mjs';
+// The chat route's no-model path reads a trainer's request with this (it imports Nora's
+// actions, never the draft core directly).
+export { briefFromText as draftBriefFromText } from './workoutDraft.mjs';
 
 // NC1 — compute the scope disclaimer for an individualized nutrition action so
 // Nora's confirm card states it up front (the endpoint is the authoritative gate).

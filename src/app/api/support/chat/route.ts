@@ -38,6 +38,12 @@
 // is private), and recommend_coaches over the LIVE trainers / nutritionists
 // rows (public-read tables), merged with the example directory on the website
 // only, the way the website's marketplace lists them.
+//
+// DRAFTING (2026-10-07): a TRAINER can just ask Nora to build a session or a
+// program. draft_workout (offered to the trainer role only) drafts real builder
+// rows through src/lib/ai/workoutDraft.mjs — the core /api/ai/draft-workout shares
+// — into a confirm card whose signed token carries those rows. With no model at
+// all, a trainer's build request still gets the card, as a labelled template.
 
 import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
@@ -54,7 +60,7 @@ import { resolveActor, makeCtx, serverRegistry, proposalSecret, casWriteUserGoal
 import { toneInstruction } from '@/lib/ai/tone.mjs';
 import { formatMemberContext, UNAVAILABLE_NOTE } from '@/lib/ai/memberContext.mjs';
 import { formatCookContext, COOK_CONTEXT_HEADER } from '@/lib/ai/cookContext.mjs';
-import { rememberMemoryTool, forgetMemoryTool } from '@/lib/ai/actions.mjs';
+import { rememberMemoryTool, forgetMemoryTool, draftBriefFromText } from '@/lib/ai/actions.mjs';
 import { computeMembership } from '@/lib/membership-core';
 import { searchFoodsServer } from '@/lib/food-search-server';
 import { plainText } from '@/lib/ai/replyText.mjs';
@@ -979,6 +985,8 @@ async function askOpenAI(
   return null;
 }
 
+const TEMPLATE_FALLBACK_REPLY = "AI drafting is unavailable right now, so here is a template from Shape's exercise library to start from. Review it below — nothing is saved until you confirm, and you can edit it and assign it from the builder.";
+
 // Rule-based first responder for when the model is unset/down. Still returns
 // coach actions for coach questions so the experience degrades gracefully.
 // INVARIANT (spec #1652): this takes the user's text and the PUBLIC marketplace
@@ -1141,6 +1149,20 @@ export async function POST(request: Request) {
   // Major + adversarial review PR #1805).
   if (cookMsg) {
     return NextResponse.json({ reply: '', source: 'cook_unavailable', actions: [] });
+  }
+
+  // ⚠ NO MODEL, STILL A STARTING POINT FOR A TRAINER. The rule-based reply below cannot
+  // call a tool, so "build me a lower-body session" from a trainer was answered "passed
+  // to the Shape team". A build request now gets the draft card with no model behind it
+  // — the labelled template, saved only to their own library on confirm (the request is
+  // read for weeks, days and minutes, never for a client or a date). Anything else, and
+  // anyone else, gets the reply it always did.
+  if (trainerTools.length) {
+    const brief = draftBriefFromText(String(lastUser.content || ''));
+    const drafted = brief ? await makePropose(actor, request, isMember, null)('draft_workout', brief).catch(() => null) : null;
+    if (drafted && drafted.actions.length) {
+      return NextResponse.json({ reply: TEMPLATE_FALLBACK_REPLY, source: 'fallback', actions: drafted.actions });
+    }
   }
 
   const fb = await fallbackReply(String(lastUser.content || ''), coach);

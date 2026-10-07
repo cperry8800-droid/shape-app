@@ -22,6 +22,7 @@
 // the draft is built from the builder's own exercise library and says so
 // (`source: 'template'`, TEMPLATE_NOTICE) on every surface that shows it.
 
+import { randomBytes } from 'node:crypto';
 import { normalizeWorkoutDetail, loadLabel, repsLabel, BLOCK_KINDS, builderToAssignmentRows } from '../../../public/newdesign/workoutDocument.mjs';
 import { bsWeekStartOf } from '../week-merge.mjs';
 
@@ -339,6 +340,11 @@ export function sanitizeDraft(raw, brief) {
  */
 export function expandDraft(spec) {
   if (!spec || !Array.isArray(spec.days) || !spec.days.length) throw new Error('Nothing to build.');
+  // ⚠ IDS ARE PER DRAFT, NOT PER POSITION ALONE. Two drafts merged into one program (the
+  // builder appending a second "Draft with AI" into a day) would otherwise both carry
+  // `ai-w1-d1-r1`, and the builder keys rows by id. The prefix is minted once, in
+  // `generateDraft`, and travels in the spec, so a spec still always builds the same document.
+  const pre = typeof spec.idPrefix === 'string' && /^[a-z0-9]{1,16}$/.test(spec.idPrefix) ? `ai-${spec.idPrefix}` : 'ai';
   const weeks = spec.kind === 'day' ? 1 : clamp(intOf(spec.weeks) || 1, 1, DRAFT_LIMITS.weeks);
   const deload = new Set((spec.progression && spec.progression.deloadWeeks) || []);
   const step = (spec.progression && spec.progression.rpeStep) || 0;
@@ -350,7 +356,7 @@ export function expandDraft(spec) {
     const days = spec.days.map((d, di) => {
       let n = 0;
       return {
-        id: `ai-w${w}-d${di + 1}`,
+        id: `${pre}-w${w}-d${di + 1}`,
         name: d.name,
         ...(d.weekday != null ? { weekday: d.weekday } : {}),
         playlist: null,
@@ -361,7 +367,7 @@ export function expandDraft(spec) {
             const base = Number(r.rpe) > 0 ? Number(r.rpe) : null;
             const rpe = base == null ? '' : isDeload ? Math.max(1, base - 1) : Math.min(10, halfPoint(base + step * build));
             return {
-              id: `ai-w${w}-d${di + 1}-r${n}`,
+              id: `${pre}-w${w}-d${di + 1}-r${n}`,
               name: r.name, muscle: r.muscle || '', equipment: r.equipment || '',
               sets: isDeload ? Math.max(1, Math.round(r.sets * 0.6)) : r.sets,
               reps: r.reps, loadType: r.loadType, load: r.load, rpe,
@@ -727,11 +733,40 @@ export async function generateDraft(brief, { callModel = null, signal, timeoutMs
       const raw = parseJson(outputText(res.data));
       const spec = sanitizeDraft(raw, b);
       if (spec && spec.offTopic) return { ok: false, error: 'off_topic', message: OFF_TOPIC_MESSAGE };
-      if (spec) return { ok: true, source: 'ai', spec };
+      if (spec) return { ok: true, source: 'ai', spec: { ...spec, idPrefix: mintPrefix() } };
     }
   }
   if (!looksLikeTraining(b.request)) return { ok: false, error: 'off_topic', message: OFF_TOPIC_MESSAGE };
-  return { ok: true, source: 'template', spec: sanitizeDraft(templateDraft(b), b) };
+  return { ok: true, source: 'template', spec: { ...sanitizeDraft(templateDraft(b), b), idPrefix: mintPrefix() } };
+}
+const mintPrefix = () => randomBytes(4).toString('hex');
+
+// ── a trainer's own words, when there is no model to read them ──────────────────
+// Nora's rule-based fallback (no key, or the chat model down) cannot call a tool, so a
+// trainer asking her to build a session was told it had been passed to the Shape team.
+// This reads only what is safe to read without a model — that it IS a build request,
+// one session or a program, and the numbers stated next to weeks, days a week and
+// minutes. ⚠ IT NEVER READS A CLIENT OR A DATE: "for Priya on Monday" needs the roster
+// and the calendar, and a guess there is the one thing drafting must not do, so the
+// fallback card only ever saves to the trainer's own library.
+const BUILD_VERB = /\b(build|make|create|write|draft|design|program|put together|plan out|whip up)\b/i;
+const QUESTION = /^\s*(how|where|what|why|when|who|which|can i|do i|does|is there|are there)\b/i;
+export function briefFromText(text) {
+  const s = clipText(text, DRAFT_LIMITS.requestChars);
+  if (!s || QUESTION.test(s) || !BUILD_VERB.test(s) || !looksLikeTraining(s)) return null;
+  const lower = s.toLowerCase();
+  const num = (re) => { const m = lower.match(re); const n = m ? intOf(m[1]) : null; return n != null && n > 0 ? n : null; };
+  const weeks = num(/(\d{1,2})\s*[- ]?weeks?\b/);
+  const days = num(/(\d)\s*(?:days?|x|times|sessions?)\s*(?:a|per|\/|each)\s*week/);
+  const minutes = num(/(\d{2,3})\s*[- ]?min/);
+  const program = (weeks != null && weeks > 1) || (days != null && days > 1) || /\b(program|block|split|mesocycle)\b/.test(lower);
+  return {
+    request: s,
+    kind: program ? 'program' : 'day',
+    ...(program && weeks ? { weeks } : {}),
+    ...(program && days ? { daysPerWeek: days } : {}),
+    ...(minutes ? { minutes } : {}),
+  };
 }
 
 // ── reads (injected client) ────────────────────────────────────────────────────

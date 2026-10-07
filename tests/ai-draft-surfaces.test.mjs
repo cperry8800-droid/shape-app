@@ -167,7 +167,7 @@ const say = (text) => ({ output_text: text, output: [{ type: 'message', content:
 const fnCall = (name, args, id = `call_${name}`) => ({ type: 'function_call', call_id: id, name, arguments: JSON.stringify(args) });
 const calls = (...items) => ({ output: [{ type: 'reasoning', id: 'rs_1', summary: [] }, ...items] });
 
-async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, isMember = true, answers = [say('ok')], coached = [] } = {}) {
+async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, isMember = true, answers = [say('ok')], coached = [], hasKey = true, failAI = false } = {}) {
   const sb = fakeSupabase({ tables: { user_goals: [] }, rpcs: { is_coach_on_client: (a) => coached.includes(a.p_client_id) } });
   const seen = [];
   let i = 0;
@@ -190,9 +190,9 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach: ['trainer', 'nutritionist'].includes(role), isAdmin: false, isKnownMinor: false }) }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
-      hasOpenAIKey: () => true,
+      hasOpenAIKey: () => hasKey,
       aiPublicModel: ai_.aiPublicModel,
-      callAI: async (body, opts) => { seen.push({ body, opts }); const a = answers[Math.min(i, answers.length - 1)]; i += 1; return { ok: true, data: a, usage: null, latencyMs: 1, promptId: opts.promptId, model: 'pinned', fellBack: false }; },
+      callAI: async (body, opts) => { seen.push({ body, opts }); if (failAI) return { ok: false, reason: 'http_error', status: 503, latencyMs: 1, promptId: opts.promptId }; const a = answers[Math.min(i, answers.length - 1)]; i += 1; return { ok: true, data: a, usage: null, latencyMs: 1, promptId: opts.promptId, model: 'pinned', fellBack: false }; },
     }],
     ['@/lib/ai/server', {
       resolveActor: async () => (user ? { user, role, supabase: sb } : null),
@@ -279,6 +279,36 @@ test('Nora: a client session with no day comes back as the question, before any 
   await s.mod.POST(chatPost('build Sam a leg day on Monday'));
   const o2 = JSON.parse(s.seen[1].body.input.find((x) => x.type === 'function_call_output').output);
   assert.equal(o2.message, "You're not an active coach on this client, so I can't do that for them.");
+});
+
+test('Nora with NO model: a trainer\'s build request still gets the labelled template card; nobody else\'s does', async () => {
+  const t = await loadChat({ hasKey: false });
+  const json = await (await t.mod.POST(chatPost('Build me a lower body session, 50 min'))).json();
+  assert.equal(json.source, 'fallback');
+  assert.match(json.reply, /^AI drafting is unavailable right now/);
+  const card = json.actions.find((a) => a.type === 'proposal');
+  assert.ok(card, 'a card, not "passed to the Shape team"');
+  assert.ok(card.summary.startsWith(draftCore.TEMPLATE_NOTICE));
+  assert.match(card.summary, /save it to your programs as a draft$/, 'the library only — no client, no date guessed');
+  assert.equal(t.seen.length, 0, 'no model was called at all');
+
+  // The key is set but the chat model is down: the fallback card is still the template,
+  // and the draft does not spend another call on a model that just failed.
+  const down = await loadChat({ failAI: true });
+  const dj = await (await down.mod.POST(chatPost('Build me a lower body session, 50 min'))).json();
+  assert.ok(dj.actions.find((a) => a.type === 'proposal').summary.startsWith(draftCore.TEMPLATE_NOTICE));
+  assert.deepEqual(down.seen.map((x) => x.opts.promptId), ['support.chat'], 'one failed chat call, no draft call');
+
+  const q = await loadChat({ hasKey: false });
+  const qj = await (await q.mod.POST(chatPost('How do I build a program?'))).json();
+  assert.ok(!qj.actions.some((a) => a.type === 'proposal'), 'a question gets the ordinary answer');
+
+  for (const role of ['client', 'nutritionist']) {
+    const o = await loadChat({ role, hasKey: false });
+    const oj = await (await o.mod.POST(chatPost('Build me a lower body session, 50 min'))).json();
+    assert.ok(!oj.actions.some((a) => a.type === 'proposal'), role);
+    assert.doesNotMatch(oj.reply, /AI drafting is unavailable/, role);
+  }
 });
 
 // ── the app card ────────────────────────────────────────────────────────────────

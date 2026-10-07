@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import {
   cleanBrief, sanitizeDraft, expandDraft, toBuilderDoc, generateDraft, draftRequest, summarizeDraft, templateDraft,
   allowedLoads, readCoachLoadUnit, readClientContext, draftSessions, sessionWeeks, DRAFT_SCHEMA, DRAFT_LIBRARY,
-  TEMPLATE_NOTICE, OFF_TOPIC_MESSAGE, moveLine, focusOf,
+  TEMPLATE_NOTICE, OFF_TOPIC_MESSAGE, moveLine, focusOf, briefFromText,
 } from '../src/lib/ai/workoutDraft.mjs';
 import { normalizeWorkoutDetail, builderToAssignmentRows } from '../public/newdesign/workoutDocument.mjs';
 import { createRegistry, proposeChange, confirmChange, undoChange, inMemoryAudit, verifyToken, signToken } from '../src/lib/ai/proposals.mjs';
@@ -298,6 +298,33 @@ test('⚠ BOUNDED: the worst 12-week × 7-day × 16-move draft keeps a sane toke
   assert.equal(allRows(built.builder).length, 12 * 7 * 16);
   assert.ok(token.length < 64_000, `token ${token.length} chars — the spec, not 12 weeks of rows, rides in it`);
   assert.ok(JSON.stringify({ detail: { builder: built.builder } }).length < 1_000_000, 'under /api/coach/plans\'s 1 MB body limit');
+});
+
+// ── ids and the no-model reading ────────────────────────────────────────────────
+test('every draft mints its own id prefix, so two drafts merged into one program never share a row id', async () => {
+  const brief = cleanBrief({ request: 'lower body' });
+  const a = await generateDraft(brief, {});
+  const b = await generateDraft(brief, { callModel: scriptedModel(answer(RAW_DAY)) });
+  assert.match(a.spec.idPrefix, /^[0-9a-f]{8}$/);
+  assert.match(b.spec.idPrefix, /^[0-9a-f]{8}$/);
+  assert.notEqual(a.spec.idPrefix, b.spec.idPrefix);
+  const ia = allRows(expandDraft(a.spec).builder).map((r) => r.id);
+  const ib = allRows(expandDraft(b.spec).builder).map((r) => r.id);
+  assert.ok(ia.every((id) => id.startsWith(`ai-${a.spec.idPrefix}-w1-d1-r`)));
+  assert.equal(ia.filter((id) => ib.includes(id)).length, 0, 'no collision');
+  assert.deepEqual(expandDraft(b.spec), expandDraft(JSON.parse(JSON.stringify(b.spec))), 'still one document per spec');
+  assert.ok(allRows(expandDraft({ ...b.spec, idPrefix: 'Bad Prefix!' }).builder).every((r) => r.id.startsWith('ai-w')), 'an unusable prefix is ignored');
+});
+
+test('briefFromText reads a build request without a model — and never a client or a date', () => {
+  assert.deepEqual(briefFromText('Build me a lower body session, 50 min, barbell'), { request: 'Build me a lower body session, 50 min, barbell', kind: 'day', minutes: 50 });
+  assert.deepEqual(briefFromText('can you put together a 6 week strength block, 4 days a week'), { request: 'can you put together a 6 week strength block, 4 days a week', kind: 'program', weeks: 6, daysPerWeek: 4 });
+  const priya = briefFromText('make Priya a leg day for Monday the 12th');
+  assert.deepEqual(Object.keys(priya).sort(), ['kind', 'request'], 'no client, no date, nothing guessed');
+  assert.equal(briefFromText('How do I build a program?'), null, 'a question about Shape is not a request');
+  assert.equal(briefFromText('write me a poem'), null, 'not training');
+  assert.equal(briefFromText('my squat felt heavy today'), null, 'no build verb');
+  assert.equal(briefFromText(''), null);
 });
 
 // ── reads ───────────────────────────────────────────────────────────────────────
