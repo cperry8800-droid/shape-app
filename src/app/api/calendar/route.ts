@@ -225,6 +225,13 @@ export async function GET(request: Request) {
       // declined/cancelled) booking is never draggable.
       editable: false,
       reschedulable: isSessionReschedulable(s.status),
+      // ⚠ THE CALLER IS THE CLIENT ON THIS ONE. RLS returns a session to its client as well as
+      // to its coach, so a coach who is also somebody else's member gets their own bookings in
+      // this list. The Schedule answers requests and moves bookings from here (2026-10-07), and
+      // it must not offer Accept on a request the coach made themselves — the manage route would
+      // refuse it (403) after the coach had pressed it. Marked rather than dropped: the member
+      // calendar overlay reads this route for exactly these rows.
+      asClient: !!s.client_id && s.client_id === user.id,
     };
   });
 

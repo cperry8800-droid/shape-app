@@ -396,6 +396,9 @@ const DSC_HOUR_PX = 44;
 const DSC_RUST = "var(--sh-rust, #e0644b)";
 const DSC_GOLD = "var(--sh-gold, #d8a23a)";
 const DSC_HAIR = "rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
+// The accent as TEXT on an accent wash: the light paper's accent is too pale to read on its
+// own tint, so the paper supplies a deeper ink (tests/newdesign-paper-pairs.test.mjs).
+const DSC_TEAL_INK = "var(--sh-accent-ink, #2ee0c4)";
 // "09:30" → 570, or null for an untimed item.
 function dscMin(t) {
   const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ""));
@@ -636,7 +639,7 @@ function DscTimeGrid({ days, byDate, blocks, colorOf, todayIso, nowMin, startHou
                   {slot && slot.date === iso && (
                     <button type="button" data-dsc-ghost="" onClick={(e) => { e.stopPropagation(); onBookSlot(); }}
                       style={{ position: "absolute", left: 3, right: 3, top: yOf(slot.minute) + 1, height: Math.max(22, (slot.dur / 60) * DSC_HOUR_PX - 2), zIndex: 4,
-                        border: "1.5px dashed " + DSC_TEAL, borderRadius: 5, background: "rgba(var(--sh-accent-rgb, 46,224,196),0.1)", color: DSC_TEAL,
+                        border: "1.5px dashed " + DSC_TEAL, borderRadius: 5, background: "rgba(var(--sh-accent-rgb, 46,224,196),0.1)", color: DSC_TEAL_INK,
                         fontFamily: DSC_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", padding: 0 }}>
                       + Book {dscClock(slot.minute)}
                     </button>
@@ -651,7 +654,7 @@ function DscTimeGrid({ days, byDate, blocks, colorOf, todayIso, nowMin, startHou
                         backgroundImage: drag.verdict.clash || drag.verdict.past
                           ? "linear-gradient(rgba(var(--sh-rust-rgb, 224,100,75),0.18), rgba(var(--sh-rust-rgb, 224,100,75),0.18))"
                           : "linear-gradient(rgba(var(--sh-accent-rgb, 46,224,196),0.14), rgba(var(--sh-accent-rgb, 46,224,196),0.14))",
-                        fontFamily: DSC_MONO, fontSize: 9, fontWeight: 700, color: dragColor, padding: "2px 5px", overflow: "hidden", whiteSpace: "nowrap" }}>
+                        fontFamily: DSC_MONO, fontSize: 9, fontWeight: 700, color: dragColor === DSC_TEAL ? DSC_TEAL_INK : dragColor, padding: "2px 5px", overflow: "hidden", whiteSpace: "nowrap" }}>
                       {dscClock(drag.minute)}{drag.verdict.clash ? " · overlaps" : drag.verdict.past ? " · past" : drag.verdict.outside ? " · outside hours" : ""}
                     </div>
                   )}
@@ -667,16 +670,24 @@ function DscTimeGrid({ days, byDate, blocks, colorOf, todayIso, nowMin, startHou
 
 // ── Shared sheet chrome ─────────────────────────────────────────────────────
 function DscModal({ label, accent, onClose, children, width = 420 }) {
+  const boxRef = React.useRef(null);
   React.useEffect(() => {
     const key = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
+  // Focus goes into the dialog when it opens and back to what opened it when it closes, so a
+  // keyboard user lands on the actions rather than behind the overlay.
+  React.useEffect(() => {
+    const back = document.activeElement;
+    if (boxRef.current && boxRef.current.focus) boxRef.current.focus();
+    return () => { if (back && back.focus && document.body.contains(back)) back.focus(); };
+  }, []);
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
-      <div role="dialog" aria-modal="true" aria-label={label}
-        style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(" + width + "px, 92vw)", maxHeight: "88vh", overflowY: "auto", boxSizing: "border-box", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderTop: "4px solid " + accent, borderRadius: 10, padding: 20, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
+      <div role="dialog" aria-modal="true" aria-label={label} ref={boxRef} tabIndex={-1}
+        style={{ outline: "none", position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(" + width + "px, 92vw)", maxHeight: "88vh", overflowY: "auto", boxSizing: "border-box", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderTop: "4px solid " + accent, borderRadius: 10, padding: 20, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
         {children}
       </div>
     </div>
@@ -1013,7 +1024,9 @@ function DscEventSheet({ ev, onClose, colorOf }) {
         <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: color }}>{ev.kind}{ev.with ? " · " + ev.with : ""}</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>{ev.title}</div>
         <div style={{ fontSize: 12.5, color: DSC_INK50 }}>{[ev.date, ev.time ? dscFmt12(ev.time) : null, ev.durationMin ? ev.durationMin + " min" : null, ev.sub].filter(Boolean).join(" · ")}</div>
-        {!(ev.reschedulable || ev.editable) && <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, marginTop: 10 }}>🔒︎ READ-ONLY — PUSHED FROM THE {ev.kind === "WORKOUT" ? "PROGRAM" : "MEAL PLAN"}; RESCHEDULE THERE</div>}
+        {!(ev.reschedulable || ev.editable) && <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, marginTop: 10 }}>{ev.source === "booked"
+          ? "🔒︎ READ-ONLY — YOUR OWN BOOKING WITH ANOTHER COACH; MANAGE IT FROM YOUR TEAM PAGE"
+          : "🔒︎ READ-ONLY — PUSHED FROM THE " + (ev.kind === "WORKOUT" ? "PROGRAM" : "MEAL PLAN") + "; RESCHEDULE THERE"}</div>}
         <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
           {ev.meetingUrl && <a href={ev.meetingUrl} target="_blank" rel="noreferrer" style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DSC_TEAL, borderRadius: 4, padding: "10px 14px", textDecoration: "none" }}>Join →</a>}
           <button onClick={onClose} style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "10px 14px", cursor: "pointer" }}>Close</button>
@@ -1147,7 +1160,13 @@ function CoachSchedulePage({ role }) {
   // on the planning calendar — the client-facing pushed workouts/meals are a
   // client surface, shown read-only if present.
   const kindOk = (e) => e.kind === "SESSION" || e.kind === "CONSULT" || e.source === "event" || e.kind === "WORKOUT" || e.kind === "MEAL";
-  const calEvents = allEvents.filter(kindOk);
+  // ⚠ A SESSION WHERE THE COACH IS THE CLIENT (`asClient`, from /api/calendar) is their own
+  // appointment with another coach. It shows, read-only, as time they are busy — but it is not
+  // one of THEIR bookings: no Accept in the strip for a request they made, no drag, and no
+  // clash, because the routes only weigh a coach's bookings as the provider.
+  const calEvents = allEvents.filter(kindOk).map((e) => (e.source === "session" && e.asClient
+    ? { ...e, source: "booked", reschedulable: false, editable: false, with: "", clientId: null, title: e.title + " · your booking" }
+    : e));
   const planEvents = calEvents.filter((e) => !picked.length || picked.includes(e.clientId));
   // Colours come from the UNFILTERED calendar, so a client keeps their colour when the
   // chips narrow the view.

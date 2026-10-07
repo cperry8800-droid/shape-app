@@ -230,11 +230,12 @@ async function routes() {
     ['@/lib/capacity', { isEffectivelyAtCapacity: () => false }],
     ['@/lib/email', { buildIcs: () => 'ICS', sendEmail: async (m) => { state.mails.push(m); return { ok: true }; } }],
     ['@/lib/turnstile', { verifyTurnstile: async () => true }],
+    ['@/lib/require-membership', { requireMembership: async () => null }],
     ['@supabase/supabase-js', {}],
   ]);
   const load = (p) => loadRealModule(join(ROOT, 'src/app/api', p), { typescript: true, registry: registry() });
-  const [manage, request, consult] = await Promise.all([load('sessions/manage/route.ts'), load('sessions/request/route.ts'), load('consultation/route.ts')]);
-  loaded = { manage, request, consult, state };
+  const [manage, request, consult, calendar] = await Promise.all([load('sessions/manage/route.ts'), load('sessions/request/route.ts'), load('consultation/route.ts'), load('calendar/route.ts')]);
+  loaded = { manage, request, consult, calendar, state };
   return loaded;
 }
 async function post(mod, path, body, { tables, user, insertError, fail } = {}) {
@@ -431,6 +432,28 @@ test('/api/consultation refuses a time outside the coach\'s open hours — and b
   for (const r of [threeAm, atClose, wrongDay, unread]) assert.equal(r.writes.filter((w) => w.op === 'insert').length, 0);
 });
 
+test('the calendar marks a session the caller booked AS A CLIENT, so the Schedule does not answer it', async () => {
+  // RLS hands a session to its client as well as its coach: coach-1 is also a member of
+  // trainer 8, and that request of theirs comes back in their own calendar.
+  const tables = world({
+    trainers: [{ id: 7, owner_id: 'coach-1', name: 'Coach', timezone: NY }, { id: 8, owner_id: 'coach-9', name: 'Other coach', timezone: NY }],
+    sessions: [
+      sess('s-mine', '2026-10-08T14:00:00+00:00', { client_id: 'member-1' }),
+      sess('s-asked', '2026-10-09T14:00:00+00:00', { client_id: 'coach-1', provider_id: 8, status: 'requested' }),
+      sess('s-other', '2026-10-09T15:00:00+00:00', { client_id: 'member-5', provider_id: 8 }),
+    ],
+    calendar_events: [], client_workouts: [], client_meal_plans: [],
+  });
+  const m = await routes();
+  m.state.client = db(tables, { label: 'request', rlsUser: 'coach-1' });
+  m.state.user = COACH;
+  const res = await m.calendar.GET(new Request('https://shape.test/api/calendar?from=2026-10-01&to=2026-10-31&tz=' + NY + '&role=trainer'));
+  const byId = Object.fromEntries((await res.json()).events.filter((e) => e.source === 'session').map((e) => [e.sessionId, e]));
+  assert.deepEqual(Object.keys(byId).sort(), ['s-asked', 's-mine'], 'RLS: another coach\'s booking with another member is not read');
+  assert.equal(byId['s-asked'].asClient, true);
+  assert.equal(byId['s-mine'].asClient, false);
+});
+
 test('the new route is on the War Room board', async () => {
   const { loadRealModule } = await import('./helpers/load-real-module.mjs');
   const warroom = await loadRealModule(join(ROOT, 'src/lib/warroom.ts'), {
@@ -545,7 +568,7 @@ test('the week is a time axis: blocks sized by length, open hours shaded, a now 
     assert.doesNotMatch(block(page, 's-fri').style.borderTop, /dashed/);
     // The untimed workout rides the all-day row, not the axis.
     assert.match(page.text(), /All day/);
-    assert.equal(page.doc.querySelector('[data-dsc-block="plan:w1"]'), null);
+    assert.ok(!page.doc.querySelector('[data-dsc-block="plan:w1"]'));
     // Load at a glance: Wed, Thu, Fri — one hour each inside 20 open hours; the completed 7:00
     // Monday session is outside the hours and the requests are not booked.
     assert.match(page.doc.querySelector('[data-load]').textContent, /^3 of 20 open hrs booked/);
@@ -595,7 +618,7 @@ test('over a clash the drop target is red and says why, and letting go moves not
     assert.deepEqual(posts, []);
     assert.equal(colOf(page, block(page, 's-thu')), '2026-10-08');
     assert.match(page.toast(), /Not moved — that overlaps Marcus T\. at 10:00 AM/);
-    assert.equal(page.doc.querySelector('[data-drop-target]'), null, 'the target outlived the drag');
+    assert.ok(!page.doc.querySelector('[data-drop-target]'), 'the target outlived the drag');
   } finally { await page.unmount(); }
 });
 
@@ -612,7 +635,7 @@ test('outside open hours the coach is asked, and only "Move anyway" moves it', a
     assert.match(page.doc.querySelector('[role=dialog]').textContent, /isn't in the hours you've opened/);
     await page.click(page.button('Keep it'));
     assert.deepEqual(posts, []);
-    assert.equal(page.doc.querySelector('[role=dialog]'), null);
+    assert.ok(!page.doc.querySelector('[role=dialog]'));
     await page.drag(block(page, 's-thu'), [[450, yOf(540) + 10], [452, yOf(540) + 30], [450, 362]]);
     await page.click(page.button('Move anyway'));
     assert.deepEqual(posts, [{ action: 'reschedule', sessionId: 's-thu', date: '2026-10-08', time: '14:00', tz: NY }]);
@@ -645,7 +668,7 @@ test('a click (no drag) on a booking opens its sheet; Escape mid-drag drops noth
     page.layout();
     await page.drag(block(page, 's-thu'), [[450, yOf(540) + 10], [452, yOf(540) + 30], [450, 230]], { release: false });
     await page.key('Escape');
-    assert.equal(page.doc.querySelector('[data-drop-target]'), null);
+    assert.ok(!page.doc.querySelector('[data-drop-target]'));
     await page.act(async () => page.dom.window.dispatchEvent(Object.assign(new page.dom.window.MouseEvent('pointerup', { bubbles: true }), { pointerId: 1 })));
     assert.deepEqual(posts, [], 'a cancelled drag still moved');
     await page.click(block(page, 's-thu'));
@@ -662,7 +685,7 @@ test('requests wait in a strip — upcoming only — and Accept, Decline and Oth
     assert.match(strip.textContent, /Jordan M\..*2:00 PM/);
     await page.click(page.buttonMatching(/^Accept$/, strip));
     assert.deepEqual(posts, [{ action: 'confirm', sessionId: 's-req' }]);
-    assert.equal(page.doc.querySelector('[aria-label="Requests to confirm"]'), null, 'the accepted request is still in the strip');
+    assert.ok(!page.doc.querySelector('[aria-label="Requests to confirm"]'), 'the accepted request is still in the strip');
     assert.doesNotMatch(block(page, 's-req').style.borderTop, /dashed/, 'an accepted booking still reads as a request');
   } finally { await page.unmount(); }
   const second = await open();
@@ -673,7 +696,7 @@ test('requests wait in a strip — upcoming only — and Accept, Decline and Oth
     await second.page.click(second.page.button('Close'));
     await second.page.click(second.page.buttonMatching(/^Decline$/, second.page.doc.querySelector('[aria-label="Requests to confirm"]')));
     assert.deepEqual(second.posts, [{ action: 'decline', sessionId: 's-req' }]);
-    assert.equal(block(second.page, 's-req'), null, 'a declined request is still on the grid');
+    assert.ok(!block(second.page, 's-req'), 'a declined request is still on the grid');
   } finally { await second.page.unmount(); }
 });
 
@@ -706,7 +729,7 @@ test('the booking sheet: status, where, real actions, and the client\'s prep fro
     assert.match(dlg().textContent, /Cancel this session\? Priya is told\./);
     await page.click(page.buttonMatching(/Yes, cancel it/, dlg()));
     assert.deepEqual(posts, [{ action: 'cancel', sessionId: 's-thu' }]);
-    assert.equal(block(page, 's-thu'), null);
+    assert.ok(!block(page, 's-thu'));
     // Wednesday's has started: Mark done is live.
     await page.click(block(page, 's-wed'));
     await page.click(page.buttonMatching(/Mark done/, dlg()));
@@ -765,7 +788,7 @@ test('a click on empty time offers "+ Book", and the sheet books a roster client
     await page.click(page.buttonMatching(/^In person$/, dlg()));
     await page.click(page.buttonMatching(/^Book · Marcus is told$/, dlg()));
     assert.deepEqual(posts, [{ action: 'create', role: 'trainer', clientId: 'member-2', date: '2026-10-08', time: '11:00', tz: NY, durationMin: 60, type: 'inperson' }]);
-    assert.equal(page.doc.querySelector('[role=dialog]'), null);
+    assert.ok(!page.doc.querySelector('[role=dialog]'));
     assert.equal(colOf(page, block(page, 's-new')), '2026-10-08');
     assert.equal(px(block(page, 's-new').style.top), yOf(660) + 1);
     assert.match(page.toast(), /Booked Marcus T\./);
@@ -794,7 +817,7 @@ test('the book sheet refuses a clash before sending, and shows the server\'s ref
     // A past slot is not offered at all.
     await page.click(page.button('Cancel'));
     await page.clickAt(page.doc.querySelector('[data-col-date="2026-10-06"]'), 150, yOf(600));
-    assert.equal(page.doc.querySelector('[data-dsc-ghost]'), null);
+    assert.ok(!page.doc.querySelector('[data-dsc-ghost]'));
   } finally { await page.unmount(); }
 });
 
@@ -833,6 +856,30 @@ test('the toolbar\'s "+ Book" opens the book sheet at the next open time — the
   } finally { await page.unmount(); }
 });
 
+test('a coach\'s own booking with another coach shows read-only: not in the strip, not draggable, not a clash', async () => {
+  const own = ev('s-own', '2026-10-08', '11:00', { status: 'requested', asClient: true, with: 'Coach', clientId: 'coach-1', title: 'Coaching session' });
+  const { page, posts } = await open({ events: [...WEEK(), own] });
+  try {
+    assert.match(page.doc.querySelector('[aria-label="Requests to confirm"]').textContent, /^1 to confirm/, 'the coach is asked to answer their own request');
+    const el = page.doc.querySelector('[data-dsc-block="session:s-own"]');
+    assert.ok(el, 'the coach\'s own booking is not on their calendar');
+    assert.match(el.textContent, /your booking/);
+    assert.ok(![...page.doc.querySelectorAll('[aria-label="Show clients"] button')].some((b) => /^Coach$/.test(b.textContent)), 'the coach is a client chip');
+    page.layout();
+    await page.drag(el, [[450, yOf(660) + 10], [452, yOf(660) + 30], [550, 230]]);
+    assert.deepEqual(posts, [], 'it moved');
+    await page.click(el);
+    assert.match(page.text(), /YOUR OWN BOOKING WITH ANOTHER COACH/);
+    assert.ok(!page.doc.querySelector('[role=dialog]'), 'it opened the booking sheet with its actions');
+    // Its hour is not one of the coach's bookings: booking a client at 11:00 is not a clash
+    // here, exactly as the routes see it.
+    await page.click(page.button('Close'));
+    await page.clickAt(page.doc.querySelector('[data-col-date="2026-10-08"]'), 450, yOf(660) + 5);
+    await page.click(page.doc.querySelector('[data-dsc-ghost]'));
+    assert.doesNotMatch(page.doc.querySelector('[role=dialog]').textContent, /Overlaps/);
+  } finally { await page.unmount(); }
+});
+
 test('a nutritionist books the 15-minute consult by default', async () => {
   const { page } = await open({ role: 'nutritionist' });
   try {
@@ -850,14 +897,14 @@ test('client chips filter the grid, ?client= lands filtered, and clashes still s
     assert.ok(chips);
     await page.click(page.buttonMatching(/Marcus T\./, chips));
     assert.ok(block(page, 's-fri'));
-    assert.equal(block(page, 's-thu'), null, 'the chip did not filter');
+    assert.ok(!block(page, 's-thu'), 'the chip did not filter');
     await page.click(page.button('Show all'));
     assert.ok(block(page, 's-thu'));
   } finally { await page.unmount(); }
   const linked = await open({ params: { client: 'member-2' } });
   try {
     assert.ok(block(linked.page, 's-fri'));
-    assert.equal(block(linked.page, 's-thu'), null, '?client= no longer filters');
+    assert.ok(!block(linked.page, 's-thu'), '?client= no longer filters');
     // Priya is hidden, but her Thursday hour is still taken.
     linked.page.layout();
     await linked.page.clickAt(linked.page.doc.querySelector('[data-col-date="2026-10-08"]'), 350, yOf(570) + 5);
@@ -908,7 +955,7 @@ test('open hours saved in another zone are not shaded, and the page says so', as
   try {
     assert.equal(page.doc.querySelectorAll('[data-open-band]').length, 0);
     assert.match(page.text(), /Open hours aren't shaded — they're saved in Europe\/London/);
-    assert.equal(page.doc.querySelector('[data-load]'), null, 'a load against unplaced hours');
+    assert.ok(!page.doc.querySelector('[data-load]'), 'a load against unplaced hours');
   } finally { await page.unmount(); }
 });
 
