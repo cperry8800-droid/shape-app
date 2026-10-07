@@ -2195,13 +2195,14 @@
     // The same rule as the app's preview (bsMoveBlocks): runs of one kind in the order the
     // moves arrive, a move with no kind staying with the run before it, and a day where no
     // move names a block read as one plain list. Owner, 2026-10-07: "Apply all the fixes".
+    // (A day where no move names a block needs no case of its own: every kind is "", and
+    // a heading needs one.)
     var kinds = list.map(function (e) { return cardBlockKind(e && e.block); });
-    var grouped = kinds.some(Boolean);
     var run = "";
     return list.map(function (e, i) {
       e = e || {};
       var kind = kinds[i] || run;
-      var blockLabel = grouped && kind && kind !== run ? CARD_BLOCKS[kind] : null;
+      var blockLabel = kind && kind !== run ? CARD_BLOCKS[kind] : null;
       run = kind;
       return {
         prefix: labels[i],
