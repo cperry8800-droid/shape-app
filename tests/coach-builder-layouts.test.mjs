@@ -157,10 +157,17 @@ test('program and day videos stay distinct, collapsed and saved through layout c
   const doc=DashBuilder.newProgram();doc.video='https://shape.test/program.mp4';doc.weeks[0].days[0].video='https://shape.test/day.mp4';
   const writes=capture();await mount(DbuBuilder,{name:'Video program',detail:{builder:doc}});
   await click('Editor');
+  // ⚠ THE DAY'S WALKTHROUGH IS A HEADER CHIP NOW, NOT A SECOND FOLD (owner, 2026-10-07: the
+  // day's settings in its header). Still distinct from the program's, still closed until
+  // asked, and the chip says a video is attached the way the fold's summary did.
   const details=[...document.querySelectorAll('details.cb-details')];
-  assert.equal(details.length,2);assert.ok(details.every(el=>!el.open));
-  assert.match(details[0].textContent,/entire program/);assert.match(details[1].textContent,/this day's workout/);
-  assert.ok(details.every(el=>el.querySelector('summary').textContent.includes('Video added')));
+  assert.equal(details.length,1);assert.equal(details[0].open,false);
+  assert.match(details[0].textContent,/entire program/);assert.match(details[0].querySelector('summary').textContent,/Video added/);
+  const chip=[...document.querySelectorAll('.dchips button')].find(b=>/Walkthrough video/.test(b.textContent));
+  assert.ok(chip,'no walkthrough chip');assert.match(chip.textContent,/^▶︎ Walkthrough video$/);
+  const panel=document.getElementById(chip.getAttribute('aria-controls'));
+  assert.equal(panel.hidden,true);assert.match(panel.textContent,/this day's workout/);
+  await React.act(async()=>chip.click());assert.equal(panel.hidden,false);assert.equal(chip.getAttribute('aria-expanded'),'true');
   for(const layout of ['Planner','Editor'])await click(layout);
   await input('Day name','With videos');await click('Save template');
   assert.equal(writes.at(-1).detail.builder.video,doc.video);

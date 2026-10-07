@@ -30,19 +30,19 @@ function CoachBuilderNav({ layout, onLayout, step, onStep, steps, busy, children
 .cbuilder .cb-intro{margin-bottom:16px;max-width:840px}
 .cbuilder .cb-intro h2{font:600 22px var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif);margin:0 0 6px}
 .cbuilder .cb-intro p{font-size:14px;line-height:1.5;color:var(--sh-ink2, #a09b94);margin:0}
-.cbuilder .cb-workspace{display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;align-items:start}
+.cbuilder .cb-workspace{display:grid;grid-template-columns:184px minmax(0,1fr);gap:20px;align-items:start}
 .cbuilder .cb-days{display:flex;flex-direction:column;gap:7px;min-width:0}
 .cbuilder .cb-days button{text-align:left;overflow-wrap:anywhere}
 .cbuilder .cb-days select{width:100%;min-height:40px}
 .cbuilder .cb-days small{display:block;margin:0 0 6px;color:var(--sh-ink2, #a09b94)}
+/* The selected day's "6 exercises" took ink2 onto the teal fill: dark teal on teal,
+   unreadable (owner, 2026-10-07). On the fill it takes the button's own ink. */
+.cbuilder .cb-days .cb-button[aria-pressed=true] small{color:inherit}
 .cbuilder .cb-foot{position:sticky;bottom:0;z-index:30;background:var(--sh-ground, #1a1612);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;margin-top:24px;border-top:1px solid var(--sh-line, #302c27)}
 .cbuilder .cb-foot p{margin:0;font-size:13px;color:var(--sh-ink2, #a09b94)}
 .cbuilder .cb-review{border:1px solid var(--sh-line, #302c27);border-radius:12px;padding:20px;margin:16px 0}
 .cbuilder .cb-review h2{margin-top:0}
 .cbuilder .cb-actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
-.cbuilder .cb-exercise{border-bottom:1px solid var(--sh-line, #302c27);margin-bottom:10px}
-.cbuilder .cb-exercise>summary{padding:14px 4px;cursor:pointer;font-weight:600;font-size:15px}
-.cbuilder .cb-exercise>summary small{font-size:13px;font-weight:400;color:var(--sh-ink2, #a09b94);margin-left:12px}
 .cbuilder .cb-schedule{margin-top:20px}
 .cbuilder .cb-schedule>summary{font-size:14px;cursor:pointer;padding:12px 0}
 .cbuilder.dbu2 .drawer.float:not(.is-popped){position:static;width:100%;max-height:none;margin:0;overflow:visible;box-shadow:none}
