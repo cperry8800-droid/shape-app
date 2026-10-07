@@ -46,7 +46,6 @@ test('the sheet carries the whole thread: messages, cards, actions, voice, and t
     assert.ok(sheet.includes(needle), needle);
   }
   assert.ok(sheet.includes('useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING])'), 'reopening keeps the thread');
-  assert.ok(sheet.includes('React.useEffect(() => { _bsNoraThread = supportMsgs; }, [supportMsgs]);'));
   assert.match(APP, /Object\.assign\(window, \{ BSNoraSheet, /, 'the coach shells read it off window');
 });
 
@@ -63,4 +62,33 @@ test('every shell opens the sheet for the ✦ and for a support request, over Se
 test('the Help page points at the ✦', () => {
   assert.match(APP, /ask <b>Nora<\/b> — tap ✦ at the top of any screen/);
   assert.doesNotMatch(APP, /in Chat → Support/);
+});
+
+// ── Codex, #2245 ─────────────────────────────────────────────────────────────────
+test('a reply that lands after the sheet closes is kept: the thread and the in-flight flag outlive the sheet', () => {
+  const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
+  assert.match(APP, /let _bsNoraBusy = false;\nconst _bsNoraSubs = new Set\(\);/);
+  assert.match(sheet, /useStateBSC\(\(\) => _bsNoraBusy\)/, 'a reopened sheet shows Nora still typing');
+  assert.match(sheet, /_bsNoraSubs\.add\(sync\);/);
+  assert.match(sheet, /_bsNoraPublish\(\[\.\.\.\(_bsNoraThread \|\| next\), \{ who: 'Nora', t: reply/, 'the reply is written to the store, not to the instance that asked');
+  assert.match(sheet, /finally \{ _bsNoraPublish\(null, false\); \}/);
+  assert.ok(!/setSupportMsgs\(m => \[\.\.\.m/.test(sheet), 'no reply is written only to this instance');
+});
+
+test('Chat\'s segment row is three columns now that Support has left', () => {
+  const feed = between(APP, 'function BSClientFeed(', 'function BSNoraSheet(');
+  assert.match(feed, /gridTemplateColumns: 'repeat\(3, 1fr\)', gap: 3/);
+});
+
+test('each takeover renders the sheet once', () => {
+  for (const key of ['if (showCalendar) {', 'if (showCycle) {']) {
+    const block = between(APP, key, '    );');
+    assert.equal((block.match(/\{noraSheet\}/g) || []).length, 1, key);
+  }
+});
+
+test('a follow-up that opens another screen closes the sheet', () => {
+  const sheet = between(APP, 'function BSNoraSheet(', '// Chat tab for ALL roles');
+  assert.match(sheet, /\['shape:openMarket', 'shape:openIntegrations', 'shape:openCoachPlan'\]/);
+  assert.match(sheet, /names\.forEach\(\(n\) => window\.addEventListener\(n, close\)\)/);
 });

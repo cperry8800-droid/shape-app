@@ -1061,7 +1061,6 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         <BSCalendarScreen role="client" onProfile={goSettings} onBack={() => { if (!navBack()) setShowCalendar(false); }} />
         <BSRadioFx />
         {settingsOverlay}
-      {noraSheet}
         {noraSheet}
         {searchOverlay}
       </div>
@@ -1073,7 +1072,6 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         <BSCycleCalendarPage onBack={() => { if (!navBack()) setShowCycle(false); }} />
         <BSRadioFx />
         {settingsOverlay}
-      {noraSheet}
         {noraSheet}
         {searchOverlay}
       </div>
@@ -24074,9 +24072,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           onOpenProfile={() => setOpenProfile(boostFor._profile || { who: boostFor.name, kind: 'CLIENT', tier: boostFor.tier, public: true, userId: boostFor.userId || null, photo: boostFor.photoUrl || bsDemoFace(boostFor.name) })} />
       )}
 
-      {/* Feed / Channels / Team / Support — Friends lives INSIDE Team as a sub-tab */}
+      {/* Feed / Team / Channels — Friends lives INSIDE Team as a sub-tab; Nora is the ✦ sheet */}
       <div ref={bsSubAnchorRef} style={{ padding: `14px ${t.padX}px 0` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3, border: `1px solid ${hair}`, borderRadius: 12, padding: 3 }}>
           {[['feed', tr('feed:tab.feed', { defaultValue: 'Feed' }), 0], ['teams', tr('feed:tab.team', { defaultValue: 'Team' }), coachUnread + friendUnread], ['channels', tr('feed:tab.channels', { defaultValue: 'Channels' }), chUnread]].map(([k, l, b]) => <Pill key={k} on={tab === k} onClick={() => setTab(k)} badge={b}>{l}</Pill>)}
         </div>
       </div>
@@ -24544,6 +24542,17 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 // a support request on 'shape:openConversation' (search's Nora hit, Help's button).
 // The thread lives for the session, across closes, as it did in Chat.
 let _bsNoraThread = null;
+// ⚠ A REPLY CAN LAND AFTER THE SHEET CLOSES. The question is in flight while the member
+// closes Nora; the instance that asked is gone, so its setState would drop the reply and
+// the reopened sheet would show a question with no answer (Codex, #2245). The thread and
+// the in-flight flag live here, and every open sheet subscribes to them.
+let _bsNoraBusy = false;
+const _bsNoraSubs = new Set();
+function _bsNoraPublish(thread, busy) {
+  if (thread) _bsNoraThread = thread;
+  if (typeof busy === 'boolean') _bsNoraBusy = busy;
+  _bsNoraSubs.forEach((fn) => { try { fn(); } catch (e) {} });
+}
 function BSNoraSheet({ onClose }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -24558,7 +24567,12 @@ function BSNoraSheet({ onClose }) {
   const SUPPORT_GREETING = { who: 'Nora', t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: 'now', me: false, bot: true };
   const [supportMsgs, setSupportMsgs] = useStateBSC(() => _bsNoraThread || [SUPPORT_GREETING]);
   const [supportDraft, setSupportDraft] = useStateBSC('');
-  const [supportBusy, setSupportBusy] = useStateBSC(false);
+  const [supportBusy, setSupportBusy] = useStateBSC(() => _bsNoraBusy);
+  React.useEffect(() => {
+    const sync = () => { if (_bsNoraThread) setSupportMsgs(_bsNoraThread); setSupportBusy(_bsNoraBusy); };
+    _bsNoraSubs.add(sync);
+    return () => { _bsNoraSubs.delete(sync); };
+  }, []);
   const [voiceChat, setVoiceChat] = useStateBSC(false); // conversation mode — off by default, per-session
   // Read at REPLY time via the ref — a reply resolving after the user flips the
   // chip off must not force-play (the async closure would hold the stale value).
@@ -24588,15 +24602,14 @@ function BSNoraSheet({ onClose }) {
     const clean = String(body || '').trim();
     if (!clean || supportBusy) return;
     setSupportDraft('');
-    const next = [...supportMsgs, { who: 'You', t: clean, time: 'now', me: true }];
-    setSupportMsgs(next);
-    setSupportBusy(true);
+    const next = [...(_bsNoraThread || supportMsgs), { who: 'You', t: clean, time: 'now', me: true }];
+    _bsNoraPublish(next, true);
     try {
       const hist = next.map(m => ({ role: m.me ? 'user' : 'assistant', content: m.t }));
       const res = await window.ShapeSupport?.ask?.(hist, undefined, { voice: opts.voice === true });
       const reply = (res && res.reply) || "I can't answer that just now. The Shape team answers at info@theshapecommunity.com.";
       const acts = (res && Array.isArray(res.actions) && res.actions.length) ? res.actions : undefined;
-      setSupportMsgs(m => [...m, { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
+      _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: reply, time: 'now', me: false, bot: true, actions: acts }]);
       // Conversation mode reads every reply aloud; otherwise the global
       // auto-speak toggle decides (off by default). Auto-speak failures are silent.
       // voiceChatRef, not the closed-over state: the chip may have flipped off
@@ -24604,8 +24617,8 @@ function BSNoraSheet({ onClose }) {
       if (voiceChatRef.current) speakReply(reply, { force: true });
       else if (window.ShapeVoice && window.ShapeVoice.enabled()) speakReply(reply);
     } catch (e) {
-      setSupportMsgs(m => [...m, { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
-    } finally { setSupportBusy(false); }
+      _bsNoraPublish([...(_bsNoraThread || next), { who: 'Nora', t: "I can't be reached right now. Try again in a moment, or email the Shape team at info@theshapecommunity.com.", time: 'now', me: false, bot: true }]);
+    } finally { _bsNoraPublish(null, false); }
   };
   const sendSupport = () => sendSupportText(supportDraft);
   // Nora's structured follow-ups → in-app destinations (the app is a webview, so
@@ -24627,7 +24640,14 @@ function BSNoraSheet({ onClose }) {
       }
     } catch (e) {}
   };
-  React.useEffect(() => { _bsNoraThread = supportMsgs; }, [supportMsgs]);
+  // A follow-up that opens another screen (the marketplace, Integrations, a drafted plan
+  // in the builder) closes the sheet, or it would keep covering where it went (Codex, #2245).
+  React.useEffect(() => {
+    const names = ['shape:openMarket', 'shape:openIntegrations', 'shape:openCoachPlan'];
+    const close = () => onClose();
+    names.forEach((n) => window.addEventListener(n, close));
+    return () => names.forEach((n) => window.removeEventListener(n, close));
+  }, [onClose]);
   const scrollRef = React.useRef(null);
   React.useEffect(() => { const el = scrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [supportMsgs.length, supportBusy]);
   React.useEffect(() => {
