@@ -161,7 +161,7 @@ const clientChatTabs = [
     threads: [
       { who: "Nora", role: "Shape's Concierge · coaches · billing · the app · your account", last: "How can we help?", time: "now", unread: 0,
         quick: ["Find a coach", "Billing help", "App support", "Something else"], messages: [
-        { who: "Nora", t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. I'll bring in the Shape team if I can't sort it out.", time: "now", me: false },
+        { who: "Nora", t: "Hi, I'm Nora — Shape's concierge. Ask me anything: connecting integrations, your plan, billing, or your account. If I can't sort it out, the Shape team answers at info@theshapecommunity.com.", time: "now", me: false },
       ]},
     ],
   },

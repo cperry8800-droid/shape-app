@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 
 type Message = {
@@ -60,6 +60,26 @@ export default function GlobalChatButton() {
       text: "Hi, I'm Nora, Shape's assistant. Ask me about coaches, billing, the app or your account.",
     },
   ]);
+
+  const [quick, setQuick] = useState<string[]>(['Find me a coach', 'What does Shape cost?', 'How does coaching work?']);
+  const [greeted, setGreeted] = useState(false);
+
+  // Nora's greeting and suggestions for this account, the first time the panel opens.
+  // This panel cannot show a confirm card, so it asks for the plain set; the greeting is
+  // replaced only while it is still the only message.
+  useEffect(() => {
+    if (!open || greeted) return;
+    setGreeted(true);
+    fetch('/api/support/chat?plain=1', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((g: { text?: unknown; quick?: unknown } | null) => {
+        if (!g || typeof g.text !== 'string' || !g.text.trim()) return;
+        const text = g.text;
+        setMessages((current) => (current.length === 1 && current[0].from === 'shape' ? [{ from: 'shape', text }] : current));
+        if (Array.isArray(g.quick)) setQuick(g.quick.filter((q): q is string => typeof q === 'string' && !!q.trim()).slice(0, 4));
+      })
+      .catch(() => {});
+  }, [open, greeted]);
 
   if (pathname === '/' || pathname === '/intro-preview') {
     return null;
@@ -131,7 +151,7 @@ export default function GlobalChatButton() {
             )}
             {messages.length === 1 && (
               <div className="mt-1 flex flex-wrap gap-2">
-                {['Find a coach', 'Billing help', 'App support'].map((item) => (
+                {quick.map((item) => (
                   <button
                     key={item}
                     type="button"

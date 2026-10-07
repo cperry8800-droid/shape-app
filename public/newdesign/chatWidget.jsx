@@ -293,6 +293,26 @@ function ChatWidget(props) {
   const [tabIdx, setTabIdx] = React.useState(0);
   // threadsByTab: array of arrays of threads (mutable copy)
   const [threadsByTab, setThreadsByTab] = React.useState(() => tabs.map(t => t.threads));
+  // Nora's greeting and suggestions for this account (GET /api/support/chat), fetched the
+  // first time the widget opens. It replaces the seed greeting only while her thread is
+  // untouched, so a conversation already under way is never rewritten.
+  const greetedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!open || greetedRef.current) return;
+    greetedRef.current = true;
+    fetch("/api/support/chat", { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((g) => {
+        if (!g || typeof g.text !== "string" || !g.text.trim()) return;
+        const quick = Array.isArray(g.quick) ? g.quick.filter((q) => typeof q === "string" && q.trim()).slice(0, 4) : [];
+        setThreadsByTab((prev) => prev.map((list, i) => (tabs[i] && tabs[i].support) ? list.map((th) => {
+          const msgs = th.messages || [];
+          if (th.who !== "Nora" || msgs.length !== 1 || msgs[0].me) return th;
+          return { ...th, last: g.text, quick, messages: [{ ...msgs[0], t: g.text }] };
+        }) : list));
+      })
+      .catch(() => {});
+  }, [open]);
   const [activeByTab, setActiveByTab] = React.useState(() => tabs.map(() => 0));
   const [draftByTab, setDraftByTab] = React.useState(() => tabs.map(() => ""));
   const [typing, setTyping] = React.useState(false);
