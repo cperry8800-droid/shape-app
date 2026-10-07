@@ -365,7 +365,7 @@ test('shape_help is offered to everyone and answers from the knowledge base; wit
   // "free" is a body word of two entries and a tag of none: a stray body
   // word must not make the rule-based path answer with the wrong entry.
   const shrug = await (await fb.mod.POST(post(ask('is it free')))).json();
-  assert.match(shrug.reply, /passed this to the Shape team/);
+  assert.match(shrug.reply, /I can't answer that one from here. The Shape team answers at info@theshapecommunity.com/, 'the catch-all, not a knowledge entry');
 });
 
 test('get_account: strict with no arguments, the member\'s OWN rows come back, and a non-member never reads', async () => {
