@@ -98,3 +98,39 @@ export function checkDrift(cmp, known, capture = null) {
   }
   return problems;
 }
+
+/**
+ * The allow-list as it applies to a catalog captured on one day: entries and registered findings
+ * for functions that NO migration dated before that day creates are set aside as `pending`, and
+ * the rest is returned as `allow` for the live diff.
+ *
+ * ⚠ WITHOUT THIS EVERY NEW anon-executable DEFINER FAILED ONE TEST OR THE OTHER. The grants test
+ * requires an allow-list entry for it from the migrations alone (it has to: that is the check that
+ * catches the leak before it ships), and the live diff called that same entry STALE, because a
+ * capture taken before the migration existed cannot contain the function. The agreement test's own
+ * note already says a function dated on or after the capture "is the grants test's business until
+ * the live catalog is captured again"; this is that sentence applied to the allow-list too.
+ *
+ * ⚠ IT CANNOT HIDE A REAL STALE ENTRY. A name is pending only when the pre-capture model has never
+ * heard of it. An entry for a function the old migrations DO create, which production no longer
+ * has, is still in `allow` and still fails as stale; and a pending name that turns up in the
+ * capture after all is reported by the caller's own assertion, not waved through.
+ */
+export function allowListAsOfCapture(allow, preCaptureModel) {
+  const known = new Set([...preCaptureModel.fns.values()].map((f) => f.name));
+  const pending = [];
+  const entries = {};
+  for (const [name, entry] of Object.entries(allow.entries ?? {})) {
+    if (known.has(name)) entries[name] = entry;
+    else pending.push(name);
+  }
+  const keep = (list) => (list ?? []).filter((f) => {
+    if (known.has(f?.name)) return true;
+    pending.push(f?.name);
+    return false;
+  });
+  return {
+    allow: { ...allow, entries, registeredFindings: keep(allow.registeredFindings), registeredPinFindings: allow.registeredPinFindings ?? [] },
+    pending: [...new Set(pending)].sort(),
+  };
+}

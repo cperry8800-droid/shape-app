@@ -304,6 +304,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/members/ages', 'POST'],
   ['/api/messages/direct', 'GET,POST'],
   ['/api/my-availability', 'GET,POST'],
+  ['/api/my-booking-rules', 'GET,POST'],
+  ['/api/my-time-off', 'GET,POST,DELETE'],
   ['/api/notifications', 'GET,POST'],
   ['/api/notify-app', 'POST'],
   ['/api/nutrition/meal-note', 'POST'],

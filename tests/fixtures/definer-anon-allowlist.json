@@ -272,6 +272,11 @@
       "class": "coach-gated",
       "note": "Requires is_coach_on_client(the post's author) and refuses the caller's own post; raises when signed out."
     },
+    "provider_busy_blocks": {
+      "class": "public-by-design",
+      "anonGrant": "explicit",
+      "note": "When a coach is busy, so a booking page shown to signed-out visitors can hide taken times (2026-10-07-booking-rules-time-off.sql): (starts_at, ends_at, kind) only, kind 'time_off' or 'session'; no session id, client, type, status or time-off note. Active sessions only, a window of at most 62 days (longer is refused), nothing that ended more than two days ago, at most 2000 rows. It does disclose a coach's busy pattern by design: that is the information a slot list has to act on."
+    },
     "redeem_store_item": {
       "class": "self-gated-auth-uid",
       "note": "Spends the caller's own points; the price comes from store_catalogue server-side; raises `not_authenticated` when signed out."
