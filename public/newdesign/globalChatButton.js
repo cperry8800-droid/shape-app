@@ -103,6 +103,9 @@
       "#shape-global-chat-button .sgc-half{display:inline-flex;align-items:center;gap:10px;border:0;margin:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;cursor:pointer;padding:17px 22px 17px 18px;-webkit-tap-highlight-color:transparent}",
       "#shape-global-chat-button .sgc-nora{background:#1a1612;color:#f2ede4}",
       "#shape-global-chat-button .sgc-star{color:#2ee0c4;font-size:16px;line-height:1}",
+      // ⚠ THE SITE'S MOBILE BREAKPOINT IS 760 PX, not the panel's 640 (Codex, #2244):
+      // through 760 the corner is a single round ✦ and Chat lives in the page's menu.
+      "@media (max-width:760px){#shape-global-chat-button .sgc-chat{display:none}#shape-global-chat-button .sgc-nora{width:52px;height:52px;padding:0;justify-content:center}#shape-global-chat-button .sgc-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}#shape-global-chat-button .sgc-star{font-size:20px}}",
       "#shape-global-chat-button .sgc-half:focus-visible{outline:3px solid rgba(var(--sh-ink-rgb, 242,237,228),.8);outline-offset:-3px}",
       "#shape-global-chat-button:hover{transform:translateY(-2px);box-shadow:0 22px 52px rgba(0,0,0,.44),0 5px 18px rgba(30,192,168,.42)}",
       "#shape-global-chat-button:focus-visible{outline:3px solid rgba(var(--sh-ink-rgb, 242,237,228),.8);outline-offset:4px}",
@@ -142,7 +145,7 @@
       "#shape-global-chat-panel .sgc-row .ls{font-size:12px;color:rgba(var(--sh-ink-rgb, 242,237,228),.6);grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
       "#shape-global-chat-panel .sgc-back{border:0;background:transparent;color:var(--sh-accent, #2ee0c4);font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0;margin-bottom:2px}",
       "#shape-global-chat-panel .sgc-from{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.08em;color:rgba(var(--sh-ink-rgb, 242,237,228),.42);margin:-3px 0 -2px}",
-      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:14px}#shape-global-chat-button .sgc-chat{display:none}#shape-global-chat-button .sgc-nora{width:52px;height:52px;padding:0;justify-content:center}#shape-global-chat-button .sgc-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}#shape-global-chat-button .sgc-star{font-size:20px}#shape-global-chat-button .shape-global-chat-count{min-width:25px;height:22px;font-size:11px}#shape-global-chat-panel{right:16px;bottom:82px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 104px));max-height:calc(100vh - 104px)}}"
+      "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:14px}#shape-global-chat-button .shape-global-chat-count{min-width:25px;height:22px;font-size:11px}#shape-global-chat-panel{right:16px;bottom:82px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 104px));max-height:calc(100vh - 104px)}}"
     ].join("");
     document.head.appendChild(style);
   }
@@ -483,6 +486,8 @@
     node.querySelector(".sgc-close").addEventListener("click", function () {
       node.classList.remove("open");
       try { localStorage.removeItem("shape.chat.open"); } catch (e) {}
+      // A class change is not a childList mutation: bring the corner back here.
+      syncVisibility(document.getElementById(ID));
     });
     head.addEventListener("mousedown", function (event) { startPanelDrag(event, node); });
     input.addEventListener("input", function () { send.disabled = !input.value.trim() || state.ti == null; });
@@ -527,6 +532,7 @@
     try { delete window.__openChatRequest; } catch (e) { window.__openChatRequest = null; }
     if (node.__showRequest) node.__showRequest(req);
     node.classList.add("open");
+    syncVisibility(document.getElementById(ID));
     try { localStorage.setItem("shape.chat.open", "1"); } catch (e) {}
     restorePanelPosition(node);
     var input = document.querySelector("#" + PANEL_ID + " textarea");
@@ -662,6 +668,11 @@
 
   function syncVisibility(button) {
     if (!button) return;
+    // ⚠ OUT OF THE WAY WHILE A PANEL IS OPEN. The launcher sits above every panel
+    // (z-index 2147483000) and, at phone width, on top of its composer and Send
+    // (Codex, #2244). Either panel is the whole conversation while it is open; its
+    // own × brings the corner back. Re-run by the body observer on every change.
+    if (document.querySelector("[data-chat-panel], #" + PANEL_ID + ".open")) { button.classList.add(HIDDEN_CLASS); return; }
     // This is now the single chat launcher on every page (ChatWidget no longer
     // renders its own floating bubble — it only shows the panel it opens). So the
     // button stays visible; opening chat shows the panel above it, and it doesn't

@@ -135,5 +135,22 @@ test('phones get the round ✦: the dock mounts below 760 px, Chat hidden by CSS
   dom.window.eval(BUTTON);
   await new Promise((r) => setTimeout(r, 10));
   assert.ok(dom.window.document.getElementById('shape-global-chat-button'), 'mounted at phone width');
-  assert.match(BUTTON, /@media \(max-width:640px\)\{[^"]*#shape-global-chat-button \.sgc-chat\{display:none\}[^"]*#shape-global-chat-button \.sgc-nora\{width:52px;height:52px/);
+  // The site's mobile breakpoint, 760 px (Codex, #2244), not the panel's 640.
+  assert.match(BUTTON, /@media \(max-width:760px\)\{#shape-global-chat-button \.sgc-chat\{display:none\}#shape-global-chat-button \.sgc-nora\{width:52px;height:52px/);
+  assert.doesNotMatch(BUTTON, /@media \(max-width:640px\)\{[^"]*\.sgc-chat\{display:none\}/);
+});
+
+test('the corner steps aside while a panel is open, and comes back when it closes', async () => {
+  const p = page(() => json(200, { reply: 'ok' }));
+  for (let i = 0; i < 3 && !p.doc.getElementById('shape-global-chat-button'); i++) await new Promise((r) => setTimeout(r, 5));
+  const dock = p.doc.getElementById('shape-global-chat-button');
+  dock.querySelector('.sgc-nora').click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(dock.classList.contains('shape-global-chat-hidden'), 'hidden while the panel is open');
+  p.doc.querySelector('#shape-global-chat-panel .sgc-close').click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(!dock.classList.contains('shape-global-chat-hidden'), 'back once it closes');
+  const rich = p.doc.createElement('div'); rich.setAttribute('data-chat-panel', ''); p.doc.body.appendChild(rich);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(dock.classList.contains('shape-global-chat-hidden'), 'hidden under the rich widget too');
 });
