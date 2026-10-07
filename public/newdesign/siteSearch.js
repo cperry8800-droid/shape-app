@@ -213,7 +213,10 @@
     if (nora) {
       nora.addEventListener('click', function () {
         close();
-        try { if (window.__openChat) window.__openChat('Nora', 'support'); else window.location.href = '/newdesign/Community.html'; } catch (e) {}
+        // Before the chat has loaded (__openChat is set only once it mounts), the
+        // launcher's __openChatTo stashes the request and boots the chat, so the first
+        // click opens Nora instead of navigating away to Community.
+        try { if (window.__openChat) window.__openChat('Nora', 'support'); else if (window.__openChatTo) window.__openChatTo({ who: 'Nora', tab: 'support' }); else window.location.href = '/newdesign/Community.html'; } catch (e) {}
       });
     }
     Array.prototype.forEach.call(resultsEl.querySelectorAll('a, button.ss-nora'), function (el) {

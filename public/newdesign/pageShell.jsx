@@ -849,7 +849,9 @@ function SiteSearch({ signedIn = false }) {
   const noraHit = !!needle && ("nora".includes(needle) || ["concierge", "support", "help", "assistant"].some(w => w.startsWith(needle)));
   const roleLabelOf = (r) => r === "trainer" ? "Trainer" : r === "nutritionist" ? "Nutritionist" : "Member";
   const roleColorOf = (r) => r === "trainer" ? "var(--sh-rust2, #c0533b)" : r === "nutritionist" ? "var(--sh-gold, #d8a23a)" : TEAL;
-  const openNora = () => { setOpen(false); try { if (window.__openChat) window.__openChat("Nora", "support"); else window.location.href = "/newdesign/Community.html"; } catch (e) {} };
+  // Before the chat has mounted, __openChatTo (globalChatButton.js) boots it and opens
+  // Nora; only a page with no launcher at all falls back to Community.
+  const openNora = () => { setOpen(false); try { if (window.__openChat) window.__openChat("Nora", "support"); else if (window.__openChatTo) window.__openChatTo({ who: "Nora", tab: "support" }); else window.location.href = "/newdesign/Community.html"; } catch (e) {} };
   const rowStyle = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 10, textDecoration: "none", cursor: "pointer", background: "transparent", border: 0, width: "100%", textAlign: "left" };
   return (
     <>
