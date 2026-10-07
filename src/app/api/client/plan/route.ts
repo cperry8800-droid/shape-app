@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
-import { supersetKey, videoUrl } from '../../../../../public/newdesign/workoutDocument.mjs';
+import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesign/workoutDocument.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,7 +25,7 @@ function weekStartISO(d = new Date()): string {
   return x.toISOString().slice(0, 10);
 }
 
-type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; rpe?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; seg?: unknown; video?: unknown; perSet?: unknown };
+type ExerciseRow = { name?: string; sets?: unknown; reps?: unknown; rest?: unknown; notes?: unknown; load?: unknown; rpe?: unknown; tempo?: unknown; cue?: unknown; group?: unknown; block?: unknown; seg?: unknown; video?: unknown; perSet?: unknown };
 
 type SetTarget = { reps: string; load: string };
 // Each set's own target when the coach wrote a ladder (ShapeWorkoutDocument.
@@ -52,7 +52,7 @@ const rpeOf = (v: unknown): number | null => {
   return Number.isFinite(n) && n > 0 && n <= 10 ? n : null;
 };
 
-function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; rpe: number | null; tempo: string; cue: string; group: string; seg: string; video: unknown; perSet?: SetTarget[] }> {
+function mapExercises(payload: Record<string, unknown> | null): Array<{ name: string; sets: string; reps: string; rest: string; load: string; rpe: number | null; tempo: string; cue: string; group: string; block: string; seg: string; video: unknown; perSet?: SetTarget[] }> {
   const list = Array.isArray(payload?.exercises) ? (payload!.exercises as ExerciseRow[]) : [];
   return list
     .filter((e) => e && (e.name != null))
@@ -81,6 +81,13 @@ function mapExercises(payload: Record<string, unknown> | null): Array<{ name: st
       // storage, the labels and the player (the A1/A2 label is derived from
       // this key at render, never stored).
       group: supersetKey(e.group),
+      // ⚠ THE COACH'S BLOCK (warmup · main · accessory · finisher), which the assign
+      // flow has stamped on every exercise all along and this whitelist dropped — so
+      // the app's preview invented "Warm-up / Main set / Cool-down" headings around
+      // moves the coach had already sorted. Read under the document's own rule:
+      // anything that is not one of the builder's kinds is '' (no block), and an
+      // assignment without blocks renders as one plain list.
+      block: blockKind(e.block),
       // Self-authored segment row (a run/ride/swim leg or a Hyrox station) — the
       // free descriptor the deck renders in place of a load ("10 mi · Z2").
       seg: e.seg != null ? String(e.seg) : '',

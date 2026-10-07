@@ -25,6 +25,20 @@
   // tests/coach-superset-labels.test.mjs holds the two equal over one vector set.
   const supersetKey = value => typeof value === 'string' ? value.trim().toUpperCase()
     : typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+  // The block a coach put a move in, as a key the member's surfaces can name.
+  // ⚠ `builderToAssignmentRows` HAS STAMPED `block` ON EVERY EXERCISE SINCE IT WAS
+  // WRITTEN, and nothing downstream read it: the member's plan route dropped it from
+  // its whitelist, and the app's workout preview invented "Warm-up / Main set /
+  // Cool-down" around every move instead (owner, 2026-10-07: "Apply all the fixes").
+  // Only the builder's own kinds are a block; anything else (an older assignment, a
+  // hand-built payload, a stray value) is NO block, so the reader falls back to one
+  // plain list rather than a heading nobody wrote. DashBuilder.BLOCK_KINDS carries
+  // the coach-facing labels; tests/builder-fixes-client.test.mjs holds the two lists equal.
+  const BLOCK_KINDS = ['warmup', 'main', 'accessory', 'finisher'];
+  const blockKind = value => {
+    const key = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    return BLOCK_KINDS.includes(key) ? key : '';
+  };
   // ⚠ RPE IS ITS OWN AXIS, NOT A UNIT OF LOAD. It was the fourth `loadType`, which
   // made it EXCLUSIVE with a weight: a coach could prescribe 100 kg or RPE 8 and
   // never "100 kg @ RPE 8" — the ordinary thing a strength coach writes. Owner:
@@ -287,5 +301,5 @@
       text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, videoUrl, TIME_DISTANCE_UNITS};
+  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS};
 });

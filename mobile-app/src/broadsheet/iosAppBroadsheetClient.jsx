@@ -7,7 +7,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
-import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsIsTimedReps } from '../services/workoutSession.mjs';
+import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsMoveBlocks, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsIsTimedReps } from '../services/workoutSession.mjs';
 import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
 import { bsSdSplitUnit, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
@@ -5475,6 +5475,13 @@ function bsBuildTrainProgram(workouts, t, tr) {
       adjustGen: w.adjustGen ?? (w.payload && w.payload.adjustGen) ?? null,
       headline: title,
       video:w.video || null, programVideo:w.programVideo || null,
+      // ⚠ THE COACH'S SHAPE RADIO PLAYLIST FOR THE DAY. The builder sets it per day
+      // ("Chips on the client card") and the plan route has always delivered it, but
+      // this mapping dropped it, so the app's Train hero never showed what the website
+      // card does. Owner, 2026-10-07. Only a playlist with a name is one.
+      playlist: w.playlist && String(w.playlist.name || '').trim()
+        ? { name: String(w.playlist.name).trim(), meta: String(w.playlist.meta || '').trim() }
+        : null,
       meta: [w.durationMin ? T('session:train.minutes', `${w.durationMin} min`, { min: w.durationMin }) : null, movesLabel].filter(Boolean).join(' · '),
       copy: w.description || (isSelf ? selfByline : T('session:train.programmedByCoach', 'Programmed by your coach.')),
       moves,
@@ -6345,6 +6352,14 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
             {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 3, padding: '3px 8px' }}>{cur.coachFocus}</span>}
             {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>{tr('session:train.coachIntensity', { defaultValue: 'Coach · {label}', label: cur.intensityLabel })}</span>}
           </div>
+        )}
+        {/* The coach's playlist for this day, as the website card chips it ("♪ name ·
+            meta"). It is a Shape Radio soundtrack, so it opens Radio. A coach-set rest
+            keeps the day's fields but is no session, so it shows no soundtrack. */}
+        {!isRestDay && cur.playlist && cur.playlist.name && (
+          <button type="button" onClick={goRadio} style={{ marginTop: 4, minHeight: 44, maxWidth: '100%', display: 'flex', alignItems: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+            <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 3, padding: '5px 9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>♪ {cur.playlist.name}{cur.playlist.meta ? ` · ${cur.playlist.meta}` : ''}</span>
+          </button>
         )}
         <div aria-hidden style={{ margin: '11px 0 0', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 62%, transparent)` }} />
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -31993,14 +32008,22 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
   _bsScrollTopOnMount();
   const isRest = program.tag === 'REST';
 
-  // Synthesize a quick "block" view: warmup → main → cooldown buckets.
+  // ⚠ THE COACH'S BLOCKS, NOT A TEMPLATE. This synthesized "Warm-up / Main set /
+  // Cool-down" around every day: two empty headings with notes nobody wrote, and every
+  // move under Main — including the warm-up the coach had put in its own block. Owner,
+  // 2026-10-07: "Apply all the fixes first". The groups are the coach's own, named as
+  // the builder names them, in the coach's order (bsMoveBlocks); a day whose moves
+  // carry no block (an older assignment, a self-built or demo day) is one plain list
+  // under the deck's own heading for it.
+  const blockName = {
+    warmup: tr('session:train.block.warmup', { defaultValue: 'Warm-up' }),
+    main: tr('session:train.block.main', { defaultValue: 'Main' }),
+    accessory: tr('session:train.block.accessory', { defaultValue: 'Accessory' }),
+    finisher: tr('session:train.block.finisher', { defaultValue: 'Finisher' }),
+  };
   const blocks = isRest
     ? [{ name: tr('session:train.block.recovery', { defaultValue: 'Recovery' }), moves: program.moves }]
-    : [
-        { name: tr('session:train.block.warmup', { defaultValue: 'Warm-up' }),  moves: [], note: tr('session:train.block.warmupNote', { defaultValue: '5–8 min: light mobility, raise core temp, prime CNS.' }) },
-        { name: tr('session:train.block.main', { defaultValue: 'Main set' }), moves: program.moves },
-        { name: tr('session:train.block.cooldown', { defaultValue: 'Cool-down' }), moves: [], note: tr('session:train.block.cooldownNote', { defaultValue: '3–5 min: easy walk, breathe through the nose, stretch the worked muscles.' }) },
-      ];
+    : bsMoveBlocks(program.moves).map((g) => ({ name: g.kind ? blockName[g.kind] : tr('session:train.programKicker', { defaultValue: 'The program' }), moves: g.moves }));
 
   // Aggregate stats
   // Each set's own reps on a ladder (3 × 8/6/4 is 18, not 24), sets × reps otherwise.
@@ -32045,11 +32068,6 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
       {blocks.map((bk, bi) => (
         <React.Fragment key={bi}>
           <BSOLHead heat={t.ACCENT} label={bk.name} t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{bk.moves.length > 0 ? tr('session:train.moveCount', { defaultValue: `${bk.moves.length} move${bk.moves.length === 1 ? '' : 's'}`, count: bk.moves.length }) : tr('session:train.auxiliary', { defaultValue: 'Auxiliary' })}</span>} />
-          {bk.note && (
-            <div style={{ padding: `6px ${t.padX}px 0` }}>
-              <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{bk.note}</div>
-            </div>
-          )}
           {bk.moves.length > 0 && (
             <div style={{ padding: `2px ${t.padX}px 0` }}>
               {bk.moves.map((m, i) => {
