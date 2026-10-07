@@ -315,6 +315,10 @@ test('a failed read is a 503 with Retry-After — never an empty calendar that w
     const res = await fetchFeed(TOKEN, fakeSupabase({ tables: feedTables(), fail: [table] }));
     assert.deepEqual([res.status, res.retry, res.cache], [503, '300', 'no-store'], table);
     assert.ok(!res.text.includes('BEGIN:VCALENDAR'), table + ': a partial calendar was served');
+    // The log names the failure. A failed page read as "the end of the list" also lands on
+    // a 503 (the count check catches the shortfall), but it logs "incomplete" over a database
+    // error, and whoever reads the log goes looking for the wrong thing.
+    assert.ok(res.logs.some((l) => /read failed/.test(l)), table + ': ' + res.logs.join(' | '));
   }
   // no service key: an outage, not a 500 stack
   const res = await fetchFeed(TOKEN, null);
