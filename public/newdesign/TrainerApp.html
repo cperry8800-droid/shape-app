@@ -76,6 +76,8 @@
 <script type="module">import * as LP from "/newdesign/liveProgress.mjs?v=20260720"; window.ShapeLiveValidate = LP;</script>
 <script type="module">import * as VB from "/newdesign/varianceBand.mjs?v=20260719"; window.ShapeVariance = VB;</script>
 <script type="module">import * as CY from "/newdesign/cyclePhase.mjs?v=20260719"; window.ShapeCycleLib = CY;</script>
+<!-- The Schedule grid's rules (scheduleRules.mjs, shared with the booking routes): window.ShapeScheduleRules before babel runs dashSchedule.jsx. -->
+<script type="module">import * as SR from "/newdesign/scheduleRules.mjs?v=20261007"; window.ShapeScheduleRules = SR;</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx?v=20260614"></script>

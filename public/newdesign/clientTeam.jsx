@@ -72,11 +72,6 @@ function CtLeader({ label, value, valueColor }) {
 const CT_BOOK_DAYS = 14;
 const CT_SESSION_MIN = 60;    // the editor's own grid is hourly, so an hour is the unit
 
-function ctSupabase() {
-  const db = typeof window !== "undefined" ? window.shapeDb : null;
-  return (db && db.client) || null;
-}
-
 function CtBookSheet({ coach, onClose, onBooked }) {
   const accent = ctRoleColor(coach);
   const [state, setState] = React.useState("loading");  // loading | ready | none | nozone | unreadable
@@ -116,40 +111,38 @@ function CtBookSheet({ coach, onClose, onBooked }) {
 
   const groups = state === "ready" ? window.BookingSlots.groupByDay(slots) : [];
 
+  // ⚠ THE REQUEST GOES THROUGH /api/sessions/request NOW, NOT STRAIGHT INTO `sessions`
+  // (2026-10-07). The direct insert was gated by RLS on who and what status, but a row
+  // written from the browser has no server behind it, so the coach was never told a member
+  // had asked — and nothing checked the time against their open hours or other bookings.
+  // The route keeps the RLS write (client_id = auth.uid(), status 'requested') and adds the
+  // three missing halves. Identity still comes from the ACCOUNT: nothing on screen names
+  // the member, the route reads them from the session.
   async function book() {
     if (!pick || saving) return;
     setSaving(true); setErr(null);
-    const c = ctSupabase();
-    if (!c) { setSaving(false); setErr("We couldn't reach the booking service. Try again in a moment."); return; }
     try {
-      const { data: auth } = await c.auth.getUser();
-      const user = auth && auth.user;
-      if (!user) { setSaving(false); setErr("Sign in to book a session."); return; }
-      // Identity comes from the ACCOUNT, never from anything on screen — the same rule
-      // /api/consultation records, and the RLS policy pins client_id = auth.uid() anyway.
-      const name = (user.user_metadata && user.user_metadata.full_name) || (user.email || "").split("@")[0] || "Shape client";
-      const { error } = await c.from("sessions").insert({
-        client_id: user.id,
-        client_name: name,
-        client_email: user.email || null,
-        provider_id: coach.provider_id,
-        provider_role: coach.provider_role === "nutritionist" ? "nutritionist" : "trainer",
-        type: "video",
-        scheduled_at: pick.iso,
-        duration_min: pick.durationMin,
-        // Pinned by RLS too: a member may only ever write 'requested', so the coach
-        // still decides. Sending anything else is refused rather than honoured.
-        status: "requested",
-        topic: "Coaching session",
+      const res = await fetch("/api/sessions/request", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          providerRole: coach.provider_role === "nutritionist" ? "nutritionist" : "trainer",
+          providerId: coach.provider_id,
+          // The instant the member was shown; the route re-reads it on the coach's clock.
+          scheduledAt: pick.iso,
+          durationMin: pick.durationMin,
+          topic: "Coaching session",
+        }),
       });
-      if (error) {
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
         setSaving(false);
-        // ⚠ 23505 IS THE DOUBLE-BOOK INDEX, AND IT DESERVES ITS OWN SENTENCE. The slot
-        // was open when the list was built and somebody took it in between; telling the
-        // member "something went wrong" would send them back to the same dead time.
-        setErr(String(error.code) === "23505"
-          ? "Somebody just took that time. Pick another and we'll send the request."
-          : "We couldn't send that request. Nothing was booked — try again.");
+        // ⚠ A TAKEN TIME DESERVES ITS OWN SENTENCE (the route's `taken`: the double-book
+        // index, or an overlap). The slot was open when the list was built and somebody took
+        // it in between; "something went wrong" would send them back to the same dead time.
+        setErr(res.status === 401 ? "Sign in to book a session."
+          : j && j.code === "taken" ? "Somebody just took that time. Pick another and we'll send the request."
+          : (j && j.error) || "We couldn't send that request. Nothing was booked — try again.");
         return;
       }
       setSaving(false);
