@@ -1,4 +1,4 @@
-import { normalizeWorkoutPlan, normalizeWorkoutDetail, builderToOutlineBlocks, videoUrl } from '../../../public/newdesign/workoutDocument.mjs';
+import { normalizeWorkoutPlan, normalizeWorkoutDetail, builderToOutlineBlocks, videoUrl, applyProgramProgression } from '../../../public/newdesign/workoutDocument.mjs';
 import { bsAssignMonday, bsAssignIso } from './planOutline.mjs';
 
 const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -74,6 +74,11 @@ export function workoutAssignmentsHaveExercises(rows) {
 export async function persistCoachWorkout(gateway, plan) {
   if (!gateway?.create || (plan.id && !gateway.update)) throw new Error('Library is unavailable. Your draft is still here.');
   const detail = normalizeWorkoutDetail(plan.detail, { name: plan.name });
+  // ⚠ EVERY SAVE FROM THE APP LEAVES THE PROGRAM IN STEP WITH ITS PROGRESSION: the editor,
+  // a duplicate, a drafted program. The editor already applies the rule as the coach edits;
+  // this is the same rule at the door, so no app save can store later weeks that lag
+  // week 1 until the website next opens the program. No rule, no change.
+  detail.builder = applyProgramProgression(detail.builder);
   if (!detail.builder.outlineOnly) detail.blocks = builderToOutlineBlocks(detail.builder);
   const body = { kind: 'program', name: plan.name, meta: plan.meta || `${detail.builder.weeks.length} weeks`, price: plan.price ?? null, detail, ...(plan.expectedOwnerId ? { expectedOwnerId: plan.expectedOwnerId } : {}), ...(typeof plan.published === 'boolean' ? { published: plan.published } : plan.id ? {} : { published: false }) };
   const saved = plan.id

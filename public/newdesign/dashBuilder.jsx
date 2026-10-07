@@ -394,7 +394,7 @@ function dbuCopySlot(doc, wi, di, ti) {
 function dbuCopiedDay(day, deload) {
   const fresh = JSON.parse(JSON.stringify(day));
   fresh.id = crypto.randomUUID();
-  (fresh.blocks || []).forEach((b) => { b.rows = (b.rows || []).map((r) => { const { loadPinned, ...rest } = r; return { ...rest, id: crypto.randomUUID() }; }); });
+  (fresh.blocks || []).forEach((b) => { b.rows = (b.rows || []).map((r) => ({ ...ShapeWorkoutDocument.unpinned(r), id: crypto.randomUUID() })); });
   const whole = ShapeWorkoutDocument.undeloadWeek({ deload: true, days: [fresh] }).days[0];
   return deload ? ShapeWorkoutDocument.deloadWeek({ deload: false, days: [whole] }).days[0] : whole;
 }
@@ -443,6 +443,22 @@ const DBU_PROGRESS_MARK = {
   follows: ["↗︎", "This week’s load is set by the program’s progression"],
   pinned: ["✎︎", "This week’s load was typed by hand"],
 };
+// The same marks for a move's RPE, when the rule climbs RPE too.
+const DBU_RPE_MARK = {
+  source: ["↗︎", "Its RPE goes up each week with the program’s progression"],
+  follows: ["↗︎", "This week’s RPE is set by the program’s progression"],
+  pinned: ["✎︎", "This week’s RPE was picked by hand"],
+};
+// A line's marks for the progression: the load's, and the RPE's beside it. ⚠ ONE ARROW,
+// NOT TWO: when the rule moves both, the load's arrow already says the move climbs, so the
+// RPE adds a mark only where it says something the load's does not (its own pin, or a
+// climb on a move whose load the rule leaves alone).
+function dbuProgressMarks(load, rpe) {
+  const out = [];
+  if (load) out.push(DBU_PROGRESS_MARK[load]);
+  if (rpe === "pinned" || (rpe && !load)) out.push(DBU_RPE_MARK[rpe]);
+  return out;
+}
 const dbuUnitLabel = (unit) => (unit === "pct" ? "% 1RM" : unit === "lb" ? "lb" : "kg");
 const dbuAmountLabel = (rule) => rule.amount + (rule.unit === "pct" ? "% 1RM" : " " + dbuUnitLabel(rule.unit));
 const DBU_PROGRESS_KINDS = [
@@ -451,6 +467,13 @@ const DBU_PROGRESS_KINDS = [
   { kinds: ["warmup", "main", "accessory", "finisher"], label: "every block" },
 ];
 const DBU_DELOAD_EVERY = [0, 3, 4, 5, 6];
+// The RPE climb's choices: as typed (no climb), or up half a point or a point a week, to a
+// cap on the editors' own half-point scale. A stored value off these lists is offered too,
+// so the select never shows a choice the rule does not hold.
+const DBU_RPE_STEPS_A_WEEK = [0.5, 1];
+const DBU_RPE_CAPS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+const DBU_RPE_CAP_DEFAULT = 9;
+const dbuWithStored = (list, v) => (v == null || list.includes(v) ? list : [...list, v].sort((a, b) => a - b));
 const dbuOrdinal = (n) => n + ((n % 100 >= 11 && n % 100 <= 13) ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th"));
 const dbuDeloadLabel = (n) => (n ? "Deload every " + dbuOrdinal(n) + " week" : "No deload week");
 // The rule a coach starts from: the unit most of week 1's main lifts are typed in (so the
@@ -470,10 +493,11 @@ function dbuProgressionReport(doc) {
   const W = ShapeWorkoutDocument;
   const rule = W.normalizeProgression(doc.progression);
   const weeks = doc.weeks || [];
-  const out = { rule, moves: 0, otherUnit: 0, pinned: 0, deloads: [], example: null };
+  const out = { rule, moves: 0, otherUnit: 0, pinned: 0, deloads: [], example: null, rpeMoves: 0, rpePinned: 0 };
   if (!rule) return out;
   const same = (a, b) => String((a && a.name) || "").trim().toLowerCase() === String((b && b.name) || "").trim().toLowerCase();
   ((weeks[0] || {}).days || []).forEach((day, di) => (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((r, ri) => {
+    if (W.rpeProgressionStatus(doc, 0, di, bi, ri) === "source") out.rpeMoves += 1;
     if (W.progressionStatus(doc, 0, di, bi, ri) === "source") {
       out.moves += 1;
       for (let wi = weeks.length - 1; wi > 0 && !out.example; wi -= 1) {
@@ -489,6 +513,7 @@ function dbuProgressionReport(doc) {
     if (w.deload) out.deloads.push(wi + 1);
     if (wi) (w.days || []).forEach((day, di) => (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((_, ri) => {
       if (W.progressionStatus(doc, wi, di, bi, ri) === "pinned") out.pinned += 1;
+      if (W.rpeProgressionStatus(doc, wi, di, bi, ri) === "pinned") out.rpePinned += 1;
     })));
   });
   return out;
@@ -960,7 +985,7 @@ function dbuRankMoves(list, term) {
 // walks the line like a spreadsheet; each one names its move for a screen reader.
 // Focus anywhere in the line selects it, so the detail follows the coach's cursor.
 // Usable on its own (two suites mount it bare), with selection and drag handed in.
-function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown, progress = '' }) {
+function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown, progress = '', rpeProgress = '' }) {
   const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText;
     // A trainer's new Rest value replaces any older numeric override, as in the mobile editor.
     if(k==='rest') delete next.restSeconds; onChange(next);};
@@ -975,7 +1000,7 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
     // ⚠ THE PROGRAM'S PROGRESSION, NOT THE ROW'S OLD CHECKBOX. `row.progression` only ever
     // did anything when a week was copied with Progress, a tool step 3 retired, so marking
     // it would promise a climb that no longer happens.
-    progress && DBU_PROGRESS_MARK[progress],
+    ...dbuProgressMarks(progress, rpeProgress),
     ladder && ['≡', 'Per-set targets · ' + [ladder.reps, ladder.weight].filter(Boolean).join(' · ')],
   ].filter(Boolean);
   const pick = () => { if (onSelect) onSelect(); };
@@ -1016,7 +1041,7 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
 // fields, the demo and the move's own actions. Remounted per move (its key), so an
 // upload's state belongs to the move it was started on — and the list will not change
 // the selection while one runs (`busy`), so that move stays on screen until it lands.
-function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplicate, onPair, pair = {}, clips = [], onUploading, progress = '', rule = null, onFollow }) {
+function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplicate, onPair, pair = {}, clips = [], onUploading, progress = '', rpeProgress = '', rule = null, onFollow, onFollowRpe }) {
   const set = (k,v) => onChange({...row,[k]:v});
   const [uploading,setUploading] = React.useState(false);
   const [error,setError] = React.useState('');
@@ -1046,6 +1071,13 @@ function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplic
         : progress === 'follows' ? 'This week’s load is set by the progression. Type a load to set it by hand.'
         : 'You set this week’s load by hand.'}
       {progress === 'pinned' && onFollow && <button type="button" className="dbtn" onClick={onFollow}>Follow the progression</button>}
+    </p>}
+    {rpeProgress && rule && rule.rpe && <p className="dprg">
+      <span aria-hidden="true">{DBU_RPE_MARK[rpeProgress][0]}</span>
+      {rpeProgress === 'source' ? 'Its RPE goes up ' + rule.rpe.step + ' each week, up to ' + rule.rpe.cap + '.'
+        : rpeProgress === 'follows' ? 'This week’s RPE is set by the progression. Pick an RPE to set it by hand.'
+        : 'You picked this week’s RPE by hand.'}
+      {rpeProgress === 'pinned' && onFollowRpe && <button type="button" className="dbtn" aria-label="Follow the progression for this RPE" onClick={onFollowRpe}>Follow the progression</button>}
     </p>}
     {/* ⚠ THE DEMO OPENS HERE, NOT BEHIND A FOLD. Step 1 folded it under every move because
         it was under EVERY move; the detail holds one move, so its demo is the thing being
@@ -1292,7 +1324,7 @@ function dbuMergeDraft(blocks, draftBlocks) {
   return next;
 }
 
-function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null, progress = {}, rule = null }) {
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null, progress = {}, rpeProgress = {}, rule = null }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
   const blocks = day.blocks || [];
   const flat = dbuFlatRows(day);
@@ -1468,7 +1500,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
                         <DbuRow key={x.key} row={x.row} label={x.label} rowKey={x.key} detailId={detailId}
                           selected={!!current && current.key === x.key} onSelect={() => select(x.key)}
                           dragging={!!drag && drag.key === x.key} dy={drag && drag.key === x.key ? drag.dy : 0}
-                          handle={handleFor(x.key)} onRowKeyDown={onRowKey(x.key)} progress={progress[x.key] || ''}
+                          handle={handleFor(x.key)} onRowKeyDown={onRowKey(x.key)} progress={progress[x.key] || ''} rpeProgress={rpeProgress[x.key] || ''}
                           onChange={(next) => updateRow(x.key, next)} />
                       ))}
                     </div>
@@ -1495,8 +1527,9 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
         {current ? (
           <DbuRowDetail key={current.key} id={detailId} row={current.row} label={current.label} blockLabel={dbuKindLabel(blocks[current.bi].kind)}
             clips={clips} onUploading={onUploading} pair={dbuPairState(day, current.key)}
-            progress={progress[current.key] || ''} rule={rule}
-            onFollow={() => { const { loadPinned, ...rest } = current.row; updateRow(current.key, rest); }}
+            progress={progress[current.key] || ''} rpeProgress={rpeProgress[current.key] || ''} rule={rule}
+            onFollow={() => updateRow(current.key, ShapeWorkoutDocument.unpinned(current.row, 'load'))}
+            onFollowRpe={() => updateRow(current.key, ShapeWorkoutDocument.unpinned(current.row, 'rpe'))}
             onChange={(next) => updateRow(current.key, next)}
             onPair={() => onChange(dbuTogglePair(day, current.key))}
             onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} />
@@ -1875,7 +1908,7 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
   // would put its own number back on the next keystroke. The mark beside it takes the pin
   // off again, and the load returns to the rule's.
   const status = (wi, di, bi, ri) => ShapeWorkoutDocument.progressionStatus(doc, wi, di, bi, ri);
-  const unpin = (r) => { const { loadPinned, ...rest } = r; return rest; };
+  const unpin = (r) => ShapeWorkoutDocument.unpinned(r, 'load');
   const mark = (st, name, wi, di, bi, ri) => (st === "follows" || st === "source")
     ? <span className="pg" title={DBU_PROGRESS_MARK[st][1]}><span aria-hidden="true">{DBU_PROGRESS_MARK[st][0]}</span><span className="sr">{DBU_PROGRESS_MARK[st][1]}</span></span>
     : st === "pinned"
@@ -2016,8 +2049,12 @@ function DbuProgressionBar({ doc, onRule }) {
   else if (!rep.moves) lines.push("No " + kindsLabel + " in week 1 have a load in " + dbuUnitLabel(rule.unit) + " yet.");
   else lines.push(rep.moves + (rep.moves === 1 ? " move" : " moves") + " from week 1 go up " + dbuAmountLabel(rule) + " each week"
     + (rep.example ? ". " + rep.example.name + " reaches " + rep.example.to + (rule.unit === "pct" ? "% 1RM" : " " + dbuUnitLabel(rule.unit)) + " in week " + rep.example.week : "") + ".");
-  if (rule.deloadEvery && rep.deloads.length) lines.push((rep.deloads.length === 1 ? "Week " + rep.deloads[0] + " deloads" : dbuWeekList(rep.deloads).replace(/^weeks/, "Weeks") + " deload") + ": about 40% fewer sets, and loads hold.");
+  if (rule.rpe) lines.push(rep.rpeMoves ? "RPE goes up " + rule.rpe.step + " a week on " + rep.rpeMoves + (rep.rpeMoves === 1 ? " move" : " moves") + ", up to " + rule.rpe.cap + "."
+    : "No " + kindsLabel + " in week 1 have a target RPE yet.");
+  if (rule.deloadEvery && rep.deloads.length) lines.push((rep.deloads.length === 1 ? "Week " + rep.deloads[0] + " deloads" : dbuWeekList(rep.deloads).replace(/^weeks/, "Weeks") + " deload")
+    + (rule.rpe ? ": about 40% fewer sets, loads hold, and RPE goes back to week 1’s." : ": about 40% fewer sets, and loads hold."));
   if (rep.pinned) lines.push(rep.pinned + (rep.pinned === 1 ? " load you typed by hand stays" : " loads you typed by hand stay") + " as typed.");
+  if (rep.rpePinned) lines.push(rep.rpePinned + (rep.rpePinned === 1 ? " RPE you picked by hand stays" : " RPEs you picked by hand stay") + " as picked.");
   if (rep.otherUnit) lines.push(rep.otherUnit + (rep.otherUnit === 1 ? " move" : " moves") + " in another unit " + (rep.otherUnit === 1 ? "stays" : "stay") + " as written.");
   return (
     <div className="dprog" role="group" aria-label="Progression">
@@ -2041,6 +2078,17 @@ function DbuProgressionBar({ doc, onRule }) {
           <select aria-label="Deload weeks" value={rule.deloadEvery} onChange={(e) => set({ deloadEvery: Number(e.target.value) })}>
             {deloadOptions.map((n) => <option key={n} value={n}>{dbuDeloadLabel(n)}</option>)}
           </select>
+        </span>
+        {/* The RPE climb: one more group in the same row, not a second bar. */}
+        <span className="dp-f">
+          <select aria-label="RPE added each week" value={rule.rpe ? String(rule.rpe.step) : "0"}
+            onChange={(e) => { const step = Number(e.target.value); set({ rpe: step ? { step, cap: rule.rpe ? rule.rpe.cap : DBU_RPE_CAP_DEFAULT } : null }); }}>
+            <option value="0">RPE as typed</option>
+            {dbuWithStored(DBU_RPE_STEPS_A_WEEK, rule.rpe && rule.rpe.step).map((n) => <option key={n} value={String(n)}>{"RPE +" + n + " a week"}</option>)}
+          </select>
+          {rule.rpe && <select aria-label="Highest RPE" value={String(rule.rpe.cap)} onChange={(e) => set({ rpe: { ...rule.rpe, cap: Number(e.target.value) } })}>
+            {dbuWithStored(DBU_RPE_CAPS, rule.rpe.cap).map((n) => <option key={n} value={String(n)}>{"up to " + n}</option>)}
+          </select>}
         </span>
         <button type="button" className="dp-b" onClick={() => onRule(null)}>Turn off</button>
       </div>
@@ -2278,7 +2326,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // Week 1 is where the climb starts, so its loads are never pinned: they move the rest.
   const setDay = (next) => {
     const prev = doc.weeks[sel.w] && doc.weeks[sel.w].days[sel.d];
-    const day2 = doc.progression && sel.w > 0 ? ShapeWorkoutDocument.pinLoadEdits(prev, next) : next;
+    const day2 = doc.progression && sel.w > 0 ? ShapeWorkoutDocument.pinLoadEdits(prev, next, doc.progression) : next;
     setWeeks(doc.weeks.map((w, wi) => (wi === sel.w ? { ...w, days: w.days.map((d, di) => (di === sel.d ? day2 : d)) } : w)));
   };
   // ⚠ THE DAY EDITOR'S TRAINING-DAY SELECT DOES NOT GO THROUGH `setDay`, which is a blind
@@ -2294,7 +2342,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // own, so under a progression it climbs from week 1 like every other.
   const duplicateWeek = (wi) => {
     const next = JSON.parse(JSON.stringify(doc.weeks[wi]));
-    (next.days || []).forEach((d) => (d.blocks || []).forEach((b) => { b.rows = (b.rows || []).map(({ loadPinned, ...r }) => r); }));
+    (next.days || []).forEach((d) => (d.blocks || []).forEach((b) => { b.rows = (b.rows || []).map((r) => ShapeWorkoutDocument.unpinned(r)); }));
     setWeeks([...doc.weeks.slice(0, wi + 1), next, ...doc.weeks.slice(wi + 1)]);
   };
   // Every per-week action in one place, so the grid's gutter and any later caller
@@ -2318,17 +2366,22 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // The progression bar's one writer. Off keeps every load where it is (they are real
   // numbers in the weeks, not a view of the rule) and drops the hand-typed marks, which
   // have nothing left to hold against. Leaving a deload cadence takes its deloads off.
+  // Turning the RPE climb off does the same for RPE: every RPE stays where it is, and
+  // the RPEs picked by hand lose their marks.
+  const unpinAll = (weeks, axis) => weeks.map((w) => ({ ...w, days: (w.days || []).map((d) => ({ ...d, blocks: (d.blocks || []).map((b) => ({ ...b, rows: (b.rows || []).map((r) => ShapeWorkoutDocument.unpinned(r, axis)) })) })) }));
   const setRule = (next) => {
     const prev = ShapeWorkoutDocument.normalizeProgression(doc.progression);
     if (!next) {
       const { progression, ...rest } = doc;
-      setDoc({ ...rest, weeks: doc.weeks.map((w) => ({ ...w, days: (w.days || []).map((d) => ({ ...d, blocks: (d.blocks || []).map((b) => ({ ...b, rows: (b.rows || []).map(({ loadPinned, ...r }) => r) })) })) })) });
+      setDoc({ ...rest, weeks: unpinAll(doc.weeks) });
       return;
     }
     // ⚠ NOT A DELOAD WEEK SAVED BEFORE THE CADENCE (`legacyDeload`): its sets were cut
     // with nothing to give them back, so it stays marked as the deload it still is.
-    const weeks = prev && prev.deloadEvery && !next.deloadEvery ? doc.weeks.map((w) => (w.deload && !ShapeWorkoutDocument.legacyDeload(w) ? DashBuilder.undeloadWeek(w) : w)) : doc.weeks;
-    setDoc({ ...doc, weeks, progression: ShapeWorkoutDocument.normalizeProgression(next) || prev });
+    const rule = ShapeWorkoutDocument.normalizeProgression(next) || prev;
+    let weeks = prev && prev.deloadEvery && !next.deloadEvery ? doc.weeks.map((w) => (w.deload && !ShapeWorkoutDocument.legacyDeload(w) ? DashBuilder.undeloadWeek(w) : w)) : doc.weeks;
+    if (prev && prev.rpe && !(rule && rule.rpe)) weeks = unpinAll(weeks, "rpe");
+    setDoc({ ...doc, weeks, progression: rule });
   };
   const addDay = () => {
     const wi = Math.max(0, sel.w), w = doc.weeks[wi];
@@ -2352,10 +2405,12 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const onlyDay = doc.weeks.reduce((n, w) => n + (w.days || []).length, 0) <= 1;
 
   // What the program's progression does to each move of the open day, for its marks.
-  const progress = {};
+  const progress = {}, rpeProgress = {};
   if (day) (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((r, ri) => {
     const st = ShapeWorkoutDocument.progressionStatus(doc, sel.w, sel.d, bi, ri);
     if (st) progress[dbuRowKey(r, bi, ri)] = st;
+    const rs = ShapeWorkoutDocument.rpeProgressionStatus(doc, sel.w, sel.d, bi, ri);
+    if (rs) rpeProgress[dbuRowKey(r, bi, ri)] = rs;
   }));
   const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
 
@@ -2843,6 +2898,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
               live={!!live}
               clientId={preselectId || null}
               progress={progress}
+              rpeProgress={rpeProgress}
               rule={rule}
             />
           </div>
