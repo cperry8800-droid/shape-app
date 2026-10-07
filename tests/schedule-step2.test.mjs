@@ -146,9 +146,18 @@ test('the load counts open hours used — confirmed and done only, inside the ho
 // fakeSupabase answers reads by APPLYING the filters; this adds the writes the booking routes
 // make, against the same rows, and the auth admin read. `label` says which client wrote, so a
 // test can tell a request-client insert (RLS applies) from a service-role one.
-function db(tables, { label, insertError = null, fail = [] } = {}) {
+function db(tables, { label, insertError = null, fail = [], rlsUser = null } = {}) {
+  // ⚠ THE REQUEST CLIENT READS `sessions` THROUGH ITS POLICY (read_own_sessions: your own, or
+  // ones booked against a provider row you own). Without it a member's client would see the
+  // coach's whole calendar here, and a route that checked a clash through the wrong client
+  // would pass.
+  const owns = (r) => [...(tables.trainers || []), ...(tables.nutritionists || [])]
+    .some((p) => p.owner_id === rlsUser && p.id === r.provider_id);
+  const view = rlsUser == null ? tables : new Proxy(tables, {
+    get: (t, k) => (k === 'sessions' ? (t.sessions || []).filter((r) => r.client_id === rlsUser || owns(r)) : t[k]),
+  });
   const base = fakeSupabase({
-    tables, fail,
+    tables: view, fail,
     rpcs: { get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: (tables.names || {})[id] || null })) },
   });
   let n = 0;
@@ -230,7 +239,7 @@ async function routes() {
 }
 async function post(mod, path, body, { tables, user, insertError, fail } = {}) {
   const m = await routes();
-  m.state.client = db(tables, { label: 'request', fail });
+  m.state.client = db(tables, { label: 'request', fail, rlsUser: user ? user.id : null });
   m.state.admin = db(tables, { label: 'service', insertError, fail });
   m.state.user = user;
   m.state.notices.length = 0;
@@ -467,6 +476,7 @@ const WEEK = () => [
   ev('s-thu', '2026-10-08', '09:00', { title: 'Upper A' }),
   ev('s-fri', '2026-10-09', '10:00', { with: 'Marcus T.', clientId: 'member-2', meetingUrl: 'https://meet.shape.test/s-fri' }),
   ev('s-req', '2026-10-09', '14:00', { status: 'requested', with: 'Jordan M.', clientId: 'member-3', title: 'Intro session' }),
+  ev('s-sat', '2026-10-10', '08:00', { title: 'Long run' }),
   { id: 'plan:w1', source: 'plan', kind: 'WORKOUT', title: 'Lower A', sub: 'Assigned workout', date: '2026-10-06', time: null, durationMin: null, with: '', status: 'planned', editable: false },
 ];
 // Mon–Fri 8a–12p, saved in New York.
@@ -509,6 +519,11 @@ test('the week is a time axis: blocks sized by length, open hours shaded, a now 
   const { page } = await open();
   try {
     assert.equal(page.doc.querySelectorAll('[data-col-date]').length, 7, 'the week grid has seven columns');
+    // ⚠ pageShell's ≤900px stylesheet collapses any inline `grid-template-columns: repeat(7…`
+    // to ONE column; the grid's own templates must never be caught by it.
+    for (const el of page.doc.querySelectorAll('[style*="grid-template-columns"]')) {
+      assert.doesNotMatch(el.getAttribute('style'), /grid-template-columns: repeat\(7/, 'a seven-column template the phone stylesheet collapses');
+    }
     const thu = block(page, 's-thu');
     assert.equal(colOf(page, thu), '2026-10-08');
     assert.equal(px(thu.style.top), yOf(540) + 1, 'a 9:00 booking sits at 9:00 on the axis');
@@ -550,9 +565,15 @@ test('a pointer drag moves a booking to a new TIME on another day, in the route\
   const { page, posts } = await open();
   try {
     page.layout();
-    // Thu 9:00 (column 3), taken 10px below its top → Fri (column 4) with its top at 11:00.
-    await page.drag(block(page, 's-thu'), [[450, yOf(540) + 10], [452, yOf(540) + 30], [550, 230]]);
-    assert.deepEqual(posts, [{ action: 'reschedule', sessionId: 's-thu', date: '2026-10-09', time: '11:00', tz: NY }]);
+    // A nudge inside its own hour is not a clash with itself: Thu 9:00 → Thu 9:30.
+    await page.drag(block(page, 's-thu'), [[450, yOf(540) + 10], [452, yOf(540) + 30], [450, 164]], { release: false });
+    assert.equal(page.doc.querySelector('[data-drop-target]').getAttribute('data-drop-target'), 'ok', 'the booking clashed with itself');
+    await page.act(async () => page.dom.window.dispatchEvent(Object.assign(new page.dom.window.MouseEvent('pointerup', { bubbles: true }), { pointerId: 1 })));
+    await page.settle();
+    assert.deepEqual(posts, [{ action: 'reschedule', sessionId: 's-thu', date: '2026-10-08', time: '09:30', tz: NY }]);
+    // Thu 9:30 (column 3), taken 10px below its top → Fri (column 4) with its top at 11:00.
+    await page.drag(block(page, 's-thu'), [[450, yOf(570) + 10], [452, yOf(570) + 30], [550, 230]]);
+    assert.deepEqual(posts.slice(-1), [{ action: 'reschedule', sessionId: 's-thu', date: '2026-10-09', time: '11:00', tz: NY }]);
     assert.equal(colOf(page, block(page, 's-thu')), '2026-10-09', 'the block did not move');
     assert.equal(px(block(page, 's-thu').style.top), yOf(660) + 1);
     assert.match(page.toast(), /Moved Priya S\. to .*11:00 AM · Priya notified/);
@@ -694,6 +715,10 @@ test('the booking sheet: status, where, real actions, and the client\'s prep fro
     // A room is Join.
     await page.click(block(page, 's-fri'));
     assert.equal(page.doc.querySelector('[role=dialog] a').getAttribute('href'), 'https://meet.shape.test/s-fri');
+    // "Last session" is one that has HAPPENED: Saturday's sheet skips Thursday's, still ahead.
+    await page.click(page.button('Close'));
+    await page.click(block(page, 's-sat'));
+    assert.match(dlg().textContent, /Last session.*Wed, Oct 7 · Tempo run/);
   } finally { await page.unmount(); }
 });
 

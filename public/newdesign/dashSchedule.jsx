@@ -1193,7 +1193,15 @@ function CoachSchedulePage({ role }) {
     };
   };
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2600); };
+  // ⚠ ONE TIMER, RESET PER TOAST AND CLEARED ON UNMOUNT. A timer per call let the first
+  // toast's timer clear the second one early — a refusal right after a move flashed and went.
+  const toastTimer = React.useRef(null);
+  React.useEffect(() => () => clearTimeout(toastTimer.current), []);
+  const showToast = (msg) => {
+    clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
+  };
   const setEvents = (fn) => { if (liveEvents) setCal((c) => (c ? { ...c, events: fn(c.events) } : c)); else setDemoEvents(fn); };
 
   const pickEvent = (ev) => {

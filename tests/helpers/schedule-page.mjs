@@ -117,9 +117,7 @@ export async function mountSchedule({
     async key(k) { await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: k, bubbles: true }))); await settle(); },
     toast: () => { const t = doc.querySelector('[data-toast]'); return t ? t.textContent : ''; },
     async unmount() {
-      // The toast clears itself on a 2.6 s timer; one still showing is waited OUT (polled until
-      // it is gone, not a fixed sleep) so its timer fires while a window still exists.
-      for (let i = 0; i < 80 && doc.querySelector('[data-toast]'); i++) await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+      // Nothing to wait out: the page clears its toast timer and its minute tick on unmount.
       try { await act(async () => root.unmount()); } finally {
         dom.window.close();
         Object.assign(globalThis, { window: before.window, document: before.document, IS_REACT_ACT_ENVIRONMENT: before.act, fetch: before.fetch, Date: before.Date });

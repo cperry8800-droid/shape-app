@@ -54,9 +54,11 @@ export default {
       replace: '...planWorkouts, ...planMeals] });' },
 
     // ── 1 · the reschedule reads the wall clock in the zone it was shown in ───────────────
+    // ⚠ REPOINTED 2026-10-07 (step 2): `create` resolves its wall clock with the same line at a
+    // shallower indent, so the reschedule's own indentation is what makes this anchor unique.
     { name: 'the reschedule reads the wall clock as UTC whatever it is sent', file: MANAGE,
-      find: 'const at = instantInZone(y, mo, d, h, mi, zone);',
-      replace: "const at = instantInZone(y, mo, d, h, mi, 'UTC');" },
+      find: '    const at = instantInZone(y, mo, d, h, mi, zone);\n    if (!Number.isFinite(at)) {',
+      replace: "    const at = instantInZone(y, mo, d, h, mi, 'UTC');\n    if (!Number.isFinite(at)) {" },
     { name: 'a sent zone that is not one is read as UTC', file: MANAGE,
       find: "const zone = sentZone == null || sentZone === '' ? 'UTC' : normalizeZone(sentZone);",
       replace: "const zone = sentZone == null || sentZone === '' ? 'UTC' : normalizeZone(sentZone) || 'UTC';" },
@@ -68,12 +70,14 @@ export default {
       replace: '    if (false) {\n' },
 
     // ── 1 · the website page and overlay ───────────────────────────────────────────────────
+    // ⚠ REPOINTED 2026-10-07 (step 2): a move now sends the TARGET time (the grid drags to a new
+    // time; the month's day-only drop passes the booking's own), so the body reads `time`.
     { name: 'the page drag drops the zone', file: PAGE,
-      find: 'time: ev.time || null, tz: calZone || undefined })',
-      replace: 'time: ev.time || null })' },
+      find: 'time: time || null, tz: calZone || undefined })',
+      replace: 'time: time || null })' },
     { name: 'the page drag sends this browser\'s zone instead of the one it was shown', file: PAGE,
-      find: 'time: ev.time || null, tz: calZone || undefined })',
-      replace: 'time: ev.time || null, tz: dscBrowserZone() || undefined })' },
+      find: 'time: time || null, tz: calZone || undefined })',
+      replace: 'time: time || null, tz: dscBrowserZone() || undefined })' },
     { name: 'the page reads the calendar without a zone', file: PAGE,
       find: '+ "&tz=" + encodeURIComponent(dscBrowserZone() || "");',
       replace: '+ "";' },
