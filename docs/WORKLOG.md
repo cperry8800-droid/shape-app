@@ -847,6 +847,87 @@ Everything older, newest-first: [2026-10](WORKLOG-ARCHIVE-2026-10.md) ·
 [early-June, Cycles 2–5](WORKLOG-ARCHIVE-2026-06-cycles-2-5.md).
 Append new entries at the top, under this note.
 
+### 2026-10-07 — Coach tools in one run: the Schedule and the program builder, fixes first, then steps 2–4
+
+- **Fifteen PRs, #2222 to #2236, all merged on 2026-10-07.** Each merged tree is byte-identical to its PR's final head, and all required checks were green on every final head. The run started from the brainstorm page in the "Coach tools rethink" entry below, approved with *"I like everything that is proposed for schedule and program builder. Apply all the fixes first then proceed with upgrades/improvements"*. Later the owner said *"do step 4 in that order"*.
+- **Migrations, six files, all checked live in production on 2026-10-07** (by reading the catalog, not a migration log):
+  - `2026-10-07-calendar-feed-token.sql` (#2224): `calendar_feed_tokens`.
+  - `2026-10-07-exercise-catalog.sql` (#2224): `exercise_catalog`, 248 rows.
+  - `2026-10-07-booking-rules-time-off.sql` (#2225): `provider_time_off`, `provider_booking_rules`, `provider_busy_blocks`.
+  - `2026-10-07-sessions-no-overlap.sql` (#2228, added in its review round; the PR body still says "No migration"): the `sessions_no_overlap` constraint.
+  - `2026-10-07-booking-rules-enforced.sql` (#2231): the `sessions_enforce_booking_rules` trigger.
+  - `2026-10-07-session-series.sql` (#2234): `sessions.series_id` (uuid), `sessions_series_idx`, and `move_session_run`, security invoker, executable by `authenticated` and not by `anon`.
+- **Review.** None was requested (owner: *"no code review needed for simple edits"*). Copilot declined every head on its quota, and CodeRabbit posted only its skip notice. Codex declined #2222 on its usage limit and completed with no findings on #2223, #2226 and #2231. On eleven PRs it filed **25 findings**: 23 were fixed in their own PR, one was fixed by a follow-up PR (#2231), and one was put to the owner (#2227).
+
+**Fixes first**
+- **Merged [#2222](https://github.com/cperry8800-droid/shape-app/pull/2222) as `93b0f01`**, final head `e627dbf`. 44 files. Both fix sets went into one PR: GitHub refused PR creation with 500 errors for about 30 minutes.
+  - **The Schedule runs on the coach's own clock.** `/api/calendar` built times in UTC, so a 9:00 AM New York consult read "1:00p". A caller that sends `tz` now gets the coach's stored zone. No `tz` still means UTC, on purpose: installed app builds send none. Reschedule takes `tz` and keeps the wall-clock time; Nora's `reschedule_session` uses the coach's stored zone.
+  - **The visible range loads**, a month at a time, with a "Times in …" label.
+  - ⚠ **THE MONTH GRID STEPPED IN 24-HOUR INCREMENTS**, so in November New York showed Sunday Nov 1 twice and every later day sat under the wrong weekday. Fixed.
+  - **The false claims are gone** (two-way calendar sync, reminders, intake forms); a test bans them.
+  - **Members get the coach's blocks, playlist and videos.** `/api/client/plan` dropped each exercise's `block`, so the app's preview invented Warm-up / Main set / Cool-down. The day editor is quieter: an empty load reads "—".
+  - **Verified:** full suite 5585/5585; mutations 42/42, 38/38 and 8/8; 13 of the 16 new schedule tests fail on the old code (the no-`tz` test passes there by design).
+- **Merged [#2223](https://github.com/cperry8800-droid/shape-app/pull/2223) as `b554615`**, final head `80a6184`. 21 files. Three of #2222's registered items, on *"keep going"*: the website workout card names the coach's blocks, the app's preview shows each move's demo, and the app calendar names its zone. Mutations 11/11.
+
+**Pieces that stand alone**
+- **Merged [#2224](https://github.com/cperry8800-droid/shape-app/pull/2224) as `d787a13`**, final head `a531ce1`. 16 files.
+  - **A read-only calendar feed** (`/api/calendar/feed/<token>`) and a Settings card. A failed read is a 503, never an empty feed, which a subscribing calendar reads as "delete everything".
+  - **The exercise catalog as data:** `exercise_catalog` (248 moves) and a public `GET /api/exercises`.
+  - **Paste a workout as text** (`parseWorkoutText`): nothing is dropped, and every guess carries a warning.
+  - ⚠ **THE FIRST CATALOG MIGRATION FAILED IN PRODUCTION AND ROLLED BACK.** Production already had an empty per-coach `exercise_library` from May, so `create table if not exists` created nothing. The table was renamed, and the migration now stops on a wrong-shape table.
+  - **Codex, 1 finding, fixed:** the server's row cap could cut the feed short and publish a partial calendar. The reads now page to the end.
+  - **Verified:** 108 new tests; mutations 83/83 on the build branch.
+
+**Schedule**
+- **Merged [#2228](https://github.com/cperry8800-droid/shape-app/pull/2228) as `55be11c`** (step 2, the week grid), final head `0cb78f8`. 24 files. Day · Week · Month on a time axis, open hours shaded, a requests strip, a booking sheet with real actions, book from an empty slot, and drag to a new time.
+  - ⚠ **CODEX'S P1 WAS RIGHT: TWO OVERLAPPING BOOKINGS SENT TOGETHER BOTH PASSED THE READ.** The only guard was unique on the exact start. `sessions_no_overlap`, an exclusion constraint over active sessions, now refuses the second. Its P2, a crafted 09:15 start, is refused by `isOfferedStart`.
+  - **Verified:** 41 new tests; full suite 5599/5599 and mutations 86/87 on the build branch (the survivor, a test-order gap, was killed on re-run).
+- **Merged [#2229](https://github.com/cperry8800-droid/shape-app/pull/2229) as `39debab`** (step 3, your hours), final head `8680c65`. 20 files. Paint hours on the grid, copy a day, time off, and the booking-rules form. The member routes refuse by time off, buffer, daily limit and notice.
+  - ⚠ **`booked` WAS EMPTY FOR ALMOST EVERYONE.** It read `sessions` through the visitor's own client, and RLS hides other members' sessions, so members were offered taken times. It now comes from the definer busy read.
+  - **Codex, 3 P1s.** Fixed: opening "Edit hours" before the hours loaded, then saving, would have erased every stored hour; the app's slot list ignored `busy` and `rules`. The third, the rule check racing the insert, was fixed in #2231.
+  - **Verified:** all 15 new or changed tests fail on `main`; 1,726/1,726 across 92 files. No mutation round, the owner's call.
+
+**Builder**
+- **Merged [#2226](https://github.com/cperry8800-droid/shape-app/pull/2226) as `21cc7c0`** (step 2), final head `45aa96a`. 7 files. A day is one list with the detail beside it; type to add; drag across blocks, or Alt+↑/↓. Verified on the build branch: full suite 5615/5615, mutations 40/41 (the survivor proven).
+- **Merged [#2230](https://github.com/cperry8800-droid/shape-app/pull/2230) as `d201d91`** (step 3), final head `a7ef7c4`. 15 files. Grid ⇄ Sheet only: Guided, Editor, Planner and the pop-out are gone. Delete a day, copy a day to other weeks, and the progression bar: one rule writes later weeks' loads, with deloads and pinned hand-typed loads.
+  - **Codex, 3 P1s, all fixed:** rows added to a deload week kept full volume; a legacy deload lost its flag but kept its cut; a reps-only ladder edit pinned the load.
+  - **Verified:** 1,573 tests across 84 files. No mutation round, at the owner's request.
+- **Merged [#2227](https://github.com/cperry8800-droid/shape-app/pull/2227) as `d0aa2ce`** (AI drafting), final head `9e3e120`. 43 files. The owner: *"make sure Nora is capable of doing that if a trainer just wants to talk to her, and she can generate the plan"*. "✦ Draft with AI" in the builder, and Nora's `draft_workout`. No invented loads, client or date; nothing saved before the coach confirms; a template says it is one.
+  - ⚠ **CODEX'S P1 WAS RIGHT: ONE WRITTEN PERCENTAGE LET EVERY GENERATED PERCENTAGE THROUGH.** "Bench at 60%" admitted an unstated 100% squat. A written percentage now admits only itself. A short week now falls back to the template. Put to the owner: a dual-role account whose primary role is not trainer gets no drafting tool (none exists in production).
+  - **Verified:** 61 new tests; mutations 59 killed and 12 killed, each with one proven no-op, on the build branches.
+
+**Booking rules in the database**
+- **Merged [#2225](https://github.com/cperry8800-droid/shape-app/pull/2225) as `1669d3e`**, final head `fe3f72d`. 15 files. The backend for step 3: time off, booking rules, `provider_busy_blocks` (a definer read of busy times only, allow-listed for anon), the pure `bookingRules.mjs`, and two coach routes.
+  - **Codex, 3 P2s, all fixed:** an account owning two coach rows got 503 everywhere; the padded busy read could exceed the function's 62-day limit; the 2,000-row cap silently dropped busy time (it now raises).
+  - **Verified:** 35 new tests; the migration applied three times on a throwaway Postgres 16; mutations 61/61 on the build branch.
+- **Merged [#2231](https://github.com/cperry8800-droid/shape-app/pull/2231) as `109f8e9`**, final head `0edd95f`. 8 files. On *"yes do it"*: a `before insert` trigger on `sessions` takes a per-coach lock and re-checks every `requested` row's rules. On a local Postgres 16, a second concurrent request waits and is refused. 1182/1182 across 52 files.
+
+**Step 4, in the owner's order**
+- **Merged [#2232](https://github.com/cperry8800-droid/shape-app/pull/2232) as `67c376b`**, final head `c8d8505`. 22 files. An RPE climb in the progression, and the app's coach editor applies the rule on every edit and on save.
+  - **Codex, 1 P1, fixed:** a caught-up program opened as saved, so "Review future assignments" could send the stored, stale loads.
+  - **Verified:** 14 of 15 new tests fail with the sources reverted; 1446/1446 across 91 files. No mutation round, by the owner's ruling.
+- **Merged [#2233](https://github.com/cperry8800-droid/shape-app/pull/2233) as `2997732`**, final head `0592941`. 24 files. The app's intro booking posts to `/api/consultation` instead of inserting its own row, and a coach's "Book a session" books a real session; it had saved a calendar note.
+  - ⚠ **THE PROFILE'S "BOOK INTRO" FAILED EVERY TIME IT WAS PRESSED**, because it sent no time. Codex's P1 found the same gap in the listing's two main intro buttons, and its P2 a past 9:00 left selected. All fixed.
+  - **Verified:** 1742/1742 across 118 files; every new or rewritten test fails on the previous code.
+- **Merged [#2234](https://github.com/cperry8800-droid/shape-app/pull/2234) as `5680465`**, final head `20054d2`. 23 files. Weekly runs: book 2–26 weeks, skip and name a taken date, and cancel or move "this and following".
+  - **Codex, 3 findings, all fixed:** the app's service dropped `repeat`; the run move was not atomic (now one database call, `move_session_run`); the reply lacked each booking's room.
+  - **Verified:** 149/149 across 9 suites on `20054d2`; 1672/1672 across 91 files on `9ec8017`.
+- **Merged [#2235](https://github.com/cperry8800-droid/shape-app/pull/2235) as `ca60d9b`**, final head `f79e9c2`. 3 files. A **Plans** row on the trainer's Schedule: each client's dated training days, one chip per client and day, narrowed by the client chips, with a remembered toggle. `/api/calendar?role=trainer&clientPlans=1` reads them through RLS; a failed read is said, not drawn as a week with no training.
+  - **Codex, 3 findings, all fixed:** the trainer row was read with `maybeSingle()`, so an account with two listings lost the whole row; the read stopped at 1,000 rows and still said it was whole, though the Schedule asks for two or three months at once (it now pages to the end, up to 5,000, and past that says the row is incomplete); past 200 clients the name lookup failed silently and every plan read "Client" (it now batches).
+  - **Verified:** every new test fails on the previous head; 164/164 across the files that read the route or the Schedule.
+- **Merged [#2236](https://github.com/cperry8800-droid/shape-app/pull/2236) as `22c4de6`**, final head `67cae31`. 4 files. The Coaches tour's Schedule tab names the private calendar feed, and the claim bans narrow to a *sync* or *integration* with an outside calendar, which is still false. In the builder, dropping a move on the middle of another row makes the two a superset (A1, A2), and a superset left with one move is undone.
+  - **Codex, 1 finding, fixed:** a move dragged out of a pair while the other three letters were taken was refused, because the partner it was about to leave alone still counted as using its letter. The released letter is now free for the new pair.
+  - **Verified:** `npm test` 5961/5961 on the first head's exact tree; the superset drop driven in Chromium at 1440 and 390 px; 517/517 in the files that read the builder on the final head.
+- **Written after the merge**, per the 2026-09-11 rule.
+- ⚠ **REGISTERED, NOT DONE:**
+  - Re-capture the live definer catalog now that `booking-rules-time-off.sql` has run (#2225).
+  - Booking: direct inserts through RLS still bypass open hours (#2233); closing it means a service-role write in `/api/sessions/request` and dropping the member insert policy. A coach's own bookings are not held to buffer, limit or notice (#2229). No-show needs a migration (#2228). A booking cannot be resized (#2228). The app has no "this and following", and a member cannot move a session (#2234). The app's coach hours editor; a touch on the hours grid paints instead of scrolling (#2229).
+  - Time zones: installed app builds keep UTC times until they update, and the undated-workout week uses UTC (#2222). Nora's "today" is UTC (#2227).
+  - Builder: the catalog and paste-a-workout are not wired into the day list (#2226). The detail panel does not stay pinned on long days, drag does not auto-scroll, and a ladder row's cells edit the base values (#2226). No per-move opt-out, no RPE-only climb, no RPE in Sheet (#2230, #2232). (The War Room's 2026-09-23 Guided / Editor / Planner item now says workouts left them in #2230; nutrition plans keep all three.)
+  - Nora: nutritionist meal-plan drafting; the app's Assign does not pre-select the client; installed builds lack the Open button; no live model in the tests; dual-role drafting (#2227).
+  - The Coaches tour's Schedule screenshot predates steps 2–4 (#2236).
+  - ⚠ **NO SIGNED-IN PASS ON A PHONE** for any of it. The app editor in #2232 was checked only by mount tests, and the new translations have not been reviewed by speakers.
+
 ### 2026-10-07 — Dashboard cards move, resize and hide in place: no Arrange menu, no edit mode
 
 - **Merged [#2220](https://github.com/cperry8800-droid/shape-app/pull/2220) as `de2a67d`**, final head `ff7431f`; the merged tree is byte-identical to it. 4 files: `public/newdesign/dashGrid.jsx`, `tests/dash-grid-input.test.mjs`, `tests/dash-card-settings.test.mjs` and a mutation spec. **No migration, no route, no i18n key.** The owner, with a screenshot of the Arrange panel: *"remove this arrange box and have all of these customization and edits done by dragging click etc. a more free feel with the boxes and widgets"*.
