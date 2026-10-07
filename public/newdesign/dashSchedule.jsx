@@ -521,7 +521,7 @@ function CoachSchedulePage({ role }) {
     const ev = dragRef.current;
     dragRef.current = null; setDragId(null);
     if (!ev || ev.date === dateIso) return;
-    if (!(ev.reschedulable || ev.editable)) { showToast(ev.with || ev.title + " is read-only — reschedule it in the program/plan."); return; }
+    if (!(ev.reschedulable || ev.editable)) { showToast((ev.with || ev.title) + " is read-only — reschedule it in the program/plan."); return; }
     // Optimistic local move, on whichever set is on screen.
     const moveTo = (date) => (list) => list.map((e) => (e.id === ev.id ? { ...e, date } : e));
     if (!liveEvents) { setDemoEvents(moveTo(dateIso)); showToast("Demo · would move " + (ev.with || ev.title) + " to " + dateIso + " and notify them."); return; }
