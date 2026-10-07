@@ -35310,7 +35310,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     return <BSTermsPage onBack={() => setShowTerms(false)} onContact={() => { setShowTerms(false); setShowContact(true); }} />;
   }
   if (showHelp) {
-    return <BSHelpPage onBack={() => setShowHelp(false)} onContact={() => { setShowHelp(false); setShowContact(true); }} />;
+    return <BSHelpPage onBack={() => setShowHelp(false)} onContact={() => { setShowHelp(false); setShowContact(true); }} onAskNora={() => { setShowHelp(false); bsOpenNora(); }} />;
   }
   if (showPrivacy) {
     return <BSPrivacyPage onBack={() => setShowPrivacy(false)} onContact={() => { setShowPrivacy(false); setShowContact(true); }} />;
@@ -38518,7 +38518,14 @@ function BSSubprocessorsPage({ onBack, onContact }) {
   );
 }
 
-function BSHelpPage({ onBack, onContact }) {
+// The Help page sends you to Nora with the path that exists (Chat → Support; it named a
+// Team segment that never held her) and a button that opens her: the same
+// shape:openConversation request universal search's Nora hit sends.
+function bsOpenNora() {
+  try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { support: true, name: 'Nora' } })); } catch (e) {}
+}
+
+function BSHelpPage({ onBack, onContact, onAskNora }) {
   const t = useBS();
   const faqs = [
     ['Getting started', 'Set your goals in Settings, then explore Train, Eat, and Habits. Your coach builds your plan and it appears on each tab.'],
@@ -38542,8 +38549,11 @@ function BSHelpPage({ onBack, onContact }) {
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Quick answers</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
-          The fastest way to get help: ask <b>Nora</b> in Chat → Team → Support — she answers most questions instantly. The basics are below.
+          The fastest way to get help: ask <b>Nora</b> in Chat → Support — she answers most questions instantly. The basics are below.
         </div>
+        {onAskNora && (
+          <button onClick={onAskNora} style={{ marginTop: 14, borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: 0, background: t.ACCENT, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>✦ Ask Nora</button>
+        )}
       </div>
 
       <BSSection title="Common questions" meta="FAQ" />

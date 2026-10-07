@@ -931,7 +931,7 @@ function ChatWidget(props) {
         // active — read from the REF at reply time (the #1654 race fix: the
         // chip may have flipped while the model was thinking). Failures stay
         // silent (auto-speak is never a toast).
-        if (noraVoice.enabled || voiceChatRef.current) speakNora(finalReply);
+        if (canVoiceRef.current && (noraVoice.enabled || voiceChatRef.current)) speakNora(finalReply);
       })();
       return;
     }
@@ -1221,6 +1221,14 @@ function ChatWidget(props) {
       .catch(() => { if (!cancelled) setMember(false); });
     return () => { cancelled = true; };
   }, []);
+  // ⚠ VOICE ONLY WHERE IT WORKS. Speech (/api/ai/speak) and transcription
+  // (/api/ai/transcribe) are behind the membership gate, so a visitor or a signed-in
+  // non-member was shown a mic and a read-aloud that could only fail (the Ask Nora
+  // review, 2026-10-07). The controls show once this answers yes; typing to Nora is
+  // open to everyone. A ref too, for the reply path that reads it after an await.
+  const canVoice = member === true;
+  const canVoiceRef = React.useRef(false);
+  React.useEffect(() => { canVoiceRef.current = canVoice; }, [canVoice]);
   React.useEffect(() => {
     if (!open) return;
     const activeThread = (threadsByTab[tabIdx] || [])[activeIdx];
@@ -1823,7 +1831,7 @@ function ChatWidget(props) {
                     </div>
                   </div>
                   <div style={{ fontSize: 10, color: "var(--sh-ink3, #75706a)", fontFamily: "'JetBrains Mono', monospace", marginTop: myReaction ? 10 : 4, padding: "0 4px" }}>{m.time}</div>
-                  {!m.me && isSupport && (
+                  {!m.me && isSupport && canVoice && (
                     <button onClick={() => speakNora(m.t, { explicit: true })} title="Read this aloud" aria-label="Read this aloud"
                       style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", background: "transparent", color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>🔊 Listen</button>
                   )}
@@ -1873,11 +1881,11 @@ function ChatWidget(props) {
             <React.Fragment>
             {isSupport && (
               <div style={{ padding: "8px 14px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud"
+                {canVoice && <button onClick={() => setNoraEnabled(!noraVoice.enabled)} title="Read Nora's replies aloud"
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 9px", borderRadius: 999, border: `1px solid ${noraVoice.enabled ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.14)"}`, background: noraVoice.enabled ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent", color: noraVoice.enabled ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>
                   {noraVoice.enabled ? "🔊" : "🔇"} Voice {noraVoice.enabled ? "on" : "off"}
-                </button>
-                {holdSupported && (
+                </button>}
+                {canVoice && holdSupported && (
                   // Mode flips ALWAYS stop any active capture first (Codex P1:
                   // dictation started before the flip would otherwise keep a
                   // live mic behind the swapped-in hold button). Monochrome
@@ -1894,11 +1902,11 @@ function ChatWidget(props) {
                       style={{ padding: "5px 10px", border: 0, background: noraVoice.tone === tn ? TEAL : "transparent", color: noraVoice.tone === tn ? PAPER : "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer" }}>{tn}</button>
                   ))}
                 </div>
-                <select value={noraVoice.voice} onChange={(e) => setNoraVoiceId(e.target.value)} title="Nora's voice"
+                {canVoice && <select value={noraVoice.voice} onChange={(e) => setNoraVoiceId(e.target.value)} title="Nora's voice"
                   style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 999, padding: "5px 8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, cursor: "pointer" }}>
                   <option value="auto">Auto voice</option>
                   {NORA_VOICES.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-                </select>
+                </select>}
               </div>
             )}
             {isSupport && (voiceState !== "idle" || voiceErr || speakNotice) && (
@@ -1922,7 +1930,7 @@ function ChatWidget(props) {
                   outline: "none", minHeight: 38, maxHeight: 100,
                 }}
               />
-              {isSupport && voiceChat && holdSupported ? (
+              {isSupport && canVoice && voiceChat && holdSupported ? (
                 // Voice-chat mode: HOLD to talk — press records, release
                 // transcribes + SENDS. Pointer events cover mouse + touch;
                 // leave/cancel are releases so a drag-off never leaves a hot
@@ -1951,7 +1959,7 @@ function ChatWidget(props) {
                   }}>
                   {voiceState === "transcribing" ? <TypingDots /> : <MicGlyph />}
                 </button>
-              ) : isSupport && voiceSupported && (
+              ) : isSupport && canVoice && voiceSupported && (
                 <button type="button" onClick={toggleVoice} title={voiceState === "listening" ? "Stop listening" : "Speak to Nora"} aria-label={voiceState === "listening" ? "Stop listening" : "Speak to Nora"}
                   style={{
                     flex: "0 0 auto", width: 38, height: 38, borderRadius: 8,
