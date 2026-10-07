@@ -258,7 +258,11 @@ test('the line will not change while a demo upload runs, so the video lands on i
   const input = document.querySelector('aside.ddetail .cb-demo input[type="file"]');
   Object.defineProperty(input, 'files', { value: [new window.File(['v'], 'squat.mp4', { type: 'video/mp4' })], configurable: true });
   await React.act(async () => input.dispatchEvent(new window.Event('change', { bubbles: true })));
-  await click(line('Bench press').querySelector('.ix'));
+  // ⚠ DISPATCHED, NOT .click(). jsdom's click() refuses to fire anywhere inside the disabled
+  // fieldset, even on an <i>, so it never reached the guard; a browser fires it on a line's
+  // non-control parts, which is the click this guard exists for. (The mutation round found
+  // this: with the guard removed, .click() still passed.)
+  await React.act(async () => line('Bench press').querySelector('.ix').dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
   assert.equal(detailName(), 'Back squat', 'the selection moved mid-upload, unmounting the upload that owns the result');
   await React.act(async () => finish());
   const rows = (await savedDay(writes)).blocks[1].rows;
@@ -415,7 +419,10 @@ test('no ↑ ↓ buttons; Alt+↓ moves a line across a block boundary, says so,
   await focusOn(line('Hip flow').querySelector('.nm'));
   await key(line('Hip flow').querySelector('.nm'), 'ArrowUp', { altKey: true });
   assert.equal(said(), 'Hip flow is already first.');
-  await key(line('Hip flow').querySelector('.nm'), 'ArrowDown');
+  // On a line whose step would change the order (Hip flow's would only cross the
+  // Warmup/Main boundary, which the flat order cannot show — the mutation round found that).
+  await focusOn(line('Back squat').querySelector('.nm'));
+  await key(line('Back squat').querySelector('.nm'), 'ArrowDown');
   assert.deepEqual(names(), ['Hip flow', 'Back squat', 'Front squat', 'Bench press'], 'a plain arrow moved a line');
 });
 

@@ -103,7 +103,13 @@ export default {
     { name: 'a duplicate shares its original\'s id', file: BUILDER,
       find: '{ ...JSON.parse(JSON.stringify(x.row)), id: crypto.randomUUID() }',
       replace: 'JSON.parse(JSON.stringify(x.row))' },
-    { name: 'removing a move opens nothing in its place', file: BUILDER,
+    // ⚠ A PROVEN NO-OP, KEPT FOR WHAT IT SAYS. `remove` also hands focus to the neighbour's
+    // name (`focusNext`, the mutation below), and a line selects itself on focus
+    // (`onFocus={pick}`), so the neighbour is selected either way; with no neighbour the
+    // detail's own fallback is the empty state. The explicit select stays because it names
+    // the intent and does not lean on a focus side effect. Removing the focus hand-off instead
+    // IS killed (next mutation), which is the half that carries the behaviour.
+    { name: 'removing a move opens nothing in its place', file: BUILDER, expectSurvive: true,
       find: '    setSelKey(next ? next.key : "");\n',
       replace: '    setSelKey("");\n' },
     { name: 'removing a move leaves focus nowhere', file: BUILDER,
