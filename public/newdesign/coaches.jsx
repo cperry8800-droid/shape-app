@@ -393,7 +393,11 @@ function CoachesPage() {
         .co-role{font-family:${coSans};font-size:13.5px;font-weight:600;color:rgba(238,243,240,0.72);background:transparent;border:0;border-radius:7px;padding:8px 18px;cursor:pointer;display:inline-flex;align-items:center;transition:background .15s ease,color .15s ease}
         .co-role:hover{color:${CO_INK}}
         .co-role.on{background:rgba(238,243,240,.10);color:${CO_INK}}
-        .co-tabs{display:flex;gap:4px;border-bottom:1px solid rgba(238,243,240,0.10);margin-bottom:22px;overflow-x:auto}
+        /* overflow-x:auto turns overflow-y to auto too, and each tab's -1px margin
+           sticks out of the row by 1px, so classic scrollbars (Windows) drew a white
+           up/down stub at the row's end. The row still swipes sideways when narrow. */
+        .co-tabs{display:flex;gap:4px;border-bottom:1px solid rgba(238,243,240,0.10);margin-bottom:22px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none}
+        .co-tabs::-webkit-scrollbar{display:none}
         .co-tab{font-family:${coSans};font-size:14px;font-weight:600;color:rgba(238,243,240,0.55);background:transparent;border:0;border-bottom:2px solid transparent;padding:12px 16px 14px;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
         .co-tab:hover{color:${CO_INK}}
         .co-tab.on{color:${CO_INK};border-bottom-color:${CO_TEAL}}

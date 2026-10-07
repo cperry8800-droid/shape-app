@@ -446,22 +446,43 @@ test('the marketplace route reports an unreadable count as null, never 0', async
 /** A ring's position expressed in the CAPTURE's own pixels — the only frame in
  *  which it is stable. `--y` offsets the image by a % of the IMAGE's height while
  *  a ring's top/height are a % of the WINDOW, so the two only agree at one aspect
- *  ratio. Returns null for a shot with no ring. */
-function ringInImagePx(shotHtml, windowRatio) {
+ *  ratio. left/right are a % of the window's WIDTH, which is the image's width, so
+ *  they map straight across; a ring without its own uses the stylesheet's inset.
+ *  Returns null for a shot with no ring. */
+function ringInImagePx(shotHtml, windowRatio, defaultInsetPct) {
   const IMG_W = 600, IMG_H = 1387;              // every capture on this page
   const y = /style="--y:([\d.]+)%"/.exec(shotHtml);
-  const hl = /class="hl" style="top:([\d.]+)%;height:([\d.]+)%"/.exec(shotHtml);
+  const hl = /class="hl" style="top:([\d.]+)%;height:([\d.]+)%(?:;left:([\d.]+)%;right:([\d.]+)%)?"/.exec(shotHtml);
   if (!y) return null;
   const visibleTop = (Number(y[1]) / 100) * IMG_H;
   const visibleH = windowRatio * IMG_W;          // window height, in image px
   if (!hl) return { visibleTop, visibleH, ring: null };
+  const left = Number(hl[3] ?? defaultInsetPct), right = Number(hl[4] ?? defaultInsetPct);
   return {
     visibleTop, visibleH,
     ring: {
       top: visibleTop + (Number(hl[1]) / 100) * visibleH,
       height: (Number(hl[2]) / 100) * visibleH,
+      left: (left / 100) * IMG_W,
+      right: IMG_W - (right / 100) * IMG_W,
     },
   };
+}
+
+function momentsRings() {
+  const ar = /\.mo \.shot\{[^}]*aspect-ratio:(\d+)\/(\d+)/.exec(SRC);
+  assert.ok(ar, 'could not read the moments shot aspect-ratio');
+  const ratio = Number(ar[2]) / Number(ar[1]);   // window height as a multiple of its width
+  const inset = /\.mo \.hl\{[^}]*left:([\d.]+)%;right:([\d.]+)%/.exec(SRC);
+  assert.ok(inset, 'could not read the moments ring inset');
+  assert.equal(inset[1], inset[2], 'the stylesheet ring inset is lopsided');
+  const shots = [...SRC.matchAll(/<div class="shot">[\s\S]*?<\/div>/g)].map((m) => m[0]);
+  assert.equal(shots.length, 4, `expected the four moments shots, found ${shots.length}`);
+  return shots.map((shot) => ({
+    shot,
+    file: /src="\/newdesign\/([\w.-]+\.jpg)"/.exec(shot)?.[1],
+    ...ringInImagePx(shot, ratio, Number(inset[1])),
+  }));
 }
 
 test('a moments ring points at the same pixels of the capture, whatever the window shape', () => {
@@ -472,36 +493,65 @@ test('a moments ring points at the same pixels of the capture, whatever the wind
   // page renders, the suite goes green, and the only symptom is a ring around the
   // wrong row. So this asserts the one frame that cannot drift: where each ring
   // sits in the CAPTURE's own 600x1387 pixels.
-  const ar = /\.mo \.shot\{[^}]*aspect-ratio:(\d+)\/(\d+)/.exec(SRC);
-  assert.ok(ar, 'could not read the moments shot aspect-ratio');
-  const ratio = Number(ar[2]) / Number(ar[1]);   // window height as a multiple of its width
-
-  const shots = [...SRC.matchAll(/<div class="shot">[\s\S]*?<\/div>/g)].map((m) => m[0]);
-  assert.equal(shots.length, 4, `expected the four moments shots, found ${shots.length}`);
-
-  // Measured on the shipped page when the window went from 1/1 to 3/4. A ring
-  // that moves in this frame is a ring pointing somewhere new.
+  //
+  // Re-fitted 2026-10-07 (owner: "these boxes … need to be better aligned"). The
+  // old rings sat 5% in from each side, which is where the app's own content
+  // starts, so all four were drawn through their text. Each is now the target's
+  // measured bounds plus ~12 px: the calorie hero; Produce and its first item;
+  // set 01 with its LOAD/REPS/RPE labels; the PR headline and its 245 lb record
+  // (the NEW PR chip sits just above as its tag — the avatar's tip ends 5 px over
+  // the chip, so no ring can take both).
   const EXPECTED = [
-    { file: 'home-eat-v1.jpg', top: 524.5, height: 144 },
-    { file: 'home-grocery-v1.jpg', top: 651.8, height: 180 },
-    { file: 'home-session-v1.jpg', top: 310.05, height: 114 },
-    { file: 'home-feed-v1.jpg', top: 665.3, height: 174 },
+    { file: 'home-eat-v1.jpg', top: 532.5, height: 136, left: 15, right: 585 },
+    { file: 'home-grocery-v1.jpg', top: 651.8, height: 154, left: 15, right: 585 },
+    { file: 'home-session-v1.jpg', top: 302.05, height: 130, left: 15, right: 585 },
+    { file: 'home-feed-v1.jpg', top: 695.3, height: 140, left: 7.5, right: 592.5 },
   ];
 
-  for (const [i, shot] of shots.entries()) {
+  for (const [i, got] of momentsRings().entries()) {
     const want = EXPECTED[i];
-    assert.ok(shot.includes(want.file), `moments shot ${i + 1} should be ${want.file}`);
-    const got = ringInImagePx(shot, ratio);
-    assert.ok(got && got.ring, `moments shot ${i + 1} lost its ring`);
-    assert.ok(Math.abs(got.ring.top - want.top) < 1.5,
-      `${want.file}: the ring moved to image px ${got.ring.top.toFixed(1)}, was ${want.top}`);
-    assert.ok(Math.abs(got.ring.height - want.height) < 1.5,
-      `${want.file}: the ring is now ${got.ring.height.toFixed(1)} image px tall, was ${want.height}`);
+    assert.equal(got.file, want.file, `moments shot ${i + 1} should be ${want.file}`);
+    assert.ok(got.ring, `moments shot ${i + 1} lost its ring`);
+    for (const k of ['top', 'height', 'left', 'right']) {
+      assert.ok(Math.abs(got.ring[k] - want[k]) < 1.5,
+        `${want.file}: the ring's ${k} moved to image px ${got.ring[k].toFixed(1)}, was ${want[k]}`);
+    }
 
     // And the window may never run off the bottom of the capture, or the card
     // shows a strip of card background pretending to be part of the screen.
     assert.ok(got.visibleTop + got.visibleH <= 1387,
       `${want.file}: the window reaches image px ${(got.visibleTop + got.visibleH).toFixed(0)} of 1387`);
+  }
+});
+
+test('no moments ring is drawn through the capture it frames', async () => {
+  // The test above pins WHERE each ring is; this one checks the thing the owner
+  // actually saw, against the pixels: the ring's outline lands on bare
+  // background, never on a glyph, a checkbox or a chip. It reads the shipped
+  // JPEGs, so a re-shot capture that moves its content fails here too.
+  // The band is the outline's footprint in image px: 1.5 CSS px of border is
+  // at most ~4 image px at the narrowest card this page lays out.
+  const { default: sharp } = await import('sharp');
+  const BAND = 4, TOLERANCE = 28;                // JPEG noise stays well under 28
+  for (const got of momentsRings()) {
+    const { data, info } = await sharp(new URL(`../public/newdesign/${got.file}`, import.meta.url).pathname)
+      .removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const px = (x, y) => { const o = (y * info.width + x) * info.channels; return [data[o], data[o + 1], data[o + 2]]; };
+    const r = got.ring;
+    const x0 = Math.round(r.left), x1 = Math.round(r.right) - 1;
+    const y0 = Math.round(r.top), y1 = Math.round(r.top + r.height) - 1;
+    const bg = px(Math.round((x0 + x1) / 2), y0 + 1);  // the band's own ground
+    const hits = [];
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const inBand = y < y0 + BAND || y > y1 - BAND || x < x0 + BAND || x > x1 - BAND;
+        if (!inBand) continue;
+        const p = px(x, y);
+        if (Math.max(...p.map((v, c) => Math.abs(v - bg[c]))) > TOLERANCE) hits.push(`${x},${y}`);
+      }
+    }
+    assert.equal(hits.length, 0,
+      `${got.file}: the ring's outline crosses content at image px ${hits.slice(0, 6).join(' ')}${hits.length > 6 ? ` (+${hits.length - 6})` : ''}`);
   }
 });
 

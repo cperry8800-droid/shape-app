@@ -387,3 +387,18 @@ test('the dot-matrix face is still in use outside the facts strip', () => {
   const uses = (rest.match(/\bcoNum\b/g) || []).length;
   assert.ok(uses >= 4, `coNum is used ${uses} times outside CoFacts — the absence check above would pass on a page with no Doto at all`);
 });
+
+test('the dashboard tab row scrolls sideways without drawing a scrollbar', () => {
+  // Owner, 2026-10-07: "remove this scroll toggle bar on coaches page". `.co-tabs`
+  // is overflow-x:auto, which turns overflow-y to auto as well, and each tab's
+  // -1px bottom margin sticks out of the row by a pixel — so Windows Chrome drew a
+  // white up/down scrollbar stub at the row's end, and a wheel nudged the row 1px.
+  // The row still has to swipe sideways on a narrow screen, so it stays scrollable.
+  const css = stripComments(PAGE);
+  const rule = /\.co-tabs\{([^}]*)\}/.exec(css);
+  assert.ok(rule, 'the .co-tabs rule is gone');
+  assert.match(rule[1], /overflow-x:auto/, 'the tab row no longer scrolls sideways on a narrow screen');
+  assert.match(rule[1], /overflow-y:hidden/, 'the tab row scrolls vertically by the tabs\' 1px overhang');
+  assert.match(rule[1], /scrollbar-width:none/, 'the tab row draws a scrollbar in Firefox');
+  assert.match(css, /\.co-tabs::-webkit-scrollbar\{display:none\}/, 'the tab row draws a scrollbar in Chrome/Safari');
+});
