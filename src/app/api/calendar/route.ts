@@ -147,12 +147,14 @@ export async function GET(request: Request) {
   // 2) sessions (coaching bookings) merged read-only.
   // ⚠ THE WINDOW IS A RANGE OF THE ZONE'S DATES, NOT OF UTC ONES. A UTC-bounded read drops a
   // New York session at 9:00 PM on the window's last day (01:00Z the day after) and keeps one
-  // from the evening before it. So the read is widened by a day each side, every zone's
-  // offset fits inside that, and the rows are cut back to [dFrom, dTo] by their LOCAL date
-  // below. Under UTC the cut leaves exactly what the old bounds read.
+  // from the evening before it. So for any other zone the read is widened by a day each side
+  // (every zone's offset fits inside that) and the rows are cut back to [dFrom, dTo] by their
+  // LOCAL date below. Under UTC the bounds are exactly the old ones — the capacity panel's
+  // 1,000-row ceiling is measured on this read, so a UTC caller's must not grow.
   const zone = await calendarZone(supabase, user.id, url.searchParams.get('tz'), url.searchParams.get('role'));
-  const fromIso = `${shiftDate(dFrom, -1)}T00:00:00Z`;
-  const toIso = `${shiftDate(dTo, 1)}T23:59:59Z`;
+  const widen = zone === 'UTC' ? 0 : 1;
+  const fromIso = `${widen ? shiftDate(dFrom, -widen) : dFrom}T00:00:00Z`;
+  const toIso = `${widen ? shiftDate(dTo, widen) : dTo}T23:59:59Z`;
   let sessionQuery = supabase
     .from('sessions')
     .select('id, client_id, provider_role, type, scheduled_at, duration_min, status, topic, meeting_url')

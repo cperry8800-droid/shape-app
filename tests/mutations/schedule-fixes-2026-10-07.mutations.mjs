@@ -17,7 +17,8 @@ const COACH = 'public/newdesign/coach.jsx';
 const NUTRI = 'public/newdesign/nutritionist.jsx';
 
 export default {
-  test: 'node --test tests/schedule-fixes.test.mjs tests/coaches-page.test.mjs',
+  // dashboard-work-routes pins the capacity panel's read, which goes through the same route.
+  test: 'node --test tests/schedule-fixes.test.mjs tests/coaches-page.test.mjs tests/dashboard-work-routes.test.mjs',
   timeoutMs: 180_000,
   mutations: [
     // ── 1 · the route places bookings in the zone ─────────────────────────────────────────
@@ -31,11 +32,14 @@ export default {
       find: '=> !!p.wall && p.wall.date >= dFrom && p.wall.date <= dTo);',
       replace: '=> !!p.wall);' },
     { name: 'the read is not widened past the window\'s last UTC day', file: CAL,
-      find: 'const toIso = `${shiftDate(dTo, 1)}T23:59:59Z`;',
-      replace: 'const toIso = `${shiftDate(dTo, 0)}T23:59:59Z`;' },
+      find: 'const toIso = `${widen ? shiftDate(dTo, widen) : dTo}T23:59:59Z`;',
+      replace: 'const toIso = `${dTo}T23:59:59Z`;' },
     { name: 'the read is not widened before the window\'s first UTC day', file: CAL,
-      find: 'const fromIso = `${shiftDate(dFrom, -1)}T00:00:00Z`;',
-      replace: 'const fromIso = `${shiftDate(dFrom, 0)}T00:00:00Z`;' },
+      find: 'const fromIso = `${widen ? shiftDate(dFrom, -widen) : dFrom}T00:00:00Z`;',
+      replace: 'const fromIso = `${dFrom}T00:00:00Z`;' },
+    { name: 'a UTC caller\'s read is widened too (the capacity ceiling grows)', file: CAL,
+      find: "const widen = zone === 'UTC' ? 0 : 1;",
+      replace: 'const widen = 1;' },
     { name: 'the coach\'s stored zone is ignored for the browser\'s', file: CAL,
       find: '    if (zone) return zone;\n',
       replace: '    if (zone && false) return zone;\n' },
