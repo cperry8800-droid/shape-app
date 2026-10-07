@@ -167,8 +167,8 @@ const say = (text) => ({ output_text: text, output: [{ type: 'message', content:
 const fnCall = (name, args, id = `call_${name}`) => ({ type: 'function_call', call_id: id, name, arguments: JSON.stringify(args) });
 const calls = (...items) => ({ output: [{ type: 'reasoning', id: 'rs_1', summary: [] }, ...items] });
 
-async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, isMember = true, answers = [say('ok')], coached = [], hasKey = true, failAI = false } = {}) {
-  const sb = fakeSupabase({ tables: { user_goals: [] }, rpcs: { is_coach_on_client: (a) => coached.includes(a.p_client_id) } });
+async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, isMember = true, answers = [say('ok')], coached = [], hasKey = true, failAI = false, tables = {}, fail = [] } = {}) {
+  const sb = fakeSupabase({ tables: { user_goals: [], ...tables }, fail, rpcs: { is_coach_on_client: (a) => coached.includes(a.p_client_id) } });
   const seen = [];
   let i = 0;
   const registry = proposals.createRegistry();
@@ -231,6 +231,50 @@ test('Nora: only a trainer is offered draft_workout, with the drafting rules and
   const anon = await loadChat({ user: null });
   await anon.mod.POST(chatPost('hi'));
   assert.ok(!toolNames(anon.seen[0].body).includes('draft_workout'));
+});
+
+// ⚠ THE TRAINER'S OWN DAY (#2227 registered "Nora's today is UTC"). The clock is
+// pinned so both sides of the date line are exercised whatever hour the suite runs:
+// 2026-10-08T02:00Z is Wednesday 7 Oct, 10 pm in New York, and Thursday 8 Oct in UTC.
+async function withClock(iso, fn) {
+  const Real = Date;
+  const fixed = Real.parse(iso);
+  globalThis.Date = class extends Real { constructor(...a) { if (a.length) super(...a); else super(fixed); } static now() { return fixed; } };
+  try { return await fn(); } finally { globalThis.Date = Real; }
+}
+const trainerNoteOf = async (opts) => {
+  const t = await loadChat(opts);
+  await withClock('2026-10-08T02:00:00Z', () => t.mod.POST(chatPost('hi')));
+  return t.seen[0].body.input[0].content;
+};
+
+test('Nora: a trainer\'s "today" is the day in their own zone, from their listing', async () => {
+  const sys = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'America/New_York' }] } });
+  assert.match(sys, /TRAINER DRAFTING: Today is 2026-10-07 \(Wednesday, America\/New_York\)\./);
+  // UTC is already the 8th, and the boundary dates workouts on UTC days: Nora is told
+  // so, rather than offering a "today" the route refuses as passed.
+  assert.match(sys, /the earliest day a session can go on right now is 2026-10-08/);
+});
+
+test('Nora: a trainer ahead of UTC gets their day and no earliest-day note', async () => {
+  const sys = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'Asia/Tokyo' }] } });
+  assert.match(sys, /Today is 2026-10-08 \(Thursday, Asia\/Tokyo\)\./);
+  assert.doesNotMatch(sys, /earliest day a session/);
+});
+
+test('Nora: with no listing zone the profile\'s zone decides; two listings still read; nothing stored or a bad zone is UTC', async () => {
+  const prof = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: null }], client_profiles: [{ user_id: COACH, timezone: 'America/Los_Angeles' }] } });
+  assert.match(prof, /Today is 2026-10-07 \(Wednesday, America\/Los_Angeles\)/);
+  const two = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: '' }, { owner_id: COACH, timezone: 'Europe/London' }] } });
+  assert.match(two, /Today is 2026-10-08 \(Thursday, Europe\/London\)/, 'a second listing is not an error');
+  const none = await trainerNoteOf({});
+  assert.match(none, /Today is 2026-10-08 \(Thursday, UTC\)\./);
+  const bad = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'Mars/Olympus' }] } });
+  assert.match(bad, /Today is 2026-10-08 \(Thursday, UTC\)\./);
+  const badThenProfile = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'Mars/Olympus' }], client_profiles: [{ user_id: COACH, timezone: 'America/Los_Angeles' }] } });
+  assert.match(badThenProfile, /Today is 2026-10-07 \(Wednesday, America\/Los_Angeles\)/, 'a zone Intl does not know is skipped, not kept');
+  const failed = await trainerNoteOf({ tables: { trainers: [{ owner_id: COACH, timezone: 'America/New_York' }], client_profiles: [{ user_id: COACH, timezone: 'America/Los_Angeles' }] }, fail: ['trainers'] });
+  assert.match(failed, /Today is 2026-10-08 \(Thursday, UTC\)\./, 'an unreadable listing reads as UTC');
 });
 
 test('Nora: a trainer who just asks gets a drafted card — the rows are in the signed token, and "Open in builder" rides with it', async () => {
@@ -402,4 +446,41 @@ test('website card: lines render as lines; "Open in builder" appears after the c
   await tick(); await tick();
   evil.render();
   assert.equal(flatten(evil.nodes()).find((n) => n.type === 'a'), undefined, 'an off-site URL is never a link');
+});
+
+// ── Nora never promises a follow-up nobody records ─────────────────────────────
+// Nothing stores a question for the team: no ticket, no inbox, no email. So Nora gives
+// the address a person reads (info@theshapecommunity.com), and never says she flagged,
+// forwarded, noted or passed something on, on any surface (the Ask Nora review, 2026-10-07).
+const FALSE_FOLLOW_UP = /flagged (this|it)|I'll flag|follow up (here|right here|in this thread|to finish)|teammate will follow up|passed this to|noted your interest|bring in the (human )?Shape team|brings in the human Shape team|can pass a message|Escalates to/i;
+
+test('Nora: the prompt tells her to give the address and never to claim a hand-off', async () => {
+  const t = await loadChat({ role: 'client' });
+  await t.mod.POST(chatPost('I want a refund'));
+  const sys = t.seen[0].body.input[0].content;
+  assert.match(sys, /email the Shape team at info@theshapecommunity\.com/);
+  assert.match(sys, /never say you have flagged, forwarded, noted or passed something on/);
+  assert.doesNotMatch(sys, /say you have flagged it for the Shape team/);
+  assert.doesNotMatch(sys, /offer to pass the question to the Shape team/);
+});
+
+test('Nora with no model: billing, login and the catch-all give the address and claim nothing', async () => {
+  for (const [ask, needsAddress] of [['I want a refund on my subscription', true], ["I can't log in", true], ['what is the airspeed of a swallow', true], ['connect instacart', false]]) {
+    const t = await loadChat({ role: 'client', hasKey: false });
+    const { reply } = await (await t.mod.POST(chatPost(ask))).json();
+    assert.doesNotMatch(reply, FALSE_FOLLOW_UP, `${ask}: ${reply}`);
+    if (needsAddress) assert.match(reply, /info@theshapecommunity\.com/, ask);
+  }
+});
+
+test('Nora on the website, in the app and in her knowledge base: no promise of a follow-up', () => {
+  for (const rel of ['src/app/api/support/chat/route.ts', 'src/lib/ai/shapeKnowledge.mjs', 'public/newdesign/chatWidget.jsx', 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx']) {
+    const src = readFileSync(join(ROOT, rel), 'utf8')
+      // comments describe the old wording; only shipped strings count
+      .split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n');
+    const hit = src.match(FALSE_FOLLOW_UP);
+    assert.equal(hit, null, `${rel}: "${hit && hit[0]}"`);
+  }
+  const en = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/en/feed.json'), 'utf8'));
+  assert.equal(en['support.composerPlaceholder'], 'Ask Nora…', "Nora's composer asks Nora, not a team nobody routes it to");
 });

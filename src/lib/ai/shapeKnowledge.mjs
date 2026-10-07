@@ -117,7 +117,7 @@ export const SHAPE_KNOWLEDGE = Object.freeze([
     id: 'account',
     title: 'Account, eligibility and contact',
     tags: ['account', 'email', 'phone', 'password', 'two-factor', '2fa', 'login', 'sign in', 'age', '18', 'contact', 'support', 'human', 'team'],
-    body: 'Shape is for people who are at least 18. Email, phone, password and two-factor authentication are managed under Settings → Account. Questions the app cannot answer go to info@theshapecommunity.com or the contact page, and Nora can pass a message to the Shape team.',
+    body: 'Shape is for people who are at least 18. Email, phone, password and two-factor authentication are managed under Settings → Account. Questions the app cannot answer go to info@theshapecommunity.com or the contact page; Nora cannot pass a message on herself.',
     source: 'Terms of service, clause 01 · the app’s Settings',
   },
 ]);
