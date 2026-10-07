@@ -335,6 +335,9 @@ const dayLabel = (at: number, zone: string) => new Date(at).toLocaleDateString('
 // or to Postgres (42703). A run cannot be written or read there, and saying so beats a 500.
 const isMissingSeriesColumn = (e: { code?: string; message?: string } | null) =>
   !!e && (e.code === 'PGRST204' || e.code === '42703') && /series_id/.test(String(e.message ?? ''));
+// The same file's move_session_run, missing: PostgREST's PGRST202, or Postgres's own
+// undefined_function.
+const isMissingMoveFunction = (e: { code?: string } | null) => !!e && (e.code === 'PGRST202' || e.code === '42883');
 
 // ── create with `repeat`: a run of bookings ──────────────────────────────────
 //
@@ -430,7 +433,7 @@ async function createRun(o: {
     session: booked[0],
     meetingUrl: booked[0].meeting_url ?? null,
     clientName,
-    series: { id: seriesId, booked: booked.length, sessions: booked.map((b) => ({ id: b.id, scheduledAt: b.scheduled_at })), skipped },
+    series: { id: seriesId, booked: booked.length, sessions: booked.map((b) => ({ id: b.id, scheduledAt: b.scheduled_at, meetingUrl: b.meeting_url ?? null })), skipped },
   });
 }
 
@@ -442,9 +445,14 @@ async function createRun(o: {
 //
 // ⚠ A MOVE IS ALL OR NOTHING. Every new time is checked before any row moves, against the
 // calendar with the run's own bookings left out (they are the ones moving), and one clash refuses
-// the whole move and names the date. The writes then go in the order that cannot collide with a
+// the whole move and names the date. The writes then go to move_session_run
+// (2026-10-07-session-series.sql) as ONE transaction, in the order that cannot collide with a
 // booking of the same run still waiting to move (latest first when moving later, earliest first
-// when moving earlier), and a write the database refuses puts back the ones already moved.
+// when moving earlier), so a write the database refuses rolls back every move before it.
+//
+// ⚠ IT USED TO MOVE ONE ROW AT A TIME FROM HERE AND PUT BACK THE ONES ALREADY MOVED WHEN A LATER
+// ONE WAS REFUSED (Codex, the review of #2234). A put-back can itself be refused (another booking
+// took the time just vacated), and this then answered "Nothing was moved" over a half-moved run.
 async function runFollowing(o: {
   supabase: SupabaseClient; userId: string; session: SessionRow; isCoach: boolean;
   action: 'cancel' | 'reschedule'; date: string; time: string | null; zone: string;
@@ -502,20 +510,21 @@ async function runFollowing(o: {
   const later = ats[0] > Date.parse(run[0].scheduled_at);
   const order = run.map((_, i) => i);
   if (later) order.reverse();
-  const moved: number[] = [];
-  for (const i of order) {
-    const { error: updErr } = await o.supabase.from('sessions').update({ scheduled_at: new Date(ats[i]).toISOString() }).eq('id', run[i].id);
-    if (updErr) {
-      // Put back what moved, newest move first, so the run is as it was.
-      for (const j of moved.reverse()) {
-        try { await o.supabase.from('sessions').update({ scheduled_at: run[j].scheduled_at }).eq('id', run[j].id); } catch { /* best-effort */ }
-      }
-      if (isDoubleBookError(updErr)) {
-        return NextResponse.json({ error: `${dayLabel(ats[i], o.zone)} was just taken. Nothing was moved — pick another time.`, code: 'taken' }, { status: 409 });
-      }
-      return dbError(updErr, 'session run reschedule', 500);
+  const { error: moveErr } = await o.supabase.rpc('move_session_run', {
+    p_moves: order.map((i) => ({ id: run[i].id, at: new Date(ats[i]).toISOString() })),
+  });
+  if (moveErr) {
+    if (isDoubleBookError(moveErr)) {
+      return NextResponse.json({ error: 'One of those times was just taken. Nothing was moved — pick another time.', code: 'taken' }, { status: 409 });
     }
-    moved.push(i);
+    // P0002: a booking of the run was cancelled since it was read, or is not the caller's to move.
+    if (moveErr.code === 'P0002') {
+      return NextResponse.json({ error: 'This run changed while you were moving it. Nothing was moved — reload and try again.', code: 'changed' }, { status: 409 });
+    }
+    if (isMissingMoveFunction(moveErr)) {
+      return NextResponse.json({ error: "Moving the rest of a run isn't set up yet. Nothing was moved — move them one at a time for now." }, { status: 503 });
+    }
+    return dbError(moveErr, 'session run reschedule', 500);
   }
   await notify(run.length === 1 ? 'Session moved' : 'Sessions moved', 'session_rescheduled',
     (when) => run.length === 1 ? `Your coach moved your session to ${when}.` : `Your coach moved ${run.length} sessions; the next is on ${when}.`, new Date(ats[0]).toISOString());

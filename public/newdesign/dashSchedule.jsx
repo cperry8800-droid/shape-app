@@ -1880,7 +1880,7 @@ function CoachSchedulePage({ role }) {
       }
       const placed = (j.series.sessions || []).map((x) => {
         const wall = dscWallAt(Date.parse(x.scheduledAt), calZone);
-        return { ...base, id: "session:" + x.id, sessionId: x.id, scheduledAt: x.scheduledAt, date: wall ? wall.date : date, time: wall ? dscHHMM(wall.min) : time, seriesId: j.series.id, with: j.clientName || name };
+        return { ...base, id: "session:" + x.id, sessionId: x.id, scheduledAt: x.scheduledAt, date: wall ? wall.date : date, time: wall ? dscHHMM(wall.min) : time, seriesId: j.series.id, meetingUrl: x.meetingUrl || null, with: j.clientName || name };
       });
       setEvents((list) => [...list, ...placed]);
       const skipped = j.series.skipped || [];

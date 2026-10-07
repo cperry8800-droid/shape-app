@@ -235,6 +235,26 @@ function db(tables, { label, insertError = null, updateError = null, fail = [], 
   return {
     ...base,
     auth: { admin: { getUserById: async (id) => ({ data: { user: { id, email: (tables.emails || {})[id] || null } } }) } },
+    // move_session_run as 2026-10-07-session-series.sql writes it: the moves in the order given,
+    // in ONE transaction, so any refusal (`updateError`, asked per move as a single update is, or
+    // a row that is gone or not active) rolls back every move before it.
+    async rpc(name, args) {
+      if (name !== 'move_session_run') return base.rpc(name, args);
+      const done = [];
+      for (const m of args.p_moves) {
+        const rows = ((rlsUser == null ? tables : view).sessions || []).filter((r) => r.id === m.id && ['requested', 'confirmed'].includes(r.status));
+        const refused = (typeof updateError === 'function' ? updateError({ scheduled_at: m.at }, rows) : updateError)
+          || (rows.length !== 1 ? { code: 'P0002', message: `session ${m.id} could not be moved` } : null);
+        if (refused) {
+          for (const [r, at] of done.reverse()) r.scheduled_at = at;
+          return { data: null, error: refused };
+        }
+        done.push([rows[0], rows[0].scheduled_at]);
+        rows[0].scheduled_at = m.at;
+      }
+      writes.push({ by: label, table: 'sessions', op: 'rpc', rpc: name, moves: args.p_moves });
+      return { data: args.p_moves.length, error: null };
+    },
     from(table) {
       const chain = base.from(table);
       // A run is one insert of many rows (recurring sessions): an array writes all or nothing, as
@@ -593,6 +613,9 @@ test('a run books every date on the coach\'s clock across the clock change, and 
   assert.match(r.body.series.skipped[0].message, /^Tue, Nov 3 overlaps Marcus T\. at 7:00 AM\.$/);
   assert.equal(r.notices.length, 1, 'one notice for the run, not one per session');
   assert.match(r.notices[0].body, /^Your coach booked 3 sessions with you, starting /);
+  // Every booking of a video run has its own room, and the reply names each one, so the Schedule
+  // can offer Join on all of them without a reload (Codex, #2234).
+  assert.deepEqual(r.body.series.sessions.map((x) => x.meetingUrl), rows.map((x) => 'https://meet.shape.test/' + x.id));
   // Without weekdays the run repeats on the first date's own weekday.
   const t2 = world();
   const weekly = await create({ date: '2026-10-08', time: '10:00', repeat: { weeks: 3 } }, { tables: t2 });
@@ -702,7 +725,10 @@ test('move "this and following": every later booking shifts by the same days to 
   assert.equal(JSON.stringify(t2.sessions), before);
   assert.equal(clash.notices.length, 0);
 
-  // The database refusing one write part-way puts back the ones already moved.
+  // The database refusing one write part-way moves nothing: the whole move is ONE call to
+  // move_session_run, one transaction. ⚠ It used to move row by row from the route and put back
+  // the moved ones with more updates, which can themselves be refused (Codex, #2234), so the
+  // route must write no row of the run itself.
   const t3 = world({ sessions: runOf(4) });
   const before3 = JSON.stringify(t3.sessions);
   let writesSeen = 0;
@@ -712,7 +738,26 @@ test('move "this and following": every later booking shifts by the same days to 
   });
   assert.equal(raced.status, 409, JSON.stringify(raced.body));
   assert.equal(raced.body.code, 'taken');
+  assert.match(raced.body.error, /Nothing was moved/);
   assert.equal(JSON.stringify(t3.sessions), before3, 'a half-moved run was left behind');
+  assert.equal(raced.writes.filter((w) => w.op === 'update' && w.table === 'sessions').length, 0, 'the route moved a row itself');
+  assert.equal(raced.notices.length, 0);
+  // A booking of the run cancelled since it was read (r1, cancelled while r3 moves first): the
+  // function refuses at r1, and the moves before it roll back.
+  const t6 = world({ sessions: runOf(3) });
+  const changed = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r1', scope: 'following', date: '2026-10-28', time: '07:00', tz: NY }, {
+    tables: t6, user: COACH, updateError: (patch, rows) => { if (rows[0] && rows[0].id === 'r3') t6.sessions[0].status = 'cancelled'; return null; },
+  });
+  assert.equal(changed.status, 409, JSON.stringify(changed.body));
+  assert.equal(changed.body.code, 'changed');
+  assert.deepEqual(t6.sessions.map((x) => x.scheduled_at), runOf(3).map((x) => x.scheduled_at));
+  // A database without the function says so, and moves nothing.
+  const t7 = world({ sessions: runOf(2) });
+  const old = await post('manage', '/api/sessions/manage', { action: 'reschedule', sessionId: 'r1', scope: 'following', date: '2026-10-28', time: '07:00', tz: NY }, {
+    tables: t7, user: COACH, updateError: () => ({ code: 'PGRST202', message: 'Could not find the function public.move_session_run(p_moves) in the schema cache' }),
+  });
+  assert.equal(old.status, 503);
+  assert.match(old.body.error, /isn't set up yet\. Nothing was moved/);
   // Moving later, the latest booking moves first, so the run never lands on itself.
   const t4 = world({ sessions: runOf(3) });
   const order = [];
@@ -1201,7 +1246,7 @@ const RUN_EVENTS = () => [...WEEK(),
 test('the book sheet books a weekly run: its first day is always in it, and the dates it skipped are named before it closes', async () => {
   const series = {
     id: 'run-9', booked: 3,
-    sessions: [{ id: 'n-1', scheduledAt: '2026-10-08T15:00:00.000Z' }, { id: 'n-2', scheduledAt: '2026-10-09T15:00:00.000Z' }, { id: 'n-3', scheduledAt: '2026-10-15T15:00:00.000Z' }],
+    sessions: ['n-1', 'n-2', 'n-3'].map((id, i) => ({ id, scheduledAt: ['2026-10-08T15:00:00.000Z', '2026-10-09T15:00:00.000Z', '2026-10-15T15:00:00.000Z'][i], meetingUrl: 'https://meet.shape.test/' + id })),
     skipped: [{ date: '2026-10-16', time: '11:00', reason: 'overlap', message: 'Fri, Oct 16 overlaps Sam R. at 11:00 AM.' }],
   };
   const { page, posts } = await open({ answers: { create: () => json(200, { ok: true, session: { id: 'n-1', scheduled_at: series.sessions[0].scheduledAt }, meetingUrl: null, clientName: 'Marcus T.', series }) } });
@@ -1227,6 +1272,10 @@ test('the book sheet books a weekly run: its first day is always in it, and the 
     assert.equal(colOf(page, block(page, 'n-2')), '2026-10-09');
     await page.click(page.buttonMatching(/^Done$/, dlg()));
     assert.ok(!dlg());
+    // Each placed booking has its own room straight away, not "no room yet" until a reload.
+    await page.click(block(page, 'n-2'));
+    assert.equal(dlg().querySelector('a[href="https://meet.shape.test/n-2"]')?.textContent, 'Join ↗');
+    await page.key('Escape');
     // A run of more than 60 sessions is refused before it is sent.
     page.layout();
     await page.clickAt(page.doc.querySelector('[data-col-date="2026-10-08"]'), 350, yOf(600) + 5);

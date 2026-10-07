@@ -190,6 +190,25 @@ test('app coach: "Repeat weekly" books a run of real sessions, and names the dat
   assert.equal('repeat' in calls[calls.length - 1], false);
 });
 
+test('the app\'s createCoachSession carries "Repeat weekly" to the route, and leaves it off a single booking', async () => {
+  // ⚠ The screen above passes `repeat`, but the service rebuilt the body from a fixed list and
+  // dropped it, so the app reported a run while the route booked one session (Codex, #2234).
+  // Lifted from the shipped shapeBackend.js and run against a recorded fetch.
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const i = src.indexOf('async function createCoachSession(');
+  const j = src.indexOf('\n}\n', i);
+  assert.ok(i > 0 && j > i, 'could not lift createCoachSession');
+  const calls = [];
+  const fetch = async (url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ ok: true }) }; };
+  const createCoachSession = new Function('fetch', 'sessionsApiUrl', 'sessionsAuthHeaders',
+    src.slice(i, j + 2) + '\nreturn createCoachSession;')(fetch, () => '/api/sessions/manage', (h) => h);
+  const one = { role: 'trainer', clientId: 'member-1', date: '2026-10-08', time: '11:30', tz: 'America/New_York', durationMin: 60, type: 'video', topic: 'Session' };
+  await createCoachSession({ ...one, repeat: { weeks: 4 } });
+  assert.deepEqual(calls[0], { action: 'create', ...one, repeat: { weeks: 4 } });
+  await createCoachSession(one);
+  assert.equal('repeat' in calls[1], false);
+});
+
 test('the profile\'s "Book intro" opens the listing\'s own calendar instead of booking with no time', () => {
   // It used to call submitConsultationBooking with no slot, which refuses ("Choose a valid
   // consultation time"), so the button failed every time it was pressed.
