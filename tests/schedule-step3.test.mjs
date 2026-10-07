@@ -364,3 +364,72 @@ test('the demo shows example time off and saves nothing', async () => {
     assert.equal(sent.length, 0, 'the demo wrote to the server');
   } finally { await page.unmount(); }
 });
+
+// ── 4 · the database keeps the rules too (2026-10-07-booking-rules-enforced.sql) ────────────────
+
+test('the booking-rules trigger: member requests only, one coach at a time, the four rules in order', async () => {
+  // ⚠ CHECKED AGAINST POSTGRES 16 WHEN WRITTEN: each rule refused what it should and let its edge
+  // through (a buffer's exact end, a local midnight), a coach's confirmed booking passed, and of two
+  // requests sent together against a one-a-day limit or a 30-minute buffer the second waited and
+  // was refused. Pinned here by what the file says, because the suite has no database.
+  const { readFileSync } = await import('node:fs');
+  const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-10-07-booking-rules-enforced.sql'), 'utf8');
+  const body = sql.replace(/--.*$/gm, '');
+  assert.match(body, /create trigger sessions_enforce_booking_rules\s+before insert on public\.sessions\s+for each row execute function public\.enforce_booking_rules\(\)/);
+  assert.match(body, /drop trigger if exists sessions_enforce_booking_rules on public\.sessions;/, 'not safe to re-run');
+  assert.match(body, /if new\.status is distinct from 'requested' then\s+return new;/, 'a coach\'s own booking is held to the member rules');
+  assert.match(body, /security definer\s+set search_path = public, pg_temp/);
+  assert.match(body, /revoke all on function public\.enforce_booking_rules\(\) from public, anon, authenticated;/);
+  const lock = body.indexOf('pg_advisory_xact_lock(');
+  const order = ['booking_rule:notice', 'booking_rule:time_off', 'booking_rule:buffer', 'booking_rule:daily_limit'].map((r) => body.indexOf("'" + r + "'"));
+  assert.ok(lock > 0 && order.every((i) => i > lock), 'a rule is read before the per-coach lock is held');
+  assert.deepEqual(order.slice().sort((a, b) => a - b), order, 'the rules are checked out of bookingRules.mjs\'s order');
+  assert.match(body, /\(s\.scheduled_at at time zone v_zone\)::date = \(new\.scheduled_at at time zone v_zone\)::date/, 'the daily limit counts UTC days, not the coach\'s');
+  assert.match(body, /s\.status in \('requested', 'confirmed'\)/);
+});
+
+test('bookingRuleRefusal reads the trigger\'s refusal into the member\'s own sentence, and nothing else', () => {
+  assert.deepEqual(BR.bookingRuleRefusal({ code: 'P0001', message: 'booking_rule:notice', details: '48' }),
+    { reason: 'notice', message: "This coach needs at least 2 days' notice. Pick a later time." });
+  assert.deepEqual(BR.bookingRuleRefusal({ code: 'P0001', message: 'booking_rule:time_off' }), { reason: 'time_off', message: 'This coach is away then.' });
+  assert.equal(BR.bookingRuleRefusal({ code: 'P0001', message: 'booking_rule:buffer' }).reason, 'buffer');
+  assert.equal(BR.bookingRuleRefusal({ code: 'P0001', message: 'booking_rule:daily_limit' }).message, 'This coach is fully booked that day.');
+  // The same sentence checkSlot gives a member for the same rule.
+  const v = BR.checkSlot({ start: '2026-10-08T13:00:00Z', durationMin: 60 }, { now: '2026-10-07T15:00:00Z', zone: NY, availability: HOURS, timeOff: [{ starts_at: '2026-10-08T12:00:00Z', ends_at: '2026-10-08T18:00:00Z' }], audience: 'member', skip: ['closed'] });
+  assert.equal(v.message, BR.bookingRuleRefusal({ message: 'booking_rule:time_off' }).message);
+  for (const e of [null, undefined, {}, { message: 'booking_rule:closed' }, { code: '23P01', message: 'conflicting key' }, { message: 'xbooking_rule:buffer' }]) {
+    assert.equal(BR.bookingRuleRefusal(e), null, JSON.stringify(e));
+  }
+});
+
+test('the app says why the database refused a request instead of "holding it locally"', async () => {
+  // Lifted from the shipped shapeBackend.js and driven with its collaborators stood in.
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const i = src.indexOf('async function createSessionRequest');
+  const j = src.indexOf('\nasync function ', i + 10);
+  assert.ok(i > 0 && j > i, 'could not lift createSessionRequest');
+  const make = (error) => {
+    const saved = [];
+    const supabase = { from: () => ({ insert: () => ({ select: () => ({ single: async () => ({ data: error ? null : { id: 's-1' }, error }) }) }) }) };
+    const fn = new Function('supabase', 'state', 'normalizeRole', 'saveLocalRecord', 'bookingRuleRefusal',
+      src.slice(i, j) + '\nreturn createSessionRequest;')(
+      supabase, { user: { id: 'member-1', email: 'm@shape.test' }, profile: {} }, (r) => r,
+      (k, p) => { saved.push(p); return p; }, BR.bookingRuleRefusal);
+    return { fn, saved };
+  };
+  const args = { providerId: 7, providerRole: 'trainer', scheduledAt: '2026-10-08T13:00:00.000Z' };
+  for (const [error, said] of [
+    [{ code: 'P0001', message: 'booking_rule:time_off' }, /This coach is away then\. Pick another time\./],
+    [{ code: 'P0001', message: 'booking_rule:notice', details: '24' }, /1 day's notice/],
+    [{ code: '23P01', message: 'conflicting key value violates exclusion constraint "sessions_no_overlap"' }, /just taken/],
+  ]) {
+    const { fn, saved } = make(error);
+    await assert.rejects(fn(args), said);
+    assert.equal(saved.length, 0, 'a refused request was saved locally');
+  }
+  const ok = make(null);
+  assert.equal((await ok.fn(args)).stored, 'supabase');
+  const outage = make({ code: 'PGRST301', message: 'JWT expired' });
+  assert.equal((await outage.fn(args)).stored, 'local', 'an outage still keeps the request locally, as before');
+});

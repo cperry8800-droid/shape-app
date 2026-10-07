@@ -36,7 +36,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { readJson, dbError } from '@/lib/request-utils';
 import { normalizeZone, wallClockInZone } from '@/lib/time';
-import { checkBookingRules, findSessionClash, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
+import { bookingRuleRefusal, checkBookingRules, findSessionClash, isDoubleBookError, offeredInOpenHours, readOpenHours } from '@/lib/session-booking';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -138,6 +138,11 @@ export async function POST(request: Request) {
     .select('id')
     .single();
   if (error) {
+    // ⚠ THE DATABASE KEEPS THE COACH'S RULES TOO (sessions_enforce_booking_rules): a request sent
+    // at the same moment as another can pass the check above and still break the buffer or the
+    // daily limit once both are written. The second one is refused here, with the same sentence.
+    const refused = bookingRuleRefusal(error);
+    if (refused) return NextResponse.json({ error: refused.message, code: refused.reason }, { status: 409 });
     // ⚠ THE DATABASE REFUSED A DOUBLE BOOKING: the same start (23505) or an overlapping one
     // (23P01, sessions_no_overlap) was written between the clash read and this write. It
     // deserves its own sentence, or the member goes back to the same dead time.

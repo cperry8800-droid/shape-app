@@ -10,7 +10,11 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ACTIVE_STATUSES, clashIn, fitsOpenHours, isOfferedStart } from '../../public/newdesign/scheduleRules.mjs';
-import { checkSlot } from '../../public/newdesign/bookingRules.mjs';
+import { bookingRuleRefusal, checkSlot } from '../../public/newdesign/bookingRules.mjs';
+
+// The database's own refusal of a member's request (2026-10-07-booking-rules-enforced.sql), in the
+// member's words: the second of two requests sent together, which both passed checkBookingRules.
+export { bookingRuleRefusal };
 import { isMissingRelation } from '@/lib/owned-provider';
 
 // How far before a new booking an existing one can START and still reach into it. No session
