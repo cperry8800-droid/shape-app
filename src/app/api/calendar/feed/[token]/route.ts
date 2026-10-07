@@ -29,6 +29,14 @@ export const dynamic = 'force-dynamic';
 // A ceiling, not a page: six months of one coach's bookings. Read NEWEST first, so a coach
 // past it loses the oldest days of the window rather than next week (tests/capped-reads).
 const ROW_CAP = 5000;
+// ⚠ ONE REQUEST IS NOT THE WHOLE WINDOW (Codex, the review of #2224). PostgREST answers a list
+// read with at most its own db-max-rows (1,000 here, the figure the repo's other readers
+// assume), whatever `.limit()` asked for, and it says nothing when it cuts: the array is just
+// shorter. A coach past that in 210 days would have been handed a calendar with real sessions
+// missing, which a subscribing app applies as deletions — the exact outcome the 503 rule below
+// exists to prevent. So each read pages, a page at a time, and checks what it got against the
+// exact count.
+const PAGE = 1000;
 // get_display_names' own batch limit, kept for the direct read too.
 const NAME_BATCH = 200;
 
@@ -46,6 +54,47 @@ function unavailable() {
 }
 
 type Provider = { role: 'trainer' | 'nutritionist'; id: number; zone: string | null };
+
+type Page<T> = { data: T[] | null; error: { message: string } | null; count?: number | null };
+
+// Every row of one bounded read, newest first, or `null` when the read failed or came back
+// incomplete (the caller answers 503). The query orders newest first with `id` as the
+// tiebreak, so a page boundary between two rows at one instant is stable.
+//
+// ⚠ THE STEP IS WHAT A PAGE RETURNED, NOT WHAT IT ASKED FOR, so a server ceiling lower than
+// PAGE still walks the whole set. ⚠ AND THE CHECK IS THE EXACT COUNT FROM THE FIRST PAGE, NOT
+// "a short page means the end": a row deleted (or cancelled) between two pages shifts every
+// later offset by one and skips a row, and only the count can see that. A read that fell short
+// of its count is reported as incomplete — Google keeps what it had for five minutes — rather
+// than published with a hole in it. Reaching ROW_CAP is the one deliberate shortfall: the
+// newest ROW_CAP rows are served and the oldest past days drop off, as the cap above says.
+async function readAll<T extends { id: unknown }>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>): Promise<T[] | null> {
+  const rows = new Map<string, T>();
+  let offset = 0;
+  let total: number | null = null;
+  while (offset < ROW_CAP) {
+    const res = await page(offset, Math.min(offset + PAGE, ROW_CAP) - 1);
+    if (res.error) {
+      console.error(`[shape-api] calendar feed: ${what} read failed:`, res.error.message);
+      return null;
+    }
+    if (total == null) total = typeof res.count === 'number' ? res.count : null;
+    const got = res.data ?? [];
+    for (const r of got) rows.set(String(r.id), r);
+    if (!got.length) break;
+    offset += got.length;
+    if (total != null && offset >= total) break;
+  }
+  if (total == null) {
+    console.error(`[shape-api] calendar feed: ${what} read returned no count`);
+    return null;
+  }
+  if (rows.size < Math.min(total, ROW_CAP)) {
+    console.error(`[shape-api] calendar feed: ${what} read incomplete (${rows.size} of ${total})`);
+    return null;
+  }
+  return [...rows.values()];
+}
 
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const token = feedTokenFromPath((await params).token);
@@ -90,40 +139,36 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
 
   const now = Date.now();
   const win = feedWindow(now);
-  const reads = await Promise.all(providers.map((p) => admin
-    .from('sessions')
-    .select('id, client_id, provider_role, type, scheduled_at, duration_min, status, topic, meeting_url, created_at, updated_at')
-    .eq('provider_role', p.role)
-    .eq('provider_id', p.id)
-    .in('status', FEED_SESSION_STATUSES)
-    .gte('scheduled_at', new Date(win.fromMs).toISOString())
-    .lte('scheduled_at', new Date(win.toMs).toISOString())
-    .order('scheduled_at', { ascending: false })
-    .limit(ROW_CAP)));
   const sessions: FeedSession[] = [];
-  for (const r of reads) {
-    if (r.error) {
-      console.error('[shape-api] calendar feed: sessions read failed:', r.error.message);
-      return unavailable();
-    }
-    sessions.push(...((r.data ?? []) as FeedSession[]));
+  for (const p of providers) {
+    const rows = await readAll<FeedSession>('sessions', (from, to) => admin
+      .from('sessions')
+      .select('id, client_id, provider_role, type, scheduled_at, duration_min, status, topic, meeting_url, created_at, updated_at', { count: 'exact' })
+      .eq('provider_role', p.role)
+      .eq('provider_id', p.id)
+      .in('status', FEED_SESSION_STATUSES)
+      .gte('scheduled_at', new Date(win.fromMs).toISOString())
+      .lte('scheduled_at', new Date(win.toMs).toISOString())
+      .order('scheduled_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(from, to));
+    if (!rows) return unavailable();
+    sessions.push(...rows);
   }
 
   // The coach's OWN calendar notes — never the ones they wrote onto a client's calendar,
   // which belong to that client (user_id is the owner, created_by the author).
-  const { data: evRows, error: evError } = await admin
+  const evRows = await readAll<FeedEvent>('events', (from, to) => admin
     .from('calendar_events')
-    .select('id, kind, title, sub, event_date, event_time, duration_min, with_name, location, status, created_at, updated_at')
+    .select('id, kind, title, sub, event_date, event_time, duration_min, with_name, location, status, created_at, updated_at', { count: 'exact' })
     .eq('user_id', userId)
     .in('status', FEED_EVENT_STATUSES)
     .gte('event_date', win.fromDate)
     .lte('event_date', win.toDate)
     .order('event_date', { ascending: false })
-    .limit(ROW_CAP);
-  if (evError) {
-    console.error('[shape-api] calendar feed: events read failed:', evError.message);
-    return unavailable();
-  }
+    .order('id', { ascending: false })
+    .range(from, to));
+  if (!evRows) return unavailable();
 
   // Client names, as the Schedule page shows them (profiles.full_name, else "Client").
   // ⚠ NOT get_display_names: it answers nothing when auth.uid() is null, which it always is
@@ -146,7 +191,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const origin = (process.env.NEXT_PUBLIC_SITE_URL || 'https://theshapecommunity.com').replace(/\/+$/, '');
   const body = buildCoachFeed({
     sessions,
-    events: (evRows ?? []) as FeedEvent[],
+    events: evRows,
     names,
     zone: providers.find((p) => p.zone)?.zone ?? null,
     origin,

@@ -14,7 +14,12 @@
 // it. `*` or an embedded resource (`rel(...)`) disables the projection.
 // `fail` names tables (or 'rpc:<name>') whose reads answer { error }, the
 // honest-unavailable path.
-export function fakeSupabase({ tables = {}, rpcs = {}, fail = [] } = {}) {
+// `.range(from, to)` and `select(cols, { count: 'exact' })` behave as PostgREST's do (the
+// count is every matching row, whatever the page). `maxRows` is PostgREST's own ceiling
+// (db-max-rows): a list read returns at most that many rows however much `.limit()` or
+// `.range()` asked for, which is how a reader that trusts its own limit gets a SHORT answer
+// with no error in production.
+export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null } = {}) {
   const calls = [];
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   function run(state) {
@@ -34,8 +39,11 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [] } = {}) {
         return 0;
       });
     }
+    const count = rows.length;
+    if (state.range) rows = rows.slice(state.range[0], state.range[1] + 1);
     if (state.limit != null) rows = rows.slice(0, state.limit);
-    return rows.map((r) => project(r, state.select));
+    if (maxRows != null && !state.single) rows = rows.slice(0, maxRows);
+    return { rows: rows.map((r) => project(r, state.select)), count };
   }
   // PostgREST's select list: `col`, `alias:col`, and `*` / `rel(...)` (no projection).
   function project(row, select) {
@@ -50,9 +58,9 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [] } = {}) {
     return out;
   }
   function from(table) {
-    const state = { table, filters: [], orders: [], limit: null, single: false, select: null };
+    const state = { table, filters: [], orders: [], limit: null, range: null, single: false, select: null, count: false };
     const chain = {
-      select(cols) { state.select = cols; return chain; },
+      select(cols, opts) { state.select = cols; state.count = !!(opts && opts.count); return chain; },
       eq(col, v) { state.filters.push((r) => r[col] === v); return chain; },
       neq(col, v) { state.filters.push((r) => r[col] !== v); return chain; },
       in(col, vs) { state.filters.push((r) => vs.includes(r[col])); return chain; },
@@ -75,13 +83,17 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [] } = {}) {
       },
       order(col, { ascending = true, nullsFirst = false } = {}) { state.orders.push({ col, ascending, nullsFirst }); return chain; },
       limit(n) { state.limit = n; return chain; },
+      range(a, b) { state.range = [a, b]; return chain; },
       maybeSingle() { state.single = true; return chain; },
       then(res, rej) {
-        calls.push({ table, select: state.select, single: state.single, limit: state.limit });
+        calls.push({ table, select: state.select, single: state.single, limit: state.limit, range: state.range });
         const failed = fail.includes(table);
-        const out = failed
-          ? { data: null, error: { message: `fake failure on ${table}` } }
-          : { data: state.single ? (run(state)[0] ?? null) : run(state), error: null };
+        let out;
+        if (failed) out = { data: null, error: { message: `fake failure on ${table}` } };
+        else {
+          const { rows, count } = run(state);
+          out = { data: state.single ? (rows[0] ?? null) : rows, error: null, ...(state.count ? { count } : {}) };
+        }
         return Promise.resolve(out).then(res, rej);
       },
     };

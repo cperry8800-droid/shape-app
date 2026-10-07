@@ -328,7 +328,7 @@ test('names are the one read that may fail: the bookings still come, reading "Cl
   assert.equal(res.logs.length, 1);
 });
 
-test('the reads keep the NEWEST rows under their cap, and the names go in batches the RPC would accept', async () => {
+test('the names go in batches the RPC would accept', async () => {
   const t = feedTables();
   t.sessions = Array.from({ length: 450 }, (_, i) => session('s' + i, iso(now + (i % 100) * 3600e3), { provider_id: 7, client_id: 'm-' + i }));
   const c = fakeSupabase({ tables: t });
@@ -336,8 +336,66 @@ test('the reads keep the NEWEST rows under their cap, and the names go in batche
   assert.equal(res.status, 200);
   const nameReads = c._calls.filter((x) => x.table === 'profiles');
   assert.equal(nameReads.length, 3, '450 ids in batches of 200');
-  const src = readFileSync(join(ROOT, 'src/app/api/calendar/feed/[token]/route.ts'), 'utf8');
-  assert.equal((src.match(/ascending: false \}\)\s*\n\s*\.limit\(ROW_CAP\)/g) || []).length, 2);
+});
+
+// ⚠ Codex, the review of #2224: PostgREST answers a list read with at most its own
+// db-max-rows, whatever `.limit()` asked for, and the short array carries no error. These run
+// the fake with that ceiling switched on (1,000, the figure the repo's other readers assume).
+const many = (n, extra = {}) => Array.from({ length: n }, (_, i) => session('s' + String(i).padStart(5, '0'), iso(now + 60e3 * i), { provider_id: 7, client_id: 'm-1', ...extra }));
+
+test('a coach past the server\'s row ceiling gets every session, a page at a time', async () => {
+  // 1,000 is PAGE itself; 400 is a server whose ceiling is lower than the page the route asks
+  // for, so a step of "what I asked for" would skip 600 rows a page.
+  for (const maxRows of [1000, 400]) {
+    const t = feedTables({ calendar_events: [] });
+    t.sessions = many(2450);
+    const c = fakeSupabase({ tables: t, maxRows });
+    const res = await fetchFeed(TOKEN, c);
+    assert.equal(res.status, 200, 'max-rows ' + maxRows);
+    assert.equal(vevents(res.text).length, 2450, 'max-rows ' + maxRows + ': one read would have published ' + maxRows);
+    const pages = c._calls.filter((x) => x.table === 'sessions');
+    assert.ok(pages.length >= Math.ceil(2450 / maxRows), 'paged, not one read');
+  }
+});
+
+test('a row that vanishes between two pages is a 503, never a feed with a hole in it', async () => {
+  const t = feedTables({ calendar_events: [] });
+  t.sessions = many(1500);
+  const c = fakeSupabase({ tables: t, maxRows: 1000 });
+  // After the first page is read, the newest booking is cancelled: every later offset shifts
+  // by one, so one older row is never fetched. Only the exact count can see it.
+  const from = c.from;
+  let pages = 0;
+  c.from = (table) => {
+    const chain = from(table);
+    if (table !== 'sessions') return chain;
+    const then = chain.then;
+    chain.then = (res, rej) => then.call(chain, (out) => { if (++pages === 1) t.sessions.splice(t.sessions.length - 1, 1); return res(out); }, rej);
+    return chain;
+  };
+  const res = await fetchFeed(TOKEN, c);
+  assert.equal(res.status, 503);
+  assert.ok(res.logs.some((l) => /incomplete/.test(l)), res.logs.join('\n'));
+});
+
+test('the calendar notes page past the ceiling too', async () => {
+  const t = feedTables();
+  t.calendar_events = Array.from({ length: 1200 }, (_, i) => note('n' + String(i).padStart(5, '0'), iso(now + DAY * (i % 150)).slice(0, 10), null, { user_id: 'coach-1' }));
+  const c = fakeSupabase({ tables: t, maxRows: 1000 });
+  const res = await fetchFeed(TOKEN, c);
+  assert.equal(res.status, 200);
+  assert.ok(c._calls.filter((x) => x.table === 'calendar_events').length >= 2, 'paged, not one read');
+  assert.equal((res.text.match(/UID:event-n\d+/g) || []).length, 1200);
+});
+
+test('at the 5,000-row ceiling the NEWEST rows are kept and the oldest days drop off', async () => {
+  const t = feedTables({ calendar_events: [] });
+  t.sessions = many(5200);
+  const res = await fetchFeed(TOKEN, fakeSupabase({ tables: t, maxRows: 1000 }));
+  assert.equal(res.status, 200);
+  assert.equal(vevents(res.text).length, 5000);
+  assert.match(res.text, /UID:session-s05199@/, 'the newest is in');
+  assert.doesNotMatch(res.text, /UID:session-s00000@/, 'the oldest is the one that drops');
 });
 
 // ── 5 · the link-management route ────────────────────────────────────────────
