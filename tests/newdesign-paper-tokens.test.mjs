@@ -491,7 +491,7 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
 
 // The hex-alpha append census, DERIVED from the tree rather than typed: every site
 // where a colour reaches a `c + "1c"` or `${INK}40` append, counted per file.
-// 11 files, 2 concatenation + 32 template = 34 sinks. (This read "21 files, 56 sinks"
+// 11 files, 3 concatenation + 32 template = 35 sinks (the Schedule grid's block, 2026-10-07). (This read "21 files, 56 sinks"
 // after #2142 and had drifted from the table below; the count is the table's.)
 // ⚠ dashClient.jsx's membership pill and coachClientDetail.jsx's CKTrend + cycle strip
 // LEFT the census on purpose: their colours follow the paper now, so their alphas
@@ -503,7 +503,9 @@ const SINK_CENSUS = {
   'client.jsx': { concat: 0, template: 2 },
   'clientPlaylist.jsx': { concat: 0, template: 1 },
   'dashProfileExtras.jsx': { concat: 0, template: 1 },
-  'dashSchedule.jsx': { concat: 1, template: 0 },
+  // 2 since 2026-10-07: DscChip's tint, and the week grid's booking block (`color + "29"`),
+  // both fed only by the literal per-client palette (DSC_PALETTE).
+  'dashSchedule.jsx': { concat: 2, template: 0 },
   'landing.jsx': { concat: 0, template: 2 },
   'marketplace.jsx': { concat: 0, template: 10 },
   'memberProfile.jsx': { concat: 0, template: 4 },

@@ -71,6 +71,8 @@ async function routes() {
   const lib = (f) => loadRealModule(join(ROOT, 'src/lib', f), { typescript: true, registry: new Map([['next/server', nextServer]]) });
   const [time, requestUtils] = await Promise.all([lib('time.ts'), lib('request-utils.ts')]);
   const guards = await import(pathToFileURL(join(ROOT, 'src/lib/access-guards.mjs')).href);
+  // The shared booking rules (clash + open hours), compiled from the shipped file like the rest.
+  const booking = await loadRealModule(join(ROOT, 'src/lib/session-booking.ts'), { typescript: true, registry: new Map([['@supabase/supabase-js', {}]]) });
   let client = null, userId = 'coach-1';
   const notices = [];
   const registry = () => new Map([
@@ -78,6 +80,7 @@ async function routes() {
     ['@/lib/time', time],
     ['@/lib/request-utils', requestUtils],
     ['@/lib/access-guards.mjs', guards],
+    ['@/lib/session-booking', booking],
     ['@/lib/require-membership', { requireMembership: async () => null }],
     ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: userId }) }],
     ['@/lib/supabase/admin', { createAdminClient: () => ({}) }],
@@ -321,118 +324,102 @@ test('the website\'s member calendar overlay sends its zone too', () => {
 
 // ── 2 · the page asks for the range on screen, and keeps it ──────────────────
 
-const babel = require('next/dist/compiled/babel/core');
-const presetReact = require('next/dist/compiled/babel/preset-react');
 const SCHEDULE_SRC = readFileSync(join(ROOT, 'public/newdesign/dashSchedule.jsx'), 'utf8');
 
 test('the page loads the visible months with tz + role, once each, and drags with the zone it was shown', async () => {
-  const { JSDOM } = require('jsdom');
-  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'https://shape.test/newdesign/TrainerApp.html#schedule' });
-  const before = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT, fetch: globalThis.fetch };
-  globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  const React = require('react');
-  const { createRoot } = require('react-dom/client');
-  const act = React.act;
-  const calls = [];
+  // ⚠ RESTATED 2026-10-07 FOR THE WEEK GRID (step 2), CLAIM FOR CLAIM. A ?date= link now opens
+  // the DAY view for that visit (it used to write "week" into the remembered choice), the week
+  // is a time grid whose drag is pointer-driven (tests/schedule-step2.test.mjs drives that one),
+  // and the HTML5 day-only drag this test drove lives on in the Month view — so the DST round
+  // trip is driven there, with the same body asserted.
+  const { mountSchedule, json } = await import('./helpers/schedule-page.mjs');
   // ⚠ THE ROUTE ANSWERS IN CHICAGO WHILE THIS BROWSER IS IN NEW YORK, so the label and the drag
   // can only be right by using the zone the answer NAMES, never this browser's own guess.
   const ROUTE_ZONE = 'America/Chicago';
-  globalThis.fetch = async (url, init = {}) => {
-    calls.push({ url: String(url), init });
-    const u = new URL(String(url), 'https://shape.test');
-    if (u.pathname === '/api/my-availability') return { ok: true, json: async () => ({ slots: [], timezone: ROUTE_ZONE }) };
-    if (u.pathname === '/api/sessions/manage') return { ok: true, json: async () => ({ ok: true }) };
-    if (u.pathname === '/api/calendar') {
-      // A page that re-requests what it already holds loops on its own answers; past a dozen
-      // reads the stand-in refuses, so such a page stops and the counts below catch it.
-      if (calls.filter((c) => c.url.startsWith('/api/calendar')).length > 12) return { ok: false, json: async () => ({}) };
-      const from = u.searchParams.get('from'), to = u.searchParams.get('to');
-      const all = [{ id: 'session:s-1', sessionId: 's-1', source: 'session', kind: 'SESSION', title: 'Lower pull', date: '2026-10-30', time: '09:00', durationMin: 60, with: 'Priya S.', clientId: 'member-1', status: 'confirmed', reschedulable: true, editable: false }];
-      return { ok: true, json: async () => ({ events: all.filter((e) => e.date >= from && e.date <= to), zone: ROUTE_ZONE }) };
-    }
-    return { ok: false, json: async () => ({}) };
-  };
-  const code = babel.transformSync(SCHEDULE_SRC, { presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script' }).code;
-  const Plain = ({ children }) => React.createElement('div', null, children);
-  const { CoachSchedulePage } = new Function(
-    'React', 'window', 'useDashboard', 'useRememberedChoices', 'useRememberedChoice', 'dashRouteParam', 'DashDemoBand', 'DashPage',
-    'dashTabHref', 'trainerNavItems', 'nutriNavItems', 'trainerPayoutCard', 'nutriPayoutCard', 'serif',
-    code + '\nreturn { CoachSchedulePage };',
-  )(
-    React, dom.window,
-    () => ({ triage: [], today: { user: { firstName: 'Coach' } }, source: 'live' }),
-    () => ({}),
-    (_prefs, _key, _allowed, def) => React.useState(def),
+  let calendarReads = 0;
+  const page = await mountSchedule({
     // The 31st, on purpose: a month step that overflows from it skips November entirely.
-    (k) => (k === 'date' ? '2026-10-31' : null),
-    () => null, Plain, () => '#', () => [], () => [], null, null, 'serif',
-  );
-  const root = createRoot(document.getElementById('root'));
-  const calendarCalls = () => calls.filter((c) => c.url.startsWith('/api/calendar')).map((c) => new URL(c.url, 'https://shape.test').searchParams);
-  const button = (name) => [...document.querySelectorAll('button')].find((b) => b.textContent === name);
-  const click = async (name) => { const b = button(name); assert.ok(b, 'no button ' + name); await act(async () => b.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }))); };
+    params: { date: '2026-10-31' },
+    async fetch(u) {
+      if (u.pathname === '/api/my-availability') return json(200, { slots: [], timezone: ROUTE_ZONE });
+      if (u.pathname === '/api/sessions/manage') return json(200, { ok: true });
+      if (u.pathname === '/api/calendar') {
+        // A page that re-requests what it already holds loops on its own answers; past a dozen
+        // reads the stand-in refuses, so such a page stops and the counts below catch it.
+        if (++calendarReads > 12) return json(500, {});
+        const from = u.searchParams.get('from'), to = u.searchParams.get('to');
+        const all = [{ id: 'session:s-1', sessionId: 's-1', source: 'session', kind: 'SESSION', title: 'Lower pull', date: '2026-10-30', time: '09:00', durationMin: 60, with: 'Priya S.', clientId: 'member-1', status: 'confirmed', reschedulable: true, editable: false }];
+        return json(200, { events: all.filter((e) => e.date >= from && e.date <= to), zone: ROUTE_ZONE });
+      }
+      return json(404, {});
+    },
+  });
+  const calendarCalls = () => page.calls.filter((c) => c.url.startsWith('/api/calendar')).map((c) => new URL(c.url, 'https://shape.test').searchParams);
+  const click = (name) => page.click(page.button(name));
   try {
-    await act(async () => root.render(React.createElement(CoachSchedulePage, { role: 'trainer' })));
-    // The first render is the remembered month view on the deep-linked October: its grid
-    // runs Sep 28 – Nov 8, plus a week either side, so Sep, Oct and Nov in ONE request.
+    // The deep link opens the day view on Sat Oct 31; its range is that week (Oct 26 – Nov 1)
+    // plus a week either side, so October and November in ONE request.
     let cal = calendarCalls();
     assert.equal(cal.length, 1, 'one request for the contiguous months on screen');
-    assert.deepEqual([cal[0].get('from'), cal[0].get('to')], ['2026-09-01', '2026-11-30']);
+    assert.deepEqual([cal[0].get('from'), cal[0].get('to')], ['2026-10-01', '2026-11-30']);
     assert.equal(cal[0].get('role'), 'trainer');
     assert.equal(cal[0].get('tz'), Intl.DateTimeFormat().resolvedOptions().timeZone, 'the browser zone is sent, so the route answers on a clock');
-    // The deep link put it on the week of Oct 26 – Nov 1, read in the zone the route named.
-    assert.match(document.body.textContent, /Times in America\/Chicago/);
-    assert.doesNotMatch(document.body.textContent, /Times in America\/New_York/, 'the label is this browser\'s guess, not the route\'s answer');
-    assert.match(document.body.textContent, /9:00a/);
+    assert.equal(page.button('Day').getAttribute('aria-pressed'), 'true', 'a linked date no longer opens its day');
+    // The week, read in the zone the route named.
+    await click('Week');
+    assert.equal(calendarCalls().length, 1, 'the week is already loaded');
+    assert.match(page.text(), /Times in America\/Chicago/);
+    assert.doesNotMatch(page.text(), /Times in America\/New_York/, 'the label is this browser\'s guess, not the route\'s answer');
+    assert.match(page.text(), /9:00a/);
+
+    // Month: grid Sep 28 – Nov 8, +/- a week → September joins.
+    await click('Month');
+    cal = calendarCalls();
+    assert.equal(cal.length, 2);
+    assert.deepEqual([cal[1].get('from'), cal[1].get('to')], ['2026-09-01', '2026-09-30'], 'only the month not yet loaded');
 
     // The drag hands back the zone the booking was SHOWN in, with the shown wall clock —
     // here across the night the clocks go back, Fri Oct 30 to Sun Nov 1.
-    const chip = [...document.querySelectorAll('[draggable="true"]')].find((el) => /Priya/.test(el.textContent));
-    assert.ok(chip, 'the booking chip is on the week grid');
-    const start = new dom.window.Event('dragstart', { bubbles: true });
+    const chip = [...page.doc.querySelectorAll('[draggable="true"]')].find((el) => /Priya/.test(el.textContent));
+    assert.ok(chip, 'the booking chip is on the month grid');
+    const start = new page.dom.window.Event('dragstart', { bubbles: true });
     start.dataTransfer = { setData() {} };
-    await act(async () => chip.dispatchEvent(start));
-    const sun = [...document.querySelectorAll('div')].find((d) => d.firstChild && d.firstChild.textContent === 'Sun 1');
-    assert.ok(sun, 'the Sunday column');
-    await act(async () => sun.dispatchEvent(Object.assign(new dom.window.Event('drop', { bubbles: true, cancelable: true }), { dataTransfer: {} })));
-    const post = calls.find((c) => c.url === '/api/sessions/manage');
+    await page.act(async () => chip.dispatchEvent(start));
+    const sun = page.doc.querySelector('[data-date="2026-11-01"]');
+    assert.ok(sun, 'the Sunday cell');
+    await page.act(async () => sun.dispatchEvent(Object.assign(new page.dom.window.Event('drop', { bubbles: true, cancelable: true }), { dataTransfer: {} })));
+    await page.settle();
+    const post = page.calls.find((c) => c.url === '/api/sessions/manage');
     assert.ok(post, 'the drop rescheduled the session');
     assert.deepEqual(JSON.parse(post.init.body), { action: 'reschedule', sessionId: 's-1', date: '2026-11-01', time: '09:00', tz: 'America/Chicago' });
 
-    await click('Month');
-    assert.equal(calendarCalls().length, 1, 'October is already loaded');
     await click('›'); // November: grid Oct 26 – Dec 6, +/- a week → Oct, Nov, Dec
     cal = calendarCalls();
-    assert.equal(cal.length, 2);
-    assert.deepEqual([cal[1].get('from'), cal[1].get('to')], ['2026-12-01', '2026-12-31'], 'only the month not yet loaded — and November, not a skipped-to December');
-    assert.match(document.body.textContent, /November 2026/);
+    assert.equal(cal.length, 3);
+    assert.deepEqual([cal[2].get('from'), cal[2].get('to')], ['2026-12-01', '2026-12-31'], 'only the month not yet loaded — and November, not a skipped-to December');
+    assert.match(page.text(), /November 2026/);
     // The November grid, cell by cell: the Sunday the clocks go back appears ONCE, and the
     // Monday after it sits under Monday.
-    const days = [...document.querySelectorAll('div')].filter((d) => d.style.minHeight === '92px').map((d) => d.firstChild.textContent);
+    const days = [...page.doc.querySelectorAll('div')].filter((d) => d.style.minHeight === '92px').map((d) => d.firstChild.textContent);
     assert.equal(days.length, 42);
     assert.deepEqual(days.slice(0, 9), ['26', '27', '28', '29', '30', '31', '1', '2', '3']);
     assert.deepEqual(days.slice(-2), ['5', '6']);
     await click('›'); // December → adds January
     cal = calendarCalls();
-    assert.equal(cal.length, 3);
-    assert.deepEqual([cal[2].get('from'), cal[2].get('to')], ['2027-01-01', '2027-01-31']);
+    assert.equal(cal.length, 4);
+    assert.deepEqual([cal[3].get('from'), cal[3].get('to')], ['2027-01-01', '2027-01-31']);
     await click('‹'); await click('‹'); // back to November, then October
-    assert.equal(calendarCalls().length, 3, 'paging back costs nothing');
+    assert.equal(calendarCalls().length, 4, 'paging back costs nothing');
     await click('‹'); // September: grid Aug 31 – Oct 11, +/- a week → adds August
     cal = calendarCalls();
-    assert.equal(cal.length, 4);
-    assert.deepEqual([cal[3].get('from'), cal[3].get('to')], ['2026-08-01', '2026-08-31']);
+    assert.equal(cal.length, 5);
+    assert.deepEqual([cal[4].get('from'), cal[4].get('to')], ['2026-08-01', '2026-08-31']);
     for (const q of cal) {
       assert.equal(q.get('role'), 'trainer');
       assert.equal(q.get('tz'), 'America/New_York');
     }
   } finally {
-    await act(async () => root.unmount());
-    // The move's toast clears itself on a 2.6 s timer; let it fire while a window still
-    // exists, or it lands after the test against no DOM at all.
-    await new Promise((r) => setTimeout(r, 2700));
-    dom.window.close();
-    Object.assign(globalThis, { window: before.window, document: before.document, IS_REACT_ACT_ENVIRONMENT: before.act, fetch: before.fetch });
+    await page.unmount();
   }
 });
 

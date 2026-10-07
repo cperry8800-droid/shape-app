@@ -332,6 +332,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/radio/station', 'GET'],
   ['/api/recipes/reviews', 'GET,POST'],
   ['/api/sessions/manage', 'GET,POST'],
+  ['/api/sessions/request', 'POST'],
   ['/api/support/chat', 'POST'],
   ['/api/store/redeem', 'GET,POST'],
   ['/api/store/tier-rewards', 'GET,POST'],

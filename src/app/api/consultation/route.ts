@@ -38,6 +38,7 @@ import { verifyTurnstile } from '@/lib/turnstile';
 import { currentUser } from '@/lib/request-auth';
 
 import { instantInZone, normalizeZone } from '@/lib/time';
+import { insideOpenHours, readOpenHours } from '@/lib/session-booking';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAIL = process.env.APPLICATIONS_EMAIL ?? 'chris.perry@shapecommunity.onmicrosoft.com';
@@ -214,6 +215,30 @@ export async function POST(req: NextRequest) {
   if (isEffectivelyAtCapacity(provider)) {
     return NextResponse.json(
       { error: 'This coach is at capacity right now. Try again later.' },
+      { status: 409 }
+    );
+  }
+
+  // ⚠ ONLY INSIDE THE COACH'S OPEN HOURS (2026-10-07). This route placed the wall clock it was
+  // sent and wrote it, so a crafted request could book a coach at 3 AM: the booking page only
+  // OFFERS open hours, but nothing here checked them. `date` + `time` are already the coach's
+  // own wall clock (the page sends them in the coach's zone and the instant above is derived
+  // from them), so the check reads them directly. The rule is scheduleRules.fitsOpenHours —
+  // exactly what bookingSlots.js offers the page, so a time the member was shown is never
+  // refused here.
+  //
+  // ⚠ A FAILED READ REFUSES. An unreadable pattern cannot vouch for any time, and writing the
+  // booking anyway is the unchecked path this closes.
+  const hours = await readOpenHours(admin, providerRole, providerIdRaw);
+  if (!hours.ok) {
+    return NextResponse.json(
+      { error: "We couldn't check this coach's open hours just now. Please try again." },
+      { status: 503 }
+    );
+  }
+  if (!insideOpenHours(hours.slots, date, parsed.hour * 60 + parsed.minute, 15)) {
+    return NextResponse.json(
+      { error: "That time is outside this coach's open hours. Please pick one of the times shown.", code: 'outside_hours' },
       { status: 409 }
     );
   }

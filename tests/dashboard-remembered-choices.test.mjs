@@ -564,8 +564,12 @@ test('the four controls are wired, and the search box deliberately is not', () =
   assert.match(prog, /const DPR_TREND_KEYS = DPR_TREND_TABS\.map\(\(t\) => t\.k\)/);
   assert.ok(!/React\.useState\("weight"\)/.test(prog), 'the trend tab went back to plain state');
   const sched = page('dashSchedule.jsx');
-  assert.match(sched, /useRememberedChoice\(prefs, "scheduleView", \["month", "week"\], "month"\)/);
-  assert.ok(!/React\.useState\("month"\)/.test(sched), 'the schedule view went back to plain state');
+  // ⚠ THE ALLOWLIST IS THE SET OF VIEWS THE TOGGLE RENDERS (2026-10-07: Day joined Week and
+  // Month), so a view added to the toggle is remembered without a second list to update.
+  assert.match(sched, /useRememberedChoice\(prefs, "scheduleView", DSC_VIEWS, "week"\)/);
+  assert.match(sched, /const DSC_VIEWS = \["day", "week", "month"\];/);
+  assert.match(sched, /\{DSC_VIEWS\.map\(\(v\) => <button key=\{v\}/, 'the view toggle stopped rendering from the allowlist');
+  assert.ok(!/React\.useState\("(month|week|day)"\)/.test(sched), 'the schedule view went back to plain state');
 });
 
 // Does `src` call `n` OUTSIDE a same-expression `typeof n === "function"` guard?

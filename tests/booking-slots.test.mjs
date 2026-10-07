@@ -219,19 +219,28 @@ test('the projection survives a DST transition in the viewer’s zone', () => {
 
 test('the Team page books with the account, and the preview cannot book at all', () => {
   const t = stripComments(TEAM);
-  // identity comes from the account, never from anything on screen
-  assert.match(t, /await c\.auth\.getUser\(\)/);
-  assert.match(t, /client_id: user\.id/);
-  // RLS pins it too, but sending anything else would be a request to self-confirm
-  assert.match(t, /status: "requested"/);
-  assert.doesNotMatch(t, /status: "confirmed"/);
+  // ⚠ SINCE 2026-10-07 THE REQUEST GOES THROUGH /api/sessions/request, so the coach is told and
+  // the time is checked against their hours. The rules this test pinned on the browser insert
+  // now live in the route, and are pinned there (tests/schedule-step2.test.mjs drives it).
+  assert.match(t, /fetch\("\/api\/sessions\/request"/, 'the Team page writes to sessions directly again');
+  assert.doesNotMatch(t, /\.from\("sessions"\)\.insert/, 'the Team page writes to sessions directly again');
+  // identity comes from the account, never from anything on screen: the page sends no member
+  // fields and no status at all — the route reads the member from the session
+  assert.doesNotMatch(t, /client_id:|client_email:|status: "/, 'the page sends identity or a status');
+  const route = stripComments(readFileSync(new URL('../src/app/api/sessions/request/route.ts', import.meta.url), 'utf8'));
+  assert.match(route, /client_id: user\.id/);
+  // RLS pins it too, but writing anything else would be a self-confirm
+  assert.match(route, /status: 'requested'/);
+  assert.doesNotMatch(route, /status: 'confirmed'/);
+  assert.match(route, /23505/, 'the double-book index lost its own sentence in the route');
   // the control is gated on a LIVE page AND a real provider row — a demo coach has
   // neither an availability pattern nor a row a booking could be written against
   assert.match(t, /canBook=\{state === "live" && !!c\.provider_id\}/);
   // and provider_id has to survive the live mapping or the sheet has nobody to ask about
   assert.match(t, /provider_id: c\.provider_id/);
-  // the double-book index deserves its own sentence, not a generic failure
-  assert.match(t, /23505/);
+  // a taken time (the route's `taken`: the double-book index or an overlap) deserves its own
+  // sentence on the page, not a generic failure
+  assert.match(t, /j\.code === "taken" \? "Somebody just took that time/);
   // ⚠ AND THE OLD MISLABEL MUST NOT COME BACK: "Book session" may never call the chat.
   // ⚠ ANCHORED ON THE BUTTON, NOT ON A CHARACTER WINDOW. The first version sliced 600
   // characters back from the label and caught the MESSAGE button, which calls the chat
